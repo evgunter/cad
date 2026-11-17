@@ -117,7 +117,7 @@ fn fixed_winding_aliased_full_period_refused() {
                 place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
                 axis: geom::Line {
                     origin: center,
-                    dir: Vec3::unit_z(),
+                    dir: geom_core::UnitVec3::squared(Vec3::unit_z()),
                 },
                 angle: TAU,
             },
@@ -284,15 +284,11 @@ fn survives_wrong_carriers_are_rejected() {
 fn survives_plane_cylinder_partial_rim_certifies() {
     let (keys, lookup) = table(vec![
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         },
         Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         },
     ]);
     let p0 = Point3::new(1.0, 0.0, 0.0);
@@ -337,15 +333,11 @@ fn survives_plane_cylinder_partial_rim_certifies() {
 fn fixed_intersection_arc_side_and_winding_pinned() {
     let (keys, lookup) = table(vec![
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         },
         Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         },
     ]);
     let p0 = Point3::new(1.0, 0.0, 0.0);
@@ -456,15 +448,11 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
 fn fixed_full_period_rim_intersection_certifies() {
     let (keys, lookup) = table(vec![
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         },
         Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         },
     ]);
     let p = Point3::new(1.0, 0.0, 0.0);
@@ -500,17 +488,13 @@ fn fixed_full_period_rim_intersection_certifies() {
 #[test]
 fn survives_exact_tangency_and_true_corner_classify_definitely() {
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     // Cylinder resting on the plane: exact tangency along the contact
     // generator through the origin.
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 2.0),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 2.0), Vec3::unit_y(), Vec3::unit_x()),
         radius: 2.0,
-        u_ref: Vec3::unit_x(),
     };
     assert_eq!(
         classify_dihedral(&plane, &cyl, Point3::origin(), fixture_lever(10.0), band())
@@ -520,9 +504,7 @@ fn survives_exact_tangency_and_true_corner_classify_definitely() {
     );
     // True corner: perpendicular planes at arm 1.
     let wall = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_x(),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
     };
     assert_eq!(
         classify_dihedral(&plane, &wall, Point3::origin(), fixture_lever(1.0), band())
@@ -543,18 +525,14 @@ fn survives_exact_tangency_and_true_corner_classify_definitely() {
 #[test]
 fn fixed_sub_epsilon_cone_arm_escalates() {
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: FRAC_PI_6,
-        u_ref: Vec3::unit_x(),
     };
     let tan_a = FRAC_PI_6.tan();
     // A cone point at radial distance rho from the axis (on the locus).
     let at = |rho: f64| Point3::new(rho, 0.0, rho / tan_a);
     let plane_through = |p: Point3<f64>| Surface::Plane {
-        origin: p,
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(p, Vec3::unit_z(), Vec3::unit_x()),
     };
     // Healthy arm: definitely transverse (sin theta = cos alpha ~ 0.87).
     let p = at(1.0);
@@ -608,14 +586,10 @@ fn sub_eps_arm_quotes() -> &'static str {
 #[test]
 fn fixed_sub_epsilon_extent_true_corner_escalates() {
     let floor = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     let wall = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_x(),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
     };
     // The arm gate escalates, quoting the wedge it meters where that is
     // nonzero and the arm offers a tolerance, and its own decided zero
@@ -677,14 +651,10 @@ fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
     let certify = |carrier: Curve3<f64>| {
         let mut arena: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
         let s1 = arena.insert(Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
         });
         let s2 = arena.insert(Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_y(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
         });
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
@@ -766,15 +736,15 @@ fn survives_curvature_arm_caps_huge_chord() {
     // kilometer-scale chord — never a false definite from the chord.
     let r = 3.0 * eps();
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, r),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, r), Vec3::unit_y(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     };
     let tilted = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(FRAC_PI_2.sin(), 0.0, FRAC_PI_2.cos()),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(FRAC_PI_2.sin(), 0.0, FRAC_PI_2.cos()),
+            Vec3::unit_y(),
+        ),
     };
     // sin(theta) = 1, arm = min(r, 1000.0) = r = 3 eps -> in band.
     assert!(
@@ -941,9 +911,10 @@ fn survives_newell_far_offset_and_collinear_escalation() {
         corner(1.0, 2.0),
         corner(0.0, 2.0),
     ];
-    let Surface::Plane { normal, .. } = newell_plane(&pts, pts[1] - pts[0], band()).unwrap() else {
+    let Surface::Plane { frame, .. } = newell_plane(&pts, pts[1] - pts[0], band()).unwrap() else {
         panic!("plane");
     };
+    let normal = frame.axis();
     assert!(normal.cross(true_n).norm() < 1e-14);
     // Collinear chain: escalation, not a garbage certified plane.
     let line = [
@@ -981,10 +952,14 @@ fn fixed_n3_near_collinear_normal_documented_under_determination() {
         ]
     };
     let normal = |pts: &[Point3<f64>]| {
-        let Surface::Plane { normal, .. } = newell_plane(pts, pts[1] - pts[0], band()).unwrap()
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = newell_plane(pts, pts[1] - pts[0], band()).unwrap()
         else {
             panic!("plane");
         };
+        let normal = carrier_frame.axis();
         normal
     };
     let n_pos = normal(&chain(1.0));
@@ -1014,14 +989,10 @@ mod interval_lane {
     #[test]
     fn survives_interval_plane_dihedral_is_definite() {
         let floor: Surface<Interval> = Surface::Plane {
-            origin: p3(0.0, 0.0, 0.0),
-            normal: v3(0.0, 0.0, 1.0),
-            u_ref: v3(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         };
         let wall: Surface<Interval> = Surface::Plane {
-            origin: p3(0.0, 0.0, 0.0),
-            normal: v3(1.0, 0.0, 0.0),
-            u_ref: v3(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0)),
         };
         let c = classify_dihedral(
             &floor,
@@ -1035,9 +1006,7 @@ mod interval_lane {
         assert_eq!(c, DihedralClass::Transverse);
         // Coplanar pair: definite Smooth (no poison, no escalation).
         let coplanar: Surface<Interval> = Surface::Plane {
-            origin: p3(0.0, 0.0, 0.0),
-            normal: v3(0.0, 0.0, 1.0),
-            u_ref: v3(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(0.0, 1.0, 0.0)),
         };
         let c = classify_dihedral(
             &floor,
@@ -1093,7 +1062,7 @@ mod interval_lane {
                     place: Affine3::translation(v3(0.0, 0.0, 3.0)),
                     axis: geom::Line {
                         origin: center,
-                        dir: v3(0.0, 0.0, 1.0),
+                        dir: geom_core::UnitVec3::squared(v3(0.0, 0.0, 1.0)),
                     },
                     angle: Interval::from_f64(core::f64::consts::TAU),
                 },

@@ -517,9 +517,11 @@ pub(crate) fn material_outcome(
 #[allow(clippy::panic)]
 pub fn zero_end_stop(band: Band) -> WedgeEscalation {
     let floor = geom::Surface::Plane {
-        origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-        normal: geom_core::Vec3::unit_z(),
-        u_ref: geom_core::Vec3::unit_x(),
+        frame: geom::Frame::new(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            geom_core::Vec3::unit_z(),
+            geom_core::Vec3::unit_x(),
+        ),
     };
     let arm = geom_core::test_support::fixture_lever(1.0);
     let Ok(Dihedral::Tangent(tangency)) = crate::classify_dihedral(
@@ -646,9 +648,11 @@ mod tests {
 
     fn plane(normal: Vec3<f64>) -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal,
-            u_ref: Vec3::unit_y().cross(normal).normalize(),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                normal,
+                Vec3::unit_y().cross(normal).normalize(),
+            ),
         }
     }
 

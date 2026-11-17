@@ -432,10 +432,12 @@ fn a_chart_too_narrow_for_its_foot_is_walked() {
 fn an_analytic_chart_reads_the_carrier_before_the_fitted_lane() {
     let b = band();
     let cylinder = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let line = |r: f64| Curve3::line(Point3::new(r, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
     let general = |r| {

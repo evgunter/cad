@@ -44,10 +44,8 @@ struct Pose {
 impl Pose {
     fn cone(&self) -> Surface<f64> {
         Surface::Cone {
-            apex: self.apex,
-            axis: self.axis,
+            frame: geom::Frame::new(self.apex, self.axis, self.u_ref),
             half_angle: self.alpha,
-            u_ref: self.u_ref,
         }
     }
 
@@ -60,18 +58,21 @@ impl Pose {
             Vec3::unit_y()
         };
         Surface::Plane {
-            origin: self.apex - n * self.gap,
-            normal: n,
-            u_ref: (u - n * u.dot(n)).normalize(),
+            frame: geom::Frame::new(self.apex - n * self.gap, n, (u - n * u.dot(n)).normalize()),
         }
     }
 
     /// The gap the built plane realizes: forming its origin rounds, and
     /// `apex − origin` is then exact, so this reads it back.
     fn realized_gap(&self) -> f64 {
-        let Surface::Plane { origin, .. } = self.plane() else {
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = self.plane()
+        else {
             unreachable!()
         };
+        let origin = carrier_frame.origin();
         (self.apex - origin).dot(self.normal)
     }
 
@@ -341,7 +342,7 @@ fn line_residuals(pose: &Pose, line: &Curve3<f64>, extent: f64, tol: f64) -> (f6
         panic!("a line outcome carries a line, got {line:?}");
     };
     let gap = pose.realized_gap();
-    let dir = dir.normalize();
+    let dir = dir.get().normalize();
     let off_plane = [-extent, 0.0, extent]
         .into_iter()
         .map(|t| ((origin + dir * t - pose.apex).dot(pose.normal) + gap).abs())
@@ -1026,7 +1027,7 @@ fn apex_outcomes_agree_with_the_oracle() {
                 // Both azimuths are read off the normal's part square to
                 // the axis, so each carries `f64::EPSILON/s` of it.
                 let s = pose.axis.cross(pose.normal).norm();
-                let off = dir.normalize().cross(pose.grazed()).norm();
+                let off = dir.get().normalize().cross(pose.grazed()).norm();
                 if off > 1e-12 + 64.0 * f64::EPSILON / s {
                     contradictions.push(format!(
                         "{kind} {off:e} rad off the grazed generator: {}",

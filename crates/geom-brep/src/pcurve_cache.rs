@@ -4095,12 +4095,12 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
     // On a sheet, an end within `10⁻⁶ r` of the axis (read in `f64`, a
     // schedule's reading) is graded toward ([`apex_grading`]).
     if let Surface::Spindle {
-        center,
-        axis,
+        frame,
         minor_radius,
         ..
     } = *surface
     {
+        let (center, axis) = (frame.origin(), frame.axis());
         let mid = |x: T| geom_core::mid_param(x.lo(), x.hi());
         let on_axis = |t: T| {
             let d = carrier.eval(t) - center;
@@ -5557,12 +5557,12 @@ fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
             c: origin,
             a: Vec3::zero(),
             b: Vec3::zero(),
-            l: dir,
+            l: dir.get(),
         }),
         Curve3::Circle(_) | Curve3::Ellipse(_) => carrier.conic().map(|k| {
             let (a, b) = k.semi_axis_vectors();
             Harmonic3 {
-                c: k.frame().origin,
+                c: k.frame().origin(),
                 a,
                 b,
                 l: Vec3::zero(),
@@ -5697,17 +5697,19 @@ fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Op
     // channels carry none.
     let windings = || angle_windings(u, v);
     match *surface {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => Some(plane_image((p0, pa, pb, pl), origin, normal, u_ref)),
+        Surface::Plane { frame } => {
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            Some(plane_image((p0, pa, pb, pl), origin, normal, u_ref))
+        }
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
         } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let cv = axis.cross(u_ref);
             let (sa, ca) = p0.x.sin_cos();
             // radial(α) and tangential(α) in the chart frame.
@@ -5731,12 +5733,8 @@ fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Op
         // The M6-3 completion (walk row 4): the cone/sphere/torus
         // closed-form tables. Every arm below is the SNAPPED image —
         // affine angular channels with winding-valued slopes.
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => {
+        Surface::Cone { frame, half_angle } => {
+            let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let (s_ha, c_ha) = half_angle.sin_cos();
             let cv = axis.cross(u_ref);
             let (sa, ca) = p0.x.sin_cos();
@@ -5770,19 +5768,13 @@ fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Op
                 }
             }
         }
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        }
+        Surface::Sphere { frame, radius }
         | Surface::Torus {
-            center,
-            axis,
+            frame,
             minor_radius: radius,
-            u_ref,
             ..
         } => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             // One body for both charts: the torus IS the sphere's
             // algebra with the spine offset `rad·R` added (R = 0
             // recovers the sphere — the sphere arm passes 0).
@@ -6140,11 +6132,8 @@ fn run_harmonic_checks<T: Decide>(
     // periodic chart's is frame plus incidence plus fidelity (the lemma
     // on `EnvelopeStatement::MapResidualClosedForm`).
     let (envelope, terms) = match *surface {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => {
+        Surface::Plane { frame } => {
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let image_form = plane_image(harmonic_form_of(u, v), origin, normal, u_ref);
             let d_c = image_form.c - carrier_form.c;
             let d_a = image_form.a - carrier_form.a;
@@ -6424,55 +6413,74 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
     };
     let (axis, u_ref) = (square.axis, square.u_ref);
     match *surface {
-        Surface::Cylinder { origin, radius, .. } => Surface::Cylinder {
-            origin,
-            axis,
+        Surface::Cylinder {
+            frame: carrier_frame,
             radius,
-            u_ref,
-        },
+            ..
+        } => {
+            let origin = carrier_frame.origin();
+            Surface::Cylinder {
+                frame: geom::Frame::new(origin, axis, u_ref),
+                radius,
+            }
+        }
         Surface::Cone {
-            apex, half_angle, ..
-        } => Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
-        },
-        Surface::Sphere { center, radius, .. } => Surface::Sphere {
-            center,
+            ..
+        } => {
+            let apex = carrier_frame.origin();
+            Surface::Cone {
+                frame: geom::Frame::new(apex, axis, u_ref),
+                half_angle,
+            }
+        }
+        Surface::Sphere {
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
-        },
+            ..
+        } => {
+            let center = carrier_frame.origin();
+            Surface::Sphere {
+                frame: geom::Frame::new(center, axis, u_ref),
+                radius,
+            }
+        }
         Surface::Torus {
-            center,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             ..
-        } => Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        },
+        } => {
+            let center = carrier_frame.origin();
+            Surface::Torus {
+                frame: geom::Frame::new(center, axis, u_ref),
+                major_radius,
+                minor_radius,
+            }
+        }
         Surface::Spindle {
-            center,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             ..
-        } => Surface::Spindle {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        },
-        Surface::Plane { origin, .. } => Surface::Plane {
-            origin,
-            normal: axis,
-            u_ref,
-        },
+        } => {
+            let center = carrier_frame.origin();
+            Surface::Spindle {
+                frame: geom::Frame::new(center, axis, u_ref),
+                major_radius,
+                minor_radius,
+            }
+        }
+        Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } => {
+            let origin = carrier_frame.origin();
+            Surface::Plane {
+                frame: geom::Frame::new(origin, axis, u_ref),
+            }
+        }
         Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("orthonormal_chart: a spline chart has no frame to make orthonormal")
         }
@@ -6512,21 +6520,15 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
         (d_axis, d_u + d_u + d_axis * u2.sqrt())
     };
     match *surface {
-        Surface::Cylinder {
-            axis,
-            radius,
-            u_ref,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (axis, u_ref) = (frame.axis(), frame.u_ref());
             let (d_axis, d_radial) = defect(axis, u_ref);
             d_radial * radius + d_axis * v_reach
         }
         Surface::Cone {
-            axis,
-            half_angle,
-            u_ref,
-            ..
+            frame, half_angle, ..
         } => {
+            let (axis, u_ref) = (frame.axis(), frame.u_ref());
             let (s_a, c_a) = half_angle.sin_cos();
             let (d_axis, d_radial) = defect(axis, u_ref);
             (d_axis * c_a.abs() + d_radial * s_a.abs()) * v_reach
@@ -6534,11 +6536,11 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
         // `r·(cos v·Δrad + sin v·Δaxis)`: `(cos v, sin v)` is a unit
         // pair, so the two defects read at their norm (Cauchy–Schwarz).
         Surface::Sphere {
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
             ..
         } => {
+            let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
             let (d_axis, d_radial) = defect(axis, u_ref);
             let defect = harmonic_sup_scalar(d_radial, d_axis);
             #[cfg(test)]
@@ -6546,19 +6548,18 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
             defect * radius
         }
         Surface::Torus {
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
             ..
         }
         | Surface::Spindle {
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
             ..
         } => {
+            let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
             // `(R + r·cos v)·Δrad + r·sin v·Δaxis`: the tube's share is
             // the sphere's, `r` levering the two defects at their norm,
             // and the spine's `|R|`, signed on a spindle sheet.
@@ -6635,13 +6636,13 @@ pub fn ruling_miss<T: Real>(
             } else {
                 reach
             };
-            Margin::metered(reach, InfSpeed::new(dir.cross(axis).norm()))
+            Margin::metered(reach, InfSpeed::new(dir.get().cross(axis).norm()))
         }
         Ruling::Generator { apex, g } => {
-            let off = |t: T| (origin + dir * t - apex).cross(g).norm();
+            let off = |t: T| (origin + dir.get() * t - apex).cross(g).norm();
             #[cfg(test)]
             if mutants::ruling_unplaced() {
-                return Margin::of(off(T::zero()) + dir.cross(g).norm() * (t1 - t0).abs());
+                return Margin::of(off(T::zero()) + dir.get().cross(g).norm() * (t1 - t0).abs());
             }
             Margin::of(off(t0).max(off(t1)))
         }
@@ -6804,13 +6805,13 @@ fn incidence<T: Decide>(
     match (surface, derivation) {
         (
             &Surface::Cylinder {
-                origin,
-                axis,
+                frame: cylinder_frame,
                 radius,
                 ..
             },
             Derivation::CylinderMoving { .. } | Derivation::CylinderMeridian,
         ) => {
+            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let (w_r, a_r, b_r) = (radial(c - origin), radial(a), radial(b));
             match derivation {
@@ -6837,13 +6838,13 @@ fn incidence<T: Decide>(
         }
         (
             &Surface::Cone {
-                apex,
-                axis,
+                frame: cone_frame,
                 half_angle,
                 ..
             },
             Derivation::ConeRuling { .. } | Derivation::ConeRim { .. },
         ) => {
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
             let (s_ha, c_ha) = half_angle.sin_cos();
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let w = c - apex;
@@ -6905,13 +6906,13 @@ fn incidence<T: Decide>(
         }
         (
             &Surface::Sphere {
-                center,
+                frame: sphere_frame,
                 radius,
-                axis,
                 ..
             },
             Derivation::SphereParallel { .. } | Derivation::SphereMeridian { .. },
         ) => {
+            let (center, axis) = (sphere_frame.origin(), sphere_frame.axis());
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let w = c - center;
             let (h, w_r) = (w.dot(axis), radial(w));
@@ -6985,21 +6986,20 @@ fn incidence<T: Decide>(
         }
         (
             &Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
             }
             | &Surface::Spindle {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
             },
             Derivation::TorusParallel { .. } | Derivation::TorusMeridian { .. },
         ) => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let w = c - center;
             let (h, w_r) = (w.dot(axis), radial(w));
@@ -7664,7 +7664,10 @@ fn focal_section_envelope<T: Real>(
     let one = T::one();
     let ideal = orthonormal_chart(surface);
     let (axis, u_ref) = match ideal {
-        Surface::Cone { axis, u_ref, .. } | Surface::Torus { axis, u_ref, .. } => (axis, u_ref),
+        Surface::Cone { frame, .. } | Surface::Torus { frame, .. } => {
+            let (axis, u_ref) = (frame.axis(), frame.u_ref());
+            (axis, u_ref)
+        }
         _ => unreachable!("focal_section_envelope: check 1 admits cone and torus charts only"),
     };
     let FocalImage {
@@ -7691,8 +7694,9 @@ fn focal_section_envelope<T: Real>(
     // terms outside `H`.
     let (k, x, y, a, b, l, outside) = match ideal {
         Surface::Cone {
-            apex, half_angle, ..
+            frame, half_angle, ..
         } => {
+            let apex = frame.origin();
             let (sin_a, cos_a) = half_angle.sin_cos();
             let lever = sin_a * v0;
             let remainder = sin_a
@@ -7708,11 +7712,12 @@ fn focal_section_envelope<T: Real>(
             )
         }
         Surface::Torus {
-            center,
+            frame,
             major_radius: big,
             minor_radius: r,
             ..
         } => {
+            let center = frame.origin();
             let v_r = v0 + vl * t0;
             let (sv, cv_r) = v_r.sin_cos();
             let tube_drift = (vl.abs() - one).abs();
@@ -7885,9 +7890,7 @@ fn run_spiric_checks_as<T: Decide>(
     };
     // ---- Check 1: the certified lane. ----
     let Curve3::Spiric {
-        center: c_c,
-        axis: a_c,
-        u_ref: n_c,
+        frame,
         major_radius: r_major,
         minor_radius: r_minor,
         offset: c_offset,
@@ -7898,6 +7901,7 @@ fn run_spiric_checks_as<T: Decide>(
             why: "the carrier is not a spiric, so no spiric image is its own",
         });
     };
+    let (c_c, a_c, n_c) = (frame.origin(), frame.axis(), frame.u_ref());
     let chart = surface.kind();
     // The image kind IS the chart kind, exhaustively: a spiric lies on
     // its own cutting plane and on the two tori that hold it (its own
@@ -7945,13 +7949,13 @@ fn run_spiric_checks_as<T: Decide>(
         (
             SpiricImage::Wall { torus, .. },
             &Surface::Torus {
-                center: s_center,
-                axis: s_axis,
+                frame: torus_frame,
                 major_radius: s_major,
                 minor_radius: s_minor,
                 ..
             },
         ) => {
+            let (s_center, s_axis) = (torus_frame.origin(), torus_frame.axis());
             let arm = crate::ExtentBall::of_covered(surface.cover().as_ref().ok()).lever();
             let torus_center = |t: WallTorus| t.center(c_c, n_c, c_offset);
             // The axis is gated for PARALLELISM only — a sine of unit
@@ -8077,14 +8081,10 @@ fn run_spiric_checks_as<T: Decide>(
         / (f_min_i + f_min_c);
     let envelope = match *image {
         SpiricImage::Cap { p0, pm, pa } => {
-            let Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } = *surface
-            else {
+            let Surface::Plane { frame } = *surface else {
                 return Err(PcurveCertifyError::UnsupportedChart { chart });
             };
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let v_ref = normal.cross(u_ref);
             let lift = |p: Vec2<T>| u_ref * p.x + v_ref * p.y;
             let m_c = a_c.cross(n_c);
@@ -8917,21 +8917,13 @@ fn run_iso_arc_checks<T: Decide>(
     if surface.is_placeholder_chart() {
         return Err(PcurveCertifyError::PlaceholderChart);
     }
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        radius,
-    }) = carrier
-    else {
+    let Curve3::Circle(geom::Circle { frame, radius }) = carrier else {
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "an arc-rim iso over a non-Circle carrier — the class IS the circle's \
                    rational-quadratic reparameterization",
         });
     };
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     //
@@ -9195,15 +9187,15 @@ fn run_iso_arc_checks<T: Decide>(
     // rotated, and the class certifies it as such; keying the control
     // points to absolute zero would have refused it with a message
     // blaming the weight pattern for what is really a phase.
-    let vref = axis.cross(*u_ref);
+    let vref = axis.cross(u_ref);
     let on = |a: T| {
         let (s, c) = (at0 + a).sin_cos();
-        *center + *u_ref * (*radius * c) + vref * (*radius * s)
+        center + u_ref * (*radius * c) + vref * (*radius * s)
     };
     let tangent = |a: T| {
         let (s, c) = (at0 + a).sin_cos();
         let r = *radius / cos_half;
-        *center + *u_ref * (r * c) + vref * (r * s)
+        center + u_ref * (r * c) + vref * (r * s)
     };
     let mut chat: Vec<Point3<T>> = Vec::with_capacity(2 * spans + 1);
     chat.push(on(T::zero()));
@@ -9657,7 +9649,7 @@ fn seam_envelope<T: Decide>(
             #[allow(clippy::cast_precision_loss)]
             let xi = window[1..].iter().fold(window[0], |a, k| a + *k) / T::from_f64(p as f64);
             let t_at = (xi - p0.y) / pl.y;
-            hull = hull.max((*cp - (origin + dir * t_at)).norm());
+            hull = hull.max((*cp - (origin + dir.get() * t_at)).norm());
         }
         // Domain containment, the siblings' gate verbatim on
         // this class's moving channel: the hull bound holds on
@@ -10461,22 +10453,37 @@ fn farthest_at<T: Real>(
     at: impl Fn(T) -> Point3<T>,
 ) -> (T, T) {
     let (anchor, size) = match *surface {
-        Surface::Plane { origin, .. } => (origin, T::zero()),
-        Surface::Cylinder { origin, radius, .. } => (origin, radius),
-        Surface::Sphere { center, radius, .. } => (center, radius),
+        Surface::Plane { frame, .. } => {
+            let origin = frame.origin();
+            (origin, T::zero())
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let origin = frame.origin();
+            (origin, radius)
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            (center, radius)
+        }
         Surface::Torus {
-            center,
+            frame,
             major_radius,
             minor_radius,
             ..
         }
         | Surface::Spindle {
-            center,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => (center, major_radius.abs() + minor_radius),
-        Surface::Cone { apex, .. } => (apex, T::zero()),
+        } => {
+            let center = frame.origin();
+            (center, major_radius.abs() + minor_radius)
+        }
+        Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
+            (apex, T::zero())
+        }
         Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("farthest_at: the incidence test reads an analytic chart")
         }
@@ -11074,11 +11081,8 @@ fn derive_class_zero<T: Decide>(
         }));
     };
     match *surface {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => {
+        Surface::Plane { frame } => {
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             // The affine chart images exactly any carrier the test does not
             // show off the plane.
             note_zero(
@@ -11100,11 +11104,14 @@ fn derive_class_zero<T: Decide>(
             ))
         }
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
         } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let shown = incidence::incident_as(carrier, surface, place, band)?;
             note_zero(zero, shown.margin());
             let cv = axis.cross(u_ref);
@@ -11235,11 +11242,14 @@ fn derive_class_zero<T: Decide>(
         // certification follows every derivation and is what makes a
         // wrong pick fail loudly.
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
         } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let shown = incidence::incident_as(carrier, surface, place, band)?;
             note_zero(zero, shown.margin());
             let c_ha = half_angle.cos();
@@ -11258,7 +11268,7 @@ fn derive_class_zero<T: Decide>(
                     // the line by its distance from the generator.
                     let w = origin - apex;
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
-                    let (h0, hs) = (w.dot(axis), dir.dot(axis));
+                    let (h0, hs) = (w.dot(axis), dir.get().dot(axis));
                     // Read off the origin, the nappe names the same image
                     // from any origin on the line: `radial · sign h` is one
                     // direction at every point of a ruling through the
@@ -11281,11 +11291,11 @@ fn derive_class_zero<T: Decide>(
                                     Decided {
                                         sign: Sign::Positive,
                                         ..
-                                    } => (radial(dir), Nappe::Pos, false),
+                                    } => (radial(dir.get()), Nappe::Pos, false),
                                     Decided {
                                         sign: Sign::Negative,
                                         ..
-                                    } => (radial(dir), Nappe::Neg, false),
+                                    } => (radial(dir.get()), Nappe::Neg, false),
                                     // The apex plane meets the cone at
                                     // its radius `h·tan α = 0`: the apex
                                     // alone.
@@ -11356,7 +11366,7 @@ fn derive_class_zero<T: Decide>(
                                 c: w.dot(g),
                                 a: T::zero(),
                                 b: T::zero(),
-                                l: dir.dot(g),
+                                l: dir.get().dot(g),
                             },
                         },
                         Derivation::ConeRuling {
@@ -11365,10 +11375,8 @@ fn derive_class_zero<T: Decide>(
                         },
                     ))
                 }
-                Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { origin: center, .. },
-                    ..
-                }) => {
+                Curve3::Circle(geom::Circle { frame, .. }) => {
+                    let center = frame.origin();
                     // Rim class: carrier plane ⊥ axis (a, b axial parts
                     // zero — already metres) and centred on the axis.
                     // Those are the only circles on a right circular
@@ -11483,15 +11491,15 @@ fn derive_class_zero<T: Decide>(
                     ))
                 }
                 Curve3::Ellipse(geom::Ellipse {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis: e_axis,
-                            u_ref: seam,
-                        },
+                    frame: carrier_frame,
                     semi_u,
                     semi_v,
                 }) => {
+                    let (center, e_axis, seam) = (
+                        carrier_frame.origin(),
+                        carrier_frame.axis(),
+                        carrier_frame.u_ref(),
+                    );
                     // The tilted-section class: the exact
                     // [`Pcurve::FocalSection`] image (variant docs for
                     // the derivation). The slant is the axial height
@@ -11618,11 +11626,14 @@ fn derive_class_zero<T: Decide>(
         // and the walk selects between the two by certified
         // continuity (`topo::pcurves::sphere_twin`) — never snapped.
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let shown = incidence::incident_as(carrier, surface, place, band)?;
             note_zero(zero, shown.margin());
             // Only circles are the sphere's classes: a bounded surface
@@ -11871,19 +11882,16 @@ fn derive_class_zero<T: Decide>(
         // named in [`Window::Sheet`], and its oblique circles take the
         // general lane.
         Surface::Torus {
-            center: t_center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
-            u_ref,
         }
         | Surface::Spindle {
-            center: t_center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => {
+            let (t_center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let Some(tube) = RevolvedTube::of(surface) else {
                 unreachable!("the arm matched a torus or a sheet")
             };
@@ -12640,26 +12648,24 @@ fn torus_oblique_circle<T: Decide>(
 ) -> Result<(Pcurve<T>, Derivation), Underived> {
     let (
         &Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: c, axis: n, ..
-            },
+            frame: carrier_frame,
             radius,
         }),
         &Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius: big,
             minor_radius: r,
-            u_ref,
         },
     ) = (carrier, surface)
     else {
         unreachable!("torus_oblique_circle: the torus arm reads a circle carrier")
     };
+    let (c, n) = (carrier_frame.origin(), carrier_frame.axis());
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let w = c - center;
     let w_r = geom::Line {
         origin: center,
-        dir: axis,
+        dir: frame.axis_unit(),
     }
     .offset(c);
     let gates = [
@@ -12824,47 +12830,48 @@ const INCIDENCE_SAMPLES: u32 = 64;
 /// reading [`incidence_over_span_as`] decides.
 fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
     match *surface {
-        Surface::Sphere { center, radius, .. } => (p.distance(center) - radius).abs(),
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            (p.distance(center) - radius).abs()
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => crate::implicit::cone_elevation(
-            geom::Line {
-                origin: apex,
-                dir: axis,
-            },
-            half_angle,
-            None,
-            p,
-        )
-        .abs(),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            crate::implicit::cone_elevation(
+                geom::Line {
+                    origin: apex,
+                    dir: frame.axis_unit(),
+                },
+                half_angle,
+                None,
+                p,
+            )
+            .abs()
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         }
         | Surface::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (h, w) = crate::implicit::axial_radial(p, center, axis);
             ((w.norm() - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
         }
         .abs(),
-        Surface::Plane { origin, normal, .. } => ((p - origin).dot(normal) / normal.norm()).abs(),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            ((p - origin).dot(normal) / normal.norm()).abs()
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let (_, w) = crate::implicit::axial_radial(p, origin, axis);
             (w.norm() - radius).abs()
         }
@@ -13067,32 +13074,23 @@ mod incidence {
         let k = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => {
                 let [ox, oy, oz] = exact_vec(origin - geom_core::Point3::origin());
-                let [dx, dy, dz] = exact_vec(dir);
+                let [dx, dy, dz] = exact_vec(dir.get());
                 let m = Rounded::exact(mid);
                 [ox + dx * m, oy + dy * m, oz + dz * m]
             }
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                ..
-            })
-            | Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { origin: center, .. },
-                ..
-            })
-            | Curve3::Spiric { center, .. } => exact_vec(center - geom_core::Point3::origin()),
+            Curve3::Circle(geom::Circle { frame, .. })
+            | Curve3::Ellipse(geom::Ellipse { frame, .. })
+            | Curve3::Spiric { frame, .. } => {
+                exact_vec(frame.origin() - geom_core::Point3::origin())
+            }
             _ => return None,
         };
         let mut moved = surface.clone();
-        let anchor = match &mut moved {
-            Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => origin,
-            Surface::Sphere { center, .. }
-            | Surface::Torus { center, .. }
-            | Surface::Spindle { center, .. } => center,
-            Surface::Cone { apex, .. } => apex,
-            Surface::Nurbs(_) | Surface::Approx(_) => return None,
+        let Some(anchor) = moved.frame().map(|f| f.origin()) else {
+            return None;
         };
         // The anchor's offset from the carrier's, with its rounding.
-        let [ax, ay, az] = exact_vec(*anchor - geom_core::Point3::origin());
+        let [ax, ay, az] = exact_vec(anchor - geom_core::Point3::origin());
         let [kx, ky, kz] = k;
         let mut off = [ax - kx, ay - ky, az - kz];
         // Slid to about its foot nearest the carrier, along the chart:
@@ -13112,15 +13110,18 @@ mod incidence {
             // its arithmetic encloses the exact foot, which is on the
             // plane, so nothing need be tracked (and a sum of the offset
             // and its large in-plane part would widen it).
-            Surface::Plane { normal, .. } if T::WITNESS == geom_core::Witness::Exact => {
+            Surface::Plane { frame, .. } if T::WITNESS == geom_core::Witness::Exact => {
+                let normal = frame.axis();
                 let foot = normal * (plain(off).dot(normal) / normal.dot(normal));
                 off = exact_vec(foot);
             }
-            Surface::Plane { normal, .. } => {
+            Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
                 let q = normal.cross(plain(off)) / normal.dot(normal);
                 off = by(off, cross(exact_vec(normal), exact_vec(q)));
             }
-            Surface::Cylinder { axis, .. } => {
+            Surface::Cylinder { frame, .. } => {
+                let axis = frame.axis();
                 let lambda = Rounded::exact(T::zero() - plain(off).dot(axis) / axis.dot(axis));
                 let [x, y, z] = exact_vec(axis);
                 off = by(off, [x * lambda, y * lambda, z * lambda]);
@@ -13128,33 +13129,27 @@ mod incidence {
             _ => {}
         }
         let error = off[0].error + off[1].error + off[2].error;
-        *anchor = geom_core::Point3::new(off[0].value, off[1].value, off[2].value);
-        if let Surface::Cylinder { axis, .. }
-        | Surface::Cone { axis, .. }
-        | Surface::Torus { axis, .. }
-        | Surface::Spindle { axis, .. } = &mut moved
-        {
-            *axis = axis.normalize();
+        let anchor = geom_core::Point3::new(off[0].value, off[1].value, off[2].value);
+        if let Some(frame) = moved.frame_mut() {
+            *frame = frame.with_origin(anchor);
         }
         // The carrier's own anchor lands on the origin exactly: `k − k`
         // is zero at `f64` (less the anchor's rounding, which the offset
         // carries), and at an enclosure scalar would otherwise be twice
         // `k`'s width wide.
         let carrier = match *carrier {
-            Curve3::Line(geom::Line { dir, .. }) => Curve3::line(geom_core::Point3::origin(), dir),
+            Curve3::Line(geom::Line { dir, .. }) => {
+                Curve3::line_along(geom_core::Point3::origin(), dir)
+            }
             _ => {
                 let k = geom_core::Vec3::new(kx.value, ky.value, kz.value);
                 let mut moved = carrier.translated(-k)?;
                 match &mut moved {
-                    Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { origin: at, .. },
-                        ..
-                    })
-                    | Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::Frame { origin: at, .. },
-                        ..
-                    })
-                    | Curve3::Spiric { center: at, .. } => *at = geom_core::Point3::origin(),
+                    Curve3::Circle(geom::Circle { frame, .. })
+                    | Curve3::Ellipse(geom::Ellipse { frame, .. })
+                    | Curve3::Spiric { frame, .. } => {
+                        *frame = frame.with_origin(geom_core::Point3::origin());
+                    }
                     _ => unreachable!(
                         "anchored: the carrier's kind is the one its anchor was read off"
                     ),
@@ -13449,9 +13444,7 @@ fn spiric_chart_pcurve<T: Decide>(
     band: Band,
 ) -> Result<Pcurve<T>, PcurveCertifyError> {
     let Curve3::Spiric {
-        center,
-        axis,
-        u_ref: n,
+        frame: carrier_frame,
         major_radius,
         minor_radius,
         offset,
@@ -13459,6 +13452,11 @@ fn spiric_chart_pcurve<T: Decide>(
     else {
         unreachable!("spiric_chart_pcurve: the one caller, `chart_pcurve`, routes spirics only")
     };
+    let (center, axis, n) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let spiric = |image| Pcurve::Spiric {
         major: major_radius,
         minor: minor_radius,
@@ -13471,11 +13469,8 @@ fn spiric_chart_pcurve<T: Decide>(
         incidence::incident_as(carrier, surface, place, band)?;
     }
     match *surface {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => {
+        Surface::Plane { frame } => {
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let v_ref = normal.cross(u_ref);
             let chart = |v: Vec3<T>| Vec2::new(v.dot(u_ref), v.dot(v_ref));
             let w = (center + n * offset) - origin;
@@ -13487,12 +13482,11 @@ fn spiric_chart_pcurve<T: Decide>(
             }))
         }
         Surface::Torus {
-            center: chart_center,
-            axis: chart_axis,
+            frame,
             major_radius: chart_major,
-            u_ref: chart_u,
             ..
         } => {
+            let (chart_center, chart_axis, chart_u) = (frame.origin(), frame.axis(), frame.u_ref());
             let cv = chart_axis.cross(chart_u);
             // Both readings place the oval on one of the tori that hold
             // it, so their far or Zero arm is the chart's incidence, never
@@ -13617,10 +13611,10 @@ fn cone_conic_incidence<T: Decide>(
     slack: T,
     band: Band,
 ) -> Result<Option<geom_core::MarginDiag>, PcurveCertifyError> {
-    let (Some(form), &Surface::Cone { apex, axis, .. }) = (carrier_harmonic(carrier), surface)
-    else {
+    let (Some(form), &Surface::Cone { frame, .. }) = (carrier_harmonic(carrier), surface) else {
         unreachable!("cone_conic_incidence: the cone arm reads a conic carrier")
     };
+    let (apex, axis) = (frame.origin(), frame.axis());
     let (wz, az, bz) = (
         (form.c - apex).dot(axis),
         form.a.dot(axis),
@@ -13925,10 +13919,8 @@ mod tests {
         use geom_core::Interval;
         let (r, lat) = (0.5, 0.4_f64);
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: r,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let parallel = Curve3::circle(
             Point3::new(0.0, 0.0, r * lat.sin()),
@@ -14210,10 +14202,8 @@ mod tests {
     /// A unit-frame cylinder of radius `r` about `+z`, seam at `+x`.
     fn cylinder(r: f64) -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: r,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -14360,9 +14350,7 @@ mod tests {
     #[test]
     fn conic_in_a_plane_chart_is_exact() {
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.5),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.5), Vec3::unit_z(), Vec3::unit_x()),
         };
         let carrier = Curve3::Ellipse(geom::Ellipse::new(
             geom::Frame::new(Point3::new(0.1, -0.2, 0.5), Vec3::unit_z(), Vec3::unit_x()),
@@ -14568,9 +14556,7 @@ mod tests {
             "{out:?}"
         );
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let Pcurve::Harmonic { u, v } = chart_pcurve(&rim, &plane, band()).unwrap() else {
             panic!("a circle in a plane images harmonic")
@@ -14895,10 +14881,8 @@ mod tests {
         // (M5 S13; the S9 pattern): the equator on its own sphere
         // chart is the closed-form azimuth-linear image u = t, v = 0.
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let carrier = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
         let Some((p0, pa, pb, pl)) = chart_pcurve(&carrier, &sphere, band())
@@ -14976,10 +14960,8 @@ mod tests {
         // v₀ = h / cos α).
         let ha = 0.5_f64;
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: ha,
-            u_ref: Vec3::unit_x(),
         };
         let h = 2.0_f64;
         let rim = Curve3::circle(
@@ -15032,10 +15014,8 @@ mod tests {
     fn an_apex_plane_line_on_a_sub_band_span_is_not_called_off_its_face() {
         fn read<T: Decide>(at: impl Fn(f64) -> T) -> PcurveCertifyError {
             let cone = Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 half_angle: 0.5,
-                u_ref: Vec3::unit_x(),
             }
             .map_scalar(&at);
             let line = Curve3::line(Point3::origin(), Vec3::unit_x()).map_scalar(&at);
@@ -15075,32 +15055,22 @@ mod tests {
     #[test]
     fn uncovered_and_off_chart_carriers_refuse_apart() {
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let (major, minor) = (2.0_f64, 1.0_f64);
         let torus = Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: major,
             minor_radius: minor,
-            u_ref: Vec3::unit_x(),
         };
         let circle = |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| {
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+                frame: geom::Frame::new(center, axis, u_ref),
                 radius,
             })
         };
@@ -15197,9 +15167,7 @@ mod tests {
             .unwrap(),
         ));
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let got = chart_pcurve(&villarceau, &torus, band());
         assert!(
@@ -15469,10 +15437,8 @@ mod tests {
     fn the_cone_azimuth_lever_dominates_the_local_lever_over_the_box() {
         let half_angle = 0.5_f64.atan();
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle,
-            u_ref: Vec3::unit_x(),
         };
         let boxed = ChartWindow {
             u_min: 0.0,
@@ -15687,7 +15653,10 @@ mod tests {
 
     /// A `Curve3::Line` from `origin` along `dir` (already unit here).
     fn ruling_line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Line(geom::Line { origin, dir })
+        Curve3::Line(geom::Line {
+            origin,
+            dir: geom_core::UnitVec3::squared(dir),
+        })
     }
 
     /// The positive row: a promoted LINE carrier on the wall's `u = 0`
@@ -15958,10 +15927,12 @@ mod cone_azimuth_sup {
         let half_angle = core::f64::consts::FRAC_PI_6;
         (
             Surface::Cone {
-                apex: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 half_angle,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             half_angle,
         )
@@ -16213,10 +16184,8 @@ mod iso_family {
     #[test]
     fn a_cylinder_line_tilted_in_the_band_names_no_family() {
         let cylinder = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let band = Band::new(1e-9, 1e-6).expect("a band");
         let line = |tilt: f64| {
@@ -16329,10 +16298,8 @@ mod off_chart_class_rows {
     /// the origin.
     fn cone(alpha: f64) -> Surface<f64> {
         Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: alpha,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -16366,32 +16333,35 @@ mod off_chart_class_rows {
         }
         let mid = 0.5 * (band().zero() + band().escalate());
         let dir = Vec3::new(0.0, 1.0, 0.3).normalize();
-        let line = |origin: Point3<f64>| Curve3::Line(geom::Line { origin, dir });
+        let line = |origin: Point3<f64>| {
+            Curve3::Line(geom::Line {
+                origin,
+                dir: geom_core::UnitVec3::squared(dir),
+            })
+        };
         let at_mid = Point3::new(1.0, 0.0, mid);
         let (u, v) = (Vec3::unit_y(), Vec3::new(mid, 0.0, 1.0).normalize());
         let tilted_circle =
             Curve3::circle(Point3::new(2.0, 0.0, 0.0), u.cross(v).normalize(), 1.0, u);
         let cylinder = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let (major, minor, offset) = (2.0, 0.75, 0.5);
         let spiric = Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_y(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
             major_radius: major,
             minor_radius: minor,
             offset,
         };
         let crossed_torus = Surface::Torus {
-            center: Point3::origin(),
-            axis: (Vec3::unit_x() + Vec3::unit_y() * (mid / major)).normalize(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                (Vec3::unit_x() + Vec3::unit_y() * (mid / major)).normalize(),
+                Vec3::unit_z(),
+            ),
             major_radius: major,
             minor_radius: minor,
-            u_ref: Vec3::unit_z(),
         };
         let cases: [(&str, Curve3<f64>, Surface<f64>); 4] = [
             (
@@ -16454,10 +16424,8 @@ mod check_4_class_rows {
             let tilted =
                 Curve3::circle(Point3::origin() + n * h, n, rho, Vec3::unit_x()).map_scalar(&at);
             let sphere = Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             }
             .map_scalar(&at);
             derive_harmonic(&tilted, &sphere, Placement::own(&tilted, &sphere), band()).map(|_| ())
@@ -16564,10 +16532,12 @@ mod limb2_memo_rows {
             Vec3::new(1.0, 0.0, 0.0),
         );
         let wall = Surface::Cylinder {
-            origin: Point3::new(0.3, -0.2, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.3, -0.2, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: WALL,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         (rim, wall)
     }
@@ -16876,22 +16846,9 @@ mod limb2_memo_rows {
         let iv = |radius: Interval| {
             let (c, s) = rim(1.25);
             let c = match c.map_scalar(lift) {
-                Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            u_ref,
-                        },
-                    ..
-                }) => Curve3::Circle(geom::Circle {
-                    frame: geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                    radius,
-                }),
+                Curve3::Circle(geom::Circle { frame, .. }) => {
+                    Curve3::Circle(geom::Circle { frame, radius })
+                }
                 _ => unreachable!(),
             };
             format!(
@@ -16980,10 +16937,12 @@ mod limb2_quick_rows {
                 Vec3::new(1.0, 0.0, 0.0),
             ),
             Surface::Cylinder {
-                origin: Point3::new(0.3, -0.2, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.3, -0.2, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: wall,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
         )
     }
@@ -17068,23 +17027,19 @@ mod limb2_quick_rows {
         let iv = |radius: Interval| {
             let (c, s) = rim(1.25, 1.25);
             let Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame,
                 ..
             }) = c.map_scalar(lift)
             else {
                 unreachable!()
             };
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let c = Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+                frame: carrier_frame,
                 radius,
             });
             bits(&limb2_offset_sup(
@@ -17163,25 +17118,20 @@ mod limb2_quick_rows {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (axis, u_ref) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
         let center = Point3::new(0.4, -0.3, 0.2);
+        let carrier_frame = geom::Frame::new(center, axis, u_ref);
         let spiric = Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             major_radius: 1.0,
             minor_radius: 0.5,
             offset: 0.8,
         };
         let torus = Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius: 1.0,
             minor_radius: 0.5,
-            u_ref,
         };
         let plane = Surface::Plane {
-            origin: center + u_ref * 0.8,
-            normal: u_ref,
-            u_ref: axis.cross(u_ref),
+            frame: geom::Frame::new(center + u_ref * 0.8, u_ref, axis.cross(u_ref)),
         };
         assert!(
             crate::carrier_net::carrier_net(&spiric, (0.0, 3.0), &[]).is_err(),
@@ -17279,9 +17229,11 @@ mod limb2_quick_rows {
             Vec3::new(1.0, 0.0, 0.0),
         );
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 1.0, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let deviation = |s: f64| 2.0 * (s / 2.0).sin().powi(2);
         let quarter = core::f64::consts::FRAC_PI_2;
@@ -17340,9 +17292,11 @@ mod limb2_quick_rows {
             Vec3::new(1.0, 0.0, 0.0),
         );
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.5e-9, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.5e-9, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let window = (-5e-9, 1e-10);
         let miss = |what: &str, read: &str| {

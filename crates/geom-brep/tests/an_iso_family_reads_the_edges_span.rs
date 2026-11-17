@@ -35,29 +35,21 @@ fn a_partial_edge_reads_the_family_its_whole_carrier_does() {
         Vec3::new(1.0, 0.0, 0.0),
     );
     let cylinder = Surface::Cylinder {
-        origin: o,
-        axis: z,
+        frame: geom::Frame::new(o, z, x),
         radius: 1.0,
-        u_ref: x,
     };
     let cone = Surface::Cone {
-        apex: o,
-        axis: z,
+        frame: geom::Frame::new(o, z, x),
         half_angle: PI / 6.0,
-        u_ref: x,
     };
     let sphere = Surface::Sphere {
-        center: o,
+        frame: geom::Frame::new(o, z, x),
         radius: 1.0,
-        axis: z,
-        u_ref: x,
     };
     let torus = Surface::Torus {
-        center: o,
-        axis: z,
+        frame: geom::Frame::new(o, z, x),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: x,
     };
     let rim = |h: f64, rho: f64| Curve3::circle(Point3::new(0.0, 0.0, h), z, rho, x);
     let (s30, c30) = (PI / 6.0).sin_cos();
@@ -80,7 +72,14 @@ fn a_partial_edge_reads_the_family_its_whole_carrier_does() {
         ),
         (
             "a cone generator",
-            geom::pole_form::cone_generator(geom::Line { origin: o, dir: z }, PI / 6.0, x),
+            geom::pole_form::cone_generator(
+                geom::Line {
+                    origin: o,
+                    dir: geom_core::UnitVec3::squared(z),
+                },
+                PI / 6.0,
+                x,
+            ),
             &cone,
             (0.0, 1.0),
             (0.4, 1.7),

@@ -99,15 +99,15 @@ fn plane_and_wall(
     band: Band,
 ) -> Result<PlaneCylinderSection<f64>, SectionError> {
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     let wall = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, R + lift),
-        axis: turned(Vec3::unit_x(), Vec3::unit_z(), tilt / LEVER),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, R + lift),
+            turned(Vec3::unit_x(), Vec3::unit_z(), tilt / LEVER),
+            Vec3::unit_y(),
+        ),
         radius: R,
-        u_ref: Vec3::unit_y(),
     };
     let reach = Reach::Ball(ExtentBall::fixture(Point3::origin(), RHO));
     plane_cylinder_section(&plane, &wall, &reach, band)
@@ -171,16 +171,16 @@ fn a_straddling_reach_escalates_on_the_floor() {
 /// `(0, R, 0)`.
 fn two_walls(tilt: f64, apart: f64, r2: f64) -> (Surface<f64>, Surface<f64>, ExtentBall<f64>) {
     let c1 = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
         radius: R,
-        u_ref: Vec3::unit_y(),
     };
     let c2 = Surface::Cylinder {
-        origin: Point3::new(0.0, R + r2 + apart, 0.0),
-        axis: turned(Vec3::unit_x(), Vec3::unit_y(), tilt / LEVER),
+        frame: geom::Frame::new(
+            Point3::new(0.0, R + r2 + apart, 0.0),
+            turned(Vec3::unit_x(), Vec3::unit_y(), tilt / LEVER),
+            Vec3::unit_z(),
+        ),
         radius: r2,
-        u_ref: Vec3::unit_z(),
     };
     (c1, c2, ExtentBall::fixture(Point3::new(0.0, R, 0.0), RHO))
 }
@@ -325,16 +325,16 @@ fn the_witness_reads_the_internal_gap_and_the_tilt_as_one_sum() {
 /// extent, its axis passing `off` from the apex along `y`.
 fn cone_and_wall(tilt: f64, off: f64) -> Result<ConeCylinderSection<f64>, SectionError> {
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
         half_angle: (R / 0.9).atan(),
-        u_ref: Vec3::unit_y(),
     };
     let wall = Surface::Cylinder {
-        origin: Point3::new(0.0, off, 0.0),
-        axis: turned(Vec3::unit_x(), Vec3::unit_y(), tilt),
+        frame: geom::Frame::new(
+            Point3::new(0.0, off, 0.0),
+            turned(Vec3::unit_x(), Vec3::unit_y(), tilt),
+            Vec3::unit_z(),
+        ),
         radius: R,
-        u_ref: Vec3::unit_z(),
     };
     cone_cylinder_section(&cone, &wall, fixture_lever(1.0), band())
 }
@@ -374,11 +374,9 @@ fn cone_cylinder_decides_the_offset_and_the_tilt_as_one_sum() {
 /// The ring torus `R = 1`, `r = 4R` about `z` at the origin.
 fn torus() -> Surface<f64> {
     Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 1.0,
         minor_radius: 4.0 * R,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -394,9 +392,11 @@ fn plane_torus_decides_the_cap_gap_and_the_tilt_as_one_sum() {
     let z = zero();
     let cap = |tilt: f64, lift: f64| {
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 4.0 * R + lift),
-            normal: turned(Vec3::unit_z(), Vec3::unit_x(), tilt / (1.0 + 4.0 * R)),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 4.0 * R + lift),
+                turned(Vec3::unit_z(), Vec3::unit_x(), tilt / (1.0 + 4.0 * R)),
+                Vec3::unit_y(),
+            ),
         };
         plane_torus_section(&plane, &torus(), fixture_lever(2.0), band())
     };
@@ -431,9 +431,11 @@ fn plane_torus_decides_the_cap_gap_and_the_tilt_as_one_sum() {
 /// the extent `lever`.
 fn axial_cut(tilt: f64, d: f64, lever: f64) -> Result<PlaneTorusSection<f64>, SectionError> {
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, d, 0.0),
-        normal: turned(Vec3::unit_y(), Vec3::unit_z(), tilt / lever),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, d, 0.0),
+            turned(Vec3::unit_y(), Vec3::unit_z(), tilt / lever),
+            Vec3::unit_x(),
+        ),
     };
     plane_torus_section(&plane, &torus(), fixture_lever(lever), band())
 }
@@ -495,9 +497,11 @@ fn stored_off_axis(tilt: f64, h: f64, s: f64) -> Surface<f64> {
     let theta = tilt / (1.0 + 4.0 * R);
     let along = Vec3::new(theta.cos(), 0.0, -theta.sin());
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, h) + along * s,
-        normal: turned(Vec3::unit_z(), Vec3::unit_x(), theta),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, h) + along * s,
+            turned(Vec3::unit_z(), Vec3::unit_x(), theta),
+            Vec3::unit_y(),
+        ),
     }
 }
 
@@ -522,9 +526,10 @@ fn plane_torus_reads_the_cap_where_the_plane_crosses_the_axis() {
         let Ok(PlaneTorusSection::ConcentricCircles { c1, c2 }) = got else {
             panic!("{s} m off: the concentric circles, got {got:?}");
         };
-        let Surface::Plane { origin, normal, .. } = plane else {
+        let Surface::Plane { frame, .. } = plane else {
             unreachable!()
         };
+        let (origin, normal) = (frame.origin(), frame.axis());
         for c in [c1, c2] {
             for k in 0..360 {
                 let p = c.eval(f64::from(k) * core::f64::consts::TAU / 360.0);
@@ -562,18 +567,14 @@ fn plane_cone_decides_the_apex_gap_and_the_discriminant_as_one_sum() {
     let z = zero();
     let alpha: f64 = 0.5;
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     };
     let at = |gap: f64, lean: f64| {
         let beta = core::f64::consts::FRAC_PI_2 - alpha + lean;
         let normal = turned(Vec3::unit_z(), Vec3::unit_x(), beta);
         let plane = Surface::Plane {
-            origin: Point3::origin() + normal * gap,
-            normal,
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::origin() + normal * gap, normal, Vec3::unit_y()),
         };
         plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band())
     };

@@ -153,13 +153,10 @@ fn one_ellipse_in_two_frames_is_one_curve() {
             let swapped = turned(0.5 * r, r, 0.3, FRAC_PI_2, at);
             assert_one(&label("semi-axes swapped"), &e, &swapped, band);
             let (n, ..) = skew_frame();
-            let Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { u_ref, .. },
-                ..
-            }) = e
-            else {
+            let Curve3::Ellipse(geom::Ellipse { frame, .. }) = e else {
                 unreachable!()
             };
+            let u_ref = frame.u_ref();
             let upside = Curve3::Ellipse(geom::Ellipse::new(
                 geom::Frame::new(at, n * -1.0, u_ref * -1.0),
                 r,

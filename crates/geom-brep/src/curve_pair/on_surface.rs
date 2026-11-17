@@ -139,51 +139,51 @@ impl<T: Real> Charted<T> {
     pub fn turned(self, u_ref: Vec3<T>) -> Self {
         let surface = match self.surface {
             geom::Surface::Cylinder {
-                origin,
-                axis,
+                frame: carrier_frame,
                 radius,
                 ..
-            } => geom::Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            },
+            } => {
+                let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                geom::Surface::Cylinder {
+                    frame: geom::Frame::new(origin, axis, u_ref),
+                    radius,
+                }
+            }
             geom::Surface::Cone {
-                apex,
-                axis,
+                frame: carrier_frame,
                 half_angle,
                 ..
-            } => geom::Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            },
+            } => {
+                let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                geom::Surface::Cone {
+                    frame: geom::Frame::new(apex, axis, u_ref),
+                    half_angle,
+                }
+            }
             geom::Surface::Sphere {
-                center,
+                frame: carrier_frame,
                 radius,
-                axis,
                 ..
-            } => geom::Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            },
+            } => {
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                geom::Surface::Sphere {
+                    frame: geom::Frame::new(center, axis, u_ref),
+                    radius,
+                }
+            }
             geom::Surface::Torus {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
                 ..
-            } => geom::Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            },
+            } => {
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                geom::Surface::Torus {
+                    frame: geom::Frame::new(center, axis, u_ref),
+                    major_radius,
+                    minor_radius,
+                }
+            }
             other => unreachable!("only a surface of revolution is turned: {:?}", other.kind()),
         };
         Self { surface, ..self }
@@ -277,14 +277,14 @@ impl<T: Decide> SurfaceCurve<T> {
         let surface = &on.surface;
         let chart = Self::chart(on, "parallel")?;
         let f = *chart.frame();
-        let normal = if forward { f.axis } else { -f.axis };
+        let normal = if forward { f.axis() } else { -f.axis() };
         let start = surface.eval(uv.x, uv.y);
         let (center, radius, section) = match chart.arm() {
-            ChartArm::Cylinder { radius } => (f.origin + f.axis * uv.y, radius, Section::Whole),
+            ChartArm::Cylinder { radius } => (f.origin() + f.axis() * uv.y, radius, Section::Whole),
             ChartArm::Cone { half_angle } => {
                 let (sin, cos) = half_angle.sin_cos();
                 (
-                    f.origin + f.axis * (uv.y * cos),
+                    f.origin() + f.axis() * (uv.y * cos),
                     (uv.y * sin).abs(),
                     Section::Whole,
                 )
@@ -295,7 +295,7 @@ impl<T: Decide> SurfaceCurve<T> {
                 // is read along it in metres.
                 let side = cos.select_le_zero(-T::one(), T::one());
                 (
-                    f.origin + f.axis * (minor * sin),
+                    f.origin() + f.axis() * (minor * sin),
                     major + minor * cos,
                     Section::TubeSide {
                         toward: Azimuth::of(T::zero(), side),
@@ -319,7 +319,7 @@ impl<T: Decide> SurfaceCurve<T> {
         let chart = Self::chart(on, "meridian")?;
         let f = *chart.frame();
         let radial = f.radial(uv.x);
-        let normal = radial.cross(f.axis);
+        let normal = radial.cross(f.axis());
         let normal = if forward { normal } else { -normal };
         let start = surface.eval(uv.x, uv.y);
         let (sin_u, cos_u) = uv.x.sin_cos();
@@ -328,8 +328,8 @@ impl<T: Decide> SurfaceCurve<T> {
             opening: None,
         };
         let (center, radius) = match chart.arm() {
-            ChartArm::Torus { major, minor } => (f.origin + radial * major, minor),
-            ChartArm::Sphere { radius } => (f.origin, radius),
+            ChartArm::Torus { major, minor } => (f.origin() + radial * major, minor),
+            ChartArm::Sphere { radius } => (f.origin(), radius),
             _ => return Err(Self::refused("meridian", surface)),
         };
         Ok(Self::circle(chart, center, normal, radius, start, section))
@@ -353,9 +353,9 @@ impl<T: Decide> SurfaceCurve<T> {
         let f = *chart.frame();
         let start = surface.eval(uv.x, uv.y);
         let (dir, opening) = match chart.arm() {
-            ChartArm::Cylinder { .. } => (f.axis, None),
+            ChartArm::Cylinder { .. } => (f.axis(), None),
             ChartArm::Cone { .. } => {
-                let g = start - f.origin;
+                let g = start - f.origin();
                 (g.normalize(), Some(opening))
             }
             _ => return Err(Self::refused("ruling", surface)),
@@ -363,7 +363,10 @@ impl<T: Decide> SurfaceCurve<T> {
         let dir = if outward { dir } else { -dir };
         Ok(Self::line(
             chart,
-            geom::Line { origin: start, dir },
+            geom::Line {
+                origin: start,
+                dir: geom_core::UnitVec3::squared(dir),
+            },
             uv.x,
             opening,
         ))
@@ -386,12 +389,12 @@ impl<T: Decide> SurfaceCurve<T> {
             return Err(Self::refused("generator from the apex", surface));
         }
         let apex = surface.eval(toward.x, T::zero());
-        let g = surface.eval(toward.x, toward.y) - chart.frame().origin;
+        let g = surface.eval(toward.x, toward.y) - chart.frame().origin();
         Ok(Self::line(
             chart,
             geom::Line {
                 origin: apex,
-                dir: g.normalize(),
+                dir: geom_core::UnitVec3::squared(g.normalize()),
             },
             toward.x,
             Some(opening),
@@ -422,7 +425,7 @@ impl<T: Decide> SurfaceCurve<T> {
         let Shape::Circle(c) = self.shape else {
             unreachable!("only a circle's start moves: a line's origin is its locus")
         };
-        let (centre, axis) = (c.frame.origin, c.frame.axis);
+        let (centre, axis) = (c.frame.origin(), c.frame.axis());
         let w = p - centre;
         let w = w - axis * w.dot(axis);
         debug_assert!(
@@ -450,7 +453,7 @@ impl<T: Decide> SurfaceCurve<T> {
     fn line(chart: Placed<T>, line: geom::Line<T>, u: T, opening: Option<bool>) -> Self {
         let f = *chart.frame();
         let (sin, cos) = u.sin_cos();
-        let normal = f.axis.cross(f.radial(u));
+        let normal = f.axis().cross(f.radial(u));
         Self {
             chart,
             shape: Shape::Line(line),
@@ -483,7 +486,7 @@ impl<T: Decide> SurfaceCurve<T> {
             chart,
             shape: Shape::Line(geom::Line {
                 origin: start,
-                dir: f.u_ref.normalize(),
+                dir: geom_core::UnitVec3::squared(f.u_ref().normalize()),
             }),
             plane: (start, f.v_ref().normalize()),
             section: Section::Whole,
@@ -504,7 +507,7 @@ impl<T: Decide> SurfaceCurve<T> {
         let ChartArm::Sphere { radius } = chart.arm() else {
             return Err(Self::refused("great circle", surface));
         };
-        let center = chart.frame().origin;
+        let center = chart.frame().origin();
         let start = surface.eval(uv.x, uv.y);
         let w = start - center;
         // Unit whatever `t`'s tilt off the tangent plane: the circle is
@@ -545,7 +548,7 @@ impl<T: Decide> SurfaceCurve<T> {
         if !matches!(chart.arm(), ChartArm::Sphere { .. }) {
             return Err(Self::refused("circle about a pole", surface));
         }
-        let c = chart.frame().origin;
+        let c = chart.frame().origin();
         let a = surface.eval(pole.x, pole.y) - c;
         let a = a.normalize();
         let q = surface.eval(through.x, through.y);
@@ -783,14 +786,12 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     pub fn plane(&self) -> Option<(Point3<T>, Vec3<T>)> {
         match *self.carrier {
             Curve3::Circle(Circle { frame, .. }) | Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
-                Some((frame.origin, frame.axis))
+                Some((frame.origin(), frame.axis()))
             }
-            Curve3::Spiric {
-                center,
-                u_ref,
-                offset,
-                ..
-            } => Some((center + u_ref * offset, u_ref)),
+            Curve3::Spiric { frame, offset, .. } => {
+                let (center, u_ref) = (frame.origin(), frame.u_ref());
+                Some((center + u_ref * offset, u_ref))
+            }
             _ => None,
         }
     }
@@ -874,46 +875,36 @@ mod tests {
 
     fn cylinder() -> geom::Surface<f64> {
         geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: z(),
+            frame: geom::Frame::new(Point3::origin(), z(), x()),
             radius: 2.0,
-            u_ref: x(),
         }
     }
 
     fn cone() -> geom::Surface<f64> {
         geom::Surface::Cone {
-            apex: Point3::origin(),
-            axis: z(),
+            frame: geom::Frame::new(Point3::origin(), z(), x()),
             half_angle: FRAC_PI_4,
-            u_ref: x(),
         }
     }
 
     fn plane() -> geom::Surface<f64> {
         geom::Surface::Plane {
-            origin: Point3::new(0.5, -1.0, 2.0),
-            normal: z(),
-            u_ref: Vec3::new(0.6, 0.8, 0.0),
+            frame: geom::Frame::new(Point3::new(0.5, -1.0, 2.0), z(), Vec3::new(0.6, 0.8, 0.0)),
         }
     }
 
     fn sphere() -> geom::Surface<f64> {
         geom::Surface::Sphere {
-            center: Point3::new(1.0, -2.0, 0.5),
+            frame: geom::Frame::new(Point3::new(1.0, -2.0, 0.5), z(), x()),
             radius: 3.0,
-            axis: z(),
-            u_ref: x(),
         }
     }
 
     fn torus() -> geom::Surface<f64> {
         geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: z(),
+            frame: geom::Frame::new(Point3::origin(), z(), x()),
             major_radius: 5.0,
             minor_radius: 1.5,
-            u_ref: x(),
         }
     }
 
@@ -1110,9 +1101,14 @@ mod tests {
     fn a_turned_record_is_the_same_surface_on_another_chart() {
         let torus = torus();
         let turned = Charted::record(key(), &torus).turned(Vec3::new(0.0, 1.0, 0.0));
-        let geom::Surface::Torus { u_ref, .. } = *turned.surface() else {
+        let geom::Surface::Torus {
+            frame: carrier_frame,
+            ..
+        } = *turned.surface()
+        else {
             unreachable!()
         };
+        let u_ref = carrier_frame.u_ref();
         assert_eq!((u_ref.x, u_ref.y, u_ref.z), (0.0, 1.0, 0.0));
         // A point of the turned chart lies on the record's surface.
         let w = turned.surface().eval(0.4, 0.9) - Point3::origin();
@@ -1132,9 +1128,7 @@ mod tests {
     #[test]
     fn a_planes_line_crosses_a_circle_of_the_plane_twice() {
         let plane = geom::Surface::Plane {
-            origin: Point3::origin(),
-            normal: z(),
-            u_ref: x(),
+            frame: geom::Frame::new(Point3::origin(), z(), x()),
         };
         let line = SurfaceCurve::u_line(&on(&plane), Point2::new(0.0, 0.0)).unwrap();
         let circle = |cy: f64| geom::Curve3::circle(Point3::new(0.0, cy, 0.0), z(), 1.0, x());

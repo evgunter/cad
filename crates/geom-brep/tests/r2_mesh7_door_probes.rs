@@ -43,11 +43,9 @@ fn villarceau_loop() -> (Surface<f64>, Vec<LoopEdge<f64>>) {
     let circle = |cx: f64| Curve3::circle(p3(cx, 0.0, 0.0), n, major, v3(1.0, 0.0, 0.0));
     let third = core::f64::consts::PI / 3.0;
     let surface = Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         major_radius: major,
         minor_radius: minor,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     // A: t ∈ [2π/3, 4π/3] runs P1 → P2; B: t ∈ [−π/3, π/3] runs P2 → P1.
     let loop_edges = vec![
@@ -119,10 +117,8 @@ fn the_villarceau_lens_is_refused_by_the_shape_door() {
 #[test]
 fn a_zero_extent_cylinder_face_passes_the_shape_door_and_not_the_flux_lane() {
     let surface = Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: 1.0,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let rim = |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(

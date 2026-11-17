@@ -46,10 +46,12 @@ fn framed_ellipse(
 
 fn sphere(radius: f64) -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.2, -0.5, 0.1),
+        frame: geom::Frame::new(
+            Point3::new(0.2, -0.5, 0.1),
+            Vec3::new(0.1, 0.2, 1.0).normalize(),
+            Vec3::new(1.0, 0.0, -0.1).normalize(),
+        ),
         radius,
-        axis: Vec3::new(0.1, 0.2, 1.0).normalize(),
-        u_ref: Vec3::new(1.0, 0.0, -0.1).normalize(),
     }
 }
 
@@ -300,7 +302,7 @@ fn a_conic_in_a_plane_along_a_cylinders_axis_certifies() {
             "a circle",
             tangent_needle(&wall, (b, b, 0.0), 0.0)
                 .conic()
-                .map(|c| Curve3::circle(c.frame().origin, c.frame().axis, b, c.frame().u_ref))
+                .map(|c| Curve3::circle(c.frame().origin(), c.frame().axis(), b, c.frame().u_ref()))
                 .unwrap_or_else(|| unreachable!("a needle is a conic")),
         ),
     ];
@@ -413,10 +415,8 @@ fn an_ellipses_coefficients_stay_within_their_charge_on_every_chart() {
     let axis = Vec3::new(0.2, -0.4, 1.0).normalize();
     let u_ref = axis.cross(Vec3::unit_x()).normalize();
     let cone_at = |alpha: f64| Surface::Cone {
-        apex: at,
-        axis,
+        frame: geom::Frame::new(at, axis, u_ref),
         half_angle: alpha,
-        u_ref,
     };
     let eccentric = |centre: Point3<f64>, n: Vec3<f64>, big: f64| {
         Curve3::Ellipse(geom::Ellipse::new(
@@ -473,10 +473,8 @@ fn an_ellipses_coefficients_stay_within_their_charge_on_every_chart() {
         cones.push((
             format!("{what}, α {alpha:e}"),
             Surface::Cone {
-                apex: at,
-                axis,
+                frame: geom::Frame::new(at, axis, u_ref),
                 half_angle: alpha,
-                u_ref,
             },
             carrier.clone(),
         ));
@@ -542,10 +540,8 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
         0 => {
             let alpha = s.log_uniform(0.003, 1.567);
             let surface = Surface::Cone {
-                apex: place,
-                axis,
+                frame: geom::Frame::new(place, axis, u_ref),
                 half_angle: alpha,
-                u_ref,
             };
             let carrier = if s.below(2) == 0 {
                 let h = s.log_uniform(1e-4, 2.0) * scale * sign(s);
@@ -555,9 +551,9 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
                     unreachable!("a section is a conic")
                 };
                 let (a, bb) = conic.semi_axes();
-                let moved = conic.frame().origin + unit(s) * off(s);
+                let moved = conic.frame().origin() + unit(s) * off(s);
                 Curve3::Ellipse(geom::Ellipse::new(
-                    geom::Frame::new(moved, conic.frame().axis, conic.frame().u_ref),
+                    geom::Frame::new(moved, conic.frame().axis(), conic.frame().u_ref()),
                     a,
                     bb,
                 ))
@@ -581,11 +577,9 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
                 1.0 - s.log_uniform(1e-5, 0.5)
             };
             let surface = Surface::Torus {
-                center: place,
-                axis,
+                frame: geom::Frame::new(place, axis, u_ref),
                 major_radius: scale,
                 minor_radius: scale * ratio,
-                u_ref,
             };
             let d = (2.0 * scale * ratio * off(s)).sqrt();
             let crest = crest_ellipse(&surface, d);
@@ -597,12 +591,12 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
                     unreachable!("a crest ellipse is a conic")
                 };
                 let (a, bb) = conic.semi_axes();
-                let lift = (conic.frame().origin - place).dot(axis);
+                let lift = (conic.frame().origin() - place).dot(axis);
                 Curve3::Ellipse(geom::Ellipse::new(
                     geom::Frame::new(
-                        conic.frame().origin - axis * (2.0 * lift),
-                        conic.frame().axis,
-                        conic.frame().u_ref,
+                        conic.frame().origin() - axis * (2.0 * lift),
+                        conic.frame().axis(),
+                        conic.frame().u_ref(),
                     ),
                     a,
                     bb,
@@ -612,10 +606,8 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
         }
         2 => {
             let surface = Surface::Cylinder {
-                origin: place,
-                axis,
+                frame: geom::Frame::new(place, axis, u_ref),
                 radius: scale,
-                u_ref,
             };
             let carrier = if s.below(2) == 0 {
                 let minor = (2.0 * scale * off(s)).sqrt();
@@ -638,10 +630,8 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
         }
         _ => {
             let surface = Surface::Sphere {
-                center: place,
+                frame: geom::Frame::new(place, axis, u_ref),
                 radius: scale,
-                axis,
-                u_ref,
             };
             let z = scale * s.range(-0.95, 0.95);
             let rho = (scale * scale - z * z).sqrt();
@@ -652,9 +642,9 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
     // Stored larger-first or larger-second, the same set of points.
     let carrier = match carrier {
         Curve3::Ellipse(e) if s.below(2) == 0 => {
-            let (n, u) = (e.frame.axis, e.frame.u_ref);
+            let (n, u) = (e.frame.axis(), e.frame.u_ref());
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame::new(e.frame.origin, n, n.cross(u)),
+                geom::Frame::new(e.frame.origin(), n, n.cross(u)),
                 e.semi_v,
                 e.semi_u,
             ))
@@ -666,7 +656,7 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
         unreachable!("the draws are ellipses")
     };
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
-        geom::Frame::new(e.frame.origin + offset, e.frame.axis, e.frame.u_ref),
+        geom::Frame::new(e.frame.origin() + offset, e.frame.axis(), e.frame.u_ref()),
         e.semi_u,
         e.semi_v,
     ));
@@ -835,19 +825,18 @@ fn oracle_row(
         unreachable!("the rows are ellipses")
     };
     let chart = match *surface {
-        Surface::Sphere { center, radius, .. } => format!("sphere {} {radius:e}", p(center)),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => format!("cylinder {} {} {radius:e}", p(origin), v(axis)),
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            format!("sphere {} {radius:e}", p(center))
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            format!("cylinder {} {} {radius:e}", p(origin), v(axis))
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let Some(nappe) = nappe else {
                 unreachable!("a cone's image is read on a nappe")
             };
@@ -859,23 +848,25 @@ fn oracle_row(
             )
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => format!(
-            "torus {} {} {major_radius:e} {minor_radius:e}",
-            p(center),
-            v(axis)
-        ),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            format!(
+                "torus {} {} {major_radius:e} {minor_radius:e}",
+                p(center),
+                v(axis)
+            )
+        }
         _ => unreachable!("the rows' charts"),
     };
     format!(
         "ROW {chart} | {} {} {} {:e} {:e} | {t0:e} {t1:e} | {envelope:e} {hi:e}",
-        p(e.frame.origin),
-        v(e.frame.axis),
-        v(e.frame.u_ref),
+        p(e.frame.origin()),
+        v(e.frame.axis()),
+        v(e.frame.u_ref()),
         e.semi_u,
         e.semi_v
     )
@@ -894,31 +885,23 @@ fn extremes() -> Vec<Extreme> {
     let axis = Vec3::new(0.2, -0.4, 1.0).normalize();
     let u_ref = axis.cross(Vec3::unit_x()).normalize();
     let cone_at = |d: f64, alpha: f64| Surface::Cone {
-        apex: far(d),
-        axis,
+        frame: geom::Frame::new(far(d), axis, u_ref),
         half_angle: alpha,
-        u_ref,
     };
     let needle = cone_at(1e5, 0.003);
     let flat = cone_at(1e5, FRAC_PI_2 - 1e-3);
     let thin = Surface::Torus {
-        center: far(1e3),
-        axis,
+        frame: geom::Frame::new(far(1e3), axis, u_ref),
         major_radius: 2.0,
         minor_radius: 2e-3,
-        u_ref,
     };
     let ball = Surface::Sphere {
-        center: far(1e3),
+        frame: geom::Frame::new(far(1e3), axis, u_ref),
         radius: 4.6,
-        axis,
-        u_ref,
     };
     let wall = Surface::Cylinder {
-        origin: far(1e3),
-        axis,
+        frame: geom::Frame::new(far(1e3), axis, u_ref),
         radius: 1.0,
-        u_ref,
     };
     vec![
         (
@@ -1028,10 +1011,8 @@ macro_rules! certify_on_the_unit_sphere {
         use crate::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
         let carrier: &Curve3<$t> = $carrier;
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         }
         .map_scalar(<$t>::from_f64);
         let mut surfaces: slotmap::SlotMap<SurfaceKey, Surface<$t>> = slotmap::SlotMap::with_key();

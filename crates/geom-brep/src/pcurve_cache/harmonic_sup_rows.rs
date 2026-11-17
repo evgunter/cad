@@ -159,11 +159,7 @@ pub(super) fn circle(
     u_ref: Vec3<f64>,
 ) -> Curve3<f64> {
     Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame: geom::Frame::new(center, axis, u_ref),
         radius,
     })
 }
@@ -189,9 +185,7 @@ fn z_frame() -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
 fn plane_a_radius_offset_reads_once() {
     let (origin, normal, u_ref) = z_frame();
     let plane = Surface::Plane {
-        origin,
-        normal,
-        u_ref,
+        frame: geom::Frame::new(origin, normal, u_ref),
     };
     let (r, d) = (0.5, 0.75 * zero());
     let image = chart_pcurve(&circle(origin, normal, r, u_ref), &plane, band()).unwrap();
@@ -209,9 +203,7 @@ fn plane_a_radius_offset_reads_once() {
 fn plane_a_skew_unequal_pair_reads_its_singular_value() {
     let (origin, normal, u_ref) = z_frame();
     let plane = Surface::Plane {
-        origin,
-        normal,
-        u_ref,
+        frame: geom::Frame::new(origin, normal, u_ref),
     };
     let carrier = circle(origin, normal, 0.5, u_ref);
     let Some((p0, pa, pb, pl)) = chart_pcurve(&carrier, &plane, band())
@@ -237,10 +229,8 @@ fn plane_a_skew_unequal_pair_reads_its_singular_value() {
 fn cylinder_meridian_a_radial_circle_reads_once() {
     let (r, d, rise) = (0.5, 0.75 * zero(), 0.3);
     let cyl = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     };
     let a = Vec3::new(d, 0.0, rise);
     let u_ref = a.normalize();
@@ -264,10 +254,8 @@ fn cone_rim_a_still_winding_reads_its_drift_once() {
     let (half_angle, d) = (0.01, 0.7 * zero());
     let h = 15.0 * zero();
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle,
-        u_ref: Vec3::unit_x(),
     };
     let carrier = circle(Point3::new(0.0, 0.0, h), Vec3::unit_z(), d, Vec3::unit_x());
     let image = chart_pcurve(&carrier, &cone, band()).unwrap();
@@ -281,10 +269,8 @@ fn cone_rim_a_still_winding_reads_its_drift_once() {
 fn sphere_parallel_a_still_winding_reads_its_drift_once() {
     let d = 0.75 * zero();
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let carrier = circle(
         Point3::new(0.0, 0.0, 1.0),
@@ -318,11 +304,9 @@ fn the_torus_parallels_still_winding_reads_its_drift_once() {
         l: Vec3::zero(),
     };
     let torus = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 1.0,
         minor_radius: 0.25,
-        u_ref: Vec3::unit_x(),
     };
     let mut terms = EnvelopeTerms::new();
     incidence(
@@ -349,23 +333,17 @@ fn a_tilted_parallel_reads_its_tilt_once() {
     let h = 1.0;
     let half_angle: f64 = 0.45;
     let cone = Surface::Cone {
-        apex: center,
-        axis,
+        frame: geom::Frame::new(center, axis, u_ref),
         half_angle,
-        u_ref,
     };
     let sphere = Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, axis, u_ref),
         radius: 1.0,
-        axis,
-        u_ref,
     };
     let torus = Surface::Torus {
-        center,
-        axis,
+        frame: geom::Frame::new(center, axis, u_ref),
         major_radius: 1.0,
         minor_radius: 0.25,
-        u_ref,
     };
     let off = 0.85 * zero();
     for (what, surface, rim_center, radius) in [
@@ -394,10 +372,8 @@ fn a_tilted_parallel_reads_its_tilt_once() {
 fn fidelity_a_drifted_pair_reads_once() {
     let r = 0.5;
     let cyl = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     };
     let carrier = circle(Point3::origin(), Vec3::unit_z(), r, Vec3::unit_x());
     let Pcurve::Harmonic {
@@ -432,18 +408,14 @@ fn fidelity_a_drifted_pair_reads_once() {
 fn focal_cone_a_drifted_slant_pair_reads_once() {
     let half_angle: f64 = 0.45;
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle,
-        u_ref: Vec3::unit_x(),
     };
     let tilt: f64 = 0.5;
     let side = Vec3::unit_y();
     let normal = Vec3::unit_z() * tilt.cos() + side * tilt.sin();
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 2.5),
-        normal,
-        u_ref: side.cross(normal),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 2.5), normal, side.cross(normal)),
     };
     let reach = crate::Reach::fixture(Point3::origin(), 3.0);
     let Ok(crate::intersect::PlaneConeSection::TiltedEllipse(carrier)) =
@@ -470,11 +442,9 @@ fn focal_cone_a_drifted_slant_pair_reads_once() {
 fn focal_torus_a_drifted_meridional_pair_reads_once() {
     let (major, minor) = (1.0, 0.25);
     let torus = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: major,
         minor_radius: minor,
-        u_ref: Vec3::unit_x(),
     };
     let tilt = (minor / major).asin();
     let carrier = circle(
@@ -591,10 +561,8 @@ fn general_sphere_circle(shift: Vec3<f64>) -> Curve3<f64> {
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -631,12 +599,13 @@ fn projected_circle_a_moved_frame_reads_once() {
 fn projected_circle_an_off_sphere_pair_reads_once() {
     let sphere = unit_sphere();
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { u_ref, axis, .. },
+        frame: carrier_frame,
         ..
     }) = general_sphere_circle(Vec3::zero())
     else {
         unreachable!()
     };
+    let (u_ref, axis) = (carrier_frame.u_ref(), carrier_frame.axis());
     let v_ref = axis.cross(u_ref);
     let s = 0.75 * zero() / 0.8;
     let carrier = general_sphere_circle((u_ref + v_ref) * (s * FRAC_1_SQRT_2));
@@ -670,17 +639,13 @@ fn a_tilt_in_the_band_decides_no_class() {
     let (center, axis, u_ref) = z_frame();
     let half_angle: f64 = 0.45;
     let cone = Surface::Cone {
-        apex: center,
-        axis,
+        frame: geom::Frame::new(center, axis, u_ref),
         half_angle,
-        u_ref,
     };
     let torus = Surface::Torus {
-        center,
-        axis,
+        frame: geom::Frame::new(center, axis, u_ref),
         major_radius: 1.0,
         minor_radius: 0.25,
-        u_ref,
     };
     let off = 0.8 * band().escalate();
     for (what, surface, rim_center, radius, want) in [

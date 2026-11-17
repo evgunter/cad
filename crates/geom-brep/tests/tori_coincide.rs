@@ -33,11 +33,9 @@ fn data(center: Point3<f64>, axis: Vec3<f64>, big: f64, small: f64) -> TorusData
 
 fn surface(t: TorusData<f64>) -> Surface<f64> {
     Surface::Torus {
-        center: t.center,
-        axis: t.axis,
+        frame: geom::Frame::new(t.center, t.axis, t.axis.orthonormal_basis().0),
         major_radius: t.major_radius,
         minor_radius: t.minor_radius,
-        u_ref: t.axis.orthonormal_basis().0,
     }
 }
 

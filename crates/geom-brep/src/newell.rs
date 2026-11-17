@@ -175,9 +175,7 @@ pub fn newell_plane<T: Decide>(
     let along = normal.dot(u_ref);
     let u_ref = (u_ref - normal * along).normalize();
     let plane = Surface::Plane {
-        origin: centroid,
-        normal,
-        u_ref,
+        frame: geom::Frame::new(centroid, normal, u_ref),
     };
     // Certification: every vertex within ε of the plane.
     for (i, p) in points.iter().enumerate() {
@@ -216,31 +214,40 @@ mod tests {
         ];
         let plane = newell_plane(&pts, pts[1] - pts[0], band()).unwrap();
         let Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         } = plane
         else {
             panic!("newell returns a plane");
         };
+        let (origin, normal, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         assert_eq!((normal.x, normal.y, normal.z), (0.0, 0.0, 1.0));
         assert_eq!((origin.x, origin.y), (0.5, 0.5));
         // u_ref is the given reference, which lies in the plane.
         assert_eq!((u_ref.x, u_ref.y, u_ref.z), (1.0, 0.0, 0.0));
         // A reference leaning out of the plane keeps its in-plane part.
-        let Surface::Plane { u_ref: leaning, .. } =
-            newell_plane(&pts, Vec3::new(0.0, 2.0, 5.0), band()).unwrap()
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = newell_plane(&pts, Vec3::new(0.0, 2.0, 5.0), band()).unwrap()
         else {
             panic!("newell returns a plane");
         };
+        let leaning = carrier_frame.u_ref();
         assert_eq!((leaning.x, leaning.y, leaning.z), (0.0, 1.0, 0.0));
         // Reversed order flips the normal.
         let rev: Vec<_> = pts.iter().rev().copied().collect();
-        let Surface::Plane { normal: n2, .. } =
-            newell_plane(&rev, rev[1] - rev[0], band()).unwrap()
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = newell_plane(&rev, rev[1] - rev[0], band()).unwrap()
         else {
             panic!("plane");
         };
+        let n2 = carrier_frame.axis();
         assert_eq!((n2.x, n2.y, n2.z), (0.0, 0.0, -1.0));
     }
 
@@ -272,9 +279,14 @@ mod tests {
             corner(0.0, 2.0),
         ];
         let plane = newell_plane(&pts, pts[1] - pts[0], band()).unwrap();
-        let Surface::Plane { normal, .. } = plane else {
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = plane
+        else {
             panic!("plane");
         };
+        let normal = carrier_frame.axis();
         // Translated Newell is exact on this data (centroid,
         // differences, and cross products are all exact dyadics): the
         // normal matches the frame's true normal to rounding and every

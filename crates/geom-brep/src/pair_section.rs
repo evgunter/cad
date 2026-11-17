@@ -305,13 +305,11 @@ impl<T: Decide> CylinderSpherePose<T> {
         };
         let (
             &Surface::Cylinder {
-                origin,
-                axis,
+                frame: cylinder_frame,
                 radius: r,
-                u_ref,
             },
             &Surface::Sphere {
-                center,
+                frame: sphere_frame,
                 radius: big_r,
                 ..
             },
@@ -319,22 +317,36 @@ impl<T: Decide> CylinderSpherePose<T> {
         else {
             return None;
         };
+        let (origin, axis, u_ref) = (
+            cylinder_frame.origin(),
+            cylinder_frame.axis(),
+            cylinder_frame.u_ref(),
+        );
+        let center = sphere_frame.origin();
         Some(
-            Self::decide_stance(geom::Line { origin, dir: axis }, center, r, big_r, band).map(
-                |(foot, offset, stance)| Self {
-                    cylinder: cylinder.clone(),
-                    sphere: sphere.clone(),
-                    cylinder_first,
-                    axis,
-                    u_ref,
-                    foot,
-                    center,
-                    r,
-                    big_r,
-                    offset,
-                    stance,
+            Self::decide_stance(
+                geom::Line {
+                    origin,
+                    dir: geom_core::UnitVec3::squared(axis),
                 },
-            ),
+                center,
+                r,
+                big_r,
+                band,
+            )
+            .map(|(foot, offset, stance)| Self {
+                cylinder: cylinder.clone(),
+                sphere: sphere.clone(),
+                cylinder_first,
+                axis,
+                u_ref,
+                foot,
+                center,
+                r,
+                big_r,
+                offset,
+                stance,
+            }),
         )
     }
 
@@ -374,7 +386,7 @@ impl<T: Decide> CylinderSpherePose<T> {
                 .map_err(|diag| PoseRefusal::Undecided { decision, diag })
         };
         // `axis` is unit by the surface's own invariant.
-        let (off, d) = square_part(center - origin, axis);
+        let (off, d) = square_part(center - origin, axis.get());
         let foot = center - off;
         let coaxial = pose(CsDecision::Coaxial, d)?;
         let stance = if coaxial.sign == Sign::Zero {
@@ -3690,16 +3702,20 @@ mod wiring {
         use geom_core::{Point3, Vec3};
         (
             geom::Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, -3.0),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, -3.0),
+                    Vec3::unit_z(),
+                    Vec3::unit_x(),
+                ),
                 radius: 0.5,
-                u_ref: Vec3::unit_x(),
             },
             geom::Surface::Sphere {
-                center: Point3::new(center.0, center.1, center.2),
+                frame: geom::Frame::new(
+                    Point3::new(center.0, center.1, center.2),
+                    Vec3::unit_z(),
+                    Vec3::unit_x(),
+                ),
                 radius,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
         )
     }
@@ -3718,17 +3734,13 @@ mod wiring {
         let u_ref = axis.orthonormal_basis().0;
         (
             geom::Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 0.5,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             geom::Surface::Torus {
-                center: Point3::new(0.05, 0.1, 0.02),
-                axis,
+                frame: geom::Frame::new(Point3::new(0.05, 0.1, 0.02), axis, u_ref),
                 major_radius: 0.6,
                 minor_radius: 0.2,
-                u_ref,
             },
         )
     }
@@ -3862,10 +3874,8 @@ mod wiring {
     fn two_cut_arcs() -> (super::PairSection<f64>, Vec<super::FittedCarrier<f64>>) {
         use geom_core::{Point3, Vec3};
         let wall = |origin: Point3<f64>, axis: Vec3<f64>| geom::Surface::Cylinder {
-            origin,
-            axis,
+            frame: geom::Frame::new(origin, axis, axis.orthonormal_basis().0),
             radius: 0.5,
-            u_ref: axis.orthonormal_basis().0,
         };
         let a = wall(Point3::origin(), Vec3::unit_z());
         let b = wall(
@@ -4013,16 +4023,16 @@ mod wiring {
         };
         let turned = Vec3::new(0.3, -0.2, 1.0).normalize();
         let turned_wall = geom::Surface::Cylinder {
-            origin: Point3::new(0.1, -0.2, 0.3),
-            axis: turned,
+            frame: geom::Frame::new(
+                Point3::new(0.1, -0.2, 0.3),
+                turned,
+                turned.orthonormal_basis().0,
+            ),
             radius: 0.4,
-            u_ref: turned.orthonormal_basis().0,
         };
         let ball = |c: (f64, f64, f64), radius: f64| geom::Surface::Sphere {
-            center: Point3::new(c.0, c.1, c.2),
+            frame: geom::Frame::new(Point3::new(c.0, c.1, c.2), Vec3::unit_z(), Vec3::unit_x()),
             radius,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let (wall, _) = wall_and_ball((0.0, 0.0, 0.0), 1.0);
         let (mut deepest, mut most) = (0, 0);
@@ -4407,7 +4417,7 @@ mod end_at_rows {
         CarriedComponent {
             carrier: Curve3::Line(Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(1.0, 0.0, 0.0),
+                dir: geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, 0.0)),
             }),
             span: (0.0, 1.0),
             shape: ComponentShape::Open {

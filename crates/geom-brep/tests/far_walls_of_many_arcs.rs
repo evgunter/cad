@@ -56,21 +56,17 @@ fn at<T: Decide>(c: f64, s: f64, h: f64) -> Point3<T> {
 fn cylinder<T: Decide>(radius: f64) -> Surface<T> {
     let (o, n, x, _) = frame::<T>();
     Surface::Cylinder {
-        origin: o,
-        axis: n,
+        frame: geom::Frame::new(o, n, x),
         radius: T::from_f64(radius),
-        u_ref: x,
     }
 }
 
 fn torus<T: Decide>(major: f64, minor: f64) -> Surface<T> {
     let (o, n, x, _) = frame::<T>();
     Surface::Torus {
-        center: o,
-        axis: n,
+        frame: geom::Frame::new(o, n, x),
         major_radius: T::from_f64(major),
         minor_radius: T::from_f64(minor),
-        u_ref: x,
     }
 }
 

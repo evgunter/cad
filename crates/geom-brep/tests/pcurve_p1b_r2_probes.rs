@@ -83,9 +83,7 @@ fn r2_a_secant_of_a_cylinder_is_refused_as_a_chart_image_of_it() {
 fn r2_the_same_chord_certifies_in_a_plane_that_contains_it() {
     let (q0, q1) = secant_chord(std::f64::consts::FRAC_PI_3);
     let (keys, lookup) = table(vec![Surface::Plane {
-        origin: q0,
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(q0, Vec3::unit_z(), Vec3::unit_x()),
     }]);
     let len = q0.distance(q1);
     let edge = EdgeCurve::certify(
@@ -167,9 +165,7 @@ fn r2_the_secant_refusal_is_metric_not_categorical() {
 fn r2_the_rest_conversion_moves_only_the_description() {
     let (q0, q1) = (p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0));
     let (keys, lookup) = table(vec![Surface::<f64>::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     }]);
     let scaffold = EdgeCurveSpec::line_between(q0, q1);
     let (carrier_before, t_before) = (
@@ -198,7 +194,7 @@ fn r2_the_rest_conversion_moves_only_the_description() {
                 "the carrier origin is bitwise untouched"
             );
             assert!(
-                d0.equals_exactly(*d1),
+                d0.get().equals_exactly(d1.get()),
                 "the carrier direction is bitwise untouched"
             );
         }
@@ -282,9 +278,7 @@ fn r2_the_rest_door_silently_ignores_its_arguments_on_an_at_rest_spec() {
 #[test]
 fn r2_restating_a_certified_edge_preserves_is_declared() {
     let (keys, lookup) = table(vec![Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     }]);
     let (q0, q1) = (p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0));
     let declared = EdgeCurve::certify(
@@ -351,9 +345,7 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
 #[test]
 fn r2_splitting_a_declared_chart_image_keeps_both_children_declared() {
     let (keys, lookup) = table(vec![Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     }]);
     let (q0, q1) = (p(0.0, 0.0, 0.0), p(2.0, 0.0, 0.0));
     let parent = EdgeCurve::certify(
@@ -396,9 +388,7 @@ fn r2_splitting_a_declared_chart_image_keeps_both_children_declared() {
 #[test]
 fn r2_a_param_span_refusal_says_it_is_not_a_sampled_check() {
     let (keys, lookup) = table(vec![Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     }]);
     let q = p(0.0, 0.0, 0.0);
     let err = EdgeCurve::certify(
@@ -485,9 +475,7 @@ fn r2_a_die_scale_strut_chord_on_a_planar_support_certifies_exactly() {
     let (l, r) = (1.0_f64, 0.15_f64);
     let _ = l;
     let (keys, lookup) = table(vec![Surface::<f64>::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     }]);
     // A support boundary vertex of the cube's `z = 0` face and the
     // foot of its station, both in that face.

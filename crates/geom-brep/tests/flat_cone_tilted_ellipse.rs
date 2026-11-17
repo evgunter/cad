@@ -68,15 +68,11 @@ impl Pose {
             (w - d * w.dot(d)).normalize()
         };
         let cone = Surface::Cone {
-            apex: self.apex,
-            axis: a,
+            frame: geom::Frame::new(self.apex, a, seam(a)),
             half_angle: self.alpha,
-            u_ref: seam(a),
         };
         let plane = Surface::Plane {
-            origin: self.apex - n * self.gap,
-            normal: n,
-            u_ref: seam(n),
+            frame: geom::Frame::new(self.apex - n * self.gap, n, seam(n)),
         };
         (cone, plane)
     }
@@ -87,21 +83,26 @@ impl Pose {
     fn miss_in_ulps(&self) -> Option<f64> {
         let (cone, plane) = self.surfaces();
         let Ok(PlaneConeSection::TiltedEllipse(Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame: carrier_frame,
             semi_u,
             semi_v,
         }))) = plane_cone_section(&plane, &cone, &at_apex(&cone, self.lever), band())
         else {
             return None;
         };
-        let Surface::Plane { origin, normal, .. } = plane else {
+        let (center, axis, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = plane
+        else {
             unreachable!()
         };
+        let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
         let p = |x: Point3<f64>| [x.x, x.y, x.z];
         let w = |x: Vec3<f64>| [x.x, x.y, x.z];
         let cut = ConeCut::new(
@@ -111,7 +112,7 @@ impl Pose {
             (p(origin), w(normal)),
         );
         let miss = cut.ellipse_miss(p(center), w(axis), semi_u, semi_v, w(u_ref));
-        let size = geom::Ellipse::new(geom::Frame::new(center, axis, u_ref), semi_u, semi_v)
+        let size = geom::Ellipse::new(carrier_frame, semi_u, semi_v)
             .semi_axes_by_size()
             .0
             .max(center.distance(Point3::origin()))

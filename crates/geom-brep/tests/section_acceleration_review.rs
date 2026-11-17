@@ -68,9 +68,7 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
         Vec3::new(0.0, 1.0, 0.0)
     };
     Surface::Plane {
-        origin,
-        normal: n,
-        u_ref: unit(seed - n * seed.dot(n)),
+        frame: geom::Frame::new(origin, n, unit(seed - n * seed.dot(n))),
     }
 }
 
@@ -92,10 +90,8 @@ fn poses() -> Vec<Pose> {
     let mut out = Vec::new();
     for &r in &[0.5, 1.0, 3.0] {
         let cyl = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: z,
+            frame: geom::Frame::new(Point3::origin(), z, frame(z)),
             radius: r,
-            u_ref: frame(z),
         };
         let p = Point3::new(r * 0.6, r * 0.8, 0.3);
         for m in [
@@ -110,10 +106,8 @@ fn poses() -> Vec<Pose> {
     // A cone, apex at the origin, half-angle 0.5, about z.
     for &alpha in &[0.3, 0.5, 1.1] {
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: z,
+            frame: geom::Frame::new(Point3::origin(), z, frame(z)),
             half_angle: alpha,
-            u_ref: frame(z),
         };
         let v = 1.7;
         let (s, c) = (alpha.sin(), alpha.cos());
@@ -128,10 +122,8 @@ fn poses() -> Vec<Pose> {
     }
     // A sphere.
     let sphere = Surface::Sphere {
-        center: Point3::new(0.1, -0.2, 0.3),
+        frame: geom::Frame::new(Point3::new(0.1, -0.2, 0.3), z, frame(z)),
         radius: 2.0,
-        axis: z,
-        u_ref: frame(z),
     };
     let p = Point3::new(0.1, -0.2, 0.3) + unit(Vec3::new(0.3, 0.5, 0.8)) * 2.0;
     for m in [Vec3::new(0.3, -0.2, 1.0), Vec3::new(-0.7, 0.4, 0.5)] {
@@ -140,20 +132,16 @@ fn poses() -> Vec<Pose> {
     // A cylinder through a cylinder: the second's axis tilted, its
     // surface through p.
     let cyl = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: z,
+        frame: geom::Frame::new(Point3::origin(), z, frame(z)),
         radius: 1.0,
-        u_ref: frame(z),
     };
     let p = Point3::new(0.6, 0.8, 0.3);
     let axis = unit(Vec3::new(1.0, 0.2, 0.3));
     let off = unit(Vec3::new(0.2, -0.9, 0.4));
     let radial = unit(off - axis * off.dot(axis));
     let other = Surface::Cylinder {
-        origin: p - radial * 0.7,
-        axis,
+        frame: geom::Frame::new(p - radial * 0.7, axis, frame(axis)),
         radius: 0.7,
-        u_ref: frame(axis),
     };
     out.push(("cylinder through a cylinder", cyl.clone(), other.clone(), p));
     out.push(("cylinder through a cylinder, swapped", other, cyl, p));
@@ -207,10 +195,8 @@ fn a_plane_through_a_sphere_bends_at_the_small_circles_geodesic_curvature() {
     let z = Vec3::new(0.0, 0.0, 1.0);
     let big_r = 2.0;
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), z, frame(z)),
         radius: big_r,
-        axis: z,
-        u_ref: frame(z),
     };
     for &h in &[0.0, 0.3, 1.0, 1.9, 1.999] {
         let r = (big_r * big_r - h * h).sqrt();
@@ -238,10 +224,8 @@ fn a_plane_through_a_sphere_bends_at_the_small_circles_geodesic_curvature() {
 fn a_nearly_tangent_section_bends_without_bound_and_a_tangent_one_is_unbounded() {
     let z = Vec3::new(0.0, 0.0, 1.0);
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), z, frame(z)),
         radius: 1.0,
-        axis: z,
-        u_ref: frame(z),
     };
     let p = Point3::new(0.0, 0.0, 1.0);
     let d = Vec3::new(0.0, 1.0, 0.0);
@@ -278,10 +262,8 @@ fn tied_germs_in_a_sphere_turn_as_their_traced_sections_do() {
     let band = Band::linear(Tol::witness()).unwrap();
     let z = Vec3::new(0.0, 0.0, 1.0);
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), z, frame(z)),
         radius: 1.5,
-        axis: z,
-        u_ref: frame(z),
     };
     let p = Point3::new(0.0, 0.0, 1.5);
     let normal = z;

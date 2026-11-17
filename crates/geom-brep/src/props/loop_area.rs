@@ -71,15 +71,18 @@ pub fn loop_vector_area<T: SpanLocate>(
                 let b = e.p1() - ref_point;
                 a.cross(b) * half
             }
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis, .. },
-                radius,
-            }) => arc_vector_area(e, ref_point, axis, radius.powi(2)) * half,
+            Curve3::Circle(geom::Circle { frame, radius }) => {
+                let axis = frame.axis();
+                arc_vector_area(e, ref_point, axis, radius.powi(2)) * half
+            }
             Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { axis, .. },
+                frame,
                 semi_u,
                 semi_v,
-            }) => arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half,
+            }) => {
+                let axis = frame.axis();
+                arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half
+            }
             Curve3::Nurbs(ref payload) => nurbs_vector_area(payload, e.t0, e.t1, ref_point)?,
             // The spiric's sector integral `∫ P × P′ dv` carries
             // `√((R + r cos v)² − d²)` against `sin v` and `cos v` — an
@@ -323,7 +326,7 @@ pub fn closed_segment_term<T: SpanLocate>(
         Some(conic) => {
             let (a, b) = conic.semi_axes();
             let span = if forward { t1 - t0 } else { t0 - t1 };
-            arc_segment_term(conic.frame().axis, a * b, span)
+            arc_segment_term(conic.frame().axis(), a * b, span)
         }
         None => spline_bulge(carrier, (t0, t1), forward)?,
     };
@@ -397,18 +400,17 @@ impl SegmentQ {
                 Self::Closed(closed_segment_term((carrier, (t0, t1)), forward))
             }
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 let rv = |v: Vec3<Interval>| [v.x, v.y, v.z];
                 Self::Spiric(Box::new(super::spiric::SpiricEdgeQ {
-                    centre: rv(*center - carrier.eval(t0)),
-                    axis: rv(*axis),
-                    normal: rv(*u_ref),
+                    centre: rv(center - carrier.eval(t0)),
+                    axis: rv(axis),
+                    normal: rv(u_ref),
                     major: *major_radius,
                     minor: *minor_radius,
                     offset: *offset,

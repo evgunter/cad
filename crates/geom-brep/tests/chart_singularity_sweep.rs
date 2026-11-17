@@ -59,10 +59,12 @@ mod closed_form_and_walk {
 
     fn unit_sphere() -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -322,10 +324,12 @@ mod closed_form_and_walk {
 
     fn cone() -> Surface<f64> {
         Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -468,10 +472,12 @@ mod sampled_and_fuzzed {
 
     fn unit_sphere() -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -626,22 +632,12 @@ mod sampled_and_fuzzed {
                     let s = (1.0 - d * d).sqrt();
                     let ends = [n1 * d + chord * s, n1 * d - chord * s];
                     let ang = |c: &Curve3<f64>, p: Vec3<f64>| {
-                        let Curve3::Circle(geom::Circle {
-                            frame:
-                                geom::Frame {
-                                    origin: center,
-                                    axis,
-                                    u_ref,
-                                },
-                            ..
-                        }) = c
-                        else {
+                        let Curve3::Circle(geom::Circle { frame, .. }) = c else {
                             unreachable!()
                         };
-                        let w = Point3::new(p.x, p.y, p.z) - *center;
-                        w.dot(axis.cross(*u_ref))
-                            .atan2(w.dot(*u_ref))
-                            .rem_euclid(TAU)
+                        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                        let w = Point3::new(p.x, p.y, p.z) - center;
+                        w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)).rem_euclid(TAU)
                     };
                     // Edge 1: c1 from ends[0] to ends[1] the short way? Use the
                     // arcs that are close to each other: same side.
@@ -847,18 +843,10 @@ mod sampled_and_fuzzed {
         let z = 0.5_f64;
         let rim = section(Vec3::new(0.0, 0.0, 1.0), z);
         // The rim's angle-0 point, in its frame.
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            ..
-        }) = rim.clone()
-        else {
+        let Curve3::Circle(geom::Circle { frame, .. }) = rim.clone() else {
             unreachable!()
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let p0 = center + u_ref * (1.0 - z * z).sqrt();
         let az = Vec3::new(p0.x, p0.y, 0.0);
         let az = az / az.norm();
@@ -944,10 +932,8 @@ mod small_arc_fuzz {
 
     fn sphere() -> Surface<f64> {
         Surface::Sphere {
-            center: O,
+            frame: geom::Frame::new(O, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 

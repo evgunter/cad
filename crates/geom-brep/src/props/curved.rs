@@ -204,40 +204,40 @@ pub fn boundary_material_sign_holding<T: Decide>(
             what: "boundary_material_sign called on a plane (planar orientation is the \
                    check-6 Newell winding, not a props derivation)",
         }),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => cylinder_material_sign(origin, axis, radius, loops, band),
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            cylinder_material_sign(origin, axis, radius, loops, band)
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => cone_material_sign(apex, axis, half_angle, loops, band),
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            ..
-        } => sphere_loop_side(center, radius, axis, loops, held, band),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            cone_material_sign(apex, axis, half_angle, loops, band)
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            sphere_loop_side(center, radius, axis, loops, held, band)
+        }
         // A spindle sheet is the torus's parametrisation with a signed
         // major radius, so it reads the torus's closed forms.
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => torus_material_sign(center, axis, major_radius, minor_radius, loops, band),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            torus_material_sign(center, axis, major_radius, minor_radius, loops, band)
+        }
         Surface::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => sheet_material_sign(center, axis, major_radius, minor_radius, loops, band),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            sheet_material_sign(center, axis, major_radius, minor_radius, loops, band)
+        }
         // As `curved_face_loops`: no closed form for a spline or for an
         // offset description over one.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
@@ -375,48 +375,37 @@ pub fn require_iso_rectangle<T: Decide>(
         Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
             what: "require_iso_rectangle called on a plane (a planar loop is not a chart rectangle)",
         }),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let b = cylinder_boundary(origin, axis, radius, outer, band)?;
             linear_rims_at_extremes(&b, band)
         }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (sin_a, cos_a) = half_angle.sin_cos();
             let b = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
             linear_rims_at_extremes(&b, band)
         }
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            ..
-        } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let b = sphere_boundary(center, radius, axis, outer, band)?;
             linear_rims_at_extremes(&b, band)
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         }
         | Surface::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let p = torus_parse(center, axis, major_radius, minor_radius, outer, band)?;
             torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, band)
         }
@@ -558,7 +547,8 @@ pub fn require_one_chart_branch<T: Decide>(
                    singularity and no branch for an arc to leave)",
         }),
         Surface::Cylinder { .. } => Ok(()),
-        Surface::Cone { apex, .. } => {
+        Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
             for (i, e) in outer.iter().enumerate() {
                 let Some(line @ geom::Line { dir, .. }) = e.carrier.as_line() else {
                     continue;
@@ -573,7 +563,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 // door refuses.
                 if classify_as(
                     "props_meridian_apex",
-                    cone_generator_miss(apex, dir, e),
+                    cone_generator_miss(apex, dir.get(), e),
                     band,
                     PropsCheck::Exact,
                 )? != Sign::Zero
@@ -589,7 +579,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 if matches!(
                     decide(
                         "props_cone_apex",
-                        Margin::metered(m, InfSpeed::new(dir.norm())),
+                        Margin::metered(m, InfSpeed::new(dir.get().norm())),
                         band
                     ),
                     Ok(Sign::Positive)
@@ -605,19 +595,16 @@ pub fn require_one_chart_branch<T: Decide>(
             Ok(())
         }
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
             ..
         } => {
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
             for (i, e) in outer.iter().enumerate() {
-                let Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { axis: n_c, .. },
-                    ..
-                }) = e.carrier
-                else {
+                let Curve3::Circle(geom::Circle { frame, .. }) = e.carrier else {
                     continue;
                 };
+                let n_c = frame.axis();
                 // Meridians only (see the fn docs): the parse's own
                 // rim/meridian split, on the parse's own margin.
                 if classify_as(
@@ -1470,10 +1457,8 @@ fn cylinder_windings<T: Decide>(
                 .map(|e| {
                     let ends = e.traversal_ends();
                     Ok([match e.carrier {
-                        Curve3::Circle(geom::Circle {
-                            frame: geom::Frame { origin: center, .. },
-                            ..
-                        }) => {
+                        Curve3::Circle(geom::Circle { frame, .. }) => {
+                            let center = frame.origin();
                             let du = rim_turns.next().ok_or(mismatch.clone())?;
                             EdgeTurn::carried(axis, origin, center, du, ends, radius)
                         }
@@ -1665,48 +1650,46 @@ pub fn curved_face_holding<T: Decide>(
         Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
             what: "curved_face called on a plane (planar faces take the loop route)",
         }),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => cylinder_face(origin, axis, radius, loops, band),
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            cylinder_face(origin, axis, radius, loops, band)
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => cone_face_closed_form(apex, axis, half_angle, loops, band),
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            ..
-        } => sphere_face(center, radius, axis, loops, held, sense, band),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            cone_face_closed_form(apex, axis, half_angle, loops, band)
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            sphere_face(center, radius, axis, loops, held, sense, band)
+        }
         Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => torus_face(
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            loops,
-            Tube::Ring,
-            band,
-        ),
-        // Its passes through an apex are read with the face on the side
-        // its bit says ([`ApexSide`]).
-        Surface::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            torus_face(
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                loops,
+                Tube::Ring,
+                band,
+            )
+        }
+        // Its passes through an apex are read with the face on the side
+        // its bit says ([`ApexSide`]).
+        Surface::Spindle {
+            frame,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let side = if sense {
                 ApexSide::Left
             } else {
@@ -1834,7 +1817,13 @@ fn cylinder_boundary<T: Decide>(
                 // Incidence at the true distance from the cylinder over
                 // the span: the ends' radial residuals, and how far the
                 // segment sags inside between them ([`radial_sag`]).
-                let radial = |p: Point3<T>| geom::Line { origin, dir: axis }.offset(p);
+                let radial = |p: Point3<T>| {
+                    geom::Line {
+                        origin,
+                        dir: UnitVec3::squared(axis),
+                    }
+                    .offset(p)
+                };
                 let (q0, q1) = (radial(e.p0()), radial(e.p1()));
                 let (f0, f1) = (q0.norm() - radius, q1.norm() - radius);
                 require_zero(
@@ -1860,15 +1849,8 @@ fn cylinder_boundary<T: Decide>(
                 levels.push((e.p0() - origin).dot(axis));
                 levels.push((e.p1() - origin).dot(axis));
             }
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis: n_c,
-                        ..
-                    },
-                radius: r_c,
-            }) => {
+            Curve3::Circle(geom::Circle { frame, radius: r_c }) => {
+                let (center, n_c) = (frame.origin(), frame.axis());
                 let s = classify_as(
                     "props_circle_axis_class",
                     Margin::levered(
@@ -1904,7 +1886,13 @@ fn cylinder_boundary<T: Decide>(
                 let w = center - origin;
                 require_zero(
                     "props_cylinder_circle_off_axis",
-                    Margin::norm3(geom::Line { origin, dir: axis }.offset(center)),
+                    Margin::norm3(
+                        geom::Line {
+                            origin,
+                            dir: UnitVec3::squared(axis),
+                        }
+                        .offset(center),
+                    ),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -2285,26 +2273,21 @@ fn require_on_cone<T: Decide>(
 ) -> Result<(), PropsError> {
     match e.carrier {
         Curve3::Line(geom::Line { dir, .. }) => {
-            require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)
+            require_cone_generator(apex, axis, sin_a, cos_a, dir.get(), e, band)
         }
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis: n_c,
-                    ..
-                },
-            radius: r_c,
-        }) => require_cone_circle(
-            apex,
-            axis,
-            sin_a,
-            cos_a,
-            (center, n_c, r_c),
-            &e.carrier,
-            band,
-        )
-        .map(|_| ()),
+        Curve3::Circle(geom::Circle { frame, radius: r_c }) => {
+            let (center, n_c) = (frame.origin(), frame.axis());
+            require_cone_circle(
+                apex,
+                axis,
+                sin_a,
+                cos_a,
+                (center, n_c, r_c),
+                &e.carrier,
+                band,
+            )
+            .map(|_| ())
+        }
         Curve3::Ellipse(..) => require_cone_ellipse(apex, axis, sin_a, cos_a, e, band),
         Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
             Err(PropsError::Unimplemented)
@@ -2419,18 +2402,14 @@ fn require_cone_ellipse<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis: n,
-                u_ref,
-            },
+        frame,
         semi_u,
         semi_v,
     }) = e.carrier
     else {
         return Err(PropsError::Unimplemented);
     };
+    let (center, n, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let (a, b) = (u_ref * semi_u, n.cross(u_ref) * semi_v);
     let (cos2, sin2) = (cos_a.powi(2), sin_a.powi(2));
     let perp = |p: Vec3<T>| p - axis * p.dot(axis);
@@ -2515,7 +2494,7 @@ fn require_cone_generator<T: Decide>(
     let radial = |p: Point3<T>| {
         geom::Line {
             origin: apex,
-            dir: axis,
+            dir: UnitVec3::squared(axis),
         }
         .offset(p)
     };
@@ -2564,7 +2543,10 @@ fn cone_generator_miss<T: Decide>(apex: Point3<T>, dir: Vec3<T>, e: &LoopEdge<T>
     // span of none, with no `dir·Δt` rounding to re-derive the far end.
     let through = |near: Point3<T>, far: Vec3<T>| {
         ruling_miss(
-            &geom::Line { origin: near, dir },
+            &geom::Line {
+                origin: near,
+                dir: UnitVec3::squared(dir),
+            },
             (T::zero(), T::zero()),
             Ruling::Generator {
                 apex,
@@ -2787,7 +2769,7 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
             };
             let rho = geom::Line {
                 origin: apex,
-                dir: axis,
+                dir: UnitVec3::squared(axis),
             }
             .distance(p);
             if classify_as(
@@ -2817,7 +2799,7 @@ fn cone_joints<T: Decide>(
     let radial = |p: Point3<T>| {
         geom::Line {
             origin: apex,
-            dir: axis,
+            dir: UnitVec3::squared(axis),
         }
         .offset(p)
     };
@@ -2937,7 +2919,7 @@ fn cone_loop_winding<T: Decide>(
     let radial = |p: Point3<T>| {
         geom::Line {
             origin: apex,
-            dir: axis,
+            dir: UnitVec3::squared(axis),
         }
         .offset(p)
     };
@@ -2999,15 +2981,8 @@ fn cone_loop_winding<T: Decide>(
         let step = match e.carrier {
             // The stored turn about the rim's own centre, carried to the
             // axis at each end.
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        axis: n,
-                        origin: center,
-                        ..
-                    },
-                ..
-            }) => {
+            Curve3::Circle(geom::Circle { frame, .. }) => {
+                let (n, center) = (frame.axis(), frame.origin());
                 let own = sense(n, rho)? * (e.t1 - e.t0);
                 let own = if e.forward { own } else { -own };
                 Turn::Carried(EdgeTurn::carried(
@@ -3019,10 +2994,8 @@ fn cone_loop_winding<T: Decide>(
                     lever,
                 ))
             }
-            Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { axis: n, .. },
-                ..
-            }) => {
+            Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
+                let n = frame.axis();
                 let third = (e.t1 - e.t0) / T::from_f64(3.0);
                 let m1 = radial(e.carrier.eval(e.t0 + third));
                 let m2 = radial(e.carrier.eval(e.t1 - third));
@@ -3126,19 +3099,12 @@ fn cone_boundary<T: Decide>(
         match e.carrier {
             Curve3::Line(geom::Line { dir, .. }) => {
                 generators = true;
-                require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)?;
+                require_cone_generator(apex, axis, sin_a, cos_a, dir.get(), e, band)?;
                 levels.push((e.p0() - apex).dot(axis) / cos_a);
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
             }
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis: n_c,
-                        ..
-                    },
-                radius: r_c,
-            }) => {
+            Curve3::Circle(geom::Circle { frame, radius: r_c }) => {
+                let (center, n_c) = (frame.origin(), frame.axis());
                 let s = require_cone_circle(
                     apex,
                     axis,
@@ -3723,16 +3689,7 @@ fn sphere_loop<T: Decide>(
     let mut curvature = T::zero();
     let mut arcs = Vec::with_capacity(edges.len());
     for e in edges {
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: c_c,
-                    axis: n_c,
-                    ..
-                },
-            radius: r_c,
-        }) = e.carrier
-        else {
+        let Curve3::Circle(geom::Circle { frame, radius: r_c }) = e.carrier else {
             return Err(match e.carrier {
                 Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
                     PropsError::Unimplemented
@@ -3742,6 +3699,7 @@ fn sphere_loop<T: Decide>(
                 },
             });
         };
+        let (c_c, n_c) = (frame.origin(), frame.axis());
         let w = c_c - center;
         require_on_loop(
             "props_sphere_circle_on",
@@ -4028,9 +3986,13 @@ fn agreed_side<T: Decide>(
     let mut reading: Option<Sign> = None;
     // The sphere's singular points, from their one home, as directions.
     let origin = Point3::new(T::zero(), T::zero(), T::zero());
-    for (_, pole) in
-        crate::chart_singularity::sphere_poles(geom::Line { origin, dir: up }, T::one())
-    {
+    for (_, pole) in crate::chart_singularity::sphere_poles(
+        geom::Line {
+            origin,
+            dir: UnitVec3::squared(up),
+        },
+        T::one(),
+    ) {
         let pole = pole - origin;
         let side = match read(pole) {
             Ok(side) => side,
@@ -4071,17 +4033,12 @@ pub fn seam_loops<T: Decide>(
     members: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<SeamLoops<T>, PropsError> {
-    let Surface::Sphere {
-        center,
-        radius,
-        axis,
-        ..
-    } = *surface
-    else {
+    let Surface::Sphere { frame, radius, .. } = *surface else {
         return Err(PropsError::SphereLoop {
             what: "a seam region read on a surface that is not a sphere",
         });
     };
+    let (center, axis) = (frame.origin(), frame.axis());
     Ok(SeamLoops {
         center,
         radius,
@@ -4928,22 +4885,13 @@ fn sphere_boundary<T: Decide>(
     let latitude = |p: Point3<T>| {
         let (h, rho) = geom::Line {
             origin: center,
-            dir: axis,
+            dir: UnitVec3::squared(axis),
         }
         .height_and_distance(p);
         (h / radius, rho / radius)
     };
     for e in edges {
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: c_c,
-                    axis: n_c,
-                    ..
-                },
-            radius: r_c,
-        }) = e.carrier
-        else {
+        let Curve3::Circle(geom::Circle { frame, radius: r_c }) = e.carrier else {
             return Err(match e.carrier {
                 // A spiric lies on no sphere: refused beside the
                 // spline, typed.
@@ -4955,6 +4903,7 @@ fn sphere_boundary<T: Decide>(
                 },
             });
         };
+        let (c_c, n_c) = (frame.origin(), frame.axis());
         let s = classify_as(
             "props_circle_axis_class",
             Margin::levered(
@@ -5071,7 +5020,7 @@ fn torus_ends<T: Real>(
     // Anchor latitude from the meridian's t0 endpoint.
     let (ha, rho_a) = geom::Line {
         origin: center,
-        dir: axis,
+        dir: UnitVec3::squared(axis),
     }
     .height_and_distance(m0.anchor);
     let (sin_a, cos_a) = (ha / minor, (rho_a - major) / minor);
@@ -5509,7 +5458,7 @@ fn torus_chart_loop<T: Decide>(
     // circle and its height, the tube angle's cosine and sine arms.
     let core_axis = geom::Line {
         origin: Point3::origin(),
-        dir: axis,
+        dir: UnitVec3::squared(axis),
     };
     let tube = |w: Vec3<T>| {
         let (h, rho) = core_axis.height_and_distance(Point3::origin() + w);
@@ -5547,15 +5496,12 @@ fn torus_chart_loop<T: Decide>(
     // a torus 990 m out at the interval scalar, whatever the minor radius.
     let turns = pieces.iter().map(|p| {
         let (a, b) = p.edge.traversal_ends();
-        let Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: centre, .. },
-            radius: r_c,
-        }) = p.edge.carrier
-        else {
+        let Curve3::Circle(geom::Circle { frame, radius: r_c }) = p.edge.carrier else {
             return Err(PropsError::NotIsoRectangle {
                 what: "a torus piece that is no circle",
             });
         };
+        let centre = frame.origin();
         let (wa, wb) = (a - center, b - center);
         let tube = tube_arms(wa, wb);
         Ok(match p.step {
@@ -5774,7 +5720,7 @@ fn sheet_apex_jumps<T: Decide>(
     let radial = |p: Point3<T>| {
         geom::Line {
             origin: center,
-            dir: axis,
+            dir: UnitVec3::squared(axis),
         }
         .offset(p)
     };
@@ -5892,16 +5838,7 @@ fn torus_classify<'a, T: Decide>(
 ) -> Result<Vec<TorusEdge<'a, T>>, PropsError> {
     let mut classified: Vec<TorusEdge<T>> = Vec::with_capacity(edges.len());
     for e in edges {
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: c_c,
-                    axis: n_c,
-                    ..
-                },
-            radius: r_c,
-        }) = e.carrier
-        else {
+        let Curve3::Circle(geom::Circle { frame, radius: r_c }) = e.carrier else {
             return Err(match e.carrier {
                 Curve3::Nurbs(_) => PropsError::Unimplemented,
                 // The spiric rim of a partial revolve's hollowed torus
@@ -5922,6 +5859,7 @@ fn torus_classify<'a, T: Decide>(
                 },
             });
         };
+        let (c_c, n_c) = (frame.origin(), frame.axis());
         let s = classify_as(
             "props_circle_axis_class",
             Margin::levered(
@@ -6196,7 +6134,7 @@ fn torus_meridian_orient<T: Decide>(
         geom::cover::Cover::circle(geom::cover::Core {
             axis: geom::Line {
                 origin: c_c,
-                dir: n_c,
+                dir: UnitVec3::squared(n_c),
             },
             radius: minor,
         })
@@ -6449,10 +6387,12 @@ mod sphere_region_cover_rows {
     /// The unit sphere about the origin, poled along `z`.
     fn sphere() -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -6488,16 +6428,19 @@ mod sphere_region_cover_rows {
         let band = Band::linear_at(Tol::witness(), eps).expect("band");
         let surface = match sphere() {
             Surface::Sphere {
-                center,
-                axis,
-                u_ref,
+                frame: carrier_frame,
                 ..
-            } => Surface::Sphere {
-                center,
-                radius: r,
-                axis,
-                u_ref,
-            },
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Sphere {
+                    frame: carrier_frame,
+                    radius: r,
+                }
+            }
             other => other,
         };
         let one = |i: &usize| core::slice::from_ref(&loops[*i]);

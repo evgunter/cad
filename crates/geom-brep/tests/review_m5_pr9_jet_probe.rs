@@ -13,10 +13,12 @@ use geom_core::{Point3, Vec3};
 
 fn zcyl(cx: f64, r: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(cx, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(cx, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -128,9 +130,11 @@ fn ruling_drift_is_exactly_zero_and_the_bound_discriminates() {
     // 0 is what lets this accept with tube = 0.05.
     let cyl = zcyl(0.0, 0.1);
     let plane = Surface::Plane {
-        origin: Point3::new(0.1, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.1, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
     };
     let (k1, k2, map) = arena2(cyl, plane);
     let carrier = Curve3::line(Point3::new(0.1, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));

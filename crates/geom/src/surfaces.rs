@@ -362,27 +362,14 @@ impl<T: Real> Surface<T> {
     /// a net. The one door to a surface of revolution's axis.
     #[must_use]
     pub fn axis_line(&self) -> Option<Line<T>> {
-        let (origin, axis) = match *self {
-            Self::Cylinder { frame, .. } => {
-                let (origin, axis) = (frame.origin(), frame.axis());
-                (origin, axis)
-            }
-            Self::Cone { frame, .. } => {
-                let (apex, axis) = (frame.origin(), frame.axis());
-                (apex, axis)
-            }
-            Self::Sphere { frame, .. }
+        match self {
+            Self::Cylinder { frame, .. }
+            | Self::Cone { frame, .. }
+            | Self::Sphere { frame, .. }
             | Self::Torus { frame, .. }
-            | Self::Spindle { frame, .. } => {
-                let (center, axis) = (frame.origin(), frame.axis());
-                (center, axis)
-            }
-            Self::Plane { .. } | Self::Nurbs(_) | Self::Approx(_) => return None,
-        };
-        Some(Line {
-            origin,
-            dir: UnitVec3::squared(axis),
-        })
+            | Self::Spindle { frame, .. } => Some(frame.axis_line()),
+            Self::Plane { .. } | Self::Nurbs(_) | Self::Approx(_) => None,
+        }
     }
 
     /// **The placement of an analytic surface**: a plane's origin,
@@ -391,39 +378,27 @@ impl<T: Real> Surface<T> {
     /// (each variant's docs say what they place). `None` for a net.
     #[must_use]
     pub fn frame(&self) -> Option<Frame<T>> {
-        match *self {
-            Self::Plane { frame } => {
-                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                Some(Frame::new(origin, normal, u_ref))
-            }
-            Self::Cylinder { frame, radius: _ } => {
-                let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                Some(Frame::new(origin, axis, u_ref))
-            }
-            Self::Cone {
-                frame,
-                half_angle: _,
-            } => {
-                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                Some(Frame::new(apex, axis, u_ref))
-            }
-            Self::Sphere { frame, radius: _ } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                Some(Frame::new(center, axis, u_ref))
-            }
-            Self::Torus {
-                frame,
-                major_radius: _,
-                minor_radius: _,
-            }
-            | Self::Spindle {
-                frame,
-                major_radius: _,
-                minor_radius: _,
-            } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                Some(Frame::new(center, axis, u_ref))
-            }
+        match self {
+            Self::Plane { frame }
+            | Self::Cylinder { frame, .. }
+            | Self::Cone { frame, .. }
+            | Self::Sphere { frame, .. }
+            | Self::Torus { frame, .. }
+            | Self::Spindle { frame, .. } => Some(*frame),
+            Self::Nurbs(_) | Self::Approx(_) => None,
+        }
+    }
+
+    /// [`Self::frame`], to place it again: the analytic surface's frame,
+    /// or `None` for a net.
+    pub fn frame_mut(&mut self) -> Option<&mut Frame<T>> {
+        match self {
+            Self::Plane { frame }
+            | Self::Cylinder { frame, .. }
+            | Self::Cone { frame, .. }
+            | Self::Sphere { frame, .. }
+            | Self::Torus { frame, .. }
+            | Self::Spindle { frame, .. } => Some(frame),
             Self::Nurbs(_) | Self::Approx(_) => None,
         }
     }

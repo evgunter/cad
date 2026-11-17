@@ -50,18 +50,16 @@ fn two_sections_read_coplanar_in_band_are_one_curve_only_where_they_are() {
         let (e, f) = (section(m), section(m * (1.0 + d)));
         let (
             Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { axis: n1, .. },
+                frame: carrier_frame,
                 ..
             }),
-            Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { axis: n2, .. },
-                semi_u,
-                ..
-            }),
+            Curve3::Ellipse(geom::Ellipse { frame, semi_u, .. }),
         ) = (e, f)
         else {
             unreachable!("two ellipses")
         };
+        let n1 = carrier_frame.axis();
+        let n2 = frame.axis();
         n1.cross(n2).norm() * semi_u
     };
     for k in [0.1, 0.5, 0.9] {
@@ -135,27 +133,29 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
                 let across = n.cross(hinge);
                 let reach = (major * across.dot(u)).hypot(minor * across.dot(v));
                 geom::Ellipse {
-                    frame: geom::Frame {
-                        axis: turn(n, hinge, d / reach),
-                        u_ref: turn(u, hinge, d / reach),
-                        ..e.frame
-                    },
+                    frame: geom::Frame::new(
+                        e.frame.origin(),
+                        turn(n, hinge, d / reach),
+                        turn(u, hinge, d / reach),
+                    ),
                     ..e
                 }
             };
             let pose = |what: &str, d: f64| match what {
                 "centre in the plane" => geom::Ellipse {
-                    frame: geom::Frame {
-                        origin: e.frame().origin + (u + v).normalize() * d,
-                        ..e.frame
-                    },
+                    frame: geom::Frame::new(
+                        e.frame().origin() + (u + v).normalize() * d,
+                        e.frame.axis(),
+                        e.frame.u_ref(),
+                    ),
                     ..e
                 },
                 "centre off the plane" => geom::Ellipse {
-                    frame: geom::Frame {
-                        origin: e.frame().origin + n * d,
-                        ..e.frame
-                    },
+                    frame: geom::Frame::new(
+                        e.frame().origin() + n * d,
+                        e.frame.axis(),
+                        e.frame.u_ref(),
+                    ),
                     ..e
                 },
                 "major" => geom::Ellipse {
@@ -170,10 +170,11 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
                 "tilt about v̂" => tilt(v, d),
                 "tilt about û + v̂" => tilt((u + v).normalize(), d),
                 "turn" => geom::Ellipse {
-                    frame: geom::Frame {
-                        u_ref: turn(u, n, d / (major - minor)),
-                        ..e.frame
-                    },
+                    frame: geom::Frame::new(
+                        e.frame.origin(),
+                        e.frame.axis(),
+                        turn(u, n, d / (major - minor)),
+                    ),
                     ..e
                 },
                 other => panic!("no pose {other}"),
@@ -200,18 +201,20 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
                     let stored = [
                         f,
                         geom::Ellipse {
-                            frame: geom::Frame {
-                                u_ref: f.frame.v_ref(),
-                                ..f.frame
-                            },
+                            frame: geom::Frame::new(
+                                f.frame.origin(),
+                                f.frame.axis(),
+                                f.frame.v_ref(),
+                            ),
                             semi_u: f.semi_v,
                             semi_v: f.semi_u,
                         },
                         geom::Ellipse {
-                            frame: geom::Frame {
-                                axis: -f.frame.axis,
-                                ..f.frame
-                            },
+                            frame: geom::Frame::new(
+                                f.frame.origin(),
+                                -f.frame.axis(),
+                                f.frame.u_ref(),
+                            ),
                             ..f
                         },
                     ];
@@ -232,10 +235,11 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
             if ratio == 1.0 {
                 for angle in [0.3, 2.0] {
                     let f = geom::Ellipse {
-                        frame: geom::Frame {
-                            u_ref: turn(u, n, angle),
-                            ..e.frame
-                        },
+                        frame: geom::Frame::new(
+                            e.frame.origin(),
+                            e.frame.axis(),
+                            turn(u, n, angle),
+                        ),
                         ..e
                     };
                     assert_eq!(read(&e, &f), Some(true), "a circle turned {angle}");

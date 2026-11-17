@@ -46,10 +46,8 @@ const TAU: f64 = core::f64::consts::TAU;
 
 fn cone() -> Surface<f64> {
     Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
@@ -569,14 +567,16 @@ struct GCone {
 impl GCone {
     fn surface(self) -> Surface<f64> {
         Surface::Cone {
-            apex: self.apex,
-            axis: self.axis,
+            frame: geom::Frame::new(
+                self.apex,
+                self.axis,
+                if self.axis.x.abs() < 0.9 {
+                    v3(1.0, 0.0, 0.0)
+                } else {
+                    v3(0.0, 1.0, 0.0)
+                },
+            ),
             half_angle: self.alpha,
-            u_ref: if self.axis.x.abs() < 0.9 {
-                v3(1.0, 0.0, 0.0)
-            } else {
-                v3(0.0, 1.0, 0.0)
-            },
         }
     }
 

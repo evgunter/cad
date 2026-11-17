@@ -117,17 +117,13 @@ mod tests {
         );
         let (big, small, r) = (3.0, 0.5, 2.0);
         let sphere = Surface::Sphere {
-            center: o,
+            frame: geom::Frame::new(o, z, x),
             radius: r,
-            axis: z,
-            u_ref: x,
         };
         let torus = Surface::Torus {
-            center: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             major_radius: big,
             minor_radius: small,
-            u_ref: x,
         };
         let empty: &[LoopEdge<f64>] = &[];
         for (what, s, flux, area) in [
@@ -159,21 +155,15 @@ mod tests {
         }
         let open = [
             Surface::Plane {
-                origin: o,
-                normal: z,
-                u_ref: x,
+                frame: geom::Frame::new(o, z, x),
             },
             Surface::Cylinder {
-                origin: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 radius: r,
-                u_ref: x,
             },
             Surface::Cone {
-                apex: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 half_angle: 0.5,
-                u_ref: x,
             },
         ];
         for s in &open {

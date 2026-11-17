@@ -42,9 +42,11 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
         Vec3::unit_y()
     };
     Surface::Plane {
-        origin,
-        normal,
-        u_ref: (seed - normal * seed.dot(normal)).normalize(),
+        frame: geom::Frame::new(
+            origin,
+            normal,
+            (seed - normal * seed.dot(normal)).normalize(),
+        ),
     }
 }
 
@@ -57,10 +59,8 @@ fn at_apex(lever: f64) -> Reach<f64> {
 /// The `z`-axis cone, apex at `(0, 0, 1)`.
 fn cone_z(half_angle: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -72,30 +72,24 @@ fn cyl(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
         Vec3::unit_y()
     };
     Surface::Cylinder {
-        origin,
-        axis,
+        frame: geom::Frame::new(origin, axis, (seed - axis * seed.dot(axis)).normalize()),
         radius,
-        u_ref: (seed - axis * seed.dot(axis)).normalize(),
     }
 }
 
 /// The `y`-axis ring torus at the origin, `R = 2`, `r = 0.5`.
 fn torus_y() -> Surface<f64> {
     Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x()),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 

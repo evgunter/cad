@@ -89,15 +89,8 @@ fn head_of(s: String) -> String {
 
 fn circle_pts(c: &Curve3<f64>, n: usize) -> Vec<Point3<f64>> {
     match *c {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => {
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let u = (u_ref - axis * u_ref.dot(axis)).normalize();
             let v = axis.cross(u);
             (0..n)
@@ -114,7 +107,7 @@ fn circle_pts(c: &Curve3<f64>, n: usize) -> Vec<Point3<f64>> {
 fn line_pts(c: &Curve3<f64>, from: Point3<f64>, len: f64, n: usize) -> Vec<Point3<f64>> {
     match *c {
         Curve3::Line(geom::Line { origin, dir }) => {
-            let d = dir.normalize();
+            let d = dir.get().normalize();
             let t0 = (from - origin).dot(d);
             (0..=n)
                 .map(|i| origin + d * (t0 - len + 2.0 * len * i as f64 / n as f64))
@@ -176,16 +169,12 @@ fn one_sum_differential() {
             let q = c + a * (sign * (r + lift));
             let extent = (big + r) * rng.r(1.0, 2.0);
             let torus = Surface::Torus {
-                center: c,
-                axis: a,
+                frame: geom::Frame::new(c, a, x),
                 major_radius: big,
                 minor_radius: r,
-                u_ref: x,
             };
             let plane = Surface::Plane {
-                origin: q,
-                normal: nrm,
-                u_ref: perp(nrm, &mut rng),
+                frame: geom::Frame::new(q, nrm, perp(nrm, &mut rng)),
             };
             let got = plane_torus_section(&plane, &torus, fixture_lever(extent), b);
             let (label, truth) = match &got {
@@ -222,16 +211,12 @@ fn one_sum_differential() {
             };
             let q = c + x * d + perp(x, &mut rng) * (s * rng.r(-1.0, 1.0));
             let torus = Surface::Torus {
-                center: c,
-                axis: a,
+                frame: geom::Frame::new(c, a, x),
                 major_radius: big,
                 minor_radius: r,
-                u_ref: x,
             };
             let plane = Surface::Plane {
-                origin: q,
-                normal: nrm,
-                u_ref: perp(nrm, &mut rng),
+                frame: geom::Frame::new(q, nrm, perp(nrm, &mut rng)),
             };
             let got = plane_torus_section(&plane, &torus, fixture_lever(extent), b);
             let (label, truth) = match &got {
@@ -267,15 +252,11 @@ fn one_sum_differential() {
             let g = rng.r(-1.5, 1.5) * z;
             let q = apex + nrm * g;
             let cone = Surface::Cone {
-                apex,
-                axis: a,
+                frame: geom::Frame::new(apex, a, x),
                 half_angle: al,
-                u_ref: x,
             };
             let plane = Surface::Plane {
-                origin: q,
-                normal: nrm,
-                u_ref: perp(nrm, &mut rng),
+                frame: geom::Frame::new(q, nrm, perp(nrm, &mut rng)),
             };
             let got = plane_cone_section(&plane, &cone, &at_apex(&cone, extent), b);
             let (label, truth) = match &got {
@@ -323,16 +304,12 @@ fn one_sum_differential() {
             };
             let o2 = o1 + y * d + a2 * (s * rng.r(-1e3, 1e3) / s.max(1.0));
             let c1 = Surface::Cylinder {
-                origin: o1,
-                axis: a1,
+                frame: geom::Frame::new(o1, a1, y),
                 radius: r1,
-                u_ref: y,
             };
             let c2 = Surface::Cylinder {
-                origin: o2,
-                axis: a2,
+                frame: geom::Frame::new(o2, a2, perp(a2, &mut rng)),
                 radius: if coax { r1 } else { r2 },
-                u_ref: perp(a2, &mut rng),
             };
             let ball = ExtentBall::fixture(
                 o1 + y * (r1 * rng.r(0.5, 1.0)) + a1 * (s * rng.r(-1.0, 1.0)),
@@ -397,7 +374,7 @@ fn one_sum_differential() {
                     format!(
                         "{:.4} {:.4}",
                         stations().map(|dd| (touch - dd).abs()).fold(0.0, f64::max) / z,
-                        ruling(&Curve3::line(*origin, *dir))
+                        ruling(&Curve3::line(*origin, (*dir).get()))
                     )
                 }
                 _ => "nan".into(),
@@ -427,15 +404,11 @@ fn one_sum_differential() {
             let gap = r + rng.term(z, k);
             let q = o - nrm * gap;
             let wall = Surface::Cylinder {
-                origin: o + a * (s * rng.r(-1e3, 1e3) / s.max(1.0)),
-                axis: a,
+                frame: geom::Frame::new(o + a * (s * rng.r(-1e3, 1e3) / s.max(1.0)), a, nx),
                 radius: r,
-                u_ref: nx,
             };
             let plane = Surface::Plane {
-                origin: q,
-                normal: nrm,
-                u_ref: perp(nrm, &mut rng),
+                frame: geom::Frame::new(q, nrm, perp(nrm, &mut rng)),
             };
             let ball = ExtentBall::fixture(
                 o - nrm * (r * rng.r(0.5, 1.0)) + a * (s * rng.r(-1.0, 1.0)),
@@ -490,16 +463,12 @@ fn one_sum_differential() {
             let off = rng.r(0.0, 2.5) * z;
             let y = perp(b2, &mut rng);
             let cone = Surface::Cone {
-                apex,
-                axis: a,
+                frame: geom::Frame::new(apex, a, x),
                 half_angle: al,
-                u_ref: x,
             };
             let wall = Surface::Cylinder {
-                origin: apex + y * off + b2 * (s * rng.r(-3.0, 3.0)),
-                axis: b2,
+                frame: geom::Frame::new(apex + y * off + b2 * (s * rng.r(-3.0, 3.0)), b2, y),
                 radius: rr,
-                u_ref: y,
             };
             let got = cone_cylinder_section(&cone, &wall, fixture_lever(extent), b);
             let (label, truth) = match &got {

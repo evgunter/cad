@@ -63,21 +63,15 @@ impl Chart {
     fn surface(self) -> Surface<f64> {
         match self {
             Self::Plane => Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             },
             Self::Cylinder => Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             Self::Cone => Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 half_angle: ALPHA,
-                u_ref: Vec3::unit_x(),
             },
         }
     }
@@ -510,21 +504,15 @@ fn stated_images_on_their_carriers(g: &mut fuzz::Rng) {
         let chart = Chart::ALL[g.below(3)];
         let surface = match chart {
             Chart::Plane => Surface::Plane {
-                origin,
-                normal: axis,
-                u_ref,
+                frame: geom::Frame::new(origin, axis, u_ref),
             },
             Chart::Cylinder => Surface::Cylinder {
-                origin,
-                axis,
+                frame: geom::Frame::new(origin, axis, u_ref),
                 radius: g.range(0.1, 5.0),
-                u_ref,
             },
             Chart::Cone => Surface::Cone {
-                apex: origin,
-                axis,
+                frame: geom::Frame::new(origin, axis, u_ref),
                 half_angle: g.range(0.1, 1.2),
-                u_ref,
             },
         };
         let degree = 1 + g.below(3);
@@ -609,14 +597,16 @@ fn a_cone_image_at_a_steep_sample_certifies() {
     /// The schedule's widest read at `f64`, at the computed stations.
     const F64_MAX_RESIDUAL: f64 = 3.552_713_678_800_501e-15;
     let surface = Surface::Cone {
-        apex: Point3::new(1.2322203379484655, 8.256594057242634, -7.770083324538339),
-        axis: Vec3::new(0.703363688854479, -0.5626911754625069, -0.4343479737003985),
-        half_angle: 0.8623104825780505,
-        u_ref: Vec3::new(
-            -0.6624868025539791,
-            -0.7404071868429866,
-            -0.11361528996160745,
+        frame: geom::Frame::new(
+            Point3::new(1.2322203379484655, 8.256594057242634, -7.770083324538339),
+            Vec3::new(0.703363688854479, -0.5626911754625069, -0.4343479737003985),
+            Vec3::new(
+                -0.6624868025539791,
+                -0.7404071868429866,
+                -0.11361528996160745,
+            ),
         ),
+        half_angle: 0.8623104825780505,
     };
     let knots = vec![
         0.0,
@@ -758,10 +748,12 @@ fn a_stated_images_stations_are_the_schedules_at_f64() {
 fn tilted_cylinder() -> Surface<f64> {
     let axis = Vec3::new(0.2, 0.3, 0.9).normalize();
     Surface::Cylinder {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        axis,
+        frame: geom::Frame::new(
+            Point3::new(1.0, 2.0, 3.0),
+            axis,
+            (Vec3::unit_x() - axis * axis.x).normalize(),
+        ),
         radius: 2.5,
-        u_ref: (Vec3::unit_x() - axis * axis.x).normalize(),
     }
 }
 
@@ -950,9 +942,7 @@ fn a_correct_image_far_out_certifies_or_ends_in_its_lever() {
     let mut levers = 0usize;
     for far in [1e2, 1e3, 1e4] {
         let plane = Surface::Plane {
-            origin: Point3::new(far, -far, 0.7 * far),
-            normal: n,
-            u_ref: u,
+            frame: geom::Frame::new(Point3::new(far, -far, 0.7 * far), n, u),
         };
         let (p0, pl) = ([0.37 * far, -0.21 * far], [0.6e-2 * far, 0.8e-2 * far]);
         let (net, polyline) = polyline_under(
@@ -963,10 +953,8 @@ fn a_correct_image_far_out_certifies_or_ends_in_its_lever() {
         let o = plane.eval(p0[0], p0[1]);
         let line = Curve3::line(o, plane.eval(p0[0] + pl[0], p0[1] + pl[1]) - o);
         let cylinder = Surface::Cylinder {
-            origin: Point3::new(far, far, -far),
-            axis: n,
+            frame: geom::Frame::new(Point3::new(far, far, -far), n, u),
             radius: 0.5 * far,
-            u_ref: u,
         };
         let (cnet, cpolyline) = polyline_under(
             &cylinder,

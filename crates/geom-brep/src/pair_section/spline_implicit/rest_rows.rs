@@ -25,10 +25,8 @@ use crate::ssi::{OneArcRefusal, PointLever, SsiLimb, SsiTube};
 /// crossing past the wall's top.
 fn rod(s: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: pt(0.0, 1.15 * s, 1.6 * s),
-        axis: Vec3::unit_x(),
+        frame: geom::Frame::new(pt(0.0, 1.15 * s, 1.6 * s), Vec3::unit_x(), Vec3::unit_z()),
         radius: 0.5 * s,
-        u_ref: Vec3::unit_z(),
     }
 }
 
@@ -37,9 +35,7 @@ fn rod(s: f64) -> Surface<f64> {
 /// [`rod`] does, bending away from the wall toward its sides.
 fn ring(s: f64) -> Surface<f64> {
     Surface::Torus {
-        center: pt(0.0, 4.15 * s, 1.6 * s),
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(pt(0.0, 4.15 * s, 1.6 * s), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 3.0 * s,
         minor_radius: 0.5 * s,
     }
@@ -206,7 +202,8 @@ fn a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it(
                 "s = {s}, {what}, {moved}: the arc refuses on the on-locus residual: {read:?}"
             );
         }
-        if let Surface::Cylinder { axis, .. } = *partner {
+        if let Surface::Cylinder { frame, .. } = *partner {
+            let axis = frame.axis();
             // A witness is pinned to the carrier's middle and to the
             // partner: the middle slid along the cylinder's rulings stays
             // on the partner and leaves the middle; the wall's point
@@ -247,9 +244,10 @@ fn a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it(
                  named by its key: {off:?}"
             );
         }
-        let (true, Surface::Sphere { center, .. }) = (image_holds, partner) else {
+        let (true, Surface::Sphere { frame, .. }) = (image_holds, partner) else {
             continue;
         };
+        let center = frame.origin();
         let limbs = curved_nurbs_limbs(
             &comp.carrier,
             comp.span,
@@ -264,7 +262,7 @@ fn a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it(
             "s = {s}, {what}: the tube is proved on the wall's chart: {:?}",
             limbs.tube
         );
-        let sine = least_sine(&comp.carrier, comp.span, *center, chart(&w));
+        let sine = least_sine(&comp.carrier, comp.span, center, chart(&w));
         assert!(
             (limbs.min_sin_theta - sine).abs() <= 1e-9,
             "s = {s}, {what}: the least sine the lane reports, {}, is the sphere's radius \
@@ -315,40 +313,49 @@ fn first(section: &crate::pair_section::PairSection<f64>) -> CarriedComponent<f6
 fn swollen(partner: &Surface<f64>, dr: f64) -> Surface<f64> {
     match partner.clone() {
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
-        } => Surface::Sphere {
-            center,
-            radius: radius + dr,
-            axis,
-            u_ref,
-        },
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Sphere {
+                frame: carrier_frame,
+                radius: radius + dr,
+            }
+        }
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin,
-            axis,
-            radius: radius + dr,
-            u_ref,
-        },
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cylinder {
+                frame: carrier_frame,
+                radius: radius + dr,
+            }
+        }
         Surface::Torus {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-        } => Surface::Torus {
-            center,
-            axis,
-            u_ref,
-            major_radius,
-            minor_radius: minor_radius + dr,
-        },
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Torus {
+                frame: carrier_frame,
+                major_radius,
+                minor_radius: minor_radius + dr,
+            }
+        }
         other => panic!("the rows' partners are curved: {:?}", other.kind()),
     }
 }
@@ -397,10 +404,8 @@ fn flat() -> NurbsSurface<f64> {
 fn a_sphere_touching_the_wall_is_not_transverse_at_its_curvature_radius() {
     let half = 0.5 * band().zero();
     let touch = Surface::Sphere {
-        center: pt(0.0, 1.1, 1.0),
+        frame: geom::Frame::new(pt(0.0, 1.1, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 0.1,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let line = Curve3::line(pt(0.0, 1.0, 1.0), Vec3::unit_x());
     let refused = curved_nurbs_limbs(
@@ -439,10 +444,8 @@ fn a_flat_sphere_touching_a_curved_wall_is_not_transverse_at_the_walls_curvature
     let half = 0.5 * band().zero();
     let w = wall(1.0);
     let touch = Surface::Sphere {
-        center: pt(0.0, 101.15, 1.0),
+        frame: geom::Frame::new(pt(0.0, 101.15, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 100.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let line = Curve3::line(pt(0.0, 1.15, 1.0), Vec3::unit_x());
     let refused = curved_nurbs_limbs(
@@ -606,17 +609,11 @@ fn an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_by_the_tube(
     let dipping = |d: f64| {
         let centre_z = rho - d;
         let sphere = Surface::Sphere {
-            center: pt(0.0, 1.1, centre_z),
+            frame: geom::Frame::new(pt(0.0, 1.1, centre_z), Vec3::unit_z(), Vec3::unit_x()),
             radius: (rho * rho + 0.01).sqrt(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let carrier = Curve3::Circle(geom::Circle::new(
-            geom::Frame {
-                origin: pt(0.0, 1.0, centre_z),
-                axis: Vec3::unit_y(),
-                u_ref: -Vec3::unit_z(),
-            },
+            geom::Frame::new(pt(0.0, 1.0, centre_z), Vec3::unit_y(), -Vec3::unit_z()),
             rho,
         ));
         at_rest(&carrier, (-at, 1.0 - at), &sphere, &wall, 1.0)
@@ -664,15 +661,11 @@ fn an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_by_the_tube(
 #[test]
 fn the_curved_lane_takes_no_plane_and_no_cone() {
     let cone = Surface::Cone {
-        apex: pt(0.0, 3.0, 1.0),
-        axis: -Vec3::unit_y(),
+        frame: geom::Frame::new(pt(0.0, 3.0, 1.0), -Vec3::unit_y(), Vec3::unit_x()),
         half_angle: 0.3,
-        u_ref: Vec3::unit_x(),
     };
     let plane = Surface::Plane {
-        origin: pt(0.0, 0.0, 1.0),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(pt(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
     };
     let line = Curve3::line(pt(0.0, 1.0, 1.0), Vec3::unit_x());
     for (what, partner) in [("a plane", &plane), ("a cone", &cone)] {

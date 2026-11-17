@@ -75,7 +75,7 @@ fn served<T: Decide + Bounds>(
     let Ok(PlaneConeSection::ApexTangentLine(Curve3::Line(geom::Line { dir, .. }))) = got else {
         return None;
     };
-    Some([dir.x, dir.y, dir.z].map(|x| (x.lo(), x.hi())))
+    Some([dir.get().x, dir.get().y, dir.get().z].map(|x| (x.lo(), x.hi())))
 }
 
 #[test]
@@ -87,19 +87,15 @@ fn a_grazing_plane_serves_the_generator_it_grazes() {
         let ortho = a.cross(r);
         let (st, ct) = f.seam_turn.sin_cos();
         let cone = Surface::Cone {
-            apex: f.apex,
-            axis: a,
+            frame: geom::Frame::new(f.apex, a, r * ct + ortho * st),
             half_angle: alpha,
-            u_ref: r * ct + ortho * st,
         };
         let grazed = a * alpha.cos() + r * alpha.sin();
         for tau in TAUS.map(|t| t * e) {
             for flip in [1.0, -1.0] {
                 let n = (r * (alpha + tau).cos() - a * (alpha + tau).sin()) * flip;
                 let plane = Surface::Plane {
-                    origin: f.apex,
-                    normal: n,
-                    u_ref: ortho,
+                    frame: geom::Frame::new(f.apex, n, ortho),
                 };
                 let row = format!("{} τ = {tau:e} c = {:+.3} ε = {e:e}", f.name, a.dot(n));
                 for (scalar, got) in [

@@ -195,10 +195,8 @@ fn r1_the_multi_wrap_span_splits_the_two_doors() {
 #[test]
 fn r1_the_cone_arm_does_not_read_a_stray_line_as_a_generator() {
     let cone = Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     // A line NOWHERE near the cone, whose foot-point parameter happens
     // to fall inside its stored span.

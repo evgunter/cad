@@ -346,22 +346,15 @@ fn off_span(s: &Span<'_, f64>, q: Point3<f64>) -> f64 {
     };
     match *s.carrier() {
         Curve3::Line(geom::Line { origin, dir }) => {
-            let t = (q - origin).dot(dir) / dir.dot(dir);
+            let t = (q - origin).dot(dir.get()) / dir.get().dot(dir.get());
             if (t0.min(t1)..=t0.max(t1)).contains(&t) {
                 distance(s.carrier(), q)
             } else {
                 ends()
             }
         }
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => {
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let w = q - center;
             let v = axis.cross(u_ref);
             let angle = (w.dot(v) * radius.signum()).atan2(w.dot(u_ref) * radius.signum());

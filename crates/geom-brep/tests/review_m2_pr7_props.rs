@@ -63,20 +63,26 @@ fn chart(s: &Surface<f64>, u: f64, v: f64) -> (Point3<f64>, Vec3<f64>, f64) {
     };
     match *s {
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
         } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (radial, _) = frame(axis, u_ref, u);
             (origin + radial * radius + axis * v, radial, radius)
         }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
         } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (sa, ca) = half_angle.sin_cos();
             let (radial, _) = frame(axis, u_ref, u);
             let p = apex + axis * (v * ca) + radial * (v * sa);
@@ -86,23 +92,29 @@ fn chart(s: &Surface<f64>, u: f64, v: f64) -> (Point3<f64>, Vec3<f64>, f64) {
             (p, n, v.abs() * sa)
         }
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (sv, cv) = v.sin_cos();
             let (radial, _) = frame(axis, u_ref, u);
             let n = radial * cv + axis * sv;
             (center + n * radius, n, radius * radius * cv)
         }
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (sv, cv) = v.sin_cos();
             let (radial, _) = frame(axis, u_ref, u);
             let n = radial * cv + axis * sv;
@@ -183,49 +195,51 @@ fn rim_edge(
     flip: bool,
 ) -> LoopEdge<f64> {
     let (center, axis, radius, u_ref) = match *s {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => (origin + axis * v, axis, radius, u_ref),
+        Surface::Cylinder { frame, radius } => {
+            let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (origin + axis * v, axis, radius, u_ref)
+        }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
-        } => (
-            apex + axis * (v * half_angle.cos()),
-            axis,
-            (v * half_angle.sin()).abs(),
-            // Lower nappe: the chart point at azimuth u lies along
-            // −radial(u) from the axis (v·sinα < 0), so the carrier's
-            // seam frame is negated to keep carrier param t ≡ chart u.
-            if v < 0.0 { -u_ref } else { u_ref },
-        ),
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => (
-            center + axis * (radius * v.sin()),
-            axis,
-            radius * v.cos(),
-            u_ref,
-        ),
+        } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            (
+                apex + axis * (v * half_angle.cos()),
+                axis,
+                (v * half_angle.sin()).abs(),
+                // Lower nappe: the chart point at azimuth u lies along
+                // −radial(u) from the axis (v·sinα < 0), so the carrier's
+                // seam frame is negated to keep carrier param t ≡ chart u.
+                if v < 0.0 { -u_ref } else { u_ref },
+            )
+        }
+        Surface::Sphere { frame, radius } => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (
+                center + axis * (radius * v.sin()),
+                axis,
+                radius * v.cos(),
+                u_ref,
+            )
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
-            u_ref,
-        } => (
-            center + axis * (minor_radius * v.sin()),
-            axis,
-            major_radius + minor_radius * v.cos(),
-            u_ref,
-        ),
+        } => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (
+                center + axis * (minor_radius * v.sin()),
+                axis,
+                major_radius + minor_radius * v.cos(),
+                u_ref,
+            )
+        }
         _ => panic!("rim_edge: unsupported"),
     };
     if flip {
@@ -243,11 +257,7 @@ fn rim_edge(
     } else {
         LoopEdge::hand_built(
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+                frame: geom::Frame::new(center, axis, u_ref),
                 radius,
             }),
             u0,
@@ -275,31 +285,47 @@ fn meridian_edge(
     };
     let (carrier, t0, t1) = match *s {
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
         } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (radial, _) = frame(axis, u_ref);
             (Curve3::line(origin + radial * radius, axis), v0, v1)
         }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
         } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (sa, ca) = half_angle.sin_cos();
             let (radial, _) = frame(axis, u_ref);
             let dir = axis * ca + radial * sa; // unit generator; p(v) = apex + dir·v
-            (Curve3::Line(geom::Line { origin: apex, dir }), v0, v1)
+            (
+                Curve3::Line(geom::Line {
+                    origin: apex,
+                    dir: geom_core::UnitVec3::squared(dir),
+                }),
+                v0,
+                v1,
+            )
         }
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             // Great circle through the poles in the plane of (radial,
             // axis): eval(t) = center + (radial·cos t + axis·sin t)·R —
             // carrier u_ref = radial, carrier axis = radial × axis ...
@@ -316,12 +342,15 @@ fn meridian_edge(
             (Curve3::circle(center, n, radius, radial), v0, v1)
         }
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (radial, _) = frame(axis, u_ref);
             let n = radial.cross(axis).normalize(); // n×radial = axis: minor angle = t
             (
@@ -367,41 +396,33 @@ fn tilted_frame() -> (Vec3<f64>, Vec3<f64>) {
 fn cyl() -> Surface<f64> {
     let (axis, u_ref) = tilted_frame();
     Surface::Cylinder {
-        origin: Point3::new(0.3, -0.7, 1.1),
-        axis,
+        frame: geom::Frame::new(Point3::new(0.3, -0.7, 1.1), axis, u_ref),
         radius: 0.8,
-        u_ref,
     }
 }
 
 fn cone_s() -> Surface<f64> {
     let (axis, u_ref) = tilted_frame();
     Surface::Cone {
-        apex: Point3::new(-0.4, 0.9, 0.2),
-        axis,
+        frame: geom::Frame::new(Point3::new(-0.4, 0.9, 0.2), axis, u_ref),
         half_angle: FRAC_PI_3 * 0.7,
-        u_ref,
     }
 }
 
 fn sph() -> Surface<f64> {
     let (axis, u_ref) = tilted_frame();
     Surface::Sphere {
-        center: Point3::new(1.2, 0.4, -0.6),
+        frame: geom::Frame::new(Point3::new(1.2, 0.4, -0.6), axis, u_ref),
         radius: 1.3,
-        axis,
-        u_ref,
     }
 }
 
 fn tor() -> Surface<f64> {
     let (axis, u_ref) = tilted_frame();
     Surface::Torus {
-        center: Point3::new(0.5, -1.1, 0.7),
-        axis,
+        frame: geom::Frame::new(Point3::new(0.5, -1.1, 0.7), axis, u_ref),
         major_radius: 2.0,
         minor_radius: 0.6,
-        u_ref,
     }
 }
 
@@ -601,9 +622,10 @@ fn reflex_major_arc_vector_area_matches_dense_polyline() {
 #[test]
 fn out_of_inventory_boundaries_refuse_typed() {
     let s = cyl();
-    let Surface::Cylinder { origin, u_ref, .. } = s else {
+    let Surface::Cylinder { frame, .. } = s else {
         panic!("cylinder expected")
     };
+    let (origin, u_ref) = (frame.origin(), frame.u_ref());
     let b = band();
     let _ = origin;
     // (b) wrong-radius rim.
@@ -621,7 +643,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     // (c) non-axial line on a cylinder.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
     if let Curve3::Line(geom::Line { dir, .. }) = &mut lp.edges[1].carrier {
-        *dir = (*dir + u_ref * 0.2).normalize();
+        *dir = geom_core::UnitVec3::squared(((*dir).get() + u_ref * 0.2).normalize());
     }
     assert!(
         matches!(
@@ -689,10 +711,8 @@ fn off_surface_boundaries_must_refuse_typed() {
     let axis = Vec3::new(0.0, 0.0, 1.0);
     let u_ref = Vec3::new(1.0, 0.0, 0.0);
     let s = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis,
+        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
         radius: 1.0,
-        u_ref,
     };
     // Full-period rims at v = 0 and v = 1, the top rim's center
     // off-axis by 0.4 — that circle is nowhere on the cylinder.

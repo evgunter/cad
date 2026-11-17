@@ -30,10 +30,8 @@ fn band() -> Band {
 /// the cone, the quantity the pre-collapse seam arm metered.
 fn cone_seam(half_angle: f64, d: f64) -> (Surface<f64>, Curve3<f64>, f64, f64) {
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle,
-        u_ref: Vec3::unit_x(),
     };
     let (s, c) = half_angle.sin_cos();
     let generator = Vec3::new(s, 0.0, c);
@@ -124,10 +122,8 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
         (
             "cylinder",
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 2.0,
-                u_ref: Vec3::unit_x(),
             },
             Curve3::line(Point3::new(2.0 + d, 0.0, 0.0), Vec3::unit_z()),
             0.0,
@@ -172,10 +168,8 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
     // An ellipse in the pole's tangent plane is off the sphere: the
     // mint's incidence read refuses it, naming the pair.
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let (keys, lookup) = table(vec![sphere]);
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
@@ -241,10 +235,12 @@ mod at_intervals {
         let r = 2.0;
         let d = 2.5e-10;
         let (keys, lookup) = table(vec![Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+            ),
             radius: iv(r),
-            u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
         }]);
         let carrier = Curve3::line(
             Point3::new(iv(r + d), iv(0.0), iv(0.0)),
@@ -295,10 +291,12 @@ mod at_intervals {
         let d = 2.5e-10;
         let (s, c) = alpha.sin_cos();
         let (keys, lookup) = table(vec![Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+            ),
             half_angle: iv(alpha),
-            u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
         }]);
         let carrier = Curve3::line(
             Point3::new(iv(c * d), iv(0.0), iv(-s * d)),

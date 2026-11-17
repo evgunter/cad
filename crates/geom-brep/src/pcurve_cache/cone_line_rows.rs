@@ -16,10 +16,12 @@ use super::*;
 
 fn cone(half_angle: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.4, 0.1, -0.3),
-        axis: Vec3::new(0.1, -0.2, 1.0).normalize(),
+        frame: geom::Frame::new(
+            Point3::new(0.4, 0.1, -0.3),
+            Vec3::new(0.1, -0.2, 1.0).normalize(),
+            Vec3::new(1.0, 0.0, -0.1).normalize(),
+        ),
         half_angle,
-        u_ref: Vec3::new(1.0, 0.0, -0.1).normalize(),
     }
 }
 
@@ -45,11 +47,12 @@ fn generator(surface: &Surface<f64>, phi: f64, sigma: f64) -> (Vec3<f64>, Vec3<f
 /// cone's normal, at unit speed.
 fn ruling(surface: &Surface<f64>, phi: f64, sigma: f64, h: f64, off: f64) -> Curve3<f64> {
     let Surface::Cone {
-        apex, half_angle, ..
+        frame, half_angle, ..
     } = *surface
     else {
         unreachable!("the rows' chart is a cone")
     };
+    let apex = frame.origin();
     let (g, n) = generator(surface, phi, sigma);
     Curve3::line(apex + g * (h / half_angle.cos()) + n * off, g)
 }
@@ -255,7 +258,7 @@ fn the_cone_lines_incidence_over_reads_by_at_most_the_lever_spread() {
         unreachable!("a ruling is a line")
     };
     let frame = |v: Vec3<f64>| Vec3::new(v.dot(e[0]), v.dot(e[1]), v.dot(e[2]));
-    let (p, l) = (frame(origin - o), frame(dir));
+    let (p, l) = (frame(origin - o), frame(dir.get()));
     let (sa, ca) = alpha.sin_cos();
     for (t0, t1, once_over) in [(0.5, 2.0, 3.5), (1e-3, 2.0, 1e3)] {
         let (q0, q1) = (p + l * t0, p + l * t1);

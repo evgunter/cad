@@ -257,30 +257,27 @@ fn closed_form_locus<T: Decide>(
     match (a, b) {
         (
             &Surface::Plane {
-                origin: q,
-                normal: n,
-                ..
+                frame: plane_frame, ..
             },
             &Surface::Cylinder {
-                origin,
-                axis,
+                frame: cylinder_frame,
                 radius,
                 ..
             },
         )
         | (
             &Surface::Cylinder {
-                origin,
-                axis,
+                frame: cylinder_frame,
                 radius,
                 ..
             },
             &Surface::Plane {
-                origin: q,
-                normal: n,
-                ..
+                frame: plane_frame, ..
             },
         ) => {
+            let (q, n) = (plane_frame.origin(), plane_frame.axis());
+            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
+            let (q, n) = (plane_frame.origin(), plane_frame.axis());
             let pc = PlaneCylinder {
                 q,
                 n,
@@ -300,25 +297,25 @@ fn closed_form_locus<T: Decide>(
         }
         (
             &Surface::Cylinder {
-                origin: o1,
-                axis: a1,
+                frame: cylinder_frame_2,
                 radius: r1,
                 ..
             },
             &Surface::Cylinder {
-                origin: o2,
-                axis: a2,
+                frame: cylinder_frame,
                 radius: r2,
                 ..
             },
         ) => {
+            let (o1, a1) = (cylinder_frame_2.origin(), cylinder_frame_2.axis());
+            let (o2, a2) = (cylinder_frame.origin(), cylinder_frame.axis());
             let line1 = geom::Line {
                 origin: o1,
-                dir: a1,
+                dir: cylinder_frame_2.axis_unit(),
             };
             let line2 = geom::Line {
                 origin: o2,
-                dir: a2,
+                dir: cylinder_frame.axis_unit(),
             };
             let axes = parallel_axes_at(reach, line1, line2);
             let swing = parallel_swing(reach, line1, line2, axes.d);
@@ -787,27 +784,19 @@ mod tests {
     fn the_lane_kinds_are_the_dispatchs() {
         let band = Band::linear(Tol::witness()).unwrap();
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, -1.0),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, -1.0), Vec3::unit_z(), Vec3::unit_x()),
         };
         let cyl = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_x(), Vec3::unit_z()),
             radius: 1.0,
-            u_ref: Vec3::unit_z(),
         };
         let beside = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 2.0),
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 2.0), Vec3::unit_x(), Vec3::unit_z()),
             radius: 1.0,
-            u_ref: Vec3::unit_z(),
         };
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let metre = ExtentBall::fixture(Point3::origin(), 1.0);
         for (a, b) in [
@@ -844,15 +833,15 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let theta: f64 = 0.3 * band.zero();
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let cyl = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0),
-            axis: Vec3::new(theta.cos(), 0.0, theta.sin()),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::new(theta.cos(), 0.0, theta.sin()),
+                Vec3::unit_z(),
+            ),
             radius: 1.0,
-            u_ref: Vec3::unit_z(),
         };
         let metre = ExtentBall::fixture(Point3::origin(), 1.0);
         match tangent_locus(&plane, &cyl, metre, band) {
@@ -872,10 +861,8 @@ mod tests {
 
     fn x_cylinder(y: f64, z: f64, radius: f64) -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::new(0.0, y, z),
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, y, z), Vec3::unit_x(), Vec3::unit_z()),
             radius,
-            u_ref: Vec3::unit_z(),
         }
     }
 
@@ -889,9 +876,7 @@ mod tests {
     fn an_axis_in_band_of_the_plane_crosses_rather_than_escalates() {
         let band = Band::linear(Tol::witness()).unwrap();
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let cyl = x_cylinder(0.0, (band.zero() * band.escalate()).sqrt(), 1.0);
         let metre = ExtentBall::fixture(Point3::origin(), 1.0);
@@ -945,10 +930,12 @@ mod tests {
         let theta = 0.3 * zero;
         let axis = Vec3::new(theta.cos(), 0.0, theta.sin());
         Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0) - axis * back,
-            axis,
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0) - axis * back,
+                axis,
+                Vec3::unit_y(),
+            ),
             radius: 1.0,
-            u_ref: Vec3::unit_y(),
         }
     }
 
@@ -963,9 +950,7 @@ mod tests {
     fn a_far_stored_origin_does_not_move_the_gap() {
         let band = Band::linear(Tol::witness()).unwrap();
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let cyl = tilted_resting_cylinder(1000.0, band.zero());
         let metre = ExtentBall::fixture(Point3::origin(), 1.0);
@@ -992,9 +977,7 @@ mod tests {
     fn the_tilt_is_levered_from_the_foot_across_the_extent() {
         let band = Band::linear(Tol::witness()).unwrap();
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let cyl = tilted_resting_cylinder(0.0, band.zero());
         let off_axis = ExtentBall::fixture(Point3::new(0.0, 5.0, 0.0), 1.0);
@@ -1019,15 +1002,15 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let theta: f64 = 0.3 * band.zero();
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let cyl = |height: f64| Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, height),
-            axis: Vec3::new(theta.cos(), 0.0, theta.sin()),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, height),
+                Vec3::new(theta.cos(), 0.0, theta.sin()),
+                Vec3::unit_z(),
+            ),
             radius: 1.0,
-            u_ref: Vec3::unit_z(),
         };
         let ten = ExtentBall::fixture(Point3::new(5.0, 0.0, 0.0), 5.0);
         for (height, want_apart, why) in [(0.5, false, "crossing"), (1.5, true, "clear")] {
@@ -1066,10 +1049,12 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let theta: f64 = 0.3 * band.zero();
         let along = |y: f64, tilt: f64| Surface::Cylinder {
-            origin: Point3::new(0.0, y, 0.0),
-            axis: Vec3::new(tilt.cos(), 0.0, tilt.sin()),
+            frame: geom::Frame::new(
+                Point3::new(0.0, y, 0.0),
+                Vec3::new(tilt.cos(), 0.0, tilt.sin()),
+                Vec3::unit_z(),
+            ),
             radius: 1.0,
-            u_ref: Vec3::unit_z(),
         };
         let ten = ExtentBall::fixture(Point3::new(5.0, 0.0, 0.0), 5.0);
         for (y, want, why) in [
@@ -1109,15 +1094,15 @@ mod tests {
     fn a_face_clear_of_the_ruling_settles_an_in_band_gap() {
         let band = Band::linear(Tol::witness()).unwrap();
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let cyl = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0 + 5.5 * band.zero()),
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0 + 5.5 * band.zero()),
+                Vec3::unit_x(),
+                Vec3::unit_z(),
+            ),
             radius: 1.0,
-            u_ref: Vec3::unit_z(),
         };
         let reach = ExtentBall::fixture(Point3::new(0.5, 0.0, 0.0), 1.5);
         let wall = (-1.0, 1.0);
@@ -1184,10 +1169,8 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let g = 5.5 * band.zero();
         let along = |y: f64, r: f64| Surface::Cylinder {
-            origin: Point3::new(0.0, y, 0.0),
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, y, 0.0), Vec3::unit_x(), Vec3::unit_z()),
             radius: r,
-            u_ref: Vec3::unit_z(),
         };
         let reach = ExtentBall::fixture(Point3::new(0.5, 1.0, 0.0), 2.0);
         let across = |second: (f64, f64)| {
@@ -1240,15 +1223,11 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let (eps, g) = (band.zero(), 5.5 * band.zero());
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let along = |origin: Point3<f64>, r: f64| Surface::Cylinder {
-            origin,
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(origin, Vec3::unit_x(), Vec3::unit_z()),
             radius: r,
-            u_ref: Vec3::unit_z(),
         };
         let reach = ExtentBall::fixture(Point3::new(0.5, 1.0, 0.0), 2.0);
         // `across` is ±ŷ for the plane pair and ±ẑ for the cylinders;
@@ -1300,10 +1279,8 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let reach = ExtentBall::fixture(Point3::new(0.5, 0.0, 0.0), 1.5);
         let along = |origin: Point3<f64>, r: f64| Surface::Cylinder {
-            origin,
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(origin, Vec3::unit_x(), Vec3::unit_z()),
             radius: r,
-            u_ref: Vec3::unit_z(),
         };
         let bracket = geom_core::k_stats::Bracket::open();
         let out = tangent_locus(
@@ -1320,9 +1297,7 @@ mod tests {
         assert!(log.escalations.is_empty(), "nested: {:?}", log.escalations);
 
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let lifted = along(Point3::new(0.0, 0.0, 1.0 + 5.5 * band.zero()), 1.0);
         let flip = |dir: UnitVec3<f64>, (lo, hi): (f64, f64)| {

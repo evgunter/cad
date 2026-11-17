@@ -95,10 +95,8 @@ fn a_cone_frame_off_convention_refuses_over_the_box() {
     let tilt = 1e3 * eps;
     let half_angle = 0.5_f64;
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::new(1.0, 0.0, tilt)),
         half_angle,
-        u_ref: Vec3::new(1.0, 0.0, tilt),
     };
     assert!(
         cone.representability_margins(band())
@@ -140,10 +138,12 @@ fn a_long_axis_inside_the_rest_margin_refuses_a_far_ruling_over_the_box() {
     let radius = 1.0;
     let delta = 0.25 * eps / radius;
     let cyl = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0 + delta),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0 + delta),
+            Vec3::unit_x(),
+        ),
         radius,
-        u_ref: Vec3::unit_x(),
     };
     assert!(
         cyl.representability_margins(band())
@@ -196,10 +196,8 @@ fn a_rounded_unit_axis_at_a_far_placement_is_never_under_its_residual() {
         axis.dot(u_ref)
     );
     let cyl = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis,
+        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
         radius,
-        u_ref,
     };
     assert!(
         cyl.representability_margins(band())

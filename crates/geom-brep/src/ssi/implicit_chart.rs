@@ -506,9 +506,11 @@ mod tests {
     /// The horizontal plane at height `h`.
     fn level(h: f64) -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::new(0.5, 0.5, h),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.5, 0.5, h),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
     }
 

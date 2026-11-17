@@ -58,10 +58,8 @@ type EdgeFn = Box<dyn Fn(f64, f64, f64, u32, u32) -> LoopEdge<f64>>;
 /// row.
 fn cylinder_kit(r: f64) -> (Surface<f64>, EdgeFn, EdgeFn) {
     let s = Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(
@@ -193,10 +191,8 @@ fn cone_plus_domain_and_the_rectangle_both_measure() {
     let alpha: f64 = 0.5;
     let (sa, ca) = alpha.sin_cos();
     let s = Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         half_angle: alpha,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(
@@ -250,10 +246,8 @@ fn cone_plus_domain_and_the_rectangle_both_measure() {
 fn sphere_plus_domain_and_the_rectangle_both_measure() {
     let rs = 0.010;
     let s = Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: rs,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(
@@ -311,11 +305,9 @@ fn sphere_plus_domain_and_the_rectangle_both_measure() {
 fn torus_plus_domain_and_the_rectangle_both_measure() {
     let (rr, r0) = (0.020f64, 0.005f64);
     let s = Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         major_radius: rr,
         minor_radius: r0,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(
@@ -556,10 +548,8 @@ fn a_rim_free_cone_refuses_at_both_doors() {
     let alpha: f64 = 0.5;
     let (sa, ca) = alpha.sin_cos();
     let s = Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         half_angle: alpha,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let mer = |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
@@ -606,10 +596,8 @@ fn a_rim_free_cone_refuses_at_both_doors() {
 fn the_rimless_band_measures_the_hemisphere_it_is_written_for() {
     let rs = 0.010;
     let s = Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: rs,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     // The great circle whose plane contains the axis at azimuth `u`;
     // its parameter IS the latitude, so `[−π/2, π/2]` is the half at
@@ -674,10 +662,8 @@ fn the_rimless_band_measures_the_hemisphere_it_is_written_for() {
 fn a_lune_on_two_great_circles_is_not_a_rimless_band() {
     let rs = 0.010;
     let s = Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: rs,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let great = |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
@@ -730,11 +716,9 @@ fn a_lune_on_two_great_circles_is_not_a_rimless_band() {
 fn the_material_side_gate_reads_a_torus_l_domain_at_every_rotation() {
     let (rr, r0) = (0.020f64, 0.005f64);
     let s = Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         major_radius: rr,
         minor_radius: r0,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(
@@ -859,10 +843,8 @@ fn a_sphere_window_with_a_rim_near_a_pole_is_an_iso_rectangle() {
     }
     fn rows<T: geom_core::Decide>(scalar: &str) {
         let sphere = Surface::Sphere {
-            center: p3(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
             radius: T::from_f64(1.0),
-            axis: v3(0.0, 0.0, 1.0),
-            u_ref: v3(1.0, 0.0, 0.0),
         };
         for k in [10.5, 11.0, 15.0, 30.0, 100.0] {
             assert_eq!(

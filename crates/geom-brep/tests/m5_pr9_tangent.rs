@@ -29,9 +29,11 @@ fn cylinder() -> Surface<f64> {
 
 fn tangent_plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
     }
 }
 
@@ -77,7 +79,7 @@ fn the_c5_table_classifies_the_authored_pair_as_a_tangent_line() {
         panic!("a tangent locus of plane×cylinder is a line");
     };
     assert!((origin.x - 1.0).abs() < 1e-12 && origin.y.abs() < 1e-12);
-    assert!(dir.cross(Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12);
+    assert!(dir.get().cross(Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12);
 }
 
 #[test]
@@ -153,14 +155,18 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
     // which is exactly why a G2 conventional join keeps MappedCurve.
     let (k1, k2, map) = arena2(
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(1.0, 0.0, 0.0),
-            u_ref: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+            ),
         },
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(1.0, 0.0, 0.0),
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
         },
     );
     let carrier = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
@@ -221,10 +227,12 @@ fn an_in_band_second_order_margin_escalates_f6() {
     let radius = 1.0 / (2.0 * inside);
     let (k1, k2, map) = arena2(
         Surface::Cylinder {
-            origin: Point3::new(1.0 - radius, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(1.0 - radius, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
         tangent_plane(),
     );
@@ -416,16 +424,20 @@ fn the_coaxial_circle_class_was_retired_into_the_lane_at_pr_12() {
     // the boundary moved for a reason.
     let (k1, k2, map) = arena2(
         Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 1.0,
             minor_radius: 0.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, -0.5),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, -0.5),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         },
     );
     let carrier = Curve3::circle(
@@ -466,16 +478,20 @@ fn a_coaxial_cone_sphere_contact_circle_certifies() {
     // carrier.
     let (k1, k2, map) = arena2(
         Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 1.0),
-            axis: Vec3::new(0.0, 0.0, -1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::new(0.0, 0.0, -1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
         Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: core::f64::consts::FRAC_1_SQRT_2,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
     );
     let carrier = Curve3::circle(
@@ -516,18 +532,22 @@ fn outside_the_span_bound_lane_refuses_typed() {
     let s2 = core::f64::consts::FRAC_1_SQRT_2;
     let (k1, k2, map) = arena2(
         Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
         // The tangent plane along the generator through (1, 0, 1): it
         // contains the apex and that whole ruling, so the contact locus
         // is the ruling itself.
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(s2, 0.0, -s2),
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(s2, 0.0, -s2),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
         },
     );
     let carrier = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(s2, 0.0, s2));
@@ -589,10 +609,12 @@ fn cylinder_through_the_ruling(radius: f64, tilt: f64, inward: bool) -> Surface<
     let s = if inward { -1.0 } else { 1.0 };
     let (sin, cos) = tilt.sin_cos();
     Surface::Cylinder {
-        origin: Point3::new(1.0 + s * radius * cos, s * radius * sin, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(1.0 + s * radius * cos, s * radius * sin, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -635,10 +657,12 @@ fn a_curved_surface_against_itself_reads_kappa_rel_exactly_zero() {
         surf::sphere(1.3),
         surf::torus(2.0, 0.6),
         Surface::Cone {
-            apex: Point3::new(0.1, -0.2, 0.3),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.1, -0.2, 0.3),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: 0.4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
     ];
     let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
@@ -751,9 +775,11 @@ fn certify_line_at(
 fn plane_through_line(x: f64, tilt: f64) -> Surface<f64> {
     let (sin, cos) = tilt.sin_cos();
     Surface::Plane {
-        origin: Point3::new(x, 0.0, 0.0),
-        normal: Vec3::new(cos, sin, 0.0),
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(x, 0.0, 0.0),
+            Vec3::new(cos, sin, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
     }
 }
 
@@ -814,10 +840,12 @@ fn a_second_order_refusal_is_renamed_only_by_a_definite_defect_at_the_folded_arm
 
     let radius = zero;
     let tiny = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let tilt: f64 = 0.1;
     assert!(
@@ -872,10 +900,12 @@ fn certify_line_at_interval(
 /// `(r, 0, z)`. `editor_core::drive`'s `tangent_log` re-spells it.
 fn cylinder_of(r: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 

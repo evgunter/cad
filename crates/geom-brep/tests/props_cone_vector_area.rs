@@ -32,10 +32,12 @@ const TAU: f64 = core::f64::consts::TAU;
 
 fn cone() -> Surface<f64> {
     Surface::Cone {
-        apex: p3(APEX.0, APEX.1, APEX.2),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            p3(APEX.0, APEX.1, APEX.2),
+            v3(0.0, 0.0, 1.0),
+            v3(1.0, 0.0, 0.0),
+        ),
         half_angle: ALPHA,
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
@@ -740,10 +742,12 @@ fn wall_on<T: geom_core::Real>(
         )
     };
     let surface = Surface::Cone {
-        apex: p3(a[0], a[1], a[2]),
-        axis: v3(k[0], k[1], k[2]),
+        frame: geom::Frame::new(
+            p3(a[0], a[1], a[2]),
+            v3(k[0], k[1], k[2]),
+            v3(e1[0], e1[1], e1[2]),
+        ),
         half_angle: T::from_f64(alpha),
-        u_ref: v3(e1[0], e1[1], e1[2]),
     };
     let edges = vec![
         rim(v0, 0.0, 1.0, 0, 1),

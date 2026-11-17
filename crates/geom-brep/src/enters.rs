@@ -1006,49 +1006,39 @@ mod tests {
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     radius: 0.5,
-                    u_ref: x,
                 },
                 Point3::new(0.0, 0.5, 0.3),
             ),
             (
                 "cone, the apex below",
                 Surface::Cone {
-                    apex: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     half_angle: half,
-                    u_ref: x,
                 },
                 Point3::new(0.0, 0.5, 1.0),
             ),
             (
                 "cone, the mirror nappe",
                 Surface::Cone {
-                    apex: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     half_angle: half,
-                    u_ref: x,
                 },
                 Point3::new(0.5, 0.0, -1.0),
             ),
             (
                 "sphere",
                 Surface::Sphere {
-                    center: o,
+                    frame: geom::Frame::new(o, z, x),
                     radius: 2.0,
-                    axis: z,
-                    u_ref: x,
                 },
                 Point3::new(0.0, 2.0, 0.0),
             ),
             (
                 "plane",
                 Surface::Plane {
-                    origin: o,
-                    normal: z,
-                    u_ref: x,
+                    frame: geom::Frame::new(o, z, x),
                 },
                 Point3::new(0.3, 0.2, 0.0),
             ),
@@ -1071,11 +1061,9 @@ mod tests {
             }
         }
         let torus = Surface::Torus {
-            center: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref: x,
         };
         let p = Point3::new(2.5, 0.0, 0.0);
         let n_out = OutwardNormal::from_chart(x, true);
@@ -1109,20 +1097,16 @@ mod tests {
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     radius: i(0.5),
-                    u_ref: x,
                 },
                 Point3::new(i(0.0), i(0.5), i(0.3)),
             ),
             (
                 "cone, the mirror nappe",
                 Surface::Cone {
-                    apex: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     half_angle: i(0.5).atan(),
-                    u_ref: x,
                 },
                 Point3::new(i(0.5), i(0.0), i(-1.0)),
             ),

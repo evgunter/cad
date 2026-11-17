@@ -535,10 +535,13 @@ pub fn route_pose<T: Decide>(
         [a, b]
             .into_iter()
             .filter_map(|s| match *s {
-                Surface::Cone { apex: anchor, .. }
-                | Surface::Sphere { center: anchor, .. }
-                | Surface::Torus { center: anchor, .. }
-                | Surface::Spindle { center: anchor, .. } => Some(reach.lever_from(anchor)),
+                Surface::Cone { frame, .. }
+                | Surface::Sphere { frame, .. }
+                | Surface::Torus { frame, .. }
+                | Surface::Spindle { frame, .. } => {
+                    let anchor = frame.origin();
+                    Some(reach.lever_from(anchor))
+                }
                 Surface::Plane { .. }
                 | Surface::Cylinder { .. }
                 | Surface::Nurbs(_)
@@ -1222,7 +1225,7 @@ pub(crate) fn ruled_section<T: Decide>(
         (Sign::Zero, gap) => RuledSection::TangentLine {
             line: geom::Line {
                 origin: o - n * gap_signed,
-                dir: a,
+                dir: geom_core::UnitVec3::squared(a),
             },
             gap: gap.jointly(parallel.margin),
         },
@@ -1248,7 +1251,10 @@ pub(crate) struct RuledFrame<T: Real> {
 /// [`RuledFrame`] of the pair at `reach`.
 pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame<T> {
     let &PlaneCylinder { q, n, o, a, .. } = pc;
-    let o = reach.foot_on(geom::Line { origin: o, dir: a });
+    let o = reach.foot_on(geom::Line {
+        origin: o,
+        dir: geom_core::UnitVec3::squared(a),
+    });
     let c = a.dot(n);
     let gap_signed = (o - q).dot(n);
     // The rulings this lane mints stand on the hinge through `o − n·gap`,
@@ -1312,14 +1318,17 @@ fn plane_cylinder_data<T: Real>(
         return Err(wrong());
     };
     let &Surface::Cylinder {
-        origin: o,
-        axis: a,
+        frame: carrier_frame,
         radius: r,
-        u_ref,
     } = cylinder
     else {
         return Err(wrong());
     };
+    let (o, a, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     Ok((PlaneCylinder { q, n, o, a, r }, u_ref))
 }
 
@@ -1340,7 +1349,10 @@ pub trait SectionPlane<T: Real> {
 impl<T: Real> SectionPlane<T> for Surface<T> {
     fn site(&self) -> Option<(Point3<T>, Vec3<T>)> {
         match *self {
-            Surface::Plane { origin, normal, .. } => Some((origin, normal)),
+            Surface::Plane { frame, .. } => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((origin, normal))
+            }
             _ => None,
         }
     }
@@ -1410,16 +1422,19 @@ pub fn plane_sphere_section<T: Decide>(
         });
     };
     let &Surface::Sphere {
-        center: c,
+        frame: carrier_frame,
         radius: r,
-        axis: sph_axis,
-        u_ref: sph_u,
     } = sphere
     else {
         return Err(SectionError::WrongLane {
             expected: "plane×sphere",
         });
     };
+    let (c, sph_axis, sph_u) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let s = (c - q).dot(n);
     let foot = c - n * s;
     // The circle's `u_ref` is a PLACEMENT convention (D2): every
@@ -1553,22 +1568,24 @@ pub fn sphere_sphere_section<T: Decide>(
         expected: "sphere×sphere",
     };
     let &Surface::Sphere {
-        center: c1,
+        frame: carrier_frame,
         radius: r1,
-        axis: axis1,
-        u_ref: u1,
     } = a
     else {
         return Err(wrong());
     };
+    let (c1, axis1, u1) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let &Surface::Sphere {
-        center: c2,
-        radius: r2,
-        ..
+        frame, radius: r2, ..
     } = b
     else {
         return Err(wrong());
     };
+    let c2 = frame.origin();
     // The margins and the SIGNED radical-plane foot, from one pair
     // (`geom_core::Circles`). Every branch that places the foot has
     // already decided `d` definitely positive, so its division is safe.
@@ -1746,7 +1763,12 @@ pub fn cylinder_cylinder_section<T: Decide>(
         },
     )??;
     let [a1, a2] = pose.axes();
-    let line = |origin| Curve3::Line(geom::Line { origin, dir: a1 });
+    let line = |origin| {
+        Curve3::Line(geom::Line {
+            origin,
+            dir: geom_core::UnitVec3::squared(a1),
+        })
+    };
     if let Some(parallel) = pose.parallel_section() {
         return Ok(match parallel {
             ParallelSection::Empty => EqualCylinderSection::Empty,
@@ -1817,7 +1839,7 @@ pub fn cylinder_axes_parallel_reported<T: Decide>(
     decide_reported(
         "cc_axes_parallel",
         Margin::levered(
-            line1.dir.cross(line2.dir).norm(),
+            line1.dir.get().cross(line2.dir.get()).norm(),
             reach.lever_between(line1, line2),
         ),
         band,
@@ -1868,8 +1890,8 @@ fn separation_range<T: Real>(
     geom::Line { origin: o, dir: b }: geom::Line<T>,
     lever: T,
 ) -> (T, T) {
-    let off = |v: Vec3<T>| v - b * v.dot(b);
-    let (u, tau) = (off(p - o), off(a));
+    let off = |v: Vec3<T>| v - b.get() * v.dot(b.get());
+    let (u, tau) = (off(p - o), off(a.get()));
     let dmax = (u + tau * lever).norm().max((u - tau * lever).norm());
     let at = (T::zero() - u.dot(tau)) / tau.dot(tau).max(T::from_f64(f64::MIN_POSITIVE));
     let dmin = (u + tau * at.max(T::zero() - lever).min(lever)).norm();
@@ -1915,7 +1937,7 @@ pub fn cylinder_axes_coplanar_reported<T: Decide>(
 ) -> Result<Decided, Indeterminate> {
     let (foot1, foot2) = axes_feet(reach, line1, line2);
     let w = foot2 - foot1;
-    let cross = line1.dir.cross(line2.dir);
+    let cross = line1.dir.get().cross(line2.dir.get());
     decide_reported(
         "cc_axes_coplanar",
         Margin::of(w.dot(cross) / cross.norm()),
@@ -1964,7 +1986,7 @@ pub fn parallel_axes_at<T: Real>(
     let w = foot2 - foot1;
     ParallelAxes {
         foot1,
-        d_vec: w - line1.dir * w.dot(line1.dir),
+        d_vec: w - line1.dir.get() * w.dot(line1.dir.get()),
         d: line2.distance(foot1).max(line1.distance(foot2)),
     }
 }
@@ -2143,9 +2165,14 @@ pub fn cone_plane_apex_extrema<T: Real>(
     cone: &Surface<T>,
     normal: Vec3<T>,
 ) -> Option<[Vec3<T>; 2]> {
-    let &Surface::Cone { axis, .. } = cone else {
+    let &Surface::Cone {
+        frame: carrier_frame,
+        ..
+    } = cone
+    else {
         return None;
     };
+    let axis = carrier_frame.axis();
     let n = normal.normalize();
     let p = (axis - n * axis.dot(n)).normalize();
     Some([p, -p])
@@ -2304,7 +2331,9 @@ pub fn plane_cone_section<T: Decide>(
     };
     let (
         &Surface::Cone {
-            apex, half_angle, ..
+            frame: carrier_frame,
+            half_angle,
+            ..
         },
         Some(frame),
     ) = (cone, cone.frame())
@@ -2313,6 +2342,7 @@ pub fn plane_cone_section<T: Decide>(
             expected: "plane×cone",
         });
     };
+    let apex = carrier_frame.origin();
     // The cone's frame, squared once: nothing holds a stored cone's axis
     // unit or its seam square to it, and the arm reads the axis and
     // half-angle as the geometric cone, so the seam only places azimuth
@@ -2501,7 +2531,7 @@ pub fn plane_cone_section<T: Decide>(
     let arm = geom::cover::Cover::circle(geom::cover::Core {
         axis: geom::Line {
             origin: apex + a * t,
-            dir: a,
+            dir: geom_core::UnitVec3::squared(a),
         },
         radius: rim_r,
     })
@@ -2836,15 +2866,14 @@ pub fn plane_torus_section<T: Decide>(
         return Err(wrong());
     };
     let &Surface::Torus {
-        center: c,
-        axis: a,
+        frame,
         major_radius: big_r,
         minor_radius: r,
-        u_ref: tor_u,
     } = torus
     else {
         return Err(wrong());
     };
+    let (c, a, tor_u) = (frame.origin(), frame.axis(), frame.u_ref());
 
     let ring = TorusRefusal::require(big_r, r, band).map_err(SectionError::DegenerateTorus)?;
 
@@ -3105,13 +3134,16 @@ pub fn cone_cylinder_section<T: Decide>(
     };
     let (
         &Surface::Cone {
-            apex, half_angle, ..
+            frame: carrier_frame,
+            half_angle,
+            ..
         },
         Some(frame),
     ) = (cone, cone.frame())
     else {
         return Err(wrong());
     };
+    let apex = carrier_frame.origin();
     // The cone's frame, squared once ([`Frame::square`]).
     let SquareFrame {
         axis: a,
@@ -3119,8 +3151,7 @@ pub fn cone_cylinder_section<T: Decide>(
         width: seam_width,
     } = frame.square();
     let &Surface::Cylinder {
-        origin: o,
-        axis: b,
+        frame,
         radius: big_r,
         ..
     } = cyl
@@ -3129,6 +3160,7 @@ pub fn cone_cylinder_section<T: Decide>(
             expected: "cone×cylinder (cylinder second)",
         });
     };
+    let (o, b) = (frame.origin(), frame.axis());
 
     let (sin_a, cos_a) = half_angle.sin_cos();
     match decide("coc_cylinder_radius", Margin::of(big_r), band).map_err(|diag| {
@@ -3224,9 +3256,12 @@ pub fn cone_cylinder_section<T: Decide>(
     let (cone_axis, cylinder_axis) = (
         geom::Line {
             origin: apex,
-            dir: a,
+            dir: geom_core::UnitVec3::squared(a),
         },
-        geom::Line { origin: o, dir: b },
+        geom::Line {
+            origin: o,
+            dir: geom_core::UnitVec3::squared(b),
+        },
     );
     let d = cylinder_axis.distance(apex);
     let (near, far) = separation_range(cone_axis, cylinder_axis, above.length());
@@ -3296,10 +3331,12 @@ mod apex_fan_rows {
             Vec3::new(0.0, 1.0, 0.0)
         };
         Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis,
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                axis,
+                (u - axis * u.dot(axis)).normalize(),
+            ),
             half_angle: half,
-            u_ref: (u - axis * u.dot(axis)).normalize(),
         }
     }
 

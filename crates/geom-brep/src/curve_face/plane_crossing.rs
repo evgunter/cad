@@ -455,7 +455,7 @@ pub fn span_plane_meet<T: Decide>(
             roots
         }
         (None, geom::Curve3::Line(line)) => {
-            let slope = line.dir.dot(plane_normal);
+            let slope = line.dir.get().dot(plane_normal);
             let d0 = geom::plane_offset(plane_origin, plane_normal, line.origin);
             match decide(
                 "plane_crossing_line_parallel",
@@ -832,9 +832,7 @@ mod tests {
             ),
             (
                 Curve3::Spiric {
-                    center: Point3::origin(),
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     major_radius: 2.0,
                     minor_radius: 1.0,
                     offset: 0.5,

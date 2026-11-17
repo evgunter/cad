@@ -2737,9 +2737,11 @@ pub(crate) mod tests {
             .collect();
         let wall = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap();
         let level = Surface::Plane {
-            origin: Point3::new(0.5, -0.125, 0.5),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.5, -0.125, 0.5),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let sys = ImplicitChartR2 {
             partner: &level,

@@ -451,7 +451,7 @@ impl<T: Real> RuledCylinders<T> {
     /// parallel to the partner's axis levers both by `1/|β|`.
     fn charge(&self) -> (T, T) {
         let size =
-            (self.frame.origin - Point3::origin()).norm() + self.rho + self.r + self.gap.abs();
+            (self.frame.origin() - Point3::origin()).norm() + self.rho + self.r + self.gap.abs();
         let t = rounding_charge(size + self.rho + self.r) * self.tilt().abs();
         (rounding_charge(size), t)
     }
@@ -484,10 +484,10 @@ impl<T: Real> Ruled<T> for RuledCylinders<T> {
             .scale(self.tilt())
             .widen(along);
         let f = &self.frame;
-        V3::at(f.origin)
-            .plus(V3::along(f.u_ref, cell.cos.scale(self.rho)))
+        V3::at(f.origin())
+            .plus(V3::along(f.u_ref(), cell.cos.scale(self.rho)))
             .plus(V3::along(f.v_ref(), cell.sin.scale(self.rho)))
-            .plus(V3::along(f.axis, t))
+            .plus(V3::along(f.axis(), t))
             .widen(point)
     }
 
@@ -506,9 +506,9 @@ impl<T: Real> Ruled<T> for RuledCylinders<T> {
             .scale(self.tilt())
             .widen(along * (T::one() + self.rho / root.lo));
         let f = &self.frame;
-        V3::along(f.u_ref, cell.sin.scale(T::zero() - self.rho))
+        V3::along(f.u_ref(), cell.sin.scale(T::zero() - self.rho))
             .plus(V3::along(f.v_ref(), cell.cos.scale(self.rho)))
-            .plus(V3::along(f.axis, dt))
+            .plus(V3::along(f.axis(), dt))
     }
 }
 
@@ -1360,14 +1360,13 @@ pub(crate) fn coverage(
     use geom_core::{Bounds as _, Interval, SpanLocate as _};
     let unread = [0.0, core::f64::consts::TAU];
     let &geom::Surface::Cylinder {
-        origin: o,
-        axis: a,
+        frame: carrier_frame,
         radius: rho,
-        u_ref: _,
     } = ruled
     else {
         return Err(unread);
     };
+    let (o, a) = (carrier_frame.origin(), carrier_frame.axis());
     let lift = Interval::from_computed;
     let p3 = |p: Point3<f64>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
     let v3 = |v: Vec3<f64>| Vec3::new(lift(v.x), lift(v.y), lift(v.z));
@@ -1383,11 +1382,9 @@ pub(crate) fn coverage(
     type Quadratic = Box<dyn Fn(V3<Interval>) -> (Interval, Iv<Interval>, Iv<Interval>)>;
     let quadratic: Quadratic = match *partner {
         geom::Surface::Cylinder {
-            origin: q,
-            axis: b,
-            radius: r,
-            ..
+            frame, radius: r, ..
         } => {
+            let (q, b) = (frame.origin(), frame.axis());
             let (q, b, r) = (p3(q), v3(b), lift(r));
             let ab = a.cross(b);
             // `w × a′` for the enclosure `w`.
@@ -1404,10 +1401,11 @@ pub(crate) fn coverage(
             })
         }
         geom::Surface::Sphere {
-            center: c,
+            frame,
             radius: big_r,
             ..
         } => {
+            let c = frame.origin();
             let (c, big_r) = (p3(c), lift(big_r));
             Box::new(move |p| {
                 let w = p.less(c);
@@ -1516,10 +1514,12 @@ mod tests {
     fn wall(origin: (f64, f64, f64), axis: Vec3<f64>, radius: f64) -> Surface<f64> {
         let axis = axis.normalize();
         Surface::Cylinder {
-            origin: Point3::new(origin.0, origin.1, origin.2),
-            axis,
+            frame: geom::Frame::new(
+                Point3::new(origin.0, origin.1, origin.2),
+                axis,
+                axis.orthonormal_basis().0,
+            ),
             radius,
-            u_ref: axis.orthonormal_basis().0,
         }
     }
 
@@ -1652,10 +1652,8 @@ mod tests {
         let (r, d, big) = (0.5f64, 0.1f64, 0.7f64);
         let c = wall((0.0, 0.0, 0.0), Vec3::unit_z(), r);
         let s = Surface::Sphere {
-            center: Point3::new(d, 0.0, 0.2),
+            frame: geom::Frame::new(Point3::new(d, 0.0, 0.2), Vec3::unit_z(), Vec3::unit_x()),
             radius: big,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let ring = |sheet: f64| -> Vec<Box3> {
             (0..2048)
@@ -1692,10 +1690,8 @@ mod tests {
     #[test]
     fn a_spheres_discriminant_extremes_are_the_poses_reaches() {
         let sphere = |c: (f64, f64, f64), radius: f64| Surface::Sphere {
-            center: Point3::new(c.0, c.1, c.2),
+            frame: geom::Frame::new(Point3::new(c.0, c.1, c.2), Vec3::unit_z(), Vec3::unit_x()),
             radius,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let turned = Vec3::new(0.3, -0.2, 1.0);
         let poses = [
@@ -1784,10 +1780,8 @@ mod tests {
     #[test]
     fn a_loop_is_witnessed_at_the_near_ruling() {
         let sphere = |c: (f64, f64, f64), radius: f64| Surface::Sphere {
-            center: Point3::new(c.0, c.1, c.2),
+            frame: geom::Frame::new(Point3::new(c.0, c.1, c.2), Vec3::unit_z(), Vec3::unit_x()),
             radius,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let upright = wall((0.0, 0.0, 0.0), Vec3::unit_z(), 0.5);
         let turned = wall((0.1, -0.2, 0.3), Vec3::new(0.3, -0.2, 1.0), 0.4);

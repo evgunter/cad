@@ -98,31 +98,27 @@ mod tests {
     /// its own rounding moves the distance by a relative `u`).
     fn residual(s: &Surface<f64>, p: Point3<f64>) -> (Q, f64) {
         match *s {
-            Surface::Plane { origin, normal, .. } => {
+            Surface::Plane { frame, .. } => {
+                let (origin, normal) = (frame.origin(), frame.axis());
                 (dot(&q3(p - origin), &q3(normal)), normal.norm())
             }
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => {
+            Surface::Cylinder { frame, radius, .. } => {
+                let (origin, axis) = (frame.origin(), frame.axis());
                 let (dd, hh) = split(p, origin, axis);
                 let r = Q::of(radius);
                 let perp = (p - origin).cross(axis).norm() / axis.norm();
                 (dd.sub(&hh).sub(&r.mul(&r)), perp + radius)
             }
-            Surface::Sphere { center, radius, .. } => {
+            Surface::Sphere { frame, radius, .. } => {
+                let center = frame.origin();
                 let (dd, _) = split(p, center, Vec3::unit_z());
                 let r = Q::of(radius);
                 (dd.sub(&r.mul(&r)), (p - center).norm() + radius)
             }
             Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
+                frame, half_angle, ..
             } => {
+                let (apex, axis) = (frame.origin(), frame.axis());
                 // ρ⊥²·cos²α − h²·sin²α = (ρ⊥ cos α − h sin α)(ρ⊥ cos α + h sin α),
                 // its first factor the distance to the nappe.
                 let (dd, hh) = split(p, apex, axis);
@@ -136,12 +132,12 @@ mod tests {
                 )
             }
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
             } => {
+                let (center, axis) = (frame.origin(), frame.axis());
                 // (|d|² + R² − r²)² − 4R²ρ⊥² = (D² − r²)(D′² − r²), D and
                 // D′ the distances to the tube's near and far centre points.
                 let (dd, hh) = split(p, center, axis);
@@ -227,9 +223,7 @@ mod tests {
             Vec3::unit_y()
         };
         Surface::Plane {
-            origin,
-            normal: n,
-            u_ref: (u - n * u.dot(n)).normalize(),
+            frame: geom::Frame::new(origin, n, (u - n * u.dot(n)).normalize()),
         }
     }
 
@@ -253,10 +247,12 @@ mod tests {
     fn the_resolution_bounds_each_section_tables_carrier() {
         let mut worst = Vec::new();
         let cyl = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::unit_x(),
+            ),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let reach = |at| Reach::of_frame(at, (1.0, 1.0));
         let mut w = 0.0_f64;
@@ -291,10 +287,12 @@ mod tests {
         worst.push(("cylinder", w));
 
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 2.0),
-            axis: Vec3::new(0.0, 0.0, -1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 2.0),
+                Vec3::new(0.0, 0.0, -1.0),
+                Vec3::unit_x(),
+            ),
             half_angle: 0.5_f64.atan(),
-            u_ref: Vec3::unit_x(),
         };
         let mut w = 0.0_f64;
         let parabolic = core::f64::consts::FRAC_PI_2 - 0.5_f64.atan();
@@ -327,10 +325,8 @@ mod tests {
         worst.push(("cone", w));
 
         let ball = Surface::Sphere {
-            center: Point3::new(0.2, -0.1, 0.3),
+            frame: geom::Frame::new(Point3::new(0.2, -0.1, 0.3), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.3,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let mut w = 0.0_f64;
         for (d, n) in [
@@ -348,11 +344,9 @@ mod tests {
         worst.push(("sphere", w));
 
         let torus = Surface::Torus {
-            center: Point3::new(0.1, 0.2, -0.3),
-            axis: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(0.1, 0.2, -0.3), Vec3::unit_y(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         let mut w = 0.0_f64;
         for cut in [
@@ -407,9 +401,7 @@ mod tests {
         let rho = resolution(&far, -1e-3, 1e-3).unwrap();
         assert!(rho > 2e-10 && rho < 1e-9, "{rho:e}");
         let spiric = Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 1.0,
             offset: 0.5,

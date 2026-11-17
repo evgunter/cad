@@ -41,11 +41,9 @@ fn charts() -> Vec<Chart> {
         let tip = (r * r - big * big).sqrt();
         (
             Surface::Spindle {
-                center: c,
-                axis,
+                frame: geom::Frame::new(c, axis, u_ref),
                 major_radius: big,
                 minor_radius: r,
-                u_ref,
             },
             vec![c + axis * tip, c - axis * tip, c],
         )
@@ -56,60 +54,48 @@ fn charts() -> Vec<Chart> {
         (
             "plane",
             Surface::Plane {
-                origin: c,
-                normal: axis,
-                u_ref,
+                frame: geom::Frame::new(c, axis, u_ref),
             },
             vec![c],
         ),
         (
             "cylinder",
             Surface::Cylinder {
-                origin: c,
-                axis,
+                frame: geom::Frame::new(c, axis, u_ref),
                 radius: 0.7,
-                u_ref,
             },
             vec![c],
         ),
         (
             "sphere",
             Surface::Sphere {
-                center: c,
+                frame: geom::Frame::new(c, axis, u_ref),
                 radius: 0.7,
-                axis,
-                u_ref,
             },
             vec![c],
         ),
         (
             "cone",
             Surface::Cone {
-                apex: c,
-                axis,
+                frame: geom::Frame::new(c, axis, u_ref),
                 half_angle: 0.5,
-                u_ref,
             },
             vec![c],
         ),
         (
             "narrow cone",
             Surface::Cone {
-                apex: c,
-                axis,
+                frame: geom::Frame::new(c, axis, u_ref),
                 half_angle: 0.05,
-                u_ref,
             },
             vec![c],
         ),
         (
             "torus",
             Surface::Torus {
-                center: c,
-                axis,
+                frame: geom::Frame::new(c, axis, u_ref),
                 major_radius: 1.2,
                 minor_radius: 0.4,
-                u_ref,
             },
             vec![c],
         ),
@@ -127,11 +113,9 @@ fn on_z(big: f64) -> (Surface<f64>, Vec<Point3<f64>>) {
     let (c, z) = (Point3::origin(), Vec3::unit_z());
     (
         Surface::Spindle {
-            center: c,
-            axis: z,
+            frame: geom::Frame::new(c, z, Vec3::unit_x()),
             major_radius: big,
             minor_radius: 0.5,
-            u_ref: Vec3::unit_x(),
         },
         vec![c + z * tip, c - z * tip, c],
     )
@@ -153,7 +137,11 @@ fn hunt(
     let surface_i = surface.map_scalar(f);
     let line_i = Curve3::line(
         Point3::new(f(line.origin.x), f(line.origin.y), f(line.origin.z)),
-        Vec3::new(f(line.dir.x), f(line.dir.y), f(line.dir.z)),
+        Vec3::new(
+            f(line.dir.get().x),
+            f(line.dir.get().y),
+            f(line.dir.get().z),
+        ),
     );
     let at = |t: f64| distance(&surface_i, &line_i, t.clamp(t0, t1));
     let n: u32 = 2000;
@@ -171,14 +159,17 @@ fn hunt(
     for &i in peaks.iter().take(8) {
         best = best.max(golden(&at, grid[i - 1], grid[i + 1]));
     }
-    let uu = line.dir.dot(line.dir);
+    let uu = line.dir.get().dot(line.dir.get());
     let mut near: Vec<f64> = singular
         .iter()
-        .map(|s| (*s - line.origin).dot(line.dir) / uu)
+        .map(|s| (*s - line.origin).dot(line.dir.get()) / uu)
         .collect();
     if let Some(geom::Line { origin: o, dir: a }) = surface.axis_line().map(geom::Line::unit) {
         let (q, u) = (line.origin - o, line.dir);
-        let (qo, uo) = (q - a * q.dot(a), u - a * u.dot(a));
+        let (qo, uo) = (
+            q - a.get() * q.dot(a.get()),
+            u.get() - a.get() * u.get().dot(a.get()),
+        );
         near.push(-qo.dot(uo) / uo.dot(uo));
     }
     for c in near.into_iter().filter(|c| c.is_finite()) {
@@ -260,7 +251,7 @@ fn draw(rng: &mut fuzz::Rng, surface: &Surface<f64>, singular: &[Point3<f64>]) -
     let tilt = unit(rng) * tilt_by;
     let (point, dir) = match rng.below(5) {
         4 => match surface.axis_line() {
-            Some(axis) => (axis.at(rng.range(-1.0, 1.0)), axis.dir),
+            Some(axis) => (axis.at(rng.range(-1.0, 1.0)), axis.dir.get()),
             None => (wall, unit(rng)),
         },
         0 | 1 => {
@@ -283,7 +274,7 @@ fn draw(rng: &mut fuzz::Rng, surface: &Surface<f64>, singular: &[Point3<f64>]) -
     };
     geom::Line {
         origin: point + offset - dir * rng.range(-1.0, 1.0),
-        dir: (dir + tilt) * rng.log_uniform(0.25, 4.0),
+        dir: geom_core::UnitVec3::squared((dir + tilt) * rng.log_uniform(0.25, 4.0)),
     }
 }
 
@@ -305,7 +296,7 @@ fn no_parameter_of_the_span_is_farther_than_the_read() {
                 read(&surface, &line, span),
                 hunt(&surface, &singular, &line, span),
             );
-            let reach = (line.origin - Point3::origin()).norm() + line.dir.norm() * 2.0 + 3.0;
+            let reach = (line.origin - Point3::origin()).norm() + line.dir.get().norm() * 2.0 + 3.0;
             let what = format!("{name}: {line:?} over {span:?}; {}", fuzz::replay());
             assert!(
                 read >= hunted - (1e-4 * zero + 256.0 * f64::EPSILON * reach),
@@ -364,7 +355,8 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
         let mut lines = Vec::new();
         for u in [0.0, 1.0, -2.5, 3.1415] {
             match surface {
-                Surface::Cone { apex, .. } => {
+                Surface::Cone { frame, .. } => {
+                    let apex = frame.origin();
                     for v in [0.3, -0.3] {
                         let wall = surface.eval(u, v);
                         let g = wall - apex;
@@ -372,18 +364,23 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
                         for shift in [0.0, 0.5 * zero()] {
                             lines.push(geom::Line {
                                 origin: wall + side * shift,
-                                dir: g,
+                                dir: geom_core::UnitVec3::squared(g),
                             });
                         }
                     }
                 }
-                Surface::Cylinder { axis, .. } => lines.push(geom::Line {
-                    origin: surface.eval(u, 0.4),
-                    dir: axis * 0.7,
-                }),
+                Surface::Cylinder { frame, .. } => {
+                    let axis = frame.axis();
+                    lines.push(geom::Line {
+                        origin: surface.eval(u, 0.4),
+                        dir: geom_core::UnitVec3::squared(axis * 0.7),
+                    })
+                }
                 Surface::Plane { .. } => lines.push(geom::Line {
                     origin: surface.eval(u, 0.4),
-                    dir: surface.deriv_u(u, 0.4) + surface.deriv_v(u, 0.4) * u,
+                    dir: geom_core::UnitVec3::squared(
+                        surface.deriv_u(u, 0.4) + surface.deriv_v(u, 0.4) * u,
+                    ),
                 }),
                 _ => {}
             }
@@ -440,15 +437,13 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
             cases.push((
                 format!("spindle R {big} along {axis:?}"),
                 Surface::Spindle {
-                    center: c,
-                    axis,
+                    frame: geom::Frame::new(c, axis, (u_ref - axis * u_ref.dot(axis)).normalize()),
                     major_radius: big,
                     minor_radius: 0.5,
-                    u_ref: (u_ref - axis * u_ref.dot(axis)).normalize(),
                 },
                 geom::Line {
                     origin: c - axis * tip,
-                    dir: axis * (2.0 * tip),
+                    dir: geom_core::UnitVec3::squared(axis * (2.0 * tip)),
                 },
             ));
         }
@@ -456,14 +451,12 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
     cases.push((
         "sphere diameter".into(),
         Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), u_ref),
             radius: 0.5,
-            axis: Vec3::unit_z(),
-            u_ref,
         },
         geom::Line {
             origin: Point3::new(0.0, 0.0, -0.5),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::squared(Vec3::unit_z()),
         },
     ));
     // The torus's outer equator point to its inner one at azimuth 0,
@@ -471,25 +464,21 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
     cases.push((
         "torus chord through the core".into(),
         Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), u_ref),
             major_radius: 1.2,
             minor_radius: 0.4,
-            u_ref,
         },
         geom::Line {
             origin: Point3::new(0.8, 0.0, 0.0),
-            dir: Vec3::new(0.8, 0.0, 0.0),
+            dir: geom_core::UnitVec3::squared(Vec3::new(0.8, 0.0, 0.0)),
         },
     ));
     // Two points of the cone at height ±0.3, either side of the axis,
     // shifted off the apex by `30·zero`: the chord crosses the apex plane
     // `30·zero` from the apex.
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), u_ref),
         half_angle: 0.5,
-        u_ref,
     };
     let r = 0.3 * 0.5f64.tan();
     let side = Vec3::new(0.0, 30.0 * zero(), 0.0);
@@ -498,7 +487,9 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
         cone,
         geom::Line {
             origin: Point3::new(r, 0.0, 0.3) + side,
-            dir: Point3::new(-r, 0.0, -0.3) - Point3::new(r, 0.0, 0.3),
+            dir: geom_core::UnitVec3::squared(
+                Point3::new(-r, 0.0, -0.3) - Point3::new(r, 0.0, 0.3),
+            ),
         },
     ));
     for (what, surface, line) in cases {

@@ -58,38 +58,30 @@ fn quarter_arc(h: f64, r: f64) -> Curve3<f64> {
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn ring_torus() -> Surface<f64> {
     Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn cylinder(radius: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn cone() -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: FRAC_PI_4,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -367,10 +359,8 @@ fn a_sphere_frame_off_in_both_directions_reads_its_defects_at_their_norm() {
     // `|axis|² − 1 = 2e + e² = D`.
     let e = (1.0 + d).sqrt() - 1.0;
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z() * (1.0 + e), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z() * (1.0 + e),
-        u_ref: Vec3::unit_x(),
     };
     let h = 0.3f64;
     let carrier = circle(

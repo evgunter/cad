@@ -101,7 +101,7 @@ impl<T: geom_core::spline::SpanLocate> TorusDisplacement<T> {
             let circle = geom::cover::Cover::circle(geom::cover::Core {
                 axis: geom::Line {
                     origin: t.center,
-                    dir: t.axis,
+                    dir: geom_core::UnitVec3::squared(t.axis),
                 },
                 radius: t.major_radius,
             });

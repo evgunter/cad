@@ -812,9 +812,7 @@ mod tests {
 
     fn plane(origin: Point3<f64>, normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
         Surface::Plane {
-            origin,
-            normal: normal.normalize(),
-            u_ref,
+            frame: geom::Frame::new(origin, normal.normalize(), u_ref),
         }
     }
 
@@ -870,10 +868,8 @@ mod tests {
     /// The cylinder `x² + y² = 1`.
     fn cylinder() -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Z,
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Z, X),
             radius: 1.0,
-            u_ref: X,
         }
     }
 

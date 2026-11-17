@@ -176,10 +176,12 @@ fn sphere() -> Surface<f64> {
 /// banked principle names, planted deliberately.
 fn threaded_cylinder() -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(0.03, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.03, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.08,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -723,10 +725,12 @@ fn an_unseeded_run_refuses_typed_rather_than_receipting_an_unprovable_domain() {
         "the fixture's clearance must be a definite sign at this ε"
     );
     let c = Surface::Cylinder {
-        origin: Point3::new(1.5 + clearance, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(1.5 + clearance, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     // `floor_m` is the accounting floor in METRES, at every ε — the
     // width this fixture's premise is about, through the door that
@@ -803,10 +807,12 @@ fn a_tangent_pair_refuses_toward_the_c7_regime_and_never_desingularizes() {
     // candidate locus, which is C7's construction, not a locus to march.
     let s = sphere();
     let c = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let err = ssi::cylinder_sphere_ssi(&c, &s, slab(), band()).expect_err("must refuse");
     let msg = format!("{err}");
@@ -836,10 +842,12 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
     // refuse rather than certify a component it cannot separate.
     let s = sphere();
     let c = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     // A carrier that IS the tangency circle (the equator), a quarter
     // arc of it, interpolated: the row is about limb 3, so limbs 1 and 2
@@ -995,9 +1003,7 @@ fn cutting_plane() -> Surface<f64> {
     let u = Vec3::new(1.0, 0.0, 0.0);
     let u = (u - n * u.dot(n)) / (u - n * u.dot(n)).norm();
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.4),
-        normal: n,
-        u_ref: u,
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.4), n, u),
     }
 }
 
@@ -1322,14 +1328,10 @@ fn oq4_the_two_pcurves_share_the_carriers_own_parameter() {
     // Same parameter interval, not merely the same shape.
     assert!((pa.domain().0 - t0).abs() < 1e-15 && (pa.domain().1 - t1).abs() < 1e-15);
     assert!((pb.domain().0 - t0).abs() < 1e-15 && (pb.domain().1 - t1).abs() < 1e-15);
-    let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = p
-    else {
+    let Surface::Plane { frame } = p else {
         unreachable!()
     };
+    let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let v_ref = normal.cross(u_ref);
     for i in 0..CERT_SAMPLES {
         let t = geom_brep::sample_param(t0, t1, i);
@@ -1388,9 +1390,11 @@ fn hull_slack_wall() -> NurbsSurface<f64> {
 /// across the section the other walls' [`cutting_plane`] would cut.
 fn grazing_plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     }
 }
 
@@ -1884,10 +1888,12 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
 #[test]
 fn a_degenerate_r3_operand_refuses_at_the_pose() {
     let point_sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let c = threaded_cylinder();
     match ssi::cylinder_sphere_ssi(&c, &point_sphere, slab(), band()) {
@@ -2078,18 +2084,22 @@ fn an_underflowing_weight_reaches_the_chart_refusal_arm_without_magnitude() {
 fn a_non_finite_operand_is_refused_at_the_door_by_name() {
     use geom_brep::ssi::OperandDatum;
     let plane = |origin: Point3<f64>, normal: Vec3<f64>| {
-        let Surface::Plane { u_ref, .. } = cutting_plane() else {
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = cutting_plane()
+        else {
             unreachable!("the cutting plane is a plane")
         };
+        let u_ref = carrier_frame.u_ref();
         Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: geom::Frame::new(origin, normal, u_ref),
         }
     };
-    let Surface::Plane { origin, normal, .. } = cutting_plane() else {
+    let Surface::Plane { frame, .. } = cutting_plane() else {
         unreachable!("the cutting plane is a plane")
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     let expect =
         |got: Result<(), SsiError>, operand: &str, datum: OperandDatum, row: &str| match got {
             Err(SsiError::OperandNotFinite {
@@ -2173,19 +2183,17 @@ fn a_non_finite_operand_is_refused_at_the_door_by_name() {
     );
     // The analytic pair, at both ℝ³ doors.
     let Surface::Sphere {
+        frame: carrier_frame,
         radius,
-        axis,
-        u_ref,
         ..
     } = sphere()
     else {
         unreachable!("the sphere is a sphere")
     };
+    let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
     let bad_sphere = Surface::Sphere {
-        center: Point3::new(f64::NAN, 0.0, 0.0),
+        frame: geom::Frame::new(Point3::new(f64::NAN, 0.0, 0.0), axis, u_ref),
         radius,
-        axis,
-        u_ref,
     };
     let centre = field(geom::SurfaceDatum::Center);
     expect(
@@ -2218,10 +2226,12 @@ fn a_non_finite_operand_is_refused_at_the_door_by_name() {
 #[test]
 fn an_internally_tangent_pair_refuses_without_denying_the_crossing() {
     let viv = Surface::Cylinder {
-        origin: Point3::new(0.5, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.5, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let e = ssi::cylinder_sphere_ssi(&viv, &surf::sphere(1.0), slab(), band()).unwrap_err();
     assert!(
@@ -2692,9 +2702,11 @@ fn a_tiny_net_the_plane_meets_traces_or_refuses_by_the_kind_its_size_earns() {
         1.0e-12, 1.0e-100, 1.0e-160, 1.0e-200, 1.0e-260, 1.0e-300, 1.0e-315,
     ] {
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.25 * s),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.25 * s),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let r = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band());
         let at = format!("spread {s:e} at ε {:e}", band().zero());
@@ -2874,23 +2886,28 @@ fn a_floor_no_bisection_reaches_refuses_by_name_on_both_lanes() {
 
     let at = Point3::new(1.0e8, 0.0, 0.0);
     let far = Surface::Sphere {
-        center: at,
+        frame: geom::Frame::new(at, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let cylinder = match threaded_cylinder() {
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin: Point3::new(origin.x + at.x, origin.y, origin.z),
-            axis,
-            radius,
-            u_ref,
-        },
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cylinder {
+                frame: geom::Frame::new(
+                    Point3::new(origin.x + at.x, origin.y, origin.z),
+                    axis,
+                    u_ref,
+                ),
+                radius,
+            }
+        }
         other => panic!("{other:?}"),
     };
     let domain = SsiDomain {
@@ -2928,23 +2945,24 @@ fn a_floor_no_bisection_reaches_refuses_by_name_on_both_lanes() {
 fn far_cylinder_sphere(x: f64) -> (Surface<f64>, Surface<f64>, SsiDomain) {
     let at = Point3::new(x, 0.0, 0.0);
     let far = Surface::Sphere {
-        center: at,
+        frame: geom::Frame::new(at, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let cylinder = match threaded_cylinder() {
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin: Point3::new(origin.x + x, origin.y, origin.z),
-            axis,
-            radius,
-            u_ref,
-        },
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cylinder {
+                frame: geom::Frame::new(Point3::new(origin.x + x, origin.y, origin.z), axis, u_ref),
+                radius,
+            }
+        }
         other => panic!("{other:?}"),
     };
     let domain = SsiDomain {
@@ -2960,14 +2978,21 @@ fn far_plane_wall(x: f64) -> (Surface<f64>, NurbsSurface<f64>) {
     let wall = wall_from_cols(certifiable_cols().map(|(u, v)| (u + x, v)));
     let plane = match cutting_plane() {
         Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => Surface::Plane {
-            origin: Point3::new(origin.x + x, origin.y, origin.z),
-            normal,
-            u_ref,
-        },
+            frame: carrier_frame,
+        } => {
+            let (origin, normal, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Plane {
+                frame: geom::Frame::new(
+                    Point3::new(origin.x + x, origin.y, origin.z),
+                    normal,
+                    u_ref,
+                ),
+            }
+        }
         other => panic!("{other:?}"),
     };
     (plane, wall)
@@ -3087,9 +3112,11 @@ fn a_domain_no_operand_bounds_refuses_naming_the_domain() {
 
     let b = band_at(1.0e-9);
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.5),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let d = SsiDomain {
         half_extent: 3.0e6,
@@ -3216,9 +3243,11 @@ fn a_wall_too_large_for_its_coordinates_refuses_by_its_scale() {
 fn a_short_branch_traces_at_the_callers_extent() {
     let spread = 1.0e-2;
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.25 * spread),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.25 * spread),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let dom = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -3276,9 +3305,11 @@ fn a_plane_clipping_a_walls_corner_traces_the_clip_however_short() {
     rows.extend([(100.0, 1.0, 200.0), (100.0, 2.5, 200.0)]);
     for (w, d, extent) in rows {
         let clip = Surface::Plane {
-            origin: Point3::new(d, 0.0, 0.0),
-            normal: Vec3::new(s2, 0.0, s2),
-            u_ref: Vec3::new(s2, 0.0, -s2),
+            frame: geom::Frame::new(
+                Point3::new(d, 0.0, 0.0),
+                Vec3::new(s2, 0.0, s2),
+                Vec3::new(s2, 0.0, -s2),
+            ),
         };
         let dom = SsiDomain {
             center: Point3::new(0.0, 0.0, 0.0),
@@ -3307,9 +3338,11 @@ fn a_plane_clipping_a_walls_corner_traces_the_clip_however_short() {
 fn corner_clip(d: f64) -> Surface<f64> {
     let s2 = std::f64::consts::FRAC_1_SQRT_2;
     Surface::Plane {
-        origin: Point3::new(d, 0.0, 0.0),
-        normal: Vec3::new(s2, 0.0, s2),
-        u_ref: Vec3::new(s2, 0.0, -s2),
+        frame: geom::Frame::new(
+            Point3::new(d, 0.0, 0.0),
+            Vec3::new(s2, 0.0, s2),
+            Vec3::new(s2, 0.0, -s2),
+        ),
     }
 }
 
@@ -3317,9 +3350,11 @@ fn corner_clip(d: f64) -> Surface<f64> {
 /// `off` inside it.
 fn edge_plane(off: f64) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(off, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(off, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
     }
 }
 
@@ -3396,9 +3431,11 @@ fn a_plane_through_a_walls_corner_vertex_reports_a_corner_region() {
 fn a_plane_flush_with_a_walls_edge_reports_a_side_region() {
     let eps = band().zero();
     let bottom = Surface::Plane {
-        origin: Point3::new(0.7, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.7, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let mut rows = vec![(
         "the bottom edge".to_owned(),
@@ -3632,9 +3669,7 @@ fn plane_off(at: Point3<f64>, n: Vec3<f64>, off: f64) -> Surface<f64> {
     };
     let u_ref = seed - n * seed.dot(n);
     Surface::Plane {
-        origin: at + n * off,
-        normal: n,
-        u_ref: u_ref * (1.0 / u_ref.norm()),
+        frame: geom::Frame::new(at + n * off, n, u_ref * (1.0 / u_ref.norm())),
     }
 }
 
@@ -3939,9 +3974,11 @@ fn arc_wall() -> NurbsSurface<f64> {
 fn a_curved_branch_the_hermite_cannot_certify_is_marched() {
     let at = format!("the eighth circle at ε {:e}", band().zero());
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.5),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let dom = SsiDomain {
         center: Point3::new(0.25, 0.25, 0.5),
@@ -4050,9 +4087,11 @@ fn converging_crossings_certify_no_wrong_pairing() {
     let graph = (
         "the converging graph",
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         },
         converging_wall(),
         SsiDomain {
@@ -4066,9 +4105,11 @@ fn converging_crossings_certify_no_wrong_pairing() {
     let zigzag = (
         "the zigzag wall at y = 0.045",
         Surface::Plane {
-            origin: Point3::new(0.0, 0.045, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.045, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         },
         zigzag_wall_of(9),
         SsiDomain {
@@ -4080,9 +4121,10 @@ fn converging_crossings_certify_no_wrong_pairing() {
         zigzag_segment as Segment,
     );
     for (what, plane, wall, dom, segment) in [graph, zigzag] {
-        let Surface::Plane { normal, .. } = plane else {
+        let Surface::Plane { frame, .. } = plane else {
             unreachable!("both cuts are planes")
         };
+        let normal = frame.axis();
         let at = format!("{what} at ε {eps:e}");
         let out = ssi::plane_nurbs_ssi(&plane, &wall, dom, band())
             .unwrap_or_else(|e| panic!("{at}: expected its branches, got {e}"));
@@ -4335,9 +4377,11 @@ fn a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length() {
     use geom_brep::ssi::BranchBound;
     let k_eps = band().escalate();
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.5),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let dom = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.5),
@@ -4467,9 +4511,11 @@ fn a_plane_tangent_to_a_walls_edge_refuses_as_a_graze_naming_the_side() {
     ];
     let wall = NurbsSurface::new(knots_u, knots_v, control, vec![1.0; 6]).unwrap();
     let floor = Surface::Plane {
-        origin: Point3::new(0.5, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.5, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let r = ssi::plane_nurbs_ssi(&floor, &wall, wall_box(1.0, 1.0), band());
     let Err(ref err @ SsiError::BoundaryGraze { side, bracket, .. }) = r else {
@@ -4582,9 +4628,7 @@ fn dome_tilt(d: f64) -> (Surface<f64>, SsiDomain) {
     let s2 = std::f64::consts::FRAC_1_SQRT_2;
     let at = Point3::new(0.5, -d / 8.0, 0.5);
     let plane = Surface::Plane {
-        origin: at,
-        normal: Vec3::new(s2, s2, 0.0),
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(at, Vec3::new(s2, s2, 0.0), Vec3::new(0.0, 0.0, 1.0)),
     };
     let dom = SsiDomain {
         center: at,
@@ -4664,9 +4708,11 @@ fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
     for d in [1.0, 3.0] {
         let (tilt, dom) = dome_tilt(d);
         let level = Surface::Plane {
-            origin: dom.center,
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                dom.center,
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let wall = dome_wall(d);
         for (cut, plane) in [("tilt", tilt), ("level", level)] {
@@ -4708,9 +4754,11 @@ fn a_curved_domes_level_loop_certifies_at_every_eps() {
     for d in [1.0, 3.0] {
         let (_, dom) = dome_tilt(d);
         let level = Surface::Plane {
-            origin: dom.center,
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                dom.center,
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let at = format!("d = {d}, ε {:e}", eps());
         let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, b);
@@ -4762,9 +4810,7 @@ fn a_curved_domes_oblique_arc_certifies_across_its_inflections() {
     let (_, dom) = dome_tilt(d);
     let s2 = std::f64::consts::FRAC_1_SQRT_2;
     let oblique = Surface::Plane {
-        origin: dom.center,
-        normal: Vec3::new(s2, 0.0, s2),
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(dom.center, Vec3::new(s2, 0.0, s2), Vec3::new(0.0, 1.0, 0.0)),
     };
     let at = format!("ε {:e}", eps());
     let r = ssi::plane_nurbs_ssi(&oblique, &dome_wall(d), dom, band());
@@ -4808,9 +4854,11 @@ fn a_curved_domes_open_arc_certifies_on_the_marchs_samples() {
     for (d, samples) in [(1.0, 230..250), (2.0, 340..347)] {
         let (_, dom) = dome_tilt(d);
         let zcut = Surface::Plane {
-            origin: Point3::new(0.5, -d / 8.0, 0.2),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.5, -d / 8.0, 0.2),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let out = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, b)
             .unwrap_or_else(|e| panic!("d = {d}: the arc does not certify: {e}"));
@@ -4884,9 +4932,11 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
     let d = 1.0;
     let (_, dom) = dome_tilt(d);
     let level = Surface::Plane {
-        origin: dom.center,
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            dom.center,
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     if !at_the_compiled_default("the level loop at 8e-15") {
         return;
@@ -4933,9 +4983,11 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     let d = 1.0;
     let (_, dom) = dome_tilt(d);
     let zcut = Surface::Plane {
-        origin: Point3::new(0.5, -d / 8.0, 0.2),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.5, -d / 8.0, 0.2),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     if !at_the_compiled_default("the zcut at 8e-15") {
         return;
@@ -5011,9 +5063,7 @@ fn a_loop_whose_seeds_newton_carries_into_its_tube_is_found_once() {
     let d = 1.0;
     let apex = Point3::new(0.5, -d / 4.0 + 0.005, 0.5);
     let level = Surface::Plane {
-        origin: apex,
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(apex, Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
     };
     let dom = SsiDomain {
         center: apex,
@@ -5054,16 +5104,20 @@ fn a_spent_step_budget_ends_by_the_rung_that_held_its_steps() {
     use geom_brep::ssi::StepBound;
     let s = 1000.0;
     let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: s,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
     };
     let cylinder = Surface::Cylinder {
-        origin: Point3::new(0.03 * s, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.03 * s, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.08 * s,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let domain = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -5131,9 +5185,11 @@ fn close_crossings_wall(gap: f64, height: f64) -> NurbsSurface<f64> {
 /// The plane `y = 0`, which cuts [`close_crossings_wall`].
 fn close_crossings_plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.5, 0.0, 0.5),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.5, 0.0, 0.5),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     }
 }
 
@@ -5322,9 +5378,11 @@ fn warped_flat_wall(alpha: f64, width: f64, kappa: f64) -> NurbsSurface<f64> {
 fn a_flat_wall_whose_chart_bends_answers_as_the_plane_it_is() {
     let eps = band().zero();
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let dom = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -5407,9 +5465,11 @@ fn arms_wall(gap: f64, h: f64) -> NurbsSurface<f64> {
 #[test]
 fn a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature() {
     let plane = Surface::Plane {
-        origin: Point3::new(0.5, 0.0, 0.5),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.5, 0.0, 0.5),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let dom = SsiDomain {
         center: Point3::new(0.5, 0.0, 0.5),
@@ -5811,9 +5871,11 @@ fn chart_truth(wall: &NurbsSurface<f64>) -> ChartTruth {
 fn graph_cut() -> (Surface<f64>, SsiDomain) {
     (
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         },
         SsiDomain {
             center: Point3::new(0.5, 0.5, 0.0),
@@ -5949,9 +6011,11 @@ fn bent_path_flat_wall(alpha: f64, width: f64, kappa: f64, mu: f64) -> NurbsSurf
 fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
     let eps = band().zero();
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let dom = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),

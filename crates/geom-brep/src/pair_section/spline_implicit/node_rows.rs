@@ -31,9 +31,7 @@ fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
 /// The level plane `z = h`.
 fn level(h: f64) -> Surface<f64> {
     Surface::Plane {
-        origin: pt(0.5, 0.5, h),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(pt(0.5, 0.5, h), Vec3::unit_z(), Vec3::unit_x()),
     }
 }
 
@@ -670,10 +668,8 @@ fn a_generic_node_is_listed() {
         (u + 0.2 * (v - 0.5), v)
     });
     let ball = Surface::Sphere {
-        center: pt(0.5, 0.5, 100.0),
+        frame: geom::Frame::new(pt(0.5, 0.5, 100.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 100.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     for (what, partner, wall) in [
         ("lines at ±1.5", level(0.0), &crossing),

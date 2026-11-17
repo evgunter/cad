@@ -43,10 +43,12 @@ fn run(cyl: Surface, d: SsiDomain) -> Result<geom_brep::SsiOutcome, SsiError> {
 #[test]
 fn a_loop_smaller_than_the_seed_floor_is_found_or_refused_typed() {
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.01, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.01, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.008,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let d = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -84,10 +86,12 @@ fn a_loop_smaller_than_the_seed_floor_is_found_or_refused_typed() {
 #[test]
 fn a_loop_straddling_cell_boundaries_is_found_or_refused_typed() {
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.03, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.03, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.08,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let d = SsiDomain {
         center: Point3::new(0.0137, -0.0261, 0.0407),
@@ -114,10 +118,12 @@ fn a_loop_straddling_cell_boundaries_is_found_or_refused_typed() {
 #[test]
 fn one_loop_slab_seed_count_reproduces() {
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.03, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.03, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.08,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let d = SsiDomain {
         center: Point3::new(0.03, 0.0, 0.996),
@@ -151,10 +157,12 @@ fn one_loop_slab_seed_count_reproduces() {
 #[test]
 fn the_tiny_pair_floor_variant_refuses_typed() {
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.01, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.01, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.008,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let d = SsiDomain {
         center: Point3::new(0.01, 0.0, 0.9999),

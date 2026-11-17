@@ -195,7 +195,7 @@ impl<T: geom_core::Real> ConeOffset<T> {
     /// trip's only slack is one rounded operation per leg: the apex
     /// coordinate addition here and the matching subtraction back.
     pub fn apex(&self) -> geom_core::Point3<T> {
-        self.axis.origin - self.axis.dir * (self.d / self.half_angle.sin())
+        self.axis.origin - self.axis.dir.get() * (self.d / self.half_angle.sin())
     }
 
     /// The chart parameter shift: `v ↦ v + d·cot α` at matched `u`.
@@ -221,9 +221,9 @@ impl<T: geom_core::Real> ConeOffset<T> {
     pub fn displacement(&self, nappe: Nappe, p: geom_core::Point3<T>) -> geom_core::Vec3<T> {
         let (sin_a, cos_a) = self.half_angle.sin_cos();
         let radial = (p - self.axis.origin)
-            .reject_from(self.axis.dir)
+            .reject_from(self.axis.dir.get())
             .normalize();
-        (radial * nappe.turn(cos_a) - self.axis.dir * sin_a) * self.d
+        (radial * nappe.turn(cos_a) - self.axis.dir.get() * sin_a) * self.d
     }
 }
 
@@ -347,75 +347,39 @@ pub fn offset_surface<T: geom_core::Decide>(
         }
     };
     match surface {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => Ok(Surface::Plane {
-            origin: *origin + *normal * d,
-            normal: *normal,
-            u_ref: *u_ref,
+        Surface::Plane { frame } => Ok(Surface::Plane {
+            frame: frame.translated(frame.axis() * d),
         }),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => {
+        Surface::Cylinder { frame, radius } => {
             let realized = *radius + d;
             floor(SurfaceKind::Cylinder, realized)?;
             Ok(Surface::Cylinder {
-                origin: *origin,
-                axis: *axis,
+                frame: *frame,
                 radius: realized,
-                u_ref: *u_ref,
             })
         }
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => {
+        Surface::Cone { frame, half_angle } => {
             // The slide is [`ConeOffset`]'s, which is also what every
             // consumer moving a curve or a parameter with this mint
             // reads: one derivation, three faces, no copy to drift.
+            let apex = ConeOffset::new(frame.axis_line(), *half_angle, d).apex();
             Ok(Surface::Cone {
-                apex: ConeOffset::new(
-                    geom::Line {
-                        origin: *apex,
-                        dir: *axis,
-                    },
-                    *half_angle,
-                    d,
-                )
-                .apex(),
-                axis: *axis,
+                frame: frame.with_origin(apex),
                 half_angle: *half_angle,
-                u_ref: *u_ref,
             })
         }
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => {
+        Surface::Sphere { frame, radius } => {
             let realized = *radius + d;
             floor(SurfaceKind::Sphere, realized)?;
             Ok(Surface::Sphere {
-                center: *center,
+                frame: *frame,
                 radius: realized,
-                axis: *axis,
-                u_ref: *u_ref,
             })
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => {
             let realized = *minor_radius + d;
             floor(SurfaceKind::Torus, realized)?;
@@ -431,11 +395,9 @@ pub fn offset_surface<T: geom_core::Decide>(
                 }
             }
             Ok(Surface::Torus {
-                center: *center,
-                axis: *axis,
+                frame: *frame,
                 major_radius: *major_radius,
                 minor_radius: realized,
-                u_ref: *u_ref,
             })
         }
         Surface::Spindle { .. } => Err(OffsetError::SpindleSheet),
@@ -481,12 +443,18 @@ pub fn offset_distance<T: geom_core::Real>(
 ) -> Result<T, OffsetDistanceError<T>> {
     match (from, onto) {
         (
-            Surface::Plane { origin, normal, .. },
             Surface::Plane {
-                origin: onto_origin,
+                frame: plane_frame_2,
                 ..
             },
-        ) => Ok(geom::plane_offset(*origin, *normal, *onto_origin)),
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+        ) => {
+            let (origin, normal) = (plane_frame_2.origin(), plane_frame_2.axis());
+            let onto_origin = plane_frame.origin();
+            Ok(geom::plane_offset(origin, normal, onto_origin))
+        }
         (
             Surface::Cylinder { radius, .. },
             Surface::Cylinder {
@@ -510,15 +478,18 @@ pub fn offset_distance<T: geom_core::Real>(
         ) => Ok(*onto_minor - *minor_radius),
         (
             Surface::Cone {
-                apex,
-                axis,
+                frame: cone_frame_2,
                 half_angle,
                 ..
             },
             Surface::Cone {
-                apex: onto_apex, ..
+                frame: cone_frame, ..
             },
-        ) => Ok((*apex - *onto_apex).dot(*axis) * half_angle.sin()),
+        ) => {
+            let (apex, axis) = (cone_frame_2.origin(), cone_frame_2.axis());
+            let onto_apex = cone_frame.origin();
+            Ok((apex - onto_apex).dot(axis) * half_angle.sin())
+        }
         (Surface::Nurbs(_), _) => Err(OffsetDistanceError::Offset(
             OffsetError::NotClosedUnderOffset,
         )),

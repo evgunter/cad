@@ -213,9 +213,7 @@ fn ended(got: &Result<(), CertifyError>) -> Ended {
 /// The plane `z = 0`, `u` along `x̂`.
 fn plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     }
 }
 
@@ -470,9 +468,7 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
     match kind {
         Kind::Plane => {
             let surface = Surface::Plane {
-                origin: o,
-                normal: axis,
-                u_ref,
+                frame: geom::Frame::new(o, axis, u_ref),
             };
             let at = o + u_ref * g.range(-5.0, 5.0) + v_ref * g.range(-5.0, 5.0);
             match g.below(3) {
@@ -502,10 +498,8 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
         Kind::Cylinder => {
             let r = g.range(0.1, 5.0);
             let surface = Surface::Cylinder {
-                origin: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: r,
-                u_ref,
             };
             let h = g.range(-5.0, 5.0);
             match g.below(3) {
@@ -539,10 +533,8 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
         Kind::Cone => {
             let alpha = g.range(0.1, 1.2);
             let surface = Surface::Cone {
-                apex: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 half_angle: alpha,
-                u_ref,
             };
             let slant = sign(g) * g.range(0.5, 5.0);
             if g.below(2) == 0 {
@@ -566,10 +558,8 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
         Kind::Sphere => {
             let big_r = g.range(0.1, 5.0);
             let surface = Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: big_r,
-                axis,
-                u_ref,
             };
             if g.below(2) == 0 {
                 let lat = g.range(-1.4, 1.4);
@@ -589,19 +579,15 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
             };
             let surface = if kind == Kind::Torus {
                 Surface::Torus {
-                    center: o,
-                    axis,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     major_radius: major,
                     minor_radius: minor,
-                    u_ref,
                 }
             } else {
                 Surface::Spindle {
-                    center: o,
-                    axis,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     major_radius: major,
                     minor_radius: minor,
-                    u_ref,
                 }
             };
             if kind == Kind::Torus && g.below(2) == 0 {
@@ -651,73 +637,91 @@ impl Mirror {
         let (p, v) = (|x| self.point(x), |x| self.vector(x));
         match *s {
             Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => Surface::Plane {
-                origin: p(origin),
-                normal: v(normal),
-                u_ref: v(u_ref),
-            },
+                frame: carrier_frame,
+            } => {
+                let (origin, normal, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Plane {
+                    frame: geom::Frame::new(p(origin), v(normal), v(u_ref)),
+                }
+            }
             Surface::Cylinder {
-                origin,
-                axis,
+                frame: carrier_frame,
                 radius,
-                u_ref,
-            } => Surface::Cylinder {
-                origin: p(origin),
-                axis: v(axis),
-                radius,
-                u_ref: v(u_ref),
-            },
+            } => {
+                let (origin, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Cylinder {
+                    frame: geom::Frame::new(p(origin), v(axis), v(u_ref)),
+                    radius,
+                }
+            }
             Surface::Cone {
-                apex,
-                axis,
+                frame: carrier_frame,
                 half_angle,
-                u_ref,
-            } => Surface::Cone {
-                apex: p(apex),
-                axis: v(axis),
-                half_angle,
-                u_ref: v(u_ref),
-            },
+            } => {
+                let (apex, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Cone {
+                    frame: geom::Frame::new(p(apex), v(axis), v(u_ref)),
+                    half_angle,
+                }
+            }
             Surface::Sphere {
-                center,
+                frame: carrier_frame,
                 radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                center: p(center),
-                radius,
-                axis: v(axis),
-                u_ref: v(u_ref),
-            },
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Sphere {
+                    frame: geom::Frame::new(p(center), v(axis), v(u_ref)),
+                    radius,
+                }
+            }
             Surface::Torus {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => Surface::Torus {
-                center: p(center),
-                axis: v(axis),
-                major_radius,
-                minor_radius,
-                u_ref: v(u_ref),
-            },
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Torus {
+                    frame: geom::Frame::new(p(center), v(axis), v(u_ref)),
+                    major_radius,
+                    minor_radius,
+                }
+            }
             Surface::Spindle {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => Surface::Spindle {
-                center: p(center),
-                axis: v(axis),
-                major_radius,
-                minor_radius,
-                u_ref: v(u_ref),
-            },
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Spindle {
+                    frame: geom::Frame::new(p(center), v(axis), v(u_ref)),
+                    major_radius,
+                    minor_radius,
+                }
+            }
             Surface::Nurbs(_) | Surface::Approx(_) => unreachable!("the rows draw analytic charts"),
         }
     }
@@ -726,19 +730,19 @@ impl Mirror {
     /// is `axis × u_ref`, so its reflected axis is negated.
     fn carrier(self, c: &Curve3<f64>) -> Curve3<f64> {
         match c {
-            Curve3::Line(l) => Curve3::line(self.point(l.origin), self.vector(l.dir)),
+            Curve3::Line(l) => Curve3::line(self.point(l.origin), self.vector(l.dir.get())),
             Curve3::Circle(k) => Curve3::circle(
-                self.point(k.frame.origin),
-                -self.vector(k.frame.axis),
+                self.point(k.frame.origin()),
+                -self.vector(k.frame.axis()),
                 k.radius,
-                self.vector(k.frame.u_ref),
+                self.vector(k.frame.u_ref()),
             ),
             Curve3::Ellipse(e) => Curve3::ellipse(
-                self.point(e.frame.origin),
-                -self.vector(e.frame.axis),
+                self.point(e.frame.origin()),
+                -self.vector(e.frame.axis()),
                 e.semi_u,
                 e.semi_v,
-                self.vector(e.frame.u_ref),
+                self.vector(e.frame.u_ref()),
                 band(),
             )
             .unwrap(),
@@ -901,10 +905,8 @@ fn every_spelling(g: &mut fuzz::Rng) {
 /// The unit cylinder about `ẑ`.
 fn unit_cylinder() -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -1059,19 +1061,19 @@ fn spiric(g: &mut fuzz::Rng) -> (Curve3<f64>, [Surface<f64>; 3]) {
     let offset = sign(g) * (major - minor) * g.range(0.1, 0.9);
     let carrier = Curve3::spiric(o, axis, n, major, minor, offset, band()).unwrap();
     let mut torus = |center| Surface::Torus {
-        center,
-        axis: axis * sign(g),
+        frame: geom::Frame::new(center, axis * sign(g), perpendicular(g, axis)),
         major_radius: major,
         minor_radius: minor,
-        u_ref: perpendicular(g, axis),
     };
     let own = torus(o);
     let mirror = torus(o + n * (2.0 * offset));
     let normal = n * sign(g);
     let plane = Surface::Plane {
-        origin: o + n * offset + axis * g.range(-1.0, 1.0),
-        normal,
-        u_ref: perpendicular(g, normal),
+        frame: geom::Frame::new(
+            o + n * offset + axis * g.range(-1.0, 1.0),
+            normal,
+            perpendicular(g, normal),
+        ),
     };
     (carrier, [own, mirror, plane])
 }
@@ -1595,10 +1597,8 @@ fn an_angle_forgives_a_whole_period_and_nothing_more() {
 fn a_spheres_twin_certifies_and_a_hair_off_it_misses() {
     let b = band();
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 2.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let lat: f64 = 0.4;
     let parallel = Curve3::circle(
@@ -1852,30 +1852,22 @@ fn patch_holds(
 fn an_enclosing_patch_holds_its_chart() {
     let at = |eps: f64| geom_core::Band::linear_at(geom_core::Tol::witness(), eps).unwrap();
     let cone = Surface::Cone {
-        apex: Point3::new(0.1, 0.2, 0.3),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.1, 0.2, 0.3), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: 0.6,
-        u_ref: Vec3::unit_x(),
     };
     let sphere = Surface::Sphere {
-        center: Point3::new(1.0, -2.0, 0.5),
+        frame: geom::Frame::new(Point3::new(1.0, -2.0, 0.5), Vec3::unit_y(), Vec3::unit_z()),
         radius: 3.0,
-        axis: Vec3::unit_y(),
-        u_ref: Vec3::unit_z(),
     };
     let torus = |center, major, minor| Surface::Torus {
-        center,
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         major_radius: major,
         minor_radius: minor,
-        u_ref: Vec3::unit_x(),
     };
     let spindle = Surface::Spindle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 0.5,
         minor_radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let cases = [
         (
@@ -2140,18 +2132,20 @@ fn pole_start_meridians() -> [PinnedMeridian; 2] {
         );
         let radius = 2.130_638_384_572_389_7;
         let sphere = Surface::Sphere {
-            center: centre,
+            frame: geom::Frame::new(
+                centre,
+                Vec3::new(
+                    -0.675_589_460_306_390_8,
+                    -0.394_043_192_820_310_14,
+                    -0.623_144_319_812_750_5,
+                ),
+                Vec3::new(
+                    0.669_485_472_224_753_1,
+                    0.026_147_118_174_392_567,
+                    -0.742_364_823_177_374_2,
+                ),
+            ),
             radius,
-            axis: Vec3::new(
-                -0.675_589_460_306_390_8,
-                -0.394_043_192_820_310_14,
-                -0.623_144_319_812_750_5,
-            ),
-            u_ref: Vec3::new(
-                0.669_485_472_224_753_1,
-                0.026_147_118_174_392_567,
-                -0.742_364_823_177_374_2,
-            ),
         };
         let carrier = Curve3::circle(
             centre,
@@ -2182,18 +2176,20 @@ fn pole_start_meridians() -> [PinnedMeridian; 2] {
         );
         let radius = 1.900_839_103_302_455_6;
         let sphere = Surface::Sphere {
-            center: centre,
+            frame: geom::Frame::new(
+                centre,
+                Vec3::new(
+                    -0.602_692_147_126_108_6,
+                    0.637_435_795_327_199_3,
+                    0.480_039_355_290_898_9,
+                ),
+                Vec3::new(
+                    0.510_846_725_931_499,
+                    -0.153_934_328_466_607_87,
+                    0.845_777_657_026_125_6,
+                ),
+            ),
             radius,
-            axis: Vec3::new(
-                -0.602_692_147_126_108_6,
-                0.637_435_795_327_199_3,
-                0.480_039_355_290_898_9,
-            ),
-            u_ref: Vec3::new(
-                0.510_846_725_931_499,
-                -0.153_934_328_466_607_87,
-                0.845_777_657_026_125_6,
-            ),
         };
         let carrier = Curve3::circle(
             centre,
@@ -2283,19 +2279,15 @@ fn a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most() {
             .filter(|s| s * r > 8.0 * b.escalate())
         {
             let sphere = Surface::Sphere {
-                center: centre,
+                frame: geom::Frame::new(centre, axis, u_ref),
                 radius: r,
-                axis,
-                u_ref,
             };
             let great =
                 Curve3::circle(centre, normal, r, axis * f64::cos(s) + radial * f64::sin(s));
             let torus = Surface::Torus {
-                center: centre,
-                axis,
+                frame: geom::Frame::new(centre, axis, u_ref),
                 major_radius: r,
                 minor_radius: s * r,
-                u_ref,
             };
             let lean = radial.cross(axis) * f64::cos(s.asin()) + axis * (sense * s);
             let villarceau = Curve3::circle(

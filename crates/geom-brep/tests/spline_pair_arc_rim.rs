@@ -526,9 +526,11 @@ fn plane_lane_at<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     h: f64,
 ) -> Result<geom_brep::PlaneNurbsIncidence<T>, PlaneNurbsRefusal> {
     let plane = geom::Surface::Plane {
-        origin: Point3::new(0.0, 0.0, h),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, h),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     geom_brep::plane_nurbs_incidence(
         &carrier.map_scalar(T::from_f64),

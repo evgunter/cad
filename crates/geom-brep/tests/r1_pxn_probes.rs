@@ -497,9 +497,11 @@ fn near_tangential_scan_is_typed_at_every_angle() {
         // Normal (cos α, sin α, 0), plane through (1,0,0) containing z:
         // sin θ against the wall's radial normal is sin α.
         let plane = Surface::Plane {
-            origin: Point3::new(1.0, 0.0, 0.0),
-            normal: Vec3::new(alpha.cos(), alpha.sin(), 0.0),
-            u_ref: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(1.0, 0.0, 0.0),
+                Vec3::new(alpha.cos(), alpha.sin(), 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+            ),
         };
         match plane_nurbs_limbs::<f64>(
             &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),

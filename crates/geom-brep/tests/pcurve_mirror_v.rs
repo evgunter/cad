@@ -190,9 +190,7 @@ fn projected_on_plane() -> Pcurve<f64> {
         .unwrap(),
     ));
     let plane = Surface::Plane {
-        origin: Point3::new(0.05, 0.1, 0.0),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.05, 0.1, 0.0), Vec3::unit_z(), Vec3::unit_x()),
     };
     geom_brep::chart_pcurve(&carrier, &plane, Band::linear(Tol::witness()).unwrap()).unwrap()
 }
@@ -412,9 +410,7 @@ type PlaneCase = (&'static str, Pcurve<f64>, Curve3<f64>, f64, f64);
 
 fn plane(normal: Vec3<f64>) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::origin(),
-        normal,
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), normal, Vec3::unit_x()),
     }
 }
 
@@ -566,9 +562,11 @@ fn a_description_without_a_chart_image_is_invariant_under_the_door() {
     let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
     let a = arena.insert(plane(Vec3::unit_z()));
     let b = arena.insert(Surface::Plane {
-        origin: Point3::new(0.1, 0.2, 0.0),
-        normal: Vec3::new(0.8, -0.6, 0.0),
-        u_ref: Vec3::unit_z(),
+        frame: geom::Frame::new(
+            Point3::new(0.1, 0.2, 0.0),
+            Vec3::new(0.8, -0.6, 0.0),
+            Vec3::unit_z(),
+        ),
     });
     let (start, end) = (carrier.eval(0.0), carrier.eval(1.0));
     let edge = EdgeCurve::certify(

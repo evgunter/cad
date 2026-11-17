@@ -42,14 +42,14 @@ fn w3(v: Vec3<f64>) -> P3 {
 /// The oracle's cut of `cone` by `plane`, read from their stored `f64`s.
 fn cut_of(cone: &Surface<f64>, plane: &Surface<f64>) -> ConeCut {
     let Surface::Cone {
-        apex,
-        axis,
+        frame: carrier_frame,
         half_angle,
         ..
     } = *cone
     else {
         unreachable!("a cone")
     };
+    let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let (origin, normal) = plane_of(plane);
     ConeCut::new(p3(apex), w3(axis), half_angle, (p3(origin), w3(normal)))
 }
@@ -60,7 +60,7 @@ fn lines(l1: &Curve3<f64>, l2: &Curve3<f64>) -> [(P3, P3); 2] {
         let Curve3::Line(geom::Line { origin, dir }) = *l else {
             panic!("a line outcome carries a line, got {l:?}");
         };
-        (p3(origin), w3(dir))
+        (p3(origin), w3(dir.get()))
     })
 }
 
@@ -86,9 +86,11 @@ fn plane_at(
         Vec3::unit_y()
     };
     Surface::Plane {
-        origin: apex - n * gap + (slide - n * slide.dot(n)),
-        normal: n,
-        u_ref: (u - n * u.dot(n)).normalize(),
+        frame: geom::Frame::new(
+            apex - n * gap + (slide - n * slide.dot(n)),
+            n,
+            (u - n * u.dot(n)).normalize(),
+        ),
     }
 }
 
@@ -98,10 +100,8 @@ fn cone(axis: Vec3<f64>, u_ref: Vec3<f64>, alpha: f64) -> Surface<f64> {
 
 fn cone_at(apex: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>, alpha: f64) -> Surface<f64> {
     Surface::Cone {
-        apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, u_ref),
         half_angle: alpha,
-        u_ref,
     }
 }
 
@@ -125,9 +125,10 @@ fn lean_for(alpha: f64, d: f64) -> f64 {
 }
 
 fn plane_of(s: &Surface<f64>) -> (Point3<f64>, Vec3<f64>) {
-    let Surface::Plane { origin, normal, .. } = *s else {
+    let Surface::Plane { frame, .. } = *s else {
         unreachable!("a plane")
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     (origin, normal)
 }
 
@@ -628,9 +629,11 @@ fn through_the_apex_reads_its_gaps_rounding(label: &str, pose: Pose) -> Option<S
     let (axis, normal) = (v3(axis), v3(normal));
     let c = cone_at(apex, axis, v3(u_ref), alpha);
     let p = Surface::Plane {
-        origin,
-        normal,
-        u_ref: (Vec3::unit_x() - normal * normal.x).normalize(),
+        frame: geom::Frame::new(
+            origin,
+            normal,
+            (Vec3::unit_x() - normal * normal.x).normalize(),
+        ),
     };
     let cut = cut_of(&c, &p);
     let kernel = (apex - origin).dot(normal);

@@ -51,11 +51,9 @@ const MINOR: f64 = 0.001;
 /// a re-merge leaves a hair off level.
 fn gasket_band(va: f64, vb: f64, wobble: f64) -> (Surface<f64>, Vec<LoopEdge<f64>>) {
     let s = Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         major_radius: MAJOR,
         minor_radius: MINOR,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let rim = |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(

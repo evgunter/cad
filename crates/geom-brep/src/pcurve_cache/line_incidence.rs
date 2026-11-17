@@ -88,38 +88,48 @@ pub(super) fn critical_fractions<T: SpanLocate>(
     (t0, t1): (T, T),
 ) -> Vec<f64> {
     let span = (middle(t0), middle(t1));
-    let (o, u) = (mid_point(line.origin), mid3(line.dir));
+    let (o, u) = (mid_point(line.origin), mid3(line.dir.get()));
     let length = span.1 - span.0;
     if !(length > 0.0 && length.is_finite()) {
         return Vec::new();
     }
-    let mid_line = geom::Line { origin: o, dir: u };
+    let mid_line = geom::Line {
+        origin: o,
+        dir: geom_core::UnitVec3::squared(u),
+    };
     let centre_foot = |c: Point3<f64>| mid_line.param(c);
     let ts = match *surface {
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
-        Surface::Sphere { center, .. } => vec![centre_foot(mid_point(center))],
-        Surface::Cylinder { origin, axis, .. } => Axial::of(o, u, mid_point(origin), mid3(axis))
-            .star
-            .into_iter()
-            .collect(),
+        Surface::Sphere { frame, .. } => {
+            let center = frame.origin();
+            vec![centre_foot(mid_point(center))]
+        }
+        Surface::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            Axial::of(o, u, mid_point(origin), mid3(axis))
+                .star
+                .into_iter()
+                .collect()
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => Axial::of(o, u, mid_point(apex), mid3(axis)).cone(middle(half_angle), span),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            Axial::of(o, u, mid_point(apex), mid3(axis)).cone(middle(half_angle), span)
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             ..
         }
         | Surface::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             ..
-        } => Axial::of(o, u, mid_point(center), mid3(axis)).torus(middle(major_radius), span),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            Axial::of(o, u, mid_point(center), mid3(axis)).torus(middle(major_radius), span)
+        }
     };
     let mut fractions: Vec<f64> = ts
         .into_iter()

@@ -109,19 +109,15 @@ fn off_coaxial_drift_stays_within_the_stated_bound() {
     let mut poses: Vec<Pose> = Vec::new();
     for (big, r) in [(1.0, 0.2), (0.3, 0.2), (0.21, 0.2), (5.0, 0.1)] {
         let torus = Surface::Torus {
-            center: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             major_radius: big,
             minor_radius: r,
-            u_ref: x,
         };
         let top = Point3::new(0.0, 0.0, r);
         poses.push((
             format!("torus R {big} r {r} / top plane"),
             Surface::Plane {
-                origin: top,
-                normal: z,
-                u_ref: x,
+                frame: geom::Frame::new(top, z, x),
             },
             torus.clone(),
             top,
@@ -131,10 +127,8 @@ fn off_coaxial_drift_stays_within_the_stated_bound() {
             poses.push((
                 format!("torus R {big} r {r} / {side} cylinder"),
                 Surface::Cylinder {
-                    origin: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     radius: rho,
-                    u_ref: x,
                 },
                 torus.clone(),
                 o,
@@ -148,16 +142,12 @@ fn off_coaxial_drift_stays_within_the_stated_bound() {
         poses.push((
             format!("cone {degrees}° / inscribed sphere"),
             Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), z, x),
                 radius: sin,
-                axis: z,
-                u_ref: x,
             },
             Surface::Cone {
-                apex: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 half_angle: alpha,
-                u_ref: x,
             },
             Point3::new(0.0, 0.0, cos * cos),
             sin * cos,

@@ -939,37 +939,56 @@ pub(crate) fn chart_frame<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, [
     let frame = |o: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>| (o, [u_ref, axis.cross(u_ref), axis]);
     Some(match *surface {
         Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => frame(origin, normal, u_ref),
+            frame: carrier_frame,
+        } => {
+            let (origin, normal, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            frame(origin, normal, u_ref)
+        }
         Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             ..
-        } => frame(origin, axis, u_ref),
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            frame(origin, axis, u_ref)
+        }
         Surface::Cone {
-            apex, axis, u_ref, ..
-        } => frame(apex, axis, u_ref),
+            frame: carrier_frame,
+            ..
+        } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            frame(apex, axis, u_ref)
+        }
         Surface::Sphere {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             ..
         }
         | Surface::Torus {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             ..
         }
         | Surface::Spindle {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             ..
-        } => frame(center, axis, u_ref),
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            frame(center, axis, u_ref)
+        }
         Surface::Nurbs(_) | Surface::Approx(_) => return None,
     })
 }
@@ -1346,7 +1365,7 @@ pub(crate) fn project<T: Decide>(
             let (t0, t1) = span.unwrap_or_else(|| super::own_interval(carrier));
             FramedCarrier::Line {
                 point: to_frame(point - origin, &e),
-                dir: to_frame(dir, &e),
+                dir: to_frame(dir.get(), &e),
                 origin: t0,
                 span: t1 - t0,
             }
@@ -2696,12 +2715,8 @@ pub(super) fn projected_envelope<T: Decide>(
         why,
     };
     // ---- The plane: the mapped net's difference, exactly. ----
-    if let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = *surface
-    {
+    if let Surface::Plane { frame } = *surface {
+        let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let (FramedCarrier::Net(net), Curve3::Nurbs(c)) = (&image.carrier, carrier) else {
             return Err(refuse(
                 "a plane's projected image is a spline carrier's net",
@@ -2800,7 +2815,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 conic,
                 geom::Line {
                     origin: o,
-                    dir: e[2],
+                    dir: geom_core::UnitVec3::squared(e[2]),
                 },
             ));
             let rho_floor = (rho_twin - d).max(T::zero());
@@ -2840,7 +2855,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 ));
             };
             let (rho_lo, _, _) = met_floors(image, &met, (t0, t1), band)?;
-            let (p, l) = (to_frame(at0 - o, &e), to_frame(along, &e));
+            let (p, l) = (to_frame(at0 - o, &e), to_frame(along.get(), &e));
             // The stored line's gap from the re-derived one is affine in
             // `t`, so its sup over the edge is at an end.
             let gap = |t: T| (point - p + (dir - l) * t).norm();
@@ -3334,9 +3349,11 @@ mod tests {
                 .map(|d| revalue(d.node, &none))
                 .collect();
             let plane = Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
             }
             .map_scalar(S::from_f64);
             let (incidence, floor) = net_incidence(

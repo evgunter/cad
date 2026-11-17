@@ -117,18 +117,23 @@ fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
         let span = window.1 - window.0;
         for i in 0..DUMBBELL.len() {
             let Ok(Surface::Plane {
-                origin,
-                normal,
-                u_ref,
+                frame: carrier_frame,
             }) = newell_plane::<Interval>(&wall::<Interval>(i), segment::<Interval>(i), band())
             else {
                 panic!("wall {i}: newell_plane refused at Interval");
             };
-            let Ok(Surface::Plane { u_ref: uf, .. }) =
-                newell_plane::<f64>(&wall::<f64>(i), segment::<f64>(i), band())
+            let (origin, normal, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            let Ok(Surface::Plane {
+                frame: f64_frame, ..
+            }) = newell_plane::<f64>(&wall::<f64>(i), segment::<f64>(i), band())
             else {
                 panic!("wall {i}: newell_plane refused at f64");
             };
+            let uf = f64_frame.u_ref();
             // The frame can be no tighter than the normal it is built
             // from; the factor is headroom over the measured widths,
             // not a tolerance anything is tuned to.
@@ -163,9 +168,7 @@ fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
                 );
             }
             let surface = Surface::Plane {
-                origin,
-                normal,
-                u_ref,
+                frame: carrier_frame,
             };
             let z = cell_z_width(&surface, window, window);
             assert!(

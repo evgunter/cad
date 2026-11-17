@@ -132,7 +132,7 @@ pub fn axis_pose<T: Decide>(
     band: Band,
 ) -> AxisPose<T> {
     let at = ball.foot_on(partner);
-    let tilt = a.cross(d).norm();
+    let tilt = a.get().cross(d.get()).norm();
     if !matches!(
         geom_core::k_stats::decide(
             "section_axes_tilt",
@@ -143,8 +143,8 @@ pub fn axis_pose<T: Decide>(
     ) {
         return AxisPose::Other;
     }
-    let (perp, e) = square_part(at - c, a);
-    let swing = line_tilt(a, d) * ball.lever_from(at).length()
+    let (perp, e) = square_part(at - c, a.get());
+    let swing = line_tilt(a.get(), d.get()) * ball.lever_from(at).length()
         + turn(&Turn {
             at,
             tilt,
@@ -246,15 +246,18 @@ impl<T: Decide> Ring<T> {
     /// data.
     fn of(s: &Surface<T>, band: Band) -> Option<Result<Self, TorusPoseRefusal>> {
         let Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         } = *s
         else {
             return None;
         };
+        let (center, axis, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         let axis = axis.normalize();
         let finite = [
             center.x, center.y, center.z, axis.x, axis.y, axis.z, u_ref.x, u_ref.y, u_ref.z,
@@ -589,9 +592,10 @@ impl<T: Decide> SphereTorusPose<T> {
             (Surface::Torus { .. }, Surface::Sphere { .. }) => (b, a, false),
             _ => return None,
         };
-        let &Surface::Sphere { center, radius, .. } = sphere else {
+        let &Surface::Sphere { frame, radius, .. } = sphere else {
             return None;
         };
+        let center = frame.origin();
         let ring = Ring::of(torus, band)?;
         Some((|| {
             radius_guard("st_sphere_radius", SectionRadius::Sphere, radius, band)?;

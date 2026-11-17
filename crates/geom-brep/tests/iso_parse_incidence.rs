@@ -45,19 +45,15 @@ fn rim(z: f64, r: f64, off: f64, tilt: f64, fwd: bool, tag: u32) -> LoopEdge<f64
 
 fn cylinder() -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn cone(alpha: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -186,7 +182,14 @@ fn unit(v: [f64; 3]) -> Vec3<f64> {
 
 /// A line from `p` along the unit `d` over `[0, len]`.
 fn line(p: Point3<f64>, d: Vec3<f64>, len: f64) -> (Curve3<f64>, f64, f64) {
-    (Curve3::Line(geom::Line { origin: p, dir: d }), 0.0, len)
+    (
+        Curve3::Line(geom::Line {
+            origin: p,
+            dir: geom_core::UnitVec3::squared(d),
+        }),
+        0.0,
+        len,
+    )
 }
 
 /// A coaxial arc about `+z` at height `z`, radius `r`, from azimuth `a`
@@ -356,10 +359,8 @@ fn skew_sector<T: Real>() -> (Surface<T>, Vec<LoopEdge<T>>) {
     let g = |u: T| e1 * (sa * u.cos()) + e2 * (sa * u.sin()) + a * ca;
     let two = f(2.0);
     let surface = Surface::Cone {
-        apex,
-        axis: a,
+        frame: geom::Frame::new(apex, a, e1),
         half_angle: f(0.5),
-        u_ref: e1,
     };
     let edge = |carrier, t1: T, tag: u32| {
         LoopEdge::hand_built(carrier, T::zero(), t1, true, tag, (tag + 1) % 3)

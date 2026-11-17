@@ -519,19 +519,23 @@ mod tests {
 
     fn sphere() -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn cylinder() -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::new(0.4, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.4, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 0.4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -593,23 +597,29 @@ mod tests {
     fn r3_curvature_is_the_largest_principal_curvature() {
         use super::super::march::TransversalityData;
         let torus = Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 1.0,
             minor_radius: 0.8,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let alpha = std::f64::consts::FRAC_PI_6;
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: alpha,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let inner = [0.2, 0.0, 0.0];
         assert_eq!(
@@ -802,9 +812,7 @@ mod tests {
             let cos = (1.0 - sin * sin).sqrt();
             let du = Vec3::new(-sin, cos, 0.0);
             let plane = Surface::Plane {
-                origin: p(0.0, 0.0, 0.0),
-                normal: du.cross(Vec3::new(0.0, 0.0, 1.0)),
-                u_ref: du,
+                frame: geom::Frame::new(p(0.0, 0.0, 0.0), du.cross(Vec3::new(0.0, 0.0, 1.0)), du),
             };
             let sys = ImplicitChartR2 {
                 partner: &plane,
@@ -943,15 +951,19 @@ mod tests {
         let partners = [
             sphere(),
             Surface::Cylinder {
-                origin: Point3::new(0.1, -0.2, 0.0),
-                axis: tilt,
-                u_ref: tilt.cross(Vec3::new(1.0, 0.0, 0.0)).normalize(),
+                frame: geom::Frame::new(
+                    Point3::new(0.1, -0.2, 0.0),
+                    tilt,
+                    tilt.cross(Vec3::new(1.0, 0.0, 0.0)).normalize(),
+                ),
                 radius: 0.7,
             },
             Surface::Torus {
-                center: Point3::new(0.0, 0.1, 0.3),
-                axis: tilt,
-                u_ref: tilt.cross(Vec3::new(1.0, 0.0, 0.0)).normalize(),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.1, 0.3),
+                    tilt,
+                    tilt.cross(Vec3::new(1.0, 0.0, 0.0)).normalize(),
+                ),
                 major_radius: 0.8,
                 minor_radius: 0.3,
             },

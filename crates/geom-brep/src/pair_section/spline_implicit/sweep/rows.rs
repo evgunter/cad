@@ -32,9 +32,7 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
     };
     let u = pick - n * pick.dot(n);
     Surface::Plane {
-        origin,
-        normal: n,
-        u_ref: u * (1.0 / u.norm()),
+        frame: geom::Frame::new(origin, n, u * (1.0 / u.norm())),
     }
 }
 
@@ -482,9 +480,7 @@ fn a_side_in_an_oblique_plane_reads_alike_wherever_the_planes_origin_is_stored()
     };
     for &far in offsets {
         let p = Surface::Plane {
-            origin: Point3::origin() + u * far,
-            normal: n,
-            u_ref: u,
+            frame: geom::Frame::new(Point3::origin() + u * far, n, u),
         };
         assert_eq!(
             got(&p, &w),
@@ -706,13 +702,16 @@ fn a_plane_stored_far_along_itself_reads_the_touch_its_pivot_pads() {
     let n = Vec3::new(0.1, 0.06, 1.0);
     let n = n * (1.0 / n.norm());
     let above = pt(0.55, 0.53, -0.0034) + n * (1.5 * b.zero());
-    let Surface::Plane { normal, u_ref, .. } = plane(above, n) else {
+    let Surface::Plane {
+        frame: carrier_frame,
+        ..
+    } = plane(above, n)
+    else {
         unreachable!("a plane")
     };
+    let (normal, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
     let stored = Surface::Plane {
-        origin: above + u_ref * 1.0e7,
-        normal,
-        u_ref,
+        frame: geom::Frame::new(above + u_ref * 1.0e7, normal, u_ref),
     };
     let got = match pair_section(&stored, &dome(), None, Some(SsiLane::marched()), b) {
         Ok(SectionRead::Built(s)) => s.components().clone(),

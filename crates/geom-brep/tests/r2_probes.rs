@@ -137,10 +137,8 @@ fn r2_probe_sphere_seam_bit_move() {
     let r = 2.0;
     let d = DRIFT;
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     // Meridian in the x-z halfplane (x > 0): a circle about -y so the
     // traversal runs south-to-north, radius r + d (radial drift).
@@ -172,10 +170,8 @@ fn r2_probe_cone_seam_bit_move() {
     let half_angle = 0.5_f64;
     let d = DRIFT;
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle,
-        u_ref: Vec3::unit_x(),
     };
     let (s, c) = half_angle.sin_cos();
     // Ruling direction in the seam halfplane; drift along the outward
@@ -214,10 +210,8 @@ fn r2_probe_small_cylinder_seam_bit_move() {
     let r = 1e-4;
     let d = DRIFT;
     let cyl = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     };
     let carrier = Curve3::line(Point3::new(r + d, 0.0, 0.0), Vec3::unit_z());
     let (delta, legacy, now) = seam_delta(

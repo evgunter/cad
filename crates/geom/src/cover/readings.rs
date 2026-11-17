@@ -40,8 +40,7 @@ impl<T: Real> Surface<T> {
             }
             Surface::Sphere { frame, radius } => {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                Cover::sphere(&Frame::new(center, axis, u_ref), *radius)
-                    .ok_or_else(|| refuse(Unknown::NonFinite))
+                Cover::sphere(&frame, *radius).ok_or_else(|| refuse(Unknown::NonFinite))
             }
             Surface::Torus {
                 frame,
@@ -49,12 +48,8 @@ impl<T: Real> Surface<T> {
                 minor_radius,
             } => {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                Cover::torus(
-                    &Frame::new(center, axis, u_ref),
-                    *major_radius,
-                    *minor_radius,
-                )
-                .ok_or_else(|| refuse(Unknown::NonFinite))
+                Cover::torus(&frame, *major_radius, *minor_radius)
+                    .ok_or_else(|| refuse(Unknown::NonFinite))
             }
             // The sheet lies on its whole revolved circle, which is the
             // tube about the circle of radius `|R|`: the signed centre
@@ -65,12 +60,8 @@ impl<T: Real> Surface<T> {
                 minor_radius,
             } => {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                Cover::torus(
-                    &Frame::new(center, axis, u_ref),
-                    major_radius.abs(),
-                    *minor_radius,
-                )
-                .ok_or_else(|| refuse(Unknown::NonFinite))
+                Cover::torus(&frame, major_radius.abs(), *minor_radius)
+                    .ok_or_else(|| refuse(Unknown::NonFinite))
             }
             Surface::Nurbs(patch) => net(entity, patch.control()),
             Surface::Approx(approx) => net(entity, approx.fit().control()),
@@ -147,11 +138,7 @@ impl<T: SpanLocate> Curve3<T> {
                 offset,
             } => {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                let tube = Cover::tube(
-                    &Frame::new(center, axis, u_ref),
-                    *major_radius,
-                    *minor_radius,
-                );
+                let tube = Cover::tube(&frame, *major_radius, *minor_radius);
                 let rectangle = crate::curves::spiric_rectangle(
                     center,
                     axis,

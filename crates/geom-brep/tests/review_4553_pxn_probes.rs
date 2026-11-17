@@ -154,9 +154,11 @@ fn ruling<T: SpanLocate>(x: f64, y: f64) -> NurbsCurve3<T> {
 fn vplane<T: SpanLocate>(x: f64, y: f64, tx: f64, ty: f64) -> Surface<T> {
     let f = T::from_f64;
     Surface::Plane {
-        origin: Point3::new(f(x), f(y), f(0.0)),
-        normal: Vec3::new(f(tx), f(ty), f(0.0)),
-        u_ref: Vec3::new(f(0.0), f(0.0), f(1.0)),
+        frame: geom::Frame::new(
+            Point3::new(f(x), f(y), f(0.0)),
+            Vec3::new(f(tx), f(ty), f(0.0)),
+            Vec3::new(f(0.0), f(0.0), f(1.0)),
+        ),
     }
 }
 

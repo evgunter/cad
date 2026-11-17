@@ -26,10 +26,8 @@ use test_utils::fuzz;
 /// The cone of half-angle `alpha` about `+z`, apex at the origin.
 fn cone(alpha: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     }
 }
 

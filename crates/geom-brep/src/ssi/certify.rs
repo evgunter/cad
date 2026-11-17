@@ -463,7 +463,8 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
                            widened operand is a family of surfaces, not the body's surface \
                            — refused rather than represented by a midpoint";
     match *s {
-        Surface::Plane { origin, normal, .. } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
             let (Some(point), Some(normal)) =
                 (exact3(origin.to_array()), exact3(normal.to_array()))
             else {
@@ -475,7 +476,8 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
                 ToMeters::Divisor(1.0),
             ))
         }
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let (Some(center), Some(radius)) = (exact3(center.to_array()), exact(radius)) else {
                 return Err(WIDENED);
             };
@@ -486,12 +488,8 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
                 ToMeters::Divisor(2.0 * radius),
             ))
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let (Some(point), Some(axis), Some(radius)) = (
                 exact3(origin.to_array()),
                 exact3(axis.to_array()),
@@ -511,12 +509,12 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
             ))
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (Some(center), Some(axis), Some(major), Some(minor)) = (
                 exact3(center.to_array()),
                 exact3(axis.to_array()),
@@ -3060,9 +3058,7 @@ mod tests {
             };
             crate::ssi::certify::chart_partner_form(
                 &geom::Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref,
+                    frame: geom::Frame::new(origin, normal, u_ref),
                 },
                 crate::ssi::certify::exact_certified,
             )
@@ -3167,9 +3163,11 @@ mod tests {
             );
             for n in [n, point] {
                 let plane = geom::Surface::Plane {
-                    origin: on_line(),
-                    normal: Vec3::new(iv(0.0), n, iv(0.0)),
-                    u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    frame: geom::Frame::new(
+                        on_line(),
+                        Vec3::new(iv(0.0), n, iv(0.0)),
+                        Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    ),
                 };
                 let got = crate::ssi::certify::chart_partner_form(
                     &plane,
@@ -3204,9 +3202,11 @@ mod tests {
             use crate::ssi::{ChartedNurbs, SsiOperand};
             let point = Interval::from_bounds(-1.0, 0.0).sqrt() + iv(2.0);
             let plane = geom::Surface::Plane {
-                origin: on_line(),
-                normal: Vec3::new(iv(0.0), point, iv(0.0)),
-                u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                frame: geom::Frame::new(
+                    on_line(),
+                    Vec3::new(iv(0.0), point, iv(0.0)),
+                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                ),
             };
             let patch = unit_patch();
             let wall = ChartedNurbs::mint(&patch).expect("the unit patch mints");
@@ -3810,9 +3810,7 @@ mod tests {
         let u = (u - n * u.dot(n)) / (u - n * u.dot(n)).norm();
         let origin = Point3::new(0.0, 0.0, 0.4);
         let plane = Surface::Plane {
-            origin,
-            normal: n,
-            u_ref: u,
+            frame: geom::Frame::new(origin, n, u),
         };
         let domain = SsiDomain {
             center: Point3::new(0.5, 0.0, 0.4),
@@ -4098,9 +4096,11 @@ mod tests {
         )
         .unwrap();
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         (wall, carrier, pcurve, plane)
     }
@@ -4183,9 +4183,11 @@ mod tests {
         let (c, s) = (0.5, 0.75_f64.sqrt());
         for (radius, grow) in [(2.0, 0.0), (2.0, 0.5 * band.zero()), (1.0e4, 0.0)] {
             let partner = Surface::Cylinder {
-                origin: Point3::new(1.0 - radius * c, -radius * s, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(1.0 - radius * c, -radius * s, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: radius + grow,
             };
             let lane = Lane::Chart {
@@ -4253,15 +4255,19 @@ mod tests {
         use geom_core::spline::KnotVector;
         use geom_core::{Band, Point3, Vec3};
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, -1.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, -1.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let carrier = NurbsCurve3::new(
             KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
@@ -4553,9 +4559,7 @@ mod node_end_rows {
 
     fn level() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         }
     }
 

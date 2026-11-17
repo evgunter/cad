@@ -1561,9 +1561,7 @@ mod tests {
         let wall = flat_wall(0.05);
         let n = Vec3::new(-a, 1.0, a * k).normalize();
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: n,
-            u_ref: (Vec3::unit_x() - n * n.x).normalize(),
+            frame: geom::Frame::new(Point3::origin(), n, (Vec3::unit_x() - n * n.x).normalize()),
         };
         let domain = crate::ssi::SsiDomain {
             center: Point3::origin(),
@@ -1583,10 +1581,8 @@ mod tests {
         );
         // The counter counts: a curved partner reads its sub-windows.
         let cylinder = Surface::Cylinder {
-            origin: Point3::new(0.5, -1.0, 0.0),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::new(0.5, -1.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.1,
-            u_ref: Vec3::unit_x(),
         };
         let form = ImplicitForm::of(&cylinder).expect("a partner");
         let square = flat_wall(1.0);

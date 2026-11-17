@@ -36,15 +36,19 @@ fn steep(ratio: f64) -> Steep {
     let alpha = (1.0f64 / ratio).acos();
     let mut surfaces: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
     let plane = surfaces.insert(Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     });
     let cyl = surfaces.insert(Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::new(alpha.sin(), 0.0, alpha.cos()),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(alpha.sin(), 0.0, alpha.cos()),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
     });
     let a = 1.0 / alpha.cos();
     Steep {
@@ -258,21 +262,19 @@ fn r1_spiric_whole_ovals_certify_whole() {
     for d in [0.0, 0.0078125, 0.5 * (big_r - r)] {
         let mut surfaces: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
         let torus = surfaces.insert(Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
             major_radius: big_r,
             minor_radius: r,
-            u_ref: Vec3::unit_x(),
         });
         let plane = surfaces.insert(Surface::Plane {
-            origin: Point3::new(d, 0.0, 0.0),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y().cross(Vec3::unit_x()),
+            frame: geom::Frame::new(
+                Point3::new(d, 0.0, 0.0),
+                Vec3::unit_x(),
+                Vec3::unit_y().cross(Vec3::unit_x()),
+            ),
         });
         let carrier = Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_y(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
             major_radius: big_r,
             minor_radius: r,
             offset: d,

@@ -63,9 +63,11 @@ fn section() -> Curve3<f64> {
 /// The section plane of that ellipse, as a chart.
 fn section_plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, H),
-        normal: Vec3::new(TILT.sin(), 0.0, TILT.cos()),
-        u_ref: Vec3::new(TILT.cos(), 0.0, -TILT.sin()),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, H),
+            Vec3::new(TILT.sin(), 0.0, TILT.cos()),
+            Vec3::new(TILT.cos(), 0.0, -TILT.sin()),
+        ),
     }
 }
 

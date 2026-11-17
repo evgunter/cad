@@ -160,7 +160,7 @@ mod tests {
             let g = cone_generator(
                 crate::Line {
                     origin: apex,
-                    dir: geom_core::UnitVec3::squared(ca),
+                    dir: frame.axis_unit(),
                 },
                 alpha,
                 d,

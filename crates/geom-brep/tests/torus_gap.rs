@@ -35,30 +35,24 @@ fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
 fn torus(center: Point3<f64>, axis: Vec3<f64>, big: f64, small: f64) -> Surface<f64> {
     let axis = axis.normalize();
     Surface::Torus {
-        center,
-        axis,
+        frame: geom::Frame::new(center, axis, axis.orthonormal_basis().0),
         major_radius: big,
         minor_radius: small,
-        u_ref: axis.orthonormal_basis().0,
     }
 }
 
 fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
     let axis = axis.normalize();
     Surface::Cylinder {
-        origin,
-        axis,
+        frame: geom::Frame::new(origin, axis, axis.orthonormal_basis().0),
         radius,
-        u_ref: axis.orthonormal_basis().0,
     }
 }
 
 fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -230,24 +224,32 @@ fn oracle_gap(values: &[f64], [ra, rb]: [f64; 2]) -> f64 {
 /// The oracle's reading of a pose's spine distance, the torus `t` first.
 fn values_of(t: &Surface<f64>, partner: &Surface<f64>) -> Vec<f64> {
     let &Surface::Torus {
-        center,
-        axis,
+        frame: carrier_frame,
         major_radius,
         ..
     } = t
     else {
         panic!("the first surface is the torus")
     };
+    let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let core = Core::of(center, axis, major_radius);
     match *partner {
-        Surface::Sphere { center, .. } => point_values(core, center),
-        Surface::Cylinder { origin, axis, .. } => line_values(core, origin, axis),
+        Surface::Sphere { frame, .. } => {
+            let center = frame.origin();
+            point_values(core, center)
+        }
+        Surface::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            line_values(core, origin, axis)
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             ..
-        } => circle_values(core, Core::of(center, axis, major_radius)),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            circle_values(core, Core::of(center, axis, major_radius))
+        }
         _ => panic!("a torus pair"),
     }
 }
@@ -362,11 +364,13 @@ fn a_sphere_on_the_core_is_tangent_along_a_circle() {
 #[test]
 fn a_generic_frame_pipe_joint_reads_no_definite_verdict_in_band() {
     let t = |c: [f64; 3], a: [f64; 3], u: [f64; 3], big: f64, r: f64| Surface::Torus {
-        center: p(c[0], c[1], c[2]),
-        axis: Vec3::new(a[0], a[1], a[2]),
+        frame: geom::Frame::new(
+            p(c[0], c[1], c[2]),
+            Vec3::new(a[0], a[1], a[2]),
+            Vec3::new(u[0], u[1], u[2]),
+        ),
         major_radius: big,
         minor_radius: r,
-        u_ref: Vec3::new(u[0], u[1], u[2]),
     };
     let z = band().zero();
     let r1 = 12.656385726945569;
@@ -681,11 +685,9 @@ fn no_tube_circle_pose_at_scale_reads_the_wrong_verdict() {
         let u_ref = square_to(&mut g, axis);
         let center = p(0.0, 0.0, 0.0) + unit_vector(&mut g) * far;
         let t = Surface::Torus {
-            center,
-            axis,
+            frame: geom::Frame::new(center, axis, u_ref),
             major_radius: big,
             minor_radius: r,
-            u_ref,
         };
         // The core point, in the sweep's own frame: on a first cut or
         // anywhere.
@@ -734,11 +736,9 @@ fn no_tube_circle_pose_at_scale_reads_the_wrong_verdict() {
                     continue;
                 }
                 Surface::Torus {
-                    center: q + radial * big2,
-                    axis: axis2,
+                    frame: geom::Frame::new(q + radial * big2, axis2, square_to(&mut g, axis2)),
                     major_radius: big2,
                     minor_radius: rho,
-                    u_ref: square_to(&mut g, axis2),
                 }
             }
         };
@@ -806,11 +806,13 @@ fn two_tori_read_alike_in_either_order() {
     let b = band();
     let z = b.zero();
     let ring = |c: [f64; 3], a: [f64; 3], u: [f64; 3], big: f64, r: f64| Surface::Torus {
-        center: p(c[0], c[1], c[2]),
-        axis: Vec3::new(a[0], a[1], a[2]),
+        frame: geom::Frame::new(
+            p(c[0], c[1], c[2]),
+            Vec3::new(a[0], a[1], a[2]),
+            Vec3::new(u[0], u[1], u[2]),
+        ),
         major_radius: big,
         minor_radius: r,
-        u_ref: Vec3::new(u[0], u[1], u[2]),
     };
     let donut = torus(p(0.0, 0.0, 0.0), Vec3::unit_z(), 2.0, 0.5);
     let pairs = [

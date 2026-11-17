@@ -16,11 +16,7 @@ fn band() -> Band {
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
     Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame: geom::Frame::new(center, axis, u_ref),
         radius,
     })
 }
@@ -35,11 +31,9 @@ fn villarceau(phi: f64, family: f64, psi: f64) -> (Surface<f64>, Curve3<f64>) {
     let (major, minor) = (2.0, 0.7);
     let (axis, u_ref) = (Vec3::unit_z(), Vec3::unit_x());
     let torus = Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis,
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), axis, u_ref),
         major_radius: major,
         minor_radius: minor,
-        u_ref,
     };
     let d = u_ref * phi.cos() + axis.cross(u_ref) * phi.sin();
     let tilt = (minor / major).asin();
@@ -57,16 +51,16 @@ fn villarceau(phi: f64, family: f64, psi: f64) -> (Surface<f64>, Curve3<f64>) {
 /// 0.2 rad off the axis at height 1.5: an ellipse, the focal arm's.
 fn cone_ellipse() -> (Surface<f64>, Curve3<f64>) {
     let cone = Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: 0.4,
-        u_ref: Vec3::unit_x(),
     };
     let tilt: f64 = 0.2;
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1.5),
-        normal: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-        u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.5),
+            Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+            Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+        ),
     };
     let reach = crate::Reach::fixture(Point3::new(0.0, 0.0, 0.0), 4.0);
     match crate::intersect::plane_cone_section(&plane, &cone, &reach, band()) {
@@ -89,29 +83,21 @@ fn arms() -> Vec<Arm> {
     let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
     let o = Point3::new(0.0, 0.0, 0.0);
     let cylinder = Surface::Cylinder {
-        origin: o,
-        axis: z,
+        frame: geom::Frame::new(o, z, x),
         radius: 1.0,
-        u_ref: x,
     };
     let cone = Surface::Cone {
-        apex: o,
-        axis: z,
+        frame: geom::Frame::new(o, z, x),
         half_angle: 0.4,
-        u_ref: x,
     };
     let sphere = Surface::Sphere {
-        center: o,
+        frame: geom::Frame::new(o, z, x),
         radius: 1.0,
-        axis: z,
-        u_ref: x,
     };
     let torus = Surface::Torus {
-        center: o,
-        axis: z,
+        frame: geom::Frame::new(o, z, x),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: x,
     };
     let lat: f64 = 0.5;
     let tube: f64 = 0.3;
@@ -119,16 +105,12 @@ fn arms() -> Vec<Arm> {
     let (torus_v, villarceau_circle) = villarceau(0.7, 1.0, 0.3);
     let (wall_r, wall_rr, wall_d) = (0.09375, 0.0703125, 0.0078125);
     let wall_torus = Surface::Torus {
-        center: o,
-        axis: y,
+        frame: geom::Frame::new(o, y, x),
         major_radius: wall_r,
         minor_radius: wall_rr,
-        u_ref: x,
     };
     let spiric = Curve3::Spiric {
-        center: o,
-        axis: y,
-        u_ref: x,
+        frame: geom::Frame::new(o, y, x),
         major_radius: wall_r,
         minor_radius: wall_rr,
         offset: wall_d,
@@ -268,10 +250,8 @@ fn a_carrier_restated_whole_periods_off_derives_one_placed_image() {
 fn every_edge_of_a_rim_is_placed_in_the_window_at_its_midpoint() {
     let band = band();
     let cylinder = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let rim = circle(
         Point3::new(0.0, 0.0, 0.0),
@@ -302,19 +282,15 @@ fn line_arms() -> Vec<Arm> {
         alpha.cos(),
     );
     let cone = Surface::Cone {
-        apex: o,
-        axis: z,
+        frame: geom::Frame::new(o, z, x),
         half_angle: alpha,
-        u_ref: x,
     };
     vec![
         (
             "cylinder meridian",
             Surface::Cylinder {
-                origin: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 radius: 1.0,
-                u_ref: x,
             },
             Curve3::line(Point3::new(phi.cos(), phi.sin(), 0.0), z),
             (0.3, 2.0),
@@ -330,7 +306,7 @@ fn line_arms() -> Vec<Arm> {
             cone,
             Curve3::Line(geom::Line {
                 origin: o,
-                dir: ruling,
+                dir: geom_core::UnitVec3::squared(ruling),
             }),
             (-1.0, 1.0),
         ),
@@ -342,21 +318,18 @@ fn line_arms() -> Vec<Arm> {
 /// carrier at `t − by` is the first at `t`.
 fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
     match *carrier {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => circle(
-            center,
-            axis,
-            radius,
-            u_ref * by.cos() + axis.cross(u_ref) * by.sin(),
-        ),
-        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(origin + dir * by, dir),
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            circle(
+                center,
+                axis,
+                radius,
+                u_ref * by.cos() + axis.cross(u_ref) * by.sin(),
+            )
+        }
+        Curve3::Line(geom::Line { origin, dir }) => {
+            Curve3::line(origin + dir.get() * by, dir.get())
+        }
         _ => unreachable!("only circles and lines are restarted here"),
     }
 }
@@ -425,11 +398,9 @@ fn a_projected_torus_image_names_both_its_angles_in_the_window() {
     let band = band();
     let (major, minor, phi) = (2.0_f64, 0.5_f64, 1.1_f64);
     let torus = Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: major,
         minor_radius: minor,
-        u_ref: Vec3::unit_x(),
     };
     let radial = Vec3::new(phi.cos(), phi.sin(), 0.0);
     let centre = Point3::new(0.0, 0.0, 0.0) + radial * major;
@@ -467,10 +438,8 @@ fn a_projected_torus_image_names_both_its_angles_in_the_window() {
 #[test]
 fn a_span_past_every_turn_an_i32_counts_refuses_typed() {
     let cylinder = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let rim = circle(
         Point3::new(0.0, 0.0, 0.0),
@@ -500,10 +469,8 @@ fn a_span_past_every_turn_an_i32_counts_refuses_typed() {
 fn a_poles_zero_radius_parallel_keeps_the_angle_it_reads() {
     use geom_core::{Bounds, Interval, Real};
     let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let pole = circle(
         Point3::new(0.0, 0.0, 1.0),
@@ -557,10 +524,8 @@ fn a_poles_zero_radius_parallel_keeps_the_angle_it_reads() {
 #[test]
 fn a_meridian_with_its_midpoint_at_the_pole_names_one_image_wherever_it_starts() {
     let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let o = Point3::new(0.0, 0.0, 0.0);
     let near = circle(o, -Vec3::unit_y(), 1.0, Vec3::unit_x());
@@ -694,10 +659,8 @@ fn a_southern_latitude_places_bit_equal_to_its_atan2() {
     use super::{Along, Azimuth, Placement};
 
     let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let meridian = circle(
         Point3::new(0.0, 0.0, 0.0),
@@ -841,10 +804,8 @@ fn a_far_half_meridian_certifies_at_interval_from_any_start() {
 
     let axis = Vec3::new(0.0, 0.6, 0.8);
     let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), axis, Vec3::unit_x()),
         radius: 1.0,
-        axis,
-        u_ref: Vec3::unit_x(),
     };
     let o = Point3::new(0.0, 0.0, 0.0);
     let start_eq = circle(o, Vec3::new(-1.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.8, -0.6));
@@ -925,23 +886,17 @@ fn placement_on_a_generic_axis_certifies_at_interval_from_either_start() {
     let e2 = a.cross(e1);
     let (sphere, torus, cone) = (
         Surface::Sphere {
-            center: o,
+            frame: geom::Frame::new(o, a, e1),
             radius: 1.0,
-            axis: a,
-            u_ref: e1,
         },
         Surface::Torus {
-            center: o,
-            axis: a,
+            frame: geom::Frame::new(o, a, e1),
             major_radius: 2.0,
             minor_radius: 0.7,
-            u_ref: e1,
         },
         Surface::Cone {
-            apex: o,
-            axis: a,
+            frame: geom::Frame::new(o, a, e1),
             half_angle: 0.4,
-            u_ref: e1,
         },
     );
     let lat: f64 = -1.2;

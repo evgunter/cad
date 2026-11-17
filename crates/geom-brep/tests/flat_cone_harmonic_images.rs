@@ -40,10 +40,8 @@ fn band() -> Band {
 /// The cone of half-angle `alpha`, apex at the origin about `+z`.
 fn cone(alpha: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -84,11 +82,13 @@ fn ruling(alpha: f64, (v0, v1): (f64, f64), d: f64) -> (Curve3<f64>, f64) {
 
 fn size(carrier: &Curve3<f64>, t1: f64) -> f64 {
     match carrier {
-        Curve3::Line(geom::Line { origin, dir }) => (*origin + *dir * t1 - Point3::origin()).norm(),
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
-            radius,
-        }) => (*center - Point3::origin()).norm() + radius,
+        Curve3::Line(geom::Line { origin, dir }) => {
+            (*origin + (*dir).get() * t1 - Point3::origin()).norm()
+        }
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let center = frame.origin();
+            (center - Point3::origin()).norm() + radius
+        }
         _ => unreachable!(),
     }
 }

@@ -62,14 +62,10 @@ use slotmap::SlotMap;
 fn axis_planes() -> (Surface<Probe>, Surface<Probe>) {
     (
         Surface::Plane {
-            origin: p(0.0, 0.0, 0.0),
-            normal: v3(1.0, 0.0, 0.0),
-            u_ref: v3(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(p(0.0, 0.0, 0.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0)),
         },
         Surface::Plane {
-            origin: p(0.0, 0.0, 0.0),
-            normal: v3(0.0, 1.0, 0.0),
-            u_ref: v3(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(p(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(1.0, 0.0, 0.0)),
         },
     )
 }

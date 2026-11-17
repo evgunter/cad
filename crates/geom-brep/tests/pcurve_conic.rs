@@ -20,18 +20,18 @@ use geom_core::{Point3, Vec3};
 /// with world ones by accident.
 fn cyl() -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 2.0,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn plane(phi: f64) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 7.0),
-        normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-        u_ref: Vec3::new(phi.cos(), 0.0, -phi.sin()),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 7.0),
+            Vec3::new(phi.sin(), 0.0, phi.cos()),
+            Vec3::new(phi.cos(), 0.0, -phi.sin()),
+        ),
     }
 }
 
@@ -51,16 +51,12 @@ fn section_ellipse(phi: f64) -> Curve3<f64> {
 
 /// Maps a plane-chart point to 3-D.
 fn chart_to_3d(p: &Surface<f64>, u: f64, v: f64) -> Point3<f64> {
-    let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = p
-    else {
+    let Surface::Plane { frame } = p else {
         panic!("plane chart");
     };
-    let pv = normal.cross(*u_ref);
-    *origin + *u_ref * u + pv * v
+    let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let pv = normal.cross(u_ref);
+    origin + u_ref * u + pv * v
 }
 
 // ---------------------------------------------------------------------
@@ -216,15 +212,10 @@ fn cylinder_chart_pcurve_fits_and_replays_deterministically() {
     // Mapped through the chart, the fitted pcurve stays near the true
     // locus: on the cylinder exactly (the chart lives on it), within
     // the fit + sampling budget of the plane.
-    let Surface::Cylinder {
-        origin,
-        axis,
-        radius,
-        u_ref,
-    } = c
-    else {
+    let Surface::Cylinder { frame, radius } = c else {
         panic!("ellipse filter guarantees the variant");
     };
+    let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let v_ref = axis.cross(u_ref);
     for i in 0..=64u32 {
         let s = f64::from(i) / 64.0;
@@ -296,18 +287,14 @@ fn cylinder_chart_pcurve_reads_the_carriers_chart_coordinates() {
 /// arc (Book §7.3, ≤ 90° segments) — the TEST oracle only.
 fn rational_quadratic_arc(e: &Curve3<f64>, t0: f64, t1: f64) -> NurbsCurve3<f64> {
     let Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+        frame,
         semi_u,
         semi_v,
     }) = *e
     else {
         panic!("oracle needs an ellipse");
     };
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let v_ref = axis.cross(u_ref);
     let at = |theta: f64| -> Point3<f64> {
         let (s, c) = theta.sin_cos();

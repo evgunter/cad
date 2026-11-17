@@ -24,10 +24,8 @@ use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
 /// apex at the origin.
 fn cone(alpha: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -216,10 +214,8 @@ fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
 fn a_near_pole_small_circle_tilted_inside_the_axial_band_is_on_the_sphere() {
     let e = eps();
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     for rho in [1e-2_f64, 1e-3, 1e-4] {
         let h = (1.0 - rho * rho).sqrt();
@@ -272,10 +268,8 @@ fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
         "a cone section moved ε/2: {got:?}"
     );
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let n = Vec3::new(0.3, 0.0, 1.0).normalize();
     let (h, rho) = (0.6_f64, 0.8_f64);
@@ -318,9 +312,11 @@ fn a_projected_net_image_boxes_a_nai_end_as_poison() {
         .unwrap(),
     ));
     let plane = Surface::Plane {
-        origin: Point3::new(lift(0.05), lift(0.1), lift(0.0)),
-        normal: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
-        u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        frame: geom::Frame::new(
+            Point3::new(lift(0.05), lift(0.1), lift(0.0)),
+            Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+            Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        ),
     };
     let image = chart_pcurve(&carrier, &plane, band()).unwrap();
     assert!(
@@ -374,9 +370,11 @@ fn a_projected_image_answers_a_poison_dual_parameter_with_poison_in_every_channe
         .unwrap(),
     ));
     let plane = Surface::Plane {
-        origin: Point3::new(lift(0.05), lift(0.1), lift(0.0)),
-        normal: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
-        u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        frame: geom::Frame::new(
+            Point3::new(lift(0.05), lift(0.1), lift(0.0)),
+            Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+            Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        ),
     };
     let image = chart_pcurve(&carrier, &plane, band()).unwrap();
     assert!(
@@ -425,9 +423,11 @@ fn a_plane_chart_box_covers_every_span_of_its_net() {
             .unwrap(),
         ));
         let plane = Surface::Plane {
-            origin: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
-            normal: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
-            u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+            frame: geom::Frame::new(
+                Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+                Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+                Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+            ),
         };
         let image = chart_pcurve(&carrier, &plane, band()).unwrap();
         let b = image.chart_box(lift(0.0), lift(1.0));
@@ -469,12 +469,10 @@ fn a_plane_chart_box_covers_every_span_of_its_net() {
 #[test]
 fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
     let surface = cone(0.5);
-    let Surface::Cone {
-        apex, axis, u_ref, ..
-    } = surface
-    else {
+    let Surface::Cone { frame, .. } = surface else {
         unreachable!()
     };
+    let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let rim = Curve3::circle(apex + axis * (0.2 * eps()), axis, 0.3, u_ref);
     let check = |got: Result<String, PcurveCertifyError>, lane: &str| match got {
         Err(PcurveCertifyError::Incidence(r))
@@ -587,17 +585,13 @@ fn only_an_incidence_reading_ends_as_one() {
         );
     }
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let torus = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::unit_x(),
     };
     let ellipse = |z: f64, r: f64, d: f64| {
         Curve3::Ellipse(geom::Ellipse::new(
@@ -674,10 +668,8 @@ fn a_class_rate_read_zero_takes_the_general_lane_unless_shown_off() {
     let (e1, e2) = (Vec3::new(-lean, 0.0, up), Vec3::unit_y());
     let th = (turn / up).asin();
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     not_incidence(
         "a leaning great circle at K < √2",
@@ -694,11 +686,9 @@ fn a_class_rate_read_zero_takes_the_general_lane_unless_shown_off() {
         .map(|_| ()),
     );
     let torus = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::unit_x(),
     };
     let got = chart_pcurve(
         &Curve3::circle(
@@ -745,10 +735,8 @@ fn a_class_rate_read_zero_takes_the_general_lane_unless_shown_off() {
 fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
     use geom_brep::PcurveCache;
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let (h, rho) = (0.6, 0.8);
     let parallel = Curve3::circle(
@@ -808,10 +796,8 @@ fn sphere_chart_edge(
 ) -> Result<geom_brep::EdgeCurve<f64>, geom_brep::CertifyError> {
     use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let (keys, lookup) = crate::shared::surf::table(vec![sphere]);
     EdgeCurve::certify(
@@ -922,17 +908,20 @@ fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
     use geom_core::{Affine3, Point2};
     let mid = 0.5 * (band().zero() + band().escalate());
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let declaration = MappedCurve::whole(MappedSource::ExtrudedPoint {
         point: Point2::new(0.0, 0.0),
         place: Affine3::identity(),
         vec: Vec3::unit_z(),
     });
-    let line = |origin: Point3<f64>, dir: Vec3<f64>| Curve3::Line(geom::Line { origin, dir });
+    let line = |origin: Point3<f64>, dir: Vec3<f64>| {
+        Curve3::Line(geom::Line {
+            origin,
+            dir: geom_core::UnitVec3::squared(dir),
+        })
+    };
     // (read, face, carrier, span, the in-band read's lever, if any)
     type Row = (
         &'static str,
@@ -1056,10 +1045,8 @@ fn wrong_radius_rows(d: f64) -> Vec<(&'static str, Surface<f64>, Curve3<f64>)> {
         (
             "a sphere's polar circle",
             Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             coaxial(0.6, 0.8 + d),
         ),
@@ -1071,30 +1058,24 @@ fn wrong_radius_rows(d: f64) -> Vec<(&'static str, Surface<f64>, Curve3<f64>)> {
         (
             "a torus's parallel",
             Surface::Torus {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 2.0,
                 minor_radius: 0.5,
-                u_ref: Vec3::unit_x(),
             },
             coaxial(0.0, 2.5 + d),
         ),
         (
             "a cylinder's rim",
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             coaxial(0.5, 1.0 + d),
         ),
         (
             "a circle in a plane",
             Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             },
             coaxial(d, 0.7),
         ),
@@ -1210,10 +1191,8 @@ fn a_tiny_ellipse_within_eps_of_the_sphere_or_torus_takes_the_general_lane() {
         (
             "the sphere",
             Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             Curve3::Ellipse(geom::Ellipse::new(
                 geom::Frame::new(
@@ -1228,11 +1207,9 @@ fn a_tiny_ellipse_within_eps_of_the_sphere_or_torus_takes_the_general_lane() {
         (
             "the torus",
             Surface::Torus {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 2.0,
                 minor_radius: 0.5,
-                u_ref: Vec3::unit_x(),
             },
             Curve3::Ellipse(geom::Ellipse::new(
                 geom::Frame::new(
@@ -1308,20 +1285,16 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
         (
             "a cylinder's rim far out",
             Surface::Cylinder {
-                origin: at,
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(at, Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             Curve3::circle(at, Vec3::unit_z(), 1.0, Vec3::unit_x()),
         ),
         (
             "a sphere's polar circle far out",
             Surface::Sphere {
-                center: at,
+                frame: geom::Frame::new(at, Vec3::unit_z(), Vec3::unit_x()),
                 radius: 5.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             Curve3::circle(
                 at + Vec3::new(0.0, 0.0, 3.0),
@@ -1333,10 +1306,12 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
         (
             "a ruling high up a long axis",
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::new(0.0, 0.0, 1.0 + delta),
+                frame: geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(0.0, 0.0, 1.0 + delta),
+                    Vec3::unit_x(),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             Curve3::line(Point3::new(1.0, 0.0, height), Vec3::unit_z()),
         ),
@@ -1349,10 +1324,8 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
             (
                 format!("a rim 2^{k} m up a tilted axis, {off} m off"),
                 Surface::Cylinder {
-                    origin: Point3::origin(),
-                    axis: tilted,
+                    frame: geom::Frame::new(Point3::origin(), tilted, Vec3::unit_x()),
                     radius: 1.0,
-                    u_ref: Vec3::unit_x(),
                 },
                 Curve3::circle(
                     Point3::origin() + tilted * h,
@@ -1364,9 +1337,7 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
             (
                 format!("a circle 2^{k} m along a tilted plane, {off} m off"),
                 Surface::Plane {
-                    origin: Point3::origin(),
-                    normal: tilted,
-                    u_ref: Vec3::unit_x(),
+                    frame: geom::Frame::new(Point3::origin(), tilted, Vec3::unit_x()),
                 },
                 Curve3::circle(
                     Point3::origin() + in_plane + tilted * off,
@@ -1501,19 +1472,15 @@ fn a_stored_row_is_read_at_its_certification_as_its_mint_read_it() {
             (
                 format!("a rim 2^{k} m up a tilted axis"),
                 Surface::Cylinder {
-                    origin: Point3::origin(),
-                    axis: tilted,
+                    frame: geom::Frame::new(Point3::origin(), tilted, Vec3::unit_x()),
                     radius: 1.0,
-                    u_ref: Vec3::unit_x(),
                 },
                 Curve3::circle(Point3::origin() + tilted * h, tilted, 1.0, Vec3::unit_x()),
             ),
             (
                 format!("a circle 2^{k} m along a tilted plane"),
                 Surface::Plane {
-                    origin: Point3::origin(),
-                    normal: tilted,
-                    u_ref: Vec3::unit_x(),
+                    frame: geom::Frame::new(Point3::origin(), tilted, Vec3::unit_x()),
                 },
                 Curve3::circle(Point3::origin() + in_plane, tilted, 1.0, Vec3::unit_x()),
             ),
@@ -1579,47 +1546,35 @@ fn a_stored_chart_edge_on_a_moved_chart_ends_as_its_incidence_read() {
         (
             "a cylinder's rim",
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             coaxial(0.5, 1.0),
             Box::new(|d| Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0 + d,
-                u_ref: Vec3::unit_x(),
             }),
         ),
         (
             "a circle in a plane",
             Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             },
             coaxial(0.0, 1.0),
             Box::new(|d| Surface::Plane {
-                origin: Point3::new(0.0, 0.0, d),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::new(0.0, 0.0, d), Vec3::unit_z(), Vec3::unit_x()),
             }),
         ),
         (
             "a sphere's polar circle",
             Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 5.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             coaxial(3.0, 4.0),
             Box::new(|d| Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 5.0 + d,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             }),
         ),
     ];
@@ -1704,9 +1659,7 @@ fn a_corner_and_an_edge_on_a_tilted_plane_far_from_its_anchor_are_read_on_it() {
     let e = eps();
     let n = Vec3::new(0.0, 0.6, 0.8);
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: n,
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), n, Vec3::unit_x()),
     };
     let lift = Interval::from_f64;
     let lift_point = |p: Point3<f64>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
@@ -1808,9 +1761,7 @@ fn an_arc_on_its_face_is_read_on_it_by_the_edges_own_read() {
     let e = eps();
     let tilt = 1e3 * e;
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     let circle = Curve3::circle(
         Point3::origin(),
@@ -1873,9 +1824,7 @@ fn chart_regions_plane_path_reads_an_arc_over_its_whole_turn_where_the_planar_ti
 {
     let tilt = 1e3 * eps();
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     let circle = Curve3::circle(
         Point3::origin(),

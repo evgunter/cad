@@ -25,11 +25,13 @@ fn torus() -> Surface<f64> {
     let axis = Vec3::new(0.1, 0.2, 1.0).normalize();
     let seed = Vec3::unit_x();
     Surface::Torus {
-        center: Point3::new(0.3, -0.2, 0.5),
-        axis,
+        frame: geom::Frame::new(
+            Point3::new(0.3, -0.2, 0.5),
+            axis,
+            (seed - axis * seed.dot(axis)).normalize(),
+        ),
         major_radius: MAJOR,
         minor_radius: MINOR,
-        u_ref: (seed - axis * seed.dot(axis)).normalize(),
     }
 }
 
@@ -39,14 +41,17 @@ fn torus() -> Surface<f64> {
 /// start `psi` past the point farthest from the axis.
 fn villarceau(phi: f64, family: f64, traversal: f64, psi: f64) -> Curve3<f64> {
     let Surface::Torus {
-        center,
-        axis,
-        u_ref,
+        frame: carrier_frame,
         ..
     } = torus()
     else {
         unreachable!()
     };
+    let (center, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let d = u_ref * phi.cos() + axis.cross(u_ref) * phi.sin();
     let tilt = (MINOR / MAJOR).asin();
     let lean = d.cross(axis) * tilt.cos() + axis * (family * tilt.sin());
@@ -61,8 +66,7 @@ fn villarceau(phi: f64, family: f64, traversal: f64, psi: f64) -> Curve3<f64> {
 /// The worst distance of a carrier's points from `torus()`.
 fn off_torus(carrier: &Curve3<f64>) -> f64 {
     let Surface::Torus {
-        center,
-        axis,
+        frame,
         major_radius,
         minor_radius,
         ..
@@ -70,6 +74,7 @@ fn off_torus(carrier: &Curve3<f64>) -> f64 {
     else {
         unreachable!()
     };
+    let (center, axis) = (frame.origin(), frame.axis());
     (0..256)
         .map(|i| {
             let q = carrier.eval(f64::from(i) * TAU / 256.0) - center;
@@ -300,25 +305,26 @@ fn a_wrong_number_in_the_image_refuses() {
         );
     }
     let Surface::Torus {
-        center,
-        axis,
+        frame: carrier_frame,
         major_radius,
         minor_radius,
-        u_ref,
     } = surface
     else {
         unreachable!()
     };
+    let (center, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     for (major_radius, minor_radius) in [
         (major_radius + h, minor_radius),
         (major_radius, minor_radius + h),
     ] {
         let other = Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         };
         assert!(
             PcurveCache::certify(image.clone(), 0.3, 4.0, &carrier, &other, band()).is_err(),
@@ -416,14 +422,17 @@ fn the_envelope_covers_an_admitted_error() {
 fn a_grazing_circle_takes_the_general_lane_and_a_moved_villarceau_circle_is_off_the_chart() {
     let surface = torus();
     let Surface::Torus {
-        center,
-        axis,
-        u_ref,
+        frame: carrier_frame,
         ..
     } = surface
     else {
         unreachable!()
     };
+    let (center, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let k = Tol::witness().k();
     let cv = axis.cross(u_ref);
     let delta = 2.0 * k * eps();
@@ -443,18 +452,10 @@ fn a_grazing_circle_takes_the_general_lane_and_a_moved_villarceau_circle_is_off_
         "the crest circle's envelope is inside the band"
     );
 
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: c,
-                axis: n,
-                u_ref: e,
-            },
-        radius,
-    }) = villarceau(0.4, 1.0, 1.0, 0.0)
-    else {
+    let Curve3::Circle(geom::Circle { frame, radius }) = villarceau(0.4, 1.0, 1.0, 0.0) else {
         unreachable!()
     };
+    let (c, n, e) = (frame.origin(), frame.axis(), frame.u_ref());
     let lifted = Curve3::circle(c + axis * (5.0 * k * eps()), n, radius, e);
     let rot = |v: Vec3<f64>, by: f64| {
         // Rotate about the circle's own `u_ref` direction.
@@ -509,11 +510,9 @@ fn an_in_band_move_is_never_read_off_the_torus() {
     for ratio in [0.1, 0.35, 0.6, 0.9] {
         let (major, minor) = (2.0, 2.0 * ratio);
         let surface = Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: major,
             minor_radius: minor,
-            u_ref: Vec3::unit_x(),
         };
         let tilt = (minor / major).asin();
         let lean = Vec3::unit_y() * tilt.cos() + Vec3::unit_z() * tilt.sin();
@@ -578,23 +577,25 @@ fn an_in_band_move_is_never_read_off_the_torus() {
 fn each_villarceau_gate_alone_refuses_typed() {
     let surface = torus();
     let Surface::Torus {
-        center: tc, axis, ..
+        frame: carrier_frame,
+        ..
     } = surface
     else {
         unreachable!()
     };
+    let (tc, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis: n,
-                u_ref,
-            },
+        frame: carrier_frame,
         radius,
     }) = villarceau(0.4, 1.0, 1.0, 0.0)
     else {
         unreachable!()
     };
+    let (center, n, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let delta = 3.0 * Tol::witness().k() * eps();
     let d = {
         let w = center - tc;
@@ -627,11 +628,7 @@ fn each_villarceau_gate_alone_refuses_typed() {
     ];
     for (gate, center, axis, radius, u_ref) in rows {
         let carrier = Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            frame: geom::Frame::new(center, axis, u_ref),
             radius,
         });
         let got = chart_pcurve(&carrier, &surface, band());
@@ -720,11 +717,9 @@ fn a_plane_gate_in_band_near_the_horn_takes_the_general_lane_never_the_focal_sec
     let big = 2.0;
     let r = big - 1e-6;
     let surface = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: big,
         minor_radius: r,
-        u_ref: Vec3::unit_x(),
     };
     let st = r / big;
     let n = Vec3::new(-st, 0.0, (1.0 - st * st).sqrt());
@@ -809,11 +804,9 @@ fn a_plane_gate_in_band_near_the_horn_takes_the_general_lane_never_the_focal_sec
 fn a_tube_rate_gates_rejected_zero_is_a_class_reading() {
     let band = geom_core::Band::new(1e-9, 2e-9).unwrap();
     let surface = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 2.0,
         minor_radius: 1.8e-9,
-        u_ref: Vec3::unit_x(),
     };
     let axis = Vec3::new(0.0, 0.9e-9 / 2.0, 1.0).normalize();
     let seed = Vec3::unit_x();

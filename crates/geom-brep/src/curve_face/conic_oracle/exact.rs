@@ -277,57 +277,51 @@ pub struct Truth {
 #[allow(clippy::panic)]
 pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth {
     let (center, axis, (a, b), u_ref) = match *carrier {
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => (center, axis, (radius, radius), u_ref),
+        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (center, axis, (radius, radius), u_ref)
+        }
         geom::Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame,
             semi_u,
             semi_v,
-        }) => (center, axis, (semi_u, semi_v), u_ref),
+        }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (center, axis, (semi_u, semi_v), u_ref)
+        }
         _ => panic!("the exact oracle reads circles and ellipses"),
     };
     let (anchor, form) = match *surface {
-        geom::Surface::Sphere { center, radius, .. } => {
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             (center, Form::Sphere { r: Dd::of(radius) })
         }
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => (
-            origin,
-            Form::Wall {
-                axis: unit(dd3(axis)),
-                r: Dd::of(radius),
-            },
-        ),
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            (
+                origin,
+                Form::Wall {
+                    axis: unit(dd3(axis)),
+                    r: Dd::of(radius),
+                },
+            )
+        }
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => (
-            center,
-            Form::Torus {
-                axis: unit(dd3(axis)),
-                big: Dd::of(major_radius),
-                small: Dd::of(minor_radius),
-            },
-        ),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            (
+                center,
+                Form::Torus {
+                    axis: unit(dd3(axis)),
+                    big: Dd::of(major_radius),
+                    small: Dd::of(minor_radius),
+                },
+            )
+        }
         _ => panic!("the exact oracle reads spheres, walls and tori"),
     };
     let u = dd3(u_ref);

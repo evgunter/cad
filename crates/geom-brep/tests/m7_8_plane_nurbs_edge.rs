@@ -176,9 +176,11 @@ fn an_on_plane_off_wall_carrier_is_refused_by_the_nurbs_side() {
 fn a_tangential_plane_refuses_with_the_transversality_vocabulary() {
     let wall = quarter_cylinder_wall();
     let tangent = Surface::Plane {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
     };
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     match plane_nurbs_limbs::<f64>(
@@ -224,9 +226,11 @@ fn a_plane_near_tangent_to_a_tight_wall_refuses_at_its_curvature_radius() {
     let sin = eps / (2.0 * rho);
     let cos = (1.0 - sin * sin).sqrt();
     let plane = Surface::Plane {
-        origin: Point3::new(rho, 0.0, 0.0),
-        normal: Vec3::new(cos, sin, 0.0),
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(rho, 0.0, 0.0),
+            Vec3::new(cos, sin, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
     };
     let carrier = segment(Point3::new(rho, 0.0, 0.0), Point3::new(rho, 0.0, 1.0));
     match plane_nurbs_limbs::<f64>(
@@ -277,9 +281,11 @@ fn a_plane_near_tangent_to_a_flat_wall_refuses_at_the_edges_extent() {
     .unwrap();
     let sin = eps / 2.0;
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new((1.0 - sin * sin).sqrt(), sin, 0.0),
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new((1.0 - sin * sin).sqrt(), sin, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
     };
     let carrier = segment(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0));
     match plane_nurbs_limbs::<f64>(
@@ -426,9 +432,11 @@ fn the_door_refuses_a_displaced_carrier_with_limb_1s_measured_miss() {
 #[test]
 fn the_door_refuses_a_tangential_plane_in_the_certify_vocabulary() {
     let tangent = Surface::Plane {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
     };
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));

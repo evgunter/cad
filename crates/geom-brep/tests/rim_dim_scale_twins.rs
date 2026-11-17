@@ -58,10 +58,8 @@ fn cone_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<
     let half_angle = 0.5_f64.atan();
     let (sin_a, cos_a) = half_angle.sin_cos();
     let surface = Surface::Cone {
-        apex: p(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         half_angle: Probe(half_angle),
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let (va, vb) = (scale / cos_a, 2.0 * scale / cos_a);
     let vm = va + vm_frac * (vb - va);
@@ -112,10 +110,8 @@ fn cone_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<
 /// sphere.
 fn sphere_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<Probe>>) {
     let surface = Surface::Sphere {
-        center: p(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(p(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: Probe(scale),
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let (va, vb) = (0.2_f64, 0.8_f64);
     let vm = va + vm_frac * (vb - va);
@@ -520,11 +516,9 @@ fn the_cone_flux_lane_decides_lengths_at_both_scales() {
 fn torus_axis_margins(scale: f64) -> Vec<f64> {
     let s = |v: f64| Probe(v * scale);
     let torus = Surface::Torus {
-        center: p(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         major_radius: s(3.0),
         minor_radius: s(1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let meridian = Curve3::circle(
         p(3.0 * scale, 0.0, 0.0),

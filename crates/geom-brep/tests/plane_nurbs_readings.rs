@@ -49,9 +49,7 @@ fn cutting_plane(x: f64) -> Surface<f64> {
     let u = Vec3::new(1.0, 0.0, 0.0);
     let u = (u - n * u.dot(n)) / (u - n * u.dot(n)).norm();
     Surface::Plane {
-        origin: Point3::new(x, 0.0, 0.4),
-        normal: n,
-        u_ref: u,
+        frame: geom::Frame::new(Point3::new(x, 0.0, 0.4), n, u),
     }
 }
 
@@ -79,9 +77,11 @@ fn dome() -> NurbsSurface<f64> {
 
 fn level(y: f64) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.5, y, 0.5),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.5, y, 0.5),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     }
 }
 
@@ -185,9 +185,11 @@ fn the_plane_reads_the_section_its_lane_read() {
     let b = band();
     let fine = eps() < 1e-10;
     let bent_plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let bent_domain = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -263,10 +265,8 @@ fn the_plane_reads_the_section_its_lane_read() {
 fn the_plane_doors_refuse_a_curved_partner() {
     let wall = wall_from_cols(CERTIFIABLE);
     let cylinder = Surface::Cylinder {
-        origin: Point3::new(0.5, 0.2, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.5, 0.2, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 0.2,
-        u_ref: Vec3::unit_x(),
     };
     let traced = ImplicitSection::of(&cylinder, &wall, wall_domain(), band());
     assert!(
@@ -321,9 +321,11 @@ fn the_plane_reads_the_kilometre_foot_frontier_on_both_sides() {
     let b = geom_core::Band::new(1e-6, 1e-5).unwrap();
     for (t, decides) in [(1000.0, true), (2000.0, false)] {
         let plane = Surface::Plane {
-            origin: Point3::new(0.5 + t, 0.5, 0.15),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.5 + t, 0.5, 0.15),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let domain = SsiDomain {
             center: Point3::new(0.5 + t, 0.5, 0.2),

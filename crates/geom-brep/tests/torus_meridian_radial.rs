@@ -29,11 +29,9 @@ fn fixture(off: f64) -> (Surface<f64>, Vec<LoopEdge<f64>>) {
 
 fn fixture_about(axis: Vec3<f64>, off: f64) -> (Surface<f64>, Vec<LoopEdge<f64>>) {
     let torus = Surface::Torus {
-        center: Point3::origin(),
-        axis,
+        frame: geom::Frame::new(Point3::origin(), axis, Vec3::unit_x()),
         major_radius: off,
         minor_radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let meridian = Curve3::circle(
         Point3::new(off, 0.0, 0.0),

@@ -30,10 +30,12 @@ fn great(t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 #[test]
 fn r2_base_the_saturated_span_refuses_at_the_parse() {
     let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: RS,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let bd = band();
     let mut answered = Vec::new();

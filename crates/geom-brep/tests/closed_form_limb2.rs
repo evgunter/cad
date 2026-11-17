@@ -31,20 +31,16 @@ use geom_core::{Band, Point3, Vec3};
 /// The torus of the spiric rows: centre `(1, 2, 3)`, axis `y`.
 fn torus() -> Surface<f64> {
     Surface::Torus {
-        center: Point3::new(1.0, 2.0, 3.0),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_y(), Vec3::unit_x()),
         major_radius: 0.75,
         minor_radius: 0.3,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 /// The axis-parallel plane `x = 1.1`, off the torus's axis by `0.1`.
 fn spiric_plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(1.1, 2.0, 3.0),
-        normal: Vec3::unit_x(),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(1.1, 2.0, 3.0), Vec3::unit_x(), Vec3::unit_y()),
     }
 }
 
@@ -63,15 +59,11 @@ fn ellipse_pair(phi: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     let (s, c) = phi.sin_cos();
     let normal = Vec3::new(0.0, -s, c);
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal,
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), normal, Vec3::unit_x()),
     };
     let ellipse = Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(Point3::origin(), normal, Vec3::unit_x()),
@@ -167,27 +159,19 @@ fn refused_on_limb2(got: &Result<EdgeCurve<f64>, CertifyError>, kind: geom::Surf
 #[test]
 fn every_closed_form_kind_owes_limb_2_through_the_lane() {
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let side = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
     };
     let ruling = Curve3::line(Point3::new(1.0, 0.0, -1.0), Vec3::unit_z());
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: PI / 6.0,
-        u_ref: Vec3::unit_x(),
     };
     let level = |z: f64| Surface::Plane {
-        origin: Point3::new(0.0, 0.0, z),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
     };
     let circle = |z: f64, radius: f64| {
         Curve3::circle(
@@ -199,11 +183,9 @@ fn every_closed_form_kind_owes_limb_2_through_the_lane() {
     };
     let cone_circle = circle(2.0, 2.0 * (PI / 6.0).tan());
     let flat_torus = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 0.75,
         minor_radius: 0.3,
-        u_ref: Vec3::unit_x(),
     };
     let equator = circle(0.0, 1.05);
     let (ecyl, eplane, ellipse) = ellipse_pair(PI / 5.0);
@@ -265,9 +247,7 @@ fn every_closed_form_kind_owes_limb_2_through_the_lane() {
 #[test]
 fn a_spiric_off_its_torus_between_samples_refuses_on_limb_2() {
     let Curve3::Spiric {
-        center,
-        axis,
-        u_ref,
+        frame: carrier_frame,
         major_radius,
         minor_radius,
         offset,
@@ -275,11 +255,14 @@ fn a_spiric_off_its_torus_between_samples_refuses_on_limb_2() {
     else {
         unreachable!("the section's oval is a spiric")
     };
+    let (center, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let delta = 1e-4;
     let moved = Curve3::Spiric {
-        center,
-        axis,
-        u_ref,
+        frame: carrier_frame,
         major_radius: major_radius + delta,
         minor_radius,
         offset,
@@ -304,23 +287,19 @@ fn a_spiric_off_its_torus_between_samples_refuses_on_limb_2() {
 fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     let (cylinder, plane, ellipse) = ellipse_pair(PI / 5.0);
     let Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+        frame: carrier_frame,
         semi_u,
         semi_v,
     }) = ellipse
     else {
         unreachable!("built as an ellipse")
     };
-    let moved = Curve3::Ellipse(geom::Ellipse::new(
-        geom::Frame::new(center, axis, u_ref),
-        semi_u + 1e-4,
-        semi_v,
-    ));
+    let (center, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
+    let moved = Curve3::Ellipse(geom::Ellipse::new(carrier_frame, semi_u + 1e-4, semi_v));
     let sampled = sampled_max(&cylinder, &plane, &moved, SPAN);
     let peak = implicit_residual(&cylinder, moved.eval(0.0)).abs();
     let got = certify(&cylinder, &plane, &moved, SPAN, teeth_band(sampled, peak));
@@ -350,15 +329,15 @@ fn moved(p: Point3<f64>, d: Vec3<f64>) -> Point3<f64> {
 fn a_part_moved_a_kilometre_reads_as_at_the_origin() {
     for d in [Vec3::new(0.0, 0.0, 0.0), Vec3::new(1000.0, -1000.0, 1000.0)] {
         let cylinder = Surface::Cylinder {
-            origin: moved(Point3::origin(), d),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(moved(Point3::origin(), d), Vec3::unit_z(), Vec3::unit_x()),
             radius: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         let cap = Surface::Plane {
-            origin: moved(Point3::new(0.0, 0.0, 0.25), d),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(
+                moved(Point3::new(0.0, 0.0, 0.25), d),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+            ),
         };
         let rim = Curve3::circle(
             moved(Point3::new(0.0, 0.0, 0.25), d),
@@ -367,16 +346,16 @@ fn a_part_moved_a_kilometre_reads_as_at_the_origin() {
             Vec3::unit_x(),
         );
         let side = Surface::Plane {
-            origin: moved(Point3::origin(), d),
-            normal: Vec3::unit_y(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(moved(Point3::origin(), d), Vec3::unit_y(), Vec3::unit_x()),
         };
         let ruling = Curve3::line(moved(Point3::new(0.5, 0.0, 0.0), d), Vec3::unit_z());
         let (s, c) = (PI / 5.0).sin_cos();
         let tilted = Surface::Plane {
-            origin: moved(Point3::origin(), d),
-            normal: Vec3::new(0.0, -s, c),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(
+                moved(Point3::origin(), d),
+                Vec3::new(0.0, -s, c),
+                Vec3::unit_x(),
+            ),
         };
         let ellipse = Curve3::Ellipse(geom::Ellipse::new(
             geom::Frame::new(
@@ -436,9 +415,7 @@ fn a_twelve_kilometre_line_between_planes_refuses_as_the_kernel_limit() {
         unit(Vec3::new(-2.0, 1.0, 0.5)),
     );
     let plane = |n: Vec3<f64>| Surface::Plane {
-        origin: at,
-        normal: n,
-        u_ref: unit(n.cross(Vec3::unit_z())),
+        frame: geom::Frame::new(at, n, unit(n.cross(Vec3::unit_z()))),
     };
     let line = Curve3::line(at, unit(n1.cross(n2)));
     let got = certify(&plane(n1), &plane(n2), &line, (0.0, 12_000.0), fine_band());
@@ -467,15 +444,11 @@ fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
     let axis = unit(Vec3::new(1.0, 2.0, 3.0));
     let across = unit(axis.cross(Vec3::unit_z()));
     let cylinder = Surface::Cylinder {
-        origin: at,
-        axis,
+        frame: geom::Frame::new(at, axis, across),
         radius: 1.0,
-        u_ref: across,
     };
     let plane = Surface::Plane {
-        origin: at,
-        normal: unit(axis.cross(across)),
-        u_ref: axis,
+        frame: geom::Frame::new(at, unit(axis.cross(across)), axis),
     };
     let line = Curve3::line(at + across, axis);
     let got = certify(&cylinder, &plane, &line, (0.0, 12_000.0), fine_band());
@@ -512,16 +485,12 @@ fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
 #[test]
 fn a_thin_torus_circle_refuses_as_the_kernel_limit_of_its_composite() {
     let torus = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 10.0,
         minor_radius: 0.2,
-        u_ref: Vec3::unit_x(),
     };
     let level = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.1),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.1), Vec3::unit_z(), Vec3::unit_x()),
     };
     let outer = Curve3::circle(
         Point3::new(0.0, 0.0, 0.1),
@@ -552,16 +521,12 @@ fn a_thin_torus_circle_refuses_as_the_kernel_limit_of_its_composite() {
 /// apexes at `(0, 0, ±√3/2)`, and the plane `y = 0` through its axis.
 fn lemon_and_its_meridian_plane() -> (Surface<f64>, Surface<f64>) {
     let sheet = Surface::Spindle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: -0.5,
         minor_radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
     };
     (sheet, plane)
 }
@@ -625,16 +590,14 @@ fn past_a_thin_lemons_apex_limb_2_reads_the_sheet_not_its_circle() {
     let (major, minor) = (-0.999_f64, 1.0_f64);
     let h = geom::sheet_apex(major, minor).height;
     let sheet = Surface::Spindle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: major,
         minor_radius: minor,
-        u_ref: Vec3::unit_x(),
     };
     let (_, plane) = lemon_and_its_meridian_plane();
     let line = Curve3::Line(geom::Line {
         origin: Point3::new(3e-5, 0.0, h + 5e-4),
-        dir: Vec3::unit_z(),
+        dir: geom_core::UnitVec3::squared(Vec3::unit_z()),
     });
     let band = Band::new(1e-4, 3e-4).unwrap();
     let got = geom_brep::analytic_edge_limbs(&line, (0.0, 1e-5), &sheet, &plane, band);
@@ -664,11 +627,9 @@ fn past_a_thin_lemons_apex_limb_2_reads_the_sheet_not_its_circle() {
 #[test]
 fn limb_2_against_a_horn_reads_the_sheet_up_to_its_cusp() {
     let horn = Surface::Spindle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 1.0,
         minor_radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let (_, plane) = lemon_and_its_meridian_plane();
     for band in [
@@ -694,11 +655,9 @@ fn limb_2_against_a_horn_reads_the_sheet_up_to_its_cusp() {
 fn a_wide_apples_pcurves_name_v_as_its_chart_does() {
     let (major, minor) = (0.8_f64, 1.0_f64);
     let sheet = Surface::Spindle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: major,
         minor_radius: minor,
-        u_ref: Vec3::unit_x(),
     };
     let band = Band::new(1e-9, 3e-9).unwrap();
     let at = |v: f64| Point3::new(major + minor * v.cos(), 0.0, minor * v.sin());

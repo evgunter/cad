@@ -147,8 +147,8 @@ pub fn sheet_apexes<T: Real>(
     } = axis;
     let height = geom::sheet_apex(major, minor).height;
     [
-        (Singularity::SheetApexUp, center + axis * height),
-        (Singularity::SheetApexDown, center - axis * height),
+        (Singularity::SheetApexUp, center + axis.get() * height),
+        (Singularity::SheetApexDown, center - axis.get() * height),
     ]
 }
 
@@ -161,8 +161,8 @@ pub fn sphere_poles<T: Real>(axis: geom::Line<T>, radius: T) -> [(Singularity, P
         dir: axis,
     } = axis;
     [
-        (Singularity::North, center + axis * radius),
-        (Singularity::South, center - axis * radius),
+        (Singularity::North, center + axis.get() * radius),
+        (Singularity::South, center - axis.get() * radius),
     ]
 }
 
@@ -785,7 +785,8 @@ impl<'a, T: Decide> Sides<'a, T> {
         x: Point3<T>,
     ) -> Result<bool, Unread<T>> {
         let side = |why| Unread::Side { r#loop: l, why };
-        if let Surface::Sphere { center, radius, .. } = *self.surface {
+        if let Surface::Sphere { frame, radius, .. } = *self.surface {
+            let center = frame.origin();
             match sphere_pole_left(center, radius, x, self.loops[l], self.band) {
                 PoleLeft::Read(left) => return Ok(left),
                 PoleLeft::Straddle => return Err(side(SideUnread::Straddle)),
@@ -940,7 +941,7 @@ pub fn walk_loop<T: Decide>(
 ) -> Option<LoopWalk<T>> {
     let shapes: Vec<EdgeShape<T>> = edges
         .iter()
-        .map(|e| EdgeShape::of(&e.carrier, chart.frame().axis))
+        .map(|e| EdgeShape::of(&e.carrier, chart.frame().axis()))
         .collect::<Option<_>>()?;
     let read = |e: usize, t: T, depth: u32, last: bool| -> Option<WalkSample<T>> {
         let p = edges[e].carrier.eval(t);
@@ -1185,14 +1186,14 @@ impl<T: Decide> EdgeShape<T> {
                 line: true,
                 height: None,
             },
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis: n, .. },
-                radius,
-            }) => Self {
-                speed,
-                line: false,
-                height: Some(radius * T::from_f64(2.0) * axis.cross(n.normalize()).norm()),
-            },
+            Curve3::Circle(geom::Circle { frame, radius }) => {
+                let n = frame.axis();
+                Self {
+                    speed,
+                    line: false,
+                    height: Some(radius * T::from_f64(2.0) * axis.cross(n.normalize()).norm()),
+                }
+            }
             _ => Self {
                 speed,
                 line: false,

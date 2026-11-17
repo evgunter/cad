@@ -248,7 +248,8 @@ pub(crate) fn implicit_path_jet(
 ) -> Poly3 {
     let r = path(p, d1, d2);
     match *surface {
-        Surface::Plane { origin, normal, .. } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
             let q = r.sub_const(origin);
             q.dot(Vec3Poly {
                 x: Poly3::constant(normal.x),
@@ -256,29 +257,24 @@ pub(crate) fn implicit_path_jet(
                 z: Poly3::constant(normal.z),
             })
         }
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let q = r.sub_const(center);
             let d2q = q.dot(q);
             d2q.sub(Poly3::constant(radius * radius))
                 .scale(1.0 / (2.0 * radius))
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let (_, w) = axial_radial(r, origin, axis);
             let w2 = w.dot(w);
             w2.sub(Poly3::constant(radius * radius))
                 .scale(1.0 / (2.0 * radius))
         }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             // `Real::sin_cos`, not the inherent `f64::sin_cos` route:
             // `implicit_residual` takes the former, and a second route
             // to the same constant is a latent value fork the moment
@@ -292,12 +288,12 @@ pub(crate) fn implicit_path_jet(
             rho.scale(c_a).sub(h.abs_stable().scale(s_a))
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (h, w) = axial_radial(r, center, axis);
             let rho = w.dot(w).sqrt();
             let d = rho.sub(Poly3::constant(major_radius));
@@ -336,38 +332,46 @@ mod tests {
 
     fn sphere() -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::new(0.3, -0.2, 0.5),
+            frame: geom::Frame::new(
+                Point3::new(0.3, -0.2, 0.5),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.25,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn cylinder() -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::new(-0.1, 0.4, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(-0.1, 0.4, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 0.8,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn torus() -> Surface<f64> {
         Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 1.0,
             minor_radius: 0.3,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn cone() -> Surface<f64> {
         Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 2.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 2.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: 0.4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 

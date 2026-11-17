@@ -73,11 +73,7 @@ fn sign(s: &mut fuzz::Rng) -> f64 {
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
     Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame: geom::Frame::new(center, axis, u_ref),
         radius,
     })
 }
@@ -176,10 +172,8 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
         let radius = s.range(0.2, 4.0);
         (
             Surface::Cylinder {
-                origin: at,
-                axis,
+                frame: geom::Frame::new(at, axis, u_ref),
                 radius,
-                u_ref,
             },
             radius,
             s.range(-3.0, 3.0),
@@ -189,10 +183,8 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
         let half_angle = s.range(0.1, 1.4);
         (
             Surface::Cone {
-                apex: at,
-                axis,
+                frame: geom::Frame::new(at, axis, u_ref),
                 half_angle,
-                u_ref,
             },
             half_angle,
         )
@@ -201,10 +193,8 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
         let radius = s.range(0.2, 4.0);
         (
             Surface::Sphere {
-                center: at,
+                frame: geom::Frame::new(at, axis, u_ref),
                 radius,
-                axis,
-                u_ref,
             },
             radius,
         )
@@ -214,11 +204,9 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
         let major = minor + s.range(0.2, 3.0);
         (
             Surface::Torus {
-                center: at,
-                axis,
+                frame: geom::Frame::new(at, axis, u_ref),
                 major_radius: major,
                 minor_radius: minor,
-                u_ref,
             },
             major,
             minor,
@@ -416,10 +404,8 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
                         drawn
                     };
                     let chart = Surface::Cone {
-                        apex: at,
-                        axis,
+                        frame: geom::Frame::new(at, axis, u_ref),
                         half_angle,
-                        u_ref,
                     };
                     (chart, sign(s) * rho / half_angle.tan())
                 }
@@ -430,11 +416,9 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
                 _ => {
                     let minor = s.range(0.2, 1.5);
                     let chart = Surface::Torus {
-                        center: at,
-                        axis,
+                        frame: geom::Frame::new(at, axis, u_ref),
                         major_radius: minor + rho,
                         minor_radius: minor,
-                        u_ref,
                     };
                     (chart, 0.0)
                 }
@@ -473,61 +457,65 @@ fn frame_moved(s: &mut fuzz::Rng, surface: &Surface<f64>, delta: f64) -> Surface
     };
     match *surface {
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
         } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (axis, u_ref) = off(s, axis, u_ref);
             Surface::Cylinder {
-                origin,
-                axis,
+                frame: carrier_frame,
                 radius,
-                u_ref,
             }
         }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
         } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (axis, u_ref) = off(s, axis, u_ref);
             Surface::Cone {
-                apex,
-                axis,
+                frame: carrier_frame,
                 half_angle,
-                u_ref,
             }
         }
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (axis, u_ref) = off(s, axis, u_ref);
             Surface::Sphere {
-                center,
+                frame: carrier_frame,
                 radius,
-                axis,
-                u_ref,
             }
         }
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (axis, u_ref) = off(s, axis, u_ref);
             Surface::Torus {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             }
         }
         _ => unreachable!("on_chart builds periodic charts only"),
@@ -554,18 +542,12 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         }
     };
     match *carrier {
-        Curve3::Line(geom::Line { origin, dir }) => {
-            Curve3::line(origin + nudge(s, 1), dir + nudge(s, 3) * dir.norm())
-        }
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => {
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(
+            origin + nudge(s, 1),
+            dir.get() + nudge(s, 3) * dir.get().norm(),
+        ),
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let axis = (axis + nudge(s, 3)).normalize();
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
             let center = center + nudge(s, 1);
@@ -579,24 +561,16 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
                 } else {
                     (minor, major, axis.cross(u_ref))
                 };
-                return Curve3::Ellipse(geom::Ellipse::new(
-                    geom::Frame::new(center, axis, u_ref),
-                    major,
-                    minor,
-                ));
+                return Curve3::Ellipse(geom::Ellipse::new(frame, major, minor));
             }
             Curve3::circle(center, axis, scaled(s, radius), u_ref)
         }
         Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame,
             semi_u,
             semi_v,
         }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let axis = (axis + nudge(s, 3)).normalize();
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
             Curve3::Ellipse(geom::Ellipse::new(
@@ -696,15 +670,27 @@ fn span(s: &mut fuzz::Rng) -> (f64, f64) {
 fn scale(surface: &Surface<f64>, carrier: &Curve3<f64>, reach: f64) -> f64 {
     let c = carrier_harmonic(carrier).unwrap();
     let chart = match *surface {
-        Surface::Cylinder { origin, radius, .. } => origin.distance(Point3::origin()) + radius,
-        Surface::Cone { apex, .. } => apex.distance(Point3::origin()),
-        Surface::Sphere { center, radius, .. } => center.distance(Point3::origin()) + radius,
+        Surface::Cylinder { frame, radius, .. } => {
+            let origin = frame.origin();
+            origin.distance(Point3::origin()) + radius
+        }
+        Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
+            apex.distance(Point3::origin())
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            center.distance(Point3::origin()) + radius
+        }
         Surface::Torus {
-            center,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => center.distance(Point3::origin()) + major_radius + minor_radius,
+        } => {
+            let center = frame.origin();
+            center.distance(Point3::origin()) + major_radius + minor_radius
+        }
         _ => unreachable!("on_chart builds periodic charts only"),
     };
     chart + c.c.distance(Point3::origin()) + c.a.norm() + c.b.norm() + c.l.norm() * reach + 1.0
@@ -1148,10 +1134,8 @@ fn the_envelope_dominates_where_no_circle_reaches() {
         let d_read = super::sphere_meridian_direction(&form, e, pole);
         let v0 = a.dot(e).atan2(a_r.norm());
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), e, d_read),
             radius: r,
-            axis: e,
-            u_ref: d_read,
         };
         let derivation = Derivation::SphereMeridian {
             pole,
@@ -1194,10 +1178,8 @@ fn the_envelope_dominates_where_no_circle_reaches() {
         // The cone: a rim at slant `v`, its stored image a long way off.
         let alpha = s.range(0.2, 1.3);
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: alpha,
-            u_ref: Vec3::unit_x(),
         };
         let v = z * 10f64.powf(s.range(2.0, 4.0));
         let carrier = Curve3::circle(
@@ -1518,10 +1500,8 @@ fn a_zero_winding_parallel_near_the_pole_is_bounded() {
         (
             format!("a parallel of radius {rho:e} on a sphere of radius {r}"),
             Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: r,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             circle(
                 Point3::new(0.0, 0.0, (r * r - rho * rho).sqrt()),
@@ -1563,10 +1543,8 @@ fn a_lifted_copy_of_a_circle_whose_turn_is_within_the_band_never_reaches_check_4
     let rim = |rho: f64| {
         let half_angle = (rho / (1e3 * band().escalate())).atan();
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle,
-            u_ref: Vec3::unit_x(),
         };
         let carrier = circle(
             Point3::new(0.0, 0.0, rho / half_angle.tan()),
@@ -1667,10 +1645,8 @@ fn a_lifted_copy_of_a_circle_whose_turn_is_within_the_band_never_reaches_check_4
 fn the_incidence_terms_read_the_carriers_departure() {
     let d = 0.3 * band().zero();
     let cyl = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let rows = [
         (
@@ -1762,20 +1738,16 @@ fn axis_charts() -> [(Surface<f64>, &'static str); 2] {
     [
         (
             Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 half_angle: 0.01,
-                u_ref: Vec3::unit_x(),
             },
             "cone rim, zero winding",
         ),
         (
             Surface::Torus {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 1.5 + axis_rho(),
                 minor_radius: 1.5,
-                u_ref: Vec3::unit_x(),
             },
             "torus parallel, zero winding",
         ),
@@ -1794,10 +1766,8 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
     let fixtures: Vec<(Surface<f64>, Curve3<f64>, &str)> = vec![
         (
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 0.5,
-                u_ref: Vec3::unit_x(),
             },
             circle(
                 Point3::new(0.0, 0.0, 0.3),
@@ -1809,20 +1779,16 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
         ),
         (
             Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             circle(Point3::origin(), Vec3::unit_y(), 1.0, Vec3::unit_x()),
             "sphere meridian",
         ),
         (
             Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             circle(
                 Point3::new(0.0, 0.0, 0.6),
@@ -1834,11 +1800,9 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
         ),
         (
             Surface::Torus {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 2.0,
                 minor_radius: 0.5,
-                u_ref: Vec3::unit_x(),
             },
             circle(
                 Point3::new(2.0, 0.0, 0.0),
@@ -1850,10 +1814,8 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
         ),
         (
             Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 half_angle: 0.4,
-                u_ref: Vec3::unit_x(),
             },
             circle(
                 Point3::new(0.0, 0.0, -1.0),
@@ -2065,10 +2027,8 @@ pub(super) fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f6
     let apex = Point3::new(s.range(-3.0, 3.0), s.range(-3.0, 3.0), s.range(-3.0, 3.0));
     let half_angle = s.range(0.15, 1.3);
     let cone = Surface::Cone {
-        apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, u_ref),
         half_angle,
-        u_ref,
     };
     // A tilt under the generator's keeps the section an ellipse.
     let tilt = s.range(0.02, 0.8) * (FRAC_PI_2 - half_angle);
@@ -2076,9 +2036,11 @@ pub(super) fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f6
     let normal = axis * tilt.cos() + (u_ref * s.range(-1.0, 1.0) + side).normalize() * tilt.sin();
     let normal = normal.normalize();
     let plane = Surface::Plane {
-        origin: apex + axis * (s.range(0.5, 3.0) * sign(s)),
-        normal,
-        u_ref: unit(s).cross(normal).normalize(),
+        frame: geom::Frame::new(
+            apex + axis * (s.range(0.5, 3.0) * sign(s)),
+            normal,
+            unit(s).cross(normal).normalize(),
+        ),
     };
     let reach = crate::Reach::fixture(apex, 4.0);
     match crate::intersect::plane_cone_section(&plane, &cone, &reach, band()) {
@@ -2101,11 +2063,9 @@ pub(super) fn villarceau(s: &mut fuzz::Rng) -> (Surface<f64>, Curve3<f64>) {
     let psi = s.range(-PI, PI);
     (
         Surface::Torus {
-            center,
-            axis,
+            frame: geom::Frame::new(center, axis, u_ref),
             major_radius: major,
             minor_radius: minor,
-            u_ref,
         },
         circle(
             center + d * minor,
@@ -2261,11 +2221,9 @@ fn the_phase_remainder_carries_a_carrier_that_is_the_harmonic_part() {
     let (big, minor) = (2.0_f64, 0.7_f64);
     let (axis, u_ref) = (Vec3::unit_z(), Vec3::unit_x());
     let surface = Surface::Torus {
-        center: Point3::origin(),
-        axis,
+        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
         major_radius: big,
         minor_radius: minor,
-        u_ref,
     };
     let tilt = (minor / big).asin();
     let lean = Vec3::unit_y() * tilt.cos() + axis * tilt.sin();
@@ -2337,8 +2295,7 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
     for trial in 0..fuzz::scaled(300) {
         let (surface, carrier) = villarceau(&mut s);
         let Surface::Torus {
-            center: tc,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             ..
@@ -2346,18 +2303,11 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
         else {
             unreachable!("villarceau draws a torus")
         };
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis: n,
-                    u_ref,
-                },
-            radius,
-        }) = carrier
-        else {
+        let (tc, axis) = (carrier_frame.origin(), carrier_frame.axis());
+        let Curve3::Circle(geom::Circle { frame, radius }) = carrier else {
             unreachable!("villarceau draws a circle")
         };
+        let (center, n, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let delta = match s.below(3) {
             0 => b.zero() * s.range(0.1, 0.9),
             1 => b.escalate() * s.range(1.5, 30.0),
@@ -2480,11 +2430,9 @@ mod focal_section_term_rows {
 
     fn torus(big: f64, r: f64) -> Surface<f64> {
         Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: big,
             minor_radius: r,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -2624,10 +2572,8 @@ mod focal_section_term_rows {
         let (sin_a, cos_a) = alpha.sin_cos();
         let n = Vec3::unit_z();
         let s = Surface::Cone {
-            apex: Point3::origin(),
-            axis: n,
+            frame: geom::Frame::new(Point3::origin(), n, Vec3::unit_x()),
             half_angle: alpha,
-            u_ref: Vec3::unit_x(),
         };
         let (beta, v0) = (0.3_f64, 2.0_f64);
         let bb = beta * beta;
@@ -2666,10 +2612,8 @@ mod focal_section_term_rows {
         let alpha = 0.5_f64;
         let n = Vec3::unit_z();
         let s = Surface::Cone {
-            apex: Point3::origin(),
-            axis: n,
+            frame: geom::Frame::new(Point3::origin(), n, Vec3::unit_x()),
             half_angle: alpha,
-            u_ref: Vec3::unit_x(),
         };
         let (beta, v0) = (0.95_f64, 2.0_f64);
         let bb = beta * beta;

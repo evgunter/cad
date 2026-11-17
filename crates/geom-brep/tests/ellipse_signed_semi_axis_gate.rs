@@ -28,15 +28,19 @@ fn the_gate_meters_either_order_and_refuses_a_negative_semi_axis() {
     let (a, b) = (1.0 / alpha.cos(), 1.0);
     let mut surfaces: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
     let plane = surfaces.insert(Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     });
     let cyl = surfaces.insert(Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::new(alpha.sin(), 0.0, alpha.cos()),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(alpha.sin(), 0.0, alpha.cos()),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
     });
     let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
     let certify = |major: f64, minor: f64, u_ref: Vec3<f64>| {

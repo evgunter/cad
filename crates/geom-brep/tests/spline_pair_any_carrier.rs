@@ -53,9 +53,11 @@ fn diagonal() -> Curve3<f64> {
 /// The vertical plane through the diagonal.
 fn diagonal_plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.1, 0.1, 0.0),
-        normal: Vec3::new(0.8, -0.6, 0.0),
-        u_ref: Vec3::new(0.6, 0.8, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.1, 0.1, 0.0),
+            Vec3::new(0.8, -0.6, 0.0),
+            Vec3::new(0.6, 0.8, 0.0),
+        ),
     }
 }
 
@@ -76,25 +78,18 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
             vec![carrier.eval(t0), carrier.eval(t1)],
             vec![1.0, 1.0],
         ),
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => arc(center, u_ref * radius, axis.cross(u_ref) * radius, (t0, t1)),
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            arc(center, u_ref * radius, axis.cross(u_ref) * radius, (t0, t1))
+        }
         Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame,
             semi_u,
             semi_v,
-        }) => arc(center, u_ref * semi_u, axis.cross(u_ref) * semi_v, (t0, t1)),
+        }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            arc(center, u_ref * semi_u, axis.cross(u_ref) * semi_v, (t0, t1))
+        }
         _ => unreachable!("the rows twin a line, a circle or an ellipse"),
     }
     .unwrap();
@@ -132,9 +127,11 @@ fn circle(z: f64) -> Curve3<f64> {
 /// The plane `z = h`.
 fn horizontal(h: f64) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, h),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, h),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     }
 }
 
@@ -155,9 +152,11 @@ fn ellipse() -> (Curve3<f64>, Surface<f64>) {
             1.0,
         )),
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.4),
-            normal: axis,
-            u_ref: Vec3::new(1.0 / s, 0.0, k / s),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.4),
+                axis,
+                Vec3::new(1.0 / s, 0.0, k / s),
+            ),
         },
     )
 }
@@ -503,9 +502,11 @@ fn bumped_wall(peak: f64) -> NurbsSurface<f64> {
 fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
     let line = Curve3::line(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0));
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.5, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.5, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let wall = bumped_wall(2.0 * eps());
     for (name, carrier) in [("line", line.clone()), ("spline", twin(&line, (0.0, 1.0)))] {
@@ -562,9 +563,11 @@ fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
 fn a_carrier_definitely_off_the_wall_at_a_break_refuses_on_its_own_miss() {
     let line = Curve3::line(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0));
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.5, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.5, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let wall = bumped_wall(100.0 * eps());
     for (name, carrier) in [("line", line.clone()), ("spline", twin(&line, (0.0, 1.0)))] {
@@ -642,9 +645,11 @@ fn scallops(n: usize, h: f64) -> Curve3<f64> {
 #[test]
 fn a_plane_side_scallop_refuses_on_the_carriers_own_bound() {
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let carrier = scallops(8192, 50.0 * eps());
     let got = plane_nurbs_limbs(
@@ -679,17 +684,21 @@ fn a_plane_side_scallop_refuses_on_the_carriers_own_bound() {
 #[test]
 fn a_carrier_the_door_cannot_enclose_is_refused_by_kind_and_span() {
     let spiric = Curve3::Spiric {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         major_radius: 2.0,
         minor_radius: 0.5,
         offset: 1.5,
     };
     let plane = Surface::Plane {
-        origin: Point3::new(1.5, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(1.5, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
     };
     let p = |x, y| Point3::new(x, y, 0.0);
     let wall = bilinear([p(1.0, -1.0), p(1.0, 1.0), p(2.0, -1.0), p(2.0, 1.0)]);

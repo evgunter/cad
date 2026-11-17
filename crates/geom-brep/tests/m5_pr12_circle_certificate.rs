@@ -32,16 +32,20 @@ use slotmap::SlotMap;
 /// the ball's latitude — the octant patch's trimline.
 fn corner_pair(r: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     let sphere = Surface::Sphere {
-        center: p(r, r, r),
+        frame: geom::Frame::new(
+            p(r, r, r),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: r,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let cylinder = Surface::Cylinder {
-        origin: p(r, r, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            p(r, r, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let circle = Curve3::circle(
         p(r, r, r),
@@ -56,16 +60,20 @@ fn corner_pair(r: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
 fn circle_carriers_are_in_the_certified_lane_on_every_revolution_kind() {
     let (sphere, cylinder, circle) = corner_pair(0.2);
     let plane = Surface::Plane {
-        origin: p(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            p(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let torus = Surface::Torus {
-        center: p(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            p(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         major_radius: 1.0,
         minor_radius: 0.2,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     for s2 in [&sphere, &cylinder, &plane, &torus] {
         assert!(
@@ -175,15 +183,19 @@ fn the_corner_trimline_jet_is_one_over_the_radius_everywhere() {
 /// against its cap.
 fn cap_crossing(r: f64, h: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     let plane = Surface::Plane {
-        origin: p(0.0, 0.0, h),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            p(0.0, 0.0, h),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let cylinder = Surface::Cylinder {
-        origin: p(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            p(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let circle = Curve3::circle(
         p(0.0, 0.0, h),

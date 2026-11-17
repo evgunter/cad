@@ -224,7 +224,7 @@ impl Channel {
             Self::Axis(frame) => frame.azimuth(p),
             Self::Core(circle) => {
                 let frame = circle.frame;
-                let (_, rho) = super::square_part(p - frame.origin, frame.axis);
+                let (_, rho) = super::square_part(p - frame.origin(), frame.axis());
                 geom::Azimuth::tube(frame.height(p), rho, circle.radius)
             }
         }
@@ -242,13 +242,13 @@ impl Channel {
             // reads (`Self::azimuth`). The box is cleared against that
             // same `v_ref`, so the two readings stay one frame's.
             Self::Axis(frame) => {
-                let w = w(frame.origin);
-                clears(w.dot(lift3(frame.u_ref))) || clears(w.dot(lift3(frame.v_ref())))
+                let w = w(frame.origin());
+                clears(w.dot(lift3(frame.u_ref()))) || clears(w.dot(lift3(frame.v_ref())))
             }
             Self::Core(circle) => {
                 let (frame, big_r) = (circle.frame, circle.radius);
-                let w = w(frame.origin);
-                let a = lift3(frame.axis);
+                let w = w(frame.origin());
+                let a = lift3(frame.axis());
                 // The box's height over the core's plane: `w` is already
                 // the offset from the lifted centre.
                 let h = w.dot(a);
@@ -530,11 +530,9 @@ mod tests {
 
     fn torus() -> Surface<f64> {
         Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -620,10 +618,8 @@ mod tests {
     #[test]
     fn a_piece_reaching_the_axis_refuses() {
         let wall = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         let ring = polygon(64, |s| {
             Point3::new(0.5 * s.cos(), 0.5 * s.sin(), 0.1 * s.sin())
@@ -686,10 +682,8 @@ mod tests {
     /// The cylinder of radius `1/2` about `z`.
     fn wall() -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 0.5,
-            u_ref: Vec3::unit_x(),
         }
     }
 

@@ -229,16 +229,8 @@ pub fn tangent_span_bounds<T: Real>(
         return None;
     }
     let step = (t1 - t0) / T::from_f64(f64::from(crate::certify::CERT_SAMPLES - 1));
-    if let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        radius,
-    }) = *carrier
-    {
+    if let Curve3::Circle(geom::Circle { frame, radius }) = *carrier {
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         return circle_span_bounds(s1, s2, center, axis, radius, u_ref, step);
     }
     let dir = carrier.as_line()?.dir;
@@ -257,13 +249,14 @@ pub fn tangent_span_bounds<T: Real>(
         match *s {
             Surface::Plane { .. } => Some((T::zero(), T::zero())),
             Surface::Sphere { radius, .. } => {
-                let f2 = dir.norm_squared() / radius;
-                let drift = eight * dir.norm() / radius.powi(2);
+                let f2 = dir.get().norm_squared() / radius;
+                let drift = eight * dir.get().norm() / radius.powi(2);
                 Some((f2, drift))
             }
-            Surface::Cylinder { axis, radius, .. } => {
-                let d_ax = dir.dot(axis);
-                let d_perp2 = dir.norm_squared() - d_ax.powi(2);
+            Surface::Cylinder { frame, radius, .. } => {
+                let axis = frame.axis();
+                let d_ax = dir.get().dot(axis);
+                let d_perp2 = dir.get().norm_squared() - d_ax.powi(2);
                 let f2 = d_perp2 / radius;
                 // Only the axis-TRANSVERSE component turns the Gauss
                 // map or moves ρ: a ruling (the C5 tangent-arm mint)
@@ -412,14 +405,16 @@ fn circle_span_bounds<T: Real>(
             // A plane's Hessian is zero: it contributes no curvature
             // drift at all, and its residual is the exact first
             // harmonic `R_c·|P_uv(n)|·(…)`.
-            Surface::Plane { normal, .. } => {
+            Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
                 Some((rc * amp(u.dot(normal), v.dot(normal)), T::zero()))
             }
             Surface::Sphere {
-                center: sc,
+                frame: carrier_frame,
                 radius: r,
                 ..
             } => {
+                let sc = carrier_frame.origin();
                 let e = center - sc;
                 let f2 = rc * amp(u.dot(e), v.dot(e)) / r;
                 // A sphere is invariant under EVERY rotation about its
@@ -433,23 +428,21 @@ fn circle_span_bounds<T: Real>(
                 Some((f2, drift))
             }
             Surface::Cylinder {
-                origin,
-                axis: a,
-                radius: r,
-                ..
+                frame, radius: r, ..
             } => {
+                let (origin, a) = (frame.origin(), frame.axis());
                 let (a1, a2) = radial_harmonics(a, origin);
                 let f2 = (a1 + four * a2) / (two * r);
                 let drift = eight * dev_rot(a, origin, true) / r.powi(2);
                 Some((f2, drift))
             }
             Surface::Torus {
-                center: tc,
-                axis: a,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
             } => {
+                let (tc, a) = (frame.origin(), frame.axis());
                 let (g1, g2) = radial_harmonics(a, tc);
                 // The tube floor `|w| ≥ R − r`, halved by the standing
                 // `ε ≪ r` allowance. Clamped at zero so a NON-ring
@@ -490,11 +483,9 @@ fn circle_span_bounds<T: Real>(
             // residual risk this module's header records for the
             // meridian-circle class rather than papering over.
             Surface::Cone {
-                apex,
-                axis: a,
-                half_angle,
-                ..
+                frame, half_angle, ..
             } => {
+                let (apex, a) = (frame.origin(), frame.axis());
                 let (s_a, c_a) = half_angle.sin_cos();
                 let (g1, g2) = radial_harmonics(a, apex);
                 let e = perp(center - apex, a);

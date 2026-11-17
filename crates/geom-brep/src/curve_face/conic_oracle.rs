@@ -28,11 +28,9 @@ pub fn unit(mut range: impl FnMut(f64, f64) -> f64) -> Vec3<f64> {
 pub fn torus(center: Point3<f64>, axis: Vec3<f64>, big: f64, small: f64) -> geom::Surface<f64> {
     let axis = axis.normalize();
     geom::Surface::Torus {
-        center,
-        axis,
+        frame: geom::Frame::new(center, axis, axis.orthonormal_basis().0),
         major_radius: big,
         minor_radius: small,
-        u_ref: axis.orthonormal_basis().0,
     }
 }
 
@@ -48,23 +46,22 @@ pub fn distance_from_anchor(
     from: impl Fn(Point3<f64>) -> Vec3<f64>,
 ) -> f64 {
     match *s {
-        geom::Surface::Sphere { center, radius, .. } => from(center).norm() - radius,
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            from(center).norm() - radius
+        }
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let q = from(origin);
             (q - axis * q.dot(axis)).norm() - radius
         }
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let q = from(center);
             let h = q.dot(axis);
             let rho = (q - axis * h).norm();

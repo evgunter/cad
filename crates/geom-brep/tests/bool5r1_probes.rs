@@ -126,10 +126,8 @@ fn probe_tilted_off_origin_wedge_measures_by_the_closed_form() {
     let axis = rot(Vec3::new(0.0, 0.0, 1.0));
     let u_ref = rot(Vec3::new(1.0, 0.0, 0.0));
     let s = Surface::Sphere {
-        center: c,
+        frame: geom::Frame::new(c, axis, u_ref),
         radius: r,
-        axis,
-        u_ref,
     };
     let meridian = |u: f64, t0: f64, t1: f64, a: u32, b: u32| {
         topo::edge(

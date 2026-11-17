@@ -32,44 +32,36 @@ use test_utils::fuzz;
 fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
     let u_ref = axis.cross(Vec3::new(0.3, 0.5, 0.7)).normalize();
     Surface::Cylinder {
-        origin,
-        axis,
+        frame: geom::Frame::new(origin, axis, u_ref),
         radius,
-        u_ref,
     }
 }
 
 fn torus(center: Point3<f64>, axis: Vec3<f64>, big: f64, small: f64) -> Surface<f64> {
     let u_ref = axis.cross(Vec3::new(0.3, 0.5, 0.7)).normalize();
     Surface::Torus {
-        center,
-        axis,
+        frame: geom::Frame::new(center, axis, u_ref),
         major_radius: big,
         minor_radius: small,
-        u_ref,
     }
 }
 
 /// The exact distance of `p` from `s`, a cylinder or a torus.
 fn distance(s: &Surface<f64>, p: Point3<f64>) -> f64 {
     match *s {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let a = axis.normalize();
             let w = p - origin;
             ((w - a * w.dot(a)).norm() - radius).abs()
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let a = axis.normalize();
             let w = p - center;
             let z = w.dot(a);
@@ -190,23 +182,19 @@ fn verdict(got: &Result<SsiOutcome, SsiError>) -> String {
 /// a torus.
 fn signed(s: &Surface<f64>, p: Point3<f64>) -> f64 {
     match *s {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let a = axis.normalize();
             let w = p - origin;
             (w - a * w.dot(a)).norm() - radius
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let a = axis.normalize();
             let w = p - center;
             let z = w.dot(a);
@@ -224,15 +212,14 @@ fn signed(s: &Surface<f64>, p: Point3<f64>) -> f64 {
 /// cell holds a saddle; a cell crossed four times refuses the count.
 fn oracle_loops(t: &Surface<f64>, partner: &Surface<f64>, n: usize) -> usize {
     let Surface::Torus {
-        center,
-        axis,
+        frame,
         major_radius: big,
         minor_radius: small,
-        u_ref,
     } = *t
     else {
         unreachable!("the torus first")
     };
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let a = axis.normalize();
     let u = (u_ref - a * u_ref.dot(a)).normalize();
     let v = a.cross(u);
@@ -590,11 +577,9 @@ fn a_tube_circle_tangency_refuses_at_each_door() {
     // where it decides at every ε; elsewhere it escalates at ε = 1e-12
     // (`work/secttorus/the-torus-gaps-rounding-charge-is-first-order-and-reads-the-world-origin.md`).
     let t = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 1.0,
         minor_radius: 0.25,
-        u_ref: Vec3::unit_x(),
     };
     let pipe = cylinder(Point3::new(1.0, 0.0, 0.0), Vec3::unit_y(), 0.25);
     let pose = CylinderTorusPose::decide(&t, &pipe, band())
@@ -639,10 +624,8 @@ fn each_torus_door_refuses_any_other_pair() {
     let t = torus(Point3::origin(), Vec3::unit_z(), 1.0, 0.25);
     let c = cylinder(Point3::origin(), Vec3::unit_x(), 0.1);
     let s = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let domain = SsiDomain {
         center: Point3::origin(),

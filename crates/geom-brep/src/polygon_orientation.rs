@@ -109,35 +109,27 @@ mod tests {
             NurbsSurface::new(k(), k(), control, vec![1.0; 4]).unwrap()
         };
         let cone = || Surface::Cone {
-            apex: O,
-            axis: Z,
+            frame: geom::Frame::new(O, Z, X),
             half_angle: 0.4,
-            u_ref: X,
         };
         let torus = || Surface::Torus {
-            center: O,
-            axis: Z,
+            frame: geom::Frame::new(O, Z, X),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref: X,
         };
         vec![
             (
                 "plane",
                 Surface::Plane {
-                    origin: O,
-                    normal: Z,
-                    u_ref: X,
+                    frame: geom::Frame::new(O, Z, X),
                 },
                 (0.3, -0.4),
             ),
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: O,
-                    axis: Z,
+                    frame: geom::Frame::new(O, Z, X),
                     radius: 0.7,
-                    u_ref: X,
                 },
                 (1.1, 0.4),
             ),
@@ -146,10 +138,8 @@ mod tests {
             (
                 "sphere",
                 Surface::Sphere {
-                    center: O,
+                    frame: geom::Frame::new(O, Z, X),
                     radius: 0.9,
-                    axis: Z,
-                    u_ref: X,
                 },
                 (4.0, -0.6),
             ),
@@ -158,11 +148,9 @@ mod tests {
             (
                 "spindle",
                 Surface::Spindle {
-                    center: O,
-                    axis: Z,
+                    frame: geom::Frame::new(O, Z, X),
                     major_radius: -0.4,
                     minor_radius: 1.0,
-                    u_ref: X,
                 },
                 (5.0, 0.2),
             ),

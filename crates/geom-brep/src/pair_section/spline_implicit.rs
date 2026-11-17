@@ -399,9 +399,14 @@ impl<T: Decide> SplineImplicitPose<T> {
     /// alone (its rounding uncharged far out:
     /// `work/sectarms/a-wall-row-in-an-oblique-plane-reads-empty-by-where-the-planes-origin-is-stored.md`).
     fn height(&self, p: Point3<T>) -> T {
-        let Surface::Plane { origin, normal, .. } = self.partner else {
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = self.partner
+        else {
             unreachable!("the pose holds a plane")
         };
+        let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
         (p - origin).dot(normal.normalize())
     }
 }
@@ -415,13 +420,16 @@ impl SplineImplicitPose<f64> {
     /// where the partner is a plane.
     fn pivot(&self) -> Pivot {
         let Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         } = self.partner
         else {
             unreachable!("the pose holds a plane")
         };
+        let (origin, normal, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         let Some(foot) = self.partner.foot(self.ball().center()) else {
             unreachable!("a plane's foot is in closed form")
         };
@@ -433,9 +441,7 @@ impl SplineImplicitPose<f64> {
         let norm = (m.x.powi(2) + m.y.powi(2) + m.z.powi(2)).sqrt();
         Pivot {
             plane: Surface::Plane {
-                origin: foot,
-                normal,
-                u_ref,
+                frame: geom::Frame::new(foot, normal, u_ref),
             },
             lift: ((a.x - o.x) * m.x + (a.y - o.y) * m.y + (a.z - o.z) * m.z) / norm,
         }
@@ -1650,9 +1656,7 @@ mod tests {
     /// the stored plane.
     fn lifted((origin, normal): (Point3<f64>, Vec3<f64>), lift: f64) -> Read {
         let surface = geom::Surface::Plane {
-            origin,
-            normal,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(origin, normal, Vec3::new(1.0, 0.0, 0.0)),
         };
         let form = ImplicitForm::of(&surface)
             .unwrap()

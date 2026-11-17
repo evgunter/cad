@@ -44,36 +44,26 @@ fn surface(chart: Chart, s: &mut fuzz::Rng) -> Surface<f64> {
     let o = Point3::new(s.range(-2.0, 2.0), s.range(-2.0, 2.0), s.range(-2.0, 2.0));
     match chart {
         Chart::Plane => Surface::Plane {
-            origin: o,
-            normal: axis,
-            u_ref,
+            frame: geom::Frame::new(o, axis, u_ref),
         },
         Chart::Cylinder => Surface::Cylinder {
-            origin: o,
-            axis,
+            frame: geom::Frame::new(o, axis, u_ref),
             radius: s.range(0.3, 2.0),
-            u_ref,
         },
         Chart::Cone => Surface::Cone {
-            apex: o,
-            axis,
+            frame: geom::Frame::new(o, axis, u_ref),
             half_angle: s.range(0.2, 1.3),
-            u_ref,
         },
         Chart::Sphere => Surface::Sphere {
-            center: o,
+            frame: geom::Frame::new(o, axis, u_ref),
             radius: s.range(0.3, 2.0),
-            axis,
-            u_ref,
         },
         Chart::Torus => {
             let major = s.range(0.8, 2.0);
             Surface::Torus {
-                center: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 major_radius: major,
                 minor_radius: major * s.range(0.15, 0.7),
-                u_ref,
             }
         }
     }
@@ -116,11 +106,8 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
     let span = s.range(0.3, 2.0);
     let a = s.range(0.0, TAU);
     match *surf {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => {
+        Surface::Plane { frame } => {
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let v_ref = normal.cross(u_ref);
             // Monotone in `u`, so the net's speed bound is positive.
             let ctl: Vec<Point3<f64>> = (0..4)
@@ -139,12 +126,8 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
                 .unwrap(),
             ))
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => {
+        Surface::Cylinder { frame, radius } => {
+            let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let h = s.range(-1.0, 1.0);
             if s.below(2) == 0 {
                 arc(origin + axis * h, u_ref, axis.cross(u_ref), radius, a, span)
@@ -153,12 +136,8 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
                 segment(p + axis * h, p + axis * (h + span))
             }
         }
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => {
+        Surface::Cone { frame, half_angle } => {
+            let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let sign = if s.below(2) == 0 { 1.0 } else { -1.0 };
             let v = sign * s.range(0.4, 2.0);
             if s.below(2) == 0 {
@@ -178,7 +157,8 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
                 segment(g(v), g(v + sign * span))
             }
         }
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let n = unit(s);
             let d = radius * s.range(-0.8, 0.8);
             let e1 = n.cross(unit(s)).normalize();
@@ -192,12 +172,11 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
             )
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             if s.below(2) == 0 {
                 let v = s.range(0.0, TAU);
                 arc(
@@ -222,9 +201,15 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
 /// A circle on `sphere` that is neither a parallel nor a meridian, with
 /// an arc of it.
 fn general_circle(sphere: &Surface<f64>, s: &mut fuzz::Rng) -> (Curve3<f64>, f64, f64) {
-    let Surface::Sphere { center, radius, .. } = *sphere else {
+    let Surface::Sphere {
+        frame: carrier_frame,
+        radius,
+        ..
+    } = *sphere
+    else {
         unreachable!()
     };
+    let center = carrier_frame.origin();
     let n = unit(s);
     let d = radius * s.range(-0.8, 0.8);
     let u_ref = n.cross(unit(s)).normalize();
@@ -253,8 +238,14 @@ fn sampled(p: &Pcurve<f64>, c: &Curve3<f64>, surf: &Surface<f64>, t0: f64, t1: f
 /// sector refusal honest rather than a counterexample.
 fn axis_clearance(c: &Curve3<f64>, surf: &Surface<f64>, t0: f64, t1: f64) -> f64 {
     let (o, axis) = match *surf {
-        Surface::Sphere { center, axis, .. } => (center, axis),
-        Surface::Cone { apex, axis, .. } => (apex, axis),
+        Surface::Sphere { frame, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            (center, axis)
+        }
+        Surface::Cone { frame, .. } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            (apex, axis)
+        }
         _ => return f64::INFINITY,
     };
     (0..=256)
@@ -1108,51 +1099,63 @@ fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<Domina
         let tilt = |v: Vec3<f64>, s: &mut fuzz::Rng| (v + unit(s) * size) * (1.0 + size);
         surf = match surf {
             Surface::Cylinder {
-                origin,
-                axis,
+                frame: carrier_frame,
                 radius,
-                u_ref,
-            } => Surface::Cylinder {
-                origin,
-                axis: tilt(axis, s),
-                radius,
-                u_ref: tilt(u_ref, s),
-            },
+            } => {
+                let (origin, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Cylinder {
+                    frame: geom::Frame::new(origin, tilt(axis, s), tilt(u_ref, s)),
+                    radius,
+                }
+            }
             Surface::Cone {
-                apex,
-                axis,
+                frame: carrier_frame,
                 half_angle,
-                u_ref,
-            } => Surface::Cone {
-                apex,
-                axis: tilt(axis, s),
-                half_angle,
-                u_ref: tilt(u_ref, s),
-            },
+            } => {
+                let (apex, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Cone {
+                    frame: geom::Frame::new(apex, tilt(axis, s), tilt(u_ref, s)),
+                    half_angle,
+                }
+            }
             Surface::Sphere {
-                center,
+                frame: carrier_frame,
                 radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                center,
-                radius,
-                axis: tilt(axis, s),
-                u_ref: tilt(u_ref, s),
-            },
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Sphere {
+                    frame: geom::Frame::new(center, tilt(axis, s), tilt(u_ref, s)),
+                    radius,
+                }
+            }
             Surface::Torus {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => Surface::Torus {
-                center,
-                axis: tilt(axis, s),
-                major_radius,
-                minor_radius,
-                u_ref: tilt(u_ref, s),
-            },
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Torus {
+                    frame: geom::Frame::new(center, tilt(axis, s), tilt(u_ref, s)),
+                    major_radius,
+                    minor_radius,
+                }
+            }
             other => other,
         };
     }
@@ -1344,10 +1347,8 @@ fn every_projected_term_is_load_bearing_in_a_pinned_sweep() {
 fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
     let b = band();
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let tilt = 0.4_f64;
     let n = Vec3::new(tilt.sin(), 0.0, tilt.cos());
@@ -1412,10 +1413,8 @@ fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
 fn wrong_nappe_refusal() -> PcurveCertifyError {
     let b = band();
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: 0.5,
-        u_ref: Vec3::unit_x(),
     };
     let rim = arc(
         Point3::new(0.0, 0.0, 0.5_f64.cos()),
@@ -1464,11 +1463,9 @@ fn the_wrong_nappe_refuses_on_the_cone_lever() {
 fn an_off_chart_spline_refuses_by_incidence() {
     let b = band();
     let torus = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 1.0,
         minor_radius: 0.3,
-        u_ref: Vec3::unit_x(),
     };
     let off = arc(
         Point3::origin(),
@@ -1509,15 +1506,10 @@ fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
     let slack = 1e-13;
     for _ in 0..fuzz::scaled(48) {
         let surf = surface(Chart::Cylinder, &mut s);
-        let Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } = surf
-        else {
+        let Surface::Cylinder { frame, radius } = surf else {
             unreachable!("a cylinder")
         };
+        let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let r = rad(axis, u_ref, s.range(-PI, PI));
         let tang = axis.cross(r);
         let lean = if s.below(2) == 0 {
@@ -1652,10 +1644,8 @@ fn arcs(
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -1731,10 +1721,8 @@ fn the_period_gate_reads_the_sweep_and_refuses_past_a_turn() {
         "a circle past a turn: {got:?}"
     );
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let winding = arcs(
         Point3::origin(),
@@ -1838,10 +1826,8 @@ fn a_spline_edges_incidence_reads_only_the_spans_its_interval_meets() {
     let h = 1e-4;
     let c = quarter_off_past_half(h);
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     for (scalar, got) in ["f64", "Interval"]
         .into_iter()
@@ -1871,18 +1857,14 @@ fn parallel(chart: Chart, delta: f64) -> (Surface<f64>, Curve3<f64>) {
     match chart {
         Chart::Plane => (
             Surface::Plane {
-                origin: Point3::origin(),
-                normal: z,
-                u_ref: x,
+                frame: geom::Frame::new(Point3::origin(), z, x),
             },
             segment(Point3::new(0.1, 0.2, delta), Point3::new(1.3, -0.4, delta)),
         ),
         Chart::Cylinder => (
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: z,
+                frame: geom::Frame::new(Point3::origin(), z, x),
                 radius: 1.3,
-                u_ref: x,
             },
             arc(Point3::new(0.0, 0.0, 0.2), x, y, 1.3 + delta, 0.4, 1.5),
         ),
@@ -1890,10 +1872,8 @@ fn parallel(chart: Chart, delta: f64) -> (Surface<f64>, Curve3<f64>) {
             let (r, phi) = (1.1 + delta, 0.5_f64);
             (
                 Surface::Sphere {
-                    center: Point3::origin(),
+                    frame: geom::Frame::new(Point3::origin(), z, x),
                     radius: 1.1,
-                    axis: z,
-                    u_ref: x,
                 },
                 arc(
                     Point3::new(0.0, 0.0, r * phi.sin()),
@@ -1910,10 +1890,8 @@ fn parallel(chart: Chart, delta: f64) -> (Surface<f64>, Curve3<f64>) {
             let z0 = 1.0;
             (
                 Surface::Cone {
-                    apex: Point3::origin(),
-                    axis: z,
+                    frame: geom::Frame::new(Point3::origin(), z, x),
                     half_angle: alpha,
-                    u_ref: x,
                 },
                 arc(
                     Point3::new(0.0, 0.0, z0),
@@ -1929,11 +1907,9 @@ fn parallel(chart: Chart, delta: f64) -> (Surface<f64>, Curve3<f64>) {
             let (big, small, v) = (1.2, 0.4_f64, 0.7_f64);
             (
                 Surface::Torus {
-                    center: Point3::origin(),
-                    axis: z,
+                    frame: geom::Frame::new(Point3::origin(), z, x),
                     major_radius: big,
                     minor_radius: small,
-                    u_ref: x,
                 },
                 arc(
                     Point3::new(0.0, 0.0, (small + delta) * v.sin()),
@@ -2042,10 +2018,8 @@ fn each_conversion_reads_its_stated_floors() {
     let close = |got: f64, want: f64| (got - want).abs() <= 1e-12 * want.abs();
     let alpha = 0.6_f64;
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     };
     let (inc, floor) = net_incidence(
         &hull(1.0, (0.5, 2.0)),
@@ -2085,29 +2059,23 @@ fn each_conversion_reads_its_stated_floors() {
     for (surf, want) in [
         (
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             f / (1.0 + rho.max(1.0 - f)),
         ),
         (
             Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             f / (1.0 + rho.max(1.0 - f)),
         ),
         (
             Surface::Torus {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 1.2,
                 minor_radius: 0.4,
-                u_ref: Vec3::unit_x(),
             },
             {
                 let outer = (rho + 1.2_f64).powi(2) - 0.4_f64.powi(2);
@@ -2228,11 +2196,9 @@ fn turned_piece_refusal(torus: bool) -> PcurveCertifyError {
     let (surf, c) = if torus {
         (
             Surface::Torus {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 1.2,
                 minor_radius: 0.4,
-                u_ref: Vec3::unit_x(),
             },
             arc(
                 Point3::new(1.2, 0.0, 0.0),
@@ -2246,10 +2212,8 @@ fn turned_piece_refusal(torus: bool) -> PcurveCertifyError {
     } else {
         (
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             arc(
                 Point3::origin(),
@@ -2285,11 +2249,9 @@ fn grazing_piece_refusal(torus: bool) -> PcurveCertifyError {
     let (surf, c) = if torus {
         (
             Surface::Torus {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 1.2,
                 minor_radius: 0.4,
-                u_ref: Vec3::unit_x(),
             },
             arc(
                 Point3::new(1.2, 0.0, 0.0),
@@ -2303,10 +2265,8 @@ fn grazing_piece_refusal(torus: bool) -> PcurveCertifyError {
     } else {
         (
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             arc(
                 Point3::origin(),
@@ -2371,10 +2331,8 @@ fn a_period_jump_inside_a_piece_or_at_a_break_refuses() {
     }
     let b = band();
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     // A sweep that DEcreases, so the last piece turned a whole period up
     // lands a whole period above the joint it leaves, and the image's
@@ -2412,9 +2370,7 @@ fn a_period_jump_inside_a_piece_or_at_a_break_refuses() {
 fn the_plane_envelope_dominates_a_carrier_off_the_plane() {
     let b = band();
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     let h = 1e-3;
     let c = Curve3::Nurbs(Arc::new(
@@ -2469,10 +2425,8 @@ fn a_cone_carrier_leaving_the_apex_is_dominated() {
     let lane = crate::FittedLane::<f64>::certified();
     let alpha = 0.6_f64;
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     };
     let generator = Vec3::new(alpha.sin(), 0.0, alpha.cos());
     let normal = Vec3::new(alpha.cos(), 0.0, -alpha.sin());
@@ -2519,10 +2473,8 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
     let b = band();
     let lane = crate::FittedLane::<f64>::certified();
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let c = quarter_off_past_half(0.0);
     let image = project(&c, None, &cylinder, b).unwrap();
@@ -2679,10 +2631,8 @@ fn a_corrupt_net_escalates_the_azimuth_sector_on_a_cylinder() {
     let b = band();
     let lane = crate::FittedLane::<f64>::certified();
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let c = quarter_off_past_half(0.0);
     let mut image = project(&c, None, &cylinder, b).unwrap();
@@ -2743,17 +2693,13 @@ fn a_spline_net_the_projected_lane_cannot_partition_ends_not_yet() {
     let b = band();
     let mid = 0.5 * (b.zero() + b.escalate());
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let half_angle = 0.5_f64;
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle,
-        u_ref: Vec3::unit_x(),
     };
     // The beside-the-pole arc's plane is turned `mid` off the axis, so its
     // nearest approach to the pole is `mid`.

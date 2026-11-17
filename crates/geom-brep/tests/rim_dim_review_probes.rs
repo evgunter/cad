@@ -50,10 +50,8 @@ fn split_rim_patch(
     let u1 = core::f64::consts::FRAC_PI_2;
     let um = u1 / 2.0;
     let surface = Surface::Cylinder {
-        origin: p(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: Probe(r),
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let rim = |z: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| {
         LoopEdge::hand_built(

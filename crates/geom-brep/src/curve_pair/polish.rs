@@ -195,7 +195,11 @@ impl<T: Decide> Along<T> {
     /// slack `σ_w = |w − n̂(n̂·w)|` and the height `|w·n̂|`.
     pub(super) fn two_sided((p, da): (Point3<T>, Vec3<T>), (q, db): (Point3<T>, Vec3<T>)) -> Self {
         let n = da.cross(db).normalize();
-        let (along, slack) = geom::Line { origin: p, dir: n }.height_and_distance(q);
+        let (along, slack) = geom::Line {
+            origin: p,
+            dir: geom_core::UnitVec3::squared(n),
+        }
+        .height_and_distance(q);
         Self {
             g: da.normalize().cross(db.normalize()).norm(),
             slack,

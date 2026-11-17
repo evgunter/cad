@@ -19,10 +19,8 @@ use super::*;
 
 fn cylinder(radius: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(0.25, -0.5, 1.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.25, -0.5, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -37,9 +35,10 @@ fn in_band() -> f64 {
 /// at unit speed. Over `t ∈ [−h, h]` it leaves the radius `R + off` by
 /// at most `tilt²·h²/(2R)`.
 fn line_at(surface: &Surface<f64>, phi: f64, off: f64, tilt: f64) -> Curve3<f64> {
-    let Surface::Cylinder { origin, radius, .. } = *surface else {
+    let Surface::Cylinder { frame, radius, .. } = *surface else {
         unreachable!("the rows' chart is a cylinder")
     };
+    let origin = frame.origin();
     let (s, c) = phi.sin_cos();
     let at = origin + Vec3::new(c, s, 0.0) * (radius + off) + Vec3::new(0.0, 0.0, 0.3);
     Curve3::line(

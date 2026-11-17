@@ -62,27 +62,31 @@ fn enclosure_never_beaten_by_dense_sampling() {
             0 => {
                 let (sa, _) = frame(&mut rng);
                 Surface::Sphere {
-                    center: Point3::new(
-                        rng.range(-2.0, 2.0),
-                        rng.range(-2.0, 2.0),
-                        rng.range(-2.0, 2.0),
+                    frame: geom::Frame::new(
+                        Point3::new(
+                            rng.range(-2.0, 2.0),
+                            rng.range(-2.0, 2.0),
+                            rng.range(-2.0, 2.0),
+                        ),
+                        sa,
+                        Vec3::unit_x(),
                     ),
                     radius: rng.range(1e-3, 2.5),
-                    axis: sa,
-                    u_ref: Vec3::unit_x(),
                 }
             }
             1 => {
                 let (ca, _) = frame(&mut rng);
                 Surface::Cylinder {
-                    origin: Point3::new(
-                        rng.range(-2.0, 2.0),
-                        rng.range(-2.0, 2.0),
-                        rng.range(-2.0, 2.0),
+                    frame: geom::Frame::new(
+                        Point3::new(
+                            rng.range(-2.0, 2.0),
+                            rng.range(-2.0, 2.0),
+                            rng.range(-2.0, 2.0),
+                        ),
+                        ca,
+                        Vec3::unit_x(),
                     ),
-                    axis: ca,
                     radius: rng.range(1e-3, 2.5),
-                    u_ref: Vec3::unit_x(),
                 }
             }
             2 => {
@@ -103,15 +107,17 @@ fn enclosure_never_beaten_by_dense_sampling() {
                 };
                 let big_r = rng.range(0.3, 3.0);
                 Surface::Torus {
-                    center: Point3::new(
-                        rng.range(-2.0, 2.0),
-                        rng.range(-2.0, 2.0),
-                        rng.range(-2.0, 2.0),
+                    frame: geom::Frame::new(
+                        Point3::new(
+                            rng.range(-2.0, 2.0),
+                            rng.range(-2.0, 2.0),
+                            rng.range(-2.0, 2.0),
+                        ),
+                        ta,
+                        tu,
                     ),
-                    axis: ta,
                     major_radius: big_r,
                     minor_radius: big_r * rng.range(0.05, 0.6),
-                    u_ref: tu,
                 }
             }
             _ => {
@@ -120,14 +126,16 @@ fn enclosure_never_beaten_by_dense_sampling() {
                 let jitter = rng.range(0.0, 0.05);
                 let ca = (axis + Vec3::new(jitter, jitter / 2.0, 0.0)).normalize();
                 Surface::Cylinder {
-                    origin: center + axis * rng.range(-0.5, 0.5) + u_ref * rng.range(0.0, 0.02),
-                    axis: ca,
+                    frame: geom::Frame::new(
+                        center + axis * rng.range(-0.5, 0.5) + u_ref * rng.range(0.0, 0.02),
+                        ca,
+                        Vec3::unit_x(),
+                    ),
                     radius: if case % 2 == 0 {
-                        radius // near-tangent internal
+                        radius
                     } else {
                         rng.range(1e-3, 2.5)
                     },
-                    u_ref: Vec3::unit_x(),
                 }
             }
         };
@@ -199,25 +207,29 @@ fn positive_margin_implies_one_sided() {
         let (sa, _) = frame(&mut rng);
         let s: Surface<f64> = if rng.unit() < 0.5 {
             Surface::Sphere {
-                center: Point3::new(
-                    rng.range(-2.0, 2.0),
-                    rng.range(-2.0, 2.0),
-                    rng.range(-2.0, 2.0),
+                frame: geom::Frame::new(
+                    Point3::new(
+                        rng.range(-2.0, 2.0),
+                        rng.range(-2.0, 2.0),
+                        rng.range(-2.0, 2.0),
+                    ),
+                    sa,
+                    Vec3::unit_x(),
                 ),
                 radius: rng.range(1e-2, 2.0),
-                axis: sa,
-                u_ref: Vec3::unit_x(),
             }
         } else {
             Surface::Cylinder {
-                origin: Point3::new(
-                    rng.range(-2.0, 2.0),
-                    rng.range(-2.0, 2.0),
-                    rng.range(-2.0, 2.0),
+                frame: geom::Frame::new(
+                    Point3::new(
+                        rng.range(-2.0, 2.0),
+                        rng.range(-2.0, 2.0),
+                        rng.range(-2.0, 2.0),
+                    ),
+                    sa,
+                    Vec3::unit_x(),
                 ),
-                axis: sa,
                 radius: rng.range(1e-2, 2.0),
-                u_ref: Vec3::unit_x(),
             }
         };
         let (lo, hi) = circle_residual_extremes(
@@ -289,11 +301,9 @@ fn the_arc_enclosure_is_never_beaten_by_a_dense_oracle() {
             rng.range(-1.0, 1.0),
         );
         let s = Surface::Torus {
-            center: t_center,
-            axis: t_axis,
+            frame: geom::Frame::new(t_center, t_axis, t_u),
             major_radius: big_r,
             minor_radius: big_r * rng.range(0.05, 0.6),
-            u_ref: t_u,
         };
         // A quarter of the circles are drawn close to the torus, where
         // the residual is small and an escape is cheapest to make; one

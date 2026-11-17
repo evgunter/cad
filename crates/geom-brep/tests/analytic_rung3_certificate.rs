@@ -63,18 +63,14 @@ fn bulged(n: usize, h: f64) -> NurbsCurve3<f64> {
 
 fn plane<T: Real>() -> Surface<T> {
     Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     }
 }
 
 fn cylinder_z<T: Real>() -> Surface<T> {
     Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: T::one(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -340,10 +336,8 @@ fn steinmetz_arc(a: f64, b: f64) -> NurbsCurve3<f64> {
 
 fn cylinder_about(axis: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::origin(),
-        axis,
+        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
         radius: 1.0,
-        u_ref,
     }
 }
 
@@ -534,9 +528,7 @@ fn oscillating(a: f64) -> NurbsCurve3<f64> {
 fn limb_two_halves_the_parts_whose_bound_does_not_clear() {
     let zero = band().zero();
     let side = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_z()),
     };
     let peak = |c: &NurbsCurve3<f64>| {
         (0..=100_000)
@@ -610,9 +602,7 @@ fn waved_between_the_breaks(a: f64) -> NurbsCurve3<f64> {
 fn limb_two_halves_then_stops_on_a_breaks_miss() {
     let band = band();
     let side = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_z()),
     };
     // `∏ⱼ |1/16 − j/8|`, the product at the first halved break.
     let at_a_sixteenth = (1..=8).fold(1.0 / 16.0, |m, j| m * f64::from(2 * j - 1) / 16.0);
@@ -674,17 +664,13 @@ fn limb_two_halves_then_stops_on_a_breaks_miss() {
 fn a_cones_section_retires_the_tube_and_a_torus_operand_certifies() {
     let carrier = bulged(8, 0.0);
     let torus = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 1.25,
         minor_radius: 0.25,
-        u_ref: Vec3::unit_x(),
     };
     let cone = Surface::Cone {
-        apex: Point3::new(0.0, 0.0, -1.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, -1.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: Vec3::unit_x(),
     };
     let got = certify(&carrier, plane(), cone).map(|_| ());
     assert_eq!(got, Ok(()), "the plane×cone section retires the tube");
@@ -705,15 +691,11 @@ fn a_dense_interpolant_of_a_section_certifies_its_tube() {
     let r = 9.0 / 128.0;
     let n = Vec3::new(0.0, 0.6, 0.8);
     let oblique = Surface::Plane {
-        origin: Point3::origin(),
-        normal: n,
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), n, Vec3::unit_x()),
     };
     let wall = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     };
     let nodes = 512;
     #[allow(clippy::cast_precision_loss)]

@@ -299,14 +299,14 @@ impl<'a, T: CertifiedBounds> Path<'a, T> {
         let path = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => Self::Line {
                 o: p(origin),
-                d: v(dir),
+                d: v(dir.get()),
             },
             Curve3::Circle(_) | Curve3::Ellipse(_) => {
                 let lifted = carrier.map_scalar(Interval::from_certified);
                 let conic = lifted.conic()?;
                 let (e1, e2) = conic.semi_axis_vectors();
                 let at = |v: Vec3<Interval>| [v.x, v.y, v.z];
-                let c = conic.frame().origin;
+                let c = conic.frame().origin();
                 Self::Conic {
                     c: [c.x, c.y, c.z],
                     e1: at(e1),

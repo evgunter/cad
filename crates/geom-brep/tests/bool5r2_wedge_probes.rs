@@ -184,10 +184,8 @@ fn an_off_origin_tilted_ball_of_another_radius_reads_the_same_width() {
     let axis = Vec3::new(1.0, 1.0, 1.0) * (1.0 / 3.0_f64.sqrt());
     let u_ref = Vec3::new(1.0, -1.0, 0.0) * (1.0 / 2.0_f64.sqrt());
     let s: Surface<f64> = Surface::Sphere {
-        center: c,
+        frame: geom::Frame::new(c, axis, u_ref),
         radius: r,
-        axis,
-        u_ref,
     };
     for theta in [PI / 6.0, FRAC_PI_2, 2.0, 1.5 * PI] {
         for sense in [true, false] {

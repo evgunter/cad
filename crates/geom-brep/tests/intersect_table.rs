@@ -26,7 +26,10 @@ use geom_core::{Point3, Real, Vec3};
 /// extent they read it at before the classifiers took a [`Reach`].
 fn metre_on<T: Real>(s: &Surface<T>) -> Reach<T> {
     let at = match *s {
-        Surface::Cylinder { origin, .. } => origin,
+        Surface::Cylinder { frame, .. } => {
+            let origin = frame.origin();
+            origin
+        }
         _ => Point3::new(T::zero(), T::zero(), T::zero()),
     };
     {
@@ -155,10 +158,8 @@ fn route_inventory() {
 
 fn cyl_z(r: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -166,9 +167,11 @@ fn cyl_z(r: f64) -> Surface<f64> {
 /// through `q`.
 fn tilted_plane(phi: f64, q: Point3<f64>) -> Surface<f64> {
     Surface::Plane {
-        origin: q,
-        normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-        u_ref: Vec3::new(phi.cos(), 0.0, -phi.sin()),
+        frame: geom::Frame::new(
+            q,
+            Vec3::new(phi.sin(), 0.0, phi.cos()),
+            Vec3::new(phi.cos(), 0.0, -phi.sin()),
+        ),
     }
 }
 
@@ -183,17 +186,14 @@ fn plane_cylinder_tilted_is_the_exact_ellipse() {
     };
     // Axes: a = r/cos φ, b = r.
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            ..
-        },
+        frame: carrier_frame,
         semi_u,
         semi_v,
     }) = e
     else {
         panic!("carrier is an ellipse");
     };
+    let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
     assert!((semi_u - 2.0 / phi.cos()).abs() < 1e-12);
     assert_eq!(semi_v, 2.0);
     // The carrier's plane is the cutting plane; the center is on the
@@ -221,25 +221,20 @@ fn plane_cylinder_tilted_is_the_exact_ellipse() {
 fn plane_cylinder_rim_stays_rung_1_circle() {
     let cyl = cyl_z(2.0);
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 7.0),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 7.0), Vec3::unit_z(), Vec3::unit_x()),
     };
     let s = plane_cylinder_section(&plane, &cyl, &metre_on(&cyl), band()).unwrap();
     let PlaneCylinderSection::Rim(c) = s else {
         panic!("expected the rim circle, got {s:?}");
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            ..
-        },
+        frame: carrier_frame,
         radius,
     }) = c
     else {
         panic!("carrier is a circle");
     };
+    let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
     assert_eq!(radius, 2.0);
     assert_eq!(axis.z, 1.0);
     assert_eq!((center.x, center.y, center.z), (1.0, 2.0, 7.0));
@@ -250,9 +245,11 @@ fn plane_cylinder_parallel_trio() {
     let cyl = cyl_z(2.0);
     // Axis in-plane (normal ⊥ z), gap = 1 < r: two rulings.
     let mk_plane = |gap: f64| Surface::Plane {
-        origin: Point3::new(1.0 + gap, 0.0, 0.0),
-        normal: Vec3::unit_x(),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(1.0 + gap, 0.0, 0.0),
+            Vec3::unit_x(),
+            Vec3::unit_y(),
+        ),
     };
     let s = plane_cylinder_section(&mk_plane(1.0), &cyl, &metre_on(&cyl), band()).unwrap();
     let PlaneCylinderSection::ParallelLines { l1, l2 } = s else {
@@ -262,7 +259,7 @@ fn plane_cylinder_parallel_trio() {
         let Curve3::Line(geom::Line { origin, dir }) = l else {
             panic!("ruling is a line");
         };
-        assert_eq!(dir.z, 1.0);
+        assert_eq!(dir.get().z, 1.0);
         assert!(implicit_residual(&mk_plane(1.0), *origin).abs() < 1e-12);
         assert!(implicit_residual(&cyl, *origin).abs() < 1e-12);
     }
@@ -290,9 +287,11 @@ fn plane_cylinder_axis_angle_trios() {
     // pc_axis_plane_parallel in-band: axis·normal = 3ε (at extent 1).
     let t = 3.0 * eps();
     let plane = Surface::Plane {
-        origin: Point3::new(10.0, 0.0, 0.0),
-        normal: Vec3::new((1.0 - t * t).sqrt(), 0.0, t),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(10.0, 0.0, 0.0),
+            Vec3::new((1.0 - t * t).sqrt(), 0.0, t),
+            Vec3::unit_y(),
+        ),
     };
     let err = plane_cylinder_section(&plane, &cyl, &metre_on(&cyl), band()).unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
@@ -301,9 +300,11 @@ fn plane_cylinder_axis_angle_trios() {
     // 1.5ε at r = 2.
     let s = 1.5 * eps();
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 7.0),
-        normal: Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 7.0),
+            Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
+            Vec3::unit_y(),
+        ),
     };
     let err = plane_cylinder_section(&plane, &cyl, &metre_on(&cyl), band()).unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
@@ -314,9 +315,11 @@ fn plane_cylinder_axis_angle_trios() {
     // exact ellipse. sin φ = 5.5e-5 ⇒ margin ‖a×n‖·r = 1.1e-4.
     let s = 5.5e-5;
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 7.0),
-        normal: Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 7.0),
+            Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
+            Vec3::unit_y(),
+        ),
     };
     let got = plane_cylinder_section(&plane, &cyl, &metre_on(&cyl), band()).unwrap();
     let PlaneCylinderSection::TiltedEllipse(Curve3::Ellipse(geom::Ellipse {
@@ -339,10 +342,8 @@ fn wrong_lane_is_typed() {
     let err = plane_cylinder_section(&cyl, &cyl, &metre_on(&cyl), band()).unwrap_err();
     assert!(matches!(err, SectionError::WrongLane { .. }));
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let plane = tilted_plane(0.3, Point3::origin());
     let err = plane_cylinder_section(&plane, &sphere, &metre_on(&sphere), band()).unwrap_err();
@@ -359,10 +360,8 @@ fn crossing_pair(r: f64, gamma: f64) -> (Surface<f64>, Surface<f64>) {
     let a1 = Vec3::new(gamma.sin(), 0.0, gamma.cos());
     let a2 = Vec3::new(-gamma.sin(), 0.0, gamma.cos());
     let mk = |axis: Vec3<f64>| Surface::Cylinder {
-        origin: Point3::origin(),
-        axis,
+        frame: geom::Frame::new(Point3::origin(), axis, Vec3::unit_y()),
         radius: r,
-        u_ref: Vec3::unit_y(),
     };
     (mk(a1), mk(a2))
 }
@@ -396,13 +395,14 @@ fn equal_cylinders_split_into_two_ellipses() {
     // Both are genuine ellipses centered at the axes' intersection.
     for e in [&e1, &e2] {
         let Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame { origin: center, .. },
+            frame: carrier_frame,
             semi_v,
             ..
         }) = e
         else {
             panic!("carrier is an ellipse");
         };
+        let center = carrier_frame.origin();
         assert!(center.x.abs() < 1e-12 && center.y.abs() < 1e-12 && center.z.abs() < 1e-12);
         assert_eq!(*semi_v, 1.5);
     }
@@ -430,10 +430,12 @@ fn radius_equality_is_decided_by_its_margin() {
     // section, the general rung's.
     let (c1, _) = crossing_pair(1.5, 0.6);
     let c2 = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::new(-0.6f64.sin(), 0.0, 0.6f64.cos()),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(-0.6f64.sin(), 0.0, 0.6f64.cos()),
+            Vec3::unit_y(),
+        ),
         radius: 1.75,
-        u_ref: Vec3::unit_y(),
     };
     let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band()).unwrap_err();
     assert!(
@@ -443,10 +445,12 @@ fn radius_equality_is_decided_by_its_margin() {
     // In-band radius difference: escalated (the pair is
     // ill-conditioned at this ε, F6).
     let c2 = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::new(-0.6f64.sin(), 0.0, 0.6f64.cos()),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(-0.6f64.sin(), 0.0, 0.6f64.cos()),
+            Vec3::unit_y(),
+        ),
         radius: 1.5 + 3.0 * eps(),
-        u_ref: Vec3::unit_y(),
     };
     let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band()).unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
@@ -455,8 +459,8 @@ fn radius_equality_is_decided_by_its_margin() {
 #[test]
 fn skew_axes_route_to_rung_3() {
     let (c1, mut c2) = crossing_pair(1.5, 0.6);
-    if let Surface::Cylinder { origin, .. } = &mut c2 {
-        *origin = Point3::new(0.0, 0.5, 0.0); // definitely off-plane
+    if let Surface::Cylinder { frame, .. } = &mut c2 {
+        *frame = frame.with_origin(Point3::new(0.0, 0.5, 0.0)); // definitely off-plane
     }
     let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band()).unwrap_err();
     let SectionError::RoutesToGeneralRung { why, .. } = err else {
@@ -466,8 +470,8 @@ fn skew_axes_route_to_rung_3() {
     assert!(why.contains("have no conic section"), "{why}");
 
     // In-band axis offset: escalated.
-    if let Surface::Cylinder { origin, .. } = &mut c2 {
-        *origin = Point3::new(0.0, 3.0 * eps(), 0.0);
+    if let Surface::Cylinder { frame, .. } = &mut c2 {
+        *frame = frame.with_origin(Point3::new(0.0, 3.0 * eps(), 0.0));
     }
     let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band()).unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
@@ -476,10 +480,12 @@ fn skew_axes_route_to_rung_3() {
 #[test]
 fn parallel_equal_cylinders_trio() {
     let mk = |offset: f64| Surface::Cylinder {
-        origin: Point3::new(offset, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(
+            Point3::new(offset, 0.0, 0.0),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+        ),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let c1 = mk(0.0);
     // Overlapping (gap 1 < 2r = 2): two rulings, on both surfaces.
@@ -523,10 +529,8 @@ fn parallel_equal_cylinders_trio() {
 
 fn cone_z(half_angle: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -537,9 +541,7 @@ fn plane_cone_apex_trio() {
     // (angle from axis < α): two generator lines. Normal ⊥ z would be
     // a plane CONTAINING the axis — definitely two lines.
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        normal: Vec3::unit_x(),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_x(), Vec3::unit_y()),
     };
     let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
     let PlaneConeSection::ApexLinePair { l1, l2 } = s else {
@@ -552,9 +554,9 @@ fn plane_cone_apex_trio() {
         assert_eq!((origin.x, origin.y, origin.z), (0.0, 0.0, 1.0));
         // On the plane and on the cone: dir ⊥ normal, dir at angle α
         // to the axis.
-        assert!(dir.x.abs() < 1e-12, "in-plane");
+        assert!(dir.get().x.abs() < 1e-12, "in-plane");
         assert!(
-            (dir.dot(Vec3::unit_z()) - core::f64::consts::FRAC_PI_6.cos()).abs() < 1e-12,
+            (dir.get().dot(Vec3::unit_z()) - core::f64::consts::FRAC_PI_6.cos()).abs() < 1e-12,
             "generator angle"
         );
     }
@@ -563,13 +565,15 @@ fn plane_cone_apex_trio() {
     // (π/2 − α) from the axis touches the cone along one generator.
     let a = core::f64::consts::FRAC_PI_6;
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        normal: Vec3::new(
-            (core::f64::consts::FRAC_PI_2 - a).sin(),
-            0.0,
-            -(core::f64::consts::FRAC_PI_2 - a).cos(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(
+                (core::f64::consts::FRAC_PI_2 - a).sin(),
+                0.0,
+                -(core::f64::consts::FRAC_PI_2 - a).cos(),
+            ),
+            Vec3::unit_y(),
         ),
-        u_ref: Vec3::unit_y(),
     };
     let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
     let PlaneConeSection::ApexTangentLine(l) = s else {
@@ -580,21 +584,24 @@ fn plane_cone_apex_trio() {
     };
     // The tangent generator lies in the plane.
     assert!(
-        dir.dot(Vec3::new(
-            (core::f64::consts::FRAC_PI_2 - a).sin(),
-            0.0,
-            -(core::f64::consts::FRAC_PI_2 - a).cos()
-        ))
-        .abs()
+        dir.get()
+            .dot(Vec3::new(
+                (core::f64::consts::FRAC_PI_2 - a).sin(),
+                0.0,
+                -(core::f64::consts::FRAC_PI_2 - a).cos()
+            ))
+            .abs()
             < 1e-9,
         "tangent generator in-plane"
     );
     // A shallow plane through the apex (angle from axis > α): the apex
     // point alone.
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        normal: Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
+            Vec3::unit_y(),
+        ),
     };
     let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
     let PlaneConeSection::ApexPoint(p) = s else {
@@ -603,9 +610,11 @@ fn plane_cone_apex_trio() {
     assert_eq!((p.x, p.y, p.z), (0.0, 0.0, 1.0));
     // In-band apex offset: escalated (F6).
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1.0 + 3.0 * eps()),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0 + 3.0 * eps()),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+        ),
     };
     let err = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
@@ -615,25 +624,20 @@ fn plane_cone_apex_trio() {
 fn plane_cone_axis_normal_circle() {
     let cone = cone_z(core::f64::consts::FRAC_PI_6);
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 3.0),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 3.0), Vec3::unit_z(), Vec3::unit_x()),
     };
     let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
     let PlaneConeSection::AxisNormalCircle(c) = s else {
         panic!("expected the circle, got {s:?}");
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            ..
-        },
+        frame: carrier_frame,
         radius,
     }) = c
     else {
         panic!("carrier is a circle");
     };
+    let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
     // h = 2 above the apex ⇒ r = 2·tan 30°.
     assert!((radius - 2.0 * core::f64::consts::FRAC_PI_6.tan()).abs() < 1e-12);
     assert_eq!((center.x, center.y, center.z), (0.0, 0.0, 3.0));
@@ -668,18 +672,14 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
             panic!("phi {phi}: expected the ellipse, got {s:?}");
         };
         let Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame,
             semi_u,
             semi_v,
         }) = e
         else {
             panic!("phi {phi}: the carrier is an ellipse");
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let n = Vec3::new(phi.sin(), 0.0, phi.cos());
         let v_ref = axis.cross(u_ref);
         // Every generator's crossing lies on the carrier.
@@ -773,9 +773,7 @@ fn a_plane_along_the_axis_is_a_hyperbola_wherever_its_origin_sits() {
         Point3::new(-0.03, -2.0, 3.5),
     ] {
         let plane = Surface::Plane {
-            origin,
-            normal: -Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(origin, -Vec3::unit_x(), Vec3::unit_y()),
         };
         let got = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band());
         assert!(
@@ -801,9 +799,7 @@ fn a_needle_cones_plane_along_the_axis_just_off_the_apex_is_a_hyperbola() {
         .into_iter()
         .filter_map(|z| {
             let plane = Surface::Plane {
-                origin: Point3::new(gap, 0.0, z),
-                normal: Vec3::unit_x(),
-                u_ref: Vec3::unit_y(),
+                frame: geom::Frame::new(Point3::new(gap, 0.0, z), Vec3::unit_x(), Vec3::unit_y()),
             };
             match plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()) {
                 Ok(PlaneConeSection::OpenConic(s)) if s.conic() == OpenConic::Hyperbola => None,
@@ -824,16 +820,12 @@ fn a_needle_cones_plane_along_the_axis_just_off_the_apex_is_a_hyperbola() {
 fn coaxial_pair(r: f64, big_r: f64, cz: f64) -> (Surface<f64>, Surface<f64>) {
     (
         Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
             radius: r,
-            u_ref: Vec3::unit_x(),
         },
         Surface::Sphere {
-            center: Point3::new(0.0, 0.0, cz),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, cz), Vec3::unit_z(), Vec3::unit_x()),
             radius: big_r,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         },
     )
 }
@@ -857,27 +849,41 @@ fn posed(s: &Surface<f64>) -> Surface<f64> {
     let m = twin_map();
     match *s {
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin: m.transform_point(origin),
-            axis: m.transform_vec(axis),
-            radius,
-            u_ref: m.transform_vec(u_ref),
-        },
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cylinder {
+                frame: geom::Frame::new(
+                    m.transform_point(origin),
+                    m.transform_vec(axis),
+                    m.transform_vec(u_ref),
+                ),
+                radius,
+            }
+        }
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
-        } => Surface::Sphere {
-            center: m.transform_point(center),
-            radius,
-            axis: m.transform_vec(axis),
-            u_ref: m.transform_vec(u_ref),
-        },
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Sphere {
+                frame: geom::Frame::new(
+                    m.transform_point(center),
+                    m.transform_vec(axis),
+                    m.transform_vec(u_ref),
+                ),
+                radius,
+            }
+        }
         _ => panic!("the coaxial fixture is a cylinder and a sphere"),
     }
 }
@@ -924,15 +930,10 @@ pub(crate) fn cs_circles<T: geom_core::Decide>(s: &PairSection<T>) -> Vec<(Point
         .expect("a counted section")
         .iter()
         .map(|c| match c.carrier {
-            ClassCarrier::Closed(Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
-                radius,
-            })) => (center, axis, radius),
+            ClassCarrier::Closed(Curve3::Circle(geom::Circle { frame, radius })) => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                (center, axis, radius)
+            }
             ref other => panic!("a coaxial circle, got {other:?}"),
         })
         .collect()
@@ -1112,10 +1113,8 @@ fn coaxiality_is_decided_by_the_measured_distance() {
 #[test]
 fn an_off_axis_centre_takes_the_general_rung_and_an_in_band_one_escalates() {
     let off = |dx: f64| Surface::Sphere {
-        center: Point3::new(dx, 0.0, 0.0),
+        frame: geom::Frame::new(Point3::new(dx, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.5,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let cyl = coaxial_pair(1.0, 1.5, 0.0).0;
     for (label, c, s) in [
@@ -1281,15 +1280,19 @@ mod interval {
     fn tilted_ellipse_residuals_enclose_zero_at_interval() {
         let phi = 0.5f64;
         let plane: Surface<Interval> = Surface::Plane {
-            origin: ip(Point3::new(0.0, 0.0, 7.0)),
-            normal: iv(Vec3::new(phi.sin(), 0.0, phi.cos())),
-            u_ref: iv(Vec3::new(phi.cos(), 0.0, -phi.sin())),
+            frame: geom::Frame::new(
+                ip(Point3::new(0.0, 0.0, 7.0)),
+                iv(Vec3::new(phi.sin(), 0.0, phi.cos())),
+                iv(Vec3::new(phi.cos(), 0.0, -phi.sin())),
+            ),
         };
         let cyl: Surface<Interval> = Surface::Cylinder {
-            origin: ip(Point3::new(1.0, 2.0, 3.0)),
-            axis: iv(Vec3::unit_z()),
+            frame: geom::Frame::new(
+                ip(Point3::new(1.0, 2.0, 3.0)),
+                iv(Vec3::unit_z()),
+                iv(Vec3::unit_x()),
+            ),
             radius: Interval::from_f64(2.0),
-            u_ref: iv(Vec3::unit_x()),
         };
         let s = plane_cylinder_section(&plane, &cyl, &metre_on(&cyl), band()).unwrap();
         let PlaneCylinderSection::TiltedEllipse(e) = s else {
@@ -1319,10 +1322,12 @@ mod interval {
         let gamma = 0.6f64;
         let mk = |sign: f64| -> Surface<Interval> {
             Surface::Cylinder {
-                origin: ip(Point3::origin()),
-                axis: iv(Vec3::new(sign * gamma.sin(), 0.0, gamma.cos())),
+                frame: geom::Frame::new(
+                    ip(Point3::origin()),
+                    iv(Vec3::new(sign * gamma.sin(), 0.0, gamma.cos())),
+                    iv(Vec3::unit_y()),
+                ),
                 radius: Interval::from_f64(1.5),
-                u_ref: iv(Vec3::unit_y()),
             }
         };
         let (c1, c2) = (mk(1.0), mk(-1.0));
@@ -1350,10 +1355,8 @@ mod interval {
     fn sphere_sphere_residuals_enclose_zero_at_interval() {
         let mk = |c: Point3<f64>, r: f64| -> Surface<Interval> {
             Surface::Sphere {
-                center: ip(c),
+                frame: geom::Frame::new(ip(c), iv(Vec3::unit_y()), iv(Vec3::unit_x())),
                 radius: Interval::from_f64(r),
-                axis: iv(Vec3::unit_y()),
-                u_ref: iv(Vec3::unit_x()),
             }
         };
         let a = mk(Point3::new(1.0, 2.0, 3.0), 2.0);
@@ -1396,16 +1399,20 @@ mod interval {
     #[test]
     fn cylinder_sphere_coaxial_residuals_enclose_zero_at_interval() {
         let cyl: Surface<Interval> = Surface::Cylinder {
-            origin: ip(Point3::new(0.0, 0.0, 0.0)),
-            axis: iv(Vec3::unit_z()),
+            frame: geom::Frame::new(
+                ip(Point3::new(0.0, 0.0, 0.0)),
+                iv(Vec3::unit_z()),
+                iv(Vec3::unit_x()),
+            ),
             radius: Interval::from_f64(1.0),
-            u_ref: iv(Vec3::unit_x()),
         };
         let sph: Surface<Interval> = Surface::Sphere {
-            center: ip(Point3::new(0.0, 0.0, 0.25)),
+            frame: geom::Frame::new(
+                ip(Point3::new(0.0, 0.0, 0.25)),
+                iv(Vec3::unit_z()),
+                iv(Vec3::unit_x()),
+            ),
             radius: Interval::from_f64(1.5),
-            axis: iv(Vec3::unit_z()),
-            u_ref: iv(Vec3::unit_x()),
         };
         let s = super::cs_section(&cyl, &sph).unwrap();
         let circles = super::cs_circles(&s);
@@ -1486,16 +1493,20 @@ mod interval {
         let delta = 100.0 * band().escalate();
         let big_r = 1.0 + delta;
         let cyl: Surface<Interval> = Surface::Cylinder {
-            origin: ip(Point3::new(0.0, 0.0, 0.0)),
-            axis: iv(Vec3::unit_z()),
+            frame: geom::Frame::new(
+                ip(Point3::new(0.0, 0.0, 0.0)),
+                iv(Vec3::unit_z()),
+                iv(Vec3::unit_x()),
+            ),
             radius: Interval::from_f64(1.0),
-            u_ref: iv(Vec3::unit_x()),
         };
         let sph: Surface<Interval> = Surface::Sphere {
-            center: ip(Point3::new(0.0, 0.0, 0.0)),
+            frame: geom::Frame::new(
+                ip(Point3::new(0.0, 0.0, 0.0)),
+                iv(Vec3::unit_z()),
+                iv(Vec3::unit_x()),
+            ),
             radius: Interval::from_f64(big_r),
-            axis: iv(Vec3::unit_z()),
-            u_ref: iv(Vec3::unit_x()),
         };
         let s = super::cs_section(&cyl, &sph).unwrap();
         let circles = super::cs_circles(&s);
@@ -1554,23 +1565,29 @@ mod interval {
     fn plane_torus_residuals_enclose_zero_at_interval() {
         use geom_brep::intersect::{PlaneTorusSection, plane_torus_section};
         let tor: Surface<Interval> = Surface::Torus {
-            center: ip(Point3::new(1.0, 2.0, 3.0)),
-            axis: iv(Vec3::unit_y()),
+            frame: geom::Frame::new(
+                ip(Point3::new(1.0, 2.0, 3.0)),
+                iv(Vec3::unit_y()),
+                iv(Vec3::unit_x()),
+            ),
             major_radius: Interval::from_f64(0.75),
             minor_radius: Interval::from_f64(0.3),
-            u_ref: iv(Vec3::unit_x()),
         };
         // The axis-containing plane (generic in-xz normal) and the
         // axis-normal plane inside the tube — the f64 rows' twins.
         let meridian: Surface<Interval> = Surface::Plane {
-            origin: ip(Point3::new(1.0, 2.0, 3.0)),
-            normal: iv(Vec3::new(0.6, 0.0, 0.8)),
-            u_ref: iv(Vec3::new(-0.8, 0.0, 0.6)),
+            frame: geom::Frame::new(
+                ip(Point3::new(1.0, 2.0, 3.0)),
+                iv(Vec3::new(0.6, 0.0, 0.8)),
+                iv(Vec3::new(-0.8, 0.0, 0.6)),
+            ),
         };
         let cap: Surface<Interval> = Surface::Plane {
-            origin: ip(Point3::new(1.0, 2.18, 3.0)),
-            normal: iv(Vec3::unit_y()),
-            u_ref: iv(Vec3::unit_x()),
+            frame: geom::Frame::new(
+                ip(Point3::new(1.0, 2.18, 3.0)),
+                iv(Vec3::unit_y()),
+                iv(Vec3::unit_x()),
+            ),
         };
         let m =
             plane_torus_section(&meridian, &tor, fixture_lever(Interval::one()), band()).unwrap();
@@ -1615,16 +1632,16 @@ mod interval {
             (u - axis3 * u.dot(axis3)).normalize()
         };
         let cone: Surface<Interval> = Surface::Cone {
-            apex: ip(Point3::new(1.0, 2.0, 3.0)),
-            axis: iv(axis3),
+            frame: geom::Frame::new(ip(Point3::new(1.0, 2.0, 3.0)), iv(axis3), iv(u3)),
             half_angle: Interval::from_f64((4.0_f64 / 3.0).atan()),
-            u_ref: iv(u3),
         };
         let cyl: Surface<Interval> = Surface::Cylinder {
-            origin: ip(Point3::new(1.0, 2.0, 3.0) + axis3 * 1.7),
-            axis: iv(axis3),
+            frame: geom::Frame::new(
+                ip(Point3::new(1.0, 2.0, 3.0) + axis3 * 1.7),
+                iv(axis3),
+                iv(axis3.cross(u3)),
+            ),
             radius: Interval::from_f64(0.5),
-            u_ref: iv(axis3.cross(u3)),
         };
         let ConeCylinderSection::CoaxialCircles { c1, c2 } =
             cone_cylinder_section(&cone, &cyl, fixture_lever(Interval::one()), band())
@@ -1651,16 +1668,20 @@ mod interval {
     #[test]
     fn coaxiality_is_decided_at_interval() {
         let cyl: Surface<Interval> = Surface::Cylinder {
-            origin: ip(Point3::new(0.0, 0.0, 0.0)),
-            axis: iv(Vec3::unit_z()),
+            frame: geom::Frame::new(
+                ip(Point3::new(0.0, 0.0, 0.0)),
+                iv(Vec3::unit_z()),
+                iv(Vec3::unit_x()),
+            ),
             radius: Interval::from_f64(1.0),
-            u_ref: iv(Vec3::unit_x()),
         };
         let sph: Surface<Interval> = Surface::Sphere {
-            center: ip(Point3::new(0.0, 0.0, 0.0)),
+            frame: geom::Frame::new(
+                ip(Point3::new(0.0, 0.0, 0.0)),
+                iv(Vec3::unit_z()),
+                iv(Vec3::unit_x()),
+            ),
             radius: Interval::from_f64(1.5),
-            axis: iv(Vec3::unit_z()),
-            u_ref: iv(Vec3::unit_x()),
         };
         let s = super::cs_section(&cyl, &sph).unwrap();
         assert!(s.coincidence().is_some(), "decided coaxial at interval");
@@ -1678,16 +1699,16 @@ mod interval {
 fn cc_axes_parallel_in_band_escalates() {
     let s = 3.0 * eps();
     let c1 = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let c2 = Surface::Cylinder {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        axis: Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
+            Vec3::unit_x(),
+        ),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band()).unwrap_err();
     let SectionError::Escalated(diag) = err else {
@@ -1701,10 +1722,12 @@ fn cc_axes_parallel_in_band_escalates() {
 #[test]
 fn cc_coaxial_in_band_escalates() {
     let mk = |offset: f64| Surface::Cylinder {
-        origin: Point3::new(offset, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(
+            Point3::new(offset, 0.0, 0.0),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+        ),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let err = cylinder_cylinder_section(
         &mk(0.0),
@@ -1728,9 +1751,11 @@ fn pn_apex_section_in_band_escalates() {
     let cone = cone_z(a);
     let psi = core::f64::consts::FRAC_PI_2 - a + 3.0 * eps();
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1.0), // through the apex
-        normal: Vec3::new(psi.sin(), 0.0, psi.cos()),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(psi.sin(), 0.0, psi.cos()),
+            Vec3::unit_y(),
+        ),
     };
     let err = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
     let SectionError::Escalated(diag) = err else {
@@ -1749,9 +1774,11 @@ fn pn_axis_normal_in_band_escalates() {
     let rim_r = 2.0 * a.tan(); // h = 2 above the apex
     let s = 3.0 * eps() / rim_r;
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 3.0),
-        normal: Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 3.0),
+            Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
+            Vec3::unit_y(),
+        ),
     };
     let err = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
     let SectionError::Escalated(diag) = err else {
@@ -1766,10 +1793,8 @@ fn pn_axis_normal_in_band_escalates() {
 
 fn sphere_at(c: Point3<f64>, r: f64) -> Surface<f64> {
     Surface::Sphere {
-        center: c,
+        frame: geom::Frame::new(c, Vec3::unit_y(), Vec3::unit_x()),
         radius: r,
-        axis: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -1784,25 +1809,24 @@ fn plane_sphere_cut_is_the_exact_circle_zero_residual() {
     // Deliberately tilted: normal nowhere near a chart axis.
     let n = Vec3::new(1.0, -2.0, 2.0) / 3.0;
     let plane = Surface::Plane {
-        origin: Point3::new(0.5, 1.0, 2.0),
-        normal: n,
-        u_ref: Vec3::new(2.0, 2.0, 1.0) / 3.0,
+        frame: geom::Frame::new(
+            Point3::new(0.5, 1.0, 2.0),
+            n,
+            Vec3::new(2.0, 2.0, 1.0) / 3.0,
+        ),
     };
     let s = plane_sphere_section(&plane, &sph, band()).unwrap();
     let PlaneSphereSection::Circle(c) = s else {
         panic!("expected the circle, got {s:?}");
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            ..
-        },
+        frame: carrier_frame,
         radius,
     }) = c
     else {
         panic!("carrier is a circle");
     };
+    let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let gap = (Point3::new(1.0, 2.0, 3.0) - plane_origin(&plane)).dot(n);
     assert!((radius - (4.0 - gap * gap).sqrt()).abs() < 1e-12);
     assert!(axis.dot(n) > 0.999_999);
@@ -1821,10 +1845,15 @@ fn plane_sphere_cut_is_the_exact_circle_zero_residual() {
 }
 
 fn plane_origin(p: &Surface<f64>) -> Point3<f64> {
-    let Surface::Plane { origin, .. } = p else {
+    let Surface::Plane {
+        frame: carrier_frame,
+        ..
+    } = p
+    else {
         panic!("plane")
     };
-    *origin
+    let origin = carrier_frame.origin();
+    origin
 }
 
 /// The `ps_center_gap` trilean trio: definite cut / exact tangency
@@ -1836,9 +1865,7 @@ fn plane_sphere_gap_trilean_trio() {
     use geom_brep::intersect::{PlaneSphereSection, plane_sphere_section};
     let sph = sphere_at(Point3::new(0.0, 0.0, 0.0), 1.0);
     let plane_z = |z: f64| Surface::Plane {
-        origin: Point3::new(10.0, -3.0, z),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(10.0, -3.0, z), Vec3::unit_z(), Vec3::unit_x()),
     };
     // Definite cut.
     assert!(matches!(
@@ -1882,18 +1909,10 @@ fn sphere_sphere_cut_is_the_exact_circle_zero_residual() {
     let SphereSphereSection::Circle(c) = sphere_sphere_section(&a, &b, band()).unwrap() else {
         panic!("expected the circle");
     };
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        radius,
-    }) = c
-    else {
+    let Curve3::Circle(geom::Circle { frame, radius }) = c else {
         panic!("carrier is a circle");
     };
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let delta = c2 - c1;
     let d = delta.norm();
     let n = delta / d;
@@ -2041,9 +2060,7 @@ fn sphere_sphere_carrier_trilean_trio() {
 
     // Wrong-lane kinds refuse typed, both sides.
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     for (a, b) in [(&plane, &unit), (&unit, &plane)] {
         let err = sphere_sphere_section(a, b, band()).expect_err("wrong lane");
@@ -2058,11 +2075,9 @@ fn sphere_sphere_carrier_trilean_trio() {
 /// A y-axis ring torus, deliberately off the origin.
 fn torus_y(big_r: f64, r: f64) -> Surface<f64> {
     Surface::Torus {
-        center: Point3::new(1.0, 2.0, 3.0),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_y(), Vec3::unit_x()),
         major_radius: big_r,
         minor_radius: r,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -2082,9 +2097,11 @@ fn plane_torus_meridian_cut_is_two_exact_circles_zero_residual() {
     let n = Vec3::new(0.6, 0.0, 0.8);
     let m = n.cross(Vec3::unit_y()).normalize();
     let plane = Surface::Plane {
-        origin: Point3::new(1.0, 2.0, 3.0) + m * 0.4 + Vec3::unit_y() * 0.2,
-        normal: n,
-        u_ref: m,
+        frame: geom::Frame::new(
+            Point3::new(1.0, 2.0, 3.0) + m * 0.4 + Vec3::unit_y() * 0.2,
+            n,
+            m,
+        ),
     };
     let s = plane_torus_section(&plane, &tor, fixture_lever(1.0), band()).unwrap();
     let PlaneTorusSection::MeridianCircles { c1, c2 } = s else {
@@ -2093,17 +2110,17 @@ fn plane_torus_meridian_cut_is_two_exact_circles_zero_residual() {
     let centre = Point3::new(1.0, 2.0, 3.0);
     for (which, c, sign) in [("c1", &c1, 1.0), ("c2", &c2, -1.0)] {
         let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame: carrier_frame,
             radius,
         }) = *c
         else {
             panic!("{which}: carrier is a circle");
         };
+        let (center, axis, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         assert!((radius - r).abs() < 1e-15, "{which}: minor radius");
         assert!(
             (center - (centre + m * (sign * big_r))).norm() < 1e-15,
@@ -2138,11 +2155,11 @@ fn plane_torus_axis_normal_cut_is_two_concentric_circles_zero_residual() {
     let (big_r, r, h) = (0.75, 0.3, 0.18);
     let tor = torus_y(big_r, r);
     let plane = Surface::Plane {
-        // Origin deliberately off the axis; only the station along the
-        // normal matters.
-        origin: Point3::new(4.0, 2.0 + h, -1.0),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(4.0, 2.0 + h, -1.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+        ),
     };
     let s = plane_torus_section(&plane, &tor, fixture_lever(1.0), band()).unwrap();
     let PlaneTorusSection::ConcentricCircles { c1, c2 } = s else {
@@ -2152,17 +2169,17 @@ fn plane_torus_axis_normal_cut_is_two_concentric_circles_zero_residual() {
     let centre = Point3::new(1.0, 2.0 + h, 3.0);
     for (which, c, want_r) in [("outer", &c1, big_r + w), ("inner", &c2, big_r - w)] {
         let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame: carrier_frame,
             radius,
         }) = *c
         else {
             panic!("{which}: carrier is a circle");
         };
+        let (center, axis, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         assert!((radius - want_r).abs() < 1e-15, "{which}: radius R ± w");
         assert!(
             (center - centre).norm() < 1e-15,
@@ -2201,9 +2218,11 @@ fn plane_torus_cap_gap_trilean_trio() {
     let (big_r, r) = (0.75, 0.3);
     let tor = torus_y(big_r, r);
     let plane_at = |h: f64| Surface::Plane {
-        origin: Point3::new(1.0, 2.0 + h, 3.0),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 2.0 + h, 3.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+        ),
     };
     // Definite cut.
     assert!(matches!(
@@ -2215,13 +2234,10 @@ fn plane_torus_cap_gap_trilean_trio() {
     let PlaneTorusSection::TangentCircle(c) = s else {
         panic!("expected the tangency circle, got {s:?}");
     };
-    let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: center, .. },
-        radius,
-    }) = c
-    else {
+    let Curve3::Circle(geom::Circle { frame, radius }) = c else {
         panic!("carrier is a circle");
     };
+    let center = frame.origin();
     assert!((radius - big_r).abs() < 1e-15);
     assert!((center - Point3::new(1.0, 2.0 + r, 3.0)).norm() < 1e-15);
     // The tangency circle IS on the torus (residual zero) — it is
@@ -2257,18 +2273,22 @@ fn plane_torus_axis_parallel_off_axis_is_two_spiric_ovals() {
     let tor = torus_y(0.75, 0.3);
     // Off the axis by 0.1 m along `+x`; `a × n = y × x = −z`.
     let off = Surface::Plane {
-        origin: Point3::new(1.1, 2.0, 3.0),
-        normal: Vec3::unit_x(),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(1.1, 2.0, 3.0), Vec3::unit_x(), Vec3::unit_y()),
     };
     let s = plane_torus_section(&off, &tor, fixture_lever(1.0), band()).expect("the spiric arm");
     let PlaneTorusSection::SpiricOvals { s1, s2 } = s else {
         panic!("expected the two spiric ovals, got {s:?}");
     };
     for (oval, side) in [(&s1, -1.0), (&s2, 1.0)] {
-        let Curve3::Spiric { offset, u_ref, .. } = *oval else {
+        let Curve3::Spiric {
+            frame: carrier_frame,
+            offset,
+            ..
+        } = *oval
+        else {
             panic!("a spiric oval, got {oval:?}");
         };
+        let u_ref = carrier_frame.u_ref();
         assert!(
             (offset * u_ref.x - 0.1).abs() < 1e-15,
             "the stand-off along x"
@@ -2295,9 +2315,7 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
     let tor = torus_y(0.75, 0.3);
     // Axis-parallel, exactly at the inner equator: the node.
     let off = Surface::Plane {
-        origin: Point3::new(1.45, 2.0, 3.0),
-        normal: Vec3::unit_x(),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(1.45, 2.0, 3.0), Vec3::unit_x(), Vec3::unit_y()),
     };
     let err = plane_torus_section(&off, &tor, fixture_lever(1.0), band()).expect_err("node plane");
     let SectionError::RoutesToGeneralRung { pair, why } = err else {
@@ -2311,9 +2329,7 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
     // Generic tilt — the Villarceau band's own angle family included.
     let n = Vec3::new(0.6, 0.8, 0.0);
     let tilted = Surface::Plane {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        normal: n,
-        u_ref: Vec3::new(0.8, -0.6, 0.0),
+        frame: geom::Frame::new(Point3::new(1.0, 2.0, 3.0), n, Vec3::new(0.8, -0.6, 0.0)),
     };
     let err =
         plane_torus_section(&tilted, &tor, fixture_lever(1.0), band()).expect_err("tilted plane");
@@ -2328,9 +2344,11 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
     // extent 1).
     let s = 3.0 * eps();
     let almost_in_plane = Surface::Plane {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        normal: Vec3::new((1.0 - s * s).sqrt(), s, 0.0),
-        u_ref: Vec3::unit_z(),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::new((1.0 - s * s).sqrt(), s, 0.0),
+            Vec3::unit_z(),
+        ),
     };
     let err = plane_torus_section(&almost_in_plane, &tor, fixture_lever(1.0), band())
         .expect_err("in-band axis angle must escalate");
@@ -2341,9 +2359,11 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
     // In-band on `pt_axis_plane_gap`: axis-parallel plane 3ε off
     // containing.
     let near_containing = Surface::Plane {
-        origin: Point3::new(1.0 + s, 2.0, 3.0),
-        normal: Vec3::unit_x(),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(1.0 + s, 2.0, 3.0),
+            Vec3::unit_x(),
+            Vec3::unit_y(),
+        ),
     };
     let err = plane_torus_section(&near_containing, &tor, fixture_lever(1.0), band())
         .expect_err("in-band containment gap must escalate");
@@ -2355,9 +2375,11 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
     // axis (sine levered at R + r ⇒ margin 3ε·(1 + r/R)).
     let t = 3.0 * eps() / 0.75;
     let almost_normal = Surface::Plane {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        normal: Vec3::new(t, (1.0 - t * t).sqrt(), 0.0),
-        u_ref: Vec3::unit_z(),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::new(t, (1.0 - t * t).sqrt(), 0.0),
+            Vec3::unit_z(),
+        ),
     };
     let err = plane_torus_section(&almost_normal, &tor, fixture_lever(1.0), band())
         .expect_err("in-band axis-normal sine must escalate");
@@ -2390,9 +2412,7 @@ fn torus_refusal(err: &SectionError) -> (TorusConvention, Option<bool>) {
 fn plane_torus_ring_guard_and_wrong_lane() {
     use geom_brep::intersect::plane_torus_section;
     let plane = Surface::Plane {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_y(), Vec3::unit_x()),
     };
     for (what, tor, decided) in [
         ("spindle", torus_y(0.3, 0.75), Some(true)),
@@ -2439,14 +2459,14 @@ fn plane_torus_ring_guard_and_wrong_lane() {
 fn plane_torus_tube_guard_refuses_nonpositive_minor_radius() {
     use geom_brep::intersect::plane_torus_section;
     let meridian = Surface::Plane {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        normal: Vec3::new(0.6, 0.0, 0.8),
-        u_ref: Vec3::new(-0.8, 0.0, 0.6),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::new(0.6, 0.0, 0.8),
+            Vec3::new(-0.8, 0.0, 0.6),
+        ),
     };
     let cap = Surface::Plane {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_y(), Vec3::unit_x()),
     };
     for (what, tor, plane, negative) in [
         ("r < 0, meridian pose", torus_y(0.75, -0.3), &meridian, true),
@@ -2497,9 +2517,7 @@ fn the_ring_guard_ends_each_half_in_its_lever() {
     let (z, e) = (b.zero(), b.escalate());
     let mid = (z + e) / 2.0;
     let plane = Surface::Plane {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_y(), Vec3::unit_x()),
     };
     let reach = Reach::of_frame(Point3::new(1.0, 2.0, 3.0), (1.0, 1.0));
     for (what, tor, half, lever) in [
@@ -2557,9 +2575,11 @@ fn plane_torus_negative_station_pins_the_centre_sign() {
     let (big_r, r, h) = (0.75, 0.3, -0.18);
     let tor = torus_y(big_r, r);
     let plane_at = |h: f64| Surface::Plane {
-        origin: Point3::new(1.0, 2.0 + h, 3.0),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 2.0 + h, 3.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+        ),
     };
     let s = plane_torus_section(&plane_at(h), &tor, fixture_lever(1.0), band()).unwrap();
     let PlaneTorusSection::ConcentricCircles { c1, c2 } = s else {
@@ -2569,12 +2589,13 @@ fn plane_torus_negative_station_pins_the_centre_sign() {
     let w = (r * r - h * h).sqrt();
     for (which, c, want_r) in [("outer", &c1, big_r + w), ("inner", &c2, big_r - w)] {
         let Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
+            frame: carrier_frame,
             radius,
         }) = *c
         else {
             panic!("{which}: carrier is a circle");
         };
+        let center = carrier_frame.origin();
         assert!((radius - want_r).abs() < 1e-15, "{which}: radius R ± w");
         assert!(
             (center - centre).norm() < 1e-15,
@@ -2598,12 +2619,13 @@ fn plane_torus_negative_station_pins_the_centre_sign() {
         panic!("expected the tangency circle, got {s:?}");
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: center, .. },
+        frame: carrier_frame,
         radius,
     }) = c
     else {
         panic!("carrier is a circle");
     };
+    let center = carrier_frame.origin();
     assert!((radius - big_r).abs() < 1e-15);
     assert!(
         (center - Point3::new(1.0, 2.0 - r, 3.0)).norm() < 1e-15,
@@ -2629,9 +2651,11 @@ fn plane_torus_levers_are_live_at_non_unit_arms() {
     // why no plane residual is asserted.)
     let tor = torus_y(0.75, 0.3);
     let almost_in_plane = Surface::Plane {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        normal: Vec3::new((1.0 - s * s).sqrt(), s, 0.0),
-        u_ref: Vec3::unit_z(),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::new((1.0 - s * s).sqrt(), s, 0.0),
+            Vec3::unit_z(),
+        ),
     };
     let m = plane_torus_section(&almost_in_plane, &tor, fixture_lever(0.01), band()).unwrap();
     assert!(
@@ -2644,9 +2668,11 @@ fn plane_torus_levers_are_live_at_non_unit_arms() {
     // Delevered, the raw 3ε sine would escalate.
     let small = torus_y(0.2, 0.05);
     let almost_normal = Surface::Plane {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        normal: Vec3::new(s, (1.0 - s * s).sqrt(), 0.0),
-        u_ref: Vec3::unit_z(),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::new(s, (1.0 - s * s).sqrt(), 0.0),
+            Vec3::unit_z(),
+        ),
     };
     let c = plane_torus_section(&almost_normal, &small, fixture_lever(1.0), band()).unwrap();
     assert!(
@@ -2665,10 +2691,8 @@ fn plane_torus_levers_are_live_at_non_unit_arms() {
 /// residual is the arm's own, not the fixture's.
 fn cone_43(apex: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
     Surface::Cone {
-        apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, u_ref),
         half_angle: (4.0_f64 / 3.0).atan(),
-        u_ref,
     }
 }
 
@@ -2698,15 +2722,11 @@ fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
     let (apex, axis, u_ref) = cc_frame();
     let unit_cone = cone_43(apex, axis, u_ref);
     let cyl = Surface::Cylinder {
-        origin: apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, u_ref),
         radius: 0.5,
-        u_ref,
     };
     let plane = Surface::Plane {
-        origin: apex + axis * 0.8,
-        normal: axis,
-        u_ref,
+        frame: geom::Frame::new(apex + axis * 0.8, axis, u_ref),
     };
     let leaning = |tilt: f64| u_ref * (1.0 - tilt * tilt).sqrt() + axis * tilt;
     for (which, stored_axis, seam) in [
@@ -2728,13 +2748,10 @@ fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
             ("cylinder c2", &c2, &cyl),
             ("plane", &c3, &plane),
         ] {
-            let Curve3::Circle(geom::Circle {
-                frame: geom::Frame { u_ref: c_u, .. },
-                ..
-            }) = *c
-            else {
+            let Curve3::Circle(geom::Circle { frame, .. }) = *c else {
                 panic!("{which}, {arm}: carrier is a circle");
             };
+            let c_u = frame.u_ref();
             assert!(
                 c_u.dot(axis).abs() < 3.0 * f64::EPSILON,
                 "{which}, {arm}: the seam leans {:e} along the axis",
@@ -2781,10 +2798,8 @@ fn cone_cylinder_coaxial_cut_is_two_exact_circles_zero_residual() {
     // The cylinder's own origin is slid ALONG the shared axis and its
     // seam is unrelated to the cone's: neither may reach the answer.
     let cyl = Surface::Cylinder {
-        origin: apex + axis * 1.7,
-        axis,
+        frame: geom::Frame::new(apex + axis * 1.7, axis, axis.cross(u_ref)),
         radius: big_r,
-        u_ref: axis.cross(u_ref),
     };
     let s = cone_cylinder_section(&cone, &cyl, fixture_lever(1.0), band()).unwrap();
     // `CoaxialCircles` is the arm's only live variant, so this pattern
@@ -2794,18 +2809,10 @@ fn cone_cylinder_coaxial_cut_is_two_exact_circles_zero_residual() {
     let ConeCylinderSection::CoaxialCircles { c1, c2 } = s;
     let station = big_r * 0.75;
     for (which, c, sign) in [("c1", &c1, 1.0), ("c2", &c2, -1.0)] {
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis: c_axis,
-                    u_ref: c_u,
-                },
-            radius,
-        }) = *c
-        else {
+        let Curve3::Circle(geom::Circle { frame, radius }) = *c else {
             panic!("{which}: carrier is a circle");
         };
+        let (center, c_axis, c_u) = (frame.origin(), frame.axis(), frame.u_ref());
         assert!(
             (radius - big_r).abs() < 1e-15,
             "{which}: the cylinder's own radius"
@@ -2853,10 +2860,8 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
     let (apex, axis, u_ref) = cc_frame();
     let cone = cone_43(apex, axis, u_ref);
     let cyl_at = |origin: Point3<f64>, b: Vec3<f64>| Surface::Cylinder {
-        origin,
-        axis: b,
+        frame: geom::Frame::new(origin, b, (u_ref - b * u_ref.dot(b)).normalize()),
         radius: 0.5,
-        u_ref: (u_ref - b * u_ref.dot(b)).normalize(),
     };
     // Tilted: 0.3 rad off the shared axis.
     let tilted = cyl_at(
@@ -2891,18 +2896,10 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
     let ConeCylinderSection::CoaxialCircles { c1, .. } =
         cone_cylinder_section(&cone, &anti, fixture_lever(1.0), band())
             .expect("an antiparallel coaxial cylinder still cuts");
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis: c_axis,
-                ..
-            },
-        ..
-    }) = c1
-    else {
+    let Curve3::Circle(geom::Circle { frame, .. }) = c1 else {
         panic!("carrier is a circle");
     };
+    let (center, c_axis) = (frame.origin(), frame.axis());
     assert!(
         (center - (apex + axis * 0.375)).norm() < 1e-15,
         "the cone's own nappe convention decides c1, not the cylinder's axis sign"
@@ -2946,16 +2943,12 @@ fn cone_cylinder_convention_guards_and_wrong_lane() {
     let (apex, axis, u_ref) = cc_frame();
     let cone = cone_43(apex, axis, u_ref);
     let cyl_r = |radius: f64| Surface::Cylinder {
-        origin: apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, axis.cross(u_ref)),
         radius,
-        u_ref: axis.cross(u_ref),
     };
     let cone_at = |half_angle: f64| Surface::Cone {
-        apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, u_ref),
         half_angle,
-        u_ref,
     };
     // A radius decided zero or negative is degenerate; a half-angle
     // decided `Zero` at its convention's edge stands at the band.
@@ -3046,9 +3039,7 @@ fn cone_cylinder_convention_guards_and_wrong_lane() {
 /// A plane, for the wrong-lane row's second-operand seat.
 fn plane_xy() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
     }
 }
 
@@ -3065,10 +3056,12 @@ fn cone_cylinder_parallel_lever_is_live_at_a_non_unit_arm() {
     // margin 3ε), definitely tilted at extent 100 (300ε).
     let t = 3.0 * eps();
     let cyl = Surface::Cylinder {
-        origin: apex,
-        axis: (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize(),
+        frame: geom::Frame::new(
+            apex,
+            (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize(),
+            axis.cross(u_ref),
+        ),
         radius: 0.5,
-        u_ref: axis.cross(u_ref),
     };
     let err = cone_cylinder_section(&cone, &cyl, fixture_lever(100.0), band())
         .expect_err("tilted at extent 100");
@@ -3084,10 +3077,12 @@ fn cone_cylinder_parallel_lever_is_live_at_a_non_unit_arm() {
     // `R·cot α` has to stay inside it; that is `coc_station_reach`
     // doing its job, and the row below is where IT is pinned.
     let small = Surface::Cylinder {
-        origin: apex,
-        axis: (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize(),
+        frame: geom::Frame::new(
+            apex,
+            (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize(),
+            axis.cross(u_ref),
+        ),
         radius: 0.002,
-        u_ref: axis.cross(u_ref),
     };
     let ConeCylinderSection::CoaxialCircles { c1, c2 } =
         cone_cylinder_section(&cone, &small, fixture_lever(0.01), band())
@@ -3113,10 +3108,12 @@ fn cone_cylinder_parallel_lever_is_linear_in_the_extent() {
     let cone = cone_43(apex, axis, u_ref);
     let t = 30.0 * eps();
     let cyl = Surface::Cylinder {
-        origin: apex,
-        axis: (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize(),
+        frame: geom::Frame::new(
+            apex,
+            (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize(),
+            axis.cross(u_ref),
+        ),
         radius: 0.002,
-        u_ref: axis.cross(u_ref),
     };
     let err = cone_cylinder_section(&cone, &cyl, fixture_lever(1.0), band())
         .expect_err("definite at extent 1");
@@ -3143,16 +3140,12 @@ fn cone_cylinder_aperture_guard_is_levered() {
     use geom_brep::intersect::cone_cylinder_section;
     let (apex, axis, u_ref) = cc_frame();
     let cone = Surface::Cone {
-        apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, u_ref),
         half_angle: (30.0 * eps()).asin(),
-        u_ref,
     };
     let cyl = Surface::Cylinder {
-        origin: apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, axis.cross(u_ref)),
         radius: 0.002,
-        u_ref: axis.cross(u_ref),
     };
     let err = cone_cylinder_section(&cone, &cyl, fixture_lever(0.1), band())
         .expect_err("the in-band aperture must escalate");
@@ -3180,16 +3173,12 @@ fn cone_cylinder_station_reach_is_the_admission_criterion() {
     use geom_brep::intersect::{ConeCylinderSection, cone_cylinder_section};
     let (apex, axis, u_ref) = cc_frame();
     let cyl_r = |radius: f64| Surface::Cylinder {
-        origin: apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, axis.cross(u_ref)),
         radius,
-        u_ref: axis.cross(u_ref),
     };
     let cone_at = |half_angle: f64| Surface::Cone {
-        apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, u_ref),
         half_angle,
-        u_ref,
     };
     // Row 1: the well-posed pose. Station 0.375 inside extent 1.
     let ConeCylinderSection::CoaxialCircles { c1, .. } = cone_cylinder_section(
@@ -3199,13 +3188,10 @@ fn cone_cylinder_station_reach_is_the_admission_criterion() {
         band(),
     )
     .expect("a station well inside the reach mints");
-    let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: center, .. },
-        ..
-    }) = c1
-    else {
+    let Curve3::Circle(geom::Circle { frame, .. }) = c1 else {
         panic!("carrier is a circle");
     };
+    let center = frame.origin();
     assert!(
         (center - (apex + axis * 0.375)).norm() < 1e-15,
         "row 1's station"

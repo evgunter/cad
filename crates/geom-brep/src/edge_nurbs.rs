@@ -938,7 +938,10 @@ impl<'a, T: Real> Partner<'a, T> {
     /// and a spline is a wall.
     fn of(s: &'a Surface<T>) -> Option<Self> {
         match s {
-            Surface::Plane { normal, .. } => Some(Self::Plane(*normal)),
+            Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
+                Some(Self::Plane(normal))
+            }
             Surface::Sphere { .. } | Surface::Cylinder { .. } | Surface::Torus { .. } => {
                 Some(Self::Curved(s))
             }
@@ -1303,11 +1306,8 @@ pub fn arc_rim_measured<T: Decide>(
     let (Curve3::Circle(circle), Some(turn)) = (carrier, carrier.period()) else {
         return Vec::new();
     };
-    let geom::Frame {
-        origin: center,
-        axis,
-        u_ref,
-    } = circle.frame;
+    let frame = circle.frame;
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let vref = axis.cross(u_ref);
     let spans = arc_rim_spans(chart);
     arc_rim_images(chart, |end, forward| {
@@ -2468,9 +2468,15 @@ fn line_plane_ends<T: geom_core::CertifiedBounds>(
     let lift = geom_core::Interval::from_certified;
     let vec = |v: geom_core::Vec3<T>| geom_core::Vec3::new(lift(v.x), lift(v.y), lift(v.z));
     match (carrier, operand) {
-        (Curve3::Line(geom::Line { origin: q, dir }), Surface::Plane { origin, normal, .. }) => {
-            let (q, d) = (vec(*q - geom_core::Point3::origin()), vec(*dir));
-            let (o, n) = (vec(*origin - geom_core::Point3::origin()), vec(*normal));
+        (
+            Curve3::Line(geom::Line { origin: q, dir }),
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+        ) => {
+            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
+            let (q, d) = (vec(*q - geom_core::Point3::origin()), vec((*dir).get()));
+            let (o, n) = (vec(origin - geom_core::Point3::origin()), vec(normal));
             let lever = n.norm();
             Some([params.0, params.1].map(|t| ((q + d * lift(t) - o).dot(n), lever)))
         }
@@ -4342,15 +4348,19 @@ mod tests {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let lift = Interval::from_f64;
         let floor = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
         .map_scalar(lift);
         let wall = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
         .map_scalar(lift);
         let edge = |d: f64| {
@@ -4398,9 +4408,11 @@ mod tests {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let lift = Interval::from_f64;
         let wall = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
         .map_scalar(lift);
         // Off the wall by 1e-6 at t = 0 and by 3e-6 at t = 1.
@@ -4451,14 +4463,18 @@ mod tests {
         use geom_core::{Point3, Vec3};
         let band = geom_core::Band::new(1e-12, 1e-11).unwrap();
         let tilted = Surface::Plane {
-            origin: Point3::new(300.25, -700.5, 0.0),
-            normal: Vec3::new(0.6, 0.8, 0.0),
-            u_ref: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(300.25, -700.5, 0.0),
+                Vec3::new(0.6, 0.8, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+            ),
         };
         let floor = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let line = Curve3::line(
             Point3::new(-402.5061327433079, -173.4329004425178, 0.0),
@@ -4467,9 +4483,10 @@ mod tests {
         // The f64 reading the old rule took sits inside the band.
         for t in [0.0, 1.0] {
             let p = line.eval(t);
-            let Surface::Plane { origin, normal, .. } = tilted else {
+            let Surface::Plane { frame, .. } = tilted else {
                 unreachable!()
             };
+            let (origin, normal) = (frame.origin(), frame.axis());
             let read = (p - origin).dot(normal).abs() / normal.norm();
             assert!(
                 read <= band.zero(),
@@ -4510,14 +4527,18 @@ mod tests {
         let y0 = 1e-9 + 2e-16;
         assert!(y0 > band.zero());
         let wall = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let floor = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, y0, 0.0));
         let escalates = |got: &Result<(), AnalyticRung3Refusal>| {
@@ -4559,15 +4580,19 @@ mod tests {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let lift = Interval::from_f64;
         let wall = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
         .map_scalar(lift);
         let floor = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
         .map_scalar(lift);
         let line = Curve3::line(
@@ -4640,9 +4665,11 @@ mod tests {
     /// lies on it.
     fn wall() -> geom::Surface<SymI> {
         geom::Surface::Plane {
-            origin: point(0.0, 0.0, lit(0.0)),
-            normal: direction(0.0, 1.0, 0.0),
-            u_ref: direction(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                point(0.0, 0.0, lit(0.0)),
+                direction(0.0, 1.0, 0.0),
+                direction(1.0, 0.0, 0.0),
+            ),
         }
     }
 
@@ -4662,9 +4689,11 @@ mod tests {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let (result, limb2) = over_the_box(|a| {
             let floor = geom::Surface::Plane {
-                origin: point(0.0, 0.0, a),
-                normal: direction(0.0, 0.0, 1.0),
-                u_ref: direction(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    point(0.0, 0.0, a),
+                    direction(0.0, 0.0, 1.0),
+                    direction(1.0, 0.0, 0.0),
+                ),
             };
             let line = geom::Curve3::line(point(0.0, 0.0, a), direction(1.0, 0.0, 0.0));
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
@@ -4692,15 +4721,19 @@ mod tests {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let (result, limb2) = over_the_box(|a| {
             let wall = geom::Surface::Cylinder {
-                origin: point(0.0, 0.0, lit(0.0)),
-                axis: direction(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    point(0.0, 0.0, lit(0.0)),
+                    direction(0.0, 0.0, 1.0),
+                    direction(1.0, 0.0, 0.0),
+                ),
                 radius: a,
-                u_ref: direction(1.0, 0.0, 0.0),
             };
             let floor = geom::Surface::Plane {
-                origin: point(0.0, 0.0, lit(0.0)),
-                normal: direction(0.0, 0.0, 1.0),
-                u_ref: direction(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    point(0.0, 0.0, lit(0.0)),
+                    direction(0.0, 0.0, 1.0),
+                    direction(1.0, 0.0, 0.0),
+                ),
             };
             let rim = geom::Curve3::circle(
                 point(0.0, 0.0, lit(0.0)),
@@ -4733,9 +4766,11 @@ mod tests {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let (result, limb2) = over_the_box(|a| {
             let floor = geom::Surface::Plane {
-                origin: point(0.0, 0.0, lit(1.0)),
-                normal: direction(0.0, 0.0, 1.0),
-                u_ref: direction(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    point(0.0, 0.0, lit(1.0)),
+                    direction(0.0, 0.0, 1.0),
+                    direction(1.0, 0.0, 0.0),
+                ),
             };
             let line = geom::Curve3::line(point(0.0, 0.0, a), direction(1.0, 0.0, 0.0));
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
@@ -4766,9 +4801,11 @@ mod tests {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let (result, limb2) = over_the_box(|a| {
             let floor = geom::Surface::Plane {
-                origin: point(0.0, 0.0, lit(1.0)),
-                normal: direction(0.0, 0.0, 1.0),
-                u_ref: direction(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    point(0.0, 0.0, lit(1.0)),
+                    direction(0.0, 0.0, 1.0),
+                    direction(1.0, 0.0, 0.0),
+                ),
             };
             let rim = geom::Curve3::circle(
                 point(0.0, 0.0, a),

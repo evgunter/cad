@@ -21,10 +21,8 @@ fn band() -> Band {
 fn wall(origin: Point3<f64>, axis: Vec3<f64>, r: f64) -> Surface<f64> {
     let axis = axis.normalize();
     Surface::Cylinder {
-        origin,
-        axis,
+        frame: geom::Frame::new(origin, axis, axis.orthonormal_basis().0),
         radius: r,
-        u_ref: axis.orthonormal_basis().0,
     }
 }
 
@@ -823,7 +821,7 @@ fn ruling_lines(section: &PairSection<f64>) -> Vec<(Point3<f64>, Vec3<f64>)> {
             ClassCarrier::Span {
                 curve: geom::Curve3::Line(geom::Line { origin, dir }),
                 ..
-            } => (*origin, dir.normalize()),
+            } => (*origin, dir.get().normalize()),
             other => panic!("a parallel pair's component is a ruling, not {other:?}"),
         })
         .collect()
@@ -930,14 +928,14 @@ fn the_parallel_rulings_are_read_at_the_region_wherever_an_origin_is_stored() {
 /// The cylinder `s`'s axis, unit, and radius.
 fn axis_of(s: &Surface<f64>) -> (Point3<f64>, Vec3<f64>, f64) {
     let Surface::Cylinder {
-        origin,
-        axis,
+        frame: carrier_frame,
         radius,
         ..
     } = *s
     else {
         panic!("a cylinder: {s:?}")
     };
+    let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
     (origin, axis.normalize(), radius)
 }
 

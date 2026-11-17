@@ -31,14 +31,10 @@ fn certify_pose(r: f64, s: f64, reversed: bool) -> (SurfaceKey, Result<(), Certi
     let e = eps();
     let (keys, lookup) = table(vec![
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         },
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_y(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
         },
     ]);
     let near = Point3::origin();

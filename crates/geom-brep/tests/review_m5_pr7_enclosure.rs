@@ -105,16 +105,20 @@ fn sph_enclosure(center: Point3<f64>, r: f64, b: B3) -> Interval {
 #[test]
 fn enclosures_contain_every_sampled_residual_hence_exclusion_cannot_lie() {
     let sph = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.03, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.03, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.08,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let mut rng = fuzz::start("review_m5_pr7_enclosure::enclosures_contain_residuals");
     // Random boxes across the slab, plus boxes planted ON the locus
@@ -153,10 +157,13 @@ fn enclosures_contain_every_sampled_residual_hence_exclusion_cannot_lie() {
             z: Interval::from_bounds(c.z - r, c.z + r),
         };
         let (
-            Surface::Sphere { center, radius, .. },
+            Surface::Sphere {
+                frame: sphere_frame,
+                radius,
+                ..
+            },
             Surface::Cylinder {
-                origin,
-                axis,
+                frame: cylinder_frame,
                 radius: cr,
                 ..
             },
@@ -164,8 +171,10 @@ fn enclosures_contain_every_sampled_residual_hence_exclusion_cannot_lie() {
         else {
             unreachable!()
         };
-        let es = sph_enclosure(*center, *radius, b);
-        let ec = cyl_enclosure_good(*origin, *axis, *cr, b);
+        let center = sphere_frame.origin();
+        let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
+        let es = sph_enclosure(center, *radius, b);
+        let ec = cyl_enclosure_good(origin, axis, *cr, b);
         assert!(
             es.is_certified() && ec.is_certified(),
             "enclosure refused on box centre {c:?} — {}",

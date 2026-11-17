@@ -31,19 +31,15 @@ fn wall(n: NurbsSurface<f64>) -> Surface<f64> {
 
 fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
 /// The cylinder of `radius` about the `z`-parallel line through `origin`.
 fn cylinder(origin: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(origin, Vec3::unit_z(), Vec3::unit_x()),
         radius,
     }
 }
@@ -51,9 +47,7 @@ fn cylinder(origin: Point3<f64>, radius: f64) -> Surface<f64> {
 /// The ring torus about the `z` axis through the origin.
 fn torus(major: f64, minor: f64) -> Surface<f64> {
     Surface::Torus {
-        center: pt(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(pt(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: major,
         minor_radius: minor,
     }
@@ -914,18 +908,14 @@ fn a_small_partner_resting_on_a_saddle_touches_it() {
         (
             "cylinder",
             Surface::Cylinder {
-                origin: pt(0.5, 0.0, r),
-                axis: Vec3::unit_y(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(pt(0.5, 0.0, r), Vec3::unit_y(), Vec3::unit_x()),
                 radius: r,
             },
         ),
         (
             "torus",
             Surface::Torus {
-                center: pt(0.5, 0.5, 1.0 + r),
-                axis: Vec3::unit_x(),
-                u_ref: Vec3::unit_y(),
+                frame: geom::Frame::new(pt(0.5, 0.5, 1.0 + r), Vec3::unit_x(), Vec3::unit_y()),
                 major_radius: 1.0,
                 minor_radius: r,
             },

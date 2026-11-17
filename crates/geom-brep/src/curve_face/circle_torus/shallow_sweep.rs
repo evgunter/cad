@@ -68,11 +68,13 @@ impl Pose {
     fn torus<T: Real>(&self) -> geom::Surface<T> {
         let axis = Vec3::from_array(self.t_axis);
         geom::Surface::Torus {
-            center: p3(self.t_center),
-            axis: v3(self.t_axis),
+            frame: geom::Frame::new(
+                p3(self.t_center),
+                v3(self.t_axis),
+                v3(axis.orthonormal_basis().0.to_array()),
+            ),
             major_radius: T::from_f64(self.big),
             minor_radius: T::from_f64(self.small),
-            u_ref: v3(axis.orthonormal_basis().0.to_array()),
         }
     }
 

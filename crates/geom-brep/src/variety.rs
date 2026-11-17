@@ -175,11 +175,9 @@ mod rows {
 
     fn torus(major_radius: f64, minor_radius: f64) -> Surface<f64> {
         Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius,
             minor_radius,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -193,27 +191,19 @@ mod rows {
         let (x, z) = (Vec3::unit_x(), Vec3::unit_z());
         let admitted = [
             Surface::Plane {
-                origin: o,
-                normal: z,
-                u_ref: x,
+                frame: geom::Frame::new(o, z, x),
             },
             Surface::Cylinder {
-                origin: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 radius: 1.0,
-                u_ref: x,
             },
             Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, z, x),
                 radius: 1.0,
-                u_ref: x,
-                axis: z,
             },
             Surface::Cone {
-                apex: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 half_angle: 0.5,
-                u_ref: x,
             },
             torus(2.0, 1.0),
         ];
@@ -227,11 +217,9 @@ mod rows {
             torus(1.0, 1.0),
             torus(0.5, 1.0),
             Surface::Spindle {
-                center: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 major_radius: 0.5,
                 minor_radius: 1.0,
-                u_ref: x,
             },
         ];
         for s in &refused {
@@ -275,10 +263,8 @@ mod rows {
     #[test]
     fn one_point_off_reads_the_piece_off() {
         let cyl = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let variety = Variety::of(&cyl, ROW_RING, band()).unwrap().unwrap();
         let (on, off) = (Point3::new(1.0, 0.0, 0.5), Point3::new(2.0, 0.0, 0.5));
