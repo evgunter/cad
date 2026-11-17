@@ -2,7 +2,7 @@
 //! verdict, on every kind the `Rest` table names ([`carrier_pair_relation`],
 //! [`carrier_pair_decided`]), its planar restriction
 //! ([`flush_pair_relation`]), the oriented descriptions they compare
-//! ([`face_carrier_desc`]) and the extent a verdict is consumed over
+//! ([`face_carrier_desc`](crate::face_normal::face_carrier_desc)) and the extent a verdict is consumed over
 //! ([`pair_extent`]).
 
 use geom_brep::carrier_eq::PairDoorReading;
@@ -168,7 +168,7 @@ fn seated_extent<T: Decide>(
 /// **The one carrier-pair door**: [`flush_pair_relation`] for every
 /// carrier kind the `Rest` table names.
 ///
-/// Descriptions through [`face_carrier_desc`] and the pair's consumed
+/// Descriptions through [`face_carrier_desc`](crate::face_normal::face_carrier_desc) and the pair's consumed
 /// extent through [`pair_extent`]: a coincidence is one whose
 /// displacement's bound decides Zero at every point of both faces
 /// ([`geom_brep::carrier_eq::pair_door_reading`]). The operation's glue
@@ -183,7 +183,7 @@ fn seated_extent<T: Decide>(
 /// # Panics
 ///
 /// Where a link of either face does not resolve: its surface
-/// ([`face_carrier_desc`]), its loops, their walks, or a boundary vertex's
+/// ([`face_carrier_desc`](crate::face_normal::face_carrier_desc)), its loops, their walks, or a boundary vertex's
 /// point.
 pub fn carrier_pair_relation<T: Decide>(
     a: &Body<T>,
@@ -303,7 +303,7 @@ pub(super) fn glue_extent<T: Decide>(
     Ok(PairExtent { reach })
 }
 
-/// The two faces' carrier descriptions ([`face_carrier_desc`]), read before
+/// The two faces' carrier descriptions ([`face_carrier_desc`](crate::face_normal::face_carrier_desc)), read before
 /// their extent: a kind outside the inventory has no extent to read.
 fn carriers_of<T: Decide>(
     a: &Body<T>,
