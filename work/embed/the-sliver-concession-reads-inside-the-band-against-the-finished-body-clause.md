@@ -476,7 +476,8 @@ join keep theirs.
   (5,684 of `hollowring`'s 6,952).
 - The filleted drum at `f64` under "touch at 0, un-scaled, sliver
   refused" holds: its 16 thin rectangles certify by a plane through
-  the shared circle.
+  a shared circle. That circle is not the tangent seam of section 7:
+  section 9 says which it is and what was decided.
 - The line and plane-corner readers' counts do not change in any of
   these runs.
 
@@ -502,3 +503,100 @@ The kept patch adds to the probe of "How to repeat":
 - "Pair visits" count every pair the walk classifies in which a
   sliver decided `Zero`, at every depth, so a pair that splits is
   counted again in its children.
+
+### 9. The drum at `Interval`, three variants
+
+The body is `a_filleted_drum_certifies_across_its_fillet` at
+`Interval`, faces 1 (the top plane) and 7 (the torus band) across edge
+12. Each variant is run alone on top of section 7's configuration
+(sliver refused and the thin rectangle presented, margin un-scaled),
+where the drum refuses at 15,200 pairs.
+
+| variant | verdict | pairs | sliver `Zero` decisions | pair visits in which a sliver decided `Zero` |
+|---|---|---:|---:|---|
+| section 7's configuration | Refused, `Uncertified`, faces 1 and 7, edge 12, depth 40 | 15,200 | 11,893 | 321 certify by the graph separator; 11,512 split (below); 60 split with the top plane unpresented |
+| 1. the line placed as a point | **Holds** | 559 | **0** | none: the far-side strip does not arise |
+| 2. the heading from the chart's derivative | **Holds** | 683 | 124 | 28 certify by the graph separator; 36 split (32 with the rate straddling zero on both faces, 4 on the band alone); 60 split with the top plane unpresented |
+| 3. the seam cylinder | **Holds** | 665 | 110 | 34 certify by the seam cylinder, 2 by the graph separator; 14 split (10 with the top plane's rate straddling zero or uncertified under every separator, 4 with each face decided under one separator and straddling under another); 60 split with the top plane unpresented |
+
+The `f64` sweep of the same test holds at 150 pairs in every row, and
+takes no sliver decision. With the sliver as it is on main the drum at
+`Interval` holds at 567 pairs.
+
+**What each variant changed.**
+1. In `placed`, a line on a torus's minor-angle axis whose enclosure's
+   middle is within 1e-9 of `π/2` is returned as the point at that
+   middle. At `Interval` the line is
+   `[1.5707963267948861, 1.5707963267949072]`; its middle is
+   `1.5707963267948966`, and the `f64` sweep's line, read in the same
+   run, is that same value. Nothing else is changed: the edge's other
+   readers of its stored line keep the enclosure. The cell's own low
+   side is `1.5707963267948968`, one step above the point, so the
+   touch reads the cell outside the face, as it does at `f64`.
+2. In `heading`, for a presentation whose zero is a side (or a side
+   past the shared cell), the direction is the chart's derivative
+   across that side, read on the side and pointed into the rectangle,
+   in place of the direction from the edge's point to the rectangle's
+   middle. Presentations by a curve, a corner or a point keep the
+   middle.
+3. In `departure`, after the planes through the shared edges and
+   before the graph separator: where the pair shares one edge and it
+   is a circle, the cylinder through that circle about the circle's
+   own axis is tried as a separator vanishing on the edge's whole
+   circle, each face's sign read by `sign_on` as for the other
+   separators.
+
+**What distinguishes the 321 visits the graph separator certifies
+from the 11,512 that split** (section 7's configuration, read per
+visit).
+- **Not the cells.** Depths run 8 to 40 with median 36 in both groups.
+  The band's cell is 0.0031 rad along the seam at the median in both,
+  the top plane's cell 0.0055 wide in both, and in both about 97% of
+  the top plane's cells straddle the circle. The band's rectangle is
+  1.04e-14 rad wide in both.
+- **Not the circle's plane.** In every visit of both groups the plane
+  through the circle reads a rate of exactly `[0, 0]` on the top plane
+  (it is the top plane) and `1.6e-15 ± 1.8e-15` on the band, and
+  decides neither.
+- **The graph separator's rate.** In the 321 it decides on both faces:
+  the rate's enclosure has its middle at 0.026 (top plane) and 0.012
+  (band) at the median, 2.4 and 2.5 half-widths from zero. In the
+  splits the enclosures are as wide (half-widths 0.0080 and 0.0032)
+  but centred at 0.0006 and 0.0003, under a tenth of a half-width from
+  zero.
+- Which face straddles, in the 11,512: both in 11,230; the top plane
+  alone in 153; the band alone in 84; in 45 no graph separator was
+  built.
+- The trace does not record the heading or the separator's direction
+  itself, so it says that the direction differs between the groups,
+  not why.
+
+**What the plane through the circle decided on the drum at `f64`**
+(section 8's last run: touch at 0, un-scaled, sliver refused).
+- **Those 16 pairs are not at the tangent seam with the top plane.**
+  They are the band (face 7) against the wall's two halves (faces 3
+  and 4), across edge 13, the circle the band shares with the wall,
+  at the band's other line (minor angle `2π`). With the touch at 0
+  the sliver fires there: a strip 8.9e-16 rad wide (2.7e-16 m).
+- The plane through that circle is normal to the drum's axis, and
+  both faces cross it: the rate is exactly `−1` on the wall and
+  `[−0.3, −0.29999999999999977]` on the band's thin rectangle. Both
+  are decided as signs, opposite once oriented by each face's side.
+  The margins are 1 and 0.3, not rounding.
+- The carrier arm is tried first there and decides nothing: the
+  wall's carrier reads `[−6.9e-16, 4.4e-16]` on the band's rectangle,
+  a rate of rounding size that straddles zero.
+- At the tangent seam with the top plane (edge 12) the `f64` sweep
+  takes no sliver decision in that run.
+
+**How to repeat.** Three more switches in the kept patch, each read
+once: `SLIVER_POINTLINE=1`, `SLIVER_HEADING=1`, `SLIVER_SEAMCYL=1`.
+Each row is the one test, run from `crates/sweep` on the sweep test
+binary with `--exact … --nocapture` under
+`SLIVER_REFUSE=all SLIVER_MODE=present SLIVER_UNSCALED=1` plus one
+switch, with `SLIVER_LOG` for the receipt and tallies. The per-visit
+split is from the same run with `SLIVER_TRACE='*'`, which now prints,
+for each `departs` read in a flagged pair, the separator's kind, the
+face's kind, the zero's kind, the rate's enclosure, the margin, the
+rectangle and the decision, and counts each line `placed` returns on
+a torus's minor axis near `π/2`.
