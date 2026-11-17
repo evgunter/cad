@@ -1005,3 +1005,8 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **The Krawczyk row was not buildable.** On the sweep path the containment mutant looks equivalent: where |∇φ| is smallest, the Hessian is singular, so the determinant check refuses before containment matters. Measurements are in the item, which stays open: either close it on that argument, or try a cap-free row calling `ssi::node::decide` directly.
   - **Found:** `hand_written_impl_census` is red on main from PR 7052 (`PeriodicNurbs3`'s `Debug`, and `certify.rs`'s hand-written `EdgeCurve` `Debug`, not yet listed). It is slow-set, so the gate missed it.
   - The same agent (Opus) continued to file the main-red item and fix it, keeping `EdgeCurve`'s `Debug` byte-identical for the editor-core digests. Orchestrator's read.
+- 2026-11-17 — **PR 7092 merged** (orchestrator's read; diff read; CI green). The impl-census red from PR 7052 is fixed: `PeriodicNurbs3`'s `Debug` destructures exhaustively with the same output, and both files are in `IMPL_FILES_TODAY`. Its item is filed and closed. The editor-core digests pass at three ε.
+- **Interim work done.** SECTARMS idles until the Fable reset (2026-11-23 00:00 UTC). Then:
+  1. resume the rim-pad lane and the image-function lane as the same agents;
+  2. once rim pad lands, dispatch the cover-halving build (measurement in the sliver item; a chunked `refine_knots`; the pad-holds-tube row to rewrite);
+  3. then the node-arc carry.
