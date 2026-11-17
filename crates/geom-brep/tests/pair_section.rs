@@ -340,7 +340,7 @@ fn a_radius_in_the_band_escalates_by_its_name() {
 /// without the door the carrying refuses by the scalar's name. Seated
 /// at a parameter it is the same carrier over the span from there to a
 /// turn on, as a circle is, its certificate the loop's own; at its base
-/// knot the span is kept.
+/// knot the span is kept. A loop no site seats reads its base opening.
 #[test]
 fn the_general_rung_carries_through_its_door() {
     let (cyl, sph) = (cylinder(0.5), sphere(0.5, 0.3));
@@ -371,6 +371,22 @@ fn the_general_rung_carries_through_its_door() {
         .witness
         .unwrap();
     assert_eq!(on_arc(carried.site(witness, band()).unwrap()).component, 0);
+    // Unseated, the loop reads its base opening: one net over the whole
+    // period, closed on one control point, every interior knot simple.
+    let whole = c.carrier.clamped_net(c.span).unwrap().unwrap();
+    assert_eq!(whole.domain(), c.span);
+    assert!(
+        interior_knots(&whole).iter().all(|k| k.1 == 1),
+        "the unseated loop's knots are simple"
+    );
+    let ends = [
+        whole.control()[0],
+        whole.control()[whole.control().len() - 1],
+    ];
+    assert!(
+        ends[0].equals_exactly(ends[1]),
+        "the unseated loop closes on one control point"
+    );
     let (lo, hi) = c.span;
     let at = lo + 0.37 * (hi - lo);
     let seated = section.seat(c, at).expect("the loop seats");
