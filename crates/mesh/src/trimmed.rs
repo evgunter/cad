@@ -5038,17 +5038,17 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass =
-            crate::chords::compute_chords(body, delta, &vids, &mut positions, &mut bounds).unwrap();
         let tol = crate::sizing::SizingTols {
             delta,
             eps: crate::sizing::Eps::at(witness),
             band: geom_core::Band::linear(witness).unwrap(),
         };
+        let chords: ChordPass =
+            crate::chords::compute_chords(body, &tol, &vids, &mut positions, &mut bounds).unwrap();
         body.faces()
             .filter_map(|(fk, _)| {
                 let surface = body.face_surface(fk).unwrap();
-                (crate::tessellate::lane_of(body, fk, surface).unwrap()
+                (crate::tessellate::lane_of(body, fk, surface, tol.band).unwrap()
                     == crate::tessellate::Lane::Trimmed)
                     .then(|| {
                         let lift = super::face_domain(body, fk, &tol).unwrap();
