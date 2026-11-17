@@ -2,11 +2,14 @@
 id: the-c0-knot-split-refuses-what-it-cannot-place
 kind: issue
 title: the import's C⁰-knot split refuses a face whose trim crosses the knot line more than once, a crossed face with rings, or a face it cannot certify clear of the line within its budget
-status: open
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: M
 refs: [import-splits-a-foreign-face-or-edge-at-each-c0-knot, tier-3-refuses-a-carrier-with-an-interior-c0-knot]
+closed: 2026-11-17
+pr: 7084
+branch: importgate/knot-place
 ---
 
 
@@ -58,3 +61,7 @@ What still refuses `C0KnotUnsplit`, each naming the face and the knot, one line 
 - **a ring on a side the line parts into several pieces**: telling which piece holds it needs containment on a chart with no inverse; `chart::infer_outer` has no NURBS arm (`a_ring_on_a_side_parted_into_several_pieces_refuses_typed`).
 
 Unexercised: a boundary within about ε_in of the line where the chart's speed across it varies. It now reaches the same reading, but no fixture builds it. This residue is filed as `the-c0-knot-split-residue-after-placement`.
+
+## Closed
+
+2026-11-17, PR 7084. The split reads each boundary edge's meeting with the knot's iso line by `geom_brep::curve_pair::meet` at the file's chart band (a two-control equal-weight iso through `recognize_curve::try_line`), places a vertex at each crossing and parts the face, rings included, into the pieces the line cuts it into; edges along the line are certified by the iso pcurve, minted runs carry the whole iso, and an uncrossed face's chart narrows to its side's sub-patch. The three refused classes above now import. What still refuses `C0KnotUnsplit` is `the-c0-knot-split-residue-after-placement`.
