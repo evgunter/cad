@@ -105,6 +105,12 @@ impl FileBand {
         }
     }
 
+    /// The file band as a caller that holds its parts carries them
+    /// (`knot_split`'s `Lines`): ε_in and the band [`file_band`] made.
+    pub(crate) fn of(eps_in: f64, band: Option<Band>) -> Self {
+        Self { eps_in, band }
+    }
+
     /// No budget and no band: the unit pass's resolver, which reads no
     /// coordinate.
     pub(crate) fn unread() -> Self {

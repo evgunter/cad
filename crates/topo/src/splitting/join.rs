@@ -1486,7 +1486,7 @@ mod tests {
     use geom_core::Tol;
 
     /// The refusal [`Body::face_of_half_edge`]'s docs reserve to a
-    /// caller's own walk: which key went stale, per hop.
+    /// caller's own walk: the stale key named as data, per hop.
     #[test]
     fn he_face_names_the_key_that_went_stale() {
         let mut t = pillow(Tol::witness());

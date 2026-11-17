@@ -46,8 +46,10 @@
 //!    key sharing), `same_sense` lands as [`topo::Face::sense`]
 //!    honored, not healed, and every edge's intensional description is
 //!    **rebuilt and certified** by the kernel's own gates: intersection
-//!    / tangent-intersection for edges between distinct surfaces, seam
-//!    / conventional mapped-curve for edges inside one surface, the
+//!    / tangent-intersection for edges between distinct surfaces, and
+//!    the pair the must-carry rule answers where they under-determine
+//!    a smooth join; seam / conventional mapped-curve for edges inside
+//!    one surface; the
 //!    boundary iso-curve rung for NURBS wall seams (M7-3). Pcurve
 //!    caches re-mint through [`topo::mint_pcurves`] (every curved
 //!    chart that mints natively mints here — cylinder, cone, sphere,

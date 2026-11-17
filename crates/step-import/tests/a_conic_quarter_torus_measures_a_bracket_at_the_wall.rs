@@ -298,9 +298,11 @@ fn one_span_walls(text: &str) -> usize {
 fn the_conic_quarter_torus_answers_a_bracket_holding_pappus() {
     let tol = Tol::witness();
     let text = conic_quarter_torus_step(tol);
-    let Ok(StepImport::Solid { body, .. }) = import_step(&text, &ImportOptions::default(), tol)
-    else {
-        panic!("the conic torus segment imports as a solid");
+    let imported = import_step(&text, &ImportOptions::default(), tol);
+    let body = match imported {
+        Ok(StepImport::Solid { body, .. }) => body,
+        Ok(_) => panic!("the conic torus segment imports as a solid, not a wireframe"),
+        Err(e) => panic!("the conic torus segment imports as a solid: {}", e.render()),
     };
     let walls = body
         .faces()
