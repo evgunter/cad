@@ -984,17 +984,32 @@ impl<T: Decide> ConicArc<T> {
     /// carrier's reading at `q`'s foot ([`geom::Foot::on_carrier`], off
     /// only on a lower bound on its distance from the whole conic, the
     /// ellipse's Hessian-bounded root) with the span's reading of its ends
-    /// ([`geom_brep::curve_pair::Span::place`]). A point past the arc is
-    /// off the edge, on its carrier ([`ConicHit::Carrier`]) or not; the
-    /// ellipse's straddle stays a straddle, and a span walk that cannot
-    /// certify its `Past` is [`ConicHit::Unsettled`].
+    /// ([`geom_brep::curve_pair::Span::place`]). A point off the arc is
+    /// off the edge; whether it lies on the arc's carrier is the whole
+    /// conic's own question ([`geom::Curve3::on_carrier`]), asked here
+    /// since the ray count reads it: on it, [`ConicHit::Carrier`], and
+    /// otherwise, an undecided carrier included, [`ConicHit::Off`], as no
+    /// answer to it puts the point on the edge (its escalation is
+    /// superseded, and a decided reading spliced). The ellipse's straddle stays a straddle, and a span
+    /// walk that cannot certify its `Past` is [`ConicHit::Unsettled`].
     pub(crate) fn hit(&self, q: Point3<T>, band: Band) -> Result<ConicHit, ReadEscalation> {
         use geom_brep::curve_pair::{Reading, Span};
         let span = Span::new(&self.carrier, self.span);
         let near = geom::mid_param(self.span.0, self.span.1);
         Ok(match span.read(q, near, band).map_err(|r| r.refused()) {
-            Ok(Reading::Off) => ConicHit::Off,
-            Ok(Reading::Carrier) => ConicHit::Carrier,
+            Ok(Reading::Off) => {
+                let (on, record) =
+                    geom_core::k_stats::detached(|| self.carrier.on_carrier(q, near, band));
+                if on.is_ok() {
+                    geom_core::k_stats::splice(record);
+                } else {
+                    geom_core::k_stats::splice_superseded(record);
+                }
+                match on {
+                    Ok(geom::OnCarrier::On { .. }) => ConicHit::Carrier,
+                    _ => ConicHit::Off,
+                }
+            }
             Ok(Reading::On { margin, .. }) => ConicHit::On(margin),
             Ok(Reading::End(_)) => ConicHit::End,
             Err(geom::CarrierRefusal::Escalated(geom::CarrierEscalation::InBand(diag))) => {

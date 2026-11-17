@@ -5,9 +5,9 @@
 //! topology attached: the part of the carrier an edge covers.
 //!
 //! **Two readings, one composition.** Whether a point is on a span is two
-//! questions, each read at the point's foot on the carrier
-//! ([`geom::Curve3::foot`], found here from the point and a seed, so a
-//! foot is never another point's). Whether the point lies on the carrier
+//! questions, each read at the point's foot over the span
+//! ([`Span::foot`], [`geom::Curve3::foot_within`], found here from the
+//! point and a seed, so a foot is never another point's). Whether the point lies on the carrier
 //! is the carrier's own reading ([`geom::Foot::on_carrier`]): on by the
 //! foot's gap, off only by a lower bound on the distance from the whole
 //! carrier. Where the foot sits against the span's ends is this module's
@@ -41,7 +41,7 @@
 //!
 //! **Past needs a nearest foot.** That the foot lies past the span says
 //! the point lies off it only where the foot is the point's nearest point
-//! of the carrier, which it is on a line and a circle
+//! of the span, which it is on a line's segment and a circle's arc
 //! ([`geom::Foot::nearest`]). On an ellipse, a spiric oval or a spline
 //! the foot is a polished stationary point, perhaps a far branch's, so a
 //! `Past` there stands only on a certificate that the point is clear of
@@ -50,9 +50,17 @@
 //! point the place escalates (`curve_pair_span_past_straddle`), and where
 //! it cannot run it refuses as the walk does.
 //!
+//! **The held end.** The foot is held to the span, so a point past the
+//! span has its foot exactly at an end parameter: the end the search
+//! stopped at, where `m` is zero and no side reads. There the place reads
+//! the chords alone: at an end where one decides zero, and otherwise past
+//! the span by the chord to the held end, which stands as above, on the
+//! foot being nearest (a line's segment, a circle's arc) or on the piece
+//! walk over the span.
+//!
 //! A span whose ends are no vertex — a closed edge whose start is not a
 //! vertex of its own, [`Span::endless`] — has no end to be near: every
-//! foot is inside it.
+//! foot is inside it, the whole carrier's.
 //!
 //! **The composition** ([`Span::read`]): a point the carrier reads off is
 //! off the span ([`Reading::Off`]) wherever its foot sits, so its place
@@ -68,10 +76,15 @@
 //! place read there would decide sides of a half turn the point does not
 //! have. Otherwise, at an end is [`Reading::End`]; inside, the carrier's
 //! reading decides, on ([`Reading::On`], at the parameter that reading
-//! certifies) or undecided (its refusal);
-//! past, the point is off the span, on the carrier
-//! ([`Reading::Carrier`]) or not ([`Reading::Off`], an undecided carrier
-//! included, since no answer to it puts the point on the span). A place
+//! certifies) or undecided. Where the foot is not the nearest point (an
+//! ellipse, a spiric oval, a spline) an undecided carrier is read against
+//! the span itself first, since the point may lie on the carrier past
+//! the span: off the span where the piece walk over the span clears it;
+//! past, the point is off the span ([`Reading::Off`]), whatever the
+//! carrier read, since no answer to it puts the point on the span.
+//! Whether a point past the span lies on the carrier is the whole
+//! carrier's question ([`geom::Curve3::on_carrier`]), asked by a reader
+//! that needs it. A place
 //! the band cannot read is a refusal, the place's, with the carrier's
 //! beside it where that refused too ([`SpanRefusal`]).
 
@@ -181,10 +194,9 @@ pub enum Reading<T> {
     },
     /// Within the band of this end's point.
     End(SpanEnd),
-    /// On the carrier, past the span and clear of both its ends.
-    Carrier,
-    /// Off the span: off the carrier, or past the span and not read on
-    /// the carrier.
+    /// Off the span: off the carrier, or past the span. Whether a point
+    /// past the span lies on the carrier is the whole carrier's own
+    /// question ([`Curve3::on_carrier`]), not the span's.
     Off,
 }
 
@@ -233,7 +245,7 @@ impl<T> Reading<T> {
         match self {
             Self::On { t, margin } => Some(Hit::On { t, margin }),
             Self::End(which) => Some(Hit::End(which)),
-            Self::Carrier | Self::Off => None,
+            Self::Off => None,
         }
     }
 }
@@ -490,7 +502,51 @@ impl<'a, T: Decide> Span<'a, T> {
     /// its gap (the chord to an end, the side of an end, or a `Past` the
     /// span walk does not certify), or the walk's own refusal.
     pub fn place(&self, q: Point3<T>, near: T, band: Band) -> Result<Place, CarrierRefusal> {
-        self.place_at(&self.carrier.foot(q, near), band)
+        self.place_at(&self.foot(q, near), band)
+    }
+
+    /// **`q`'s foot over the span** (module docs), found from `near`
+    /// ([`Curve3::foot_within`]): the one foot every point-on-span reading
+    /// reads. An endless span has no ends to hold it to, so its foot is
+    /// the whole carrier's ([`Curve3::foot`]).
+    pub fn foot(&self, q: Point3<T>, near: T) -> Foot<'a, T> {
+        if self.ended {
+            self.carrier.foot_within(q, (self.t0, self.t1), near)
+        } else {
+            self.carrier.foot(q, near)
+        }
+    }
+
+    /// **Whether `q` is clear of the span**, past the band from every
+    /// point of it (module docs, "The composition"), by the piece walk
+    /// over the span ([`Curve3::clear_of`]); a walk that cannot run clears
+    /// nothing. Read only where the foot is not the nearest point: a line's
+    /// and a circle's place reads past the span from their nearest foot.
+    fn clear(&self, q: Point3<T>, band: Band) -> bool {
+        matches!(
+            self.carrier.clear_of(q, (self.t0, self.t1), band),
+            Ok(Clearance::Clear)
+        )
+    }
+
+    /// **The end `t` is held at**: `t` exactly one of the span's end
+    /// parameters (`curve_pair_span_held_end`), as a foot over the span
+    /// past an end is ([`Curve3::foot_within`] clamps it there, bit for
+    /// bit); `None` at no end and on an endless span.
+    fn held_end(&self, t: T) -> Option<SpanEnd> {
+        if !self.ended {
+            return None;
+        }
+        let at = |end: T| {
+            k_stats::param_order("curve_pair_span_held_end", t, end) == Ok(Sign::Zero)
+        };
+        if at(self.t0) {
+            Some(SpanEnd::Start)
+        } else if at(self.t1) {
+            Some(SpanEnd::Stop)
+        } else {
+            None
+        }
     }
 
     /// **A parameter of the carrier against the span's ends**, read as
@@ -562,20 +618,10 @@ impl<'a, T: Decide> Span<'a, T> {
         let ends = [(SpanEnd::Start, start), (SpanEnd::Stop, stop)];
         // An end at the point first, on its raw chord: no side matters
         // beside it.
-        let mut chords = Vec::with_capacity(2);
-        for (which, _) in ends {
-            let chord = q - self.end(which).1;
-            let read = decide_reported("curve_pair_span_end_chord", Margin::norm3(chord), band);
-            if let Ok(
-                chord @ Decided {
-                    sign: Sign::Zero, ..
-                },
-            ) = read
-            {
-                return Ok(EndsPlace::End(which, chord));
-            }
-            chords.push(read);
-        }
+        let chords = match self.end_chords(q, band) {
+            Ok(chords) => chords,
+            Err((which, chord)) => return Ok(EndsPlace::End(which, chord)),
+        };
         let mut past = None;
         for ((_, m), read) in ends.into_iter().zip(chords) {
             let chord = read?;
@@ -586,13 +632,53 @@ impl<'a, T: Decide> Span<'a, T> {
         Ok(past.unwrap_or(EndsPlace::Inside))
     }
 
-    /// [`Self::place`] at a foot already found on this span's carrier.
+    /// `q`'s raw chord to each end's point (`curve_pair_span_end_chord`),
+    /// start then stop; `Err` with the first end whose chord decides zero.
+    fn end_chords(
+        &self,
+        q: Point3<T>,
+        band: Band,
+    ) -> Result<[Result<Decided, Indeterminate>; 2], (SpanEnd, Decided)> {
+        let chord = |which: SpanEnd| {
+            let read =
+                decide_reported("curve_pair_span_end_chord", Margin::norm3(q - self.end(which).1), band);
+            match read {
+                Ok(
+                    chord @ Decided {
+                        sign: Sign::Zero, ..
+                    },
+                ) => Err((which, chord)),
+                read => Ok(read),
+            }
+        };
+        Ok([chord(SpanEnd::Start)?, chord(SpanEnd::Stop)?])
+    }
+
+    /// [`Self::place`] at a foot already found over this span
+    /// ([`Self::foot`]). A foot held at an end (module docs, "The held
+    /// end") reads the chords alone: at that end where its chord decides
+    /// zero, and otherwise past the span by the chord to the end it is
+    /// held at, which the certificate below stands on.
     fn place_at(&self, foot: &Foot<'_, T>, band: Band) -> Result<Place, CarrierRefusal> {
         let (q, t) = (foot.point(), self.branch(foot.seed()));
-        let chord = match self.ends_place(q, t, band)? {
-            EndsPlace::Inside => return Ok(Place::Inside),
-            EndsPlace::End(which, _) => return Ok(Place::End(which)),
-            EndsPlace::Past { chord, .. } => chord,
+        let held = foot
+            .nearest()
+            .is_none()
+            .then(|| self.held_end(foot.seed()))
+            .flatten();
+        let chord = match held {
+            Some(held) => match self.end_chords(q, band) {
+                Err((which, _)) => return Ok(Place::End(which)),
+                Ok([start, stop]) => match held {
+                    SpanEnd::Start => start?,
+                    SpanEnd::Stop => stop?,
+                },
+            },
+            None => match self.ends_place(q, t, band)? {
+                EndsPlace::Inside => return Ok(Place::Inside),
+                EndsPlace::End(which, _) => return Ok(Place::End(which)),
+                EndsPlace::Past { chord, .. } => chord,
+            },
         };
         if foot.nearest().is_some() {
             return Ok(Place::Past);
@@ -707,20 +793,19 @@ impl<'a, T: Decide> Span<'a, T> {
     }
 
     /// **What `q` is against the span**: the two readings at its foot
-    /// found from `near`, composed (module docs), deciding nothing of its
-    /// own. The carrier is read first, and a point it reads off is off
-    /// the span with no place read. Otherwise its reading goes on the
-    /// frame after the place's, so a refusal of the carrier's is the last
-    /// on the frame; at an end, and past the span beside a carrier that
-    /// refused, its escalation is superseded, since neither answer rests
-    /// on it.
+    /// over the span found from `near` ([`Self::foot`]), composed (module
+    /// docs), deciding nothing of its own. The carrier is read first, and
+    /// a point it reads off is off the span with no place read. Otherwise
+    /// its reading goes on the frame after the place's, so a refusal of
+    /// the carrier's is the last on the frame; at an end and past the span
+    /// its escalation is superseded, since neither answer rests on it.
     ///
     /// # Errors
     ///
     /// Whichever reading the answer rests on refused (module docs), with
     /// which ([`SpanRefusal`]).
     pub fn read(&self, q: Point3<T>, near: T, band: Band) -> Result<Reading<T>, SpanRefusal> {
-        let foot = self.carrier.foot(q, near);
+        let foot = self.foot(q, near);
         let (on, carrier) = k_stats::detached(|| foot.on_carrier(band));
         let on = match on {
             Ok(OnCarrier::Off) => {
@@ -730,11 +815,21 @@ impl<'a, T: Decide> Span<'a, T> {
             Ok(OnCarrier::On { t, margin }) => Ok((t, margin)),
             Err(refused) => Err(refused),
         };
+        // Neither on nor off the carrier: the point may be on it past the
+        // span, which the span's own clearance reads.
+        if on.is_err() && self.ended && foot.nearest().is_none() {
+            let (clear, record) = k_stats::detached(|| self.clear(q, band));
+            if clear {
+                k_stats::splice(record);
+                k_stats::splice_superseded(carrier);
+                return Ok(Reading::Off);
+            }
+            k_stats::splice_superseded(record);
+        }
         let place = self.place_at(&foot, band);
-        // An end, and a past beside a carrier that refused, are answers
-        // the carrier's reading does not decide: its escalation is
-        // superseded.
-        if matches!(place, Ok(Place::End(_))) || (matches!(place, Ok(Place::Past)) && on.is_err()) {
+        // An end, and a past, are answers the carrier's reading does not
+        // decide: its escalation is superseded.
+        if matches!(place, Ok(Place::End(_) | Place::Past)) {
             k_stats::splice_superseded(carrier);
         } else {
             k_stats::splice(carrier);
@@ -748,10 +843,7 @@ impl<'a, T: Decide> Span<'a, T> {
                     margin,
                 }
             }
-            Ok(Place::Past) => match on {
-                Ok(_) => Reading::Carrier,
-                Err(_) => Reading::Off,
-            },
+            Ok(Place::Past) => Reading::Off,
             Err(place) => {
                 return Err(match on {
                     Ok(_) => SpanRefusal::Place(place),

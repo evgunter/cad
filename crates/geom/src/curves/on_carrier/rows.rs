@@ -152,13 +152,16 @@ fn a_thin_ellipses_foot_reads_the_distance_not_its_unit_image() {
     );
 }
 
-/// **A closed spline's foot crosses its seam**: a point on the loop just
-/// short of the domain's end, seeded at its start (the same point), and
-/// one just past the start seeded at the end. The seed lies nearer than
-/// any span sample, and its descent is held at the end it stands on, so
-/// the foot is found from the other end, on the carrier.
+/// **A closed spline's point across its seam reads on through the walk**:
+/// a point on the loop just short of the domain's end, seeded at its
+/// start (the same point), and one just past the start seeded at the end.
+/// The foot polishes from its seed alone, and its descent is held at the
+/// end it stands on, so its gap is the seam's (module docs, "The foot").
+/// The Off's walk keeps the piece the point lies on, and the polish
+/// restarted there reads it on (module docs, "Where the walk keeps a
+/// piece").
 #[test]
-fn a_closed_splines_foot_crosses_its_seam() {
+fn a_closed_splines_point_across_its_seam_reads_on_through_the_walk() {
     let c = Curve3::Nurbs(std::sync::Arc::new(
         crate::NurbsCurve3::new(
             geom_core::spline::KnotVector::clamped(
@@ -182,8 +185,9 @@ fn a_closed_splines_foot_crosses_its_seam() {
         let q = c.eval(t);
         let foot = c.foot(q, seed);
         assert!(
-            foot.gap() < ZERO,
-            "t {t} from {seed}: foot at {} gap {:e}",
+            foot.gap() > ZERO,
+            "t {t} from {seed}: the foot polishes from its seed alone, held at its end: \
+             foot at {} gap {:e}",
             foot.seed(),
             foot.gap()
         );
@@ -195,12 +199,13 @@ fn a_closed_splines_foot_crosses_its_seam() {
     }
 }
 
-/// **A closed spline's foot is found from any seed**: two hundred closed
+/// **A closed spline's point reads on from any seed**: two hundred closed
 /// quadratic and cubic loops on uneven knots, twenty points each on the
 /// loop within 0.03 of its seam, seeded at either end or anywhere: every
-/// foot lies on the carrier.
+/// point reads on the carrier, from its seed's foot or from a piece the
+/// Off's walk keeps (module docs, "Where the walk keeps a piece").
 #[test]
-fn a_closed_splines_foot_is_found_from_any_seed() {
+fn a_closed_splines_point_reads_on_from_any_seed() {
     let mut s: u64 = 0x9e37_79b9_7f4a_7c15;
     let mut rnd = || {
         s = s
@@ -241,17 +246,14 @@ fn a_closed_splines_foot_is_found_from_any_seed() {
                 1.0 - rnd() * 0.03
             };
             let seed = [0.0, 1.0, rnd()][(rnd() * 3.0) as usize];
-            // A NaN gap is a miss too.
-            if curve.foot(curve.eval(t), seed).gap().partial_cmp(&ZERO)
-                != Some(core::cmp::Ordering::Less)
-            {
+            if name(curve.on_carrier(curve.eval(t), seed, band())) != "on" {
                 miss += 1;
             }
         }
     }
     assert_eq!(
         miss, 0,
-        "{miss} points on a closed spline missed by their foot"
+        "{miss} points on a closed spline not read on"
     );
 }
 
@@ -324,7 +326,7 @@ fn a_tie_across_a_hairpins_branches_is_the_certificates_to_read() {
             .iter()
             .filter(|e| e.predicate().starts_with("curve_carrier_piece"))
             .count();
-        assert_eq!(name(read), "escalated", "±{r}: the near piece escalates");
+        assert_eq!(name(read), "escalated", "±{r}: the near piece escalates: {read:?} walk {walk}");
         assert!(
             walk <= 64,
             "±{r}: the walk stops at its first near piece, one escalation a level: {walk}"
@@ -383,11 +385,11 @@ fn a_box_reads_on_from_a_knot_spans_sample() {
 
 /// **Below the band's zero, `On` certifies the point and not the
 /// branch**. A hairpin whose branches lie 1e-10 apart, inside the 1e-9
-/// zero, reads `On` at the seed's branch at `Interval` (`t = 0.92`, the
-/// reversed tangent) with nothing logged: on a ±1e-10 box the two
-/// branches' gaps tie, and the polish keeps the seed's. At `f64` it
-/// reads `On` at the near branch. Both are true of the point: it lies
-/// within the band of the carrier at either parameter. A reader of the
+/// zero, reads `On` at the seed's branch (`t = 0.92`, the reversed
+/// tangent): at `Interval` with nothing logged, on a ±1e-10 box whose
+/// two branches' gaps tie, and at `f64` too, since the foot polishes from
+/// its seed alone and its gap there is in the zero. Both are true of the
+/// point: it lies within the band of the carrier at either parameter. A reader of the
 /// branch (a tangent) rests on the boundary being embedded at the band,
 /// which the at-rest gate certifies (`DESIGN.md` `[topology.tiers]`),
 /// not on `On`.
@@ -402,20 +404,20 @@ fn a_hairpin_closer_than_the_band_certifies_on_at_the_seeds_branch_at_interval()
         "On's t is the seed's branch below the band: {on:?}"
     );
     assert!(
-        matches!(c.on_carrier(p, 0.92, band()), Ok(OnCarrier::On { t, .. }) if t < 0.5),
-        "at f64 the polish finds the near branch"
+        matches!(c.on_carrier(p, 0.92, band()), Ok(OnCarrier::On { t, .. }) if t > 0.5),
+        "at f64 too, On at the seed's branch"
     );
 }
 
-/// **A spline's foot finds the point's own branch from any seed**: on
-/// a cubic spline of five knot spans, a point on the carrier at
-/// `t = 0.35` lies 0.05 from a stationary point near `t = 0.03` whose
-/// basin holds the least-gap sample. Polishing from that sample alone
-/// lands there; the search also polishes from each local minimum of the
-/// sampled gaps and the few least gaps, and reads `On` at `t = 0.35`
-/// from every seed.
+/// **A spline's point reads on at its own branch from any seed**: on a
+/// cubic spline of five knot spans, a point on the carrier at `t = 0.35`
+/// lies 0.05 from a stationary point near `t = 0.03`. A seed in that
+/// stationary point's basin polishes there, off the zero; the Off's walk
+/// keeps the piece about `t = 0.35`, and the polish restarted there reads
+/// `On` at `t = 0.35` (module docs, "Where the walk keeps a piece"), from
+/// every seed.
 #[test]
-fn a_splines_foot_finds_the_points_own_branch_from_any_seed() {
+fn a_splines_point_reads_on_at_its_own_branch_from_any_seed() {
     let c = Curve3::Nurbs(std::sync::Arc::new(
         crate::NurbsCurve3::new(
             geom_core::spline::KnotVector::clamped(
@@ -517,8 +519,10 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
         (
             "geom-brep/src/curve_pair/walk.rs",
             1,
-            "the end and witness feet (`polished_feet`) seed `read_both`, which reads \
-             the span's certificate; the stop reads its polished pair as a pair, no foot",
+            "the end and witness feet (`polished_feet`) name where a place lies along \
+             the carrier, past the span too, not whether a point is on the span: they \
+             seed `read_both`, which reads the span's certificate; the stop reads its \
+             polished pair as a pair, no foot",
         ),
         (
             "geom-brep/src/curve_pair/pose.rs",
@@ -532,9 +536,16 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
         ),
         (
             "geom-brep/src/curve_pair/span.rs",
+            2,
+            "`Span::place` reads the ends' sides at the seed, and whether the foot over \
+             the span was held at an end, where the chord and the span's walk decide; \
+             `Span::read` takes `On`'s `t` for `Reading::On`",
+        ),
+        (
+            "geom-brep/src/curve_pair/span_rows.rs",
             1,
-            "`Span::place` reads the ends' sides at the seed; `Span::read` takes \
-             `On`'s `t` for `Reading::On`",
+            "the held-end row reads that the foot over the span stopped exactly at an \
+             end, the premise of the place it pins",
         ),
         (
             "topo/src/boolean/solid_contain/curved_edges.rs",

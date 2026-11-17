@@ -300,6 +300,24 @@ fn a_foot_on_a_hairpin_spline_far_branch_is_no_past() {
     }
 }
 
+/// **A foot held at an end reads past by its chord and the span's walk**
+/// (module docs, "The held end"): on the ellipse's span `(0, 1)`, a point
+/// of the carrier at `t = 2.5`, seeded at the span's middle. Its foot over
+/// the span stops exactly at an end, where no side reads; the chord to
+/// that end is past the band and the walk over the span clears the
+/// point, so it is past the span and off it. Red where the held foot's
+/// side is read: at the end `m` is zero, and the side straddles.
+#[test]
+fn a_foot_held_at_an_end_reads_past_by_its_chord_and_walk() {
+    let c = ellipse();
+    let span = Span::new(&c, (0.0, 1.0));
+    let q = c.eval(2.5);
+    let foot = span.foot(q, 0.5).seed();
+    assert!(foot == 0.0 || foot == 1.0, "the foot is held at an end: {foot}");
+    assert_eq!(place(span.place(q, 0.5, band())), "past");
+    assert_eq!(read(&span, q, 0.5), "none");
+}
+
 /// **A circle's foot is its nearest point, so its `Past` stands**: a
 /// point on the unit circle read on the span `(0, 1)` with its seed a
 /// half turn away is still read where it lies, never at another point's
@@ -719,7 +737,9 @@ fn boxed(p: Point3<f64>, r: f64) -> Point3<geom_core::Interval> {
 /// where the tangent is reversed, with nothing logged (the two branches'
 /// gaps tie on the box, and the polish keeps the seed's); seeded at the
 /// span's middle (the census's seed) it reads `On` at the near branch;
-/// at `f64` it reads the near branch from either seed.
+/// at `f64` it reads the near branch from the middle and the far branch
+/// from the far seed, the foot polishing from its seed alone over the
+/// span (`geom::Curve3::foot_within`), whose gap there is in the zero.
 ///
 /// The carrier is not one an edge can hold: its tip speed is `1.5·h`, so
 /// `EdgeCurve::certify` refuses it `SpanMeterCollapsed`. The row pins the
@@ -733,11 +753,11 @@ fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
     use geom_core::{Bounds, Interval, Real};
     let c = cubic_hairpin(1e-10);
     let p = c.eval(0.08);
-    for seed in [0.5, 0.92] {
+    for (seed, at) in [(0.5, 0.08), (0.92, 0.92)] {
         let read = Span::new(&c, (0.0, 1.0)).read(p, seed, band());
         assert!(
-            matches!(read, Ok(Reading::On { t, .. }) if (t - 0.08).abs() < 1e-6),
-            "f64, seed {seed}: on at the near branch: {read:?}"
+            matches!(read, Ok(Reading::On { t, .. }) if (t - at).abs() < 1e-6),
+            "f64, seed {seed}: on at {at}, the seed's branch: {read:?}"
         );
     }
     let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
