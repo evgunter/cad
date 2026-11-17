@@ -143,8 +143,11 @@ fn a_duplicate_top_level_key_lands_on_unreadable_with_the_recourse() {
     let (header, body) = text.split_once('\n').unwrap();
     let body = body.trim_end();
     assert!(body.ends_with('}'));
-    let doubled = format!("{header}\n{}, \"edits\": []}}\n", &body[..body.len() - 1]);
-    expect_unreadable_naming("duplicate edits", &doubled, "duplicate field `edits`");
+    let doubled = format!(
+        "{header}\n{}, \"snapshot\": {{}}}}\n",
+        &body[..body.len() - 1]
+    );
+    expect_unreadable_naming("duplicate snapshot", &doubled, "duplicate field `snapshot`");
 }
 
 /// `1e999` is a valid JSON number token that no f64 holds; serde_json
@@ -434,7 +437,7 @@ const OLDER_SHAPED: &str = concat!(
     "0,\"display_unit\":\"m\"}}}},\"18:608252c10d916cfe\":{\"kind\":\"Body\",\"def\":{\"Output\":{\"",
     "node\":\"17:4a08cd5c982f47a4\",\"port\":0}}},\"19:57d67edfcd80ce1c\":{\"kind\":\"Space\",\"d",
     "ef\":{\"Output\":{\"node\":\"17:4a08cd5c982f47a4\",\"port\":1}}}},\"epsilon\":1e-09,\"witnes",
-    "ses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "ses\":{},\"metadata\":{},\"appearance\":[]}}",
     "\n"
 );
 
@@ -511,7 +514,7 @@ const PRE_OUTPUTS: &str = concat!(
     "d\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"dis",
     "play_unit\":\"m\"}}}},\"16:a2264ed7bb3bdcb7\":{\"kind\":\"Length\",\"def\":{\"Free\":",
     "{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}}},\"epsil",
-    "on\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "on\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]}}",
     "\n"
 );
 

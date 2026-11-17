@@ -72,8 +72,9 @@ fn refused_bound(error: &DimensionError) -> usize {
 }
 
 /// A recorded document holding an expression `levels` deep in each kind
-/// of place one sits: a profile step's target (the deepest slot a save
-/// writes), an extrude's distance, and a measurement.
+/// of place one sits: a profile step's target, an extrude's distance, a
+/// measurement, and an index's count (the deepest place a save writes
+/// one, `persist::nesting::ENVELOPE`).
 fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let profile = r.insert(Node::Profile(ProfileProgram {
@@ -99,6 +100,22 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
         bound: len(0.0),
         relation: editor_core::AssertionRelation::AtLeast,
     }));
+    // The count's deepest leaf reads a variable, which spells two
+    // brackets where an integer spells one.
+    r.push(DocEdit::DeclareVar {
+        name: editor_core::VarName::from_static("n"),
+        def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: 1 }),
+    });
+    let n = r.doc.var_named("n").expect("declared");
+    r.push(DocEdit::DeclareVar {
+        name: editor_core::VarName::from_static("k"),
+        def: editor_core::VarDecl::Index {
+            count: (1..levels).fold(Formula::var(n, editor_core::Dimension::Count), |e, _| {
+                Formula::add(e, Formula::count(1)).unwrap()
+            }),
+            within: None,
+        },
+    });
     (r, extrude, measure)
 }
 
@@ -178,11 +195,12 @@ fn pose_chain_document(levels: usize) -> Recorder {
     r
 }
 
-/// How many slides [`pose_chain_document`] nests its spin under: far
-/// more than the load door's limit would admit if the chain nested in
-/// the file. It does not: the edit door mints each pose a variable of
-/// its own, and a save writes each beside the rest.
-const POSE_SLIDES: usize = 64;
+/// How many slides [`pose_chain_document`] nests its spin under. The
+/// chain nests nothing in the file: the edit door mints each pose a
+/// variable of its own, and a save writes each beside the rest. What
+/// bounds it here is the edit door's stack, which no door guards
+/// (`work/doctail/a-pose-chain-written-deeper-than-the-load-doors-envelope-does-not-load.md`).
+const POSE_SLIDES: usize = 8;
 
 /// [`extrude_document`] over a distance that is an expression,
 /// saved: a literal saves as a free variable, so the distance is a
@@ -222,9 +240,8 @@ fn body(text: &str) -> &str {
 }
 
 /// `text` with its first variable definition wrapped in `levels` more
-/// negations, spelled as the wire spells one, and the body line the
-/// definition opens on.
-fn wrap_definition(text: &str, levels: usize) -> (String, usize) {
+/// negations, spelled as the wire spells one.
+fn wrap_definition(text: &str, levels: usize) -> String {
     let key = "\"Defined\": ";
     let at = text.find(key).expect("the save holds a definition") + key.len();
     // The definition is the object that opens here; its end is the
@@ -244,17 +261,27 @@ fn wrap_definition(text: &str, levels: usize) -> (String, usize) {
             _ => {}
         }
     }
-    let wrapped = format!(
+    format!(
         "{}{}{}{}{}",
         &text[..at],
         "{\"Neg\": ".repeat(levels),
         &text[at..end],
         "}".repeat(levels),
         &text[end..]
-    );
+    )
+}
+
+/// The body line of the tag of the negation [`saved_extrude`] saved, in
+/// `text`: where the reader stands when it declines that negation's
+/// operand, before reading into it. A save lays the tag out on the line
+/// after the one the definition opens on, where the wrapping negations
+/// are written.
+fn saved_negation_line(text: &str) -> usize {
+    let definition = text
+        .find("\"Defined\": ")
+        .expect("the save holds a definition");
     let body_start = text.find('{').expect("a saved body is an object");
-    let line = text[body_start..at].matches('\n').count() + 1;
-    (wrapped, line)
+    text[body_start..definition].matches('\n').count() + 2
 }
 
 /// **At the bound, every door takes the expression**, on the wasm32
@@ -434,7 +461,7 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
 
         // The load door: the saved distance's definition wrapped in one
         // more negation.
-        match editor_core::persist::load(&wrap_definition(&saved(&r), 1).0, Tol::witness()) {
+        match editor_core::persist::load(&wrap_definition(&saved(&r), 1), Tol::witness()) {
             Err(PersistError::Dimension { error, .. }) => assert_eq!(refused_bound(&error), BOUND),
             other => panic!("the load door refuses the deeper tree, got {other:?}"),
         }
@@ -444,9 +471,9 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
 /// **Text or a file nested far past the bound refuses typed on the
 /// smallest stack** rather than exhausting it: the text door reads
 /// signs, calls and terms nested a hundred thousand deep to a refusal,
-/// and the load door refuses a definition negated twice the bound deep
-/// before reading into it, and one negated a hundred thousand deep
-/// before reading the body at all.
+/// and the load door refuses a definition negated nearly twice the
+/// bound deep before reading into it, and one negated a hundred
+/// thousand deep before reading the body at all.
 #[test]
 fn text_and_files_nested_far_past_the_bound_refuse_typed_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
@@ -468,13 +495,16 @@ fn text_and_files_nested_far_past_the_bound_refuse_typed_on_the_smallest_stack()
         }
 
         let text = saved_extrude();
-        match editor_core::persist::load(&wrap_definition(&text, 2 * BOUND).0, Tol::witness()) {
+        // Within the scan's limit, which a chain of negations packs one
+        // level into each JSON level of.
+        let nearly_twice = 2 * BOUND - 8;
+        match editor_core::persist::load(&wrap_definition(&text, nearly_twice), Tol::witness()) {
             Err(PersistError::Dimension { error, .. }) => assert_eq!(refused_bound(&error), BOUND),
-            other => {
-                panic!("a definition negated twice the bound deep refuses typed, got {other:?}")
-            }
+            other => panic!(
+                "a definition negated nearly twice the bound deep refuses typed, got {other:?}"
+            ),
         }
-        match editor_core::persist::load(&wrap_definition(&text, FAR).0, Tol::witness()) {
+        match editor_core::persist::load(&wrap_definition(&text, FAR), Tol::witness()) {
             Err(err @ PersistError::Parse { .. }) => {
                 assert!(
                     err.to_string().contains("the body nests deeper than"),
@@ -576,23 +606,24 @@ fn an_assertion_value_shares_the_bound_at_every_split() {
 /// **The load door reads an expression's child at the bound and refuses
 /// the next one before reading into it.** A saved definition negated to
 /// the bound loads; one negation more refuses with the constructors'
-/// own refusal at the child it declined, on the line the definition
-/// opens on, before the reader reaches the leaf inside, rather than
-/// after reading the whole tree and rebuilding it.
+/// own refusal at the child it declined — the saved negation's operand,
+/// at that negation's tag — before the reader reads into it, rather
+/// than after reading the whole tree and rebuilding it.
 #[test]
 fn the_load_door_refuses_the_child_past_the_bound_before_reading_it() {
     on_the_smallest_stack(|| {
         let text = saved_extrude();
-        let (at_the_bound, _) = wrap_definition(&text, BOUND - SAVED_LEVELS);
+        let at_the_bound = wrap_definition(&text, BOUND - SAVED_LEVELS);
         let loaded = editor_core::persist::load(&at_the_bound, Tol::witness())
             .unwrap_or_else(|err| panic!("a definition negated to the bound loads: {err}"));
         drop(loaded);
-        let (past, definition_line) = wrap_definition(&text, BOUND - SAVED_LEVELS + 1);
+        let past = wrap_definition(&text, BOUND - SAVED_LEVELS + 1);
         match editor_core::persist::load(&past, Tol::witness()) {
             Err(PersistError::Dimension { line, error, .. }) => {
                 assert_eq!(refused_bound(&error), BOUND);
                 assert_eq!(
-                    line, definition_line,
+                    line,
+                    saved_negation_line(&past),
                     "refused at the child it declined, not after reading the tree"
                 );
             }
@@ -607,7 +638,7 @@ fn the_load_door_refuses_the_child_past_the_bound_before_reading_it() {
 /// a body cut off mid-tree.
 fn refused_bodies() -> Vec<(&'static str, String)> {
     let text = saved_extrude();
-    let wrapped = |levels| wrap_definition(&text, levels).0;
+    let wrapped = |levels| wrap_definition(&text, levels);
     let deep = wrapped(BOUND - 8);
     // The tree's own leaf: the first dimension after the definition
     // opens.

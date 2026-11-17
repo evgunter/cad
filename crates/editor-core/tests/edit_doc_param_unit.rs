@@ -34,7 +34,7 @@
 //!
 //! # Rows adopted from the review lane
 //!
-//! The rows below `the_three_refusals_are_symmetric_across_apply_replay_and_load`
+//! The rows below `the_three_refusals_are_symmetric_across_apply_and_replay`
 //! were written by the style review's probe lane (`review/dp-rv`,
 //! `2b6bd62e4`, `crates/editor-core/tests/dp_rv_probes.rs`) against
 //! claims this PR's body made and its own rows did not execute. They

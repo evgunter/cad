@@ -466,8 +466,10 @@ fn every_door_takes_a_value_at_the_bound_on_the_smallest_stack() {
 }
 
 /// **A file holding a value one past the bound, or far past it, refuses
-/// on the smallest stack**: one past, the value's own refusal; far past,
-/// the load door's scan, before any reader descends.
+/// on the smallest stack**, at the load door's scan, before any reader
+/// descends: a value at the bound in the deepest place a save writes
+/// one nests exactly as deep as the door reads, so one level more is
+/// deeper than any save.
 #[test]
 fn a_file_nested_past_the_bound_refuses_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
@@ -489,21 +491,15 @@ fn a_file_nested_past_the_bound_refuses_on_the_smallest_stack() {
             1,
             "the save holds one empty list"
         );
-        let one_past = text.replace(empty, &nest(1));
-        match editor_core::persist::load(&one_past, Tol::witness()) {
-            Err(error @ PersistError::Unreadable { .. }) => {
-                let line = error.to_string();
-                assert!(line.contains(PROBLEM), "one past names the bound: {line}");
+        for levels in [1, FAR] {
+            let past = text.replace(empty, &nest(levels));
+            match editor_core::persist::load(&past, Tol::witness()) {
+                Err(PersistError::Parse { message, .. }) => assert!(
+                    message.contains("deeper than any saved document does"),
+                    "{levels} past refuses at the scan: {message}"
+                ),
+                other => panic!("{levels} past refuses at the scan: {other:?}"),
             }
-            other => panic!("one past refuses as unreadable: {other:?}"),
-        }
-        let far = text.replace(empty, &nest(FAR));
-        match editor_core::persist::load(&far, Tol::witness()) {
-            Err(PersistError::Parse { message, .. }) => assert!(
-                message.contains("deeper than any saved document does"),
-                "{FAR} deep refuses at the scan: {message}"
-            ),
-            other => panic!("{FAR} deep refuses at the scan: {other:?}"),
         }
     });
 }

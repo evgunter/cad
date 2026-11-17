@@ -1,12 +1,11 @@
 ---
 id: a-pose-chain-written-deeper-than-the-load-doors-envelope-does-not-load
 kind: issue
-title: A pose chain written inline deeper than the load door's envelope saves an edit log that does not load
-status: parked
+title: A pose chain written inline has no authored depth bound, and the edit door overflows the wasm stack on a deep one
+status: open
 opened: 2026-10-23
 priority: P3
 cost: E
-blocked_on: [the-save-format-drops-its-edit-log]
 ---
 
 
@@ -42,3 +41,29 @@ That row removes the log from the format, which takes this defect with
 it. When it lands, check whether `persist::nesting::ENVELOPE` still names a
 position a save writes. Then close this row, or re-open it for the
 snapshot if a pose chain reaches the snapshot's own nesting bound.
+
+## 2026-11-17 — the file half is gone, and the defect survives at the edit door
+
+`the-save-format-drops-its-edit-log` removed the edit log from the
+format. A save now writes each pose as a variable of its own, so a chain
+nests nothing in the file. `persist::nesting::ENVELOPE` is 6, which is an index
+count's position, and `expr_nesting_bound` saves and loads a chain of
+eight slides over a spin whose angle sits at the expression bound.
+
+The unbounded depth survives one door earlier. On the smallest stack
+(`test_utils::own_thread::on_the_smallest_stack`, 1 MiB), applying the
+placement whose mate's `to` holds the chain inline overflows the stack:
+
+- 64 slides over a flip with a literal angle overflow inside
+  `apply` of the `DocEdit::place`. `Placed::of` and building the
+  `Operand` both complete. 16 slides complete everything (apply, pin,
+  save, load).
+- With the spin's angle at the expression bound (`BOUND` = 128), 16
+  slides already overflow. 8 complete everything.
+
+This is a process abort, not a typed refusal. Done when the edit door
+bounds a pose chain's depth where it is authored and refuses one past
+the bound typed, as `MAX_NESTING` does for an expression. Reproduce by
+raising `POSE_SLIDES` in `crates/editor-core/tests/expr_nesting_bound.rs`
+and running
+`every_door_takes_an_expression_at_the_bound_on_the_smallest_stack`.

@@ -242,13 +242,11 @@ fn the_classification_seam_holds_at_its_edges() {
     // duplicate-field refusal and not a last-wins silent accept.
     // `deny_unknown_fields` is not what fires here — the repeated key
     // is one `FileBody` knows.
-    assert!(
-        pretty.starts_with("{\n  \"edits\""),
-        "serde_json orders keys: {pretty:.40}"
-    );
+    let body = pretty.trim_end();
+    assert!(body.ends_with('}'), "the body is an object: {body:.40}");
     let dup = format!(
-        "{header}{}\n",
-        pretty.replacen('{', "{\n  \"edits\": [],", 1)
+        "{header}{}, \"snapshot\": {{}}}}\n",
+        &body[..body.len() - 1]
     );
     match load(&dup, Tol::witness()) {
         Err(err @ PersistError::Unreadable { .. }) => {
@@ -265,10 +263,7 @@ fn the_classification_seam_holds_at_its_edges() {
     }
 
     // Non-finite tokens are not JSON: they refuse before the types.
-    for body in [
-        "{\"snapshot\": NaN, \"edits\": []}",
-        "{\"snapshot\": Infinity, \"edits\": []}",
-    ] {
+    for body in ["{\"snapshot\": NaN}", "{\"snapshot\": Infinity}"] {
         let text = format!("{header}{body}\n");
         match load(&text, Tol::witness()) {
             Err(err @ PersistError::Parse { .. }) => {

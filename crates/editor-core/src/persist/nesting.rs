@@ -61,21 +61,19 @@ use crate::expr::{DimensionError, MAX_NESTING};
 
 /// The most JSON brackets that enclose an expression's root anywhere a
 /// save writes one, a measurement's root counting as one of those that
-/// enclose the expression its value leaf holds. The deepest is a
-/// spin's angle at the bottom of a pose chain written inline in a
-/// mate's `to`, in the edit log: six slides over a spin, flipped,
-/// inside its mate, the mate inside the bundle a placement's insert
-/// writes whole. No door bounds a pose chain's depth, so a chain
-/// written deeper than this saves an edit log the load door refuses
-/// (`work/doctail/a-pose-chain-written-deeper-than-the-load-doors-envelope-does-not-load.md`).
+/// enclose the expression its value leaf holds. A save holds the
+/// document's state, in which a pose, a written quantity and a
+/// definition are each a variable of their own, read by id: no chain of
+/// them nests in the file however deep it was authored. The deepest is
+/// an index variable's count (`vars.<id>.def.Index.count`).
 ///
 /// Not a hand count: `expr_nesting_bound`'s
 /// `the_load_doors_limit_is_the_deepest_body_a_save_writes` finds every
-/// expression and measurement in the corpus (every node kind and every
-/// edit kind), saved both ways, by its wire shape, and fails when the
+/// expression and measurement in the corpus (every node kind) and in a
+/// pose chain of slides, saved, by its wire shape, and fails when the
 /// deepest disagrees with [`BODY_NESTING`]; its at-bound row saves an
 /// expression at the bound in that position and loads it back.
-pub(crate) const ENVELOPE: usize = 34;
+pub(crate) const ENVELOPE: usize = 6;
 
 /// JSON levels per level of a value that bounds its nesting, at most,
 /// for both values that do. An expression: a binary operator is a tag
@@ -103,8 +101,7 @@ pub(crate) const BODY_NESTING: usize = {
 };
 
 /// The most JSON brackets that enclose a metadata value's root anywhere
-/// a save writes one: an appearance record's metadata in a snapshot, or
-/// a `SetAppearanceMeta` edit in the edit log.
+/// a save writes one: an appearance record's metadata.
 const META_ENVELOPE: usize = 6;
 
 /// The deepest a body nests around a metadata value at its bound

@@ -226,7 +226,7 @@ const OLDER_SHAPED: &str = concat!(
     "0,\"display_unit\":\"m\"}}}},\"18:608252c10d916cfe\":{\"kind\":\"Body\",\"def\":{\"Output\":{\"",
     "node\":\"17:4a08cd5c982f47a4\",\"port\":0}}},\"19:57d67edfcd80ce1c\":{\"kind\":\"Space\",\"d",
     "ef\":{\"Output\":{\"node\":\"17:4a08cd5c982f47a4\",\"port\":1}}}},\"epsilon\":1e-09,\"witnes",
-    "ses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "ses\":{},\"metadata\":{},\"appearance\":[]}}",
     "\n"
 );
 
