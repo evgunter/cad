@@ -123,15 +123,17 @@ fn a_germ_along_a_curved_edge_refuses_at_the_germ_frame() {
     }
 }
 
-/// **A ring run holding a spline edge refuses before any closing but a
-/// carried chord's winds it**: the planar closing, whose chord winding
-/// has no row for a spline; the wall closing, whose chart has no
-/// closed-form image of one; and the quadric closing, which reads no
-/// spline it holds no evidence of lying on the face for. The run is the
-/// arc alone, closed by its chord. The refusal precedes any reading of
-/// the face, so the sheet's plane face stands for the wall and the
-/// quadric too: reverted, each closing answers its own way instead
-/// (`SectionInvariant` on the plane, `RingIslandUnread` on the others).
+/// **A ring run holding a spline edge refuses before a wall's or a
+/// quadric's closing winds it, and winds on a plane**: the wall closing,
+/// whose chart has no closed-form image of one, and the quadric closing,
+/// which reads no spline it holds no evidence of lying on the face for.
+/// The run is the arc alone, closed by its chord. The refusal precedes
+/// any reading of the face, so the sheet's plane face stands for the
+/// wall and the quadric too: reverted, each closing answers
+/// `RingIslandUnread` instead. The planar closing winds the run by the
+/// arc's own area (`crate::loop_winding`): the arc stands above its
+/// chord and runs `+x`, so the region is to its right, clockwise about
+/// the outward `+z`.
 /// The carried closing (`IslandClosing::Carried`) reads a spline run on
 /// a cylinder, sphere or torus face from its edges' certificates
 /// (`ring_path::SplineArc`): `cylinder_sphere_frame`'s turned-chart pose
@@ -144,10 +146,6 @@ fn a_ring_run_along_a_spline_edge_refuses_at_the_ring_run() {
     let (face, he) = plus_side(&body, edge);
     let chord = SegmentCurve::of((he, he), None);
     let closings = [
-        (
-            "planar",
-            IslandClosing::Planar(Vec3::new(0.0, 0.0, 1.0), &chord),
-        ),
         ("quadric", IslandClosing::Quadric(&chord)),
         (
             "wall",
@@ -157,8 +155,8 @@ fn a_ring_run_along_a_spline_edge_refuses_at_the_ring_run() {
             )),
         ),
     ];
-    for (name, closing) in closings {
-        for operand in [Operand::A, Operand::B] {
+    for operand in [Operand::A, Operand::B] {
+        for (name, closing) in closings {
             assert_site(
                 ring_run_ccw((&body, operand), face, ((he, he), None), closing, band()),
                 (operand, edge, face),
@@ -166,5 +164,11 @@ fn a_ring_run_along_a_spline_edge_refuses_at_the_ring_run() {
                 &format!("{name} closing, operand {operand:?}"),
             );
         }
+        let planar = IslandClosing::Planar(Vec3::new(0.0, 0.0, 1.0), &chord);
+        let wound = ring_run_ccw((&body, operand), face, ((he, he), None), planar, band());
+        assert!(
+            matches!(wound, Ok(false)),
+            "planar closing, operand {operand:?}: {wound:?}"
+        );
     }
 }

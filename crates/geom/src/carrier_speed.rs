@@ -154,6 +154,33 @@ pub fn speed_between<T: SpanLocate>(
     window_speed(carrier, m, reach)
 }
 
+/// How many equal pieces [`length_hi`] sums a line's, a conic's or a
+/// spiric's window speeds over. A power of two, so a constant speed sums
+/// to itself times the span exactly.
+const LENGTH_PIECES: usize = 32;
+
+/// **An upper bound on the carrier's length between `a` and `b`** (either
+/// order), in metres: the speed's sup summed piece by piece over the
+/// stretch itself, so it is not charged for a faster stretch elsewhere on
+/// the carrier. A line's and a circle's are their length. A conic's and a
+/// spiric's are [`speed_between`]'s sup on each of [`LENGTH_PIECES`] equal
+/// pieces: an ellipse arc at its slow end reads its own speed plus
+/// `max(a, b)` times half a piece, not the larger semi-axis. A spline's
+/// is [`crate::NurbsCurve3::length_upper_bound`], over the knot spans'
+/// pieces the stretch covers. As [`speed_range`], a spline's is certified
+/// at `Interval` and the same expression in round-to-nearest at `f64`.
+pub fn length_hi<T: SpanLocate>(carrier: &crate::Curve3<T>, a: T, b: T) -> T {
+    if let Kind::Nurbs(n) = Kind::of(carrier) {
+        return n.length_upper_bound(a, b);
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let at = |i: usize| a + (b - a) * T::from_f64(i as f64 / LENGTH_PIECES as f64);
+    let width = (b - a).abs() * T::from_f64(1.0 / LENGTH_PIECES as f64);
+    (0..LENGTH_PIECES)
+        .map(|i| speed_between(carrier, at(i), at(i + 1)).1.to_meters(width))
+        .fold(T::zero(), |acc, x| acc + x)
+}
+
 /// A sup on `|C′|` over the turn defect of the window that starts at `t0`
 /// and spans `extent` ([`turn_defect`]): [`window_speed`]'s sup about the
 /// defect's middle, over its reach. Never less than the speed anywhere on
