@@ -41,3 +41,11 @@ Each designer was shown the other's round-2 report. Both said the positions meet
 Each report answered the other's round 2, so the last difference (by door, or by who made the meeting) was already closed from both sides when the reports crossed. Round 4 shows each the other's round 3 and asks for the final text.
 
 Totals after round 3: A 324,532; B 184,621.
+
+## Round 4 (2026-11-17), closing
+
+Each designer was shown the other's round-3 report and asked whether the two rules are one. **A** took B's rule in full ("exempt exactly what a decision beneath covers"): its own cell test ("a moved or minted cell is the door's") turns a `⊔`'s report into a refusal one op later where a door mints a cell inside a reported overlap, which is the argument A had used against grouping by door. **B** merged the two wordings into one rule. Agreed. Each issued its final `## For Ev`; A states two interim choices, B keeps "by who made it" against "by door" as a choice for Ev with both leaning the first.
+
+The `[ev]` PR is 7068 (`embed/ev-finished-body`); `docs/DESIGN-FORK-LOG.md` row 284 carries the recommendation half.
+
+Totals: A 340,716; B 195,736.
