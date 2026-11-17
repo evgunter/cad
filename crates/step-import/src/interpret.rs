@@ -46,6 +46,27 @@ pub(crate) const STEP_RECOGNIZED_CONDITIONING: &str = "step_recognized_condition
 /// closed class.
 pub(crate) const STEP_RECOGNIZED_CLOSURE: &str = "step_recognized_closure";
 
+/// Whether one face bound lies clear of another's chart polygon, in
+/// metres: only apart decides which bound contains which.
+pub(crate) const STEP_RING_CONTAINMENT: &str = "step_ring_containment";
+
+/// Whether a `VERTEX_LOOP`'s point lies on its face's sphere: the
+/// point's distance from the sphere must read Zero.
+pub(crate) const STEP_VERTEX_LOOP_ON_SPHERE: &str = "step_vertex_loop_on_sphere";
+
+/// Whether a seamless band's rim circle is coaxial with its surface (its
+/// tilt at its radius, and its centre's distance off the axis): Zero
+/// takes the band re-mint.
+pub(crate) const STEP_BAND_RIM_COAXIAL: &str = "step_band_rim_coaxial";
+
+/// Whether a seamless band's two rims meet at the seam azimuth (the
+/// minted generator's length): only apart mints it.
+pub(crate) const STEP_BAND_SEAM_LENGTH: &str = "step_band_seam_length";
+
+/// Whether a rim vertex already sits at a band's seam azimuth: Zero uses
+/// it, apart splits the rim there.
+pub(crate) const STEP_BAND_SEAM_VERTEX: &str = "step_band_seam_vertex";
+
 /// The file's ε_in and the band it is read at.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct FileBand {
@@ -98,6 +119,11 @@ impl FileBand {
         self.eps_in
     }
 
+    /// The band's K (its escalation over its zero), `NaN` with no band.
+    pub(crate) fn k(self) -> f64 {
+        self.band.map_or(f64::NAN, |b| b.escalate() / b.zero())
+    }
+
     /// The band itself, for a kernel reading that takes one.
     pub(crate) fn band(self) -> Option<Band> {
         self.band
@@ -126,12 +152,32 @@ impl FileBand {
             Read::InBand => Some(Refusal::Ambiguous {
                 reading,
                 gap: gap.abs(),
-                k: self.band.map_or(f64::NAN, |b| b.escalate() / b.zero()),
+                k: self.k(),
             }),
             Read::Apart => Some(Refusal::EvidenceMiss {
                 reading,
                 miss: gap.abs(),
             }),
+        }
+    }
+
+    /// `gap` read under `name` at `id`, refused as the import's typed
+    /// interpretation refusal unless it reads Zero ([`Self::agree`]).
+    pub(crate) fn agree_at(
+        self,
+        id: u64,
+        name: &'static str,
+        gap: f64,
+    ) -> Result<(), crate::StepImportError> {
+        self.agree(name, gap).map_err(|refusal| self.refused(id, refusal))
+    }
+
+    /// `refusal` at the file entity `id`, as the import door's error.
+    pub(crate) fn refused(self, id: u64, refusal: Refusal) -> crate::StepImportError {
+        crate::StepImportError::Interpretation {
+            id,
+            refusal,
+            file: geom_core::FileCoincidence::new(self.eps_in),
         }
     }
 

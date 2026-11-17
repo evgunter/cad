@@ -1416,7 +1416,7 @@ impl<'a> Resolver<'a> {
             .iter()
             .map(|lp| self.ring_samples(lp, edges))
             .collect::<Result<_, _>>()?;
-        let inferred = chart::infer_outer(surface, &rings, self.budget.eps_in(), self.budget.band());
+        let inferred = chart::infer_outer(surface, &rings, self.budget);
         // **Several stated outer bounds (M7-4).** A closed periodic
         // face — a cylinder's lateral band — genuinely has no outer
         // bound: its two boundary circles are not inside one another,
@@ -1566,19 +1566,14 @@ impl<'a> Resolver<'a> {
                        refuses rather than guessing a splitting",
             });
         };
-        // The budget is ε_in — the file's own declared uncertainty,
-        // scaled into kernel metres (D7's rule, unchanged).
-        let eps = self.budget.eps_in();
+        // The file's one statement about this closed face's boundary
+        // must lie on its surface, read at the file's band.
         let p = self.vertex(id, vertex_id)?;
-        if ((p - center).norm() - radius).abs() > eps {
-            return Err(StepImportError::Topology {
-                id: vertex_id,
-                what: "a VERTEX_LOOP point that does not lie on its face's sphere \
-                       within the file's own interpretation budget — the file's one \
-                       statement about this closed face's boundary contradicts its \
-                       surface",
-            });
-        }
+        self.budget.agree_at(
+            vertex_id,
+            interpret::STEP_VERTEX_LOOP_ON_SPHERE,
+            (p - center).norm() - radius,
+        )?;
 
         // The canonical splitting, in the kernel's own sphere chart:
         // the two poles (v = ±π/2) joined by the pole form's two
@@ -1929,8 +1924,7 @@ impl<'a> Resolver<'a> {
         // kernel cannot represent as stated (Leg C).
         normalize::normalize_shell(
             &mut solid,
-            self.budget.eps_in(),
-            self.budget.band(),
+            self.budget,
             self.run_band,
             &mut || self.mint_id(),
             &mut self.normalizations.borrow_mut(),

@@ -177,6 +177,14 @@ enum Action {
     StrutTip { fi: usize, vertex: u64 },
 }
 
+/// A point the pass reads coincident with another (a singular point, a
+/// boundary vertex, a carrier's foot): Zero at the pass's band.
+const STEP_SINGULARITY_POINT: &str = "step_singularity_point";
+
+/// Where a pole-form meridian ray meets a boundary carrier: a candidate
+/// is kept unless it reads apart at the pass's band.
+const STEP_SINGULARITY_RAY_HIT: &str = "step_singularity_ray_hit";
+
 /// The pass (module docs).
 pub(super) fn singularity_vertices(
     solid: &mut SolidSpec,
@@ -196,7 +204,6 @@ pub(super) fn singularity_vertices(
         eps_in.max(escalate(chart_band)).max(escalate(run_band)),
     );
     let read = Read {
-        eps,
         escalate,
         // The file's band is its own only where ε_in is at least the
         // run's ε; below that the file is read at the run's band, and a
@@ -231,11 +238,9 @@ pub(super) fn singularity_vertices(
 /// The pass's bands, as it reads them.
 #[derive(Clone, Copy)]
 struct Read {
-    /// On a vertex or an edge within this distance: the coarser zero of
-    /// ε_in, the file's band and the run's.
-    eps: f64,
-    /// Off it past this distance, the coarser escalation; between the
-    /// two, undecided.
+    /// Off a vertex or an edge past this distance, the coarser
+    /// escalation of the file's band and the run's (the zero is
+    /// [`Self::coarser`]'s); between the two, undecided.
     escalate: f64,
     /// The file's band, `(ε_in, K·ε_in)`.
     band: Option<geom_core::Band>,
@@ -258,6 +263,25 @@ impl Read {
         Band::new(eps, escalate)
             .or_else(|_| Band::new(eps, eps.next_up()))
             .unwrap_or(Band::least())
+    }
+
+    /// Whether the distance `d` reads Zero at the pass's band under the
+    /// decision `name`.
+    fn on(&self, name: &'static str, d: f64) -> bool {
+        matches!(
+            geom_core::k_stats::decide(name, geom_core::Margin::of(d.abs()), self.coarser),
+            Ok(sign) if sign.is_zero()
+        )
+    }
+
+    /// Whether the finite distance `d` does not read apart at the pass's
+    /// band under `name` (Zero or in band): a candidate the band keeps.
+    fn near(&self, name: &'static str, d: f64) -> bool {
+        d.is_finite()
+            && !matches!(
+                geom_core::k_stats::decide(name, geom_core::Margin::of(d.abs()), self.coarser),
+                Ok(sign) if !sign.is_zero()
+            )
     }
 
     /// The typed refusal of a distance `d` [`Self::coarser`] could not
@@ -752,7 +776,16 @@ fn first_hit(
 /// its [`home::foot`] on the turn at or past `0`.
 fn param_on(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
     let t = home::foot(carrier, x, 0.0)?;
-    ((carrier.eval(t) - x).norm() <= read.eps).then_some(t)
+    read.on(STEP_SINGULARITY_POINT, (carrier.eval(t) - x).norm())
+        .then_some(t)
+}
+
+/// [`param_on`], `x` taken on `carrier` wherever it does not read apart
+/// from it at the pass's band.
+fn param_near(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
+    let t = home::foot(carrier, x, 0.0)?;
+    read.near(STEP_SINGULARITY_RAY_HIT, (carrier.eval(t) - x).norm())
+        .then_some(t)
 }
 
 /// Where the carriers `ray` and `other` cross: the ray's parameter and
@@ -792,7 +825,7 @@ fn crossings(
             // ne · (C(t) − ce) = a cos t + b sin t + k.
             let (a, b, k) = (r * ne.dot(u), r * ne.dot(w), ne.dot(c - ce));
             let rho = a.hypot(b);
-            if rho <= read.eps {
+            if read.on(STEP_SINGULARITY_RAY_HIT, rho) {
                 // Parallel planes: one circle (on one sphere) or none.
                 return Some(Vec::new());
             }
@@ -806,7 +839,7 @@ fn crossings(
                 [phase + spread, phase - spread]
                     .into_iter()
                     .map(|t| (t, ray.eval(t)))
-                    .filter(|(_, p)| ((*p - ce).norm() - re).abs() <= read.escalate)
+                    .filter(|(_, p)| read.near(STEP_SINGULARITY_RAY_HIT, (*p - ce).norm() - re))
                     .collect(),
             )
         }
@@ -828,7 +861,7 @@ fn crossings(
             }
             let t = ne.dot(ce - o) / den;
             let p = ray.eval(t);
-            Some(if ((p - ce).norm() - re).abs() <= read.escalate {
+            Some(if read.near(STEP_SINGULARITY_RAY_HIT, (p - ce).norm() - re) {
                 vec![(t, p)]
             } else {
                 Vec::new()
@@ -855,7 +888,7 @@ fn crossings(
             }
             let (t, s) = (pair.s, pair.t);
             let (p, q) = (ray.eval(t), other.eval(s));
-            Some(if (p - q).norm() <= read.escalate {
+            Some(if read.near(STEP_SINGULARITY_RAY_HIT, (p - q).norm()) {
                 vec![(t, p)]
             } else {
                 Vec::new()
@@ -879,17 +912,10 @@ fn crossings(
             }
             let s = n.dot(c - oe) / den;
             let p = other.eval(s);
-            if ((p - c).norm() - r).abs() > read.escalate {
+            if !read.near(STEP_SINGULARITY_RAY_HIT, (p - c).norm() - r) {
                 return Some(Vec::new());
             }
-            let t = param_on(
-                ray,
-                p,
-                &Read {
-                    eps: read.escalate,
-                    ..*read
-                },
-            )?;
+            let t = param_near(ray, p, read)?;
             Some(vec![(t, p)])
         }
         _ => None,
@@ -1047,7 +1073,7 @@ fn interior(
         let lp = &solid.faces[fi].loops[0];
         let radial = |p: Point3<f64>| {
             let r = geom::Line { origin, dir: axis }.offset(p);
-            (r.norm() > read.escalate).then(|| r.normalize())
+            (!read.near(STEP_SINGULARITY_POINT, r.norm())).then(|| r.normalize())
         };
         let mut sum = Vec3::new(0.0, 0.0, 0.0);
         let mut count = 0.0;
@@ -1063,7 +1089,7 @@ fn interior(
         let vertex = || {
             lp.uses.iter().find_map(|u| {
                 let p = solid.vertices[&use_start(solid, *u)];
-                if (p - y).norm() > read.escalate {
+                if !read.near(STEP_SINGULARITY_POINT, (p - y).norm()) {
                     radial(p)
                 } else {
                     None
@@ -1107,7 +1133,10 @@ fn strut_tip(
     };
     let singular = chart.singular();
     let x = solid.vertices[&vertex];
-    let Some(k) = singular.iter().position(|s| (*s - x).norm() <= read.eps) else {
+    let Some(k) = singular
+        .iter()
+        .position(|s| read.on(STEP_SINGULARITY_POINT, (*s - x).norm()))
+    else {
         unreachable!("the scan finds a strut tip at a singular point")
     };
     // The face's material must hold the seam it uses both ways: a seam
@@ -1319,7 +1348,6 @@ mod review_on_boundary {
                     eps_in.max(esc(file)).max(esc(run)),
                 );
                 let read = Read {
-                    eps,
                     escalate,
                     band: file,
                     file: geom_core::FileCoincidence::new(eps_in),
@@ -1435,7 +1463,6 @@ mod side_through_a_pole {
         };
         let use_ = |edge, forward| EdgeUse { edge, forward };
         let read = Read {
-            eps: 1e-9,
             escalate: 1e-8,
             band: geom_core::Band::new(1e-9, 1e-8).ok(),
             file: geom_core::FileCoincidence::new(1e-9),
@@ -1491,7 +1518,6 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
 
     fn read(eps: f64, escalate: f64) -> Read {
         Read {
-            eps,
             escalate,
             band: geom_core::Band::new(eps, escalate).ok(),
             file: geom_core::FileCoincidence::new(eps),
