@@ -16,7 +16,7 @@ Filed by FLUSH's PR 6168 fix pass (2026-11-01), from its FULL review.
 
 A met edge's half stands for a curved face's root far from where the ray
 passes the edge only where `reaches_root_in_band`
-(`crates/topo/src/boolean/solid_contain.rs`) says the ray reaches it in
+(`crates/topo/src/solid_contain.rs`) says the ray reaches it in
 band of the carrier. It reaches it when the rise off the carrier over the
 distance, at the root's incidence, less the passage's own clearance,
 decides Negative or Zero. A margin in band, of either sign, decides

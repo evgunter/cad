@@ -12,9 +12,9 @@
 
 use geom_core::{Band, Decide, Tol};
 
-use super::contain::{CurvedPlacement, FaceContainment};
 use super::{BooleanError, Operand};
 use crate::body::Body;
+use crate::contain::{CurvedPlacement, FaceContainment};
 
 /// Where a node lies in one face, as the containment door places it.
 enum Placed {
@@ -27,7 +27,7 @@ enum Placed {
 }
 
 /// [`Placed`] of `node` in `face` of the unmutated operand `body`, the
-/// held placement's read ([`super::contain::placement_on_carrier`]). The
+/// held placement's read ([`crate::contain::placement_on_carrier`]). The
 /// section puts the node on both walls of the equal pair only to within
 /// the band (each wall's outward radial there is the node's normal to
 /// within `band.escalate()`, as `geom_brep`'s bisector pose asserts), so
@@ -40,7 +40,7 @@ fn placed<T: Decide>(
     band: Band,
 ) -> Result<Placed, BooleanError> {
     let held = crate::held::Held::in_band(node);
-    match super::contain::placement_on_carrier(body, face, held, band)
+    match crate::contain::placement_on_carrier(body, face, held, band)
         .map(|(at, _, _)| at)
         .map_err(|e| super::reduce::esc(e, operand, face))?
     {

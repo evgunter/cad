@@ -20,7 +20,7 @@ escalation on the left returns `Err` even where the right reading
 would decide `false` and settle the conjunction; the answer then
 depends on which reading is written first.
 
-- `boolean::rim_wedge` `seam_cover_ride`'s `inside(s - lo)? &&
+- `rim_wedge` `seam_cover_ride`'s `inside(s - lo)? &&
   inside(hi - s)?` (`rim_wedge.rs`, the `rides` loop).
 - `boolean::insert` the two tangent-germ side tests
   `within(sa, ±d, ..)? && within(sb, ±d, ..)?` (`insert.rs`, two
@@ -54,7 +54,7 @@ checked yet for whether the order of the operands can change the answer:
   on_line(..)?` (twice) in the line-overlap reads. This file belongs to
   editor-core, not the boolean; it is listed here only as part of the
   same class.
-- `boolean::solid_contain` the wall-section seat test,
+- `solid_contain` the wall-section seat test,
   `zero(.., tilt)? || !zero(.., seat)?`, and the sphere iso-rim test,
   `!zero(..)? || !zero(..)? || !zero(..)?`. Both span several lines
   (`solid_contain.rs`).

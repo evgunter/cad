@@ -56,9 +56,9 @@ use geom_brep::curve_face::{self, Boundary, BoundaryRefusal, OnBoundary};
 use geom_brep::curve_pair::{Hit, MeetKind, Span};
 use geom_core::{Band, Decide, Point3};
 
-use super::contain::FaceContainment;
 use super::{BooleanDecision, BooleanError, CrossingDecision, Operand};
 use crate::body::Body;
+use crate::contain::FaceContainment;
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::live::BoundaryMember;
 use crate::null::CurveGeom;
@@ -146,7 +146,7 @@ pub(super) fn boundary_crossing<T: Decide>(
     };
     let p = carrier.eval(t);
     Ok(
-        match super::contain::curved_boundary_containment(y, face, p, band)
+        match crate::contain::curved_boundary_containment(y, face, p, band)
             .map_err(|e| super::reduce::esc(e, y_is, face))?
         {
             Some((at, margin)) => BoundaryCrossing::At {
@@ -168,7 +168,7 @@ pub(super) fn boundary_crossing<T: Decide>(
 /// read, answers `None` before any of the pass's decisions, so it never
 /// escalates. A meeting on a face holding a lone vertex (a pierce ring)
 /// answers `None` as well: the pre-pass that places a meeting cannot
-/// read such a face ([`super::contain::curved_boundary_containment`]).
+/// read such a face ([`crate::contain::curved_boundary_containment`]).
 /// Its clear, its run along an edge and its refusals stand as they are.
 ///
 /// # Errors
@@ -401,8 +401,8 @@ mod crossing_rows {
     //! iso-curves are found by either kind of candidate; this is the row
     //! that needs the meeting reading.)
     use super::{BoundaryCrossing, boundary_crossing};
-    use crate::boolean::contain::FaceContainment;
     use crate::boolean::{BooleanDecision, BooleanError, Operand};
+    use crate::contain::FaceContainment;
     use crate::entity::EdgeKey;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;

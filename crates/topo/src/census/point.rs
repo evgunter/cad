@@ -17,7 +17,7 @@
 //! The closed forms here are touch points, not the crossing sections
 //! `boolean::section_cert` derives for the same carrier pairs (a
 //! sample of the section circle, its touch a band fallback) nor the
-//! ray roots `boolean::solid_contain` reads: neither answers the point
+//! ray roots `solid_contain` reads: neither answers the point
 //! where the carriers come nearest.
 
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};

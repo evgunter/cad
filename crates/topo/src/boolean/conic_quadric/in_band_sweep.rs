@@ -33,7 +33,7 @@ test_utils::gated_to![
     "crates/geom-brep/src/curve_face/circle_torus.rs",
     "crates/geom-brep/src/curve_face/conic_oracle.rs",
     "crates/geom-brep/src/curve_face/conic_oracle/",
-    "crates/topo/src/boolean/solid_contain.rs",
+    "crates/topo/src/solid_contain.rs",
     "crates/geom-brep/src/implicit.rs",
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/running.rs",

@@ -57,9 +57,9 @@
 use geom_core::{Band, Decide, Tol};
 
 use crate::body::Body;
-use crate::boolean::PointInSolidError;
 use crate::entity::{FaceKey, ShellKey, SolidKey};
 use crate::props::{QuadLane, ShellClassifyError, ShellRole};
+use crate::solid_contain::PointInSolidError;
 use crate::stands::{Insides, ShellRead, witness_insides};
 
 /// Why the sort could not read which piece a shell belongs to

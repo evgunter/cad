@@ -5,7 +5,7 @@ ZIP covered the boolean's seam-closing half: the declared-REST zip that glued a 
 **What happened to its ground.** Most of its rows were parked on the D10 hold. INTENT stage 4 A (`the-join-builds-what-the-rest-zip-builds`) deleted the declared-REST zip, and the join now builds what it built. ZIP's REST-lane rows closed with that work or were measured and closed by INTENT stage 4 E (`intent/s4-e-glue-on-zero`). The seam zip (`boolean/zip.rs`) has no open row; CLEAVE's `boolean/*` glob still claims it.
 
 **Where its 2 live rows went.** Both moved with their ids, each with a dated "Re-homed at ZIP's close" section:
-- **INSIDE**: `tangent-lever-row-escalates-containment-at-eps-1e-6` (P1 E, red on main at ε = 1e-6). The escalation is `boolean/contain.rs`'s containment ladder.
+- **INSIDE**: `tangent-lever-row-escalates-containment-at-eps-1e-6` (P1 E, red on main at ε = 1e-6). The escalation is `contain.rs`'s containment ladder.
 - **FUSE**: `a-dip-inside-a-rest-contact-is-refused-by-the-result-gate` (P3 M, design). What is left is `boolean::ops::carry_rows` dropping the reduction's vertex-on-face records, which is the same fix site as FUSE's `a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face`.
 
 ZIP's A/B band 7200–7299 closes with it.

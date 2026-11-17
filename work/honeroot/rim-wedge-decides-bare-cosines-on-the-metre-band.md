@@ -14,7 +14,7 @@ margins (the shape of `shell-walls-antiparallel-decides-a-cosine-on-the-metre-ba
 `Margin::of(… .dot(…))` and a cosine bound to a local first. Not
 measured on a fixture.
 
-`crates/topo/src/boolean/rim_wedge.rs`:
+`crates/topo/src/rim_wedge.rs`:
 
 - the traversal read (near the `let cos = along.dot(tangent) / …` line)
   decides `seam_rim_traversal` / `seam_line_traversal` on

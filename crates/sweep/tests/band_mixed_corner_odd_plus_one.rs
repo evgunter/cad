@@ -31,7 +31,7 @@ use sweep::blend::build::{Blended, fillet_edges};
 use sweep::blend::{BlendError, CornerConfig, FILLET3_MIXED_CORNER_RECOURSE};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{assert_naming_totality, at_rest, corners, prism_at};
-use topo::boolean::solid_contain::{SolidContainment, point_in_solid};
+use topo::solid_contain::{SolidContainment, point_in_solid};
 use topo::{Body, EdgeKey, validate_geometric};
 
 use crate::band_closed_mixed_chain_shapes::tightest_interval;
