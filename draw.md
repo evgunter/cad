@@ -32,3 +32,14 @@ Each designer was shown the other two round-1 reports. A and C moved to B's answ
 All three now recommend one final state, with C′ as a stated alternative each leans against. All three name the same unmeasured premise: that the bodies the sliver holds today certify once the departure margin is not scaled by the cell. B says which result would move it back to keeping (the rate's enclosure straddling zero on the thin rectangle). The measurement lane has that run; a closing round follows its numbers.
 
 Totals after round 2: A 151,717; B 315,428; C 153,732.
+
+## Round 3 (2026-11-17), closing
+
+Each designer was shown the other two round-2 reports and the measurement (`work/embed/the-sliver-concession-…`, `## Measured`, sections 1 to 8). All three hold the round-2 recommendation: retire the sliver, with no refusal in its place, and meter the departure reading at the faces' reach.
+- **What the numbers did.** All 96 `Zero` decisions in a sweep are at rounding scale, on a cell across the line from its face, with the partner unpresented: A's round-1 partner rule would have refused all 96, and A says so. With the sliver refused and the margin un-scaled, `chute`, the stepped ring and `tiltedcut_above` hold.
+- **The drum at Interval** still refuses on a straddling rate. B had said in round 2 that this result would send it back to keeping the sliver; B does not move, and says why (keep-and-type has nothing to keep; the straddle is on both faces under the one separator that works at a tangent seam). C withdraws a like clause. All three call the drum a missing engine reading and give three causes: **A** its line placed at Interval as an enclosure where construction fixes it; **B** the graph separator's direction read at the rectangle's middle (`heading`); **C** no separator crosses a tangent seam. A trace was dispatched to tell them apart.
+- **Choices they leave to Ev.** A band on the re-metered rate against its exact sign: all three lean the band (A and C unsure, B likely); only the exact sign was measured. Retiring the last reader's sliver with the drum's fix against now: A and C lean together; B sequences it the same way. B adds a fallback: one named concession (the touch, in metres at ε) for a cell across the line, if the drum's fix does not close it.
+
+Agreed. The `[ev]` PR is opened from `embed/ev-sliver`; `docs/DESIGN-FORK-LOG.md` row 285 carries the recommendation half.
+
+Totals: A 174,824; B 375,792; C 179,915.
