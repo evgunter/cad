@@ -437,8 +437,9 @@ fn a_seated_loop_has_no_start() {
         let (cyl, sph) = (cylinder(0.5), sphere(d, big));
         let section = built(&cyl, &sph);
         // The sliver pose, a millimetre short of the far wall, carries
-        // at a band of 1e-9 and finer; at 1e-6 its periodic fit's tube
-        // straddles, where the clamped fit's did not
+        // at a band of 1e-9 and finer and refuses its tube at 1e-6,
+        // where the clamped fit of the same points certified at a tube
+        // 60 times narrower than a normal pose's. The cause is not found
         // (`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`).
         let coarse_sliver = (d, big) == (0.2, 0.699) && band().zero() > 1e-7;
         let carried = match section.carry(Some(SsiLane::marched()), band()) {
@@ -503,10 +504,25 @@ fn a_seated_loop_has_no_start() {
                     let gap = (view.eval(u) - whole.eval(v)).norm();
                     assert!(gap < 1e-12, "d {d}, R {big}: seat {at}: {gap:e}");
                 }
-                // The seats on the base knot and on a knot read a view
-                // that starts there, and the edge door's limbs take it
-                // as they take the whole loop.
-                if at == knot || at == lo {
+                // The seats on and beside a knot certify at the edge
+                // door's limbs as the whole loop does: on the base knot
+                // and on a knot, an ulp over a knot (the knot then lies
+                // outside the view), and within 1e-15 and 1e-12 of the
+                // base knot on either side (a span of four ulps or
+                // more). The one seat left out is the ulp under a knot,
+                // whose first span is one ulp wide and which the tube
+                // limb refuses on some loops: the open fork
+                // `work/sectarms/a-clamped-view-ending-within-three-ulps-of-a-knot-holds-a-span-no-hull-reads.md`.
+                let certified = [
+                    knot,
+                    knot.next_up(),
+                    lo,
+                    lo + 1e-15,
+                    lo + 1e-12,
+                    hi - 1e-12,
+                    hi - 1e-15,
+                ];
+                if certified.contains(&at) {
                     geom_brep::certify_rung3(
                         &view,
                         None,

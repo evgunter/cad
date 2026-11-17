@@ -127,7 +127,23 @@ fn section_of(body: &Body<f64>) -> Section {
         let turn = stored
             .period()
             .is_some_and(|p| ((t1 - t0) - p.length()).abs() <= 1e-12 * p.length());
-        s.whole_loops += usize::from(start == end && turn);
+        let whole = start == end && turn;
+        // Check 2's turn is the stored loop's: a loop edge records where
+        // its span stands against the loop's period, a whole turn for
+        // the closed edge and short of one for an arc.
+        if stored.kind() == CurveKind::Periodic {
+            let want = if whole {
+                geom_core::period::Within::Whole
+            } else {
+                geom_core::period::Within::Short
+            };
+            assert_eq!(
+                c.turn().map(geom_brep::CertifiedTurn::turn),
+                Some(want),
+                "a loop edge over ({t0}, {t1}) records its turn"
+            );
+        }
+        s.whole_loops += usize::from(whole);
     }
     s
 }
@@ -286,6 +302,31 @@ fn a_loops_edges_read_simple_knots_at_every_scale() {
             },
             "s = {s}"
         );
+        // Moved, the lens keeps its loop: the stored carrier is the
+        // loop moved, the reading its view, and tier 3 takes it.
+        let motion = Affine3::translation(Vec3::new(0.3, -0.2, 0.7) * s)
+            * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.6, 0.8), 0.9);
+        let moved =
+            topo::transform_rigid(body, &geom_core::test_support::rigid(&motion, tol())).unwrap();
+        assert_eq!(section_of(&moved), section_of(body), "s = {s}: moved");
+        let (was, now) = (spline_edges(body), spline_edges(&moved));
+        let ((_, c0), (_, c1)) = (&was[0], &now[0]);
+        let (t0, t1) = c0.params();
+        for k in 0..=50 {
+            let t = t0 + (t1 - t0) * f64::from(k) / 50.0;
+            let want = motion.transform_point(c0.carrier().eval(t));
+            for (what, got) in [
+                ("reading", c1.carrier().eval(t)),
+                ("stored", c1.stored_carrier().eval(t)),
+            ] {
+                let gap = (got - want).norm();
+                assert!(
+                    gap < 1e-12 * s.max(1.0),
+                    "s = {s}: the moved {what} at {t}: {gap:e}"
+                );
+            }
+        }
+        let _ = finished(&format!("the moved lens at s = {s}"), moved, tol());
     }
 }
 

@@ -2327,7 +2327,10 @@ pub struct EdgeCurve<T: Real> {
     description: EdgeDescription<T>,
     /// U2 Q3's per-edge authority record: who determined the locus.
     authority: EdgeAuthority<T>,
-    carrier: Curve3<T>,
+    /// The carrier the edge stores ([`EdgeCurve::stored_carrier`]): on a
+    /// periodic cubic the whole loop, which [`EdgeCurve::carrier`] does
+    /// not return.
+    stored: Curve3<T>,
     /// A periodic carrier's clamped view over the interval
     /// ([`reading_of`]); `None` on every other kind, which is read as it
     /// is stored.
@@ -2346,7 +2349,7 @@ impl<T: Real> core::fmt::Debug for EdgeCurve<T> {
         let Self {
             description,
             authority,
-            carrier,
+            stored: carrier,
             reading: _,
             param_start,
             param_end,
@@ -2389,7 +2392,7 @@ impl<T: Decide> EdgeCurve<T> {
             authority: authority_of(&spec.description),
             description,
             reading,
-            carrier: spec.carrier,
+            stored: spec.carrier,
             param_start: spec.param_start,
             param_end: spec.param_end,
             turn,
@@ -2404,7 +2407,7 @@ impl<T: Decide> EdgeCurve<T> {
 pub struct MintedEdge<T: Real> {
     description: EdgeDescription<T>,
     authority: EdgeAuthority<T>,
-    carrier: Curve3<T>,
+    stored: Curve3<T>,
     reading: Option<Curve3<T>>,
     param_start: T,
     param_end: T,
@@ -2421,7 +2424,7 @@ impl<T: geom_core::TangentTransport> EdgeCurve<T> {
         Self {
             description: minted.description,
             authority: minted.authority,
-            carrier: minted.carrier,
+            stored: minted.stored,
             reading: minted.reading,
             param_start: minted.param_start,
             param_end: minted.param_end,
@@ -2595,7 +2598,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
             authority: authority_of(&spec.description),
             description: canonical,
             reading,
-            carrier: spec.carrier,
+            stored: spec.carrier,
             param_start: spec.param_start,
             param_end: spec.param_end,
             turn,
@@ -3120,9 +3123,9 @@ impl<T: Decide> EdgeCurve<T> {
     pub fn walk_tangents(&self, he_plus: bool) -> (geom_core::Vec3<T>, geom_core::Vec3<T>) {
         let (t0, t1) = self.params();
         if he_plus {
-            (self.carrier.deriv(t0), self.carrier.deriv(t1))
+            (self.stored.deriv(t0), self.stored.deriv(t1))
         } else {
-            (-self.carrier.deriv(t1), -self.carrier.deriv(t0))
+            (-self.stored.deriv(t1), -self.stored.deriv(t0))
         }
     }
 
@@ -3132,7 +3135,7 @@ impl<T: Decide> EdgeCurve<T> {
     /// `d²/dτ² = c″(t₁)`.
     pub fn walk_departure_deriv2(&self, he_plus: bool) -> geom_core::Vec3<T> {
         let (t0, t1) = self.params();
-        self.carrier.deriv2(if he_plus { t0 } else { t1 })
+        self.stored.deriv2(if he_plus { t0 } else { t1 })
     }
 }
 
@@ -3160,7 +3163,7 @@ impl<T: Real> EdgeCurve<T> {
     /// clamped spline whose interior knots are simple. What the edge
     /// stores is [`Self::stored_carrier`].
     pub fn carrier(&self) -> &Curve3<T> {
-        self.reading.as_ref().unwrap_or(&self.carrier)
+        self.reading.as_ref().unwrap_or(&self.stored)
     }
 
     /// **The carrier the edge stores**: the one a restatement, a split
@@ -3168,7 +3171,7 @@ impl<T: Real> EdgeCurve<T> {
     /// curve share. It differs from [`Self::carrier`] on a periodic
     /// cubic, the whole loop the edge is a span of.
     pub fn stored_carrier(&self) -> &Curve3<T> {
-        &self.carrier
+        &self.stored
     }
 
     /// The certified carrier-parameter interval `(t₀, t₁)` —
@@ -3192,8 +3195,9 @@ impl<T: Real> EdgeCurve<T> {
     }
 
     /// Where the edge's extent stands against one period of its
-    /// carrier, as check 2 decided it at the mint: `None` on a carrier
-    /// with no period (a line, a spline).
+    /// stored carrier, as check 2 decided it at the mint: `None` on a
+    /// carrier with no period (a line, a clamped spline). An edge on a
+    /// periodic cubic carries its loop's, though it reads as a spline.
     pub fn turn(&self) -> Option<&CertifiedTurn<T>> {
         self.turn.as_ref()
     }
@@ -3273,7 +3277,7 @@ impl<T: Real> EdgeCurve<T> {
         Ok(Self {
             description,
             authority: self.authority,
-            carrier: self.carrier.clone(),
+            stored: self.stored.clone(),
             reading: self.reading.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
@@ -3329,7 +3333,7 @@ impl<T: Real> EdgeCurve<T> {
         Some(Self {
             description,
             authority: self.authority,
-            carrier: self.carrier.clone(),
+            stored: self.stored.clone(),
             reading: self.reading.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
@@ -3363,10 +3367,14 @@ impl<T: Real> EdgeCurve<T> {
         Self {
             description,
             authority,
-            reading: reading_of(&carrier, (self.param_start, self.param_end))
-                .ok()
-                .flatten(),
-            carrier,
+            reading: match reading_of(&carrier, (self.param_start, self.param_end)) {
+                Ok(reading) => reading,
+                // A map keeps the carrier's kind, its knots and the
+                // interval, so the view this edge was certified on
+                // exists on the image.
+                Err(e) => unreachable!("a mapped edge's carrier has no view over its span: {e}"),
+            },
+            stored: carrier,
             param_start: self.param_start,
             param_end: self.param_end,
             turn: self.turn,
@@ -3388,7 +3396,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
     /// interval ([`Curve3::mid_point`]) — a point ON the edge, interior
     /// to it, whatever the carrier kind.
     pub fn mid_point(&self) -> Point3<T> {
-        self.carrier.mid_point(self.param_start, self.param_end)
+        self.stored.mid_point(self.param_start, self.param_end)
     }
 
     /// The two **uncertified child specs** of splitting this certified
@@ -3428,7 +3436,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 EdgeDescription::Intersection { pair, ref selector } => {
                     EdgeDescriptionSpec::Intersection {
                         pair,
-                        selector: selector.repinned(&self.carrier, ta, tb),
+                        selector: selector.repinned(&self.stored, ta, tb),
                     }
                 }
                 // TangentIntersection splits exactly as Intersection:
@@ -3437,7 +3445,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 EdgeDescription::TangentIntersection { pair, .. } => {
                     EdgeDescriptionSpec::TangentIntersection {
                         pair,
-                        witness: self.carrier.mid_point(ta, tb),
+                        witness: self.stored.mid_point(ta, tb),
                     }
                 }
                 EdgeDescription::Scaffold(mc) => EdgeDescriptionSpec::Scaffold(mc.restrict(s0, s1)),
@@ -3469,7 +3477,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
             };
             EdgeCurveSpec {
                 description,
-                carrier: self.carrier.clone(),
+                carrier: self.stored.clone(),
                 param_start: ta,
                 param_end: tb,
             }
@@ -3495,7 +3503,7 @@ impl<T: Real> EdgeCurve<T> {
     pub fn restated_spec(&self) -> EdgeCurveSpec<T> {
         EdgeCurveSpec {
             description: self.restated_description(),
-            carrier: self.carrier.clone(),
+            carrier: self.stored.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
         }
@@ -4968,7 +4976,7 @@ fn mint_checks<T: Decide>(
     let read = ReadSpec::of(spec, band)?;
     let (spec, reading) = (read.spec(spec), read.reading());
     let resolved = resolve_spec(spec, surfaces)?;
-    let turn = decide_turn(spec, band)?;
+    let turn = read.turn(spec, band)?;
     if let Some(surface) = StatedChart::of(&resolved).analytic() {
         stated_analytic_read(spec, surface, band)?;
     }
@@ -5026,26 +5034,48 @@ fn reading_of<T: SpanLocate>(
 /// floor (forward, and within one turn), which the view cannot say.
 struct ReadSpec<T: Real> {
     on_view: Option<EdgeCurveSpec<T>>,
+    /// Check 2's turn, decided on the stored loop: the view has no
+    /// period to stand an extent against.
+    turn: Option<CertifiedTurn<T>>,
 }
 
 impl<T: Decide> ReadSpec<T> {
     fn of(spec: &EdgeCurveSpec<T>, band: Band) -> Result<Self, CertifyError> {
         let span = (spec.param_start, spec.param_end);
         if !matches!(spec.carrier, Curve3::Periodic(_)) {
-            return Ok(Self { on_view: None });
+            return Ok(Self {
+                on_view: None,
+                turn: None,
+            });
         }
-        decide_turn(spec, band)?;
+        let turn = decide_turn(spec, band)?;
         let on_view = reading_of(&spec.carrier, span)?.map(|carrier| EdgeCurveSpec {
             carrier,
             ..spec.clone()
         });
-        Ok(Self { on_view })
+        Ok(Self { on_view, turn })
     }
 }
 
 impl<T: Real> ReadSpec<T> {
     fn spec<'a>(&'a self, stated: &'a EdgeCurveSpec<T>) -> &'a EdgeCurveSpec<T> {
         self.on_view.as_ref().unwrap_or(stated)
+    }
+
+    /// Check 2's turn for the spec the checks read: the stored loop's
+    /// where the edge is on one, else the spec's own.
+    fn turn(
+        &self,
+        spec: &EdgeCurveSpec<T>,
+        band: Band,
+    ) -> Result<Option<CertifiedTurn<T>>, CertifyError>
+    where
+        T: Decide,
+    {
+        match (&self.on_view, self.turn) {
+            (Some(_), turn) => Ok(turn),
+            (None, _) => decide_turn(spec, band),
+        }
     }
 
     fn reading(&self) -> Option<Curve3<T>> {
@@ -5071,7 +5101,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     let read = ReadSpec::of(spec, band)?;
     let (spec, reading) = (read.spec(spec), read.reading());
     let resolved = resolve_spec(spec, surfaces)?;
-    let turn = decide_turn(spec, band)?;
+    let turn = read.turn(spec, band)?;
     let mut max_residual = T::zero();
     let (t0, t1) = (spec.param_start, spec.param_end);
 
@@ -8931,8 +8961,8 @@ mod tests {
         let recertifiers: [(&str, Recertify); 2] = [
             ("recertify", |curve, band| {
                 let (a, b) = (
-                    curve.carrier.eval(curve.param_start),
-                    curve.carrier.eval(curve.param_end),
+                    curve.stored.eval(curve.param_start),
+                    curve.stored.eval(curve.param_end),
                 );
                 curve.recertify(
                     a,
@@ -8945,8 +8975,8 @@ mod tests {
             }),
             ("recertify_stated", |curve, band| {
                 let (a, b) = (
-                    curve.carrier.eval(curve.param_start),
-                    curve.carrier.eval(curve.param_end),
+                    curve.stored.eval(curve.param_start),
+                    curve.stored.eval(curve.param_end),
                 );
                 curve.recertify_stated(
                     a,

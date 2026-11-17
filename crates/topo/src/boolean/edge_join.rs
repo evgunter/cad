@@ -54,7 +54,12 @@
 //! The joined edge runs on the kept edge's carrier through the vertex,
 //! so the kept edge is one whose carrier has no crease there
 //! ([`crease_at`]: a spline carrier at its clamped end, or at an
-//! interior knot of multiplicity at least its degree). A spline that
+//! interior knot of multiplicity at least its degree). The carrier read
+//! is the one the edge stores: an edge on a periodic cubic reads a
+//! clamped view that ends at each of its vertices, but the loop it is a
+//! span of runs on through them with simple knots only, so a periodic
+//! stored carrier has no crease anywhere in its loop and its vertices
+//! join as a circle's do. A spline that
 //! ends at the vertex beside a line or a circle on the same locus is
 //! the edge the join kills. Where both carriers crease there, as two
 //! spline pieces meeting at a knot of full multiplicity do, the vertex
@@ -1143,35 +1148,13 @@ fn carried_far<T: Decide>(
     gone: &geom::Curve3<T>,
     (gw, gx): (T, T),
 ) -> Option<T> {
-    let same = |a: T, b: T| matches!((a.plain_constant(), b.plain_constant()), (Some(x), Some(y)) if x == y);
-    // A chord of a periodic cubic that left its site backward is stated
-    // on the loop run back ([`geom::Curve3::reversed`], the same data
-    // at the negated parameter): its interval read on `kept`'s sense is
-    // its own negated.
-    let run_back = carrier.as_periodic().is_some()
-        && gone
-            .reversed()
-            .is_some_and(|back| carrier.same_content(&back));
-    let (gw, gx) = if run_back {
-        (T::zero() - gw, T::zero() - gx)
-    } else if carrier.same_content(gone) {
-        (gw, gx)
-    } else {
+    let at_tw = matches!(
+        (gw.plain_constant(), tw.plain_constant()),
+        (Some(x), Some(y)) if x == y
+    );
+    if !(at_tw && carrier.same_content(gone)) {
         return None;
-    };
-    // On a periodic cubic `gone` may state the vertex whole turns from
-    // where `kept` does (the two arcs either side of a loop's seat):
-    // its far end is then that many turns on, where the stated
-    // parameters differ by exactly those turns.
-    let turns = match carrier.as_periodic() {
-        Some(p) if !same(gw, tw) => {
-            let k = ((tw - gw) / p.period()).point_value().map(f64::round)?;
-            let shift = p.period() * T::from_computed(k);
-            same(gw + shift, tw).then_some(shift)?
-        }
-        _ => same(gw, tw).then_some(T::zero())?,
-    };
-    let gx = gx + turns;
+    }
     let past = if backward { tw - gx } else { gx - tw };
     let pick = geom_core::k_stats::choose("edge_join_carried_far", Margin::of(past), "F39");
     matches!(pick, geom_core::k_stats::Pick::Positive).then_some(gx)
@@ -1180,7 +1163,11 @@ fn carried_far<T: Decide>(
 /// **`gone`'s far end read off `kept`'s carrier**: the parameter of
 /// `gone`'s middle near `tw`, then of `far` near that, so the reading
 /// walks from the vertex along `gone`. A closed form inverts in closed
-/// form; a periodic cubic by its foot ([`geom::Curve3::foot`]). Where `gone` lies on the very
+/// form; a periodic cubic by its foot ([`geom::Curve3::foot`]), which is
+/// the one reading of a far end on a loop that [`carried_far`] does not
+/// carry: an arc stated a whole turn away across the loop's seat, an
+/// arc stated on the loop run back, and one whose parameter at the
+/// vertex is not the kept edge's bit for bit. Where `gone` lies on the very
 /// carrier ([`carried_far`]), this names `gx`'s point, and the two
 /// spellings agree up to rounding (ledger row F39).
 fn read_far<T: Decide>(
