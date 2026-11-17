@@ -3860,9 +3860,7 @@ mod tests {
                 want.1
             );
             // ... and it is the pad the probe proved over.
-            let geom::Curve3::Nurbs(carrier) = &b.carrier else {
-                panic!("branch {i}: a fitted carrier is a NURBS curve");
-            };
+            let carrier = &*b.net();
             let (t0, t1) = carrier.domain();
             let ends = [t0, t1].map(|t| {
                 let p = carrier.eval(t);

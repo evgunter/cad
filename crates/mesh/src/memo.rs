@@ -29,7 +29,7 @@
 //! Common to every lane:
 //! - δ (the chordal tolerance; every lane's step and the certificates'
 //!   bar derive from it) and the ambient tolerance's ε and k (the lanes' `Eps` and the
-//!   curved lane's shape band derive from those);
+//!   shape band the curved lane and the dispatch read derive from those);
 //! - the surface's KIND (the dispatch reads it);
 //! - for each loop in face order (outer, then rings), for each edge in
 //!   walk order: its traversal direction, its certified carrier
@@ -1076,6 +1076,7 @@ impl KeyWriter {
             Curve3::Ellipse(..) => 2,
             Curve3::Nurbs(_) => 3,
             Curve3::Spiric { .. } => 4,
+            Curve3::Periodic(_) => 5,
         });
     }
 
@@ -1085,6 +1086,11 @@ impl KeyWriter {
         self.curve3_kind(c);
         match c.data() {
             CurveData::Nurbs(n) => self.nurbs3(n),
+            // The base opening and the sense state the loop.
+            CurveData::Periodic(p) => {
+                self.nurbs3(p.whole_loop());
+                self.datum(geom::DatumValue::Scalar(p.base_span().0));
+            }
             CurveData::Analytic(data) => {
                 for (_, value) in data {
                     self.datum(value);

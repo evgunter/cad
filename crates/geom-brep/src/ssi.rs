@@ -1967,7 +1967,8 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
 /// One certified rung-3 branch of an intersection locus.
 #[derive(Clone, Debug)]
 pub struct SsiBranch {
-    /// The fitted carrier — a `Curve3::Nurbs` (C1 rung 3).
+    /// The fitted carrier (C1 rung 3): a `Curve3::Nurbs`, or the
+    /// `Curve3::Periodic` of an ℝ³ branch that closed.
     pub carrier: Curve3<f64>,
     /// The carrier's parameter span.
     pub params: (f64, f64),
@@ -1992,6 +1993,26 @@ pub struct SsiBranch {
     /// on every certified door, enforced at the certifying seam
     /// ([`SsiError::MarchTolMismatch`]).
     pub march_tol: f64,
+}
+
+impl SsiBranch {
+    /// **The clamped net the branch's certificate was taken on**: a
+    /// clamped carrier's own, and a closed ℝ³ branch's base opening
+    /// ([`geom::PeriodicNurbs3::base_opening`]), the whole loop over
+    /// [`Self::params`].
+    ///
+    /// # Panics
+    ///
+    /// Where the carrier is no spline over its span, which no door that
+    /// builds a branch leaves.
+    #[must_use]
+    pub fn net(&self) -> std::sync::Arc<NurbsCurve3<f64>> {
+        match self.carrier.clamped_net(self.params) {
+            Some(Ok(net)) => net,
+            Some(Err(e)) => unreachable!("a branch's carrier over its own span: {e}"),
+            None => unreachable!("a branch's carrier is a fitted spline (C1 rung 3)"),
+        }
+    }
 }
 
 /// The result of a rung-3 intersection: the certified branches **and**
@@ -2367,16 +2388,68 @@ fn fit_branch(points: &[Point3<f64>], charts: ChartSamples<'_>) -> Result<Fitted
     Ok((carrier, pa, pb))
 }
 
+/// **A closed marched polyline's carrier**: the periodic cubic through
+/// its points ([`geom::PeriodicNurbs3::interpolate`]), `points` ending
+/// on its first point again as a closed march leaves it. The chord
+/// parameters are [`fit_branch`]'s of the same list, the closing chord
+/// the list's last, so a span read on one fit is read on the other.
+fn fit_loop(points: &[Point3<f64>]) -> Result<geom::PeriodicNurbs3<f64>, SsiError> {
+    let Some((_, open)) = points.split_last() else {
+        return Err(geom::FitError::TooFewPoints { have: 0, need: 2 }.into());
+    };
+    Ok(geom::PeriodicNurbs3::interpolate(open)?)
+}
+
+/// An ℝ³ branch's fitted carrier: a clamped cubic where the march left
+/// the domain, a periodic one where it closed.
+struct FittedR3 {
+    /// The clamped net the certificate reads, the whole branch: an open
+    /// branch's carrier, and a loop's base opening, taken once at the
+    /// loop's own base knot.
+    net: NurbsCurve3<f64>,
+    /// A closed branch's loop.
+    periodic: Option<geom::PeriodicNurbs3<f64>>,
+}
+
+impl FittedR3 {
+    fn of(points: &[Point3<f64>], closed: bool) -> Result<Self, SsiError> {
+        if closed {
+            let periodic = fit_loop(points)?;
+            Ok(Self {
+                net: periodic.base_opening(),
+                periodic: Some(periodic),
+            })
+        } else {
+            Ok(Self {
+                net: fit_branch(points, [None, None])?.0,
+                periodic: None,
+            })
+        }
+    }
+
+    fn net(&self) -> &NurbsCurve3<f64> {
+        &self.net
+    }
+
+    fn carrier(self) -> Curve3<f64> {
+        match self.periodic {
+            Some(periodic) => Curve3::Periodic(std::sync::Arc::new(periodic)),
+            None => Curve3::Nurbs(std::sync::Arc::new(self.net)),
+        }
+    }
+}
+
 /// The ℝ³ box chain of a certified branch — the tubes the accounting
 /// pass consumes. A branch with no spatial tube banks nothing, which
 /// only makes the accounting harder.
 fn branch_tubes(branch: &SsiBranch) -> Vec<Box3> {
-    let (Curve3::Nurbs(c), SsiTube::Spatial { radius }) =
-        (&branch.carrier, branch.certificate.tube)
-    else {
+    let (Some(Ok(c)), SsiTube::Spatial { radius }) = (
+        branch.carrier.clamped_net(branch.params),
+        branch.certificate.tube,
+    ) else {
         return Vec::new();
     };
-    certify::tube_boxes(c, radius)
+    certify::tube_boxes(&c, radius)
 }
 
 /// The chart windows of a certified chart-lane branch — the tubes
@@ -3475,6 +3548,7 @@ fn finish_r3(
 ) -> Result<SsiBranch, SsiError> {
     use system::LocalSystem as _;
     let march_tol = seam_tol(ctx.tol, band)?;
+    let closed = trace.end == march::SlabEnd::Closed;
     let (carrier, cert) = refine::refine_for_tube(
         sys,
         trace.states.clone(),
@@ -3482,9 +3556,9 @@ fn finish_r3(
         band,
         |states, limbs| {
             let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
-            let (carrier, _, _) = fit_branch(&points, [None, None])?;
+            let carrier = FittedR3::of(&points, closed)?;
             let cert = certify::certify_located(
-                &carrier,
+                carrier.net(),
                 certify::Lane::Spatial {
                     pair: (a, b),
                     slab: domain.slab(),
@@ -3499,12 +3573,13 @@ fn finish_r3(
             let SsiTube::Spatial { radius } = cert.tube else {
                 return None;
             };
-            let spans = certify::coarse_tube_spans(carrier, (a, b), radius, (domain.extent, band));
+            let spans =
+                certify::coarse_tube_spans(carrier.net(), (a, b), radius, (domain.extent, band));
             Some((radius, spans))
         },
     )?;
-    let params = carrier.domain();
-    let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
+    let params = carrier.net().domain();
+    let carrier = carrier.carrier();
     let witness = carrier.mid_point(params.0, params.1);
     Ok(SsiBranch {
         carrier,

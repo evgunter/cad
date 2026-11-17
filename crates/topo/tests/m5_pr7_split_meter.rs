@@ -117,9 +117,7 @@ type Rung3Scaffold = (
 /// description keys resolve through the public attach door.
 fn body_with_rung3_edge() -> Rung3Scaffold {
     let branch = ssi_branch();
-    let Curve3::Nurbs(ref loop_carrier) = branch.carrier else {
-        panic!("a rung-3 carrier is a NURBS curve")
-    };
+    let loop_carrier = &*branch.net();
     // The branch is a closed loop; an edge wants distinct endpoints.
     // Split the carrier by knot insertion (the zip's own idiom,
     // C12.3) and take the first QUARTER: an open sub-arc whose

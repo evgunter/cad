@@ -586,7 +586,7 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             u_ref: Some(*u_ref),
             sense: true,
         }),
-        Curve3::Nurbs(_) => Err(ReadbackError::NoCanonicalFrame {
+        Curve3::Nurbs(_) | Curve3::Periodic(_) => Err(ReadbackError::NoCanonicalFrame {
             carrier: "nurbs curve",
         }),
     }

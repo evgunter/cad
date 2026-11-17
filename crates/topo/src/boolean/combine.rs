@@ -906,7 +906,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
         let (start, end) = (point(start_v), point(end_v));
         let spec = geom_brep::EdgeCurveSpec {
             description,
-            carrier: curve.carrier().clone(),
+            carrier: curve.stored_carrier().clone(),
             param_start: curve.params().0,
             param_end: curve.params().1,
         };
