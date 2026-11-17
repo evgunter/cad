@@ -1476,10 +1476,12 @@ impl TrimmedFace<'_> {
             // becomes a fan about each of its points, and the side between
             // two of them is a side of one triangle, as a boundary side is.
             //
-            // A triangle two runs are anchored in by its two other
-            // corners has no one third corner to fan about, and the face
-            // refuses: it takes both runs beside the apex, the one point
-            // on two rulings.
+            // TWO RUNS ANCHORED BY ONE NEIGHBOUR are each the other's
+            // third corner: both beside the apex, the one point on two
+            // rulings. The triangle is then cut along both: the first run's
+            // triangles fan about the other run's far end, which leaves the
+            // other's points and the first's point next to the apex, and
+            // the other's fan about that point.
             let mut between: Vec<[Corner; 3]> = Vec::new();
             if !run_at.is_empty() {
                 let hs = vs.map(|vtx| vtx.fix().index());
@@ -1499,19 +1501,32 @@ impl TrimmedFace<'_> {
                     let Some((run, Some(by))) = run_at_corner(k) else {
                         continue;
                     };
-                    if matches!(run_at_corner(3 - k - by), Some((_, Some(_)))) {
-                        return Err(TessellateError::SphereTrimShape {
-                            face: self.fk,
-                            edge: self.polygon.edges[run.members[0]],
-                            cause: SphereTrimCause::DevelopedMerge,
-                        });
+                    let third = 3 - k - by;
+                    let mut fan = corners;
+                    match run_at_corner(third) {
+                        Some((other, Some(common))) if common == by => {
+                            if k < third {
+                                fan[third] = other.point(self.polygon, other.corner(false));
+                            }
+                        }
+                        // Anchored here by this run's own vertex: three
+                        // points of one ruling, which the CDT joins in no
+                        // triangle.
+                        Some((_, Some(_))) => {
+                            return Err(TessellateError::SphereTrimShape {
+                                face: self.fk,
+                                edge: self.polygon.edges[run.members[0]],
+                                cause: SphereTrimCause::DevelopedMerge,
+                            });
+                        }
+                        Some((_, None)) | None => {}
                     }
                     let (first, second) = match run.anchor {
                         Anchor::Before => (by, k),
                         Anchor::After => (k, by),
                     };
                     for m in 0..run.members.len() - 1 {
-                        let mut t = corners;
+                        let mut t = fan;
                         t[first] = run.point(self.polygon, m);
                         t[second] = run.point(self.polygon, m + 1);
                         between.push(t);
