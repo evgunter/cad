@@ -903,19 +903,45 @@ struct Along {
     edges: Vec<EdgeKey>,
     vertex: Option<VertexKey>,
     whole: bool,
+    /// Where on its one edge's carrier the zero lies, read for a whole
+    /// side or curve only.
     params: Option<Params>,
-    /// The side lies on its edges: the presentation's rectangle meets its
-    /// chart line only where the edges cover it ([`present_chart`]'s
-    /// coverage, a plane segment's own span).
+    /// The side lies on its edges: they cover its whole chart line in the
+    /// presentation's rectangle, with no run-on past a vertex
+    /// ([`present_chart`]), or it is a plane segment's checked span.
     on_edges: bool,
 }
 
-/// A side's parameters on its edge's carrier, and whether that carrier
-/// is a circle, whose parameter is read modulo whole turns.
+/// **Where a zero lies on its edge's carrier**: its parameters, and
+/// whether they are read modulo whole turns (a circle's or a curve's on
+/// a conic).
 #[derive(Clone, Copy, Debug)]
 struct Params {
     t: (f64, f64),
-    circle: bool,
+    periodic: bool,
+}
+
+impl Params {
+    /// The parameters, a periodic one's moved by the whole turns (none,
+    /// or one either way) that leave them nearest `piece`.
+    fn nearest(self, (lo, hi): (f64, f64)) -> Option<(f64, f64)> {
+        let turns_of: &[f64] = if self.periodic {
+            &[-1.0, 0.0, 1.0]
+        } else {
+            &[0.0]
+        };
+        turns_of
+            .iter()
+            .map(|&k| {
+                let s = iv(self.t) + turns(k);
+                (s.lo(), s.hi())
+            })
+            .filter(|(a, b)| a.is_finite() && b.is_finite())
+            .min_by(|x, y| {
+                let over = |(a, b): (f64, f64)| (lo - a).max(b - hi).max(0.0);
+                over(*x).total_cmp(&over(*y))
+            })
+    }
 }
 
 impl Along {
@@ -954,52 +980,49 @@ impl Along {
         }
     }
 
-    /// The side on `b`'s one edge `edge`, its parameters `t` on that
-    /// edge's carrier kept where the side is whole, and whether it lies
-    /// on the edge.
+    /// The side on `b`'s one edge `edge`, whether it lies on the edge,
+    /// and, where it is whole, its parameters on the edge's carrier,
+    /// which `params` is asked for only then.
     fn over(
         surface: &Surface<Interval>,
         b: &Boundary,
         edge: usize,
-        t: Option<(f64, f64)>,
         on_edges: bool,
+        params: impl FnOnce() -> Option<(f64, f64)>,
     ) -> Self {
         let of = Self::of(surface, b, &[edge]);
-        let circle = b
+        let periodic = b
             .edges
             .get(edge)
             .is_some_and(|r| matches!(r.arc, Some((Curve3::Circle(_), _))));
         Self {
-            params: t.filter(|_| of.whole).map(|t| Params { t, circle }),
+            params: if of.whole {
+                params().map(|t| Params { t, periodic })
+            } else {
+                None
+            },
             on_edges,
             ..of
         }
     }
 
-    /// The side's parameters, a circle's moved by the whole turns (none,
-    /// or one either way) that bring them nearest `piece`, as
-    /// [`Curved::nearest`] moves a curve's.
-    fn nearest(&self, (lo, hi): (f64, f64)) -> Option<(f64, f64)> {
-        let Params { t, circle } = self.params?;
-        let turns_of: &[f64] = if circle { &[-1.0, 0.0, 1.0] } else { &[0.0] };
-        turns_of
-            .iter()
-            .map(|&k| {
-                let s = iv(t) + turns(k);
-                (s.lo(), s.hi())
-            })
-            .filter(|(a, b)| a.is_finite() && b.is_finite())
-            .min_by(|x, y| {
-                let over = |(a, b): (f64, f64)| (lo - a).max(b - hi).max(0.0);
-                over(*x).total_cmp(&over(*y))
-            })
-    }
-
-    /// Whether the side's parameters lie in `piece`, moved as
-    /// [`Along::nearest`] moves them; `false` where none are read.
-    fn within(&self, (lo, hi): (f64, f64)) -> bool {
-        self.nearest((lo, hi))
-            .is_some_and(|(a, b)| lo <= a && b <= hi)
+    /// **Whether the graph separator over `piece` is zero along this
+    /// side or curve**: the one rule both are read by. The graph vanishes
+    /// on its edge's carrier over the piece and nowhere else
+    /// ([`graph_of`]), so a whole zero is zero where its parameters lie
+    /// in the piece. A zero whose chart line is not its edge's own line
+    /// or circle has none read: it is zero where it lies on its edge, its
+    /// points the edge's in the presentation's image, which the piece
+    /// holds up to the rounding of the chart against the stored carrier
+    /// (`edge-piece-misses-a-chart-sides-stored-carrier-by-the-charts-rounding`).
+    /// A whole zero whose parameters were not read answers nothing.
+    fn under_graph(&self, piece: (f64, f64)) -> bool {
+        match self.params {
+            Some(params) => params
+                .nearest(piece)
+                .is_some_and(|(a, b)| piece.0 <= a && b <= piece.1),
+            None => !self.whole && self.on_edges,
+        }
     }
 }
 
@@ -1008,24 +1031,25 @@ impl Along {
 /// affine relation its image's ends and its span's ends fix. On an
 /// analytic chart a coordinate line's image is a line or a circle, and
 /// an edge on it whose carrier is that line or circle (a whole side,
-/// [`Along::of`]) has a parameter affine in the moving coordinate; only
-/// such a side keeps them ([`Along::over`]). On a periodic axis the
-/// image is first moved by the whole turns that bring it nearest the
-/// range.
-fn iso_params(surface: &Surface<Interval>, rim: &Rim, range: (f64, f64)) -> Option<(f64, f64)> {
+/// [`Along::of`]) has a parameter affine in the moving coordinate: its
+/// pcurve is an iso line or arc, or a harmonic whose moving channel has
+/// no cosine or sine term, which is checked. The parameters may lie a
+/// whole turn off the span's sheet, which [`Params::nearest`] reads.
+/// `None` for anything else.
+fn iso_params(rim: &Rim, range: (f64, f64)) -> Option<(f64, f64)> {
     let (_, (t0, t1)) = rim.arc.as_ref()?;
     let [u] = rim.uses.as_slice() else {
         return None;
     };
     let iso = u.iso?;
+    let moving = iso.held.other().index();
+    if let Some(h) = u.harmonic
+        && !(exactly(h.pa[moving], 0.0) && exactly(h.pb[moving], 0.0))
+    {
+        return None;
+    }
     let [p, q] = u.image?;
     let (i0, i1) = (iso.moving(p), iso.moving(q));
-    let (i0, i1) = if periodic(surface, iso.held.other()) {
-        let k = turns_toward(hull(i0, i1), geom::mid_param(range.0, range.1));
-        (i0 + turns(k), i1 + turns(k))
-    } else {
-        (i0, i1)
-    };
     let t = *t0 + (*t1 - *t0) * ((iv(range) - i0) / (i1 - i0));
     (t.is_certified() && t.lo().is_finite() && t.hi().is_finite()).then(|| (t.lo(), t.hi()))
 }
@@ -1967,30 +1991,26 @@ fn present_chart<'a>(
         }
     }
     let zero = match zero_of(piece.surface, b, &merged, near_edges, near_vertices) {
-        Ok(Zero::Side(side, a)) => {
-            let one = merged
-                .iter()
-                .find(|c| c.side == side)
-                .and_then(|c| match *c.edges {
-                    [e] => Some(e),
-                    _ => None,
-                });
-            let range = side.axis().other().of((x, y));
-            match one {
-                Some(e) => {
-                    let t = b
-                        .edges
-                        .get(e)
-                        .and_then(|r| iso_params(piece.surface, r, range));
-                    Zero::Side(side, Along::over(piece.surface, b, e, t, true))
-                }
-                None => Zero::Side(
+        Ok(Zero::Side(side, a)) if a.vertex.is_none() => {
+            let held = side.axis();
+            let clip = merged.iter().find(|c| c.side == side);
+            let range = held.other().of((x, y));
+            // On its edges only where they cover the side without the
+            // run-on past a vertex ([`run_on`]), whose far bound is the
+            // other line's enclosure, off the edge's span.
+            let on_edges = clip.is_some_and(|c| {
+                edge_ranges(b, &c.edges, held).is_some_and(|ranges| {
+                    covered(range, &ranges, periodic(piece.surface, held.other()))
+                })
+            });
+            match clip.map(|c| c.edges.as_slice()) {
+                Some(&[e]) => Zero::Side(
                     side,
-                    Along {
-                        on_edges: true,
-                        ..a
-                    },
+                    Along::over(piece.surface, b, e, on_edges, || {
+                        iso_params(b.edges.get(e)?, range)
+                    }),
                 ),
+                _ => Zero::Side(side, Along { on_edges, ..a }),
             }
         }
         Ok(zero) => zero,
@@ -2225,7 +2245,9 @@ fn present_plane<'a>(
         let d = p - origin;
         Point2::new(d.dot(u_ref), d.dot(v_ref))
     };
-    let segment = |ei: usize| -> Result<(Point2<Interval>, Point2<Interval>), Unpresented> {
+    // An edge's chart points in the loop's order, each with its parameter.
+    type End = (Point2<Interval>, Interval);
+    let segment = |ei: usize| -> Result<(End, End), Unpresented> {
         let e = b.edges.get(ei).ok_or(Unpresented::Local)?;
         let Some((carrier, (t0, t1))) = e.arc.as_ref().filter(|(c, _)| !c.is_curved()) else {
             return Err(unread(ei, near_edges));
@@ -2233,7 +2255,10 @@ fn present_plane<'a>(
         let [u] = e.uses.as_slice() else {
             return Err(unread(ei, near_edges));
         };
-        let (p, q) = (chart(carrier.eval(*t0)), chart(carrier.eval(*t1)));
+        let (p, q) = (
+            (chart(carrier.eval(*t0)), *t0),
+            (chart(carrier.eval(*t1)), *t1),
+        );
         Ok(if u.plus { (p, q) } else { (q, p) })
     };
     match edges.as_slice() {
@@ -2241,7 +2266,7 @@ fn present_plane<'a>(
             if !piece.local.vertices.is_empty() {
                 return Err(Unpresented::Local);
             }
-            let (p, q) = segment(*e)?;
+            let ((p, ta), (q, tb)) = segment(*e)?;
             let a = [q.x - p.x, q.y - p.y];
             let bv = toward_face(a, orientation);
             let len2 = a[0].powi(2) + a[1].powi(2);
@@ -2264,16 +2289,12 @@ fn present_plane<'a>(
                 return Err(Unpresented::Local);
             }
             let zero = if near_edges.contains(e) {
-                let t = b.edges.get(*e).and_then(|r| {
-                    let (_, (t0, t1)) = r.arc.as_ref()?;
-                    let (ta, tb) = if r.uses.first()?.plus {
-                        (*t0, *t1)
-                    } else {
-                        (*t1, *t0)
-                    };
-                    segment_params(ta, tb, (x.lo(), x.hi()))
-                });
-                Zero::Side(Side::YLo, Along::over(piece.surface, b, *e, t, true))
+                Zero::Side(
+                    Side::YLo,
+                    Along::over(piece.surface, b, *e, true, || {
+                        segment_params(ta, tb, (x.lo(), x.hi()))
+                    }),
+                )
             } else {
                 Zero::None
             };
@@ -2301,8 +2322,8 @@ fn present_plane<'a>(
             if piece.local.vertices.iter().any(|&w| w != vtx) {
                 return Err(Unpresented::Local);
             }
-            let (p1, q1) = segment(*e1)?;
-            let (p2, q2) = segment(*e2)?;
+            let ((p1, s1), (q1, f1)) = segment(*e1)?;
+            let ((p2, s2), (q2, f2)) = segment(*e2)?;
             // Each edge's chart point at the vertex, its far point, and
             // its traversal direction.
             let start1 = if r1.uses[0].plus {
@@ -2315,8 +2336,18 @@ fn present_plane<'a>(
             } else {
                 r2.ends[1]
             };
-            let (o, far1) = if start1 == vtx { (p1, q1) } else { (q1, p1) };
-            let far2 = if start2 == vtx { q2 } else { p2 };
+            // Each edge's parameters at the vertex and its far end ride
+            // with its points.
+            let ((o, v1), (far1, w1)) = if start1 == vtx {
+                ((p1, s1), (q1, f1))
+            } else {
+                ((q1, f1), (p1, s1))
+            };
+            let ((_, v2), (far2, w2)) = if start2 == vtx {
+                ((p2, s2), (q2, f2))
+            } else {
+                ((q2, f2), (p2, s2))
+            };
             let t1 = [q1.x - p1.x, q1.y - p1.y];
             let t2 = [q2.x - p2.x, q2.y - p2.y];
             let a = [far1.x - o.x, far1.y - o.y];
@@ -2351,20 +2382,14 @@ fn present_plane<'a>(
             }
             let z1 = near_edges.contains(e1);
             let z2 = near_edges.contains(e2);
-            // An edge's parameters over its coordinate, which is 0 at the
-            // vertex and 1 at its far end, out to `hi`.
-            let on = |e: usize, r: &Rim, hi: Interval| {
-                let t = r.arc.as_ref().and_then(|(_, (t0, t1))| {
-                    let (ta, tb) = if r.ends[0] == vtx {
-                        (*t0, *t1)
-                    } else {
-                        (*t1, *t0)
-                    };
-                    segment_params(ta, tb, (0.0, hi.hi()))
-                });
-                Along::over(piece.surface, b, e, t, true)
+            // Each edge over its coordinate, 0 at the vertex and 1 at its
+            // far end, out to `hi`.
+            let on = |e: usize, (v, w): (Interval, Interval), hi: Interval| {
+                Along::over(piece.surface, b, e, true, || {
+                    segment_params(v, w, (0.0, hi.hi()))
+                })
             };
-            let (on1, on2) = (on(*e1, r1, x), on(*e2, r2, y));
+            let (on1, on2) = (on(*e1, (v1, w1), x), on(*e2, (v2, w2), y));
             let zero = match (z1, z2) {
                 (true, true) => Zero::Corner((Side::YLo, on1), (Side::XLo, on2)),
                 (true, false) => Zero::Side(Side::YLo, on1),
@@ -2613,30 +2638,6 @@ impl Curved {
             Form::Harmonic { image, .. } => image.psi(psi, t),
             Form::Wall(w) => w.psi(psi, t),
         }
-    }
-
-    /// The side's parameters moved by the whole turns (none, or one
-    /// either way) that leave them nearest `piece`, as a hull holding
-    /// them.
-    fn nearest(&self, (lo, hi): (f64, f64)) -> Option<(f64, f64)> {
-        [-1.0, 0.0, 1.0]
-            .iter()
-            .map(|&k| {
-                let shifted = iv(self.t) + turns(k);
-                (shifted.lo(), shifted.hi())
-            })
-            .filter(|(a, b)| a.is_finite() && b.is_finite())
-            .min_by(|x, y| {
-                let over = |(a, b): (f64, f64)| (lo - a).max(b - hi).max(0.0);
-                over(*x).total_cmp(&over(*y))
-            })
-    }
-
-    /// Whether the side's parameters lie in `piece`, moved by whole turns
-    /// as [`Curved::nearest`] moves them.
-    fn within(&self, (lo, hi): (f64, f64)) -> bool {
-        self.nearest((lo, hi))
-            .is_some_and(|(a, b)| lo <= a && b <= hi)
     }
 
     /// The chart point at the middle of the side's parameters.
@@ -2975,7 +2976,7 @@ fn present_curved<'a>(
                         edges: vec![e.key],
                         vertex: None,
                         whole: matches!(carrier, Curve3::Circle(_) | Curve3::Ellipse(_)),
-                        params: None,
+                        params: Some(Params { t, periodic: true }),
                         on_edges: false,
                     },
                     past: through
@@ -3342,7 +3343,10 @@ fn present_wall<'a>(
                     edges: vec![e.key],
                     vertex: None,
                     whole: false,
-                    params: None,
+                    params: Some(Params {
+                        t: (t.lo(), t.hi()),
+                        periodic: true,
+                    }),
                     on_edges: false,
                 },
                 past: None,
@@ -3978,7 +3982,7 @@ fn present_line_corner<'a>(
         y,
         zero: Zero::Side(
             Side::of(held, sigma > 0.0),
-            Along::over(surface, b, c.read, iso_params(surface, e, along), false),
+            Along::over(surface, b, c.read, false, || iso_params(e, along)),
         ),
         corner: true,
         cache: Cache::default(),
@@ -4028,10 +4032,11 @@ fn present_plane_corner<'a>(
         chart(line.eval(*t0) - origin),
         chart(line.eval(*t1) - origin),
     );
-    let ((p, q), vertex_first) = if ue.plus {
-        ((p, q), e.ends[0] == c.vertex)
+    // The line's chart points and parameters in the loop's order.
+    let ((p, ta), (q, tb), vertex_first) = if ue.plus {
+        ((p, *t0), (q, *t1), e.ends[0] == c.vertex)
     } else {
-        ((q, p), e.ends[1] == c.vertex)
+        ((q, *t1), (p, *t0), e.ends[1] == c.vertex)
     };
     let a = [q[0] - p[0], q[1] - p[1]];
     let bv = toward_face(a, b.orientation());
@@ -4107,17 +4112,7 @@ fn present_plane_corner<'a>(
         y: (0.0, y.1),
         zero: Zero::Side(
             Side::YLo,
-            Along::over(
-                surface,
-                b,
-                c.read,
-                segment_params(
-                    if ue.plus { *t0 } else { *t1 },
-                    if ue.plus { *t1 } else { *t0 },
-                    x,
-                ),
-                false,
-            ),
+            Along::over(surface, b, c.read, false, || segment_params(ta, tb, x)),
         ),
         corner: true,
         cache: Cache::default(),
@@ -5260,25 +5255,30 @@ impl On {
 /// **Where `ψ` is zero.** A separator the engine builds carries the
 /// cells it vanishes on (`on`), and a zero side, corner point or curve
 /// is zero under it where it lies on those cells: membership, no value
-/// read. A side that lies on its edges ([`Along::on_edges`]) is zero
-/// wherever its edges are. A side or curve that may run on past its
-/// edges (a corner presentation's side, which runs past its vertex
-/// ([`present_corner`]); a side past the shared cell; two sides at a
-/// corner; a curve) is zero only where the separator vanishes on the
-/// side's whole chart line:
-/// - under a plane, where the plane holds its edges' whole line or
-///   circle and the side's chart line is that line or circle;
-/// - under the graph separator, where the side's or curve's parameters
-///   lie in the graph's piece, the one stretch of its edge's carrier the
-///   graph vanishes on, as [`graph_of`] states it.
+/// read, and:
+/// - **a side on its edges** ([`Along::on_edges`]) needs nothing more
+///   under a plane;
+/// - **a side or curve that may run past its edges** (a corner
+///   presentation's side, past its vertex, [`present_corner`]; a side
+///   past the shared cell; two sides at a corner; a curve) is zero under
+///   a plane only where the plane holds its edges' whole line or circle
+///   and that is the side's own chart line;
+/// - **under the graph separator** every side and curve is read by one
+///   rule, [`Along::under_graph`]: a whole one where its parameters lie
+///   in the graph's piece, one whose chart line is not its edge's own
+///   line or circle where it lies on its edge, and a whole one whose
+///   parameters were not read nowhere.
 ///
-/// A side whose chart line is not its edge's own line or circle (a
-/// spline's) has no parameters read; under the graph it is zero where it
-/// lies on its edge, its points the edge's in the presentation's image,
-/// which the piece the edge reaches holds up to the rounding of the
-/// chart against the stored carrier. A face's own
-/// carrier (`on` `None`, the carrier arm) is read over the side
-/// (`SELF_INTERSECTION_ON_SHARED`).
+/// The graph vanishes on its edge's carrier over the piece and nowhere
+/// else. Past the piece its extension leaves a circle by second order in
+/// the distance `δ` past it, about `κ·δ²`, against a departure of first
+/// order, so a side read zero past the piece would misread `ψ`'s sign
+/// only across a sliver about `κ·δ²/(lean·|∇ψ|)` wide past the vertex,
+/// and that is not proven empty. [`graph_of`] widens the piece over every
+/// whole side and curve on its edge instead.
+///
+/// A face's own carrier (`on` `None`, the carrier arm) is read over the
+/// side (`SELF_INTERSECTION_ON_SHARED`).
 ///
 /// **A side that runs past the shared cell** ([`Zero::Past`]) is read
 /// as a side only `against` another presentation whose zero set is on
@@ -5314,7 +5314,7 @@ fn sign_on(
             |on| {
                 on.holds(a, whole)
                     && match piece {
-                        Some(p) => a.within(p) || (!a.whole && a.on_edges),
+                        Some(p) => a.under_graph(p),
                         None => a.on_edges || (on.whole && a.whole),
                     }
             },
@@ -5367,7 +5367,7 @@ fn sign_on(
             }
             let zero = match (on, psi) {
                 (Some(on), Psi::Graph { piece, .. }) => {
-                    on.holds(&c.along, false) && c.within(*piece)
+                    on.holds(&c.along, false) && c.along.under_graph(*piece)
                 }
                 (Some(on), _) => on.holds(&c.along, true),
                 (None, _) => c.psi(psi).is_some_and(|v| is_zero(v, band)),
@@ -5873,10 +5873,15 @@ fn graph_of(
     )?;
     let piece = [px, py]
         .into_iter()
-        .filter_map(|p| match &p.zero {
-            Zero::Curve(_, c) if c.along.whole && c.along.edges == [e.key] => c.nearest(reached),
-            Zero::Side(_, a) if a.whole && a.edges == [e.key] => a.nearest(reached),
-            _ => None,
+        .filter_map(|p| {
+            let along = match &p.zero {
+                Zero::Curve(_, c) => &c.along,
+                Zero::Side(_, a) => a,
+                _ => return None,
+            };
+            (along.whole && along.edges == [e.key])
+                .then_some(along.params?)?
+                .nearest(reached)
         })
         .fold(reached, |(a, b), (c, d)| (a.min(c), b.max(d)));
     let middle = at(geom::mid_param(piece.0, piece.1));
@@ -10732,6 +10737,35 @@ mod presentation_rows {
             Some(Sign::Positive),
             "a piece holding the side"
         );
+        assert_eq!(
+            sign(&corner, (0.94 + TURN, 1.04 + TURN)),
+            Some(Sign::Positive),
+            "the piece a turn on: the circle's parameters are read modulo turns"
+        );
+        // The rim stored as an ellipse of equal semi-axes: the same circle,
+        // which the side's chart line is not taken to be its own, so no
+        // parameters are read and the corner side is not on its edge.
+        let mut spline = b.clone();
+        spline.edges[0].arc = Some((
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(Point3::new(iv0(0.0), iv0(0.0), iv0(0.5)), ez(), ex()),
+                iv0(1.0),
+                iv0(1.0),
+            )),
+            (iv0(0.5), iv0(1.0)),
+        ));
+        let not_whole = presented(&s, &spline, &at_corner, (0.97, 1.03), (0.45, 0.5));
+        assert!(
+            not_whole.corner
+                && matches!(&not_whole.zero, Zero::Side(_, a) if !a.whole && a.params.is_none()),
+            "read through the corner, not whole: {:?}",
+            not_whole.zero
+        );
+        assert_eq!(
+            sign(&not_whole, (-TURN, TURN)),
+            None,
+            "a corner side not on its edge, with no parameters, answers nothing"
+        );
         let inside = presented(&s, &b, &off_corner, (0.8, 0.9), (0.45, 0.5));
         assert!(
             !inside.corner && matches!(inside.zero, Zero::Side(Side::YHi, _)),
@@ -10871,6 +10905,98 @@ mod presentation_rows {
         );
     }
 
+    /// **A chart side run on past its edge's end is not on its edge**
+    /// ([`present_chart`], [`run_on`]): a cylinder face below the rim
+    /// `v = ½` and left of the ruling `u = 1`, the ruling's line stored
+    /// as an enclosure `1e-9` wide, so the rim's side runs on to the
+    /// line's far bound, past the rim's end at `u = 1`. With the rim
+    /// stored as an ellipse of equal semi-axes, no parameters are read:
+    /// the side answers nothing under the graph separator, over any
+    /// piece. Red if the run-on counts as the edge's own.
+    #[test]
+    fn a_chart_side_run_on_past_its_edges_end_answers_nothing_under_the_graph() {
+        let s = cylinder();
+        let mut b = rim_corner(
+            rim(11, [3, 1], Axis::U, 1.0, (1.0, 0.0), (1.0, 0.5)),
+            (1.0, 0.0),
+        );
+        b.edges[0].arc = Some((
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(Point3::new(iv0(0.0), iv0(0.0), iv0(0.5)), ez(), ex()),
+                iv0(1.0),
+                iv0(1.0),
+            )),
+            (iv0(0.5), iv0(1.0)),
+        ));
+        let read = |at: Interval| {
+            let mut b = b.clone();
+            b.edges[1].uses[0].iso = Some(Iso {
+                held: Axis::U,
+                at,
+                full: false,
+            });
+            let local = Local {
+                edges: vec![0, 1],
+                vertices: vec![vertex(1)],
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: &b,
+                u: (0.97, 1.01),
+                v: (0.45, 0.51),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            let Ok(Presentation::Of(q)) = present_chart(&piece, &[0], &[vertex(1)], band()) else {
+                panic!("presented");
+            };
+            let Zero::Side(_, a) = &q.zero else {
+                panic!("one side: {:?}", q.zero);
+            };
+            let (psi, on) = rim_graph((-TURN, TURN));
+            (a.on_edges, sign_on(&psi, Some(&on), &q, None, band()))
+        };
+        assert_eq!(
+            read(iv0(1.0)),
+            (true, Some(Sign::Positive)),
+            "the ruling at one value"
+        );
+        assert_eq!(
+            read(Interval::from_bounds(1.0, 1.0 + 1e-9)),
+            (false, None),
+            "the run-on past the rim's end"
+        );
+    }
+
+    /// **A side's parameters are read only off an affine moving
+    /// channel** ([`iso_params`]): the rim of [`rim_corner`], its use a
+    /// harmonic whose held channel is the constant `v = ½`. With no
+    /// cosine or sine term on `u` the map is the rim's own, `t = u`; with
+    /// one, the two-point fit would be wrong, and no parameters are read.
+    /// Red if the fit is taken without the check.
+    #[test]
+    fn a_sides_parameters_are_read_only_off_an_affine_moving_channel() {
+        let b = rim_corner(
+            rim(11, [3, 1], Axis::U, 1.0, (1.0, 0.0), (1.0, 0.5)),
+            (1.0, 0.0),
+        );
+        let with = |a: f64| {
+            let mut r = b.edges[0].clone();
+            let mut h = harmonic([1.5, 0.5], -1.0, (0.0, 0.0, 0.0));
+            h.pa[0] = iv0(a);
+            r.uses[0].harmonic = Some(h);
+            iso_params(&r, (0.8, 0.9))
+        };
+        let affine = with(0.0).expect("an affine channel");
+        assert!(
+            (affine.0 - 0.8).abs() < 1e-12 && (affine.1 - 0.9).abs() < 1e-12,
+            "the rim's own parameters: {affine:?}"
+        );
+        assert_eq!(with(0.1), None, "a cosine term on the moving channel");
+    }
+
     /// **A plane's side on a line edge carries its parameters**
     /// ([`present_plane`]): the edge from `(0, 0)` to `(1, 0)` on
     /// [`floor`], the face above it, read over `u ∈ (0.3, 0.4)`. Under
@@ -10928,6 +11054,52 @@ mod presentation_rows {
             sign_on(&graph((0.55, 0.75)), Some(&on), &q, None, band()),
             None,
             "the segment's other end"
+        );
+        // A corner of two segments at the origin, the face in the first
+        // quadrant: the shared one along `+x` (traversed toward the
+        // vertex, its parameter falling to it), the other up `+y`.
+        let mut corner = Boundary {
+            sense: true,
+            edges: vec![
+                segment(1, [2, 1], (1.0, 0.0), (0.0, 0.0)),
+                segment(2, [1, 3], (0.0, 0.0), (0.0, 1.0)),
+            ],
+            vertices: BTreeMap::new(),
+            extent: None,
+        };
+        corner.edges[0].uses[0].plus = false;
+        corner.edges[1].uses[0].plus = false;
+        corner.vertices.insert(vertex(1), origin());
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &corner,
+            u: (-0.01, 0.3),
+            v: (-0.01, 0.3),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let Ok(Presentation::Of(q)) = present_plane(&piece, &[0], &[vertex(1)], band()) else {
+            panic!("the corner presented");
+        };
+        assert!(
+            matches!(q.zero, Zero::Side(..)),
+            "one side at the corner: {:?}",
+            q.zero
+        );
+        assert!(
+            sign_on(&graph((0.6, 1.0)), Some(&on), &q, None, band()).is_some(),
+            "the shared edge's end at the vertex, its parameter 1"
+        );
+        assert_eq!(
+            sign_on(&graph((0.0, 0.4)), Some(&on), &q, None, band()),
+            None,
+            "the shared edge's far end"
         );
     }
 }
