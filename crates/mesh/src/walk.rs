@@ -693,10 +693,7 @@ pub(crate) fn splits_a_straight_side(
     surface: &geom::Surface<f64>,
     band: Band,
 ) -> Result<bool, TessellateError> {
-    if !matches!(
-        surface,
-        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
-    ) {
+    if !crate::chart_table::ruled(surface) {
         return Ok(false);
     }
     let chart = Chart::of(surface).ok_or(TessellateError::MissingEntity {
@@ -735,8 +732,11 @@ pub(crate) fn splits_a_straight_side(
     let held = (0..m).any(|k| {
         let (before, after) = ((k + m - 1) % m, (k + 1) % m);
         let (v, line) = walk[k];
-        let reach = |end: usize| (walk[end].0 - v).signum();
-        line && walk[before].1 && reach(before) * reach(after) < 0.0
+        // Strictly on either side: a far end at the junction's own `v` (a
+        // line edge of no length along the ruling) continues no side
+        // through it.
+        let (a, b) = (walk[before].0, walk[after].0);
+        line && walk[before].1 && ((a < v && v < b) || (b < v && v < a))
     });
     Ok(held && crate::curved::require_iso_rectangle_face(body, fk, outer, surface, band).is_ok())
 }

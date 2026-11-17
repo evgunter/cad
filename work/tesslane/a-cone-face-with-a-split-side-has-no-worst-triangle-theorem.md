@@ -46,8 +46,9 @@ takes no rows on any face, and the rectangle lane takes a cylinder or
 cone face only with bare sides: one whose straight side holds a point
 (a ruling split into several edges, or a cone's apex between two
 nappes) is routed to the chart lane (`walk::splits_a_straight_side`,
-read in `tessellate::lane_of`), and reaching the rectangle lane anyway
-refuses as the router's defect (`curved::SPLIT_SIDE_ROUTED_HERE`). The
+read in `tessellate::lane_of`). A chord point inside a straight side,
+which a spline neighbour's lattice could put there and no body does,
+refuses on the rectangle lane (`curved::SIDE_CHORD_POINT`). The
 fallback lattice made triangles of no area on a cone through its apex
 (the apex copy fanned down the column beside the split side, three
 points of one ruling) and the cylinder wall's split ruling exceeded its
@@ -55,7 +56,11 @@ certificate (`a-cylinder-wall-with-a-split-ruling-exceeds-its-certificate`).
 
 What is left is this row's debt on the chart lane: such a face meshes
 there at `trimmed::UNPROVED_HEADROOM`, on a lattice of rows it does not
-need, and no theorem sizes it. The settling shape is the strip unit's:
+need, and no theorem sizes it. Not every one meshes: a ruling split a
+hair from its end can fold a triangle
+(`a-ruling-split-a-hair-from-its-end-folds-a-triangle`), and a split
+ruling's re-chorded rim can reach a thin planar neighbour's refusal
+(`a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta`). The settling shape is the strip unit's:
 the face without the split, with no interior rows, plus one triangle
 per split vertex.
 

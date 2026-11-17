@@ -129,10 +129,18 @@ fn carrier_of(body: &Body<f64>, ek: topo::EdgeKey) -> CurveKind {
 }
 
 pub(super) fn got(body: &Body<f64>, delta: f64) -> Got {
+    got_enclosing(body, body, delta)
+}
+
+/// [`got`], with the mesh's volume read off `solid`, a finished body
+/// that encloses what `body` does (`body` split where `solid` is not:
+/// a body with a vertex `split_edge` left is not finished, and its mass
+/// properties are not read).
+pub(super) fn got_enclosing(body: &Body<f64>, solid: &Body<f64>, delta: f64) -> Got {
     use mesh::TessellateError as E;
     match mesh::tessellate(body, delta, tol()) {
         Ok(m) => match mesh::validate::check_mesh(&m) {
-            Ok(()) => match geometry(body, &m, delta) {
+            Ok(()) => match geometry_enclosing(body, solid, &m, delta) {
                 Ok(()) => Got::Meshed,
                 Err(e) => Got::Other(format!("meshed, and {e}")),
             },
@@ -200,6 +208,16 @@ pub(super) fn got(body: &Body<f64>, delta: f64) -> Got {
 ///
 /// Answers the first miss found, spelled out.
 pub(super) fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), String> {
+    geometry_enclosing(body, body, mesh, delta)
+}
+
+/// [`geometry`], with the volume read off `solid` ([`got_enclosing`]).
+fn geometry_enclosing(
+    body: &Body<f64>,
+    solid: &Body<f64>,
+    mesh: &mesh::Mesh,
+    delta: f64,
+) -> Result<(), String> {
     mesh::validate::check_winding(mesh).map_err(|e| {
         format!(
             "a {:?} face's triangle {:?} has no winding f64 resolves",
@@ -211,7 +229,7 @@ pub(super) fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Resul
         .faces()
         .any(|(fk, _)| matches!(kind_of(body, fk), SurfaceKind::Nurbs | SurfaceKind::Approx))
     {
-        let at_rest = sweep::test_support::at_rest(body, tol());
+        let at_rest = sweep::test_support::at_rest(solid, tol());
         let props = topo::test_support::pinned_volume("the meshed body", &at_rest, tol());
         mesh::validate::check_volume(mesh, props.volume, props.surface_area, delta)
             .map_err(|e| format!("its volume misses the body's: {e:?}"))?;
@@ -1666,7 +1684,7 @@ fn t1_toward_the_apex(s: f64) -> (AtRestBody<f64>, AtRestBody<f64>) {
 }
 
 /// The op `op` of `six(a, b)`'s, built.
-fn op_of(a: &AtRestBody<f64>, b: &AtRestBody<f64>, op: &str) -> Body<f64> {
+pub(super) fn op_of(a: &AtRestBody<f64>, b: &AtRestBody<f64>, op: &str) -> Body<f64> {
     let (_, run) = six(a, b)
         .into_iter()
         .find(|(name, _)| *name == op)

@@ -356,9 +356,9 @@ fn tessellate_impl(
     let ambient = tol;
     let eps = Eps::at(tol);
     // Props' decision band, built once at operation entry as
-    // `Band::linear` prescribes; the curved lane's shape door is its
-    // only consumer (`SizingTols::band`), read by the lane and by the
-    // dispatch (`lane_of`). Eager on purpose: a run whose
+    // `Band::linear` prescribes, for props' predicates
+    // (`SizingTols::band` names the sites; the dispatch and the chord
+    // pass ask the shape door through `lane_of`). Eager on purpose: a run whose
     // ε cannot form a band refuses every body alike, the all-planar
     // ones included, rather than meshing until the first curved face
     // (`TessellateError::Band` says why).

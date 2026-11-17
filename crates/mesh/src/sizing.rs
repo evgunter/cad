@@ -358,9 +358,11 @@ pub(crate) struct SizingTols {
     /// convention `Band::linear` prescribes). Consumed by three sites —
     /// `curved`'s shape door, which hands it to
     /// `geom_brep::props::require_iso_rectangle` and then to
-    /// `require_one_chart_branch`, the walk's wrap strip, and the trimmed
-    /// lane's singular vertices (`crate::chart_table::AnalyticRow::is_singular`),
-    /// both of which hand it to
+    /// `require_one_chart_branch` (asked by the curved lane and by the
+    /// dispatch, `tessellate::lane_of`, which the chord pass reads too),
+    /// the walk's wrap strip, and the trimmed lane's singular vertices
+    /// (`crate::chart_table::AnalyticRow::is_singular`), both of which
+    /// hand it to
     /// `geom_brep::chart_singularity::vertex_at_singular_point` — and by
     /// no rule of this crate's own: `mesh` decides nothing
     /// against it, it carries the band to geom-brep's predicates. Not an
