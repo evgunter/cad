@@ -887,3 +887,4 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - The chord-as-span item and MEASUREDOOR's `blocked_on` landed with it.
   - The optional `[edges]` sentence was not answered and is not taken.
 - **Dispatched the build** of `a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses` (P0) on `sectarms/periodic-loop-carrier`. **Letter H, tier dual:** a new `Curve3` arm in the substrate, every exhaustive match deciding it, the fit, the seat and the certificate path. Closed-loop chords as spans are in scope; open fitted chords stay with the P2. Implementer byte drawn after this entry.
+- **Periodic-carrier implementer byte 199 (Fable),** recorded on the model-compare branch; brief `impl-periodic.md`.
