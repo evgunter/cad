@@ -3144,7 +3144,7 @@ impl<T: Decide> CarriedComponent<T> {
             if !r.holds(p, band.escalate())? {
                 continue;
             }
-            let (r0, r1) = (T::from_f64(r.run.0), T::from_f64(r.run.1));
+            let (r0, r1) = (T::from_computed(r.run.0), T::from_computed(r.run.1));
             let at = self.carrier.foot_within(p, (r0, r1), geom::mid_param(r0, r1));
             foot = Some(foot.map_or(at, |f| f.least(at)));
         }
