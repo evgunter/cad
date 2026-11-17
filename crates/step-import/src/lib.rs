@@ -13,9 +13,12 @@
 //! (`GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION`). The
 //! result of a solid import is a first-class [`topo::Body`]: topology
 //! rebuilt through the public Euler-operator vocabulary, geometry
-//! adopted per D7 (intensional descriptions reconstructed and
-//! certified by the kernel's own gates — never trusted extensional
-//! data), caches re-minted by the kernel's own machinery.
+//! adopted per D7: the file's statements are interpreted at its declared
+//! coincidence distance, and every edge's intensional description is
+//! certified by the kernel's own gates at the run's ε. Edges still carry
+//! the file's parsed carrier as their cache into that certification (the
+//! build that re-makes every cache by the kernel's own constructions is
+//! the next stage of D7's pipeline).
 //!
 //! # Adoption, not admission (D7, the shape of the pipeline)
 //!
@@ -23,15 +26,17 @@
 //!    resolution. Reals parse with `str::parse::<f64>` — the writer's
 //!    printer round-trips to identical bits, so downstream exact `==`
 //!    comparisons are legitimate on own-corpus files.
-//! 2. **Entity mapping** ([`entities`], [`geometry`]): each AP214
-//!    record maps to its kernel twin **field for field** (the export
-//!    direction is an identity, so import is too — no re-derivation,
-//!    no normalization that moves bits). The one non-identity is the
-//!    cone: STEP's `v` is axial, the kernel's is slant arc length; the
-//!    writer's apex placement (`radius = 0.0`) is recognized and the
-//!    surface fields adopted verbatim (no trim parameters cross the
-//!    wire in this subset, so the fixed cos α factor has nothing to
-//!    act on yet).
+//! 2. **Interpretation** ([`entities`], [`interpret`], [`geometry`]):
+//!    each AP214 record is read as the kernel description it is evidence
+//!    of, at the file's band ([`interpret::file_band`]). A placement is
+//!    built from its ratio vectors by `build_axes`, kept bit for bit
+//!    where the file states it rigid within its rounding, and its move
+//!    reported beyond that ([`NormalizationKind::PlacementReMinted`]); a
+//!    cone placed at its base circle is moved to its apex; a NURBS
+//!    surface or carrier whose residual reads Zero is promoted; two
+//!    surface records of one locus become one
+//!    ([`NormalizationKind::OneRecord`]); a value no construction takes
+//!    refuses ([`InterpretationRefusal`]).
 //! 3. **Topology assembly** ([`assemble`]): the shell's half-edge
 //!    structure is realized through `topo`'s public Euler operators
 //!    (`mvfs`/`mev`/`mef`, the ring vocabulary, scaffold struts killed
@@ -89,10 +94,17 @@
 //! ε_in — the per-import *input* tolerance — defaults from the file's
 //! `UNCERTAINTY_MEASURE_WITH_UNIT` and is overridable per call
 //! ([`ImportOptions::eps_in`]); it is carried on the result
-//! ([`StepImport::eps_in`]). This unit *records* it: own-corpus files
-//! declare the kernel's own ε and adopt exactly, so the healing ladder
-//! that consumes ε_in is M7-2+. Certification of everything built
-//! runs at the kernel's ambient ε like native geometry.
+//! ([`StepImport::eps_in`]). It governs interpretation: every question
+//! asked of the file's statements is a distance in metres read through
+//! the kernel's one classification funnel at the file's band, `(e, K·e)`
+//! for `e` the larger of ε_in and the run's ε ([`interpret::file_band`]),
+//! with `[verdicts]`' three arms. A lane choice (which kind a carrier
+//! is) takes its closed form at Zero; a structural act (one record, a
+//! vertex at the seam) acts at Zero, keeps apart past the band, and
+//! refuses in it, naming the ε_in that would decide it. What
+//! interpretation moves is on the result's move ledger
+//! ([`StepImport::normalizations`]), never in the body. Certification
+//! of everything built runs at the run's ε like native geometry.
 //!
 //! # Chart coherence: a measurement, not a gate
 //!
