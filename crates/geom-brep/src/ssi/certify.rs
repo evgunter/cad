@@ -4528,7 +4528,7 @@ mod node_end_rows {
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point2, Point3, Tol, Vec3};
 
-    use super::{Lane, Limbs, SsiTube, certify_located};
+    use super::{Lane, Limbs, NODE_BOX_REACH, SsiTube, certify_located};
     use crate::ssi::{ChartedNurbs, SsiError};
 
     /// The saddle `S(u, v) = (u, v, (u − ½)(v − ½))`: against `z = 0` it
@@ -4613,7 +4613,8 @@ mod node_end_rows {
     /// and ending on it certifies, its end the node's. The same chain
     /// carried on past the node by twenty band escalations or a
     /// centimetre, turning onto `u = ½` within its last span, or ending on
-    /// the node with one span of a twentieth of the wall's width, refuses: limb 3's transverse
+    /// the node with one span reaching twice as far as a node's end span
+    /// may at the band, refuses: limb 3's transverse
     /// enclosure straddles at the node, which no node box waives. Ending
     /// short of it by a centimetre, it is an arc's end and no node's.
     ///
@@ -4638,6 +4639,12 @@ mod node_end_rows {
         };
         let mut turn = halving(14);
         turn.extend([(0.5, 0.5), (0.5, 0.5 + 5e-5)]);
+        // Twice the farthest an end span may reach from a node: the
+        // settle reach `√(NODE_SETTLE_FLOOR·ε′/σ)` times NODE_BOX_REACH,
+        // with σ = 1 on this saddle in its own chart and metres.
+        let coarse = 2.0
+            * NODE_BOX_REACH
+            * (crate::ssi::ends::NODE_SETTLE_FLOOR * band().escalate()).sqrt();
         let refusals = [
             (
                 "past by twenty band escalations",
@@ -4647,7 +4654,7 @@ mod node_end_rows {
             ("turning onto the other line", turn),
             (
                 "one coarse span onto the node",
-                vec![(0.0, 0.5), (0.45, 0.5), (0.5, 0.5)],
+                vec![(0.0, 0.5), (0.5 - coarse, 0.5), (0.5, 0.5)],
             ),
         ];
         let short = certified(&halving(5));
