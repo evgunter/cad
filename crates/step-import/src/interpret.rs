@@ -199,22 +199,27 @@ impl Refusal {
     /// The refusal's one ending at the import door: its recourse, in
     /// ε_in's own terms.
     pub(crate) fn ending(&self) -> String {
+        self.ending_with("re-export the file")
+    }
+
+    /// [`Self::ending`] with the decision's own `lever` (the move that
+    /// makes the reading true) in place of re-exporting the file.
+    pub(crate) fn ending_with(&self, lever: &str) -> String {
         use geom_core::Readable;
         match *self {
             Self::EvidenceMiss { miss, .. } => format!(
-                "Recourse: re-export the file, or, if the file is less exact than it declares, \
-                 import with ε_in ≥ {} m",
+                "Recourse: {lever}, or, if the file is less exact than it declares, import with \
+                 ε_in ≥ {} m",
                 Readable(miss)
             ),
             Self::Ambiguous { gap, k, .. } => format!(
-                "Recourse: re-export the file, or import with ε_in below {} m if this distance \
-                 is intended, or with ε_in ≥ {} m if it is not",
+                "Recourse: {lever}, or, if this distance is intended, import with ε_in below {} m \
+                 (re-export with a smaller declared uncertainty, or pass the override), or, if it \
+                 is not, with ε_in ≥ {} m",
                 Readable(gap / k),
                 Readable(gap)
             ),
-            Self::InvalidRoot { .. } => {
-                "Recourse: re-export the file from a valid model".to_owned()
-            }
+            Self::InvalidRoot { .. } => format!("Recourse: {lever} from a valid model"),
         }
     }
 }

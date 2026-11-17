@@ -69,14 +69,20 @@ pub(crate) const SINGULARITY_ON_BOUNDARY: SizedDecision = geom_brep::chart_singu
 
 /// The same decision where the FILE's band could not call it (`(ε_in,
 /// K·ε_in)`, coarser than the run's): no smaller tolerance decides it,
-/// so it ends in its lever alone, which names the file's coincidence
-/// distance.
+/// so it ends in its lever and the ε_in that would decide it
+/// ([`crate::interpret::Refusal::Ambiguous`]), or in its lever alone where
+/// the margin is no point value.
 pub(crate) const SINGULARITY_IN_FILE_BAND: LeverOnly = LeverOnly {
     lever: "move the face's boundary, or its vertex, onto that point or clear of it, or, if \
             this distance is intended, re-export the file with a smaller declared \
             uncertainty (or pass a smaller ε_in override): the distance lies in the band past \
             the file's coincidence distance, which no tolerance of this run decides",
 };
+
+/// The singularity decision's move, which its file-band ending names
+/// beside the ε_in that decides it.
+const SINGULARITY_MOVE: &str =
+    "move the face's boundary, or its vertex, onto that point or clear of it";
 
 /// Which band a [`StepImportError::SingularityUndecided`] could not call
 /// its distance in.
@@ -639,9 +645,9 @@ impl StepImportError {
                             || SINGULARITY_IN_FILE_BAND.recourse(arm, at),
                             |refusal| {
                                 format!(
-                                    "{} — the distance lies in the band past the file's \
+                                    "{}: the distance lies in the band past the file's \
                                      coincidence distance, which no tolerance of this run decides",
-                                    refusal.ending()
+                                    refusal.ending_with(SINGULARITY_MOVE)
                                 )
                             },
                         )

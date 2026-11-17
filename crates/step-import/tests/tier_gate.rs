@@ -473,8 +473,9 @@ const POLEBAND_POLE_IN_FILE_BAND: &str = "step import: face #50: whether a spher
      or at one of its vertices is undecided: margin \
      8.999999995834914e-10 lies inside the ambiguity band (1e-10, 1e-9). Recourse: move the \
      face's boundary, or its vertex, onto that point or clear of it, or, if this \
-     distance is intended, re-export the file with a smaller declared uncertainty (or pass a \
-     smaller ε_in override): the distance lies in the band past the file's coincidence \
+     distance is intended, import with ε_in below 8.999999995834914e-11 m (re-export with a \
+     smaller declared uncertainty, or pass the override), or, if it is not, with ε_in ≥ \
+     8.999999995834914e-10 m: the distance lies in the band past the file's coincidence \
      distance, which no tolerance of this run decides";
 /// As [`POLEBAND_POLE_IN_FILE_BAND`], for the frustum twin.
 const POLEFRUSTUM_POLE_IN_FILE_BAND: &str = "step import: face #70: whether a sphere pole or \
@@ -482,8 +483,9 @@ const POLEFRUSTUM_POLE_IN_FILE_BAND: &str = "step import: face #70: whether a sp
      boundary or at one of its vertices is undecided: margin \
      8.999999995834914e-10 lies inside the ambiguity band (1e-10, 1e-9). Recourse: move the \
      face's boundary, or its vertex, onto that point or clear of it, or, if this \
-     distance is intended, re-export the file with a smaller declared uncertainty (or pass a \
-     smaller ε_in override): the distance lies in the band past the file's coincidence \
+     distance is intended, import with ε_in below 8.999999995834914e-11 m (re-export with a \
+     smaller declared uncertainty, or pass the override), or, if it is not, with ε_in ≥ \
+     8.999999995834914e-10 m: the distance lies in the band past the file's coincidence \
      distance, which no tolerance of this run decides";
 
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
