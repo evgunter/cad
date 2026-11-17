@@ -2,12 +2,13 @@
 id: three-crates-fold-signed-zero-with-one-body-and-three-unlinked-arguments
 kind: issue
 title: One signed-zero fold body in three crates, each with its own paragraph of argument, none naming the others
-status: review
+status: closed
 opened: 2026-09-15
 priority: P1
 cost: E
 branch: export/walks-and-zeros
 pr: 7067
+closed: 2026-11-17
 ---
 
 
@@ -79,3 +80,7 @@ calls it, and so does each test copy whose crate reaches geom-core.
 Each call site's reason stays where it was, at that site.
 `interval-transcendentals` keeps its own copy: it is a separate root
 that cannot depend on the kernel.
+
+## Closed (2026-11-17)
+
+PR 7067 (`export/walks-and-zeros`). It had a single style review and a fix pass. The signed-zero fold has one home, `geom_core::fold_signed_zero`, and the importer's half-edge walks go through `topo::Body::face_of_half_edge` or the local `body_loop`/`loop_face` helpers. The PR body lists each site and what was done.
