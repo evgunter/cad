@@ -274,6 +274,21 @@ impl<T: Real> Channel<T> {
         }
     }
 
+    /// Whether the channel holds one value at every parameter: an angle
+    /// with no windings, or a free channel whose three moving
+    /// coefficients are exact zeros. Read off the form the mint wrote, so
+    /// it decides nothing.
+    pub fn is_constant(self) -> bool {
+        match self {
+            Channel::Angle { winding, .. } => winding == 0,
+            Channel::Free { a, b, l, .. } => {
+                geom_core::is_exact_zero(a)
+                    && geom_core::is_exact_zero(b)
+                    && geom_core::is_exact_zero(l)
+            }
+        }
+    }
+
     /// The windings of an angle channel; `None` on a free one.
     pub fn winding(self) -> Option<i32> {
         match self {
@@ -1147,6 +1162,25 @@ impl<T: Real> Pcurve<T> {
             }),
             (false, false) => Err(NoHeldLine::Diagonal),
             (true, true) => Err(NoHeldLine::Point),
+        }
+    }
+
+    /// **Whether the image is an iso line of its chart**: a harmonic
+    /// image with exactly one constant channel ([`Channel::is_constant`]),
+    /// or an image with a held line ([`Pcurve::held_line`]). Every other
+    /// image — a moving harmonic (a section conic on its cylinder), a
+    /// projected, focal-section, spiric, fitted or general one — is not.
+    /// A fact the mint stored when it chose the image's form, read with
+    /// no decision.
+    pub fn is_iso_line(&self) -> bool {
+        match *self {
+            Pcurve::Harmonic { u, v } => u.is_constant() != v.is_constant(),
+            Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => self.held_line().is_ok(),
+            Pcurve::Spiric { .. }
+            | Pcurve::FocalSection(_)
+            | Pcurve::Projected(_)
+            | Pcurve::Fitted(_)
+            | Pcurve::General(_) => false,
         }
     }
 

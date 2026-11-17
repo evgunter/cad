@@ -40,27 +40,26 @@
 use crate::common;
 use topo::construction::Construct;
 
-use common::witness_bodies::{keyway, oblique_lens, slit};
+use common::witness_bodies::{keyway, minted, oblique_lens, slit};
 use common::*;
 use geom::Surface;
 use geom_brep::props::PropsError;
 use geom_core::Tol;
 use mesh::TessellateError;
 
-/// The two doors' verdict on `face`'s outer loop.
+/// The shape door's verdict on `face`'s outer loop.
 fn door(body: &topo::Body<f64>, face: topo::FaceKey) -> Result<(), PropsError> {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let (outer, _) = topo::props::loop_edges(body, body.get_face(face).unwrap().outer).unwrap();
-    let surface = body.face_surface(face).unwrap();
-    geom_brep::props::require_iso_rectangle(surface, &outer, band)
+    geom_brep::props::require_iso_rectangle(body.face_surface(face).unwrap(), &outer, band)
 }
 
 /// Direction 1 — **a notched iso domain is decided no rectangle at the
 /// SHAPE door, with props' own predicate name**, before any walk runs,
-/// and so goes to the trimmed lane, which reads the face's domain from
-/// its stored chart images. The keyway is assembled through the Euler
-/// doors, which store none, so that lane refuses it as a domain it
-/// cannot read — never the walk, which would trace a U.
+/// so the route sends it to the trimmed lane, which reads its domain
+/// from the stored chart images: with them minted the keyway face meshes
+/// there, and the first refusal in arena order is the sheet's other face
+/// (`r2_mesh7_probes::the_keyway_is_routed_before_the_spatial_check`).
 #[test]
 fn the_keyway_is_decided_no_rectangle_by_props_rim_level() {
     let (body, face) = keyway();
@@ -71,26 +70,25 @@ fn the_keyway_is_decided_no_rectangle_by_props_rim_level() {
         }),
         "a U-shaped iso domain is decided by the ONE named predicate"
     );
-    let got = mesh::tessellate(&body, 0.05, Tol::witness()).map(|_| ());
+    let got = mesh::tessellate(&minted(body), 0.05, Tol::witness()).map(|_| ());
     assert!(
-        matches!(
-            &got,
-            Err(TessellateError::DomainUnread { face: f, cause })
-                if *f == face && matches!(**cause, topo::pcurves::RingPlacementError::Gap(_))
-        ),
-        "the trimmed lane finds no stored image to read the keyway's domain from: {got:?}"
+        matches!(got, Err(TessellateError::TrimLoopOrientation { face: other }) if other != face),
+        "the keyway face meshes on the trimmed lane: {got:?}"
     );
 }
 
-/// Direction 2 — **the oblique lens is decided no rectangle at the SHAPE
-/// door**: props' sphere classification admits a circle only as a
-/// coaxial rim or a great circle, and a tilted section is neither. This
-/// is the face the `walk::iso_side_starts` qualification named as the
-/// one that could collapse past the spatial check; it never reaches the
-/// walk now. (The qualification's ARC half is the branch door's —
-/// `mesh/tests/mesh11_arc_branch.rs`.) The trimmed lane chords a sphere
-/// face's boundary by its stored images, and the Euler-built lens stores
-/// none, so the chord pass refuses it typed.
+/// Direction 2 — **the oblique lens is no iso rectangle, by the shape
+/// door and by its stored images**: props' sphere classification admits
+/// a circle only as a coaxial rim or a great circle, and a tilted section
+/// is neither, so the door decides `props_rim_axis_parallel`; the mint
+/// stores each arc's projected image, which is no iso line of the chart,
+/// so the route sends the face to the trimmed lane without asking the
+/// door. This is the face the `walk::iso_side_starts` qualification named
+/// as the one that could collapse past the spatial check; it never
+/// reaches the walk. (The qualification's ARC half is the branch door's —
+/// `mesh/tests/mesh11_arc_branch.rs`.) The trimmed lane's domain read
+/// finds the lens's outer loop open in the chart, as it did before the
+/// route read a door.
 #[test]
 fn the_oblique_lens_is_decided_no_rectangle_at_the_shape_door() {
     let (body, face) = oblique_lens();
@@ -101,14 +99,15 @@ fn the_oblique_lens_is_decided_no_rectangle_at_the_shape_door() {
         }),
         "a tilted plane section of a sphere is not an iso curve"
     );
-    let got = mesh::tessellate(&body, 0.05, Tol::witness()).map(|_| ());
+    let got = mesh::tessellate(&minted(body), 0.05, Tol::witness()).map(|_| ());
     assert!(
         matches!(
             &got,
-            Err(TessellateError::UnsupportedCurve { note, .. })
-                if note.contains("carries no stored pcurve cache")
+            Err(TessellateError::DomainUnread { face: f, cause })
+                if *f == face
+                    && matches!(**cause, topo::pcurves::RingPlacementError::OuterOpen { .. })
         ),
-        "the lens's boundary has no stored image to chord by: {got:?}"
+        "{got:?}"
     );
 }
 

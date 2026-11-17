@@ -452,14 +452,12 @@ fn not_valid_but_for_joins(body: &Body<f64>) -> bool {
 /// arc, beside the two arcs the join would take into one closed edge
 /// (check 11; the half-arcs are what this row meshes). The Euler doors
 /// state it all the same, and `tessellate` does not re-validate:
-/// props' branch door decides the walk cannot read it, so the route
-/// sends it to the trimmed lane, whose domain read finds the outer loop
-/// open in the chart — it passes through both poles rather than round
-/// them — and refuses `DomainUnread`. The recourse is to state the poles
-/// as vertices, which turns each face into the two-column band the
-/// curved lane meshes.
+/// props' branch door says what the walk cannot read and `tessellate`
+/// answers `UnsupportedCurvedShape`, ahead of the walk. The recourse is
+/// to state the poles as vertices, which turns each face into the
+/// two-column band the lane meshes.
 #[test]
-fn a_hemisphere_pair_is_routed_by_the_branch_door_not_walked() {
+fn a_hemisphere_pair_is_refused_at_the_branch_door_not_by_the_walk() {
     use geom_brep::chart_singularity::Singularity;
     let body = sphere_on_one_great_circle();
     let arcs: Vec<topo::EdgeKey> = body.edges().map(|(edge, _)| edge).collect();
@@ -489,14 +487,13 @@ fn a_hemisphere_pair_is_routed_by_the_branch_door_not_walked() {
     assert_eq!(
         doors(&body, SurfaceKind::Sphere),
         (true, false),
-        "the shape door admits it; the branch door is what decides"
+        "the shape door admits it; the branch door is what refuses"
     );
     let got = mesh::tessellate(&body, 0.05, Tol::witness()).map(|_| ());
     assert!(
         matches!(
-            &got,
-            Err(mesh::TessellateError::DomainUnread { cause, .. })
-                if matches!(**cause, topo::pcurves::RingPlacementError::OuterOpen { .. })
+            got,
+            Err(mesh::TessellateError::UnsupportedCurvedShape { .. })
         ),
         "{got:?}"
     );

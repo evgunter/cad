@@ -41,9 +41,9 @@
 //! carry that are the sphere, cone, torus and NURBS rows.
 //! - trimmed (`trimmed::tessellate_trimmed`) on an ANALYTIC carrier:
 //!   `tilted_above` / `tilted_below`, the two halves of a cylinder cut
-//!   by an oblique plane — the cut rim is an ellipse, so the shape door
-//!   decides the wall is no rectangle and the route sends it through the
-//!   pcurve-driven lane with `cert::cert_cylinder` certificates.
+//!   by an oblique plane — the cut rim is an ellipse, whose stored image
+//!   is no iso line of the chart, so the route sends the wall through
+//!   the pcurve-driven lane with `cert::cert_cylinder` certificates.
 //! - trimmed on NURBS: `loft_prism` (walls of degree 1×2) and
 //!   `swept_elbow` (1×3), the described-NURBS lane with its
 //!   hull-derived certificate and its cert-driven refinement. A
@@ -53,15 +53,15 @@
 //!   the `Approx` half of the arm.
 //! - typed refusals: `keyway`, `slit`, `oblique_lens`,
 //!   `pole_crossing_half_cap` and `apex_crossing_bowtie` mesh to no
-//!   triangles at all. Their digest is the refusal, so a change that
+//!   triangles at all. Each but the slit carries its chart images
+//!   minted (`witness_bodies::minted`), as a finished body does, so the
+//!   refusal is the one a body with them gets: the keyway's complement
+//!   wound against its face (the keyway face itself meshes), the lens's
+//!   outer loop open in the chart, the half cap's branch premise, the
+//!   bow tie's rim sides. Their digest is the refusal, so a change that
 //!   turns one into a mesh — or into a DIFFERENT refusal — moves it.
-//!   The slit passes the doors and refuses at the walk's consistency
-//!   check; the other four are decided no rectangle at the doors and
-//!   routed to the trimmed lane, which refuses them because the Euler
-//!   doors that assemble them store no chart image (the keyway's domain
-//!   read, the other three's chord pass; those three refuse at one edge
-//!   key with one text, so their digests agree). δ reaches none of those
-//!   refusals, which is why their two slots agree.
+//!   δ does not reach the doors that refuse them, which is why their
+//!   two slots agree.
 //!
 //! **Thread count.** `the_corpus_digests_the_same_bytes_at_one_and_four_threads`
 //! runs the same corpus under an explicit 1-thread and an explicit
@@ -168,21 +168,25 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
         ("washer", washer(), [0.05, 0.15]),
         ("tilted_above", tilted_halves().0, [0.1, 0.01]),
         ("tilted_below", tilted_halves().1, [0.1, 0.01]),
-        ("keyway", witness_bodies::keyway().0, [0.05, 0.15]),
+        (
+            "keyway",
+            witness_bodies::minted(witness_bodies::keyway().0),
+            [0.05, 0.15],
+        ),
         ("slit", witness_bodies::slit().0, [0.05, 0.15]),
         (
             "oblique_lens",
-            witness_bodies::oblique_lens().0,
+            witness_bodies::minted(witness_bodies::oblique_lens().0),
             [0.05, 0.15],
         ),
         (
             "pole_crossing_half_cap",
-            witness_bodies::pole_crossing_half_cap().0,
+            witness_bodies::minted(witness_bodies::pole_crossing_half_cap().0),
             [0.05, 0.15],
         ),
         (
             "apex_crossing_bowtie",
-            witness_bodies::apex_crossing_bowtie().0,
+            witness_bodies::minted(witness_bodies::apex_crossing_bowtie().0),
             [0.05, 0.15],
         ),
         ("loft_prism", nurbs_bodies::loft_prism(), [6e-3, 2e-2]),
@@ -284,19 +288,19 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
         "tilted_below",
         [0xaacf_ddca_2204_4c35, 0x894d_8ffa_544f_68c4],
     ),
-    ("keyway", [0xe457_7191_dbec_3540, 0xe457_7191_dbec_3540]),
+    ("keyway", [0xa110_eb9f_658b_9246, 0xa110_eb9f_658b_9246]),
     ("slit", [0xaed6_09ed_f923_833b, 0xaed6_09ed_f923_833b]),
     (
         "oblique_lens",
-        [0xe03d_12b6_c634_9487, 0xe03d_12b6_c634_9487],
+        [0x1d3b_f531_e34e_7286, 0x1d3b_f531_e34e_7286],
     ),
     (
         "pole_crossing_half_cap",
-        [0xe03d_12b6_c634_9487, 0xe03d_12b6_c634_9487],
+        [0xdd6f_a9f2_0af3_083a, 0xdd6f_a9f2_0af3_083a],
     ),
     (
         "apex_crossing_bowtie",
-        [0xe03d_12b6_c634_9487, 0xe03d_12b6_c634_9487],
+        [0x9cdd_b7a3_543d_b550, 0x9cdd_b7a3_543d_b550],
     ),
     ("loft_prism", [0xd3ce_dece_149d_e356, 0x6d45_152a_ef26_f951]),
     (

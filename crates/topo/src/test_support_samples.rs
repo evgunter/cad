@@ -1034,6 +1034,9 @@ fn props_errors() -> Vec<PropsError> {
         PropsError::SpanUncertified {
             what: "props_rim_span_winding",
         },
+        PropsError::Defect {
+            what: "props_rim_level",
+        },
         PropsError::Escalated {
             cause: diag(),
             check: geom_brep::props::PropsCheck::Inventory,

@@ -3993,6 +3993,10 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             ),
             // A span certification admits on no edge: the stored data
             // contradicts the certification it was stored under.
+            P::Defect { .. } => reading(
+                "a face's boundary reached a state no correct parse of a stored body reaches",
+                DEFECT.into(),
+            ),
             P::SpanUncertified { .. } => reading(
                 "a stored boundary edge's span is one no certified edge has",
                 DEFECT.into(),

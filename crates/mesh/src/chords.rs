@@ -320,10 +320,11 @@ fn tighten(
     let mut asks = Vec::with_capacity(2);
     let sides = sides_of(body, ek)?;
     for s in [sides.plus, sides.minus] {
-        // A face whose route refused is reported at its own turn and
-        // sizes nothing.
-        let Some(lane) = routes.lane(s.face) else {
-            continue;
+        let lane = match routes.lane(s.face)? {
+            crate::tessellate::Routed::To(lane) => lane,
+            // A face whose route refused is reported at its own turn in
+            // arena order, and sizes nothing: the run does not mesh it.
+            crate::tessellate::Routed::Refused => continue,
         };
         // The curved lane's lattice is sized against its iso sides, its
         // rims and meridians: a ruling moves along a ruled axis only, and
@@ -726,8 +727,10 @@ fn edge_target(
     adjacent_faces(body, ek)?
         .into_iter()
         .try_fold(delta, |least, fk| {
-            let Some(lane) = routes.lane(fk) else {
-                return Ok(least);
+            let lane = match routes.lane(fk)? {
+                crate::tessellate::Routed::To(lane) => lane,
+                // As in `tighten`: reported at its own turn.
+                crate::tessellate::Routed::Refused => return Ok(least),
             };
             let surface = crate::tessellate::face_surface(body, fk)?;
             Ok(least.min(crate::trimmed::face_target(surface, lane, delta)))
@@ -912,7 +915,9 @@ mod tests {
             let sides = sides_of(body, ek).unwrap();
             for s in [sides.plus, sides.minus] {
                 let surface = crate::tessellate::face_surface(body, s.face).unwrap();
-                let lane = routes.lane(s.face).expect("a routed face");
+                let crate::tessellate::Routed::To(lane) = routes.lane(s.face).unwrap() else {
+                    panic!("a refused face")
+                };
                 let Some(lattice) =
                     FaceLattice::of(body, s.face, surface, lane, delta, &mut bounds).unwrap()
                 else {

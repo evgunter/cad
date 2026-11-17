@@ -352,9 +352,8 @@ pub fn boundary_material_sign_holding<T: Decide>(
 ///
 /// [`PropsError::NotIsoRectangle`] naming the failed structural
 /// expectation, and [`PropsError::Unimplemented`] for a NURBS carrier or
-/// surface: each a decided verdict that the face is no iso-rectangle of
-/// this inventory, the carrier kinds read first
-/// ([`require_iso_carrier_kind`]); [`PropsError::Escalated`] when a
+/// surface: each a verdict that the face is no iso-rectangle of this
+/// inventory; [`PropsError::Escalated`] when a
 /// classification lands in the ambiguity band (escalate, never guess);
 /// [`PropsError::OffSurface`] and [`PropsError::SpanUncertified`] where
 /// the stored boundary contradicts its own surface or its certification.
@@ -375,9 +374,6 @@ pub fn require_iso_rectangle<T: Decide>(
     outer: &[LoopEdge<T>],
     band: Band,
 ) -> Result<(), PropsError> {
-    for e in outer {
-        require_iso_carrier_kind(surface, &e.carrier)?;
-    }
     match *surface {
         Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
             what: "require_iso_rectangle called on a plane (a planar loop is not a chart rectangle)",
@@ -430,66 +426,6 @@ pub fn require_iso_rectangle<T: Decide>(
         // As `curved_face`: no rim inventory for a spline or for an
         // offset description over one.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
-    }
-}
-
-/// What a cylinder parse refuses an ellipse arc with.
-const CYLINDER_ELLIPSE: &str = "cylinder boundary carries an ellipse arc (curved cut) — route \
-                                through topo::mass_properties, whose quadrature lane consumes \
-                                the stored pcurves this key-free pass cannot see";
-
-/// What a cone parse refuses an ellipse arc with.
-const CONE_ELLIPSE: &str = "cone boundary carries an ellipse arc (a tilted-section cut) — not \
-                            a rim or a generator, so this iso parse has no reading of it \
-                            (`cone_face_closed_form` measures such a face by its vector area)";
-
-/// What a sphere parse refuses a carrier that is no circle with.
-const SPHERE_NOT_A_CIRCLE: &str = "sphere boundary edge is not a circle";
-
-/// What a torus parse refuses a carrier that is no circle with.
-const TORUS_NOT_A_CIRCLE: &str = "torus boundary edge is not a circle";
-
-/// **Whether `carrier`'s KIND is one `surface`'s iso parse reads** — a
-/// line or a circle on a cylinder or a cone, a circle on a sphere or a
-/// torus — refusing every other kind as that parse's own arm does.
-///
-/// [`require_iso_rectangle`] asks it of every edge before any parse
-/// decides anything, so a face carrying a carrier of no iso kind is
-/// refused for that, decided structurally, wherever the loop starts:
-/// otherwise an earlier edge's classification in band would answer
-/// [`PropsError::Escalated`] for a face that is no iso-rectangle at any
-/// band. The parses keep their own arms, which a direct call of the
-/// flux lane reads.
-fn require_iso_carrier_kind<T: Real>(
-    surface: &Surface<T>,
-    carrier: &Curve3<T>,
-) -> Result<(), PropsError> {
-    let refused = |what| Err(PropsError::NotIsoRectangle { what });
-    match (surface, carrier) {
-        (Surface::Cylinder { .. } | Surface::Cone { .. }, Curve3::Line(_) | Curve3::Circle(_))
-        | (
-            Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. },
-            Curve3::Circle(_),
-        )
-        // Not this function's question: the door answers a plane and a
-        // spline chart by its own arms.
-        | (Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_), _) => Ok(()),
-        (Surface::Cylinder { .. }, Curve3::Ellipse(..)) => refused(CYLINDER_ELLIPSE),
-        (Surface::Cone { .. }, Curve3::Ellipse(..)) => refused(CONE_ELLIPSE),
-        (
-            Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. },
-            Curve3::Nurbs(_) | Curve3::Spiric { .. },
-        )
-        | (Surface::Torus { .. } | Surface::Spindle { .. }, Curve3::Nurbs(_)) => {
-            Err(PropsError::Unimplemented)
-        }
-        (Surface::Sphere { .. }, Curve3::Line(_) | Curve3::Ellipse(..)) => {
-            refused(SPHERE_NOT_A_CIRCLE)
-        }
-        (
-            Surface::Torus { .. } | Surface::Spindle { .. },
-            Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Spiric { .. },
-        ) => refused(TORUS_NOT_A_CIRCLE),
     }
 }
 
@@ -1141,7 +1077,7 @@ fn level_gap<T: Real>(a: RimLevel<T>, b: RimLevel<T>) -> Option<T> {
 /// `props-curved-carries-two-readings-of-d9-unreachable-vs-poison`, and
 /// a decision taken at one site would pre-empt it.
 fn mixed_levels(name: &'static str) -> PropsError {
-    PropsError::NotIsoRectangle { what: name }
+    PropsError::Defect { what: name }
 }
 
 /// **The iso-rectangle predicate**: every rim sits at one of the
@@ -1451,7 +1387,7 @@ fn cylinder_chart<T: Decide>(
         }
         for rim in &b.rims {
             let RimLevel::Length(v) = rim.level else {
-                return Err(PropsError::NotIsoRectangle {
+                return Err(PropsError::Defect {
                     what: "a cylinder rim carried a non-length level",
                 });
             };
@@ -1946,9 +1882,12 @@ fn cylinder_boundary<T: Decide>(
                     band,
                     PropsCheck::Inventory,
                 )?;
+                // A circle whose plane holds the axis direction lies on no
+                // cylinder about that axis: an incidence miss, decided by
+                // the axis class.
                 let Some(s) = s.nonzero() else {
-                    return Err(PropsError::NotIsoRectangle {
-                        what: "cylinder boundary circle is not a rim",
+                    return Err(PropsError::OffSurface {
+                        what: "props_circle_axis_class",
                     });
                 };
                 require_zero(
@@ -2003,7 +1942,9 @@ fn cylinder_boundary<T: Decide>(
             // direct key-free call keeps the typed refusal.
             Curve3::Ellipse(..) => {
                 return Err(PropsError::NotIsoRectangle {
-                    what: CYLINDER_ELLIPSE,
+                    what: "cylinder boundary carries an ellipse arc (curved cut) — route \
+                           through topo::mass_properties, whose quadrature lane consumes \
+                           the stored pcurves this key-free pass cannot see",
                 });
             }
             // A spiric lies on no cylinder or cone: refused beside the
@@ -3227,7 +3168,12 @@ fn cone_boundary<T: Decide>(
                 levels.push(v);
             }
             Curve3::Ellipse(..) => {
-                return Err(PropsError::NotIsoRectangle { what: CONE_ELLIPSE });
+                return Err(PropsError::NotIsoRectangle {
+                    what: "cone boundary carries an ellipse arc (a tilted-section cut) — \
+                           not a rim or a generator, so this iso parse has no reading of \
+                           it (`cone_face_closed_form` measures such a face by its \
+                           vector area)",
+                });
             }
             // A spiric lies on no cylinder or cone: refused beside the
             // spline, typed.
@@ -5000,7 +4946,7 @@ fn sphere_boundary<T: Decide>(
                 // spline, typed.
                 Curve3::Nurbs(_) | Curve3::Spiric { .. } => PropsError::Unimplemented,
                 _ => PropsError::NotIsoRectangle {
-                    what: SPHERE_NOT_A_CIRCLE,
+                    what: "sphere boundary edge is not a circle",
                 },
             });
         };
@@ -5049,12 +4995,27 @@ fn sphere_boundary<T: Decide>(
             None => {
                 // Meridian great circle: centered at the sphere center
                 // with the sphere's radius.
-                require_zero(
+                // A circle whose plane holds the axis direction and that is
+                // no great circle is either a small circle ON the sphere,
+                // which is no iso curve of the chart, or a circle off it:
+                // the incidence is decided on that path only.
+                if let Err(miss) = require_zero(
                     "props_meridian_great",
                     Margin::of((c_c - center).norm().max((r_c - radius).abs())),
                     band,
                     Premise::Inventory,
-                )?;
+                ) {
+                    if matches!(miss, PropsError::NotIsoRectangle { .. }) {
+                        let w = c_c - center;
+                        require_zero(
+                            "props_rim_fit",
+                            Margin::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
+                            band,
+                            Premise::OnSurface,
+                        )?;
+                    }
+                    return Err(miss);
+                }
                 for p in [e.p0(), e.p1()] {
                     let (sin_p, cos_p) = latitude(p);
                     levels.push(sin_p);
@@ -5374,7 +5335,7 @@ fn torus_chart<T: Decide>(
             let step = match edge {
                 TorusEdge::Rim(rim) => {
                     let RimLevel::Unit(sin_v, cos_v) = rim.level else {
-                        return Err(PropsError::NotIsoRectangle {
+                        return Err(PropsError::Defect {
                             what: "a torus rim carried a non-angle level",
                         });
                     };
@@ -5601,7 +5562,7 @@ fn torus_chart_loop<T: Decide>(
             radius: r_c,
         }) = p.edge.carrier
         else {
-            return Err(PropsError::NotIsoRectangle {
+            return Err(PropsError::Defect {
                 what: "a torus piece that is no circle",
             });
         };
@@ -5964,10 +5925,10 @@ fn torus_classify<'a, T: Decide>(
                 // carrying one routes to the quadrature lane, whose
                 // spiric arm measures it (`super::spiric`).
                 Curve3::Spiric { .. } => PropsError::NotIsoRectangle {
-                    what: TORUS_NOT_A_CIRCLE,
+                    what: "torus boundary edge is not a circle",
                 },
                 _ => PropsError::NotIsoRectangle {
-                    what: TORUS_NOT_A_CIRCLE,
+                    what: "torus boundary edge is not a circle",
                 },
             });
         };
@@ -5985,7 +5946,11 @@ fn torus_classify<'a, T: Decide>(
                 let h = (c_c - center).dot(axis);
                 let sin_v = h / minor;
                 let cos_v = (r_c - major) / minor;
-                require_zero(
+                // The fit reads the circle as a coaxial one; a coaxial
+                // circle that misses it is off the torus, and one that is
+                // not coaxial (a Villarceau circle) is on it and no rim.
+                // Which, is decided on that path only.
+                if let Err(miss) = require_zero(
                     "props_rim_fit",
                     Margin::levered(
                         (sin_v.powi(2) + cos_v.powi(2)).sqrt() - T::one(),
@@ -5993,7 +5958,23 @@ fn torus_classify<'a, T: Decide>(
                     ),
                     band,
                     Premise::Inventory,
-                )?;
+                ) {
+                    if matches!(miss, PropsError::NotIsoRectangle { .. })
+                        && require_rim_incidence(
+                            c_c - center,
+                            n_c,
+                            crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
+                            axis,
+                            band,
+                        )
+                        .is_ok()
+                    {
+                        return Err(PropsError::OffSurface {
+                            what: "props_rim_fit",
+                        });
+                    }
+                    return Err(miss);
+                }
                 require_rim_incidence(
                     c_c - center,
                     n_c,
@@ -6029,7 +6010,7 @@ fn torus_classify<'a, T: Decide>(
                             .max((r_c - minor).abs()),
                     ),
                     band,
-                    Premise::Inventory,
+                    Premise::OnSurface,
                 )?;
                 // Incidence: the minor circle's plane must CONTAIN the
                 // torus axis direction — its normal `n_c` has no radial
@@ -6041,7 +6022,7 @@ fn torus_classify<'a, T: Decide>(
                     "props_meridian_plane",
                     Margin::of(n_c.dot(off)),
                     band,
-                    Premise::Inventory,
+                    Premise::OnSurface,
                 )?;
                 // Certification's per-edge bound, at the minor radius:
                 // the chart's lift and the meridian fold read this span.
@@ -6097,7 +6078,7 @@ fn fold_torus_meridians<T: Decide>(
         _ => false,
     };
     let Ok(runs) = loop_runs(edges, joins) else {
-        return Err(PropsError::NotIsoRectangle {
+        return Err(PropsError::Defect {
             what: "torus meridian pieces close a loop with no rim",
         });
     };
@@ -6260,7 +6241,7 @@ fn torus_meridian_orient<T: Decide>(
             cause,
             check: PropsCheck::Inventory,
         },
-        LeveredUnitError::Arm(None) => PropsError::NotIsoRectangle {
+        LeveredUnitError::Arm(None) => PropsError::Defect {
             what: UNIT_DIRECTION_ARM,
         },
     })?;
@@ -6290,12 +6271,12 @@ fn torus_meridian_orient<T: Decide>(
         band,
         PropsCheck::Inventory,
     )?;
-    orient.nonzero().ok_or(PropsError::NotIsoRectangle {
+    orient.nonzero().ok_or(PropsError::Defect {
         what: "torus meridian orientation degenerate",
     })
 }
 
-/// A torus frame leg's refusal under [`PropsError::NotIsoRectangle`]'s
+/// A torus frame leg's refusal, [`PropsError::Defect`] under the name-only
 /// convention: a length the funnel decided to zero is named by the
 /// predicate that decided it (`decided`); a length refused before any
 /// margin was decided — not a finite number, or underflowed out of the
@@ -6310,9 +6291,9 @@ fn torus_frame_refused(
             cause,
             check: PropsCheck::Inventory,
         },
-        UnitVec3Error::Degenerate => PropsError::NotIsoRectangle { what: decided },
+        UnitVec3Error::Degenerate => PropsError::Defect { what: decided },
         UnitVec3Error::NonFiniteLength | UnitVec3Error::UnderflowedLength => {
-            PropsError::NotIsoRectangle { what: unmeasured }
+            PropsError::Defect { what: unmeasured }
         }
     }
 }

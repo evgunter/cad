@@ -379,9 +379,9 @@ pub(crate) fn arm_steps(row: &AnalyticRow<'_>, target: f64) -> (f64, f64) {
 pub(crate) fn face_domain(
     body: &Body<f64>,
     fk: FaceKey,
-    tol: &SizingTols,
+    band: geom_core::Band,
 ) -> Result<FaceLift<f64>, TessellateError> {
-    body.face_lift(fk, tol.band)
+    body.face_lift(fk, band)
         .map_err(|cause| TessellateError::DomainUnread {
             face: fk,
             cause: Box::new(cause),
@@ -2962,15 +2962,10 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass = crate::chords::compute_chords(
-            &body,
-            5e-3,
-            &crate::tessellate::Routes::witness(&body),
-            &vids,
-            &mut positions,
-            &mut bounds,
-        )
-        .unwrap();
+        let routes = crate::tessellate::Routes::witness(&body);
+        let chords: ChordPass =
+            crate::chords::compute_chords(&body, 5e-3, &routes, &vids, &mut positions, &mut bounds)
+                .unwrap();
         let mut rims = 0;
         for (ek, edge) in body.edges() {
             let curve = body
@@ -3114,10 +3109,11 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
+        let routes = crate::tessellate::Routes::witness(&body);
         let chords: ChordPass = crate::chords::compute_chords(
             &body,
             delta,
-            &crate::tessellate::Routes::witness(&body),
+            &routes,
             &vids,
             &mut positions,
             &mut bounds,
@@ -3127,8 +3123,8 @@ pub(super) mod tests {
         for (fk, face) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
             if !matches!(surface, geom::Surface::Sphere { .. })
-                || crate::tessellate::Routes::witness(&body).lane(fk).unwrap()
-                    != crate::tessellate::Lane::Trimmed
+                || routes.lane(fk).unwrap()
+                    != crate::tessellate::Routed::To(crate::tessellate::Lane::Trimmed)
             {
                 continue;
             }
@@ -3282,6 +3278,7 @@ pub(super) mod tests {
     fn a_cone_faces_window_reads_its_widest_edge() {
         let mut ellipse_widest = 0;
         for (name, body) in cone_and_torus_bodies() {
+            let routes = crate::tessellate::Routes::witness(&body);
             for (fk, face) in body.faces() {
                 let surface = body.face_surface(fk).unwrap();
                 let geom::Surface::Cone {
@@ -3293,8 +3290,8 @@ pub(super) mod tests {
                 else {
                     continue;
                 };
-                if crate::tessellate::Routes::witness(&body).lane(fk).unwrap()
-                    != crate::tessellate::Lane::Trimmed
+                if routes.lane(fk).unwrap()
+                    != crate::tessellate::Routed::To(crate::tessellate::Lane::Trimmed)
                 {
                     continue;
                 }
@@ -3354,10 +3351,11 @@ pub(super) mod tests {
                     positions.push(p);
                 }
                 let mut bounds = crate::nurbs_cert::FaceBounds::new();
+                let routes = crate::tessellate::Routes::witness(&body);
                 let chords: ChordPass = crate::chords::compute_chords(
                     &body,
                     delta,
-                    &crate::tessellate::Routes::witness(&body),
+                    &routes,
                     &vids,
                     &mut positions,
                     &mut bounds,
@@ -3368,8 +3366,8 @@ pub(super) mod tests {
                     if !matches!(
                         surface,
                         geom::Surface::Cone { .. } | geom::Surface::Torus { .. }
-                    ) || crate::tessellate::Routes::witness(&body).lane(fk).unwrap()
-                        != crate::tessellate::Lane::Trimmed
+                    ) || routes.lane(fk).unwrap()
+                        != crate::tessellate::Routed::To(crate::tessellate::Lane::Trimmed)
                     {
                         continue;
                     }
@@ -3411,11 +3409,8 @@ pub(super) mod tests {
                             .certified()
                             .unwrap()
                             .carrier();
-                        let target = super::face_target(
-                            surface,
-                            crate::tessellate::Routes::witness(&body).lane(fk).unwrap(),
-                            delta,
-                        );
+                        let target =
+                            super::face_target(surface, crate::tessellate::Lane::Trimmed, delta);
                         // The new arms size at the lane's headroom, as the
                         // cylinder and sphere arms do: it stands in for
                         // the containment lemma no arm has yet.
@@ -3766,21 +3761,16 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass = crate::chords::compute_chords(
-            &body,
-            1e-2,
-            &crate::tessellate::Routes::witness(&body),
-            &vids,
-            &mut positions,
-            &mut bounds,
-        )
-        .unwrap();
+        let routes = crate::tessellate::Routes::witness(&body);
+        let chords: ChordPass =
+            crate::chords::compute_chords(&body, 1e-2, &routes, &vids, &mut positions, &mut bounds)
+                .unwrap();
         let mut with_poles = 0;
         for (fk, face) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
             if !matches!(surface, geom::Surface::Sphere { .. })
-                || crate::tessellate::Routes::witness(&body).lane(fk).unwrap()
-                    != crate::tessellate::Lane::Trimmed
+                || routes.lane(fk).unwrap()
+                    != crate::tessellate::Routed::To(crate::tessellate::Lane::Trimmed)
             {
                 continue;
             }

@@ -187,6 +187,7 @@ pub(crate) fn tessellate_curved(
     body: &Body<f64>,
     fk: FaceKey,
     surface: &Surface<f64>,
+    _rectangle: Rectangle,
     chords: &HashMap<EdgeKey, Vec<u32>>,
     shared: &[Point3<f64>],
     tol: &SizingTols,
@@ -504,14 +505,21 @@ pub(crate) fn tessellate_curved(
     Ok(patch)
 }
 
-/// A curved face's shape at the two doors ([`iso_rectangle_shape`]).
+/// **The two doors' "rectangle" answer, as a value**: minted by
+/// [`iso_rectangle_shape`] alone, where both doors pass, and taken by
+/// [`tessellate_curved`], so a face reaches this lane only on that
+/// answer and no route can hand it one without asking.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Rectangle(());
+
+/// A curved face's shape at the two doors ([`iso_rectangle_shape`]).
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Shape {
     /// An iso-parameter rectangle whose every boundary arc stays on one
     /// branch of the chart: this lane's domain.
-    Rectangle,
-    /// Decided to be no such rectangle: the chart lane's.
-    NoRectangle,
+    Rectangle(Rectangle),
+    /// Decided to be no such rectangle, with the doors' verdict.
+    NoRectangle(geom_brep::props::PropsError),
 }
 
 /// **The SHAPE door and the BRANCH door, read as the route**: this
@@ -598,14 +606,15 @@ pub(crate) fn iso_rectangle_shape(
     let doors = geom_brep::props::require_iso_rectangle(surface, &outer, band)
         .and_then(|()| geom_brep::props::require_one_chart_branch(surface, &outer, band));
     match doors {
-        Ok(()) => Ok(Shape::Rectangle),
-        Err(P::NotIsoRectangle { .. } | P::Unimplemented | P::NotOneChartBranch { .. }) => {
-            Ok(Shape::NoRectangle)
-        }
+        Ok(()) => Ok(Shape::Rectangle(Rectangle(()))),
+        Err(
+            verdict @ (P::NotIsoRectangle { .. } | P::Unimplemented | P::NotOneChartBranch { .. }),
+        ) => Ok(Shape::NoRectangle(verdict)),
         Err(
             source @ (P::Escalated { .. }
             | P::OffSurface { .. }
             | P::SpanUncertified { .. }
+            | P::Defect { .. }
             | P::NappeSpanning
             | P::SphereLoop { .. }
             | P::ConeLoop { .. }
@@ -1233,7 +1242,15 @@ mod tests {
         };
         assert!(
             matches!(
-                tessellate_curved(&body, fk, surface, &HashMap::new(), &[], &tol),
+                tessellate_curved(
+                    &body,
+                    fk,
+                    surface,
+                    Rectangle(()),
+                    &HashMap::new(),
+                    &[],
+                    &tol
+                ),
                 Err(TessellateError::MissingEntity { what }) if what == RINGED_FACE_ROUTED_HERE
             ),
             "a ringed face refuses at the curved lane's door"
@@ -1339,7 +1356,9 @@ mod tests {
         .ids;
         let mut out = Vec::new();
         for (fk, face) in body.faces() {
-            if routes.lane(fk) != Some(crate::tessellate::Lane::Curved) {
+            if routes.lane(fk).unwrap()
+                != crate::tessellate::Routed::To(crate::tessellate::Lane::Curved)
+            {
                 continue;
             }
             let Some(chart) = Chart::of(body.face_surface(fk).unwrap()) else {
@@ -2730,7 +2749,11 @@ mod tests {
         );
         assert_eq!(
             iso_rectangle_shape(&body, face, outer, surface, band),
-            Ok(Shape::NoRectangle),
+            Ok(Shape::NoRectangle(
+                geom_brep::props::PropsError::NotIsoRectangle {
+                    what: "props_rim_axis_parallel",
+                }
+            )),
             "so the router sends it away from the walk"
         );
     }

@@ -318,12 +318,14 @@ pub enum PropsError {
     /// ellipse, a tilted circle, a line off a ruling), a rim away from
     /// the face's two extreme levels (a notch), rims that encode
     /// different material sides, or a torus face with no meridian.
-    /// Every arm is a decided verdict on a face as stored — valid
-    /// input this inventory has no closed form for, never a face it
-    /// could not read ([`Self::Escalated`]) or one whose stored data
+    /// Every arm a face reaches is a decided verdict on a face as stored
+    /// — valid input this inventory has no closed form for, never a face
+    /// it could not read ([`Self::Escalated`]) or one whose stored data
     /// contradicts itself ([`Self::OffSurface`],
-    /// [`Self::SpanUncertified`]). The payload names the structural
-    /// expectation that failed.
+    /// [`Self::SpanUncertified`], [`Self::Defect`]). The one arm that is
+    /// no verdict on a face is a curved door asked of a plane, which is
+    /// the caller's misuse. The payload names the structural expectation
+    /// that failed.
     ///
     /// **Name-only**, like [`Self::NotOneChartBranch`] and for the
     /// same reason. Where a margin decided the refusal, `what` is that
@@ -352,9 +354,13 @@ pub enum PropsError {
     /// residual checks ([`PropsCheck::Exact`]), not by a census of
     /// predicate names: the same name is one premise on one surface and
     /// the other on another — `props_rim_fit` places a circle on a
-    /// cylinder, cone or sphere, while on a torus it additionally asks
-    /// for an iso-v rim, which a Villarceau circle on the surface
-    /// fails.
+    /// cylinder, cone or sphere, while on a torus it reads the circle as
+    /// a coaxial one, so a miss is this variant only where the circle is
+    /// coaxial (a Villarceau circle misses it on the surface, and is no
+    /// rim). Where one decision cannot tell the two readings apart, the
+    /// incidence is decided on the refusing path alone
+    /// (`props_meridian_great` on the sphere), so a face the parse admits
+    /// records the same decisions it did.
     ///
     /// **Name-only**, like [`Self::NotIsoRectangle`] and for the same
     /// reason.
@@ -385,6 +391,26 @@ pub enum PropsError {
     /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
     SpanUncertified {
         /// Which span bound failed (the deciding predicate's name).
+        what: &'static str,
+    },
+    /// **A state no correct parse reaches on a stored body**: a rim whose
+    /// level and the face's extremes carry two representations, a torus
+    /// piece the classification left uncircled, a torus frame whose axis
+    /// or meridian radial is zero or not a finite length, a meridian
+    /// orientation the frame leaves degenerate, a loop of meridian pieces
+    /// with no rim. Each follows only from a
+    /// defect of the kernel's own derivation or from stored data no valid
+    /// surface carries (a non-finite or zero-length axis).
+    ///
+    /// Split from [`Self::NotIsoRectangle`], at the raising sites: a face
+    /// outside the inventory is valid input, and these are not.
+    ///
+    /// **Name-only**, like [`Self::NotIsoRectangle`].
+    ///
+    /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
+    Defect {
+        /// Which state was met (the deciding predicate's name, or a
+        /// structural sentence where no margin decided it).
         what: &'static str,
     },
     /// A cone face's `v` range definitely spans both nappes — not a
@@ -715,6 +741,7 @@ impl PropsError {
             | Self::DegenerateFace
             | Self::OffSurface { .. }
             | Self::SpanUncertified { .. }
+            | Self::Defect { .. }
             | Self::SphereLoop { .. }
             | Self::ConeLoop { .. }
             | Self::SeamRegionCoverUnresolved => Err(crate::ladder::Aborts),
@@ -746,6 +773,11 @@ impl PropsError {
                 f,
                 "a boundary edge does not lie on its own face's surface ({what}). \
                  {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::Defect { what } => write!(
+                f,
+                "a face's boundary reached a state no correct parse of a stored body \
+                 reaches ({what}). {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::SpanUncertified { what } => write!(
                 f,
@@ -1165,6 +1197,9 @@ mod tests {
             PropsError::SpanUncertified {
                 what: "props_rim_span_winding",
             },
+            PropsError::Defect {
+                what: "props_rim_level",
+            },
             PropsError::SphereLoop {
                 what: "props_sphere_loop_cusp",
             },
@@ -1196,7 +1231,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 17, "an arm was added without a row here");
+        assert_eq!(arms.len(), 18, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.render(crate::recourse::Reading::AtRest);
             assert_eq!(
