@@ -151,7 +151,9 @@ impl<T: Decide> ConicBend<T> {
                     lifts_to: T::pi() * T::from_f64(0.5) / most,
                 }
             }
-            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => BendBounds::Unbounded,
+            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
+                BendBounds::Unbounded
+            }
             geom::Curve3::Line(_) => {
                 unreachable!("`ConicBend::of` reads a curved carrier, not a line")
             }

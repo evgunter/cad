@@ -466,7 +466,10 @@ fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
             let (big, r) = (major_radius.abs(), minor_radius.abs());
             geom::curves::spiric_rate_bounds(r, *offset, (big - r, big + r), T::one()).0
         }
-        Curve3::Nurbs(spline) => spline.speed_upper_bound().get(),
+        Curve3::Nurbs(_) | Curve3::Periodic(_) => match carrier.whole_net() {
+            Some(net) => net.speed_upper_bound().get(),
+            None => unreachable!("a spline has a net"),
+        },
     }
 }
 
@@ -542,7 +545,7 @@ fn extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
         Curve3::Circle(geom::Circle { radius, .. }) => chord.max(fold(*radius)),
         Curve3::Ellipse(e) => chord.max(fold(e.speed_lo())).max(pairs()),
         Curve3::Spiric { minor_radius, .. } => chord.max(fold(*minor_radius)).max(pairs()),
-        Curve3::Nurbs(_) => chord.max(pairs()),
+        Curve3::Nurbs(_) | Curve3::Periodic(_) => chord.max(pairs()),
     }
 }
 
@@ -646,7 +649,10 @@ fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
         // A poison speed bound (a rational degree past its ceiling) or a
         // poison net reaches the result: `min`/`max` propagate it, and the
         // reading levered at it escalates rather than taking the other arm.
-        Curve3::Nurbs(spline) => chord.max(farthest_pair(spline.control()).min(lipschitz())),
+        Curve3::Nurbs(_) | Curve3::Periodic(_) => match carrier.whole_net() {
+            Some(net) => chord.max(farthest_pair(net.control()).min(lipschitz())),
+            None => unreachable!("a spline has a net"),
+        },
     }
 }
 
@@ -671,7 +677,9 @@ fn sampled_reach<T: SpanLocate>(
 fn cover_is_exact<T: Real>(carrier: &Curve3<T>) -> bool {
     match carrier {
         Curve3::Line(_) | Curve3::Circle(..) => true,
-        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => false,
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+            false
+        }
     }
 }
 

@@ -366,7 +366,9 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
             geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
                 OutlineEdge::Conic(curve.carrier().clone())
             }
-            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => OutlineEdge::Undecided,
+            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
+                OutlineEdge::Undecided
+            }
         });
     }
     Ok(out)

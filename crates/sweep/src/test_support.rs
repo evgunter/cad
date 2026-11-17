@@ -648,7 +648,7 @@ pub fn one_edge_rim_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> EdgeKey {
 /// corner**: the edge of `body` standing at plan point `(x, y)` and the
 /// edge in the floor `z = 0` from that corner along `y = const`, each
 /// matched within `1e-9`. The pair is the mixed corner's odd edge with
-/// one other, the request its rule does not build.
+/// one other, which the chamfer builds and the fillet refuses.
 ///
 /// # Panics
 ///

@@ -31,17 +31,25 @@
 //! # Normals
 //!
 //! Each facet normal is computed in f64 from the triangle's vertex
-//! winding (`(b−a)×(c−a)`, normalized), then cast to f32. The
-//! tessellator drops index-degenerate triangles, so a zero cross
-//! product is a defect — it is a typed
-//! [`StlError::DegenerateTriangle`], never a silently zeroed or
-//! guessed normal (fail loud, D4/D9). Known live case: at coarse δ
-//! a cone's apex fan can emit triangles whose
-//! three points are exactly collinear along a generator (distinct
-//! indices, zero 3-D area — invisible to the id-degenerate drop and
-//! to the combinatorial `check_mesh`); the writer refuses those
-//! meshes, and the export tests pin the behavior — pick a finer δ
-//! (the acceptance set uses δ = 1e-2 for the cone).
+//! winding (`(b−a)×(c−a)`, normalized), then cast to f32. That the
+//! normal means anything is the mesh's promise, not this writer's, and
+//! it is a promise about the **f64 mesh**: every triangle
+//! `mesh::tessellate` returns has a winding resolved above the f64
+//! rounding of its own positions (`crates/mesh/README.md`
+//! `[mesh.winding]`), and `mesh::validate::check_winding` re-derives
+//! that for a mesh of any other provenance. The writer does not
+//! re-derive it. The file carries that normal, computed in f64, beside
+//! vertices narrowed to f32: a triangle resolved in f64 can be far
+//! inside f32's rounding (the allowance is a few f64 epsilons of the
+//! coordinate scale, and one f32 ulp is about 5·10⁸ f64 epsilons), so a
+//! reader that recomputes a normal from the file's own vertices may get
+//! zero or the other sign. What the file can carry is the f64 normal;
+//! what it cannot is vertices that reproduce it. What it refuses is the one case in which it could
+//! not write a normal at all, a cross product of length exactly zero or
+//! not finite: a typed [`StlError::DegenerateTriangle`], never a
+//! silently zeroed or guessed normal (fail loud, D4/D9). `Mesh`'s
+//! fields are public, so a hand-built mesh reaches it; a tessellated one
+//! does not.
 //!
 //! The normal's *direction* is therefore whatever the winding says,
 //! and STL's own rule (facet normal ≈ outward, agreeing with the
@@ -80,8 +88,9 @@ pub use options::{
 /// is about a value the caller supplied through options.
 #[derive(Debug)]
 pub enum StlError {
-    /// A triangle's winding cross product is exactly zero — the mesh
-    /// violated its non-degeneracy contract; no honest normal exists.
+    /// A triangle's winding cross product is exactly zero or not finite:
+    /// no normal can be written. A mesh `mesh::tessellate` returned does
+    /// not reach it (`crates/mesh/README.md` `[mesh.winding]`).
     DegenerateTriangle {
         /// The triangle's position indices.
         triangle: [u32; 3],
@@ -107,8 +116,9 @@ impl core::fmt::Display for StlError {
         match self {
             Self::DegenerateTriangle { triangle } => write!(
                 f,
-                "stl export: triangle {triangle:?} has a zero winding cross product \
-                 (degenerate; the mesh's non-degeneracy contract is violated)"
+                "stl export: triangle {triangle:?} has a zero or non-finite winding \
+                 cross product, so no normal can be written (a tessellated mesh's \
+                 windings are resolved; this mesh is not one)"
             ),
             Self::IndexOutOfRange { index } => {
                 write!(f, "stl export: position index {index} out of range")

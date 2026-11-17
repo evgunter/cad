@@ -80,9 +80,9 @@
 //! of δ is a typed choice nothing has measured as the coarsest
 //! (`work/tesslane/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
 //! The lanes without a theorem say so at their call sites: the trimmed
-//! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and a cone face
-//! whose side carries a point keeps the lattice `curved::grid_counts`
-//! names.
+//! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and so
+//! does a cylinder or cone face whose straight side holds a point, which
+//! is the trimmed lane's (`walk::splits_a_straight_side`).
 //!
 //! **One sizing question has a separate ratified answer**:
 //! `docs/TESS-BUDGET.md`'s *split schedule's aspect policy*
@@ -358,9 +358,11 @@ pub(crate) struct SizingTols {
     /// convention `Band::linear` prescribes). Consumed by three sites —
     /// `curved`'s shape door, which hands it to
     /// `geom_brep::props::require_iso_rectangle` and then to
-    /// `require_one_chart_branch`, the walk's wrap strip, and the trimmed
-    /// lane's singular vertices (`crate::chart_table::AnalyticRow::is_singular`),
-    /// both of which hand it to
+    /// `require_one_chart_branch` (asked by the curved lane and by the
+    /// dispatch, `tessellate::lane_of`, which the chord pass reads too),
+    /// the walk's wrap strip, and the trimmed lane's singular vertices
+    /// (`crate::chart_table::AnalyticRow::is_singular`), both of which
+    /// hand it to
     /// `geom_brep::chart_singularity::vertex_at_singular_point` — and by
     /// no rule of this crate's own: `mesh` decides nothing
     /// against it, it carries the band to geom-brep's predicates. Not an
@@ -627,7 +629,7 @@ pub(crate) fn sphere_face_widest_cos(
             }
             // A section with another curved surface (a cylinder's, as in
             // `sweep`'s `cylinder_sphere_frame`) is a spline.
-            geom::Curve3::Nurbs(_) => {
+            geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
                 let w = image_box(
                     body,
                     hek,
@@ -856,7 +858,10 @@ pub(crate) fn cone_face_rho_max(
         let rho = match *curve.carrier() {
             geom::Curve3::Circle(geom::Circle { radius, .. }) => radius,
             geom::Curve3::Line(_) => continue,
-            geom::Curve3::Ellipse(..) | geom::Curve3::Nurbs(_) | geom::Curve3::Spiric { .. } => {
+            geom::Curve3::Ellipse(..)
+            | geom::Curve3::Nurbs(_)
+            | geom::Curve3::Periodic(_)
+            | geom::Curve3::Spiric { .. } => {
                 let w = image_box(
                     body,
                     hek,
@@ -914,8 +919,18 @@ pub(crate) fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError>
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    /// The run's tolerances at `delta` under `Tol::witness()`, as
+    /// `tessellate` mints them.
+    pub(crate) fn witness_tols(delta: f64) -> SizingTols {
+        SizingTols {
+            delta,
+            eps: Eps::at(Tol::witness()),
+            band: Band::linear(Tol::witness()).unwrap(),
+        }
+    }
 
     /// **[`ellipse_step`] reads the semi-axes in either order.** An
     /// ellipse stored with `minor` the larger is the same locus; read as

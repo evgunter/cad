@@ -43,12 +43,14 @@ pub fn axis_y() -> RevolveAxis<f64> {
 ///
 /// Per-body δ notes: the donut pays the quadratic CDT cost (mesh's
 /// documented perf characteristic — δ = 1e-2 is ~40 s and 143k
-/// triangles in debug), so it exports at a coarser δ; the cone must
-/// stay at δ ≤ 1e-2 because coarser apex fans emit exactly-collinear
-/// (zero-3D-area) triangles — distinct indices, so the tessellator's
-/// id-degenerate drop misses them — which the STL writer refuses with
-/// a typed `DegenerateTriangle` (fail loud; see
-/// `degenerate_apex_fan_is_refused_typed` in the export suite).
+/// triangles in debug), so it exports at a coarser δ. The cone's δ is
+/// a choice and no longer a limit: the cone writes at every δ of
+/// `export::coarse_cone_apex_fan_writes`' sweep, and a triangle on one
+/// line is the mesh's to refuse (`crates/mesh/README.md`
+/// `[mesh.winding]`), with the writer's own refusal of a zero cross
+/// product pinned on constructed meshes
+/// (`export::degenerate_mesh_is_refused_typed`,
+/// `review_m2_pr7::coarse_cone_apex_fan_refuses_typed`).
 pub fn acceptance_bodies() -> Vec<(&'static str, Body<f64>, f64)> {
     // ONE split, both halves kept: `tiltedcut` extrudes a cylinder and
     // splits it, returning both sides of that single computation.

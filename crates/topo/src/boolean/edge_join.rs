@@ -54,7 +54,12 @@
 //! The joined edge runs on the kept edge's carrier through the vertex,
 //! so the kept edge is one whose carrier has no crease there
 //! ([`crease_at`]: a spline carrier at its clamped end, or at an
-//! interior knot of multiplicity at least its degree). A spline that
+//! interior knot of multiplicity at least its degree). The carrier read
+//! is the one the edge stores: an edge on a periodic cubic reads a
+//! clamped view that ends at each of its vertices, but the loop it is a
+//! span of runs on through them with simple knots only, so a periodic
+//! stored carrier has no crease anywhere in its loop and its vertices
+//! join as a circle's do. A spline that
 //! ends at the vertex beside a line or a circle on the same locus is
 //! the edge the join kills. Where both carriers crease there, as two
 //! spline pieces meeting at a knot of full multiplicity do, the vertex
@@ -468,7 +473,10 @@ fn crease_at<T: Decide>(
     let Some(c) = body.edge_curve_linked(e, d).certified() else {
         return Ok(Crease::No);
     };
-    let geom::Curve3::Nurbs(n) = c.carrier() else {
+    // The stored carrier: an edge on a periodic cubic reads a clamped
+    // view that ends at `w`, but the loop it is a span of runs on
+    // through `w` with no knot of that multiplicity, as a circle does.
+    let geom::Curve3::Nurbs(n) = c.stored_carrier() else {
         return Ok(Crease::No);
     };
     let (t0, t1) = c.params();
@@ -1154,7 +1162,12 @@ fn carried_far<T: Decide>(
 
 /// **`gone`'s far end read off `kept`'s carrier**: the parameter of
 /// `gone`'s middle near `tw`, then of `far` near that, so the reading
-/// walks from the vertex along `gone`. Where `gone` lies on the very
+/// walks from the vertex along `gone`. A closed form inverts in closed
+/// form; a periodic cubic by its foot ([`geom::Curve3::foot`]), which is
+/// the one reading of a far end on a loop that [`carried_far`] does not
+/// carry: an arc stated a whole turn away across the loop's seat, an
+/// arc stated on the loop run back, and one whose parameter at the
+/// vertex is not the kept edge's bit for bit. Where `gone` lies on the very
 /// carrier ([`carried_far`]), this names `gx`'s point, and the two
 /// spellings agree up to rounding (ledger row F39).
 fn read_far<T: Decide>(
@@ -1164,6 +1177,13 @@ fn read_far<T: Decide>(
     far: geom_core::Point3<T>,
     tw: T,
 ) -> Option<T> {
+    // A periodic cubic inverts by its foot, read in the turn nearest the
+    // parameter walked from.
+    if let Some(p) = carrier.as_periodic() {
+        let turn = geom_core::period::Period::new(p.period());
+        let near = |q: geom_core::Point3<T>, from: T| turn.near(carrier.foot(q, from).seed(), from);
+        return Some(near(far, near(gone.mid_point(g0, g1), tw)));
+    }
     carrier
         .param_near(gone.mid_point(g0, g1), tw)
         .and_then(|tm| carrier.param_near(far, tm))
@@ -1189,7 +1209,9 @@ fn joined_spec<T: Decide>(
     let ((kept, kd), (gone, gd)) = curve(join.kept)
         .zip(curve(join.gone))
         .ok_or(desync("a joined edge is not certified"))?;
-    let carrier = kept.carrier();
+    // The carrier the joined edge is stated on is the kept edge's stored
+    // one: on a periodic cubic the loop, which runs on through `w`.
+    let carrier = kept.stored_carrier();
     let (t0, t1) = kept.params();
     let backward = body.get_half_edge(kd.he_plus).map(|h| h.start) == Some(w);
     let (g0, g1) = gone.params();
@@ -1200,7 +1222,7 @@ fn joined_spec<T: Decide>(
     let tw = if backward { t0 } else { t1 };
     let gone_from_w = body.get_half_edge(gd.he_plus).map(|h| h.start) == Some(w);
     let at_w = if gone_from_w { (g0, g1) } else { (g1, g0) };
-    let carried = carried_far(carrier, tw, backward, gone.carrier(), at_w);
+    let carried = carried_far(carrier, tw, backward, gone.stored_carrier(), at_w);
     let tx = if let Some(tx) = carried {
         tx
     } else if join.closed {
@@ -1223,7 +1245,7 @@ fn joined_spec<T: Decide>(
             }
         }
     } else {
-        read_far(carrier, gone.carrier(), (g0, g1), far, tw).ok_or(
+        read_far(carrier, gone.stored_carrier(), (g0, g1), far, tw).ok_or(
             BooleanError::JoinCarrierUnsupported {
                 edge: join.kept,
                 carrier: carrier.kind(),

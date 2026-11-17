@@ -83,7 +83,7 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
             let rho = (w - axis * h).norm();
             ((rho - radius.abs()).powi(2) + h.powi(2)).sqrt()
         }
-        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
             panic!("no independent distance to a {:?}", c.kind())
         }
     }
@@ -91,11 +91,17 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
 
 /// **The table is total, and its closed arms are the line, circle and
 /// ellipse pairs.** Every pair of kinds has a method; a pair is the
-/// walk's exactly when a side is a spiric or a spline; and the mirrored
+/// walk's exactly when a side is a spiric or a spline, clamped or
+/// periodic; and the mirrored
 /// pair has the mirrored arm.
 #[test]
 fn the_table_reads_every_kind_pair_once() {
-    let walked = |k: CurveKind| matches!(k, CurveKind::Spiric | CurveKind::Nurbs);
+    let walked = |k: CurveKind| {
+        matches!(
+            k,
+            CurveKind::Spiric | CurveKind::Nurbs | CurveKind::Periodic
+        )
+    };
     let mirror = |arm: Arm| match arm {
         Arm::LineConic => Arm::ConicLine,
         Arm::ConicLine => Arm::LineConic,

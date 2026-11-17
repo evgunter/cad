@@ -516,8 +516,9 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
         ),
         (
             "geom-brep/src/curve_pair/walk.rs",
-            3,
-            "the walk's feet seed `read_both`, which reads the span's certificate",
+            1,
+            "the end and witness feet (`polished_feet`) seed `read_both`, which reads \
+             the span's certificate; the stop reads its polished pair as a pair, no foot",
         ),
         (
             "geom-brep/src/curve_pair/pose.rs",

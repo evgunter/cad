@@ -694,9 +694,11 @@ fn swapped<T: geom_core::Real>(pose: Pose<T>) -> Pose<T> {
 fn line_of<T: Decide>(c: &Curve3<T>) -> Result<geom::Line<T>, MeetFault> {
     match *c {
         Curve3::Line(line) => Ok(line),
-        Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
-            Err(MeetFault::Desync)
-        }
+        Curve3::Circle(..)
+        | Curve3::Ellipse(..)
+        | Curve3::Spiric { .. }
+        | Curve3::Nurbs(_)
+        | Curve3::Periodic(_) => Err(MeetFault::Desync),
     }
 }
 

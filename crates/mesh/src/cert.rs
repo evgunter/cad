@@ -508,7 +508,7 @@ fn abs_sin_max(v0: f64, v1: f64) -> f64 {
 /// cylinder's worst triangle on δ exactly (an n-gon rim) is half an
 /// ulp. It is the promise's "+ rounding", not a margin on δ: no step
 /// reads it.
-pub(crate) const ROUNDING_ULPS: f64 = 8.0;
+pub const ROUNDING_ULPS: f64 = 8.0;
 
 /// How small the allowance must stay against both δ and the kernel ε
 /// for the verdict to apply it: a quarter of the smaller. **Certificate
@@ -579,11 +579,17 @@ pub(crate) fn verdict(bound: f64, delta: f64, scale: f64, eps: Eps) -> Verdict {
 /// chart's anchor and the triangle's corners, since every distance it
 /// takes is a difference of those.
 pub(crate) fn position_scale(anchor: Point3<f64>, tri: [Point3<f64>; 3]) -> f64 {
+    (anchor - Point3::origin())
+        .norm()
+        .max(coordinate_scale(tri))
+}
+
+/// **A triangle's coordinate scale**: the largest of its three corners'
+/// norms (each corner's distance from the origin, not its largest
+/// coordinate), the magnitude a stored corner rounds at.
+pub(crate) fn coordinate_scale(tri: [Point3<f64>; 3]) -> f64 {
     let norm = |p: Point3<f64>| (p - Point3::origin()).norm();
-    norm(anchor)
-        .max(norm(tri[0]))
-        .max(norm(tri[1]))
-        .max(norm(tri[2]))
+    norm(tri[0]).max(norm(tri[1])).max(norm(tri[2]))
 }
 
 /// The magnitude a UV-extent certificate ([`cert_torus`], the NURBS

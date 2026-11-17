@@ -3634,6 +3634,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             refused: geom_brep::StatedSpan::Winding(_),
         }
         | CertifyError::WindingExceeded => "its arc spans more than one full turn",
+        CertifyError::PeriodicView(_) => {
+            "its parameter interval is not a span of its closed spline the kernel can read"
+        }
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
             "its faces are tangent where its description says they cross"
         }
@@ -3717,6 +3720,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         None => Cow::Borrowed(match e {
             CertifyError::UnresolvedSurface { .. }
             | CertifyError::IntersectionSameSurface { .. }
+            | CertifyError::PeriodicView(_)
             | CertifyError::WrapOnNonPeriodic => DEFECT,
             CertifyError::Unimplemented
             | CertifyError::Row {
@@ -7558,6 +7562,15 @@ pub(crate) fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geo
                 vec![geom::CurveDatum::Control]
             };
         }
+        // The base opening's net is an affine image of the cyclic one,
+        // so one is finite exactly where the other is.
+        geom::CurveData::Periodic(p) => {
+            return if net_is_finite(p.whole_loop().control()) {
+                Vec::new()
+            } else {
+                vec![geom::CurveDatum::Control]
+            };
+        }
     };
     data.into_iter()
         .filter_map(|(datum, value)| (!datum_is_number(value)).then_some(datum))
@@ -9387,7 +9400,7 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
                 lever,
             ))
         }
-        geom::Curve3::Nurbs(_) => None,
+        geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => None,
     };
     Some((he, h.edge, departure))
 }
@@ -18734,6 +18747,14 @@ mod certify_escalation_rows {
                 says(CertifyError::WindingExceeded),
                 "its arc spans more than one full turn. There is no way through: this is a \
                  kernel defect or a damaged file; report it",
+            ),
+            (
+                says(CertifyError::PeriodicView(geom::PeriodicViewError::Span {
+                    asked: (0.5, 2.75),
+                    window: (0.0, 2.0),
+                })),
+                "its parameter interval is not a span of its closed spline the kernel can read. \
+                 There is no way through: this is a kernel defect or a damaged file; report it",
             ),
             // The tangent tube's margin is a lower bound: a Negative is
             // the certificate's limit, which the lever reaches.
