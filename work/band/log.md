@@ -1372,3 +1372,9 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - **The mixed-corner reach row** (P1). Letter H, dual concurrent. Implementer byte 236 → Opus. Lane `band-reach`, branch `band/mixed-corner-reach`. It also takes `reach.rs`'s unitless `|n·τ|` item.
 
   Both lanes are told to keep out of each other's files and to fold main in by merge.
+- 2026-11-17 — The cut 3 lane stopped at its measure step with a design fork, and has made no commits. Three `mixed_corner_square` refusals fit none of the eight ratified `UnbuiltEnd` tags:
+  - a curved odd link with all three edges requested;
+  - the fillet at a curved pair link;
+  - the chamfer where `E` is off square to the odd edge.
+
+  The other 26 sites map onto a tag or become an invariant. Draws: byte 84 → three designers, labels byte 211. They are weighing the fork concurrently and were given only the problem. Cut 3 resumes after Ev rules; the reach lane carries on.
