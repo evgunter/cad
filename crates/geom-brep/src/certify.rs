@@ -2320,7 +2320,7 @@ const WINDING_ROWS: TurnRows<&str> = crate::rows::INTERVAL_SPAN_WINDING.rows();
 /// [`EdgeCurve::with_chart_v_mirrored`], [`EdgeCurve::carried`]) — fields are private, so an
 /// uncertified value at a certifying scalar is unrepresentable (D4 ¶2
 /// made structural).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct EdgeCurve<T: Real> {
     /// U2's collapsed description — ONE conventional form, minted and
     /// metered at certification (D1/D4).
@@ -2337,6 +2337,32 @@ pub struct EdgeCurve<T: Real> {
     /// Check 2's turn: the interval's extent against one period.
     turn: Option<CertifiedTurn<T>>,
     certificate: T::Carries<Certificate<T>>,
+}
+
+/// The edge as it is stored. The reading is a function of the carrier
+/// and the interval, so it states nothing and is not printed.
+impl<T: Real> core::fmt::Debug for EdgeCurve<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            description,
+            authority,
+            carrier,
+            reading: _,
+            param_start,
+            param_end,
+            turn,
+            certificate,
+        } = self;
+        f.debug_struct("EdgeCurve")
+            .field("description", description)
+            .field("authority", authority)
+            .field("carrier", carrier)
+            .field("param_start", param_start)
+            .field("param_end", param_end)
+            .field("turn", turn)
+            .field("certificate", certificate)
+            .finish()
+    }
 }
 
 impl<T: Decide> EdgeCurve<T> {
