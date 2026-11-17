@@ -980,3 +980,7 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - 2026-11-17 — **Fix pass back; PR 7057 merged** on green at `f424414653` plus docs-only row commits (row `PR-7057.md`). The boundary pair and the σ ≠ 1 saddle are added; four of five cap mutants are now red at every band. The roster lines duplicated PR 7055 and dropped out of the diff. The roster-key ambiguity is filed in ONECOPY (P3). The CI slow-set gap is added to CIW's existing row, raised to P2. The three 1e-12 node rows pass. The two main-red items close with it.
 - **PR 7056 merged (`cc76781a23`)** on green; the first attempt hit a concurrent base change and the retry merged. The sliver build waits for the rim-pad PR (see above).
 - **PR 7059 merged (`14d6d77158`):** the two main-red items closed.
+- 2026-11-17 — **The rim-pad lane (Fable) stopped on the Fable usage limit,** which resets 2026-11-23 00:00 UTC. Its work so far is pushed on `sectarms/rim-pad-cells` (`dbc1b7b250`). The image-function lane (Fable, `sectarms/one-image-function`, `bb09cb4eeb`) is on the same account and will hit the same limit.
+  - Rule 3 allows a re-dispatch on the other model as an unfair half (rule 8). Whether to substitute or wait is a choice the protocol does not make, and ratios are Ev's.
+  - Asked as **[PR 7061](https://github.com/evgunter/cad/pull/7061)** [ev]: (A) substitute Opus while a model is out for more than a day, with draws continuing and the half recorded unfair; or (B) wait for the reset. I recommend (A).
+  - Holding both lanes until Ev answers. Subscribed.
