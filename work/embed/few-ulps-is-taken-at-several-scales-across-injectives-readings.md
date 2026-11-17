@@ -37,3 +37,12 @@ say at the site why another scale is the one that rounds. Each touch
 and cover reading is an ε concession, so a scale change moves what it
 drops. Measure the injectivity rows and the tour walk before and
 after.
+
+**The scales are not free to unify one at a time** (measured on PR 7086).
+`present_chart`'s zero-width guard was first moved onto
+`chart_slack`. That made it wider than the touch (`few_ulps(hi)`), and
+`a_filleted_drum_certifies_across_its_fillet` at `Interval` then
+refused `Uncertified` at depth 40, with 9,660 refused cell pairs. A
+cell reaching just past the touch onto a line's face side reads no
+width, and every cell below it reaches as far. So the guard stays at
+the touch's scale until the touch moves with it.

@@ -1877,7 +1877,13 @@ fn present_chart<'a>(
     // line has it on the side the cell is on. That is no sliver to read
     // as holding nothing. The extent and the lines are proven to agree
     // ([`face_extent`]), so this is the cell's own reading of them.
-    let no_width = |(lo, hi): (f64, f64)| hi - lo <= chart_slack(&[lo, hi]);
+    //
+    // The width is read at the touch's scale (`few_ulps` of the values
+    // read), never wider: a cell reaching just past the touch onto a
+    // line's face side is a true sliver of the face, and every cell
+    // below it reaches as far, so a wider slack refuses it at every
+    // depth.
+    let no_width = |(lo, hi): (f64, f64)| hi - lo <= few_ulps(lo.abs().max(hi.abs()));
     if !piece.whole && (no_width(x) || no_width(y)) {
         return Err(Unpresented::Local);
     }
