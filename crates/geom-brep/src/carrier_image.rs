@@ -68,6 +68,11 @@ pub(crate) const IMAGE_ROUNDS: usize = 24;
 /// The most knots an image holds past its chain's (D9).
 pub(crate) const IMAGE_KNOTS: usize = 4096;
 
+/// How many ulps of a wall point's largest coordinate a length there is
+/// resolved to ([`resolution`]): a miss under it asks no knot, and a
+/// foot whose tangential offset is under it is settled.
+const RESOLUTION_ULPS: f64 = 64.0;
+
 /// How many times [`follow`] halves the way to a foot it cannot reach
 /// from the last one (D9).
 const FOLLOW_HALVINGS: u32 = 16;
@@ -128,12 +133,57 @@ impl<T: geom_core::Real> Read<'_, T> {
     }
 }
 
-/// A foot of the path: the unit fraction of the carrier's span and the
-/// wall's chart point there.
+/// A foot of the path: the unit fraction of the carrier's span, the
+/// wall's chart point there, and the carrier's distance from it.
 #[derive(Clone, Copy, Debug)]
 struct Foot {
     at: f64,
     uv: Point2<f64>,
+    standoff: f64,
+}
+
+/// The length `f64` resolves at the wall point `p`
+/// ([`RESOLUTION_ULPS`]).
+fn resolution(p: Point3<f64>) -> f64 {
+    RESOLUTION_ULPS * f64::EPSILON * p.x.abs().max(p.y.abs()).max(p.z.abs())
+}
+
+/// A settled foot: its chart point, the wall's point there, and the
+/// carrier's distance from it.
+type Settled<T> = (Point2<f64>, Point3<T>, f64);
+
+/// **The wall's foot of `p` from the seed `(u, v)`**: Newton's
+/// ([`NurbsSurface::project_from_seed`]). Where Newton's own acceptance
+/// is not met, its last iterate stands as the foot if it is one to
+/// `f64`'s resolution there: both its tangential offsets from the
+/// nearest point, `|S_u · r| / |S_u|` and `v`'s, within [`resolution`].
+/// Far from the origin the wall's own evaluation cannot settle a foot
+/// more finely than that.
+///
+/// # Errors
+///
+/// The last distance read, where the last iterate is no such foot.
+fn settle<T>(wall: &NurbsSurface<T>, p: Point3<T>, (u, v): (f64, f64)) -> Result<Settled<T>, f64>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+{
+    match wall.project_from_seed(p, u, v) {
+        Ok(proj) => Ok((Point2::new(proj.u, proj.v), proj.foot, mid(proj.distance))),
+        Err(e) => {
+            let jet = wall.ders(T::from_computed(e.last_u), T::from_computed(e.last_v));
+            let at = Point3::new(mid(jet.point.x), mid(jet.point.y), mid(jet.point.z));
+            let floor = resolution(at);
+            let (su, sv) = (mid3(jet.du).norm(), mid3(jet.dv).norm());
+            let settled = e.last_orthogonality_u <= floor * su
+                && e.last_orthogonality_v <= floor * sv
+                && e.last_distance.is_finite();
+            if settled {
+                Ok((Point2::new(e.last_u, e.last_v), jet.point, e.last_distance))
+            } else {
+                Err(e.last_distance)
+            }
+        }
+    }
 }
 
 fn mid<T: Bounds>(x: T) -> f64 {
@@ -339,7 +389,8 @@ fn span_middle(knots: &[f64], at: f64) -> Option<f64> {
 /// short of the chain's foot `node`, where the image reads the chart
 /// point `p`: the distance between the
 /// wall's point at `p` and its point at the carrier's foot there, which
-/// Newton reaches from `p`. Poison reads `+∞`.
+/// Newton reaches from `p`; zero where that is under [`resolution`].
+/// Poison reads `+∞`.
 ///
 /// # Errors
 ///
@@ -353,18 +404,22 @@ fn miss<T>(
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
-    let foot = wall
-        .project_from_seed(read.point(at), p.x, p.y)
-        .map_err(|e| {
-            let (t0, t1) = read.domain;
-            ImageRefusal::Foot {
-                t: t0 + (t1 - t0) * at,
-                node,
-                last_distance: e.last_distance,
-            }
-        })?;
-    let d = mid((wall.eval(T::from_computed(p.x), T::from_computed(p.y)) - foot.foot).norm());
-    Ok(if d.is_nan() { f64::INFINITY } else { d })
+    let (_, foot, _) = settle(wall, read.point(at), (p.x, p.y)).map_err(|last_distance| {
+        let (t0, t1) = read.domain;
+        ImageRefusal::Foot {
+            t: t0 + (t1 - t0) * at,
+            node,
+            last_distance,
+        }
+    })?;
+    let here = wall.eval(T::from_computed(p.x), T::from_computed(p.y));
+    let d = mid((here - foot).norm());
+    if d.is_nan() {
+        return Ok(f64::INFINITY);
+    }
+    // A miss the wall's own evaluation does not resolve is none.
+    let floor = resolution(Point3::new(mid(here.x), mid(here.y), mid(here.z)));
+    Ok(if d <= floor { 0.0 } else { d })
 }
 
 /// The foot path at `nodes`, by continuation from the start.
@@ -407,7 +462,13 @@ where
     Foot {
         at,
         uv: Point2::new(proj.u, proj.v),
+        standoff: mid(proj.distance),
     }
+}
+
+/// A settled foot ([`settle`]) as a foot of the path.
+fn settled<T: geom_core::Real>(at: f64, (uv, _, standoff): Settled<T>) -> Foot {
+    Foot { at, uv, standoff }
 }
 
 /// **The path's first foot**: the wall's nearest point to the carrier's
@@ -434,13 +495,13 @@ where
         }
     };
     let proj = wall.project(p).map_err(refused)?;
-    let mut best = (foot_of(at, &proj), mid(proj.distance));
+    let mut best = foot_of(at, &proj);
     let domains = [
         wall.knots_u_f64_interim().domain(),
         wall.knots_v_f64_interim().domain(),
     ];
     for (axis, (lo, hi)) in domains.into_iter().enumerate() {
-        let here = if axis == 0 { best.0.uv.x } else { best.0.uv.y };
+        let here = if axis == 0 { best.uv.x } else { best.uv.y };
         let far = if here == lo {
             hi
         } else if here == hi {
@@ -449,23 +510,23 @@ where
             continue;
         };
         let across = if axis == 0 {
-            Point2::new(far, best.0.uv.y)
+            Point2::new(far, best.uv.y)
         } else {
-            Point2::new(best.0.uv.x, far)
+            Point2::new(best.uv.x, far)
         };
         let closes = mid(
             (wall.eval(T::from_computed(across.x), T::from_computed(across.y))
-                - wall.eval(T::from_computed(best.0.uv.x), T::from_computed(best.0.uv.y)))
+                - wall.eval(T::from_computed(best.uv.x), T::from_computed(best.uv.y)))
             .norm(),
         ) <= band.zero();
         if !closes {
             continue;
         }
-        let Ok(other) = wall.project_from_seed(p, across.x, across.y) else {
+        let Ok(other) = settle(wall, p, (across.x, across.y)) else {
             continue;
         };
-        let other = (foot_of(at, &other), mid(other.distance));
-        let tied = (other.1 - best.1).abs() <= band.zero();
+        let other = settled(at, other);
+        let tied = (other.standoff - best.standoff).abs() <= band.zero();
         let leaves = |f: &Foot| {
             // Whether the path's first step, as the wall's tangents at
             // `f` predict it, leaves the rectangle across this side.
@@ -480,11 +541,13 @@ where
             };
             (x == lo && d < 0.0) || (x == hi && d > 0.0)
         };
-        if (tied && leaves(&best.0) && !leaves(&other.0)) || (!tied && other.1 < best.1) {
+        if (tied && leaves(&best) && !leaves(&other))
+            || (!tied && other.standoff < best.standoff)
+        {
             best = other;
         }
     }
-    Ok(best.0)
+    Ok(best)
 }
 
 /// The chart step the wall's tangents at `uv` predict for the carrier's
@@ -508,8 +571,8 @@ where
 /// **The next foot of the path**, at the unit fraction `at`, from the
 /// last one: Newton's from the predicted chart point, kept where the
 /// chart step it took agrees with the predicted one to within
-/// [`FOLLOW_AGREEMENT`] of the carrier's step, in metres through the
-/// wall's tangents. A foot on another sheet of a folded wall, or across
+/// [`FOLLOW_AGREEMENT`] of the carrier's step and the carrier's standoff
+/// at the two feet, in metres through the wall's tangents. A foot on another sheet of a folded wall, or across
 /// a closed wall's seam, is a chart step the tangents do not predict; it
 /// is refused and the path is followed through the halfway parameter
 /// instead, `halvings` deep. Where the tangents predict nothing, the
@@ -533,9 +596,9 @@ where
     let dc = mid3(p - read.point(last.at));
     let step = predicted(wall, last.uv, dc);
     let seed = step.map_or(last.uv, |(du, dv)| Point2::new(last.uv.x + du, last.uv.y + dv));
-    let direct = wall.project_from_seed(p, seed.x, seed.y);
-    let last_distance = match &direct {
-        Ok(proj) => {
+    let last_distance = match settle(wall, p, (seed.x, seed.y)) {
+        Ok(foot) => {
+            let (uv, standoff) = (foot.0, foot.2);
             let agrees = step.is_none_or(|_| {
                 // The seed as the projection clamped it, so a path along
                 // a side of the rectangle is not read as leaving it.
@@ -544,19 +607,22 @@ where
                     wall.knots_v_f64_interim().domain(),
                 );
                 let (eu, ev) = (
-                    proj.u - seed.x.clamp(ud.0, ud.1),
-                    proj.v - seed.y.clamp(vd.0, vd.1),
+                    uv.x - seed.x.clamp(ud.0, ud.1),
+                    uv.y - seed.y.clamp(vd.0, vd.1),
                 );
-                let jet = wall.ders(T::from_computed(proj.u), T::from_computed(proj.v));
+                let jet = wall.ders(T::from_computed(uv.x), T::from_computed(uv.y));
                 let off = (mid3(jet.du) * eu + mid3(jet.dv) * ev).norm();
-                off <= FOLLOW_AGREEMENT * dc.norm()
+                // A foot the rectangle's side holds short of the nearest
+                // point stands off the path by no more than the carrier
+                // stands off the wall there.
+                off <= FOLLOW_AGREEMENT * dc.norm() + last.standoff + standoff
             });
             if agrees {
-                return Ok(foot_of(at, proj));
+                return Ok(settled(at, foot));
             }
-            mid(proj.distance)
+            standoff
         }
-        Err(e) => e.last_distance,
+        Err(last_distance) => last_distance,
     };
     let half = 0.5 * (last.at + at);
     if halvings == 0 || !(last.at < half && half < at) {

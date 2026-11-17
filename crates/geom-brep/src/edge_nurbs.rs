@@ -1784,31 +1784,27 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         None => SsiOperand::nurbs(b),
     }
     .map_err(refusal)?;
-    let mut feet_a: Vec<Point2<f64>> = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
-    let pcurve_a = chart_image(carrier, params, a, band, |_, foot| {
-        feet_a.push(foot);
-        Ok(())
-    })?;
+    // The two images on one list of spans, which the two-chart tube pairs.
+    let (pcurve_a, pcurve_b) =
+        crate::carrier_image::carrier_images(carrier, params, (a, b), band)
+            .map_err(image_refusal)?;
+    let (feet_a, feet_b) = (
+        schedule_feet(carrier, params, &pcurve_a),
+        schedule_feet(carrier, params, &pcurve_b),
+    );
     let mut min_sin = T::from_f64(f64::MAX);
-    let pcurve_b = chart_image(carrier, params, b, band, |i, foot| {
-        // Interior samples only, as the plane lane reads them.
-        if i == 0 || i == PXN_FIT_SAMPLES - 1 {
-            return Ok(());
-        }
-        let Some(fa) = feet_a.get(i as usize) else {
-            return Err(PlaneNurbsRefusal::PcurveFit);
-        };
+    // Interior samples only, as the plane lane reads them.
+    for i in 1..PXN_FIT_SAMPLES - 1 {
         let sin_theta = feet_transversality(
-            (a, measured_foot(*fa)),
-            (b, measured_foot(foot)),
+            (a, measured_foot(feet_a[i as usize])),
+            (b, measured_foot(feet_b[i as usize])),
             extent,
             i,
             band,
         )
         .map_err(FeetRefusal::lane)?;
         min_sin = min_sin.min(sin_theta);
-        Ok(())
-    })?;
+    }
     let min_sin =
         geom_core::k_stats::gate_measured("nurbs_pair_transversality_reported", min_sin, band)
             .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
@@ -3038,18 +3034,32 @@ where
 {
     let image = crate::carrier_image::carrier_image(carrier, params, wall, band)
         .map_err(image_refusal)?;
-    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
-    for i in 0..PXN_FIT_SAMPLES {
-        let p = image.eval(crate::certify::held_station(
-            domain,
-            ends,
-            i,
-            PXN_FIT_SAMPLES,
-        ));
-        let at = |x: T| geom::mid_param(x.lo(), x.hi());
-        per_sample(i, Point2::new(at(p.x), at(p.y)))?;
+    for (i, foot) in (0..).zip(schedule_feet(carrier, params, &image)) {
+        per_sample(i, foot)?;
     }
     Ok(image)
+}
+
+/// An image's chart points at the [`PXN_FIT_SAMPLES`] schedule over the
+/// carrier's span, the ends read where the carrier holds them.
+fn schedule_feet<T: Decide + Bounds>(
+    carrier: &Curve3<T>,
+    params: (T, T),
+    image: &NurbsCurve2<T>,
+) -> Vec<Point2<f64>> {
+    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
+    let at = |x: T| geom::mid_param(x.lo(), x.hi());
+    (0..PXN_FIT_SAMPLES)
+        .map(|i| {
+            let p = image.eval(crate::certify::held_station(
+                domain,
+                ends,
+                i,
+                PXN_FIT_SAMPLES,
+            ));
+            Point2::new(at(p.x), at(p.y))
+        })
+        .collect()
 }
 
 /// The image's refusal, in this lane's vocabulary.
