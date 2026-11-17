@@ -1435,3 +1435,12 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
 
   The fix pass resumed the implementer with the union (`fix-reach.md`).
 - 2026-11-17 — Bracket step 3, cut 3 (lane `band-cut3`, PR 7072), the end vocabulary as ratified on 6866 and 7058. `BlendError::UnbuiltEnd` (eight tags, each with its own site) replaces `UnsupportedCorner` and `UnsupportedRunOut`. `ObliqueMixedCorner { vertex, odd }` takes an oblique `E` for both verbs. A link at a mixed corner that is not between two planes refuses `UnsupportedChain` in the open-chain door's own words, because the battery calls `admit::open_link`. `CornerConfig`, `RunOutPolicy` and `MixedConvexity` leave the prelude, and `BandEnd` is the private per-end verdict. The designers' defects are made invariants or `disagrees`. Feet crossing has one tag and one recourse, and `FootInsideAFace` has its own recourse. The site table has 33 rows. Witnesses moved: the open rims of partial revolves (including klein wall 2) and the frustum at an open end now refuse in the door's words, where they used to refuse an indeterminate corner.
+- 2026-11-17 — Merged 7072 (cut 3) at 7f4d705e85. The fix head 3dee27218e had CI green; I meta-reviewed the run-out fix. With it the bracket row is closed (pr 7072), so the P0 is done.
+
+  What the fix pass did:
+  - the tangent run-out now names the vertex's third edge, pinned exactly, with a follow-`edge()` row that builds;
+  - `FOOT_INSIDE_A_FACE_RECOURSE` is followable, held by a followability row;
+  - `DependentNormals` has its own recourse with no size advice;
+  - the stale prose is swept, the tag texts have one home, and `corner_config` is deleted;
+  - it filed `band/a-chamfers-clearance-refusal-names-a-fillet3-predicate` (P3);
+  - it filed `topo/a-torn-body-fuzz-seed-panics-in-wedge-reach-naming-no-row-four-premise` (P1): a corrupt-input fuzz seed that panics on main, not caused by this PR.
