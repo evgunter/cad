@@ -4,6 +4,7 @@ kind: issue
 title: blend: CornerConfig::DependentNormals names RunOutStopAtVertex, whose corner patch its own doc says the configuration does not determine
 status: closed
 closed: 2026-11-17
+pr: 7072
 opened: 2026-10-01
 priority: P3
 cost: E
