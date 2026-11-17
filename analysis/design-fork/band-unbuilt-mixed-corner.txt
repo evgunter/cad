@@ -1,0 +1,6 @@
+fork: band-unbuilt-mixed-corner (BAND, P0 bracket row cut 3: a mixed corner the carve does not build (curved link, or E off square) fits none of the ratified UnbuiltEnd tags)
+drawn: 2026-11-17T16:05:41Z, od -An -tu1 -N1 /dev/urandom (twice)
+bytes: 84 211
+arm: 3 designers
+mapping: Fable = B, Opus = the other two
+protocol: ddd201f411
