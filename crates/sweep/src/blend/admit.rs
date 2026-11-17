@@ -228,8 +228,8 @@ impl Junction {
 }
 
 /// **A chain admitted through the open-chain door**: its links, in
-/// walk order, every one plane–plane or ruled, or a torus between two
-/// junctions, and every junction between them a [`Joint`] or a
+/// walk order, every one plane–plane or ruled, or a band of revolution
+/// (a torus or a frustum) between two junctions, and every junction between them a [`Joint`] or a
 /// [`Junction`].
 ///
 /// A one-link chain is a band of one link and no joints. A chain of
@@ -237,8 +237,8 @@ impl Junction {
 /// faces on the plane–plane arm — a rim a valence-2 vertex splits,
 /// which is what a coplanar-face merge leaves of a subdivided wall —
 /// and where each consecutive pair meets at a [`Junction`], the MIXED
-/// chain: a rounded outline's run of lines and arcs, whose torus links
-/// lie between two junctions. A chain is one or the other: a joint
+/// chain: a rounded outline's run of lines and arcs, whose torus or
+/// frustum links lie between two junctions. A chain is one or the other: a joint
 /// inside a mixed chain refuses.
 ///
 /// Non-emptiness is the shape, as on [`super::battery::Chain`]: the
@@ -260,15 +260,15 @@ impl<'a, T: Decide> OpenBand<'a, T> {
     /// different supports; [`BlendError::UnsupportedCorner`] at a joint
     /// vertex carrying other edges, and [`BlendError::BodyNotIntact`]
     /// where its orbit does not walk; [`BlendError::UnsupportedChain`]
-    /// when a link's arm is neither plane–plane nor ruled nor a torus
-    /// between two junctions, or a chain mixes joints and junctions.
+    /// when a link's arm is neither plane–plane nor ruled nor a band of
+    /// revolution between two junctions, or a chain mixes joints and junctions.
     pub(super) fn admit(body: &Body<T>, chain: &'a Chain<T>) -> Result<Self, BlendError> {
         // Three open links are built: the plane–plane link, terminating
         // in trivalent corners, cut-offs or turns; the RULED link — a
         // cylinder band about a straight spine over supports sharing
         // the ruling — terminating in plane caps the band is cut off
-        // at; and a torus between two junctions, which terminates in
-        // neither. The battery's predicate 6 has already classified each
+        // at; and a torus or a frustum between two junctions, which
+        // terminates in neither. The battery's predicate 6 has already classified each
         // end as the one its arm needs.
         //
         // No convexity clause, and no verb: neither band asks for
@@ -313,12 +313,12 @@ impl<'a, T: Decide> OpenBand<'a, T> {
         let at_junction = |v: VertexKey| junctions.iter().any(|j| j.vertex == v);
         for link in chain.links() {
             let between =
-                link.arm.is_coaxial_torus() && at_junction(link.start) && at_junction(link.end);
+                link.arm.is_coaxial() && at_junction(link.start) && at_junction(link.end);
             if !(link.arm.is_plane_plane() || link.arm.is_ruled() || between) {
                 return Err(unbuilt_chain(
                     link.edge,
-                    "an open chain link is not plane–plane, ruled, or a torus between two \
-                     junctions",
+                    "an open chain link is not plane–plane, ruled, or a band of revolution \
+                     between two junctions",
                 ));
             }
         }

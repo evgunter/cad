@@ -45,7 +45,8 @@ use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, S
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_frustum,
+    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_foot,
+    chamfer_frustum,
     chamfer_strip, inward_unit, line_meet, offset_room, plane_plane_blend, plane_sphere_blend,
     plane_sphere_room,
 };
@@ -2021,16 +2022,20 @@ pub(crate) fn same_supports<T: Real>(
 }
 
 /// **`fillet3_chain_g1` over the BANDS at a junction between links on
-/// different supports**: the two links' balls at the junction rest in
-/// one section, margin the distance between their section centres in
-/// meters. Zero is the shared section along which the two bands meet
-/// G1; a definite distance is supports creasing at the junction, where
-/// the two bands share no section.
+/// different supports**: the two links' bands at the junction share one
+/// section. Two balls' margin is the distance between their section
+/// centres; two chamfers' the larger distance between their feet on one
+/// support, on the face they share and on their two others, in meters.
+/// Zero is the shared section along which the two bands meet G1 (the
+/// ball's circle, or the generator between the feet); a definite
+/// distance is supports creasing at the junction, where the two bands
+/// share no section.
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedChain`] on a definite distance or a band
-/// with no section, [`BlendError::Escalated`] in band.
+/// [`BlendError::UnsupportedChain`] on a definite distance, a band with
+/// no section, or chamfer links sharing no one face;
+/// [`BlendError::Escalated`] in band.
 fn band_g1<T: Decide>(
     body: &Body<T>,
     a: &Link<T>,
@@ -2043,26 +2048,48 @@ fn band_g1<T: Decide>(
         .and_then(|x| body.get_point(x.point))
         .copied()
         .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a junction"))?;
-    let (Some(ca), Some(cb)) = (BallSection::of(&a.blend, p), BallSection::of(&b.blend, p)) else {
-        return Err(unbuilt_chain(
-            a.edge,
-            "a chain's links meet on different supports where a band has no rolling-ball \
-             section",
-        ));
+    let margin = match (BallSection::of(&a.blend, p), BallSection::of(&b.blend, p)) {
+        (Some(ca), Some(cb)) => ca.centre.distance(cb.centre),
+        _ if a.arm.is_chamfer() && b.arm.is_chamfer() => feet_apart(a, b, p)?,
+        _ => {
+            return Err(unbuilt_chain(
+                a.edge,
+                "a chain's links meet on different supports where a band has no section",
+            ));
+        }
     };
     let site = BlendSite::Joint { vertex };
-    match classify(
-        site,
-        BlendDecision::ChainG1,
-        Margin::of(ca.centre.distance(cb.centre)),
-        band,
-    )? {
+    match classify(site, BlendDecision::ChainG1, Margin::of(margin), band)? {
         Sign::Zero => Ok(()),
         Sign::Positive | Sign::Negative => Err(unbuilt_chain(
             a.edge,
             "the supports crease at a junction, so its two bands share no section",
         )),
     }
+}
+
+/// Two chamfer links' feet through the junction point `p`, apart: the
+/// larger of the distance between their feet on the face they share and
+/// that between their feet on their two others ([`chamfer_foot`]).
+fn feet_apart<T: Real>(a: &Link<T>, b: &Link<T>, p: Point3<T>) -> Result<T, BlendError> {
+    let shared = [a.face_a, a.face_b]
+        .into_iter()
+        .find(|&f| f == b.face_a || f == b.face_b)
+        .ok_or_else(|| unbuilt_chain(a.edge, super::junction::JUNCTION_NO_HOST))?;
+    let other = |l: &Link<T>| if l.face_a == shared { l.face_b } else { l.face_a };
+    let foot = |l: &Link<T>, f: FaceKey| {
+        l.trim_on(f)
+            .and_then(|(c, _)| chamfer_foot(c, p))
+            .ok_or_else(|| {
+                unbuilt_geometry(
+                    EntityId::Edge(l.edge),
+                    "a chamfer band's trim is neither a line nor a circle",
+                )
+            })
+    };
+    let host = foot(a, shared)?.distance(foot(b, shared)?);
+    let mate = foot(a, other(a))?.distance(foot(b, other(b))?);
+    Ok(host.max(mate))
 }
 
 /// **The chains the verdict carries**: each walked chain classified at
@@ -2224,26 +2251,6 @@ pub fn run_battery_for<T: Decide + Bounds>(
         .filter(|e| !smooth.iter().any(|(s, _)| s == e))
         .collect();
     let chains = walk_chains(links);
-    // The chamfer's frustum is a band over a whole rim on one cylinder
-    // and one plane; an arc of it inside a chain that also runs over
-    // other supports (a rounded outline's arc between its lines) would
-    // need the strip and the frustum joined at a junction, which is not
-    // built. So the chain refuses at its frustum link, as a pair the
-    // arm table does not cover there.
-    if !rolling_ball {
-        for chain in &chains {
-            let frustum = chain.links().find(|l| l.arm == BlendArm::CylinderPlaneCone);
-            if let Some(f) = frustum
-                && chain.links().any(|l| l.arm != BlendArm::CylinderPlaneCone)
-            {
-                return Err(BlendError::ChamferArmUnsupported {
-                    edge: f.edge,
-                    supports: CHAMFER_SUPPORTS,
-                });
-            }
-        }
-    }
-
     // --- 1. radius vs curvature headroom, at every sample of every
     // link, on BOTH supports. A ball fact: not metered for a chamfer.
     if rolling_ball {

@@ -24,7 +24,7 @@ use crate::band_closed_mixed_chain_shapes::{assert_touch_escalation, tightest_in
 use crate::common::interval::iv;
 use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point2, Point3, Tol};
 use profile::{SketchPlane, test_support::bulge_loop};
-use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
+use sweep::blend::{chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_naming_totality, at_rest, extruded};
 use topo::{Body, EdgeKey, validate_geometric};
 
@@ -194,19 +194,119 @@ fn a_rounded_plate_filleted_all_round_removes_pappuss_volume_at_interval() {
     }
 }
 
-/// **The chamfer does not reach a rounded outline**: its frustum covers
-/// a whole plane–cylinder rim alone, and a strip and a frustum meeting
-/// at a junction is not built, so the chain refuses at an arc before any
-/// chain is carved.
-#[test]
-fn a_rounded_plate_chamfered_all_round_refuses_at_its_arcs() {
-    let body = plate::<f64>(0.0, 0.0, 0.0, H);
-    let got =
-        chamfer_edges(&at_rest(&body, tol()), &every_edge(&body), 0.05, tol()).map_err(|r| r.error);
-    assert!(
-        matches!(got, Err(BlendError::ChamferArmUnsupported { .. })),
-        "a chamfer has no junction between a strip and a frustum, got {got:?}"
+/// The chamfer's removed or added triangle `s²/2` along each straight
+/// link and each arc's quarter ring about the arc's axis: an outline of
+/// lines `ΣL` and a whole turn of arcs of radius `R` moves
+/// `s²/2·ΣL + π·s²·ρ̄`, `ρ̄ = R ∓ s/3` the triangle's centroid's radius,
+/// `−` where the host plane runs from the rim toward the arcs' axes (a
+/// plate's top, a pocket's floor) and `+` where it runs away (a pocket's
+/// mouth). Per quarter arc that is `(π/2)·(s²/2)·ρ̄ = π·s²·ρ̄/4`; the
+/// pieces abut at the generators the junctions leave, so the sum is the
+/// whole.
+fn chamfer_pappus(s: f64, inward: bool) -> f64 {
+    let lines = 4.0 * (HX - R) + 4.0 * (HY - R);
+    let centroid = if inward { R - s / 3.0 } else { R + s / 3.0 };
+    0.5 * s * s * lines + 4.0 * (PI * s * s * centroid / 4.0)
+}
+
+/// Chamfer `edges` of `body` at `s` and check the carve: tier 3, naming
+/// total over `requested`, one band face and one section per link, the
+/// strips planes and the frustums cones, and `|ΔV|` at `want` (removed
+/// on a convex rim, added on a concave one) within the certified
+/// enclosure.
+fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    what: &str,
+    body: &Body<T>,
+    (edges, requested): (&[EdgeKey], &[EdgeKey]),
+    s: T,
+    want: f64,
+) -> sweep::blend::Blended<T> {
+    let out = chamfer_edges(&at_rest(body, tol()), edges, s, tol())
+        .unwrap_or_else(|e| panic!("{what}: the outline chamfers whole, got {e:?}"));
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
+    assert_naming_totality(body, &out, requested, what);
+    let rec = out.naming.as_ref().expect("the carve's birth records");
+    assert_eq!(
+        rec.blends.len(),
+        requested.len(),
+        "{what}: one band face per link"
     );
+    assert_eq!(
+        rec.sections.len(),
+        requested.len(),
+        "{what}: one section per junction"
+    );
+    for &(face, link) in &rec.blends {
+        let surface = out.body.face_surface(face).expect("a band face's surface");
+        let arc = matches!(
+            body.get_edge(link)
+                .and_then(|d| body.get_curve_geom(d.curve))
+                .and_then(|g| g.certified())
+                .map(|c| c.carrier()),
+            Some(geom::Curve3::Circle(_))
+        );
+        assert!(
+            matches!(
+                (arc, surface),
+                (true, geom::Surface::Cone { .. }) | (false, geom::Surface::Plane { .. })
+            ),
+            "{what}: an arc's band is a frustum and a line's a strip, got {surface:?}"
+        );
+    }
+    let (v0, w0) = volume(body);
+    let (v1, w1) = volume(&out.body);
+    let moved = (v1 - v0).abs();
+    assert!(
+        (moved - want).abs() <= w0 + w1 + 1e-12,
+        "{what}: |ΔV| {moved} is Pappus's {want} (enclosure ±{})",
+        w0 + w1
+    );
+    assert!(
+        w0 + w1 < 1e-7,
+        "{what}: the enclosure is a claim: ±{}",
+        w0 + w1
+    );
+    out
+}
+
+/// **A rounded plate chamfered all round**: its top outline alone, then
+/// its top and bottom outlines in one call (every edge, the walls' smooth
+/// seams among them, which the blend leaves as they are), at both
+/// scalars and at a setback near the arcs' radius.
+fn rounded_plate_chamfers<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    scalar: &str,
+) {
+    let body = plate::<T>(0.0, 0.0, 0.0, H);
+    let top = rim_at(&body, H);
+    let both: Vec<EdgeKey> = rim_at(&body, 0.0).into_iter().chain(top.clone()).collect();
+    for s in [0.05, 0.2] {
+        let what = format!("{scalar}: the top, s = {s}");
+        chamfer_row(
+            &what,
+            &body,
+            (&top, &top),
+            T::from_f64(s),
+            chamfer_pappus(s, true),
+        );
+        let what = format!("{scalar}: both outlines, s = {s}");
+        chamfer_row(
+            &what,
+            &body,
+            (&every_edge(&body), &both),
+            T::from_f64(s),
+            2.0 * chamfer_pappus(s, true),
+        );
+    }
+}
+
+#[test]
+fn a_rounded_plate_chamfers_all_round_at_pappuss_volume() {
+    rounded_plate_chamfers::<f64>("f64");
+}
+
+#[test]
+fn a_rounded_plate_chamfers_all_round_at_pappuss_volume_at_interval() {
+    rounded_plate_chamfers::<Interval>("Interval");
 }
 
 /// **A pocket's floor**: a `3 × 2 × 1` block less the rounded prism
@@ -304,5 +404,31 @@ fn a_rounded_pockets_mouth_fillets_whole_removing_pappuss_volume() {
             (removed - truth).abs() <= w0 + w1 + 1e-12,
             "{what}: ΔV {removed} is Pappus's {truth}"
         );
+    }
+}
+
+/// **A pocket's floor and mouth chamfered whole.** The floor's rim is
+/// concave and its host runs toward the arcs' axes, so it adds the
+/// triangle about `R − s/3`; the mouth's is convex with its arcs concave
+/// in the outline, the block's top running away from their axes, so it
+/// removes it about `R + s/3`, its frustums' plane feet at `R + s`.
+#[test]
+fn a_rounded_pockets_floor_and_mouth_chamfer_whole() {
+    let body = pocket();
+    let floor = rim_at(&body, 0.5);
+    let mouth: Vec<EdgeKey> = rim_at(&body, 1.0)
+        .into_iter()
+        .filter(|&e| {
+            let (a, _) = body.edge_vertices(e).unwrap();
+            let p = body.get_point(body.get_vertex(a).unwrap().point).unwrap();
+            (p.x - 1.5).abs() <= HX + 1e-9 && (p.y - 1.0).abs() <= HY + 1e-9
+        })
+        .collect();
+    assert_eq!(mouth.len(), 8, "the mouth: four lines and four arcs");
+    for s in [0.05, 0.2] {
+        let what = format!("pocket floor, s = {s}");
+        chamfer_row(&what, &body, (&floor, &floor), s, chamfer_pappus(s, true));
+        let what = format!("pocket mouth, s = {s}");
+        chamfer_row(&what, &body, (&mouth, &mouth), s, chamfer_pappus(s, false));
     }
 }

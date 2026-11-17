@@ -178,6 +178,22 @@ impl<T: Real> BallSection<T> {
     }
 }
 
+/// **A chamfer band's foot through `p` on one of its trims**: a strip's
+/// trimline's foot of `p`, a frustum's trim circle at `p`'s azimuth. At
+/// a junction point both are the setback along that support's inward
+/// unit, so two links' feet on one support coincide where their bands
+/// share their section, the generator between the two feet. `None` for
+/// a trim that is neither a line nor a circle.
+pub(crate) fn chamfer_foot<T: Real>(trim: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
+    match trim {
+        Curve3::Line(line) => Some(line.foot(p)),
+        Curve3::Circle(c) => {
+            Some(c.frame.origin + perp_unit(p - c.frame.origin, c.frame.axis) * c.radius)
+        }
+        _ => None,
+    }
+}
+
 /// The unit radial of a torus about `center` and `axis` at `p`'s azimuth.
 pub(crate) fn torus_radial<T: Real>(center: Point3<T>, axis: Vec3<T>, p: Point3<T>) -> Vec3<T> {
     let q = p - center;
