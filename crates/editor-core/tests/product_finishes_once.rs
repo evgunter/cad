@@ -44,12 +44,12 @@ fn block(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// **Three copies of a block in the world, each under its own frame,
-/// gathered: three finishes.** The gather computes in the first copy's
-/// frame and moves the other two into it. The block is a sweep's leaf,
-/// and a moved leaf is finished on its image while the box-scalar switch
-/// lives (`topo::LeafBody::moved`), so each mapped source runs one; the
-/// aggregate finishes once. Red if a source is finished again where it
-/// is taken.
+/// gathered: one finish.** The gather computes in the first copy's frame
+/// and grafts the other two into it through their relative motion
+/// (`topo::boolean::graft_placed`): each image is construction state, mapped and
+/// asked the session box, and the aggregate is what finishes, once. Red
+/// if a mapped source is finished on its image (`topo::LeafBody::moved`,
+/// two more), or a source is finished again where it is taken.
 #[cfg(debug_assertions)]
 #[test]
 fn a_gather_over_mapped_sources_finishes_once() {
@@ -84,9 +84,9 @@ fn a_gather_over_mapped_sources_finishes_once() {
     assert_eq!(product.copies.len(), 3, "the three copies gather");
     assert_eq!(mapped, 2, "the second and third copies are mapped in");
     assert_eq!(
-        finishes, 3,
-        "one finish of the aggregate, and one of each mapped source: a moved \
-         leaf is finished on its image while the box-scalar switch lives"
+        finishes, 1,
+        "one finish, of the aggregate: a mapped source is grafted as \
+         construction state, not finished on its image"
     );
 }
 

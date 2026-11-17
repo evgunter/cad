@@ -337,6 +337,45 @@ pub(crate) fn graft_solids_disjoint<T: geom_core::Decide>(
     graft_staged(dst, Targets::Existing(dst_solids), src, Bridge::RemapKeys).map(|(map, _)| map)
 }
 
+/// **Why a placed source did not graft** ([`graft_placed`]).
+#[derive(Debug)]
+pub enum PlacedGraftError {
+    /// The source's data did not map through its motion, or its image
+    /// reaches past the session box ([`crate::MoveError`]).
+    Move(crate::MoveError),
+    /// The graft refused ([`crate::graft_disjoint_all_keyed`]).
+    Graft(BooleanError),
+}
+
+/// **The one door that grafts a placed source into an aggregate**:
+/// `src`'s body where its seat is the aggregate's frame, else its data
+/// mapped through the seat's motion, the session box asked of the image
+/// as a finished body's move asks it ([`crate::FinishedBody::moved`]),
+/// then grafted beside what `dst` holds ([`crate::graft_disjoint_all_keyed`]).
+/// The aggregate's own finish decides the rest. Every gather of copies
+/// into one body (the `⊔`, a distribute's assembly, a product) grafts
+/// through it.
+///
+/// # Errors
+///
+/// [`PlacedGraftError::Move`]: the map refused, or the image is past the
+/// session box. [`PlacedGraftError::Graft`]: the graft's own refusal,
+/// `dst` deep-unchanged.
+pub fn graft_placed<T: geom_core::Decide + crate::AtRestPolicy>(
+    dst: &mut Body<T>,
+    src: crate::Seat<'_, T>,
+    tol: geom_core::Tol,
+) -> Result<crate::GraftKeys, PlacedGraftError> {
+    let Some(motion) = src.motion() else {
+        return crate::graft_disjoint_all_keyed(dst, src.body()).map_err(PlacedGraftError::Graft);
+    };
+    let image = crate::finish::moved_body(src.body(), &crate::Isometry::Proper(*motion), tol)
+        .map_err(|e| PlacedGraftError::Move(crate::MoveError::Map(e)))?;
+    crate::finish::asked_after_isometry(&image, tol)
+        .map_err(|f| PlacedGraftError::Move(crate::MoveError::NotFinished(f)))?;
+    crate::graft_disjoint_all_keyed(dst, &image).map_err(PlacedGraftError::Graft)
+}
+
 /// [`graft_solids_disjoint`] onto destination solids minted here, one per
 /// source solid in source order, each carrying its source solid's
 /// record forwarded like every other record (module docs). Returns the
@@ -1066,5 +1105,63 @@ mod recertify_door_tests {
             let got = graft_solid(&mut dst, solid, &src, tol).map(|_| ());
             assert!(got.is_ok(), "{label}: graft_solid: {got:?}");
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod placed_rows {
+    use geom_core::Tol;
+
+    use crate::body::Body;
+    use crate::fixtures::deep_snapshot;
+
+    fn cube(tol: Tol) -> Body<f64> {
+        crate::test_support_fixtures::declined_cube::<f64>(tol).body
+    }
+
+    /// **A placed source grafts what today's move then graft grafted, to
+    /// the bit** ([`super::graft_placed`]): a finished cube moved by a
+    /// rigid motion off every axis ([`crate::FinishedBody::moved`]) and
+    /// grafted, against the cube grafted through its seat at that motion.
+    /// The two aggregates are one deep snapshot and the two bridges one.
+    ///
+    /// *Breaks if* the door grafts the source unmoved, or maps it through
+    /// any other motion (here its inverse).
+    #[test]
+    fn a_placed_graft_is_the_move_then_the_graft_to_the_bit() {
+        use crate::FinishedBody as _;
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let source: Body<f64> =
+            crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 2.0), (0.0, 0.5), tol);
+        let finished = crate::finish(source.clone(), tol).unwrap();
+        let axis = geom_core::UnitVec3::new(
+            geom_core::Vec3::new(1.0, 2.0_f64.sqrt(), 3.0_f64.sqrt()),
+            "a turn off every axis",
+            band,
+        )
+        .unwrap();
+        let motion = geom_core::RigidMotion::translation(geom_core::Vec3::new(0.37, -1.25, 2.5))
+            .unwrap()
+            .compose(geom_core::RigidMotion::rotation(axis, 0.7).unwrap())
+            .unwrap();
+        let mut today = cube(tol);
+        let moved = finished.moved(&motion, tol).unwrap();
+        let today_keys = crate::graft_disjoint_all_keyed(&mut today, &moved).unwrap();
+        let mut placed = cube(tol);
+        let placed_keys =
+            super::graft_placed(&mut placed, crate::Seat::at(&source, motion).unwrap(), tol)
+                .unwrap();
+        assert_eq!(
+            deep_snapshot(&placed),
+            deep_snapshot(&today),
+            "the placed graft's aggregate is the moved-then-grafted one, to the bit"
+        );
+        assert_eq!(
+            format!("{placed_keys:?}"),
+            format!("{today_keys:?}"),
+            "and its key bridge is the same bridge"
+        );
     }
 }

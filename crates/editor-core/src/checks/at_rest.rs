@@ -1481,17 +1481,22 @@ fn intersection(
     b: usize,
     tol: Tol,
 ) -> Result<Option<topo::BooleanBody<f64>>, Unlocalized> {
-    // The intersection takes the two copies as finished bodies. A copy
-    // the gather read through a placement's map holds what its source
-    // held, moved, its verdict carried (`Held::moved`): a finished copy
-    // is taken as it is, and a leaf is finished here, once.
-    let operand = |i: usize| product.copies[i].body.clone().finished(tol);
+    // The intersection takes the two copies as finished bodies, in the
+    // product's frame: a copy in another frame is what its source holds,
+    // moved, its verdict carried (`Held::moved`); a finished copy is
+    // taken as it is, and a leaf is finished here, once.
+    let operand = |i: usize| {
+        product.copies[i]
+            .body
+            .read_into(&product.frame, tol)
+            .map_err(|kind| kind.to_string())?
+            .finished(tol)
+            .map_err(|refused| refused.to_string())
+    };
     let (body_a, body_b) = match (operand(a), operand(b)) {
         (Ok(x), Ok(y)) => (x, y),
-        (Err(refused), _) | (_, Err(refused)) => {
-            return Err(Unlocalized::Refused {
-                refusal: refused.to_string(),
-            });
+        (Err(refusal), _) | (_, Err(refusal)) => {
+            return Err(Unlocalized::Refused { refusal });
         }
     };
     match topo::intersect(&*body_a, &*body_b, tol) {

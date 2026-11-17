@@ -760,11 +760,10 @@ pub struct GatheredCopy<T: Decide + topo::AtRestPolicy> {
     /// The output-body index within the piece's value, which is
     /// also its name rows' index.
     pub output: u32,
-    /// The placed body, in the frame the product computed in
-    /// ([`Product::body`]'s): its source's own where the two are one
-    /// frame, else what its source holds, moved
-    /// ([`crate::eval::Held::moved`]).
-    pub body: crate::eval::Held<T>,
+    /// The copy where it stands in its space: its source's body and the
+    /// frame it is placed in. A reader that takes it in the product's
+    /// frame reads it into [`Product::body`]'s frame.
+    pub body: crate::eval::Framed<T>,
     /// The bridge from `body`'s arena to the aggregate's.
     pub keys: Arc<topo::GraftKeys>,
 }
@@ -1173,9 +1172,8 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     Ok(product)
 }
 
-/// One grafted source: the source, its graft's key bridge, and its body
-/// read into the gather's computing frame.
-type Grafted<'s, T> = (&'s Source<T>, Arc<topo::GraftKeys>, crate::eval::Held<T>);
+/// One grafted source: the source, and its graft's key bridge.
+type Grafted<'s, T> = (&'s Source<T>, Arc<topo::GraftKeys>);
 
 /// Why a grafted source's position among a product's inputs fits a `u32`
 /// ([`crate::names::to_u32`]): each grafts at least one solid into the
@@ -1199,8 +1197,8 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     let mut aggregate = Body::new();
     // The gather computes in its first non-empty source's frame whose
     // frame is its space's (`Own`), else its first's
-    // ([`crate::eval::Framed::computing_among`]), and reads every other
-    // into it through `relative`.
+    // ([`crate::eval::Framed::computing_among`]), and grafts every other
+    // into it through `relative` ([`crate::eval::Framed::graft_in`]).
     let mut computing: Option<&crate::eval::Framed<T>> = crate::eval::Framed::computing_among(
         sources
             .iter()
@@ -1218,20 +1216,17 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         // A source is read, not taken: its body as it stands, or mapped
         // into the product's frame as construction state. The aggregate
         // is what finishes, once, below.
-        let read = computing
+        let keys = computing
             .get_or_insert(body)
-            .read_in(body, tol)
-            .map_err(|kind| ProductError::Frame {
-                node: *node,
-                kind: Box::new(kind),
+            .graft_in(&mut aggregate, body, tol)
+            .map_err(|e| match e {
+                crate::eval::GraftIn::Read(kind) => ProductError::Frame { node: *node, kind },
+                crate::eval::GraftIn::Graft(source) => ProductError::Graft {
+                    node: *node,
+                    source,
+                },
             })?;
-        let keys = topo::graft_disjoint_all_keyed(&mut aggregate, &read).map_err(|source| {
-            ProductError::Graft {
-                node: *node,
-                source: Box::new(source),
-            }
-        })?;
-        grafted.push((source, Arc::new(keys), read));
+        grafted.push((source, Arc::new(keys)));
     }
     let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());
 
@@ -1258,14 +1253,13 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             node,
             var,
             ix,
-            body: _,
+            body,
             table,
             contacts: records,
             rows,
             censused: _,
         },
         keys,
-        body,
     ) in &grafted
     {
         solid_copies.extend(keys.solids().iter().map(|&solid| SolidOrigin {

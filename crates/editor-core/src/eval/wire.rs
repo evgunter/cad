@@ -4693,8 +4693,8 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     // The frame it computes in: its first operand's that is in its
     // space's coordinates, else its first's, as the author lists them
-    // ([`super::Framed::computing_among`]); every other body is read
-    // into it through `relative`.
+    // ([`super::Framed::computing_among`]); every other body is grafted
+    // into it through `relative` ([`super::Framed::graft_in`]).
     let mut computing: Option<super::Framed<T>> =
         super::Framed::computing_among(operands.iter().flat_map(|(_, _, bodies, _)| bodies.iter()))
             .cloned();
@@ -4709,9 +4709,10 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         let mut bridges = Vec::with_capacity(bodies.len());
         for body in &bodies {
             let first = computing.get_or_insert_with(|| body.clone());
-            let read = first.read_in(body, tol)?;
-            let keys = topo::graft_disjoint_all_keyed(&mut fused, &read)
-                .map_err(NodeErrorKind::Boolean)?;
+            let keys = first.graft_in(&mut fused, body, tol).map_err(|e| match e {
+                super::GraftIn::Read(kind) => *kind,
+                super::GraftIn::Graft(e) => NodeErrorKind::Boolean(*e),
+            })?;
             bridges.push(keys);
         }
         // A member's own records ride the piece it is, re-keyed through

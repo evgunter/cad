@@ -79,6 +79,7 @@ mod carrier_ladder_rows;
 pub(crate) mod carrier_pair;
 mod carrier_touch;
 pub(crate) mod combine;
+pub use combine::{PlacedGraftError, graft_placed};
 /// **A pierce's refusal as a rung of the pierce pass's ladder**, by its
 /// own standing ([`BooleanError::refusal`]): kept by its kind, or, where
 /// it refuses the whole query, stopping the pass with the refusal itself.

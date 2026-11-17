@@ -207,8 +207,8 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let mut fused = Body::new();
     // Computed in the first result's frame that is its space's, else the
-    // first's ([`crate::eval::Framed::computing_among`]), each other read
-    // into it.
+    // first's ([`crate::eval::Framed::computing_among`]), each other
+    // grafted into it ([`crate::eval::Framed::graft_in`]).
     let mut computing: Option<crate::eval::Framed<T>> = crate::eval::Framed::computing_among(
         outs.iter()
             .filter_map(|(_, out)| out.payload.one_body().flatten()),
@@ -230,9 +230,12 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
             _ => unreachable!("a boolean of one piece makes a body or nothing"),
         };
         let first = computing.get_or_insert_with(|| body.clone());
-        let read_in = first.read_in(&body, tol)?;
-        let keys =
-            topo::graft_disjoint_all_keyed(&mut fused, &read_in).map_err(NodeErrorKind::Boolean)?;
+        let keys = first
+            .graft_in(&mut fused, &body, tol)
+            .map_err(|e| match e {
+                crate::eval::GraftIn::Read(kind) => *kind,
+                crate::eval::GraftIn::Graft(e) => NodeErrorKind::Boolean(*e),
+            })?;
         let base = coincidences.len();
         let inputs: Vec<u32> = out
             .carry

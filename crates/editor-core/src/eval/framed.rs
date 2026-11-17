@@ -405,6 +405,51 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     }
 }
 
+/// **Why a copy did not graft into an aggregate** ([`Framed::graft_in`]):
+/// it did not read into the aggregate's frame, or the graft refused.
+#[derive(Debug)]
+pub(crate) enum GraftIn {
+    /// The relative motion overflowed, or the copy's image refused its
+    /// move ([`super::NodeErrorKind::Motion`],
+    /// [`super::NodeErrorKind::NotFinished`]).
+    Read(Box<super::NodeErrorKind>),
+    /// The graft's own refusal.
+    Graft(Box<topo::BooleanError>),
+}
+
+impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
+    /// **`other` grafted into `dst`, an aggregate computed in this one's
+    /// frame** ([`topo::boolean::graft_placed`]): its body as it stands where the
+    /// two are one frame, else its data mapped through their relative
+    /// motion. The aggregate's own finish decides the rest.
+    ///
+    /// # Errors
+    ///
+    /// [`GraftIn::Read`]: the relative motion's overflow, or the image's
+    /// move refused; [`GraftIn::Graft`]: the graft's.
+    pub(crate) fn graft_in(
+        &self,
+        dst: &mut Body<T>,
+        other: &Self,
+        tol: Tol,
+    ) -> Result<topo::GraftKeys, GraftIn> {
+        let seat = self
+            .seat(other)
+            .map_err(|e| GraftIn::Read(Box::new(super::NodeErrorKind::Motion(e))))?;
+        if seat.motion().is_some() {
+            super::counters::rigid_map();
+        }
+        topo::boolean::graft_placed(dst, seat, tol).map_err(|e| match e {
+            topo::boolean::PlacedGraftError::Move(e) => {
+                GraftIn::Read(Box::new(super::NodeErrorKind::NotFinished {
+                    findings: topo::MoveError::under_a_motion(e),
+                }))
+            }
+            topo::boolean::PlacedGraftError::Graft(e) => GraftIn::Graft(Box::new(e)),
+        })
+    }
+}
+
 impl<T: topo::AtRestPolicy> Framed<T> {
     /// **`other`'s body in this one's coordinates**, for an operation
     /// that builds one body out of both: what it holds, as it holds it,
@@ -418,7 +463,25 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     /// The relative map's overflow, or the move's one refusal: the image
     /// reaches past the session box.
     pub(crate) fn read_in(&self, other: &Self, tol: Tol) -> Result<Held<T>, super::NodeErrorKind> {
-        match self.relative(other).map_err(super::NodeErrorKind::Motion)? {
+        other.read_into(&self.frame, tol)
+    }
+
+    /// **This body in `frame`'s coordinates** ([`Self::read_in`] with the
+    /// reader given by its frame alone).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::read_in`].
+    pub(crate) fn read_into(
+        &self,
+        frame: &Frame<T>,
+        tol: Tol,
+    ) -> Result<Held<T>, super::NodeErrorKind> {
+        let other = self;
+        match frame
+            .relative(&other.frame)
+            .map_err(super::NodeErrorKind::Motion)?
+        {
             None => Ok(other.body.clone()),
             Some(map) => {
                 super::counters::rigid_map();
