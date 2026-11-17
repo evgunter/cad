@@ -153,7 +153,9 @@ fn door(error: BooleanError) -> TraceFault {
 
 /// A curve × face door's refusal, as the trace's: its escalation is the
 /// trace's own, carrying no decision of the Boolean's.
-fn door_refusal(refusal: geom_brep::curve_face::circle_roots::DoorRefusal) -> TraceFault {
+fn door_refusal(
+    refusal: geom_brep::curve_face::circle_roots::DoorRefusal<geom_brep::TorusRefusal>,
+) -> TraceFault {
     use geom_brep::curve_face::circle_roots::DoorRefusal;
     match refusal {
         DoorRefusal::Escalated(diag) => TraceFault::Escalated(diag),
@@ -268,7 +270,8 @@ pub fn circle_crossings<T: Decide>(
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
     let v_ref = axis.cross(u_ref);
-    let tau = T::tau();
+    // The circle's period: its parameter is its angle.
+    let tau = geom::conic_period::<T>().length();
     let points: Vec<Point3<T>> = match *surface {
         Surface::Plane { origin, normal, .. } => {
             // `A cos θ + B sin θ + K = 0`, solved for the cosine and sine.

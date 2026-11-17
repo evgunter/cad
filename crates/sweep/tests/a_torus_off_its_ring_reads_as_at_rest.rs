@@ -10,7 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::{TorusConvention, TorusRefusal, TorusVerdict};
+use geom_brep::{TorusConvention, TorusStanding};
 use geom_core::{Band, Point2, Tol, Vec2};
 use topo::construction::Construct;
 use topo::{Body, FaceKey, ReplaceFaceError};
@@ -89,14 +89,11 @@ fn a_ring_half_in_band_reads_as_at_rest() {
         .render(geom_brep::recourse::Reading::AtRest);
     let err = topo::replace_face_offset(&mut body, cap, 0.1, tol)
         .expect_err("the door's section refuses the wall's ring half");
-    let ReplaceFaceError::DegenerateTorus {
-        refusal:
-            TorusRefusal {
-                convention: TorusConvention::Ring,
-                verdict: TorusVerdict::Undecided(ref diag),
-            },
-        ..
-    } = err
+    let ReplaceFaceError::DegenerateTorus { ref refusal, .. } = err else {
+        panic!("the ring half undecided, typed: {err:?}");
+    };
+    let (TorusConvention::Ring, TorusStanding::Ranked(diag)) =
+        (refusal.convention, refusal.standing())
     else {
         panic!("the ring half undecided, typed: {err:?}");
     };

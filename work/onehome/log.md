@@ -116,6 +116,24 @@
     - `bundle_arm` (`crates/editor-core/src/mate/solve.rs`) omits written slide values, so a copy slid L lands about `L·u/δ` off (to be filed as a defect row);
     - an audit of `topo::vertex_section`'s `sin ψ` as a second reader of the door.
 - 2026-11-14 — **Shared ground, from BOXFINISH:** PR 6953 (`onehome/rim-span`) states a line rim's span from its segment's length. A BOXFINISH lane on `boxfinish/sweep-frames` (the sweep doors keep the frames they are handed; `work/boxfinish/the-extrude-mints-its-plane-normals-…`) is rewriting the same sites in `crates/sweep/src/extrude.rs` and `swept.rs`: each line rim's director and span come from the sketch frame turning a 2-D direction, never from two placed points. Its last pushed commit before an outage read "the line rim's and strut's spans are the sketch's". The two look like one statement reached twice; the lane is told to read 6953 and say so, or to send both readings if they differ. (BOXFINISH orchestrator)
+- 2026-11-15 — **Fork 274, a stored frame at check 1** (`work/onehome/check-1-reads-a-turning-frames-length-off-its-bracket.md`), to Ev on the `onehome/frame-witness` `[ev]` PR. The check-1 lane stopped, as briefed, because every fix crosses ratified text. Two designers weighed it together with the later-finish row and agree. The evidence behind the PR:
+  - **Check 1 never blocks a moved body alone.** With check 1's frame margins switched off, a later finish after a boxed turn still refuses, at the same box. A turn of 30° ± δ refuses down to ±1e-6° either way. At 0.3 rad, 16 of 19 findings remain.
+  - **A boxed translation refuses too.** It leaves every frame exact, and still gives 12 findings as wide as the box: endpoint certification, pcurve incidence and the pierce normal.
+  - **With the leaf switch deleted** (the PR 6371 final state), the union of a turned disc with a clear copy refuses inside the boolean at every box from 1e-8° to 1°:
+    - from 1e-8° to 1e-4°, at pcurve incidence;
+    - from 0.01° to 1°, `ShellWitnessExhausted`.
+    It succeeds at 1e-11°. So `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`'s "nothing refuses where an operation takes it" holds only of the take.
+  - **Check 1 skips the one tier that could decide it.** Through the funnel, `Sym<Interval>` proves a moved frame's length and orthogonality Zero at ±1°, but check 1 reads a bare bracket.
+  - **Four readers re-check a frame's unit length or orthogonality:**
+    - `geom::convention::frame_margins`;
+    - `pcurve_cache::frame_defect`;
+    - `implicit.rs`'s `unit_defect`;
+    - `pcurve_cache/projected.rs`.
+  - **Not run:** whether readings across two placements decide at useful boxes, including the ray reading's ±6.1 at 1°.
+- 2026-11-16 — **Fork 274 decided** (PR 7006). Ev approved both decisions, with the text placed as clarifications of `[scalars]` and `[placement.frame]` rather than as new rows. The build is owed:
+  - **Decision 1, carriers hold their frames as `UnitVec3` / `RigidMotion`.** Check 1's frame half goes. The code docs change with it: `geom`'s at-rest paragraph, and the "What is NOT this type" paragraphs of `UnitVec3` and `RigidMotion`. One sub-question is open: the f64→box lift carve-out.
+  - **Decision 2, the boolean reads an operand in its own coordinates.** Only a cross-operand reading goes through the relative motion. `Framed::read_in` and `topo`'s `moved_by` stop rewriting carriers for a fold.
+  - Both are multi-PR migrations, to be filed as rows.
 - 2026-11-15 — (BOXFINISH orchestrator) Main is red on `sym11_exact_channel_rows` after PR 6988 merged: the numeric column fell by one or two on five documents. Filed on this slate as `main-red-sym11s-numeric-column-fell-on-five-documents-after-the-least-turn-mint` (P0, E), with the receipts and the attribution. The gate's slow-set step did not run the row. PR 6990 merges over it as an inherited red.
 - 2026-11-16 — **Fork 275, the walk stop's foot** (`work/onehome/the-curve-pair-walks-stop-verdict-rests-on-which-heuristic-foot-it-polishes.md`), to Ev on the `onehome/walk-stop-ev` `[ev]` PR. There were three designers and three rounds, and they converged. The production width was measured by the ring probe (`onehome/ring-width-probe`, never merged). The probe classifies every ringed skip in `Found::read`, and an env switch refuses the unlicensed ones.
   - **Topo whole: 31,251 skips.**
@@ -142,3 +160,8 @@
   4. the ring rule, which lands last.
 
   The residue that rule turns red is 5 to 11 sweep rows of tangent touches, which escalate by design. The demo measurement is still pending.
+- 2026-11-17 — PRs 7040 (fork 275 step 2, the one-sided window; FULL review APPROVE-WITH-FIXES, then a delta review) and 7047 (its follow-up: the side choice, the failed-move fallback and `ders1_from`'s below-span read are pinned; `geom::ParamSide` is the one notion of side) merged. Step 3 is PR 7048 (span-held polish and pair read; with steps 1–3, all 30 sweep refuse rows pass, against the 5–11 the fork predicted would stay red). Its FULL review asked for changes; a delta review of the fix pass is running. (ONEHOME orchestrator)
+- 2026-11-17 — **Rulings on step 3b, from C5 as decided (not `[ev]` questions):**
+  - **The span foot is every kind's.** The lane leaned towards keeping closed-form kinds on their whole-carrier foot, with the span foot for splines only. That would leave conics outside C5's "the point's foot over the span", and a point on its carrier past the span would read `Carrier` on a circle and `Off` on a spline: one fact, read two ways by kind. Instead, `Curve3::foot_within(q, span, near)` serves every kind, the sampled whole-carrier search leaves, and `Reading::Carrier` retires from the span reading. Containment's conic reader, the flag's one consumer, asks "on the carrier" itself through the whole-carrier reading. Polishing from both span ends was declined as a second spelling of where to start.
+  - **The pose is held to the spans (step 3c).** The lane leaned towards keeping the pose's polish on the whole carriers and revising C5 to "held where its window lies on the spans". Revising ratified text to fit the code is the wrong way round unless conforming is shown unsound or costly. The pose's window becomes the region ∩ the spans, a clamped pair reads the walk's one-sided window, and `past_by`'s reach and run arms retire for the pose. Two polishes were declined, since fork 275 removes them.
+  - **The lane stops and asks** if either ruling meets a decision C5 doesn't answer, or measures a verdict cost. That would make the whole-carrier pose polish a real `[ev]` question, taken with numbers. (ONEHOME orchestrator)

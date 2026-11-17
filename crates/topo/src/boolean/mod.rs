@@ -279,7 +279,8 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // candidate-generation mode BY CONSTRUCTION.
 pub use crate::side_reader::AimedPair;
 pub use carrier_pair::{
-    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, flush_pair_relation,
+    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, cylinder_pair_data,
+    flush_pair_relation,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
@@ -375,7 +376,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         crate::census::SPAN_ORDER_CHARGED
         | crate::census::EE_OVERLAP_CHARGED
         | crate::census::SPAN_ROUNDING => BooleanDecision::LineSpanPrecision.subject(),
-        slit::PARTING_ORDER => BooleanDecision::PartingOrder.subject(),
+        slit::PARTING_ORDER | slit::PARTING_ONE_POINT | slit::PARTING_STRADDLE => {
+            BooleanDecision::PartingOrder.subject()
+        }
         // The line's wedges the result gate reads (`census::line_wedges`),
         // tier 3's pinch-corner reading under names of its own.
         crate::census::LINE_WEDGE_AFTER_LEAVING
@@ -416,7 +419,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
         "ring_torus_convention" => TorusConvention::Ring.subject(),
-        "bool_wall_root_in_span" => CrossingDecision::OnEdge.subject(),
         "plane_crossing_root_order"
         | "plane_crossing_roots_apart"
         | "spline_composite_roots_apart"
@@ -1662,14 +1664,14 @@ fn torus_refusal_at(
     refusal: geom_brep::TorusRefusal,
     (operand, face): (Operand, FaceKey),
 ) -> BooleanError {
-    match refusal.verdict {
-        geom_brep::TorusVerdict::Refused(verdict) => BooleanError::DegenerateTorus {
+    match refusal.standing() {
+        geom_brep::TorusStanding::InvalidInput(verdict) => BooleanError::DegenerateTorus {
             operand,
             face,
             convention: refusal.convention,
             verdict,
         },
-        geom_brep::TorusVerdict::Undecided(diag) => BooleanError::Escalated {
+        geom_brep::TorusStanding::Ranked(diag) => BooleanError::Escalated {
             decision: BooleanDecision::Torus(refusal.convention),
             diag,
         },
@@ -3008,7 +3010,7 @@ pub enum BooleanError {
     /// [`BooleanDecision::Torus`], and it ends in the same lever.
     ///
     /// As the convention states a torus decided outside it
-    /// ([`geom_brep::TorusRefusal::refusal`]): an abort, a shape
+    /// ([`geom_brep::TorusRefusal::standing`]): an abort, a shape
     /// the kernel's model never represents (row 1(a)).
     DegenerateTorus {
         /// The face's operand.
@@ -4815,10 +4817,13 @@ pub enum BooleanErrorKind {
 }
 
 impl BooleanError {
-    /// A curve × face root door's refusal
-    /// ([`geom_brep::curve_face::circle_roots::DoorRefusal`], which the
-    /// conic doors and the line × torus door refuse in), its in-band sign
-    /// an escalation as `decision`.
+    /// The refusal of a curve × face root door that refuses no torus by its
+    /// shape ([`geom_brep::curve_face::circle_roots::DoorRefusal`] at its
+    /// default, with no torus arm), its in-band sign an escalation as
+    /// `decision`. The conic × quadric doors refuse so, and so does the
+    /// line × torus door: its quartic reads the radii as they stand, and
+    /// never decides the ring convention. A door that does decide it is
+    /// read by [`Self::of_torus_door_refusal`].
     pub(in crate::boolean) fn of_door_refusal(
         decision: BooleanDecision,
     ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal) -> Self {
@@ -4826,24 +4831,22 @@ impl BooleanError {
         move |refusal| match refusal {
             DoorRefusal::Escalated(diag) => Self::Escalated { decision, diag },
             DoorRefusal::Invariant(what) => Self::ClassificationInvariant { what },
-            DoorRefusal::Torus(_) => {
-                unreachable!("only a torus door refuses a torus, and it ends at its face")
-            }
         }
     }
 
-    /// A torus root door's refusal at the torus face `at`: the torus
-    /// outside the ring convention at its face
+    /// A conic × torus root door's refusal at the torus face `at`: the
+    /// torus outside the ring convention at its face
     /// ([`Self::of_torus_refusal`]), every other refusal as
     /// [`Self::of_door_refusal`] ends it.
     pub(in crate::boolean) fn of_torus_door_refusal(
         decision: BooleanDecision,
         at: (Operand, FaceKey),
-    ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal) -> Self {
-        use geom_brep::curve_face::circle_roots::DoorRefusal;
-        move |refusal| match refusal {
-            DoorRefusal::Torus(refusal) => Self::of_torus_refusal(refusal, at),
-            other => Self::of_door_refusal(decision)(other),
+    ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal<geom_brep::TorusRefusal>) -> Self
+    {
+        let plain = Self::of_door_refusal(decision);
+        move |refusal| match refusal.without_torus() {
+            Ok(other) => plain(other),
+            Err(torus) => Self::of_torus_refusal(torus, at),
         }
     }
 
@@ -4851,7 +4854,7 @@ impl BooleanError {
     /// refused it ([`geom_brep::TorusRefusal`]), at the face `at`: decided,
     /// the shape the kernel has no representation for
     /// ([`Self::DegenerateTorus`], an abort as
-    /// [`geom_brep::TorusRefusal::refusal`] states it); in band, the
+    /// [`geom_brep::TorusRefusal::standing`] states it); in band, the
     /// convention half's escalation ([`BooleanDecision::Torus`]). Both end
     /// in the half's lever.
     pub(in crate::boolean) fn of_torus_refusal(
@@ -5180,15 +5183,9 @@ impl BooleanError {
             | Self::NormalAtConeApex { .. }
             | Self::VertexNearConeAxis { .. } => Ok(Refusal::of_apex()),
             Self::NormalAtSplineCrease { reading, .. } => Ok(Refusal::of_crease(*reading)),
-            Self::DegenerateTorus {
-                convention,
-                verdict,
-                ..
-            } => geom_brep::TorusRefusal {
-                convention: *convention,
-                verdict: geom_brep::TorusVerdict::Refused(*verdict),
-            }
-            .refusal(),
+            // A torus decided outside the convention aborts, by its type
+            // (`geom_brep::TorusStanding::InvalidInput`).
+            Self::DegenerateTorus { .. } => Err(Aborts),
             Self::CurvedSectorSideUnsupported { .. }
             | Self::CurvedPierceUnsupported { .. }
             | Self::CurvedBooleanUnsupported { .. }
@@ -8265,7 +8262,9 @@ fn verify_tangency<T: Decide>(
                 (
                     circle,
                     T::zero(),
-                    T::from_f64(core::f64::consts::TAU),
+                    // The rim's whole turn, its circle's period, read where
+                    // rim_wedge reads it.
+                    geom::conic_period::<T>().length(),
                     rim_wedge::Locus::Rim(rim),
                     identity,
                     None,

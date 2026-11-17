@@ -2,11 +2,13 @@
 id: the-cone-arm-certifies-the-triangle-its-development-makes
 kind: unit
 title: the cone arm certifies a triangle in the geometry it triangulates in, and a face ending near its apex meshes at every δ
-status: dispatched
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: H
 branch: tesslane/cone-near-apex
+closed: 2026-11-16
+pr: 6965
 ---
 
 
@@ -35,3 +37,16 @@ Branch `tesslane/cone-near-apex`.
 - **Not this unit:** the thin triangles beside a ruling (`a-needle-cone-face-meshes-thin-triangles-beside-its-rulings`): say whether your cure changes its numbers, and re-measure the row's table if it does. The lattice point within rounding of a chord point (`a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area`, filed by unit 3).
 - **Another lane is in `trimmed.rs` now**: unit 3 (`tesslane/domain-loops`) is changing how the lane builds its polygon and routes faces. Keep to the cone arm's certificate, its candidates and its retry loop; whichever merges second merges main.
 - **Run what CI runs before every push that is not marked work-in-progress:** `bash scripts/run-gates.sh`; `scripts/doc-gate.sh --workspace-pass --skip-viewer-toolkit`; fmt; clippy for mesh, geom-brep and `demos/tour`; `cargo nextest run -p mesh` whole; the rows you add or change at `CAD_TOLERANCE_EPS` 1e-6 and 1e-12 as well; the tour's mesh and pin rows in release; sweep's rows over bodies with a trimmed cone face. A test costing 0.5 s or more goes in the slow set with its measured time.
+
+## Closed (2026-11-16, PR 6965)
+
+`cert::cert_cone` is the flat triangle's own deviation from the cone in closed form: the largest of its three chords' sags and the height at which the axis passes through it. It reads no chart box, so a triangle the development makes short is charged what it deviates, and it never exceeds the bound it replaces. The cone arm's rows are uniform in `√|v|` (`AnalyticRow::lattice_rows`), so the gap between rows at each radius is the chord the lattice's target allows there. The unit funnel cut near its apex meshes at every δ of the filed table and passes `reach_probes::geometry`.
+
+What the sections above did not foresee, from the review:
+
+- **The graded rows widened a wrong mesh that main already had.** A cone cut by a box edge just under its apex returned `Ok` with an edge four triangles use: a diagonal of one shared chord chain kept as an interior edge by both of its faces, the tracked ear defect one step up. The cone arm now keeps no triangle side whose ends are not neighbours on their loop and are both held by one neighbouring face (`trimmed::faces_across`); the same rule replaces the ear test on that arm. The other arms, and a census where faces join the mesh, are TESSLIE's (`a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles`), with the cylinder and sphere arms' measured counts on that row.
+- **The axis term lost seven digits near a half turn** and under-reported by about 10⁵ rounding allowances on a pose one reviewer found. It reads the azimuth difference error-free now, pinned at 300 bits. No lane emits a triangle about the axis, so no mesh was wrong by it.
+- **A refusal reports the bound that refused.** Both curved lanes kept a face's worst bound by a fold that let a later finite bound overwrite a NaN, so a face refused for a NaN reported a finite bound under its δ. Both now keep a NaN once met (`cert::worse`); no mesh and no verdict moves.
+- **A non-finite input is never read as a bound on the cone.** The cylinder and sphere certificates still read a NaN as zero, and one arises on a sound triangle with a side on a ruling; poisoning it refused rectangle-lane faces that mesh on main, so it is pinned as today's answer and filed (`the-cylinder-certificate-reads-a-ruling-sided-triangle-as-zero`).
+
+Left for others, each filed: a needle funnel cut 10⁻⁵ above its apex refuses typed (`a-needle-funnel-cut-at-its-apex-refuses-folded`); the rule does not see a third face that holds both ends of a side and meets the cone face at corners only, which nobody has built (on the TESSLIE row); refinement by one centroid a round did not finish inside the retry budget and was set aside, unmeasured past it.

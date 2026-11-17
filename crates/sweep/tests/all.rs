@@ -222,12 +222,16 @@ mod an_inside_out_thin_tube_operand;
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
 mod band_apart_partners_on_a_steep_ellipse;
+#[path = "band_chamfer_frustum.rs"]
+mod band_chamfer_frustum;
 #[path = "band_closed_mixed_chain.rs"]
 mod band_closed_mixed_chain;
 #[path = "band_closed_mixed_chain_shapes.rs"]
 mod band_closed_mixed_chain_shapes;
 #[path = "band_mixed_corner.rs"]
 mod band_mixed_corner;
+#[path = "band_mixed_corner_odd_plus_one.rs"]
+mod band_mixed_corner_odd_plus_one;
 #[path = "band_mixed_rim_shared_supports.rs"]
 mod band_mixed_rim_shared_supports;
 #[path = "band_subdivided_side_walls.rs"]

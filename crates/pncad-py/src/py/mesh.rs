@@ -113,6 +113,12 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
                 float(*allowance).map(|a| fields[1] = ("value", a))
             })
         }),
+        // The triangle's height rides as the value and the allowance it
+        // does not exceed as the bound; its corners are in the message.
+        T::UnresolvedWinding { unresolved, .. } => float(unresolved.height).and_then(|h| {
+            fields[1] = ("value", h);
+            float(unresolved.allowance).map(|a| fields[2] = ("bound", a))
+        }),
         T::UnsupportedNurbsFace { note, .. } | T::UnsupportedCurve { note, .. } => {
             fields[4] = ("note", PyString::new(py, note).unbind().into_any());
             Ok(())
@@ -167,6 +173,13 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
             );
             Ok(())
         }
+        // The door's cause, as a sortable word; the face and the ring
+        // it may name are keys.
+        T::DomainUnread { cause, .. } => {
+            let word = cause.name();
+            fields[4] = ("note", PyString::new(py, word).unbind().into_any());
+            Ok(())
+        }
         // The cause is the sortable word; face and edge are keys.
         T::SphereTrimShape { cause, .. } => {
             fields[4] = ("note", PyString::new(py, cause.name()).unbind().into_any());
@@ -176,7 +189,6 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         // there is nothing to project that a caller may hold.
         T::UnsupportedSurface { .. }
         | T::NullScaffoldEdge { .. }
-        | T::RingOnCurvedFace { .. }
         | T::EmptyLoop { .. }
         | T::Triangulation { .. }
         | T::SelfTouchingTrimLoop { .. }

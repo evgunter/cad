@@ -28,3 +28,16 @@ Owed: a torn body reaching that walk refuses naming a row-four premise, as the f
 - 2026-11-15 — **a fourth seed, from BOXES' PR 6976** (its diff touches no file under `pcurves/` or `splitting/`): the same job drew `0xd3ff1f8c5d8b60f6` and panicked on `HalfEdgeKey(4v1)` at `crates/topo/src/pcurves/site.rs:381`. It reproduces on main (`0807c130bf`'s successor `dc0fda30ba`) with the command above and that seed.
 
 - 2026-11-15 — **a fifth seed, from BOXFINISH's PR 6979** (its diff touches no file under `pcurves/`, `splitting/` or `review_d18.rs`): the same job drew `0x1b0e0949d80fc645` on head `7bded12f` (run 43734867600) and panicked on `HalfEdgeKey(4v1)` at `crates/topo/src/pcurves/site.rs:381`; the head before it, with the same code, was green. Not replayed on main by this lane. Five PR gates in two days have gone red on this row for a diff that does not reach it, which is friction for every program whose gate runs the corrupt-input job. (BOXFINISH orchestrator)
+
+- 2026-11-16 — **a sixth seed, from SECTARMS' PR 7028** (its diff touches no file under `pcurves/`, `splitting/site` or `review_d18.rs`): the same job drew `0x67c1bc918fe6753f` on head `3d06fe5550` (run 43968440036) and panicked on `HalfEdgeKey(3v1)` at `crates/topo/src/pcurves/site.rs:381`. Not replayed on main by this lane.
+
+- 2026-11-17 — **a seventh seed, from TESSLANE's PR 7049** (its diff is `crates/mesh` and `.config/nextest.toml`): the same job drew `0x9bc8f040d42bea99` on the work-in-progress head `9e9a2b151c` (run 44038615732) and panicked on `HalfEdgeKey(3v1)` at `crates/topo/src/pcurves/site.rs:381`; the heads either side of it were green. Not replayed on main by this lane.
+
+## Another seed (2026-11-17, from PR 7052's hosted run)
+
+`topo`'s `review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise`
+(release profile, the `corrupt input` job) drew
+`CAD_FUZZ_SEED=0x8d944d546a8687a6` and failed: `split_reduce` panicked
+at `pcurves/site.rs` with "HalfEdgeKey(4v1) is a member of its own
+loop", naming no row-4 premise. Replayed with that seed, in release, on
+main at `fa4e9ba921`: the same failure (run).

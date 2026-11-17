@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-13
 priority: P1
 cost: M
-design: true
 ---
 
 Filed by the `sectarms/spline-node-carry` lane
@@ -88,6 +87,40 @@ wall's face stores for the same edge, is the decision. C2's at-rest
 image sentences ("derived from the same foot schedule", PR 6879) and
 its NURBS × NURBS sentence ("from the fixed foot schedule") change
 with it.
+
+## Decided (Ev, PR 7032, 2026-11-17; fork-log row 282)
+
+Ev took state (1): "(1) makes sense i think! i certainly don't want to
+introduce a fake cache like (2) has".
+
+- **One image function.** The image of a carrier on a spline wall is
+  one function of the carrier, the wall and the band, and it reads
+  nothing about the partner. It is the wall's foot path of the carrier,
+  interpolated on the carrier's own knots, node grading included.
+  - It refines only by knot insertion where its measured miss asks, and
+    refuses typed past a fixed cap.
+  - The trace's certificate, the pcurve mint and the at-rest certificate
+    all call it. A stored pcurve is only its remembered value.
+  - The partner-kind `match` and the uniform 33-to-257-sample climb go.
+- **The same rule everywhere.** It holds for every partner kind, for
+  node ends and for both charts of a spline × spline pair. The trace and
+  rest mint the wall's chart the same way.
+- **Projection is made well-posed.** It follows the carrier
+  continuously from its start vertex's stored chart point, not point by
+  point to the closest point, so it recovers the march's branch on
+  folded walls and across closed-wall seams. Imports need this under any
+  answer.
+- **No stored-fit fallback.** Keeping the trace's own fit is not taken,
+  even as a temporary measure. If the function refuses where the march
+  did not, that is a defect of the projection: stop and report it.
+- **Ratified text.** C2's at-rest image sentences and its NURBS × NURBS
+  sentence in `crates/geom-brep/README.md` are rewritten to this. Add
+  that a carrier's knot vector is the chain its certificate is built on.
+
+This decides
+`a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung`
+and `a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest`
+too.
 
 ## Done when
 

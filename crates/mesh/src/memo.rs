@@ -29,7 +29,7 @@
 //! Common to every lane:
 //! - δ (the chordal tolerance; every lane's step and the certificates'
 //!   bar derive from it) and the ambient tolerance's ε and k (the lanes' `Eps` and the
-//!   curved lane's shape band derive from those);
+//!   shape band the curved lane and the dispatch read derive from those);
 //! - the surface's KIND (the dispatch reads it);
 //! - for each loop in face order (outer, then rings), for each edge in
 //!   walk order: its traversal direction, its certified carrier
@@ -49,7 +49,9 @@
 //! The trimmed lane additionally reads the surface's fields (an
 //! `Approx` face through its fit, which is the geometry the lane
 //! meshes), each edge's chord PARAMETERS (it evaluates pcurves on that
-//! schedule) and each half-edge's stored pcurve.
+//! schedule) and each half-edge's image where the face's domain places it
+//! (`topo::Body::face_lift`: the loop's lift, and a ring's moved into its
+//! outer loop's sheet).
 //!
 //! # The entry identity a consumer can cache against
 //!
@@ -722,9 +724,10 @@ pub(crate) struct FaceInputs {
 }
 
 impl FaceInputs {
-    /// Read the face's inputs off the body and the chord pass. Refuses
-    /// exactly where the lanes refuse on the same reads (a missing
-    /// entity, an empty loop, a null-scaffold edge).
+    /// Read the face's inputs off the body, the chord pass and, on the
+    /// trimmed lane, the face's `domain` (`trimmed::face_domain`, `None` on
+    /// the other lanes). Refuses exactly where the lanes refuse on the same
+    /// reads (a missing entity, an empty loop, a null-scaffold edge).
     ///
     /// This clones every carrier, pcurve and chord position list of
     /// the face, hit or miss, once per picture: the memo's whole cost
@@ -741,6 +744,7 @@ impl FaceInputs {
         positions: &[Point3<f64>],
         chordal: f64,
         tol: Tol,
+        domain: Option<&topo::pcurves::FaceLift<f64>>,
     ) -> Result<Self, TessellateError> {
         let face = body
             .face(fk)
@@ -749,19 +753,22 @@ impl FaceInputs {
         // Split-lineage roots relabeled by first occurrence over the
         // whole face, the way the chord ids are.
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
+        // Each half-edge's image where the trimmed lane reads it: the
+        // face's domain (`trimmed::face_domain`), the one value the lane
+        // reads, every loop. A moved ring's image is read afresh from its
+        // stored row in the new gauge, so it is not a function of the
+        // ring's own lift bit for bit, and the key folds the image the lane
+        // reads. The other lanes read no image, so there is none.
+        let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = domain
+            .map(|lift| {
+                crate::trimmed::every_loop(lift)
+                    .flat_map(|l| l.rows().iter())
+                    .map(|row| (row.half_edge, row.pcurve.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         for (lk, _, _) in face.loops() {
             let walk = loop_half_edges(body, lk, fk)?;
-            // Each half-edge's image as the loop's lift places it — what
-            // the trimmed lane walks (`topo::Body::loop_lift`); none for
-            // a loop with no lift.
-            let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = body
-                .loop_lift(lk)
-                .map(|rows| {
-                    rows.into_iter()
-                        .map(|row| (row.half_edge, row.pcurve))
-                        .collect()
-                })
-                .unwrap_or_default();
             let mut edges = Vec::with_capacity(walk.len());
             for (hek, ek, forward) in walk {
                 let edge = body
@@ -1069,6 +1076,7 @@ impl KeyWriter {
             Curve3::Ellipse(..) => 2,
             Curve3::Nurbs(_) => 3,
             Curve3::Spiric { .. } => 4,
+            Curve3::Periodic(_) => 5,
         });
     }
 
@@ -1078,6 +1086,11 @@ impl KeyWriter {
         self.curve3_kind(c);
         match c.data() {
             CurveData::Nurbs(n) => self.nurbs3(n),
+            // The base opening and the sense state the loop.
+            CurveData::Periodic(p) => {
+                self.nurbs3(p.whole_loop());
+                self.datum(geom::DatumValue::Scalar(p.base_span().0));
+            }
             CurveData::Analytic(data) => {
                 for (_, value) in data {
                     self.datum(value);

@@ -27,9 +27,6 @@ use geom::Curve3;
 
 use crate::chart::Chart;
 
-/// Full turn — the period of the azimuth these functions unwrap on.
-pub const TAU: f64 = core::f64::consts::TAU;
-
 /// The iso classification of a boundary edge on a curved face.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TravKind {
@@ -113,7 +110,9 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
         // spiric (its chord arm sizes the carrier itself), so the
         // `None` here is read by the coherence walk alone
         // (`NonIsoCarrier`).
-        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+            None
+        }
     }
 }
 

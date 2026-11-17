@@ -1269,13 +1269,33 @@ fn second_numerator<T: Real, const D: usize>(
 /// and `W³` formed once over the span, in ascending span then piece
 /// order, `M` of degree `3p − 2` raised to `3p`. `None` on a
 /// degree below one, an index past an array, or a common degree above
-/// [`QUOTIENT_MAX_DEGREE`]; empty when no span is nonempty.
+/// [`QUOTIENT_MAX_DEGREE`]; empty when no span is nonempty. The
+/// pieces of [`accel_pieces_by_span`], in its order.
 pub fn accel_pieces<T: Real, const D: usize>(
     knots: &Knots<T>,
     points: &[[T; D]],
     weights: &[T],
     splits: usize,
 ) -> Option<Vec<QuotientPiece<T, D>>> {
+    Some(
+        accel_pieces_by_span(knots, points, weights, splits)?
+            .into_iter()
+            .flat_map(|(_, pieces)| pieces)
+            .collect(),
+    )
+}
+
+/// [`accel_pieces`] held by the span each piece is cut from: each
+/// nonempty span's knot index `i` (the span `[uᵢ, uᵢ₊₁)` of
+/// [`Knots::values`]) with its pieces, in ascending span order. A
+/// reader of one span's bound reads that span's own pieces, never a
+/// count's guess at which they are.
+pub fn accel_pieces_by_span<T: Real, const D: usize>(
+    knots: &Knots<T>,
+    points: &[[T; D]],
+    weights: &[T],
+    splits: usize,
+) -> Option<Vec<(usize, Vec<QuotientPiece<T, D>>)>> {
     let kv = knots.structure();
     let mut out = Vec::new();
     for span in (kv.first_span()..=kv.last_span()).filter_map(|i| knots.span(i).map(|s| s.span())) {
@@ -1298,7 +1318,10 @@ pub fn accel_pieces<T: Real, const D: usize>(
             None => None,
         };
         let (m, w3) = second_numerator(&a, &w, xy.as_ref().map(|(x, y)| (x, y)), cross)?;
-        out.extend(Raised::of(&m, w3)?.pieces((halving_count(splits), 1))?);
+        out.push((
+            span.index(),
+            Raised::of(&m, w3)?.pieces((halving_count(splits), 1))?,
+        ));
     }
     Some(out)
 }

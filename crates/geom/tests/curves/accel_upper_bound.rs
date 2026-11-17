@@ -396,3 +396,186 @@ fn a_negative_speed_floor_bounds_no_curvature() {
         "a negative floor bounds no curvature: read {bound:e}, sampled {sampled:e}"
     );
 }
+
+/// The greatest certified LOWER end of `‖C″(t)‖` over `n + 1` parameters
+/// of the run `(t0, t1)`.
+fn sampled_floor_over(c: &NurbsCurve3<f64>, (t0, t1): (f64, f64), n: usize) -> f64 {
+    let ci = c.map_scalar(<Interval as Real>::from_f64);
+    #[allow(clippy::cast_precision_loss)]
+    (0..=n)
+        .map(|i| {
+            let t = (t0 + (t1 - t0) * i as f64 / n as f64).clamp(t0, t1);
+            ci.deriv2(Interval::from_f64(t)).norm().lo()
+        })
+        .fold(0.0, f64::max)
+}
+
+/// **A crease costs only the runs that hold it**
+/// (`NurbsCurve3::accel_upper_bound_over`). On the nine-point full
+/// circle, whose double knots at `¼, ½, ¾` are creases at degree 2 and
+/// whose whole-domain bound is infinite, a run inside one quarter reads
+/// a finite bound at both scalars, at least the sampled sup of `‖C″‖`
+/// there; so does a run that ends on a crease, whose `C′` is one-sided
+/// there. A run across a crease reads no finite bound. On the rational
+/// cubic with an interior knot of multiplicity one, which is no crease,
+/// the whole domain reads `accel_upper_bound` bit for bit, and a run
+/// inside one span reads at most that.
+#[test]
+fn a_crease_costs_only_the_runs_that_hold_it() {
+    let h = 0.5f64.sqrt();
+    let circle = curve(
+        vec![
+            0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+        ],
+        2,
+        &[
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
+            (-1.0, 1.0),
+            (-1.0, 0.0),
+            (-1.0, -1.0),
+            (0.0, -1.0),
+            (1.0, -1.0),
+            (1.0, 0.0),
+        ],
+        vec![1.0, h, 1.0, h, 1.0, h, 1.0, h, 1.0],
+    );
+    let ci = circle.map_scalar(<Interval as Real>::from_f64);
+    let at = |run: (f64, f64)| {
+        ci.accel_upper_bound_over((Interval::from_f64(run.0), Interval::from_f64(run.1)))
+    };
+    for run in [(0.3, 0.45), (0.25, 0.45), (0.55, 0.75), (0.0, 0.25)] {
+        let (b, f) = (at(run), circle.accel_upper_bound_over(run));
+        assert!(b.is_certified(), "{run:?}: the bound refused: {b:?}");
+        let floor = sampled_floor_over(&circle, run, 2000);
+        assert!(
+            b.hi().is_finite() && b.hi() >= floor,
+            "{run:?}: bound {b:?} under the sampled sup {floor}"
+        );
+        assert!(
+            (f - b.hi()).abs() <= 1e-9 * b.hi(),
+            "{run:?}: the f64 door {f} and the Interval door {b:?} disagree"
+        );
+    }
+    for run in [(0.2, 0.3), (0.0, 1.0), (0.45, 0.55)] {
+        assert!(
+            circle.accel_upper_bound_over(run).is_infinite(),
+            "{run:?} holds a crease, and bounds no |C″|"
+        );
+        assert!(
+            !at(run).hi().is_finite(),
+            "{run:?} holds a crease, and bounds no |C″| at Interval"
+        );
+    }
+    let cubic = curve(
+        vec![0.0, 0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0, 1.0],
+        3,
+        &[(0.0, 0.0), (0.5, 1.0), (1.5, 1.2), (2.0, -0.4), (3.0, 0.3)],
+        vec![1.0, 2.5, 0.6, 1.8, 1.0],
+    );
+    let whole = cubic.accel_upper_bound();
+    assert_eq!(
+        cubic.accel_upper_bound_over(cubic.domain()).to_bits(),
+        whole.to_bits(),
+        "the whole domain of an uncreased spline reads the whole bound"
+    );
+    for run in [(0.0, 0.3), (0.5, 0.9)] {
+        let part = cubic.accel_upper_bound_over(run);
+        assert!(
+            part <= whole && part >= sampled_floor_over(&cubic, run, 2000),
+            "{run:?}: {part} outside [sampled sup, {whole}]"
+        );
+    }
+}
+
+/// `c`'s span `(lo, hi)` cut out as its own curve, its parameters kept
+/// ([`NurbsCurve3::split_at`] at each end inside the domain).
+fn span_cut(c: &NurbsCurve3<f64>, (lo, hi): (f64, f64)) -> NurbsCurve3<f64> {
+    let (d0, d1) = c.domain();
+    let right = if lo > d0 {
+        c.split_at(lo).unwrap().1
+    } else {
+        c.clone()
+    };
+    if hi < d1 {
+        right.split_at(hi).unwrap().0
+    } else {
+        right
+    }
+}
+
+/// **Each span's bound is its own span's** (`NurbsCurve3::accel_upper_bound_over`
+/// over one span). On a clamped cubic with three interior knots whose
+/// spans bend very differently, a creased degree-1 polyline, and a
+/// rational quadratic with an interior knot, the bound over each
+/// nonempty span is the whole-domain bound of that span cut out as its
+/// own curve (`split_at` at its ends, parameters kept), to rounding: the
+/// same quotient on the same interval. A span's bound read off another
+/// span's pieces differs from its cut's, so the row fails where pieces
+/// are assigned to the wrong spans.
+#[test]
+fn each_spans_bound_is_its_own_span_cut_out() {
+    let cubic = curve(
+        vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.5, 0.7, 1.0, 1.0, 1.0, 1.0],
+        3,
+        &[
+            (0.0, 0.0),
+            (0.1, 2.0),
+            (0.3, -1.5),
+            (1.0, 0.2),
+            (2.0, 0.3),
+            (3.0, 0.35),
+            (4.0, 0.4),
+        ],
+        vec![1.0; 7],
+    );
+    let polyline = curve(
+        vec![0.0, 0.0, 0.3, 0.55, 1.0, 1.0],
+        1,
+        &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (2.0, 1.5)],
+        vec![1.0; 4],
+    );
+    let rational = curve(
+        vec![0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0],
+        2,
+        &[(1.0, 0.0), (1.0, 0.8), (0.2, 1.4), (-0.6, 0.9)],
+        vec![1.0, 0.6, 1.7, 1.0],
+    );
+    for (name, c) in [
+        ("cubic", &cubic),
+        ("polyline", &polyline),
+        ("rational", &rational),
+    ] {
+        let values = c.knot_values().values().to_vec();
+        let spans: Vec<(f64, f64)> = values
+            .windows(2)
+            .filter(|k| k[0] < k[1])
+            .map(|k| (k[0], k[1]))
+            .collect();
+        assert!(spans.len() >= 2, "{name}: more than one span");
+        let mut reads = Vec::new();
+        for &span in &spans {
+            let own = c.accel_upper_bound_over(span);
+            let cut = span_cut(c, span).accel_upper_bound();
+            assert!(
+                own.is_finite() && (own - cut).abs() <= 1e-9 * cut.max(1.0),
+                "{name} {span:?}: the span reads {own:e}, its cut {cut:e}"
+            );
+            assert!(
+                own >= sampled_floor_over(c, span, 2000),
+                "{name} {span:?}: {own:e} under the sampled sup"
+            );
+            reads.push(own);
+        }
+        if name == "cubic" {
+            let (lo, hi) = reads
+                .iter()
+                .fold((f64::INFINITY, 0.0f64), |(l, h), &r| (l.min(r), h.max(r)));
+            assert!(
+                hi > 4.0 * lo,
+                "the cubic's spans bend differently: {reads:?}"
+            );
+        }
+    }
+}

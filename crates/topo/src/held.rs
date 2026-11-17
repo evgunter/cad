@@ -81,8 +81,9 @@ impl<T: Decide> Held<T> {
     /// classified at `band` outside the log (F38), reads `Zero` for a
     /// constructed or decided point, and never definitely off for one
     /// held in band. Skipped only where the residual is honestly
-    /// unavailable: a poison residual, which a spline or approximated
-    /// carrier always reads, having no implicit form.
+    /// unavailable: a carrier with no implicit form, a spline or an
+    /// approximated one (not [`geom_brep::is_analytic`]), or a poison
+    /// residual.
     ///
     /// **No lever.** The residual is a length, the point's offset from
     /// the carrier (linearized on a curved one), read against the band's
@@ -100,7 +101,7 @@ impl<T: Decide> Held<T> {
     /// that no longer puts its point on the carrier, a defect.
     #[track_caller]
     pub(crate) fn check(self, surface: &Surface<T>, band: Band) {
-        if !cfg!(debug_assertions) {
+        if !cfg!(debug_assertions) || !geom_brep::is_analytic(surface) {
             return;
         }
         let residual = geom_brep::implicit_residual(surface, self.at);

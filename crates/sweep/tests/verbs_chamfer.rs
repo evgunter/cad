@@ -68,7 +68,7 @@ fn the_chamfered_cube() {
     assert_eq!(
         out.band_faces.len(),
         0,
-        "a chamfer has no closed-chain band"
+        "a cube has no closed rim, so no closed-rim band"
     );
 
     let counts = euler_counts(&out_body);
@@ -249,21 +249,69 @@ fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
     );
 }
 
+/// **A circular prism's two rims chamfer as frustums**: each rim is a
+/// cylinder meeting a cap square to its axis, so its band is the cone
+/// through the two trim circles, and each removes the triangle `D²/2`
+/// carried round at `r − D/3`.
+#[test]
+fn a_circular_prisms_rims_chamfer_as_frustums() {
+    let (r, h) = (0.5, 1.0);
+    let cyl = cylinder(r, h);
+    let rims: Vec<EdgeKey> = query::all_edges(&cyl)
+        .into_iter()
+        .filter(|&e| {
+            let (a, b) = topo::readback::edge_sides(&cyl, e).unwrap().surfaces();
+            a != b
+        })
+        .collect();
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&cyl, Tol::witness()),
+        &rims,
+        D,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the prism's rims chamfer, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 2, "a frustum per rim");
+    for f in &out.band_faces {
+        assert!(
+            matches!(out.body.face_surface(*f), Some(Surface::Cone { .. })),
+            "a frustum band is a cone"
+        );
+    }
+    assert_eq!(
+        topo::validate_geometric(&out.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    let v = |b: &topo::Body<f64>| {
+        topo::test_support::pinned_volume(
+            "v",
+            &topo::test_support::finished("v", topo::Body::clone(b), Tol::witness()),
+            Tol::witness(),
+        )
+        .volume
+    };
+    let want = -2.0 * core::f64::consts::PI * D * D * (r - D / 3.0);
+    let got = v(&out.body) - v(&cyl);
+    assert!((got - want).abs() < 1e-12, "ΔV {got} against {want}");
+}
+
 /// **A curved support refuses through the chamfer's OWN arm table**,
-/// with its own recourse: the missing door is the chamfer over a
+/// with its own recourse: the missing door is the chamfer over that
 /// curved support, not the fillet's canal surface, and the
-/// plane–sphere pair the fillet offers is no alternative here.
+/// plane–sphere pair the fillet offers is no alternative here. The
+/// dome's equator is plane–sphere.
 #[test]
 fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
-    let cyl = cylinder(0.5, 1.0);
-    let edges = query::all_edges(&cyl);
+    let dome = sweep::test_support::dome(1.0, Tol::witness());
+    let edges = query::all_edges(&dome);
     let err = chamfer_edges(
-        &sweep::test_support::at_rest(&cyl, Tol::witness()),
+        &sweep::test_support::at_rest(&dome, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
     )
-    .expect_err("a plane–cylinder rim has no ruled strip");
+    .expect_err("a plane–sphere rim has no chamfer band");
     assert!(
         matches!(err.error, BlendError::ChamferArmUnsupported { .. }),
         "the arm table is what refused: {err:?}"
@@ -281,10 +329,13 @@ fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
 /// trivalent vertices whose other two edges are convex — a
 /// mixed-convexity corner, whose odd edge the inner one is. Requested
 /// alone it is cut off at both end faces, filling `d²/2` along its
-/// length 1; requested with a convex edge of that corner it refuses
+/// length 1; requested with a convex edge of that corner it is cut off
+/// in the top face and that edge's strip in its plane, adding `(2/3)d³`
+/// (`band_mixed_corner_odd_plus_one`). Where the face the two convex
+/// edges share leans off square to the odd edge, the request refuses
 /// with the corner's configuration tag, naming no run-out policy.
 #[test]
-fn an_l_brackets_inner_edge_is_cut_off_and_refuses_with_a_convex_neighbour() {
+fn an_l_brackets_inner_edge_is_cut_off_and_chamfers_with_a_convex_neighbour() {
     let tol = Tol::witness();
     let bracket = l_bracket();
     let inner = concave_edge(&bracket);
@@ -327,8 +378,28 @@ fn an_l_brackets_inner_edge_is_cut_off_and_refuses_with_a_convex_neighbour() {
             (at(ps[0], 1.0) && at(ps[1], 2.0)) || (at(ps[0], 2.0) && at(ps[1], 1.0))
         })
         .expect("the top edge from the reflex corner");
-    let err = chamfer_edges(&at_rest, &[inner, top], D, tol)
-        .expect_err("the odd edge with another of its corner refuses");
+    let out = chamfer_edges(&at_rest, &[inner, top], D, tol)
+        .expect("the odd edge with another of its corner chamfers");
+    let out_body = topo::test_support::finished("out_body", out.body, tol);
+    assert_eq!(
+        topo::validate_geometric(&out_body, tol),
+        Ok(()),
+        "the bracket chamfered at its mixed corner is tier-3 valid"
+    );
+    let added = volume(&out_body) - volume(&at_rest);
+    assert!(
+        (added - 2.0 / 3.0 * D.powi(3)).abs() < 1e-12,
+        "the odd edge and the top edge, each 1 long, add (2/3)d³: {added}"
+    );
+
+    let leaning = crate::band_mixed_corner::leaning();
+    let err = chamfer_edges(
+        &sweep::test_support::at_rest(&leaning, tol),
+        &crate::band_mixed_corner::leaning_odd_and_one(&leaning),
+        D,
+        tol,
+    )
+    .expect_err("the odd edge with another of an oblique corner refuses");
     match err.error {
         BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },

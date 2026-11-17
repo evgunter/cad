@@ -541,7 +541,8 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
         let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             shown.contains(
-                "an open chain link is not plane–plane, ruled, or a torus between two junctions"
+                "an open chain link is not plane–plane, ruled, or a band of revolution between \
+                 two junctions"
             ) && shown.contains(FILLET3_ASSEMBLY_RECOURSE),
             "{shown}"
         );
@@ -565,10 +566,10 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
     // segment so the OPEN clause's ruled cylinder link, which is a
     // different door, cannot satisfy it by accident.
     let closed_clause = FILLET3_ASSEMBLY_RECOURSE
-        .split_once("For a fillet, ")
+        .split_once("CAPS. ")
         .expect("the assembly sentence's closed clause opens with its verb condition")
         .1;
-    for want in ["coaxial surfaces of revolution", "latitude rim"] {
+    for want in ["whole latitude rim", "rings clear of the band's setback"] {
         assert!(
             closed_clause.contains(want),
             "the assembly recourse's closed clause must name the plane–cylinder rim \
