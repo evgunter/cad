@@ -877,3 +877,8 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **I checked (B)'s premise in the code.** `ChartSpeeds` is a whole-domain `SupSpeed`, so a window can reach less than a rung in metres, and a folding wall is not covered. B's own report lists both. No measured pair falls short.
   - **To file once Ev answers:** the defects both designers endorse. `pad_of` halves windows unclipped to the knot rectangle; `pad_and_reach` reads a cell against its own span's carrier only; overlapping windows are swept one by one; `apart` reads hull boxes.
   - **Pattern, for the record:** all three forks this sitting crossed in concurrent reconciliation rounds; two ended split and one agreed.
+- 2026-11-17 — **Ev asked on PR 7032:** "how does this relate to our caching in general?" I answered on the PR.
+  - The two options are two readings of DESIGN's cache rule (`[edges]`, `[tolerance.residuals]`, `[intent.stored]`, `[determinism]`'s content-keyed transfer): is a derived cache *reproducible from* its description's inputs, or only *certified against* the description?
+  - (1) reads it as a function of its inputs, (2) as certified.
+  - PR 7042 is the same question one level up (a carrier depending on the march seed).
+  - I offered the general `[edges]` sentence that would decide 7032 for (1). Waiting on Ev.
