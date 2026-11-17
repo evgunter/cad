@@ -567,7 +567,7 @@ mod tests {
     use geom_core::k_stats::decide;
     use geom_core::{Band, Margin, Point3, Sign, Vec3};
 
-    use super::{Piece, Read, step_taken, window, witnesses};
+    use super::{Piece, Read, at_end, step_taken, window, witnesses};
     use crate::curve_pair::Span;
 
     /// **The one-sided window's reach, checked against its pairs**: the
@@ -625,6 +625,23 @@ mod tests {
             );
         }
         bound.reach
+    }
+
+    /// **A polished parameter within the band of its span's end is that
+    /// end.** On the segment `x ∈ [0, 1]` of the `x` axis, read at the
+    /// band `(10⁻⁹, 10⁻⁸)`: a parameter `10⁻¹²` short of an end is
+    /// that end's own parameter, bit for bit, the `End` the pair read
+    /// reads; one `10⁻³` short, or in the middle, is itself. Red where
+    /// the polish's place is kept short of the end.
+    #[test]
+    fn a_polished_parameter_at_its_end_is_the_end() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let x = Curve3::line(Point3::origin(), Vec3::new(1.0, 0.0, 0.0));
+        let span = Span::new(&x, (0.0, 1.0));
+        assert_eq!(at_end(&span, 1.0 - 1e-12, band).to_bits(), 1.0f64.to_bits());
+        assert_eq!(at_end(&span, 1e-12, band).to_bits(), 0.0f64.to_bits());
+        assert_eq!(at_end(&span, 1.0 - 1e-3, band), 1.0 - 1e-3);
+        assert_eq!(at_end(&span, 0.5, band), 0.5);
     }
 
     /// **A held window with a gap reads the gap as its slack.** Two arcs of

@@ -263,3 +263,68 @@ pub(super) fn undecided<T: Decide>() -> WindowBound<T> {
         bend: T::from_f64(f64::INFINITY),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use geom_core::{Point3, Vec3};
+
+    use super::pair_held;
+
+    /// **A polish at a collinear joint takes the least-norm step.** Two
+    /// segments of the `x` axis meet end to end at the origin, the first
+    /// over `s ∈ [0, 1]` and the second over `t ∈ [0, 1]`, and the polish
+    /// starts at `(0.9, 0.1)`. The tangents are parallel, so Gauss–Newton's
+    /// normal system is singular and its step has no value. The
+    /// least-norm step closes the gap along the common tangent, half on
+    /// each side, and held to the spans the pair stops at the joint:
+    /// `s` clamped exactly to `1`, `t` within rounding of `0` (the walk
+    /// then reads it as the end, `walk::at_end`). Red where a singular
+    /// system ends the polish where it stands.
+    #[test]
+    fn a_polish_at_a_collinear_joint_reaches_the_joint() {
+        let a = |s: f64| (Point3::new(s - 1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let b = |t: f64| (Point3::new(t, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let (s, t) = pair_held(
+            a,
+            b,
+            (0.9, 0.1),
+            |_| true,
+            (Some((0.0, 1.0)), Some((0.0, 1.0))),
+        );
+        assert!(
+            s == 1.0 && t.abs() <= 1e-15,
+            "the joint, to rounding: ({s}, {t})"
+        );
+    }
+
+    /// **A polish whose first side clamps steps the other alone.** The
+    /// first segment runs along the `x` axis to the origin (`s ∈ [0, 1]`);
+    /// the second is a line tilted `45°` in `xy` and lifted `0.1` in `z`,
+    /// whose closest approach to the first's line lies past the first's
+    /// end, at `s = 1.5`. Held, the first side stops at its end, and the
+    /// pair's closest second point is the foot of the origin on the
+    /// second line, `t = 0.5 − √2/4`, not the unconstrained `t = 0.5` the
+    /// two lines' own closest pair has. Red where the clamp alone is
+    /// taken, which leaves `t` at `0.5`.
+    #[test]
+    fn a_polish_whose_first_side_clamps_steps_the_second_alone() {
+        let h = 0.5f64.sqrt();
+        let a = |s: f64| (Point3::new(s - 1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let b = |t: f64| {
+            let d = Vec3::new(h, h, 0.0);
+            (Point3::new(0.5, 0.0, 0.1) + d * (t - 0.5), d)
+        };
+        let (s, t) = pair_held(
+            a,
+            b,
+            (0.5, 0.9),
+            |_| true,
+            (Some((0.0, 1.0)), Some((0.0, 1.0))),
+        );
+        let foot = 0.5 - 2f64.sqrt() / 4.0;
+        assert!(
+            s == 1.0 && (t - foot).abs() <= 1e-12,
+            "held at the first's end, the second at its foot: ({s}, {t}) against (1, {foot})"
+        );
+    }
+}
