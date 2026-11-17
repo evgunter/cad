@@ -2,8 +2,11 @@
 id: a-pose-chain-written-deeper-than-the-load-doors-envelope-does-not-load
 kind: issue
 title: A pose chain written inline deeper than the load door's envelope saves an edit log that does not load
-status: open
+status: parked
 opened: 2026-10-23
+priority: P3
+cost: E
+blocked_on: [the-save-format-drops-its-edit-log]
 ---
 
 
@@ -30,3 +33,12 @@ and `ENVELOPE` is that bound's deepest position, or the load door
 reads a pose chain at a depth of its own.
 
 Moved from `work/issues/` to `work/doctail/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Parked (2026-11-17, DOCTAIL triage)
+
+P3, E, parked on `the-save-format-drops-its-edit-log`. The defect is
+that the saved EDIT LOG does not load, and the snapshot is unaffected.
+That row removes the log from the format, which takes this defect with
+it. When it lands, check whether `persist::nesting::ENVELOPE` still names a
+position a save writes. Then close this row, or re-open it for the
+snapshot if a pose chain reaches the snapshot's own nesting bound.

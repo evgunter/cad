@@ -4,6 +4,8 @@ kind: issue
 title: Maintenance's Strand and StrandedAppearance arms render 54 and 62 words
 status: open
 opened: 2026-10-01
+priority: P4
+cost: E
 ---
 
 
@@ -34,3 +36,9 @@ Both are over the 50-word line the census lists at, before any payload.
 **Territory**: `crates/editor-core/src/edit.rs` was RECIPE's when this
 was filed, and is DOCTAIL's own since RECIPE closed (2026-10-11,
 `docs/doc-ledger/recipe-leaves-the-tracker.md`); INTENT shares it.
+
+## Banded (2026-11-17, DOCTAIL triage)
+
+P4, E: prose. Check the counts against the current `Maintenance`
+Display before rewriting, because `a-reshaping-that-joins-a-kept-piece-into-a-run-reports-nothing`
+may add or reshape a strand arm first.

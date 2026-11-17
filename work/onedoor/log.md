@@ -536,3 +536,23 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - Filed: `chart-facts-are-a-sixth-concern-inside-pcurves-mint` (P4).
   - Model-compare row `docs/model-compare-log/rows/PR-6939.md`.
   - (ONEDOOR orchestrator)
+
+## 2026-11-17 — set `ready`; one row re-homed
+
+- Track set `ready` (Ev, in chat): no orchestrator holds it. Nothing was
+  in flight: no lane, open PR or `onedoor/` branch since the 11-14
+  sitting's four PRs merged.
+- `face-geo-restates-carrier-desc-curved-arms` (P1, H, design) moved to
+  ONECOPY by `git mv`, parked on its
+  `analytic-surfaces-spell-their-frame-field-by-field`: the per-kind
+  `CarrierDesc` fold is the geom-brep side of that row's ratified
+  kind-struct stage, and would be reshaped by it if done first.
+- Kept here: `main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6`
+  (P0). It is a regression in this track's own `[coincidence.door]`
+  code (PR 6505, the one surface record), beside this track's
+  `split-and-chord-coincidences-leave-two-records`; no live program's
+  charter covers the coincidence decision better, and ONECOPY, the
+  obvious candidate, is over budget and owns carrier readings, not the
+  coincidence verdict. The pins hold the tests green meanwhile. The
+  unbanded `collapsed-locus-refusal-has-no-reachable-fixture` stays too.
+- (GREEN, at Ev's request)
