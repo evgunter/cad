@@ -112,16 +112,23 @@ impl PartialEq for NodeFrame {
     /// Bit for bit.
     fn eq(&self, other: &Self) -> bool {
         let bits = |f: &Self| {
-            let [l0, l1] = f.lines;
-            [
-                f.point.x, f.point.y, f.point.z, f.normal.x, f.normal.y, f.normal.z, l0.x, l0.y,
-                l0.z, l1.x, l1.y, l1.z,
-            ]
-            .map(f64::to_bits)
+            let Self {
+                point,
+                normal,
+                lines: [l0, l1],
+                wall_above,
+                width,
+            } = *f;
+            (
+                [
+                    point.x, point.y, point.z, normal.x, normal.y, normal.z, l0.x, l0.y, l0.z,
+                    l1.x, l1.y, l1.z, width,
+                ]
+                .map(f64::to_bits),
+                wall_above,
+            )
         };
         bits(self) == bits(other)
-            && self.wall_above == other.wall_above
-            && self.width.to_bits() == other.width.to_bits()
     }
 }
 

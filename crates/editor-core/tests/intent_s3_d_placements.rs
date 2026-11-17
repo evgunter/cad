@@ -803,7 +803,7 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
     let corners = |f: fn([f64; 3]) -> [f64; 3]| {
         let mut want: Vec<[(f64, f64); 3]> = vertices(&doc, b)
             .into_iter()
-            .map(|p| f(p).map(|c| (c + 0.0, c + 0.0)))
+            .map(|p| f(p).map(geom_core::fold_signed_zero).map(|c| (c, c)))
             .collect();
         want.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
         want
