@@ -292,7 +292,7 @@ fn a_right_angled_cone_refuses_the_axis_normal_division() {
     let cut = plane(Point3::new(0.0, 0.0, 3.0), Vec3::unit_z());
     let got = plane_cone_section(&cut, &cone, &at_apex(1.0), band());
     assert!(
-        matches!(got, Err(SectionError::DegenerateOperand { .. })),
+        matches!(got, Err(SectionError::ConeAtTheBand { .. })),
         "the cos alpha division must be decided first, got {got:?}"
     );
     // The in-band twin escalates on the guard's own name.
@@ -302,6 +302,15 @@ fn a_right_angled_cone_refuses_the_axis_normal_division() {
         panic!("the in-band aperture must escalate");
     };
     assert_eq!(diag.predicate, Some("pn_aperture_cos"));
+    // Past a right angle, `cos α` is decided negative: the cone is outside
+    // its convention, a degenerate operand, never at the band's edge. Red
+    // if the guard's two decided arms collapse into one.
+    let past = cone_z(2.0);
+    let got = plane_cone_section(&cut, &past, &at_apex(1.0), band());
+    assert!(
+        matches!(got, Err(SectionError::DegenerateOperand { what }) if what.contains("past a right angle")),
+        "a half-angle past a right angle is outside the convention, got {got:?}"
+    );
 }
 
 /// **The apex lane's `sin α` clause, decided on the band.** A cone
@@ -314,7 +323,7 @@ fn a_closed_cone_refuses_the_apex_lane_division() {
     let through = plane(Point3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 1e-17));
     let got = plane_cone_section(&through, &cone, &at_apex(1.0), band());
     assert!(
-        matches!(got, Err(SectionError::DegenerateOperand { .. })),
+        matches!(got, Err(SectionError::ConeAtTheBand { .. })),
         "the sin alpha division must be decided first, got {got:?}"
     );
     let cone = cone_z((3.0 * eps()).asin());
@@ -373,6 +382,6 @@ fn the_aperture_guard_is_levered_by_extent() {
     assert!(plane_cone_section(&through, &cone, &at_apex(1.0), band()).is_ok());
     assert!(matches!(
         plane_cone_section(&through, &cone, &at_apex(0.01), band()),
-        Err(SectionError::DegenerateOperand { .. })
+        Err(SectionError::ConeAtTheBand { .. })
     ));
 }

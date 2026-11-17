@@ -163,7 +163,8 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         face_of: Operand::B,
         why,
     };
-    let more: [(&str, BooleanError, Result<Refusal, Aborts>); 12] = [
+    let section = |source| -> BooleanError { crate::JoinError::Section { face, source }.into() };
+    let more: [(&str, BooleanError, Result<Refusal, Aborts>); 15] = [
         (
             "a result no model represents, non-manifold",
             BooleanError::NonManifoldResult {
@@ -243,6 +244,23 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
             crate::JoinError::UnpairedLooseEnds { count: 2 }.into(),
             Err(Aborts),
         ),
+        (
+            "a section table's carrier in band, by its margin",
+            section(geom_brep::SectionError::Carrier(
+                geom::EllipseInvalid::Escalated(diag()),
+            )),
+            Ok(Refusal::Margin(diag())),
+        ),
+        (
+            "a section table's operand guard, mixed",
+            section(geom_brep::SectionError::DegenerateOperand { what: "a guard" }),
+            Err(Aborts),
+        ),
+        (
+            "a section table asked of the wrong pair",
+            section(geom_brep::SectionError::WrongLane { expected: "a pair" }),
+            Err(Aborts),
+        ),
     ];
     for (label, error, want) in more {
         assert_eq!(error.refusal(), want, "{label}");
@@ -290,7 +308,7 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
     );
     for abort in crate::face_normal::NORMAL_INVALID_INPUTS {
         let torus = abort.torus().unwrap();
-        let geom_brep::TorusVerdict::Refused(verdict) = torus.verdict else {
+        let geom_brep::TorusStanding::InvalidInput(verdict) = torus.standing() else {
             panic!("{torus:?} is decided")
         };
         let text = in_face(super::slit::EdgeInFaceGap::DegenerateTorus(torus))
@@ -523,12 +541,12 @@ fn an_aborted_normal_is_answered_by_its_row() {
 
 /// A ring torus refused outside its convention, decided.
 fn horn() -> geom_brep::TorusRefusal {
-    geom_brep::TorusRefusal {
-        convention: geom_brep::TorusConvention::Ring,
-        verdict: geom_brep::TorusVerdict::Refused(geom_brep::recourse::Refused::Negative {
+    geom_brep::TorusRefusal::decided(
+        geom_brep::TorusConvention::Ring,
+        geom_brep::recourse::Refused::Negative {
             margin: MarginDiag::INVALID,
-        }),
-    }
+        },
+    )
 }
 
 /// **A line's wedge unread on a torus outside the ring convention renders

@@ -48,7 +48,17 @@ pub struct FacePatch {
     /// The source face (picking back-reference).
     pub face: FaceKey,
     /// Triangles with **outward** winding (counterclockwise viewed
-    /// from outside the material, per the D1 loop conventions).
+    /// from outside the material, per the D1 loop conventions), each
+    /// **resolved above the rounding of its own positions**
+    /// (`crates/mesh/README.md` `[mesh.winding]`): a normal computed from
+    /// a triangle's stored corners points the way its face does, and
+    /// would not flip if each coordinate moved by its evaluation
+    /// rounding. [`fn@crate::tessellate`] refuses a face with a triangle
+    /// that fails this
+    /// ([`TessellateError::UnresolvedWinding`]), and
+    /// [`crate::validate::check_winding`] re-derives it from a mesh.
+    /// Shape is not otherwise promised: a triangle may be thin, and
+    /// small beside ε.
     ///
     /// "Outward" means the *material* side, not the chart-normal side.
     /// A face's outward normal is its chart normal with
@@ -148,14 +158,21 @@ pub enum TessellateError {
         /// The scaffolding edge.
         edge: EdgeKey,
     },
-    /// A curved face carries interior rings, which the curved and
-    /// trimmed lanes do not mesh; refused rather than guessed at. A
-    /// boolean that pierces a torus wall with a plane leaves one, a
-    /// spiric ring, on a valid body
-    /// (`work/tesslane/valid-ringed-torus-faces-build-but-cannot-be-meshed`).
-    RingOnCurvedFace {
+    /// A curved face's loops have no reading in one sheet of its chart
+    /// (`topo::Body::face_lift`), so the trimmed lane has no domain to
+    /// triangulate: the outer loop or a ring does not close in the chart
+    /// (a seamless band, a loop about a pole or apex inside the face), a
+    /// ring has no one decided place against the outer loop, a loop
+    /// stores no lift, or a ringed spline face's trim is not read in its
+    /// chart. This is the lane's one refusal of a loop that does not
+    /// close: the door's cause, carried whole.
+    DomainUnread {
         /// The offending face.
         face: FaceKey,
+        /// Why the door placed no domain. Boxed: the cause is several
+        /// times the size of every other arm's payload, and every caller
+        /// that holds a `TessellateError` by value pays its largest arm.
+        cause: Box<topo::pcurves::RingPlacementError>,
     },
     /// A face has an empty loop (a tier-1 scaffolding state; closed
     /// tier-2 bodies never carry one at rest).
@@ -223,8 +240,15 @@ pub enum TessellateError {
         /// The rounding allowance the verdict would have had to absorb.
         allowance: f64,
     },
-    /// The CDT rejected a point insertion (non-finite or out-of-range
-    /// UV coordinate — corrupt geometry surfaced as a typed error).
+    /// A face's constrained triangulation could not be built. Either
+    /// the CDT rejected a point or a boundary constraint (a non-finite or
+    /// out-of-range chart coordinate, a side crossing another: corrupt
+    /// geometry surfaced as a typed error), or, on the trimmed lane, a
+    /// point the mesher placed entered at an existing vertex or sat on a
+    /// boundary side or a crease link. The lane merges and moves no
+    /// point (`crates/mesh/README.md` `[mesh.sizing]`): its lattice
+    /// keeps clear of the boundary, and a point that reaches the
+    /// triangulation on it all the same refuses the face.
     Triangulation {
         /// The face being triangulated.
         face: FaceKey,
@@ -541,10 +565,13 @@ pub enum TessellateError {
         /// The band construction failure.
         error: geom_core::BandError,
     },
-    /// A trimmed face's boundary polygon on an analytic chart (cylinder
-    /// or sphere) is oriented against the orientation its face's `sense` promises
+    /// A trimmed face's outer polygon on an analytic chart is oriented
+    /// against the orientation its face's `sense` promises
     /// (`geom_brep::PolygonOrientation::of_face`), so it bounds the face's
-    /// complement. Meshing it
+    /// complement; or, on any chart, a ring is wound with its outer
+    /// loop, against the rule that a ring bounds its face from inside and
+    /// winds the other way, so the face's loops contradict each other.
+    /// Meshing it
     /// would ship the complement, or the face wound inward, as a closed
     /// manifold mesh, so it refuses. A valid body does not reach it; a
     /// face whose `sense` disagrees with its loops does.
@@ -563,11 +590,43 @@ pub enum TessellateError {
         /// The face whose patch folds.
         face: FaceKey,
     },
-    /// A trimmed face on an analytic chart keeps an ear of its boundary
-    /// polygon (a triangle on three consecutive chord points) after the
-    /// retry budget: the neighbour across that chain may cut the same
-    /// ear, which would make one triangle twice and their diagonal an
-    /// edge of four triangles, so it refuses.
+    /// A face's patch holds a triangle whose winding is inside the
+    /// rounding of its own corner positions: its height over its longest
+    /// side does not exceed the certificate's rounding allowance at its
+    /// coordinate scale (`crates/mesh/README.md` `[mesh.winding]`;
+    /// `validate::check_winding` states the measure). A normal computed
+    /// from its stored corners is rounding noise, so the face is refused,
+    /// not returned.
+    ///
+    /// Raised in two places, by the one definition
+    /// (`validate::resolved_normal`): where a face's patch joins the
+    /// mesh, for every lane (the planar lane's, the rectangle lane's, a
+    /// patch the memo answers), and by the trimmed lane itself as soon as
+    /// an attempt holds such a triangle, since none of its retries is
+    /// built to resolve one.
+    ///
+    /// It says what the triangle is, not why. Bodies that reach it: the
+    /// plane cap of a frustum whose small rim inherits its cone's columns,
+    /// on three boundary chord points, at a δ near `10⁻⁸` of the body;
+    /// and, on the rectangle lane, a cone face through its apex with a
+    /// split straight side, on the apex and two lattice nodes of one
+    /// column
+    /// (`work/tesslane/a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it.md`).
+    UnresolvedWinding {
+        /// The face whose patch holds the triangle.
+        face: FaceKey,
+        /// The triangle's corners, its height and the allowance that
+        /// height does not exceed. Boxed: it is nine coordinates wide,
+        /// and the refusal rides in every caller's `Result`.
+        unresolved: Box<crate::validate::Unresolved>,
+    },
+    /// A trimmed face on an analytic chart keeps, after the retry budget,
+    /// a triangle a neighbouring face may make a side of too: an ear of
+    /// its boundary polygon (a triangle on three consecutive chord
+    /// points), or on a cone a side joining two boundary points that are
+    /// not neighbours and that one neighbour holds both of. The neighbour
+    /// may join the same two points, which would make that side an edge
+    /// of four triangles, so it refuses.
     BoundaryEar {
         /// The face whose patch keeps the ear.
         face: FaceKey,
@@ -602,7 +661,7 @@ pub enum TessellateError {
 ///
 /// **The falsifier is a caller that acts on the cause by itself**: a
 /// driver that turns the sphere's chart when it reads `ThroughPole` but
-/// splits the face when it reads `PoleInside`. Then carry it and delete
+/// asks a coarser δ when it reads `ChordBudget`. Then carry it and delete
 /// this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SphereTrimCause {
@@ -610,10 +669,6 @@ pub enum SphereTrimCause {
     /// domain (a sphere's `|v| > π/2`) mid-edge: the lane meets a row's
     /// point only at a loop vertex.
     PastPole,
-    /// The loop winds about a row's point inside the face: a side off the
-    /// row turns more than 3π/2 in azimuth, so the image does not close
-    /// in the chart.
-    PoleInside,
     /// The loop visits one mesh vertex at two chart locations off a
     /// singular row (a seam traversed twice).
     SeamTwice,
@@ -647,7 +702,6 @@ impl SphereTrimCause {
     pub const fn name(self) -> &'static str {
         match self {
             Self::PastPole => "past_pole",
-            Self::PoleInside => "pole_inside",
             Self::SeamTwice => "seam_twice",
             Self::ThroughPole => "through_pole",
             Self::ChordBudget => "chord_budget",
@@ -700,11 +754,66 @@ impl TessellateError {
                  carrier by type — the body is mid-surgery; tessellation is \
                  defined on at-rest bodies, so finish the surgery first",
             ),
-            Self::RingOnCurvedFace { .. } => f.write_str(
-                "tessellate: a curved face carries an interior ring — curved \
-                 patches are swept UV rectangles and no construction produces \
-                 one, so this is a kernel bug rather than a mesh to guess at",
-            ),
+            Self::DomainUnread { cause, .. } => {
+                use topo::pcurves::RingPlacementError as R;
+                let why = match **cause {
+                    R::Gap(_) => {
+                        "a loop of it has no lift in the face's chart: an edge of it \
+                         stores no chart image, or no element on the joint into it, or \
+                         an image its lift does not apply to — the boolean, split and \
+                         sweep doors mint them, and `topo::mint_pcurves` mints them on \
+                         a body built through the Euler doors"
+                    }
+                    R::OuterOpen { .. } => {
+                        "its outer loop does not close in the face's chart: it winds the \
+                         chart's period, as a seamless band's rim does and as a loop \
+                         round a pole or apex inside the face does, and the trimmed lane \
+                         meshes a region the chart holds whole; seam the face so the \
+                         loop closes"
+                    }
+                    R::RingOpen { .. } => {
+                        "a ring of it does not close in the face's chart: it winds the \
+                         chart's period"
+                    }
+                    R::OuterEmpty => {
+                        "its outer loop is one vertex with no edge while the face holds \
+                         rings, so there is no region to place them in"
+                    }
+                    R::RingEmpty { .. } => {
+                        "a ring of it is one vertex with no edge, which bounds no region \
+                         and has no place in the chart; remove the lone vertex"
+                    }
+                    R::NoShift { .. } => {
+                        "no whole number of the chart's periods moves a ring of it inside \
+                         its outer loop"
+                    }
+                    R::Shifts { .. } => {
+                        "more than one whole number of the chart's periods moves a ring \
+                         of it inside its outer loop"
+                    }
+                    R::Copies { .. } => {
+                        "its outer loop spans more of the chart's periods than the ring \
+                         placement tries, or a ring of it lies more periods away than a \
+                         32-bit count holds"
+                    }
+                    R::Undecided { .. } => {
+                        "where a ring of it lies against its outer loop is undecided: a \
+                         point of the ring is within the tolerance band of the outer \
+                         loop along the chart, or the reading of the outer loop ran past \
+                         its work bounds (a boundary image whose box does not tighten), \
+                         or no window round the point has lever arms"
+                    }
+                    R::SplineTrimUnread { .. } => {
+                        "it is a spline face with a ring, and its trim is not read in \
+                         its chart"
+                    }
+                };
+                write!(
+                    f,
+                    "tessellate: a curved face's loops have no reading in one sheet of \
+                     its chart, so the trimmed lane has no domain to mesh — {why}",
+                )
+            }
             Self::EmptyLoop { .. } => f.write_str(
                 "tessellate: a face has an empty loop — that is a tier-1 \
                  scaffolding state; tessellation is defined on at-rest bodies, \
@@ -751,9 +860,12 @@ impl TessellateError {
                  not absorbed; model the body nearer the origin or ask for a coarser δ",
             ),
             Self::Triangulation { .. } => f.write_str(
-                "tessellate: the CDT rejected a point insertion on a face — a \
-                 non-finite or out-of-range chart coordinate, i.e. corrupt \
-                 geometry",
+                "tessellate: a face's constrained triangulation could not be built — \
+                 the CDT rejected a point or a boundary constraint (a non-finite or \
+                 out-of-range chart coordinate, or a side crossing another, i.e. \
+                 corrupt geometry), or a point the mesher placed landed on an \
+                 existing vertex, a boundary side or a crease line, which it neither \
+                 merges nor moves",
             ),
             Self::SelfTouchingTrimLoop { .. } => f.write_str(
                 "tessellate: a trimmed face's boundary passes exactly through \
@@ -857,16 +969,39 @@ impl TessellateError {
                  the run, not a statement about the body",
             ),
             Self::TrimLoopOrientation { .. } => f.write_str(
-                "tessellate: a trimmed face's boundary polygon in its chart winds \
-                 against the face's orientation, so it bounds the face's complement \
-                 — refused rather than meshed inside out; a tier-valid body does not \
-                 reach this, so it is a kernel defect",
+                "tessellate: a trimmed face's loops in its chart contradict the \
+                 face — its outer loop winds against the face's orientation, so it \
+                 would bound the face's complement, or a ring winds the same way as \
+                 its outer loop, where a ring bounds the face from inside and winds \
+                 the other way; a body whose loops agree with their faces does not \
+                 reach this, so it is a defect of the body's loops",
             ),
             Self::FoldedTriangle { .. } => f.write_str(
                 "tessellate: a trimmed face's triangle folds over the chord beside \
                  it and is wound against the face in 3-D — the mesh would be \
                  closed and wrong, so it is refused; a finer δ may clear it",
             ),
+            Self::UnresolvedWinding { unresolved, .. } => {
+                let crate::validate::Unresolved {
+                    corners: [a, b, c],
+                    height,
+                    allowance,
+                } = &**unresolved;
+                let at = |p: &[f64; 3]| format!("({:e}, {:e}, {:e})", p[0], p[1], p[2]);
+                write!(
+                    f,
+                    "tessellate: a face's patch holds a triangle whose winding is inside \
+                     the f64 rounding of its own corner positions, so its normal would be \
+                     rounding noise and the face is refused: its height over its longest \
+                     side is {height:e} m, and the rounding allowance at its coordinate \
+                     scale ({ulps} f64 epsilons of its farthest corner's distance from the \
+                     origin) is {allowance:e} m; its corners are {}, {} and {}",
+                    at(a),
+                    at(b),
+                    at(c),
+                    ulps = crate::cert::ROUNDING_ULPS,
+                )
+            }
             Self::BoundaryEar { .. } => f.write_str(
                 "tessellate: a trimmed face's patch keeps a triangle on three \
                  consecutive boundary chord points after its retries — the face \
@@ -878,10 +1013,6 @@ impl TessellateError {
                     SphereTrimCause::PastPole => {
                         "an edge's image runs past a chart pole or apex mid-edge, and \
                          the trimmed lane meets one only at a loop vertex"
-                    }
-                    SphereTrimCause::PoleInside => {
-                        "its loop winds about a chart pole or apex inside the face, and \
-                         the trimmed lane meshes a face that holds none inside it"
                     }
                     SphereTrimCause::SeamTwice => {
                         "its loop visits one vertex at two chart locations off a pole or \

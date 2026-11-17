@@ -548,7 +548,9 @@ fn line_meetings<T: Decide>(
             semi_u,
             semi_v,
         }) => conic(center, axis, u_ref, semi_u, semi_v),
-        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => Vec::new(),
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
+            Vec::new()
+        }
     }
 }
 

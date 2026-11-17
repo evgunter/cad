@@ -107,3 +107,7 @@ image alone
 (`a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest`),
 and the stored row of the same chord on the wall's face is the mint's
 climb too, so whichever is chosen should serve both.
+
+## Decided (Ev, PR 7032, 2026-11-17)
+
+Decided with `a-node-arcs-chord-misses-its-at-rest-chart-image`, whose "Decided" section holds the answer: one partner-blind image function of the carrier, the wall and the band, on the carrier's own knots, called by the trace, the mint and rest, with a continuation projection and no stored-fit fallback.

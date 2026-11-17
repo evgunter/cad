@@ -214,6 +214,11 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             face,
             r#loop: LoopKey::default(),
         },
+        ChartRegionError::ShortLoop {
+            face,
+            r#loop: LoopKey::default(),
+            vertices: 2,
+        },
         ChartRegionError::RayExhausted,
         ChartRegionError::WitnessSegmentCapExceeded {
             segments: crate::chart_region::WITNESS_SEGMENT_CAP + 1,
@@ -633,6 +638,10 @@ fn certify_errors() -> Vec<CertifyError> {
             verdict: negative_verdict(-1e-3),
         },
         CertifyError::WindingExceeded,
+        CertifyError::PeriodicView(geom::PeriodicViewError::Span {
+            asked: (0.5, 2.75),
+            window: (0.0, 2.0),
+        }),
         // A door's input interval, of no length and past a full turn.
         CertifyError::StatedInterval {
             refused: geom_brep::StatedSpan::Forward(geom_brep::ForwardReading::Decided(
@@ -3057,6 +3066,7 @@ mod tests {
                     | CertifyError::IntersectionSameSurface { .. }
                     | CertifyError::WrapOnNonPeriodic
                     | CertifyError::TangentCertificateUnsupported
+                    | CertifyError::PeriodicView(_)
                     | CertifyError::Band(_)
                     | CertifyError::Row {
                         refusal: geom_brep::RowRefusal::OffSide | geom_brep::RowRefusal::Singular,

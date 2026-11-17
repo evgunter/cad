@@ -3,9 +3,10 @@
 //! foot on one carrier is [`geom::Curve3::foot`]), and **the lower bound
 //! on the gap** the polished pair gives (`pose`'s module docs, "The gap's
 //! lower bound"). A polished parameter is a place to read, never a
-//! decision: every point it yields is read by [`super::Span::contact`],
-//! and what the window around it holds is read off [`bound`], never off
-//! whether the polish converged.
+//! decision: every pair it yields is read by the reader that polished it
+//! (the walk's stop as a pair, `Found::read_pair`; the pose's closest pair
+//! through its point, `Found::read`), and what the window around it holds
+//! is read off [`bound`], never off whether the polish converged.
 //!
 //! **At an enclosing scalar the search is `f64` structure**
 //! (`geom::projection_policy`'s "f64 structure + T payload"): a step
@@ -45,21 +46,71 @@ const MOVE: &str = "curve_pair_pose_move";
 /// pair (read at `T` at the iterate): the pair. A step whose value is a
 /// point is taken at `T`; one that is an enclosure moves the iterate by
 /// its middle, and the search is `f64` structure from there on (module
-/// docs). A step with no finite bracket, or one `keep` refuses, ends the
+/// docs). Where the normal system is singular (parallel tangents) the
+/// step is the least-norm one along the common tangent ([`least_norm`]);
+/// a step with no finite bracket even so, or one `keep` refuses, ends the
 /// search where it stands: the iterate has not moved, so the next step
-/// would be the same one.
+/// would be the same one. [`pair_held`] with nothing held, so the pose's
+/// closest pair (`Polish::closest`) takes the least-norm step too, where
+/// its system is singular. A closed-form pose reaches that only at an
+/// enclosing scalar, where `nn` straddles zero at rounding: its polish
+/// starts at a crossing of the other carrier's plane, where a line is
+/// never parallel to an in-plane tangent, and two conics' tangents are
+/// parallel only where their gap is across them, so the least-norm step
+/// (`û·w`) is zero.
 pub(super) fn pair<T: Decide>(
+    a: impl Fn(T) -> (Point3<T>, Vec3<T>),
+    b: impl Fn(T) -> (Point3<T>, Vec3<T>),
+    start: (T, T),
+    keep: impl Fn(T) -> bool,
+) -> (T, T) {
+    pair_held(a, b, start, keep, (None, None))
+}
+
+/// A parameter run a polish is held to, `None` for none.
+pub(super) type Hold<T> = Option<(T, T)>;
+
+/// [`pair`], **held** to the parameter runs `hold` names, one per
+/// carrier (`None` holds nothing): each iterate is clamped into its run,
+/// so a step that would leave it stops exactly at the run's end and the
+/// next step starts there. A held end is the run's own parameter,
+/// bit for bit, which the walk's one-sided window reads
+/// (`walk::held`).
+pub(super) fn pair_held<T: Decide>(
     a: impl Fn(T) -> (Point3<T>, Vec3<T>),
     b: impl Fn(T) -> (Point3<T>, Vec3<T>),
     (mut s, mut t): (T, T),
     keep: impl Fn(T) -> bool,
+    (hold_a, hold_b): (Hold<T>, Hold<T>),
 ) -> (T, T) {
+    let clamp =
+        |x: T, hold: Option<(T, T)>| hold.map_or(x, |(lo, hi)| x.max(lo.min(hi)).min(lo.max(hi)));
     let mut structure = false;
     for _ in 0..STEPS {
         let ((pa, da), (pb, db)) = (a(s), b(t));
         let (w, n) = (pb - pa, da.cross(db));
         let nn = n.dot(n);
         let (ds, dt) = (w.cross(db).dot(n) / nn, w.cross(da).dot(n) / nn);
+        let (ds, dt) = if mid(ds).is_some() && mid(dt).is_some() {
+            (ds, dt)
+        } else {
+            least_norm(w, da, db)
+        };
+        // A side whose step would leave its run is held at the run's end,
+        // and the other side steps alone against it: projected
+        // Gauss–Newton, so a pair closing on a held end is not left
+        // halving the gap on the free side.
+        let (ds, dt) = match (outside(s + ds, hold_a), outside(t + dt, hold_b)) {
+            (true, false) => {
+                let s1 = clamp(s + ds, hold_a);
+                (s1 - s, (a(s1).0 - pb).dot(db) / db.dot(db))
+            }
+            (false, true) => {
+                let t1 = clamp(t + dt, hold_b);
+                ((b(t1).0 - pa).dot(da) / da.dot(da), t1 - t)
+            }
+            _ => (ds, dt),
+        };
         let moved = da.norm() * ds.abs() + db.norm() * dt.abs();
         let (Some(ms), Some(mt)) = (mid(ds), mid(dt)) else {
             break;
@@ -76,8 +127,38 @@ pub(super) fn pair<T: Decide>(
         } else {
             (s, t) = (s + ds, t + dt);
         }
+        (s, t) = (clamp(s, hold_a), clamp(t, hold_b));
     }
     (s, t)
+}
+
+/// Whether `x` reaches past the run `hold` holds it to, read on
+/// brackets; `false` where nothing holds it or a bracket is poison.
+fn outside<T: Decide>(x: T, hold: Hold<T>) -> bool {
+    let Some((lo, hi)) = hold else {
+        return false;
+    };
+    match (
+        x.structure_bracket(),
+        lo.min(hi).structure_bracket(),
+        lo.max(hi).structure_bracket(),
+    ) {
+        (Some((x_lo, x_hi)), Some((lo, _)), Some((_, hi))) => x_lo < lo || x_hi > hi,
+        _ => false,
+    }
+}
+
+/// **The least-norm step where the tangents are parallel**: the step
+/// `(ds, dt)` of least length with `da·ds − db·dt = û(û·w)`, `û` along
+/// `da`, which is Gauss–Newton's where its normal system is singular.
+/// It moves the pair along the common tangent to close the gap's part
+/// along it, `(da·û, −db·û)·(û·w)/((da·û)² + (db·û)²)`. A place to
+/// read like every step, never a decision.
+fn least_norm<T: Decide>(w: Vec3<T>, da: Vec3<T>, db: Vec3<T>) -> (T, T) {
+    let u = da.normalize();
+    let (ka, kb) = (da.dot(u), db.dot(u));
+    let k = w.dot(u) / (ka.powi(2) + kb.powi(2));
+    (ka * k, -kb * k)
 }
 
 /// Whether `x`'s bracket is one point.
@@ -95,36 +176,76 @@ fn mid<T: Decide>(x: T) -> Option<f64> {
         .filter(|m| m.is_finite())
 }
 
-/// **The basin, and the window's bound** at the polished pair, `p` with
-/// its tangent `da` on the first carrier and `q` with `db` on the second
-/// (`pose`'s module docs, "The gap's lower bound"): every pair of the
-/// window lies within `span` metres of `(p, q)` along the carriers,
-/// `curvature` bounds the carriers' summed curvature there, and `e` is
-/// the band's escalation. The one spelling of the basin: the sine
-/// between the tangents less the turn over `span` is the sine's lower
-/// bound `s`, and the basin is `s − curvature · span > 0`, proved on
-/// `row` (levered by `lever` where the caller has one), which puts the
-/// window below the move's larger root. `None` where the basin is not
-/// proved. Otherwise the floor `|w·n̂| − bend`, the reach `m₋` and the
-/// bend; all three undecided (`−∞`, `+∞`, `+∞`) where the move's
-/// quadratic has no real root (`curve_pair_pose_move` not proved
-/// positive).
+/// **What a window reads of its polished pair along and across the
+/// carriers** (`pose`'s module docs, "The gap's lower bound" and "The
+/// one-sided window"): the sine `g` the along term reads, `|uα − vβ| ≥
+/// g·m`; the slack, the part of the gap a move along the carriers could
+/// still take up; and the height across, `|w·n̂|`, where a direction
+/// across both tangents is read.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Along<T> {
+    g: T,
+    slack: T,
+    across: Option<T>,
+}
+
+impl<T: Decide> Along<T> {
+    /// **The two-sided reading** at `p` with tangent `da` and `q` with
+    /// `db`: `g = sin φ` between the tangents, `n̂ = da×db/|da×db|`, the
+    /// slack `σ_w = |w − n̂(n̂·w)|` and the height `|w·n̂|`.
+    pub(super) fn two_sided((p, da): (Point3<T>, Vec3<T>), (q, db): (Point3<T>, Vec3<T>)) -> Self {
+        let n = da.cross(db).normalize();
+        let (along, slack) = geom::Line { origin: p, dir: n }.height_and_distance(q);
+        Self {
+            g: da.normalize().cross(db.normalize()).norm(),
+            slack,
+            across: Some(along.abs()),
+        }
+    }
+
+    /// **The one-sided reading** at a pair held at an end of each span:
+    /// `u` at `p` and `v` at `q` are the half-tangents pointing into the
+    /// spans, every pair of the window at arc `α, β ≥ 0` along them.
+    /// `g = √(1 − max(u·v, 0)²)`: `sin φ` while they part by less than a
+    /// right angle, `1` past it. The slack is the whole gap `|q − p|`, and
+    /// no direction across is read, so the window has no floor.
+    pub(super) fn one_sided((p, u): (Point3<T>, Vec3<T>), (q, v): (Point3<T>, Vec3<T>)) -> Self {
+        let cos = u.normalize().dot(v.normalize()).max(T::zero());
+        Self {
+            g: (T::one() - cos.powi(2)).max(T::zero()).sqrt(),
+            slack: (q - p).norm(),
+            across: None,
+        }
+    }
+}
+
+/// **The basin, and the window's bound** of a polished pair read
+/// `along` ([`Along::two_sided`] or [`Along::one_sided`]; `pose`'s module
+/// docs, "The gap's lower bound"): every pair of the window lies within
+/// `span` metres of the pair along the carriers, `curvature` bounds the
+/// carriers' summed curvature there, and `e` is the band's escalation.
+/// The one spelling of the basin, the move, the reach and the bend: the
+/// sine `g` less the turn over `span` is the sine's lower bound `s`, and
+/// the basin is `s − curvature · span > 0`, proved on `row` (levered by
+/// `lever` where the caller has one), which puts the window below the
+/// move's larger root. `None` where the basin is not proved. Otherwise
+/// the floor `|w·n̂| − bend` (`−∞` where no direction across is read),
+/// the reach `m₋` and the bend; all three undecided (`−∞`, `+∞`, `+∞`)
+/// where the move's quadratic has no real root (`curve_pair_pose_move`
+/// not proved positive).
 pub(super) fn bound<T: Decide>(
     (row, lever): (&'static str, Option<Lever<T>>),
-    (p, da): (Point3<T>, Vec3<T>),
-    (q, db): (Point3<T>, Vec3<T>),
+    along: Along<T>,
     curvature: T,
     (e, span): (T, T),
 ) -> Option<WindowBound<T>> {
-    let sine = da.normalize().cross(db.normalize()).norm() - curvature * span;
+    let sine = along.g - curvature * span;
     let basin = sine - curvature * span;
     let basin = lever.map_or_else(|| Margin::of(basin), |lever| Margin::levered(basin, lever));
     if prove(row, basin) != Ok(Sign::Positive) {
         return None;
     }
-    let n = da.cross(db).normalize();
-    let (along, slack) = geom::Line { origin: p, dir: n }.height_and_distance(q);
-    let excess = slack + e;
+    let excess = along.slack + e;
     let two = T::from_f64(2.0);
     let disc = sine.powi(2) - two * curvature * excess;
     if prove(MOVE, Margin::of(disc)) != Ok(Sign::Positive) {
@@ -135,7 +256,9 @@ pub(super) fn bound<T: Decide>(
     let reach = two * excess / (sine + disc.sqrt());
     let bend = curvature * reach.powi(2) / two;
     Some(WindowBound {
-        floor: along.abs() - bend,
+        floor: along
+            .across
+            .map_or_else(|| T::from_f64(f64::NEG_INFINITY), |h| h - bend),
         reach,
         bend,
     })
@@ -148,5 +271,111 @@ pub(super) fn undecided<T: Decide>() -> WindowBound<T> {
         floor: T::from_f64(f64::NEG_INFINITY),
         reach: T::from_f64(f64::INFINITY),
         bend: T::from_f64(f64::INFINITY),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use geom_core::{Point3, Vec3};
+
+    use super::{least_norm, pair_held};
+
+    /// **A polish at a collinear joint takes the least-norm step.** Two
+    /// segments of the `x` axis meet end to end at the origin, the first
+    /// over `s ∈ [0, 1]` and the second over `t ∈ [0, 1]`, and the polish
+    /// starts at `(0.9, 0.1)`. The tangents are parallel, so Gauss–Newton's
+    /// normal system is singular and its step has no value. The
+    /// least-norm step closes the gap along the common tangent, half on
+    /// each side, and held to the spans the pair stops at the joint:
+    /// `s` clamped exactly to `1`, `t` within rounding of `0` (the walk
+    /// then reads it as the end, `walk::at_end`). Red where a singular
+    /// system ends the polish where it stands.
+    #[test]
+    fn a_polish_at_a_collinear_joint_reaches_the_joint() {
+        let a = |s: f64| (Point3::new(s - 1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let b = |t: f64| (Point3::new(t, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let (s, t) = pair_held(
+            a,
+            b,
+            (0.9, 0.1),
+            |_| true,
+            (Some((0.0, 1.0)), Some((0.0, 1.0))),
+        );
+        assert!(
+            s == 1.0 && t.abs() <= 1e-15,
+            "the joint, to rounding: ({s}, {t})"
+        );
+    }
+
+    /// **The least-norm step closes the gap along the common tangent, half
+    /// on each side.** At a collinear joint with the gap `w = (0.2, 0, 0)`
+    /// from the first point to the second and both tangents `(1, 0, 0)`,
+    /// the step is `(0.1, −0.1)`: the first parameter forward and the
+    /// second back, which meet. Red where its sign or its split is lost
+    /// (the held polish's projected steps can mask either, so the step is
+    /// read here alone).
+    #[test]
+    fn the_least_norm_step_closes_the_gap_half_on_each_side() {
+        let (ds, dt) = least_norm(
+            Vec3::new(0.2, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        assert!(
+            (ds - 0.1).abs() <= 1e-15 && (dt + 0.1).abs() <= 1e-15,
+            "({ds}, {dt}) against (0.1, −0.1)"
+        );
+    }
+
+    /// **A polish whose both sides would leave their runs stops at both
+    /// ends.** The segment along `x` ending at the origin (`s ∈ [0, 1]`) and
+    /// a segment along `y` lifted `0.1` in `z` and starting at `(1, 1, 0.1)`
+    /// (`t ∈ [0, 1]`): the two lines' closest pair is at `s = 2`, `t = −1`,
+    /// past both runs. With both sides outside no projected step applies,
+    /// and the clamp holds the pair at `(1, 0)`, each run's end. Red where
+    /// the iterate is not clamped (it would leave both spans).
+    #[test]
+    fn a_polish_whose_both_sides_would_leave_stops_at_both_ends() {
+        let a = |s: f64| (Point3::new(s - 1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let b = |t: f64| (Point3::new(1.0, t + 1.0, 0.1), Vec3::new(0.0, 1.0, 0.0));
+        let (s, t) = pair_held(
+            a,
+            b,
+            (0.5, 0.5),
+            |_| true,
+            (Some((0.0, 1.0)), Some((0.0, 1.0))),
+        );
+        assert!(s == 1.0 && t == 0.0, "held at both ends: ({s}, {t})");
+    }
+
+    /// **A polish whose first side clamps steps the other alone.** The
+    /// first segment runs along the `x` axis to the origin (`s ∈ [0, 1]`);
+    /// the second is a line tilted `45°` in `xy` and lifted `0.1` in `z`,
+    /// whose closest approach to the first's line lies past the first's
+    /// end, at `s = 1.5`. Held, the first side stops at its end, and the
+    /// pair's closest second point is the foot of the origin on the
+    /// second line, `t = 0.5 − √2/4`, not the unconstrained `t = 0.5` the
+    /// two lines' own closest pair has. Red where the clamp alone is
+    /// taken, which leaves `t` at `0.5`.
+    #[test]
+    fn a_polish_whose_first_side_clamps_steps_the_second_alone() {
+        let h = 0.5f64.sqrt();
+        let a = |s: f64| (Point3::new(s - 1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let b = |t: f64| {
+            let d = Vec3::new(h, h, 0.0);
+            (Point3::new(0.5, 0.0, 0.1) + d * (t - 0.5), d)
+        };
+        let (s, t) = pair_held(
+            a,
+            b,
+            (0.5, 0.9),
+            |_| true,
+            (Some((0.0, 1.0)), Some((0.0, 1.0))),
+        );
+        let foot = 0.5 - 2f64.sqrt() / 4.0;
+        assert!(
+            s == 1.0 && (t - foot).abs() <= 1e-12,
+            "held at the first's end, the second at its foot: ({s}, {t}) against (1, {foot})"
+        );
     }
 }

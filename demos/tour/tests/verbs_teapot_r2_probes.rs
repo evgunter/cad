@@ -401,7 +401,7 @@ fn r2_ring_anatomy_on_a_drum() {
                         }
                         Curve3::Ellipse(..) => "ellipse".to_string(),
                         Curve3::Spiric { .. } => "spiric".to_string(),
-                        Curve3::Nurbs(_) => "nurbs".to_string(),
+                        Curve3::Nurbs(_) | Curve3::Periodic(_) => "nurbs".to_string(),
                     })
                     .unwrap_or_else(|| "?".to_string());
                 (carrier, p)

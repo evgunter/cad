@@ -61,7 +61,7 @@ fn harmonic_carrier<T: Decide>(carrier: &Curve3<T>) -> Result<(), PropsError> {
                    spiric lies on its plane and its torus only, whose faces take the \
                    spiric lane",
         }),
-        Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
+        Curve3::Nurbs(_) | Curve3::Periodic(_) => Err(PropsError::QuadratureUnsupported {
             what: "B-spline trim carrier with a harmonic image on the cylinder chart — a \
                    spline carrier's image there is projected, which the lane reads \
                    through the carrier itself; a harmonic one is never minted for it",
@@ -342,6 +342,7 @@ pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> O
             offset,
         },
         Curve3::Nurbs(n) => Curve3::Nurbs(std::sync::Arc::new(n.map_points(shift))),
+        Curve3::Periodic(n) => Curve3::Periodic(std::sync::Arc::new(n.map_points(shift))),
     })
 }
 
@@ -791,7 +792,10 @@ fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
             })?,
         // The carrier's certified speed sup over its whole domain, crossed
         // to metres over the edge's span.
-        Curve3::Nurbs(ref c) => {
+        Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+            let Some(c) = e.carrier.whole_net() else {
+                unreachable!("a spline has a net");
+            };
             let len = c.speed_upper_bound().to_meters(Interval::point(span));
             if !len.is_certified() {
                 return Err(PropsError::QuadratureUnsupported {

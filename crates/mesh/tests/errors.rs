@@ -99,7 +99,7 @@ test_utils::f6_variants! {
         UnsupportedNurbsFace,
         UnsupportedCurve,
         NullScaffoldEdge,
-        RingOnCurvedFace,
+        DomainUnread,
         EmptyLoop,
         MissingEntity,
         ResolutionOverflow,
@@ -116,6 +116,7 @@ test_utils::f6_variants! {
         Band,
         TrimLoopOrientation,
         FoldedTriangle,
+        UnresolvedWinding,
         BoundaryEar,
         SphereTrimShape,
     ];
@@ -151,6 +152,9 @@ const TESSELLATE_ERROR_FIELDS: &[&str] = &[
     "surface:",
     "error:",
     "cause:",
+    "unresolved:",
+    "corners:",
+    "height:",
 ];
 
 /// The Display contract (#1111): a façade consumer renders a
@@ -193,8 +197,22 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             vec!["scaffolding", "at-rest"],
         ),
         (
-            TessellateError::RingOnCurvedFace { face },
-            vec!["interior ring", "kernel bug"],
+            TessellateError::DomainUnread {
+                face,
+                cause: Box::new(topo::pcurves::RingPlacementError::OuterOpen {
+                    winding: topo::joint::Winding {
+                        deck: topo::Deck {
+                            u: 1,
+                            v: 0,
+                            twin: false,
+                        },
+                    },
+                }),
+            },
+            vec![
+                "one sheet of its chart",
+                "does not close in the face's chart",
+            ],
         ),
         (
             TessellateError::EmptyLoop { face },
@@ -295,11 +313,28 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         ),
         (
             TessellateError::TrimLoopOrientation { face },
-            vec!["winds against", "complement", "kernel defect"],
+            vec!["winds against", "complement", "a ring winds the same way"],
         ),
         (
             TessellateError::FoldedTriangle { face },
             vec!["folds over", "wound against"],
+        ),
+        (
+            TessellateError::UnresolvedWinding {
+                face,
+                unresolved: Box::new(mesh::validate::Unresolved {
+                    corners: [[1.0, 0.0, 0.0]; 3],
+                    height: 2.5e-16,
+                    allowance: 1.75e-15,
+                }),
+            },
+            vec![
+                "winding",
+                "rounding of its own corner positions",
+                "2.5e-16",
+                "1.75e-15",
+                "8 f64 epsilons",
+            ],
         ),
         (
             TessellateError::BoundaryEar { face },
@@ -309,9 +344,9 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             TessellateError::SphereTrimShape {
                 face,
                 edge,
-                cause: mesh::types::SphereTrimCause::PoleInside,
+                cause: mesh::types::SphereTrimCause::PastPole,
             },
-            vec!["trimmed lane", "pole or apex inside"],
+            vec!["trimmed lane", "past a chart pole or apex mid-edge"],
         ),
     ];
     assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);
@@ -398,9 +433,10 @@ fn the_single_column_refusal_prescribes_a_second_column_only_where_one_can_exist
 /// checked.
 ///
 /// The body is the washer with TWO faces poisoned into refusing —
-/// differently, so the two refusals are distinguishable — one at the
-/// head of the face arena and one at its tail. The answer must be the
-/// head's, at every thread count.
+/// differently, so the two refusals are distinguishable — the first of
+/// its ringless faces in arena order, and after it the last ringless face
+/// and, in turn, the last ringed one. The answer must be the first's, at
+/// every thread count.
 #[test]
 fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     use geom::Surface;
@@ -419,7 +455,10 @@ fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     // Two surfaces a washer's face cannot be. Both refuse INSIDE a
     // lane, which is the point: a poison the chord pass refuses (a
     // placeholder NURBS, say) never reaches the map and would test the
-    // order of a pass that is still serial.
+    // order of a pass that is still serial. So both poisoned faces are
+    // ringless: a curved face with a ring is the trimmed lane's, whose
+    // lattice the chord pass reads, and a plane's half-edges store no
+    // chart image for it to read.
     let sphere = || Surface::Sphere {
         center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
@@ -433,39 +472,169 @@ fn two_faces_refusing_differently_report_the_first_in_arena_order() {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
 
+    let cylinder = || Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 3.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+
     let clean = washer();
-    let n = clean.faces().count();
-    assert!(n >= 2, "the row needs a head and a tail face");
+    let ringed = |want: bool| -> Vec<usize> {
+        clean
+            .faces()
+            .enumerate()
+            .filter(|(_, (_, face))| face.rings.is_empty() != want)
+            .map(|(i, _)| i)
+            .collect()
+    };
+    let (ringless, holed) = (ringed(false), ringed(true));
+    let first = ringless[0];
+    // The tails: the last ringless face poisoned as a cone, and the last
+    // ringed face after the head poisoned as a cylinder, which the
+    // trimmed lane takes and refuses at its domain inside the map (a
+    // plane's half-edges store no chart image), past the chord pass,
+    // which lays no lattice beside a cylinder.
+    let mut tails = vec![(ringless[ringless.len() - 1], cone())];
+    tails.extend(
+        holed
+            .last()
+            .filter(|&&i| i > first)
+            .map(|&i| (i, cylinder())),
+    );
+    assert!(
+        tails.len() == 2 && tails.iter().all(|&(i, _)| i > first),
+        "the row needs a head face and a ringless and a ringed tail"
+    );
 
     let mut head_only = clean.clone();
-    poison(&mut head_only, 0, sphere());
+    poison(&mut head_only, first, sphere());
     let head =
         tessellate(&head_only, 0.05, Tol::witness()).expect_err("the poisoned head face refuses");
 
-    let mut tail_only = clean.clone();
-    poison(&mut tail_only, n - 1, cone());
-    let tail =
-        tessellate(&tail_only, 0.05, Tol::witness()).expect_err("the poisoned tail face refuses");
-    assert_ne!(
-        format!("{head:?}"),
-        format!("{tail:?}"),
-        "the two poisons must refuse differently, or this row proves nothing"
-    );
-
-    let mut both = clean;
-    poison(&mut both, 0, sphere());
-    poison(&mut both, n - 1, cone());
-    for threads in [1usize, 4] {
-        let got = rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build()
-            .expect("a rayon pool of the requested width")
-            .install(|| tessellate(&both, 0.05, Tol::witness()).expect_err("both faces refuse"));
-        assert_eq!(
-            format!("{got:?}"),
+    for (last, surface) in tails {
+        let mut tail_only = clean.clone();
+        poison(&mut tail_only, last, surface.clone());
+        let tail = tessellate(&tail_only, 0.05, Tol::witness())
+            .expect_err("the poisoned tail face refuses");
+        assert_ne!(
             format!("{head:?}"),
-            "at {threads} thread(s) the reported refusal is the LAST face's, not the \
-             first in arena order — the fold is taking the map's order"
+            format!("{tail:?}"),
+            "the two poisons must refuse differently, or this row proves nothing"
         );
+
+        let mut both = clean.clone();
+        poison(&mut both, first, sphere());
+        poison(&mut both, last, surface);
+        for threads in [1usize, 4] {
+            let got = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .expect("a rayon pool of the requested width")
+                .install(|| tessellate(&both, 0.05, Tol::witness()).expect_err("both refuse"));
+            assert_eq!(
+                format!("{got:?}"),
+                format!("{head:?}"),
+                "at {threads} thread(s) the reported refusal is the LAST face's, not the \
+                 first in arena order — the fold is taking the map's order"
+            );
+        }
     }
+}
+
+/// **Each cause of `DomainUnread` says its own thing.** The refusal
+/// carries the ring door's cause (`topo::pcurves::RingPlacementError`),
+/// and its sentence is the cause's: each names what is true of a body
+/// that raises it, no two are one sentence, and each cause's
+/// `name()` is its own word.
+#[test]
+fn each_domain_unread_cause_has_its_own_sentence_and_word() {
+    use topo::pcurves::{RingPlacementError as R, SplineTrimGap};
+    let (face, ring) = (topo::FaceKey::default(), topo::LoopKey::default());
+    let winding = topo::joint::Winding {
+        deck: topo::Deck {
+            u: 1,
+            v: 0,
+            twin: false,
+        },
+    };
+    let gap = topo::pcurves::LiftGap {
+        half_edge: topo::HalfEdgeKey::default(),
+    };
+    let cases = [
+        (R::Gap(gap), "gap", "has no lift in the face's chart"),
+        (
+            R::OuterOpen { winding },
+            "outer_open",
+            "its outer loop does not close",
+        ),
+        (
+            R::RingOpen { ring, winding },
+            "ring_open",
+            "a ring of it does not close",
+        ),
+        (
+            R::RingEmpty { ring },
+            "ring_empty",
+            "a ring of it is one vertex",
+        ),
+        (R::OuterEmpty, "outer_empty", "its outer loop is one vertex"),
+        (R::NoShift { ring }, "no_shift", "no whole number"),
+        (R::Shifts { ring }, "shifts", "more than one whole number"),
+        (
+            R::Copies { ring },
+            "copies",
+            "more of the chart's periods than",
+        ),
+        (
+            R::Undecided { ring, cause: None },
+            "undecided",
+            "is undecided",
+        ),
+        (
+            R::SplineTrimUnread {
+                ring: None,
+                cause: SplineTrimGap::Placeholder,
+            },
+            "spline_trim_unread",
+            "spline face with a ring",
+        ),
+    ];
+    // Every variant, numbered by a match with no wildcard: a cause added
+    // to the enum stops this row compiling until it is numbered here, and
+    // then reds until it has a case above.
+    let variant = |c: &R| match c {
+        R::Gap(_) => 0,
+        R::OuterOpen { .. } => 1,
+        R::RingOpen { .. } => 2,
+        R::OuterEmpty => 3,
+        R::RingEmpty { .. } => 4,
+        R::NoShift { .. } => 5,
+        R::Shifts { .. } => 6,
+        R::Copies { .. } => 7,
+        R::Undecided { .. } => 8,
+        R::SplineTrimUnread { .. } => 9,
+    };
+    let mut numbered: Vec<usize> = cases.iter().map(|(c, _, _)| variant(c)).collect();
+    numbered.sort_unstable();
+    assert_eq!(numbered, (0..10).collect::<Vec<_>>(), "one case per cause");
+    let mut sentences = Vec::new();
+    for (cause, word, says) in cases {
+        let text = TessellateError::DomainUnread {
+            face,
+            cause: Box::new(cause),
+        }
+        .to_string();
+        assert!(text.contains(says), "{word}: `{says}` in {text}");
+        assert_eq!(cause.name(), word, "{cause:?}");
+        sentences.push(text);
+    }
+    let mut distinct = sentences.clone();
+    distinct.sort();
+    distinct.dedup();
+    assert_eq!(
+        distinct.len(),
+        sentences.len(),
+        "no two causes say one thing"
+    );
 }

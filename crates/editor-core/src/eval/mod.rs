@@ -3933,7 +3933,8 @@ pub enum RecordMispairing {
     /// the record and the document refused to canonicalize, so which
     /// version the record read is not known.
     Unpinned,
-    /// The record read another version of the document.
+    /// The record read another version of the document, or, inside a
+    /// part, a document of other content under the part's pin.
     Revision,
     /// The record decided at another tolerance.
     Tolerance,
@@ -3958,9 +3959,10 @@ impl core::fmt::Display for RecordMispairing {
                 "the build of record carries no content pin to say which version of the \
                  document it read",
             ),
-            Self::Revision => {
-                f.write_str("the build of record read another version of the document")
-            }
+            Self::Revision => f.write_str(
+                "the build of record read another version of the document, or of a part, \
+                 another document under the part's pin",
+            ),
             Self::Tolerance => f.write_str("the build of record decided at another tolerance"),
             Self::Options => f.write_str(
                 "the build of record was built over other options (a parameter box, symbols, \
@@ -4112,6 +4114,39 @@ pub(crate) fn record_pairing<B: topo::AtRestPolicy + Decide>(
     RecordBinding::of(doc, record, opts, tol).map(|_| ())
 }
 
+/// **Whether the content the record read is the run's**, by content pin:
+/// `theirs` is the record's pin (none where it was not pinned), `ours`
+/// the run's document's. The one spelling, for a whole evaluation's
+/// pairing ([`RecordBinding::of`]) and a part's ([`content_pairing`]).
+fn pin_pairing(
+    theirs: Option<&Result<crate::ident::ContentPin, crate::persist::PersistError>>,
+    ours: Result<crate::ident::ContentPin, crate::persist::PersistError>,
+) -> Result<(), RecordMispairing> {
+    match (theirs, ours) {
+        (Some(Ok(theirs)), Ok(ours)) if *theirs == ours => Ok(()),
+        (Some(Ok(_)), Ok(_)) => Err(RecordMispairing::Revision),
+        _ => Err(RecordMispairing::Unpinned),
+    }
+}
+
+/// **Whether two runs of a part read one content**: `theirs` the
+/// document the record's build read, `ours` the document this run
+/// resolved under the same key ([`pin_pairing`]). One document is one
+/// content without a canonicalization.
+pub(crate) fn content_pairing(
+    theirs: &Arc<Doc<ProfileProgram>>,
+    ours: &Arc<Doc<ProfileProgram>>,
+    tol: Tol,
+) -> Result<(), RecordMispairing> {
+    if Arc::ptr_eq(theirs, ours) {
+        return Ok(());
+    }
+    pin_pairing(
+        Some(&crate::persist::content_pin(theirs, tol)),
+        crate::persist::content_pin(ours, tol),
+    )
+}
+
 /// **What a dual evaluation reads of its build of record**: the nodes
 /// it built no value at, and its build of each part, which the run's
 /// part store binds each part's own run to.
@@ -4138,11 +4173,7 @@ impl RecordBinding {
         if record.whole_refusal {
             return Err(RecordMispairing::NotABuild);
         }
-        match (&record.pin, crate::persist::content_pin(doc, tol)) {
-            (Some(Ok(theirs)), Ok(ours)) if *theirs == ours => {}
-            (Some(Ok(_)), Ok(_)) => return Err(RecordMispairing::Revision),
-            _ => return Err(RecordMispairing::Unpinned),
-        }
+        pin_pairing(record.pin.as_ref(), crate::persist::content_pin(doc, tol))?;
         let ours = tolerance_of(tol);
         if (record.tolerance.eps.to_bits(), record.tolerance.k.to_bits())
             != (ours.eps.to_bits(), ours.k.to_bits())
@@ -4185,23 +4216,28 @@ impl RecordBinding {
     }
 
     /// `doc`'s run inside a part, bound to `tree`, the build of record's
-    /// run of the same document ([`parts::Refusals`]): one pin and one ε,
-    /// so its pairing is the row's key.
+    /// run of the same part ([`parts::Refusals`]), or why `tree` is not a
+    /// build of it. The row's key says one pin and one ε; the pairing
+    /// also reads the content, since the record's resolver and the run's
+    /// each answered the pin, and a resolver that answered it with other
+    /// content handed the two runs different documents
+    /// ([`RecordMispairing::Revision`]).
     pub(crate) fn of_part(
-        doc: &Doc<ProfileProgram>,
+        doc: &Arc<Doc<ProfileProgram>>,
         tree: &parts::Refusals,
-        eps_bits: u64,
-    ) -> Self {
+        tol: Tol,
+    ) -> Result<Self, RecordMispairing> {
+        content_pairing(&tree.doc, doc, tol)?;
         let refused = tree
             .nodes
             .iter()
             .copied()
-            .chain(Self::partless(doc, &tree.parts, eps_bits))
+            .chain(Self::partless(doc, &tree.parts, tol.eps().to_bits()))
             .collect();
-        Self {
+        Ok(Self {
             refused,
             parts: Arc::clone(&tree.parts),
-        }
+        })
     }
 
     /// The instances of `doc` whose part the record holds no build of:
@@ -4300,13 +4336,14 @@ pub(crate) enum PassTwo {
 /// anything is the top's part rows, carried from its prior.
 ///
 /// `record` binds the run to the build of record's run of the same
-/// document, where the descent is a dual's ([`RecordBinding::of_part`]).
+/// document, where the descent is a dual's, or refuses every node where
+/// that run was not a build of this one ([`RecordBinding::of_part`]).
 pub(crate) fn evaluate_nested<T>(
     doc: &Doc<ProfileProgram>,
     cancel: &CancelToken,
     opts: &EvalOptions,
     reached: parts::Reached<T>,
-    record: Option<&RecordBinding>,
+    record: Option<Result<&RecordBinding, &RecordMispairing>>,
     pin: &crate::ident::ContentPin,
     tol: Tol,
 ) -> Evaluation<T>
@@ -4319,7 +4356,7 @@ where
         cancel,
         opts,
         Some((reached, pin)),
-        record.map(Ok),
+        record,
         PassTwo::SkippedAtF64,
         tol,
     )
@@ -5044,7 +5081,16 @@ fn eval_any<T>(
 where
     T: EvalScalar,
 {
-    let prior = prior.and_then(|p| p.value(id));
+    // An instance node's keys name its part by `DocRef` alone, so its
+    // prior value is reused only where this run reads the very part row
+    // the prior carried: a row rebuilt here may be other content under
+    // the same pin ([`parts::Reached::carried_from`]).
+    let prior = prior
+        .filter(|p| {
+            parts::instantiated(doc, id)
+                .is_none_or(|part| op_env.parts.carried_from(&p.parts, &part, tol))
+        })
+        .and_then(|p| p.value(id));
     let step = match chains.get(&id) {
         Some(crate::repetition::Reached::Unrelated(a, b)) => NodeStep {
             result: NodeResult::Failed(NodeError {

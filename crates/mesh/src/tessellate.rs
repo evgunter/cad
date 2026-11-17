@@ -150,8 +150,9 @@ impl Patch {
 /// [`TessellateError`] (closed enum): invalid δ, the `Nurbs`
 /// placeholder, described NURBS faces outside the trimmed-NURBS
 /// inventory (illegal-rational / C⁰-creased — `nurbs_cert`), unsupported
-/// carriers, rings on curved faces, a curved face whose iso domain is
-/// not its own UV rectangle, empty loops, dangling keys, resolution
+/// carriers, a curved face whose loops have no reading in one sheet of
+/// its chart, a curved face whose iso domain is not its own UV
+/// rectangle, empty loops, dangling keys, resolution
 /// overflow, certificate failure, CDT insertion failure.
 pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, TessellateError> {
     tessellate_impl(body, chordal, tol, None).map(|(mesh, _)| mesh)
@@ -213,7 +214,9 @@ pub(crate) enum Lane {
     /// grid on a swept analytic chart.
     Curved,
     /// `trimmed::tessellate_trimmed`: the pcurve-driven lane, on a
-    /// cylinder chart with a trim carrier or on any NURBS chart.
+    /// face that is no iso-rectangle of its analytic chart (a ring, a
+    /// trim carrier, a tilted circle on a sphere, a straight side holding
+    /// a point) or on any NURBS chart.
     Trimmed,
 }
 
@@ -234,9 +237,10 @@ pub(crate) enum Lane {
 /// certifies against the DESCRIPTION is a separate statement, and this
 /// pass makes the plain one.
 ///
-/// Structural routing (M5 PR 11): a conic/B-spline trim carrier means
-/// the face is not an iso-rectangle — the pcurve-driven trimmed lane
-/// takes it. The converse does NOT follow: this is a test on carrier
+/// Structural routing: a curved face with a ring is no iso-rectangle,
+/// and the trimmed lane, which reads every loop of a face's domain, takes
+/// it. So does a face whose outer loop has a conic/B-spline trim carrier
+/// (M5 PR 11). The converse does NOT follow: this is a test on carrier
 /// KINDS, and iso carriers (`Line`, `Circle`) can bound a
 /// NON-rectangular domain — a keyway or milled flat on a cylinder is
 /// exactly that shape, and nothing on this path screens loop SHAPE. So
@@ -248,18 +252,55 @@ pub(crate) enum Lane {
 /// (`walk::require_a_meridian` and `walk::require_two_columns`), which
 /// is why this dispatch can hand an iso boundary over without deciding
 /// anything about its shape.
+///
+/// One shape is decided here: a cylinder or cone face whose straight
+/// side holds a point between its ends, which the rectangle lane's ruled
+/// arms cannot take (`walk::splits_a_straight_side`, the one reader of
+/// `band` here). Such a face is the trimmed lane's.
 pub(crate) fn lane_of(
     body: &Body<f64>,
     fk: FaceKey,
     surface: &Surface<f64>,
+    band: Band,
 ) -> Result<Lane, TessellateError> {
     Ok(match *surface {
         Surface::Nurbs(_) | Surface::Approx(_) => Lane::Trimmed,
         Surface::Plane { .. } => Lane::Planar,
+        _ if has_ring(body, fk)? => Lane::Trimmed,
         _ if crate::trimmed::has_trim_carrier(body, fk)? => Lane::Trimmed,
         Surface::Sphere { .. } if crate::trimmed::has_tilted_circle(body, fk)? => Lane::Trimmed,
+        _ if crate::walk::splits_a_straight_side(body, fk, surface, band)? => Lane::Trimmed,
         _ => Lane::Curved,
     })
+}
+
+/// Whether face `fk` holds a ring. A curved face with one is no swept
+/// rectangle, whatever its carriers, so the dispatch sends it to the
+/// trimmed lane, which reads its every loop.
+fn has_ring(body: &Body<f64>, fk: FaceKey) -> Result<bool, TessellateError> {
+    body.get_face(fk)
+        .map(|face| !face.rings.is_empty())
+        .ok_or(TessellateError::MissingEntity { what: "face" })
+}
+
+/// A face's lane with what it runs on: the trimmed lane carries the
+/// face's domain, read once (`trimmed::face_domain`), which the memo key
+/// folds and the lane triangulates.
+enum Route {
+    Planar,
+    Curved,
+    Trimmed(topo::pcurves::FaceLift<f64>),
+}
+
+impl Route {
+    /// The trimmed lane's domain; `None` on the other lanes, which read
+    /// none.
+    fn domain(&self) -> Option<&topo::pcurves::FaceLift<f64>> {
+        match self {
+            Self::Trimmed(lift) => Some(lift),
+            Self::Planar | Self::Curved => None,
+        }
+    }
 }
 
 /// A face's surface ([`Body::face_surface`]), a stale face key named as
@@ -315,8 +356,9 @@ fn tessellate_impl(
     let ambient = tol;
     let eps = Eps::at(tol);
     // Props' decision band, built once at operation entry as
-    // `Band::linear` prescribes; the curved lane's shape door is its
-    // only consumer (`SizingTols::band`). Eager on purpose: a run whose
+    // `Band::linear` prescribes, for props' predicates
+    // (`SizingTols::band` names the sites; the dispatch and the chord
+    // pass ask the shape door through `lane_of`). Eager on purpose: a run whose
     // ε cannot form a band refuses every body alike, the all-planar
     // ones included, rather than meshing until the first curved face
     // (`TessellateError::Band` says why).
@@ -338,7 +380,12 @@ fn tessellate_impl(
     // Chord pass: per-edge polylines, computed once (crate docs);
     // `chord_ts` is the matching parameter schedule (the trimmed lane
     // evaluates pcurves on it — one derivation, both consumers).
-    let chords = compute_chords(body, chordal, &vids, &mut positions, &mut bounds)?;
+    let tol = SizingTols {
+        delta: chordal,
+        eps,
+        band,
+    };
+    let chords = compute_chords(body, &tol, &vids, &mut positions, &mut bounds)?;
     // Every id a face can SHARE with another face is now minted:
     // topology vertices, then chord points, then (per face, below) that
     // face's own interior grid. So a shared id is exactly an id below
@@ -396,11 +443,6 @@ fn tessellate_impl(
     // 54.1 MB — +18 % where it shows, on a figure the mesh value itself
     // dominates. A body with MANY faces pays less, not more: the
     // patches are smaller.
-    let tol = SizingTols {
-        delta: chordal,
-        eps,
-        band,
-    };
     let faces: Vec<FaceKey> = body.faces().map(|(fk, _)| fk).collect();
     // The meter's arming as a value: a lane runs on a worker thread,
     // which nobody armed (`budget`'s module docs).
@@ -440,9 +482,21 @@ fn tessellate_impl(
                             Ok(surface) => surface,
                             Err(error) => return (None, Err(error)),
                         };
-                        let lane = match lane_of(body, fk, surface) {
+                        let lane = match lane_of(body, fk, surface, tol.band) {
                             Ok(lane) => lane,
                             Err(error) => return (None, Err(error)),
+                        };
+                        // The trimmed lane's domain, read from the door once,
+                        // here, and handed to the memo key and the lane
+                        // alike (`trimmed::face_domain`); its miss is the
+                        // lane's refusal.
+                        let route = match lane {
+                            Lane::Trimmed => match crate::trimmed::face_domain(body, fk, &tol) {
+                                Ok(lift) => Route::Trimmed(lift),
+                                Err(error) => return (None, Err(error)),
+                            },
+                            Lane::Planar => Route::Planar,
+                            Lane::Curved => Route::Curved,
                         };
                         // The lanes, each over `shared` — the whole of what
                         // a face reads from outside itself.
@@ -453,12 +507,20 @@ fn tessellate_impl(
                         // passed: imported axes carry translator noise that
                         // projects valid boundaries below spade's
                         // coordinate domain.
-                        let run = || match lane {
-                            Lane::Trimmed => crate::trimmed::tessellate_trimmed(
-                                body, fk, surface, &chords, shared, &tol, &bounds,
+                        let run = || match &route {
+                            Route::Trimmed(lift) => crate::trimmed::tessellate_trimmed(
+                                body,
+                                fk,
+                                surface,
+                                &chords,
+                                shared,
+                                &tol,
+                                &bounds,
+                                lift,
+                                crate::trimmed::BOUNDARY_CLEARANCE,
                             ),
-                            Lane::Planar => tessellate_planar(body, fk, &chords.ids, shared),
-                            Lane::Curved => {
+                            Route::Planar => tessellate_planar(body, fk, &chords.ids, shared),
+                            Route::Curved => {
                                 tessellate_curved(body, fk, surface, &chords.ids, shared, &tol)
                             }
                         };
@@ -466,7 +528,15 @@ fn tessellate_impl(
                             return (None, run().map(Placement::Lane));
                         };
                         let inputs = match FaceInputs::gather(
-                            body, fk, lane, surface, &chords, shared, chordal, ambient,
+                            body,
+                            fk,
+                            lane,
+                            surface,
+                            &chords,
+                            shared,
+                            chordal,
+                            ambient,
+                            route.domain(),
                         ) {
                             Ok(inputs) => inputs,
                             Err(error) => return (None, Err(error)),
@@ -519,10 +589,27 @@ fn tessellate_impl(
         match face.place {
             // Each face's interior takes the arena as it stands at that
             // face's turn, in face-arena order (D9).
-            Ok(placement) => patches.push(FacePatch {
-                face: face.face,
-                triangles: placement.place(&mut positions),
-            }),
+            //
+            // THE JOIN, where `[mesh.winding]` is read: every triangle of
+            // every face, whichever lane made it and whether the patch is
+            // the lane's or the memo's, against the positions it has in
+            // the mesh. A face with a triangle f64 cannot wind refuses.
+            Ok(placement) => {
+                let triangles = placement.place(&mut positions);
+                if let Some((_, unresolved)) =
+                    crate::validate::first_unresolved(&positions, &triangles)
+                {
+                    refusal = Some(TessellateError::UnresolvedWinding {
+                        face: face.face,
+                        unresolved: Box::new(unresolved),
+                    });
+                    break;
+                }
+                patches.push(FacePatch {
+                    face: face.face,
+                    triangles,
+                });
+            }
             // The first refusal in arena order. Its own memo work and
             // meter rows are already in hand — the serial loop counted
             // and recorded them before it ran the lane — and no later

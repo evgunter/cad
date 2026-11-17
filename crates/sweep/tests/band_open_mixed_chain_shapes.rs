@@ -776,10 +776,22 @@ fn a_short_link_leaning_back_refuses_as_its_feet_cross() {
         y.abs() < 1e-9 || (x > 1.95 && y < R + l - 1e-9) || (x > 1.7 && y < R + 1e-9 && y > 1e-9)
     });
     assert_eq!(run.len(), 3, "line, arc, short line");
-    let got = fillet_edges(&at_rest(&body, tol()), &run, 0.1, tol()).map_err(|r| r.error);
-    assert!(
-        matches!(&got, Err(BlendError::UnsupportedRunOut { detail, .. })
-            if detail.contains("between a junction and its other end")),
-        "the short arm's feet cross, got {got:?}"
-    );
+    for (verb, got) in [
+        (
+            "fillet",
+            fillet_edges(&at_rest(&body, tol()), &run, 0.1, tol()),
+        ),
+        (
+            "chamfer",
+            sweep::blend::chamfer_edges(&at_rest(&body, tol()), &run, 0.1, tol()),
+        ),
+    ] {
+        let got = got.map_err(|r| r.error);
+        assert!(
+            matches!(&got, Err(BlendError::UnsupportedRunOut { detail, .. })
+                if detail.contains("ending at a junction or a turn")
+                    && detail.ends_with("reduce the radius or setback")),
+            "{verb}: the short arm's feet cross, got {got:?}"
+        );
+    }
 }

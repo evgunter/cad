@@ -1323,14 +1323,15 @@ fn the_frame_lever_is_the_kinds_radius() {
     }
 }
 
-/// **An elliptic arc's perimeter lever is `|Δ|` times its larger
-/// semi-axis** (`loop_winding::conic_segment_term`, read by the merge's
-/// role assigner, check 6 and the boolean join's `ring_run_ccw`), on an
-/// ellipse the mint certifies with a stored order the lever must not
-/// trust, `minor > major`. A lever of `|Δ|·major` reads it too short, a
+/// **An elliptic arc's perimeter lever holds the arc, whichever
+/// semi-axis is stored first** (`geom_brep::props::closed_segment_term`,
+/// read by the merge's role assigner, check 6 and the boolean join's
+/// `ring_run_ccw`), on an ellipse the mint certifies with `minor >
+/// major`. The lever is no less than an inscribed polygon's length and
+/// within a tenth of it. A lever of `|Δ|·major` reads it too short, a
 /// lower bound on the arc length, which overstates the metered width.
 #[test]
-fn the_elliptic_lever_is_the_larger_semi_axis() {
+fn the_elliptic_lever_holds_the_arc_whichever_semi_axis_is_larger() {
     use geom::Curve3;
     let tol = Tol::witness();
     let pi = core::f64::consts::PI;
@@ -1346,12 +1347,18 @@ fn the_elliptic_lever_is_the_larger_semi_axis() {
         .get_curve_geom(body.get_edge(edge).unwrap().curve)
         .and_then(crate::null::CurveGeom::certified)
         .unwrap();
-    let (_, lever) =
-        crate::loop_winding::conic_segment_term((curve.carrier(), curve.params()), true).unwrap();
-    assert_eq!(
-        lever,
-        pi * 0.7,
-        "the lever is |Δ| times the larger semi-axis"
+    let lever = geom_brep::props::closed_segment_term((curve.carrier(), curve.params()), true)
+        .unwrap()
+        .length;
+    let at = |k: u32| curve.carrier().eval(pi * f64::from(k) / 4096.0);
+    let polygon: f64 = (0..4096).map(|k| (at(k + 1) - at(k)).norm()).sum();
+    assert!(
+        pi * 0.5 < polygon,
+        "the premise: the first-stored semi-axis reads under the arc's {polygon}"
+    );
+    assert!(
+        polygon <= lever && lever < 1.1 * polygon,
+        "the lever {lever} against an inscribed polygon's {polygon}"
     );
 }
 

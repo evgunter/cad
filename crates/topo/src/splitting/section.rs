@@ -233,8 +233,9 @@ impl<T: Real> SectionError<T> {
             Self::WindingUndecided { diag: None, .. } => write!(
                 f,
                 "whether a polygon of the section is an outline or a hole cannot be read: it \
-                 encloses no area, or has an edge whose winding the kernel does not read (a \
-                 NURBS edge, or spiric edges pinched near a torus's inner equator). Recourse: \
+                 encloses no area, or has an edge whose winding the kernel does not read (spiric \
+                 edges pinched near a torus's inner equator, or a spline edge whose area it \
+                 cannot enclose). Recourse: \
                  {SECTION_PLANE_RECOURSE}"
             ),
             Self::UnplacedHole { .. } => write!(
@@ -570,7 +571,9 @@ fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, S
                     }
                 }
                 geom::Curve3::Line(_) => HalfCarrier::Chord,
-                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => HalfCarrier::Unread,
+                geom::Curve3::Spiric { .. }
+                | geom::Curve3::Nurbs(_)
+                | geom::Curve3::Periodic(_) => HalfCarrier::Unread,
             },
         };
         halves.push(Half {

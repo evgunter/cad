@@ -17,6 +17,9 @@ are one-off pictures from one box, not a render lane:
 | `bracket-fillet-corners.png` (its boss's base near `y = 0.5`: a flush and an inset mixed corner) | `band/bracket-all-three` at `81ea1d1f28` | 0.05 |
 | `bracket-chamfer-iso.png` (the bore-less bracket chamfered all round, two iso views) | `band/bracket-all-three` at `81ea1d1f28` | 0.05 |
 | `bracket-chamfer-corners.png` (its boss's base near `y = 0.5`) | `band/bracket-all-three` at `81ea1d1f28` | 0.05 |
+| `odd-plus-one-flush.png`, `odd-plus-one-inset.png` (the right-angle flush and inset corners, the odd edge with one pair edge chamfered, before and after) | `band/bracket-odd-plus-one`, PR 7038's fix pass | 0.1 |
+| `odd-plus-one-flush-120.png` (the flush corner at a 120° plan angle) | `band/bracket-odd-plus-one`, PR 7038's fix pass | 0.1 |
+| `odd-plus-one-bracket.png` (the bore-less bracket, the odd edge with one other at all four mixed corners: whole, both corners near `y = 0.5`, the inset one near `y = 3.5`) | `band/bracket-odd-plus-one`, PR 7038's fix pass | 0.05 |
 
 What did not build is in the PR that added this page.
 
@@ -36,6 +39,13 @@ and `demos/.venv/bin/python -I docs/renders/band-2026-11/draw_soup.py
 docs/renders/band-2026-11` draws them, each face coloured by its
 surface (plane grey, cylinder blue, torus orange, sphere green). The
 fix pass on PR 6873 changed no geometry of either body.
+
+The odd-plus-one pictures come from soups too: `odd_plus_one_soups.rs`
+reads `band_mixed_corner_odd_plus_one`'s own fixtures, so it runs as a
+module of `crates/sweep/tests/all.rs` (its header says how), dumping
+each scene's `-before.soup` and `-after.soup` here, and
+`demos/.venv/bin/python -I docs/renders/band-2026-11/draw_soup.py
+docs/renders/band-2026-11 odd-plus-one` draws each pair side by side.
 
 `make-stl.sh` builds `scenes.rs` in a throwaway crate outside the repo,
 so this directory adds no cargo root.

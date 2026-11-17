@@ -47,3 +47,7 @@ plane's lane was left on its degree-1 image here. What rest's image of
 a fitted arc should be, for both lanes, is the choice
 `a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung`
 records.
+
+## Decided (Ev, PR 7032, 2026-11-17)
+
+Decided with `a-node-arcs-chord-misses-its-at-rest-chart-image`, whose "Decided" section holds the answer: one partner-blind image function of the carrier, the wall and the band, on the carrier's own knots, called by the trace, the mint and rest, with a continuation projection and no stored-fit fallback.

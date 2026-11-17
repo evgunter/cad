@@ -1273,19 +1273,43 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner,
      blending all three edges where they round alike, two that round alike meeting on the third \
      or clearly apart, or one ending at a flat face, requesting its whole smooth run, in one \
      operation";
+/// The recourse when a straight link is too short for the feet its two
+/// ends set on its trimline (`junction::JUNCTION_FEET_CROSS`): the
+/// size is too large for the edge, so a smaller one, or a longer edge,
+/// parts them. A mixed corner's pair edge chamfered with its odd edge
+/// is one such link, its foot on `E` standing `s(1 + tan(φ/2))` along
+/// it (`band_mixed_corner_odd_plus_one`).
+pub const FEET_CROSS_RECOURSE: &str = "the size is too large for this edge: use a smaller size, \
+     or a longer edge, so the feet its two ends set on its trimline stand apart";
+
+/// The recourse a run-out refusal appends: the too-short link's own,
+/// else the corner's.
+fn run_out_recourse(detail: &str) -> &'static str {
+    if detail == junction::JUNCTION_FEET_CROSS {
+        FEET_CROSS_RECOURSE
+    } else {
+        FILLET3_CORNER_RECOURSE
+    }
+}
+
 /// The recourse at a mixed-convexity corner requested in a way that does
-/// not build ([`CornerConfig::MixedConvexity`]). It names the three
-/// requests there that build, one edge alone (the cut-off), the two
-/// edges that round alike (the mitre) and all three between flat faces
-/// square at the corner (the mixed corner), and says why the odd edge
-/// with one other refuses: the fillet's (a rounded band) for good, its
-/// partner's band having to stop where its edge runs smoothly into the
-/// cut-off arc, and the chamfer's (a flat one) until its rule is built.
-/// It names neither verb, being the shared arm both doors render.
-pub const FILLET3_MIXED_CORNER_RECOURSE: &str = "blend one edge, the two that round alike, or \
-     all three where the faces are flat and the face the two share is square to the third; the \
-     edge that rounds the other way, with one other, cannot round (a band would stop mid-run) nor \
-     yet bevel";
+/// not build ([`CornerConfig::MixedConvexity`]). It names the requests
+/// there that build: the odd edge alone (the cut-off; a pair edge alone
+/// lands its foot inside the odd edge's face), the two edges that round
+/// alike where the face they share is square to the odd edge (the
+/// mitre; on an oblique one its foot lands inside a face too), and,
+/// between flat faces, all three (the mixed corner) or a bevel of the
+/// odd edge with one other (the other strip cut off in the odd strip's
+/// plane). It says why the odd edge with one other cannot round: its
+/// partner's band would have to stop where its edge runs smoothly into
+/// the cut-off arc. It names neither verb, being the shared arm both
+/// doors render. Measured on the flush and inset corners at 60°, 90° and
+/// 120° and on an oblique `E` by
+/// `band_mixed_corner_odd_plus_one::the_mixed_corner_recourse_builds_where_it_says`.
+pub const FILLET3_MIXED_CORNER_RECOURSE: &str = "blend the edge that rounds the other way alone, \
+     or the two that round alike where the face they share is square to it; where the faces are \
+     also flat, blend all three, or bevel that edge with one other; it cannot round with one \
+     other (a band would stop mid-run)";
 /// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third
@@ -1348,8 +1372,7 @@ pub const FILLET3_CORNER_INDEPENDENCE_RECOURSE: &str = "tilt the faces meeting a
 /// and concave, so neither half can drift alone.
 pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc the seam split it into (the rim query, `rim_of`, \
      lists them from any one arc), rather than stopping at the seam, a chart artifact; a \
-     fillet carves it as one band on either material side (a chamfer has no closed-chain \
-     band)";
+     blend carves it as one band on either material side";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
 /// refusals: what remains outside is junction carry-through (save
@@ -1374,11 +1397,13 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// `work/blend/blend-recourses-under-describe-their-doors.md` closed
 /// on, swept across all three sentences that carried it.
 ///
-/// ONE clause is conditioned by verb, because it names a door one
-/// verb has and the other does not: the closed chain is the fillet's
-/// alone (a chamfer has no closed-chain band, so telling a chamfer
-/// caller to request a plane\u{2013}sphere rim would name a door that
-/// cannot serve them). NEITHER clause conditions on side: both bands,
+/// The closed clause names a door whose extent differs between the
+/// verbs — a fillet carves the whole latitude rim of any coaxial
+/// revolution pair, a chamfer only a plane's with a cylinder — and says
+/// so without naming either verb ("where the verb's arms cover it"):
+/// the sentence rides refusals of both, and a chamfer's must not speak
+/// as the fillet (`blend6_verb_vocab`). A caller whose pair the verb's
+/// arms do not cover meets that verb's own arm refusal first. NEITHER clause conditions on side: both bands,
 /// both corner patches and the closed-rim band all fold the chain's
 /// stored convexity verdict, and a concave rim's band adds material
 /// through the same carve that removes a convex rim's.
@@ -1405,9 +1430,8 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// `blend_recourse_followability` follows the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both faces, ending at trivalent \
      plane\u{2013}plane vertices of one convexity, or single cylinder-ruling links at TRANSVERSE \
-     CAPS. For a fillet, a whole latitude rim of coaxial surfaces of revolution carves, its rings \
-     clear of the band's setback; junction carry-through and the other run-outs are not \
-     implemented";
+     CAPS. Also a whole latitude rim carves where the verb's arms cover it, its rings clear of \
+     the band's setback; junction carry-through and the other run-outs are not implemented";
 /// The recourse for a stored geometry the surgery's closed forms do
 /// not cover. Everything this unit decides is exact and stored — never
 /// sampled — so a carrier outside the covered shapes refuses rather
@@ -1435,7 +1459,7 @@ pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both
 /// support face's own ring has to be carried through the blend too —
 /// so a sentence that only described the request endorsed exactly what
 /// the caller had already done (issue 1278's dead-recourse class).
-pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes (and, for a fillet, spheres, cylinders and cones) \
+pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes, spheres, cylinders and cones \
      whose edges are lines and circles \u{2014} a support face's own rings included; cut a \
      feature that leaves any other ring AFTER the blend rather \
      than before it";
@@ -1505,13 +1529,14 @@ pub const FILLET3_INSIDE_RECOURSE: &str = "delete the feature, which the band's 
 pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use plane, sphere, cylinder or cone supports; they must be coaxial surfaces of \
      revolution sharing a rim, or planes or cylinders sharing a ruling; other pairs \
      need the canal-surface approximating blend (not implemented)";
-/// The recourse for a CHAMFER over a support pair its one arm does not
+/// The recourse for a CHAMFER over a support pair its arms do not
 /// cover. Its own sentence rather than the fillet's: the chamfer's
-/// missing door is the curved-support strip, not the canal surface,
-/// and the plane–sphere pair the fillet offers is not an alternative
-/// here.
-pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are both planes; the chamfer over a curved \
-     support is not implemented";
+/// missing door is its band over other curved supports, not the canal
+/// surface, and the plane–sphere pair the fillet offers is not an
+/// alternative here.
+pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are both planes, or where a cylinder \
+     meets a plane square to its axis, round a whole rim or between the lines of a rounded \
+     outline; the chamfer over other curved supports is not implemented";
 
 /// **How the body failed to hold together** where a
 /// [`BlendError::BodyNotIntact`] read it, rendered by kind so the
@@ -1669,9 +1694,10 @@ pub enum BlendError {
     /// only where that crossing does not exist ([`KnifeRefusal::NoRoom`]);
     /// faces that never open at all are a lamina
     /// ([`UnsettledWedge::Lamina`]).
-    /// The chamfer does not reach this refusal: its one arm is
-    /// plane–plane, so a knife meets [`BlendError::ChamferArmUnsupported`]
-    /// as every curved pair does.
+    /// The chamfer does not reach this refusal: its arms are plane–plane
+    /// and a cylinder meeting a plane in a circle, neither a knife's pair,
+    /// so a knife meets [`BlendError::ChamferArmUnsupported`] as every
+    /// other curved pair does.
     /// (Zero with the normals aligned is the smooth seam, which the verb
     /// leaves as it is.) Distinct from [`BlendError::ConvexitySignFlip`]:
     /// a knife does not disagree with the chain's convexity — its side
@@ -1803,9 +1829,9 @@ pub enum BlendError {
         /// The support pair, as text (the honest blocker).
         supports: &'static str,
     },
-    /// **The CHAMFER's arm table**: the link's support pair is not
-    /// plane–plane, which is the one pair the ruled strip is built
-    /// over. Its own variant rather than
+    /// **The CHAMFER's arm table**: the link's support pair is neither
+    /// plane–plane, the strip's pair, nor a cylinder meeting a plane in
+    /// a circle about its axis, the frustum's. Its own variant rather than
     /// [`BlendError::SpineUnsupported`] because the two name
     /// different missing doors — a chamfer over a curved support is
     /// VERBS-ARMS' machinery, not the canal-surface approximating
@@ -2364,7 +2390,7 @@ impl BlendError {
             ),
             Self::ChamferArmUnsupported { supports, .. } => write!(
                 f,
-                "an edge's support pair has no chamfer strip ({supports}). Recourse: \
+                "an edge's support pair has no chamfer band ({supports}). Recourse: \
                  {CHAMFER_ARM_RECOURSE}"
             ),
             // The payload view, without the shared coincidence tail: no
@@ -2394,7 +2420,7 @@ impl BlendError {
                 write!(f, "{detail}. Recourse: {FILLET3_ASSEMBLY_RECOURSE}")
             }
             Self::UnsupportedRunOut { detail, .. } => {
-                write!(f, "{detail}. Recourse: {FILLET3_CORNER_RECOURSE}")
+                write!(f, "{detail}. Recourse: {}", run_out_recourse(detail))
             }
             Self::UnsupportedGeometry { detail, .. } => {
                 write!(f, "{detail}. Recourse: {FILLET3_GEOMETRY_RECOURSE}")
@@ -2498,7 +2524,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 28] = [
+pub const ALL_RECOURSES: [(&str, &str); 29] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("contact-arm", FILLET3_CONTACT_ARM_RECOURSE),
@@ -2527,6 +2553,7 @@ pub const ALL_RECOURSES: [(&str, &str); 28] = [
     ("inside", FILLET3_INSIDE_RECOURSE),
     ("spine-kind", FILLET3_SPINE_KIND_RECOURSE),
     ("chamfer-arm", CHAMFER_ARM_RECOURSE),
+    ("feet-cross", FEET_CROSS_RECOURSE),
 ];
 
 #[cfg(test)]
@@ -2536,6 +2563,7 @@ mod recourse_tests {
     use geom_core::{Band, BandError, Indeterminate, MarginDiag, Sign};
     use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 
+    use super::junction::JUNCTION_FEET_CROSS;
     use super::{
         BlendDecision, BlendError, BlendSite, Breach, CHAMFER_ARM_RECOURSE, ClassifiedMargin,
         Convexity, CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE,
@@ -2679,7 +2707,9 @@ mod recourse_tests {
             BlendError::Escalated { decision, .. } => Recourse::Exactly(decision.lever()),
             // The surgery's own frontiers (D2 addendum row 2).
             BlendError::UnsupportedChain { .. } => Recourse::Exactly(FILLET3_ASSEMBLY_RECOURSE),
-            BlendError::UnsupportedRunOut { .. } => Recourse::Exactly(FILLET3_CORNER_RECOURSE),
+            BlendError::UnsupportedRunOut { detail, .. } => {
+                Recourse::Exactly(super::run_out_recourse(detail))
+            }
             BlendError::UnsupportedGeometry { .. } => Recourse::Exactly(FILLET3_GEOMETRY_RECOURSE),
             BlendError::RingClearance { .. } => Recourse::Exactly(FILLET3_RING_RECOURSE),
             BlendError::WhollyInside { .. } => Recourse::Exactly(FILLET3_INSIDE_RECOURSE),
@@ -2843,6 +2873,10 @@ mod recourse_tests {
             BlendError::UnsupportedRunOut {
                 at: EntityId::Vertex(VertexKey::default()),
                 detail: "a termination the request does not cover",
+            },
+            BlendError::UnsupportedRunOut {
+                at: EntityId::Edge(EdgeKey::default()),
+                detail: JUNCTION_FEET_CROSS,
             },
             BlendError::UnsupportedGeometry {
                 at: EntityId::Face(FaceKey::default()),

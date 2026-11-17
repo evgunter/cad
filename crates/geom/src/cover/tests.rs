@@ -2250,3 +2250,38 @@ fn a_hull_of_a_hundred_thousand_covers_is_read_and_dropped_on_a_small_stack() {
     );
     assert_eq!(near, 0.5, "a meet with a point reads that point's support");
 }
+
+/// **A right operand of a hull's own kind is not spliced into its
+/// chain** (`Node`): the hull's ball does not associate, so
+/// `a ∪ (b ∪ c)` and `(a ∪ b) ∪ c` read two balls, and a chain read as
+/// the left-deep form must keep the right one nested. Unit spheres, `a`
+/// at the origin and `b`, `c` at 10 along x: `b ∪ c` is `c`'s own ball,
+/// so `a ∪ (b ∪ c)` reads the exact `(5, 6)`, while `(a ∪ b) ∪ c` hulls
+/// `(5, 6)` with `c` to `(7.5, 8.5)` and narrows only to its box's ball,
+/// `√38`.
+#[test]
+fn a_hull_folded_on_the_right_reads_another_ball_than_on_the_left() {
+    let at = |x: f64| {
+        Cover::sphere(
+            &Frame::new(Point3::new(x, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            1.0,
+        )
+        .unwrap()
+    };
+    let left = at(0.0).hull(at(10.0)).hull(at(10.0));
+    let right = at(0.0).hull(at(10.0).hull(at(10.0)));
+    assert!(
+        matches!(&right.0, super::Node::Hull(chain) if chain.rest.len() == 1 && matches!(chain.rest[0], super::Node::Hull(_))),
+        "the right operand stays one, nested"
+    );
+    assert!(
+        matches!(&left.0, super::Node::Hull(chain) if chain.rest.len() == 2),
+        "the left fold is one chain"
+    );
+    let read = |x: &Cover<f64>| {
+        let (o, r) = x.ball();
+        (o.x, o.y, o.z, r)
+    };
+    assert_eq!(read(&left), (5.0, 0.0, 0.0, 38.0_f64.sqrt()));
+    assert_eq!(read(&right), (5.0, 0.0, 0.0, 6.0));
+}

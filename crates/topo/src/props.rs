@@ -4985,7 +4985,11 @@ fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     match carrier {
         geom::Curve3::Spiric { .. } => true,
         geom::Curve3::Nurbs(c) => geom_brep::props::is_rational(c),
-        geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => false,
+        // A periodic cubic is polynomial.
+        geom::Curve3::Line(_)
+        | geom::Curve3::Circle(..)
+        | geom::Curve3::Ellipse(..)
+        | geom::Curve3::Periodic(_) => false,
     }
 }
 
@@ -4994,7 +4998,10 @@ fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
 fn trims<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     match carrier {
         geom::Curve3::Line(_) | geom::Curve3::Circle(..) => false,
-        geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => true,
+        geom::Curve3::Ellipse(..)
+        | geom::Curve3::Spiric { .. }
+        | geom::Curve3::Nurbs(_)
+        | geom::Curve3::Periodic(_) => true,
     }
 }
 
@@ -5634,10 +5641,10 @@ pub enum ShellClassifyError {
         /// met, and their gap along it.
         pair: Box<crate::boolean::AimedPair>,
     },
-    /// No aimed ray read the shell's side, one was set aside at a corner
-    /// or a wedge (`SetAsideWhy::Corner`, `SetAsideWhy::Wedge`), and the
-    /// volume then refused too: `volume` is that refusal, and `corner`
-    /// the first such ray. Neither is a pair, so this refusal is the
+    /// No aimed ray read the shell's side, one was set aside at a mark in
+    /// band (a corner, a wedge or an unordered crossing,
+    /// `SetAsideWhy::mark`), and the volume then refused too: `volume` is
+    /// that refusal, and `corner` the first such ray. Neither is a pair, so this refusal is the
     /// volume's, naming where the rays went.
     Corner {
         /// The unclassifiable shell.
@@ -6047,13 +6054,7 @@ fn shell_role_reading<T: Decide>(
         Ok(Err(SideUnread::Fallback {
             volume, set_aside, ..
         })) => Err(
-            match set_aside.into_iter().find(|s| {
-                matches!(
-                    s.why,
-                    crate::side_reader::SetAsideWhy::Corner { .. }
-                        | crate::side_reader::SetAsideWhy::Wedge { .. }
-                )
-            }) {
+            match set_aside.into_iter().find(|s| s.why.mark().is_some()) {
                 Some(corner) => ShellClassifyError::Corner {
                     shell,
                     corner: Box::new(corner),

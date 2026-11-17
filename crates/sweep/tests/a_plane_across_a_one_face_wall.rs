@@ -100,20 +100,15 @@ fn below(at: Point3<f64>, turn: Affine3<f64>) -> Body<f64> {
 
 /// Every op in both orders between `a` and `b` (volumes `va`, `vb`,
 /// overlapping in `vab`), each read through `outcome`: `SOUND`; and meshed,
-/// unless the result holds a window in a curved face, which the mesher
-/// refuses typed (`TessellateError::RingOnCurvedFace`,
-/// `work/tesslane/a-notched-or-ringed-cylinder-wall-does-not-tessellate.md`).
+/// a window in a curved face included.
 fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64)) {
     let (a, b) = (fin("A", a), fin("B", b));
     for (op, r, want) in every_op_both_orders(&a, &b, v, tol()) {
         let row = format!("{what}: {op}");
         let res = r.as_ref().unwrap_or_else(|e| panic!("{row}: {e:?}"));
         let body = &res.body().unwrap_or_else(|| panic!("{row}: empty")).body;
-        match mesh::tessellate(body, 5e-3, tol()) {
-            Ok(m) => mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{row}: mesh {e:?}")),
-            Err(mesh::TessellateError::RingOnCurvedFace { .. }) => {}
-            Err(e) => panic!("{row}: {e:?}"),
-        }
+        let m = mesh::tessellate(body, 5e-3, tol()).unwrap_or_else(|e| panic!("{row}: {e:?}"));
+        mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{row}: mesh {e:?}"));
         // The volume against the closed form within the quadrature's
         // own certified pad, which grows with ε; `outcome`'s fixed 1e-7
         // holds at the default ε only.

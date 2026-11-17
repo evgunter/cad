@@ -150,7 +150,7 @@ use crate::types::TessellateError;
 // the walk's rotation and pole handling, and the emission itself.
 use geom_core::period::Period;
 pub(crate) use topo::chart::Chart;
-pub(crate) use topo::chart_iso::{TAU, TravKind};
+pub(crate) use topo::chart_iso::TravKind;
 
 /// One directed boundary traversal: an edge's chord ids in the loop's
 /// walking direction, plus its iso classification.
@@ -357,21 +357,33 @@ pub(crate) fn overused_identified_edge_in(
 /// `raw` moved by whole turns near `prev`, where within a quarter turn
 /// of a whole number of turns from it; otherwise (`raw` about half a turn
 /// from `prev`) the copy of the two either side nearer `anchor` (module
-/// docs: the wire-band pole junction, meridians exactly π apart). Not
-/// [`Period::near`], which renames about one reference and breaks only an
-/// exact tie, to the upper copy: here a whole zone, a quarter turn either
-/// side of the tie, is placed by a second reference, `anchor`.
+/// docs: the wire-band pole junction, meridians exactly π apart). One
+/// [`Period::near`] about `prev` breaks only an exact tie, to the upper
+/// copy; here a whole zone, a quarter turn either side of the tie, is
+/// placed by a second reference, `anchor`, among `Period::near`'s copies.
+///
+/// Every copy is the period's own ([`Period::near`]), so no whole-period
+/// integer is read off a value (C4): the copy about `prev`, and in the
+/// tie zone the copies about half a turn either side of it, the one at or
+/// below `prev` and the one at or above. The zone's edge, a quarter turn
+/// off `prev`, is decided on that copy. Within an ulp of the edge, that is
+/// not the reading the integer off `(prev − raw)/τ` gave, so the answer
+/// there can move by a whole turn. And a `raw` no turn moves is returned
+/// as it is, so a signed zero keeps its sign
+/// (`unwrap_tie_reads_its_zone_edge_as_the_period_reads_it`).
 fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
-    let k = (prev - raw) / TAU;
-    if (k - k.round()).abs() < 0.25 {
-        raw + TAU * k.round()
+    // `u` is an azimuth, an angle by construction.
+    let turn = Period::<f64>::angle();
+    let near = turn.near(raw, prev);
+    if (near - prev).abs() < turn.half() / 2.0 {
+        near
     } else {
-        let c1 = raw + TAU * k.floor();
-        let c2 = raw + TAU * k.ceil();
-        if (c1 - anchor).abs() <= (c2 - anchor).abs() {
-            c1
+        let below = turn.near(raw, prev - turn.half());
+        let above = turn.near(raw, prev + turn.half());
+        if (below - anchor).abs() <= (above - anchor).abs() {
+            below
         } else {
-            c2
+            above
         }
     }
 }
@@ -656,6 +668,79 @@ fn iso_side_starts(
     topo::chart_iso::iso_side_starts(&kinds, &separated)
 }
 
+/// **Whether a straight side of face `fk`'s outer loop holds a point
+/// between its ends**, on a cylinder or a cone: a side carried by more
+/// than one edge, or a cone's side through its apex.
+///
+/// It reads the loop and nothing else, before any chord exists. A line
+/// is a ruling of either surface, and a side is one ruling run, so two
+/// line traversals in a row continue one side exactly when the side runs
+/// on through the vertex between them: their other ends lie on opposite
+/// sides of it along the ruling, in the chart's `v`. Two rulings that
+/// meet at a cone's apex as a corner come from one side of it, and so
+/// does a ruling the loop walks out and back (a slit, a one-generator
+/// loop); neither holds a point.
+///
+/// The rectangle lane's theorem for a ruled face holds every triangle
+/// between two neighbouring rulings, and such a point is a boundary
+/// point off its grid, so the dispatch sends such a face to the chart
+/// lane (`tessellate::lane_of`). A face whose loop is no iso-rectangle is
+/// not sent (`curved`'s shape door): it is the rectangle lane's to
+/// refuse with the door's cause.
+pub(crate) fn splits_a_straight_side(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &geom::Surface<f64>,
+    band: Band,
+) -> Result<bool, TessellateError> {
+    if !crate::chart_table::ruled(surface) {
+        return Ok(false);
+    }
+    let chart = Chart::of(surface).ok_or(TessellateError::MissingEntity {
+        what: "curved chart",
+    })?;
+    let outer = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?
+        .outer;
+    // Each traversal's start, in `v`, and whether its carrier is a line.
+    let mut walk = Vec::new();
+    for (half_edge, ek, _) in loop_half_edges(body, outer, fk)? {
+        let start = body
+            .get_half_edge(half_edge)
+            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
+            .start;
+        let point = body
+            .get_vertex(start)
+            .and_then(|v| body.get_point(v.point))
+            .ok_or(TessellateError::MissingEntity {
+                what: "vertex position",
+            })?;
+        let carrier = body
+            .get_edge(ek)
+            .and_then(|edge| body.get_curve_geom(edge.curve))
+            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
+            .certified()
+            .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?
+            .carrier();
+        walk.push((
+            chart.v_of(*point),
+            matches!(carrier, geom::Curve3::Line(..)),
+        ));
+    }
+    let m = walk.len();
+    let held = (0..m).any(|k| {
+        let (before, after) = ((k + m - 1) % m, (k + 1) % m);
+        let (v, line) = walk[k];
+        // Strictly on either side: a far end at the junction's own `v` (a
+        // line edge of no length along the ruling) continues no side
+        // through it.
+        let (a, b) = (walk[before].0, walk[after].0);
+        line && walk[before].1 && ((a < v && v < b) || (b < v && v < a))
+    });
+    Ok(held && crate::curved::require_iso_rectangle_face(body, fk, outer, surface, band).is_ok())
+}
+
 /// Which iso kinds a loop's traversals carry — the one structural
 /// summary of the classified list. Its four readers —
 /// [`require_a_meridian`], [`require_two_columns`], [`walk_anchor`] and
@@ -927,11 +1012,13 @@ fn wrap_strip(
         _ => return Ok(None),
     };
     let rising = poles[far].1 > poles[near].1;
+    // The azimuth's whole turn, an angle by construction.
+    let turn = Period::<f64>::angle().length();
     Ok(Some(WrapStrip {
         period: if rising == orientation.interior_is_left() {
-            -TAU
+            -turn
         } else {
-            TAU
+            turn
         },
         far: far_tip,
     }))
@@ -1506,6 +1593,36 @@ pub(crate) fn loop_polygon(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use core::f64::consts::TAU;
+
+    /// **`unwrap_tie` at its zone's edge, as the period reads it.**
+    /// Where `raw`'s copy about `prev` stands exactly a quarter turn off
+    /// it, the copy is read by [`Period::near`] and the zone test is the
+    /// period's own. At `prev − π/2` it reads the tie zone and takes the
+    /// copy nearer `anchor`: 5.0124 for an anchor above, −1.2708 below.
+    /// At the review's draw (`raw` −13.837166941154068, `prev` 0.3,
+    /// `anchor` 2.3), the period's copy stands inside the quarter zone and
+    /// reads −1.2707963267948958. The fold this replaced read the integer
+    /// off `(prev − raw)/τ`, put that draw in the tie zone and took
+    /// 5.01238898038469, a whole turn away. And a signed zero keeps its
+    /// sign: `Period::near` returns `raw` itself where no turn moves it,
+    /// so −0.0 about 0.0 reads −0.0, where the fold's `raw + τ·0` read
+    /// +0.0.
+    #[test]
+    fn unwrap_tie_reads_its_zone_edge_as_the_period_reads_it() {
+        use core::f64::consts::FRAC_PI_2;
+        let edge = 0.3 - FRAC_PI_2;
+        assert_eq!(
+            unwrap_tie(edge, 0.3, 2.3).to_bits(),
+            5.012_388_980_384_689_5_f64.to_bits()
+        );
+        assert_eq!(unwrap_tie(edge, 0.3, -1.0).to_bits(), edge.to_bits());
+        assert_eq!(
+            unwrap_tie(-13.837_166_941_154_068, 0.3, 2.3).to_bits(),
+            (-1.270_796_326_794_895_8_f64).to_bits()
+        );
+        assert_eq!(unwrap_tie(-0.0, 0.0, 0.0).to_bits(), (-0.0_f64).to_bits());
+    }
     use geom::Surface;
     use topo::chart::ChartKind;
 
@@ -2153,8 +2270,14 @@ mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords =
-            crate::chords::compute_chords(&body, 0.05, &vids, &mut positions, &mut bounds).unwrap();
+        let chords = crate::chords::compute_chords(
+            &body,
+            &crate::sizing::tests::witness_tols(0.05),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
         let (fk, _) = body
             .faces()
             .find(|&(k, _)| matches!(body.face_surface(k), Some(Surface::Sphere { .. })))
