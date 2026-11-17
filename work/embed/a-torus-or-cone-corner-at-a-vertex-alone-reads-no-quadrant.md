@@ -39,9 +39,12 @@ in that form. The guard is `vertex_corner`'s surface match.
 
 ## Evidence
 
-None measured. On the tour walk, the f64 cavity rows and the
-injectivity suite, no refusal lands on these corners today. The
-remaining vertex-alone refusals are `A`'s wall against `B`'s cap in
-the tee, where the wall's corner is two arcs of one ellipse
+Not traced to a refusal. The tour walk holds every body but its
+recorded contacts, and the injectivity suite's remaining vertex-alone
+refusals are `A`'s wall against `B`'s cap in the tee, where the wall's
+corner is two arcs of one ellipse
 (`departure-reads-no-curved-corner-off-its-shared-edge`'s second
-bullet). Filed so the reading's edge is a row, not a sentence.
+bullet). The f64 cavity rows that still run out of pairs include tori
+(`verbs_shell::the_full_period_torus_shells_solid_and_hollow_alike`,
+`shell7_r2_probes`' tori). They were not traced to the cell, and this
+corner is one place they could be refusing.

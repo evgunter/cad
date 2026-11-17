@@ -376,4 +376,86 @@ f64 row counted it out of pairs; it now refuses on the departure arm.
 - **The tee's vertex-alone pairs**, which are second order at the
   vertex.
 
+## Read: a cylinder's corner at a vertex alone (EMBED, lane embed/cylinder-vertex, 2026-11-17)
+
+**Measured first.** On main `362cd72fd`, f64, the torus belly re-posed
+was asked through the local `CavityGate` switch, with `departure`
+instrumented.
+- The cylinder `4v1` is a band, `v` from −0.0078 to −0.0038. Its edge
+  `6v1` is a parallel, `v = −0.00379`, but the re-pose stores it as a
+  harmonic image (`pb_v = −3.5e−18`) and not as a coordinate line.
+- So its corner with the ruling `3v1` at `7v1` and `3v1` is a right
+  angle of the chart. A quadrant on the chart's own axes cannot hold
+  it strictly: the parallel's rate along the ruling is 3.5e−18.
+- The plane's leaned quadrant reads it. Its lean has to be chosen in
+  the surface's metric, not in chart units. In chart units, with the
+  cylinder's `u`-speed 0.055 against `v`'s 1, the quadrant opened to
+  about 167° on the surface and no plane through the vertex separated
+  the pair. That was measured as a first attempt.
+
+**What landed.** `vertex_corner` and `present_vertex_corner` (the
+plane's `present_plane_vertex`, generalised) read the quadrant on any
+chart that is regular everywhere and whose curved images are harmonic:
+a plane's line and conic, and a cylinder's coordinate line and
+harmonic curve.
+- `V` is the straight edge's chart point, moved by whole turns nearest
+  the cell.
+- No copy of either edge by whole turns but the one through `V` may
+  meet `R`'s chart footprint. For the curve this is load-bearing: a
+  helix's next turn can pass through `R` with neither end in reach.
+  For the straight edge it is defence.
+- The face side is `face_side`'s on a chart, and the traversal turned a
+  quarter on a plane.
+- The lean is chosen in the metric at `V`.
+- `leaves_line` then reads the curve's copy through `V` in the
+  quadrant's coordinates, with no periodic axis.
+- `turns_to`, `copies` and `leaves_line` now take the periodic axes
+  rather than the surface.
+
+The torus, the cone and the sphere are not covered:
+`a-torus-or-cone-corner-at-a-vertex-alone-reads-no-quadrant`.
+
+**Measured after** (merge base `362cd72fd`; the same runs on main):
+- **The torus belly re-posed** shells at f64 with the gate asking.
+- **The f64 cavity rows**, the switch on. On main 15 valid rows
+  refuse, and here 14. The torus belly re-posed is the only verdict
+  that moves. The two crossing pins refuse `CavityCrosses` on both.
+- **The tee** (`crossing_equal_rods`) refuses 8 cells, not 12: two root
+  pairs and six floor cells. The receipt has 607 splits, against 545.
+  - Four pairs that refused now certify. Two are the walls' diagonal
+    halves at `2v3`, `(1, 0, 1)`: `2v3 × 7v1` and `4v1 × 10v1`, which
+    refused at the root. Two are `B`'s wall against the mitre at `1v3`
+    and `9v1`: `2v3 × 5v9` and `5v9 × 10v1`, which refused at the
+    floor.
+  - Each is first order, not second, as the trace above had it. At
+    `2v3`, `B`'s half `2v3` is the quadrant `(+x, +y)` of the plane
+    `z = 1`, and `A`'s half `7v1` is `(+z, −y)` of `x = 1`. A plane
+    through the vertex with `n ≈ (0.46, 0.89, −0.02)` has them strictly
+    apart.
+  - At `1v3`, `B`'s wall's wedge holds the ellipse's tangent `T` and
+    the mitre's holds `−T`. Separating them needs `n·T > 0` on both
+    sides, which `n ≈ (0.92, 0.38, −0.02)` gives. It does not need a
+    plane containing `T`.
+  - Both were checked by hand against the union's first-order regions
+    at the vertex.
+  - What still refuses is two arcs of one ellipse at a corner. `A`'s
+    wall halves against the mitre across its ellipse refuse at the
+    root. `A`'s wall halves against `B`'s cap at `1v3` and `9v1`, where
+    `A`'s corner is the ellipse's two arcs, refuse three floor cells
+    each. That is `embed/conic-arcs`' ground.
+  - The verdict now names `A`'s wall `4v1` against the mitre `5v9`
+    across `3v5`. The pin moves to `refused == 8`.
+- **The injectivity suite** (`self_intersection_proves_injectivity`)
+  is green at the default ε, 1e−6 and 1e−12. Only the tee moved.
+- **The tour walk** holds 82 of 85, on main and here alike. No verdict
+  and no body's pair count moves. The three that do not hold are the
+  bench assemblies' recorded contacts. (Main already held 82, where the
+  brief counted 81.)
+
+**What remains:**
+- two arcs of one conic at a corner (`embed/conic-arcs`), which is now
+  every tee refusal;
+- the drums' disc;
+- the two-arc lune.
+
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
