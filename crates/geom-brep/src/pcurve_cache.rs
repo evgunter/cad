@@ -1150,6 +1150,25 @@ impl<T: Real> Pcurve<T> {
         }
     }
 
+    /// **Whether the image's FORM is one no iso line of its chart takes**:
+    /// a projected image (the chart's inverse of a carrier whose class
+    /// reading showed none of the chart's iso classes), a focal section, a
+    /// spiric, a fitted or a general one. A harmonic image is the form of
+    /// rims, meridians and rulings and also of a section conic on its
+    /// cylinder, and an iso line or arc is iso by its variant, so neither
+    /// answers here. The form is what the mint chose when it minted the
+    /// row, so this reads a stored fact and decides nothing.
+    pub fn is_non_iso_form(&self) -> bool {
+        match self {
+            Pcurve::Projected(_)
+            | Pcurve::FocalSection(_)
+            | Pcurve::Spiric { .. }
+            | Pcurve::Fitted(_)
+            | Pcurve::General(_) => true,
+            Pcurve::Harmonic { .. } | Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => false,
+        }
+    }
+
     /// The `v = const` [`Pcurve::IsoLine`] that runs from `u0` at `t0` to
     /// `u1` at `t1`, the span of the edge it is minted for, with its two
     /// ends stored: the row a mint places by its ends (a boundary row
