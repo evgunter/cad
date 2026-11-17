@@ -110,7 +110,9 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
         // spiric (its chord arm sizes the carrier itself), so the
         // `None` here is read by the coherence walk alone
         // (`NonIsoCarrier`).
-        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+            None
+        }
     }
 }
 

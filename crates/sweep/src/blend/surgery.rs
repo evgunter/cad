@@ -2333,9 +2333,10 @@ fn ring_pieces<'b, T: Decide>(
             let (carrier, window) = metered_piece(body, edge, face, opens, rims)?;
             match *carrier {
                 Curve3::Line(_) | Curve3::Circle(..) => Ok((edge, carrier, window)),
-                Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
-                    Err(ring_edge_unmetered(edge))
-                }
+                Curve3::Ellipse(..)
+                | Curve3::Spiric { .. }
+                | Curve3::Nurbs(_)
+                | Curve3::Periodic(_) => Err(ring_edge_unmetered(edge)),
             }
         })
         .collect()
@@ -3244,7 +3245,10 @@ fn strip_clearance<T: Decide + Bounds>(
             let (carrier, window) = stored_piece(body, edge)?;
             let reach = |u: Vec3<T>| match carrier {
                 Curve3::Line(_) | Curve3::Circle(..) => piece_along(carrier, window, o, u),
-                Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                Curve3::Ellipse(..)
+                | Curve3::Spiric { .. }
+                | Curve3::Nurbs(_)
+                | Curve3::Periodic(_) => {
                     let ends = (carrier.eval(window.0), carrier.eval(window.1));
                     boxed_reach(carrier, window, ends, o, Some(u))
                 }
@@ -3635,7 +3639,10 @@ impl<T: Decide + Bounds> StripLevel<T> {
                 Some(u) => piece_along(carrier, piece, self.centre, u),
             }
             .map(|r| (r, false))?,
-            Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+            Curve3::Ellipse(..)
+            | Curve3::Spiric { .. }
+            | Curve3::Nurbs(_)
+            | Curve3::Periodic(_) => {
                 let ends = (carrier.eval(piece.0), carrier.eval(piece.1));
                 boxed_reach(carrier, piece, ends, self.centre, self.direction).map(|r| (r, true))?
             }
@@ -3974,7 +3981,10 @@ impl<'a, T: Real> Clippable<'a, T> {
         match carrier {
             Curve3::Line(line) => Some(Self::Line(line)),
             Curve3::Circle(c) => Some(Self::Circle(c)),
-            Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
+            Curve3::Ellipse(..)
+            | Curve3::Spiric { .. }
+            | Curve3::Nurbs(_)
+            | Curve3::Periodic(_) => None,
         }
     }
 

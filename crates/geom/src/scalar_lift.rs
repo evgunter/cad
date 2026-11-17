@@ -190,6 +190,7 @@ impl<T: Real> Curve3<T> {
                 offset: f(*offset),
             },
             Curve3::Nurbs(n) => Curve3::Nurbs(std::sync::Arc::new(n.map_scalar(&f))),
+            Curve3::Periodic(n) => Curve3::Periodic(std::sync::Arc::new(n.map_scalar(&f))),
         }
     }
 }

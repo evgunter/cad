@@ -1326,6 +1326,9 @@ pub(crate) fn project<T: Decide>(
     };
     let framed = match carrier {
         Curve3::Nurbs(net) => FramedCarrier::Net(Arc::new(framed_net(net, origin, &e))),
+        Curve3::Periodic(_) => unreachable!(
+            "project: `has_lane` admits no periodic cubic, whose span is read on its clamped view"
+        ),
         Curve3::Circle(..) | Curve3::Ellipse(..) => {
             let Some(form) = super::carrier_harmonic(carrier) else {
                 unreachable!("a conic has a harmonic form")

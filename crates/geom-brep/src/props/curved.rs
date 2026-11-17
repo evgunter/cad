@@ -1942,7 +1942,9 @@ fn cylinder_boundary<T: Decide>(
             }
             // A spiric lies on no cylinder or cone: refused beside the
             // spline, typed.
-            Curve3::Nurbs(_) | Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
+            Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
+                return Err(PropsError::Unimplemented);
+            }
         }
     }
     // The cylinder's level and azimuth turn about the same radius, and
@@ -2304,7 +2306,9 @@ fn require_on_cone<T: Decide>(
         )
         .map(|_| ()),
         Curve3::Ellipse(..) => require_cone_ellipse(apex, axis, sin_a, cos_a, e, band),
-        Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
+        Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
+            Err(PropsError::Unimplemented)
+        }
     }
 }
 
@@ -2672,7 +2676,9 @@ fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
             Some(k) => Ok(k.speed_hi() * (e.t1 - e.t0).abs()),
             None => unreachable!("a circle or an ellipse is a conic"),
         },
-        Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
+        Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
+            Err(PropsError::Unimplemented)
+        }
     }
 }
 
@@ -3170,7 +3176,9 @@ fn cone_boundary<T: Decide>(
             }
             // A spiric lies on no cylinder or cone: refused beside the
             // spline, typed.
-            Curve3::Nurbs(_) | Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
+            Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
+                return Err(PropsError::Unimplemented);
+            }
         }
     }
     // Cone levels are the signed SLANT arc length — `Length`, bare —
@@ -3726,7 +3734,9 @@ fn sphere_loop<T: Decide>(
         }) = e.carrier
         else {
             return Err(match e.carrier {
-                Curve3::Nurbs(_) | Curve3::Spiric { .. } => PropsError::Unimplemented,
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
+                    PropsError::Unimplemented
+                }
                 _ => PropsError::SphereLoop {
                     what: "sphere boundary edge is not a circle",
                 },
@@ -4937,7 +4947,9 @@ fn sphere_boundary<T: Decide>(
             return Err(match e.carrier {
                 // A spiric lies on no sphere: refused beside the
                 // spline, typed.
-                Curve3::Nurbs(_) | Curve3::Spiric { .. } => PropsError::Unimplemented,
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
+                    PropsError::Unimplemented
+                }
                 _ => PropsError::NotIsoRectangle {
                     what: "sphere boundary edge is not a circle",
                 },

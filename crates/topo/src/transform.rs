@@ -447,6 +447,10 @@ fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, T
             }
             Curve3::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
         }
+        // The same map of a periodic cubic's cyclic net.
+        Curve3::Periodic(ref n) => {
+            Curve3::Periodic(Arc::new(n.map_points(|p| map.transform_point(p))))
+        }
     })
 }
 
@@ -653,7 +657,7 @@ pub(crate) fn map_isometry<T: Decide>(
             continue;
         }
         let (param_start, param_end) = old.params();
-        let carrier = map_carrier(iso, old.carrier())?;
+        let carrier = map_carrier(iso, old.stored_carrier())?;
         let description = match old.description() {
             EdgeDescription::Intersection { pair, selector } => EdgeDescription::Intersection {
                 pair: *pair,

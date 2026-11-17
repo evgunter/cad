@@ -5202,7 +5202,7 @@ fn wall_crossing<T: Decide + Bounds>(
                 Err(refusal) => return door_escalated(refusal),
             }
         }
-        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => None,
     };
     let found = match found {
         Some(Ok(found)) => found,
