@@ -374,6 +374,13 @@ pub fn require_iso_rectangle<T: Decide>(
     outer: &[LoopEdge<T>],
     band: Band,
 ) -> Result<(), PropsError> {
+    if let Some(chart) = IsoChart::of(surface) {
+        for e in outer {
+            if !chart.reads(&e.carrier) {
+                return Err(chart.kind_refusal(&e.carrier));
+            }
+        }
+    }
     match *surface {
         Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
             what: "require_iso_rectangle called on a plane (a planar loop is not a chart rectangle)",
@@ -426,6 +433,86 @@ pub fn require_iso_rectangle<T: Decide>(
         // As `curved_face`: no rim inventory for a spline or for an
         // offset description over one.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
+    }
+}
+
+/// **The carrier kinds each iso parse reads**, and the refusal every
+/// other kind gets: a line or a circle on a cylinder or a cone, a circle
+/// on a sphere or a torus (a spindle reads as a torus). The one home of
+/// each parse's non-iso arm and of [`require_iso_rectangle`]'s first
+/// pass, which asks it of every edge before any parse decides anything,
+/// so a face carrying a carrier of no iso kind is decided no rectangle
+/// wherever its loop starts, rather than escalating on an earlier edge
+/// in band.
+#[derive(Clone, Copy)]
+enum IsoChart {
+    Cylinder,
+    Cone,
+    Sphere,
+    Torus,
+}
+
+impl IsoChart {
+    /// The parse `surface` is read by; `None` on a plane or a spline
+    /// chart, which the door answers by its own arms.
+    fn of<T: Real>(surface: &Surface<T>) -> Option<Self> {
+        match surface {
+            Surface::Cylinder { .. } => Some(Self::Cylinder),
+            Surface::Cone { .. } => Some(Self::Cone),
+            Surface::Sphere { .. } => Some(Self::Sphere),
+            Surface::Torus { .. } | Surface::Spindle { .. } => Some(Self::Torus),
+            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
+        }
+    }
+
+    /// Whether this parse reads `carrier`'s kind as a rim or a meridian.
+    fn reads<T: Real>(self, carrier: &Curve3<T>) -> bool {
+        matches!(
+            (self, carrier),
+            (
+                Self::Cylinder | Self::Cone,
+                Curve3::Line(_) | Curve3::Circle(_)
+            ) | (Self::Sphere | Self::Torus, Curve3::Circle(_))
+        )
+    }
+
+    /// The refusal a carrier this parse does not read gets: an ellipse
+    /// (a curved cut) or a line where only circles bound,
+    /// [`PropsError::NotIsoRectangle`]; a spline, or a spiric where no
+    /// spiric lies, [`PropsError::Unimplemented`]. A kind the parse reads
+    /// has no refusal here, and reaching this with one is the parse's own
+    /// defect.
+    fn kind_refusal<T: Real>(self, carrier: &Curve3<T>) -> PropsError {
+        let not_iso = |what| PropsError::NotIsoRectangle { what };
+        match (self, carrier) {
+            (Self::Cylinder | Self::Cone, Curve3::Line(_) | Curve3::Circle(_))
+            | (Self::Sphere | Self::Torus, Curve3::Circle(_)) => PropsError::Defect {
+                what: "an iso parse refused a carrier kind it reads",
+            },
+            (Self::Cylinder, Curve3::Ellipse(..)) => not_iso(
+                "cylinder boundary carries an ellipse arc (curved cut) — route through \
+                 topo::mass_properties, whose quadrature lane consumes the stored pcurves \
+                 this key-free pass cannot see",
+            ),
+            (Self::Cone, Curve3::Ellipse(..)) => not_iso(
+                "cone boundary carries an ellipse arc (a tilted-section cut) — not a rim or \
+                 a generator, so this iso parse has no reading of it (`cone_face_closed_form` \
+                 measures such a face by its vector area)",
+            ),
+            (
+                Self::Cylinder | Self::Cone | Self::Sphere,
+                Curve3::Nurbs(_) | Curve3::Spiric { .. },
+            )
+            | (Self::Torus, Curve3::Nurbs(_)) => PropsError::Unimplemented,
+            (Self::Sphere, Curve3::Line(_) | Curve3::Ellipse(..)) => {
+                not_iso("sphere boundary edge is not a circle")
+            }
+            // A spiric rim of a hollowed torus wall lies on the torus and
+            // is neither rim nor meridian.
+            (Self::Torus, Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Spiric { .. }) => {
+                not_iso("torus boundary edge is not a circle")
+            }
+        }
     }
 }
 
@@ -1933,23 +2020,9 @@ fn cylinder_boundary<T: Decide>(
                 )?);
                 levels.push(v);
             }
-            // An ellipse arc on a wall boundary (a curved cut, M5
-            // PR 5) breaks the iso-rectangle patch shape THIS pass
-            // requires. The PR 11 quadrature lane handles it — but it
-            // needs the body's stored pcurves, so it lives one layer
-            // up (`topo::mass_properties` routes conic-trimmed
-            // cylinder faces there BEFORE this closed form runs); a
-            // direct key-free call keeps the typed refusal.
-            Curve3::Ellipse(..) => {
-                return Err(PropsError::NotIsoRectangle {
-                    what: "cylinder boundary carries an ellipse arc (curved cut) — route \
-                           through topo::mass_properties, whose quadrature lane consumes \
-                           the stored pcurves this key-free pass cannot see",
-                });
+            Curve3::Ellipse(..) | Curve3::Nurbs(_) | Curve3::Spiric { .. } => {
+                return Err(IsoChart::Cylinder.kind_refusal(&e.carrier));
             }
-            // A spiric lies on no cylinder or cone: refused beside the
-            // spline, typed.
-            Curve3::Nurbs(_) | Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
         }
     }
     // The cylinder's level and azimuth turn about the same radius, and
@@ -3167,17 +3240,9 @@ fn cone_boundary<T: Decide>(
                 )?);
                 levels.push(v);
             }
-            Curve3::Ellipse(..) => {
-                return Err(PropsError::NotIsoRectangle {
-                    what: "cone boundary carries an ellipse arc (a tilted-section cut) — \
-                           not a rim or a generator, so this iso parse has no reading of \
-                           it (`cone_face_closed_form` measures such a face by its \
-                           vector area)",
-                });
+            Curve3::Ellipse(..) | Curve3::Nurbs(_) | Curve3::Spiric { .. } => {
+                return Err(IsoChart::Cone.kind_refusal(&e.carrier));
             }
-            // A spiric lies on no cylinder or cone: refused beside the
-            // spline, typed.
-            Curve3::Nurbs(_) | Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
         }
     }
     // Cone levels are the signed SLANT arc length — `Length`, bare —
@@ -4941,14 +5006,7 @@ fn sphere_boundary<T: Decide>(
             radius: r_c,
         }) = e.carrier
         else {
-            return Err(match e.carrier {
-                // A spiric lies on no sphere: refused beside the
-                // spline, typed.
-                Curve3::Nurbs(_) | Curve3::Spiric { .. } => PropsError::Unimplemented,
-                _ => PropsError::NotIsoRectangle {
-                    what: "sphere boundary edge is not a circle",
-                },
-            });
+            return Err(IsoChart::Sphere.kind_refusal(&e.carrier));
         };
         let s = classify_as(
             "props_circle_axis_class",
@@ -5912,25 +5970,7 @@ fn torus_classify<'a, T: Decide>(
             radius: r_c,
         }) = e.carrier
         else {
-            return Err(match e.carrier {
-                Curve3::Nurbs(_) => PropsError::Unimplemented,
-                // The spiric rim of a partial revolve's hollowed torus
-                // wall — a boundary edge that IS on the torus but is
-                // neither rim nor meridian, so this parse has no arm
-                // for it and says which edge kind it met. Named rather
-                // than folded into the wildcard so a reader knows the
-                // kind was considered. Reached through the closed-form
-                // door (`curved_face`) directly; `topo`'s own face flux
-                // never gets here for a spiric-bounded face — a loop
-                // carrying one routes to the quadrature lane, whose
-                // spiric arm measures it (`super::spiric`).
-                Curve3::Spiric { .. } => PropsError::NotIsoRectangle {
-                    what: "torus boundary edge is not a circle",
-                },
-                _ => PropsError::NotIsoRectangle {
-                    what: "torus boundary edge is not a circle",
-                },
-            });
+            return Err(IsoChart::Torus.kind_refusal(&e.carrier));
         };
         let s = classify_as(
             "props_circle_axis_class",

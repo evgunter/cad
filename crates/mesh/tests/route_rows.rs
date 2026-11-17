@@ -97,7 +97,7 @@ fn ball_less_a_tilted_slab(x0: f64, theta: f64) -> Body<f64> {
 }
 
 /// The corpus the K stream is read over: bodies that mesh on the curved
-/// lane, on the trimmed lane by a stored moving image, and the reviewer's
+/// lane, on the trimmed lane by a stored image of a non-iso form, and the reviewer's
 /// tilted cells, each at `δ = 5e-2`.
 fn k_corpus() -> Vec<(String, Body<f64>)> {
     let mut out = vec![
@@ -143,9 +143,9 @@ fn poisoned_washer(surface: impl Fn(&Surface<f64>) -> Surface<f64>) -> (Body<f64
     (body, fk)
 }
 
-/// Whether no stored image on `fk`'s outer loop moves off an iso line of
-/// its chart (`Pcurve::is_iso_line`), the fact the route reads first.
-fn no_moving_image(body: &Body<f64>, fk: topo::FaceKey) -> bool {
+/// Whether no stored image on `fk`'s outer loop has a form no iso line
+/// takes (`Pcurve::is_non_iso_form`), the fact the route reads first.
+fn no_non_iso_form(body: &Body<f64>, fk: topo::FaceKey) -> bool {
     let topo::LoopBoundary::Cycle { first } = body
         .get_loop(body.get_face(fk).unwrap().outer)
         .unwrap()
@@ -156,7 +156,7 @@ fn no_moving_image(body: &Body<f64>, fk: topo::FaceKey) -> bool {
     body.loop_cycle(first)
         .unwrap()
         .into_iter()
-        .all(|h| body.pcurve(h).is_none_or(|c| c.pcurve().is_iso_line()))
+        .all(|h| body.pcurve(h).is_none_or(|c| !c.pcurve().is_non_iso_form()))
 }
 
 /// **A section tilted within the band meshes to main's bytes.** The
@@ -184,9 +184,9 @@ fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
         assert!(
             body.faces().any(|(fk, _)| {
                 matches!(body.face_surface(fk), Some(Surface::Sphere { .. }))
-                    && !no_moving_image(&body, fk)
+                    && !no_non_iso_form(&body, fk)
             }),
-            "{label}: a sphere face stores a moving image"
+            "{label}: a sphere face stores a projected image"
         );
         let mesh = mesh::tessellate(&body, 5e-2, Tol::witness())
             .unwrap_or_else(|e| panic!("{label}: meshes, got {e:?}"));
@@ -198,7 +198,7 @@ fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
 /// **A body that meshes records main's K stream, on a run and on a memo
 /// hit.** Over bodies on the curved lane (the doors decide inside the
 /// route, at the face's turn, where they decided inside the lane) and on
-/// the trimmed lane by a stored moving image (the route asks no door):
+/// the trimmed lane by a stored image of a non-iso form (the route asks no door):
 /// the bracketed recording of `tessellate`, and of a second
 /// `tessellate_with` against a warm memo (every face a hit, which records
 /// no decision for its face), each digest to the merge base's, as does
@@ -275,7 +275,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
 
 /// **A door that cannot decide refuses with its cause.** A washer wall
 /// put on a cylinder 3e-9 wider than its rims and rulings: no stored
-/// image on it moves off an iso line, so the route asks the doors, and
+/// image on it has a non-iso form, so the route asks the doors, and
 /// the shape door's incidence of the rims lands in the band
 /// (`props_rim_fit`). No lane is taken on a door that could not answer:
 /// the route refuses `UnsupportedCurvedShape` with the escalation, as the
@@ -305,8 +305,8 @@ fn a_door_in_band_refuses_with_its_cause() {
         _ => unreachable!("the poisoned face is a cylinder wall"),
     });
     assert!(
-        no_moving_image(&body, face),
-        "no stored image on the wall moves off an iso line"
+        no_non_iso_form(&body, face),
+        "no stored image on the wall has a non-iso form"
     );
     let got = mesh::tessellate(&body, 5e-2, Tol::witness()).map(|_| ());
     assert!(

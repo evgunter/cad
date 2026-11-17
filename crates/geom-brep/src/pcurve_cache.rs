@@ -274,21 +274,6 @@ impl<T: Real> Channel<T> {
         }
     }
 
-    /// Whether the channel holds one value at every parameter: an angle
-    /// with no windings, or a free channel whose three moving
-    /// coefficients are exact zeros. Read off the form the mint wrote, so
-    /// it decides nothing.
-    pub fn is_constant(self) -> bool {
-        match self {
-            Channel::Angle { winding, .. } => winding == 0,
-            Channel::Free { a, b, l, .. } => {
-                geom_core::is_exact_zero(a)
-                    && geom_core::is_exact_zero(b)
-                    && geom_core::is_exact_zero(l)
-            }
-        }
-    }
-
     /// The windings of an angle channel; `None` on a free one.
     pub fn winding(self) -> Option<i32> {
         match self {
@@ -1165,22 +1150,22 @@ impl<T: Real> Pcurve<T> {
         }
     }
 
-    /// **Whether the image is an iso line of its chart**: a harmonic
-    /// image with exactly one constant channel ([`Channel::is_constant`]),
-    /// or an image with a held line ([`Pcurve::held_line`]). Every other
-    /// image — a moving harmonic (a section conic on its cylinder), a
-    /// projected, focal-section, spiric, fitted or general one — is not.
-    /// A fact the mint stored when it chose the image's form, read with
-    /// no decision.
-    pub fn is_iso_line(&self) -> bool {
-        match *self {
-            Pcurve::Harmonic { u, v } => u.is_constant() != v.is_constant(),
-            Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => self.held_line().is_ok(),
-            Pcurve::Spiric { .. }
+    /// **Whether the image's FORM is one no iso line of its chart takes**:
+    /// a projected image (the chart's inverse of a carrier whose class
+    /// reading showed none of the chart's iso classes), a focal section, a
+    /// spiric, a fitted or a general one. A harmonic image is the form of
+    /// rims, meridians and rulings and also of a section conic on its
+    /// cylinder, and an iso line or arc is iso by its variant, so neither
+    /// answers here. The form is what the mint chose when it minted the
+    /// row, so this reads a stored fact and decides nothing.
+    pub fn is_non_iso_form(&self) -> bool {
+        match self {
+            Pcurve::Projected(_)
             | Pcurve::FocalSection(_)
-            | Pcurve::Projected(_)
+            | Pcurve::Spiric { .. }
             | Pcurve::Fitted(_)
-            | Pcurve::General(_) => false,
+            | Pcurve::General(_) => true,
+            Pcurve::Harmonic { .. } | Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => false,
         }
     }
 
