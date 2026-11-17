@@ -992,3 +992,4 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
     3. A few orchestrator's-read units that only add rows pinning current behaviour.
 
     Then idle until the reset.
+- **Interim unit, orchestrator's read (outside the comparison, no draw):** `nodeframe-eq-reads-its-fields-by-name` (mechanical) plus `no-row-guards-the-krawczyk-existence-test-on-a-spline-critical-point` (a test-only row), one Opus lane on `sectarms/two-smalls`, brief `impl-smalls.md`. Board triage sent as [PR 7065](https://github.com/evgunter/cad/pull/7065): three rows parked on the image-function build, and a note on SSIARITH's tube row.
