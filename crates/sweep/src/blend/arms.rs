@@ -184,7 +184,7 @@ impl<T: Real> BallSection<T> {
 /// unit, so two links' feet on one support coincide where their bands
 /// share their section, the generator between the two feet. `None` for
 /// a trim that is neither a line nor a circle.
-pub(crate) fn chamfer_foot<T: Real>(trim: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
+pub(crate) fn chamfer_setback_point<T: Real>(trim: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
     match trim {
         Curve3::Line(line) => Some(line.foot(p)),
         Curve3::Circle(c) => {

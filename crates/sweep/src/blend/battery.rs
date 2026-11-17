@@ -45,8 +45,8 @@ use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, S
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_foot,
-    chamfer_frustum, chamfer_strip, inward_unit, line_meet, offset_room, plane_plane_blend,
+    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_frustum,
+    chamfer_setback_point, chamfer_strip, inward_unit, line_meet, offset_room, plane_plane_blend,
     plane_sphere_blend, plane_sphere_room,
 };
 use super::build::fan_at;
@@ -2070,7 +2070,7 @@ fn band_g1<T: Decide>(
 
 /// Two chamfer links' feet through the junction point `p`, apart: the
 /// larger of the distance between their feet on the face they share and
-/// that between their feet on their two others ([`chamfer_foot`]).
+/// that between their feet on their two others ([`chamfer_setback_point`]).
 fn feet_apart<T: Real>(a: &Link<T>, b: &Link<T>, p: Point3<T>) -> Result<T, BlendError> {
     let shared = [a.face_a, a.face_b]
         .into_iter()
@@ -2085,7 +2085,7 @@ fn feet_apart<T: Real>(a: &Link<T>, b: &Link<T>, p: Point3<T>) -> Result<T, Blen
     };
     let foot = |l: &Link<T>, f: FaceKey| {
         l.trim_on(f)
-            .and_then(|(c, _)| chamfer_foot(c, p))
+            .and_then(|(c, _)| chamfer_setback_point(c, p))
             .ok_or_else(|| {
                 unbuilt_geometry(
                     EntityId::Edge(l.edge),

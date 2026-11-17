@@ -241,7 +241,7 @@ pub(super) struct JunctionReading<T: Real> {
 /// coincide (predicate 4's band reading).
 #[derive(Clone, Copy)]
 pub(super) enum Section<T: Real> {
-    Ball(BallSection<T>),
+    Circle(BallSection<T>),
     Generator,
 }
 
@@ -272,11 +272,11 @@ pub(super) fn read<T: Decide>(
     let section = if reader.arm.is_chamfer() {
         Section::Generator
     } else {
-        let mut ball = of(reader)?;
+        let mut circle = of(reader)?;
         if matches!(other.blend.surface, Surface::Cylinder { .. }) {
-            ball.normal = of(other)?.normal;
+            circle.normal = of(other)?.normal;
         }
-        Section::Ball(ball)
+        Section::Circle(circle)
     };
     Ok(JunctionReading {
         host_foot: trims.0.foot(p, true),
@@ -348,7 +348,7 @@ pub(super) fn band_chart<T: Decide>(
             Some(JunctionReading {
                 host_foot,
                 mate_foot,
-                section: Section::Ball(section),
+                section: Section::Circle(section),
             }),
         ) => {
             let mid = (*host_foot - section.centre) + (*mate_foot - section.centre);
@@ -502,7 +502,7 @@ pub(super) fn record<T: Real>(
     band: &[EdgeKey],
 ) {
     let carrier = match section {
-        Section::Ball(ball) => ContactCarrier::Section(ball),
+        Section::Circle(circle) => ContactCarrier::Section(circle),
         Section::Generator => ContactCarrier::Generator,
     };
     described.push((split.near, carrier, link));

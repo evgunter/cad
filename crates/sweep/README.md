@@ -428,7 +428,7 @@ their common feet (the junction, below), so the outline chamfers whole,
 closed or open, through the fillet's mixed-rim and open-band walks.
 Each band face's sense is its own link's: a strip's is outward by
 derivation and a frustum's is read off its rim side, so one chain
-carries both (`surgery::link_sense`).
+carries both (`link_sense` in `surgery::blend_surgery`).
 
 ## Fillet arms and the seam vertex (ARMS3-DESIGN A3-1…A3-3)
 

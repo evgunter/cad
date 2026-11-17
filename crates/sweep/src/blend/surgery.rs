@@ -860,6 +860,35 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     }
     blend_rows.sort_by_key(|(o, _, _)| o.edge());
     let blend_faces: Vec<FaceKey> = blend_rows.iter().map(|(_, f, _)| *f).collect();
+    // **A link's band face's sense bit, the band's and not the verb's.**
+    // A rolling-ball band's chart normal is the radial one, which is
+    // outward exactly on a convex chain, so it folds the stored convexity
+    // verdict. A chamfer strip's chart normal is minted as an explicit
+    // positive combination of the supports' own outward normals
+    // (`arms::chamfer_strip`), so it is outward whatever the convexity
+    // is. A chamfer frustum has the cone's own chart normal, radially
+    // outward whichever side the material is, so its bit is read off the
+    // side of the generator the rim lies on, at the link's own middle on
+    // the source body (`arms::frustum_rim_side`).
+    let link_sense = |link: &Link<T>| -> Result<bool, BlendError> {
+        match kind {
+            BlendKind::Fillet => Ok(blend_sense(link.convexity)),
+            BlendKind::Chamfer if link.arm == BlendArm::CylinderPlaneCone => {
+                let (carrier, t0, t1) = super::battery::carrier_of(source, link.edge)?;
+                let at = carrier.eval(geom::mid_param(t0, t1));
+                let side = super::arms::frustum_rim_side(&link.blend, at)
+                    .filter(|x| x.lo() > 0.0 || x.hi() < 0.0)
+                    .ok_or_else(|| {
+                        unbuilt_geometry(
+                            EntityId::Edge(link.edge),
+                            "a chamfer frustum's side of its rim is not certain",
+                        )
+                    })?;
+                Ok((side.lo() > 0.0) == blend_sense(link.convexity))
+            }
+            BlendKind::Chamfer => Ok(true),
+        }
+    };
     let mut band_faces = Vec::with_capacity(rims.len());
     let mut band_surfaces = Vec::with_capacity(rims.len());
     for (i, rim) in rims.iter().enumerate() {
@@ -869,7 +898,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                 rim_phase_mixed(&mut body, rim, mixed, &sources, &mut rec, tol)?;
             for ((face, surface), l) in faces.into_iter().zip(rim.chain.links()) {
                 band_faces.push(face);
-                band_surfaces.push((surface, link_sense(source, l, kind)?));
+                band_surfaces.push((surface, link_sense(l)?));
             }
             described.append(&mut arcs);
             continue;
@@ -898,7 +927,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             RimShape::Mixed(_) => unreachable!("a mixed rim is carved above"),
         };
         band_faces.push(band_face);
-        band_surfaces.push((band_surface, link_sense(source, link, kind)?));
+        band_surfaces.push((band_surface, link_sense(link)?));
         described.append(&mut arcs);
     }
 
@@ -916,7 +945,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             fk,
             FaceSurface::New {
                 surface: surface.clone(),
-                sense: link_sense(source, o.link(), kind)?,
+                sense: link_sense(o.link())?,
             },
         )
         .map_err(|e| op("blend face surface", e))?;
@@ -5926,45 +5955,6 @@ fn rim_phase_mixed<T: Decide + Bounds + topo::AtRestPolicy>(
         );
     }
     Ok((faces, described))
-}
-
-/// **A link's band face's sense bit, the band's and not the verb's.** A
-/// rolling-ball band's chart normal is the radial one, which is outward
-/// exactly on a convex chain, so it folds the stored convexity verdict.
-/// A chamfer strip's chart normal is minted as an explicit positive
-/// combination of the supports' own outward normals
-/// ([`super::arms::chamfer_strip`]), so it is outward whatever the
-/// convexity is. A chamfer frustum has the cone's own chart normal,
-/// radially outward whichever side the material is, so its bit is read
-/// off the side of the generator the rim lies on, at the link's own
-/// middle on the source body ([`super::arms::frustum_rim_side`]).
-///
-/// # Errors
-///
-/// [`BlendError::UnsupportedGeometry`] where a frustum's side of its
-/// rim is not certain; `carrier_of`'s.
-fn link_sense<T: Decide + Bounds>(
-    source: &Body<T>,
-    link: &Link<T>,
-    kind: BlendKind,
-) -> Result<bool, BlendError> {
-    match kind {
-        BlendKind::Fillet => Ok(blend_sense(link.convexity)),
-        BlendKind::Chamfer if link.arm == BlendArm::CylinderPlaneCone => {
-            let (carrier, t0, t1) = super::battery::carrier_of(source, link.edge)?;
-            let at = carrier.eval(geom::mid_param(t0, t1));
-            let side = super::arms::frustum_rim_side(&link.blend, at)
-                .filter(|x| x.lo() > 0.0 || x.hi() < 0.0)
-                .ok_or_else(|| {
-                    unbuilt_geometry(
-                        EntityId::Edge(link.edge),
-                        "a chamfer frustum's side of its rim is not certain",
-                    )
-                })?;
-            Ok((side.lo() > 0.0) == blend_sense(link.convexity))
-        }
-        BlendKind::Chamfer => Ok(true),
-    }
 }
 
 /// Whether `edge` has `v` as one of its endpoints.
