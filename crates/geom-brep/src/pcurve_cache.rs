@@ -3342,84 +3342,49 @@ impl<T: Real> PcurveCertificate<T> {
 }
 
 /// The image producer's body, shared by every certifying scalar
-/// ([`crate::FittedLane::general_image`]).
-///
-/// The `edge_nurbs` schedule with no per-sample hook: the transversality
-/// sweep the adopt path runs there is a statement about the PLANE
-/// operand, which is the edge certificate's and not the row's. The image
-/// is `edge_nurbs::general_chart_image`'s: the degree-1 image the edge
-/// certificate reads, climbed where its measured miss asks.
+/// ([`crate::FittedLane::general_image`]): the one image of a carrier on
+/// a wall ([`crate::carrier_image::carrier_image`]), which the edge
+/// certificate and the trace read too.
 pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
     wall: &NurbsSurface<T>,
     band: Band,
 ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
-    use crate::edge_nurbs::PlaneNurbsRefusal as P;
-    // The image spans the carrier's certificate span, the edge
-    // certificate's rule (`carrier_span`).
-    let eval = |t| carrier.eval(t);
-    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
-    let schedule = crate::edge_nurbs::Schedule::new(&eval, domain, ends);
-    let (t0, t1) = schedule.domain();
-    let certificate = |what, ending| PcurveCertifyError::FittedCertificate {
-        limb: None,
+    use crate::carrier_image::ImageRefusal as I;
+    let certificate = |limb, what, ending| PcurveCertifyError::FittedCertificate {
+        limb,
         what,
         magnitude: None,
         ending,
     };
-    let image = crate::edge_nurbs::general_chart_image(schedule, wall, band, |_, _| Ok(()));
-    #[cfg(test)]
-    let image = match mutants::general_image_class_gate(carrier) {
-        Some(false) => crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(())),
-        Some(true) | None => image,
-    };
-    image.map_err(|e| match e {
-        P::FootPointInconclusive {
-            sample,
-            last_distance,
+    crate::carrier_image::carrier_image(carrier, params, wall, band).map_err(|e| match e {
+        I::Foot {
+            t, last_distance, ..
         } => PcurveCertifyError::FittedCertificate {
             limb: Some(SsiLimb::OnLocus),
-            what: "a foot point of the chart-image schedule would not converge, so this \
-                   locus has no derived image to certify",
-            // The parameter the schedule projected at, not the sample
-            // index dressed up as one.
-            magnitude: Some(FittedMagnitude::LastFootDistance {
-                t: crate::certify::schedule_param(
-                    t0,
-                    t1,
-                    sample,
-                    crate::edge_nurbs::PXN_FIT_SAMPLES,
-                ),
-                last_distance,
-            }),
+            what: "the wall's foot path of this locus could not be followed, so it has no \
+                   derived image to certify",
+            magnitude: Some(FittedMagnitude::LastFootDistance { t, last_distance }),
             ending: FittedEnding::FootUnsettled,
         },
-        // Only the degree-1 rung's fit reaches here (a climb that refuses
-        // keeps it), and a degree-1 fit at distinct parameters always
-        // solves.
-        P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL, FittedEnding::Defect),
-        P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
+        I::Fit => certificate(
+            None,
+            crate::edge_nurbs::PCURVE_FIT_REFUSAL,
+            FittedEnding::Defect,
+        ),
+        // The image's own miss of the foot path past its cap: the lane's
+        // gap, as a certificate's refusal of the image it derived is.
+        I::Miss { .. } => certificate(
+            Some(SsiLimb::ImageMiss),
+            "the derived image still missed the wall's foot path of this locus at the finest \
+             chain the image takes",
+            FittedEnding::NotYet,
+        ),
+        I::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
         // The wall this door was handed, as the foot producer refuses it
         // (`chart_foot_lane`): one lever at both doors.
-        P::PlaceholderWall => PcurveCertifyError::PlaceholderChart,
-        other @ (P::NotTransverse { .. }
-        | P::TransversalityEscalated { .. }
-        | P::Limb { .. }
-        | P::TubeStraddles { .. }
-        | P::TubeNotOneArc { .. }
-        | P::Escalated { .. }
-        | P::ArcRim(_)
-        | P::ReportedTransversalityPoisoned(_)
-        | P::ChartSpeed(_)
-        | P::CarrierEnclosure(_)
-        | P::Unsupported { .. }
-        | P::WrongLane { .. }
-        | P::Tube(_)
-        | P::OutsideVocabulary) => unreachable!(
-            "chart_image returns these only from its per-sample hook or the certificate, and \
-             the mint passes a no-op hook and runs no certificate: {other:?}"
-        ),
+        I::PlaceholderWall => PcurveCertifyError::PlaceholderChart,
     })
 }
 

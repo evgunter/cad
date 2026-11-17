@@ -753,6 +753,27 @@ impl Collocation {
         Self::on_knots(params, averaged_knots(params, degree)?)
     }
 
+    /// Factor the collocation matrix of `params` on a knot vector the
+    /// caller names: one parameter per control point, ascending on the
+    /// vector's own domain, each inside its basis function's support
+    /// (the vector's Greville abscissae are). A curve fitted on it has
+    /// those knots exactly.
+    ///
+    /// # Errors
+    ///
+    /// [`FitError::ParamCountMismatch`] where the parameters are not one
+    /// per control point, and [`FitError::Lsq`] for a degenerate
+    /// collocation system.
+    pub fn on(params: &[f64], knots: KnotVector) -> Result<Self, FitError> {
+        if params.len() != knots.control_count() {
+            return Err(FitError::ParamCountMismatch {
+                params: params.len(),
+                points: knots.control_count(),
+            });
+        }
+        Self::on_knots(params, knots)
+    }
+
     /// Factor the collocation matrix of `params` on `knots`. A clamped
     /// averaged knot vector over `n` parameters has exactly `n` control
     /// points, so the matrix is square; each row is the `degree + 1`

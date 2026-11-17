@@ -55,6 +55,7 @@
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
 pub mod carrier_eq;
+mod carrier_image;
 mod carrier_net;
 pub mod carrier_pose;
 pub mod carrier_resolution;

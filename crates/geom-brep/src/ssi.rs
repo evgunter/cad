@@ -162,20 +162,6 @@ use exhaust::{RateClause, SweepFloor, UvRect};
 use march::{MarchContext, MarchTol, Readout, SlabEnd, Trace, march_both, trace_points};
 use system::ImplicitPairR3;
 
-/// The chart-parameter sample sequences of a trace, one per operand
-/// with a chart — the feet that become the pcurves, on the carrier's own
-/// parameter (the OQ4 identity).
-type ChartSamples<'a> = [Option<&'a [geom_core::Point2<f64>]>; 2];
-
-/// A fitted rung-3 branch's curves: the 3-D carrier, and the pcurves the
-/// trace shape produced (both on the ℝ⁴ pair, the wall's alone on the
-/// 1×2 trace; the ℝ³ shape has no chart to project onto).
-pub(crate) type FittedBranch = (
-    NurbsCurve3<f64>,
-    Option<NurbsCurve2<f64>>,
-    Option<NurbsCurve2<f64>>,
-);
-
 /// The plane × NURBS trace's fitted triple: the carrier, the plane's
 /// pcurve (the carrier's affine image on the plane's chart) and the
 /// wall's, on one shared parameter.
@@ -2343,16 +2329,11 @@ const WALL_COLLAPSED_RECOURSE: &str = geom_core::move_recourse!(
     "so the spline face does not collapse to a point or a curve where the surfaces meet"
 );
 
-/// Fit a marched polyline into a cubic NURBS carrier and its pcurves,
-/// on **one shared parameter** (the OQ4 contract).
-///
-/// The 3-D curve's own chord-length parameters are computed once and
-/// then *given* to the pcurve interpolations, so `P(t)` and `C(t)` are
-/// the same `t` by construction rather than by coincidence. That is
-/// exactly what PR 6's cache door checks
-/// (`|S(P(t)) − C(t)| ≤ ε`), and it is why the ℝ⁴ trace discharges OQ4
-/// without any re-plumbing.
-fn fit_branch(points: &[Point3<f64>], charts: ChartSamples<'_>) -> Result<FittedBranch, SsiError> {
+/// Fit a marched polyline into a cubic NURBS carrier, on its chord
+/// parameters. Its wall images are derived from it
+/// ([`crate::carrier_image`]) on its own knots, so `P(t)` and `C(t)` are
+/// the same `t` by construction (the OQ4 contract).
+fn fit_branch(points: &[Point3<f64>]) -> Result<NurbsCurve3<f64>, SsiError> {
     let params = NurbsCurve3::<f64>::chord_parameters(points)?;
     // **Interpolation, not approximation, and the reason is
     // refinement.** The march aims its spacing at a cubic within ε of
@@ -2369,23 +2350,34 @@ fn fit_branch(points: &[Point3<f64>], charts: ChartSamples<'_>) -> Result<Fitted
     // through `approximate_with_params` (which exists, and takes the
     // same shared parameters) is a profiled optimization for a later
     // PR, not a semantic change.
-    // One collocation system for every fit, the carrier's and each
-    // pcurve's: they share the parameters, so they share the matrix,
-    // factored once.
     let collocation = Collocation::new(&params, SSI_FIT_DEGREE)?;
-    let carrier = NurbsCurve3::<f64>::interpolate_on(points, &collocation)?;
-    // Pcurves interpolate the traced parameter samples ON THE CARRIER'S
-    // PARAMETERS, one per side that has a chart. Interpolation (not
-    // approximation) so the map is exact at every sample; compaction of
-    // a pcurve is an optimization, and the certificate is what governs.
-    let [a, b] = charts;
-    let pa = a
-        .map(|a| NurbsCurve2::<f64>::interpolate_on(a, &collocation))
-        .transpose()?;
-    let pb = b
-        .map(|b| NurbsCurve2::<f64>::interpolate_on(b, &collocation))
-        .transpose()?;
-    Ok((carrier, pa, pb))
+    Ok(NurbsCurve3::<f64>::interpolate_on(points, &collocation)?)
+}
+
+/// A wall image's refusal ([`crate::carrier_image`]), in the trace's
+/// vocabulary: a foot the path could not reach as limb 1's own, the
+/// image's miss past its cap as limb 2's reading of it
+/// ([`SsiLimb::ImageMiss`]).
+pub(crate) fn image_refusal(e: crate::carrier_image::ImageRefusal) -> SsiError {
+    use crate::carrier_image::ImageRefusal as I;
+    match e {
+        I::Foot {
+            t, last_distance, ..
+        } => SsiError::FootPointInconclusive { t, last_distance },
+        I::Miss { miss } => SsiError::CertificateLimb {
+            limb: SsiLimb::ImageMiss,
+            margin: MarginDiag::value(miss),
+        },
+        I::PlaceholderWall => SsiError::UnsupportedCertificate {
+            what: "the wall is the placeholder, which has no foot path",
+        },
+        I::CarrierDomain(_) => SsiError::UnsupportedCertificate {
+            what: "the carrier's interval is not one a wall image spans",
+        },
+        I::Fit => SsiError::UnsupportedCertificate {
+            what: crate::edge_nurbs::PCURVE_FIT_REFUSAL,
+        },
+    }
 }
 
 /// **A closed marched polyline's carrier**: the periodic cubic through
@@ -2421,7 +2413,7 @@ impl FittedR3 {
             })
         } else {
             Ok(Self {
-                net: fit_branch(points, [None, None])?.0,
+                net: fit_branch(points)?,
                 periodic: None,
             })
         }
@@ -3791,7 +3783,15 @@ fn trace_plane_nurbs_within(
     // as limbs 1 and 2 locate a refusal: the limb-3 ask, which would end
     // refinement on a coarser triple, passes here.
     let densified = refine::refine_by_certificate(&sys, states, &ctx, band, |states, limbs| {
-        let fitted = ends::fit_states(&sys, states)?;
+        let carrier = ends::fit_states(&sys, states)?;
+        let image = crate::carrier_image::carrier_image(
+            &Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+            carrier.knot_values().domain(),
+            wall,
+            band,
+        )
+        .map_err(image_refusal)?;
+        let fitted = (carrier, image);
         if limbs == certify::Limbs::Tube {
             return Ok(fitted);
         }
@@ -3801,7 +3801,7 @@ fn trace_plane_nurbs_within(
                 a: &SsiOperand::Analytic(plane),
                 b: &wall_op,
                 pcurve_a: None,
-                pcurve_b: fitted.2.as_ref(),
+                pcurve_b: Some(&fitted.1),
             },
             domain.extent,
             band,
@@ -3814,15 +3814,10 @@ fn trace_plane_nurbs_within(
             }
         }
     });
-    let (carrier, _, pb) = match densified {
+    let (carrier, pb) = match densified {
         Ok(fitted) => fitted,
         // A refusal before any triple was fitted is the fit's own.
         Err(e) => refused.ok_or(e)?,
-    };
-    let Some(pb) = pb else {
-        return Err(SsiError::UnsupportedCertificate {
-            what: "the 1×2 trace must produce the wall's pcurve",
-        });
     };
     let pa = plane_pcurve(&carrier, (origin, normal, u_ref))?;
     Ok((carrier, pa, pb))
@@ -4700,7 +4695,7 @@ mod ending_tests {
             Point3::new(2.0, 0.0, 0.0),
             Point3::new(3.0, 0.0, 0.0),
         ];
-        let error = super::fit_branch(&points, [None, None]).err();
+        let error = super::fit_branch(&points).err();
         assert!(
             matches!(
                 error,

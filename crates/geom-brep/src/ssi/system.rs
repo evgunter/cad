@@ -34,7 +34,7 @@
 //! `f64`-only and untrusted throughout — C6's selection lane.
 
 use geom::{NurbsSurface, Surface, SurfaceJet3};
-use geom_core::{Point2, Point3, Real, Vec3};
+use geom_core::{Point3, Real, Vec3};
 
 use super::SsiError;
 use super::jet::implicit_path_jet;
@@ -96,16 +96,6 @@ pub(crate) trait LocalSystem<const M: usize, const N: usize> {
 pub(crate) trait SectionSystem<const M: usize, const N: usize>:
     LocalSystem<M, N> + TransversalityData<N>
 {
-    /// The state's feet on the two operands' charts, `[a, b]`, each the
-    /// sample its fitted pcurve interpolates: `a` is `pcurve_a`'s chart
-    /// and `b` is `pcurve_b`'s, the order `super::ends::Operands` reads
-    /// them in. On the plane lane `a` is the plane's chart and `b` the
-    /// NURBS wall's; on the pair lane they are the first and second
-    /// operands' charts. A residual side has no chart and no foot
-    /// (`None`), and its branch no pcurve on it, as on the ℝ³ lane: on
-    /// the 1×2 lane `a` is the partner's, `None`, and `b` the wall's.
-    fn feet(&self, x: &[f64; N]) -> [Option<Point2<f64>>; 2];
-
     /// The refusal of a branch whose certified tube does not hold the
     /// settled seed `x` it was traced through.
     fn seed_outside_tube(&self, x: [f64; N]) -> SsiError;
@@ -273,13 +263,7 @@ impl LocalSystem<1, 2> for ImplicitChartR2<'_> {
     }
 }
 
-/// The partner has no chart, so no foot and no pcurve; the wall's foot
-/// is the state.
 impl SectionSystem<1, 2> for ImplicitChartR2<'_> {
-    fn feet(&self, x: &[f64; 2]) -> [Option<Point2<f64>>; 2] {
-        [None, Some(Point2::new(x[0], x[1]))]
-    }
-
     fn seed_outside_tube(&self, x: [f64; 2]) -> SsiError {
         SsiError::SeedOutsideChartTube { state: x }
     }
@@ -480,13 +464,7 @@ impl TransversalityData<3> for ImplicitPairR3<'_> {
     }
 }
 
-/// The pcurves are the state's coordinate projections, `(u₁, v₁)` and
-/// `(u₂, v₂)`.
 impl SectionSystem<3, 4> for ParametricPairR4<'_> {
-    fn feet(&self, x: &[f64; 4]) -> [Option<Point2<f64>>; 2] {
-        [Some(Point2::new(x[0], x[1])), Some(Point2::new(x[2], x[3]))]
-    }
-
     fn seed_outside_tube(&self, x: [f64; 4]) -> SsiError {
         SsiError::SeedOutsideTube { state: x }
     }
