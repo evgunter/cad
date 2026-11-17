@@ -7,13 +7,15 @@
 //! and meshes to the same bytes, as it did when the route read carrier
 //! kinds alone.
 //!
-//! **Where the constants come from.** Each `MAIN` digest below was read on
-//! the kind route this route replaced (`origin/main` at `326c40c3f0`,
-//! after the trimmed lane's boundary clearance), by this file run there,
-//! and is equal on this tree: the bytes and the K stream of every body
-//! here that meshed then are unmoved. Each was read at ε 1e-9, 1e-6 and
-//! 1e-12 on both trees and is the same at all three, so one table holds
-//! at every row of the suite.
+//! **Where the constants come from.** Each `MAIN` digest below was read
+//! on the kind route this route replaced, by this file run there, and is
+//! equal on this tree: the bytes on `origin/main` at `9c47bfbe57` (after
+//! the trimmed lane's boundary clearance and the split-side route), and
+//! the K stream on `326c40c3f0`, the last main whose route read each
+//! face's lane without re-reading it, with one stated addition
+//! ([`a_body_that_meshes_records_mains_k_stream`]). Each was read at ε
+//! 1e-9, 1e-6 and 1e-12 on both trees and is the same at all three, so one
+//! table holds at every row of the suite.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -234,18 +236,31 @@ fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
 /// `tessellate_with` against a warm memo (every face a hit, which records
 /// no decision for its face), each digest to the merge base's, as does
 /// the mesh.
+///
+/// **One addition, on the run, on a ruled face.** The split-side fact
+/// (`walk::splits_a_straight_side`) reads each traversal's start in the
+/// chart's `v` (`chart_point_on_axis`, `pcurve_chart_cut_side`, and on
+/// a cone `chart_point_cone_nappe`), once per face per run, inside the
+/// route: the rounded prism's run records 16 more chart reads than
+/// `326c40c3f0`'s, the washer's 8 and the cone's 6, and every other
+/// decision is the same. A memo hit records none of them (the route's
+/// doors and this fact are spliced only where the lane runs), so its
+/// digest is `326c40c3f0`'s. Main at `9c47bfbe57` reads the same fact at
+/// each of its dispatch's calls (the chord pass's sides and lattices,
+/// each face's target, the face's turn), nine a face on the prism, on a
+/// run and on a memo hit alike: the reading this route makes once.
 #[test]
 fn a_body_that_meshes_records_mains_k_stream() {
     const MAIN: [(&str, u64, u64, u64); 9] = [
         (
             "rounded prism",
-            0x79cc_2cd7_7222_d8cd,
+            0x044b_53af_fca7_a0cd,
             0xde76_e44f_a8f7_6685,
             0x6760_9721_f7b4_9e2f,
         ),
         (
             "washer",
-            0xc0e4_7e37_d369_66fd,
+            0xbef8_a160_c1f1_4d1d,
             0x2949_ec2c_247d_ebf5,
             0x83a3_9809_1983_f94c,
         ),
@@ -257,7 +272,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
         ),
         (
             "cone",
-            0x2c3b_a53e_fa5c_9ac9,
+            0x50ab_de99_0198_e8ed,
             0x2212_a44a_a3dd_7fcd,
             0xee15_493c_99b8_730d,
         ),

@@ -495,7 +495,13 @@ pub(crate) fn tessellate_trimmed(
     if let ChartRow::Analytic(ref a) = row
         && !a.singular_points().is_empty()
     {
-        singular_row_shape(fk, a.singular_points(), &singular, &polygon)?;
+        singular_row_shape(
+            fk,
+            a.singular_points(),
+            &singular,
+            &polygon,
+            a.development().is_some(),
+        )?;
     }
 
     // The lattice, over the trim box: on an analytic chart a uniform
@@ -1609,10 +1615,9 @@ impl TrimmedFace<'_> {
 ///
 /// An edge a loop uses twice (a seam) has `fk` across it, and `fk` is
 /// left out: a side between two of its points is this face's own, made
-/// once by this one triangulation. No accepted cone face reaches that
-/// arm today: a mesh id at two chart locations that is no singular
-/// vertex has refused `SeamTwice` ([`singular_row_shape`]) before this
-/// map is built, so nothing holds it but that refusal.
+/// once by this one triangulation. A one-face full-turn cone wall
+/// reaches that arm: its development holds the seam's two copies on the
+/// sector's two rays ([`singular_row_shape`]).
 fn faces_across(
     body: &Body<f64>,
     fk: FaceKey,
@@ -2116,8 +2121,17 @@ fn singular_vertices(
 /// - a point past a row that ends the chart's `v` domain
 ///   ([`SingularPoint::passed_by`]): an edge whose image runs through the
 ///   singular point mid-edge;
-/// - a mesh id at two chart locations that is no singular vertex: a seam
-///   traversed twice.
+/// - a mesh id at two chart locations that is no singular vertex (a seam
+///   traversed twice), where the CDT runs in the lattice (`developed`
+///   false): there the two copies are two columns of one lattice, and a
+///   triangle across them is the collapse #678 is about. In the cone's
+///   development (`developed` true) the seam's copies lie on the sector's
+///   two bounding rays, which the face's interior keeps apart. A
+///   triangle with a corner at each copy of one point lies outside the
+///   face when the sector is wider than a half turn; inside a narrower
+///   one it has two corners on one vertex and is dropped, as the apex
+///   row's are, and the emit pass's census of identified edges re-derives
+///   that what is left about the vertex is a fan.
 ///
 /// A loop that winds about a singular point inside the face does not
 /// close in the chart, and the door refuses it before any polygon is
@@ -2140,6 +2154,7 @@ fn singular_row_shape(
     points: &[SingularPoint],
     singular: &HashSet<u32>,
     trim: &TrimPolygon,
+    developed: bool,
 ) -> Result<(), TessellateError> {
     let (polygon, edges) = (trim.points.as_slice(), trim.edges.as_slice());
     let refuse = |i: usize, cause| -> Result<(), TessellateError> {
@@ -2165,6 +2180,9 @@ fn singular_row_shape(
         if let (Some(a), Some(b)) = (above, below) {
             return refuse(a.max(b), SphereTrimCause::BothNappes);
         }
+    }
+    if developed {
+        return Ok(());
     }
     let apart = crate::cdt::ids_at_two_uvs(polygon.iter().copied());
     if let Some(i) = polygon
@@ -5053,7 +5071,7 @@ pub(super) mod tests {
                 },
             ];
             let trim = super::TrimPolygon::new((poly.to_vec(), edges));
-            match super::singular_row_shape(fk, &poles, &HashSet::new(), &trim) {
+            match super::singular_row_shape(fk, &poles, &HashSet::new(), &trim, false) {
                 Err(TessellateError::SphereTrimShape { edge, cause, .. }) => Some((edge, cause)),
                 Ok(()) => None,
                 Err(other) => panic!("not a shape refusal: {other:?}"),
@@ -5380,6 +5398,7 @@ pub(super) mod tests {
                 &apex,
                 &singular,
                 &super::super::TrimPolygon::new((poly.to_vec(), edges[..poly.len()].to_vec())),
+                true,
             ) {
                 Err(TessellateError::SphereTrimShape { cause, .. }) => Some(cause),
                 Ok(()) => None,

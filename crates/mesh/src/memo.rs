@@ -29,7 +29,7 @@
 //! Common to every lane:
 //! - δ (the chordal tolerance; every lane's step and the certificates'
 //!   bar derive from it) and the ambient tolerance's ε and k (the lanes' `Eps` and the
-//!   curved lane's shape band derive from those);
+//!   shape band the curved lane and the dispatch read derive from those);
 //! - the surface's KIND (the dispatch reads it);
 //! - for each loop in face order (outer, then rings), for each edge in
 //!   walk order: its traversal direction, its certified carrier

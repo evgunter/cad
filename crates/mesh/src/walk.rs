@@ -669,6 +669,80 @@ fn iso_side_starts(
     topo::chart_iso::iso_side_starts(&kinds, &separated)
 }
 
+/// **Whether a straight side of face `fk`'s outer loop holds a point
+/// between its ends**, on a cylinder or a cone: a side carried by more
+/// than one edge, or a cone's side through its apex.
+///
+/// It reads the loop and nothing else, before any chord exists. A line
+/// is a ruling of either surface, and a side is one ruling run, so two
+/// line traversals in a row continue one side exactly when the side runs
+/// on through the vertex between them: their other ends lie on opposite
+/// sides of it along the ruling, in the chart's `v`. Two rulings that
+/// meet at a cone's apex as a corner come from one side of it, and so
+/// does a ruling the loop walks out and back (a slit, a one-generator
+/// loop); neither holds a point.
+///
+/// The rectangle lane's theorem for a ruled face holds every triangle
+/// between two neighbouring rulings, and such a point is a boundary
+/// point off its grid, so the route sends such a face to the chart lane
+/// (`tessellate::route_of`'s fourth fact). The route asks this only of a
+/// face the doors certified a rectangle (`curved::iso_rectangle_shape`),
+/// so it decides nothing about shape and reads no band: a face that is
+/// no rectangle has been routed, or refused with the doors' cause,
+/// before it is asked.
+pub(crate) fn splits_a_straight_side(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &geom::Surface<f64>,
+) -> Result<bool, TessellateError> {
+    if !crate::chart_table::ruled(surface) {
+        return Ok(false);
+    }
+    let chart = Chart::of(surface).ok_or(TessellateError::MissingEntity {
+        what: "curved chart",
+    })?;
+    let outer = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?
+        .outer;
+    // Each traversal's start, in `v`, and whether its carrier is a line.
+    let mut walk = Vec::new();
+    for (half_edge, ek, _) in loop_half_edges(body, outer, fk)? {
+        let start = body
+            .get_half_edge(half_edge)
+            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
+            .start;
+        let point = body
+            .get_vertex(start)
+            .and_then(|v| body.get_point(v.point))
+            .ok_or(TessellateError::MissingEntity {
+                what: "vertex position",
+            })?;
+        let carrier = body
+            .get_edge(ek)
+            .and_then(|edge| body.get_curve_geom(edge.curve))
+            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
+            .certified()
+            .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?
+            .carrier();
+        walk.push((
+            chart.v_of(*point),
+            matches!(carrier, geom::Curve3::Line(..)),
+        ));
+    }
+    let m = walk.len();
+    let held = (0..m).any(|k| {
+        let (before, after) = ((k + m - 1) % m, (k + 1) % m);
+        let (v, line) = walk[k];
+        // Strictly on either side: a far end at the junction's own `v` (a
+        // line edge of no length along the ruling) continues no side
+        // through it.
+        let (a, b) = (walk[before].0, walk[after].0);
+        line && walk[before].1 && ((a < v && v < b) || (b < v && v < a))
+    });
+    Ok(held)
+}
+
 /// Which iso kinds a loop's traversals carry — the one structural
 /// summary of the classified list. Its four readers —
 /// [`require_a_meridian`], [`require_two_columns`], [`walk_anchor`] and

@@ -80,9 +80,9 @@
 //! of δ is a typed choice nothing has measured as the coarsest
 //! (`work/tesslane/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
 //! The lanes without a theorem say so at their call sites: the trimmed
-//! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and a cone face
-//! whose side carries a point keeps the lattice `curved::grid_counts`
-//! names.
+//! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and so
+//! does a cylinder or cone face whose straight side holds a point, which
+//! is the trimmed lane's (`walk::splits_a_straight_side`).
 //!
 //! **One sizing question has a separate ratified answer**:
 //! `docs/TESS-BUDGET.md`'s *split schedule's aspect policy*
@@ -915,8 +915,18 @@ pub(crate) fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError>
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    /// The run's tolerances at `delta` under `Tol::witness()`, as
+    /// `tessellate` mints them.
+    pub(crate) fn witness_tols(delta: f64) -> SizingTols {
+        SizingTols {
+            delta,
+            eps: Eps::at(Tol::witness()),
+            band: Band::linear(Tol::witness()).unwrap(),
+        }
+    }
 
     /// **[`ellipse_step`] reads the semi-axes in either order.** An
     /// ellipse stored with `minor` the larger is the same locus; read as

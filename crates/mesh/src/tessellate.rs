@@ -218,7 +218,8 @@ pub(crate) enum Lane {
     /// grid on a swept analytic chart.
     Curved,
     /// `trimmed::tessellate_trimmed`: the chart lane, on every face
-    /// that is no iso-rectangle of its chart and on any NURBS chart.
+    /// that is no iso-rectangle of its chart, on a ruled rectangle whose
+    /// straight side holds a point, and on any NURBS chart.
     Trimmed,
 }
 
@@ -240,7 +241,7 @@ pub(crate) enum Lane {
 /// pass makes the plain one.
 ///
 /// **An analytic curved face is routed on its domain**, by the first of
-/// three facts that answers:
+/// four facts that answers:
 ///
 /// 1. A face holding a ring is no rectangle: the trimmed lane's, which
 ///    reads every loop of its domain.
@@ -262,6 +263,18 @@ pub(crate) enum Lane {
 ///    or whose stored data contradicts itself, refuses
 ///    [`TessellateError::UnsupportedCurvedShape`] with their cause: no
 ///    lane is taken because a door could not answer.
+/// 4. A rectangle the doors certify on a ruled chart (a cylinder or a
+///    cone) whose straight side holds a point between its ends — a ruling
+///    split into several edges, or a cone side run through its apex —
+///    is the trimmed lane's ([`crate::walk::splits_a_straight_side`]): the
+///    curved lane's theorem for a ruled face holds every triangle between
+///    two neighbouring rulings, and that point is a boundary point off its
+///    grid. The doors' [`crate::curved::Rectangle`] is dropped here
+///    unspent, so the token still means what it says (the doors certified
+///    a rectangle) and the curved lane is still reached through it alone;
+///    what the route adds is that the lane is handed only a ruled
+///    rectangle with bare sides, and the lane's own guard
+///    (`curved::SIDE_CHORD_POINT`) refuses one that reaches it otherwise.
 ///
 /// Read once per face per run, by [`Routes::of`], and handed to the
 /// chord pass, the sizing and the lanes, so no two of them can answer
@@ -297,7 +310,15 @@ pub(crate) fn route_of(
                 return Ok((Route::Trimmed(None), None));
             }
             match crate::curved::iso_rectangle_shape(body, fk, face.outer, surface, band)? {
-                Shape::Rectangle(rectangle) => (Route::Curved(rectangle), None),
+                Shape::Rectangle(rectangle) => {
+                    if crate::walk::splits_a_straight_side(body, fk, surface)? {
+                        // Fact 4: the token goes unspent, and the domain
+                        // is read at the face's turn, as for a ringed face.
+                        (Route::Trimmed(None), None)
+                    } else {
+                        (Route::Curved(rectangle), None)
+                    }
+                }
                 Shape::NoRectangle(source) => {
                     match k_stats::detached(|| crate::trimmed::face_domain(body, fk, band)) {
                         (Ok(lift), read) => (Route::Trimmed(Some(lift)), Some(read)),
