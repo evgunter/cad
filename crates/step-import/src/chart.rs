@@ -50,7 +50,7 @@
 
 use geom::Surface;
 use geom_core::predicate::Band;
-use geom_core::{Point2, Point3, Tol};
+use geom_core::{Point2, Point3};
 
 /// Why an outerness inference could not answer (module docs). Carries
 /// no entity ids — the caller names the face.
@@ -113,22 +113,8 @@ impl OuternessRefusal {
     }
 }
 
-/// **The band a chart is read at on import** (D3: import reads the
-/// kernel's readings with the file's own coincidence distance as the
-/// band): `(ε_in, K·ε_in)`, the run's K. A file with no budget (`ε_in`
-/// of `0`, refused later as `MissingUncertainty`) reads at
-/// [`Band::least`], as an exact comparison would. `None` where `ε_in`
-/// and K make no band (`K·ε_in` overflowing, or rounding back onto
-/// `ε_in`): then no point has chart coordinates ([`uv_of`]).
-pub(crate) fn file_band(eps_in: f64, tol: Tol) -> Option<Band> {
-    if eps_in == 0.0 {
-        return Some(Band::least());
-    }
-    Band::new(eps_in, tol.k() * eps_in).ok()
-}
-
 /// The chart preimage of `p` on `surface`: geom's reading
-/// ([`Surface::chart_point`]) at the file's band ([`file_band`]), kept
+/// ([`Surface::chart_point`]) at the file's band ([`crate::interpret::file_band`]), kept
 /// only where it names one point. `None` for a chart with no closed
 /// form (NURBS), a point whose preimage is not a point (a pole or the
 /// apex, where every azimuth maps to one place, decided at the band),
@@ -183,7 +169,7 @@ struct Ring {
 /// Which of `rings` is the outer bound (module docs' rule). `rings`
 /// holds each bound's 3-D samples in traversal order; `eps_in_eff` is
 /// the interpretation budget in meters, and `band` the file's band its
-/// samples are read into the chart at ([`file_band`]).
+/// samples are read into the chart at ([`crate::interpret::file_band`]).
 ///
 /// # Errors
 ///
@@ -339,7 +325,8 @@ fn boundary_distance(poly: &[Point2<f64>], p: Point2<f64>) -> f64 {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
-    use super::{file_band, infer_outer, uv_of};
+    use super::{infer_outer, uv_of};
+    use crate::interpret::file_band;
 
     use geom::Surface;
     use geom_core::{Point3, Tol, Vec3};
@@ -447,7 +434,8 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod review_outerness {
-    use super::{OuternessRefusal, file_band, infer_outer};
+    use super::{OuternessRefusal, infer_outer};
+    use crate::interpret::file_band;
     use geom::Surface;
     use geom_core::{Point3, Tol, Vec3};
 

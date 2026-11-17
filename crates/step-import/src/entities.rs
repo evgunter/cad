@@ -22,13 +22,17 @@ use geom_core::{Affine3, Mat3, Point3, Vec3};
 use crate::chart;
 use crate::error::StepImportError;
 use crate::geometry;
+use crate::interpret;
 use crate::normalize;
 use crate::parse::{Instance, Record, StepFile, Value};
 use crate::recognize;
 use crate::recognize_curve;
 use crate::signed_zero;
 use crate::units::{self, UnitKind};
-use crate::{CurvePromotion, FaceCensus, NormalizationKind, StructureNormalization};
+use crate::{
+    CurvePromotion, FaceCensus, NormalizationKind, STEP_LINE_DIRECTION_UNIT, STEP_PLACEMENT_IDENTITY,
+    StructureNormalization,
+};
 
 /// A resolved model: the shape content plus the file's declared
 /// uncertainty (D7's ε_in default).
@@ -228,19 +232,11 @@ pub(crate) struct Resolver<'a> {
     /// slot in the subset states an angle — a `CONICAL_SURFACE`'s
     /// `semi_angle` — and it passes through [`Resolver::as_angle`].
     angle_scale: f64,
-    /// ε_in in kernel meters — the file's declared uncertainty, scaled
-    /// with every other length. This is THE interpretation budget: D7's
-    /// input tolerance, one number per file, spent by every gate that
-    /// has to decide what the file means. Print truncation (Open
-    /// CASCADE's 12–13 significant digits) is ~1e-12 RELATIVE, so it
-    /// stays far under this absolute budget for any part smaller than
-    /// about 100 m; a model large enough to invert that comparison
-    /// fails adoption TYPED, with the residual in the refusal, and the
-    /// remedy is the per-call ε_in override — D7's own remedy path,
-    /// not a hole this reader papers over with a per-literal budget.
-    eps_in: f64,
-    /// The band a chart is read at ([`chart::file_band`] of `eps_in`).
-    chart_band: Option<geom_core::Band>,
+    /// ε_in in kernel metres (the file's declared uncertainty, scaled
+    /// with every other length) and the band the file is read at: the
+    /// one interpretation budget, spent by every reading that decides
+    /// what the file means ([`interpret`]).
+    budget: interpret::FileBand,
     /// The run's own linear band: where two points are one to the
     /// kernel that will certify the body, whatever the file claims.
     run_band: Option<geom_core::Band>,
@@ -439,60 +435,49 @@ impl<'a> Resolver<'a> {
             as_real(id, y, expected)?,
             as_real(id, z, expected)?,
         );
-        // **Ratios, not a unit vector (M7-4 Leg C).** ISO 10303-42's
-        // `direction` is a ratio triple with no normalization
-        // requirement, and the wild uses that latitude: an inch-context
-        // translator writes `(0.0393700787402, 0., 0.)` for +x. Every
-        // kernel consumer — the line carrier whose parameter is arc
-        // length, the frames whose axes are orthonormal — wants the
-        // unit vector, so a triple that is NOT unit is divided by its
-        // own norm.
-        //
-        // A triple that IS unit is taken **verbatim, bit for bit**.
-        // That is not an optimization: this reader's whole discipline
-        // is that a stated field is adopted, not re-derived, and
-        // `d / d.norm()` moves the last bits of a direction the writer
-        // printed exactly (`√½` squares to 0.9999999999999998, whose
-        // root is not 1). The window is ε_in — the same budget, and
-        // the same argument, the assembly pass already spends on a
-        // direction field: dimensionless, but a unit vector's slack is
-        // bounded by it just as tightly.
-        let Some((unit, norm)) = ratios.checked_direction().ok() else {
+        // A `direction` is a ratio triple (ISO 10303-42), with no
+        // normalization requirement: its consumers normalize it by their
+        // own construction ([`Self::placement`]'s `build_axes`, a line's
+        // unit direction). Only a triple that names no direction refuses.
+        if ratios.checked_direction().is_err() {
             return Err(StepImportError::MalformedRecord {
                 id,
                 expected: "three direction ratios that are not all zero and are finite \
                            (a zero triple names no direction)",
             });
-        };
-        Ok(if (norm - 1.0).abs() <= self.eps_in {
-            ratios
-        } else {
-            unit
-        })
+        }
+        Ok(ratios)
     }
 
     /// `AXIS2_PLACEMENT_3D('', #location, #axis, #ref_direction)` →
-    /// the kernel frame `(origin, axis, u_ref)`, field for field where
-    /// the file states the fields.
-    ///
-    /// **Unset axis / ref_direction (M7-4).** Both are optional in the
-    /// schema, and an older PDE/Lib-lineage writer leaves
-    /// `ref_direction` `$` on every circle it emits. Filling them in is
-    /// not a guess: ISO 10303-42's own `build_axes` / `first_proj_axis`
-    /// say exactly what an unset field means — the axis defaults to
-    /// `(0,0,1)`, and the reference direction to the first coordinate
-    /// axis not parallel to it, projected perpendicular. Reading that
-    /// derived attribute is reading the file, in the same sense that
-    /// reading a stated one is; what would be a guess is inventing a
-    /// DIFFERENT default. The stated fields still take precedence and
-    /// are still adopted bit for bit.
-    ///
-    /// The projection is always applied to the reference direction,
-    /// stated or not, because the kernel's frame is orthonormal and
-    /// the schema's `ref_direction` need not be perpendicular to the
-    /// axis — but the ε_in window in [`Resolver::direction`] means an
-    /// already-perpendicular unit pair comes through untouched.
+    /// the kernel frame `(origin, axis, u_ref)`, built by ISO 10303-42's
+    /// `build_axes` from the file's ratio vectors
+    /// ([`geom_core::RigidMotion::from_axis_and_reference`]): the axis
+    /// normalized, the reference direction projected perpendicular to it
+    /// and normalized. That is what the fields mean, not a heal, so it
+    /// is applied to every placement. An unset axis is `(0, 0, 1)` and an
+    /// unset reference the first coordinate axis not parallel to the
+    /// axis (`first_proj_axis`). Only a degenerate pair refuses: a
+    /// reference parallel to its axis states no frame. Where the stated
+    /// fields are no rigid frame within their own rounding, the move the
+    /// build made is reported ([`NormalizationKind::PlacementReMinted`],
+    /// keyed by the placement).
     fn placement(&self, from: u64, id: u64) -> Result<geom::Frame<f64>, StepImportError> {
+        let (frame, _, moved) = self.placement_built(from, id)?;
+        if let Some(moved_by) = moved {
+            self.report_placement(id, moved_by);
+        }
+        Ok(frame)
+    }
+
+    /// [`Self::placement`] unreported: the frame, the built motion, and
+    /// the move the build made where it made one beyond rounding.
+    fn placement_built(
+        &self,
+        from: u64,
+        id: u64,
+    ) -> Result<(geom::Frame<f64>, geom_core::RigidMotion<f64>, Option<f64>), StepImportError>
+    {
         let args = self.simple(from, id, "AXIS2_PLACEMENT_3D")?;
         let expected = "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction)";
         let [_, location, axis, ref_dir] = args else {
@@ -503,53 +488,67 @@ impl<'a> Resolver<'a> {
             Value::Null => Vec3::new(0.0, 0.0, 1.0),
             _ => self.direction(id, as_ref(id, axis, expected)?)?,
         };
-        let stated = match ref_dir {
-            Value::Null => None,
-            _ => Some(self.direction(id, as_ref(id, ref_dir, expected)?)?),
-        };
-        // A file that already states an orthonormal frame is adopted
-        // bit for bit: the projection below is arithmetic, and running
-        // it on a `ref_direction` that is already perpendicular would
-        // move the last bits of a field the writer printed exactly.
-        // The window is ε_in, as everywhere else a direction is
-        // compared here.
-        if let Some(u_ref) = stated
-            && axis.dot(u_ref).abs() <= self.eps_in
-        {
-            return Ok(geom::Frame::new(origin, axis, u_ref));
-        }
-        // `first_proj_axis`: the file's reference direction when it has
-        // one, else the first coordinate axis the placement's own axis
-        // is not parallel to.
-        let candidate = stated.unwrap_or_else(|| {
-            if axis.x.abs() < 1.0 {
-                Vec3::new(1.0, 0.0, 0.0)
-            } else {
-                Vec3::new(0.0, 1.0, 0.0)
+        let reference = match ref_dir {
+            Value::Null => {
+                // `first_proj_axis`: the first coordinate axis the
+                // placement's own axis is not parallel to.
+                if axis.y == 0.0 && axis.z == 0.0 {
+                    Vec3::new(0.0, 1.0, 0.0)
+                } else {
+                    Vec3::new(1.0, 0.0, 0.0)
+                }
             }
+            _ => self.direction(id, as_ref(id, ref_dir, expected)?)?,
+        };
+        // The two directions' lengths are read at the least band, as an
+        // exact comparison would: a ratio vector's length is no distance
+        // for the file's band to read, so only a vanishing one (a
+        // reference exactly along its axis) is degenerate.
+        let built = geom_core::RigidMotion::from_axis_and_reference(
+            origin,
+            axis,
+            reference,
+            crate::STEP_PLACEMENT_AXES,
+            geom_core::Band::least(),
+        )
+        .map_err(|_| StepImportError::MalformedRecord {
+            id,
+            expected: "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction) \
+                       whose reference direction is not parallel to its axis (a \
+                       parallel pair states no frame)",
+        })?;
+        let stated = geom::Frame {
+            origin,
+            axis,
+            u_ref: reference,
+        };
+        let frame = geom::Frame::new(origin, built.w().get(), built.u().get());
+        Ok((frame, built, placement_move(stated, built)))
+    }
+
+    /// Records a placement move ([`NormalizationKind::PlacementReMinted`])
+    /// keyed by `id`, once.
+    fn report_placement(&self, id: u64, moved_by: f64) {
+        let mut normalizations = self.normalizations.borrow_mut();
+        if normalizations.iter().any(|n| {
+            matches!(n.kind, NormalizationKind::PlacementReMinted { transform, .. } if transform == id)
+        }) {
+            return;
+        }
+        let empty = FaceCensus {
+            faces: 0,
+            edges: 0,
+            vertices: 0,
+        };
+        normalizations.push(StructureNormalization {
+            face: id,
+            kind: NormalizationKind::PlacementReMinted {
+                transform: id,
+                moved_by,
+            },
+            file_census: empty,
+            kernel_census: empty,
         });
-        // How much of the candidate lies ALONG the axis — a projection
-        // coefficient, named rather than inlined so the subtraction
-        // below reads as "remove the axial part" and so the expression
-        // is not the `v * v`-shaped text the interval-square tripwire
-        // watches for (there is no square here: `axis` scales a dot of
-        // two DIFFERENT vectors, and this crate is f64-only besides).
-        let along = axis.dot(candidate);
-        let perpendicular = candidate - axis * along;
-        let Some((unit, norm)) = perpendicular.checked_direction().ok() else {
-            return Err(StepImportError::MalformedRecord {
-                id,
-                expected: "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction) \
-                           whose reference direction is not parallel to its axis (a \
-                           parallel pair states no frame)",
-            });
-        };
-        let u_ref = if (norm - 1.0).abs() <= self.eps_in {
-            perpendicular
-        } else {
-            unit
-        };
-        Ok(geom::Frame::new(origin, axis, u_ref))
     }
 
     /// An `ADVANCED_FACE`'s surface reference → the kernel surface,
@@ -919,9 +918,7 @@ impl<'a> Resolver<'a> {
                 // the direction is normalized here, and the wild's
                 // non-unit `DIRECTION` ratios (an inch file's
                 // `(0.0393700787402, 0., 0.)`) come out right by the
-                // same division. A file already stating unit ratios at
-                // magnitude 1 divides by an exact 1.0 and moves no
-                // bits.
+                // same division.
                 let magnitude = as_real(vec_id, magnitude, vexpected)?;
                 if !(magnitude.is_finite() && magnitude > 0.0) {
                     return Err(StepImportError::MalformedRecord {
@@ -931,7 +928,11 @@ impl<'a> Resolver<'a> {
                                    one describes no line)",
                     });
                 }
-                let dir = self.direction(vec_id, as_ref(vec_id, dir_ref, vexpected)?)?;
+                let ratios = self.direction(vec_id, as_ref(vec_id, dir_ref, vexpected)?)?;
+                let dir = unit_line_direction(ratios).ok_or(StepImportError::MalformedRecord {
+                    id: vec_id,
+                    expected: vexpected,
+                })?;
                 Ok(Curve3::Line(geom::Line { origin, dir }))
             }
             "CIRCLE" => {
@@ -1167,7 +1168,7 @@ impl<'a> Resolver<'a> {
     ) -> Result<Curve3<f64>, StepImportError> {
         NurbsCurve3::new(knots, control, weights)
             .map(
-                |payload| match recognize_curve::recognize(&payload, self.eps_in) {
+                |payload| match recognize_curve::recognize(&payload, self.budget.eps_in()) {
                     recognize_curve::CurveRecognition::Promoted {
                         curve,
                         residual,
@@ -1269,7 +1270,7 @@ impl<'a> Resolver<'a> {
         if let Surface::Nurbs(ref patch) = surface
             && !patch.is_placeholder()
         {
-            match recognize::recognize(patch.as_ref(), self.eps_in) {
+            match recognize::recognize(patch.as_ref(), self.budget.eps_in()) {
                 recognize::Recognition::Promoted {
                     surface: promoted,
                     residual,
@@ -1332,7 +1333,7 @@ impl<'a> Resolver<'a> {
         // returns before the outerness walk; the mint's single loop
         // is outer by construction.
         if loops.len() > 1 && !matches!(surface, Surface::Plane { .. }) {
-            if is_periodic_band(&surface, &loops, edges, self.chart_band) {
+            if is_periodic_band(&surface, &loops, edges, self.budget.band()) {
                 return Ok(vec![FaceSpec {
                     id,
                     surface,
@@ -1415,7 +1416,7 @@ impl<'a> Resolver<'a> {
             .iter()
             .map(|lp| self.ring_samples(lp, edges))
             .collect::<Result<_, _>>()?;
-        let inferred = chart::infer_outer(surface, &rings, self.eps_in, self.chart_band);
+        let inferred = chart::infer_outer(surface, &rings, self.budget.eps_in(), self.budget.band());
         // **Several stated outer bounds (M7-4).** A closed periodic
         // face — a cylinder's lateral band — genuinely has no outer
         // bound: its two boundary circles are not inside one another,
@@ -1567,7 +1568,7 @@ impl<'a> Resolver<'a> {
         };
         // The budget is ε_in — the file's own declared uncertainty,
         // scaled into kernel metres (D7's rule, unchanged).
-        let eps = self.eps_in;
+        let eps = self.budget.eps_in();
         let p = self.vertex(id, vertex_id)?;
         if ((p - center).norm() - radius).abs() > eps {
             return Err(StepImportError::Topology {
@@ -1928,8 +1929,8 @@ impl<'a> Resolver<'a> {
         // kernel cannot represent as stated (Leg C).
         normalize::normalize_shell(
             &mut solid,
-            self.eps_in,
-            self.chart_band,
+            self.budget.eps_in(),
+            self.budget.band(),
             self.run_band,
             &mut || self.mint_id(),
             &mut self.normalizations.borrow_mut(),
@@ -2388,53 +2389,9 @@ impl Resolver<'_> {
         let [_, _, from_ref, to_ref] = args else {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
-        let a = self.placement(id, as_ref(id, from_ref, expected)?)?;
-        let b = self.placement(id, as_ref(id, to_ref, expected)?)?;
-        // Identity at ε_in: the origins coincide within the file's own
-        // declared uncertainty, and so do the two direction fields
-        // (dimensionless, but ε_in is the one budget this importer
-        // spends and a unit vector's slack is bounded by it just as
-        // tightly). Checked on the STATED fields, before any
-        // orthonormalization, so an identity pair takes the same path
-        // it took in M7-2 and moves nothing.
-        if (a.origin - b.origin).norm() <= self.eps_in
-            && (a.axis - b.axis).norm() <= self.eps_in
-            && (a.u_ref - b.u_ref).norm() <= self.eps_in
-        {
-            return Ok(None);
-        }
+        let (_, ma, da) = self.placement_built(id, as_ref(id, from_ref, expected)?)?;
+        let (_, mb, db) = self.placement_built(id, as_ref(id, to_ref, expected)?)?;
         let refuse = |what: &'static str| StepImportError::Structure { id, what };
-        let parallel = || {
-            refuse(
-                "an assembly placement whose reference direction is parallel to its \
-                 axis — that pair states no frame to place anything in",
-            )
-        };
-        // **ISO 10303-42's `build_axes`, as a mint**: the axis normalized
-        // as the frame's third axis, the reference direction projected
-        // perpendicular to it and normalized as the first, and the second
-        // their cross product — a right-handed frame whatever the fields
-        // say, rigid by construction
-        // ([`geom_core::RigidMotion::from_axis_and_reference`]), so
-        // nothing re-derives its rigidity from twelve numbers. A mirror
-        // is no placement pair's to state: that is an operator's, refused
-        // above. The two directions' lengths are read at the least band,
-        // as an exact comparison would: a unit field's length is no
-        // distance for the file's ε_in to read, and a reference parallel
-        // to its axis at ε_in already refused where the frame was read
-        // ([`Self::placement`]), so only an exactly vanishing one is left.
-        let band = geom_core::Band::least();
-        let built = |f: geom::Frame<f64>| {
-            geom_core::RigidMotion::from_axis_and_reference(
-                f.origin,
-                f.axis,
-                f.u_ref,
-                crate::STEP_PLACEMENT_AXES,
-                band,
-            )
-            .map_err(|_| parallel())
-        };
-        let (ma, mb) = (built(a)?, built(b)?);
         // B ∘ A⁻¹, composed as motions: `A⁻¹` is `A`'s transpose, and
         // the product is `Affine3`'s own, bit for bit.
         let motion = ma.inverse().and_then(|ai| mb.compose(ai)).map_err(|_| {
@@ -2443,46 +2400,62 @@ impl Resolver<'_> {
                  its placements stand too far from the origin to compose",
             )
         })?;
-        // Where a frame's fields as stated are no rigid frame within
-        // their own rounding ([`geom_core::RigidMotion::check_rigid`]),
-        // `build_axes` moved them, and the move is reported: the
-        // farthest a point of the session box moves between the stated
-        // frame and the built one, summed over the pair.
-        let moved = |f: geom::Frame<f64>, built: geom_core::RigidMotion<f64>| {
-            let stated = Affine3::from_parts(
-                Mat3::from_cols(f.u_ref, f.axis.cross(f.u_ref), f.axis),
-                f.origin - Point3::origin(),
-            );
-            geom_core::RigidMotion::check_rigid(&stated)
-                .is_err()
-                .then(|| in_box_displacement(&built.to_affine(), &stated))
-        };
-        let reported = self.normalizations.borrow().iter().any(|n| {
-            matches!(n.kind, NormalizationKind::PlacementReMinted { transform, .. } if transform == id)
-        });
-        if let (da, db) = (moved(a, ma), moved(b, mb))
-            && (da.is_some() || db.is_some())
-            && !reported
-        {
-            let empty = FaceCensus {
-                faces: 0,
-                edges: 0,
-                vertices: 0,
-            };
-            self.normalizations
-                .borrow_mut()
-                .push(StructureNormalization {
-                    face: id,
-                    kind: NormalizationKind::PlacementReMinted {
-                        transform: id,
-                        moved_by: da.unwrap_or(0.0) + db.unwrap_or(0.0),
-                    },
-                    file_census: empty,
-                    kernel_census: empty,
-                });
+        if da.is_some() || db.is_some() {
+            self.report_placement(id, da.unwrap_or(0.0) + db.unwrap_or(0.0));
+        }
+        // **Whether the pair places anything** — a lane choice: the
+        // farthest a point of the session box moves under the motion,
+        // read at the file's band. Zero takes the identity (no motion),
+        // and the snap is reported where it moves a point beyond
+        // rounding; in band and apart take the motion itself.
+        let displacement = in_box_displacement(&motion.to_affine(), &Affine3::identity());
+        if self.budget.read(STEP_PLACEMENT_IDENTITY, displacement) == interpret::Read::Zero {
+            if displacement > geom_core::tolerance::ADMISSION_FLOOR {
+                self.report_placement(id, displacement);
+            }
+            return Ok(None);
         }
         Ok(Some(motion))
     }
+}
+
+/// **A line's unit direction from the file's ratio triple**: the triple
+/// itself where it is unit within its own rounding (its squared length
+/// less one no larger than the rounding a short chain is charged,
+/// [`geom_core::rounding_charge`], as [`geom_core::RigidMotion::check_rigid`]
+/// admits a frame's columns), so a unit direction the writer printed is
+/// kept bit for bit; otherwise the triple normalized. `None` for a triple
+/// that names no direction.
+fn unit_line_direction(ratios: Vec3<f64>) -> Option<Vec3<f64>> {
+    let (unit, _) = ratios.checked_direction().ok()?;
+    let squared = ratios.dot(ratios);
+    let slack = geom_core::rounding_charge(squared + 1.0) - (squared - 1.0).abs();
+    let unit_within_rounding = geom_core::k_stats::prove(
+        STEP_LINE_DIRECTION_UNIT,
+        geom_core::Margin::of(slack),
+    )
+    .is_ok_and(|sign| !sign.is_negative());
+    Some(if unit_within_rounding { ratios } else { unit })
+}
+
+/// **The move `build_axes` made of a placement**, where it made one
+/// beyond rounding: `None` where the frame as the file states it (its
+/// columns the reference direction, the axis crossed with it and the
+/// axis, unnormalized) is rigid within its own rounding
+/// ([`geom_core::RigidMotion::check_rigid`]); otherwise the farthest a
+/// point of the session box moves between it and the built frame.
+fn placement_move(stated: geom::Frame<f64>, built: geom_core::RigidMotion<f64>) -> Option<f64> {
+    let stated = Affine3::from_parts(
+        Mat3::from_cols(
+            stated.u_ref,
+            stated.axis.cross(stated.u_ref),
+            stated.axis,
+        ),
+        stated.origin - Point3::origin(),
+    );
+    geom_core::RigidMotion::check_rigid(&stated)
+        .is_err()
+        .then(|| in_box_displacement(&built.to_affine(), &stated))
 }
 
 /// **The farthest a point of the session box moves between two maps**:
@@ -3190,8 +3163,7 @@ fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
         file,
         length_scale: 1.0,
         angle_scale: 1.0,
-        eps_in: 0.0,
-        chart_band: None,
+        budget: interpret::FileBand::unread(),
         run_band: None,
         next_id: std::cell::Cell::new(0),
         normalizations: std::cell::RefCell::new(Vec::new()),
@@ -3243,8 +3215,7 @@ pub(crate) fn resolve(
         // budget here; the shape pass below refuses first when there
         // is nothing to import, and `MissingUncertainty` is raised
         // after it, when a body really was on the table.
-        eps_in,
-        chart_band: chart::file_band(eps_in, tol),
+        budget: interpret::FileBand::new(eps_in, tol),
         run_band: geom_core::Band::linear(tol).ok(),
         // Past every stated id, so minted topology cannot collide.
         next_id: std::cell::Cell::new(

@@ -5,8 +5,8 @@
 //! exported at the origin in a file that declares a coincidence distance
 //! ε_in, is placed by an `ITEM_DEFINED_TRANSFORMATION` turning it about
 //! `z` and standing it at `(700, 700, 0)`, about 990 m out. The
-//! placement's axis direction is off unit, and within ε_in the reader
-//! adopts it verbatim, so the frame as stated carries the defect.
+//! placement's axis direction is off unit, a ratio vector the frame as
+//! the file states it carries unnormalized.
 //!
 //! Every placement frame is minted from its fields by `build_axes` (the
 //! axis normalized, the reference projected and normalized), so the map
@@ -14,8 +14,8 @@
 //! the fields say. Where the stated frame is rigid within its own
 //! rounding nothing is reported; where it is not, the move `build_axes`
 //! made is reported with the farthest a point of the session box moved.
-//! A file declaring ε_in = 100 m adopts an axis 4% off unit verbatim,
-//! and the metres-long move its build makes is reported, not hidden
+//! A file declaring ε_in = 100 m states an axis 4% off unit, and the
+//! metres-long move its build makes is reported, not hidden
 //! (`work/onehome/a-step-files-input-tolerance-has-no-bound-the-ratified-text-states.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -176,7 +176,7 @@ fn a_placement_within_rounding_reports_nothing() {
 }
 
 /// **A file's coincidence distance bounds no move a build makes**: a
-/// file declaring ε_in = 100 m adopts an axis 4% off unit verbatim, and
+/// file declaring ε_in = 100 m states an axis 4% off unit, and
 /// `build_axes` moves the box's corners by tens of metres — reported,
 /// so the move is in the import's own record.
 #[test]

@@ -198,7 +198,10 @@ pub(super) fn singularity_vertices(
     let read = Read {
         eps,
         escalate,
-        band: chart_band,
+        // The file's band is its own only where ε_in is at least the
+        // run's ε; below that the file is read at the run's band, and a
+        // smaller tolerance is what decides it.
+        band: chart_band.filter(|_| run_band.is_none_or(|run| eps_in >= run.zero())),
         file: geom_core::FileCoincidence::new(eps_in),
         coarser: Read::coarser(eps, escalate),
     };

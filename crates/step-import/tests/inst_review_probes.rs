@@ -256,15 +256,17 @@ fn rotation_plus_translation_re_certifies() {
     assert_cloud_eq(&clouds[3], &mapped(&base_clouds[1], rot), "rotated sphere");
 }
 
-/// (2): the ε_in identity boundary. The file's uncertainty is 1e-7 mm;
-/// a 5e-8 mm displacement must classify identity (nothing moves) and a
-/// 2e-7 mm displacement must classify as a placement (the body moves by
-/// exactly that much).
+/// (2): the identity boundary at the file's band. The file's
+/// uncertainty is 1e-7 mm, and the band it is read at is `(e, K·e)` for
+/// `e` the larger of that and the run's ε. A displacement well within
+/// ε_in classifies identity (nothing moves); one past the band's
+/// escalation is a placement, applied exactly.
 #[test]
 fn identity_boundary_at_eps_in() {
+    let tol = Tol::witness();
     let base = import(&base_text());
     let base_clouds = solid_clouds(&base);
-    // Below ε_in: identity.
+    // Within ε_in: identity.
     let below = base_text().replace(
         "#16 = CARTESIAN_POINT('',(0.,0.,0.));",
         "#16 = CARTESIAN_POINT('',(5.E-08,0.,0.));",
@@ -275,15 +277,16 @@ fn identity_boundary_at_eps_in() {
         &base_clouds[0],
         "sub-eps displacement is identity",
     );
-    // Above ε_in: a real placement, applied exactly.
+    // Past the band's escalation, in mm: a real placement.
+    let past_mm = 2.0 * tol.k() * 1e-10_f64.max(tol.eps()) * 1e3;
     let above = base_text().replace(
         "#16 = CARTESIAN_POINT('',(0.,0.,0.));",
-        "#16 = CARTESIAN_POINT('',(2.E-07,0.,0.));",
+        &format!("#16 = CARTESIAN_POINT('',({past_mm:e},0.,0.));"),
     );
     let clouds = solid_clouds(&import(&above));
     assert_cloud_eq(
         &clouds[0],
-        &mapped(&base_clouds[0], |[x, y, z]| [x + 2e-7, y, z]),
+        &mapped(&base_clouds[0], |[x, y, z]| [x + past_mm, y, z]),
         "supra-eps displacement is a placement",
     );
     assert_cloud_eq(&clouds[1], &base_clouds[1], "the other solid does not move");

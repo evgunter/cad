@@ -355,6 +355,17 @@ pub enum StepImportError {
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
     },
+    /// **An interpretation reading refused** (`[import]`, D7): what the
+    /// file's statements at `id` are evidence of is no description at
+    /// its band, or more than one, or a value no construction takes.
+    Interpretation {
+        /// The file entity the reading is of.
+        id: u64,
+        /// The reading, the distance and which way it refused.
+        refusal: crate::interpret::Refusal,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
+    },
     /// An assembly instance's rigid placement refused at the kernel's
     /// own [`topo::transform_rigid`] door (M7-4 Leg D): a carrier that
     /// failed to re-certify against the mapped geometry.
@@ -623,7 +634,18 @@ impl StepImportError {
                 let arm = RefusedArm::Undecided(cause);
                 let ending = door(file).map(|at| match band {
                     SingularityBand::Run => SINGULARITY_ON_BOUNDARY.recourse(arm, at),
-                    SingularityBand::File => SINGULARITY_IN_FILE_BAND.recourse(arm, at),
+                    SingularityBand::File => {
+                        crate::interpret::Refusal::in_band(SINGULARITY_SUBJECT, cause).map_or_else(
+                            || SINGULARITY_IN_FILE_BAND.recourse(arm, at),
+                            |refusal| {
+                                format!(
+                                    "{} — the distance lies in the band past the file's \
+                                     coincidence distance, which no tolerance of this run decides",
+                                    refusal.ending()
+                                )
+                            },
+                        )
+                    }
                 });
                 write!(
                     f,
@@ -647,6 +669,17 @@ impl StepImportError {
                         ending.map(|e| format!(". {e}")).unwrap_or_default()
                     ),
                 }
+            }
+            Self::Interpretation { id, refusal, file } => {
+                write!(
+                    f,
+                    "step import: entity #{id}: {}",
+                    refusal.payload(file.eps_in())
+                )?;
+                if ended {
+                    write!(f, ". {}", refusal.ending())?;
+                }
+                Ok(())
             }
             Self::Placement {
                 transform,

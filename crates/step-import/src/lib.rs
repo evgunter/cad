@@ -223,6 +223,7 @@ mod cr_r1_probes;
 mod entities;
 mod error;
 mod geometry;
+mod interpret;
 mod knot_split;
 mod normalize;
 mod parse;
@@ -232,6 +233,7 @@ mod signed_zero;
 mod units;
 
 pub use error::{AdoptionAttempt, AdoptionCandidate, SingularityBand, StepImportError};
+pub use interpret::Refusal as InterpretationRefusal;
 
 use geom_core::Tol;
 
@@ -460,6 +462,15 @@ pub enum NormalizationKind {
 /// The K row a placement frame's two directions are decided under where
 /// `build_axes` mints it ([`NormalizationKind::PlacementReMinted`]).
 pub const STEP_PLACEMENT_AXES: &str = "step_placement_axes";
+
+/// The decision whether an assembly placement pair places anything: the
+/// farthest a point of the session box moves under its motion, read at
+/// the file's band (Zero takes the identity).
+pub const STEP_PLACEMENT_IDENTITY: &str = "step_placement_identity";
+
+/// The proof that a line's stated direction triple is unit within its own
+/// rounding, so it is kept as the file states it.
+pub const STEP_LINE_DIRECTION_UNIT: &str = "step_line_direction_unit";
 
 /// Where a file put a chart singularity that is not yet a vertex in
 /// the pole form ([`NormalizationKind::ChartSingularityVertex`]).

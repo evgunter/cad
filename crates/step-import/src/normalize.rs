@@ -895,7 +895,7 @@ mod tests {
         singularity::singularity_vertices(
             &mut solid,
             1e-9,
-            crate::chart::file_band(1e-9, geom_core::Tol::witness()),
+            crate::interpret::file_band(1e-9, geom_core::Tol::witness()),
             geom_core::Band::linear(geom_core::Tol::witness()).ok(),
             &mut || {
                 minted += 1;
