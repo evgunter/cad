@@ -266,8 +266,9 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
         ),
         (
             "mesh/src/walk.rs",
-            2,
-            "PINNED EXCEPTION: unwrap_tie, the curved lane's pole junction (tesswalk)",
+            6,
+            "PINNED EXCEPTION: unwrap_tie, the curved lane's pole junction (tesswalk): its \
+             definition, its one call, and the four assertions of its own unit row",
         ),
         (
             "topo/src/chart_region.rs",

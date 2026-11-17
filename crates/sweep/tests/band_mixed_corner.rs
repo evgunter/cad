@@ -528,8 +528,8 @@ fn the_bracket_fillets_all_round_at_its_closed_form() {
     assert_corner_rows(&out, 4, "the bracket");
 }
 
-/// **The bracket without its bore chamfered all round** (a chamfer has
-/// no band over the bore's arcs): the strips over each edge's whole
+/// **The bracket without its bore chamfered all round** (with it,
+/// `band_chamfer_frustum` adds the bore's frustum rings): the strips over each edge's whole
 /// length, `s²/2` each (convex 52, concave 4), less `2s³/3` at each of
 /// the twelve flat corners; the flush corners' `K·s³` and the inset
 /// ones' cancel.

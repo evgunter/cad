@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-16
 priority: P2
 cost: M
-blocked_on: [one-containment-lemma-for-an-oblique-boundary, the-lattice-keeps-clear-of-the-boundary-and-every-winding-is-resolved]
+blocked_on: [one-containment-lemma-for-an-oblique-boundary]
 ---
 
 

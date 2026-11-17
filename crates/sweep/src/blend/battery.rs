@@ -45,10 +45,12 @@ use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, S
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_strip,
-    inward_unit, line_meet, offset_room, plane_plane_blend, plane_sphere_blend, plane_sphere_room,
+    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_frustum,
+    chamfer_setback_point, chamfer_strip, inward_unit, line_meet, offset_room, plane_plane_blend,
+    plane_sphere_blend, plane_sphere_room,
 };
 use super::build::fan_at;
+use super::junction::JUNCTION_NO_HOST;
 use super::open::end_face::CycleReading;
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, scaffolding, strip_frame, strip_reading,
@@ -763,6 +765,35 @@ pub(crate) fn face_clearance_margin<T: Decide + Bounds>(
     }
 }
 
+/// **A frustum's plane trim stays off the axis**: the plane support of
+/// a frustum link is a face reaching from the rim to the axis at most
+/// where the plane runs inward (a post's or a boss's top), so the band's
+/// setback there must be shorter than the rim's radius. The margin is the
+/// plane trim circle's own radius, `R − s` inward (`R + s` outward,
+/// always clear), and the gap it is read against the rim's radius `R`:
+/// the screen's own reading of a face too narrow for its setback, which
+/// the caller classifies under `fillet3_face_clearance` before any band
+/// is minted. `None` for a link of any other arm.
+fn frustum_plane_room<T: Decide>(
+    body: &Body<T>,
+    link: &Link<T>,
+) -> Result<Option<(FaceKey, T, T)>, BlendError> {
+    if link.arm != BlendArm::CylinderPlaneCone {
+        return Ok(None);
+    }
+    let (carrier, _, _) = carrier_of(body, link.edge)?;
+    let Some(rim) = carrier.as_circle() else {
+        return Ok(None);
+    };
+    Ok([link.face_a, link.face_b].into_iter().find_map(|face| {
+        let planar = body
+            .face_surface(face)
+            .is_some_and(|s| s.kind() == geom::SurfaceKind::Plane);
+        let trim = link.trim_on(face).and_then(|(c, _)| c.as_circle())?;
+        planar.then_some((face, trim.radius, rim.radius))
+    }))
+}
+
 // ---------------------------------------------------------------
 // Predicate 3 — spine regularity.
 // ---------------------------------------------------------------
@@ -1181,11 +1212,13 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
             });
             return Ok(Resolved::Smooth(edge, margin));
         }
-        // The chamfer's one arm is plane–plane, and a knife's
-        // supports are not two planes on any valid body (two planes
-        // tangent along a line are coplanar, a lamina tier 3
-        // refuses), so a knife reaches the chamfer's one refusal for
-        // a pair its arm does not cover, as any curved pair does.
+        // The chamfer's arms are plane–plane and a cylinder meeting a
+        // plane square to its axis, and a knife's supports are neither
+        // on any valid body (two planes tangent along a line are
+        // coplanar, a lamina tier 3 refuses; a plane tangent to a
+        // cylinder touches it along a ruling, not a circle), so a knife
+        // reaches the chamfer's refusal for a pair its arms do not
+        // cover, as any other curved pair does.
         geom_brep::WedgeVerdict::End { .. } if matches!(kind, BlendKind::Chamfer) => {
             return Err(BlendError::ChamferArmUnsupported {
                 edge,
@@ -1266,9 +1299,9 @@ pub(super) const ARM_ROSTER: &str = "non-(plane–plane / plane–sphere / spher
      cone–cone / cylinder–cone / cylinder–sphere / cylinder–plane / cylinder–plane(∥) / \
      cylinder–cylinder)";
 
-/// What the chamfer's one refusal for an uncovered pair names: its one
-/// arm is plane–plane.
-const CHAMFER_SUPPORTS: &str = "non-(plane–plane)";
+/// What the chamfer's one refusal for an uncovered pair names: its arms
+/// are plane–plane and cylinder–plane square to the axis.
+const CHAMFER_SUPPORTS: &str = "non-(plane–plane / cylinder–plane)";
 
 /// The roster as data, for the arm-coverage row that keeps it honest.
 #[must_use]
@@ -1358,10 +1391,12 @@ fn support_coaxiality<T: Decide + Bounds>(
 /// is chosen by the RIM CARRIER's own stored shape — a coaxial pair
 /// meets in a circle, a ruled pair in a line.
 ///
-/// The chamfer's table is one row wide and refuses everything else,
-/// with the same shape and the same honesty: a curved support is a
-/// real chamfer whose arm is not built (VERBS-ARMS' machinery), not a
-/// geometry this kernel will approximate.
+/// The chamfer's table is two rows wide — the strip over two planes,
+/// the frustum over a cylinder and a plane square to its axis, decided
+/// coaxial as the fillet's curved rows are — and refuses everything
+/// else, with the same shape and the same honesty: another curved
+/// support is a real chamfer whose arm is not built, not a geometry this
+/// kernel will approximate.
 ///
 /// A curved row also returns the margin its coaxiality was decided on
 /// ([`support_coaxiality`]); the planar rows decide none.
@@ -1385,16 +1420,38 @@ fn classify_arm<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
     if matches!(kind, BlendKind::Chamfer) {
-        return match (sa, sb) {
-            (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
+        let unsupported = || BlendError::ChamferArmUnsupported {
+            edge,
+            supports: CHAMFER_SUPPORTS,
+        };
+        use geom::SurfaceKind::{Cylinder, Plane};
+        let coaxial = |departure: T| {
+            support_coaxiality(edge, departure, band, CHAMFER_SUPPORTS).map_err(|e| match e {
+                BlendError::SpineUnsupported { .. } => unsupported(),
+                other => other,
+            })
+        };
+        return match (sa.kind(), sb.kind(), carrier.as_circle()) {
+            (Plane, Plane, _) => Ok((
                 BlendArm::PlanePlaneStrip,
                 chamfer_strip(p, tau.normalize(), n_a, n_b, radius),
                 None,
             )),
-            _ => Err(BlendError::ChamferArmUnsupported {
-                edge,
-                supports: CHAMFER_SUPPORTS,
-            }),
+            // A circle where a cylinder meets a plane: the frustum, once
+            // the two are decided to share the circle's axis (the plane
+            // square to it), as the fillet's coaxial rows decide it.
+            (Plane, Cylinder, Some(circle)) | (Cylinder, Plane, Some(circle)) => frustum_arm(
+                (sa, sb),
+                (n_a, n_b),
+                senses,
+                circle,
+                (p, tau),
+                radius,
+                convexity,
+                coaxial,
+                unsupported,
+            ),
+            _ => Err(unsupported()),
         };
     }
     // A knife's ball is read in a sheet, whichever its supports: two
@@ -1468,6 +1525,43 @@ fn classify_arm<T: Decide + Bounds>(
         )
         .map(|(arm, blend, axis)| (arm, blend, Some(axis))),
     }
+}
+
+/// **The chamfer's frustum row**: a circle where a cylinder meets a
+/// plane, read in the meridian sheet through `p`; the two supports'
+/// departures from the circle's axis decided by `coaxial` (the caller's
+/// `fillet3_support_coaxiality`, as the fillet's coaxial rows decide
+/// theirs), and the frustum through the strip's feet minted
+/// ([`chamfer_frustum`]). A support the sheet does not trace is a pair
+/// the chamfer's table does not cover (`unsupported`).
+#[allow(clippy::too_many_arguments)]
+fn frustum_arm<T: Real>(
+    (sa, sb): (&Surface<T>, &Surface<T>),
+    (n_a, n_b): (Vec3<T>, Vec3<T>),
+    senses: (bool, bool),
+    circle: &geom::Circle<T>,
+    (p, tau): (Point3<T>, Vec3<T>),
+    radius: T,
+    convexity: Convexity,
+    coaxial: impl FnOnce(T) -> Result<MarginDiag, BlendError>,
+    unsupported: impl Fn() -> BlendError,
+) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
+    let sheet = Meridian {
+        axis: circle.frame.axis_line(),
+        rim: p,
+    };
+    let (Some((_, da)), Some((_, db))) = (
+        sheet.trace(sa, ball_side(convexity, senses.0)),
+        sheet.trace(sb, ball_side(convexity, senses.1)),
+    ) else {
+        return Err(unsupported());
+    };
+    let margin = coaxial(da.max(db))?;
+    Ok((
+        BlendArm::CylinderPlaneCone,
+        chamfer_frustum(&sheet, tau.normalize(), n_a, n_b, radius),
+        Some((topo::Relation::Coaxial, margin)),
+    ))
 }
 
 /// Which curved arm a support pair takes in each family, by stored
@@ -1928,16 +2022,20 @@ pub(crate) fn same_supports<T: Real>(
 }
 
 /// **`fillet3_chain_g1` over the BANDS at a junction between links on
-/// different supports**: the two links' balls at the junction rest in
-/// one section, margin the distance between their section centres in
-/// meters. Zero is the shared section along which the two bands meet
-/// G1; a definite distance is supports creasing at the junction, where
-/// the two bands share no section.
+/// different supports**: the two links' bands at the junction share one
+/// section. Two balls' margin is the distance between their section
+/// centres; two chamfers' the larger distance between their feet on one
+/// support, on the face they share and on their two others, in meters.
+/// Zero is the shared section along which the two bands meet G1 (the
+/// ball's circle, or the generator between the feet); a definite
+/// distance is supports creasing at the junction, where the two bands
+/// share no section.
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedChain`] on a definite distance or a band
-/// with no section, [`BlendError::Escalated`] in band.
+/// [`BlendError::UnsupportedChain`] on a definite distance, a band with
+/// no section, or chamfer links sharing no one face;
+/// [`BlendError::Escalated`] in band.
 fn band_g1<T: Decide>(
     body: &Body<T>,
     a: &Link<T>,
@@ -1950,26 +2048,54 @@ fn band_g1<T: Decide>(
         .and_then(|x| body.get_point(x.point))
         .copied()
         .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a junction"))?;
-    let (Some(ca), Some(cb)) = (BallSection::of(&a.blend, p), BallSection::of(&b.blend, p)) else {
-        return Err(unbuilt_chain(
-            a.edge,
-            "a chain's links meet on different supports where a band has no rolling-ball \
-             section",
-        ));
+    let margin = match (BallSection::of(&a.blend, p), BallSection::of(&b.blend, p)) {
+        (Some(ca), Some(cb)) => ca.centre.distance(cb.centre),
+        _ if a.arm.is_chamfer() && b.arm.is_chamfer() => feet_apart(a, b, p)?,
+        _ => {
+            return Err(unbuilt_chain(
+                a.edge,
+                "a chain's links meet on different supports where a band has no section",
+            ));
+        }
     };
     let site = BlendSite::Joint { vertex };
-    match classify(
-        site,
-        BlendDecision::ChainG1,
-        Margin::of(ca.centre.distance(cb.centre)),
-        band,
-    )? {
+    match classify(site, BlendDecision::ChainG1, Margin::of(margin), band)? {
         Sign::Zero => Ok(()),
         Sign::Positive | Sign::Negative => Err(unbuilt_chain(
             a.edge,
             "the supports crease at a junction, so its two bands share no section",
         )),
     }
+}
+
+/// Two chamfer links' feet through the junction point `p`, apart: the
+/// larger of the distance between their feet on the face they share and
+/// that between their feet on their two others ([`chamfer_setback_point`]).
+fn feet_apart<T: Real>(a: &Link<T>, b: &Link<T>, p: Point3<T>) -> Result<T, BlendError> {
+    let shared = [a.face_a, a.face_b]
+        .into_iter()
+        .find(|&f| f == b.face_a || f == b.face_b)
+        .ok_or_else(|| unbuilt_chain(a.edge, JUNCTION_NO_HOST))?;
+    let other = |l: &Link<T>| {
+        if l.face_a == shared {
+            l.face_b
+        } else {
+            l.face_a
+        }
+    };
+    let foot = |l: &Link<T>, f: FaceKey| {
+        l.trim_on(f)
+            .and_then(|(c, _)| chamfer_setback_point(c, p))
+            .ok_or_else(|| {
+                unbuilt_geometry(
+                    EntityId::Edge(l.edge),
+                    "a band's trim at a junction is neither a line nor a circle",
+                )
+            })
+    };
+    let host = foot(a, shared)?.distance(foot(b, shared)?);
+    let mate = foot(a, other(a))?.distance(foot(b, other(b))?);
+    Ok(host.max(mate))
 }
 
 /// **The chains the verdict carries**: each walked chain classified at
@@ -2131,7 +2257,6 @@ pub fn run_battery_for<T: Decide + Bounds>(
         .filter(|e| !smooth.iter().any(|(s, _)| s == e))
         .collect();
     let chains = walk_chains(links);
-
     // --- 1. radius vs curvature headroom, at every sample of every
     // link, on BOTH supports. A ball fact: not metered for a chamfer.
     if rolling_ball {
@@ -2151,6 +2276,13 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // `face_clearance`), over every pair of boundary edges of every
     // support face the request touches. The setbacks are the ARM's, so
     // the chamfer's screen runs on the chamfer's own setbacks.
+    for chain in &chains {
+        for link in chain.links() {
+            if let Some((face, trim, rim)) = frustum_plane_room(body, link)? {
+                face_clearance_margin(face, trim, rim, false, band)?;
+            }
+        }
+    }
     consumption_sweep(body, &chains, band)?;
 
     // --- 3. spine regularity, per link. A ball fact: not metered for

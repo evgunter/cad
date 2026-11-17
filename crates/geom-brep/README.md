@@ -1521,8 +1521,13 @@ wired: SSI seeding/exhaustiveness (C3).
 
 ### NURBS scope
 
-**C11 — The NURBS substrate, bounded.** Clamped knot vectors only
-(periodic and unclamped forms are a designed absence); strictly positive
+**C11 — The NURBS substrate, bounded.** Clamped knot vectors, and one
+periodic form: a closed fitted section loop is a periodic cubic, C² by
+its knot structure and with no start, a carrier kind of its own with a
+period as a circle has. It is seated by its span; an edge on it is the
+loop's carrier and a span, and a reader reads the clamped view over
+that span, whose interior knots are simple. Unclamped forms are a
+designed absence. Strictly positive
 weights enforced at construction (the convex-hull property every hull
 bound stands on); evaluation and derivatives generic over `Real` by de
 Boor in fixed order. Algorithms: knot insertion, refinement, removal and

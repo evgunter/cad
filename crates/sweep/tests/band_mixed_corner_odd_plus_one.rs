@@ -401,13 +401,15 @@ fn the_odd_edge_with_one_other_refuses_the_fillet_and_an_oblique_shared_face() {
     }
 }
 
-/// **A curved link at the corner refuses the chamfer's arm**: at a
-/// mixed corner where one face is curved, two of the three edges bound
-/// it, so any two of them (the odd edge with one other among them)
-/// name an edge whose supports are not both planes, and the chamfer
-/// refuses `ChamferArmUnsupported` before the corner is read. On the
-/// quarter-disc boss the odd edge is the curved link; on the bowed one
-/// a pair edge.
+/// **A curved link at the corner refuses typed**: at a mixed corner
+/// where one face is curved, two of the three edges bound it, so any two
+/// of them name one of those. A pair naming the third edge, whose
+/// supports the chamfer's arm does not cover, refuses
+/// `ChamferArmUnsupported` before the corner is read; the curved link
+/// (a frustum's arc, which the chamfer admits inside a chain over other
+/// supports) with the straight one refuses `ChainNotG1`, the two meeting
+/// at an angle. On the quarter-disc boss the curved link is the odd
+/// edge; on the bowed one a pair edge.
 #[test]
 fn a_curved_link_at_the_corner_refuses_the_chamfer_arm() {
     for (what, body, o) in [
@@ -418,9 +420,14 @@ fn a_curved_link_at_the_corner_refuses_the_chamfer_arm() {
         assert_eq!(es.len(), 3, "{what}: the corner's three edges");
         for (i, j) in [(0, 1), (0, 2), (1, 2)] {
             let got = chamfer(&body, &[es[i], es[j]], S);
+            let typed = if j == 2 {
+                matches!(got, Err(BlendError::ChamferArmUnsupported { edge, .. }) if edge == es[2])
+            } else {
+                matches!(got, Err(BlendError::ChainNotG1 { .. }))
+            };
             assert!(
-                matches!(got, Err(BlendError::ChamferArmUnsupported { .. })),
-                "{what}, edges {i} and {j}: refuses the chamfer's arm, got {got:?}",
+                typed,
+                "{what}, edges {i} and {j}: refuses typed, got {got:?}",
                 got = got.as_ref().map(|_| ())
             );
         }
