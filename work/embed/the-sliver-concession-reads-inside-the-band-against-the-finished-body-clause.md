@@ -1,7 +1,7 @@
 ---
 id: the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause
 kind: issue
-title: The injectivity check's sliver concession reads a strip inside the band as holding nothing, where DESIGN's finished-body clause says a reading inside the band refuses as ambiguous
+title: The injectivity check's sliver reads a cell that reaches past a shared line by rounding as holding none of its face, and certifies the pair with neither face read; it retires once the departure reading is metered at the faces' reach
 status: open
 opened: 2026-11-13
 priority: P1
@@ -52,6 +52,49 @@ Decide whether the sliver is consistent with the clause.
   `present_line_corner`'s pins, and the tour walk.
 
 Until this is decided, no new reader adopts the sliver.
+
+## Fork `embed-sliver`: the sliver retires
+
+Three designers, three rounds (`docs/DESIGN-FORK-LOG.md`, row 285);
+the clause is `docs/DESIGN.md` `[topology.tiers]`.
+
+**The premise above is corrected.** The sliver decides on `Zero`, a
+width of at most ε, never on a width inside the band, so it is not the
+reading the clause refuses. Measured (below): every one of its 96
+`Zero` decisions in a sweep is at rounding scale, on a cell that lies
+across the shared line from its face, with the other face unpresented,
+so the pair certifies with neither face read.
+
+**What it is evidence of.** `sign_on` decides a departure by the rate
+times the presentation rectangle's own span. A thin rectangle cannot
+pass whatever the faces do, a narrower cell makes it worse, and a sweep
+cell is not a lever the kernel admits. The sliver waves those cells
+through. It is also a `Zero` taken from a cell bound, which PR 6821
+rules out.
+
+**The final state.** The departure reading is metered at the reach of
+the faces it governs. `Presentation::Vacuous` means only that the cell
+lies off the face. The sliver's funnel site, its entry in the module's
+"ε concessions" and the rows that assert `Vacuous` through it go.
+
+**The order.**
+1. The margin is metered at the faces' reach. Measured by proxy (the
+   rate's sign decided at the least band, the sliver left on): no
+   verdict moves in the tour or the suites, and 40 tour bodies take
+   fewer pairs. `a_rod_less_a_tilted_slab_holds_across_its_curved_corners`
+   pins a count that moves (14 corner certificates to 18).
+2. `present_line_corner`'s and `present_plane_corner`'s slivers go
+   with it: no sweep reaches the first, and `chute`, the stepped ring
+   and `tiltedcut_above` hold without the second, each pair by the
+   carrier arm with the thin rectangle read.
+3. `present_chart`'s goes once the filleted drum holds at `Interval`
+   without it
+   (`the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam`).
+
+Until step 3 no new reader adopts the sliver. The touch concession
+(`few_ulps`, in `vacuous` and `present_chart`) is the same compensation
+at chart scale and does not retire here: at 0, with the sliver gone,
+`hollowring`, `hollowtorus` and `teapotlid` refuse.
 
 ## Measured: what holds only through the sliver (EMBED, lane sliver-measure, 2026-11-17)
 
