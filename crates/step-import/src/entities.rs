@@ -396,6 +396,27 @@ impl<'a> Resolver<'a> {
         id
     }
 
+    /// A length the file states as a root a kernel constructor takes only
+    /// positive (a radius, a semi-axis): refused as an invalid root
+    /// ([`interpret::Refusal::InvalidRoot`]) otherwise, before anything
+    /// reads it.
+    fn root_length(
+        &self,
+        id: u64,
+        value: &Value,
+        expected: &'static str,
+        what: &'static str,
+    ) -> Result<f64, StepImportError> {
+        let length = self.as_length(id, value, expected)?;
+        if length.is_finite() && length > 0.0 {
+            Ok(length)
+        } else {
+            Err(self
+                .budget
+                .refused(id, interpret::Refusal::InvalidRoot { what, value: length }))
+        }
+    }
+
     /// `CARTESIAN_POINT('', (x, y, z))` → kernel point, exact.
     fn point(&self, from: u64, id: u64) -> Result<Point3<f64>, StepImportError> {
         let args = self.simple(from, id, "CARTESIAN_POINT")?;
@@ -599,7 +620,7 @@ impl<'a> Resolver<'a> {
                 Ok(Surface::Cylinder {
                     origin,
                     axis,
-                    radius: self.as_length(id, radius, expected)?,
+                    radius: self.root_length(id, radius, expected, CYLINDER_RADIUS)?,
                     u_ref,
                 })
             }
@@ -642,12 +663,24 @@ impl<'a> Resolver<'a> {
                 // pi/2 to a plane, and neither is a cone. Checked here
                 // rather than trusted, since the derivation below
                 // divides by its tangent.
-                if !(radius.is_finite()
-                    && radius >= 0.0
-                    && half_angle > 0.0
-                    && half_angle < std::f64::consts::FRAC_PI_2)
-                {
-                    return Err(StepImportError::MalformedRecord { id, expected });
+                if !(radius.is_finite() && radius >= 0.0) {
+                    return Err(self.budget.refused(
+                        id,
+                        interpret::Refusal::InvalidRoot {
+                            what: "a cone's base radius, which must be finite and not negative",
+                            value: radius,
+                        },
+                    ));
+                }
+                if !(half_angle > 0.0 && half_angle < std::f64::consts::FRAC_PI_2) {
+                    return Err(self.budget.refused(
+                        id,
+                        interpret::Refusal::InvalidRoot {
+                            what: "a cone's half-angle (radians), which must lie strictly inside \
+                                   (0, π/2)",
+                            value: half_angle,
+                        },
+                    ));
                 }
                 let geom::Frame {
                     origin: location,
@@ -678,16 +711,15 @@ impl<'a> Resolver<'a> {
                 } = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Sphere {
                     center,
-                    radius: self.as_length(id, radius, expected)?,
+                    radius: self.root_length(id, radius, expected, SPHERE_RADIUS)?,
                     axis,
                     u_ref,
                 })
             }
-            // Both radii are read VERBATIM: D3's ring convention
-            // `R > r > 0` is not enforced here. It is enforced at rest,
-            // by `topo::validate`'s tier-3 check 1 (`r > 0` as
-            // `UnrepresentableSurfaceDatum`, `R > r` as
-            // `DegenerateTorus`) —
+            // The minor radius is a root no construction takes unless
+            // positive, refused here before any certification reads it.
+            // D3's ring convention `R > r` is enforced at rest, by
+            // `topo::validate`'s tier-3 check 1 (`DegenerateTorus`) —
             // the one net that covers this door and `sweep::revolve`
             // alike, so a horn or spindle cannot reach a body's rest
             // state through either.
@@ -705,7 +737,7 @@ impl<'a> Resolver<'a> {
                     center,
                     axis,
                     major_radius: self.as_length(id, major, expected)?,
-                    minor_radius: self.as_length(id, minor, expected)?,
+                    minor_radius: self.root_length(id, minor, expected, TORUS_MINOR_RADIUS)?,
                     u_ref,
                 })
             }
@@ -943,7 +975,7 @@ impl<'a> Resolver<'a> {
                 let frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Curve3::Circle(geom::Circle::new(
                     frame,
-                    self.as_length(id, radius, expected)?,
+                    self.root_length(id, radius, expected, CIRCLE_RADIUS)?,
                 )))
             }
             "ELLIPSE" => {
@@ -952,11 +984,34 @@ impl<'a> Resolver<'a> {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
                 let frame = self.placement(id, as_ref(id, placement, expected)?)?;
-                Ok(Curve3::Ellipse(geom::Ellipse::new(
-                    frame,
+                let (semi_u, semi_v) = (
                     self.as_length(id, major, expected)?,
                     self.as_length(id, minor, expected)?,
-                )))
+                );
+                // The kernel's deciding door, at the file's band: a
+                // semi-axis no ellipse takes is an invalid root, and one
+                // the band cannot call an ambiguity.
+                Curve3::ellipse(
+                    frame.origin,
+                    frame.axis,
+                    semi_u,
+                    semi_v,
+                    frame.u_ref,
+                    self.budget.band().unwrap_or(geom_core::Band::least()),
+                )
+                .map_err(|invalid| {
+                    let refusal = match invalid {
+                        geom::EllipseInvalid::Escalated(ref cause) => {
+                            interpret::Refusal::in_band(ELLIPSE_SEMI_AXIS, cause)
+                        }
+                        _ => None,
+                    }
+                    .unwrap_or(interpret::Refusal::InvalidRoot {
+                        what: ELLIPSE_SEMI_AXIS,
+                        value: semi_u.min(semi_v),
+                    });
+                    self.budget.refused(id, refusal)
+                })
             }
             "QUASI_UNIFORM_CURVE" => {
                 let expected = "QUASI_UNIFORM_CURVE(name, degree, (points), form, \
@@ -2433,6 +2488,17 @@ impl Resolver<'_> {
         Ok(Some(motion))
     }
 }
+
+/// A cylinder's radius, as an invalid root names it.
+const CYLINDER_RADIUS: &str = "a cylinder's radius, which must be positive";
+/// A sphere's radius, as an invalid root names it.
+const SPHERE_RADIUS: &str = "a sphere's radius, which must be positive";
+/// A torus's minor radius, as an invalid root names it.
+const TORUS_MINOR_RADIUS: &str = "a torus's minor radius, which must be positive";
+/// A circle's radius, as an invalid root names it.
+const CIRCLE_RADIUS: &str = "a circle's radius, which must be positive";
+/// An ellipse's semi-axis, as an invalid root names it.
+const ELLIPSE_SEMI_AXIS: &str = "an ellipse's semi-axis, which must be positive";
 
 /// **A line's unit direction from the file's ratio triple**: the triple
 /// itself where it is unit within its own rounding (its squared length
