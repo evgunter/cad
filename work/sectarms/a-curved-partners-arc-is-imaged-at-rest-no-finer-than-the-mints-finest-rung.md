@@ -2,10 +2,11 @@
 id: a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung
 kind: issue
 title: A sphere or torus arc on a spline wall refuses at rest at 1e-12 and on a ten-metre wall: the lane's image of the arc is the pcurve mint's finest rung, which misses its foot path by about 5e-10 of the wall's size
-status: open
+status: dispatched
 opened: 2026-11-12
 priority: P1
 cost: M
+branch: sectarms/one-image-function
 ---
 
 

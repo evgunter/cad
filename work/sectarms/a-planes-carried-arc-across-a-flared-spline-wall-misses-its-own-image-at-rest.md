@@ -2,10 +2,11 @@
 id: a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest
 kind: issue
 title: A plane's carried arc across a flared spline wall refuses at rest: the plane x spline lane's own image misses the carrier's foot path
-status: open
+status: dispatched
 opened: 2026-11-12
 priority: P1
 cost: M
+branch: sectarms/one-image-function
 ---
 
 
