@@ -178,13 +178,14 @@ docs/MODEL-COMPARE-PROTOCOL.md`, after a fetch).
 12. **When Fable is unavailable.** If a Fable agent cannot run because
     the account's Fable usage limit is exhausted (a dispatch, or an
     agent mid-phase, refused with the limit error), the orchestrator
-    asks Ev whether to proceed on Opus or to pause the affected work
-    until the limit resets, stating the reset time. Until Ev answers,
-    nothing is dispatched in a Fable agent's place. If Ev says
-    proceed, the work runs on Opus and **no row is recorded for any
-    unit with an unmatched Opus agent**: one that ran on Opus where
-    its draw or its tier called for Fable (a Fable-drawn implementer
-    or reviewer, or the Fable half of a dual pair). A unit whose
-    every agent ran as drawn is recorded as usual. The draws already
-    taken stay on the `analysis/model-compare/` branch, with a note
-    there naming each unit that records no row and why.
+    asks Ev whether to proceed on Opus or to pause until the limit
+    resets, stating the reset time, and dispatches nothing in a Fable
+    agent's place until Ev answers. If Ev says proceed, the work in
+    flight AND new work run on Opus until the limit resets, and **no
+    row is recorded for any unit with an agent dispatched during the
+    outage**: such a row would be an Opus row with no Fable rows to
+    match it, whatever its draws said. No draws are taken during the
+    outage. The draws already taken stay on the
+    `analysis/model-compare/` branch, with a note there naming each
+    unit that records no row and why. Draws resume, and rows are
+    recorded again, with the first dispatch after the reset.
