@@ -285,26 +285,32 @@ fn latitude_conventions() {
     assert!((top.z - 1.0).abs() <= 1e-15 && (top.x - 3.0).abs() <= 1e-15);
 }
 
-/// Non-unit axis: documented garbage-out — well-defined values, no
-/// poison, no panic; the "circle" becomes non-circular but total.
+/// A stated axis that is not unit is squared where the frame is stated
+/// (`Frame::new`): the circle stays a circle of its radius, and a
+/// cylinder on a long axis stays on its unit axis. A frame is a rigid
+/// motion, so no reading sees a sheared basis.
 #[test]
-fn non_unit_axis_is_garbage_out_not_poison() {
+fn a_stated_non_unit_axis_is_squared_into_the_frame() {
     let c = Curve3::circle(
         Point3::origin(),
         Vec3::new(0.0, 0.0, 2.0),
         1.0,
-        Vec3::unit_x(),
+        Vec3::new(1.0, 0.0, 0.5),
     );
-    // v_ref = axis × u_ref has norm 2 ⇒ ellipse with semi-axes 1 and 2.
     let p = c.eval(FRAC_PI_2);
-    assert!((p.y - 2.0).abs() <= 1e-15, "sheared locus is well-defined");
-    assert!(!p.x.is_nan() && !p.y.is_nan() && !p.z.is_nan());
+    assert!(
+        (p.y - 1.0).abs() <= 1e-15 && p.x.abs() <= 1e-15 && p.z.abs() <= 1e-15,
+        "the circle keeps its radius on its squared frame: {p:?}"
+    );
     let s = Surface::Cylinder {
         frame: geom::Frame::new(Point3::origin(), Vec3::new(0.0, 0.0, 3.0), Vec3::unit_x()),
         radius: 1.0,
     };
-    let q = s.eval(1.0, 1.0);
-    assert!(!q.x.is_nan() && !q.y.is_nan() && !q.z.is_nan());
+    let q = s.eval(0.0, 1.0);
+    assert!(
+        (q.x - 1.0).abs() <= 1e-15 && (q.z - 1.0).abs() <= 1e-15,
+        "v is a length along the unit axis: {q:?}"
+    );
 }
 
 // ---------------------------------------------------------------------

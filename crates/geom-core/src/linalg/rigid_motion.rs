@@ -1051,8 +1051,11 @@ impl<T: SpanLocate> RigidMotion<T> {
 
 impl<T: Real> RigidMotion<T> {
     /// **A frame squared with no decision**: the third axis `w` over its
-    /// own length, the first the part of `u` square to it, `a × (u × a)`
-    /// over its own length, and the second their cross product. Each is
+    /// own length, the first the part of `u` square to it, `u − a(a·u)`
+    /// over its own length, and the second their cross product. For a `u`
+    /// already square to rounding (the re-mint of a frame across scalars)
+    /// `a·u` is at the rounding's scale, so the subtraction moves `u` by
+    /// far less than its own width at an enclosure scalar. Each is
     /// unit, and the three orthonormal and right-handed, over the reals
     /// wherever `w` and `u`'s part square to it are not zero; where one
     /// is, the axes are poison (the totality policy's NaN or NaI, which
@@ -1068,7 +1071,8 @@ impl<T: Real> RigidMotion<T> {
     #[must_use]
     pub fn squared(origin: Point3<T>, w: Vec3<T>, u: Vec3<T>) -> Self {
         let w = UnitVec3::squared(w);
-        let u = UnitVec3::squared(w.get().cross(u.cross(w.get())));
+        let a = w.get();
+        let u = UnitVec3::squared(u - a * a.dot(u));
         Self {
             origin,
             u,
@@ -1128,24 +1132,44 @@ impl<T: Real> RigidMotion<T> {
 }
 
 impl<T: Real> RigidMotion<T> {
-    /// **This frame at another scalar, re-minted there**: its origin and
-    /// axes through `f`, then squared at the target scalar
-    /// ([`RigidMotion::squared`] over the mapped `w` and `u`). The
-    /// entries are not the claim: at `f64` they are the rounding of the
-    /// exact rotation the frame's mint names, and at an enclosure scalar
-    /// they enclose it. The claim is built from the mapped entries at
-    /// the target scalar rather than carried across (module docs,
-    /// "Crossing scalars"), so at `Interval` the image encloses that
-    /// rotation for every point `f` encloses, and its entries are not
-    /// `f`'s images of these verbatim. The exact read to `f64` is
-    /// [`RigidMotion::point_value`].
+    /// **This frame at another scalar.** `f` is a lift: it reads each
+    /// entry's value at the target scalar (an embedding such as
+    /// `Real::from_f64` or `Dual::constant`, a bracket, a value channel)
+    /// and keeps its point. What the entries mean depends on the scalar's
+    /// [`Witness`](crate::Witness): at an `Inexact` scalar (`f64`, a dual
+    /// over it) they are the rounding of the exact rotation the frame's
+    /// mint names, and at an `Exact` one (`Interval`, the duals and
+    /// symbolic forms over it) they enclose it.
+    ///
+    /// - **Between two scalars of one kind** the claim is the same
+    ///   claim, so the entries are carried through `f` as they are, and
+    ///   the image evaluates to the source bit for bit in its value
+    ///   channel.
+    /// - **Across kinds** it is not: a rounded entry read as an
+    ///   enclosure encloses nothing, and an enclosure read at a point is
+    ///   no rounding of a rotation. The frame is re-minted from the
+    ///   mapped entries at the target scalar ([`RigidMotion::squared`]
+    ///   over the mapped `w` and `u`), built there rather than carried
+    ///   across (module docs, "Crossing scalars"), so at `Interval` the
+    ///   image of an `f64` frame encloses the rotation the frame stands
+    ///   for, and its entries are not `f`'s images of these verbatim.
+    ///
+    /// The kind is a property of the two types, so which branch runs is
+    /// fixed at compile time and reads no value.
     #[must_use]
     pub fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> RigidMotion<U> {
-        RigidMotion::squared(
-            self.origin.map(&f),
-            self.w.get().map(&f),
-            self.u.get().map(&f),
-        )
+        let origin = self.origin.map(&f);
+        if T::WITNESS == U::WITNESS {
+            let carry = |d: UnitVec3<T>| UnitVec3::by_construction(d.get().map(&f));
+            RigidMotion {
+                origin,
+                u: carry(self.u),
+                v: carry(self.v),
+                w: carry(self.w),
+            }
+        } else {
+            RigidMotion::squared(origin, self.w.get().map(&f), self.u.get().map(&f))
+        }
     }
 }
 

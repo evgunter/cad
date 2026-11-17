@@ -429,16 +429,18 @@ impl<T: Real> UnitVec3<T> {
         Self(v.normalize())
     }
 
-    /// **This direction at another scalar, re-minted there**: its
-    /// components through `f`, then squared at the target scalar
-    /// ([`UnitVec3::squared`]). The components are not the claim: at
-    /// `f64` they are the rounding of the exact unit direction the
-    /// witness's mint names, and at an enclosure scalar they enclose it.
-    /// The claim is built from the mapped components at the target
-    /// scalar rather than carried across (DESIGN `[scalars]`).
+    /// **This direction at another scalar**, `f` a lift that keeps each
+    /// component's point: carried as it is between two scalars of one
+    /// [`Witness`](crate::Witness) kind, and re-minted at the target
+    /// scalar ([`UnitVec3::squared`]) across kinds, for the reason
+    /// [`RigidMotion::map_scalar`](super::RigidMotion::map_scalar) gives.
     #[must_use]
     pub fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> UnitVec3<U> {
-        UnitVec3::squared(self.0.map(f))
+        if T::WITNESS == U::WITNESS {
+            UnitVec3(self.0.map(f))
+        } else {
+            UnitVec3::squared(self.0.map(f))
+        }
     }
 
     /// The exact `x̂`, unit as its literal bits at every scalar that

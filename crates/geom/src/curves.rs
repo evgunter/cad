@@ -2096,10 +2096,11 @@ mod tests {
     }
 
     /// **Two lines' closest approach**: skew lines meet their common
-    /// perpendicular at the parameters the closed form reads, whatever the
-    /// directions' lengths; `sin2` is one for perpendicular lines, zero for
-    /// parallel ones (where `s` and `t` divide by zero), and NaN where a
-    /// direction is zero. Each point is the other line's nearest.
+    /// perpendicular at the parameters the closed form reads, each an arc
+    /// length along its unit direction; `sin2` is one for perpendicular
+    /// lines, zero for parallel ones (where `s` and `t` divide by zero),
+    /// and NaN where a direction squared from zero is poison. Each point is
+    /// the other line's nearest.
     #[test]
     fn two_lines_closest_approach_is_their_common_perpendicular() {
         let x = Line {
@@ -2113,7 +2114,7 @@ mod tests {
         let pair = x.closest_params(&y);
         assert_eq!(
             (pair.s, pair.t, pair.sin2),
-            (2.5, 10.0, 1.0),
+            (5.0, 5.0, 1.0),
             "perpendicular skew lines"
         );
         let (p, q) = (x.at(pair.s), y.at(pair.t));
@@ -2132,7 +2133,7 @@ mod tests {
             (p - q).dot(x.dir.get()).abs() < 1e-12 && (p - q).dot(tilted.dir.get()).abs() < 1e-12,
             "the joining vector is square to both lines: {p:?} {q:?}"
         );
-        let expected = 1.0 - (2.0_f64 / (2.0 * 5.25_f64.sqrt())).powi(2);
+        let expected = 1.0 - (1.0_f64 / 5.25_f64.sqrt()).powi(2);
         assert!(
             (pair.sin2 - expected).abs() < 1e-15,
             "sin² of the angle: {}",

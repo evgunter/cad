@@ -553,11 +553,12 @@ mod tests {
     /// only guard against a transposition.
     #[test]
     fn both_doors_are_bitwise_the_documented_formula() {
-        let axis = Vec3::new(0.31, -0.72, 0.61).normalize();
-        let u_ref = {
-            let raw = Vec3::new(0.83, 0.19, -0.52);
-            (raw - axis * raw.dot(axis)).normalize()
-        };
+        let placed = crate::Frame::new(
+            geom_core::Point3::origin(),
+            Vec3::new(0.31, -0.72, 0.61),
+            Vec3::new(0.83, 0.19, -0.52),
+        );
+        let (axis, u_ref) = (placed.axis(), placed.u_ref());
         let bits = |v: Vec3<f64>| (v.x.to_bits(), v.y.to_bits(), v.z.to_bits());
 
         for k in -400i32..400 {
@@ -565,18 +566,12 @@ mod tests {
             let (s, c) = Real::sin_cos(u);
             let v_ref = axis.cross(u_ref);
 
-            let ((bs, bc), bv) = basis(
-                &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
-                u,
-            );
+            let ((bs, bc), bv) = basis(&placed, u);
             assert_eq!(bs.to_bits(), s.to_bits(), "basis sin at {u}");
             assert_eq!(bc.to_bits(), c.to_bits(), "basis cos at {u}");
             assert_eq!(bits(bv), bits(v_ref), "basis v_ref at {u}");
 
-            let f = frame(
-                &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
-                u,
-            );
+            let f = frame(&placed, u);
             assert_eq!(
                 bits(f.radial.0),
                 bits(u_ref * c + v_ref * s),
@@ -587,7 +582,6 @@ mod tests {
                 bits(u_ref * (-s) + v_ref * c),
                 "tangential at {u}"
             );
-            let placed = crate::Frame::new(geom_core::Point3::origin(), axis, u_ref);
             assert_eq!(
                 bits(placed.radial(u)),
                 bits(f.radial.0),
