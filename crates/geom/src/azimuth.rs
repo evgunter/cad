@@ -78,7 +78,7 @@ pub(crate) struct AzimuthFrame<T: Real> {
 /// [`AzimuthFrame`]'s fields.
 pub(crate) fn frame<T: Real>(frame: &Frame<T>, u: T) -> AzimuthFrame<T> {
     let ((s, c), v_ref) = basis(frame, u);
-    of_legs(frame.u_ref, v_ref, (s, c))
+    of_legs(frame.u_ref(), v_ref, (s, c))
 }
 
 /// [`frame`] over two legs a caller holds verbatim, `u_ref` and `v_ref`,

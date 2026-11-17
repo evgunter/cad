@@ -38,40 +38,40 @@ impl<T: Real> Surface<T> {
             Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => {
                 Err(refuse(Unknown::Unbounded))
             }
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Cover::sphere(&Frame::new(*center, *axis, *u_ref), *radius)
-                .ok_or_else(|| refuse(Unknown::NonFinite)),
+            Surface::Sphere { frame, radius } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Cover::sphere(&Frame::new(center, axis, u_ref), *radius)
+                    .ok_or_else(|| refuse(Unknown::NonFinite))
+            }
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => Cover::torus(
-                &Frame::new(*center, *axis, *u_ref),
-                *major_radius,
-                *minor_radius,
-            )
-            .ok_or_else(|| refuse(Unknown::NonFinite)),
+            } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Cover::torus(
+                    &Frame::new(center, axis, u_ref),
+                    *major_radius,
+                    *minor_radius,
+                )
+                .ok_or_else(|| refuse(Unknown::NonFinite))
+            }
             // The sheet lies on its whole revolved circle, which is the
             // tube about the circle of radius `|R|`: the signed centre
             // and its mirror across the axis sweep the same set.
             Surface::Spindle {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => Cover::torus(
-                &Frame::new(*center, *axis, *u_ref),
-                major_radius.abs(),
-                *minor_radius,
-            )
-            .ok_or_else(|| refuse(Unknown::NonFinite)),
+            } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Cover::torus(
+                    &Frame::new(center, axis, u_ref),
+                    major_radius.abs(),
+                    *minor_radius,
+                )
+                .ok_or_else(|| refuse(Unknown::NonFinite))
+            }
             Surface::Nurbs(patch) => net(entity, patch.control()),
             Surface::Approx(approx) => net(entity, approx.fit().control()),
         }
@@ -127,10 +127,11 @@ impl<T: SpanLocate> Curve3<T> {
         let entity = Entity::Curve(self.kind());
         let non_finite = || Uncovered::new(entity, Unknown::NonFinite);
         match self {
-            Curve3::Line(Line { origin, dir }) => {
-                Cover::segment(*origin + *dir * window.lo, *origin + *dir * window.hi)
-                    .ok_or_else(non_finite)
-            }
+            Curve3::Line(Line { origin, dir }) => Cover::segment(
+                *origin + (*dir).get() * window.lo,
+                *origin + (*dir).get() * window.hi,
+            )
+            .ok_or_else(non_finite),
             Curve3::Circle(circle) => {
                 Cover::arc(&circle.frame, (circle.radius, circle.radius), window)
                     .ok_or_else(non_finite)
@@ -140,22 +141,21 @@ impl<T: SpanLocate> Curve3<T> {
                     .ok_or_else(non_finite)
             }
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 let tube = Cover::tube(
-                    &Frame::new(*center, *axis, *u_ref),
+                    &Frame::new(center, axis, u_ref),
                     *major_radius,
                     *minor_radius,
                 );
                 let rectangle = crate::curves::spiric_rectangle(
-                    *center,
-                    *axis,
-                    *u_ref,
+                    center,
+                    axis,
+                    u_ref,
                     (*major_radius, *minor_radius),
                     *offset,
                     window,

@@ -71,7 +71,7 @@ pub use conic::{Circle, Conic, Ellipse, MajorFrame};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, UnitVec3, Vec3};
 
 use crate::azimuth::{self, Azimuth};
 use crate::frame::Frame;
@@ -172,14 +172,11 @@ pub enum Curve3<T: Real> {
     /// The locus is a bicircular quartic of genus 1 — no rational
     /// parameterization exists, so no `Nurbs` is its exact locus.
     Spiric {
-        /// The torus's centre.
-        center: Point3<T>,
-        /// The torus's unit axis (conventional, unchecked); the winding
-        /// sense of `v` is fixed with `u_ref` as described above.
-        axis: Vec3<T>,
-        /// The unit normal of the cutting plane, ⊥ `axis` (conventional,
-        /// unchecked); the plane stands `offset` along it from `center`.
-        u_ref: Vec3<T>,
+        /// The torus's placement: its centre, its axis (which fixes the
+        /// winding sense of `v` with `u_ref`, as described above), and as
+        /// `u_ref` the cutting plane's normal, square to the axis; the
+        /// plane stands `offset` along it from the centre.
+        frame: Frame<T>,
         /// The torus's major radius `R` in meters.
         major_radius: T,
         /// The torus's minor radius `r` in meters (`R > r > 0`).
@@ -246,21 +243,11 @@ impl<T: SpanLocate> Curve3<T> {
         let point = |p: Point3<T>, q: Point3<T>| same(p.x, q.x) && same(p.y, q.y) && same(p.z, q.z);
         let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
         let frame = |f: &Frame<T>, g: &Frame<T>| {
-            let Frame {
-                origin: center,
-                axis,
-                u_ref,
-            } = *f;
-            let Frame {
-                origin: c,
-                axis: a,
-                u_ref: u,
-            } = *g;
-            point(center, c) && vec(axis, a) && vec(u_ref, u)
+            point(f.origin(), g.origin()) && vec(f.axis(), g.axis()) && vec(f.u_ref(), g.u_ref())
         };
         match (self, other) {
             (Self::Line(Line { origin, dir }), Self::Line(Line { origin: o, dir: d })) => {
-                point(*origin, *o) && vec(*dir, *d)
+                point(*origin, *o) && vec(dir.get(), d.get())
             }
             (
                 Self::Circle(Circle { frame: f, radius }),
@@ -283,25 +270,19 @@ impl<T: SpanLocate> Curve3<T> {
             ) => frame(f, g) && same(*semi_u, *su) && same(*semi_v, *sv),
             (
                 Self::Spiric {
-                    center,
-                    axis,
-                    u_ref,
+                    frame: f,
                     major_radius,
                     minor_radius,
                     offset,
                 },
                 Self::Spiric {
-                    center: c,
-                    axis: a,
-                    u_ref: u,
+                    frame: g,
                     major_radius: big,
                     minor_radius: small,
                     offset: off,
                 },
             ) => {
-                point(*center, *c)
-                    && vec(*axis, *a)
-                    && vec(*u_ref, *u)
+                frame(f, g)
                     && same(*major_radius, *big)
                     && same(*minor_radius, *small)
                     && same(*offset, *off)
@@ -700,8 +681,9 @@ pub enum CurveData<'a, T: Real> {
 pub struct Line<T: Real> {
     /// The point at `t = 0`.
     pub origin: Point3<T>,
-    /// The direction increasing `t` runs along.
-    pub dir: Vec3<T>,
+    /// The unit direction increasing `t` runs along, so `t` is arc
+    /// length.
+    pub dir: UnitVec3<T>,
 }
 
 /// **Two lines' closest approach** ([`Line::closest_params`]): the
@@ -738,11 +720,11 @@ impl<T: Real> Line<T> {
     pub fn closest_params(&self, other: &Self) -> LinePair<T> {
         let w = self.origin - other.origin;
         let (aa, ab, bb) = (
-            self.dir.dot(self.dir),
-            self.dir.dot(other.dir),
-            other.dir.dot(other.dir),
+            self.dir.get().dot(self.dir.get()),
+            self.dir.get().dot(other.dir.get()),
+            other.dir.get().dot(other.dir.get()),
         );
-        let (aw, bw) = (self.dir.dot(w), other.dir.dot(w));
+        let (aw, bw) = (self.dir.get().dot(w), other.dir.get().dot(w));
         let gram = aa * bb - ab.powi(2);
         LinePair {
             s: (ab * bw - bb * aw) / gram,
@@ -755,7 +737,7 @@ impl<T: Real> Line<T> {
     /// parameterization ([`Curve3::eval`] on a line).
     #[must_use]
     pub fn at(&self, t: T) -> Point3<T> {
-        self.origin + self.dir * t
+        self.origin + self.dir.get() * t
     }
 
     /// **The same line with its direction normalised**, for a reader that
@@ -765,7 +747,7 @@ impl<T: Real> Line<T> {
     pub fn unit(self) -> Self {
         Self {
             origin: self.origin,
-            dir: self.dir.normalize(),
+            dir: UnitVec3::squared(self.dir.get()),
         }
     }
 
@@ -779,7 +761,7 @@ impl<T: Real> Line<T> {
     /// `w`'s coefficient along `dir`, `w·dir / |dir|²`: the one spelling
     /// [`Self::param`] and [`Self::param_and_offset`] read.
     fn coefficient(&self, w: Vec3<T>) -> T {
-        w.dot(self.dir) / self.dir.norm_squared()
+        w.dot(self.dir.get()) / self.dir.get().norm_squared()
     }
 
     /// **`p`'s foot**: the point of the line nearest `p`.
@@ -885,8 +867,11 @@ impl<T: Real> Line<T> {
     #[must_use]
     pub fn height_and_distance(&self, p: Point3<T>) -> (T, T) {
         let w = p - self.origin;
-        let len = self.dir.norm();
-        (w.dot(self.dir) / len, w.cross(self.dir).norm() / len)
+        let len = self.dir.get().norm();
+        (
+            w.dot(self.dir.get()) / len,
+            w.cross(self.dir.get()).norm() / len,
+        )
     }
 
     /// **`p`'s parameter and offset together**: [`Self::param`]'s `t` and
@@ -899,7 +884,7 @@ impl<T: Real> Line<T> {
     pub fn param_and_offset(&self, p: Point3<T>) -> (T, Vec3<T>) {
         let w = p - self.origin;
         let t = self.coefficient(w);
-        (t, w - self.dir * t)
+        (t, w - self.dir.get() * t)
     }
 
     /// **`p`'s foot on the plane through `origin` square to the line**:
@@ -907,7 +892,7 @@ impl<T: Real> Line<T> {
     /// the line read as that plane's normal.
     #[must_use]
     pub fn square_foot(&self, p: Point3<T>) -> Point3<T> {
-        p - (p - self.origin).project_onto(self.dir)
+        p - (p - self.origin).project_onto(self.dir.get())
     }
 }
 
@@ -948,7 +933,10 @@ impl<T: Real> Ray<T> {
     #[must_use]
     pub fn starting(origin: Point3<T>, dir: Vec3<T>, start: T) -> Self {
         Self {
-            line: Line { origin, dir },
+            line: Line {
+                origin,
+                dir: UnitVec3::squared(dir),
+            },
             start,
         }
     }
@@ -1037,9 +1025,19 @@ impl<T: Decide> Ray<T> {
 }
 
 impl<T: Real> Curve3<T> {
-    /// The line `origin + dir·t` as a carrier.
+    /// The line `origin + dir·t` as a carrier, `dir` squared with no
+    /// decision ([`UnitVec3::squared`]): `t` is arc length along `dir`'s
+    /// direction whatever its length. A construction that can decide its
+    /// direction mints it and takes [`Curve3::line_along`].
     #[must_use]
     pub fn line(origin: Point3<T>, dir: Vec3<T>) -> Self {
+        Self::line_along(origin, UnitVec3::squared(dir))
+    }
+
+    /// The line `origin + dir·t` as a carrier, along a direction held as
+    /// the witness it is.
+    #[must_use]
+    pub fn line_along(origin: Point3<T>, dir: UnitVec3<T>) -> Self {
         Self::Line(Line { origin, dir })
     }
 
@@ -1132,13 +1130,14 @@ impl<T: Real> Curve3<T> {
             Self::Circle(c) => Some(c.frame),
             Self::Ellipse(e) => Some(e.frame),
             Self::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius: _,
                 minor_radius: _,
                 offset: _,
-            } => Some(Frame::new(center, axis, u_ref)),
+            } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Some(Frame::new(center, axis, u_ref))
+            }
             Self::Line(_) | Self::Nurbs(_) | Self::Periodic(_) => None,
         }
     }
@@ -1170,53 +1169,41 @@ impl<T: Real> Curve3<T> {
         use CurveDatum as D;
         CurveData::Analytic(match *self {
             Curve3::Line(Line { origin, dir }) => {
-                AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
+                AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir.get()))])
             }
-            Curve3::Circle(Circle {
-                frame:
-                    Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }) => AnalyticData::new([
-                (D::Center, Point(center)),
-                (D::Axis, Direction(axis)),
+            Curve3::Circle(Circle { frame, radius }) => AnalyticData::new([
+                (D::Center, Point(frame.origin())),
+                (D::Axis, Direction(frame.axis())),
                 (D::Radius, Scalar(radius)),
-                (D::URef, Direction(u_ref)),
+                (D::URef, Direction(frame.u_ref())),
             ]),
             Curve3::Ellipse(Ellipse {
-                frame:
-                    Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame,
                 semi_u,
                 semi_v,
             }) => AnalyticData::new([
-                (D::Center, Point(center)),
-                (D::Axis, Direction(axis)),
+                (D::Center, Point(frame.origin())),
+                (D::Axis, Direction(frame.axis())),
                 (D::SemiU, Scalar(semi_u)),
                 (D::SemiV, Scalar(semi_v)),
-                (D::URef, Direction(u_ref)),
+                (D::URef, Direction(frame.u_ref())),
             ]),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
-            } => AnalyticData::new([
-                (D::Center, Point(center)),
-                (D::Axis, Direction(axis)),
-                (D::URef, Direction(u_ref)),
-                (D::MajorRadius, Scalar(major_radius)),
-                (D::MinorRadius, Scalar(minor_radius)),
-                (D::Offset, Scalar(offset)),
-            ]),
+            } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Center, Point(center)),
+                    (D::Axis, Direction(axis)),
+                    (D::URef, Direction(u_ref)),
+                    (D::MajorRadius, Scalar(major_radius)),
+                    (D::MinorRadius, Scalar(minor_radius)),
+                    (D::Offset, Scalar(offset)),
+                ])
+            }
             Curve3::Nurbs(ref n) => return CurveData::Nurbs(n),
             Curve3::Periodic(ref n) => return CurveData::Periodic(n),
         })
@@ -1263,25 +1250,26 @@ impl<T: Real> Curve3<T> {
         };
         match self {
             Curve3::Circle(c) => core::iter::once(lower(CurveDatum::Radius, c.radius))
-                .chain(frame(c.frame.axis, c.frame.u_ref, c.radius))
+                .chain(frame(c.frame.axis(), c.frame.u_ref(), c.radius))
                 .collect(),
             Curve3::Ellipse(e) => [
                 lower(CurveDatum::SemiU, e.semi_u),
                 lower(CurveDatum::SemiV, e.semi_v),
             ]
             .into_iter()
-            .chain(frame(e.frame.axis, e.frame.u_ref, e.speed_hi()))
+            .chain(frame(e.frame.axis(), e.frame.u_ref(), e.speed_hi()))
             .collect(),
             Curve3::Spiric {
-                center: _,
-                axis,
-                u_ref,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
                 offset: _,
-            } => core::iter::once(lower(CurveDatum::MinorRadius, *minor_radius))
-                .chain(frame(*axis, *u_ref, *major_radius + *minor_radius))
-                .collect(),
+            } => {
+                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
+                core::iter::once(lower(CurveDatum::MinorRadius, *minor_radius))
+                    .chain(frame(axis, u_ref, *major_radius + *minor_radius))
+                    .collect()
+            }
             Curve3::Line(Line { origin: _, dir: _ }) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
                 Vec::new()
             }
@@ -1309,7 +1297,7 @@ fn tube_section<T: Decide>(
 ) -> Azimuth<T> {
     let (h, rho) = Line {
         origin: center,
-        dir: axis,
+        dir: UnitVec3::squared(axis),
     }
     .height_and_distance(p);
     Azimuth::tube(h, rho, major_radius)
@@ -1338,11 +1326,13 @@ impl<T: Decide> Curve3<T> {
             Curve3::Circle(c) => Some(c.azimuth(p)),
             Curve3::Ellipse(e) => Some(e.azimuth(p)),
             Curve3::Spiric {
-                center,
-                axis,
+                frame,
                 major_radius,
                 ..
-            } => Some(tube_section(*center, *axis, *major_radius, p)),
+            } => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                Some(tube_section(center, axis, *major_radius, p))
+            }
             Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
         }
     }
@@ -1483,9 +1473,7 @@ impl<T: Decide> Curve3<T> {
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
         Ok(Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
+            frame: crate::Frame::new(center, axis, u_ref),
             major_radius,
             minor_radius,
             offset,
@@ -1526,7 +1514,7 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn reversed(&self) -> Option<Self> {
         Some(match self.clone() {
-            Curve3::Line(Line { origin, dir }) => Curve3::line(origin, -dir),
+            Curve3::Line(Line { origin, dir }) => Curve3::line(origin, (-dir).get()),
             Curve3::Circle(c) => Curve3::Circle(Circle {
                 frame: c.frame.reversed(),
                 ..c
@@ -1536,20 +1524,23 @@ impl<T: Real> Curve3<T> {
                 ..e
             }),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
                 offset,
-            } => Curve3::Spiric {
-                center,
-                axis: -axis,
-                u_ref: -u_ref,
-                major_radius,
-                minor_radius,
-                offset: T::zero() - offset,
-            },
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Curve3::Spiric {
+                    frame: crate::Frame::new(center, -axis, -u_ref),
+                    major_radius,
+                    minor_radius,
+                    offset: T::zero() - offset,
+                }
+            }
             Curve3::Nurbs(_) => return None,
             Curve3::Periodic(p) => Curve3::Periodic(Arc::new(p.reversed())),
         })
@@ -1565,7 +1556,7 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn translated(&self, by: Vec3<T>) -> Option<Self> {
         Some(match self.clone() {
-            Curve3::Line(Line { origin, dir }) => Curve3::line(origin + by, dir),
+            Curve3::Line(Line { origin, dir }) => Curve3::line(origin + by, dir.get()),
             Curve3::Circle(c) => Curve3::Circle(Circle {
                 frame: c.frame.translated(by),
                 ..c
@@ -1575,20 +1566,23 @@ impl<T: Real> Curve3<T> {
                 ..e
             }),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
                 offset,
-            } => Curve3::Spiric {
-                center: center + by,
-                axis,
-                u_ref,
-                major_radius,
-                minor_radius,
-                offset,
-            },
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Curve3::Spiric {
+                    frame: crate::Frame::new(center + by, axis, u_ref),
+                    major_radius,
+                    minor_radius,
+                    offset,
+                }
+            }
             Curve3::Nurbs(_) | Curve3::Periodic(_) => return None,
         })
     }
@@ -1867,16 +1861,15 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Circle(c) => c.point_at(t),
             Curve3::Ellipse(e) => e.point_at(t),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let ((s, c), m) = azimuth::basis(&Frame::new(center, axis, u_ref), t);
                 let (_, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
-                *center + *u_ref * *offset + m * f + *axis * (*minor_radius * s)
+                center + u_ref * *offset + m * f + axis * (*minor_radius * s)
             }
             Curve3::Nurbs(n) => n.eval(t),
             Curve3::Periodic(n) => n.eval(t),
@@ -1912,21 +1905,20 @@ impl<T: SpanLocate> Curve3<T> {
     /// pass).
     pub fn deriv(&self, t: T) -> Vec3<T> {
         match self {
-            Curve3::Line(Line { dir, .. }) => *dir,
+            Curve3::Line(Line { dir, .. }) => (*dir).get(),
             Curve3::Circle(c) => c.derivative_at(t),
             Curve3::Ellipse(e) => e.derivative_at(t),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let ((s, c), m) = azimuth::basis(&Frame::new(center, axis, u_ref), t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
-                m * f1 + *axis * (*minor_radius * c)
+                m * f1 + axis * (*minor_radius * c)
             }
             Curve3::Nurbs(n) => n.deriv(t),
             Curve3::Periodic(n) => n.deriv(t),
@@ -1964,23 +1956,22 @@ impl<T: SpanLocate> Curve3<T> {
     /// passes and are not projections of this one.
     pub fn ders1(&self, t: T) -> (Point3<T>, Vec3<T>) {
         match self {
-            Curve3::Line(line) => (line.at(t), line.dir),
+            Curve3::Line(line) => (line.at(t), line.dir.get()),
             Curve3::Circle(c) => c.jet_at(t),
             Curve3::Ellipse(e) => e.jet_at(t),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let ((s, c), m) = azimuth::basis(&Frame::new(center, axis, u_ref), t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
                 (
-                    *center + *u_ref * *offset + m * f + *axis * (*minor_radius * s),
-                    m * f1 + *axis * (*minor_radius * c),
+                    center + u_ref * *offset + m * f + axis * (*minor_radius * s),
+                    m * f1 + axis * (*minor_radius * c),
                 )
             }
             Curve3::Nurbs(n) => n.ders1(t),
@@ -2017,19 +2008,18 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Circle(c) => c.second_derivative_at(t),
             Curve3::Ellipse(e) => e.second_derivative_at(t),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let ((s, c), m) = azimuth::basis(&Frame::new(center, axis, u_ref), t);
                 let r = *minor_radius;
                 let (rho, f) = spiric_radial(*major_radius, r, *offset, c);
                 let f2 = -(r
                     * ((rho * c - r * s.powi(2)) / f + r * rho.powi(2) * s.powi(2) / f.powi(3)));
-                m * f2 - *axis * (r * s)
+                m * f2 - axis * (r * s)
             }
             Curve3::Nurbs(n) => n.deriv2(t),
             Curve3::Periodic(n) => n.deriv2(t),
@@ -2083,9 +2073,7 @@ mod tests {
             Curve3::Circle(Circle::new(frame, 1.5)),
             Curve3::Ellipse(Ellipse::new(frame, 2.0, 1.0)),
             Curve3::Spiric {
-                center: frame.origin,
-                axis: frame.axis,
-                u_ref: frame.u_ref,
+                frame: crate::Frame::new(frame.origin(), frame.axis(), frame.u_ref()),
                 major_radius: 3.0,
                 minor_radius: 1.0,
                 offset: 0.5,
@@ -2097,8 +2085,8 @@ mod tests {
         }
         let open = [
             Curve3::Line(Line {
-                origin: frame.origin,
-                dir: frame.axis,
+                origin: frame.origin(),
+                dir: UnitVec3::squared(frame.axis()),
             }),
             Curve3::Nurbs(Arc::new(NurbsCurve3::placeholder())),
         ];
@@ -2116,11 +2104,11 @@ mod tests {
     fn two_lines_closest_approach_is_their_common_perpendicular() {
         let x = Line {
             origin: Point3::new(-2.0, 0.0, 0.0),
-            dir: Vec3::new(2.0, 0.0, 0.0),
+            dir: UnitVec3::squared(Vec3::new(2.0, 0.0, 0.0)),
         };
         let y = Line {
             origin: Point3::new(3.0, 5.0, 1.0),
-            dir: Vec3::new(0.0, -0.5, 0.0),
+            dir: UnitVec3::squared(Vec3::new(0.0, -0.5, 0.0)),
         };
         let pair = x.closest_params(&y);
         assert_eq!(
@@ -2136,12 +2124,12 @@ mod tests {
         );
         let tilted = Line {
             origin: Point3::new(0.3, -1.0, 2.0),
-            dir: Vec3::new(1.0, 2.0, -0.5),
+            dir: UnitVec3::squared(Vec3::new(1.0, 2.0, -0.5)),
         };
         let pair = x.closest_params(&tilted);
         let (p, q) = (x.at(pair.s), tilted.at(pair.t));
         assert!(
-            (p - q).dot(x.dir).abs() < 1e-12 && (p - q).dot(tilted.dir).abs() < 1e-12,
+            (p - q).dot(x.dir.get()).abs() < 1e-12 && (p - q).dot(tilted.dir.get()).abs() < 1e-12,
             "the joining vector is square to both lines: {p:?} {q:?}"
         );
         let expected = 1.0 - (2.0_f64 / (2.0 * 5.25_f64.sqrt())).powi(2);
@@ -2152,12 +2140,12 @@ mod tests {
         );
         let parallel = Line {
             origin: Point3::new(0.0, 1.0, 0.0),
-            dir: Vec3::new(-3.0, 0.0, 0.0),
+            dir: UnitVec3::squared(Vec3::new(-3.0, 0.0, 0.0)),
         };
         assert_eq!(x.closest_params(&parallel).sin2, 0.0, "parallel lines");
         let point = Line {
             origin: Point3::new(0.0, 1.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 0.0),
+            dir: UnitVec3::squared(Vec3::new(0.0, 0.0, 0.0)),
         };
         assert!(x.closest_params(&point).sin2.is_nan(), "a zero direction");
     }
@@ -2166,7 +2154,7 @@ mod tests {
     fn a_lines_offset_and_square_foot_read_a_non_unit_dir() {
         let l = Line {
             origin: Point3::new(1.0, 2.0, 3.0),
-            dir: Vec3::new(0.0, 0.0, 4.0),
+            dir: UnitVec3::squared(Vec3::new(0.0, 0.0, 4.0)),
         };
         let p = Point3::new(4.0, 6.0, 11.0);
         let xyz = |v: Vec3<f64>| (v.x, v.y, v.z);
@@ -2191,11 +2179,11 @@ mod tests {
         for scale in [1.0, 0.25, 3.0] {
             let line = Line {
                 origin,
-                dir: Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale,
+                dir: UnitVec3::squared(Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale),
             };
             let foot = line.foot(p);
             assert!(
-                (p - foot).dot(line.dir).abs() < 1e-12,
+                (p - foot).dot(line.dir.get()).abs() < 1e-12,
                 "|dir| = {scale}: the way to the foot is square to the line"
             );
         }
@@ -2211,11 +2199,11 @@ mod tests {
         for scale in [0.25, 3.0] {
             let line = Line {
                 origin,
-                dir: Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale,
+                dir: UnitVec3::squared(Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale),
             };
             let t = Curve3::Line(line).param_near(p, 0.0).unwrap();
             assert!(
-                (line.origin + line.dir * t - line.foot(p)).norm() < 1e-12,
+                (line.origin + line.dir.get() * t - line.foot(p)).norm() < 1e-12,
                 "|dir| = {scale}: param_near's point is the foot"
             );
         }
@@ -2232,13 +2220,14 @@ mod tests {
         let u = Vec3::new(1.0, -2.0, 2.0) / 3.0;
         let c = Point3::new(0.5, -1.0, 2.0);
         let curves = [
-            Curve3::Line(Line { origin: c, dir: u }),
+            Curve3::Line(Line {
+                origin: c,
+                dir: UnitVec3::squared(u),
+            }),
             Curve3::circle(c, n, 0.7, u),
             Curve3::Ellipse(crate::Ellipse::new(crate::Frame::new(c, n, u), 0.9, 0.4)),
             Curve3::Spiric {
-                center: c,
-                axis: n,
-                u_ref: u,
+                frame: crate::Frame::new(c, n, u),
                 major_radius: 2.0,
                 minor_radius: 0.5,
                 offset: 0.3,
@@ -2335,7 +2324,7 @@ mod tests {
         fn circle_point_lies_on_locus(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::Frame { origin: center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame, radius }) => { let (center, axis) = (frame.origin(), frame.axis()); (center, axis, radius) },
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2351,7 +2340,7 @@ mod tests {
         fn circle_derivative_geometry(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::Frame { origin: center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame, radius }) => { let (center, axis) = (frame.origin(), frame.axis()); (center, axis, radius) },
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2560,10 +2549,11 @@ mod tests {
             (0.0, -0.0, x, 5.0),
         ] {
             let Ellipse {
-                frame: Frame { u_ref, .. },
+                frame: carrier_frame,
                 semi_u: u,
                 semi_v: v,
             } = e.as_ellipse().unwrap().seamed_toward(cos, sin);
+            let u_ref = carrier_frame.u_ref();
             assert_eq!(
                 ((u_ref - seam).norm(), u, u + v),
                 (0.0, semi_u, 7.0),
@@ -2580,7 +2570,7 @@ mod tests {
             .unwrap()
             .quarter_turned_where(1.0)
             .frame
-            .u_ref;
+            .u_ref();
         assert!(
             (u_ref.norm() - 1.0).abs() <= ulp,
             "the turned seam is unit: {:e}",
@@ -2695,9 +2685,10 @@ mod tests {
         #[test]
         fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { origin: center, axis, u_ref }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame, semi_u, semi_v }) = e else {
                 panic!("fixture is an ellipse");
             };
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let v_ref = axis.cross(u_ref);
             let p = e.eval(theta);
             let d = p - center;
@@ -2713,9 +2704,9 @@ mod tests {
         #[test]
         fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { origin: center, axis, .. }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame, semi_u, semi_v }) = e else {
                 panic!("fixture is an ellipse");
-            };
+            }; let (center, axis) = (frame.origin(), frame.axis());
             let p = e.eval(theta);
             let d1 = e.deriv(theta);
             let d2 = e.deriv2(theta);
@@ -2867,9 +2858,7 @@ mod tests {
 
     fn spiric_fields(c: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64, f64) {
         let Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
+            frame,
             major_radius,
             minor_radius,
             offset,
@@ -2877,6 +2866,7 @@ mod tests {
         else {
             panic!("fixture is a spiric");
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         (center, axis, u_ref, major_radius, minor_radius, offset)
     }
 
@@ -2979,9 +2969,7 @@ mod tests {
         let c = tilted_spiric();
         let (center, axis, u_ref, big_r, r, d) = spiric_fields(&c);
         let other = Curve3::Spiric {
-            center,
-            axis,
-            u_ref: -u_ref,
+            frame: crate::Frame::new(center, axis, -u_ref),
             major_radius: big_r,
             minor_radius: r,
             offset: -d,
@@ -3161,9 +3149,11 @@ mod tests {
         fn spiric_wide_bracket_box_contains_every_member_twin() {
             let iv = Interval::from_f64;
             let ci = Curve3::Spiric {
-                center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                frame: crate::Frame::new(
+                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                ),
                 major_radius: iv(1.2),
                 minor_radius: iv(0.225),
                 offset: Interval::from_bounds(0.05, 0.06),
@@ -3173,9 +3163,11 @@ mod tests {
             let mut worst = f64::NEG_INFINITY;
             for d in [0.05, 0.06] {
                 let twin = Curve3::Spiric {
-                    center: Point3::new(0.0, 0.0, 0.0),
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    frame: crate::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     major_radius: 1.2,
                     minor_radius: 0.225,
                     offset: d,
@@ -3211,18 +3203,14 @@ mod tests {
             let e = super::tilted_ellipse();
             let ei = e.map_scalar(geom_core::Interval::from_f64);
             let Curve3::Ellipse(crate::Ellipse {
-                frame:
-                    crate::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame,
                 semi_u,
                 semi_v,
             }) = ei
             else {
                 panic!("fixture is an ellipse");
             };
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let v_ref = axis.cross(u_ref);
             for theta in [0.0, 0.7, 2.9, -14.6, 300.0] {
                 let p = ei.eval(Interval::from_f64(theta));
@@ -3586,15 +3574,10 @@ mod tests {
             let c = super::tilted_circle();
             let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
-                Curve3::Circle(crate::Circle {
-                    frame:
-                        crate::Frame {
-                            origin: center,
-                            axis,
-                            ..
-                        },
-                    radius,
-                }) => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame, radius }) => {
+                    let (center, axis) = (frame.origin(), frame.axis());
+                    (center, axis, radius)
+                }
                 _ => panic!("fixture is a circle"),
             };
             for theta in [0.0, 0.7, 2.9, -14.6, 300.0] {

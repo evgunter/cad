@@ -61,7 +61,7 @@ fn frame(c: [f64; 3], a: [f64; 3], u: [f64; 3]) -> geom::Frame<f64> {
 fn line(o: [f64; 3], d: [f64; 3]) -> Curve3<f64> {
     Curve3::Line(geom::Line {
         origin: pt(o),
-        dir: v3(d),
+        dir: geom_core::UnitVec3::squared(v3(d)),
     })
 }
 
@@ -82,9 +82,7 @@ fn ellipse(f: geom::Frame<f64>, su: f64, sv: f64) -> Curve3<f64> {
 
 fn spiric(c: [f64; 3], a: [f64; 3], u: [f64; 3], big: f64, small: f64, off: f64) -> Curve3<f64> {
     Curve3::Spiric {
-        center: pt(c),
-        axis: v3(a),
-        u_ref: v3(u),
+        frame: geom::Frame::new(pt(c), v3(a), v3(u)),
         major_radius: big,
         minor_radius: small,
         offset: off,
@@ -211,7 +209,11 @@ fn a_value_carrying_a_derivative_is_no_answer() {
     let line = |o: Point3<Dual64>| {
         Curve3::Line(geom::Line {
             origin: o,
-            dir: Vec3::new(constant(1.0), constant(0.0), constant(0.0)),
+            dir: geom_core::UnitVec3::squared(Vec3::new(
+                constant(1.0),
+                constant(0.0),
+                constant(0.0),
+            )),
         })
     };
     let still = line(at(O));

@@ -412,6 +412,35 @@ impl<T: Real> UnitVec3<T> {
         Some(UnitVec3(Vec3::new(read(v.x)?, read(v.y)?, read(v.z)?)))
     }
 
+    /// **A direction squared with no decision**: `v` over its own
+    /// length, unit over the reals wherever that length is not zero,
+    /// and poison where it is (`0/0`, the totality policy's NaN or NaI,
+    /// which the predicate layer catches). Nothing is decided, so no
+    /// band and no refusal: a degenerate input is a poisoned witness,
+    /// not a typed one.
+    ///
+    /// It is the decision-free re-mint the scalar lift
+    /// ([`UnitVec3::map_scalar`]) runs, and the door a carrier's stated
+    /// direction enters the type through until its construction mints
+    /// it ([`UnitVec3::new`]); a construction that can decide its
+    /// direction decides it.
+    #[must_use]
+    pub fn squared(v: Vec3<T>) -> Self {
+        Self(v.normalize())
+    }
+
+    /// **This direction at another scalar, re-minted there**: its
+    /// components through `f`, then squared at the target scalar
+    /// ([`UnitVec3::squared`]). The components are not the claim: at
+    /// `f64` they are the rounding of the exact unit direction the
+    /// witness's mint names, and at an enclosure scalar they enclose it.
+    /// The claim is built from the mapped components at the target
+    /// scalar rather than carried across (DESIGN `[scalars]`).
+    #[must_use]
+    pub fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> UnitVec3<U> {
+        UnitVec3::squared(self.0.map(f))
+    }
+
     /// The exact `x̂`, unit as its literal bits at every scalar that
     /// represents 0 and 1 — no decision, nothing to decide: the world
     /// frames' axes, and the axis a caller turns about when it names a

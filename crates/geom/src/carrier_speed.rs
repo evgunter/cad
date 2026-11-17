@@ -287,7 +287,7 @@ enum Kind<'a, T: Real> {
 impl<'a, T: SpanLocate> Kind<'a, T> {
     fn of(carrier: &'a crate::Curve3<T>) -> Self {
         match carrier {
-            crate::Curve3::Line(crate::Line { dir, .. }) => Self::Line(*dir),
+            crate::Curve3::Line(crate::Line { dir, .. }) => Self::Line((*dir).get()),
             crate::Curve3::Circle(c) => Self::Conic(c),
             crate::Curve3::Ellipse(e) => Self::Conic(e),
             crate::Curve3::Spiric {

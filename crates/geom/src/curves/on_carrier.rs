@@ -571,13 +571,12 @@ impl<T: Decide> Curve3<T> {
                 (lower.powi(2) + e.frame.height(q).powi(2)).sqrt()
             }
             Self::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
                 let w = q - center;
                 let plane = (w.dot(u_ref) - offset).abs();
                 let (h, rho) = crate::Line {
@@ -587,8 +586,8 @@ impl<T: Decide> Curve3<T> {
                 .height_and_distance(q);
                 let (major, minor) = (major_radius.abs(), minor_radius.abs());
                 let torus = ((rho - major).powi(2) + h.powi(2)).sqrt() - minor;
-                let side =
-                    ((major - minor).powi(2) - offset.powi(2)).sqrt() - w.dot(axis.cross(u_ref));
+                let side = ((major - minor).powi(2) - offset.powi(2)).sqrt()
+                    - w.dot(axis.get().cross(u_ref));
                 plane.max(torus.abs()).max(side)
             }
             Self::Nurbs(_) | Self::Periodic(_) => return None,
@@ -626,7 +625,7 @@ impl<T: Decide> Curve3<T> {
         Some(match self.closed_form()? {
             ClosedForm::Line(line) => line.distance_within(q, (lo, hi)),
             ClosedForm::Circle(c) => {
-                let (o, axis) = (c.frame.origin, c.frame.axis);
+                let (o, axis) = (c.frame.origin(), c.frame.axis());
                 let w = q - o;
                 let v = w - axis * w.dot(axis);
                 let m = self.eval(crate::mid_param(lo, hi)) - o;

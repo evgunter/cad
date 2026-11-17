@@ -50,7 +50,7 @@
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
-use geom_core::{Decide, Margin, Point2, Point3, Real, Sign, Vec3};
+use geom_core::{Decide, Margin, Point2, Point3, Real, Sign, UnitVec3, Vec3};
 
 use crate::Frame;
 use crate::azimuth::{Azimuth, Window};
@@ -447,33 +447,33 @@ impl<T: Decide> Surface<T> {
         // amplifies an axis carrying width at the interval scalar
         // ([`Line::offset`]).
         let about = |origin: Point3<T>, axis: Vec3<T>| {
-            let line = Line { origin, dir: axis };
+            let line = Line {
+                origin,
+                dir: UnitVec3::squared(axis),
+            };
             let (t, off) = line.param_and_offset(p);
             (line.at(t), along(off - off.project_onto(axis)))
         };
         match *self {
-            Self::Plane { origin, normal, .. } => Some(
-                Line {
-                    origin,
-                    dir: normal,
-                }
-                .square_foot(p),
-            ),
-            Self::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => {
+            Self::Plane { frame, .. } => {
+                let (origin, normal) = (frame.origin(), frame.axis_unit());
+                Some(
+                    Line {
+                        origin,
+                        dir: normal,
+                    }
+                    .square_foot(p),
+                )
+            }
+            Self::Cylinder { frame, radius, .. } => {
+                let (origin, axis) = (frame.origin(), frame.axis());
                 let (q, r) = about(origin, axis);
                 r.map(|r| q + r * radius)
             }
             Self::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
+                frame, half_angle, ..
             } => {
+                let (apex, axis) = (frame.origin(), frame.axis());
                 let w = p - apex;
                 about(apex, axis).1.map(|r| {
                     let (sin, cos) = half_angle.sin_cos();
@@ -481,17 +481,22 @@ impl<T: Decide> Surface<T> {
                     apex + g * w.dot(g)
                 })
             }
-            Self::Sphere { center, radius, .. } => along(p - center).map(|d| center + d * radius),
+            Self::Sphere { frame, radius, .. } => {
+                let center = frame.origin();
+                along(p - center).map(|d| center + d * radius)
+            }
             Self::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
-            } => about(center, axis).1.and_then(|r| {
-                let m = center + r * major_radius;
-                along(p - m).map(|d| m + d * minor_radius)
-            }),
+            } => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                about(center, axis).1.and_then(|r| {
+                    let m = center + r * major_radius;
+                    along(p - m).map(|d| m + d * minor_radius)
+                })
+            }
             Self::Spindle { .. } | Self::Nurbs(_) | Self::Approx(_) => None,
         }
     }
@@ -517,34 +522,24 @@ mod tests {
         let o = Point3::new(0.2, -0.1, 0.3);
         vec![
             Surface::Plane {
-                origin: o,
-                normal: axis,
-                u_ref,
+                frame: crate::Frame::new(o, axis, u_ref),
             },
             Surface::Cylinder {
-                origin: o,
-                axis,
+                frame: crate::Frame::new(o, axis, u_ref),
                 radius: 0.7,
-                u_ref,
             },
             Surface::Cone {
-                apex: o,
-                axis,
+                frame: crate::Frame::new(o, axis, u_ref),
                 half_angle: 0.4,
-                u_ref,
             },
             Surface::Sphere {
-                center: o,
+                frame: crate::Frame::new(o, axis, u_ref),
                 radius: 0.7,
-                axis,
-                u_ref,
             },
             Surface::Torus {
-                center: o,
-                axis,
+                frame: crate::Frame::new(o, axis, u_ref),
                 major_radius: 2.0,
                 minor_radius: 0.5,
-                u_ref,
             },
         ]
     }
@@ -574,10 +569,12 @@ mod tests {
         let mut all = surfaces();
         for alpha in [1.2, 1.4] {
             all.push(Surface::Cone {
-                apex: Point3::new(0.2, -0.1, 0.3),
-                axis: Vec3::new(0.0, 0.6, 0.8),
+                frame: crate::Frame::new(
+                    Point3::new(0.2, -0.1, 0.3),
+                    Vec3::new(0.0, 0.6, 0.8),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 half_angle: alpha,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             });
         }
         // A lemon (`v* ≈ 1.459`) and apples from `v* ≈ 1.982` to within
@@ -587,11 +584,13 @@ mod tests {
         // its apexes, and a wide one's past `1 − π`.
         for (major_radius, minor_radius) in SHEETS {
             all.push(Surface::Spindle {
-                center: Point3::new(0.2, -0.1, 0.3),
-                axis: Vec3::new(0.0, 0.6, 0.8),
+                frame: crate::Frame::new(
+                    Point3::new(0.2, -0.1, 0.3),
+                    Vec3::new(0.0, 0.6, 0.8),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 major_radius,
                 minor_radius,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             });
         }
         for surface in &all {
@@ -640,7 +639,7 @@ mod tests {
         let Some(axis) = surface.axis_line() else {
             return Vec::new();
         };
-        let a = axis.dir.normalize();
+        let a = axis.dir.get().normalize();
         let (e1, e2) = a.orthonormal_basis();
         let mut out = Vec::new();
         for k in 0..12 {
@@ -653,16 +652,17 @@ mod tests {
                 }
                 match *surface {
                     // Beside the apex plane, out along it.
-                    Surface::Cone { apex, .. } => {
+                    Surface::Cone { frame, .. } => {
+                        let apex = frame.origin();
                         out.push(apex + radial * (0.4 + f64::from(k) * 0.2) + a * off);
                     }
                     // Beside the tube circle, along its plane and across it.
                     Surface::Torus {
-                        center,
+                        frame,
                         major_radius,
                         ..
                     } if off != 0.0 => {
-                        let m = center + radial * major_radius;
+                        let m = frame.origin() + radial * major_radius;
                         out.push(m + radial * off);
                         out.push(m + a * off);
                     }
@@ -731,7 +731,10 @@ mod tests {
                 // axis's, so the flipped frame names the other (`foot`'s
                 // docs).
                 let on_apex_plane = match surface {
-                    Surface::Cone { apex, axis, .. } => axis.dot(p - apex) == 0.0,
+                    Surface::Cone { frame, .. } => {
+                        let (apex, axis) = (frame.origin(), frame.axis());
+                        axis.dot(p - apex) == 0.0
+                    }
                     _ => false,
                 };
                 let frames = crate::test_support::CHART_FRAMES[1..].iter();
@@ -763,29 +766,21 @@ mod tests {
         );
         let surfaces = [
             Surface::Cylinder {
-                origin: o,
-                axis: z,
+                frame: crate::Frame::new(o, z, x),
                 radius: 0.7,
-                u_ref: x,
             },
             Surface::Cone {
-                apex: o,
-                axis: z,
+                frame: crate::Frame::new(o, z, x),
                 half_angle: 0.4,
-                u_ref: x,
             },
             Surface::Sphere {
-                center: o,
+                frame: crate::Frame::new(o, z, x),
                 radius: 0.7,
-                axis: z,
-                u_ref: x,
             },
             Surface::Torus {
-                center: o,
-                axis: z,
+                frame: crate::Frame::new(o, z, x),
                 major_radius: 2.0,
                 minor_radius: 0.5,
-                u_ref: x,
             },
         ];
         for s in &surfaces {
@@ -802,17 +797,13 @@ mod tests {
         assert!(torus.foot(o + x * 2.0).is_none(), "on the tube circle");
         assert!(torus.foot(o + x * 2.0 + z * 1e-3).is_some());
         let sheet = Surface::Spindle {
-            center: o,
-            axis: z,
+            frame: crate::Frame::new(o, z, x),
             major_radius: 0.4,
             minor_radius: 1.0,
-            u_ref: x,
         };
         assert!(sheet.foot(o + z * 0.2 + x * 0.5).is_none());
         let plane = Surface::Plane {
-            origin: o,
-            normal: z,
-            u_ref: x,
+            frame: crate::Frame::new(o, z, x),
         };
         assert!(plane.foot(o).is_some(), "a plane has a foot everywhere");
     }
@@ -829,11 +820,13 @@ mod tests {
         use geom_core::{Bounds, Interval};
         let iv = Interval::from_f64;
         let horn = Surface::Spindle {
-            center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            frame: crate::Frame::new(
+                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+            ),
             major_radius: iv(1.0),
             minor_radius: iv(1.0),
-            u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
         };
         let pi = core::f64::consts::PI;
         let cusp = horn
@@ -882,72 +875,58 @@ mod tests {
         let rows: [(Surface<Interval>, Point3<f64>, &str); 7] = [
             (
                 Surface::Cylinder {
-                    origin: lifted(o),
-                    axis: a,
+                    frame: crate::Frame::new(lifted(o), a, u),
                     radius: iv(0.7),
-                    u_ref: u,
                 },
                 on_axis,
                 "the cylinder's axis",
             ),
             (
                 Surface::Cone {
-                    apex: lifted(o),
-                    axis: a,
+                    frame: crate::Frame::new(lifted(o), a, u),
                     half_angle: iv(0.4),
-                    u_ref: u,
                 },
                 on_axis,
                 "the cone's axis",
             ),
             (
                 Surface::Cone {
-                    apex: lifted(o),
-                    axis: a,
+                    frame: crate::Frame::new(lifted(o), a, u),
                     half_angle: iv(0.4),
-                    u_ref: u,
                 },
                 o,
                 "the cone's apex",
             ),
             (
                 Surface::Sphere {
-                    center: lifted(o),
+                    frame: crate::Frame::new(lifted(o), a, u),
                     radius: iv(0.7),
-                    axis: a,
-                    u_ref: u,
                 },
                 o,
                 "the sphere's centre",
             ),
             (
                 Surface::Torus {
-                    center: lifted(o),
-                    axis: a,
+                    frame: crate::Frame::new(lifted(o), a, u),
                     major_radius: iv(2.0),
                     minor_radius: iv(0.5),
-                    u_ref: u,
                 },
                 on_axis,
                 "the torus's axis",
             ),
             (
                 Surface::Torus {
-                    center: lifted(o),
-                    axis: a,
+                    frame: crate::Frame::new(lifted(o), a, u),
                     major_radius: iv(2.0),
                     minor_radius: iv(0.5),
-                    u_ref: u,
                 },
                 tube,
                 "the torus's tube circle",
             ),
             (
                 Surface::Cylinder {
-                    origin: lifted(o),
-                    axis: a,
+                    frame: crate::Frame::new(lifted(o), a, u),
                     radius: iv(0.7),
-                    u_ref: u,
                 },
                 o + axis * -0.8,
                 "the cylinder's axis, below its origin",
@@ -992,11 +971,13 @@ mod tests {
         // (`cos v* = −R/r`), lie on its axis.
         for (major_radius, minor_radius) in SHEETS {
             let sheet = Surface::Spindle {
-                center: Point3::new(0.2, -0.1, 0.3),
-                axis: Vec3::new(0.0, 0.6, 0.8),
+                frame: crate::Frame::new(
+                    Point3::new(0.2, -0.1, 0.3),
+                    Vec3::new(0.0, 0.6, 0.8),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 major_radius,
                 minor_radius,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
             let v_star = crate::sheet_apex(major_radius, minor_radius).v;
             for v in [v_star, -v_star] {
@@ -1014,10 +995,12 @@ mod tests {
         }
         for alpha in [1.2, 1.4] {
             let wide = Surface::Cone {
-                apex: Point3::new(0.2, -0.1, 0.3),
-                axis: Vec3::new(0.0, 0.6, 0.8),
+                frame: crate::Frame::new(
+                    Point3::new(0.2, -0.1, 0.3),
+                    Vec3::new(0.0, 0.6, 0.8),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 half_angle: alpha,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
             let in_band = wide.chart_point(wide.eval(0.7, -2e-8), band()).unwrap();
             assert!(in_band.singular, "α {alpha}: an apex-plane point in band");

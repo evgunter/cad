@@ -317,46 +317,36 @@ fn surfaces() -> Vec<(&'static str, Surface<f64>)> {
         (
             "plane",
             Surface::Plane {
-                origin: c,
-                normal: axis,
-                u_ref: uref,
+                frame: geom::Frame::new(c, axis, uref),
             },
         ),
         (
             "cylinder",
             Surface::Cylinder {
-                origin: c,
-                axis,
+                frame: geom::Frame::new(c, axis, uref),
                 radius: 2.5,
-                u_ref: uref,
             },
         ),
         (
             "cone",
             Surface::Cone {
-                apex: c,
-                axis,
+                frame: geom::Frame::new(c, axis, uref),
                 half_angle: FRAC_PI_6,
-                u_ref: uref,
             },
         ),
         (
             "sphere",
             Surface::Sphere {
-                center: c,
+                frame: geom::Frame::new(c, axis, uref),
                 radius: 2.5,
-                axis,
-                u_ref: uref,
             },
         ),
         (
             "torus",
             Surface::Torus {
-                center: c,
-                axis,
+                frame: geom::Frame::new(c, axis, uref),
                 major_radius: 3.0,
                 minor_radius: 1.25,
-                u_ref: uref,
             },
         ),
     ]
@@ -468,12 +458,10 @@ fn decoration_chain_through_reduce_and_eval() {
     );
     // Residual still certifies (contains 0) over the widened enclosure.
     let (origin, axis, r) = match ci {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => (origin, axis, radius),
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            (origin, axis, radius)
+        }
         _ => unreachable!(),
     };
     let d = p - origin;

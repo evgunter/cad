@@ -144,6 +144,8 @@
 //! is untouched here; the lift neither narrows nor widens it.
 
 use geom_core::Real;
+#[cfg(doc)]
+use geom_core::UnitVec3;
 
 use crate::curves::Curve3;
 use crate::surfaces::Surface;
@@ -156,15 +158,18 @@ use crate::surfaces::{ApproxSurface, NurbsSurface, SurfaceDescription};
 use geom_core::KnotVector;
 
 impl<T: Real> Curve3<T> {
-    /// The same curve read at another scalar (module docs): analytic
-    /// fields through `f`, the NURBS payload through
-    /// [`NurbsCurve3::map_scalar`]. Exact whenever `f` is; poison
-    /// travels; the placeholder lifts to the placeholder and a
-    /// described curve to a described curve.
+    /// **The same curve at another scalar** (module docs): a frame or a
+    /// direction re-minted there ([`crate::Frame::map_scalar`],
+    /// [`UnitVec3::map_scalar`]), every other analytic field through `f`, the
+    /// NURBS payload through [`NurbsCurve3::map_scalar`]. Poison travels;
+    /// the placeholder lifts to the placeholder and a described curve to
+    /// a described curve.
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Curve3<U> {
         match self {
-            Curve3::Line(crate::Line { origin, dir }) => Curve3::line(origin.map(&f), dir.map(&f)),
+            Curve3::Line(crate::Line { origin, dir }) => {
+                Curve3::line_along(origin.map(&f), dir.map_scalar(&f))
+            }
             Curve3::Circle(c) => Curve3::Circle(crate::Circle {
                 frame: c.frame.map_scalar(&f),
                 radius: f(c.radius),
@@ -175,16 +180,12 @@ impl<T: Real> Curve3<T> {
                 semi_v: f(e.semi_v),
             }),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => Curve3::Spiric {
-                center: center.map(&f),
-                axis: axis.map(&f),
-                u_ref: u_ref.map(&f),
+                frame: frame.map_scalar(&f),
                 major_radius: f(*major_radius),
                 minor_radius: f(*minor_radius),
                 offset: f(*offset),
@@ -196,82 +197,48 @@ impl<T: Real> Curve3<T> {
 }
 
 impl<T: Real> Surface<T> {
-    /// The same surface read at another scalar (module docs): analytic
-    /// fields through `f`, the NURBS payload through
+    /// **The same surface at another scalar** (module docs): a frame
+    /// re-minted there ([`crate::Frame::map_scalar`]), every other analytic
+    /// field through `f`, the NURBS payload through
     /// [`NurbsSurface::map_scalar`], the approximating payload through
-    /// [`ApproxSurface::map_scalar`]. Exact whenever `f` is; poison
-    /// travels; the placeholder lifts to the placeholder and a
-    /// described surface to a described surface.
+    /// [`ApproxSurface::map_scalar`]. Poison travels; the placeholder
+    /// lifts to the placeholder and a described surface to a described
+    /// surface.
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Surface<U> {
         match self {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => Surface::Plane {
-                origin: origin.map(&f),
-                normal: normal.map(&f),
-                u_ref: u_ref.map(&f),
+            Surface::Plane { frame } => Surface::Plane {
+                frame: frame.map_scalar(&f),
             },
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => Surface::Cylinder {
-                origin: origin.map(&f),
-                axis: axis.map(&f),
+            Surface::Cylinder { frame, radius } => Surface::Cylinder {
+                frame: frame.map_scalar(&f),
                 radius: f(*radius),
-                u_ref: u_ref.map(&f),
             },
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Surface::Cone {
-                apex: apex.map(&f),
-                axis: axis.map(&f),
+            Surface::Cone { frame, half_angle } => Surface::Cone {
+                frame: frame.map_scalar(&f),
                 half_angle: f(*half_angle),
-                u_ref: u_ref.map(&f),
             },
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                center: center.map(&f),
+            Surface::Sphere { frame, radius } => Surface::Sphere {
+                frame: frame.map_scalar(&f),
                 radius: f(*radius),
-                axis: axis.map(&f),
-                u_ref: u_ref.map(&f),
             },
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             } => Surface::Torus {
-                center: center.map(&f),
-                axis: axis.map(&f),
+                frame: frame.map_scalar(&f),
                 major_radius: f(*major_radius),
                 minor_radius: f(*minor_radius),
-                u_ref: u_ref.map(&f),
             },
             Surface::Spindle {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             } => Surface::Spindle {
-                center: center.map(&f),
-                axis: axis.map(&f),
+                frame: frame.map_scalar(&f),
                 major_radius: f(*major_radius),
                 minor_radius: f(*minor_radius),
-                u_ref: u_ref.map(&f),
             },
             Surface::Nurbs(n) => Surface::Nurbs(std::sync::Arc::new(n.map_scalar(&f))),
             Surface::Approx(a) => Surface::Approx(std::sync::Arc::new(a.map_scalar(&f))),

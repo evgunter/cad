@@ -186,25 +186,18 @@ fn carrier(rng: &mut fuzz::Rng) -> Curve3<f64> {
 /// itself can cancel far below it.
 fn harmonic_of(carrier: &Curve3<f64>, n: Vec3<f64>) -> (f64, f64, f64, f64) {
     let (center, axis, u, a, b) = match *carrier {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => (center, axis, u_ref, radius, radius),
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (center, axis, u_ref, radius, radius)
+        }
         Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame,
             semi_u,
             semi_v,
-        }) => (center, axis, u_ref, semi_u, semi_v),
+        }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (center, axis, u_ref, semi_u, semi_v)
+        }
         _ => unreachable!("the sweep draws circles and ellipses"),
     };
     let v = axis.cross(u);

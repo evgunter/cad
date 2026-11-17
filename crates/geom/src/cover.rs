@@ -471,7 +471,7 @@ fn finite_vec<T: Real>(v: Vec3<T>) -> bool {
 }
 
 fn finite_frame<T: Real>(f: &Frame<T>) -> bool {
-    finite_point(f.origin) && finite_vec(f.axis) && finite_vec(f.u_ref)
+    finite_point(f.origin()) && finite_vec(f.axis()) && finite_vec(f.u_ref())
 }
 
 /// `√λ_max` of the Gram matrix of `x` and `y`: the longest
@@ -511,7 +511,7 @@ struct OffAxis<T: Real> {
 
 impl<T: Real> OffAxis<T> {
     fn of(frame: &Frame<T>, d: Vec3<T>) -> Self {
-        let (u, v) = (frame.u_ref, frame.v_ref());
+        let (u, v) = (frame.u_ref(), frame.v_ref());
         let (p, q) = (off_line(u, d), off_line(v, d));
         let (pp, qq, pq) = (p.norm_squared(), q.norm_squared(), p.dot(q));
         Self {
@@ -621,7 +621,7 @@ impl<T: Real> Site<T> {
     fn direction(&self, v: Vec3<T>) -> Vec3<T> {
         match self {
             Site::Point(_) => v,
-            Site::Line(line) => off_line(v, line.dir),
+            Site::Line(line) => off_line(v, line.dir.get()),
         }
     }
 }
@@ -674,7 +674,7 @@ impl<T: Real> Cover<T> {
     /// reader holding the carrier reads `Curve3::cover`. `None` for a
     /// datum that is not a finite number.
     pub fn circle(core: Core<T>) -> Option<Self> {
-        let axis = core.axis.dir.normalize();
+        let axis = core.axis.dir.get().normalize();
         let frame = Frame::new(core.axis.origin, axis, axis.orthonormal_basis().0);
         Self::arc(
             &frame,
@@ -695,10 +695,7 @@ impl<T: Real> Cover<T> {
         (finite_point(origin) && finite_vec(axis.get()) && finite(&[radius]) && window.finite())
             .then(|| {
                 Self::piece(Piece::Slab(Slab {
-                    axis: Line {
-                        origin,
-                        dir: axis.get(),
-                    },
+                    axis: Line { origin, dir: axis },
                     radius: radius.abs(),
                     window,
                     wall: None,
@@ -717,8 +714,8 @@ impl<T: Real> Cover<T> {
     /// `within`, that is not a finite number, an axis of zero length
     /// among them.
     pub fn wall(frame: &Frame<T>, radius: T, within: &Self) -> Option<Self> {
-        let axis = frame.axis.normalize();
-        let base = vec_of(frame.origin).dot(axis);
+        let axis = frame.axis().normalize();
+        let base = vec_of(frame.origin()).dot(axis);
         let (lo, hi) = within.range_along(axis);
         let window = ParamWindow::new(lo - base, hi - base);
         let (low, top) = OffAxis::of(frame, axis).off;
@@ -728,8 +725,8 @@ impl<T: Real> Cover<T> {
             .then(|| {
                 Self::piece(Piece::Slab(Slab {
                     axis: Line {
-                        origin: frame.origin,
-                        dir: axis,
+                        origin: frame.origin(),
+                        dir: UnitVec3::squared(axis),
                     },
                     radius: outer,
                     window,
@@ -754,19 +751,19 @@ impl<T: Real> Cover<T> {
     /// generators are not decided to climb (a denominator not decided
     /// positive).
     pub fn cone(frame: &Frame<T>, half_angle: T, within: &Self) -> Option<Self> {
-        let axis = frame.axis.normalize();
-        let base = vec_of(frame.origin).dot(axis);
+        let axis = frame.axis().normalize();
+        let base = vec_of(frame.origin()).dot(axis);
         let (lo, hi) = within.range_along(axis);
         let window = ParamWindow::new(lo - base, hi - base);
         let radial = OffAxis::of(frame, axis);
         let (sin, cos) = half_angle.sin_cos();
-        let climb = cos * frame.axis.norm() - sin.abs() * radial.tilt;
+        let climb = cos * frame.axis().norm() - sin.abs() * radial.tilt;
         let tan = climb.select_le_zero(geom_core::poison(), sin.abs() * radial.off.1 / climb);
         (finite_frame(frame) && finite_vec(axis) && finite(&[tan]) && window.finite()).then(|| {
             Self::piece(Piece::Frustum(Frustum {
                 axis: Line {
-                    origin: frame.origin,
-                    dir: axis,
+                    origin: frame.origin(),
+                    dir: UnitVec3::squared(axis),
                 },
                 tan,
                 window,
@@ -791,7 +788,7 @@ impl<T: Real> Cover<T> {
             Self::piece(Piece::Frustum(Frustum {
                 axis: Line {
                     origin: apex,
-                    dir: axis.get(),
+                    dir: axis,
                 },
                 tan: tan_half_angle.abs(),
                 window,
@@ -977,7 +974,7 @@ impl<T: Real> Core<T> {
     /// from the axis line (`line`) and its support (`support`).
     fn through(&self, line: impl Fn(&Site<T>) -> (T, T), support: impl Fn(Vec3<T>) -> T) -> (T, T) {
         let (near, far) = line(&Site::Line(self.axis));
-        let a = self.axis.dir.normalize();
+        let a = self.axis.dir.get().normalize();
         let base = vec_of(self.axis.origin).dot(a);
         let (below, above) = (T::zero() - support(-a) - base, support(a) - base);
         let r = self.radius.abs();
@@ -1192,7 +1189,7 @@ impl<T: Real> Tube<T> {
     /// its core.
     fn shell_inner(&self) -> T {
         let (r, big) = (self.minor, self.major);
-        let (unit, alpha) = self.frame.axis.direction_and_length();
+        let (unit, alpha) = self.frame.axis().direction_and_length();
         let OffAxis {
             off: (low, top),
             tilt: tau,
@@ -1208,7 +1205,7 @@ impl<T: Real> Tube<T> {
     /// The site the tube is measured about ([`Hub`]).
     fn hub(&self) -> Around<T> {
         match self.hub {
-            Hub::Centre => Around::Point(self.frame.origin),
+            Hub::Centre => Around::Point(self.frame.origin()),
             Hub::Core => Around::Circle(self.core()),
         }
     }
@@ -1224,9 +1221,9 @@ impl<T: Real> Tube<T> {
     /// `e`'s components along `u_ref`, `v_ref` and the axis.
     fn components(&self, e: Vec3<T>) -> (T, T, T) {
         (
-            self.frame.u_ref.dot(e),
+            self.frame.u_ref().dot(e),
             self.frame.v_ref().dot(e),
-            self.frame.axis.dot(e),
+            self.frame.axis().dot(e),
         )
     }
 
@@ -1240,7 +1237,7 @@ impl<T: Real> Tube<T> {
         let (p, q, a) = self.components(e);
         let m = (p.powi(2) + q.powi(2)).sqrt();
         let reach = self.major * m + self.minor * (m.powi(2) + a.powi(2)).sqrt();
-        vec_of(self.frame.origin).dot(e) + reach
+        vec_of(self.frame.origin()).dot(e) + reach
     }
 
     /// The longest radial direction `|ρ(u)|`, and the longest tube offset
@@ -1249,7 +1246,7 @@ impl<T: Real> Tube<T> {
     /// `|ρ·axis| ≤ √((u_ref·a)² + (v_ref·a)²)`, in which the Gram bound is
     /// non-decreasing.
     fn reaches(&self) -> (T, T) {
-        let a = self.frame.axis;
+        let a = self.frame.axis();
         let OffAxis { top: rho, tilt, .. } = OffAxis::of(&self.frame, a);
         (rho, gram_top(rho.powi(2), a.norm_squared(), tilt))
     }
@@ -1257,7 +1254,7 @@ impl<T: Real> Tube<T> {
     fn ball(&self) -> Ball<T> {
         let (rho, off) = self.reaches();
         let r = self.major * rho + self.minor * off;
-        (self.frame.origin, r)
+        (self.frame.origin(), r)
     }
 
     /// The spine circle's range from a circle, read through the spine
@@ -1284,8 +1281,9 @@ impl<T: Real> Tube<T> {
         let turn = own
             .axis
             .dir
+            .get()
             .normalize()
-            .cross(other.axis.dir.normalize())
+            .cross(other.axis.dir.get().normalize())
             .norm();
         (other.axis.origin - own.axis.origin).norm()
             + (other.radius.abs() - own.radius).abs()
@@ -1336,15 +1334,15 @@ impl<T: Real> Patch<T> {
         let b = ArcWindow::new(self.v.lo, self.v.hi)
             .extent(T::zero(), self.minor * m, self.minor * a)
             .1;
-        vec_of(t.frame.origin).dot(e) + self.major * m + b
+        vec_of(t.frame.origin()).dot(e) + self.major * m + b
     }
 }
 
 impl<T: Real> Slab<T> {
     fn support(&self, e: Vec3<T>) -> T {
         let (lo, hi) = self.window.ordered();
-        let ae = self.axis.dir.dot(e);
-        let room = self.axis.dir.cross(e).norm();
+        let ae = self.axis.dir.get().dot(e);
+        let room = self.axis.dir.get().cross(e).norm();
         vec_of(self.axis.origin).dot(e) + (lo * ae).max(hi * ae) + self.radius * room
     }
 
@@ -1378,9 +1376,9 @@ impl<T: Real> Slab<T> {
     /// level about its own axis.
     fn line_range(&self, line: &Line<T>) -> (T, T) {
         let (lo, hi) = self.window.ordered();
-        let end = |h: T| line.distance(self.axis.origin + self.axis.dir * h);
+        let end = |h: T| line.distance(self.axis.origin + self.axis.dir.get() * h);
         let reach = end(lo).max(end(hi));
-        let along = self.axis.dir.dot(line.dir.normalize()).abs();
+        let along = self.axis.dir.get().dot(line.dir.get().normalize()).abs();
         let (n0, f0) = ball_range(self.ball(), &Site::Line(*line));
         let near = (self.inner() * along - reach).max(T::zero());
         (n0.max(near), f0.min(self.radius + reach))
@@ -1389,7 +1387,7 @@ impl<T: Real> Slab<T> {
     fn ball(&self) -> Ball<T> {
         let (lo, hi) = self.window.ordered();
         let half = T::from_f64(0.5);
-        let c = self.axis.origin + self.axis.dir * ((lo + hi) * half);
+        let c = self.axis.origin + self.axis.dir.get() * ((lo + hi) * half);
         let r = (((hi - lo) * half).powi(2) + self.radius.powi(2)).sqrt();
         (c, r)
     }
@@ -1398,8 +1396,8 @@ impl<T: Real> Slab<T> {
 impl<T: Real> Frustum<T> {
     fn support(&self, e: Vec3<T>) -> T {
         let (lo, hi) = self.window.ordered();
-        let ae = self.axis.dir.dot(e);
-        let k = self.tan * self.axis.dir.cross(e).norm();
+        let ae = self.axis.dir.get().dot(e);
+        let k = self.tan * self.axis.dir.get().cross(e).norm();
         // Convex in `t`, so greatest at an end.
         let at = |t: T| t * ae + t.abs() * k;
         vec_of(self.axis.origin).dot(e) + at(lo).max(at(hi))
@@ -1419,8 +1417,8 @@ impl<T: Real> Frustum<T> {
 impl<T: Real> Arc<T> {
     fn support(&self, e: Vec3<T>) -> T {
         let (_, hi) = ArcWindow::new(self.window.lo, self.window.hi).extent(
-            vec_of(self.frame.origin).dot(e),
-            self.semi_u * self.frame.u_ref.dot(e),
+            vec_of(self.frame.origin()).dot(e),
+            self.semi_u * self.frame.u_ref().dot(e),
             self.semi_v * self.frame.v_ref().dot(e),
         );
         hi
@@ -1455,15 +1453,15 @@ impl<T: Real> Arc<T> {
         match site {
             Site::Point(at) => {
                 let half = T::from_f64(0.5);
-                let (u_hat, u_len) = self.frame.u_ref.direction_and_length();
+                let (u_hat, u_len) = self.frame.u_ref().direction_and_length();
                 let v_off = self.frame.v_ref() - u_hat * self.frame.v_ref().dot(u_hat);
                 let v_hat = v_off.normalize();
                 let rho =
                     (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;
-                let dp = self.frame.u_ref * self.semi_u - u_hat * rho;
+                let dp = self.frame.u_ref() * self.semi_u - u_hat * rho;
                 let dq = self.frame.v_ref() * self.semi_v - v_hat * rho;
                 let dev = gram_top(dp.norm_squared(), dq.norm_squared(), dp.dot(dq));
-                let w = *at - self.frame.origin;
+                let w = *at - self.frame.origin();
                 let (x, y, h) = (w.dot(u_hat), w.dot(v_hat), w.dot(u_hat.cross(v_hat)));
                 Circle {
                     b1: u_hat,
@@ -1477,8 +1475,8 @@ impl<T: Real> Arc<T> {
                 }
             }
             Site::Line(line) => {
-                let a = line.dir.normalize();
-                let p = site.direction(self.frame.u_ref * self.semi_u);
+                let a = line.dir.get().normalize();
+                let p = site.direction(self.frame.u_ref() * self.semi_u);
                 let q = site.direction(self.frame.v_ref() * self.semi_v);
                 let half = T::from_f64(0.5);
                 let with = (p - a.cross(q)) * half;
@@ -1488,7 +1486,7 @@ impl<T: Real> Arc<T> {
                 let choose_vec = |x: Vec3<T>, y: Vec3<T>| {
                     Vec3::new(choose(x.x, y.x), choose(x.y, y.y), choose(x.z, y.z))
                 };
-                let w = -site.relative(vec_of(self.frame.origin));
+                let w = -site.relative(vec_of(self.frame.origin()));
                 Circle {
                     b1: choose_vec(against, with),
                     b2: choose_vec(-a.cross(against), a.cross(with)),
@@ -1562,7 +1560,7 @@ impl<T: Real> Arc<T> {
         let pieces = (0..4).fold(site.distance(point(lo)), |far, k| {
             let s0 = lo + quarter * T::from_f64(f64::from(k));
             let s1 = s0 + quarter;
-            let bulge = (point(s0 + quarter * T::from_f64(0.5)) - self.frame.origin) * shift;
+            let bulge = (point(s0 + quarter * T::from_f64(0.5)) - self.frame.origin()) * shift;
             let (x0, x1) = (point(s0), point(s1));
             [x0 + bulge, x1, x1 + bulge]
                 .into_iter()
@@ -1574,8 +1572,8 @@ impl<T: Real> Arc<T> {
     /// The arc's point at `t`.
     fn point(&self, t: T) -> Point3<T> {
         let (s, c) = t.sin_cos();
-        self.frame.origin
-            + self.frame.u_ref * (self.semi_u * c)
+        self.frame.origin()
+            + self.frame.u_ref() * (self.semi_u * c)
             + self.frame.v_ref() * (self.semi_v * s)
     }
 
@@ -1583,11 +1581,11 @@ impl<T: Real> Arc<T> {
     /// frame's two semi-axis vectors.
     fn ball(&self) -> Ball<T> {
         let (p, q) = (
-            self.frame.u_ref * self.semi_u,
+            self.frame.u_ref() * self.semi_u,
             self.frame.v_ref() * self.semi_v,
         );
         let r = gram_top(p.norm_squared(), q.norm_squared(), p.dot(q));
-        (self.frame.origin, r)
+        (self.frame.origin(), r)
     }
 }
 

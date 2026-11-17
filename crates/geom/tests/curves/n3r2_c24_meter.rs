@@ -22,25 +22,18 @@ fn bench(carrier: &Curve3<f64>, n: u32) -> (f64, f64) {
     let pair = t0.elapsed().as_secs_f64() / f64::from(n) * 1e9;
     // The fused jet: one sin_cos, the frame built once.
     let (center, u, v, su, sv) = match carrier {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => (*center, *u_ref, axis.cross(*u_ref), *radius, *radius),
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (center, u_ref, axis.cross(u_ref), *radius, *radius)
+        }
         Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame,
             semi_u,
             semi_v,
-        }) => (*center, *u_ref, axis.cross(*u_ref), *semi_u, *semi_v),
+        }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (center, u_ref, axis.cross(u_ref), *semi_u, *semi_v)
+        }
         _ => panic!("conic only"),
     };
     let _ = center;

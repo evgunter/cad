@@ -1049,6 +1049,106 @@ impl<T: SpanLocate> RigidMotion<T> {
     }
 }
 
+impl<T: Real> RigidMotion<T> {
+    /// **A frame squared with no decision**: the third axis `w` over its
+    /// own length, the first the part of `u` square to it, `a × (u × a)`
+    /// over its own length, and the second their cross product. Each is
+    /// unit, and the three orthonormal and right-handed, over the reals
+    /// wherever `w` and `u`'s part square to it are not zero; where one
+    /// is, the axes are poison (the totality policy's NaN or NaI, which
+    /// the predicate layer catches). Nothing is decided, so no band and
+    /// no refusal. `origin` and every entry's finiteness are the
+    /// caller's: a non-finite entry is poison in the axes it reaches.
+    ///
+    /// It is the decision-free re-mint the scalar lift
+    /// ([`RigidMotion::map_scalar`]) runs, and the door a carrier's stated
+    /// frame enters the type through until its construction mints it;
+    /// a construction that can decide its frame decides it
+    /// ([`RigidMotion::from_axis_and_reference`]).
+    #[must_use]
+    pub fn squared(origin: Point3<T>, w: Vec3<T>, u: Vec3<T>) -> Self {
+        let w = UnitVec3::squared(w);
+        let u = UnitVec3::squared(w.get().cross(u.cross(w.get())));
+        Self {
+            origin,
+            u,
+            v: UnitVec3::cross_of_orthonormal(w, u),
+            w,
+        }
+    }
+}
+
+impl<T: Real> RigidMotion<T> {
+    /// **This frame placed at another origin**, its axes kept bit for
+    /// bit. Nothing is decided: the origin's finiteness is the caller's,
+    /// as for [`RigidMotion::squared`].
+    #[must_use]
+    pub fn with_origin(self, origin: Point3<T>) -> Self {
+        Self { origin, ..self }
+    }
+
+    /// **One of two frames, by the sign of `d`**: `when_le` where
+    /// `d ≤ 0`, `when_gt` where it is positive, entry by entry through
+    /// [`Real::select_le_zero`]. Each is a frame, so where the sign is
+    /// decided the result is one of them exactly; at a scalar that
+    /// selects without deciding (an enclosure straddling zero) each
+    /// entry encloses both, so the result encloses each frame the
+    /// selection could name.
+    #[must_use]
+    pub fn select_le_zero(d: T, when_le: Self, when_gt: Self) -> Self {
+        let pick = |a: UnitVec3<T>, b: UnitVec3<T>| {
+            UnitVec3::by_construction(Vec3::select(d, a.get(), b.get()))
+        };
+        Self {
+            origin: Point3::origin()
+                + Vec3::select(
+                    d,
+                    when_le.origin - Point3::origin(),
+                    when_gt.origin - Point3::origin(),
+                ),
+            u: pick(when_le.u, when_gt.u),
+            v: pick(when_le.v, when_gt.v),
+            w: pick(when_le.w, when_gt.w),
+        }
+    }
+
+    /// **This frame's image under `by`**: its origin through
+    /// [`RigidMotion::transform_point`] and each axis turned
+    /// ([`RigidMotion::turn`]), a rigid image of a rigid frame, so
+    /// nothing is decided.
+    #[must_use]
+    pub fn carried_by(self, by: Self) -> Self {
+        Self {
+            origin: by.transform_point(self.origin),
+            u: by.turn(self.u),
+            v: by.turn(self.v),
+            w: by.turn(self.w),
+        }
+    }
+}
+
+impl<T: Real> RigidMotion<T> {
+    /// **This frame at another scalar, re-minted there**: its origin and
+    /// axes through `f`, then squared at the target scalar
+    /// ([`RigidMotion::squared`] over the mapped `w` and `u`). The
+    /// entries are not the claim: at `f64` they are the rounding of the
+    /// exact rotation the frame's mint names, and at an enclosure scalar
+    /// they enclose it. The claim is built from the mapped entries at
+    /// the target scalar rather than carried across (module docs,
+    /// "Crossing scalars"), so at `Interval` the image encloses that
+    /// rotation for every point `f` encloses, and its entries are not
+    /// `f`'s images of these verbatim. The exact read to `f64` is
+    /// [`RigidMotion::point_value`].
+    #[must_use]
+    pub fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> RigidMotion<U> {
+        RigidMotion::squared(
+            self.origin.map(&f),
+            self.w.get().map(&f),
+            self.u.get().map(&f),
+        )
+    }
+}
+
 impl RigidMotion<f64> {
     /// **The `f64` door**: a raw [`Affine3`] at `f64` admitted as the
     /// rigid motion it is, its twelve numbers kept bit for bit, when each

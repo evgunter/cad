@@ -78,7 +78,7 @@ fn core_about(center: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Around<f64> 
     Around::Circle(Core {
         axis: crate::Line {
             origin: center,
-            dir: axis,
+            dir: UnitVec3::squared(axis),
         },
         radius,
     })
@@ -146,7 +146,7 @@ fn lift_site(site: &Site<f64>) -> Site<Interval> {
         Site::Point(q) => Site::Point(ipt(*q)),
         Site::Line(l) => Site::Line(Line {
             origin: ipt(l.origin),
-            dir: ivec(l.dir),
+            dir: UnitVec3::squared(ivec(l.dir.get())),
         }),
     }
 }
@@ -156,7 +156,7 @@ fn distance(s: Point3<Interval>, site: &Site<f64>) -> Interval {
         Site::Point(q) => (s - ipt(*q)).norm(),
         Site::Line(l) => {
             let w = s - ipt(l.origin);
-            let d = ivec(l.dir);
+            let d = ivec(l.dir.get());
             (w - d * (w.dot(d) / d.dot(d))).norm()
         }
     }
@@ -306,7 +306,7 @@ fn sites(rng: &mut Rng, center: Point3<f64>, scale: f64) -> Vec<Site<f64>> {
         ));
         out.push(Site::Line(Line {
             origin: center + (point(rng, 2.0 * scale) - Point3::origin()),
-            dir: unit(rng) * rng.range(0.5, 2.0),
+            dir: UnitVec3::squared(unit(rng) * rng.range(0.5, 2.0)),
         }));
     }
     out
@@ -399,10 +399,8 @@ fn the_whole_carrier_covers_hold_the_sphere_and_the_torus() {
         let points = site_points(&sites);
         let r = scale * rng.range(0.3, 1.0);
         let sphere = Surface::Sphere {
-            center,
+            frame: crate::Frame::new(center, axis, u_ref),
             radius: sign * r,
-            axis,
-            u_ref,
         };
         check(&Case {
             name: format!("sphere #{case}"),
@@ -421,11 +419,9 @@ fn the_whole_carrier_covers_hold_the_sphere_and_the_torus() {
         });
         let (big, small) = (scale, scale * rng.range(0.05, 1.2));
         let torus = Surface::Torus {
-            center,
-            axis,
+            frame: crate::Frame::new(center, axis, u_ref),
             major_radius: sign * big,
             minor_radius: minor_sign * small,
-            u_ref,
         };
         check(&Case {
             name: format!("torus #{case}"),
@@ -493,11 +489,9 @@ fn a_bracketed_tube_encloses_every_torus_it_admits() {
             let mut jitter = |x: f64| x + rng.range(-w, w);
             let c = Point3::new(jitter(center.x), jitter(center.y), jitter(center.z));
             let torus = Surface::Torus {
-                center: c,
-                axis,
+                frame: crate::Frame::new(c, axis, u_ref),
                 major_radius: jitter(big),
                 minor_radius: jitter(small),
-                u_ref,
             };
             let samples = chart_samples(
                 &torus,
@@ -555,7 +549,7 @@ fn a_curves_cover_over_a_span_holds_it() {
         };
         let line = Curve3::Line(Line {
             origin: center,
-            dir: unit(&mut rng) * scale,
+            dir: UnitVec3::squared(unit(&mut rng) * scale),
         });
         run("line", line, vec![]);
         let conic_extremes = |a: f64, b: f64| {
@@ -747,11 +741,9 @@ fn trim_rows(part: Trim, label: &str) {
         // premise is `r ≥ 0`.
         let signed = if rng.unit() < 0.5 { -small } else { small };
         let torus = Surface::Torus {
-            center,
-            axis,
+            frame: crate::Frame::new(center, axis, u_ref),
             major_radius: big,
             minor_radius: signed,
-            u_ref,
         };
         for (zone, us) in [(false, (u0, u1)), (true, (0.0, TAU))] {
             if part != Trim::Chart {
@@ -789,10 +781,8 @@ fn trim_rows(part: Trim, label: &str) {
             let lat0 = rng.range(-FRAC_PI_2, FRAC_PI_2);
             let lat1 = rng.range(-FRAC_PI_2, FRAC_PI_2);
             let sphere = Surface::Sphere {
-                center,
+                frame: crate::Frame::new(center, axis, u_ref),
                 radius: small,
-                axis,
-                u_ref,
             };
             check(&Case {
                 name: format!("sphere patch (zone {zone}) #{case}"),
@@ -872,11 +862,9 @@ fn a_meet_holds_what_lies_in_both_and_a_hull_what_lies_in_either() {
         let u_ref = across(axis, &mut rng);
         let (big, small) = (rng.range(1.0, 3.0), rng.range(0.1, 0.9));
         let torus = Surface::Torus {
-            center,
-            axis,
+            frame: crate::Frame::new(center, axis, u_ref),
             major_radius: big,
             minor_radius: small,
-            u_ref,
         };
         let dirs = directions(&mut rng, 3);
         let sites = sites(&mut rng, center, 3.0);
@@ -913,10 +901,8 @@ fn a_meet_holds_what_lies_in_both_and_a_hull_what_lies_in_either() {
         });
         let c2 = point(&mut rng, 5.0);
         let sphere = Surface::Sphere {
-            center: c2,
+            frame: crate::Frame::new(c2, axis, u_ref),
             radius: rng.range(0.1, 2.0),
-            axis,
-            u_ref,
         };
         let mut both = all.clone();
         both.extend(chart_samples(
@@ -948,9 +934,7 @@ fn a_meet_holds_what_lies_in_both_and_a_hull_what_lies_in_either() {
 #[test]
 fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: crate::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     let proved: Covered<f64> = Ok(ball(Point3::new(1.0, 2.0, 3.0), 0.5));
     let refused = plane.cover();
@@ -1002,19 +986,15 @@ fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
     for (surface, kind) in [
         (
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: crate::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             SurfaceKind::Cylinder,
         ),
         (
             Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: crate::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 half_angle: 0.3,
-                u_ref: Vec3::unit_x(),
             },
             SurfaceKind::Cone,
         ),
@@ -1041,11 +1021,13 @@ fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
 #[test]
 fn a_dual_and_a_symbolic_cover_read_the_f64_bounds() {
     let torus = Surface::Torus {
-        center: Point3::new(0.3, -1.2, 2.5),
-        axis: Vec3::new(0.48, 0.6, 0.64),
+        frame: crate::Frame::new(
+            Point3::new(0.3, -1.2, 2.5),
+            Vec3::new(0.48, 0.6, 0.64),
+            Vec3::new(0.8, -0.6, 0.0),
+        ),
         major_radius: 2.0,
         minor_radius: 0.4,
-        u_ref: Vec3::new(0.8, -0.6, 0.0),
     };
     let spiric = Curve3::spiric(
         Point3::new(1.0, 0.0, 0.0),
@@ -1288,10 +1270,8 @@ fn a_non_finite_datum_builds_no_cover() {
         "an infinite window"
     );
     let sphere = Surface::Sphere {
-        center: o,
+        frame: crate::Frame::new(o, z, x),
         radius: f64::INFINITY,
-        axis: z,
-        u_ref: x,
     };
     assert_eq!(
         sphere.cover().err(),
@@ -1301,7 +1281,10 @@ fn a_non_finite_datum_builds_no_cover() {
         )),
         "an infinite sphere"
     );
-    let line = Curve3::Line(Line { origin: o, dir: x });
+    let line = Curve3::Line(Line {
+        origin: o,
+        dir: UnitVec3::squared(x),
+    });
     assert_eq!(
         line.cover_over(ParamWindow::new(0.0, f64::INFINITY)).err(),
         Some(Uncovered::new(
@@ -1322,7 +1305,7 @@ fn a_non_finite_datum_builds_no_cover() {
 fn a_cancelling_segment_end_is_enclosed_at_interval() {
     let line = Curve3::Line(Line {
         origin: Point3::new(1e5, 0.0, 0.0),
-        dir: Vec3::new(0.1, 0.0, 0.0),
+        dir: UnitVec3::squared(Vec3::new(0.1, 0.0, 0.0)),
     });
     let at = line.map_scalar(iv);
     let cover = at.cover_over(ParamWindow::new(iv(-1e6), iv(0.0))).unwrap();
@@ -1359,11 +1342,9 @@ fn the_nearest_distance_just_off_the_surface_is_the_offset() {
     let mut cases: Vec<Row> = Vec::new();
     for (big, small) in [(1e3, 1e-3), (1e4, 1e-3), (3.0, 1.0)] {
         let torus = Surface::Torus {
-            center: Point3::new(5.0, -2.0, 1.0),
-            axis: z,
+            frame: crate::Frame::new(Point3::new(5.0, -2.0, 1.0), z, x),
             major_radius: big,
             minor_radius: small,
-            u_ref: x,
         };
         let (u, v) = (0.7_f64, 0.3_f64);
         let normal = (x * u.cos() + y * u.sin()) * v.cos() + z * v.sin();
@@ -1432,10 +1413,10 @@ fn an_ellipses_nearest_distance_reads_its_annulus() {
         .cover_over(ParamWindow::new(iv(0.0), iv(TAU)))
         .unwrap();
     for (what, q) in [
-        ("above the centre", frame.origin + Vec3::unit_z()),
+        ("above the centre", frame.origin() + Vec3::unit_z()),
         (
             "above and past the vertex",
-            frame.origin + Vec3::new(3.0, 0.0, 1.0),
+            frame.origin() + Vec3::new(3.0, 0.0, 1.0),
         ),
     ] {
         let (nf, _) = f.distance_range(&Site::Point(q));
@@ -1472,11 +1453,9 @@ fn the_nearest_distance_from_a_line_just_off_the_locus_is_the_offset() {
     type Row = (&'static str, Cover<f64>, Cover<Interval>, Point3<f64>, f64);
     let (big, small) = (1e3, 1e-3);
     let torus = Surface::Torus {
-        center: c,
-        axis: z,
+        frame: crate::Frame::new(c, z, x),
         major_radius: big,
         minor_radius: small,
-        u_ref: x,
     };
     let circle = Curve3::Circle(crate::Circle::new(crate::Frame::new(c, z, x), big));
     let rows: Vec<Row> = vec![
@@ -1504,14 +1483,14 @@ fn the_nearest_distance_from_a_line_just_off_the_locus_is_the_offset() {
             let origin = on + radial * delta + z * lift;
             let line = Line {
                 origin,
-                dir: tangent * 3.0,
+                dir: UnitVec3::squared(tangent * 3.0),
             };
             let scale = (origin - Point3::origin()).norm() + size;
             let tol = 64.0 * f64::EPSILON * scale;
             let (nf, _) = f.distance_range(&Site::Line(line));
             let (ni, _) = i.distance_range(&Site::Line(Line {
                 origin: ipt(line.origin),
-                dir: ivec(line.dir),
+                dir: UnitVec3::squared(ivec(line.dir.get())),
             }));
             assert!(
                 nf <= want + tol && nf >= least - tol,
@@ -1537,7 +1516,7 @@ fn the_nearest_distance_from_a_line_just_off_the_locus_is_the_offset() {
 fn a_circle_about_the_line_reads_its_radius_in_either_sense() {
     let line = Site::Line(Line {
         origin: Point3::new(0.0, 0.0, -7.0),
-        dir: Vec3::unit_z() * 0.5,
+        dir: UnitVec3::squared(Vec3::unit_z() * 0.5),
     });
     for axis in [Vec3::unit_z(), -Vec3::unit_z()] {
         let circle = Curve3::Circle(crate::Circle::new(
@@ -1699,7 +1678,7 @@ fn a_convex_hulls_least_distance_reaches_between_its_pieces() {
     assert_eq!((near, far), (0.0, 1.0), "the convex hull");
     let line = Site::Line(Line {
         origin: Point3::new(0.0, -3.0, 0.0),
-        dir: Vec3::unit_y(),
+        dir: UnitVec3::squared(Vec3::unit_y()),
     });
     assert_eq!(
         pair().convex().distance_range(&line).0,
@@ -1774,11 +1753,11 @@ fn a_carriers_surface_reads_its_level_about_its_own_site() {
     let wall = Cover::wall(&frame, -0.8, &within).unwrap();
     let sphere = Cover::sphere(&frame, -0.7).unwrap();
     let torus = Cover::torus(&frame, 2.0, 0.5).unwrap();
-    let trim = ball(frame.origin, 10.0);
+    let trim = ball(frame.origin(), 10.0);
     let on_core = Point3::new(3.0, 2.0, 3.0);
     for (name, shell, level, inside) in [
-        ("wall", wall, 0.8, frame.origin),
-        ("sphere", sphere, 0.7, frame.origin),
+        ("wall", wall, 0.8, frame.origin()),
+        ("sphere", sphere, 0.7, frame.origin()),
         ("torus", torus, 0.5, on_core),
     ] {
         let site = match shell.about()[..] {
@@ -1839,7 +1818,7 @@ fn a_shell_reads_a_nearby_core_no_nearer_than_its_points() {
     let other = Core {
         axis: crate::Line {
             origin: Point3::new(0.3, 0.0, 0.0),
-            dir: Vec3::unit_z(),
+            dir: UnitVec3::squared(Vec3::unit_z()),
         },
         radius: 1.0,
     };
@@ -1876,7 +1855,7 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
     let within = Cover::segment(Point3::new(1.0, 2.0, 4.0), Point3::new(1.0, 2.0, 5.0)).unwrap();
     let xyz = |p: Point3<f64>| (p.x, p.y, p.z);
     let line = |s: &Around<f64>| match *s {
-        Around::Line(l) => Some((xyz(l.origin), (l.dir.x, l.dir.y, l.dir.z))),
+        Around::Line(l) => Some((xyz(l.origin), (l.dir.get().x, l.dir.get().y, l.dir.get().z))),
         _ => None,
     };
     let wall = Cover::wall(&frame, 0.8, &within).unwrap();
@@ -1887,7 +1866,7 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
         let (o, d) = line(&sites[0]).unwrap_or_else(|| panic!("the {name}'s axis"));
         assert_eq!(
             (o, d),
-            (xyz(frame.origin), (0.0, 0.0, 1.0)),
+            (xyz(frame.origin()), (0.0, 0.0, 1.0)),
             "the {name}'s axis"
         );
     }
@@ -1899,11 +1878,11 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
     };
     assert_eq!(
         centre(&Cover::sphere(&frame, 0.7).unwrap()),
-        xyz(frame.origin)
+        xyz(frame.origin())
     );
     assert_eq!(
         centre(&Cover::torus(&frame, 0.0, 0.7).unwrap()),
-        xyz(frame.origin)
+        xyz(frame.origin())
     );
     for cover in [
         Cover::torus(&frame, 2.0, 0.5).unwrap(),
@@ -1922,7 +1901,7 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
     )
     .unwrap();
     assert!(patch.about().is_empty(), "a patch proposes none");
-    let core = core_about(frame.origin, frame.axis, 2.0);
+    let core = core_about(frame.origin(), frame.axis(), 2.0);
     assert!(
         patch.range_about(&core).0 < 0.5,
         "a patch is no shell of its own"
@@ -1931,7 +1910,7 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
     assert_eq!(met.about().len(), 2, "a meet proposes both sides'");
     assert!(cone.clone().hull(wall).about().is_empty(), "a hull none");
     assert!(cone.convex().about().is_empty(), "a convex hull none");
-    let point = Cover::points(vec![frame.origin]).unwrap();
+    let point = Cover::points(vec![frame.origin()]).unwrap();
     assert!(point.about().is_empty(), "a point set none");
     // An arc is its window's piece met with its whole conic's: two arc
     // pieces of one axis, and neither proposes it, so the meet proposes
@@ -1961,7 +1940,7 @@ fn a_cones_frustum_holds_its_surface_on_any_frame() {
     );
     let skew = Frame::new(apex, Vec3::new(0.2, 0.1, 1.28), Vec3::new(1.1, 0.3, 0.25));
     let alpha = -0.4f64;
-    let axis = skew.axis.normalize();
+    let axis = skew.axis().normalize();
     let height = |p: Point3<f64>| (p - apex).dot(axis);
     let within = Cover::segment(apex + axis * 0.5, apex + axis * 1.5).unwrap();
     let cone = Cover::cone(&skew, alpha, &within).unwrap();
@@ -1979,8 +1958,8 @@ fn a_cones_frustum_holds_its_surface_on_any_frame() {
     let mut held = 0;
     for i in 0..400 {
         let u = TAU * f64::from(i) / 400.0;
-        let rho = skew.u_ref * u.cos() + skew.v_ref() * u.sin();
-        let step = skew.axis * c_a + rho * s_a;
+        let rho = skew.u_ref() * u.cos() + skew.v_ref() * u.sin();
+        let step = skew.axis() * c_a + rho * s_a;
         for j in 0..=40 {
             let v = 2.5 * f64::from(j) / 40.0 - 1.25;
             let p = apex + step * v;
@@ -2024,8 +2003,8 @@ fn a_cones_frustum_is_tight_on_a_skewed_frame() {
         f.tan
     );
     // The generator at `u = π`, at unit `v`: its offset over its height.
-    let rho = frame.u_ref * -1.0;
-    let step = frame.axis * c_a + rho * s_a;
+    let rho = frame.u_ref() * -1.0;
+    let step = frame.axis() * c_a + rho * s_a;
     let attained = super::off_line(step, Vec3::unit_z()).norm() / step.z;
     assert!(
         (attained - want).abs() <= 1e-15 * want,
@@ -2103,7 +2082,7 @@ fn a_whole_circle_is_its_turn_whatever_its_seam() {
     let circle = Cover::circle(Core {
         axis: Line {
             origin: c,
-            dir: axis,
+            dir: UnitVec3::squared(axis),
         },
         radius: r,
     })
@@ -2129,7 +2108,7 @@ fn a_whole_circle_is_its_turn_whatever_its_seam() {
         Cover::circle(Core {
             axis: Line {
                 origin: Point3::new(f64::NAN, 0.0, 0.0),
-                dir: axis,
+                dir: UnitVec3::squared(axis),
             },
             radius: r,
         })

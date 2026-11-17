@@ -50,10 +50,10 @@ fn wound_negative() -> Curve3<f64> {
 
 fn center_of(c: &Curve3<f64>) -> Point3<f64> {
     match c {
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
-            ..
-        }) => *center,
+        Curve3::Circle(geom::Circle { frame, .. }) => {
+            let center = frame.origin();
+            center
+        }
         _ => panic!("a circle fixture"),
     }
 }
@@ -275,15 +275,10 @@ fn the_answer_is_the_branch_within_half_a_turn_of_the_anchor() {
 /// the definition it is supposed to be pinning against.
 fn retired_seam_anchored(carrier: &Curve3<f64>, p: Point3<f64>, near: f64) -> f64 {
     let (center, axis, u_ref) = match *carrier {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            ..
-        }) => (center, axis, u_ref),
+        Curve3::Circle(geom::Circle { frame, .. }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (center, axis, u_ref)
+        }
         _ => panic!("a circle fixture"),
     };
     let v_ref = axis.cross(u_ref);

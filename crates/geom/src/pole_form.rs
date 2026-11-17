@@ -51,19 +51,18 @@ pub fn half_turn_curve<T: Real>(
     vector: impl Fn(Vec3<T>) -> Vec3<T>,
 ) -> Option<Curve3<T>> {
     let crate::Line { origin, dir: axis } = axis;
-    let place = |p: Point3<T>| point(origin + half_turn(p - origin, axis));
-    let turn = |w: Vec3<T>| vector(half_turn(w, axis));
+    let place = |p: Point3<T>| point(origin + half_turn(p - origin, axis.get()));
+    let turn = |w: Vec3<T>| vector(half_turn(w, axis.get()));
     match *carrier {
-        Curve3::Line(crate::Line { origin: o, dir }) => Some(Curve3::line(place(o), turn(dir))),
-        Curve3::Circle(crate::Circle {
-            frame:
-                crate::Frame {
-                    origin: center,
-                    axis: n,
-                    u_ref,
-                },
+        Curve3::Line(crate::Line { origin: o, dir }) => {
+            Some(Curve3::line(place(o), turn(dir.get())))
+        }
+        Curve3::Circle(crate::Circle { frame, radius }) => Some(Curve3::circle(
+            place(frame.origin()),
+            turn(frame.axis()),
             radius,
-        }) => Some(Curve3::circle(place(center), turn(n), radius, turn(u_ref))),
+            turn(frame.u_ref()),
+        )),
         _ => None,
     }
 }
@@ -93,7 +92,7 @@ pub fn cone_generator<T: Real>(axis: crate::Line<T>, half_angle: T, d: Vec3<T>) 
         dir: axis,
     } = axis;
     let (s, c) = half_angle.sin_cos();
-    Curve3::line(apex, axis * c + d * s)
+    Curve3::line(apex, axis.get() * c + d * s)
 }
 
 #[cfg(test)]
@@ -112,10 +111,8 @@ mod tests {
         let axis = Vec3::new(0.0, 0.6, 0.8);
         let u_ref = Vec3::new(1.0, 0.0, 0.0);
         let sphere = Surface::Sphere {
-            center,
+            frame: crate::Frame::new(center, axis, u_ref),
             radius,
-            axis,
-            u_ref,
         };
         for (k, d) in azimuths(u_ref).into_iter().enumerate() {
             let m = sphere_meridian(center, radius, axis, d);
@@ -136,7 +133,7 @@ mod tests {
             &sphere_meridian(center, radius, axis, u_ref),
             crate::Line {
                 origin: center,
-                dir: axis,
+                dir: geom_core::UnitVec3::squared(axis),
             },
             |p| p,
             |w| w,
@@ -152,19 +149,18 @@ mod tests {
 
         let (apex, alpha) = (Point3::new(0.0, 0.0, 2.0), 0.4);
         let cone = Surface::Cone {
-            apex,
-            axis: Vec3::new(0.0, 0.0, -1.0),
+            frame: crate::Frame::new(apex, Vec3::new(0.0, 0.0, -1.0), u_ref),
             half_angle: alpha,
-            u_ref,
         };
-        let Surface::Cone { axis: ca, .. } = cone else {
+        let Surface::Cone { frame, .. } = cone else {
             unreachable!()
         };
+        let ca = frame.axis();
         for (k, d) in azimuths(u_ref).into_iter().enumerate() {
             let g = cone_generator(
                 crate::Line {
                     origin: apex,
-                    dir: ca,
+                    dir: geom_core::UnitVec3::squared(ca),
                 },
                 alpha,
                 d,
