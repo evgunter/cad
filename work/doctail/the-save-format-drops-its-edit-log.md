@@ -9,6 +9,7 @@ cost: M
 refs: [session-save-is-two-acts]
 closed: 2026-11-17
 branch: doctail/the-save-format-drops-its-edit-log
+pr: 7094
 ---
 
 Filed by the VSEAM orchestrator from Ev's ruling on `[ev]` PR 6123
