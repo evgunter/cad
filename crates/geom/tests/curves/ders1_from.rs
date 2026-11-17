@@ -56,7 +56,7 @@ fn a_crease_reads_each_sides_own_derivative() {
     let (_, inside_below) = c.ders1_from(0.25, true);
     let (_, inside_above) = c.ders1_from(0.25, false);
     assert!(
-        (inside_below - inside_above).norm() == 0.0,
+        inside_below.same_bits(inside_above),
         "away from a knot, one span: {inside_below:?} against {inside_above:?}"
     );
 }
