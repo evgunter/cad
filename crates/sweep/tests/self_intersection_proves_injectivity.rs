@@ -1765,15 +1765,16 @@ fn shell_4s_vessel_holds() {
 /// `B` from `x = 0.2`), united. Rod `B` starts at `x = 0.2`, so the
 /// junction never reaches the node plane `x = 0`: it ends where `B`'s
 /// cap circle meets the mitre plane, at `(0.2, ±0.98, 0.2)`, and `A`'s
-/// seam line meets it at `(1, 0, 1)`. The junction's ellipse runs on
-/// through each of those vertices as the next face's edge, so a face
-/// and the face across the vertex from it lean on one line there, which
-/// no plane through the vertex separates them across. A plane's corner
-/// of a line and an arc at such a vertex is read as its quadrant, and a
-/// wall's is not, so those four pairs split to the floor and refuse
-/// there; the walls against each other at `(1, 0, 1)`, and `A`'s wall
-/// halves against the mitre across its ellipse, refuse at the root. The
-/// verdict is `Uncertified { Departure }` naming a vertex — never
+/// seam line meets it at `(1, 0, 1)`. A plane's or a wall's corner of a
+/// straight edge and the ellipse at a vertex its pair shares alone is
+/// read as its quadrant, so `B`'s wall against the mitre at
+/// `(0.2, ±0.98, 0.2)` and the walls' diagonal halves at `(1, 0, 1)`
+/// certify, their quadrants strictly apart across a plane through the
+/// vertex. What refuses is two arcs of one ellipse meeting at a corner:
+/// `A`'s wall halves against the mitre across its ellipse, at the root,
+/// and against `B`'s cap at `(0.2, ±0.98, 0.2)`, where `A`'s wall's
+/// corner is the ellipse's two arcs, at the floor. The verdict is
+/// `Uncertified { Departure }` on `A`'s wall and the mitre — never
 /// certified, never measured by distance.
 #[test]
 fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone()
@@ -1844,19 +1845,14 @@ fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_
         BoundVerdict::Refused(EngineRefusal::Uncertified {
             a,
             b,
-            shared: SharedCell::Vertex(v),
+            shared: SharedCell::Edge(_),
             arm: CertificateArm::Departure,
         }) => {
             let mut kinds = [kind(tee, a), kind(tee, b)];
             kinds.sort_unstable();
-            assert_eq!(kinds, ["cylinder", "cylinder"], "the two walls");
-            let p = *tee.get_point(tee.get_vertex(v).unwrap().point).unwrap();
-            assert!(
-                (p.x - 1.0).abs() < 1e-9 && p.y.abs() < 1e-9 && (p.z - 1.0).abs() < 1e-9,
-                "where A's seam line meets the junction: {p:?}"
-            );
+            assert_eq!(kinds, ["cylinder", "plane"], "A's wall and the mitre");
         }
-        other => panic!("the tee refuses at the vertex: {other:?}"),
+        other => panic!("the tee refuses across the mitre's ellipse: {other:?}"),
     }
     assert!(
         report.receipt.splits < 1024,
@@ -1864,10 +1860,10 @@ fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_
         report.receipt
     );
     assert_eq!(
-        report.receipt.refused, 12,
-        "four root pairs refuse: the walls against each other at a vertex alone, and two across \
-         the mitre's ellipse; four plane–wall pairs at a vertex alone, the plane read and the \
-         wall not, refuse eight cells at the floor ({:?})",
+        report.receipt.refused, 8,
+        "two root pairs refuse, A's wall halves across the mitre's ellipse; A's wall halves \
+         against B's cap at a vertex alone, the wall's corner two arcs of one ellipse, refuse \
+         six cells at the floor ({:?})",
         report.receipt
     );
     assert!(
