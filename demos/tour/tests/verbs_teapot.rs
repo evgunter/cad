@@ -565,9 +565,9 @@ fn the_opened_rim_is_right_on_a_box() {
         .faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, normal, .. })
-                    if normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
-                        && (origin.z - 0.25).abs() < 1e-12)
+                Some(Surface::Plane { frame, .. })
+                    if frame.axis().x.abs() < 1e-9 && frame.axis().y.abs() < 1e-9
+                        && (frame.origin().z - 0.25).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect();

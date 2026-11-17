@@ -177,7 +177,8 @@ pub fn measure(
                 }
                 area += a;
             }
-            Surface::Plane { origin, normal, .. } => {
+            Surface::Plane { frame, .. } => {
+                let (origin, normal) = (frame.origin(), frame.axis());
                 let (o, n) = (
                     [origin.x, origin.y, origin.z],
                     [normal.x, normal.y, normal.z],

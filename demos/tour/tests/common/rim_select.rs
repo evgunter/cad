@@ -51,9 +51,9 @@ pub fn arcs_at(body: &Body<f64>, r: f64, y: f64, seeds: Seeds) -> Vec<EdgeKey> {
                 return false;
             };
             let admitted = match seeds {
-                Seeds::Closed => {
-                    body.edge_vertices(k).is_some_and(|(start, end)| start == end)
-                }
+                Seeds::Closed => body
+                    .edge_vertices(k)
+                    .is_some_and(|(start, end)| start == end),
                 Seeds::TwoSided => pncad::topo::readback::edge_sides(body, k)
                     .is_ok_and(|sides| sides.plus.surface != sides.minus.surface),
             };
@@ -63,8 +63,8 @@ pub fn arcs_at(body: &Body<f64>, r: f64, y: f64, seeds: Seeds) -> Vec<EdgeKey> {
             let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
                 return false;
             };
-            matches!(*c.carrier(), Curve3::Circle(pncad::geom::Circle { frame: pncad::geom::Frame { origin: center, .. }, radius })
-                if (center.y - y).abs() < 1e-9 && (radius - r).abs() < 1e-9)
+            matches!(*c.carrier(), Curve3::Circle(pncad::geom::Circle { frame, radius })
+                if (frame.origin().y - y).abs() < 1e-9 && (radius - r).abs() < 1e-9)
         })
         .collect()
 }

@@ -109,30 +109,14 @@ fn schedule(delta: f64, rho_max: f64, half_angle: f64, uspan: f64, vspan: f64) -
 /// suite's oracle, inlined).
 fn dist_to_surface(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
     match *surface {
-        Surface::Plane { origin, normal, .. } => (p - origin).dot(normal).abs(),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Plane { frame, .. } => { let (origin, normal) = (frame.origin(), frame.axis()); (p - origin).dot(normal).abs() },
+        Surface::Cylinder { frame, radius, .. } => { let (origin, axis) = (frame.origin(), frame.axis());
             let w = p - origin;
             ((w - axis * w.dot(axis)).norm() - radius).abs()
         }
-        Surface::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => dist_to_cone(apex, axis, half_angle, p),
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => {
+        Surface::Sphere { frame, radius, .. } => { let center = frame.origin(); ((p - center).norm() - radius).abs() },
+        Surface::Cone { frame, half_angle, .. } => { let (apex, axis) = (frame.origin(), frame.axis()); dist_to_cone(apex, axis, half_angle, p) },
+        Surface::Torus { frame, major_radius, minor_radius, .. } => { let (center, axis) = (frame.origin(), frame.axis());
             let w = p - center;
             let h = w.dot(axis);
             let rho = (w - axis * h).norm();
@@ -297,15 +281,10 @@ fn mesh5_cone_wedge_sweep() {
         let mut cone_tris = 0usize;
         let mut max_dev = 0.0_f64;
         for patch in &mesh.patches {
-            let Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
-            } = *body.face_surface(patch.face).unwrap()
+            let Surface::Cone { frame, half_angle, .. } = *body.face_surface(patch.face).unwrap()
             else {
                 continue;
-            };
+            }; let (apex, axis) = (frame.origin(), frame.axis());
             cone_tris += patch.triangles.len();
             for t in &patch.triangles {
                 let [a, b, c] = [

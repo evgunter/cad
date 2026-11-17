@@ -171,15 +171,18 @@ fn bands(b: &Body<f64>) -> Vec<(u64, u64, u64)> {
         .faces()
         .filter_map(|(fk, _)| match b.face_surface(fk) {
             Some(Surface::Torus {
+                frame,
                 major_radius,
                 minor_radius,
-                center,
                 ..
-            }) => Some((
-                center.y.to_bits(),
-                major_radius.to_bits(),
-                minor_radius.to_bits(),
-            )),
+            }) => {
+                let center = frame.origin();
+                Some((
+                    center.y.to_bits(),
+                    major_radius.to_bits(),
+                    minor_radius.to_bits(),
+                ))
+            }
             _ => None,
         })
         .collect();
@@ -416,7 +419,10 @@ fn one_request_builds_the_kernels_body() {
     let order = |b: &Body<f64>| -> Vec<String> {
         b.faces()
             .map(|(fk, _)| match b.face_surface(fk) {
-                Some(Surface::Torus { center, .. }) => format!("torus@{}", center.y),
+                Some(Surface::Torus { frame, .. }) => {
+                    let center = frame.origin();
+                    format!("torus@{}", center.y)
+                }
                 Some(Surface::Plane { .. }) => "plane".to_owned(),
                 Some(Surface::Cylinder { .. }) => "cylinder".to_owned(),
                 Some(Surface::Cone { .. }) => "cone".to_owned(),

@@ -335,7 +335,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
          opening does not"
     );
     let planes = radii(&sealed, |s| match s {
-        Surface::Plane { origin, .. } => Some(origin.y),
+        Surface::Plane { frame, .. } => {
+            let origin = frame.origin();
+            Some(origin.y)
+        }
         _ => None,
     });
     assert_eq!(
@@ -350,7 +353,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         .filter(|(fk, _)| {
             matches!(
                 solid.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if origin.y == Y_MOUTH
+                Some(Surface::Plane { frame, .. }) if frame.origin().y == Y_MOUTH
             )
         })
         .map(|(k, _)| k)

@@ -223,9 +223,10 @@ fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
 fn bar_outline(body: &Body<f64>) -> Vec<(f64, f64)> {
     let mut cap: Option<(f64, Vec<(f64, f64)>)> = None;
     for (fk, face) in body.faces() {
-        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(fk) else {
+        let Some(Surface::Plane { frame, .. }) = body.face_surface(fk) else {
             continue;
         };
+        let (origin, normal) = (frame.origin(), frame.axis());
         // The caps' normal is `+z` or `-z` and every side's lies in the
         // sketch plane, so this separates two exactly-known classes.
         if normal.z.abs() <= 0.5 {

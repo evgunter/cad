@@ -1209,10 +1209,8 @@ fn rim_circle(
                 .and_then(|g| g.certified())
                 .expect("a rim carries a certified curve");
             match *c.carrier() {
-                Curve3::Circle(pncad::geom::Circle {
-                    frame: pncad::geom::Frame { origin: center, .. },
-                    radius,
-                }) => {
+                Curve3::Circle(pncad::geom::Circle { frame, radius }) => {
+                    let center = frame.origin();
                     assert!(
                         center.x.abs() < 1e-12 && center.z.abs() < 1e-12,
                         "a latitude rim's circle is centred ON the axis: got {center:?}"
@@ -1372,7 +1370,10 @@ fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
     let planes: Vec<(Point3<f64>, Vec3<f64>)> = body
         .faces()
         .filter_map(|(fk, _)| match body.face_surface(fk) {
-            Some(Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
+            Some(Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((origin, normal))
+            }
             _ => None,
         })
         .collect();
@@ -1738,7 +1739,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         .faces()
         .filter(|(fk, _)| {
             matches!(bellied.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if (origin.y - Y_MOUTH).abs() < 1e-12)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().y - Y_MOUTH).abs() < 1e-12)
         })
         .count();
     assert_eq!(
@@ -1762,8 +1763,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let planes: Vec<(f64, f64)> = bellied
         .faces()
         .filter_map(|(fk, f)| match bellied.face_surface(fk) {
-            Some(Surface::Plane { origin, normal, .. }) => {
-                let outward = pncad::geom_brep::OutwardNormal::from_chart(*normal, f.sense);
+            Some(Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                let outward = pncad::geom_brep::OutwardNormal::from_chart(normal, f.sense);
                 Some((origin.y, outward.vec().y))
             }
             _ => None,
@@ -1774,7 +1776,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             .faces()
             .filter(|(fk, _)| {
                 matches!(bellied.face_surface(*fk),
-                    Some(Surface::Plane { normal, .. }) if normal.y < 0.0)
+                    Some(Surface::Plane { frame, .. }) if frame.axis().y < 0.0)
             })
             .count();
     // Not merely reported: EVERY planar face of this pot stores `+y`,
@@ -1999,14 +2001,15 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         let mut hit = None;
         for (fk, f) in rolled.faces() {
             let Some(Surface::Torus {
+                frame,
                 major_radius,
                 minor_radius,
-                center,
                 ..
             }) = rolled.face_surface(fk)
             else {
                 continue;
             };
+            let center = frame.origin();
             assert!(
                 center.x.abs() < 1e-12 && center.z.abs() < 1e-12,
                 "a coaxial band's spine circle is centred ON the axis: got {center:?}"

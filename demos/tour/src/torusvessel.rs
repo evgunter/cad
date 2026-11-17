@@ -352,7 +352,7 @@ pub fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()

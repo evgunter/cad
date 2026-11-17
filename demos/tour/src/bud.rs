@@ -215,10 +215,7 @@ fn rim_station(body: &Body<f64>, e: EdgeKey) -> f64 {
         .certified()
         .expect("a revolved rim carries a certified carrier");
     match *c.carrier() {
-        Curve3::Circle(pncad::geom::Circle {
-            frame: pncad::geom::Frame { origin: center, .. },
-            ..
-        }) => center.y,
+        Curve3::Circle(pncad::geom::Circle { frame, .. }) => frame.origin().y,
         ref other => panic!("a latitude rim is a circle, got {other:?}"),
     }
 }
@@ -445,7 +442,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         "the mouth band's spine radius is the ball centre's own radial coordinate \
          {cx}, got {mouth_major}"
     );
-    let Some(&Surface::Torus { center, .. }) = rolled.body.get_surface(
+    let Some(&Surface::Torus { frame, .. }) = rolled.body.get_surface(
         rolled
             .body
             .get_face(mouth_face)
@@ -454,6 +451,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     ) else {
         panic!("the mouth band is a torus")
     };
+    let center = frame.origin();
     assert!(
         center.x.abs() < 1e-12 && center.z.abs() < 1e-12 && (center.y - cy).abs() < 1e-9,
         "the mouth band's spine circle is centred at (0, {cy}, 0), got {center:?}"

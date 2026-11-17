@@ -41,14 +41,13 @@ mod review_probes {
         let mut found = None;
         for (fk, _) in b.faces() {
             if let Some(Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             }) = b.face_surface(fk)
             {
-                let t = (*center, *axis, *major_radius, *minor_radius, *u_ref);
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let t = (center, axis, *major_radius, *minor_radius, u_ref);
                 if let Some(prev) = &found {
                     // Both torus half-bands must share ONE carrier, and
                     // that means EVERY component of it: a comparison
@@ -321,12 +320,8 @@ mod review_probes {
             let mut cones = 0usize;
             for (fk, _) in b.faces() {
                 match b.face_surface(fk) {
-                    Some(Surface::Sphere {
-                        center,
-                        radius,
-                        axis,
-                        ..
-                    }) => {
+                    Some(Surface::Sphere { frame, radius, .. }) => {
+                        let (center, axis) = (frame.origin(), frame.axis());
                         saw_sphere = true;
                         assert!(
                             axis.cross(tv).norm() < 1e-14,
@@ -337,7 +332,8 @@ mod review_probes {
                         assert!((center.z - cen.1).abs() < 1e-12, "{name} center.z");
                         assert!((radius - rad).abs() < 1e-15, "{name} radius");
                     }
-                    Some(Surface::Cone { axis, .. }) => {
+                    Some(Surface::Cone { frame, .. }) => {
+                        let axis = frame.axis();
                         cones += 1;
                         assert!(
                             axis.cross(tv).norm() < 1e-14,
@@ -1005,10 +1001,11 @@ mod review_probes {
         let lant = body(&ps, "lily_lantern");
         let mut centre = None;
         for (fk, _) in lant.faces() {
-            if let Some(pncad::geom::Surface::Sphere { center, radius, .. }) = lant.face_surface(fk)
+            if let Some(pncad::geom::Surface::Sphere { frame, radius, .. }) = lant.face_surface(fk)
             {
+                let center = frame.origin();
                 assert!((radius - FLOWER_GLOBE).abs() < 1e-12);
-                centre = Some(*center);
+                centre = Some(center);
             }
         }
         let g = centre.expect("the lantern stores its globe");
@@ -1019,9 +1016,8 @@ mod review_probes {
             // keel's apex is the section's deepest point.
             let mut points: Vec<Point3<f64>> = s.vertex_points().map(|(_, p)| p).collect();
             for (fk, _) in s.faces() {
-                if let Some(&pncad::geom::Surface::Plane { origin, normal, .. }) =
-                    s.face_surface(fk)
-                {
+                if let Some(&pncad::geom::Surface::Plane { frame, .. }) = s.face_surface(fk) {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     let margins: Vec<Point3<f64>> = s
                         .vertex_points()
                         .map(|(_, p)| p)
@@ -1169,10 +1165,14 @@ mod review_probes {
             let a = segs[i].1;
             let mut halves: Vec<Vec3<f64>> = Vec::new();
             for (fk, _) in b.faces() {
-                let Some(&pncad::geom::Surface::Plane { origin, normal, .. }) = b.face_surface(fk)
+                let Some(&pncad::geom::Surface::Plane {
+                    frame: carrier_frame,
+                    ..
+                }) = b.face_surface(fk)
                 else {
                     continue;
                 };
+                let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
                 if normal.dot(a).abs() > 0.5 {
                     continue;
                 }
@@ -1256,16 +1256,18 @@ mod review_probes {
         let lant = body(ps, "lily_lantern");
         let (neck, _, _, _) = weld_circle(lant, body(ps, "lily_arch"), caps(ps, "lily_arch"));
         let Some(&Surface::Cone {
-            apex: neck_apex, ..
+            frame: carrier_frame,
+            ..
         }) = lant.face_surface(neck)
         else {
             panic!("the neck the weld pin names is a cone")
         };
+        let neck_apex = carrier_frame.origin();
         lant.faces()
             .filter(|(fk, _)| {
                 matches!(
                     lant.face_surface(*fk),
-                    Some(&Surface::Cone { apex, .. }) if (apex - neck_apex).norm() > 1e-9
+                    Some(&Surface::Cone { frame, .. }) if (frame.origin() - neck_apex).norm() > 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -1289,14 +1291,9 @@ mod review_probes {
     fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64, Vec3<f64>) {
         let mut found: Option<SphereCarrier> = None;
         for (fk, _) in b.faces() {
-            if let Some(pncad::geom::Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            }) = b.face_surface(fk)
-            {
-                let s = (*center, *radius, *axis, *u_ref);
+            if let Some(pncad::geom::Surface::Sphere { frame, radius }) = b.face_surface(fk) {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let s = (center, *radius, axis, u_ref);
                 match found {
                     Some(p) => assert!(
                         (p.0 - s.0).norm() < 1e-15
@@ -1353,12 +1350,13 @@ mod review_probes {
             .filter_map(|(_, e)| {
                 let geom = b.get_curve_geom(e.curve)?.certified()?;
                 let pncad::geom::Curve3::Circle(pncad::geom::Circle {
-                    frame: pncad::geom::Frame { origin: center, .. },
+                    frame: carrier_frame,
                     radius,
                 }) = *geom.carrier()
                 else {
                     return None;
                 };
+                let center = carrier_frame.origin();
                 ((center - origin).dot(normal).abs() < 1e-9).then(|| {
                     let out = mid - center;
                     center + out * (radius / out.norm())
@@ -1370,10 +1368,14 @@ mod review_probes {
     fn cap_frames(b: &Body<f64>) -> Vec<Cap> {
         let mut out = Vec::new();
         for (fk, _) in b.faces() {
-            let Some(&pncad::geom::Surface::Plane { origin, normal, .. }) = b.face_surface(fk)
+            let Some(&pncad::geom::Surface::Plane {
+                frame: carrier_frame,
+                ..
+            }) = b.face_surface(fk)
             else {
                 continue;
             };
+            let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
             let on_plane = |p: Point3<f64>| (p - origin).dot(normal).abs() < 1e-9;
             let on: Vec<Point3<f64>> = b
                 .vertex_points()
@@ -1541,11 +1543,9 @@ mod verbs_gate_r1_probes {
         for (k, _) in lant.faces() {
             match lant.face_surface(k) {
                 Some(&Surface::Cone {
-                    apex,
-                    axis,
-                    half_angle,
-                    ..
+                    frame, half_angle, ..
                 }) if pucker.contains(&k) => {
+                    let (apex, axis) = (frame.origin(), frame.axis());
                     let mut v_lo = f64::INFINITY;
                     let mut v_hi = f64::NEG_INFINITY;
                     for (lk, _, _) in lant.face(k).expect("a live face").loops() {
@@ -1578,7 +1578,8 @@ mod verbs_gate_r1_probes {
                     let d = seg(v_lo, v_lo.abs() * ta, v_hi, v_hi.abs() * ta) - br;
                     min_frustum_gap = min_frustum_gap.min(d);
                 }
-                Some(&Surface::Sphere { center, radius, .. }) => {
+                Some(&Surface::Sphere { frame, radius, .. }) => {
+                    let center = frame.origin();
                     let d = (center - bc).norm();
                     if d <= radius + br && d + br >= radius {
                         zone_hit = true;
@@ -1899,14 +1900,12 @@ mod verbs_gate_r1_probes {
                 continue;
             }
             let Some(&Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
+                frame, half_angle, ..
             }) = lant.face_surface(k)
             else {
                 continue;
             };
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (mut v_lo, mut v_hi) = (f64::INFINITY, f64::NEG_INFINITY);
             for (lk, _, _) in lant.face(k).expect("a live face").loops() {
                 let Some(l) = lant.get_loop(lk) else { continue };

@@ -106,7 +106,7 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()
@@ -393,10 +393,8 @@ fn r2_ring_anatomy_on_a_drum() {
                     .and_then(|g| g.certified())
                     .map(|c| match c.carrier() {
                         Curve3::Line(_) => "line".to_string(),
-                        Curve3::Circle(pncad::geom::Circle {
-                            frame: pncad::geom::Frame { origin: center, .. },
-                            radius,
-                        }) => {
+                        Curve3::Circle(pncad::geom::Circle { frame, radius }) => {
+                            let center = frame.origin();
                             format!("circle(c.y={:.4}, r={:.4})", center.y, radius)
                         }
                         Curve3::Ellipse(..) => "ellipse".to_string(),
@@ -413,7 +411,7 @@ fn r2_ring_anatomy_on_a_drum() {
             continue;
         }
         let plane = matches!(cup.face_surface(k),
-            Some(Surface::Plane { origin, .. }) if (origin.y - h).abs() < 1e-12);
+            Some(Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() < 1e-12);
         println!(
             "[r2-4] face {k:?} (mouth plane = {plane}) rings = {}",
             f.rings.len()
@@ -468,9 +466,9 @@ fn r2_box_control_is_right() {
         .faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, normal, .. })
-                    if normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
-                        && (origin.z - h).abs() < 1e-12)
+                Some(Surface::Plane { frame, .. })
+                    if frame.axis().x.abs() < 1e-9 && frame.axis().y.abs() < 1e-9
+                        && (frame.origin().z - h).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect();
@@ -869,7 +867,10 @@ fn r2_annular_mouth_anatomy() {
     );
     for (k, f) in cup.faces() {
         let s = match cup.face_surface(k) {
-            Some(Surface::Plane { origin, .. }) => format!("plane(y={:.3})", origin.y),
+            Some(Surface::Plane { frame, .. }) => {
+                let origin = frame.origin();
+                format!("plane(y={:.3})", origin.y)
+            }
             Some(Surface::Cylinder { radius, .. }) => format!("cyl(r={radius:.3})"),
             other => format!("{other:?}"),
         };
@@ -969,13 +970,16 @@ fn r2_the_scene_numbers() {
     let planes: Vec<(f64, f64, f64)> = sharp
         .faces()
         .filter_map(|(fk, f)| match sharp.face_surface(fk) {
-            Some(Surface::Plane { origin, normal, .. }) => Some((
-                origin.y,
-                normal.y,
-                pncad::geom_brep::OutwardNormal::from_chart(*normal, f.sense)
-                    .vec()
-                    .y,
-            )),
+            Some(Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((
+                    origin.y,
+                    normal.y,
+                    pncad::geom_brep::OutwardNormal::from_chart(normal, f.sense)
+                        .vec()
+                        .y,
+                ))
+            }
             _ => None,
         })
         .collect();

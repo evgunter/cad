@@ -158,7 +158,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
         .faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().y - VASE_TOP).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect();
@@ -196,7 +196,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
         .faces()
         .filter(|(fk, _)| {
             matches!(cup.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().y - VASE_TOP).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect();
@@ -208,10 +208,8 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     let carriers = loop_carriers(&cup, f.rings[0]);
     for c in &carriers {
         match c {
-            Curve3::Circle(pncad::geom::Circle {
-                frame: pncad::geom::Frame { origin: center, .. },
-                radius,
-            }) => {
+            Curve3::Circle(pncad::geom::Circle { frame, radius }) => {
+                let center = frame.origin();
                 assert!(
                     center.x.abs() < 1e-9
                         && center.z.abs() < 1e-9
@@ -255,7 +253,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
         .faces()
         .filter(|(fk, _)| {
             matches!(cup.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().y - VASE_TOP).abs() < 1e-12)
         })
         .map(|(_, f)| f.rings.len())
         .sum();

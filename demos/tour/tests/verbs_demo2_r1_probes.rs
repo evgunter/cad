@@ -152,10 +152,10 @@ fn bore_base(body: &Body<f64>) -> EdgeKey {
                 .unwrap()
                 .carrier()
             {
-                pncad::geom::Curve3::Circle(pncad::geom::Circle {
-                    frame: pncad::geom::Frame { origin: center, .. },
-                    ..
-                }) => center.y,
+                pncad::geom::Curve3::Circle(pncad::geom::Circle { frame, .. }) => {
+                    let center = frame.origin();
+                    center.y
+                }
                 ref other => panic!("latitude rim is a circle, got {other:?}"),
             };
             station(a).partial_cmp(&station(b)).unwrap()
