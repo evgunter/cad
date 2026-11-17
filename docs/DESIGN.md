@@ -1251,7 +1251,8 @@ suits the slot.
   pose. It is defined only by minting: the world, `new_space()`, and
   each construction, whose body is born in a space of its own
   (`a.space`). A placement reads a space as its target, and the
-  values of placements into a space are the only readers of its axes.
+  values of placements into a space and the frames charted on its
+  faces ([placement]) are the only readers of its axes.
 - *Selections* of a shape: one cell of a body (`Face`, `Edge`,
   `Vertex`), or the set of them a reader takes (`Faces`, `Edges`; a
   set kind exists only for a slot that reads one).
@@ -1452,11 +1453,20 @@ face by mates and values, then combined, and which side of the face
 its material lies on is the mates' to say. A sketch on a face is not
 placed: it is a profile drawn on a frame read off the face's own
 geometry, and it and every sweep of it are in the face's body's space.
-The frame's x points toward a cell of the body off the face's normal
-where the gesture names one; on a face with none (a bare disc) it is
-the space's x carried onto the face by the least turn, as a
-placement's spin is measured ([placement.values]). Either way the
-frame's spin then turns it. Only a placement relates
+The frame's z is the face's outward normal, and each of its other
+freedoms is read off a cell the gesture names or, where the gesture
+names none, charted from the space as a placement charts it; which,
+the recipe holds, and evaluation never re-chooses it. Where the face
+has a straight edge the gesture writes a flag: the frame's origin at a
+vertex of that edge and its x along the edge, with the face on the
+frame's +y side. Elsewhere (a bare disc) the frame is charted: its axes
+are the space's under the orientation the gesture writes nearest the
+face, carried onto the face's normal by the least turn as a
+placement's are ([placement.values]), and its origin is the foot on the
+face's plane of a point the gesture names (a disc's circle centre), or
+of the space's origin where it names none. Within the band about that
+orientation's pole the charted frame refuses, naming the orientation
+to write. Either way the frame's spin then turns it. Only a placement relates
 two spaces (FORK-S3P), so a feature at several positions is one body placed
 several times, each placement a copy.
 
@@ -1610,8 +1620,8 @@ this is the copy's origin measured from the target's. Every freedom is set expli
 written value: zero is always a valid value, a placement whose values
 are all zero and which has no mate is the identity, and the façade
 writes the constant `0` for each freedom a gesture leaves unnamed. A
-bundle with no mate is legal. A space's axes are read only by values,
-so setting a part on the world's xy is written as values (`z = 0`, the
+bundle with no mate is legal. A space's axes are read only by values
+and by a frame charted on a face ([placement]), so setting a part on the world's xy is written as values (`z = 0`, the
 two tilts `0`, and the slides and spin the author chooses). A
 placement is the only reader of a source's own coordinates, and reads
 them only through the freedoms its mates leave.
