@@ -1285,10 +1285,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
 /// inherits (never a coordinate-axis tie-break).
 fn plane_u<T: Real>(s: &Surface<T>) -> Vec3<T> {
     match s {
-        Surface::Plane { frame, .. } => {
-            let u_ref = frame.u_ref();
-            u_ref
-        }
+        Surface::Plane { frame, .. } => frame.u_ref(),
         _ => Vec3::new(T::zero(), T::zero(), T::zero()),
     }
 }

@@ -386,10 +386,7 @@ fn probes_on_the_boundary_land_on_the_boundary_at_a_rim_and_at_a_meridian() {
 fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::EdgeKey> {
     let fd = body.get_face(face).unwrap();
     let axis = match body.face_surface(face) {
-        Some(&geom::Surface::Sphere { frame, .. }) => {
-            let axis = frame.axis();
-            axis
-        }
+        Some(&geom::Surface::Sphere { frame, .. }) => frame.axis(),
         _ => panic!("a sphere face"),
     };
     let topo::LoopBoundary::Cycle { first } = body.get_loop(fd.outer).unwrap().boundary else {
@@ -892,10 +889,7 @@ fn boundary_pick(
 ) -> (topo::EdgeKey, geom::Curve3<f64>, topo::SurfaceKey) {
     let fd = body.get_face(face).unwrap();
     let axis = match body.face_surface(face) {
-        Some(&geom::Surface::Sphere { frame, .. }) => {
-            let axis = frame.axis();
-            axis
-        }
+        Some(&geom::Surface::Sphere { frame, .. }) => frame.axis(),
         _ => panic!("sphere"),
     };
     let topo::LoopBoundary::Cycle { first } = body.get_loop(fd.outer).unwrap().boundary else {

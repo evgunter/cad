@@ -50,10 +50,7 @@ fn wound_negative() -> Curve3<f64> {
 
 fn center_of(c: &Curve3<f64>) -> Point3<f64> {
     match c {
-        Curve3::Circle(geom::Circle { frame, .. }) => {
-            let center = frame.origin();
-            center
-        }
+        Curve3::Circle(geom::Circle { frame, .. }) => frame.origin(),
         _ => panic!("a circle fixture"),
     }
 }

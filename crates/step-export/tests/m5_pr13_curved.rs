@@ -612,17 +612,11 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             // reversed NURBS face must hit the panic that names the
             // missing pin, not an index panic inside `placement`.
             let chart = match *surface {
-                Surface::Plane { frame, .. } => {
-                    let normal = frame.axis();
-                    normal
-                }
+                Surface::Plane { frame, .. } => frame.axis(),
                 Surface::Cylinder { frame, .. }
                 | Surface::Cone { frame, .. }
                 | Surface::Sphere { frame, .. }
-                | Surface::Torus { frame, .. } => {
-                    let axis = frame.axis();
-                    axis
-                }
+                | Surface::Torus { frame, .. } => frame.axis(),
                 // NURBS faces exist at rest since M6-3 (loft walls) but
                 // none reverses (pin A's derivation) — and a NURBS chart
                 // has no single axis to compare; if a reversed one ever

@@ -363,10 +363,7 @@ impl<T: Decide> SurfaceCurve<T> {
         let dir = if outward { dir } else { -dir };
         Ok(Self::line(
             chart,
-            geom::Line {
-                origin: start,
-                dir: dir,
-            },
+            geom::Line { origin: start, dir },
             uv.x,
             opening,
         ))

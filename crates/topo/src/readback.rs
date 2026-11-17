@@ -593,7 +593,7 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
         }),
         ellipse @ Curve3::Ellipse(geom::Ellipse { frame, .. }) => { let (center, axis) = (frame.origin(), frame.axis()); Ok(Pose {
             origin: center,
-            axis: axis,
+            axis,
             u_ref: ellipse.major_frame().map(|f| f.major_dir),
             sense: true,
         }) },
@@ -603,7 +603,7 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
         // holds, answered as the pose.
         | Curve3::Spiric { frame, .. } => { let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref()); Ok(Pose {
             origin: center,
-            axis: axis,
+            axis,
             u_ref: Some(u_ref),
             sense: true,
         }) },

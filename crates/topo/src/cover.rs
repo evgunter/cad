@@ -330,7 +330,7 @@ fn face_cover_in<T: Decide>(
             let wall = hull
                 .as_ref()
                 .ok()
-                .and_then(|h| Cover::wall(&frame, *radius, h));
+                .and_then(|h| Cover::wall(frame, *radius, h));
             and_proven(and_trim(carrier, hull), wall)
         }
         Surface::Cone { frame, half_angle } => {
@@ -348,7 +348,7 @@ fn face_cover_in<T: Decide>(
             let frustum = hull
                 .as_ref()
                 .ok()
-                .and_then(|h| Cover::cone(&frame, *half_angle, h));
+                .and_then(|h| Cover::cone(frame, *half_angle, h));
             and_proven(and_trim(carrier, hull), frustum)
         }
         Surface::Sphere { frame, radius, .. } => {
@@ -371,9 +371,7 @@ fn face_cover_in<T: Decide>(
                 .and_then(|()| {
                     torus_chart_window(&face_window_steps(body, face), *major_radius, *minor_radius)
                 })
-                .and_then(|(u, v)| {
-                    Cover::patch(&frame, (*major_radius, *minor_radius), Some(u), v)
-                });
+                .and_then(|(u, v)| Cover::patch(frame, (*major_radius, *minor_radius), Some(u), v));
             and_proven(carrier, rect)
         }
         // A spindle's tube, with no chart window: the window's closed

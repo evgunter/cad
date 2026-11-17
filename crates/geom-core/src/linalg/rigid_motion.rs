@@ -1116,6 +1116,40 @@ impl<T: Real> RigidMotion<T> {
         }
     }
 
+    /// **This frame run back**: `w` and `v` reversed, `u` kept, a frame's
+    /// own axes negated, so nothing is decided.
+    #[must_use]
+    pub fn reversed(self) -> Self {
+        Self {
+            v: -self.v,
+            w: -self.w,
+            ..self
+        }
+    }
+
+    /// **This frame turned a quarter turn about its own `w`**: `u` becomes
+    /// the old `v` and `v` the old `−u`, its own axes permuted and
+    /// negated, so nothing is decided.
+    #[must_use]
+    pub fn quarter_turned(self) -> Self {
+        Self {
+            u: self.v,
+            v: -self.u,
+            ..self
+        }
+    }
+
+    /// **This frame turned a half turn about its own `w`**: `u` and `v`
+    /// reversed, so nothing is decided.
+    #[must_use]
+    pub fn half_turned(self) -> Self {
+        Self {
+            u: -self.u,
+            v: -self.v,
+            ..self
+        }
+    }
+
     /// **This frame's image under `by`**: its origin through
     /// [`RigidMotion::transform_point`] and each axis turned
     /// ([`RigidMotion::turn`]), a rigid image of a rigid frame, so

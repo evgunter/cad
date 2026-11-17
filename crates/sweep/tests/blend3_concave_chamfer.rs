@@ -132,8 +132,8 @@ fn plane_origin(body: &Body<f64>, face: topo::FaceKey) -> Point3<f64> {
     let Some(Surface::Plane { frame, .. }) = body.face_surface(face) else {
         panic!("every face this carve mints is a plane");
     };
-    let origin = frame.origin();
-    origin
+
+    frame.origin()
 }
 
 /// **THE ORIENTATION ROW: every minted face faces the VOID.**

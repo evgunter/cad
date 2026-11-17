@@ -113,11 +113,7 @@ pub enum Forgets<T: Real> {
 pub fn anchored_at<T: Real>(datum: Point3<T>, forgets: Forgets<T>, at: Point3<T>) -> Point3<T> {
     match forgets {
         Forgets::Plane(normal) => at - normal * ((at - datum).dot(normal) / normal.norm_squared()),
-        Forgets::Axis(dir) => Line {
-            origin: datum,
-            dir: dir,
-        }
-        .foot(at),
+        Forgets::Axis(dir) => Line { origin: datum, dir }.foot(at),
     }
 }
 

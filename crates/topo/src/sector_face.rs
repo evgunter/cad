@@ -372,12 +372,7 @@ pub(crate) fn resolve<T: Decide>(
         geom::Surface::Cylinder { frame, .. } => {
             let (origin, axis) = (frame.origin(), frame.axis());
             charted(
-                geom::Line {
-                    origin: origin,
-                    dir: axis,
-                }
-                .offset(point())
-                .normalize(),
+                geom::Line { origin, dir: axis }.offset(point()).normalize(),
                 SectorCarrier::Cylinder,
             )
         }

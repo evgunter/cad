@@ -308,14 +308,7 @@ fn meridian_edge(
             let (sa, ca) = half_angle.sin_cos();
             let (radial, _) = frame(axis, u_ref);
             let dir = axis * ca + radial * sa; // unit generator; p(v) = apex + dir·v
-            (
-                Curve3::Line(geom::Line {
-                    origin: apex,
-                    dir: dir,
-                }),
-                v0,
-                v1,
-            )
+            (Curve3::Line(geom::Line { origin: apex, dir }), v0, v1)
         }
         Surface::Sphere {
             frame: carrier_frame,

@@ -128,7 +128,7 @@ fn face_geo(body: &Body<f64>, f: topo::FaceKey) -> Option<String> {
     let (origin, normal) = match body.face_surface(f)? {
         geom::Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
-            (*origin, *normal)
+            (origin, normal)
         }
         _ => return None,
     };

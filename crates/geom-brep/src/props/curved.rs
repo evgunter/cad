@@ -2531,10 +2531,7 @@ fn cone_generator_miss<T: Decide>(apex: Point3<T>, dir: Vec3<T>, e: &LoopEdge<T>
     // span of none, with no `dir·Δt` rounding to re-derive the far end.
     let through = |near: Point3<T>, far: Vec3<T>| {
         ruling_miss(
-            &geom::Line {
-                origin: near,
-                dir: dir,
-            },
+            &geom::Line { origin: near, dir },
             (T::zero(), T::zero()),
             Ruling::Generator {
                 apex,

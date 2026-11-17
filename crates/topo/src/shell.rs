@@ -4700,7 +4700,7 @@ fn planar_faces<T: Decide>(
         );
         let normal = plane_outward_normal(view.record(), normal).vec();
         let frame = InPlane {
-            origin: origin,
+            origin,
             u: u_ref,
             v: normal.cross(u_ref),
             n: normal,
@@ -4717,7 +4717,7 @@ fn planar_faces<T: Decide>(
                      tier-1-valid body every face is in a shell a solid owns"
                 )
             }),
-            origin: origin,
+            origin,
             normal,
             u_ref: frame.u,
             v_ref: frame.v,

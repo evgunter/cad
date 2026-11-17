@@ -390,10 +390,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) 
                         return Carrier::Other("a face with no cover");
                     };
                     Carrier::Cylinder {
-                        axis: geom::Line {
-                            origin: origin,
-                            dir: axis,
-                        },
+                        axis: geom::Line { origin, dir: axis },
                         radius: *radius,
                         reach,
                         round,
@@ -405,7 +402,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) 
                         return Carrier::Other("a face with no cover");
                     };
                     Carrier::Sphere {
-                        center: center,
+                        center,
                         reach,
                         round,
                     }

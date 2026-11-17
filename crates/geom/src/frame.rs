@@ -171,24 +171,21 @@ impl<T: Real> Frame<T> {
     /// the derived `v_ref` flips with it.
     #[must_use]
     pub fn reversed(&self) -> Self {
-        let motion = self.motion.with_signed_axes((0, false), (1, true));
-        Self::of_motion(&motion.expect("u and v are two distinct axes"))
+        Self::of_motion(&self.motion.reversed())
     }
 
     /// The same placement turned a quarter turn about its axis: `u_ref`
     /// becomes the old `v_ref`, and `v_ref` the old `−u_ref`.
     #[must_use]
     pub fn quarter_turned(&self) -> Self {
-        let motion = self.motion.with_signed_axes((1, false), (0, true));
-        Self::of_motion(&motion.expect("v and u are two distinct axes"))
+        Self::of_motion(&self.motion.quarter_turned())
     }
 
     /// The same placement turned a half turn about its axis: `u_ref` and
     /// `v_ref` both reversed.
     #[must_use]
     pub fn half_turned(&self) -> Self {
-        let motion = self.motion.with_signed_axes((0, true), (1, true));
-        Self::of_motion(&motion.expect("u and v are two distinct axes"))
+        Self::of_motion(&self.motion.half_turned())
     }
 
     /// **One of two placements, by the sign of `d`**

@@ -26,10 +26,7 @@ use geom_core::{Point3, Real, Vec3};
 /// extent they read it at before the classifiers took a [`Reach`].
 fn metre_on<T: Real>(s: &Surface<T>) -> Reach<T> {
     let at = match *s {
-        Surface::Cylinder { frame, .. } => {
-            let origin = frame.origin();
-            origin
-        }
+        Surface::Cylinder { frame, .. } => frame.origin(),
         _ => Point3::new(T::zero(), T::zero(), T::zero()),
     };
     {
@@ -1851,8 +1848,8 @@ fn plane_origin(p: &Surface<f64>) -> Point3<f64> {
     else {
         panic!("plane")
     };
-    let origin = carrier_frame.origin();
-    origin
+
+    carrier_frame.origin()
 }
 
 /// The `ps_center_gap` trilean trio: definite cut / exact tangency

@@ -784,10 +784,7 @@ mod review_probes {
                     "a promoted plane is pre-aligned: never flipped"
                 );
                 match surface {
-                    Surface::Plane { frame, .. } => {
-                        let normal = frame.axis();
-                        normal
-                    }
+                    Surface::Plane { frame, .. } => frame.axis(),
                     other => panic!("a plane patch promotes to a plane: {other:?}"),
                 }
             }

@@ -237,9 +237,9 @@ fn tori(body: &Body<f64>) -> Vec<TorusWall> {
             out.push(TorusWall {
                 minor: *minor_radius,
                 major: *major_radius,
-                center: center,
-                axis: axis,
-                u_ref: u_ref,
+                center,
+                axis,
+                u_ref,
             });
         }
     }

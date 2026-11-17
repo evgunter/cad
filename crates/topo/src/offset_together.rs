@@ -226,7 +226,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                 face,
                 MovedPlane {
                     old_key: data.record().surface,
-                    normal: normal,
+                    normal,
                     c: normal.dot(radius(origin + delta)),
                     delta,
                     distance: m.distance,

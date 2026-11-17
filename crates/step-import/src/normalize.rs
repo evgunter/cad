@@ -614,10 +614,7 @@ fn seam_vertex_on_loop(
 ) -> Result<u64, StepImportError> {
     let face_id = solid.faces[fi].id;
     let s_u_ref = match *surface {
-        Surface::Cylinder { frame, .. } | Surface::Torus { frame, .. } => {
-            let u_ref = frame.u_ref();
-            u_ref
-        }
+        Surface::Cylinder { frame, .. } | Surface::Torus { frame, .. } => frame.u_ref(),
         _ => {
             return Err(StepImportError::Topology {
                 id: face_id,

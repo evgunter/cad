@@ -959,8 +959,8 @@ fn fixed_n3_near_collinear_normal_documented_under_determination() {
         else {
             panic!("plane");
         };
-        let normal = carrier_frame.axis();
-        normal
+
+        carrier_frame.axis()
     };
     let n_pos = normal(&chain(1.0));
     let n_neg = normal(&chain(-1.0));

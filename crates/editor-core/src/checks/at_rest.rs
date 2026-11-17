@@ -1916,8 +1916,7 @@ fn beyond(
     // with the inputs and not with the computing axes.
     let reference = match aggregate.face_surface(face) {
         Some(topo::Surface::Plane { frame, .. } | topo::Surface::Cylinder { frame, .. }) => {
-            let u_ref = frame.u_ref();
-            u_ref
+            frame.u_ref()
         }
         _ => return Err("the carrier's surface is unreadable".to_owned()),
     };

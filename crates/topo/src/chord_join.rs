@@ -1545,10 +1545,7 @@ impl<T: Real> SectionCurve<T> {
         match self {
             Self::Conic(c) => c.conic().frame().u_ref(),
             Self::Oval(o) => match o.carrier {
-                geom::Curve3::Spiric { frame, .. } => {
-                    let axis = frame.axis();
-                    axis
-                }
+                geom::Curve3::Spiric { frame, .. } => frame.axis(),
                 _ => unreachable!(
                     "{:?} is the spiric an oval is built of, and a spiric's axis lies in its \
                      plane",

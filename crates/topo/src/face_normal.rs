@@ -221,7 +221,7 @@ pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Car
         geom::Surface::Sphere { frame, radius, .. } => {
             let center = frame.origin();
             Some(CarrierDesc::Sphere {
-                center: center,
+                center,
                 radius: *radius,
                 outward,
             })
@@ -229,8 +229,8 @@ pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Car
         geom::Surface::Cylinder { frame, radius, .. } => {
             let (origin, axis) = (frame.origin(), frame.axis());
             Some(CarrierDesc::Cylinder {
-                origin: origin,
-                axis: axis,
+                origin,
+                axis,
                 radius: *radius,
                 outward,
             })
@@ -243,8 +243,8 @@ pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Car
         } => {
             let (center, axis) = (frame.origin(), frame.axis());
             Some(CarrierDesc::Torus {
-                center: center,
-                axis: axis,
+                center,
+                axis,
                 major_radius: *major_radius,
                 minor_radius: *minor_radius,
                 outward,
@@ -255,8 +255,8 @@ pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Car
         } => {
             let (apex, axis) = (frame.origin(), frame.axis());
             Some(CarrierDesc::Cone {
-                apex: apex,
-                axis: axis,
+                apex,
+                axis,
                 half_angle: *half_angle,
                 outward,
             })

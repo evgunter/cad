@@ -10218,10 +10218,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(p0 + dir * (reach / 2.0)),
             },
-            carrier: Curve3::Line(geom::Line {
-                origin: p0,
-                dir: dir,
-            }),
+            carrier: Curve3::Line(geom::Line { origin: p0, dir }),
             param_start: 0.0,
             param_end: 2.0 * reach,
         };

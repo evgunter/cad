@@ -73,13 +73,7 @@ fn from_rim(
     if toward {
         read(&Curve3::line(at - dir * 0.5, dir), (0.0, 0.5))
     } else {
-        read(
-            &Curve3::Line(geom::Line {
-                origin: at,
-                dir: dir,
-            }),
-            (0.0, 0.5),
-        )
+        read(&Curve3::Line(geom::Line { origin: at, dir }), (0.0, 0.5))
     }
 }
 

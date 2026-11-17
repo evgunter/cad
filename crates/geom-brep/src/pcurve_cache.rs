@@ -13086,9 +13086,7 @@ mod incidence {
             _ => return None,
         };
         let mut moved = surface.clone();
-        let Some(anchor) = moved.frame().map(|f| f.origin()) else {
-            return None;
-        };
+        let anchor = moved.frame().map(|f| f.origin())?;
         // The anchor's offset from the carrier's, with its rounding.
         let [ax, ay, az] = exact_vec(anchor - geom_core::Point3::origin());
         let [kx, ky, kz] = k;
@@ -15651,7 +15649,7 @@ mod tests {
 
     /// A `Curve3::Line` from `origin` along `dir` (already unit here).
     fn ruling_line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Line(geom::Line { origin, dir: dir })
+        Curve3::Line(geom::Line { origin, dir })
     }
 
     /// The positive row: a promoted LINE carrier on the wall's `u = 0`
@@ -16328,7 +16326,7 @@ mod off_chart_class_rows {
         }
         let mid = 0.5 * (band().zero() + band().escalate());
         let dir = Vec3::new(0.0, 1.0, 0.3).normalize();
-        let line = |origin: Point3<f64>| Curve3::Line(geom::Line { origin, dir: dir });
+        let line = |origin: Point3<f64>| Curve3::Line(geom::Line { origin, dir });
         let at_mid = Point3::new(1.0, 0.0, mid);
         let (u, v) = (Vec3::unit_y(), Vec3::new(mid, 0.0, 1.0).normalize());
         let tilted_circle =

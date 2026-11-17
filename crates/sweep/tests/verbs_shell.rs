@@ -648,10 +648,7 @@ fn assert_the_tilted_arm_walls_cross(body: &Body<f64>, t: f64, why: &str) -> f64
     };
     assert_eq!(thickness, t, "{why}: the refusal quotes the wall");
     let normal = |f: FaceKey| match body.face_surface(f) {
-        Some(geom::Surface::Plane { frame, .. }) => {
-            let normal = frame.axis();
-            normal
-        }
+        Some(geom::Surface::Plane { frame, .. }) => frame.axis(),
         _ => panic!("{f:?} is planar"),
     };
     let (wall, crossed) = if normal(face).x.abs() > normal(other).x.abs() {

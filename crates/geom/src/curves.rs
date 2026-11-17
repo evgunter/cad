@@ -1842,7 +1842,7 @@ impl<T: SpanLocate> Curve3<T> {
                 offset,
             } => {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                let ((s, c), m) = azimuth::basis(&frame, t);
+                let ((s, c), m) = azimuth::basis(frame, t);
                 let (_, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 center + u_ref * *offset + m * f + axis * (*minor_radius * s)
             }
@@ -1890,7 +1890,7 @@ impl<T: SpanLocate> Curve3<T> {
                 offset,
             } => {
                 let axis = frame.axis();
-                let ((s, c), m) = azimuth::basis(&frame, t);
+                let ((s, c), m) = azimuth::basis(frame, t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
                 m * f1 + axis * (*minor_radius * c)
@@ -1941,7 +1941,7 @@ impl<T: SpanLocate> Curve3<T> {
                 offset,
             } => {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                let ((s, c), m) = azimuth::basis(&frame, t);
+                let ((s, c), m) = azimuth::basis(frame, t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
                 (
@@ -1989,7 +1989,7 @@ impl<T: SpanLocate> Curve3<T> {
                 offset,
             } => {
                 let axis = frame.axis();
-                let ((s, c), m) = azimuth::basis(&frame, t);
+                let ((s, c), m) = azimuth::basis(frame, t);
                 let r = *minor_radius;
                 let (rho, f) = spiric_radial(*major_radius, r, *offset, c);
                 let f2 = -(r

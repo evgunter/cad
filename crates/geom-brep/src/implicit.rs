@@ -243,10 +243,7 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
 /// (cone apex / cone axis, torus axis) and for [`Surface::Nurbs`].
 pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
     match *s {
-        Surface::Plane { frame, .. } => {
-            let normal = frame.axis();
-            normal
-        }
+        Surface::Plane { frame, .. } => frame.axis(),
         Surface::Sphere { frame, radius, .. } => {
             let center = frame.origin();
             (p - center) / radius

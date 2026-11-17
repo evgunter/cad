@@ -117,8 +117,8 @@ fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
     else {
         panic!("newell returns a plane");
     };
-    let normal = frame.axis();
-    normal
+
+    frame.axis()
 }
 
 /// The edge's stored description.

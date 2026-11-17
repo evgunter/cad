@@ -302,10 +302,7 @@ fn the_corner_balls_pole_is_a_foot_or_its_antipode_on_either_side() {
             };
             let feet = normals.map(|n| n * sign);
             let f64_axis = match corner_ball([Point3::origin(); 3], normals, 0.1, side).surface {
-                Surface::Sphere { frame, .. } => {
-                    let axis = frame.axis();
-                    axis
-                }
+                Surface::Sphere { frame, .. } => frame.axis(),
                 _ => panic!("the corner ball is a sphere"),
             };
             let iv_normals = normals.map(|n| n.map(iv));
