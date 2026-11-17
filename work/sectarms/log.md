@@ -944,3 +944,8 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - Every roster row in five other crates is green.
   - Harness: 3,704,953 ms, 144,400 tokens.
 - **Single review dispatched** on the frozen head. Reviewer byte 77 (odd, Fable). Brief `review-7057.md`; it probes the node-end soundness reading in particular.
+- 2026-11-17 — **Ev asked on PR 7032:** "what information is entering in (2) that isn't used in (1)?" I answered on the PR.
+  - The march solves for the wall's (u, v) together with the partner's equation (`SectionSystem::feet`). (2) keeps the pcurve through those feet; (1) keeps only the carrier and recovers (u, v) by projection.
+  - The real difference is which preimage on the wall: the march's continuous chart history, which projection must reconstruct on folds and seams.
+  - The partner's equation enters only as a second rounding at march tolerance. The sample schedule is the same in both.
+  - Waiting on Ev.
