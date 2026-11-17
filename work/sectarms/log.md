@@ -930,3 +930,10 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **Filed:** `main-red-since-pr-7052-the-recourse-roster-and-a-close-rings-pin` (P1 E) and `a-node-end-row-certifies-a-coarse-span-onto-the-node-at-1e-6` (P1 E).
 - **Dispatching both as one lane, letter M, tier single:** the roster and the pin are mechanical, but the node-end row may be soundness (the class of 6897's MAJOR). Brief `impl-mainred.md`, branch `sectarms/main-red-1e-6`. Implementer byte drawn after this entry.
 - **Main-red implementer byte 76 (Opus),** on the model-compare branch; dispatched.
+- 2026-11-17 — **Sliver fork: the designers agree; sent to Ev as [PR 7056](https://github.com/evgunter/cad/pull/7056)** (row 281, recommendation half).
+  - **First reports:** both say tube and pad should be two claims, and limb 3 needs resolution where a box is wide against its rung. They differed on where that resolution comes from (A: a located straddle asking the march for samples; B: limb 3 halves its own cover), on the enclosure, and on the pad mechanism.
+  - **A's premise correction stands:** `graph_margin` is the two-point range C2's mean-value proof needs, not slack. One point suffices on quadratic forms (the midpoint identity), so a torus keeps two points.
+  - **Round 1 crossed:** A took B's cover halving, because the march cannot reach a carrier at rest. B took one point on quadratic forms only and the narrowest proving rung as the pad, and flagged that near-node pads must be measured once `refine_for_tube` retires.
+  - **Round 2 crossed on storage:** A moved to recording the cover, B to deriving it. I read `SsiTube`: it records limb 3's chosen inputs. Storage is left to the build, under the rule that the region banked is the region proved.
+  - **Fork-log numbering:** PR 7032's rest-image row is numbered 278, which main already uses (a TESSLANE row). Renumber it when 7032 merges. This fork took 281, after a scan of every open ev branch.
+  - The lane's branch `sectarms/sliver-loop-tube` stays as is (an earlier candidate); a build after Ev's answer starts fresh from main. Subscribed to PR 7056.
