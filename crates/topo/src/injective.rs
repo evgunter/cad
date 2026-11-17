@@ -7404,6 +7404,66 @@ mod presentation_rows {
         );
     }
 
+    /// **`one_conic` admits two carriers only as one conic**, each
+    /// component on its own: the same circle stored on the opposed axis
+    /// and another `u_ref`, and an ellipse with axis and `u_ref` both
+    /// turned over, are one; a circle moved along its axis, of another
+    /// radius, on a tilted axis, an ellipse of other semi-axes or turned
+    /// a quarter about its axis, and a circle beside an ellipse of equal
+    /// semi-axes are not; a bracketed centre is not one value even
+    /// against itself. Red if any one comparison is dropped.
+    #[test]
+    fn one_conic_compares_each_component() {
+        let p = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(y), iv0(z));
+        let v = |x: f64, y: f64, z: f64| Vec3::new(iv0(x), iv0(y), iv0(z));
+        let rim = |c: Curve3<Interval>| Rim {
+            key: edge(1),
+            arc: Some((c, (iv0(0.0), iv0(1.0)))),
+            ends: [vertex(1), vertex(2)],
+            uses: Vec::new(),
+        };
+        let circle = |o, a, r: f64, u| rim(Curve3::circle(o, a, iv0(r), u));
+        let ellipse = |o, a, su: f64, sv: f64, u| {
+            rim(Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(o, a, u),
+                iv0(su),
+                iv0(sv),
+            )))
+        };
+        let (o, z, x, y) = (p(0., 0., 0.), v(0., 0., 1.), v(1., 0., 0.), v(0., 1., 0.));
+        let c = circle(o, z, 1.0, x);
+        assert!(
+            one_conic(&c, &circle(o, v(0., 0., -1.), 1.0, y)),
+            "opposed axis"
+        );
+        assert!(
+            !one_conic(&c, &circle(p(0., 0., 1.), z, 1.0, x)),
+            "moved along its axis"
+        );
+        assert!(!one_conic(&c, &circle(o, z, 2.0, x)), "another radius");
+        assert!(
+            !one_conic(&c, &circle(o, v(0., 1., 0.), 1.0, x)),
+            "a tilted axis"
+        );
+        assert!(!one_conic(&c, &ellipse(o, z, 1.0, 1.0, x)), "an ellipse");
+        let e = ellipse(o, z, 2.0, 1.0, x);
+        assert!(
+            one_conic(&e, &ellipse(o, v(0., 0., -1.), 2.0, 1.0, v(-1., 0., 0.))),
+            "turned over"
+        );
+        assert!(
+            !one_conic(&e, &ellipse(o, z, 2.0, 1.5, x)),
+            "other semi-axes"
+        );
+        assert!(
+            !one_conic(&e, &ellipse(o, z, 2.0, 1.0, y)),
+            "a quarter turn"
+        );
+        let bracket = Point3::new(Interval::from_bounds(-1e-9, 1e-9), iv0(0.0), iv0(0.0));
+        let b = circle(bracket, z, 1.0, x);
+        assert!(!one_conic(&b, &b.clone()), "a bracketed centre");
+    }
+
     /// [`present_plane`] of a [`quarter`] in the cell `u × v`, its local
     /// edges the arc and the line and its local vertex `(1, 0)`, that
     /// vertex alone shared: the zero it reads, or why it reads none.
