@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-14
 priority: P0
 cost: M
-design: true
 ---
 
 
@@ -28,18 +27,19 @@ So no boolean of a cylinder and a ball in a general pose can be drawn.
 
 The mint is on other ground: `geom-brep`'s `ssi.rs` (`cylinder_sphere_ssi`; SSIARITH, SSIEDGE) and `pair_section.rs` (the SECT family). This row sits here because the refusal is the mesh's and the mint's owner is not yet identified; whoever owns the mint claims it by moving it. `tier-3-refuses-a-carrier-with-an-interior-c0-knot` (MEASUREDOOR) will refuse these bodies at rest once it lands, so this row is on its path too.
 
-## The fork
+## Decided (Ev, PR 7042, 2026-11-17; fork-log row 279)
 
-A closed fitted section loop is one open clamped interpolant whose two
-free ends coincide (`ssi::refine::fit_branch`), so every closed fitted
-loop carries a C⁰ seam at the march's seed, about 1e-7 rad in tangent.
-A loop with no site hides it under its closed edge's vertex; seating
-(`pair_section::seat_at`, `rotated`) moves it inside an edge as a
-full-multiplicity knot, against Ev's PR 5913 clause (DESIGN
-`[topology]`: an edge carrier is C¹ by its knot structure inside its
-cell). What a closed fitted loop's carrier is, and where the C¹ rule
-is met for the edges cut from it, is the decision; C11's "periodic …
-forms are a designed absence" changes with it.
+A closed fitted section loop is fitted as a periodic cubic: C² by its
+knot structure everywhere, with no start. It is a carrier kind of its
+own, a distinct `Curve3` arm with a period, as a circle has. It is
+seated by its span; an edge on it is the loop's carrier and a span,
+and a reader reads the clamped view of that span, whose interior knots
+are simple. `seat_at`'s knot edit, `rotated`, the second certificate at
+the seat and the near-start refusal go. The 5913 clause is unchanged;
+C11 admits this one periodic form. Making section chords spans rather
+than cut nets is its own item
+(`a-section-chord-cut-as-its-own-net-never-rejoins`), which this
+decision needs for its join benefit.
 
 ## Done when
 
