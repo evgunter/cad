@@ -85,7 +85,9 @@ pub fn loop_vector_area<T: SpanLocate>(
             // `√((R + r cos v)² − d²)` against `sin v` and `cos v` — an
             // elliptic integral, no closed form. A face it bounds is
             // measured by the quadrature lane (`super::spiric`).
-            Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
+            // A periodic cubic's edge is read on its clamped view, a
+            // spline: the loop itself reaches no arm here.
+            Curve3::Spiric { .. } | Curve3::Periodic(_) => return Err(PropsError::Unimplemented),
         };
         // Reversed traversal flips the line integral's sign.
         acc = if e.forward {
@@ -170,7 +172,7 @@ pub fn vector_area_reads<T: SpanLocate>(carrier: &Curve3<T>) -> bool {
     match carrier {
         Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => true,
         Curve3::Nurbs(c) => spline_gauss_rule(c).is_some(),
-        Curve3::Spiric { .. } => false,
+        Curve3::Spiric { .. } | Curve3::Periodic(_) => false,
     }
 }
 
@@ -287,7 +289,7 @@ pub fn segment_kind<T: SpanLocate>(carrier: &Curve3<T>) -> SegmentKind {
         Curve3::Line(_) => SegmentKind::Chord,
         Curve3::Circle(..) | Curve3::Ellipse(..) => SegmentKind::Closed,
         Curve3::Nurbs(c) if spline_gauss_rule(c).is_some() => SegmentKind::Closed,
-        Curve3::Nurbs(_) | Curve3::Spiric { .. } => SegmentKind::Enclosed,
+        Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => SegmentKind::Enclosed,
     }
 }
 
@@ -425,6 +427,7 @@ impl SegmentQ {
                         .ok()?;
                 Self::Spline(edge, length)
             }
+            Curve3::Periodic(_) => return None,
         })
     }
 

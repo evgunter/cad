@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-12
 priority: P1
 cost: M
-design: true
 ---
 
 
@@ -92,6 +91,27 @@ C2's carry sentence ("its pad the chart tube's windows imaged on the
 wall by its chart speeds", PR 6862) says exactly that, so a pad read
 another way changes it. How a rim arc's pad is bounded, and how far
 it is refined, is the decision.
+
+## Decided (Ev, PR 7045, 2026-11-17; fork-log row 280)
+
+Ev took designer A's answer ("let's do (A)").
+
+- **Read the pad off the tube's cells,** cut to the knot rectangle,
+  keeping only the cells the partner's form does not clear of the band.
+  Each cell is read against the whole carrier, not only its own span's
+  points.
+- **Refine until the carry's question resolves.** Cells are halved
+  until every pair of arcs stands apart, or a pair stops narrowing.
+  This is PR 5574's rule: a stop set by the predicate, not by a fixed
+  share of the rung.
+  - The refinement carries a **work bound**, and refuses typed past it.
+  - **Sites are read in the same surviving cells that the apartness
+    check separates.**
+- **The change is in the carry only.** Limb 3, the certificate and rest
+  are unchanged, and `PadsMeet` is kept.
+- **C2's carry sentence and its node-end clause** in
+  `crates/geom-brep/README.md` are rewritten to say this.
+- The marched-loop door's reader is a later step.
 
 ## Done when
 

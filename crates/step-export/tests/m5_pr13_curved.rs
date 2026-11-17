@@ -803,7 +803,9 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                     assert_eq!(real(&a[2]), semi_u, "{name} ellipse semi_axis_1");
                     assert_eq!(real(&a[3]), semi_v, "{name} ellipse semi_axis_2");
                 }
-                Curve3::Nurbs(_) => panic!("{name}: no body at rest carries a NURBS carrier"),
+                Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+                    panic!("{name}: no body at rest carries a NURBS carrier")
+                }
                 Curve3::Spiric { .. } => {
                     panic!("{name}: the writer refuses a spiric carrier before any record")
                 }

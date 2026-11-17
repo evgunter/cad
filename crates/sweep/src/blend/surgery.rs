@@ -9,9 +9,9 @@
 //! two differ: the corner geometry (`corner_plan` grafts the
 //! fillet's sphere octant or the chamfer's flat patch through the
 //! three trimline feet), the band's contact carrier (a fillet's
-//! trimline arc, a chamfer's straight chord), and the closed-chain
-//! door (the rim phases below are the fillet's — a chamfer has no
-//! closed-chain band and refuses there). Everything else in this
+//! trimline arc, a chamfer's straight chord), and the closed-rim
+//! band's sense (the torus folds the chain's convexity, the chamfer's
+//! frustum reads it off its rim, `arms::frustum_rim_side`). Everything else in this
 //! module — the splits, the excisions, the ring carry-through, the
 //! naming rows — is one shared walk. Prose below that speaks of the
 //! ball or the octant is describing the fillet's arm of a shared
@@ -44,7 +44,7 @@
 //! same two support faces, which a coplanar-face merge leaves wherever
 //! a wall was subdivided — and is then carved as ONE face over all its
 //! links; or across junctions (`admit::Junction`) onto links on other
-//! supports, a torus link between two of them, and is then carved one
+//! supports, a torus or frustum link between two of them, and is then carved one
 //! face per link with the section between each two
 //! ([`super::junction`]).
 //!
@@ -226,7 +226,7 @@ use topo::{
 };
 
 use super::admit::{AdmittedOpen, CornerLinks, OpenBand, RequestedBoundary, StationKind};
-use super::arms::BallSection;
+use super::arms::{BallSection, BlendArm};
 use super::battery::{
     BatteryVerdict, Chain, ChainClosure, Convexity, Link, Turn, blend_sense, face_clearance_margin,
     same_supports,
@@ -588,22 +588,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     for chain in &verdict.chains {
         match chain.closure {
             ChainClosure::Open { .. } => bands.push(OpenBand::admit(source, chain)?),
-            // The band replacement is the rolling ball's torus over a
-            // closed rim, whatever kinds its two supports are. A chamfer has no closed-chain band at
-            // all — its one arm is plane–plane, whose closed chains
-            // would need a ruled ring the surgery does not carve — so
-            // it refuses here rather than entering the rim phase with
-            // a strip.
-            ChainClosure::Closed => match kind {
-                BlendKind::Fillet => rims.push(resolve_rim(source, chain)?),
-                BlendKind::Chamfer => {
-                    return Err(unbuilt_chain(
-                        chain.first().edge,
-                        "a closed chamfer chain has no band; only open chains between \
-                         trivalent corners are implemented",
-                    ));
-                }
-            },
+            ChainClosure::Closed => rims.push(resolve_rim(source, chain)?),
         }
     }
     // A band is keyed by its lowest link edge, the order its face takes
@@ -754,12 +739,12 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     }
     // ---- A straight link's two ends put their feet in order along it
     // where one is a junction ([`junction::feet_clear`]). ----
-    let torus = |e: EdgeKey| {
+    let revolved = |e: EdgeKey| {
         planar
             .iter()
-            .any(|o| o.edge() == e && o.link().arm.is_coaxial_torus())
+            .any(|o| o.edge() == e && o.link().arm.is_coaxial())
     };
-    junction::feet_clear(source, &supports, |e| !torus(e), band)?;
+    junction::feet_clear(source, &supports, |e| !revolved(e), band)?;
 
     // ---- The ruled bands' caps, read off the source before anything
     // is carved: each end's cap face, the two rim edges it shares with
@@ -875,16 +860,54 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     }
     blend_rows.sort_by_key(|(o, _, _)| o.edge());
     let blend_faces: Vec<FaceKey> = blend_rows.iter().map(|(_, f, _)| *f).collect();
+    // **A face's sense bit, the face's and not the verb's.** A
+    // rolling-ball band's or corner ball's chart normal is the radial
+    // one, which is outward exactly on a convex chain, so it folds the
+    // stored convexity verdict. A chamfer strip's and corner patch's
+    // chart normals are minted as explicit positive combinations of the
+    // supports' own outward normals (`arms::chamfer_strip`,
+    // `arms::chamfer_corner_patch`), so they are outward whatever the
+    // convexity is.
+    let minted_sense = |convexity: Convexity| match kind {
+        BlendKind::Fillet => blend_sense(convexity),
+        BlendKind::Chamfer => true,
+    };
+    // A chamfer frustum has the cone's own chart normal, radially outward
+    // whichever side the material is, so its bit is read off the side of
+    // the generator the rim lies on, at the link's own middle on the
+    // source body (`arms::frustum_rim_side`).
+    let link_sense = |link: &Link<T>| -> Result<bool, BlendError> {
+        match kind {
+            BlendKind::Chamfer if link.arm == BlendArm::CylinderPlaneCone => {
+                let (carrier, t0, t1) = super::battery::carrier_of(source, link.edge)?;
+                let at = carrier.eval(geom::mid_param(t0, t1));
+                let side = super::arms::frustum_rim_side(&link.blend, at)
+                    .filter(|x| x.lo() > 0.0 || x.hi() < 0.0)
+                    .ok_or_else(|| {
+                        unbuilt_geometry(
+                            EntityId::Edge(link.edge),
+                            "a chamfer frustum's side of its rim is not certain",
+                        )
+                    })?;
+                Ok((side.lo() > 0.0) == blend_sense(link.convexity))
+            }
+            _ => Ok(minted_sense(link.convexity)),
+        }
+    };
     let mut band_faces = Vec::with_capacity(rims.len());
     let mut band_surfaces = Vec::with_capacity(rims.len());
     for (i, rim) in rims.iter().enumerate() {
-        let sense = blend_sense(rim.chain.first().convexity);
+        let link = rim.chain.first();
         if let RimShape::Mixed(mixed) = &rim.shape {
             let (faces, mut arcs) =
                 rim_phase_mixed(&mut body, rim, mixed, &sources, &mut rec, tol)?;
-            for (face, surface) in faces {
+            for (face, surface, edge) in faces {
+                let l =
+                    rim.chain.links().find(|l| l.edge == edge).ok_or_else(|| {
+                        disagrees(EntityId::Edge(edge), "a mixed rim's band link")
+                    })?;
                 band_faces.push(face);
-                band_surfaces.push((surface, sense));
+                band_surfaces.push((surface, link_sense(l)?));
             }
             described.append(&mut arcs);
             continue;
@@ -913,7 +936,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             RimShape::Mixed(_) => unreachable!("a mixed rim is carved above"),
         };
         band_faces.push(band_face);
-        band_surfaces.push((band_surface, sense));
+        band_surfaces.push((band_surface, link_sense(link)?));
         described.append(&mut arcs);
     }
 
@@ -925,25 +948,13 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // from. The struts leave a complete input face they land on
     // complete or rowless, never half-minted, and this pass re-derives
     // that face with the rest. ----
-    // **The sense bit is the band's, not the verb's.** A rolling-ball
-    // band's chart normal is the radial one, which is outward exactly
-    // on a convex chain — so it folds the stored convexity verdict. A
-    // chamfer's chart normal is minted as an explicit positive
-    // combination of the supports' own OUTWARD normals
-    // (`blend::chamfer_strip`, `blend::chamfer_corner_patch`), so it is
-    // outward whatever the convexity is, and reading the verdict here
-    // would flip a face that was already right.
-    let band_sense = |convexity: Convexity| match kind {
-        BlendKind::Fillet => blend_sense(convexity),
-        BlendKind::Chamfer => true,
-    };
     for (o, fk, surface) in &blend_rows {
         let fk = *fk;
         body.set_face_surface(
             fk,
             FaceSurface::New {
                 surface: surface.clone(),
-                sense: band_sense(o.convexity()),
+                sense: link_sense(o.link())?,
             },
         )
         .map_err(|e| op("blend face surface", e))?;
@@ -954,7 +965,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             fk,
             FaceSurface::New {
                 surface: c.surface.clone(),
-                sense: band_sense(c.convexity),
+                sense: minted_sense(c.convexity),
             },
         )
         .map_err(|e| op("corner patch surface", e))?;
@@ -1148,10 +1159,10 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         }
     }
     for link in chain.links() {
-        if !link.arm.is_coaxial_torus() {
+        if !link.arm.is_coaxial() {
             return Err(unbuilt_chain(
                 link.edge,
-                "a closed chain's blend is not a torus, the only closed blend built",
+                "a closed chain's band is not a torus or a cone, the only closed bands built",
             ));
         }
     }
@@ -1707,7 +1718,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
 /// source body, before any mutation:
 ///
 /// - every junction read as the open door reads one ([`junction::shape`]):
-///   its links rolling-ball bands with a section on different supports,
+///   its links bands with a section on different supports,
 ///   sharing one plane, the vertex carrying one other edge between the
 ///   two mates;
 /// - ONE host for every junction, whose rim cycle (its outer cycle or a
@@ -2322,9 +2333,10 @@ fn ring_pieces<'b, T: Decide>(
             let (carrier, window) = metered_piece(body, edge, face, opens, rims)?;
             match *carrier {
                 Curve3::Line(_) | Curve3::Circle(..) => Ok((edge, carrier, window)),
-                Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
-                    Err(ring_edge_unmetered(edge))
-                }
+                Curve3::Ellipse(..)
+                | Curve3::Spiric { .. }
+                | Curve3::Nurbs(_)
+                | Curve3::Periodic(_) => Err(ring_edge_unmetered(edge)),
             }
         })
         .collect()
@@ -2860,8 +2872,8 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     };
     for o in opens {
         let l = o.link();
-        // A torus link's supports are arm (e)'s.
-        if l.arm.is_coaxial_torus() {
+        // A torus or frustum link's supports are arm (e)'s.
+        if l.arm.is_coaxial() {
             continue;
         }
         let takes = l.arm.is_plane_plane() && cut_off_at_both_ends(l.edge);
@@ -3075,10 +3087,10 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     for support in supports {
         strip_clearance(body, support, opens, band)?;
     }
-    // (e) A torus link between two junctions: each of its supports'
-    // cycles against its strip there, within its own wedge, as a mixed
+    // (e) A torus or frustum link between two junctions: each of its
+    // supports' cycles against its strip there, within its own wedge, as a mixed
     // rim's link is read ([`support_boundary_clearance`]).
-    for o in opens.iter().filter(|o| o.link().arm.is_coaxial_torus()) {
+    for o in opens.iter().filter(|o| o.link().arm.is_coaxial()) {
         let l = o.link();
         let ends = [l.start, l.end];
         for face in [l.face_a, l.face_b] {
@@ -3171,17 +3183,17 @@ fn strip_clearance<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let face = support.face();
-    let torus = |e: EdgeKey| {
+    let revolved = |e: EdgeKey| {
         opens
             .iter()
-            .any(|o| o.edge() == e && o.link().arm.is_coaxial_torus())
+            .any(|o| o.edge() == e && o.link().arm.is_coaxial())
     };
-    // A curved support is admitted only as a torus link's mate between
-    // two junctions (`RequestedBoundary::admit`), whose strip arm (e)
+    // A curved support is admitted only as a torus or frustum link's mate
+    // between two junctions (`RequestedBoundary::admit`), whose strip arm (e)
     // reads whole; anything else reaching here is a plan this meter
     // cannot read, refused rather than passed.
     if outward_of(body, face).is_none() {
-        let mate = support.chords().iter().all(|c| torus(c.edge))
+        let mate = support.chords().iter().all(|c| revolved(c.edge))
             && support
                 .stations()
                 .iter()
@@ -3191,8 +3203,8 @@ fn strip_clearance<T: Decide + Bounds>(
         }
         return Err(invariant_broken(
             EntityId::Face(face),
-            "a curved support reached the planar strip meter other than as a torus link's \
-             mate between two junctions",
+            "a curved support reached the planar strip meter other than as a torus or \
+             frustum link's mate between two junctions",
         ));
     }
     let outer = body
@@ -3205,8 +3217,8 @@ fn strip_clearance<T: Decide + Bounds>(
             .ok_or_else(|| unwalked(EntityId::Loop(lp), "a planar support's cycle"))?;
         boundary.extend(walk.into_iter().map(|(_, _, edge)| edge));
     }
-    // A torus link's strip is no rectangle; arm (e) reads it.
-    for chord in support.chords().iter().filter(|c| !torus(c.edge)) {
+    // A torus or frustum link's strip is no rectangle; arm (e) reads it.
+    for chord in support.chords().iter().filter(|c| !revolved(c.edge)) {
         let o = point_of(body, chord.from)
             .ok_or_else(|| unresolved(EntityId::Vertex(chord.from), "a station's point"))?;
         let t = point_of(body, chord.to)
@@ -3233,7 +3245,10 @@ fn strip_clearance<T: Decide + Bounds>(
             let (carrier, window) = stored_piece(body, edge)?;
             let reach = |u: Vec3<T>| match carrier {
                 Curve3::Line(_) | Curve3::Circle(..) => piece_along(carrier, window, o, u),
-                Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                Curve3::Ellipse(..)
+                | Curve3::Spiric { .. }
+                | Curve3::Nurbs(_)
+                | Curve3::Periodic(_) => {
                     let ends = (carrier.eval(window.0), carrier.eval(window.1));
                     boxed_reach(carrier, window, ends, o, Some(u))
                 }
@@ -3506,7 +3521,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
     /// The level of link `l`'s strip on `face`, windowed when `windowed`.
     fn of(body: &Body<T>, l: &Link<T>, face: FaceKey, windowed: bool) -> Result<Self, BlendError> {
         let (rim_carrier, (t0, t1)) = stored_piece(body, l.edge)?;
-        let (centre, direction, at_trim, rim_at) = if l.arm.is_coaxial_torus() {
+        let (centre, direction, at_trim, rim_at) = if l.arm.is_coaxial() {
             let ((ci, si), _) = rim_trim_circles(l.edge, &l.blend, l.face_a == face)?;
             let Some(rim_circle) = rim_carrier.as_circle() else {
                 return Err(unbuilt_geometry(
@@ -3624,7 +3639,10 @@ impl<T: Decide + Bounds> StripLevel<T> {
                 Some(u) => piece_along(carrier, piece, self.centre, u),
             }
             .map(|r| (r, false))?,
-            Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+            Curve3::Ellipse(..)
+            | Curve3::Spiric { .. }
+            | Curve3::Nurbs(_)
+            | Curve3::Periodic(_) => {
                 let ends = (carrier.eval(piece.0), carrier.eval(piece.1));
                 boxed_reach(carrier, piece, ends, self.centre, self.direction).map(|r| (r, true))?
             }
@@ -3963,7 +3981,10 @@ impl<'a, T: Real> Clippable<'a, T> {
         match carrier {
             Curve3::Line(line) => Some(Self::Line(line)),
             Curve3::Circle(c) => Some(Self::Circle(c)),
-            Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
+            Curve3::Ellipse(..)
+            | Curve3::Spiric { .. }
+            | Curve3::Nurbs(_)
+            | Curve3::Periodic(_) => None,
         }
     }
 
@@ -4051,10 +4072,12 @@ fn co_requested_trim<T: Decide>(
     let (trim, _) = l.trim_on(face).ok_or_else(|| not_a_support(edge))?;
     if let Some(host) = host {
         let (on_host, on_mate) = junction::mixed_trims(body, l, host)?;
-        return Ok(Some(match if face == host { on_host } else { on_mate } {
-            junction::MixedTrim::Line(line) => projected(line),
-            junction::MixedTrim::Arc(c, window) => (c, window),
-        }));
+        return Ok(Some(
+            match (if face == host { on_host } else { on_mate }).curve {
+                junction::TrimCurve::Line(line) => projected(line),
+                junction::TrimCurve::Arc(c, window) => (c, window),
+            },
+        ));
     }
     // A straight link reads its trimline over the stored window
     // projected onto it; an arc, its whole trim circle.
@@ -4156,10 +4179,18 @@ pub(super) enum ContactCarrier<T: Real> {
     Transverse(Curve3<T>),
     /// An exact stored arc (the rim trim circles — π-safe).
     Exact(Curve3<T>, T, T),
+    /// An exact stored arc where the band meets its support
+    /// TRANSVERSALLY: a chamfer frustum's trim circles, described as the
+    /// plain intersection locus, as a [`Self::Chord`] is.
+    Crossing(Curve3<T>, T, T),
     /// A torus band's SLIT: a double-traversed minor-circle arc
     /// described as the SEAM image of the band's own
     /// surface (sweep < π; the donut's representation).
     SeamArc { center: Point3<T>, radius: T },
+    /// A frustum band's SLIT: a double-traversed generator, the segment
+    /// between its two feet, described as the SEAM image of the band's
+    /// own surface.
+    SeamLine,
     /// A mixed rim's SECTION: the rolling ball's circle where two links'
     /// bands meet (sweep < π) — in exact arithmetic a row of both bands'
     /// charts, a cylinder's transverse circle and a torus's meridian.
@@ -4172,6 +4203,13 @@ pub(super) enum ContactCarrier<T: Real> {
     /// be witnessed, which the meeting of both bands with the cap at its
     /// end puts out of any witness's reach.
     Section(BallSection<T>),
+    /// A mixed chamfer chain's SECTION: the generator between the two
+    /// feet where a strip and a frustum meet, in exact arithmetic a row
+    /// of both bands' charts (the strip's plane, the cone's generator,
+    /// along which the plane is the cone's tangent plane). Its carrier is
+    /// the chord between the feet and it is described as the two charts'
+    /// shared row, as a ball's section is.
+    Generator,
 }
 
 /// The third element is the REQUESTED link the contact edge belongs
@@ -4412,6 +4450,73 @@ pub(super) fn retire_fragment(rec: &mut BlendNaming, dying: EdgeKey, source: Edg
     }
 }
 
+/// **A closed rim's band, seamed at its slit**, and the slit's own
+/// carrier: the link's band surface with its chart reference turned to
+/// the azimuth of `foot`, the host foot the slit starts at, which lies
+/// on the host trim circle `(centre, radius)`. A torus band's slit is
+/// its minor circle there, a frustum's its generator there. Certification
+/// demands a seam lie in its surface's own `u_ref` half-plane, and the
+/// reference is conventional data (D2), so it is fixed here, where the
+/// closure is reached.
+fn seamed_band<T: Real>(
+    link: &Link<T>,
+    (centre, radius): (Point3<T>, T),
+    foot: Point3<T>,
+) -> Result<(Surface<T>, ContactCarrier<T>), BlendError> {
+    let radial = (foot - centre) / radius;
+    match link.blend.surface {
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => Ok((
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref: radial,
+            },
+            ContactCarrier::SeamArc {
+                center: center + radial * major_radius,
+                radius: minor_radius,
+            },
+        )),
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => Ok((
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref: radial,
+            },
+            ContactCarrier::SeamLine,
+        )),
+        _ => Err(unbuilt_geometry(
+            EntityId::Edge(link.edge),
+            "a closed rim's band is neither a torus nor a cone",
+        )),
+    }
+}
+
+/// **A closed rim's trim arc as the description pass reads it**: a
+/// tangential contact where the band is a rolling ball's, a transverse
+/// crossing where it is a chamfer's
+/// ([`super::arms::BlendArm::meets_supports_tangentially`]).
+fn trim_contact<T: Real>(link: &Link<T>, curve: Curve3<T>, t0: T, t1: T) -> ContactCarrier<T> {
+    if link.arm.meets_supports_tangentially() {
+        ContactCarrier::Exact(curve, t0, t1)
+    } else {
+        ContactCarrier::Crossing(curve, t0, t1)
+    }
+}
+
 fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
@@ -4544,7 +4649,7 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         let (curve, t0, t1) = ta_carriers[i].clone();
         described.push((
             created.edge,
-            ContactCarrier::Exact(curve, t0, t1),
+            trim_contact(l0, curve, t0, t1),
             plane_walk[i].2,
         ));
     }
@@ -4599,7 +4704,7 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
             )
             .map_err(|e| op("rim mate trim mef", e))?;
         let (curve, t0, t1) = scaled(&rc, cb, sb, !rc.plus_on_host);
-        described.push((created.edge, ContactCarrier::Exact(curve, t0, t1), e));
+        described.push((created.edge, trim_contact(l0, curve, t0, t1), e));
         rec.rim_trims.push((created.edge, e, RimSide::Mate));
         tb_edges.push(created.edge);
     }
@@ -4632,20 +4737,6 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
             .find(|(vv, _, _)| *vv == v)
             .map(|(_, e, m)| (*e, *m))
     };
-    let torus = &rim.chain.first().blend.surface;
-    let Surface::Torus {
-        center: tc,
-        axis: taxis,
-        major_radius: tmaj,
-        minor_radius: tmin,
-        ..
-    } = *torus
-    else {
-        return Err(unbuilt_geometry(
-            EntityId::Edge(rim.chain.first().edge),
-            "a rim blend's surface is not a torus",
-        ));
-    };
     // The band's chart is SEAMED at the slit (certification demands a
     // Seam edge lie in the surface's own u_ref half-plane); the u_ref
     // is conventional data (D2), fixed when the closure vertex is
@@ -4675,30 +4766,16 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
             // the rim vertex dies, and its remaining edge — the upper
             // meridian remnant — fan-merges onto the foot, becoming
             // the slit ([`junction::retire`]).
-            // The slit's true carrier: the torus minor circle at this
+            // The slit's true carrier: the band's meridian at this
             // vertex's azimuth (radial read off the foot, which lies
             // on the trim circle).
-            let fp = strut_hes[idx].1;
-            let radial = (fp - ca) / sa;
+            let (seamed, slit) = seamed_band(rim.chain.first(), (ca, sa), strut_hes[idx].1)?;
             junction::retire(body, *sp, *v, mr, "rim closure kev", tol)?;
             // The slit SURVIVES as the band's own double-traversed
             // meridian: a birth row, not a death.
             rec.slits.push((mr, msrc, band_named.clone()));
-            described.push((
-                mr,
-                ContactCarrier::SeamArc {
-                    center: tc + radial * tmaj,
-                    radius: tmin,
-                },
-                plane_walk[idx].2,
-            ));
-            band_surface = Some(Surface::Torus {
-                center: tc,
-                axis: taxis,
-                major_radius: tmaj,
-                minor_radius: tmin,
-                u_ref: radial,
-            });
+            described.push((mr, slit, plane_walk[idx].2));
+            band_surface = Some(seamed);
         } else {
             sources.kef_minted(body, hp, "rim strut kef", tol)?;
             // The upper meridian remnant at this vertex is now a spur
@@ -5186,19 +5263,6 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     // DETECTED, but by `validate_geometric` and not here, which is why
     // every fixture row for this door validates rather than trusting
     // the mint.
-    let Surface::Torus {
-        center: tc,
-        axis: taxis,
-        major_radius: tmaj,
-        minor_radius: tmin,
-        ..
-    } = l0.blend.surface
-    else {
-        return Err(unbuilt_geometry(
-            EntityId::Edge(l0.edge),
-            "a rim blend's surface is not a torus",
-        ));
-    };
 
     // ---- Per ARC: its two trimlines, selected by support FACE and
     // never by slot (`rim_trim_circles` docs), in the rim's own frame
@@ -5558,15 +5622,11 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
              above were derived through that same correspondence"
         )
     };
-    let (cc, cr) = arcs[closure_arc].host_circle;
-    let radial = (feet_targets[ann.closure].host - cc) / cr;
-    let band_surface = Surface::Torus {
-        center: tc,
-        axis: taxis,
-        major_radius: tmaj,
-        minor_radius: tmin,
-        u_ref: radial,
-    };
+    let (band_surface, slit) = seamed_band(
+        l0,
+        arcs[closure_arc].host_circle,
+        feet_targets[ann.closure].host,
+    )?;
     let Some(first_mate) = mate_trims.first() else {
         unreachable!(
             "annulus band: one mate trim is minted per chain link and a chain always \
@@ -5590,7 +5650,8 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     for (i, link) in link_edges.iter().enumerate() {
         described.push((
             host_trims[i].edge,
-            ContactCarrier::Exact(
+            trim_contact(
+                l0,
                 arcs[i].host_curve.clone(),
                 arcs[i].host_window.0,
                 arcs[i].host_window.1,
@@ -5601,7 +5662,8 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     for (i, link) in link_edges.iter().enumerate() {
         described.push((
             mate_trims[i].edge,
-            ContactCarrier::Exact(
+            trim_contact(
+                l0,
                 arcs[i].mate_curve.clone(),
                 arcs[i].mate_window.0,
                 arcs[i].mate_window.1,
@@ -5611,14 +5673,7 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     }
     // The slit is the band's own seam; the arc the closure crossing
     // starts is the link it belongs to.
-    described.push((
-        mate_feet[ann.closure].near,
-        ContactCarrier::SeamArc {
-            center: tc + radial * tmaj,
-            radius: tmin,
-        },
-        link_edges[closure_arc],
-    ));
+    described.push((mate_feet[ann.closure].near, slit, link_edges[closure_arc]));
 
     // Birth data. A host foot is the band's foot on the host support; a
     // mate foot is a split of that support's seam; the closure
@@ -5677,8 +5732,8 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     Ok((band_face, band_surface, described))
 }
 
-/// A mixed rim's band faces with their surfaces, in chain-link order.
-type BandFaces<T> = Vec<(FaceKey, Surface<T>)>;
+/// A mixed rim's band faces with their surfaces and their links, in chain-link order.
+type BandFaces<T> = Vec<(FaceKey, Surface<T>, EdgeKey)>;
 
 /// **The mixed rim's carve** ([`MixedRim`]): the annulus walk's moves
 /// with one band face per link.
@@ -5698,7 +5753,7 @@ type BandFaces<T> = Vec<(FaceKey, Surface<T>)>;
 /// The edge off the rim is read LIVE at each junction: another band of
 /// the same call carving the same mates (the other rim of an extruded
 /// wall) has split it already, and its fragment is what meets this rim.
-/// Returns each band face with its surface, in chain-link order.
+/// Returns each band face with its surface and its link's edge, in chain-link order.
 #[allow(clippy::too_many_lines)]
 fn rim_phase_mixed<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
@@ -5879,13 +5934,13 @@ fn rim_phase_mixed<T: Decide + Bounds + topo::AtRestPolicy>(
                  the `kef`s above kill the host strips"
             )
         };
-        if rim.mates.contains(&face) || face == host || faces.iter().any(|(f, _)| *f == face) {
+        if rim.mates.contains(&face) || face == host || faces.iter().any(|(f, _, _)| *f == face) {
             return Err(disagrees(
                 EntityId::Face(face),
                 "a mixed rim's band face merged into a support or another link's band",
             ));
         }
-        faces.push((face, surfaces[i].clone()));
+        faces.push((face, surfaces[i].clone(), l.edge));
         rec.blends.push((face, l.edge));
     }
 
@@ -6100,15 +6155,21 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             }
         }
     };
-    let is_seam = matches!(carrier, ContactCarrier::SeamArc { .. });
-    let is_section = matches!(carrier, ContactCarrier::Section { .. });
+    let is_seam = matches!(
+        carrier,
+        ContactCarrier::SeamArc { .. } | ContactCarrier::SeamLine
+    );
+    let is_section = matches!(
+        carrier,
+        ContactCarrier::Section { .. } | ContactCarrier::Generator
+    );
     let plane = match &carrier {
         ContactCarrier::Section(section) => Some(section.normal),
         _ => None,
     };
     let transverse = matches!(
         carrier,
-        ContactCarrier::Chord | ContactCarrier::Transverse(_)
+        ContactCarrier::Chord | ContactCarrier::Transverse(_) | ContactCarrier::Crossing(..)
     );
     // A stored carrier placed over the edge: windowed at its endpoints,
     // and run back where `p1` reads before `p0`, the same locus.
@@ -6125,7 +6186,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     let (curve, t0, t1) = match carrier {
         ContactCarrier::TrimLine(line) => placed(Curve3::Line(line))
             .ok_or_else(|| disagrees(EntityId::Edge(edge), "a trimline's end parameter"))?,
-        ContactCarrier::Chord => {
+        ContactCarrier::Chord | ContactCarrier::SeamLine | ContactCarrier::Generator => {
             let len = p0.distance(p1);
             (Curve3::line(p0, (p1 - p0) / len), T::zero(), len)
         }
@@ -6174,7 +6235,9 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // the edge runs whichever way its `he_plus` does.
         ContactCarrier::Transverse(curve) => placed(curve)
             .ok_or_else(|| disagrees(EntityId::Edge(edge), "a cut-off arc's end parameter"))?,
-        ContactCarrier::Exact(curve, t0, t1) => (curve, t0, t1),
+        ContactCarrier::Exact(curve, t0, t1) | ContactCarrier::Crossing(curve, t0, t1) => {
+            (curve, t0, t1)
+        }
     };
     let description = if is_seam {
         if s1 != s2 {

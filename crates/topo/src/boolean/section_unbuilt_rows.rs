@@ -15,7 +15,6 @@ use geom_brep::{
     CarryError, CarryErrorKind, CarryRefusal, CarryRefusalKind, LoopTubeRefusal, NoCarrier,
     WindsRefusal,
 };
-use geom_core::spline::{Built, Fact as _, KnotAlgebraError, KnotVectorIssue, SplineError};
 use strum::{IntoEnumIterator as _, VariantArray as _};
 use test_utils::refusal::Admission;
 
@@ -68,22 +67,6 @@ fn carried(kind: CarryRefusalKind) -> Vec<(String, SectionUnbuilt)> {
             PieceWalkRefusal::VARIANTS,
             CarryRefusal::Unwalked,
         ),
-        CarryRefusalKind::Seat => vec![
-            (
-                "Seat".to_owned(),
-                SectionUnbuilt::Carry(CarryRefusal::Seat(Built::new(
-                    KnotAlgebraError::KnotNotPresent { u: 0.5 },
-                ))),
-            ),
-            (
-                "Seat (structure)".to_owned(),
-                SectionUnbuilt::Carry(CarryRefusal::Seat(Built::new(KnotAlgebraError::Structure(
-                    SplineError::KnotVectorInvalid {
-                        reason: KnotVectorIssue::Decreasing { index: 3 },
-                    },
-                )))),
-            ),
-        ],
     }
 }
 
@@ -216,21 +199,4 @@ fn every_section_unbuilt_arm_ends_on_one_recourse() {
         names.iter().map(String::as_str),
     ));
     assert!(problems.is_empty(), "{}", problems.join("\n"));
-}
-
-/// **A seat refused on its knots' structure keeps the structure's fact**
-/// for the defect report, and states the knot API's own recourse nowhere.
-#[test]
-fn a_refused_seat_keeps_the_structures_fact() {
-    let issue = KnotVectorIssue::Decreasing { index: 3 };
-    let text = CarryError::Refused(CarryRefusal::Seat(Built::new(KnotAlgebraError::Structure(
-        SplineError::KnotVectorInvalid { reason: issue },
-    ))))
-    .render(Reading::Build);
-    assert!(
-        text.contains(&issue.fact().to_string())
-            && text.ends_with(geom_core::KERNEL_DEFECT_ENDING)
-            && text.matches("Recourse:").count() == 0,
-        "{text}"
-    );
 }

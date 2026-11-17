@@ -59,6 +59,7 @@ pub mod conic;
 pub mod fit;
 pub mod nurbs;
 mod on_carrier;
+pub mod periodic_nurbs;
 pub mod projection;
 pub mod second_derivative;
 
@@ -78,6 +79,9 @@ pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use on_carrier::{
     CarrierEscalation, CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep,
     PieceWalkRefusal, ellipse_level_clearance,
+};
+pub use periodic_nurbs::{
+    PERIODIC_DEGREE, PERIODIC_MIN_KNOTS, PeriodicError, PeriodicNurbs3, PeriodicViewError,
 };
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
@@ -193,6 +197,14 @@ pub enum Curve3<T: Real> {
     /// [`Curve3::nurbs_placeholder`] — a poison-valued payload with the
     /// same all-poison evaluation behavior.
     Nurbs(Arc<NurbsCurve3<T>>),
+
+    /// **The periodic cubic**: a closed C² cubic spline with no start
+    /// and a period, as a circle has ([`PeriodicNurbs3`]). A closed
+    /// fitted section loop is one. It is a kind of its own and not a
+    /// [`Curve3::Nurbs`] with a flag: its knots and control points are
+    /// cyclic, so a clamped reader asks for the clamped view over the
+    /// span it reads ([`Curve3::clamped_net`]).
+    Periodic(Arc<PeriodicNurbs3<T>>),
 }
 
 /// Which [`Curve3`] variant a carrier is: the workspace's one fieldless
@@ -215,6 +227,8 @@ pub enum CurveKind {
     Spiric,
     /// A [`Curve3::Nurbs`], described or the placeholder.
     Nurbs,
+    /// A [`Curve3::Periodic`].
+    Periodic,
 }
 
 impl<T: SpanLocate> Curve3<T> {
@@ -293,12 +307,14 @@ impl<T: SpanLocate> Curve3<T> {
                     && same(*offset, *off)
             }
             (Self::Nurbs(n), Self::Nurbs(m)) => n.same_content(m, same),
+            (Self::Periodic(n), Self::Periodic(m)) => n.same_content(m, same),
             (
                 Self::Line(_)
                 | Self::Circle(_)
                 | Self::Ellipse(_)
                 | Self::Spiric { .. }
-                | Self::Nurbs(_),
+                | Self::Nurbs(_)
+                | Self::Periodic(_),
                 _,
             ) => false,
         }
@@ -352,6 +368,7 @@ impl<T: Real> Curve3<T> {
             Self::Ellipse { .. } => CurveKind::Ellipse,
             Self::Spiric { .. } => CurveKind::Spiric,
             Self::Nurbs(_) => CurveKind::Nurbs,
+            Self::Periodic(_) => CurveKind::Periodic,
         }
     }
 }
@@ -379,6 +396,7 @@ impl CurveKind {
             Self::Ellipse => "ellipse",
             Self::Spiric => "spiric",
             Self::Nurbs => "nurbs",
+            Self::Periodic => "periodic",
         }
     }
 
@@ -392,6 +410,7 @@ impl CurveKind {
             Self::Ellipse => "elliptical",
             Self::Spiric => "toric-section",
             Self::Nurbs => "spline",
+            Self::Periodic => "periodic-spline",
         }
     }
 }
@@ -657,6 +676,8 @@ pub enum CurveData<'a, T: Real> {
     Analytic(crate::AnalyticData<T, CurveDatum>),
     /// A spline net, unread.
     Nurbs(&'a Arc<NurbsCurve3<T>>),
+    /// A periodic cubic, unread.
+    Periodic(&'a Arc<PeriodicNurbs3<T>>),
 }
 
 /// **A straight line** `origin + dir·t`: what [`Curve3::as_line`] reads
@@ -1031,15 +1052,19 @@ impl<T: Real> Curve3<T> {
     pub fn as_line(&self) -> Option<Line<T>> {
         match *self {
             Curve3::Line(line) => Some(line),
-            Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
-                None
-            }
+            Curve3::Circle(_)
+            | Curve3::Ellipse(_)
+            | Curve3::Spiric { .. }
+            | Curve3::Nurbs(_)
+            | Curve3::Periodic(_) => None,
         }
     }
 
     /// **The carrier's period, where its parameter repeats**: a circle's
     /// and an ellipse's ([`Circle::period`], [`Ellipse::period`]) and a
-    /// spiric oval's ([`spiric_period`]), each kind's own statement; a line and a spline do not repeat (`None`).
+    /// spiric oval's ([`spiric_period`]) and a periodic cubic's
+    /// ([`PeriodicNurbs3::period`]), each kind's own statement; a line
+    /// and a clamped spline do not repeat (`None`).
     /// Matched exhaustively over the kinds. A renaming by whole periods,
     /// or a reading on a copy a period away ([`Period::span_margins`]),
     /// reads it.
@@ -1049,6 +1074,7 @@ impl<T: Real> Curve3<T> {
             Curve3::Circle(c) => Some(c.period()),
             Curve3::Ellipse(e) => Some(e.period()),
             Curve3::Spiric { .. } => Some(spiric_period()),
+            Curve3::Periodic(p) => Some(Period::new(p.period())),
             Curve3::Line(_) | Curve3::Nurbs(_) => None,
         }
     }
@@ -1060,7 +1086,40 @@ impl<T: Real> Curve3<T> {
     pub fn as_circle(&self) -> Option<&Circle<T>> {
         match self {
             Self::Circle(c) => Some(c),
-            Self::Line(_) | Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
+            Self::Line(_)
+            | Self::Ellipse(_)
+            | Self::Spiric { .. }
+            | Self::Nurbs(_)
+            | Self::Periodic(_) => None,
+        }
+    }
+
+    /// **The carrier read as a periodic cubic**: its own
+    /// [`PeriodicNurbs3`], `None` for every other kind.
+    #[must_use]
+    pub fn as_periodic(&self) -> Option<&PeriodicNurbs3<T>> {
+        match self {
+            Self::Periodic(p) => Some(p),
+            Self::Line(_)
+            | Self::Circle(_)
+            | Self::Ellipse(_)
+            | Self::Spiric { .. }
+            | Self::Nurbs(_) => None,
+        }
+    }
+
+    /// **The net that holds a whole spline carrier**: a clamped spline's
+    /// own, and a periodic cubic's base opening
+    /// ([`PeriodicNurbs3::whole_loop`]), whose hull holds the whole loop
+    /// and whose rate bounds are the loop's. `None` for the closed
+    /// forms. For a reading that depends on neither a span nor the
+    /// parameter; a reader of a span asks [`Self::clamped_net`].
+    #[must_use]
+    pub fn whole_net(&self) -> Option<&NurbsCurve3<T>> {
+        match self {
+            Self::Nurbs(n) => Some(n),
+            Self::Periodic(p) => Some(p.whole_loop()),
+            Self::Line(_) | Self::Circle(_) | Self::Ellipse(_) | Self::Spiric { .. } => None,
         }
     }
 
@@ -1080,7 +1139,7 @@ impl<T: Real> Curve3<T> {
                 minor_radius: _,
                 offset: _,
             } => Some(Frame::new(center, axis, u_ref)),
-            Self::Line(_) | Self::Nurbs(_) => None,
+            Self::Line(_) | Self::Nurbs(_) | Self::Periodic(_) => None,
         }
     }
 
@@ -1159,6 +1218,7 @@ impl<T: Real> Curve3<T> {
                 (D::Offset, Scalar(offset)),
             ]),
             Curve3::Nurbs(ref n) => return CurveData::Nurbs(n),
+            Curve3::Periodic(ref n) => return CurveData::Periodic(n),
         })
     }
 }
@@ -1222,7 +1282,9 @@ impl<T: Real> Curve3<T> {
             } => core::iter::once(lower(CurveDatum::MinorRadius, *minor_radius))
                 .chain(frame(*axis, *u_ref, *major_radius + *minor_radius))
                 .collect(),
-            Curve3::Line(Line { origin: _, dir: _ }) | Curve3::Nurbs(_) => Vec::new(),
+            Curve3::Line(Line { origin: _, dir: _ }) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+                Vec::new()
+            }
         }
     }
 
@@ -1281,7 +1343,7 @@ impl<T: Decide> Curve3<T> {
                 major_radius,
                 ..
             } => Some(tube_section(*center, *axis, *major_radius, p)),
-            Curve3::Line(_) | Curve3::Nurbs(_) => None,
+            Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
         }
     }
 
@@ -1458,7 +1520,9 @@ impl<T: Real> Curve3<T> {
     /// −θ about the flipped axis, `v_ref = axis × u_ref` flipping with
     /// it); a spiric flips its axis, its `u_ref` and its offset, the
     /// two spellings its docs name as one oval in opposite senses.
-    /// `None` for a NURBS, whose knot vector a reversal would mirror.
+    /// `None` for a NURBS, whose knot vector a reversal would mirror; a
+    /// periodic cubic is the same data read back
+    /// ([`PeriodicNurbs3::reversed`]).
     #[must_use]
     pub fn reversed(&self) -> Option<Self> {
         Some(match self.clone() {
@@ -1487,6 +1551,7 @@ impl<T: Real> Curve3<T> {
                 offset: T::zero() - offset,
             },
             Curve3::Nurbs(_) => return None,
+            Curve3::Periodic(p) => Curve3::Periodic(Arc::new(p.reversed())),
         })
     }
 }
@@ -1524,7 +1589,7 @@ impl<T: Real> Curve3<T> {
                 minor_radius,
                 offset,
             },
-            Curve3::Nurbs(_) => return None,
+            Curve3::Nurbs(_) | Curve3::Periodic(_) => return None,
         })
     }
 }
@@ -1722,6 +1787,34 @@ pub fn spiric_radial<T: Real>(major: T, minor: T, offset: T, c: T) -> (T, T) {
     (rho, (rho.powi(2) - offset.powi(2)).sqrt())
 }
 
+impl<T: SpanLocate> Curve3<T> {
+    /// **The clamped net a reader of the span `(t0, t1)` reads**: a
+    /// clamped spline's own net, whatever the span; a periodic cubic's
+    /// clamped view over the span ([`PeriodicNurbs3::clamped_view`]),
+    /// whose interior knots are simple. `None` for the closed forms,
+    /// which have no net.
+    ///
+    /// # Errors
+    ///
+    /// [`PeriodicViewError`] where a periodic cubic has no view over the
+    /// span, an end that is no single point among them.
+    pub fn clamped_net(
+        &self,
+        (t0, t1): (T, T),
+    ) -> Option<Result<Arc<NurbsCurve3<T>>, PeriodicViewError>> {
+        match self {
+            Curve3::Nurbs(net) => Some(Ok(Arc::clone(net))),
+            Curve3::Periodic(p) => Some(
+                p.clamped_view((t0.value_channel(), t1.value_channel()))
+                    .map(Arc::new),
+            ),
+            Curve3::Line(_) | Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => {
+                None
+            }
+        }
+    }
+}
+
 impl Curve3<geom_core::Interval> {
     /// **The same curve, remembering what its net restricts**
     /// ([`NurbsCurve3::with_span_memo`], whose caller contract this
@@ -1734,6 +1827,18 @@ impl Curve3<geom_core::Interval> {
             other => other.clone(),
         }
     }
+}
+
+/// **Which side of a parameter a reading stands on**: the parameters
+/// below it or those above it. A one-sided reading at a knot
+/// ([`Curve3::ders1_from`]) reads the span on that side, and a window
+/// held at a span's end reads the side its span runs to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParamSide {
+    /// The parameters below.
+    Below,
+    /// The parameters above.
+    Above,
 }
 
 impl<T: SpanLocate> Curve3<T> {
@@ -1774,6 +1879,7 @@ impl<T: SpanLocate> Curve3<T> {
                 *center + *u_ref * *offset + m * f + *axis * (*minor_radius * s)
             }
             Curve3::Nurbs(n) => n.eval(t),
+            Curve3::Periodic(n) => n.eval(t),
         }
     }
 
@@ -1823,6 +1929,7 @@ impl<T: SpanLocate> Curve3<T> {
                 m * f1 + *axis * (*minor_radius * c)
             }
             Curve3::Nurbs(n) => n.deriv(t),
+            Curve3::Periodic(n) => n.deriv(t),
         }
     }
 
@@ -1877,6 +1984,17 @@ impl<T: SpanLocate> Curve3<T> {
                 )
             }
             Curve3::Nurbs(n) => n.ders1(t),
+            Curve3::Periodic(n) => n.ders1(t),
+        }
+    }
+
+    /// **[`Self::ders1`] from one side of `t`** (`side`): a spline's
+    /// [`NurbsCurve3::ders1_from`], the one-sided derivative at a crease.
+    /// Every other kind is smooth, and reads [`Self::ders1`].
+    pub fn ders1_from(&self, t: T, side: ParamSide) -> (Point3<T>, Vec3<T>) {
+        match self {
+            Curve3::Nurbs(n) => n.ders1_from(t, side),
+            _ => self.ders1(t),
         }
     }
 
@@ -1914,6 +2032,7 @@ impl<T: SpanLocate> Curve3<T> {
                 m * f2 - *axis * (r * s)
             }
             Curve3::Nurbs(n) => n.deriv2(t),
+            Curve3::Periodic(n) => n.deriv2(t),
         }
     }
 }

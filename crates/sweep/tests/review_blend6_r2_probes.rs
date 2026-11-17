@@ -135,43 +135,34 @@ fn no_inner_error_opens_with_a_verb_word_on_either_door() {
     );
 }
 
-/// **PROBE 2 — the chamfer-purity property rests on an unguarded
-/// unreachability argument.**
+/// **PROBE 2 — a chamfer's mixed chain speaks as the chamfer.**
 ///
-/// The surgery's closed-chamfer arm (`surgery.rs`, the `Chamfer` arm
-/// of the closure match) mints `UnsupportedChain`, whose `Display`
-/// appends the CONDITIONED assembly recourse — and that recourse
-/// names the other verb ("for a fillet, closed chains that are
-/// circular rims between two coaxial revolution surfaces … also
-/// carve"). So if that arm ever
-/// fires, a chamfer caller reads a message containing "fillet", which
-/// is exactly what the unit's own `assert_speaks_as_the_chamfer`
-/// forbids.
-///
-/// The arm is argued unreachable (a G1-closed chain of plane–plane
-/// links has line carriers and cannot close). Nothing computes that
-/// argument; this row makes the consequence explicit.
+/// A chamfer's chain of lines and arcs reaches the junction's
+/// `UnsupportedChain` sites (`junction::shape`, here two consecutive
+/// links on one support pair), whose `Display` appends the assembly
+/// recourse, and so do its closed rims (a frustum rim sharing its host),
+/// so that recourse's closed clause names no verb ("where the verb's
+/// arms cover it"). This row holds the rendered text to the purity
+/// property `assert_speaks_as_the_chamfer` states: a chamfer refusal
+/// never says "fillet".
 #[test]
-fn the_closed_chamfer_arm_would_speak_the_other_verb_if_it_ever_fired() {
+fn a_chamfer_junction_refusal_speaks_as_the_chamfer() {
     let body = cube::<f64>(L, Tol::witness());
     let edge = query::all_edges(&body)[0];
     let refusal = BlendRefusal {
         verb: BlendKind::Chamfer,
         error: BlendError::UnsupportedChain {
             edge,
-            detail: "a closed chamfer chain has no band; only open chains between \
-                     trivalent corners are implemented",
+            detail: "a chain of links on different supports has two consecutive links on one \
+                     support pair",
         },
     };
     let text = refusal.render(geom_brep::recourse::Reading::Build);
     let without_rosters = text.replace("fillet3_", "");
     assert!(
-        without_rosters.contains("fillet"),
-        "if this row goes red the conditioned clause was reworded and the tension \
-         is gone: {text}"
+        !without_rosters.contains("fillet"),
+        "a chamfer refusal must not speak as the fillet: {text}"
     );
-
-    // And the shipped purity helper's own predicate is what it fails.
     assert!(text.starts_with("chamfer: "), "{text}");
 }
 
@@ -217,7 +208,7 @@ fn no_chamfer_refusal_is_ever_one_of_the_ball_only_arms() {
 /// chamfer-only arm is unreachable from the FILLET door on the same
 /// fixture that reaches it from the chamfer door.
 ///
-/// A circular prism's rim edges carry a plane and a cylinder. Through
+/// The dome's equator carries a plane and a sphere. Through
 /// `chamfer_edges` that is the chamfer's own arm-table refusal; through
 /// `fillet_edges` the same edges go to the analytic table instead, so
 /// `ChamferArmUnsupported` — claimed chamfer-only — must never appear.
@@ -225,13 +216,13 @@ fn no_chamfer_refusal_is_ever_one_of_the_ball_only_arms() {
 /// rather than only the ball-only half.
 #[test]
 fn the_chamfer_only_arm_is_unreachable_from_the_fillet_door() {
-    let cyl = cylinder(0.5, 1.0);
+    let cyl = sweep::test_support::dome(1.0, Tol::witness());
     let edges = query::all_edges(&cyl);
     let t = Tol::witness();
 
     // The chamfer door reaches its own arm on this fixture.
     let chamfered = chamfer_edges(&sweep::test_support::at_rest(&cyl, t), &edges, D, t)
-        .expect_err("a curved support has no ruled strip");
+        .expect_err("a sphere support has no chamfer band");
     assert!(
         matches!(chamfered.error, BlendError::ChamferArmUnsupported { .. }),
         "the fixture must reach the chamfer's own arm: {:?}",
@@ -258,29 +249,6 @@ fn the_chamfer_only_arm_is_unreachable_from_the_fillet_door() {
             );
         }
     }
-}
-
-/// A circular prism: two half-arc profile segments extruded, so every
-/// rim edge has a plane and a CYLINDER for supports.
-fn cylinder(r: f64, h: f64) -> Body<f64> {
-    let lp = bulge_loop(vec![
-        (Point2::new(-r, 0.0), 1.0),
-        (Point2::new(r, 0.0), 1.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("a circle is a valid profile");
-    extrude(
-        &profile,
-        Extrusion::Distance {
-            depth: h,
-            side: ExtrudeSide::Along,
-        },
-        Tol::witness(),
-    )
-    .expect("a circular prism")
-    .body
-    .into_body()
 }
 
 /// Every refusal the shipped fixtures reach through EITHER door, each
@@ -375,17 +343,27 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
         .error,
     ));
 
+    // Square, a mixed corner's odd edge with one other chamfers; where
+    // the face the other two share leans off square to it, it refuses.
     let bracket = l_bracket();
     let odd_and_one = sweep::test_support::reflex_edge_and_floor_leg(&bracket, (0.5, 0.5));
+    chamfer_edges(
+        &sweep::test_support::at_rest(&bracket, t),
+        &odd_and_one,
+        D,
+        t,
+    )
+    .expect("a square mixed corner's odd edge with one other chamfers");
+    let leaning = crate::band_mixed_corner::leaning();
     out.push((
         "corner configuration",
         chamfer_edges(
-            &sweep::test_support::at_rest(&bracket, t),
-            &odd_and_one,
+            &sweep::test_support::at_rest(&leaning, t),
+            &crate::band_mixed_corner::leaning_odd_and_one(&leaning),
             D,
             t,
         )
-        .expect_err("a mixed-convexity corner's odd edge with one other has no rule built")
+        .expect_err("an oblique mixed corner's odd edge with one other has no rule built")
         .error,
     ));
 

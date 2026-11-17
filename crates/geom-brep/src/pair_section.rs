@@ -2073,51 +2073,51 @@ impl<T: Decide> PairSection<T> {
         Ok(j)
     }
 
-    /// **A closed fitted component, opened at the parameter `at`** of
-    /// its carrier, so that no chord cut from it straddles the carrier's
-    /// parameter seam: the carrier is split at `at` (knot insertion to
-    /// full multiplicity), its two pieces are joined the other way round
-    /// (the piece after `at` first, the piece before it shifted by the
-    /// carrier's period), and the joined carrier is certified again
-    /// against the pose's operands through `lane`, since the shifted
-    /// knots are rounded. The seated carrier runs from `at`'s point
-    /// round to it. A closed form (a circle or an ellipse, whose
-    /// parameter is an angle) is seated by its span alone, `at` to `at`
-    /// plus a turn, its carrier as it is and its witness the new span's
-    /// middle. A component that is open, or a
-    /// spline holding no certificate, is returned as it is.
+    /// **A closed component, seated at the parameter `at`** of its
+    /// carrier, so that no chord cut from it straddles its span's ends:
+    /// the span is `at` to `at` plus a turn, and the carrier is as it
+    /// is. A circle or an ellipse, whose parameter is an angle, takes its
+    /// witness at the new span's middle; a fitted loop, a periodic cubic
+    /// with no start, keeps its own, which its reach is read about. A
+    /// component that is open is returned as it is.
     ///
     /// # Errors
     ///
-    /// [`CarryRefusal::NoLane`] off the march's scalar,
-    /// [`CarryRefusal::Seat`] where the knot edit refuses, and the
-    /// certificate's refusal as [`CarryRefusal::March`].
+    /// A desync for a closed component on a carrier with no period.
     pub fn seat(
         &self,
-        lane: Option<SsiLane<T>>,
         component: &CarriedComponent<T>,
         at: T,
-        band: Band,
     ) -> Result<CarriedComponent<T>, CarryError> {
         if !component.closed() {
             return Ok(component.clone());
         }
-        if matches!(component.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
-            let (lo, hi) = component.span;
-            let span = (at, at + (hi - lo));
-            return Ok(CarriedComponent {
-                span,
-                witness: component.carrier.mid_point(span.0, span.1),
-                ..component.clone()
-            });
+        let (lo, hi) = component.span;
+        let turn = hi - lo;
+        match &component.carrier {
+            Curve3::Circle(_) | Curve3::Ellipse(_) => {
+                let span = (at, at + turn);
+                Ok(CarriedComponent {
+                    span,
+                    witness: component.carrier.mid_point(span.0, span.1),
+                    ..component.clone()
+                })
+            }
+            // Read in the loop's base turn, so the span and every chord
+            // of it lie in the two turns a clamped view is cut from
+            // ([`geom::PeriodicNurbs3::view_window`]).
+            Curve3::Periodic(p) => {
+                let (base, _) = p.base_span_in();
+                let at = geom_core::period::Period::new(p.period()).at_or_above(at, base);
+                Ok(CarriedComponent {
+                    span: (at, at + turn),
+                    ..component.clone()
+                })
+            }
+            Curve3::Line(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => Err(CarryError::Desync(
+                "a closed component's carrier has no period to be seated by",
+            )),
         }
-        if component.certificate.is_none() {
-            return Ok(component.clone());
-        }
-        let lane = lane.ok_or(CarryError::Refused(CarryRefusal::NoLane {
-            scalar: T::NAME,
-        }))?;
-        (lane.seat)(&self.pose, component, at, band)
     }
 }
 
@@ -2194,9 +2194,6 @@ pub struct SsiLane<T: Real> {
     /// One march of a classified section's pose, each branch's winding
     /// read.
     march: fn(&PairSection<T>, Band) -> Marched<T>,
-    /// One closed fitted component seated at a parameter, re-certified
-    /// against the pose's operands ([`PairSection::seat`]).
-    seat: fn(&PairPose<T>, &CarriedComponent<T>, T, Band) -> Seated<T>,
     /// A spline wall and an implicit surface's classification past what
     /// the scalar reads ([`spline_implicit`]): a curved partner's hull and
     /// door, the boundary pass, the regularity sweep, and where it
@@ -2210,10 +2207,6 @@ pub struct SsiLane<T: Real> {
     spline_pair: fn(SplinePairPose<T>, Band) -> Result<PairSection<T>, SectionError>,
 }
 
-/// What one seating answers: the component opened at the parameter
-/// ([`PairSection::seat`]).
-pub type Seated<T> = Result<CarriedComponent<T>, CarryError>;
-
 /// What one march of a pose answers: its fitted branches.
 type Marched<T> = Result<Vec<FittedCarrier<T>>, CarryError>;
 
@@ -2223,7 +2216,6 @@ impl SsiLane<f64> {
     pub fn marched() -> Self {
         Self {
             march: march_over_the_ball,
-            seat: seat_at,
             spline: spline_implicit::section,
             whole: spline_implicit::whole,
             spline_pair: spline_pair::section,
@@ -2278,6 +2270,7 @@ fn march_over_the_ball(
             let closed = matches!(br.end, BranchEnd::Closed);
             let tube = Tube::of(
                 &br.carrier,
+                br.params,
                 &br.certificate,
                 geom::mid_param(br.params.0, br.params.1),
             )?;
@@ -2320,12 +2313,14 @@ struct Tube {
 }
 
 impl Tube {
-    /// The tube of the loop `carrier` certified by `certificate`, its
-    /// witness at `carrier(at)`: its chain's boxes, each its own piece
-    /// over its span, read for the pad and reach by [`pad_and_reach`]
-    /// against [`PAD_SAMPLES`] carrier points per box.
+    /// The tube of the branch `carrier` over `span`, certified by
+    /// `certificate` on its net over that span (a loop's base opening),
+    /// its witness at `carrier(at)`: its chain's boxes, each its own
+    /// piece over its span, read for the pad and reach by
+    /// [`pad_and_reach`] against [`PAD_SAMPLES`] carrier points per box.
     fn of(
         carrier: &Curve3<f64>,
+        span: (f64, f64),
         certificate: &SsiCertificate<f64>,
         at: f64,
     ) -> Result<Self, CarryError> {
@@ -2334,11 +2329,12 @@ impl Tube {
                 "an ℝ³ march's certificate proved no spatial tube",
             ));
         };
-        let Curve3::Nurbs(net) = carrier else {
+        let Some(Ok(net)) = carrier.clamped_net(span) else {
             return Err(CarryError::Desync(
-                "a fitted component's carrier is not a spline",
+                "a fitted component's carrier is not a spline over its span",
             ));
         };
+        let net = &*net;
         let chain = crate::ssi::certify::tube_chain(net, radius);
         let pieces: Vec<TubePiece> = chain
             .iter()
@@ -2520,153 +2516,6 @@ fn farthest(b: crate::ssi::enclose::Box3, p: Point3<geom_core::Interval>) -> f64
     crate::carrier_net::diagonal(&gaps) * (1.0 + 1e-12)
 }
 
-/// **[`PairSection::seat`] at `f64`.** `at` at either end of the
-/// carrier's domain is a seat already: the carrier starts there.
-fn seat_at(
-    pose: &PairPose<f64>,
-    component: &CarriedComponent<f64>,
-    at: f64,
-    band: Band,
-) -> Result<CarriedComponent<f64>, CarryError> {
-    match pose {
-        PairPose::SplineImplicit(_) => {
-            return Err(CarryError::Refused(CarryRefusal::Unminted(
-                NoCarrier::ChartLoop,
-            )));
-        }
-        PairPose::SplinePair(_) => {
-            return Err(CarryError::Refused(CarryRefusal::Unminted(
-                NoCarrier::SplinePairWhole,
-            )));
-        }
-        _ => {}
-    }
-    let Curve3::Nurbs(net) = &component.carrier else {
-        return Err(CarryError::Desync(
-            "a fitted component's carrier is not a spline",
-        ));
-    };
-    let (lo, hi) = net.domain();
-    if at <= lo || at >= hi {
-        return Ok(component.clone());
-    }
-    // A seat so near the carrier's start (its end, the same point) that
-    // the piece before it has no knot room of its own is the start
-    // already, where it is decided within the band of it
-    // ([`at_the_start`]); one decided past the band is a knot edit that
-    // refused, and one undecided escalates.
-    let seated = match net
-        .split_at(at)
-        .and_then(|(before, after)| rotated(&after, &before, hi - lo))
-    {
-        Ok(seated) => seated,
-        Err(e) => {
-            let ends = [net.eval(lo), net.eval(hi)];
-            return match at_the_start(net.eval(at), ends, band) {
-                Ok(true) => Ok(component.clone()),
-                Ok(false) => Err(CarryError::Refused(CarryRefusal::Seat(
-                    geom_core::spline::Built::new(e),
-                ))),
-                Err(diag) => Err(CarryError::Escalated(diag)),
-            };
-        }
-    };
-    // The feature extent the march read.
-    let (a, b) = pose.operands();
-    let extent = pose.domain().extent;
-    let certificate = crate::ssi::certify_rung3(
-        &seated,
-        None,
-        &crate::ssi::SsiOperand::Analytic(a),
-        &crate::ssi::SsiOperand::Analytic(b),
-        extent,
-        band,
-    )
-    .map_err(CarryRefusal::March)?;
-    let span = seated.domain();
-    let carrier = Curve3::Nurbs(std::sync::Arc::new(seated));
-    let mid = geom::mid_param(span.0, span.1);
-    let tube = Tube::of(&carrier, &certificate, mid)?;
-    Ok(CarriedComponent {
-        witness: carrier.eval(mid),
-        boxes: Vec::new(),
-        carrier,
-        span,
-        shape: ComponentShape::Loop,
-        certificate: Some(certificate),
-        winds: component.winds,
-        pad: tube.pad,
-        reach: tube.reach,
-    })
-}
-
-/// **Whether the seat `p` is the loop's start**, one of `ends` (the
-/// start and the end, one point), decided within the band of it
-/// (**`ssi_seat_at_the_start`**): `true` where it is decided at one,
-/// `false` where it is decided off both, and the escalation where either
-/// reading is undecided, which the seat refuses rather than keep the
-/// loop at its old seat.
-fn at_the_start(p: Point3<f64>, ends: [Point3<f64>; 2], band: Band) -> Result<bool, Indeterminate> {
-    let mut near = false;
-    for end in ends {
-        let read = geom_core::k_stats::decide_reported(
-            "ssi_seat_at_the_start",
-            Margin::norm3(p - end),
-            band,
-        )?;
-        near |= read.sign == Sign::Zero;
-    }
-    Ok(near)
-}
-
-/// **`first` followed by `second` shifted by `period`**: two clamped
-/// pieces of one closed carrier, `first` ending where `second` starts
-/// (the carrier's own start and end, one point). The join keeps
-/// `first`'s last control point and drops `second`'s first, its knot
-/// at the join of multiplicity the degree, and scales `second`'s weights
-/// to meet `first`'s there, so the joined carrier is continuous.
-fn rotated(
-    first: &geom::NurbsCurve3<f64>,
-    second: &geom::NurbsCurve3<f64>,
-    period: f64,
-) -> Result<geom::NurbsCurve3<f64>, geom_core::spline::KnotAlgebraError> {
-    use core::num::NonZeroUsize;
-    use geom_core::spline::{KnotAlgebraError, Knots};
-    let p = first.degree();
-    let runs =
-        |c: &geom::NurbsCurve3<f64>| -> Vec<(f64, usize)> { c.knot_values().runs().collect() };
-    let (r1, r2) = (runs(first), runs(second));
-    let mut joined: Vec<(f64, NonZeroUsize)> = Vec::with_capacity(r1.len() + r2.len());
-    let mut push = |v: f64, m: usize| {
-        if let Some(m) = NonZeroUsize::new(m) {
-            joined.push((v, m));
-        }
-    };
-    let last = r1.len() - 1;
-    for &(v, m) in &r1[..last] {
-        push(v, m);
-    }
-    push(r1[last].0, p);
-    for &(v, m) in &r2[1..] {
-        push(v + period, m);
-    }
-    let knots = Knots::new(joined, p).map_err(KnotAlgebraError::Structure)?;
-    let (w1, w2) = (first.weights(), second.weights());
-    let scale = w1[w1.len() - 1] / w2[0];
-    let control: Vec<Point3<f64>> = first
-        .control()
-        .iter()
-        .chain(&second.control()[1..])
-        .copied()
-        .collect();
-    let weights: Vec<f64> = w1
-        .iter()
-        .copied()
-        .chain(w2[1..].iter().map(|w| w * scale))
-        .collect();
-    geom::NurbsCurve3::new(knots, control, weights).map_err(KnotAlgebraError::Structure)
-}
-
 /// **Why a section was not carried, decided**: the section's own
 /// refusal, rendered with its one recourse — every arm states its
 /// sentence and its ending in one exhaustive match, and the march's own
@@ -2714,9 +2563,6 @@ pub enum CarryRefusal {
     /// ([`SiteRefusal::Unwalked`]), standing as the walk's refusal does
     /// ([`geom::PieceWalkRefusal::refusal`]).
     Unwalked(geom::PieceWalkRefusal),
-    /// A closed fitted component could not be opened at its first site
-    /// ([`PairSection::seat`]): the knot edit refused.
-    Seat(geom_core::spline::Built<geom_core::spline::KnotAlgebraError>),
 }
 
 impl CarryRefusal {
@@ -2776,10 +2622,6 @@ impl CarryRefusal {
                 "whether a marched loop's points lie on its fitted carrier could not be read: \
                  {why}. {}",
                 why.recourse()
-            ),
-            Self::Seat(e) => write!(
-                f,
-                "the section's closed loop could not be opened at its first site: {e}. {defect}"
             ),
         }
     }
@@ -3570,7 +3412,7 @@ impl<T: Decide> CarriedSection<T> {
 #[cfg(test)]
 #[allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 mod wiring {
-    use super::{SsiLane, march_over_the_ball, seat_at};
+    use super::{SsiLane, march_over_the_ball};
 
     /// **A tube box that reads nothing names why**: a point that overflowed
     /// is the format's range, and an enclosure that is not certified is
@@ -3619,9 +3461,6 @@ mod wiring {
             march_over_the_ball as fn(_, _) -> _,
         ) {
             return Err("march is not `march_over_the_ball`");
-        }
-        if !std::ptr::fn_addr_eq(SsiLane::marched().seat, seat_at as fn(_, _, _, _) -> _) {
-            return Err("seat is not `seat_at`");
         }
         if !std::ptr::fn_addr_eq(
             SsiLane::marched().spline,
@@ -3838,31 +3677,6 @@ mod wiring {
         assert_eq!(at(0.601, 0.0), Ok(None), "past the box by a millimetre");
     }
 
-    /// **An undecided nearness to the start refuses**: a seat one band
-    /// from the loop's start, between the band's zero and its escalation
-    /// edges, escalates rather than read as the start; one well inside
-    /// the band is the start, and one far past it is not.
-    #[test]
-    #[allow(clippy::unwrap_used)]
-    fn a_seat_undecided_at_the_start_escalates() {
-        use geom_core::{Band, Point3, Tol};
-        let band = Band::linear(Tol::witness()).unwrap();
-        let start = Point3::new(0.3, -0.2, 0.1);
-        let ends = [start, start];
-        let at = |d: f64| super::at_the_start(Point3::new(0.3 + d, -0.2, 0.1), ends, band);
-        assert_eq!(
-            at(0.1 * band.zero()),
-            Ok(true),
-            "inside the band: the start"
-        );
-        assert_eq!(at(1e-3), Ok(false), "far past the band: not the start");
-        assert!(
-            at(3.0 * band.zero()).is_err(),
-            "between the band's edges: an escalation, never the start: {:?}",
-            at(3.0 * band.zero())
-        );
-    }
-
     fn band() -> geom_core::Band {
         geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band")
     }
@@ -4070,9 +3884,11 @@ mod wiring {
     /// `branch` cut at its parameter midpoint into two branches, each
     /// witnessed at its own midpoint: two different branches over one arc.
     fn halves(branch: &super::FittedCarrier<f64>) -> [super::FittedCarrier<f64>; 2] {
-        let geom::Curve3::Nurbs(net) = &branch.carrier else {
-            panic!("a fitted branch is a spline");
-        };
+        let net = branch
+            .carrier
+            .clamped_net(branch.span)
+            .expect("a fitted branch is a spline")
+            .expect("over its own span");
         let (lo, hi) = net.domain();
         let (before, after) = net.split_at(0.5 * (lo + hi)).expect("a knot edit");
         [before, after].map(|half| {
@@ -4149,12 +3965,12 @@ mod wiring {
             branches
                 .iter()
                 .flat_map(|b| {
-                    let (geom::Curve3::Nurbs(net), crate::ssi::SsiTube::Spatial { radius }) =
-                        (&b.carrier, b.certificate.tube)
+                    let (Some(Ok(net)), crate::ssi::SsiTube::Spatial { radius }) =
+                        (b.carrier.clamped_net(b.span), b.certificate.tube)
                     else {
                         panic!("a fitted ℝ³ branch");
                     };
-                    crate::ssi::certify::tube_boxes(net, radius)
+                    crate::ssi::certify::tube_boxes(&net, radius)
                 })
                 .collect()
         };
@@ -4186,12 +4002,12 @@ mod wiring {
             branches
                 .iter()
                 .flat_map(|b| {
-                    let (geom::Curve3::Nurbs(net), crate::ssi::SsiTube::Spatial { radius }) =
-                        (&b.carrier, b.certificate.tube)
+                    let (Some(Ok(net)), crate::ssi::SsiTube::Spatial { radius }) =
+                        (b.carrier.clamped_net(b.span), b.certificate.tube)
                     else {
                         panic!("a fitted ℝ³ branch");
                     };
-                    crate::ssi::certify::tube_boxes(net, radius)
+                    crate::ssi::certify::tube_boxes(&net, radius)
                 })
                 .collect()
         };
@@ -4403,7 +4219,7 @@ mod wiring {
                 );
                 let (lo, hi) = br.span;
                 let mid = 0.5 * (lo + hi);
-                let tube = Tube::of(&br.carrier, &br.certificate, mid).expect("the tube");
+                let tube = Tube::of(&br.carrier, br.span, &br.certificate, mid).expect("the tube");
                 assert_eq!((tube.pad, tube.reach), (br.pad, br.reach), "{what}");
                 let dense: Vec<_> = (0..=4096)
                     .map(|i| br.carrier.eval(lo + (hi - lo) * f64::from(i) / 4096.0))
@@ -4474,7 +4290,7 @@ mod wiring {
                 loose.hull_sup = 2.0 * br.pad;
                 assert!(
                     matches!(
-                        Tube::of(&br.carrier, &loose, mid),
+                        Tube::of(&br.carrier, br.span, &loose, mid),
                         Err(CarryError::Refused(super::CarryRefusal::PadShort { .. }))
                     ),
                     "{what}: a limb-2 bound past the pad refuses"

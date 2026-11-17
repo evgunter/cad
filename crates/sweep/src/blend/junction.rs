@@ -1,7 +1,7 @@
 //! **A junction between two links on different supports** — where a
 //! chain's band passes from one link's surface to the next one's along
-//! the rolling ball's section the two share (predicate 4's band
-//! reading). It is one shape in either carve that meets it, the closed
+//! the section the two share (predicate 4's band reading): the rolling
+//! ball's circle, or a chamfer's generator between its two feet. It is one shape in either carve that meets it, the closed
 //! mixed rim ([`super::surgery`]'s `rim_phase_mixed`) and the open band
 //! ([`super::open::planar`]'s `blank_phase`), and this module is the one
 //! home of what it is and of its moves:
@@ -16,7 +16,9 @@
 //! - what both carves record of it ([`record`], over [`record_feet`]);
 //! - each link's trims ([`mixed_trims`], over the rim arc's own frame,
 //!   [`rim_carrier`]) and band chart ([`band_chart`]);
-//! - a straight link's feet in order beside one ([`feet_clear`]).
+//! - a straight link's feet in order beside one, and beside a mixed
+//!   corner or a turn's foot, which stand off their vertex as a
+//!   junction's do ([`feet_clear`]).
 //!
 //! The closed rims' other walks make the same moves at their crossings
 //! and call these: the annulus splits a mate seam with [`split_at`],
@@ -43,7 +45,7 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
 use super::BlendError;
 use super::admit::{RequestedBoundary, StationKind};
-use super::arms::{BallSection, BlendArm, EdgeBlend, torus_radial};
+use super::arms::{BallSection, EdgeBlend, radial_about};
 use super::battery::{Link, same_supports};
 use super::build::{fan_at, outward_of};
 use super::naming::BlendNaming;
@@ -65,9 +67,9 @@ pub(super) struct Shape {
     pub(super) mate_edge: EdgeKey,
 }
 
-/// A junction's link is neither of the two bands with a section.
+/// A junction's link is none of the bands with a section.
 pub(super) const JUNCTION_UNSECTIONED: &str =
-    "a chain's junction joins a link that is neither a plane–plane cylinder nor a torus";
+    "a chain's junction joins a link that is no plane–plane band, torus or frustum";
 /// Two consecutive links on one support pair among links on others.
 pub(super) const JUNCTION_ON_ONE_PAIR: &str =
     "a chain of links on different supports has two consecutive links on one support pair";
@@ -85,8 +87,8 @@ pub(super) const JUNCTION_EDGE_ASTRAY: &str =
     "a chain's junction edge does not separate the junction's two other supports";
 
 /// **Read the junction at `vertex` between `arriving` and `leaving`**:
-/// each a rolling-ball band with a section (a cylinder over two planes
-/// or a torus); the two on different supports sharing exactly one face,
+/// each a band with a section (a cylinder or a strip over two planes, or
+/// a torus or a frustum about its supports' axis); the two on different supports sharing exactly one face,
 /// a plane, on which the carve spins its strut; the vertex carrying one
 /// edge besides the two links, separating their other supports. `named`
 /// is the edge a refusal names.
@@ -103,7 +105,7 @@ pub(super) fn shape<T: Decide>(
     leaving: &Link<T>,
     named: EdgeKey,
 ) -> Result<Shape, BlendError> {
-    let sectioned = |l: &Link<T>| l.arm == BlendArm::PlanePlaneCylinder || l.arm.is_coaxial_torus();
+    let sectioned = |l: &Link<T>| l.arm.is_plane_plane() || l.arm.is_coaxial();
     if !(sectioned(arriving) && sectioned(leaving)) {
         return Err(unbuilt_chain(named, JUNCTION_UNSECTIONED));
     }
@@ -148,13 +150,21 @@ pub(super) fn shape<T: Decide>(
 }
 
 /// One support's trimline of one link beside a junction, run the way
-/// that support's loop runs along the link.
-pub(super) enum MixedTrim<T: Real> {
-    /// A cylinder band's straight trim, between the feet the carve
-    /// mints: the carrier is the line through them.
+/// that support's loop runs along the link, and whether the band meets
+/// that support tangentially (a rolling ball's) or crosses it (a
+/// chamfer's).
+pub(super) struct MixedTrim<T: Real> {
+    pub(super) curve: TrimCurve<T>,
+    tangential: bool,
+}
+
+/// A [`MixedTrim`]'s carrier.
+pub(super) enum TrimCurve<T: Real> {
+    /// A straight link's trim, between the feet the carve mints: the
+    /// carrier is the line through them.
     Line(geom::Line<T>),
-    /// A torus band's trim circle in the rim arc's own frame, scaled
-    /// ([`scaled`]), over the arc's window.
+    /// A band of revolution's trim circle in the rim arc's own frame,
+    /// scaled ([`scaled`]), over the arc's window.
     Arc(Curve3<T>, (T, T)),
 }
 
@@ -163,25 +173,28 @@ impl<T: Decide> MixedTrim<T> {
     /// the run `at_start` names: a straight trim's foot of `p`, an arc's
     /// window end.
     pub(super) fn foot(&self, p: Point3<T>, at_start: bool) -> Point3<T> {
-        match self {
-            Self::Line(line) => line.foot(p),
-            Self::Arc(c, (t0, t1)) => c.eval(if at_start { *t0 } else { *t1 }),
+        match &self.curve {
+            TrimCurve::Line(line) => line.foot(p),
+            TrimCurve::Arc(c, (t0, t1)) => c.eval(if at_start { *t0 } else { *t1 }),
         }
     }
 
     /// The scaffolding the trim's `mef` stores between its two feet.
     pub(super) fn spec(&self, p0: Point3<T>, p1: Point3<T>) -> Option<EdgeCurveSpec<T>> {
-        match self {
-            Self::Line(_) => Some(EdgeCurveSpec::line_between(p0, p1)),
-            Self::Arc(c, (t0, t1)) => EdgeCurveSpec::arc_of_circle(c.clone(), *t0, *t1),
+        match &self.curve {
+            TrimCurve::Line(_) => Some(EdgeCurveSpec::line_between(p0, p1)),
+            TrimCurve::Arc(c, (t0, t1)) => EdgeCurveSpec::arc_of_circle(c.clone(), *t0, *t1),
         }
     }
 
-    /// The description the pass states it as.
+    /// The description the pass states it as: a tangential contact on
+    /// its line or circle, or a crossing.
     pub(super) fn contact(&self) -> ContactCarrier<T> {
-        match self {
-            Self::Line(line) => ContactCarrier::TrimLine(*line),
-            Self::Arc(c, (t0, t1)) => ContactCarrier::Exact(c.clone(), *t0, *t1),
+        match (&self.curve, self.tangential) {
+            (TrimCurve::Line(line), true) => ContactCarrier::TrimLine(*line),
+            (TrimCurve::Line(_), false) => ContactCarrier::Chord,
+            (TrimCurve::Arc(c, (t0, t1)), true) => ContactCarrier::Exact(c.clone(), *t0, *t1),
+            (TrimCurve::Arc(c, (t0, t1)), false) => ContactCarrier::Crossing(c.clone(), *t0, *t1),
         }
     }
 }
@@ -192,19 +205,24 @@ pub(super) fn mixed_trims<T: Decide>(
     l: &Link<T>,
     host: FaceKey,
 ) -> Result<(MixedTrim<T>, MixedTrim<T>), BlendError> {
-    if l.arm.is_coaxial_torus() {
+    let tangential = l.arm.meets_supports_tangentially();
+    let trim = |curve| MixedTrim { curve, tangential };
+    if l.arm.is_coaxial() {
         let ((ca, sa), (cb, sb)) = rim_trim_circles(l.edge, &l.blend, l.face_a == host)?;
         let rc = rim_carrier(body, l, host)?;
         let (hc, h0, h1) = scaled(&rc, ca, sa, rc.plus_on_host);
         let (mc, m0, m1) = scaled(&rc, cb, sb, !rc.plus_on_host);
-        return Ok((MixedTrim::Arc(hc, (h0, h1)), MixedTrim::Arc(mc, (m0, m1))));
+        return Ok((
+            trim(TrimCurve::Arc(hc, (h0, h1))),
+            trim(TrimCurve::Arc(mc, (m0, m1))),
+        ));
     }
     let ((ht, _), (mt, _)) = l.blend.trims(l.face_a == host);
     let line = |c: &Curve3<T>| match c {
-        Curve3::Line(line) => Ok(MixedTrim::Line(*line)),
+        Curve3::Line(line) => Ok(trim(TrimCurve::Line(*line))),
         _ => Err(unbuilt_geometry(
             EntityId::Edge(l.edge),
-            "a cylinder band's trimline on a plane is not a line",
+            "a plane–plane band's trimline on a plane is not a line",
         )),
     };
     Ok((line(ht)?, line(mt)?))
@@ -216,17 +234,28 @@ pub(super) fn mixed_trims<T: Decide>(
 pub(super) struct JunctionReading<T: Real> {
     pub(super) host_foot: Point3<T>,
     pub(super) mate_foot: Point3<T>,
-    pub(super) section: BallSection<T>,
+    pub(super) section: Section<T>,
+}
+
+/// **The section two bands share at a junction**: the rolling ball's
+/// circle, or a chamfer's generator, the segment between its two feet,
+/// which is the strip's and the frustum's alike since their feet there
+/// coincide (predicate 4's band reading).
+#[derive(Clone, Copy)]
+pub(super) enum Section<T: Real> {
+    Circle(BallSection<T>),
+    Generator,
 }
 
 /// **Read the junction at `p`** off `reader`, the link whose host-side
 /// traversal STARTS there, with its `trims` ([`mixed_trims`]), and the
-/// other link. The section's plane is stated from a cylinder band where
-/// the junction has one, whose axis is the stored direction itself.
+/// other link. A ball's section's plane is stated from a cylinder band
+/// where the junction has one, whose axis is the stored direction
+/// itself; a chamfer's section is the generator between the two feet.
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedGeometry`] for a band with no rolling-ball
+/// [`BlendError::UnsupportedGeometry`] for a rolling-ball band with no
 /// section.
 pub(super) fn read<T: Decide>(
     p: Point3<T>,
@@ -242,10 +271,15 @@ pub(super) fn read<T: Decide>(
             )
         })
     };
-    let mut section = of(reader)?;
-    if matches!(other.blend.surface, Surface::Cylinder { .. }) {
-        section.normal = of(other)?.normal;
-    }
+    let section = if reader.arm.is_chamfer() {
+        Section::Generator
+    } else {
+        let mut circle = of(reader)?;
+        if matches!(other.blend.surface, Surface::Cylinder { .. }) {
+            circle.normal = of(other)?.normal;
+        }
+        Section::Circle(circle)
+    };
     Ok(JunctionReading {
         host_foot: trims.0.foot(p, true),
         mate_foot: trims.1.foot(p, false),
@@ -254,14 +288,14 @@ pub(super) fn read<T: Decide>(
 }
 
 /// **The surface a link's band face carries beside a junction.** A
-/// torus face's chart is seamed opposite the middle of its arc, and a
-/// cylinder face's opposite the middle of its section (`at`), so no face
-/// boundary runs along a chart seam; a cylinder read at no junction
-/// keeps its arm's chart.
+/// torus or frustum face's chart is seamed opposite the middle of its
+/// arc, and a cylinder face's opposite the middle of its section (`at`),
+/// so no face boundary runs along a chart seam; a cylinder read at no
+/// junction keeps its arm's chart, and a strip has no seam.
 ///
 /// # Errors
 ///
-/// [`stored_piece`]'s, for a torus link's arc.
+/// [`stored_piece`]'s, for a torus or frustum link's arc.
 pub(super) fn band_chart<T: Decide>(
     body: &Body<T>,
     l: &Link<T>,
@@ -279,12 +313,30 @@ pub(super) fn band_chart<T: Decide>(
             _,
         ) => {
             let (c, (t0, t1)) = stored_piece(body, l.edge)?;
-            let radial = torus_radial(center, axis, c.eval(geom::mid_param(t0, t1)));
+            let radial = radial_about(center, axis, c.eval(geom::mid_param(t0, t1)));
             Surface::Torus {
                 center,
                 axis,
                 major_radius,
                 minor_radius,
+                u_ref: -radial,
+            }
+        }
+        (
+            &Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                ..
+            },
+            _,
+        ) => {
+            let (c, (t0, t1)) = stored_piece(body, l.edge)?;
+            let radial = radial_about(apex, axis, c.eval(geom::mid_param(t0, t1)));
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
                 u_ref: -radial,
             }
         }
@@ -295,9 +347,13 @@ pub(super) fn band_chart<T: Decide>(
                 radius,
                 ..
             },
-            Some(r),
+            Some(JunctionReading {
+                host_foot,
+                mate_foot,
+                section: Section::Circle(section),
+            }),
         ) => {
-            let mid = (r.host_foot - r.section.centre) + (r.mate_foot - r.section.centre);
+            let mid = (*host_foot - section.centre) + (*mate_foot - section.centre);
             Surface::Cylinder {
                 origin,
                 axis,
@@ -443,22 +499,27 @@ pub(super) fn record<T: Real>(
     split: &SplitFragments,
     host_foot: VertexKey,
     vertex: VertexKey,
-    section: BallSection<T>,
+    section: Section<T>,
     link: EdgeKey,
     band: &[EdgeKey],
 ) {
-    described.push((split.near, ContactCarrier::Section(section), link));
+    let carrier = match section {
+        Section::Circle(circle) => ContactCarrier::Section(circle),
+        Section::Generator => ContactCarrier::Generator,
+    };
+    described.push((split.near, carrier, link));
     record_feet(rec, split, host_foot, vertex, band);
     rec.sections.push((split.near, split.source, vertex));
     rec.dead.vertices.push(vertex);
 }
 
 /// The refusal when a straight link is too short for its two ends.
-pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link between a junction and its \
-     other end is shorter than its two ends' feet need: they cross or coincide on its trimline";
+pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link ending at a junction or a turn \
+     is shorter than its two ends' feet need, which cross or coincide on its trimline; reduce the \
+     radius or setback";
 
 /// **A straight link's feet in order, on each support, where one of its
-/// ends is a junction or a mixed corner** (`fillet3_cut_off_feet`,
+/// ends is a junction, a mixed corner or a turn's foot** (`fillet3_cut_off_feet`,
 /// decided by [`feet_in_order`], as two cut-offs' feet on a shared rim
 /// are). The trimline chord the carve `mef`s runs from the foot at one
 /// station to the foot at the other; the junction's foot sits square to
@@ -467,9 +528,19 @@ pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link between a junction
 /// short link the two would cross. A mixed corner's feet stand off its
 /// vertex too: a fillet's `r·cot(φ/2)` along a pair edge at the plan
 /// angle `φ` its pair makes in `E`, and `r` up the odd edge; a chamfer's
-/// host feet `(2 − √2)s` along a square corner's pair edges. So they are
-/// read the same way. A torus link's chords run between two junctions'
-/// feet, its own trim's window ends, so it is not read here.
+/// host feet `(2 − √2)s` along a square corner's pair edges. A turn's
+/// foot on a face of its third edge is, at an overrun on the near
+/// band's face, the mitre's end, which at a mixed corner's odd edge
+/// with one other stands `s(1 + tan(φ/2))` along the pair edge, past
+/// the trimlines' crossing on the shared face. So they are read the same
+/// way. A torus or frustum link's chords run between two junctions' feet, its own
+/// trim's window ends, so it is not read here. Nor is a turn's `Mitre`
+/// station, the trimlines' crossing on the shared face: a link too short
+/// for it lands that foot past its far end, which the cut-off's foot
+/// door refuses (`end_face::FOOT_INSIDE_A_FACE`), and a mitre chord that
+/// crosses a far foot on a long link is the strip screen's, which reads
+/// the face first (`blend_band_reach_chain_ends`'s trapezoid row refuses
+/// `FaceClearanceUncertified` there, and would refuse here instead).
 ///
 /// **It is what refuses a link too short for its ends.** Feet that
 /// cross put the far end's foot behind the junction's, so the end face's
@@ -494,7 +565,7 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
     straight: impl Fn(EdgeKey) -> bool,
     band: Band,
 ) -> Result<(), BlendError> {
-    let junction = |s: &RequestedBoundary<T>, v: VertexKey| {
+    let metered = |s: &RequestedBoundary<T>, v: VertexKey| {
         s.stations().iter().any(|st| {
             st.vertex == v
                 && matches!(
@@ -503,13 +574,15 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
                         | StationKind::JunctionMate
                         | StationKind::MixedFoot
                         | StationKind::MixedHost
+                        | StationKind::TurnFoot
                 )
+            // Not `Mitre`: see the doc above.
         })
     };
     for support in supports {
         for chord in support.chords() {
             if !straight(chord.edge)
-                || !(junction(support, chord.from) || junction(support, chord.to))
+                || !(metered(support, chord.from) || metered(support, chord.to))
             {
                 continue;
             }
@@ -845,7 +918,7 @@ mod tests {
         let straight = |e| {
             opens
                 .iter()
-                .any(|o| o.edge() == e && !o.link().arm.is_coaxial_torus())
+                .any(|o| o.edge() == e && !o.link().arm.is_coaxial())
         };
         assert!(
             feet_clear(&body, &[top(0.0)], straight, band).is_ok(),

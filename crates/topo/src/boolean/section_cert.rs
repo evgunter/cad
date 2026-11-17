@@ -1985,7 +1985,6 @@ pub(super) fn of_carried<T: Decide>(
             | CarryError::Refused(CarryRefusal::PadsMeet { .. })
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
-            | CarryError::Refused(CarryRefusal::Seat(_))
             | CarryError::Refused(CarryRefusal::Unwalked(_)),
         ) => return Section::Unmarched,
     };

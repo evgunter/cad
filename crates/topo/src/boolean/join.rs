@@ -2732,7 +2732,7 @@ fn germ_section_loops<T: Decide>(
             | geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
                 Ok(Some(SectionLoops::conic(frame.axis_line())))
             }
-            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
                 Err(BooleanError::EdgeCarrierUnsupported {
                     operand: along.on,
                     edge: along.root,
@@ -4111,16 +4111,13 @@ fn section_refusal(e: geom_brep::SectionError) -> FrameError {
         | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)) => {
             FrameError::section(diag)
         }
-        geom_brep::SectionError::DegenerateTorus(geom_brep::TorusRefusal {
-            convention,
-            verdict,
-        }) => match verdict {
-            geom_brep::TorusVerdict::Undecided(diag) => FrameError::Escalated {
-                decision: BooleanDecision::Torus(convention),
+        geom_brep::SectionError::DegenerateTorus(refusal) => match refusal.standing() {
+            geom_brep::TorusStanding::Ranked(diag) => FrameError::Escalated {
+                decision: BooleanDecision::Torus(refusal.convention),
                 diag,
             },
-            geom_brep::TorusVerdict::Refused(verdict) => FrameError::DegenerateTorus {
-                convention,
+            geom_brep::TorusStanding::InvalidInput(verdict) => FrameError::DegenerateTorus {
+                convention: refusal.convention,
                 verdict,
             },
         },

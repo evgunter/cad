@@ -133,9 +133,7 @@ fn trace_branch() -> ssi::SsiBranch {
 /// different arc of the same locus and therefore the sharpest thing to
 /// attach to the first one's edge.
 fn restrict(branch: &ssi::SsiBranch, frac: (f64, f64)) -> NurbsCurve3<f64> {
-    let Curve3::Nurbs(ref loop_carrier) = branch.carrier else {
-        panic!("a rung-3 carrier is a NURBS curve")
-    };
+    let loop_carrier = &*branch.net();
     // `fit_branch` interpolates on chord parameters, so the traced
     // carrier's domain is exactly [0, 1]. Checked rather than assumed.
     let (d0, d1) = loop_carrier.domain();
@@ -149,7 +147,7 @@ fn restrict(branch: &ssi::SsiBranch, frac: (f64, f64)) -> NurbsCurve3<f64> {
             .expect("the carrier's sub-arc")
             .1
     } else {
-        (**loop_carrier).clone()
+        loop_carrier.clone()
     };
     if frac.1 < 1.0 {
         tail.split_at(frac.1).expect("the carrier's sub-arc").0

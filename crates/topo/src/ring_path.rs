@@ -773,11 +773,17 @@ pub(crate) struct SplineArc<T: Real> {
     span: (T, T),
 }
 
-impl<T: Real> SplineArc<T> {
+impl<T: Decide> SplineArc<T> {
+    /// The arc of a spline `carrier` over the span: a clamped spline as
+    /// it is, a periodic cubic as its clamped view over the span, which
+    /// is what the arc's readers read. `None` for any other carrier, and
+    /// for a span a periodic cubic has no view over.
     fn spline(carrier: &geom::Curve3<T>, (t0, t1): (T, T)) -> Option<Self> {
-        matches!(carrier, geom::Curve3::Nurbs(_)).then(|| Self {
-            carrier: carrier.clone(),
-            span: (t0.min(t1), t0.max(t1)),
+        let span = (t0.min(t1), t0.max(t1));
+        let net = carrier.clamped_net(span)?.ok()?;
+        Some(Self {
+            carrier: geom::Curve3::Nurbs(net),
+            span,
         })
     }
 
@@ -831,7 +837,9 @@ impl<T: Real> LoopArc<T> {
                 own: None,
             })),
             geom::Curve3::Line(line) => Some(Self::Line { line, span }),
-            geom::Curve3::Nurbs(_) | geom::Curve3::Spiric { .. } => None,
+            geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) | geom::Curve3::Spiric { .. } => {
+                None
+            }
         }
     }
 

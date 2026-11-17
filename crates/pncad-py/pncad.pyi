@@ -547,18 +547,20 @@ class TessellateError(PncadError):
     `null_scaffold_edge`, `domain_unread`, `empty_loop`,
     `missing_entity`, `resolution_overflow`, `step_not_positive`,
     `certificate_exceeded`, `rounding_unresolved`, `triangulation`,
-    `self_touching_trim_loop`
+    `self_touching_trim_loop`, `unresolved_winding`
     or `unsupported_curved_domain`.
 
     The offending face or edge is an arena KEY and does not cross, so
     what a caller reads beside the tag is the arm's NUMBERS, always
     present and `None` where inapplicable: `value` (the refused
     budget, the overflowed count, the refused step, the unabsorbed
-    rounding allowance, or the curved domain's worst off-box distance
-    in metres), `bound` / `requested`
+    rounding allowance, the curved domain's worst off-box distance
+    in metres, or an unresolved triangle's height over its longest
+    side), `bound` / `requested`
     (a failed deviation certificate against the budget it was checked
-    to), and `note` (the arm's own prose about which lane would be
-    needed)."""
+    to; for `unresolved_winding`, `bound` is the rounding allowance the
+    height does not exceed), and `note` (the arm's own prose about
+    which lane would be needed)."""
 
     variant: str
     value: Optional[float]
@@ -2246,8 +2248,9 @@ class Node:
         set FREEZES at authoring time. `distance` is the SETBACK along
         each support, not a radius. An empty selection refuses at the
         insert (`EditError` `selection_shape`, `name_count`); an
-        unresolvable name or an edge whose supports are not both planes
-        refuses typed at `evaluate`. `distance` mints a literal in the node's
+        unresolvable name, or an edge whose supports are neither both
+        planes nor a whole rim of a cylinder on a plane square to its
+        axis, refuses typed at `evaluate`. `distance` mints a literal in the node's
         `chamfer_distance` slot, moved by `DocEdit.set_param`; the
         selection is repaired by `DocEdit.rebind`.
         """
