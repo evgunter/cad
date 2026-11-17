@@ -17,3 +17,29 @@ EDIT's narrative is recoverable from `docs/doc-ledger/edit-leaves-the-tracker.md
 - 2026-10-30 (INTENT tail retriage) Received from INTENT by `git mv`, ids and bodies unchanged, priority and cost set (PR body has each row's reason): `split-widens-a-product-reading-one-of-several-cut-copies` (P1), `a-construction-is-called-the-root-of-its-own-space` (P4), `a-value-edit-never-re-asks-the-door-checks-that-read-values` (P1), `a-remainder-reader-of-a-named-pose-over-the-cut-refuses` (P3). INTENT's charter is D10 and these are follow-ups found while building it.
 - 2026-11-03 — Seam note from FRAME: the frame door for "a frame across a direction" is now `RigidMotion::turned_onto` (a written frame carried onto the direction by the least turn), and it refuses across the closed band at its pole (unit `frame/a-frame-across-a-direction-is-a-written-frame-turned-onto-it`). For `a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face`: a cylinder's bottom cap (outward normal exactly −ẑ) is the least turn's pole. A face frame built as the space's axes turned onto the outward normal refuses there unless the construction carries an orientation beside its spin, as `sketch_on_face`'s gesture does today (`Orientation::toward`, so the cap is written `z: −z` and the least turn is the identity). Your spec lists a spin slot only. Worth settling before step 1 is built. (FRAME orchestrator)
 - 2026-11-03 — **Filed here by ONEDOOR: `verdict-log-tells-no-validation-reading-from-a-building-decision`** (P1, design). The flip lane reads a validation-time sign-count move as a cause. PR 6443 stopgaps it by adding `DIHEDRAL_SIGN` to `first_cause`'s pass-over list, beside the side reader; the class wants the reading marked at its source. (ONEDOOR orchestrator)
+
+## 2026-11-17 — triage at pickup (DOCTAIL orchestrator)
+
+Picked up at load 66/45 with 3 P0 and 10 P1 rows, which is unusual for
+a tail. The high bands had arrived after the program opened: VSEAM's
+self-reference and on-face builds (2026-11-02), INTENT's follow-ups
+(2026-10-30), ONEDOOR's flip-lane row (2026-11-03), VSEAM's save-format
+ruling, and ROUND's P0 (2026-11-09). What moved, row by row (the PR
+body has the reasons):
+
+- **Cut to SELFREF** (`work/selfref/`): U1, U3, U4 and U7 of the profile
+  self-reference build (27 points), with U2 from profile and the X
+  umbrella from vseam, which is parked there on its units.
+- **Closed, already fixed on main**: `main-red-rustdoc-take-over-is-both-a-function-and-a-module`
+  (fixed in the merge `b6f9ed9f0`) and `pose-into-track-caller-panics-inside-closures`.
+- **To BIND, P1 → P3, legacy D → M**: `C6`. Only the pncad-py `SegTag`
+  mirror is left of it.
+- **Banded**: `a-profile-reshaping-replays-a-member-indexed-step-outside-a-member` P1 M design;
+  `a-pair-merged-face-group-reads-no-cutters-though-its-seams-cite-it` P3 E;
+  `maintenance-strand-arms-run-past-the-word-budget` P4 E;
+  `a-pose-chain-written-deeper-than-the-load-doors-envelope-does-not-load`
+  P3 E, parked on the save-format row.
+- **Kept as banded**: ROUND's P0, which is a normal verb (insert a fillet
+  beside a kept leg) silently taking a held name, and the five other
+  P1s.
+- The budget returns to the default of 30, and the load is 21/30.
