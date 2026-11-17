@@ -1179,7 +1179,8 @@ fn carried_far<T: Decide>(
 
 /// **`gone`'s far end read off `kept`'s carrier**: the parameter of
 /// `gone`'s middle near `tw`, then of `far` near that, so the reading
-/// walks from the vertex along `gone`. Where `gone` lies on the very
+/// walks from the vertex along `gone`. A closed form inverts in closed
+/// form; a periodic cubic by its foot ([`geom::Curve3::foot`]). Where `gone` lies on the very
 /// carrier ([`carried_far`]), this names `gx`'s point, and the two
 /// spellings agree up to rounding (ledger row F39).
 fn read_far<T: Decide>(
@@ -1189,6 +1190,13 @@ fn read_far<T: Decide>(
     far: geom_core::Point3<T>,
     tw: T,
 ) -> Option<T> {
+    // A periodic cubic inverts by its foot, read in the turn nearest the
+    // parameter walked from.
+    if let Some(p) = carrier.as_periodic() {
+        let turn = geom_core::period::Period::new(p.period());
+        let near = |q: geom_core::Point3<T>, from: T| turn.near(carrier.foot(q, from).seed(), from);
+        return Some(near(far, near(gone.mid_point(g0, g1), tw)));
+    }
     carrier
         .param_near(gone.mid_point(g0, g1), tw)
         .and_then(|tm| carrier.param_near(far, tm))

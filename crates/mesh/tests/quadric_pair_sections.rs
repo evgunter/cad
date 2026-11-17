@@ -122,7 +122,11 @@ fn section_of(body: &Body<f64>) -> Section {
         s.on_loops += usize::from(stored.kind() == CurveKind::Periodic);
         let (start, end) = body.edge_vertices(ek).expect("an edge's ends");
         let (t0, t1) = c.params();
-        let turn = stored.period().is_some_and(|p| t1 - t0 == p.length());
+        // One period to rounding: a loop joined across its seat states
+        // `(t, t + T)`, whose difference rounds.
+        let turn = stored
+            .period()
+            .is_some_and(|p| ((t1 - t0) - p.length()).abs() <= 1e-12 * p.length());
         s.whole_loops += usize::from(start == end && turn);
     }
     s
