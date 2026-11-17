@@ -137,6 +137,8 @@ mod prisms;
 mod probe_review;
 #[path = "profile_overrides.rs"]
 mod profile_overrides;
+#[path = "quadric_pair_sections.rs"]
+mod quadric_pair_sections;
 #[path = "r1_probe_bool_route.rs"]
 mod r1_probe_bool_route;
 #[path = "r1_probe_hash.rs"]

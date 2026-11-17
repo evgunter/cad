@@ -3412,7 +3412,7 @@ impl<T: Decide> CarriedSection<T> {
 #[cfg(test)]
 #[allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 mod wiring {
-    use super::{SsiLane, march_over_the_ball, seat_at};
+    use super::{SsiLane, march_over_the_ball};
 
     /// **A tube box that reads nothing names why**: a point that overflowed
     /// is the format's range, and an enclosure that is not certified is
@@ -3461,9 +3461,6 @@ mod wiring {
             march_over_the_ball as fn(_, _) -> _,
         ) {
             return Err("march is not `march_over_the_ball`");
-        }
-        if !std::ptr::fn_addr_eq(SsiLane::marched().seat, seat_at as fn(_, _, _, _) -> _) {
-            return Err("seat is not `seat_at`");
         }
         if !std::ptr::fn_addr_eq(
             SsiLane::marched().spline,
@@ -4220,7 +4217,7 @@ mod wiring {
                 );
                 let (lo, hi) = br.span;
                 let mid = 0.5 * (lo + hi);
-                let tube = Tube::of(&br.carrier, &br.certificate, mid).expect("the tube");
+                let tube = Tube::of(&br.carrier, br.span, &br.certificate, mid).expect("the tube");
                 assert_eq!((tube.pad, tube.reach), (br.pad, br.reach), "{what}");
                 let dense: Vec<_> = (0..=4096)
                     .map(|i| br.carrier.eval(lo + (hi - lo) * f64::from(i) / 4096.0))
@@ -4291,7 +4288,7 @@ mod wiring {
                 loose.hull_sup = 2.0 * br.pad;
                 assert!(
                     matches!(
-                        Tube::of(&br.carrier, &loose, mid),
+                        Tube::of(&br.carrier, br.span, &loose, mid),
                         Err(CarryError::Refused(super::CarryRefusal::PadShort { .. }))
                     ),
                     "{what}: a limb-2 bound past the pad refuses"

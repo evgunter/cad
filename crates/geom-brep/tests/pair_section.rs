@@ -335,12 +335,12 @@ fn a_radius_in_the_band_escalates_by_its_name() {
     }
 }
 
-/// **The general rung carries through its door**: the lone loop marched
-/// over the sphere's box at `f64`, one closed fitted component with its
-/// certificate, the witness's foot on it; without the door the carrying
-/// refuses by the scalar's name. Seated at an interior parameter it is
-/// the same locus run from that point round to it, certified again; at
-/// its start it is kept.
+/// **The general rung carries through its door**: a marched loop is a
+/// periodic cubic with its certificate, the witness's foot on it;
+/// without the door the carrying refuses by the scalar's name. Seated
+/// at a parameter it is the same carrier over the span from there to a
+/// turn on, as a circle is, its certificate the loop's own; at its base
+/// knot the span is kept.
 #[test]
 fn the_general_rung_carries_through_its_door() {
     let (cyl, sph) = (cylinder(0.5), sphere(0.5, 0.3));
@@ -362,62 +362,52 @@ fn the_general_rung_carries_through_its_door() {
         c.closed() && c.certificate.is_some(),
         "a closed certified loop"
     );
+    assert!(
+        matches!(c.carrier, Curve3::Periodic(_)) && c.carrier.period().is_some(),
+        "a closed fitted loop is a periodic cubic: {:?}",
+        c.carrier.kind()
+    );
     let witness = section.counted().expect("a counted section")[0]
         .witness
         .unwrap();
     assert_eq!(on_arc(carried.site(witness, band()).unwrap()).component, 0);
-    // Seated at an interior parameter: the loop opened there, certified
-    // again, the same locus run from that point round to it.
     let (lo, hi) = c.span;
     let at = lo + 0.37 * (hi - lo);
+    let seated = section.seat(c, at).expect("the loop seats");
+    assert_eq!(seated.span, (at, at + (hi - lo)), "seated by its span");
     assert!(
-        matches!(
-            section.seat(None, c, at, band()),
-            Err(CarryError::Refused(CarryRefusal::NoLane { scalar: "f64" }))
-        ),
-        "no door, no seat"
+        seated.carrier.same_content(&c.carrier),
+        "the seated loop's carrier is the loop's, untouched"
     );
-    let seated = section
-        .seat(Some(SsiLane::marched()), c, at, band())
-        .expect("the loop seats");
-    assert!(
-        seated.closed() && seated.certificate.is_some(),
-        "the seated loop is closed and certified again"
+    let (held, own) = (seated.certificate.unwrap(), c.certificate.unwrap());
+    assert_eq!(
+        (held.hull_sup, held.on_locus_max, held.tube_boxes),
+        (own.hull_sup, own.on_locus_max, own.tube_boxes),
+        "and its certificate the loop's own, taken once"
     );
-    let (s0, s1) = seated.span;
-    let start = seated.carrier.eval(s0);
-    assert!(
-        (start - c.carrier.eval(at)).norm() < band().zero(),
-        "the seated loop starts at the seat"
-    );
-    assert!(
-        (seated.carrier.eval(s1) - start).norm() < band().zero(),
-        "the seated loop ends where it starts"
-    );
-    for k in 1..64 {
-        let p = seated.carrier.eval(s0 + (s1 - s0) * f64::from(k) / 64.0);
-        assert!(
-            c.carrier.foot(p, at).gap() < band().zero(),
-            "the seated loop's point {k} lies on the loop"
-        );
-    }
-    // At the domain's end the loop starts there already.
-    let kept = section
-        .seat(Some(SsiLane::marched()), c, lo, band())
-        .expect("a seat at the start");
-    assert_eq!(kept.span, c.span, "a loop seated at its start is kept");
+    let kept = section.seat(c, lo).expect("a seat at the base knot");
+    assert_eq!(kept.span, c.span, "a loop seated at its base knot is kept");
+    // A seat read a turn off is the same seat, in the base turn.
+    let off = section.seat(c, at - (hi - lo)).expect("a seat a turn back");
+    assert_eq!(off.span.0, at, "a seat is read in the loop's base turn");
 }
 
-/// **A seated loop is the loop, point for point, and its certificate is
-/// its own**: over five poses, one loop and two, every component seated
-/// at nineteen interior parameters and at six within rounding of its
-/// ends is closed and certified, and every point of it is the parent's
-/// point a whole period back where it runs past the parent's end, to
-/// 1e-12. A loop opened elsewhere than at its start carries the
-/// certificate the general rung's certifying door gives its own net,
-/// not the parent's copied (read again on a few seats).
+/// The interior knots of `net`, each with its multiplicity.
+fn interior_knots(net: &geom::NurbsCurve3<f64>) -> Vec<(f64, usize)> {
+    let runs: Vec<(f64, usize)> = net.knot_values().runs().collect();
+    runs[1..runs.len() - 1].to_vec()
+}
+
+/// **A seated loop has no start**: over five poses, one loop and two,
+/// every component seated at nineteen interior parameters, at six
+/// within rounding of its base knot and at the base knot itself reads,
+/// over its seated span, a clamped view whose interior knots are all
+/// simple, and whose every point is the loop's point there, a whole
+/// period back where the span runs past the base turn, to 1e-12. No
+/// seat is a special case: none refuses, none is decided near anything,
+/// and the view's ends are one point.
 #[test]
-fn a_seated_loop_is_the_loop_point_for_point() {
+fn a_seated_loop_has_no_start() {
     for (d, big) in [
         (0.5, 0.3),
         (0.35, 0.3),
@@ -431,10 +421,12 @@ fn a_seated_loop_is_the_loop_point_for_point() {
         for c in carried.components() {
             let (lo, hi) = c.span;
             let period = hi - lo;
+            let whole = c.carrier.clamped_net(c.span).unwrap().unwrap();
             let mut ats: Vec<f64> = (1..20)
                 .map(|k| lo + period * f64::from(k) / 20.0 + 1e-3)
                 .collect();
             ats.extend([
+                lo,
                 lo + 1e-15,
                 lo + 1e-12,
                 lo + 1e-9,
@@ -442,40 +434,40 @@ fn a_seated_loop_is_the_loop_point_for_point() {
                 hi - 1e-12,
                 hi - 1e-15,
             ]);
-            for (i, at) in ats.into_iter().enumerate() {
+            // A seat exactly on a knot of the loop, and an ulp to each
+            // side of one.
+            let knot = interior_knots(&whole)[3].0;
+            ats.extend([knot, knot.next_down(), knot.next_up()]);
+            for at in ats {
                 let seated = section
-                    .seat(Some(SsiLane::marched()), c, at, band())
+                    .seat(c, at)
                     .unwrap_or_else(|e| panic!("d {d}, R {big}: seat {at}: {e:?}"));
                 assert!(
                     seated.closed() && seated.certificate.is_some(),
                     "d {d}, R {big}: seat {at} is closed and certified"
                 );
                 let (s0, s1) = seated.span;
+                let view = seated
+                    .carrier
+                    .clamped_net(seated.span)
+                    .unwrap()
+                    .unwrap_or_else(|e| panic!("d {d}, R {big}: seat {at}: {e}"));
+                assert_eq!(view.domain(), (s0, s1), "d {d}, R {big}: seat {at}");
+                let worst = interior_knots(&view).iter().map(|k| k.1).max();
+                assert_eq!(
+                    worst,
+                    Some(1),
+                    "d {d}, R {big}: seat {at}: every interior knot of the view is simple"
+                );
+                assert!(
+                    (view.eval(s0) - view.eval(s1)).norm() < 1e-12,
+                    "d {d}, R {big}: seat {at}: the seated span closes"
+                );
                 for k in 0..=4000 {
                     let u = s0 + (s1 - s0) * f64::from(k) / 4000.0;
                     let v = if u <= hi { u } else { u - period };
-                    let gap = (seated.carrier.eval(u) - c.carrier.eval(v)).norm();
+                    let gap = (view.eval(u) - whole.eval(v)).norm();
                     assert!(gap < 1e-12, "d {d}, R {big}: seat {at}: {gap:e}");
-                }
-                if i % 7 == 0 && seated.span != c.span {
-                    let Curve3::Nurbs(net) = &seated.carrier else {
-                        panic!("a seated loop's carrier is a spline");
-                    };
-                    let own = geom_brep::certify_rung3(
-                        net,
-                        None,
-                        &geom_brep::SsiOperand::Analytic(&cyl),
-                        &geom_brep::SsiOperand::Analytic(&sph),
-                        big * 2.0,
-                        band(),
-                    )
-                    .unwrap();
-                    let held = seated.certificate.unwrap();
-                    assert_eq!(
-                        (held.hull_sup, held.on_locus_max, held.tube_boxes),
-                        (own.hull_sup, own.on_locus_max, own.tube_boxes),
-                        "d {d}, R {big}: seat {at} holds its own net's certificate"
-                    );
                 }
             }
         }
@@ -1013,7 +1005,7 @@ fn a_closed_form_is_seated_by_its_span() {
         assert!(c.closed() && c.certificate.is_none(), "a closed form");
         for at in [lo, lo + 1.0, lo + 3.0, lo - 2.5, hi + 0.5] {
             let seated = section
-                .seat(None, c, at, band())
+                .seat(c, at)
                 .unwrap_or_else(|e| panic!("seat {at}: {e:?}"));
             assert_eq!(seated.span, (at, at + (hi - lo)), "seated at {at}");
             assert!(

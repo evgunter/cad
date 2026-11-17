@@ -742,7 +742,9 @@ impl Mirror {
                 band(),
             )
             .unwrap(),
-            Curve3::Spiric { .. } | Curve3::Nurbs(_) => unreachable!("the rows draw conics"),
+            Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+                unreachable!("the rows draw conics")
+            }
         }
     }
 

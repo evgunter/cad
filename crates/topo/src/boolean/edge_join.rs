@@ -468,7 +468,10 @@ fn crease_at<T: Decide>(
     let Some(c) = body.edge_curve_linked(e, d).certified() else {
         return Ok(Crease::No);
     };
-    let geom::Curve3::Nurbs(n) = c.carrier() else {
+    // The stored carrier: an edge on a periodic cubic reads a clamped
+    // view that ends at `w`, but the loop it is a span of runs on
+    // through `w` with no knot of that multiplicity, as a circle does.
+    let geom::Curve3::Nurbs(n) = c.stored_carrier() else {
         return Ok(Crease::No);
     };
     let (t0, t1) = c.params();
@@ -1140,13 +1143,35 @@ fn carried_far<T: Decide>(
     gone: &geom::Curve3<T>,
     (gw, gx): (T, T),
 ) -> Option<T> {
-    let at_tw = matches!(
-        (gw.plain_constant(), tw.plain_constant()),
-        (Some(x), Some(y)) if x == y
-    );
-    if !(at_tw && carrier.same_content(gone)) {
+    let same = |a: T, b: T| matches!((a.plain_constant(), b.plain_constant()), (Some(x), Some(y)) if x == y);
+    // A chord of a periodic cubic that left its site backward is stated
+    // on the loop run back ([`geom::Curve3::reversed`], the same data
+    // at the negated parameter): its interval read on `kept`'s sense is
+    // its own negated.
+    let run_back = matches!(carrier, geom::Curve3::Periodic(_))
+        && gone
+            .reversed()
+            .is_some_and(|back| carrier.same_content(&back));
+    let (gw, gx) = if run_back {
+        (T::zero() - gw, T::zero() - gx)
+    } else if carrier.same_content(gone) {
+        (gw, gx)
+    } else {
         return None;
-    }
+    };
+    // On a periodic cubic `gone` may state the vertex whole turns from
+    // where `kept` does (the two arcs either side of a loop's seat):
+    // its far end is then that many turns on, where the stated
+    // parameters differ by exactly those turns.
+    let turns = match carrier {
+        geom::Curve3::Periodic(p) if !same(gw, tw) => {
+            let k = ((tw - gw) / p.period()).point_value().map(f64::round)?;
+            let shift = p.period() * T::from_f64(k);
+            same(gw + shift, tw).then_some(shift)?
+        }
+        _ => same(gw, tw).then_some(T::zero())?,
+    };
+    let gx = gx + turns;
     let past = if backward { tw - gx } else { gx - tw };
     let pick = geom_core::k_stats::choose("edge_join_carried_far", Margin::of(past), "F39");
     matches!(pick, geom_core::k_stats::Pick::Positive).then_some(gx)
@@ -1189,7 +1214,9 @@ fn joined_spec<T: Decide>(
     let ((kept, kd), (gone, gd)) = curve(join.kept)
         .zip(curve(join.gone))
         .ok_or(desync("a joined edge is not certified"))?;
-    let carrier = kept.carrier();
+    // The carrier the joined edge is stated on is the kept edge's stored
+    // one: on a periodic cubic the loop, which runs on through `w`.
+    let carrier = kept.stored_carrier();
     let (t0, t1) = kept.params();
     let backward = body.get_half_edge(kd.he_plus).map(|h| h.start) == Some(w);
     let (g0, g1) = gone.params();
@@ -1200,7 +1227,7 @@ fn joined_spec<T: Decide>(
     let tw = if backward { t0 } else { t1 };
     let gone_from_w = body.get_half_edge(gd.he_plus).map(|h| h.start) == Some(w);
     let at_w = if gone_from_w { (g0, g1) } else { (g1, g0) };
-    let carried = carried_far(carrier, tw, backward, gone.carrier(), at_w);
+    let carried = carried_far(carrier, tw, backward, gone.stored_carrier(), at_w);
     let tx = if let Some(tx) = carried {
         tx
     } else if join.closed {
@@ -1223,7 +1250,7 @@ fn joined_spec<T: Decide>(
             }
         }
     } else {
-        read_far(carrier, gone.carrier(), (g0, g1), far, tw).ok_or(
+        read_far(carrier, gone.stored_carrier(), (g0, g1), far, tw).ok_or(
             BooleanError::JoinCarrierUnsupported {
                 edge: join.kept,
                 carrier: carrier.kind(),

@@ -83,7 +83,7 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
             let rho = (w - axis * h).norm();
             ((rho - radius.abs()).powi(2) + h.powi(2)).sqrt()
         }
-        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
             panic!("no independent distance to a {:?}", c.kind())
         }
     }

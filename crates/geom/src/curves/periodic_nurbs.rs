@@ -536,35 +536,91 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
     /// **The clamped view over `[a, b]`** (module docs): the curve's
     /// restriction to the span as a clamped cubic in the carrier's own
     /// parameter, its interior knots the curve's own, each simple. The
-    /// span lies in [`Self::view_window`].
+    /// span is forward and at most a period long past rounding
+    /// ([`Self::view_window`] a turn on from wherever it starts).
+    ///
+    /// A span inside [`Self::view_window`] is cut from the two-turn
+    /// opening as it is. Any other is cut `k` whole turns back and
+    /// restated: its ends are `a` and `b` themselves and each interior
+    /// knot is the cut's plus `k` periods, as the scalar rounds it.
     ///
     /// # Errors
     ///
-    /// [`PeriodicViewError::Span`] for a span that is not forward or
-    /// leaves the window; [`PeriodicViewError::Insertion`] where the
-    /// knot insertion at an end refuses.
+    /// [`PeriodicViewError::Span`] for a span that is not forward, or
+    /// that no whole number of turns brings into the window;
+    /// [`PeriodicViewError::Insertion`] where the knot insertion at an
+    /// end refuses ([`NurbsCurve3::split_at`]), or a restated knot
+    /// rounds onto its neighbour.
     pub fn clamped_view(&self, (a, b): (f64, f64)) -> Result<NurbsCurve3<T>, PeriodicViewError> {
         let (lo, hi) = self.two_turns.domain();
         let (s0, s1) = if self.flipped { (-b, -a) } else { (a, b) };
-        if !(lo <= s0 && s0 < s1 && s1 <= hi) {
-            return Err(PeriodicViewError::Span {
-                asked: (a, b),
-                window: self.view_window(),
-            });
+        let span = PeriodicViewError::Span {
+            asked: (a, b),
+            window: self.view_window(),
+        };
+        if !(s0 < s1) {
+            return Err(span);
+        }
+        let period = self.period.point_value().ok_or(span)?;
+        let turns = if lo <= s0 && s1 <= hi {
+            0.0
+        } else {
+            ((s0 - lo) / period).floor()
+        };
+        let (r0, r1) = if turns == 0.0 {
+            (s0, s1)
+        } else {
+            (s0 - period * turns, s1 - period * turns)
+        };
+        if !(lo <= r0 && r0 < r1 && r1 <= hi) {
+            return Err(span);
         }
         let (base_lo, base_hi) = self.base.domain();
-        if s0 == base_lo && s1 == base_hi {
+        if r0 == base_lo && r1 == base_hi && turns == 0.0 {
             return Ok(self.base_opening());
         }
         let refused = |at: f64| PeriodicViewError::Insertion { asked: (a, b), at };
         let mut piece = self.two_turns.clone();
-        if s0 > lo {
-            piece = piece.split_at(s0).map_err(|_| refused(s0))?.1;
+        if r0 > lo {
+            piece = piece.split_at(r0).map_err(|_| refused(r0))?.1;
         }
-        if s1 < hi {
-            piece = piece.split_at(s1).map_err(|_| refused(s1))?.0;
+        if r1 < hi {
+            piece = piece.split_at(r1).map_err(|_| refused(r1))?.0;
+        }
+        if turns != 0.0 {
+            piece = self.restated(&piece, turns, (s0, s1)).ok_or(refused(s0))?;
         }
         Ok(self.oriented(piece))
+    }
+
+    /// `piece`, a cut of the two-turn opening, `turns` whole turns on:
+    /// its ends `ends` exactly, each interior knot its own plus the
+    /// turns' periods. `None` where the restated knots do not ascend.
+    fn restated(
+        &self,
+        piece: &NurbsCurve3<T>,
+        turns: f64,
+        (s0, s1): (f64, f64),
+    ) -> Option<NurbsCurve3<T>> {
+        let shift = self.period * T::from_f64(turns);
+        let runs: Vec<(T, usize)> = piece.knot_values().runs().collect();
+        let last = runs.len().checked_sub(1)?;
+        let restated: Vec<(T, core::num::NonZeroUsize)> = runs
+            .iter()
+            .enumerate()
+            .map(|(i, &(k, m))| {
+                let value = if i == 0 {
+                    T::from_f64(s0)
+                } else if i == last {
+                    T::from_f64(s1)
+                } else {
+                    k + shift
+                };
+                core::num::NonZeroUsize::new(m).map(|m| (value, m))
+            })
+            .collect::<Option<_>>()?;
+        let knots = geom_core::spline::Knots::new(restated, PERIODIC_DEGREE).ok()?;
+        NurbsCurve3::new(knots, piece.control().to_vec(), piece.weights().to_vec()).ok()
     }
 
     /// The data's parameter for the carrier's `t`, less the whole
@@ -716,6 +772,12 @@ mod tests {
             (knot, knot + 1.0),
             (0.0, 0.4),
             (1.5, 2.0),
+            // Past the two turns from the base knot, and before it: cut
+            // whole turns away and restated.
+            (1.7, 2.2),
+            (2.3, 3.1),
+            (-0.4, 0.3),
+            (-3.25, -2.5),
         ] {
             let view = c.clamped_view((a, b)).unwrap();
             assert_eq!(view.domain(), (a, b));
@@ -730,7 +792,7 @@ mod tests {
         let view = c.clamped_view((knot, knot + 1.0)).unwrap();
         assert_eq!(interior(&view).into_iter().count(), c.knot_count() - 1);
         assert!(matches!(
-            c.clamped_view((1.5, 2.5)),
+            c.clamped_view((0.5, 2.7)),
             Err(PeriodicViewError::Span { .. })
         ));
         assert!(matches!(
