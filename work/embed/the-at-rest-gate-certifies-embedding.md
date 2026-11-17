@@ -30,9 +30,9 @@ What the unit carries, from the three designers' converged reports
    engine refusal refuses typed and never reads Ok. For a loft, the
    editor maps the faces through `Lofted`'s face roles to walls and
    section ranges.
-3. **Exclude recorded contact pairs.** This is a face-pair exclusion
-   on `topo::clearance::Side`, since a tier-3′ body is not injective at
-   its records.
+3. **Ask each solid against itself** (fork `embed-records`, below).
+   The gate never pairs faces of two solids: a meeting between solids
+   is the census's, and an assembly's is its `⊔`'s to record or report.
 4. **Keep the gate's verdict per node by content key**, which is
    PR 3870's "once, at the door that built it". Today
    `finished_operand` and the product gather re-gate on every
@@ -652,11 +652,11 @@ filed below. Rows touched: this one, and
     stations, made at the body's own scalar after the sweep returns.
     It is the one logged row, and at `Interval` its straddle is the
     drive's cue.
-- **Item 3:** `Side` (`clearance.rs` ~373) gains a face-pair
-  exclusion, built from the body's `ContactRecords` (`records.rs`
-  ~316: `face_face`, `edge_face`, `vertex_face` and the rest, each
-  cited cell reduced to its faces). The engine never offers an
-  excluded pair.
+- **Item 3:** the gate asks the verdict door once per solid, over that
+  solid's faces (`Side::faces` scopes the ask), and never offers the
+  engine a pair of faces of two solids. `finish` is handed no records
+  for this: none is in play between the faces of one solid, except a
+  record whose two cells lie in that solid (below).
 - **The loft:** `LoftError::SelfIntersecting` names the two faces by
   their `Lofted` roles (`loft.rs` ~131: `side_faces[l][j][s]`, `top`,
   `bottom`) and the section range each meets in.
@@ -664,15 +664,62 @@ filed below. Rows touched: this one, and
   - the 9 and 13 rad arc spines, the closed spine and CARVETAIL's
     loft refuse at their door at `f64` with `BoundaryMeetsItself` and
     the roles of table 2. Today they ship;
-  - `bench`, `bench60` and `bench90` finish: their contacts are
-    excluded. Today the question reads `Violated` at 0;
+  - `bench`, `bench60` and `bench90` finish: no pair between two
+    copies is asked. Asked of the whole body the question reads
+    `Violated` at 0;
+  - a product whose copies overlap finishes, with its interference
+    finding;
   - an engine refusal reads `EmbeddingUncertified`: the box leaf at
     `w = 0.1`, until lane B moves it.
 - **Mutants:** no gate call (the spine rows ship); a refusal mapped to
-  `Ok` (the uncertified row ships); no exclusion (the bench refuses).
+  `Ok` (the uncertified row ships); the gate pairs faces of two solids
+  (a bench and the overlapping product refuse).
 - **Gates:** every suite, the tour walk (85 bodies) and `demos/wild`.
   The price is table 1's: 4–25× tier 3 on planar bodies, and up to
   9.2 s on the Klein loop.
+
+### Fork `embed-records`: what the gate asks, and of what
+
+Raised by the gate lane on 2026-11-17: `AtRestBody::validate` is
+handed no `ContactRecords`, so an exclusion "built from the body's
+records" has nothing to read at `finish`. Two designers converged
+after three rounds (`docs/DESIGN-FORK-LOG.md`, row 284); the answer is
+in `docs/DESIGN.md` `[topology.tiers]`.
+
+- **The certificate is each solid's.** Lane C's gate asks per solid.
+- **The finished body holds its records**, and the gate confirms each
+  before anything relies on it. `BooleanBody::contacts`, the
+  evaluator's `Carry`, `Product`, the import's copy and the Python
+  `Body`'s become reads of the finished body. A door carries its
+  operands' records through its lineage before its finish, not after.
+  The Boolean's `gate` already holds them (`Held`); `shell`, split and
+  blend take a bare body today. This closes into it
+  `work/atrest/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md`
+  and its two neighbours on the same gap.
+- **A point or edge record between two cells of one solid is a
+  confirmed meeting place.** The gate confirms it with the census's
+  self-touch reading for that solid, and the certificate reads around
+  the recorded cells as it reads around a shared vertex or edge. An
+  area self-touch inside one shell keeps its typed refusal
+  (`TouchesItself`). Until the engine reads a recorded cell so, a solid
+  with a record inside it refuses typed at the gate; it is
+  `a-recorded-contact-refuses-the-injectivity-question-until-contact-design-hands-it-off`'s
+  third candidate, for records inside one solid.
+- **Between solids the census is the one reader, inside a deciding
+  door's finish.** A meeting no record covers refuses at the door that
+  made it. A meeting decided beneath that door (a record whose cells it
+  only carried, or an overlap a `⊔` reported, which rides the finished
+  body beside the records) keeps the verdict it arrived with. The
+  census has no lane for two curved solids near each other
+  (`work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
+  and the engine's two-body distance question is that lane. Until it
+  is built, a deciding door's between-solid meetings stay unasked, as
+  they are today.
+
+**Order.** The per-solid ask lands with lane C. The records moving
+into the finished body, the confirmed meeting place and the census
+inside a deciding door's finish are units of their own, cut when lane
+C lands.
 
 ### Lane D — once per node; the viewer's preview (M)
 

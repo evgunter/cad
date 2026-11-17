@@ -856,18 +856,28 @@ tiers".
      census, and certification of contact records in both directions,
      never scanning to bless.
 
-  A **finished body** (`AtRestBody`) passes tier 3′ against its own
-  contact records, none for a body that touches nothing, and its
-  boundary is **embedded** off those records (it meets itself only
-  along its own edges and its recorded contacts), certified by the
-  clearance engine's body-level injectivity question at every scalar
-  with certification rights (`f64`, `Probe`, `Interval` and `Sym`;
-  a scalar without them, such as a dual, cannot reach the gate). The
+  A **finished body** (`AtRestBody`) holds its contact records, none
+  for a body that touches nothing, and passes tier 3′ against them
+  inside the gate, which confirms each record it reads. Each solid's
+  boundary is **embedded** off the records between its own cells (it
+  meets itself only along its own edges and those recorded contacts),
+  certified by the clearance engine's injectivity question, asked of
+  each solid against itself and never of two solids' faces, at every
+  scalar with certification rights (`f64`, `Probe`, `Interval` and
+  `Sym`; a scalar without them, such as a dual, cannot reach the
+  gate). A recorded contact inside a solid is a place where it meets
+  itself, read as a shared edge or vertex is: the question examines
+  the rest of both faces. Between two solids the census is the one
+  reader. A meeting no record covers refuses at the door that made it,
+  as that op's defect ([topology.records]); a meeting decided beneath
+  that door, by a record or by an overlap a `⊔` reported, keeps the
+  verdict it arrived with; and a `⊔`'s own census records or reports,
+  and nothing it finds refuses ([assertions]). The
   question is asked inside the gate once tier 3 has passed, and reads
   tier 3's facts from its verdict, never re-deciding one over a cell. At every
   scalar the question decides with the band every verdict decides
-  with, K·ε ([tolerance.recourse]). Pieces of the boundary that do not
-  meet in the body (no shared edge, vertex or recorded contact) are
+  with, K·ε ([tolerance.recourse]). Pieces of a solid's boundary that
+  do not meet (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
   itself, the local reading (how the faces leave their shared edge or
   vertex, or a face's own turning) passes by more than the band. A
@@ -889,10 +899,10 @@ tiers".
   At a scalar without certification rights the finished type is a
   replay's: tier 2 alone, carrying no verdict, and nothing that reads
   a verdict accepts it. The finished type bundles the body with its
-  verdict, the gate its one constructor; the verdict keeps tier 3's
+  records and its verdict, the gate its one constructor; the verdict keeps tier 3's
   per-entity facts beside its certificate, and a reading of such a
-  fact takes the bundle, never the bare body. The validity class rides the result wrapper
-  (`BooleanBody`, body and contacts), never a mutable `Body` field.
+  fact takes the bundle, never the bare body. The validity class rides the finished
+  type, never a mutable `Body` field.
 - **The census reads one number per cell pair.** `[topology.census]`
   A census finding decides one number per pair of cells (two edges,
   an edge and a face, a vertex and a face, two faces), read between
