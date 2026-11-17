@@ -1405,3 +1405,8 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - the open rim arcs of partial revolves now refuse `UnsupportedChain` instead of `Indeterminate`.
 
   It has a single Opus review, with no experiment arm.
+- 2026-11-17 — 7072's first review (Opus) found one MAJOR, demonstrated. At a straight edge running tangentially into an arc, `RunOut { odd: None }` names the face-tangent seam rather than the edge the run continues into, so following `edge()` loops (`battery.rs:3149-3163`). Its pin cannot go red on this (`band_open_mixed_chain.rs:581-584`). It also found a MINOR: `PARTIAL_TANGENT_RUN` is false when the seam was requested.
+
+  Everything else held over a 5502-request differential: no lost or false build, and every text within budget. The ObliqueMixedCorner, curved-link and FeetCross recourses all build when followed.
+
+  A second Opus review is running on the frozen head, per the sequential arm. Disk fell to 0.9 GB with the reach lane building, so I freed about 19 GB of finished-lane targets and clones.
