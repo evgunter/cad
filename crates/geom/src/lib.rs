@@ -184,11 +184,11 @@ pub use curves::{
     CarrierEscalation, CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic, Curve3,
     CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid,
     FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Line, LinePair, MajorFrame, NurbsCurve2,
-    NurbsCurve3, OnCarrier, PERIODIC_DEGREE, PERIODIC_MIN_KNOTS, PeriodicError, PeriodicNurbs3,
-    PeriodicViewError, PieceRead, PieceStep, PieceWalkRefusal, Projection2, Projection3,
-    ProjectionInconclusive, Ray, RefitSkip, SeamSide, SpiricInvalid, SpiricRegime, compose_chain,
-    conic_period, ellipse_level_clearance, spiric_curvature_sup, spiric_f_range, spiric_period,
-    spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_regime,
+    NurbsCurve3, OnCarrier, PERIODIC_DEGREE, PERIODIC_MIN_KNOTS, ParamSide, PeriodicError,
+    PeriodicNurbs3, PeriodicViewError, PieceRead, PieceStep, PieceWalkRefusal, Projection2,
+    Projection3, ProjectionInconclusive, Ray, RefitSkip, SeamSide, SpiricInvalid, SpiricRegime,
+    compose_chain, conic_period, ellipse_level_clearance, spiric_curvature_sup, spiric_f_range,
+    spiric_period, spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_regime,
     spiric_window_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};

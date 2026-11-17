@@ -1673,11 +1673,14 @@ Flagged, NOT fixed here (dispositions):
   - **A dropped step loses no meeting.** The pair it ends at is read with
     the window its pieces make, the polish's run included, and an Off
     there prunes only where the window's bound says the pieces hold no
-    meeting. Where its premise is not proved (`curve_pair_walk_basin`,
-    logged) the window is undecided and the Off escalates
-    (`walk.rs`'s module docs, the paragraph ending "so no meeting is
-    left unread"). A point left short of the meeting by a dropped step
-    is such a pair: it reads On, or an Off the window proves, or an
+    meeting. Where the two-sided reading bounds no reach (its basin,
+    `curve_pair_walk_basin`, or its move not proved, both logged), a
+    pair held at an end of each span reads the one-sided window
+    (`curve_pair_walk_basin_held`, logged); where neither bounds a
+    reach the window is undecided and the Off escalates (`walk.rs`'s
+    module docs, the paragraph ending "so no meeting is left
+    unread"). A point left short of the meeting by a dropped step is
+    such a pair: it reads On, or an Off the window proves, or an
     escalation.
   - So the logged tie was never the driver's only cue. Where a dropped
     step leaves a meeting unproved, the window's escalation is the cue,
