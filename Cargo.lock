@@ -3737,6 +3737,7 @@ dependencies = [
  "mesh",
  "profile",
  "quantity",
+ "slotmap",
  "step-export",
  "sweep",
  "test-utils",
