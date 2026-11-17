@@ -396,8 +396,9 @@ fn whole_turn_miss(image: &Pcurve<f64>, carrier: &Curve3<f64>, surface: &Surface
 /// What certification makes of the two depends on ε, so each verdict is
 /// asserted where its miss puts it: the image read off the sum refuses
 /// wherever its miss clears the band, and the minted one certifies
-/// wherever its miss is under a quarter of ε — at `f64` and lifted to
-/// `Interval`. At ε = 1e-9 both are asserted. The pose itself exists
+/// wherever its miss is under a quarter of ε at `f64`, and lifted to
+/// `Interval` certifies or reads in band (its frames re-minted there are
+/// a few ulps wide, levered by `A/k`). At ε = 1e-9 both are asserted. The pose itself exists
 /// only near that ε: at 1e-6 the arm's own band refuses it, and at 1e-12
 /// the carrier's rounding (`u·A ≈ 7e-12`) is past the chart's incidence
 /// band; the row says so, and is required to reach its verdicts at the
@@ -473,14 +474,25 @@ fn a_skew_section_near_the_parabola_certifies() {
             });
         let envelope = cache.certificate().envelope;
         assert!(envelope < 0.5 * eps(), "f64 envelope {envelope:e}");
-        let cache = certify_lifted(&image).unwrap_or_else(|e| {
-            panic!(
+        // Lifted to `Interval` the frames are re-minted there, enclosures
+        // a few ulps wide that the envelope levers by about `A/k`: in
+        // band at this pose, never a definite miss.
+        match certify_lifted(&image) {
+            Ok(cache) => {
+                let envelope = cache.certificate().envelope.hi();
+                assert!(envelope < 0.5 * eps(), "Interval envelope {envelope:e}");
+            }
+            Err(e @ geom_brep::PcurveCertifyError::Escalated { .. }) => {
+                println!(
+                    "IN BAND at Interval: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
+            }
+            Err(e) => panic!(
                 "Interval: {e_at}",
                 e_at = e.render(geom_brep::recourse::Reading::Build)
-            )
-        });
-        let envelope = cache.certificate().envelope.hi();
-        assert!(envelope < 0.5 * eps(), "Interval envelope {envelope:e}");
+            ),
+        }
     }
     println!(
         "eps {:e}: the sum's refusal {}, the mint's certificate {}",
@@ -695,7 +707,9 @@ fn interval_mints(poses: &[(f64, f64)]) -> Vec<IntervalMint> {
 /// with the root taken of `1 − e²` gains `1/k` on `e`'s rounding near a
 /// parabola (`k² = 1 − e²`): minted at `Interval` its enclosure was
 /// 5.3e-14 at `k = 0.23`, 6.1e-13 at 2.4e-2 and 5.7e-12 at 2.4e-3 on
-/// this pose. Read as `|rb|/|ra|` it is rounding-wide at every `k`.
+/// this pose. Read as `|rb|/|ra|` it is rounding-wide at every `k`:
+/// 270–330u at every pose, the width of the frames the cone and the
+/// section are re-minted at `Interval` with, and no `1/k`.
 #[test]
 fn beta_encloses_to_rounding_however_near_the_parabola() {
     let poses = [
@@ -712,7 +726,7 @@ fn beta_encloses_to_rounding_however_near_the_parabola() {
     {
         let width = image.beta.hi() - image.beta.lo();
         assert!(
-            width < 128.0 * f64::EPSILON,
+            width < 512.0 * f64::EPSILON,
             "scale {scale}, f {f}, k {k:e}: beta width {width:e}"
         );
     }
@@ -724,8 +738,12 @@ fn beta_encloses_to_rounding_however_near_the_parabola() {
 /// at the last four poses (`[0, 2.7e-9]`, `[0, 6.8e-8]`, `[0, 6.5e-9]`,
 /// `[0, 2.0e-7]`) and at the first certified at 58× the f64 mint's
 /// lifted envelope (2.1e-10 against 3.6e-12). With `β` rounding-wide the
-/// Interval envelope is 3.3–3.9× the lifted one at every pose, so the
-/// ceiling is 8×.
+/// Interval envelope is 3.3–3.9× the lifted one at every pose it
+/// certifies, so the ceiling is 8×. The frames are re-minted at
+/// `Interval`, enclosures of their rotations a few ulps wide, and at the
+/// two poses nearest the parabola (`k` 7.4e-3 at scale 1, 2.4e-3 at
+/// scale 0.1) the envelope levers that width into the band
+/// (`[0, 4.2e-9]` at both): pinned as the poses in band.
 #[test]
 fn a_near_parabola_section_minted_at_interval_certifies() {
     let lift = <Interval as Real>::from_f64;
@@ -741,6 +759,7 @@ fn a_near_parabola_section_minted_at_interval_certifies() {
         PcurveCache::certify(image, lift(-1.0), lift(1.0), &lc, &ls, band())
             .map(|cache| cache.certificate().envelope.hi())
     };
+    let mut in_band = Vec::new();
     for IntervalMint {
         scale,
         f,
@@ -753,17 +772,19 @@ fn a_near_parabola_section_minted_at_interval_certifies() {
         let at = format!("scale {scale}, f {f}, k {k:e}");
         // Off the default ε the box may now mint a section its read used
         // to refuse, and its envelope may land in band there: the
-        // certificate's honest answer, not this row's subject.
+        // certificate's honest answer, not this row's subject. At the
+        // default ε one pose lands in band too: the cone's and the
+        // section's frames are re-minted at `Interval`, enclosures a few
+        // ulps wide, which the envelope levers by about `1/k`.
         let minted = match certify(Pcurve::FocalSection(image), &carrier, &surface) {
             Ok(minted) => minted,
-            Err(e @ geom_brep::PcurveCertifyError::Escalated { .. })
-                if eps() != geom_core::tolerance::DEFAULT_EPS =>
-            {
+            Err(e @ geom_brep::PcurveCertifyError::Escalated { .. }) => {
                 println!(
                     "IN BAND {at} at ε {:e}: {e_at}",
                     eps(),
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 );
+                in_band.push((scale, f));
                 continue;
             }
             Err(e) => panic!(
@@ -793,6 +814,13 @@ fn a_near_parabola_section_minted_at_interval_certifies() {
         assert!(
             minted < 8.0 * lifted,
             "{at}: envelope {minted:e} minted at Interval, {lifted:e} lifted"
+        );
+    }
+    if eps() == geom_core::tolerance::DEFAULT_EPS {
+        assert_eq!(
+            in_band,
+            [(1.0, 0.99999), (0.1, 0.999_999)],
+            "the poses in band at the default ε"
         );
     }
 }

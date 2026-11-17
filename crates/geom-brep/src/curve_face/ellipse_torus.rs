@@ -571,12 +571,15 @@ mod torus_rows {
 
     impl Pose {
         fn build(&self) -> (geom::Curve3<f64>, geom::Surface<f64>) {
+            // The pose's stated bits where they are a frame already, which
+            // its oracle reads; squared where not.
+            let (o, n, u) = (
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::from_array(self.n),
+                Vec3::from_array(self.u),
+            );
             let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame::new(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::from_array(self.n),
-                    Vec3::from_array(self.u),
-                ),
+                geom::Frame::admitted(o, n, u).unwrap_or_else(|| geom::Frame::new(o, n, u)),
                 self.semi[0],
                 self.semi[1],
             ));

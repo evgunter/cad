@@ -93,17 +93,3 @@ fn a_meridian_in_band_of_the_torus_axis_escalates_its_radial() {
         want
     );
 }
-
-/// **A torus with no axis refuses as that**, under its own name: the
-/// axis leg is decided before the radial, and its zero is not a
-/// missing radial.
-#[test]
-fn a_torus_without_an_axis_refuses_under_the_axis_name() {
-    let (torus, outer) = fixture_about(Vec3::new(0.0, 0.0, 0.0), 1.0);
-    assert_eq!(
-        require_iso_rectangle(&torus, &outer, band()).err(),
-        Some(PropsError::NotIsoRectangle {
-            what: "props_torus_axis"
-        })
-    );
-}

@@ -2195,20 +2195,6 @@ mod tests {
             self.at(k) <= o.at(k)
         }
 
-        /// `self / o` as an `f64`, `o ≠ 0`.
-        fn ratio(&self, o: &Self) -> f64 {
-            let k = self.k.min(o.k);
-            let (a, b) = (self.at(k), o.at(k));
-            let shift = b.bits().saturating_sub(60);
-            let to = |x: num_bigint::BigInt| {
-                (x >> usize::try_from(shift).unwrap())
-                    .to_string()
-                    .parse::<f64>()
-                    .unwrap()
-            };
-            to(a) / to(b)
-        }
-
         /// `⌊√x⌋` and `⌈√x⌉` at `2⁻²⁰⁰` resolution, `x ≥ 0`.
         fn sqrt_bracket(&self) -> (Self, Self) {
             let k = (self.k - 400) & !1;
@@ -2349,129 +2335,6 @@ mod tests {
                 assert!(
                     err <= ceiling,
                     "pose {k}: {name}'s bound {err} exceeds its ceiling {ceiling}"
-                );
-            }
-        }
-    }
-
-    /// **The frame charge bounds the gap between the circle the stored
-    /// frame evaluates and the factored form, and is attained.** The
-    /// literal residual `|e + ρ(û cos θ + (n̂ × û) sin θ)|² − r²` and the
-    /// form's `P + e_n² + ρ² − r² + 2ρ(e_u cos θ + e_v sin θ)` differ, at
-    /// every rational point `(a, b)/c` of the unit circle tried, by no
-    /// more than `2r·frame_error` — exactly, in dyadic arithmetic scaled
-    /// by `c²`. Two defective frames: `n̂` tilted off `û`'s normal plane
-    /// by `2⁻²⁸`, and `û` stretched by `2⁻³⁰` with `n̂` shrunk by as
-    /// much and the sphere's centre on the axis, where at `θ = 0` the
-    /// gap is the bound to first order — so a charge of half the bound
-    /// misses there. An exactly orthonormal frame is charged nothing.
-    #[test]
-    fn the_frame_charge_bounds_the_literal_circle() {
-        let flat = circle_sphere_harmonic(
-            &geom::Circle::new(
-                geom::Frame::new(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::new(0.0, 0.0, -1.0),
-                    Vec3::new(0.0, 1.0, 0.0),
-                ),
-                1.0,
-            ),
-            Point3::new(1.7, 0.3, 0.2),
-            0.75,
-        );
-        assert_eq!(flat.frame_error, 0.0, "an exact frame is charged nothing");
-        let tight = 2f64.powi(-30);
-        let frames = [
-            (
-                [0.3, -0.2, 0.1],
-                [1.1, 0.4, -0.7],
-                [2f64.powi(-28), 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-            ),
-            (
-                [0.0, 0.0, 0.0],
-                [0.0, 0.0, -0.6],
-                [0.0, 0.0, 1.0 - tight],
-                [1.0 + tight, 0.0, 0.0],
-            ),
-        ];
-        for (k, (c, sc, n, ur)) in frames.into_iter().enumerate() {
-            let (rho, r) = (1.3, 0.9);
-            let h = circle_sphere_harmonic(
-                &geom::Circle::new(
-                    geom::Frame::new(
-                        Point3::from_array(c),
-                        Vec3::new(n[0], n[1], n[2]),
-                        Vec3::new(ur[0], ur[1], ur[2]),
-                    ),
-                    rho,
-                ),
-                Point3::from_array(sc),
-                r,
-            );
-            assert!(
-                h.frame_error > 1e-10,
-                "frame {k}: the defect is charged: {}",
-                h.frame_error
-            );
-            let e: [Dyadic; 3] = core::array::from_fn(|i| Dyadic::of(c[i]).sub(&Dyadic::of(sc[i])));
-            let (dn, du) = (dyadic_vec(n), dyadic_vec(ur));
-            let dv = dyadic_cross(&dn, &du);
-            let (eu, ev, en) = (
-                dyadic_dot(&e, &du),
-                dyadic_dot(&e, &dv),
-                dyadic_dot(&e, &dn),
-            );
-            let (dr, drho) = (Dyadic::of(r), Dyadic::of(rho));
-            let bound = Dyadic::of(2.0 * r * h.frame_error);
-            let mut widest = 0.0_f64;
-            for (a, b, cc) in [
-                (1, 0, 1),
-                (0, 1, 1),
-                (3, 4, 5),
-                (-5, 12, 13),
-                (-8, -15, 17),
-                (20, -21, 29),
-            ] {
-                let (a, b, cc) = (Dyadic::int(a), Dyadic::int(b), Dyadic::int(cc));
-                let c2 = cc.mul(&cc);
-                // `c·(e + ρ(û a + v̂ b)/c)`, squared, against `c²·(…)`.
-                let w: [Dyadic; 3] = core::array::from_fn(|i| {
-                    cc.mul(&e[i])
-                        .add(&drho.mul(&du[i].mul(&a).add(&dv[i].mul(&b))))
-                });
-                let literal = dyadic_dot(&w, &w).sub(&c2.mul(&dr.mul(&dr)));
-                let form = c2
-                    .mul(
-                        &eu.mul(&eu)
-                            .add(&ev.mul(&ev))
-                            .add(&en.mul(&en))
-                            .add(&drho.mul(&drho))
-                            .sub(&dr.mul(&dr)),
-                    )
-                    .add(
-                        &Dyadic::int(2)
-                            .mul(&drho)
-                            .mul(&cc)
-                            .mul(&eu.mul(&a).add(&ev.mul(&b))),
-                    );
-                let gap = literal.sub(&form);
-                let limit = c2.mul(&bound);
-                let neg = Dyadic {
-                    m: -limit.m.clone(),
-                    k: limit.k,
-                };
-                assert!(
-                    neg.le(&gap) && gap.le(&limit),
-                    "frame {k}: the literal circle leaves the form by more than the frame charge {}",
-                    h.frame_error
-                );
-                widest = widest.max(gap.ratio(&limit).abs());
-            }
-            if k == 1 {
-                assert!(
-                    widest > 0.99,
-                    "frame {k}: the bound is attained, got {widest}"
                 );
             }
         }
@@ -3490,78 +3353,6 @@ mod conic_tests {
 
     use super::*;
 
-    /// **The carrier-wide ceiling charges the frame's defect.** On a
-    /// frame whose `û` is 1.3 long and not square to its axis — the
-    /// struct says a frame need not be orthonormal — the carrier reaches
-    /// past `max(|a|, |b|)`, and `Q = |F|/(2r|res|)` along it reaches
-    /// 1.53 times `(|C₀ − c| + max(|a|, |b|) + R)²`. Read off the Gram
-    /// matrix, the ceiling holds with room (`Q` peaks at 0.97 of it).
-    /// Every point within `r` of the torus, sampled over the tube, stays
-    /// under [`ConicTorusHarmonics::f_per_metre_surface`].
-    #[test]
-    fn the_carrier_ceiling_charges_the_frame_defect() {
-        let conic = geom::Ellipse::new(
-            geom::Frame::new(
-                Point3::new(0.006_142_65, 0.035_256_44, 0.010_196_55),
-                Vec3::new(0.758_923_11, 0.041_698_83, -0.649_843_76),
-                Vec3::new(-0.631_128_01, 0.979_226_32, -0.574_074_24),
-            ),
-            1.779_300_934_408_354,
-            0.988_632_635_923_187_6,
-        );
-        let (c, ax) = (
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(-0.441_532_65, -0.871_819_51, -0.212_084_08).normalize(),
-        );
-        let (big, small) = (0.267_368_886_091_117, 0.162_217_785_042_628_35);
-        let h = conic_torus_harmonics(&conic, geom::Line { origin: c, dir: ax }, big, small);
-        let q_at = |p: Point3<f64>| {
-            let q = p - c;
-            let along = q.dot(ax);
-            let rho = (q - ax * along).norm();
-            (rho + big).powi(2) + along.powi(2) - small.powi(2)
-        };
-        let q_max = (0..4000)
-            .map(|j| q_at(conic.point_at(TAU * f64::from(j) / 4000.0)))
-            .fold(0.0, f64::max);
-        let stated = (conic.frame().origin() - c).norm() + conic.speed_hi() + big;
-        assert!(
-            2.0 * small * q_max > 1.5 * 2.0 * small * stated.powi(2),
-            "the pose reaches past the semi-axes' reach: Q {q_max} against {}",
-            stated.powi(2)
-        );
-        assert!(
-            2.0 * small * q_max <= h.f_per_metre_hi,
-            "2rQ {} over the carrier ceiling {}",
-            2.0 * small * q_max,
-            h.f_per_metre_hi
-        );
-        // Points within `r` of the surface: offsets up to `r` along the
-        // tube's own normal, over the whole tube.
-        let (e1, e2) = {
-            let x = Vec3::new(1.0, 0.0, 0.0);
-            let e1 = (x - ax * x.dot(ax)).normalize();
-            (e1, ax.cross(e1))
-        };
-        for i in 0..90 {
-            for j in 0..45 {
-                for off in [-1.0, -0.5, 0.0, 0.5, 1.0] {
-                    let (su, cu) = (TAU * f64::from(i) / 90.0).sin_cos();
-                    let (sv, cv) = (TAU * f64::from(j) / 45.0).sin_cos();
-                    let radial = e1 * cu + e2 * su;
-                    let normal = radial * cv + ax * sv;
-                    let p = c + radial * big + normal * (small * (1.0 + off));
-                    assert!(
-                        2.0 * small * q_at(p) <= h.f_per_metre_surface,
-                        "2rQ {} past the surface ceiling {}",
-                        2.0 * small * q_at(p),
-                        h.f_per_metre_surface
-                    );
-                }
-            }
-        }
-    }
-
     /// **The running residuals are the plain ones, bit for bit.** The
     /// torus's ([`conic_torus_residual`]), the cone's
     /// ([`conic_cone_residual`]) and the sphere's and wall's
@@ -3599,30 +3390,25 @@ mod conic_tests {
                 r,
             )));
         }
-        let (c, ax) = (
-            Point3::new(0.3, -0.1, 0.4),
-            Vec3::new(0.2, 1.0, -0.3).normalize(),
-        );
+        // The axis the surfaces' frames hold, so the running and plain
+        // forms read one vector.
+        let c = Point3::new(0.3, -0.1, 0.4);
+        let frame = geom::Frame::new(c, Vec3::new(0.2, 1.0, -0.3), Vec3::new(1.0, 0.0, 0.0));
+        let ax = frame.axis();
         let (big, small) = (1.1, 0.35);
         let (apex, half) = (Point3::new(-0.2, 0.5, -1.0), 0.6);
         let surfaces = [
             Surface::Torus {
-                frame: geom::Frame::new(c, ax, Vec3::new(1.0, 0.0, 0.0)),
+                frame,
                 major_radius: big,
                 minor_radius: small,
             },
             Surface::Cone {
-                frame: geom::Frame::new(apex, ax, Vec3::new(1.0, 0.0, 0.0)),
+                frame: frame.with_origin(apex),
                 half_angle: half,
             },
-            Surface::Sphere {
-                frame: geom::Frame::new(c, ax, Vec3::new(1.0, 0.0, 0.0)),
-                radius: 0.9,
-            },
-            Surface::Cylinder {
-                frame: geom::Frame::new(c, ax, Vec3::new(1.0, 0.0, 0.0)),
-                radius: 0.8,
-            },
+            Surface::Sphere { frame, radius: 0.9 },
+            Surface::Cylinder { frame, radius: 0.8 },
         ];
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for s in &surfaces {

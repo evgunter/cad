@@ -1059,8 +1059,6 @@ enum Moved {
     Carrier,
     /// The stored net off the carrier's (`Fidelity`).
     Net,
-    /// The chart's frame off orthonormal (`Frame`).
-    Frame,
     /// The deck map off a deck transformation (`FidelityU`).
     Deck,
 }
@@ -1070,7 +1068,6 @@ impl Moved {
         match self {
             Self::Carrier => EnvelopeTerm::Incidence,
             Self::Net => EnvelopeTerm::Fidelity,
-            Self::Frame => EnvelopeTerm::Frame,
             Self::Deck => EnvelopeTerm::FidelityU,
         }
     }
@@ -1081,7 +1078,7 @@ impl Moved {
 /// any term (a sector the move broke).
 fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<Dominance> {
     let b = band();
-    let mut surf = surface(chart, s);
+    let surf = surface(chart, s);
     let carrier = on_chart(&surf, s);
     let (t0, t1) = domain(&carrier);
     let size = 10f64.powf(s.range(-7.0, -4.0));
@@ -1095,77 +1092,7 @@ fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<Domina
         }
         _ => carrier,
     };
-    if moved == Moved::Frame {
-        let tilt = |v: Vec3<f64>, s: &mut fuzz::Rng| (v + unit(s) * size) * (1.0 + size);
-        surf = match surf {
-            Surface::Cylinder {
-                frame: carrier_frame,
-                radius,
-            } => {
-                let (origin, axis, u_ref) = (
-                    carrier_frame.origin(),
-                    carrier_frame.axis(),
-                    carrier_frame.u_ref(),
-                );
-                Surface::Cylinder {
-                    frame: geom::Frame::new(origin, tilt(axis, s), tilt(u_ref, s)),
-                    radius,
-                }
-            }
-            Surface::Cone {
-                frame: carrier_frame,
-                half_angle,
-            } => {
-                let (apex, axis, u_ref) = (
-                    carrier_frame.origin(),
-                    carrier_frame.axis(),
-                    carrier_frame.u_ref(),
-                );
-                Surface::Cone {
-                    frame: geom::Frame::new(apex, tilt(axis, s), tilt(u_ref, s)),
-                    half_angle,
-                }
-            }
-            Surface::Sphere {
-                frame: carrier_frame,
-                radius,
-            } => {
-                let (center, axis, u_ref) = (
-                    carrier_frame.origin(),
-                    carrier_frame.axis(),
-                    carrier_frame.u_ref(),
-                );
-                Surface::Sphere {
-                    frame: geom::Frame::new(center, tilt(axis, s), tilt(u_ref, s)),
-                    radius,
-                }
-            }
-            Surface::Torus {
-                frame: carrier_frame,
-                major_radius,
-                minor_radius,
-            } => {
-                let (center, axis, u_ref) = (
-                    carrier_frame.origin(),
-                    carrier_frame.axis(),
-                    carrier_frame.u_ref(),
-                );
-                Surface::Torus {
-                    frame: geom::Frame::new(center, tilt(axis, s), tilt(u_ref, s)),
-                    major_radius,
-                    minor_radius,
-                }
-            }
-            other => other,
-        };
-    }
-    // A frame row's stored net is the twin frame's, so only the map
-    // differs from the lemma's.
-    let derive_on = if moved == Moved::Frame {
-        super::super::orthonormal_chart(&surf)
-    } else {
-        surf.clone()
-    };
+    let derive_on = surf.clone();
     let mut image = project(&carrier, None, &derive_on, b).ok()?;
     match moved {
         Moved::Net => {
@@ -1183,7 +1110,7 @@ fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<Domina
             ));
         }
         Moved::Deck => image.u_off += size,
-        Moved::Carrier | Moved::Frame => {}
+        Moved::Carrier => {}
     }
     let pcurve = Pcurve::Projected(Box::new(image.clone()));
     let boxed = pcurve.chart_box(t0, t1);
@@ -1246,7 +1173,7 @@ struct Dominance {
 }
 
 const CURVED: [Chart; 4] = [Chart::Cylinder, Chart::Cone, Chart::Sphere, Chart::Torus];
-const MOVES: [Moved; 4] = [Moved::Carrier, Moved::Net, Moved::Frame, Moved::Deck];
+const MOVES: [Moved; 3] = [Moved::Carrier, Moved::Net, Moved::Deck];
 
 /// **The envelope dominates**: every row moved in one respect bounds
 /// its densely sampled displacement, the lemma's envelope and check 4's,

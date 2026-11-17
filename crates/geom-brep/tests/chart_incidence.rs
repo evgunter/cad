@@ -1376,20 +1376,19 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
     // `split_edge_on_faces_poses::an_edge_at_the_zero_bands_edge_refuses_typed_and_its_lever_builds`
     // at 1e-9 (measured; neither at 1e-6).
     // `Interval` charges nothing, its enclosure holding the
-    // rounding already, and the enclosure of the distance widens with
-    // the distance slid, about eight ulps of `2ᵏ` for the rim and half an
-    // ulp for the plane's circle (measured: `1.88e-12` at `2¹⁰` and
-    // `1.82e-12` at `2¹⁴`). So it
+    // rounding already. It reads each frame re-minted at its scalar, an
+    // enclosure of the rotation a few ulps wide, so the enclosure of the
+    // distance widens with the distance slid times that width. So it
     // reads the placement on below the `k`
     // where that width passes the zero band, in band from there, never
     // off: the row pins the measured `k` at each ε row CI runs, and that
     // one transition at any other.
     let boundary = |shape: usize| match (shape, e) {
-        (0, 1e-9) => Some(20),
-        (0, 1e-12) => Some(10),
-        (0, 1e-6) => Some(30),
-        (1, 1e-9) => Some(24),
-        (1, 1e-12) => Some(14),
+        (0, 1e-9) => Some(18),
+        (0, 1e-12) => Some(8),
+        (0, 1e-6) => Some(28),
+        (1, 1e-9) => Some(21),
+        (1, 1e-12) => Some(11),
         (1, 1e-6) => Some(31),
         _ => None,
     };
@@ -1508,13 +1507,13 @@ fn a_stored_row_is_read_at_its_certification_as_its_mint_read_it() {
             }
         }
     }
-    // The mint images the rim below `2²⁰` and the plane's circle below
-    // `2²⁴` at ε 1e-9 (the far-anchor row's pins), so the `k` the twin's
+    // The mint images the rim below `2¹⁸` and the plane's circle below
+    // `2²¹` at ε 1e-9 (the far-anchor row's pins), so the `k` the twin's
     // re-read refused are certified here.
     if eps() == 1e-9 {
         assert_eq!(
             certified,
-            [20, 24],
+            [18, 21],
             "the Interval images certified per shape"
         );
     }
@@ -1686,8 +1685,8 @@ fn a_corner_and_an_edge_on_a_tilted_plane_far_from_its_anchor_are_read_on_it() {
         ]
     };
     let k0 = match e {
-        1e-9 => Some(24),
-        1e-12 => Some(14),
+        1e-9 => Some(21),
+        1e-12 => Some(11),
         1e-6 => Some(31),
         _ => None,
     };

@@ -27,8 +27,10 @@ pub fn unit(mut range: impl FnMut(f64, f64) -> f64) -> Vec3<f64> {
 /// conic rows build.
 pub fn torus(center: Point3<f64>, axis: Vec3<f64>, big: f64, small: f64) -> geom::Surface<f64> {
     let axis = axis.normalize();
+    let frame = geom::Frame::admitted(center, axis, axis.orthonormal_basis().0)
+        .unwrap_or_else(|| geom::Frame::new(center, axis, axis.orthonormal_basis().0));
     geom::Surface::Torus {
-        frame: geom::Frame::new(center, axis, axis.orthonormal_basis().0),
+        frame,
         major_radius: big,
         minor_radius: small,
     }
