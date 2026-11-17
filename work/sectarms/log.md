@@ -929,3 +929,4 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **Predates PR 7052:** `node_end_rows::a_chain_ends_at_a_node_only_where_its_end_is_at_the_node` at 1e-6 certifies a coarse span onto the node.
   - **Filed:** `main-red-since-pr-7052-the-recourse-roster-and-a-close-rings-pin` (P1 E) and `a-node-end-row-certifies-a-coarse-span-onto-the-node-at-1e-6` (P1 E).
 - **Dispatching both as one lane, letter M, tier single:** the roster and the pin are mechanical, but the node-end row may be soundness (the class of 6897's MAJOR). Brief `impl-mainred.md`, branch `sectarms/main-red-1e-6`. Implementer byte drawn after this entry.
+- **Main-red implementer byte 76 (Opus),** on the model-compare branch; dispatched.
