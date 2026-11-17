@@ -2,12 +2,14 @@
 id: a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it
 kind: issue
 title: T1's cone joined to a box whose edge crosses its axis meshes a cone triangle that reach_probes' geometry reads as wound against the face
-status: dispatched
+status: closed
 opened: 2026-11-16
 priority: P1
 cost: M
 design: true
 branch: tesslane/cone-axis-winding
+closed: 2026-11-17
+pr: 7049
 ---
 
 
@@ -87,7 +89,7 @@ Three designers weighed it, two rounds (`docs/DESIGN-FORK-PROTOCOL.md`; the repo
 - **The class is wider than this row.** It is every *ruled face* (a face on a cylinder or a cone, whose lines `u = const` are straight rulings) with a *split side* (a straight side carried by two or more edges). A cylinder wall with a split ruling refuses `CertificateExceeded` from δ 0.01 down, at every δ on some; a frustum with one meshes on a lattice no theorem sizes; slender cones (half-angle 5°, 1°) refuse `UnresolvedWinding` at every δ.
 - **The cause** is the rectangle lane's triangulation, not its lattice: it triangulates the raw chart, its theorem for a ruled face (every triangle between two neighbouring rulings) is a premise nothing holds, and a vertex on a straight side is the one boundary point off the grid. The fallback lattice (`curved::grid_counts`' arm for a side that is not bare, from PR 5717's fix pass) was laid to paper over that and is what makes the triangles of no area.
 - **The final state** is not this unit: such a face meshes in the chart lane as the same face without the split plus one triangle per vertex, with no interior rows. It is its own unit, after this one.
-- **Until then** these faces are the chart lane's, which meshes every one of them today, and `UnresolvedWinding` stays as the backstop on every lane.
+- **Until then** these faces are the chart lane's, which meshes them but for the residuals this unit found and filed beside this row (a planar neighbour narrower than δ; two points of one ruling closer than the cone's development resolves; a fold beside a hair-split), and `UnresolvedWinding` stays as the backstop on every lane. (The sentence first read "which meshes every one of them today"; that was the orchestrator's, written before anything was measured, and it was false.)
 
 **This unit builds the "until then".** Same letter and tier as above (M, single FULL review).
 
@@ -104,3 +106,16 @@ Three designers weighed it, two rounds (`docs/DESIGN-FORK-PROTOCOL.md`; the repo
 - **Tracker, on this branch.** File the cylinder wall's refusal as its own issue row and close it here; re-point `a-cone-face-with-a-split-side-has-no-worst-triangle-theorem` (its arm is deleted; the face is the chart lane's at the named headroom until the strip unit); add to the closed row `curved-lane-triangulates-in-raw-chart-coordinates` that its closing premise ("no point off the lattice reaches this lane") was false for a split vertex, citing this row.
 - **Run before every push** what the section above lists, and `cargo nextest run -p step-import` and sweep's meshing rows with it.
 
+## Closed (2026-11-17, PR 7049)
+
+The triangle is gone: all 18 cells of T1 mesh with every winding resolved at three ε, and so does the class behind it. A cylinder or cone face whose straight side holds a vertex (a ruling split into several edges, or a cone side through its apex) is routed to the chart lane by `walk::splits_a_straight_side`, confirmed by the shape door; the rectangle lane's fallback lattice and `bare_sides` are deleted, and that lane keeps one guard for a chord point inside a side, which no measured body builds.
+
+What the sections above had wrong, each found by the unit or its review:
+
+- **A one-face full-turn cone wall with a split seam does reach `SeamTwice`.** The spec said no door builds one. The first head refused 72 of 72 such cells where the base meshed 60; the chart lane now does not raise `SeamTwice` where its triangulation runs in the development, and a 243-cell row holds it.
+- **`step-import`'s split side is not in the class** (the import joins the two collinear edges), and the both-nappes refusal is reached by no door.
+- **Not every face of the class meshes.** Three residuals, each filed and pinned in `crates/mesh/tests/split_rulings.rs`:
+  - a planar neighbour narrower than δ beside a routed face refuses `Triangulation` where the base meshed it (373 cells in the review's sweep; `a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta`'s class);
+  - two points of one ruling closer than 2⁻²⁷ of the cone's slant radius refuse `DevelopedMerge`, at every ε, which on a draft-angle cone is a length of 10⁻⁵ to 10⁻⁷ (408 cells that mesh on the base at the default ε; `a-ruling-split-within-the-developments-resolution-merges-two-points`, whose cure is the unit `a-run-of-ruling-points-the-development-merges-is-re-split-after-the-triangulation`, dispatched before this row closed);
+  - a ruling split a hair from its end folds a triangle where the base refused differently (`a-ruling-split-a-hair-from-its-end-folds-a-triangle`).
+- **The price** is density: the chart lane lays rows these faces do not need and sizes at its unproved headroom (14.6× in the suites at worst). The final state, a ruled face meshed without interior rows, is its own unit and waits on `[ev]` PR 7046.
