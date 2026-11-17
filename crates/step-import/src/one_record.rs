@@ -13,21 +13,20 @@
 //! **Decided at the faces, never at stored origins.** A plane record's
 //! origin is an arbitrary point of it, so the question is asked of what
 //! the faces are: the farthest any boundary carrier of a face on one
-//! record lies from the other record's plane, bounded in closed form
-//! (a line's ends, a conic's extreme over its whole curve, a spline's
-//! control hull), read both ways. A face's region is the convex hull of
+//! record lies from the other record's plane, read off each carrier's
+//! cover over its span, both ways. A face's region is the convex hull of
 //! its boundary's span in its own plane, on which the distance from the
 //! other plane is affine, so the bound covers the whole face. Zero is one
 //! locus; apart keeps two records; in band refuses as an ambiguity,
-//! naming the ε_in that decides it. A carrier with no closed-form bound
-//! keeps the two records.
+//! naming the ε_in that decides it. A carrier with no cover keeps the
+//! two records.
 //!
 //! Each record is read against the records kept so far, never through a
 //! third (`[verdicts.closeness]`). Faces of different solids are never
 //! asked: they stay two records, with the contact rows the at-rest gate
 //! records.
 
-use geom::{Curve3, Surface};
+use geom::Surface;
 use geom_core::{Point3, Vec3};
 
 use crate::entities::SolidSpec;
@@ -115,8 +114,13 @@ pub(crate) fn one_record(
 
 /// The plane's unit normal.
 fn normal(surface: &Surface<f64>) -> Vec3<f64> {
+    plane_of(surface).1
+}
+
+/// A plane record's origin and unit normal.
+fn plane_of(surface: &Surface<f64>) -> (Point3<f64>, Vec3<f64>) {
     match *surface {
-        Surface::Plane { normal, .. } => normal,
+        Surface::Plane { origin, normal, .. } => (origin, normal),
         _ => unreachable!("only plane records are read"),
     }
 }
@@ -124,7 +128,7 @@ fn normal(surface: &Surface<f64>) -> Vec3<f64> {
 /// The farthest a face on one of the two records lies from the other's
 /// plane, read both ways: `faces` (on the later record) against the kept
 /// record's plane, and every face on the kept record against the later
-/// one's. `None` where a carrier has no closed-form bound.
+/// one's. `None` where a carrier has no cover.
 fn locus_gap(
     solid: &SolidSpec,
     keep_face: usize,
@@ -147,32 +151,23 @@ fn locus_gap(
 }
 
 /// An upper bound on the farthest face `fi`'s boundary carriers lie from
-/// `plane` (module docs).
+/// `plane`: each edge's span read off its carrier's cover along the
+/// plane's normal ([`geom::Curve3::cover_over`]). `None` where a carrier
+/// has no cover.
 fn face_reach(solid: &SolidSpec, fi: usize, plane: &Surface<f64>) -> Option<f64> {
-    let Surface::Plane { origin, normal, .. } = *plane else {
-        return None;
-    };
-    let height = |p: Point3<f64>| normal.dot(p - origin).abs();
+    let (origin, normal) = plane_of(plane);
+    let level = normal.dot(origin - Point3::origin());
     let mut reach = 0.0_f64;
     let mut any = false;
     for lp in &solid.faces[fi].loops {
         for u in &lp.uses {
             let spec = solid.edges.get(&u.edge)?;
-            let r = match spec.carrier {
-                Curve3::Line(_) => {
-                    height(spec.carrier.eval(spec.t0)).max(height(spec.carrier.eval(spec.t1)))
-                }
-                Curve3::Circle(ref c) => {
-                    height(c.frame.origin) + c.radius * normal.cross(c.frame.axis).norm()
-                }
-                Curve3::Ellipse(ref e) => {
-                    let v = e.frame.axis.cross(e.frame.u_ref);
-                    height(e.frame.origin)
-                        + (e.semi_u * normal.dot(e.frame.u_ref)).hypot(e.semi_v * normal.dot(v))
-                }
-                Curve3::Nurbs(ref c) => c.control().iter().fold(0.0_f64, |m, &p| m.max(height(p))),
-                _ => return None,
-            };
+            let cover = spec
+                .carrier
+                .cover_over(geom::cover::ParamWindow::new(spec.t0, spec.t1))
+                .ok()?;
+            let (lo, hi) = cover.range_along(normal);
+            let r = (lo - level).abs().max((hi - level).abs());
             if !r.is_finite() {
                 return None;
             }

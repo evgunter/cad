@@ -509,8 +509,8 @@ pub const STEP_PLACEMENT_AXES: &str = "step_placement_axes";
 /// the file's band (Zero takes the identity).
 pub const STEP_PLACEMENT_IDENTITY: &str = "step_placement_identity";
 
-/// The proof that a line's stated direction triple is unit within its own
-/// rounding, so it is kept as the file states it.
+/// The K row a line's frame is built under where its direction triple is
+/// read for unit length within its rounding.
 pub const STEP_LINE_DIRECTION_UNIT: &str = "step_line_direction_unit";
 
 /// Where a file put a chart singularity that is not yet a vertex in

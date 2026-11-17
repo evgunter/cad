@@ -2512,20 +2512,34 @@ const CIRCLE_RADIUS: &str = "a circle's radius, which must be positive";
 const ELLIPSE_SEMI_AXIS: &str = "an ellipse's semi-axis, which must be positive";
 
 /// **A line's unit direction from the file's ratio triple**: the triple
-/// itself where it is unit within its own rounding (its squared length
-/// less one no larger than the rounding a short chain is charged,
-/// [`geom_core::rounding_charge`], as [`geom_core::RigidMotion::check_rigid`]
-/// admits a frame's columns), so a unit direction the writer printed is
-/// kept bit for bit; otherwise the triple normalized. `None` for a triple
-/// that names no direction.
+/// itself where it is unit within its own rounding, so a unit direction
+/// the writer printed is kept bit for bit; otherwise the triple
+/// normalized. Read by the kernel's f64 door: the line's frame is built by
+/// `build_axes` about the triple, and with the triple as stated put back
+/// as its axis, [`geom_core::RigidMotion::check_rigid`] says whether the
+/// frame is still rigid within its rounding. `None` for a triple that
+/// names no direction.
 fn unit_line_direction(ratios: Vec3<f64>) -> Option<Vec3<f64>> {
-    let (unit, _) = ratios.checked_direction().ok()?;
-    let squared = ratios.dot(ratios);
-    let slack = geom_core::rounding_charge(squared + 1.0) - (squared - 1.0).abs();
-    let unit_within_rounding =
-        geom_core::k_stats::prove(STEP_LINE_DIRECTION_UNIT, geom_core::Margin::of(slack))
-            .is_ok_and(|sign| !sign.is_negative());
-    Some(if unit_within_rounding { ratios } else { unit })
+    let reference = if ratios.y == 0.0 && ratios.z == 0.0 {
+        Vec3::new(0.0, 1.0, 0.0)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
+    let built = geom_core::RigidMotion::from_axis_and_reference(
+        Point3::origin(),
+        ratios,
+        reference,
+        STEP_LINE_DIRECTION_UNIT,
+        geom_core::Band::least(),
+    )
+    .ok()?;
+    let (u, v) = (built.u().get(), built.v().get());
+    let stated = Affine3::from_parts(Mat3::from_cols(u, v, ratios), Vec3::zero());
+    Some(if geom_core::RigidMotion::check_rigid(&stated).is_ok() {
+        ratios
+    } else {
+        built.w().get()
+    })
 }
 
 /// A placement as interpretation built it: the frame, the same frame as a

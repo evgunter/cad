@@ -276,7 +276,7 @@ impl Read {
 
     /// Whether the finite distance `d` does not read apart at the pass's
     /// band under `name` (Zero or in band): a candidate the band keeps.
-    fn near(&self, name: &'static str, d: f64) -> bool {
+    fn not_apart(&self, name: &'static str, d: f64) -> bool {
         d.is_finite()
             && !matches!(
                 geom_core::k_stats::decide(name, geom_core::Margin::of(d.abs()), self.coarser),
@@ -782,9 +782,9 @@ fn param_on(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
 
 /// [`param_on`], `x` taken on `carrier` wherever it does not read apart
 /// from it at the pass's band.
-fn param_near(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
+fn param_kept(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
     let t = home::foot(carrier, x, 0.0)?;
-    read.near(STEP_SINGULARITY_RAY_HIT, (carrier.eval(t) - x).norm())
+    read.not_apart(STEP_SINGULARITY_RAY_HIT, (carrier.eval(t) - x).norm())
         .then_some(t)
 }
 
@@ -839,7 +839,9 @@ fn crossings(
                 [phase + spread, phase - spread]
                     .into_iter()
                     .map(|t| (t, ray.eval(t)))
-                    .filter(|(_, p)| read.near(STEP_SINGULARITY_RAY_HIT, (*p - ce).norm() - re))
+                    .filter(|(_, p)| {
+                        read.not_apart(STEP_SINGULARITY_RAY_HIT, (*p - ce).norm() - re)
+                    })
                     .collect(),
             )
         }
@@ -862,7 +864,7 @@ fn crossings(
             let t = ne.dot(ce - o) / den;
             let p = ray.eval(t);
             Some(
-                if read.near(STEP_SINGULARITY_RAY_HIT, (p - ce).norm() - re) {
+                if read.not_apart(STEP_SINGULARITY_RAY_HIT, (p - ce).norm() - re) {
                     vec![(t, p)]
                 } else {
                     Vec::new()
@@ -890,11 +892,13 @@ fn crossings(
             }
             let (t, s) = (pair.s, pair.t);
             let (p, q) = (ray.eval(t), other.eval(s));
-            Some(if read.near(STEP_SINGULARITY_RAY_HIT, (p - q).norm()) {
-                vec![(t, p)]
-            } else {
-                Vec::new()
-            })
+            Some(
+                if read.not_apart(STEP_SINGULARITY_RAY_HIT, (p - q).norm()) {
+                    vec![(t, p)]
+                } else {
+                    Vec::new()
+                },
+            )
         }
         (
             &Curve3::Circle(geom::Circle {
@@ -914,10 +918,10 @@ fn crossings(
             }
             let s = n.dot(c - oe) / den;
             let p = other.eval(s);
-            if !read.near(STEP_SINGULARITY_RAY_HIT, (p - c).norm() - r) {
+            if !read.not_apart(STEP_SINGULARITY_RAY_HIT, (p - c).norm() - r) {
                 return Some(Vec::new());
             }
-            let t = param_near(ray, p, read)?;
+            let t = param_kept(ray, p, read)?;
             Some(vec![(t, p)])
         }
         _ => None,
@@ -1075,7 +1079,7 @@ fn interior(
         let lp = &solid.faces[fi].loops[0];
         let radial = |p: Point3<f64>| {
             let r = geom::Line { origin, dir: axis }.offset(p);
-            (!read.near(STEP_SINGULARITY_POINT, r.norm())).then(|| r.normalize())
+            (!read.not_apart(STEP_SINGULARITY_POINT, r.norm())).then(|| r.normalize())
         };
         let mut sum = Vec3::new(0.0, 0.0, 0.0);
         let mut count = 0.0;
@@ -1091,7 +1095,7 @@ fn interior(
         let vertex = || {
             lp.uses.iter().find_map(|u| {
                 let p = solid.vertices[&use_start(solid, *u)];
-                if !read.near(STEP_SINGULARITY_POINT, (p - y).norm()) {
+                if !read.not_apart(STEP_SINGULARITY_POINT, (p - y).norm()) {
                     radial(p)
                 } else {
                     None
