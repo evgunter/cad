@@ -2,10 +2,11 @@
 id: a-rim-arcs-pad-is-its-widest-certifying-rung
 kind: issue
 title: A spline x implicit rim arc's pad is its chart window's whole image, so two arcs within about two rungs carry neither
-status: open
+status: dispatched
 opened: 2026-11-12
 priority: P1
 cost: M
+branch: sectarms/rim-pad-cells
 ---
 
 
