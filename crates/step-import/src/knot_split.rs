@@ -329,8 +329,8 @@ struct Lines {
 /// Splits face `f` along each of `knots` (ascending, each kept by
 /// [`crossing_knots`]), halving the run at its middle knot so each piece
 /// of the loop is walked once per halving, and pushes every tile. A
-/// piece below the middle knot takes the knots below it, a piece above
-/// it the knots above, and a face the line leaves whole takes both.
+/// piece below the middle knot takes the knots below it, and a piece
+/// above it the knots above.
 fn split_at_all(
     solid: &mut SolidSpec,
     f: usize,
@@ -345,21 +345,14 @@ fn split_at_all(
         return Ok(());
     };
     let (below, above) = (&knots[..mid], &knots[mid + 1..]);
-    match split_face_once(solid, f, knot, at, mint)? {
-        Parted::Whole => {
-            let rest: Vec<f64> = below.iter().chain(above).copied().collect();
-            split_at_all(solid, f, &rest, at, mint, tiles)
-        }
-        Parted::Into { low, high } => {
-            for g in low {
-                split_at_all(solid, g, below, at, mint, tiles)?;
-            }
-            for g in high {
-                split_at_all(solid, g, above, at, mint, tiles)?;
-            }
-            Ok(())
-        }
+    let Parted { low, high } = split_face_once(solid, f, knot, at, mint)?;
+    for g in low {
+        split_at_all(solid, g, below, at, mint, tiles)?;
     }
+    for g in high {
+        split_at_all(solid, g, above, at, mint, tiles)?;
+    }
+    Ok(())
 }
 
 /// A clamped net's two children at the crease knot `k` along `u`: the
@@ -829,28 +822,11 @@ struct Crossing {
     from: Side,
 }
 
-/// What one split did to a face.
-enum Parted {
-    /// The line meets no cell of the face: it keeps its chart.
-    Whole,
-    /// The faces below the line (the first at the face's own index) and
-    /// those above it.
-    Into { low: Vec<usize>, high: Vec<usize> },
-}
-
-/// `c` over `[lo, hi]` of its domain, on its own parameter.
-fn sub_curve(c: &NurbsCurve3<f64>, lo: f64, hi: f64) -> Option<NurbsCurve3<f64>> {
-    let (a, b) = c.knot_values().domain();
-    let upper = if hi < b {
-        c.split_at(hi).ok()?.0
-    } else {
-        c.clone()
-    };
-    Some(if lo > a {
-        upper.split_at(lo).ok()?.1
-    } else {
-        upper
-    })
+/// What one split did to a face: the faces below the line (the first
+/// at the face's own index) and those above it.
+struct Parted {
+    low: Vec<usize>,
+    high: Vec<usize>,
 }
 
 /// Splits face `fi` along the iso line of its crease knot `knot` (along
@@ -880,7 +856,8 @@ fn sub_curve(c: &NurbsCurve3<f64>, lo: f64, hi: f64) -> Option<NurbsCurve3<f64>>
 /// since the line bounds each piece from outside; a loop the line does
 /// not cross is a ring on its side, and joins that side's one piece.
 ///
-/// A line that meets no cell leaves the face whole. What refuses typed,
+/// A line that meets no cell leaves the face whole, its chart narrowed to
+/// the sub-patch on its side. What refuses typed,
 /// naming the face and the knot
 /// (`work/importgate/the-c0-knot-split-refuses-what-it-cannot-place.md`):
 /// a reading that does not settle at the band; a touch or an edge along
@@ -1102,8 +1079,28 @@ fn split_face_once(
             }
         }
     }
+    // A loop that never passes to the other side leaves the line in no
+    // cell: the face lies on one side, and narrows to that side's
+    // sub-patch, which holds its whole trim.
     if crossings.is_empty() {
-        return Ok(Parted::Whole);
+        let sides: BTreeSet<bool> = loops
+            .iter()
+            .flatten()
+            .map(|&u| side_of(u) == Side::High)
+            .collect();
+        let [high] = sides.into_iter().collect::<Vec<_>>()[..] else {
+            return Err(refuse(
+                "the face's loops lie on both sides of the knot's iso line, which none \
+                 crosses",
+            ));
+        };
+        solid.faces[fi].surface = Surface::Nurbs(Arc::new(if high { hi } else { lo }));
+        let (low, high) = if high {
+            (Vec::new(), vec![fi])
+        } else {
+            (vec![fi], Vec::new())
+        };
+        return Ok(Parted { low, high });
     }
     if near(q0, q1) {
         return Err(refuse("the knot's iso line closes on itself"));
@@ -1122,7 +1119,9 @@ fn split_face_once(
              the face",
         ));
     }
-    // The runs of the line inside the face, each minted as an edge.
+    // The runs of the line inside the face, each minted as an edge over
+    // its stretch of the iso curve: that curve whole, so bitwise both
+    // sub-patches' boundary column.
     let mut runs = Vec::with_capacity(crossings.len() / 2);
     for pair in crossings.chunks(2) {
         let [a, b] = [pair[0], pair[1]];
@@ -1143,16 +1142,13 @@ fn split_face_once(
                 "the trim touches the knot's iso line, or runs along it, inside the face",
             ));
         }
-        let carrier = sub_curve(&iso, w_lo, w_hi).ok_or(refuse(
-            "the knot's iso curve refused its split at a crossing",
-        ))?;
         let e = mint();
         solid.edges.insert(
             e,
             EdgeSpec {
                 start: v_lo,
                 end: v_hi,
-                carrier: Curve3::Nurbs(Arc::new(carrier)),
+                carrier: line_carrier.clone(),
                 t0: w_lo,
                 t1: w_hi,
                 reversed: false,
@@ -1272,7 +1268,7 @@ fn split_face_once(
     };
     let low = index(low, true);
     let high = index(high, false);
-    Ok(Parted::Into { low, high })
+    Ok(Parted { low, high })
 }
 
 #[cfg(test)]
@@ -1388,7 +1384,7 @@ mod tests {
     /// and the selection's budget runs out before pieces `ε_in` long
     /// would: the line is kept. The split certifies that edge along the
     /// line by its iso pcurve, finds the loop never passes to the other
-    /// side, and leaves the face whole on its chart.
+    /// side, and leaves the face whole on the sub-patch below the line.
     #[test]
     fn a_face_along_a_curved_knot_line_is_certified_on_it_and_kept_whole() {
         let s = NurbsSurface::new(
@@ -1466,7 +1462,15 @@ mod tests {
         assert_eq!(
             (solid.faces.len(), sink.len(), solid.edges.len()),
             (1, 0, 4),
-            "the face, its chart and its four edges as stated"
+            "the face and its four edges as stated"
+        );
+        let Surface::Nurbs(ref chart) = solid.faces[0].surface else {
+            panic!("the face stays on a spline chart")
+        };
+        assert_eq!(
+            chart.knot_values_u().domain(),
+            (0.0, 0.5),
+            "the chart narrowed to the sub-patch below the line, its crease gone"
         );
     }
 
