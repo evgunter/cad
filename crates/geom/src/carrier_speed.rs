@@ -55,13 +55,15 @@ pub fn speed_range<T: SpanLocate>(carrier: &crate::Curve3<T>) -> (InfSpeed<T>, S
 /// ([`crate::Conic::speed_lo`], either stored order; a non-positive
 /// semi-axis keeps the floor non-positive, so no span is forward at it),
 /// a spiric's minor radius
-/// (`|C′|² = r²(1 + (d/f)²·sin²v)`). `None` on a line or a spline, which
-/// have no period.
-pub fn speed_floor<T: Real>(carrier: &crate::Curve3<T>) -> Option<InfSpeed<T>> {
-    match *carrier {
+/// (`|C′|² = r²(1 + (d/f)²·sin²v)`), a periodic cubic's bound over its
+/// whole loop ([`crate::PeriodicNurbs3::speed_lower_bound`]). `None` on
+/// a line or a clamped spline, which have no period.
+pub fn speed_floor<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<InfSpeed<T>> {
+    match carrier {
         crate::Curve3::Circle(c) => Some(InfSpeed::new(c.radius)),
-        crate::Curve3::Ellipse(e) => Some(InfSpeed::new(crate::Conic::speed_lo(&e))),
-        crate::Curve3::Spiric { minor_radius, .. } => Some(InfSpeed::new(minor_radius)),
+        crate::Curve3::Ellipse(e) => Some(InfSpeed::new(crate::Conic::speed_lo(e))),
+        crate::Curve3::Spiric { minor_radius, .. } => Some(InfSpeed::new(*minor_radius)),
+        crate::Curve3::Periodic(p) => Some(p.speed_lower_bound()),
         crate::Curve3::Line(_) | crate::Curve3::Nurbs(_) => None,
     }
 }
@@ -259,6 +261,11 @@ pub fn curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
 /// inside a smooth stretch of it. On every other carrier the bound does
 /// not depend on the run.
 pub fn curvature_hi_over<T: SpanLocate>(carrier: &crate::Curve3<T>, run: (T, T)) -> T {
+    // A periodic cubic has no crease to be clear of: its whole loop's
+    // bound.
+    if matches!(carrier, crate::Curve3::Periodic(_)) {
+        return Kind::of(carrier).curvature_hi();
+    }
     match Kind::of(carrier) {
         Kind::Nurbs(n) => {
             n.accel_upper_bound_over(run) / n.speed_lower_bound().get().max(T::zero()).powi(2)
@@ -292,6 +299,8 @@ impl<'a, T: SpanLocate> Kind<'a, T> {
                 offset: *offset,
             },
             crate::Curve3::Nurbs(n) => Self::Nurbs(n),
+            // Its rates over every parameter are the whole loop's.
+            crate::Curve3::Periodic(p) => Self::Nurbs(p.whole_loop()),
         }
     }
 

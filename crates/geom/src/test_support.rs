@@ -145,7 +145,7 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
                     },
                     scalars: 12,
                 },
-                CurveKind::Nurbs => return None,
+                CurveKind::Nurbs | CurveKind::Periodic => return None,
             })
         })
         .collect()

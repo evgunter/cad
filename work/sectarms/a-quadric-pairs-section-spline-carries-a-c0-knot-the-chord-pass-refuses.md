@@ -2,10 +2,11 @@
 id: a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses
 kind: issue
 title: a closed section loop seated off its start carries a full-multiplicity join knot inside an edge, so booleans of four quadric pairs build and never mesh (and tier 3 will refuse them)
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P0
 cost: M
+branch: sectarms/periodic-loop-carrier
 ---
 
 

@@ -429,7 +429,7 @@ impl<T: Decide> Curve3<T> {
         match self {
             Self::Line(line) => Some(ClosedForm::Line(line)),
             Self::Circle(circle) => Some(ClosedForm::Circle(circle)),
-            Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
+            Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) | Self::Periodic(_) => None,
         }
     }
 
@@ -577,7 +577,7 @@ impl<T: Decide> Curve3<T> {
                     ((major - minor).powi(2) - offset.powi(2)).sqrt() - w.dot(axis.cross(u_ref));
                 plane.max(torus.abs()).max(side)
             }
-            Self::Nurbs(_) => return None,
+            Self::Nurbs(_) | Self::Periodic(_) => return None,
         })
     }
 
