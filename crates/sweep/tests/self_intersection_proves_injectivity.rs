@@ -1756,6 +1756,48 @@ fn shell_4s_vessel_holds() {
     }
 }
 
+/// **A drum's cavity whose cap is one plane in three faces holds**: the
+/// drum's cap ring is cut at half its radius
+/// (`common::latitude_seam::collinear_cap_drum`), and the axial door's
+/// cavity keeps it, a disc bounded by two half-circles of one circle,
+/// stored on opposite axes, between two half-annuli. No carrier
+/// separates the coplanar faces, and the circle's own plane is theirs;
+/// each half-annulus against the disc is certified by the graph
+/// separator, the disc read on through each vertex along its other
+/// half-circle. Red, `Uncertified` on the disc across a half-circle, if
+/// that corner is not read.
+#[test]
+fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
+    use crate::common::latitude_seam::{collinear_cap_drum, door_cavity};
+    let cavity = door_cavity(&collinear_cap_drum(), 0.05);
+    let report = injective(&cavity, None, BUDGET);
+    assert_holds("the drum's cavity", &report, &cavity);
+    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+}
+
+/// **The drum the cavity above is cut from refuses, out of depth**: its
+/// half-annulus cells a rounding off the disc's half-circle are read by no
+/// presentation (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
+/// Pinned as `a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone`
+/// pins its refusals: red when the drum holds, and that row's reading
+/// has landed.
+#[test]
+fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
+    use crate::common::latitude_seam::collinear_cap_drum;
+    let drum = collinear_cap_drum();
+    let report = injective(&drum, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Budget(_))
+        ),
+        "the drum runs out of depth: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+    assert_eq!(report.receipt.refused, 282, "{:?}", report.receipt);
+}
+
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity
 /// refuses typed at the vertices its walls share alone.** At `Interval`
 /// the union builds at every ε, as the `f64` body: as many faces, edges
@@ -1771,10 +1813,11 @@ fn shell_4s_vessel_holds() {
 /// no plane through the vertex separates them across. A plane's corner
 /// of a line and an arc at such a vertex is read as its quadrant, and a
 /// wall's is not, so those four pairs split to the floor and refuse
-/// there; the walls against each other at `(1, 0, 1)`, and `A`'s wall
-/// halves against the mitre across its ellipse, refuse at the root. The
-/// verdict is `Uncertified { Departure }` naming a vertex — never
-/// certified, never measured by distance.
+/// there; the walls against each other at `(1, 0, 1)` refuse at the
+/// root. `A`'s wall halves against the mitre across its ellipse are
+/// certified: each face's corner of two arcs of that one ellipse is read
+/// on through the vertex. The verdict is `Uncertified { Departure }`
+/// naming a vertex — never certified, never measured by distance.
 #[test]
 fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone()
  {
@@ -1864,11 +1907,61 @@ fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_
         report.receipt
     );
     assert_eq!(
-        report.receipt.refused, 12,
-        "four root pairs refuse: the walls against each other at a vertex alone, and two across \
-         the mitre's ellipse; four plane–wall pairs at a vertex alone, the plane read and the \
-         wall not, refuse eight cells at the floor ({:?})",
+        report.receipt.refused, 10,
+        "two root pairs refuse: the walls against each other at a vertex alone; four plane–wall \
+         pairs at a vertex alone, the plane read and the wall not, refuse eight cells at the \
+         floor ({:?})",
         report.receipt
+    );
+    // Which pairs refuse, each touching pair asked alone: the six above,
+    // each at a vertex its faces share alone. Every pair sharing an edge
+    // holds, the wall halves against the mitre across its ellipse among
+    // them.
+    let edges = |f: FaceKey| -> BTreeSet<topo::EdgeKey> {
+        tee.face(f)
+            .unwrap()
+            .loops()
+            .flat_map(|(lk, _, _)| match tee.get_loop(lk).unwrap().boundary {
+                LoopBoundary::Empty { .. } => Vec::new(),
+                LoopBoundary::Cycle { first } => tee
+                    .loop_cycle(first)
+                    .unwrap()
+                    .into_iter()
+                    .map(|he| tee.get_half_edge(he).unwrap().edge)
+                    .collect(),
+            })
+            .collect()
+    };
+    let mut refusing: Vec<[&str; 2]> = Vec::new();
+    for (a, b) in touching_pairs(tee) {
+        let alone = injective(tee, Some(vec![a, b]), BUDGET);
+        let across = !edges(a).is_disjoint(&edges(b));
+        if matches!(alone.verdict, BoundVerdict::Holds) {
+            continue;
+        }
+        assert!(
+            !across,
+            "a pair sharing an edge holds: {a:?} ({}) against {b:?} ({}): {:?}",
+            kind(tee, a),
+            kind(tee, b),
+            alone.verdict
+        );
+        let mut kinds = [kind(tee, a), kind(tee, b)];
+        kinds.sort_unstable();
+        refusing.push(kinds);
+    }
+    refusing.sort_unstable();
+    assert_eq!(
+        refusing,
+        [
+            ["cylinder", "cylinder"],
+            ["cylinder", "cylinder"],
+            ["cylinder", "plane"],
+            ["cylinder", "plane"],
+            ["cylinder", "plane"],
+            ["cylinder", "plane"],
+        ],
+        "the walls against each other, and four plane–wall pairs, each at a vertex alone"
     );
     assert!(
         report
