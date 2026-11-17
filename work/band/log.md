@@ -1410,3 +1410,9 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   Everything else held over a 5502-request differential: no lost or false build, and every text within budget. The ObliqueMixedCorner, curved-link and FeetCross recourses all build when followed.
 
   A second Opus review is running on the frozen head, per the sequential arm. Disk fell to 0.9 GB with the reach lane building, so I freed about 19 GB of finished-lane targets and clones.
+- 2026-11-17 — 7072's second review (Opus) ran independently and found the same MAJOR (the tangent-run RunOut seam edge), so the MAJOR is bilateral. Its other findings:
+  - `FOOT_INSIDE_A_FACE_RECOURSE` follows to a build only where a smaller size helps;
+  - the reach site's `DependentNormals` recourse is false for `|n·τ|`;
+  - stale test prose, and the `UnbuiltEnd` texts spread over four homes.
+
+  The fix pass resumed the implementer with the union (`fix-cut3.md`). The reach lane was told about the reach-site text.
