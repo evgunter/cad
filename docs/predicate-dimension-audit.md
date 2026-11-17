@@ -1988,23 +1988,34 @@ Flagged, NOT fixed here (dispositions):
   where its place reads it at an end, the one nearer it, on the sign of
   `|u − t₁| − |u − t₀|`. What keeps it off the logged doors is that **no
   outcome is a reading, only the pair's anchor**:
-  - Either end is a sound place. The pair read reads the pair at the
-    snapped parameter on its own rows (`curve_pair_walk_pair_gap` and the
-    place, logged), and the window anchored there bounds a reach only on
-    its own proved premises (`curve_pair_walk_basin`,
-    `curve_pair_walk_basin_held`, logged). A far anchor puts the pieces
-    far from it, and the window then bounds no reach and escalates; it
-    never prunes a meeting.
+  - Either end is a sound place. The snapped parameter's place is the
+    end taken (`Place::End` of it, set with the parameter), and the pair
+    read reads the pair at that parameter on its own rows
+    (`curve_pair_walk_pair_gap`, logged), its point the carrier's at the
+    end taken, so the end it reports is the end whose point it read. The
+    window anchored there bounds a reach only on its own proved premises
+    (`curve_pair_walk_basin`, `curve_pair_walk_basin_held`, logged). A far
+    anchor puts the pieces far from it, and the window then bounds no
+    reach and escalates; it never prunes a meeting.
   - It matters only where the two ends' points are one point within the
     band (a span closed on itself), or where a mid-span point lies on an
     end's (a carrier that comes back through its own end):
     `walk::tests::a_polished_parameter_on_a_closed_span_is_the_end_on_its_side`
     and `walk::tests::a_mid_span_parameter_at_an_ends_point_snaps_by_parameter`
-    pin both, the second for liveness only.
+    pin both, the second through the stop's own read (`read_polished`):
+    the meeting it finds names the end it snapped to, red where the
+    snapped parameter kept the place read before the snap.
+  - Measured: over the `geom`, `geom-brep` and `topo` suites (7656
+    rows, one run, 2026-11-17), 9522 snaps, of which one tie, that row's
+    own below.
+    `walk::tests::a_tie_between_the_ends_takes_the_start` pins the tie:
+    a polyline back through its start's point at its span's middle snaps
+    to the start, its place the start's.
 
   **Carried as `k_stats::choose(.., "F46")`**, its tie (a decided zero or
-  an undecided difference) taking the first end. Not a `decide_flagged`
-  site; `LEDGER_FLAGGED_SITES` does not move.
+  an undecided difference) taking the first end. Its K samples reach the
+  sink under `curve_pair_walk_nearer_end`; the verdict log does not carry
+  it. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
