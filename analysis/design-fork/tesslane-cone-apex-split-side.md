@@ -23,3 +23,9 @@ All three name the same cause (the rectangle lane's Delaunay triangulation in th
 
 - **Scope.** B speaks of cone faces only. A and C found the cylinder wall with a split straight side refusing `CertificateExceeded` and make the rule one for ruled faces.
 - **The meanwhile.** A: route cone faces holding their apex with a split side to the chart lane now. B: keep PR 7043's refusal and add nothing (the same route as an optional bridge). C: route every ruled face with a split straight side and delete the fallback lattice, the refusal staying as backstop.
+
+## Round two
+
+Each designer was shown the other two first reports (sent 01:28Z; re-sent 01:34Z after the container restarted and stopped all three).
+
+- **B**: `tesslane-cone-apex-split-side-round2-B.md`, delivered ≈01:35Z; 180,997 tokens in all (about 22,000 this round). **Moved** on scope (re-ran the cylinder wall: in the class), on the final state (the strip built by construction on every ruled chart, stated per column so a frustum with unequal rim counts is covered), and on the meanwhile (route the ruled faces with a split straight side to the chart lane, delete the fallback lattice). **Held**: main's mesh must not come back; `UnresolvedWinding` stays as backstop; every cone wholesale is not a final state.
