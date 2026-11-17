@@ -522,15 +522,19 @@ fn poisoned_ellipse_wall() -> (Body<f64>, topo::FaceKey) {
     (body, fk)
 }
 
-/// **A carrier of no iso kind is read before anything in band.** The
-/// ellipse-cut wall, its stored data [`in_band`] off its surface: the shape
-/// door's first pass reads the ellipse's kind and decides the wall is no
-/// rectangle with no decision taken, so no rim's or ruling's incidence
-/// can escalate ahead of it, wherever the loop starts. The trimmed lane
-/// then finds no stored image to read, and refuses that — as it did when
-/// the route read carrier kinds, where this wall went to it unasked.
+/// **An ellipse-cut wall in band, with no stored image, refuses as the
+/// lane does.** The ellipse-cut wall, its stored data [`in_band`] off its
+/// surface: the doors decide it no rectangle, and the trimmed lane finds
+/// no stored image to read and refuses that — as it did when the route
+/// read carrier kinds, where this wall went to it unasked. That the
+/// doors decide the ellipse's kind before any edge in band can escalate
+/// is the door's own row, pinned at its level, where an edge in band can
+/// be put ahead of the ellipse (`geom-brep`
+/// `iso_rectangle_door::a_carrier_of_no_iso_kind_is_decided_before_an_edge_in_band`):
+/// in every body built here the ellipse comes first in its loop, so this
+/// row answers alike with the doors' kind pass removed.
 #[test]
-fn a_carrier_of_no_iso_kind_is_read_before_anything_in_band() {
+fn an_ellipse_wall_in_band_with_no_image_refuses_as_the_lane_does() {
     let (body, face) = poisoned_ellipse_wall();
     let got = mesh::tessellate(&body, 5e-2, Tol::witness()).map(|_| ());
     assert!(
@@ -540,5 +544,47 @@ fn a_carrier_of_no_iso_kind_is_read_before_anything_in_band() {
                 if *f == face && matches!(**cause, topo::pcurves::RingPlacementError::Gap(_))
         ),
         "{got:?}"
+    );
+}
+
+/// The washer placed obliquely, with its chart images minted as a
+/// finished body carries them: each rim's image is harmonic, and under
+/// the placement its constant channel carries terms of rounding size.
+fn obliquely_posed_washer() -> Body<f64> {
+    let axis = Vec3::new(0.317_8_f64, 0.941_2, -0.110_9);
+    let placement = Affine3::from_parts(
+        Affine3::rotation_about_axis(Point3::origin(), axis * (1.0 / axis.norm()), 1.0 / 3.0)
+            .linear,
+        Vec3::new(0.117, -0.339_1, 5.001_7),
+    );
+    let mut body = topo::transform_rigid(
+        &common::washer(),
+        &geom_core::test_support::rigid(&placement, Tol::witness()),
+    )
+    .unwrap();
+    topo::mint_pcurves(&mut body, Tol::witness()).unwrap();
+    body
+}
+
+/// **An obliquely placed rectangle stays the rectangle lane's.** The
+/// washer placed obliquely, its images minted: each rim's image is a
+/// harmonic whose constant channel carries terms of rounding size
+/// (`1e-17`) under the placement, and a harmonic is no form the route
+/// reads as moving, so every wall is a rectangle the doors certify and
+/// meshes to main's bytes (read on `184e484ed2` at ε 1e-9, 1e-6 and
+/// 1e-12). A route that read those terms as a curved image sends the
+/// walls to the chart lane and moves the bytes (the early head's red on
+/// `step-import`'s `split_iso_side`).
+#[test]
+fn an_obliquely_placed_rectangle_meshes_on_the_rectangle_lane_to_mains_bytes() {
+    let body = obliquely_posed_washer();
+    assert!(
+        mesh::tessellate(&body, 5e-2, Tol::witness()).is_ok(),
+        "the placed washer meshes"
+    );
+    assert_eq!(
+        mesh_digest(&body, 5e-2),
+        0xac0a_86a0_1d7d_e5b0,
+        "main's bytes"
     );
 }
