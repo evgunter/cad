@@ -906,3 +906,10 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - Measured on main by R1: the `square_search` seed, rod ∖ donut and the `rods_across_the_wall` timing are not this PR's.
 - **Blind coding** byte 223 (odd, A = R2). Tally candidates: none (no MAJOR on either side).
 - **Fix pass dispatched** to the implementer's agent, continued (Fable), on `fix-7052.md`: 19 items, among them the second-turn-copy fix by exact equality, the kept turn, fail-loud `carried`, write-back sites keeping the loop, one far-end mechanism deleted, the field renamed, the transform and geom rows, the sliver item rewritten from measurement, a TESSLANE torus item filed, the exact-restriction claim corrected, the three-ulp item raised to P2 with the reviewers' routes.
+- 2026-11-17 — **Fix pass back; PR 7052 merged (`6c2430e888`).**
+  - **Fix pass:** 18 of 19 items done and one partly. `replace_face`'s write-back is filed, and no row pins the `combine` switch. Green at `1988d8eaef`. Two CI reds on the way were not this change's: a `corrupt input` seed that reds on main (appended to CHARTTAIL's row) and a fast-set timing excursion that a re-run cleared.
+  - **Row** `PR-7052.md`. It records that blinding broke on the implementer's arm: model-naming trailers were on every lane commit. (My last commit on the branch lacks the Co-Authored-By trailer.)
+  - **The C⁰-knot item closed:** the knot is gone and cylinder × cylinder meshes. The other three pairs stop at TESSLANE's `chart_image`. Its cone-and-sphere item is unparked to `open`, since its trigger fired. MEASUREDOOR's tier-3 item still waits on the skin item.
+  - **Filed by the PR:**
+    - SECTARMS: the sliver P1; the three-ulp view fork (P2, design); the offset door on the base opening; the `Interval` view; the `replace_face` write-back.
+    - TESSLANE: a torus face bounded by a projected spline image.
