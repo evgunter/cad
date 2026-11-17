@@ -616,8 +616,9 @@ pub enum TessellateError {
         /// The face whose patch holds the triangle.
         face: FaceKey,
         /// The triangle's corners, its height and the allowance that
-        /// height does not exceed.
-        unresolved: crate::validate::Unresolved,
+        /// height does not exceed. Boxed: it is nine coordinates wide,
+        /// and the refusal rides in every caller's `Result`.
+        unresolved: Box<crate::validate::Unresolved>,
     },
     /// A trimmed face on an analytic chart keeps, after the retry budget,
     /// a triangle a neighbouring face may make a side of too: an ear of
@@ -985,7 +986,7 @@ impl TessellateError {
                     corners: [a, b, c],
                     height,
                     allowance,
-                } = unresolved;
+                } = &**unresolved;
                 let at = |p: &[f64; 3]| format!("({:e}, {:e}, {:e})", p[0], p[1], p[2]);
                 write!(
                     f,

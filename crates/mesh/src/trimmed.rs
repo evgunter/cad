@@ -1533,7 +1533,7 @@ impl TrimmedFace<'_> {
             let normal = crate::validate::resolved_normal(wound).map_err(|unresolved| {
                 TessellateError::UnresolvedWinding {
                     face: self.fk,
-                    unresolved,
+                    unresolved: Box::new(unresolved),
                 }
             })?;
             // Folded unless wound outward: a zero dot, or NaN where
@@ -5082,7 +5082,7 @@ pub(super) mod tests {
         let unresolved: Vec<_> = bare
             .iter()
             .filter_map(|(_, answer)| match answer {
-                Err(TessellateError::UnresolvedWinding { unresolved, .. }) => Some(*unresolved),
+                Err(TessellateError::UnresolvedWinding { unresolved, .. }) => Some(**unresolved),
                 _ => None,
             })
             .collect();

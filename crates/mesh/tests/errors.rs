@@ -322,11 +322,11 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::UnresolvedWinding {
                 face,
-                unresolved: mesh::validate::Unresolved {
+                unresolved: Box::new(mesh::validate::Unresolved {
                     corners: [[1.0, 0.0, 0.0]; 3],
                     height: 2.5e-16,
                     allowance: 1.75e-15,
-                },
+                }),
             },
             vec![
                 "winding",
