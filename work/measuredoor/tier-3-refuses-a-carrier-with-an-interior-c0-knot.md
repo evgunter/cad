@@ -7,7 +7,7 @@ opened: 2026-10-28
 priority: P1
 cost: E
 refs: [loft-of-three-or-more-sections-at-degree-one-is-unmeshable]
-blocked_on: [the-skin-cuts-an-arc-wall-at-each-sub-arc-joint]
+blocked_on: [the-skin-cuts-an-arc-wall-at-each-sub-arc-joint, a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses]
 ---
 
 

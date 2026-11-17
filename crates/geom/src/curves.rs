@@ -1880,6 +1880,17 @@ impl<T: SpanLocate> Curve3<T> {
         }
     }
 
+    /// **[`Self::ders1`] from one side of `t`** (`below`, from the
+    /// parameters under `t`; otherwise from those above it): a spline's
+    /// [`NurbsCurve3::ders1_from`], the one-sided derivative at a crease.
+    /// Every other kind is smooth, and reads [`Self::ders1`].
+    pub fn ders1_from(&self, t: T, below: bool) -> (Point3<T>, Vec3<T>) {
+        match self {
+            Curve3::Nurbs(n) => n.ders1_from(t, below),
+            _ => self.ders1(t),
+        }
+    }
+
     /// The second derivative `d²P/dt²` at parameter `t` — cheap for both
     /// analytic kinds and needed later for curvature (M2-PLAN PR 1).
     ///
