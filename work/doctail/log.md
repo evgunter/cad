@@ -82,3 +82,12 @@ body has the reasons):
   - `same_up_to_ids` never compares the product, so every product round-trip row held vacuously.
 
   Ruled: everything is fixed in a fix pass except MINOR 5 (an older saved document with a shared anonymous product variable fails at load: pre-release, so the corpus regenerates). The refactor doors move onto `read_sites`, so the PR's "no product-specific branch" becomes true. A delta review follows. **Class finding:** a comparator that ignores a slot makes every round-trip claim about that slot vacuous. This lands as M3's row in the fixture.
+- 2026-11-17 — PR 7094 (save format): the Opus FULL review says APPROVE WITH FIXES, no MAJOR. Its claims held: no reader of the log remains, and the tour corpus re-stamped at each ε row is bit-identical to the old log replayed, which is D4's edit written as text in test code only. Ruled, all fixed in one pass:
+  - one past an expression's bound refuses typed `NestedTooDeep` wherever it sits;
+  - a deleted row that was not about the log is restored;
+  - the pose-chain row is re-banded P2, since a saved chain that loads cleanly aborts in EVALUATE too, reachable from Python;
+  - the stale prose is fixed;
+  - the ε re-stamp gets one test home (it was hand-copied six times);
+  - the `{snapshot}` wrapper question is filed at P4.
+
+  No second review, since there was no MAJOR.
