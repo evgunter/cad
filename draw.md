@@ -31,3 +31,13 @@ Each designer was shown the other's round-1 report. Both moved, toward each othe
 The positions nearly meet: per solid for the certificate; the finished body holds its records; the gate confirms a record before the certificate steps around its cells; between solids the census is the one reader, refusing at the door that decided the meeting and reporting at a `⊔`. What is left is whether "decided by this door" is read off the door (every solid of a deciding door's result) or off lineage (only pairs descending from different operands, or cut from one solid). Round 3 shows each the other's round-2 report.
 
 Totals after round 2: A 308,738; B 172,659.
+
+## Round 3 (2026-11-17)
+
+Each designer was shown the other's round-2 report. Both said the positions meet on four parts: the certificate asks each solid against itself; the finished body holds its records; a point or edge record inside one solid is a confirmed meeting place the certificate still reads around (an area record inside one shell keeps today's typed refusal); between solids the census is the one reader, refusing at a deciding door only on meetings that door made and reporting at a `⊔`, with the engine's two-body question as the census's curved lane. Both state the question beneath as one: is tier 3′, in both directions, part of `finish`? Both say yes.
+- **A** moved on area records and took B's sentence "refuses only where the door's own decision was at stake". It tightened its own lineage rule: a meeting the door only carried, cells keeping their geometry, keeps the verdict it arrived with; a cell the door moved or minted is the door's. It withdrew its round-2 example (the shell of an overlapping assembly: the cavity wall is minted) for a drill through two overlapping plates. It left the grouping as "one choice for Ev", against B's round-2 bullets.
+- **B** gave up grouping by door (it refuses a meeting a `⊔` only reported), and stated the rule as: exempt exactly what a decision beneath covers, a record or a reported overlap; its case is a fillet whose new material reaches a neighbouring solid of the same operand. It notes the general rule needs a `⊔`'s reported overlaps to ride the finished body beside its records.
+
+Each report answered the other's round 2, so the last difference (by door, or by who made the meeting) was already closed from both sides when the reports crossed. Round 4 shows each the other's round 3 and asks for the final text.
+
+Totals after round 3: A 324,532; B 184,621.
