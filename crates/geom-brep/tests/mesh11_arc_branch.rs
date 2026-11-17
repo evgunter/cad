@@ -445,7 +445,7 @@ fn a_plane_is_refused_typed_rather_than_answered() {
     };
     assert!(matches!(
         require_one_chart_branch(&plane, &[], band()),
-        Err(PropsError::NotIsoRectangle { .. })
+        Err(PropsError::Defect { .. })
     ));
 }
 

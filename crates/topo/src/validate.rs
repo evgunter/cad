@@ -3995,12 +3995,14 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 "a stored boundary edge does not lie on its own face's surface",
                 DEFECT.into(),
             ),
-            // A span certification admits on no edge: the stored data
-            // contradicts the certification it was stored under.
+            // A state of the parse no correct kernel reaches from stored
+            // data: the kernel's own fault, whatever the body.
             P::Defect { .. } => reading(
                 "a face's boundary reached a state no correct parse of a stored body reaches",
                 DEFECT.into(),
             ),
+            // A span certification admits on no edge: the stored data
+            // contradicts the certification it was stored under.
             P::SpanUncertified { .. } => reading(
                 "a stored boundary edge's span is one no certified edge has",
                 DEFECT.into(),

@@ -187,10 +187,12 @@ pub struct Tessellation {
 /// every input the lane reads (`crate::memo`'s module docs state it
 /// per lane). What a hit does NOT run is the lane itself, its per-patch
 /// census and, with the `budget` feature, its recording; the cross-face
-/// census at the end runs either way. A hit records no K-funnel decision
-/// for its face: the route's are spliced only where the lane runs, so a
-/// hit's stream is the chord pass's alone, as it was before the route
-/// asked a door.
+/// census at the end runs either way. On a hit the route's doors and its
+/// split-side fact record nothing for the face (they are spliced only
+/// where the lane runs); the route's domain read is spliced on a hit as
+/// on a miss, since the read keys the patch as the lane's own read did.
+/// So a hit's stream is the chord pass's and each trimmed face's domain
+/// read.
 ///
 /// The memo's lifetime is the caller's: [`PatchMemo::end_picture`]
 /// after every picture is what keeps it one picture's size.
@@ -402,8 +404,9 @@ pub(crate) struct FaceRoute {
 
 /// **Every face's lane, read once per run** ([`route_of`]), in face-arena
 /// order, with the K-funnel recording each face's read made. The fold
-/// splices it in at that face's turn, before the lane's own, where the
-/// lane runs (a memo hit records nothing for its face).
+/// splices it in at that face's turn, before the lane's own: the doors'
+/// and the split-side fact's where the lane runs, the domain read's on a
+/// memo hit as well ([`FaceRoute`]).
 pub(crate) struct Routes {
     lanes: HashMap<FaceKey, Routed>,
 }
@@ -772,9 +775,9 @@ fn tessellate_impl(
         // Both channels, in arena order, up to AND INCLUDING the face
         // that refuses: the serial walk recorded whatever the refusing
         // face decided before it refused, and nothing after it. A face's
-        // route is read before its lane runs, so it is spliced first —
-        // where the lane runs: a memo hit runs no lane, and records no
-        // decision for its face (`tessellate_with`).
+        // route is read before its lane runs, so it is spliced first:
+        // its doors where the lane runs (a memo hit runs no lane), its
+        // domain read on every run (`tessellate_with`).
         if !matches!(face.place, Ok(Placement::Memo { .. })) {
             k_stats::splice(asked);
         }

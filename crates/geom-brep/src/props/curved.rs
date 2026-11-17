@@ -200,7 +200,7 @@ pub fn boundary_material_sign_holding<T: Decide>(
         };
     }
     match *surface {
-        Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
+        Surface::Plane { .. } => Err(PropsError::Defect {
             what: "boundary_material_sign called on a plane (planar orientation is the \
                    check-6 Newell winding, not a props derivation)",
         }),
@@ -382,7 +382,7 @@ pub fn require_iso_rectangle<T: Decide>(
         }
     }
     match *surface {
-        Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
+        Surface::Plane { .. } => Err(PropsError::Defect {
             what: "require_iso_rectangle called on a plane (a planar loop is not a chart rectangle)",
         }),
         Surface::Cylinder {
@@ -783,7 +783,7 @@ pub fn require_one_chart_branch<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     match *surface {
-        Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
+        Surface::Plane { .. } => Err(PropsError::Defect {
             what: "require_one_chart_branch called on a plane (a planar chart has no \
                    singularity and no branch for an arc to leave)",
         }),
@@ -1906,7 +1906,7 @@ pub fn curved_face_holding<T: Decide>(
         return whole_surface(surface, sense);
     }
     match *surface {
-        Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
+        Surface::Plane { .. } => Err(PropsError::Defect {
             what: "curved_face called on a plane (planar faces take the loop route)",
         }),
         Surface::Cylinder {

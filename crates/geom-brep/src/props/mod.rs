@@ -322,10 +322,11 @@ pub enum PropsError {
     /// — valid input this inventory has no closed form for, never a face
     /// it could not read ([`Self::Escalated`]) or one whose stored data
     /// contradicts itself ([`Self::OffSurface`],
-    /// [`Self::SpanUncertified`], [`Self::Defect`]). The one arm that is
-    /// no verdict on a face is a curved door asked of a plane, which is
-    /// the caller's misuse. The payload names the structural expectation
-    /// that failed.
+    /// [`Self::SpanUncertified`], [`Self::Defect`]). A curved door asked
+    /// of a plane is no verdict on a face either, and answers
+    /// [`Self::Defect`], the caller's misuse: this variant would rank it
+    /// row 2 and send it to a lane. The payload names the structural
+    /// expectation that failed.
     ///
     /// **Name-only**, like [`Self::NotOneChartBranch`] and for the
     /// same reason. Where a margin decided the refusal, `what` is that
