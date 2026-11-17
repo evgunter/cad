@@ -949,3 +949,7 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - The real difference is which preimage on the wall: the march's continuous chart history, which projection must reconstruct on folds and seams.
   - The partner's equation enters only as a second rounding at march tolerance. The sample schedule is the same in both.
   - Waiting on Ev.
+- 2026-11-17 — **Ev decided PR 7045: "let's do (A)".** The pad is read off the surviving tube cells, refined until the arcs clear each other, with a work bound, and with sites read in the same cells as apartness.
+  - **Recorded on the branch:** the item's "Decided" section, with `design: true` dropped; row 280's second half (bytes 192/192, A = Opus 5.5, B = Fable 5.2; match A); main merged in (a row conflict, kept both). Retitled without `[ev]`. The body is left as the decision document; the title and diff carry the answer.
+  - **Next:** merge on green, then dispatch the build. The endorsed defects fold into the build's scope rather than separate items: windows cut to the knot rectangle, each cell read against the whole carrier, `apart` on the surviving cells. The overlap sweep's cost is optional there, or filed with its measurement.
+  - **Build: letter H, tier dual.** It moves which arc a site reads on, the class where a too-narrow pad is unsound. Brief `impl-rimpad2.md`, branch `sectarms/rim-pad-cells`. Implementer byte drawn after this entry.
