@@ -652,20 +652,104 @@ fn iso_side_starts(
     positions: &[Point3<f64>],
     eps: Eps,
 ) -> Vec<bool> {
+    let kinds: Vec<TravKind> = travs.iter().map(|t| t.kind).collect();
+    let junctions: Vec<Point3<f64>> = travs.iter().map(|t| positions[t.ids[0] as usize]).collect();
+    side_starts(&kinds, &junctions, chart, eps)
+}
+
+/// [`iso_side_starts`] on a loop's traversal kinds and the points they
+/// start at, the form the dispatch reads before any chord exists
+/// ([`splits_a_straight_side`]).
+fn side_starts(
+    kinds: &[TravKind],
+    junctions: &[Point3<f64>],
+    chart: &Chart,
+    eps: Eps,
+) -> Vec<bool> {
     // THE BAND READ IS THIS CRATE'S and stays here: `Eps` owns every
     // terminal ε read in `mesh` and deliberately has no accessor, so
     // the separation ANSWER is what crosses the crate boundary, never
     // the band. The rule those answers feed —
     // same kind ∧ separated, cyclically — is
     // `topo::chart_iso::iso_side_starts`, in one home, and everything
-    // this function's docs argue above is about what the walk then
-    // does with it.
-    let separated: Vec<bool> = travs
+    // [`iso_side_starts`]' docs argue is about what the walk then does
+    // with it.
+    let separated: Vec<bool> = junctions
         .iter()
-        .map(|t| eps.separates(chart.radial(positions[t.ids[0] as usize])))
+        .map(|&p| eps.separates(chart.radial(p)))
         .collect();
-    let kinds: Vec<TravKind> = travs.iter().map(|t| t.kind).collect();
-    topo::chart_iso::iso_side_starts(&kinds, &separated)
+    topo::chart_iso::iso_side_starts(kinds, &separated)
+}
+
+/// **Whether a straight side of face `fk`'s outer loop holds a point
+/// between its ends**, on a cylinder or a cone: a side carried by more
+/// than one edge, or a cone's side through its apex.
+///
+/// It reads the loop and nothing else, before any chord exists: each
+/// traversal's kind and start ([`classify`]), and the walk's own rule
+/// for which traversals continue one side ([`side_starts`]). A line is a
+/// ruling of either surface, so a meridian traversal that continues the
+/// one before it is a straight side carried by two edges. A cone's apex
+/// opens a side by that rule; it is a point between a side's ends when
+/// the meridians that meet there lie on both nappes (the signs of the
+/// chart's `v` at their mid points differ).
+///
+/// The rectangle lane's theorem for a ruled face holds every triangle
+/// between two neighbouring rulings, and such a point is a boundary
+/// point off its grid, so the dispatch sends such a face to the chart
+/// lane (`tessellate::lane_of`). A face whose loop is no iso-rectangle is
+/// not asked (`curved`'s shape door): it is the rectangle lane's to
+/// refuse with the door's cause.
+pub(crate) fn splits_a_straight_side(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &geom::Surface<f64>,
+    tol: &crate::sizing::SizingTols,
+) -> Result<bool, TessellateError> {
+    if !matches!(
+        surface,
+        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
+    ) {
+        return Ok(false);
+    }
+    let chart = Chart::of(surface).ok_or(TessellateError::MissingEntity {
+        what: "curved chart",
+    })?;
+    let outer = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?
+        .outer;
+    let (mut kinds, mut junctions, mut mids) = (Vec::new(), Vec::new(), Vec::new());
+    for (half_edge, ek, _) in loop_half_edges(body, outer, fk)? {
+        let start = body
+            .get_half_edge(half_edge)
+            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
+            .start;
+        let point = *body
+            .get_vertex(start)
+            .and_then(|v| body.get_point(v.point))
+            .ok_or(TessellateError::MissingEntity {
+                what: "vertex position",
+            })?;
+        let curve = body
+            .get_edge(ek)
+            .and_then(|edge| body.get_curve_geom(edge.curve))
+            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
+            .certified()
+            .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
+        kinds.push(classify(&chart, curve, ek)?);
+        junctions.push(point);
+        mids.push(chart.v_of(curve.mid_point()));
+    }
+    let starts = side_starts(&kinds, &junctions, &chart, tol.eps);
+    let m = kinds.len();
+    let meridian = |k: usize| matches!(kinds[k], TravKind::Meridian { .. });
+    let held = (0..m).any(|k| {
+        let before = (k + m - 1) % m;
+        meridian(k) && meridian(before) && (!starts[k] || (mids[k] < 0.0) != (mids[before] < 0.0))
+    });
+    Ok(held
+        && crate::curved::require_iso_rectangle_face(body, fk, outer, surface, tol.band).is_ok())
 }
 
 /// Which iso kinds a loop's traversals carry — the one structural
@@ -2197,8 +2281,14 @@ mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords =
-            crate::chords::compute_chords(&body, 0.05, &vids, &mut positions, &mut bounds).unwrap();
+        let chords = crate::chords::compute_chords(
+            &body,
+            &crate::sizing::tests::witness_tols(0.05),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
         let (fk, _) = body
             .faces()
             .find(|&(k, _)| matches!(body.face_surface(k), Some(Surface::Sphere { .. })))

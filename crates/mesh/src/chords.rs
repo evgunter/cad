@@ -58,7 +58,9 @@ use topo::{Body, EdgeKey};
 
 use crate::chart_table::{AnalyticRow, ChartRow};
 use crate::nurbs_cert::{FaceBounds, face_bound};
-use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, spiric_step};
+use crate::sizing::{
+    SizingTols, ceil_count, curvature_step, ellipse_step, sagitta_step, spiric_step,
+};
 use crate::types::TessellateError;
 
 /// The chord pass's output: every edge's chord-point ids and the
@@ -81,7 +83,7 @@ pub(crate) struct ChordPass {
 /// their already-minted mesh ids.
 pub(crate) fn compute_chords(
     body: &Body<f64>,
-    delta: f64,
+    tol: &SizingTols,
     vids: &HashMap<topo::VertexKey, u32>,
     positions: &mut Vec<geom_core::Point3<f64>>,
     bounds: &mut FaceBounds,
@@ -101,7 +103,7 @@ pub(crate) fn compute_chords(
             .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
         let (t0, t1) = curve.params();
         let span = t1 - t0;
-        let target = edge_target(body, ek, delta)?;
+        let target = edge_target(body, ek, tol)?;
         let n = match *curve.carrier() {
             Curve3::Line(_) => 1,
             Curve3::Circle(..) => {
@@ -138,7 +140,7 @@ pub(crate) fn compute_chords(
         // The one rule (module docs), on every carrier kind: a straight
         // wall edge is one 3-D chord but many UV steps of its wall's
         // lattice.
-        let n = tighten(body, curve, ek, delta, bounds, &mut lattices, n)?;
+        let n = tighten(body, curve, ek, tol, bounds, &mut lattices, n)?;
         let (vs, ve) = edge_ends(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
             what: "start vertex",
@@ -307,7 +309,7 @@ fn tighten(
     body: &Body<f64>,
     curve: &geom_brep::EdgeCurve<f64>,
     ek: EdgeKey,
-    delta: f64,
+    tol: &SizingTols,
     bounds: &mut FaceBounds,
     lattices: &mut HashMap<topo::FaceKey, Option<FaceLattice>>,
     n: usize,
@@ -323,7 +325,8 @@ fn tighten(
         // refuses that face at its own guard — before its window is read.
         if !matches!(curve.carrier(), Curve3::Circle(..)) {
             let surface = crate::tessellate::face_surface(body, s.face)?;
-            if crate::tessellate::lane_of(body, s.face, surface)? == crate::tessellate::Lane::Curved
+            if crate::tessellate::lane_of(body, s.face, surface, tol)?
+                == crate::tessellate::Lane::Curved
             {
                 continue;
             }
@@ -332,7 +335,7 @@ fn tighten(
             std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
             std::collections::hash_map::Entry::Vacant(e) => {
                 let surface = crate::tessellate::face_surface(body, s.face)?;
-                e.insert(FaceLattice::of(body, s.face, surface, delta, bounds)?)
+                e.insert(FaceLattice::of(body, s.face, surface, tol, bounds)?)
             }
         };
         let Some(lattice) = lattice.as_ref() else {
@@ -451,14 +454,14 @@ impl FaceLattice {
         body: &Body<f64>,
         fk: topo::FaceKey,
         surface: &geom::Surface<f64>,
-        delta: f64,
+        tol: &SizingTols,
         bounds: &mut FaceBounds,
     ) -> Result<Option<Self>, TessellateError> {
         use crate::tessellate::Lane;
-        Ok(match crate::tessellate::lane_of(body, fk, surface)? {
+        Ok(match crate::tessellate::lane_of(body, fk, surface, tol)? {
             Lane::Planar => None,
             Lane::Curved => {
-                let target = crate::trimmed::face_target(body, fk, delta)?;
+                let target = crate::trimmed::face_target(body, fk, tol)?;
                 let Some(chart) = topo::chart::Chart::of(surface) else {
                     unreachable!("Chart::of answers every curved-lane surface: {surface:?}")
                 };
@@ -478,11 +481,11 @@ impl FaceLattice {
                 }
                 match ChartRow::of(body, fk, surface, bounds)? {
                     row @ ChartRow::Spline { .. } => Some(Self {
-                        steps: row.steps(crate::trimmed::face_target(body, fk, delta)?),
+                        steps: row.steps(crate::trimmed::face_target(body, fk, tol)?),
                         reads: Reads::SplineRows,
                     }),
                     ChartRow::Analytic(row) if row.chorded_to_lattice() => Some(Self {
-                        steps: crate::trimmed::arm_steps(body, fk, &row, delta)?,
+                        steps: crate::trimmed::arm_steps(body, fk, &row, tol)?,
                         reads: Reads::ChartRows {
                             singular: !row.singular_points().is_empty(),
                             budget: row.chord_budget(),
@@ -711,11 +714,11 @@ fn lcm(a: usize, b: usize) -> usize {
 /// of its faces' targets ([`crate::trimmed::face_target`]), so the trim
 /// polygon of an arm that sizes at its headroom is the one its lattice
 /// was sized beside.
-fn edge_target(body: &Body<f64>, ek: EdgeKey, delta: f64) -> Result<f64, TessellateError> {
+fn edge_target(body: &Body<f64>, ek: EdgeKey, tol: &SizingTols) -> Result<f64, TessellateError> {
     adjacent_faces(body, ek)?
         .into_iter()
-        .try_fold(delta, |least, fk| {
-            Ok(least.min(crate::trimmed::face_target(body, fk, delta)?))
+        .try_fold(tol.delta, |least, fk| {
+            Ok(least.min(crate::trimmed::face_target(body, fk, tol)?))
         })
 }
 
@@ -865,7 +868,14 @@ mod tests {
             positions.push(p);
         }
         let mut bounds = FaceBounds::new();
-        compute_chords(body, delta, &vids, &mut positions, &mut bounds).unwrap()
+        compute_chords(
+            body,
+            &crate::sizing::tests::witness_tols(delta),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap()
     }
 
     /// For every side of every edge of `body` whose lattice the rule reads:
@@ -895,12 +905,22 @@ mod tests {
             let sides = sides_of(body, ek).unwrap();
             for s in [sides.plus, sides.minus] {
                 let surface = crate::tessellate::face_surface(body, s.face).unwrap();
-                let Some(lattice) =
-                    FaceLattice::of(body, s.face, surface, delta, &mut bounds).unwrap()
-                else {
+                let Some(lattice) = FaceLattice::of(
+                    body,
+                    s.face,
+                    surface,
+                    &crate::sizing::tests::witness_tols(delta),
+                    &mut bounds,
+                )
+                .unwrap() else {
                     continue;
                 };
-                let target = crate::trimmed::face_target(body, s.face, delta).unwrap();
+                let target = crate::trimmed::face_target(
+                    body,
+                    s.face,
+                    &crate::sizing::tests::witness_tols(delta),
+                )
+                .unwrap();
                 let want = match (&lattice.reads, surface) {
                     (
                         Reads::Iso(_) | Reads::ChartRows { .. },
@@ -965,7 +985,11 @@ mod tests {
                 Curve3::Circle(geom::Circle { radius, .. }) => Some(
                     ceil_count(
                         span,
-                        sagitta_step(edge_target(body, ek, delta).unwrap(), radius),
+                        sagitta_step(
+                            edge_target(body, ek, &crate::sizing::tests::witness_tols(delta))
+                                .unwrap(),
+                            radius,
+                        ),
                     )
                     .unwrap(),
                 ),

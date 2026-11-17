@@ -403,15 +403,15 @@ fn boundary_clearance() -> f64 {
 pub(crate) fn face_target(
     body: &Body<f64>,
     fk: FaceKey,
-    delta: f64,
+    tol: &SizingTols,
 ) -> Result<f64, TessellateError> {
     let surface = crate::tessellate::face_surface(body, fk)?;
     let headroom = surface.spline_chart().is_none()
-        && crate::tessellate::lane_of(body, fk, surface)? == crate::tessellate::Lane::Trimmed;
+        && crate::tessellate::lane_of(body, fk, surface, tol)? == crate::tessellate::Lane::Trimmed;
     Ok(if headroom {
-        delta * UNPROVED_HEADROOM
+        tol.delta * UNPROVED_HEADROOM
     } else {
-        delta
+        tol.delta
     })
 }
 
@@ -441,13 +441,13 @@ pub(crate) fn arm_steps(
     body: &Body<f64>,
     fk: FaceKey,
     row: &AnalyticRow<'_>,
-    delta: f64,
+    tol: &SizingTols,
 ) -> Result<(f64, f64), TessellateError> {
     #[cfg(test)]
     let scale = tests::STEP_SCALE.with(std::cell::Cell::get);
     #[cfg(not(test))]
     let scale = 1.0;
-    let (hu, hv) = row.steps(face_target(body, fk, delta)?);
+    let (hu, hv) = row.steps(face_target(body, fk, tol)?);
     Ok((hu * scale, hv * scale))
 }
 
@@ -576,7 +576,7 @@ pub(crate) fn tessellate_trimmed(
             // The row's steps at the face's target, the steps the chord
             // pass bounded this face's boundary UV steps by (`arm_steps`),
             // and the lattice the row lays from them.
-            let (hu, hv) = a.lattice_steps(arm_steps(body, fk, a, tol.delta)?);
+            let (hu, hv) = a.lattice_steps(arm_steps(body, fk, a, tol)?);
             let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
             let rows = a.lattice_rows((v0, v1), (hu, hv))?;
             // The other half of #678's shape on the cylinder, checked
@@ -3354,8 +3354,14 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass =
-            crate::chords::compute_chords(&body, 5e-3, &vids, &mut positions, &mut bounds).unwrap();
+        let chords: ChordPass = crate::chords::compute_chords(
+            &body,
+            &crate::sizing::tests::witness_tols(5e-3),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
         let mut rims = 0;
         for (ek, edge) in body.edges() {
             let curve = body
@@ -3499,21 +3505,34 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass =
-            crate::chords::compute_chords(&body, delta, &vids, &mut positions, &mut bounds)
-                .unwrap();
+        let chords: ChordPass = crate::chords::compute_chords(
+            &body,
+            &crate::sizing::tests::witness_tols(delta),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
         let (mut faces, mut worst) = (0, 0.0f64);
         for (fk, face) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
             if !matches!(surface, geom::Surface::Sphere { .. })
-                || crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                || crate::tessellate::lane_of(
+                    &body,
+                    fk,
+                    surface,
+                    &crate::sizing::tests::witness_tols(1e-2),
+                )
+                .unwrap()
                     != crate::tessellate::Lane::Trimmed
             {
                 continue;
             }
             faces += 1;
             let row = crate::chart_table::AnalyticRow::of(&body, fk, surface).unwrap();
-            let (hu, hv) = super::arm_steps(&body, fk, &row, delta).unwrap();
+            let (hu, hv) =
+                super::arm_steps(&body, fk, &row, &crate::sizing::tests::witness_tols(delta))
+                    .unwrap();
             for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap() {
                 let image = body.pcurve(hek).unwrap().pcurve();
                 let uv: Vec<_> = chords.params[&ek].iter().map(|&t| image.eval(t)).collect();
@@ -3669,7 +3688,13 @@ pub(super) mod tests {
                 else {
                     continue;
                 };
-                if crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                if crate::tessellate::lane_of(
+                    &body,
+                    fk,
+                    surface,
+                    &crate::sizing::tests::witness_tols(1e-2),
+                )
+                .unwrap()
                     != crate::tessellate::Lane::Trimmed
                 {
                     continue;
@@ -3730,22 +3755,39 @@ pub(super) mod tests {
                     positions.push(p);
                 }
                 let mut bounds = crate::nurbs_cert::FaceBounds::new();
-                let chords: ChordPass =
-                    crate::chords::compute_chords(&body, delta, &vids, &mut positions, &mut bounds)
-                        .unwrap();
+                let chords: ChordPass = crate::chords::compute_chords(
+                    &body,
+                    &crate::sizing::tests::witness_tols(delta),
+                    &vids,
+                    &mut positions,
+                    &mut bounds,
+                )
+                .unwrap();
                 for (fk, face) in body.faces() {
                     let surface = body.face_surface(fk).unwrap();
                     if !matches!(
                         surface,
                         geom::Surface::Cone { .. } | geom::Surface::Torus { .. }
-                    ) || crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                    ) || crate::tessellate::lane_of(
+                        &body,
+                        fk,
+                        surface,
+                        &crate::sizing::tests::witness_tols(1e-2),
+                    )
+                    .unwrap()
                         != crate::tessellate::Lane::Trimmed
                     {
                         continue;
                     }
                     faces += 1;
                     let row = crate::chart_table::AnalyticRow::of(&body, fk, surface).unwrap();
-                    let (hu, hv) = super::arm_steps(&body, fk, &row, delta).unwrap();
+                    let (hu, hv) = super::arm_steps(
+                        &body,
+                        fk,
+                        &row,
+                        &crate::sizing::tests::witness_tols(delta),
+                    )
+                    .unwrap();
                     for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap()
                     {
                         let image = body.pcurve(hek).unwrap().pcurve();
@@ -3778,7 +3820,12 @@ pub(super) mod tests {
                             .certified()
                             .unwrap()
                             .carrier();
-                        let target = super::face_target(&body, fk, delta).unwrap();
+                        let target = super::face_target(
+                            &body,
+                            fk,
+                            &crate::sizing::tests::witness_tols(delta),
+                        )
+                        .unwrap();
                         // The new arms size at the lane's headroom, as the
                         // cylinder and sphere arms do: it stands in for
                         // the containment lemma no arm has yet.
@@ -4129,13 +4176,25 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass =
-            crate::chords::compute_chords(&body, 1e-2, &vids, &mut positions, &mut bounds).unwrap();
+        let chords: ChordPass = crate::chords::compute_chords(
+            &body,
+            &crate::sizing::tests::witness_tols(1e-2),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
         let mut with_poles = 0;
         for (fk, face) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
             if !matches!(surface, geom::Surface::Sphere { .. })
-                || crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                || crate::tessellate::lane_of(
+                    &body,
+                    fk,
+                    surface,
+                    &crate::sizing::tests::witness_tols(1e-2),
+                )
+                .unwrap()
                     != crate::tessellate::Lane::Trimmed
             {
                 continue;

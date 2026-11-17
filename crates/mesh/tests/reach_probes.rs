@@ -1956,25 +1956,25 @@ fn a_ringless_cone_face_near_its_apex_meshes_sound() {
     );
 }
 
-/// **A cone face met on its axis refuses `UnresolvedWinding` at fine δ**
+/// **A cone face met on its axis meshes at every δ**
 /// (`work/tesslane/a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it.md`).
 /// T1's cone and its box with the box's edge at `(0, h − 1.5·s, 0)`, so
 /// the edge crosses the cone's axis: in the ops that keep the cone's
-/// wall about that edge (both unions, cone ∖ box) the cone face holds a
-/// triangle whose winding is inside the rounding of its own positions,
-/// and `tessellate` refuses the face where its patch joins the mesh
-/// (`crates/mesh/README.md` `[mesh.winding]`). Before that rule the same
-/// nine cells meshed and [`geometry`] read one cone triangle as wound
-/// against its face: a normal that is rounding noise reads either way.
-/// The coarser cells mesh, and the mesh is the body's. Which triangle it
-/// is, and what in the lane lays it, is that row's to find.
+/// wall about that edge (both unions, cone ∖ box) the cone face is half
+/// the cone, apex to rim, each side ruling split where the box meets it.
+/// A straight side holding a point sends the face to the trimmed lane
+/// (`walk::splits_a_straight_side`), whose CDT runs in the cone's
+/// development, where three points of one ruling are collinear and no
+/// triangle takes them. The rectangle lane triangulated its chart, where
+/// the apex is a row and a ruling a column, and fanned the apex down the
+/// column beside the split side into triangles of no area, which the
+/// join refuses (`crates/mesh/README.md` `[mesh.winding]`).
 ///
-/// **By ε.** The same nine cells refuse at the default, `10⁻⁶` and
-/// `10⁻¹²`.
+/// **By ε.** Every cell meshes at the default, `10⁻⁶` and `10⁻¹²`.
 #[test]
-fn a_cone_face_met_on_its_axis_refuses_unresolved_at_fine_delta() {
+fn a_cone_face_met_on_its_axis_meshes_at_every_delta() {
     let height = 1.2 / FRAC_PI_6.tan();
-    for (s, refuses_from) in [(0.6, 5e-3), (0.3, 1e-3)] {
+    for s in [0.6, 0.3] {
         let cone = posed(
             "the cone",
             revolved(&[(0.0, 0.0), (1.2, 0.0), (0.0, height)]),
@@ -1994,14 +1994,9 @@ fn a_cone_face_met_on_its_axis_refuses_unresolved_at_fine_delta() {
         for op in ["A ∪ B", "B ∪ A", "A ∖ B"] {
             let body = op_of(&cone, &wedge, op);
             for delta in [2e-2, 5e-3, 1e-3] {
-                let want = if delta <= refuses_from {
-                    Got::Unresolved(SurfaceKind::Cone)
-                } else {
-                    Got::Meshed
-                };
                 assert_eq!(
                     got(&body, delta),
-                    want,
+                    Got::Meshed,
                     "the box's edge on the cone's axis, s = {s}, {op}, δ = {delta:e}"
                 );
             }

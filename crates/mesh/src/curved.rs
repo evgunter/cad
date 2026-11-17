@@ -175,6 +175,12 @@ use crate::walk::{Chart, UvPoint, gap_is_noise, loop_polygon};
 pub(crate) const RINGED_FACE_ROUTED_HERE: &str =
     "a ringed face reached the curved lane, which reads the outer loop only (router defect)";
 
+/// What [`tessellate_curved`] refuses a ruled face with when a straight
+/// side holds a point between its ends: the router's defect, since
+/// `tessellate::lane_of` sends such a face to the trimmed lane.
+pub(crate) const SPLIT_SIDE_ROUTED_HERE: &str = "a ruled face with a point inside a straight side \
+     reached the curved lane, whose ruled arms take bare sides only (router defect)";
+
 /// Tessellates one curved face into a [`Patch`]: the interior grid
 /// points the face mints for itself, and its outward-wound triangles.
 ///
@@ -286,12 +292,20 @@ pub(crate) fn tessellate_curved(
         .iter()
         .filter(|e| !e.pole && e.v > v0 && e.v < v1 && (e.u <= u0 || e.u >= u1))
         .count();
-    // Whether a meridian side carries any point between its rows, a
-    // pole or apex entry included: the cone's two-rim strip argument
-    // needs bare sides (`grid_counts`' cone arm).
-    let bare_sides = !polygon
-        .iter()
-        .any(|e| e.v > v0 && e.v < v1 && (e.u <= u0 || e.u >= u1));
+    // A ruled face's sides are bare: no point, an apex entry included,
+    // between its rows. The strip argument at `grid_counts`' ruled arms
+    // needs it, and the dispatch sends every other ruled face to the
+    // trimmed lane (`walk::splits_a_straight_side`), so one here is the
+    // router's defect.
+    if matches!(surface, Surface::Cylinder { .. } | Surface::Cone { .. })
+        && polygon
+            .iter()
+            .any(|e| e.v > v0 && e.v < v1 && (e.u <= u0 || e.u >= u1))
+    {
+        return Err(TessellateError::MissingEntity {
+            what: SPLIT_SIDE_ROUTED_HERE,
+        });
+    }
 
     // Grid counts per chart (module docs), from the face's chart row,
     // which the chord pass reads too, so a face's rims and its grid come
@@ -303,7 +317,6 @@ pub(crate) fn tessellate_curved(
         (u1 - u0, v1 - v0),
         has_pole,
         meridian_interior,
-        bare_sides,
     )?;
 
     // CDT: boundary entries (fixed walk order) + constraints + grid.
@@ -576,7 +589,7 @@ pub(crate) fn tessellate_curved(
 /// answering `Result<(), E>` with nothing computed, the props three on
 /// the face's rim structure and its arcs, the mesh two on the face and
 /// on the walk. The suffix names the question.
-fn require_iso_rectangle_face(
+pub(crate) fn require_iso_rectangle_face(
     body: &Body<f64>,
     fk: FaceKey,
     lk: LoopKey,
@@ -1054,7 +1067,6 @@ fn grid_counts(
     (uspan, vspan): (f64, f64),
     has_pole: bool,
     meridian_interior: usize,
-    bare_sides: bool,
 ) -> Result<(usize, usize), TessellateError> {
     let steps = row.steps(delta);
     let (hu, hv) = steps;
@@ -1068,34 +1080,16 @@ fn grid_counts(
             // any column count; the cone arm below has the same shape.
             Ok((ceil_count(uspan, hu)?, 1))
         }
-        Analytic::Cone { .. } => {
-            if bare_sides {
-                // `(nu, 1)`, the cylinder's shape and for its reason: no
-                // rows. `cert::cert_cone` charges a chord across `Δu` no
-                // more than its larger radius's sagitta, and with both rims chorded
-                // on this step (`chords`' one rule) and
-                // nothing on the sides between them, the strip argument
-                // at `sizing::sagitta_step` holds every triangle to one
-                // column, so the worst one is a rim-chord triangle on the
-                // largest rim at δ (`sizing::cone_grid_step`'s theorem).
-                // A row would add triangles and move no bound.
-                return Ok((ceil_count(uspan, hu)?, 1));
-            }
-            // A side carrying a point between the rims (a split ruling,
-            // or the apex between two nappes) is outside the strip
-            // argument: a triangle on two side points and a far rim
-            // point spans several columns (measured: 2δ). Such a face
-            // keeps the lattice — rows every `ρ_max·hu` slant metres,
-            // which put interior columns
-            // between the sides — and the certificate, not a theorem, is
-            // what holds it
-            // (`work/tesslane/a-cone-face-with-a-split-side-has-no-worst-triangle-theorem.md`).
-            let nu = pole_columns(ceil_count(uspan, hu)?, has_pole);
-            if nu == 1 {
-                return Ok((1, 1));
-            }
-            Ok((nu, ceil_count(vspan, lv)?))
-        }
+        // `(nu, 1)`, the cylinder's shape and for its reason: no rows.
+        // `cert::cert_cone` charges a chord across `Δu` no more than its
+        // larger radius's sagitta, and with both rims chorded on this
+        // step (`chords`' one rule) and nothing on the sides between
+        // them (the lane admits no other ruled face), the strip argument
+        // at `sizing::sagitta_step` holds every triangle to one column,
+        // so the worst one is a rim-chord triangle on the largest rim at
+        // δ (`sizing::cone_grid_step`'s theorem). A row would add
+        // triangles and move no bound.
+        Analytic::Cone { .. } => Ok((ceil_count(uspan, hu)?, 1)),
         Analytic::Sphere { .. } => {
             let (nu, nv) = (ceil_count(uspan, hu)?, ceil_count(vspan, hv)?);
             // D2 addendum row 5 — and the whole warrant for calling
@@ -1302,7 +1296,7 @@ mod tests {
         }
         let chords = crate::chords::compute_chords(
             body,
-            0.025,
+            &crate::sizing::tests::witness_tols(0.025),
             &vids,
             &mut positions,
             &mut crate::nurbs_cert::FaceBounds::new(),
@@ -1822,10 +1816,11 @@ mod tests {
     /// The #653 row's totals, measured. They are asserted so that a
     /// change in the fixture list is VISIBLE rather than silent — the
     /// row's actual guarantee is its per-fixture floor, not these.
-    const TOTAL_MESHED: usize = 246;
-    /// Typed refusals in the same sweep: four `CertificateExceeded` on
-    /// the mirror nappe, whose split geometry exceeds the chord
-    /// certificate at δ = 0.1. The donut contributes none — a split
+    const TOTAL_MESHED: usize = 250;
+    /// Typed refusals in the same sweep: none. A split ruling sends its
+    /// face to the trimmed lane (`walk::splits_a_straight_side`), which
+    /// meshes the mirror nappe's split walls. The donut contributes none
+    /// either — a split
     /// SEAM MERIDIAN is folded back into the meridian it carries by
     /// props' torus parse (identity through the split lineage, never
     /// through the stored circle's values), so the shape door answers
@@ -1836,7 +1831,91 @@ mod tests {
     /// whose surgery splits one (`sweep::blend::surgery` splits seam
     /// and meridian edges; whether one lands on a torus is
     /// unmeasured).
-    const TOTAL_REFUSED: usize = 4;
+    const TOTAL_REFUSED: usize = 0;
+
+    /// **A ruled face whose straight side holds a point meshes**, on the
+    /// trimmed lane (`walk::splits_a_straight_side`): a full and a half
+    /// cylinder wall, cones through their apex at half-angles 45°, 80°
+    /// and 5°, and a frustum, each with one ruling split at one point and
+    /// at two, obliquely placed, at δ 0.1, 0.01 and 0.001. Each meshes
+    /// and passes `check_mesh`; `tessellate`'s join has read every
+    /// triangle's winding. With the route gone each reaches this lane and
+    /// refuses as the router's defect ([`SPLIT_SIDE_ROUTED_HERE`]).
+    #[test]
+    fn a_ruled_face_with_a_split_ruling_meshes() {
+        let tau = core::f64::consts::TAU;
+        let solid = |profile: &[(f64, f64)], turn: Revolution<f64>| {
+            let lp = ProfileLoop::polygon(profile.iter().map(|&(x, y)| Point2::new(x, y)));
+            revolve(&validated(vec![lp]), axis_y(), turn, Tol::witness())
+                .unwrap()
+                .body
+                .into_body()
+        };
+        let cone = |half_angle: f64| [(0.0, 0.0), (half_angle.to_radians().tan(), 0.0), (0.0, 1.0)];
+        let wall = [(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)];
+        let bodies = [
+            ("full cylinder wall", solid(&wall, Revolution::Full)),
+            (
+                "half cylinder wall",
+                solid(&wall, Revolution::Partial(tau / 2.0)),
+            ),
+            ("cone at 45°", solid(&cone(45.0), Revolution::Full)),
+            ("cone at 80°", solid(&cone(80.0), Revolution::Full)),
+            ("cone at 5°", solid(&cone(5.0), Revolution::Full)),
+            (
+                "frustum",
+                solid(
+                    &[(0.0, 0.0), (2.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+                    Revolution::Full,
+                ),
+            ),
+        ];
+        for (name, body) in &bodies {
+            let rulings: Vec<usize> = body
+                .edges()
+                .enumerate()
+                .filter(|(_, (_, e))| {
+                    matches!(
+                        body.get_curve_geom(e.curve)
+                            .and_then(|g| g.certified())
+                            .map(|c| c.carrier()),
+                        Some(geom::Curve3::Line(..))
+                    )
+                })
+                .map(|(i, _)| i)
+                .collect();
+            let mut split = 0usize;
+            for fracs in [&[0.5][..], &[0.312_9, 0.156_45][..]] {
+                let (placed, skipped) = split_each_edge_then_place(body, fracs);
+                assert!(skipped.is_empty(), "{name} @{fracs:?}: {skipped:?}");
+                for (i, placed) in placed.iter().filter(|(i, _)| rulings.contains(i)) {
+                    let curved = placed
+                        .faces()
+                        .filter(|&(fk, _)| {
+                            matches!(
+                                placed.face_surface(fk),
+                                Some(Surface::Cylinder { .. } | Surface::Cone { .. })
+                            )
+                        })
+                        .count();
+                    if curved == 0 {
+                        continue;
+                    }
+                    split += 1;
+                    for delta in [0.1, 0.01, 0.001] {
+                        let mesh =
+                            crate::tessellate(placed, delta, Tol::witness()).unwrap_or_else(|e| {
+                                panic!("{name}, edge {i} split @{fracs:?}, δ {delta}: {e:?}")
+                            });
+                        crate::validate::check_mesh(&mesh).unwrap_or_else(|e| {
+                            panic!("{name}, edge {i} split @{fracs:?}, δ {delta}: {e:?}")
+                        });
+                    }
+                }
+            }
+            assert!(split > 0, "{name}: no ruling of a ruled face was split");
+        }
+    }
 
     /// **The premise, swept.** Every curved face this build can put in
     /// front of [`tessellate_curved`] walks to a UV polygon that IS its
@@ -2394,9 +2473,8 @@ mod tests {
         );
     }
 
-    /// **A cone patch with bare sides takes no rows, at any column
-    /// count** (the cone arm's theorem, `sizing::cone_grid_step`), and
-    /// one whose side carries a point keeps them: the π/6 wedge (ρ_max = 1,
+    /// **A cone patch takes no rows, at any column count** (the cone
+    /// arm's theorem, `sizing::cone_grid_step`): the π/6 wedge (ρ_max = 1,
     /// α = π/4, vspan = √2) at δ = 0.1 (one column), 0.0125 (two) and
     /// 0.001 (five), with and without an apex entry, sizes to `(nu, 1)`.
     /// Rows reintroduced at any column count red here, and `nu` is the
@@ -2415,26 +2493,12 @@ mod tests {
         for (delta, nu) in [(0.1, 1), (0.0125, 2), (0.001, 5)] {
             for has_pole in [true, false] {
                 assert_eq!(
-                    grid_counts(&row, delta, (uspan, vspan), has_pole, 0, true).unwrap(),
+                    grid_counts(&row, delta, (uspan, vspan), has_pole, 0).unwrap(),
                     (nu, 1),
                     "δ {delta}, has_pole {has_pole}: {nu} columns and no rows"
                 );
             }
         }
-        // A side carrying a point between the rims is outside the strip
-        // argument and keeps the lattice: at δ = 0.0125 two raw columns,
-        // the pole floor lifting them to three with an apex, and rows
-        // every `ρ_max·hu`.
-        assert_eq!(
-            grid_counts(&row, 0.0125, (uspan, vspan), true, 0, false).unwrap(),
-            (3, 4),
-            "a split side keeps its rows, and the apex its pole floor"
-        );
-        assert_eq!(
-            grid_counts(&row, 0.0125, (uspan, vspan), false, 0, false).unwrap(),
-            (2, 4),
-            "a split side keeps its rows"
-        );
     }
 
     /// Replays this lane's order — boundary points, constraints, then a

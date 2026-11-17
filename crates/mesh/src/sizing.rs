@@ -914,8 +914,18 @@ pub(crate) fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError>
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    /// The run's tolerances at `delta` under `Tol::witness()`, as
+    /// `tessellate` mints them.
+    pub(crate) fn witness_tols(delta: f64) -> SizingTols {
+        SizingTols {
+            delta,
+            eps: Eps::at(Tol::witness()),
+            band: Band::linear(Tol::witness()).unwrap(),
+        }
+    }
 
     /// **[`ellipse_step`] reads the semi-axes in either order.** An
     /// ellipse stored with `minor` the larger is the same locus; read as
