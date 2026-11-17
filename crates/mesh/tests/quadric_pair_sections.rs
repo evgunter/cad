@@ -157,7 +157,7 @@ enum Got {
     /// torus face bounded by a spline's projected image, which the
     /// trimmed lane has no speed bound for
     /// (`work/tesslane/cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm.md`,
-    /// `work/tesslane/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
+    /// `work/tesslane/a-torus-face-bounded-by-a-projected-spline-image-has-no-chord-bound.md`).
     ProjectedSpline,
     /// `UnsupportedCurve` from `chords::nurbs_chord_count`: a carrier
     /// with an interior knot of multiplicity its degree.

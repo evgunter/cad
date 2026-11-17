@@ -46,12 +46,12 @@ Rows: `section_cert_square_rows.rs`
 `a_crossing_at_a_tubes_top_refuses_r_order` pins today's refusal and
 turns into the answered row.
 
-## A seed of the square search that reds on this family (2026-11-17, SECTARMS)
+## A seed of the square search that reds on this family (2026-11-17)
 
 `topo`'s `boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`
-drew `CAD_FUZZ_SEED=0x2d854e95cb708d44` at `CAD_FUZZ_EFFORT=1` on branch
-`sectarms/periodic-loop-carrier` and failed with one mismatch, which
-replays there:
+at `CAD_FUZZ_SEED=0x2d854e95cb708d44`, `CAD_FUZZ_EFFORT=1`, reds on main
+with one mismatch (found on a SECTARMS branch's run, replayed on main by
+PR 7052's reviewers):
 
     a strip crossing at a tube circle's top: R 0.015043003400221869,
     r 0.007531328765283513, (e, z0, rc) (0.01590952267596522,
@@ -59,7 +59,3 @@ replays there:
     tilt 0.00000000000644107827255586: R-tan at
     Degeneracy { tangent: 0.00024737568798874343, top: 1.4351601400341973e-9 }:
     Tangent("section_torus_square_wall_fold_half")
-
-The arm answers `Section::Tangent` from the classification, before any
-section is marched or fitted, so that branch's change (a closed marched
-loop's carrier) is not on its path. Not replayed on main: read, not run.

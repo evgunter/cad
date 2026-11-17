@@ -56,7 +56,7 @@ Cylinder × cylinder meshes at every op. The measured pose, sphere ×
 torus and cylinder × torus stop at the next gate, the trimmed lane's
 bound for a spline's projected image on a sphere or torus face
 (`work/tesslane/cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm.md`,
-`work/tesslane/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
+`work/tesslane/a-torus-face-bounded-by-a-projected-spline-image-has-no-chord-bound.md`).
 
 Left by it:
 `a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band`

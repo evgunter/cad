@@ -64,7 +64,7 @@ takes every carrier. What then answers, at δ 2e-2, 5e-3 and 1e-3
 | cylinder × cylinder (a rod r 0.2 across a rod r 0.5, two loops) | all six | meshes, `check_mesh` passes |
 | cylinder × sphere (the measured pose) | all six | `UnsupportedCurve` from `chords::chart_image`, the sphere face's projected spline image |
 | sphere × torus | ∪, ∩ | the same refusal |
-| cylinder × torus (a rod through a donut) | ∪, ∩, donut ∖ rod | the same refusal, on the torus face (`trimmed-tessellation-lacks-torus-and-plane-arms`) |
+| cylinder × torus (a rod through a donut) | ∪, ∩, donut ∖ rod | the same refusal, on the torus face (`a-torus-face-bounded-by-a-projected-spline-image-has-no-chord-bound`) |
 
 So this row's sphere half is now the first stop of every cylinder ×
 sphere boolean in a general pose.

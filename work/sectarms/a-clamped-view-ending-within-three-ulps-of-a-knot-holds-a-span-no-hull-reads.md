@@ -4,7 +4,7 @@ kind: issue
 title: a clamped view of a periodic loop whose end lies one to three ulps from a knot inside it holds a span that narrow, which the certificate's tube limb can refuse
 status: open
 opened: 2026-11-17
-priority: P3
+priority: P2
 cost: E
 design: true
 ---
@@ -14,8 +14,10 @@ Found by the periodic-loop carrier unit
 (`a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses`,
 branch `sectarms/periodic-loop-carrier`), which was asked to handle a
 clamped view that starts within rounding of a knot and say what it did.
-It did nothing: the view is the exact restriction, and this row is what
-that leaves.
+It did nothing: the view is cut by exact knot insertion, and this row is
+what that leaves. (The view is the loop's restriction only in the base
+turn; past `u₀ + T` it stands on knots `fl(u_i + T)` and is the loop to
+that rounding, `geom::curves::periodic_nurbs`' module docs.)
 
 ## What
 
@@ -82,8 +84,28 @@ picks:
    refuses nothing. It moves a parameter by up to the band over the
    speed, and is a new decision site in `pair_section`.
 
-Until one is picked the view is the exact restriction, and a span that
+Until one is picked the view keeps the exact insertion, and a span that
 narrow refuses at the edge door.
+
+## Added at PR 7052's review
+
+- **One case of this is fixed, exactly.** A view cut whole turns away
+  restates its interior knots by `+kT`; a knot whose restated value *is*
+  the view's own end is that end, and the view is cut at the knot
+  (`clamped_view`, by exact equality, no tolerance). Before that a whole
+  turn from a knot's second-turn copy had no view on about 45% of knots.
+  What is left is the end a few ulps from a knot and not equal to it.
+- **A fourth route, inside `[simple.conditioned]`**: form the view's
+  derivative net by knot insertion into the *parent's* derivative net,
+  rather than as differences of nearly coincident view control points.
+  The narrow span's derivative is then well-conditioned and no end is
+  moved.
+- **Route 1's objection is narrower than this row first said.** It
+  names the unit roundoff outside `geom-core`; a primitive inside
+  `geom-core`'s spline module is not ruled out by that gate.
+- **Priority.** "Where it can arise" above says a site that is one of
+  the march's own samples reads a foot within rounding of a knot. That
+  is by construction, not measure zero, so this is P2.
 
 `geom::curves::periodic_nurbs::tests::a_view_beside_a_knot_keeps_the_exact_insertion`
 pins the insertion; `geom-brep`'s `pair_section::a_seated_loop_has_no_start`

@@ -40,27 +40,27 @@ which carries all five poses of the first two rows, passes there at
 
 So this is a pose the periodic fit lost at one band.
 
-## What differs (read, not run)
+## What differs (measured by PR 7052's reviewers)
 
-The clamped fit interpolates on *averaged* knots
-(`geom::curves::fit`, `averaged_knots`: each interior knot the mean of
-three consecutive chord parameters), so each knot span is a three-step
-mean of the march's steps. The periodic fit
-(`geom::PeriodicNurbs3::interpolate`) puts its knots at the chord
-parameters themselves, so a knot span is one march step. Limb 3 reads
-one box per knot span; where the march's steps are uneven, the periodic
-fit's longest span is longer than the clamped fit's, and its box's
-enclosure of the transversality wider. Whether that is what refuses
-here is not measured: the refusing box, its span and the same box on
-main were not read.
+On the same 438 marched points at ε = 1e-6:
+
+| `(d, R)` | periodic fit | clamped fit |
+|---|---|---|
+| `(0.2, 0.69)` | carries, tube radius 1.08e-2 | carries, tube radius 1.08e-2 |
+| `(0.2, 0.699)` | refuses `TubeStraddles` (longest span 3.0e-3) | certifies at tube radius 1.7e-4, 60 times narrower than a normal pose's (longest span 4.9e-3) |
+| `(0.2, 0.6995)` | refuses | refuses |
+
+So the refusal boundary moved from between `R = 0.699` and `0.6995` to
+between `0.69` and `0.699`: the clamped fit was already at its last rung
+on this pose. The periodic fit's longest knot span is the *shorter* of
+the two, so the span length this row first guessed at is not the cause.
+**The cause is not found.**
 
 ## What would answer it
 
-Read the refusing box on both fits at this pose. If it is the span
-length: a periodic fit on cyclically averaged knots (a cyclic banded
-collocation, the open fit's own scheme made cyclic), or refinement of
-the samples where limb 3 straddles, as `refine_for_tube` refines where
-the tube is narrow.
+Read the box where limb 3's transversality enclosure holds zero on the
+periodic fit at `(0.2, 0.699)`, and the same stretch of the clamped
+fit's chain at its 1.7e-4 rung.
 
 `pair_section::a_seated_loop_has_no_start` pins the pose as measured:
 carried below a band of 1e-7, `TubeStraddles` above it.

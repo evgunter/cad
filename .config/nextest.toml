@@ -144,8 +144,9 @@ failure-output = "immediate-final"
 #  150 s     mesh::all quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_periodic_loops
 # and the lens of the first, exported:
 #   22 s     step-export::all periodic_loop_edge::a_lens_between_a_cylinder_and_a_ball_writes_its_loop_as_one_clamped_spline
-# Rods across a wall joined along their rulings: over the 1.0 s bar on
-# PR 7052's hosted run, not timed on main:
+# Rods across a wall joined along their rulings: 1.015 s against the
+# 1.0 s bar on PR 7052's hosted run. It times the same on main as on that
+# branch (3.6-3.9 s and 3.4-3.8 s, local debug), so it sits at the bar:
 #    1.02 s  sweep::all parallel_cylinder_join::rods_across_the_wall_join_along_their_rulings
 # The chamfer over rounded outlines, its strips and frustums meeting at
 # junctions: closed rims turned, moved and drawn in arc pieces, pockets,
