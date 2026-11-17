@@ -51,7 +51,8 @@ So it is charts plus images, not charts times images, and a face is never routed
 | 4 | `a-curved-face-is-routed-by-its-domain-not-its-carriers` | the notch; the carrier-kind predicates |
 | 4b | `a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line` | the headroom on a face bounded by iso runs alone; after the lattice's place beside the boundary is settled (PR 6966) |
 | 5 | `one-containment-lemma-for-an-oblique-boundary` | three missing-theorem rows; independent of 2 to 4 |
-| 6 | `rectangle-faces-move-to-the-chart-lane` | the curved lane; Ev's call, with a density measurement |
+| 4c | `a-ruled-face-is-meshed-as-a-strip` | the rows the chart lane lays on a cylinder or cone rectangle and its headroom there; the split-side theorem row; after the interim route (`a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it`) |
+| 6 | `rectangle-faces-move-to-the-chart-lane` | the curved lane; Ev's call, with a density measurement taken per chart, after 4c |
 
 **What is Ev's.** Unit 6, and with it the re-cut of `crates/mesh/README.md` `[mesh.sizing]`'s list of lanes. Until then the page's rule is unchanged and its lanes still exist; where a unit moves a mechanism the page names (the rim-chord bullet's three doors become one), the page is re-worded with that unit.
 

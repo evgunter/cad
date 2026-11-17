@@ -50,6 +50,25 @@ worst triangle, and takes the coarsest step that bound allows.
   (a trim or chord point). The theorem is pinned by a test next to the
   lane's step function. The shape to follow is
   `torus_grid_steps_meet_the_bound_with_equality`.
+- **The triangulation is built to what the theorem assumes.** Where a
+  lane's theorem needs its triangles to have a shape (every triangle
+  between two neighbouring rulings, say), the lane writes that shape
+  down or holds it by constraint. A premise is never left to what a
+  Delaunay triangulation happens to do on a grid.
+- **A ruled face is meshed as a strip.** On a cylinder or a cone the
+  chart's lines `u = const` are straight: its rulings. A face there
+  bounded by two rows (two rims, or a rim and the apex) and two
+  rulings lays no interior points. Its triangles are written by
+  walking the two rows' boundary points in order of angle about the
+  axis, each step joining the next point of one row to the current
+  point of the other. Every triangle then spans at most one rim chord
+  in angle, so it lies in the convex hull of the surface between two
+  rulings one chord apart and deviates by no more than that chord's
+  sagitta, which the column step holds to δ. A vertex on a straight
+  side lies on an edge of that mesh and divides one triangle in its
+  own plane: splitting a straight edge adds one triangle to each face
+  beside it, and changes neither the bound nor whether the face
+  meshes.
 - **No safety factor.** A step is never shrunk "for margin". Where the
   step can be solved for exactly, its worst triangle lands at δ. Where
   the schedule is discrete (a repeated halving, say), it lands at that
