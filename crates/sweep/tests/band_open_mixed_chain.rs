@@ -21,7 +21,7 @@ use crate::band_closed_mixed_chain_shapes::{assert_touch_escalation, tightest_in
 use crate::common::interval::iv;
 use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point2, Point3, Tol};
 use profile::{SketchPlane, test_support::bulge_loop};
-use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
+use sweep::blend::{BlendError, UnbuiltEnd, chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_naming_totality, at_rest, extruded};
 use topo::{Body, EdgeKey, validate_geometric};
 
@@ -482,8 +482,8 @@ fn a_notchs_rounded_floor_run_chamfers_whole_adding_pappuss_volume() {
 /// that do not hold its axis; even a wall that does, whose section of the
 /// torus is a circle, has no built cut-off
 /// (`work/band/an-end-torus-link-cut-off-in-its-meridian-plane-is-unbuilt.md`).
-/// The chamfer's frustum there refuses before the door, at predicate 6,
-/// which finds no corner its arms close at either sharp end.
+/// The chamfer's frustum there refuses the same, at predicate 6, which
+/// asks the door before it reads a corner at either sharp end.
 #[test]
 fn a_torus_link_at_an_open_chains_end_refuses_at_the_open_door() {
     let body = outline::<f64>(
@@ -493,26 +493,19 @@ fn a_torus_link_at_an_open_chains_end_refuses_at_the_open_door() {
     );
     let arc = edges_at(&body, 0.5, |x, y| x.abs() < 0.1 && y > -0.1);
     assert_eq!(arc.len(), 1, "the D's arc");
-    let got = fillet_edges(&at_rest(&body, tol()), &arc, 0.1, tol()).map_err(|r| r.error);
-    assert!(
-        matches!(
-            &got,
-            Err(BlendError::UnsupportedChain { detail, .. })
-                if detail.contains("a band of revolution between two junctions")
-        ),
-        "a torus at an open chain's end has no built end, got {got:?}"
-    );
-    let got = chamfer_edges(&at_rest(&body, tol()), &arc, 0.1, tol()).map_err(|r| r.error);
-    assert!(
-        matches!(
-            &got,
-            Err(BlendError::UnsupportedCorner {
-                corner: sweep::blend::CornerConfig::Indeterminate,
-                ..
-            })
-        ),
-        "a frustum at an open chain's end has no corner, got {got:?}"
-    );
+    let fillet = fillet_edges(&at_rest(&body, tol()), &arc, 0.1, tol()).map_err(|r| r.error);
+    let chamfer = chamfer_edges(&at_rest(&body, tol()), &arc, 0.1, tol()).map_err(|r| r.error);
+    for (what, got) in [("a torus", fillet), ("a frustum", chamfer)] {
+        assert!(
+            matches!(
+                &got,
+                Err(BlendError::UnsupportedChain { edge, detail })
+                    if *edge == arc[0]
+                        && detail.contains("a band of revolution between two junctions")
+            ),
+            "{what} at an open chain's end has no built end, got {got:?}"
+        );
+    }
 }
 
 /// **A smooth outline filleted in part stays refused**, at the end
@@ -575,12 +568,22 @@ fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
     for (what, body, run, n) in rows {
         assert_eq!(run.len(), n, "{what}: the request");
         let got = fillet_edges(&at_rest(body, tol()), &run, 0.1, tol()).map_err(|r| r.error);
-        let Err(e @ BlendError::UnsupportedRunOut { detail, .. }) = &got else {
+        let Err(
+            e @ BlendError::UnbuiltEnd(UnbuiltEnd::RunOut {
+                unrequested,
+                odd: None,
+                ..
+            }),
+        ) = &got
+        else {
             panic!("{what}: a part of a smooth outline refuses at its tangent end, got {got:?}");
         };
-        assert_eq!(
-            *detail,
-            sweep::blend::battery::PARTIAL_TANGENT_RUN,
+        assert!(
+            !run.contains(unrequested) && e.edge() == Some(*unrequested),
+            "{what}: the refusal names the edge the tangent run goes on into"
+        );
+        assert!(
+            e.to_string().contains(sweep::blend::battery::PARTIAL_TANGENT_RUN),
             "{what}: the refusal names the tangent run requested in part"
         );
         let shown = e.to_string();

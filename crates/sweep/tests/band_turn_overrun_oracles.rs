@@ -118,8 +118,10 @@ pub(crate) fn a_clearance(e: &BlendError) -> bool {
 /// Whether a refusal is a cut-off's foot landing inside a face
 /// (`end_face.rs`'s `FOOT_INSIDE_A_FACE`).
 pub(crate) fn foot_inside_a_face(e: &BlendError) -> bool {
-    matches!(e, BlendError::UnsupportedRunOut { detail, .. }
-        if detail.contains("trimline meets the end face's plane past its rim"))
+    matches!(
+        e,
+        BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::FootInsideAFace { .. })
+    )
 }
 
 // ------------------------------------------------------------------
@@ -863,7 +865,7 @@ fn two_turns_on_one_l_match_the_slab_oracle() {
                     }
                     Err(e) => {
                         let typed =
-                            a_clearance(&e) || matches!(e, BlendError::UnsupportedRunOut { .. });
+                            a_clearance(&e) || matches!(e, BlendError::UnbuiltEnd(_));
                         if !typed {
                             failures.push(format!(
                                 "{what}: refused untyped, {e_at}",

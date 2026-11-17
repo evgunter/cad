@@ -31,7 +31,7 @@ use core::f64::consts::SQRT_2;
 use geom_core::{Point2, Point3, Tol};
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
+use sweep::blend::{BlendError, FILLET3_SEAM_VERTEX_RECOURSE, UnbuiltEnd};
 use sweep::test_support::{
     assert_promises_either_side, cube, revolved_about_y, rim_arcs_at, waisted,
 };
@@ -139,10 +139,10 @@ fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
         match fillet_edges(&body, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
-            Err(BlendError::UnsupportedCorner { corner, .. }) => assert!(
-                matches!(corner, CornerConfig::SeamVertex),
+            Err(BlendError::UnbuiltEnd(end)) => assert!(
+                matches!(end, UnbuiltEnd::Seam { .. }),
                 "{name}: the classifier reads incidence and tags the seam vertex, \
-                 got {corner}"
+                 got {end}"
             ),
             other => panic!("{name}: one arc stops at a seam vertex, got {other:?}"),
         }
@@ -359,10 +359,10 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
     // ONE ARC: refused at the seam vertex, whose recourse names the
     // whole rim.
     match fillet_edges(&source, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
-        Err(BlendError::UnsupportedCorner { corner, .. }) => {
+        Err(BlendError::UnbuiltEnd(end)) => {
             assert!(
-                matches!(corner, CornerConfig::SeamVertex),
-                "a trivalent rim crossing is a seam vertex: {corner}"
+                matches!(end, UnbuiltEnd::Seam { .. }),
+                "a trivalent rim crossing is a seam vertex: {end}"
             );
         }
         other => panic!("one arc refuses at a corner door, got {other:?}"),

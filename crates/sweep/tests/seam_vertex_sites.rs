@@ -13,7 +13,7 @@
 
 use geom_core::{Point2, Tol};
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig};
+use sweep::blend::BlendError;
 use sweep::test_support::{lantern, prism, rim_arcs_at};
 use topo::EdgeKey;
 use topo::construction::Construct;
@@ -45,10 +45,7 @@ fn one_arc_of_a_whole_disc_rim_refuses_seam_vertex() {
     )
     .map_err(|r| r.error)
     {
-        Err(BlendError::UnsupportedCorner {
-            corner: CornerConfig::SeamVertex,
-            ..
-        }) => {}
+        Err(BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::Seam { .. })) => {}
         other => panic!("one arc of a closed rim refuses SeamVertex, got {other:?}"),
     }
 }
@@ -150,10 +147,7 @@ fn one_quarter_arc_of_a_d_is_not_a_seam_vertex() {
         assert!(
             !matches!(
                 r.error,
-                BlendError::UnsupportedCorner {
-                    corner: CornerConfig::SeamVertex,
-                    ..
-                }
+                BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::Seam { .. })
             ),
             "an open run's station is not a chart seam: {:?}",
             r.error

@@ -35,9 +35,9 @@ use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::blend::battery::{
-    BlendRequest, END_FACE_CURVED, EndSection, cap_transverse, run_battery,
+    BlendRequest, EndSection, cap_transverse, run_battery,
 };
-use sweep::blend::{BlendDecision, BlendError, Blended, CornerConfig, RunOutPolicy, fillet_edges};
+use sweep::blend::{BlendDecision, BlendError, Blended, UnbuiltEnd, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, finished, revolved_about_y,
     rod_creases, rod_d_profile_at, rod_d_profile_of_length_at, rod_section_cut, rod_with_flat,
@@ -617,24 +617,6 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     );
 }
 
-/// **The vocabulary is the ratified one and the tag maps its policy.**
-#[test]
-fn the_transverse_cap_names_its_policy() {
-    assert_eq!(
-        CornerConfig::EndFace.policy(),
-        Some(RunOutPolicy::CutOffAtEndFace)
-    );
-    let shown = format!(
-        "{} / {}",
-        CornerConfig::EndFace,
-        RunOutPolicy::CutOffAtEndFace
-    );
-    assert!(
-        shown.contains("an end face") && shown.contains("cut the band off"),
-        "{shown}"
-    );
-}
-
 /// **A mutant cut-off arc is refused at the ATTACHMENT gate.**
 /// Re-describing a carved arc at the wrong radius, or about the wrong
 /// centre, is refused by `set_edge_curve`'s certification — the arc
@@ -882,12 +864,8 @@ fn a_curved_end_face_refuses_typed_before_metering() {
     assert_eq!(creases.len(), 4, "two walls × two wedge planes");
     for e in creases {
         let err = fillet_edges(&body, &[e], ROD_FILLET, tol()).expect_err("a curved end");
-        let BlendError::UnsupportedRunOut { at, detail } = err.error else {
-            panic!("the curved end is a run-out, got {:?}", err.error);
-        };
-        assert_eq!(detail, END_FACE_CURVED);
-        let topo::EntityId::Vertex(v) = at else {
-            panic!("the refusal names the vertex, got {at:?}");
+        let BlendError::UnbuiltEnd(UnbuiltEnd::CurvedEndFace { vertex: v }) = err.error else {
+            panic!("the curved end face, got {:?}", err.error);
         };
         let p = body
             .get_vertex(v)

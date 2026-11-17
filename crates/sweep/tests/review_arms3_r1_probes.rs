@@ -11,7 +11,7 @@
 //!   bit is the other one), and the HONEST refusal when the offset
 //!   circles stop crossing (containment / near-tangency poses);
 //! - a genuine valence-4 vertex (a chamfered cube patch corner)
-//!   keeping its `NEdgeVertex` refusal — the seam recognition must not
+//!   keeping its valence refusal — the seam recognition must not
 //!   swallow it;
 //! - a torus-walled rim still refusing `SpineUnsupported` through its
 //!   own gate, with the roster now advertising sphere–sphere;
@@ -25,7 +25,7 @@ use geom_brep::SurfaceSide::{self, Inner};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
+use sweep::blend::{BlendError, UnbuiltEnd};
 use sweep::test_support::{arcs_at, revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, SurfaceKey, transform_rigid, validate_geometric};
 
@@ -298,8 +298,8 @@ fn a_contained_offset_pose_refuses_typed() {
     .map_err(|r| r.error)
     {
         Ok(_) => panic!("no ball rests on both supports at r = 0.13"),
-        Err(BlendError::UnsupportedCorner { corner, .. }) => {
-            panic!("a closed rim registers no corner, got {corner}")
+        Err(BlendError::UnbuiltEnd(end)) => {
+            panic!("a closed rim registers no end, got {end}")
         }
         Err(_typed) => {}
     }
@@ -321,8 +321,8 @@ fn an_oversized_ball_on_the_lentil_refuses_typed() {
     .map_err(|r| r.error)
     {
         Ok(_) => panic!("no ball of r = 0.45 rests on both lentil walls"),
-        Err(BlendError::UnsupportedCorner { corner, .. }) => {
-            panic!("a closed rim registers no corner, got {corner}")
+        Err(BlendError::UnbuiltEnd(end)) => {
+            panic!("a closed rim registers no end, got {end}")
         }
         Err(_typed) => {}
     }
@@ -404,7 +404,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
 }
 
 // ------------------------------------------------------------------
-// 4. A genuine valence-4 vertex keeps NEdgeVertex.
+// 4. A genuine valence-4 vertex keeps its valence refusal.
 // ------------------------------------------------------------------
 
 /// **A fully chamfered cube** — twelve edges at equal setback. Each
@@ -431,8 +431,7 @@ fn chamfered_cube() -> Body<f64> {
 /// **The seam recognition must not swallow a real N-edge vertex.** A
 /// fillet chain stopping at a chamfered cube's patch vertex — valence
 /// four, four distinct plane supports, zero co-surface edges — keeps
-/// the `NEdgeVertex` refusal and its stop-at-vertex policy exactly as
-/// before this unit.
+/// the valence refusal exactly as before this unit.
 #[test]
 fn a_chamfer_patch_vertex_keeps_its_n_edge_vertex_refusal() {
     let body = chamfered_cube();
@@ -464,12 +463,8 @@ fn a_chamfer_patch_vertex_keeps_its_n_edge_vertex_refusal() {
     )
     .map_err(|r| r.error)
     {
-        Err(BlendError::UnsupportedCorner {
-            corner: CornerConfig::NEdgeVertex { valence: 4 },
-            policy,
-            ..
-        }) => assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex)),
-        other => panic!("a genuine 4-edge vertex keeps NEdgeVertex, got {other:?}"),
+        Err(BlendError::UnbuiltEnd(UnbuiltEnd::Valence { valence: 4, .. })) => {}
+        other => panic!("a genuine 4-edge vertex keeps its valence, got {other:?}"),
     }
 }
 
@@ -573,11 +568,7 @@ fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_carves() {
     assert_eq!(arcs.len(), 2, "the seam splits the rim into two arcs");
     match fillet_edges(&body, &arcs[..1], 0.03, tol()).map_err(|r| r.error) {
         Err(
-            e @ BlendError::UnsupportedCorner {
-                corner: CornerConfig::SeamVertex,
-                policy: None,
-                ..
-            },
+            e @ BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. }),
         ) => {
             let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(

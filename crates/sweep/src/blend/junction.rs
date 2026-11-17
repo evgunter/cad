@@ -43,7 +43,7 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Tol, Vec3};
 use topo::construction::{Construct, MevSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-use super::BlendError;
+use super::{BlendError, UnbuiltEnd};
 use super::admit::{RequestedBoundary, StationKind};
 use super::arms::{BallSection, EdgeBlend, radial_about};
 use super::battery::{Link, same_supports};
@@ -53,7 +53,7 @@ use super::open::end_face::feet_in_order;
 use super::surgery::{
     ContactCarrier, Described, ExpectedSource, SplitFragments, certified_curve, disagrees,
     halves_of, host_side_half, op, point_of, seam_split_param, split_fragment, stored_piece,
-    unbuilt_chain, unbuilt_geometry, unbuilt_run_out, unresolved, unwalked,
+    unbuilt_chain, unbuilt_end, unbuilt_geometry, unresolved, unwalked,
 };
 
 /// **What a junction is, read once for every admission**: the face its
@@ -513,11 +513,6 @@ pub(super) fn record<T: Real>(
     rec.dead.vertices.push(vertex);
 }
 
-/// The refusal when a straight link is too short for its two ends.
-pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link ending at a junction or a turn \
-     is shorter than its two ends' feet need, which cross or coincide on its trimline; reduce the \
-     radius or setback";
-
 /// **A straight link's feet in order, on each support, where one of its
 /// ends is a junction, a mixed corner or a turn's foot** (`fillet3_cut_off_feet`,
 /// decided by [`feet_in_order`], as two cut-offs' feet on a shared rim
@@ -557,7 +552,7 @@ pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link ending at a juncti
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] ([`JUNCTION_FEET_CROSS`]);
+/// [`BlendError::UnbuiltEnd`] ([`UnbuiltEnd::FeetCross`] on the link);
 /// [`BlendError::Escalated`] in band.
 pub(super) fn feet_clear<T: Decide + Bounds>(
     body: &Body<T>,
@@ -592,10 +587,7 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
             let d = (at(chord.to)? - at(chord.from)?).normalize();
             let span = (chord.feet[1] - chord.feet[0]).dot(d);
             if !feet_in_order(chord.edge, Margin::of(span), band)? {
-                return Err(unbuilt_run_out(
-                    EntityId::Edge(chord.edge),
-                    JUNCTION_FEET_CROSS,
-                ));
+                return Err(unbuilt_end(UnbuiltEnd::FeetCross { edge: chord.edge }));
             }
         }
     }
@@ -807,7 +799,8 @@ mod tests {
     };
     use super::super::battery::{BlendRequest, run_battery};
     use super::super::open::planar::{cut_off_plan, junction_plan};
-    use super::{JUNCTION_FEET_CROSS, feet_clear};
+    use super::super::UnbuiltEnd;
+    use super::feet_clear;
 
     /// **[`feet_clear`] reads a straight link's two feet in order.** The
     /// L-plate's run (a line along `y = 0` cut off square at `x = 0`, a
@@ -928,7 +921,7 @@ mod tests {
         assert!(
             matches!(
                 &got,
-                Err(BlendError::UnsupportedRunOut { detail, .. }) if *detail == JUNCTION_FEET_CROSS
+                Err(BlendError::UnbuiltEnd(UnbuiltEnd::FeetCross { .. }))
             ),
             "a junction's foot past the cut-off's refuses, got {got:?}"
         );

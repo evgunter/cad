@@ -1,6 +1,6 @@
 //! **The cut-off** — how a straight band ENDS at a vertex where the
 //! request names its edge alone: in the end face's plane section of it
-//! (`CornerConfig::EndFace`, `RunOutPolicy::CutOffAtEndFace`). Both open
+//! (the battery's `BandEnd::CutOff`). Both open
 //! bands end this way, the ruled band at each of its caps and the
 //! planar band at each end the request does not close with a corner
 //! patch, so the end's plan, its two carve steps and the region it takes
@@ -53,13 +53,13 @@ use crate::blend::reach::{EDGE_SAMPLES, sure};
 use crate::blend::surgery::{
     ContactCarrier, Piece, SourceFaces, SplitFragments, arc_window, chord_site, disagrees,
     face_of_half, halves_of, op, piece_along, piece_distance, point_of, retire_fragment,
-    split_fragment, split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out,
+    split_fragment, split_param_in_span, stored_piece, unbuilt_end, unbuilt_geometry,
     unresolved,
 };
-use crate::blend::{BlendDecision, BlendError, BlendSite, classify};
+use crate::blend::{BlendDecision, BlendError, BlendSite, UnbuiltEnd, classify};
 
-/// The refusal for a cut-off whose foot does not land inside its rim's
-/// span: the trimline runs past the end face's rim into the support,
+/// The text of [`UnbuiltEnd::FootInsideAFace`]: a cut-off whose foot
+/// does not land inside its rim's span: the trimline runs past the end face's rim into the support,
 /// which is a band running into a wall or a step.
 pub(in crate::blend) const FOOT_INSIDE_A_FACE: &str = "a straight band's trimline meets the end \
      face's plane past its rim, so its foot lands inside a face rather than on that rim";
@@ -114,7 +114,7 @@ impl<T: Decide + Bounds> EndCut<T> {
     ///
     /// # Errors
     ///
-    /// [`BlendError::UnsupportedRunOut`] when a foot does not land
+    /// [`BlendError::UnbuiltEnd`] when a foot does not land
     /// inside its rim's span ([`FOOT_INSIDE_A_FACE`]);
     /// [`BlendError::UnsupportedGeometry`] when a rim carries no
     /// certified line, circle or ellipse, or a round section has no
@@ -839,7 +839,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// # Errors
     ///
     /// [`BlendError::UnsupportedGeometry`] when a rim carries no
-    /// certified line, circle or ellipse; [`BlendError::UnsupportedRunOut`] from
+    /// certified line, circle or ellipse; [`BlendError::UnbuiltEnd`] from
     /// a foot off its rim's span; [`BlendError::BodyNotIntact`] when the
     /// old vertex, a rim, or the end face's half of a rim does not
     /// resolve, or a round end curve does not run forward from one foot
@@ -985,7 +985,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] for a foot off its rim's span;
+/// [`BlendError::UnbuiltEnd`] for a foot off its rim's span;
 /// [`BlendError::UnsupportedGeometry`] / [`BlendError::BodyNotIntact`]
 /// from the read ([`split_param_in_span`]).
 pub(in crate::blend) fn foot_param<T: Decide + Bounds>(
@@ -995,13 +995,8 @@ pub(in crate::blend) fn foot_param<T: Decide + Bounds>(
     foot: Point3<T>,
 ) -> Result<T, BlendError> {
     split_param_in_span(body, rim, foot)?
-        .ok_or_else(|| unbuilt_run_out(EntityId::Vertex(vertex), FOOT_INSIDE_A_FACE))
+        .ok_or_else(|| unbuilt_end(UnbuiltEnd::FootInsideAFace { vertex }))
 }
-
-/// The refusal for two band ends — cut-offs, or a cut-off and a turn,
-/// or two turns — whose feet on one shared rim cross or coincide.
-pub(in crate::blend) const FEET_CROSS_ON_A_SHARED_RIM: &str = "two band ends' feet cross or \
-     coincide on the rim they share, so the regions they take from the faces beside it meet";
 
 /// **Two splits on one rim, metered before any mutation.** A rim
 /// joins two vertices and a band may be cut off at each — two bands
@@ -1021,8 +1016,8 @@ pub(in crate::blend) const FEET_CROSS_ON_A_SHARED_RIM: &str = "two band ends' fe
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] ([`FEET_CROSS_ON_A_SHARED_RIM`],
-/// or [`FOOT_INSIDE_A_FACE`] from a foot's read);
+/// [`BlendError::UnbuiltEnd`] ([`UnbuiltEnd::FeetCross`] on the rim, or
+/// [`UnbuiltEnd::FootInsideAFace`] from a foot's read);
 /// [`BlendError::Escalated`] for feet apart within the band;
 /// [`BlendError::UnsupportedGeometry`] / [`BlendError::BodyNotIntact`]
 /// from a rim's read.
@@ -1072,10 +1067,7 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
             t0 - t1
         };
         if !feet_in_order(rim, Margin::metered(span, rate), band)? {
-            return Err(unbuilt_run_out(
-                EntityId::Edge(rim),
-                FEET_CROSS_ON_A_SHARED_RIM,
-            ));
+            return Err(unbuilt_end(UnbuiltEnd::FeetCross { edge: rim }));
         }
     }
     Ok(())
@@ -1118,7 +1110,7 @@ pub(in crate::blend) fn feet_in_order<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] from the foot's parameter
+/// [`BlendError::UnbuiltEnd`] from the foot's parameter
 /// ([`foot_param`]); [`BlendError::BodyNotIntact`] when the rim does not
 /// resolve, carries no certified carrier, or does not end at `vertex`.
 fn rim_piece<T: Decide + Bounds>(
@@ -1219,7 +1211,7 @@ pub(in crate::blend) struct CutRims {
 /// # Errors
 ///
 /// [`BlendError::Op`] when an Euler operator refuses;
-/// [`BlendError::UnsupportedRunOut`] for a foot off its live rim's span
+/// [`BlendError::UnbuiltEnd`] for a foot off its live rim's span
 /// ([`foot_param`]), which the plan's reads and [`shared_rims_clear`]
 /// leave no route to; [`BlendError::UnsupportedGeometry`] from a rim's
 /// read; [`BlendError::BodyNotIntact`] where a cycle read disagrees with

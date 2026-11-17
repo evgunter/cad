@@ -67,7 +67,7 @@ use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, ContactCarrier, Described, ExpectedSource, SourceFaces, chord_site,
     disagrees, face_of_half, halves_of, host_side_half, op, open_trimline, point_of,
-    retire_fragment, split_fragment, unbuilt_geometry, unbuilt_run_out, unresolved, unwalked,
+    invariant_broken, retire_fragment, split_fragment, unbuilt_geometry, unresolved, unwalked,
 };
 use crate::blend::{BlendDecision, BlendError, BlendKind, BlendSite};
 
@@ -443,7 +443,7 @@ fn chamfer_feet<T: Decide + Bounds>(
                 }
             });
         let (Some(first), Some(second)) = (on_face.next(), on_face.next()) else {
-            return Err(unbuilt_run_out(
+            return Err(invariant_broken(
                 EntityId::Face(face),
                 "a corner's support does not carry two requested edges",
             ));
@@ -1286,7 +1286,7 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
             let strut = match strut_of.get(&v).map(Vec::as_slice) {
                 Some(&[strut]) => strut,
                 _ => {
-                    return Err(disagrees(
+                    return Err(invariant_broken(
                         EntityId::Vertex(v),
                         "a junction did not receive one strut, on the face its links share",
                     ));
@@ -1388,7 +1388,7 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
         // whole premise of the one-spur fusion below.
         let expected = if c.mixed.is_some() { 4 } else { 3 };
         if struts_here.len() != expected {
-            return Err(unbuilt_run_out(
+            return Err(invariant_broken(
                 EntityId::Vertex(vertex),
                 "a corner did not receive its struts: one on each support, and at a mixed \
                  corner two on the face the pair shares",
@@ -1497,7 +1497,7 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
         let strut = match strut_of.get(&t.turn.vertex).map(Vec::as_slice) {
             Some(&[strut]) => strut,
             _ => {
-                return Err(unbuilt_run_out(
+                return Err(invariant_broken(
                     EntityId::Vertex(t.turn.vertex),
                     "a turn did not receive one strut, on the face its bands share",
                 ));
@@ -1536,7 +1536,7 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
         let mut struts_here: Vec<EdgeKey> = strut_of.get(&vertex).cloned().unwrap_or_default();
         struts_here.sort_unstable();
         let [merge, spur] = struts_here[..] else {
-            return Err(unbuilt_run_out(
+            return Err(invariant_broken(
                 EntityId::Vertex(vertex),
                 "a joint did not receive a strut on each of its two supports",
             ));

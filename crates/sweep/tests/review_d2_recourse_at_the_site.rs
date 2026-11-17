@@ -77,7 +77,7 @@ fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
     )
     .expect_err("an edge ending at a curved end face is a run-out");
     assert!(
-        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
+        matches!(err.error, BlendError::UnbuiltEnd(_)),
         "expected a corner frontier, got {err:?}"
     );
     only_recourse(

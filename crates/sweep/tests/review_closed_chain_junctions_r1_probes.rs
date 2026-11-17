@@ -553,13 +553,14 @@ fn r1_an_open_chain_with_tangent_junctions_pairs_by_incidence_and_refuses_at_a_r
         ) {
             Err(BlendRefusal {
                 error:
-                    BlendError::UnsupportedRunOut {
-                        at: topo::EntityId::Vertex(vertex),
-                        detail,
-                    },
+                    BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::RunOut {
+                        vertex,
+                        odd: None,
+                        ..
+                    }),
                 ..
             }) => assert!(
-                ends.contains(&vertex) && detail == sweep::blend::battery::PARTIAL_TANGENT_RUN,
+                ends.contains(&vertex),
                 "{name}: refused at an end as a tangent run requested in part, not at a junction"
             ),
             other => panic!("{name}: the open chain refuses at its run-out, got {other:?}"),

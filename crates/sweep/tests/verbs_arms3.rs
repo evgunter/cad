@@ -49,7 +49,7 @@ use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendArm, BlendError, CornerConfig};
+use sweep::blend::{BlendArm, BlendError};
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, SurfaceKey, VertexKey, validate_geometric};
 
@@ -350,11 +350,7 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
     .map_err(|r| r.error)
     {
         Err(
-            e @ BlendError::UnsupportedCorner {
-                corner: CornerConfig::SeamVertex,
-                policy: None,
-                ..
-            },
+            e @ BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::Seam { .. }),
         ) => {
             let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
@@ -372,10 +368,6 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
         }
         other => panic!("a chain stopping at a seam vertex refuses SeamVertex, got {other:?}"),
     }
-    // The tag's own map: a seam vertex names no policy, every other tag
-    // does.
-    assert_eq!(CornerConfig::SeamVertex.policy(), None);
-    assert!(CornerConfig::NEdgeVertex { valence: 4 }.policy().is_some());
 }
 
 /// **The recourse's own content, checked.** Asking for the rim WHOLE

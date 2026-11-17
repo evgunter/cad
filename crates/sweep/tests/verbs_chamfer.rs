@@ -13,7 +13,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::arms::chamfer_strip;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig};
+use sweep::blend::BlendError;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
@@ -401,15 +401,12 @@ fn an_l_brackets_inner_edge_is_cut_off_and_chamfers_with_a_convex_neighbour() {
     )
     .expect_err("the odd edge with another of an oblique corner refuses");
     match err.error {
-        BlendError::UnsupportedCorner {
-            corner: CornerConfig::MixedConvexity { convex },
-            policy,
-            ..
-        } => {
-            assert_eq!(convex, 2, "two of the three incident edges are convex");
-            assert_eq!(policy, None);
-        }
-        other => panic!("expected a mixed-convexity corner refusal, got {other:?}"),
+        BlendError::ObliqueMixedCorner { odd, .. } => assert_eq!(
+            odd,
+            crate::band_mixed_corner::leaning_odd_and_one(&leaning)[0],
+            "the refusal names the odd edge"
+        ),
+        other => panic!("expected the oblique mixed corner refusal, got {other:?}"),
     }
 }
 

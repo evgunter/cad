@@ -56,7 +56,7 @@ use std::collections::BTreeSet;
 use geom_core::{Point2, Tol};
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
+use sweep::blend::{BlendError, FILLET3_SEAM_VERTEX_RECOURSE, UnbuiltEnd};
 use sweep::test_support::{assert_promises_either_side, revolved_about_y, rim_arcs_at, waisted};
 use topo::{Body, EdgeKey, validate_geometric};
 
@@ -260,7 +260,7 @@ fn a_strict_subset_of_a_seam_split_rims_arcs_refuses_typed() {
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
         for one in &arcs {
             match fillet_edges(&source, &[*one], 0.05, tol()).map_err(|r| r.error) {
-                Err(BlendError::UnsupportedCorner { .. }) => {}
+                Err(BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. })) => {}
                 Err(other) => {
                     panic!("{name}: one arc alone should refuse at the seam vertex, got {other:?}")
                 }
@@ -563,7 +563,7 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
     // The refusal fires...
     let refused = fillet_edges(&source, &arcs[..1], 0.1, tol()).map_err(|r| r.error);
     match refused {
-        Err(e @ BlendError::UnsupportedCorner { .. }) => {
+        Err(e @ BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. })) => {
             let msg = e.render(geom_brep::recourse::Reading::Build);
             println!("recourse: {msg}");
             assert!(
@@ -648,11 +648,7 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
         assert!(
             matches!(
                 one,
-                BlendError::UnsupportedCorner {
-                    corner: CornerConfig::SeamVertex,
-                    policy: None,
-                    ..
-                }
+                BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. })
             ),
             "{name}: the incidence-only tag fires on both material sides, got {one:?}"
         );

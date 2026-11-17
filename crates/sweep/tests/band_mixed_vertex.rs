@@ -20,7 +20,7 @@
 
 use geom_core::{Band, Bounds, Interval, Point3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
-use sweep::blend::{BlendError, CornerConfig, FILLET3_MIXED_CORNER_RECOURSE};
+use sweep::blend::{BlendError, FILLET3_MIXED_CORNER_RECOURSE, UnbuiltEnd};
 use sweep::test_support::{assert_naming_totality, corners, finished, prism_at, realized};
 use topo::boolean::BooleanOp;
 use topo::{Body, SolidContainment, VertexKey, point_in_solid, validate_geometric};
@@ -117,7 +117,7 @@ fn a_curved_link_alone_at_a_mixed_vertex_refuses_as_at_a_uniform_one() {
     }
 }
 
-fn vertex_at(body: &Body<f64>, q: [f64; 3]) -> VertexKey {
+pub(crate) fn vertex_at(body: &Body<f64>, q: [f64; 3]) -> VertexKey {
     body.vertices()
         .find(|(_, v)| {
             let p = body.get_point(v.point).unwrap();
@@ -272,12 +272,9 @@ fn a_flush_pair_whose_feet_stand_apart_refuses_at_its_overrun() {
     let turn = vertex_at(&body, [0.0, 0.5, 0.5]);
     for verb in [Verb::Chamfer, Verb::Fillet] {
         match verb.run(&body, &[rim, up]) {
-            Err(BlendError::UnsupportedRunOut {
-                at: topo::EntityId::Vertex(v),
-                detail,
-            }) => assert!(
-                v == turn && detail.contains("foot lands inside a face"),
-                "{verb:?}: at the turn, a foot inside a face: {detail}"
+            Err(BlendError::UnbuiltEnd(UnbuiltEnd::FootInsideAFace { vertex })) => assert!(
+                vertex == turn,
+                "{verb:?}: at the turn, a foot inside a face: {vertex:?}"
             ),
             got => panic!(
                 "{verb:?}: the overrun refuses typed, got {:?}",
@@ -317,12 +314,9 @@ fn the_inset_root_rim_fills_the_mirror_wedge_at_each_corner() {
         let rec = out.naming.as_ref().expect("births");
         assert_eq!(rec.mitres.len(), 4, "{verb:?}: four mitres");
         match verb.run(&body, &[front, side]) {
-            Err(BlendError::UnsupportedRunOut {
-                at: topo::EntityId::Vertex(v),
-                detail,
-            }) => assert!(
-                far_ends.contains(&v) && detail.contains("foot lands inside a face"),
-                "{verb:?}: at a far end, a foot inside a face: {detail}"
+            Err(BlendError::UnbuiltEnd(UnbuiltEnd::FootInsideAFace { vertex })) => assert!(
+                far_ends.contains(&vertex),
+                "{verb:?}: at a far end, a foot inside a face: {vertex:?}"
             ),
             got => panic!(
                 "{verb:?}: two root edges refuse at a far foot, got {:?}",
@@ -335,8 +329,9 @@ fn the_inset_root_rim_fills_the_mirror_wedge_at_each_corner() {
 /// **The odd edge with one other edge of its corner refuses**: the
 /// fillet at both fixtures, and the chamfer where the face the other two
 /// share leans off square to the odd edge
-/// (`band_mixed_corner::leaning`): `MixedConvexity` at the corner,
-/// naming no run-out policy, its recourse the mixed corner's rule. The
+/// (`band_mixed_corner::leaning`): the fillet's run-out and the
+/// chamfer's `ObliqueMixedCorner` at the corner, each with the mixed
+/// corner's rule for its recourse. The
 /// flush odd edge is the concave root, the inset one the convex
 /// vertical; square, the chamfer builds
 /// ([`the_odd_edge_with_one_other_chamfers_at_the_flush_fixture`]).
@@ -382,15 +377,18 @@ fn the_odd_edge_with_another_edge_of_its_corner_refuses() {
         let corner = vertex_at(body, at);
         let err = verb.run(body, &edges).map(|_| ()).unwrap_err();
         assert!(
-            matches!(
-                err,
-                BlendError::UnsupportedCorner {
-                    vertex,
-                    corner: CornerConfig::MixedConvexity { .. },
-                    policy: None,
-                } if vertex == corner
-            ),
-            "{what} ({verb:?}): refuses MixedConvexity at the corner, got {err:?}"
+            match verb {
+                Verb::Fillet => matches!(
+                    err,
+                    BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { vertex, odd: Some(_), .. })
+                        if vertex == corner
+                ),
+                Verb::Chamfer => matches!(
+                    err,
+                    BlendError::ObliqueMixedCorner { vertex, .. } if vertex == corner
+                ),
+            },
+            "{what} ({verb:?}): refuses at the corner, got {err:?}"
         );
         let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(

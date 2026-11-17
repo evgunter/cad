@@ -301,7 +301,7 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
             let expected = if closed {
                 v.is_ok()
             } else {
-                matches!(v, Err(BlendError::UnsupportedCorner { .. }))
+                matches!(v, Err(BlendError::UnbuiltEnd(_)))
             };
             assert!(
                 expected,
@@ -454,7 +454,7 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
         "the dihedral must decide at the honest lever, not starve: {v:?}"
     );
     assert!(
-        matches!(v, Err(BlendError::UnsupportedCorner { .. })),
+        matches!(v, Err(BlendError::UnbuiltEnd(_))),
         "expected the decided corner refusal at the honest lever, got {v:?}"
     );
 }

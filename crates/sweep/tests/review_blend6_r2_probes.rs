@@ -38,7 +38,7 @@ use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::query;
-use topo::{Body, EntityId};
+use topo::Body;
 
 /// The cube side, meters.
 const L: f64 = 1.0;
@@ -69,15 +69,11 @@ fn shipped_fillet_guard_is_green(text: &str) -> bool {
 #[test]
 fn the_shipped_fillet_single_render_guard_is_blind_to_the_prefix_family() {
     let body = cube::<f64>(L, Tol::witness());
-    let vertex = body
-        .vertices()
-        .map(|(k, _)| k)
-        .next()
-        .expect("a cube vertex");
+    let edge = body.edges().map(|(k, _)| k).next().expect("a cube edge");
     let regressed = BlendRefusal {
         verb: BlendKind::Fillet,
-        error: BlendError::UnsupportedRunOut {
-            at: EntityId::Vertex(vertex),
+        error: BlendError::UnsupportedChain {
+            edge,
             detail: "fillet assembly: a chain terminates at a trivalent vertex whose three \
                      edges are not all requested",
         },
@@ -120,13 +116,9 @@ fn no_inner_error_opens_with_a_verb_word_on_either_door() {
 
     // The regressed shape 1a builds is what this invariant catches.
     let body = cube::<f64>(L, Tol::witness());
-    let vertex = body
-        .vertices()
-        .map(|(k, _)| k)
-        .next()
-        .expect("a cube vertex");
-    let regressed = BlendError::UnsupportedRunOut {
-        at: EntityId::Vertex(vertex),
+    let edge = body.edges().map(|(k, _)| k).next().expect("a cube edge");
+    let regressed = BlendError::UnsupportedChain {
+        edge,
         detail: "fillet assembly: a chain terminates at a trivalent vertex",
     };
     assert!(

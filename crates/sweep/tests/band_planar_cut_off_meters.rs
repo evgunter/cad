@@ -22,9 +22,9 @@
 use geom_core::RigidMotion;
 use geom_core::{ErrorTextReading, Point2, Point3};
 use profile::SketchPlane;
-use sweep::blend::{BlendDecision, BlendError, BlendSite, Convexity};
+use sweep::blend::{BlendDecision, BlendError, BlendSite, Convexity, UnbuiltEnd};
 use sweep::test_support::{block, pocket_die, prism, prism_on, realized};
-use topo::{Body, ContactRecords, EntityId, validate_geometric, validate_pseudomanifold};
+use topo::{Body, ContactRecords, validate_geometric, validate_pseudomanifold};
 
 use crate::band_one_cycle_members::{assert_taken, cup_faces};
 use crate::band_planar_cut_off::{D, Verb, carve, edge, tol};
@@ -226,12 +226,8 @@ fn two_cut_offs_on_one_rim_build_apart_and_refuse_crossing() {
                 }) if in_band => {
                     assert_eq!(edge, rim, "{verb:?} h − 2d = {dh:e}: the rim");
                 }
-                Err(BlendError::UnsupportedRunOut { at, detail }) if !in_band => {
-                    assert_eq!(at, EntityId::Edge(rim), "{verb:?} h − 2d = {dh:e}: the rim");
-                    assert!(
-                        detail.contains("feet cross or coincide on the rim they share"),
-                        "{verb:?} h − 2d = {dh:e}: {detail}"
-                    );
+                Err(BlendError::UnbuiltEnd(UnbuiltEnd::FeetCross { edge })) if !in_band => {
+                    assert_eq!(edge, rim, "{verb:?} h − 2d = {dh:e}: the rim");
                 }
                 other => panic!(
                     "{verb:?} h − 2d = {dh:e}: feet not definitely apart stop at plan (in band: \

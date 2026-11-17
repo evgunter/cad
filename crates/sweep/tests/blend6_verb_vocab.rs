@@ -92,8 +92,8 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
     )
     .expect_err("a curved end face is a run-out");
     assert!(
-        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
-        "the shared run-out arm is what refused: {err:?}"
+        matches!(err.error, BlendError::UnbuiltEnd(_)),
+        "the shared end arm is what refused: {err:?}"
     );
     assert_speaks_as_the_chamfer(&err, "run-out");
     let text = err.render(geom_brep::recourse::Reading::Build);
@@ -145,8 +145,8 @@ fn a_fillet_caller_reads_the_fillet_verb_once_over_the_same_shared_arm() {
     )
     .expect_err("a curved end face is a run-out");
     assert!(
-        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
-        "the shared run-out arm is what refused: {err:?}"
+        matches!(err.error, BlendError::UnbuiltEnd(_)),
+        "the shared end arm is what refused: {err:?}"
     );
     assert_speaks_once_as_the_fillet(&err, "run-out");
 }
@@ -235,7 +235,10 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
         t,
     )
     .expect_err("an oblique mixed corner's odd edge with one other has no rule built");
-    assert!(matches!(corner.error, BlendError::UnsupportedCorner { .. }));
+    assert!(matches!(
+        corner.error,
+        BlendError::ObliqueMixedCorner { .. }
+    ));
     assert_speaks_as_the_chamfer(&corner, "corner-config");
 }
 
@@ -272,7 +275,7 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
         .expect_err("a curved end face is a run-out");
     assert!(matches!(
         run_out.error,
-        BlendError::UnsupportedRunOut { .. }
+        BlendError::UnbuiltEnd(_)
     ));
     assert!(
         chamfer_edges(&sweep::test_support::at_rest(&body, t), &edges[..1], D, t).is_ok(),

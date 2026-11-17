@@ -22,7 +22,7 @@ use geom_core::{Bounds, CertifiedBounds, Decide, Point2, Point3, Real, Tol};
 use profile::SketchPlane;
 use sweep::blend::battery::END_FACE_CURVED;
 use sweep::blend::build::{Blended, fillet_edges};
-use sweep::blend::{BlendError, CornerConfig};
+use sweep::blend::{BlendError, UnbuiltEnd};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
     assert_naming_totality, block, cube, pocket_die, prism, prism_on, realized,
@@ -527,8 +527,8 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
     let e = edge(&d_prism, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     for verb in [Verb::Chamfer, Verb::Fillet] {
         match verb.run(&d_prism, &[e]) {
-            Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-                assert_eq!(detail, END_FACE_CURVED, "{verb:?}");
+            Err(e @ BlendError::UnbuiltEnd(UnbuiltEnd::CurvedEndFace { .. })) => {
+                assert!(e.to_string().contains(END_FACE_CURVED), "{verb:?}");
             }
             other => panic!("{verb:?}: a curved end face refuses, got {other:?}"),
         }
@@ -548,10 +548,8 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
     );
     let e = edge(&wedge, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     match Verb::Chamfer.run(&wedge, &[e]) {
-        Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-            assert!(detail.contains("foot lands inside a face"), "{detail}");
-        }
-        other => panic!("a foot inside a face refuses as a run-out, got {other:?}"),
+        Err(BlendError::UnbuiltEnd(UnbuiltEnd::FootInsideAFace { .. })) => {}
+        other => panic!("a foot inside a face refuses its tag, got {other:?}"),
     }
 
     // Valence four: a chamfered cube's patch vertex, which a trimline of
@@ -574,10 +572,7 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
         })
         .expect("a valence-four vertex");
     match Verb::Chamfer.run(&chamfered, &[rec_edge]) {
-        Err(BlendError::UnsupportedCorner {
-            corner: CornerConfig::NEdgeVertex { valence: 4 },
-            ..
-        }) => {}
+        Err(BlendError::UnbuiltEnd(UnbuiltEnd::Valence { valence: 4, .. })) => {}
         other => panic!("a valence-four end refuses its configuration, got {other:?}"),
     }
 
@@ -620,10 +615,9 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
         (Verb::Chamfer, &leaning, oblique),
     ] {
         match verb.run(body, &edges) {
-            Err(BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { .. },
-                ..
-            }) => {}
+            Err(BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { odd: Some(_), .. }))
+                if matches!(verb, Verb::Fillet) => {}
+            Err(BlendError::ObliqueMixedCorner { .. }) if matches!(verb, Verb::Chamfer) => {}
             other => panic!("{verb:?}: a mixed end refuses, got {other:?}"),
         }
     }

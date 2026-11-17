@@ -123,7 +123,7 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
         "open rim: a transverse 30° corner is not a tangency, got {open:?}"
     );
     assert!(
-        matches!(open, Err(BlendError::UnsupportedCorner { .. })),
+        matches!(open, Err(BlendError::UnbuiltEnd(_))),
         "open rim: the arc terminates at the revolve's seam-meridian vertices, whose \
          corner configuration is unimplemented, got {open:?}"
     );

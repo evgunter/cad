@@ -34,7 +34,7 @@ use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig};
+use sweep::blend::{BlendError, Convexity, UnbuiltEnd};
 use sweep::chamfer::chamfer_edges;
 use sweep::{Extrusion, extrude};
 use topo::{Body, validate_closed};
@@ -269,12 +269,10 @@ fn p4_the_l_bracket_inner_edge_with_a_rim_edge_refuses_the_fillet_as_mixed() {
     )
     .expect_err("the mixed corner refuses");
     match err.error {
-        BlendError::UnsupportedCorner {
-            corner: CornerConfig::MixedConvexity { convex },
-            ..
-        } => assert_eq!(
-            convex, 2,
-            "two of the three edges at the strut end are convex"
+        BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { odd: Some(odd), .. }) => assert_eq!(
+            (odd.edge, odd.convexity),
+            (inner[0], Convexity::Concave),
+            "the reflex edge is the odd one, two of the three at its end convex"
         ),
         ref other => panic!("expected the mixed-corner refusal, got {other:?}"),
     }
