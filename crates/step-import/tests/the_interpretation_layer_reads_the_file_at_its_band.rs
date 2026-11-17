@@ -320,3 +320,46 @@ fn ftc11s_ambiguity_names_what_decides_it_and_following_it_imports() {
         }
     }
 }
+
+/// **A placement pair's one ledger entry bounds all its moves.** The
+/// two-body file's first placement `#15` stated 0.01 mm off the root's
+/// origin, its reference leaning 1e-12 toward its axis, read at
+/// ε_in = 0.02 mm: the pair reads as the identity (a snap of 1e-5 m) and
+/// the leaning frame is built (a move of about 1e-9 m at the box). The
+/// one entry for `#194` is their sum, not the frame's alone.
+#[test]
+fn a_placement_pairs_entry_bounds_its_snap_and_its_frames() {
+    let text = with(
+        &with(
+            &freecad_fixture("twobody_importexport"),
+            "#16 = CARTESIAN_POINT('',(0.,0.,0.));",
+            "#16 = CARTESIAN_POINT('',(1.E-02,0.,0.));",
+        ),
+        "#18 = DIRECTION('',(1.,0.,0.));",
+        "#18 = DIRECTION('',(1.,0.,1.E-12));",
+    );
+    let options = ImportOptions {
+        eps_in: Some(2e-5),
+        ..ImportOptions::default()
+    };
+    let imported = import_step(&text, &options, Tol::witness())
+        .unwrap_or_else(|e| panic!("imports: {}", e.render()));
+    let entries: Vec<f64> = imported
+        .normalizations()
+        .iter()
+        .filter_map(|n| match n.kind {
+            NormalizationKind::PlacementReMinted {
+                transform: 194,
+                moved_by,
+            } => Some(moved_by),
+            _ => None,
+        })
+        .collect();
+    let [moved_by] = entries.as_slice() else {
+        panic!("one entry for the pair #194: {entries:?}")
+    };
+    assert!(
+        (1e-5..1.001e-5).contains(moved_by) && *moved_by > 1e-5,
+        "the snap and the frame's build, summed: {moved_by:e}"
+    );
+}

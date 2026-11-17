@@ -1515,6 +1515,12 @@ impl<'a> Resolver<'a> {
             // narrow the subset the kernel's own writer emits.
             (Some(s), Err(_)) => Ok(s),
             (None, Ok(i)) => Ok(i),
+            (None, Err(chart::OuternessRefusal::UndecidableAtEps(gap))) => {
+                Err(self.budget.refused(
+                    id,
+                    self.budget.ambiguous(interpret::STEP_RING_CONTAINMENT, gap),
+                ))
+            }
             (None, Err(refusal)) => Err(StepImportError::Topology {
                 id,
                 what: refusal.what(),

@@ -66,10 +66,6 @@ pub(crate) const STEP_VERTEX_LOOP_ON_SPHERE: &str = "step_vertex_loop_on_sphere"
 /// takes the band re-mint.
 pub(crate) const STEP_BAND_RIM_COAXIAL: &str = "step_band_rim_coaxial";
 
-/// Whether a seamless band's two rims meet at the seam azimuth (the
-/// minted generator's length): only apart mints it.
-pub(crate) const STEP_BAND_SEAM_LENGTH: &str = "step_band_seam_length";
-
 /// Whether a rim vertex already sits at a band's seam azimuth: Zero uses
 /// it, apart splits the rim there.
 pub(crate) const STEP_BAND_SEAM_VERTEX: &str = "step_band_seam_vertex";

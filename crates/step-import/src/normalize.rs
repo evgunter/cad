@@ -89,9 +89,7 @@ use geom::Surface;
 
 use crate::entities::{EdgeSpec, EdgeUse, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
-use crate::interpret::{
-    FileBand, Read, STEP_BAND_RIM_COAXIAL, STEP_BAND_SEAM_LENGTH, STEP_BAND_SEAM_VERTEX,
-};
+use crate::interpret::{FileBand, Read, STEP_BAND_RIM_COAXIAL, STEP_BAND_SEAM_VERTEX};
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
 mod singularity;
@@ -433,8 +431,19 @@ fn mint_band(
                     if ui == 0 {
                         raises = Some(u.forward == (n.dot(s_axis) > 0.0));
                     }
-                    file.read(STEP_BAND_RIM_COAXIAL, tilt) == Read::Zero
-                        && file.read(STEP_BAND_RIM_COAXIAL, off_axis) == Read::Zero
+                    // Coaxial is a lane choice: Zero takes the re-mint,
+                    // apart is the rim shape it has no lane for (below),
+                    // and in band the file's precision does not say which.
+                    let off = tilt.max(off_axis);
+                    match file.read(STEP_BAND_RIM_COAXIAL, off) {
+                        Read::Zero => true,
+                        Read::Apart => false,
+                        Read::InBand => {
+                            return Err(
+                                file.refused(face_id, file.ambiguous(STEP_BAND_RIM_COAXIAL, off))
+                            );
+                        }
+                    }
                 }
                 _ => false,
             };
@@ -500,21 +509,15 @@ fn mint_band(
         seam_v[li] = seam_vertex_on_loop(solid, fi, li, &surface, file, mint, &mut splits)?;
     }
     let (p_start, p_end) = (solid.vertices[&seam_v[ls]], solid.vertices[&seam_v[le]]);
-    let generator = (p_end - p_start).norm();
-    match file.read(STEP_BAND_SEAM_LENGTH, generator) {
-        Read::Apart => {}
-        Read::InBand => {
-            return Err(file.refused(face_id, file.ambiguous(STEP_BAND_SEAM_LENGTH, generator)));
-        }
-        Read::Zero => {
-            return Err(StepImportError::Topology {
-                id: face_id,
-                what: "a seamless periodic band whose two rims meet at the seam azimuth — \
-                   the seam generator would be a point, so the band is degenerate and \
-                   the re-mint refuses",
-            });
-        }
-    }
+    // The minted seam generator's length: a positive length, which the
+    // band reads apart from zero or refuses as the file's (two rims that
+    // meet at the seam azimuth leave the band degenerate).
+    file.positive_length(
+        face_id,
+        "a seamless periodic band's seam generator (its two rims' distance at the seam \
+         azimuth)",
+        (p_end - p_start).norm(),
+    )?;
     // ---- The minted seam generator (band_seam docs) ---------------
     let gen_id = mint();
     let carrier = match torus {

@@ -55,7 +55,7 @@ use geom_core::{Point2, Point3};
 
 /// Why an outerness inference could not answer (module docs). Carries
 /// no entity ids — the caller names the face.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum OuternessRefusal {
     /// A ring point does not invert into the face surface's chart (off
     /// the surface, or at a chart singularity where the inverse is not
@@ -63,8 +63,9 @@ pub(crate) enum OuternessRefusal {
     NotOnChart,
     /// A ring's chart image is seam-dependent (module docs).
     SeamDependent,
-    /// A containment test landed inside the interpretation budget.
-    UndecidableAtEps,
+    /// A containment test did not read apart at the file's band: the
+    /// probe's distance from the candidate's boundary, in metres.
+    UndecidableAtEps(f64),
     /// No ring, or more than one, contains all the others.
     NoUniqueOuter,
     /// Containment and orientation disagree: a ring contained in
@@ -92,7 +93,7 @@ impl OuternessRefusal {
                  cut (a ring wrapping the surface's period): the containment answer \
                  would be an artifact of the seam, not a fact about the surface"
             }
-            Self::UndecidableAtEps => {
+            Self::UndecidableAtEps(_) => {
                 "a face whose ring containment is undecidable at the file's own \
                  interpretation budget (a ring passing within ε_in of another): \
                  refusing rather than guessing which bound is outer"
@@ -242,7 +243,7 @@ pub(crate) fn infer_outer(
             // band leaves containment undecided.
             let gap = boundary_distance(&candidate.poly, probe) * floor;
             if file.read(STEP_RING_CONTAINMENT, gap) != Read::Apart {
-                return Err(OuternessRefusal::UndecidableAtEps);
+                return Err(OuternessRefusal::UndecidableAtEps(gap));
             }
             if !contains(&candidate.poly, probe) {
                 contains_all = false;
@@ -512,14 +513,14 @@ mod review_outerness {
         //    candidate's boundary.
         let outer = ring_on_cyl(0.0, 2.0, 0.0, 1.0, 8);
         let touching = ring_on_cyl(0.0 + 1e-12, 1.0, 0.3, 0.6, 8);
-        assert_eq!(
-            infer_outer(
-                &cyl(),
-                &[outer.clone(), touching],
-                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
-            ),
-            Err(OuternessRefusal::UndecidableAtEps),
-            "touching ring"
+        let touched = infer_outer(
+            &cyl(),
+            &[outer.clone(), touching],
+            crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap(),
+        );
+        assert!(
+            matches!(touched, Err(OuternessRefusal::UndecidableAtEps(gap)) if gap < 1e-9),
+            "touching ring: {touched:?}"
         );
         // 4. OrientationContradicts: inner ring wound the SAME way.
         let mut inner_same = ring_on_cyl(0.5, 1.0, 0.2, 0.4, 8);
