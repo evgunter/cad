@@ -205,75 +205,101 @@ reads, 2 are `Vacuous`, and both are right: `1v1` in the cell
 `u ∈ [0, π]` and `2v1` in `[π, 2π]`, each through `Sheets::Missed`,
 each a cell the face does not enter.
 
-**2. What landed** (`crates/topo/src/injective.rs`, after review):
-- **The face's lines against its extent** (`face_extent`). It is the
-  one reader of `Boundary::extent`, and `sheets` takes the extent only
-  through it. A face lies within the hull of its boundary. So on every
-  axis, each line of a boundary edge, placed by `placed`, must meet
-  the extent and have room in it on its face side. Where one does not,
-  that is the face's fact, and every cell refuses `Structural` ("never
-  presents": in `departure`, one side's `Structural` only splits the
-  pair).
+**2. What landed** (`crates/topo/src/injective.rs`, after two reviews):
+- **`face_extent` is the one reader of `Boundary::extent`.** A face
+  lies within the hull of its boundary.
+  - On every axis, each line of a boundary edge, placed by `placed`,
+    must meet the extent and have room in it, more than `chart_slack`,
+    on its face side.
+  - On a cone, the face's nappe, read off its vertices, must hold the
+    extent's `v`.
+  - A contradiction is the face's fact, so every cell refuses
+    `Structural`. In `departure`, one side's `Structural` only splits,
+    so this means "never presented", not "the pair refused".
   - This is the trace's option 3, used as a check of the lift.
-  - At first it read periodic axes only. The review showed the face
-    then read vacuous one split below the guard, on a non-periodic
-    extent its line contradicts. It now reads every axis.
-- **One kind per sheet fact.** `sheets` returns `Ok(None)` (the cell
-  holds none of the face), `Local` (two copies met, which a smaller
-  cell may fix) or `Structural` (bounds not finite, or the extent
-  contradicted). `present_chart` and `present_line_corner` both read
-  it.
-- **The row's guard.** `present_chart` refuses `Local` where the face's
-  own clips leave an axis no wider than `chart_slack`. It runs after
-  the apex and pole clips. With the extent proven to agree with the
-  lines, it fires only on lines that contradict each other.
+  - **First review:** it read periodic axes only, and the face then read
+    vacuous one split below the guard. It now reads every axis.
+  - **Second review:** the nappe was read only in a cell at the apex,
+    and refused `Local`. The children then read the face vacuous on
+    both nappes. It is now read with the lines.
+- **`sheets` names its outcomes.** `Sheets::Missed` (the cell holds none
+  of the face, read `Vacuous`) or `Sheets::On`, each read once. The
+  refusals: `Local` where two copies of the extent are met, which a
+  smaller cell may fix; `Structural` where the cell's bounds are not
+  finite, or the extent is contradicted. The line corner is handed the
+  sheet `present_chart` read, and does not read it again.
+- **One check of the final rectangle** in `present_chart`, after every
+  clip: a low side above a high one, or an axis with no width (read at
+  the touch's slack at either end; the filleted drum pins why no
+  wider), refuses `Local`. Both are the cell's, since a smaller cell
+  holds one part of the face or neither line.
 - **The apex** reads `Vacuous` only where the CELL is on the other
-  nappe. Where only the clips leave it there, the lines contradict the
-  nappe, and it refuses `Local`.
-- **One slack, `chart_slack`,** for the readings this change touches.
-  The other `few_ulps` scales are filed:
-  `few-ulps-is-taken-at-several-scales-across-injectives-readings`.
-- **`present_line_corner`'s rectangle** was widened to hold the cell,
-  then reverted at review: no witness, and a reader frozen with the
+  nappe. A face with no one nappe refuses `Structural`, the face's
+  fact. The `Local` arm for clips on the other nappe is gone: the
+  extent now holds the nappe.
+- **One spelling of "seam"** (`seam(e)`). An undecided face side is a
+  shared edge's fact in the line corner as in `present_chart`
+  (`Structural`).
+- **`present_line_corner`'s rectangle** was widened, then reverted at
+  the first review: no witness, and the reader is frozen with the
   sliver fork. The note is on that row.
 
-**3. The `Vacuous` paths, and what each rests on now:**
-- `Sheets::Missed`: the extent is the hull of the face's boundary on
-  one sheet (ONEDOOR's lift, and the region invariant), checked
-  against every line of the face by `face_extent`. A face with no
-  checkable line on an axis rests on the lift alone there. Filed P3:
+**3. `Local` beside a `Vacuous` return: is the contradiction the
+cell's or the face's?**
+- `face_extent`, the lines against the extent: the face's →
+  `Structural`.
+- `face_extent`, the nappe against the extent: the face's →
+  `Structural`.
+- The apex, no decided nappe: the face's → `Structural` (was `Local`).
+- The apex, a clip on the collapsed side not at `0` (the
+  mismatched-clip arm): the cell's. A notch face reaches the apex in
+  one `u` range and has a parallel above it in another, and a smaller
+  cell holds one of them → `Local`.
+- The apex, clips on the other nappe: gone (above).
+- The pole, the rectangle past the pole's latitude: the cell's, and
+  reached by no cell inside the chart's domain → `Local`.
+- The final rectangle (a slot, or no width): the cell's → `Local`.
+- The past-the-line test (`!inside`, `vacuous()` false): the cell's;
+  a smaller cell may be touched along an edge covering its side →
+  `Local`.
+- `sheets`, two copies met: the cell's → `Local`.
+
+**4. The `Vacuous` paths, and what each rests on now:**
+- `Sheets::Missed`: the extent, checked against every line and the
+  nappe by `face_extent`. On an axis where no line is read, it rests on
+  the stored lift alone. Filed P3:
   `a-face-with-no-line-on-a-periodic-axis-reads-its-sheet-off-the-stored-lift-unchecked`.
 - `vacuous()`: a line placed on the face's sheet (now checked), the
   line's face side, and an edge covering the cell's side.
+- The apex: the cell on the other nappe, the nappe checked against the
+  extent.
 - `present_chart`'s sliver: reached only with a rectangle of some
   width. What is left is the band concession, frozen with designers.
-- `present_line_corner`'s and `present_plane_corner`'s slivers:
-  unchanged, and frozen with the fork.
-- The apex: above. `present_plane`'s two half-plane readings are on a
-  plane, where no sheet is chosen.
+- `present_line_corner`'s and `present_plane_corner`'s slivers: frozen
+  with the fork, unchanged.
+- `present_plane`'s two half-plane reads: on a plane, where no sheet is
+  chosen.
 
-**4. Pins and mutants** (unit rows in `injective.rs`). Each mutant
-goes red with the reading named:
-- Drop `face_extent`'s check:
-  - `a_half_band_is_not_read_vacuous_where_it_lies` goes red. It is a
-    cylinder half-band stored as the ball's `1v1` is, and its own half
-    turn reads `Vacuous`.
-  - The review's
-    `a_face_whose_extent_its_line_contradicts_is_not_vacuous_below_the_guard`
-    goes red. It now asks for `Structural` in the guarded cell and the
-    two cells below it.
-- Drop the guard: `a_rectangle_its_own_clips_leave_no_width_refuses`
-  goes red. Two lines `u = 3/2`, the face above one and below the
-  other, read `Vacuous` through the sliver.
-- Revert the apex: `a_cell_reaching_the_faces_nappe_is_not_vacuous_off_its_clips`
-  goes red with `Vacuous`.
-- `a_corner_one_clips_edges_run_through_is_not_convex`: its two
-  junctions inherited `unit_face`'s extent, which their own `v = 1`
-  line contradicts. They now carry extents their lines agree with. The
-  row still goes red when `convex` reads true.
+**5. Pins and mutants** (unit rows in `injective.rs`). Each mutant was
+run and goes red with the reading named:
+- Drop the lines check: `a_half_band_is_not_read_vacuous_where_it_lies`
+  (its own half turn reads `Vacuous`),
+  `a_face_whose_extent_its_line_contradicts_is_not_vacuous_below_the_guard`,
+  and `a_line_apart_from_the_faces_extent_contradicts_it` all go red.
+- Drop `meets`: `a_line_apart_from_the_faces_extent_contradicts_it`.
+- Slack 0 in `face_extent`: `a_line_a_turns_rounding_moves_past_its_extent_agrees_with_it`.
+- Drop the nappe check: `a_face_whose_lines_contradict_its_nappe_refuses_in_every_cell`
+  and `a_face_whose_lines_contradict_its_nappe_is_not_vacuous_on_both`.
+- Drop the zero-width check: `a_rectangle_its_own_clips_leave_no_width_refuses`
+  (two lines `u = 3/2`, the face above one and below the other).
+- A flat-axis miss turned `Local`: `a_cell_past_the_extent_on_a_flat_axis_holds_none_of_the_face`.
+- **Body pin:** `a_revolved_ball_holds_only_after_it_splits` (the review's
+  row, in the slow set). It is what ties the hand-built half-band to
+  what the revolve door stores.
 
-**5. What moved: nothing measured.** The 46 body rows of
-`self_intersection_proves_injectivity` and the 85 tour bodies give the
-same verdicts and receipts as main. Those rows exercise none of the
-change: the guard, the contradicted extent and the apex refusal fire
-on none of them. The tour walk holds 82 of 85, on main and the branch.
+**6. What moved: nothing measured.** The 49 rows of
+`self_intersection_proves_injectivity` give identical receipts on main
+and the branch, and the tour walk holds 82 of 85 on both. Those rows
+exercise none of the change: the contradicted extent, the zero-width
+check and the apex refusals fire on none of them. The identical
+receipts show the change costs no body; the pins show what it does.

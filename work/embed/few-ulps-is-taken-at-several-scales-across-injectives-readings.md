@@ -19,30 +19,28 @@ different scales:
 - `whole_turn`: `TURN.max(lo.abs()).max(hi.abs())`;
 - `covered`: each end of `want` separately;
 - `vacuous`, the touch: bare `hi`, or bare `lo`;
-- `present_chart`, the touch's face side: bare `hi`, or bare `lo`.
+- `present_chart`, the touch's face side: bare `hi`, or bare `lo`;
+- `present_chart`, the zero-width guard: `few_ulps(lo).max(few_ulps(hi))`,
+  which is the touch's slack at either end of the rectangle.
 
-PR 7086 introduced `chart_slack` (`few_ulps` of the largest value and
-`TURN`) and moved its own three readings onto it: `face_extent`, the
-`sheets` overlap and the zero-width guard.
+PR 7086 added `chart_slack` (`few_ulps` of the largest value and
+`TURN`). The extent is read at that scale by `face_extent` and by the
+`sheets` overlap; the touch, `vacuous` and the guard are not.
+
+**The guard cannot move without the touch** (measured on PR 7086).
+With the guard on `chart_slack`, `a_filleted_drum_certifies_across_its_fillet`
+at `Interval` refused `Uncertified` at depth 40, with 9,660 refused cell
+pairs. The guard was then wider than the touch. A cell reaching just
+past the touch onto a line's face side read no width, and every cell
+below it reached as far.
 
 The other spellings are safe today only where `TURN` dominates the
-values read, or where the value read is the one that rounds. A chart
-value much smaller than 1 in magnitude reads a slack of a few ulps of
-1 in every case, which is the floor `few_ulps` gives.
+values read, or where the value read is the one that rounds.
 
 ## What is needed
 
-Move each caller onto `chart_slack` over the values it compares, or
-say at the site why another scale is the one that rounds. Each touch
-and cover reading is an ε concession, so a scale change moves what it
-drops. Measure the injectivity rows and the tour walk before and
-after.
-
-**The scales are not free to unify one at a time** (measured on PR 7086).
-`present_chart`'s zero-width guard was first moved onto
-`chart_slack`. That made it wider than the touch (`few_ulps(hi)`), and
-`a_filleted_drum_certifies_across_its_fillet` at `Interval` then
-refused `Uncertified` at depth 40, with 9,660 refused cell pairs. A
-cell reaching just past the touch onto a line's face side reads no
-width, and every cell below it reaches as far. So the guard stays at
-the touch's scale until the touch moves with it.
+Move the touch, `vacuous`, `covered`, `whole_turn` and the guard onto
+one scale together, or say at each site why another scale is the one
+that rounds. Each touch and cover reading is an ε concession, so a
+scale change moves what it drops. Measure the injectivity rows (the
+filleted drum first) and the tour walk before and after.
