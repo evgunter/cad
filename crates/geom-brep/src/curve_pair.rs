@@ -495,35 +495,72 @@ fn both<T>(
     }
 }
 
-/// **A pair read on both spans**: the gap between `c.point`, the first
-/// carrier's point at `c.ta`, and the second's at `c.tb`, decided against
-/// the band (`curve_pair_walk_pair_gap`), and each parameter's place on
-/// its own span ([`Span::place_param`]). A gap in the band is a meeting,
-/// its side on each span the parameter's place: inside, on the branch
-/// about the span's middle with the gap's margin, or at an end; a
-/// parameter past its span is off it. A gap decided positive is no
-/// meeting at the pair. No foot is read: the parameters are the pair's
-/// own.
-fn pair_both<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) -> Both<T> {
+/// **A parameter's place on its span, read once** at the walk's stop
+/// (`walk::at_end`): the place [`Span::place_param`] reads, and the record
+/// of reading it, held apart until the pair read knows whether its
+/// outcome rests on it ([`pair_both`]).
+pub(super) struct PlaceRead {
+    pub(super) place: Result<Place, Indeterminate>,
+    pub(super) record: geom_core::k_stats::Detached,
+}
+
+/// A decided gap at a polished pair, handed from the pair read to the
+/// window it composes with ([`window_off`]), which reads no gap again.
+type GapRead = Result<geom_core::Decided, Indeterminate>;
+
+/// **A pair read on both spans**: the gap between the first carrier's
+/// point at `c.ta` and the second's at `c.tb`, decided against the band
+/// (`curve_pair_walk_pair_gap`), and each parameter's place on its span,
+/// read once at the stop (`places`, [`PlaceRead`]). A gap in the band is
+/// a meeting, its side on each span the parameter's place: inside, on the
+/// branch about the span's middle with the gap's margin, or at an end; a
+/// parameter past its span is off it. A gap decided positive is no meeting
+/// at the pair. The places' records are spliced where the outcome rests on
+/// them (a gap in the band) and superseded where it does not, so no
+/// escalation of theirs is left that the answer does not rest on. No foot
+/// is read: the parameters are the pair's own. The decided gap is
+/// returned with the reading, for the window to compose with.
+fn pair_both<T: Decide>(
+    a: &Span<'_, T>,
+    b: &Span<'_, T>,
+    c: Candidate<T>,
+    (on_a, on_b): (PlaceRead, PlaceRead),
+    band: Band,
+) -> (Both<T>, Option<GapRead>) {
     let gap = geom_core::k_stats::decide_reported(
         "curve_pair_walk_pair_gap",
-        geom_core::Margin::norm3(b.carrier().eval(c.tb) - c.point),
+        geom_core::Margin::norm3(b.carrier().eval(c.tb) - a.carrier().eval(c.ta)),
         band,
-    )?;
-    if gap.sign != geom_core::Sign::Zero {
-        return Ok(None);
-    }
-    let side = |span: &Span<'_, T>, t: T| -> Result<Option<Hit<T>>, geom::CarrierRefusal> {
-        Ok(match span.place_param(t, band)? {
-            span::Place::Inside => Some(Hit::On {
+    );
+    let Ok(geom_core::Decided {
+        sign: geom_core::Sign::Zero,
+        margin,
+    }) = gap
+    else {
+        geom_core::k_stats::splice_superseded(on_a.record);
+        geom_core::k_stats::splice_superseded(on_b.record);
+        let read = match gap {
+            Ok(_) => Ok(None),
+            Err(diag) => Err(diag.into()),
+        };
+        return (read, Some(gap));
+    };
+    geom_core::k_stats::splice(on_a.record);
+    geom_core::k_stats::splice(on_b.record);
+    let side = |span: &Span<'_, T>, t: T, place: Result<Place, Indeterminate>| {
+        Ok(match place? {
+            Place::Inside => Some(Hit::On {
                 t: span.branch(t),
-                margin: gap.margin,
+                margin,
             }),
-            span::Place::End(which) => Some(Hit::End(which)),
-            span::Place::Past => None,
+            Place::End(which) => Some(Hit::End(which)),
+            Place::Past => None,
         })
     };
-    both(side(a, c.ta), side(b, c.tb))
+    (
+        both(side(a, c.ta, on_a.place), side(b, c.tb, on_b.place)),
+        Some(gap),
+    )
 }
 
 /// **The meetings a reader has found, and the refusals it holds**, read
@@ -561,7 +598,7 @@ impl<T: Decide> Found<T> {
                 b.contact(c.point, c.tb, band).map_err(|r| r.refused()),
             )
         };
-        self.read_with(a, b, c, on_both, band);
+        self.read_with(a, b, c, || (on_both(), None), band);
     }
 
     /// **A polished pair read as that pair** (the curve-pair rule in
@@ -569,22 +606,33 @@ impl<T: Decide> Found<T> {
     /// `c.ta` on `a` with `c.point` its point and `c.tb` on `b`, and is
     /// read by [`pair_both`], with no foot; its window as [`Self::read`]
     /// reads one.
-    fn read_pair(&mut self, a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) {
-        self.read_with(a, b, c, || pair_both(a, b, c, band), band);
+    fn read_pair(
+        &mut self,
+        a: &Span<'_, T>,
+        b: &Span<'_, T>,
+        c: Candidate<T>,
+        places: (PlaceRead, PlaceRead),
+        band: Band,
+    ) {
+        self.read_with(a, b, c, || pair_both(a, b, c, places, band), band);
     }
 
     /// [`Self::read`] and [`Self::read_pair`]'s one composition, `on_both`
-    /// the candidate's reading on both spans.
+    /// the candidate's reading on both spans, with the gap it decided where
+    /// it decided one (the pair read), which the window composes with and
+    /// does not read again. A ringed candidate reads nothing, and a pair
+    /// read's place records are dropped unspliced: no outcome rests on
+    /// them.
     fn read_with(
         &mut self,
         a: &Span<'_, T>,
         b: &Span<'_, T>,
         c: Candidate<T>,
-        on_both: impl Fn() -> Both<T>,
+        on_both: impl FnOnce() -> (Both<T>, Option<GapRead>),
         band: Band,
     ) {
         let Some(bound) = c.bound else {
-            self.offer(c.point, on_both, band);
+            self.offer(c.point, || on_both().0, band);
             return;
         };
         if ringed(&self.points, c.point, band) {
@@ -607,8 +655,8 @@ impl<T: Decide> Found<T> {
         self.offer(
             c.point,
             || match on_both() {
-                Ok(None) => window_off(a, b, c, bound, floor, band),
-                read => read.map_err(MeetFault::from),
+                (Ok(None), gap) => window_off(a, b, c, bound, (floor, gap), band),
+                (read, _) => read.map_err(MeetFault::from),
             },
             band,
         );
@@ -692,17 +740,23 @@ fn window_off<T: Decide>(
     b: &Span<'_, T>,
     c: Candidate<T>,
     bound: pose::WindowBound<T>,
-    floor: Result<geom_core::Decided, Indeterminate>,
+    (floor, read): (Result<geom_core::Decided, Indeterminate>, Option<GapRead>),
     band: Band,
 ) -> Result<Option<Sides<T>>, MeetFault> {
     let q = b.carrier().eval(c.tb);
     // The run arm's premise (`pose`'s module docs, "The run"): the
-    // polished pair is itself a pair of the run, its gap in the zero band.
-    let in_run = geom_core::k_stats::decide(
-        "curve_pair_meet_run_pair",
-        geom_core::Margin::norm3(q - c.point),
-        band,
-    ) == Ok(geom_core::Sign::Zero);
+    // polished pair is itself a pair of the run, its gap in the zero band;
+    // read on the gap the pair read decided where it decided one.
+    let in_run = match read {
+        Some(gap) => gap.is_ok_and(|g| g.sign == geom_core::Sign::Zero),
+        None => {
+            geom_core::k_stats::decide(
+                "curve_pair_meet_run_pair",
+                geom_core::Margin::norm3(q - c.point),
+                band,
+            ) == Ok(geom_core::Sign::Zero)
+        }
+    };
     let (run_a, run_b) = (
         in_run.then(|| (b.carrier(), bound.bend)),
         in_run.then(|| (a.carrier(), bound.bend)),
@@ -714,11 +768,13 @@ fn window_off<T: Decide>(
     if sides.contains(&PastBy::Clear) {
         return Ok(None);
     }
-    let gap = geom_core::k_stats::decide_reported(
-        "curve_pair_meet_window_gap",
-        geom_core::Margin::norm3(q - c.point),
-        band,
-    );
+    let gap = read.unwrap_or_else(|| {
+        geom_core::k_stats::decide_reported(
+            "curve_pair_meet_window_gap",
+            geom_core::Margin::norm3(q - c.point),
+            band,
+        )
+    });
     let near = sides.iter().find_map(|side| match side {
         PastBy::Near(diag) => Some(*diag),
         PastBy::Not | PastBy::Clear => None,

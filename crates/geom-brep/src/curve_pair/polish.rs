@@ -3,9 +3,10 @@
 //! foot on one carrier is [`geom::Curve3::foot`]), and **the lower bound
 //! on the gap** the polished pair gives (`pose`'s module docs, "The gap's
 //! lower bound"). A polished parameter is a place to read, never a
-//! decision: every point it yields is read by [`super::Span::contact`],
-//! and what the window around it holds is read off [`bound`], never off
-//! whether the polish converged.
+//! decision: every pair it yields is read by the reader that polished it
+//! (the walk's stop as a pair, `Found::read_pair`; the pose's closest pair
+//! through its point, `Found::read`), and what the window around it holds
+//! is read off [`bound`], never off whether the polish converged.
 //!
 //! **At an enclosing scalar the search is `f64` structure**
 //! (`geom::projection_policy`'s "f64 structure + T payload"): a step
@@ -45,9 +46,12 @@ const MOVE: &str = "curve_pair_pose_move";
 /// pair (read at `T` at the iterate): the pair. A step whose value is a
 /// point is taken at `T`; one that is an enclosure moves the iterate by
 /// its middle, and the search is `f64` structure from there on (module
-/// docs). A step with no finite bracket, or one `keep` refuses, ends the
+/// docs). Where the normal system is singular (parallel tangents) the
+/// step is the least-norm one along the common tangent ([`least_norm`]);
+/// a step with no finite bracket even so, or one `keep` refuses, ends the
 /// search where it stands: the iterate has not moved, so the next step
-/// would be the same one.
+/// would be the same one. [`pair_held`] with nothing held, so the pose's
+/// closest pair (`Polish::closest`) takes the least-norm step too.
 pub(super) fn pair<T: Decide>(
     a: impl Fn(T) -> (Point3<T>, Vec3<T>),
     b: impl Fn(T) -> (Point3<T>, Vec3<T>),
@@ -268,7 +272,7 @@ pub(super) fn undecided<T: Decide>() -> WindowBound<T> {
 mod tests {
     use geom_core::{Point3, Vec3};
 
-    use super::pair_held;
+    use super::{least_norm, pair_held};
 
     /// **A polish at a collinear joint takes the least-norm step.** Two
     /// segments of the `x` axis meet end to end at the origin, the first
@@ -295,6 +299,47 @@ mod tests {
             s == 1.0 && t.abs() <= 1e-15,
             "the joint, to rounding: ({s}, {t})"
         );
+    }
+
+    /// **The least-norm step closes the gap along the common tangent, half
+    /// on each side.** At a collinear joint with the gap `w = (0.2, 0, 0)`
+    /// from the first point to the second and both tangents `(1, 0, 0)`,
+    /// the step is `(0.1, −0.1)`: the first parameter forward and the
+    /// second back, which meet. Red where its sign or its split is lost
+    /// (the held polish's projected steps can mask either, so the step is
+    /// read here alone).
+    #[test]
+    fn the_least_norm_step_closes_the_gap_half_on_each_side() {
+        let (ds, dt) = least_norm(
+            Vec3::new(0.2, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        assert!(
+            (ds - 0.1).abs() <= 1e-15 && (dt + 0.1).abs() <= 1e-15,
+            "({ds}, {dt}) against (0.1, −0.1)"
+        );
+    }
+
+    /// **A polish whose both sides would leave their runs stops at both
+    /// ends.** The segment along `x` ending at the origin (`s ∈ [0, 1]`) and
+    /// a segment along `y` lifted `0.1` in `z` and starting at `(1, 1, 0.1)`
+    /// (`t ∈ [0, 1]`): the two lines' closest pair is at `s = 2`, `t = −1`,
+    /// past both runs. With both sides outside no projected step applies,
+    /// and the clamp holds the pair at `(1, 0)`, each run's end. Red where
+    /// the iterate is not clamped (it would leave both spans).
+    #[test]
+    fn a_polish_whose_both_sides_would_leave_stops_at_both_ends() {
+        let a = |s: f64| (Point3::new(s - 1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let b = |t: f64| (Point3::new(1.0, t + 1.0, 0.1), Vec3::new(0.0, 1.0, 0.0));
+        let (s, t) = pair_held(
+            a,
+            b,
+            (0.5, 0.5),
+            |_| true,
+            (Some((0.0, 1.0)), Some((0.0, 1.0))),
+        );
+        assert!(s == 1.0 && t == 0.0, "held at both ends: ({s}, {t})");
     }
 
     /// **A polish whose first side clamps steps the other alone.** The

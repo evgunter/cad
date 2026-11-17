@@ -38,3 +38,9 @@ one it becomes), and its stop is decided.
 **Read the walk-stop fork first.** The open design fork `work/onehome/the-curve-pair-walks-stop-verdict-rests-on-which-heuristic-foot-it-polishes.md` may change
 the fix; whoever takes this row reads that fork's outcome before writing
 anything.
+
+**Two more spellings of the clamp** (noted by the review of PR 7048, fork 275 step 3). A pair polish held to its runs is spelled twice besides this row's:
+- `Curve3::foot`'s `near.max(lo).min(hi)` (`crates/geom/src/curves/on_carrier.rs`);
+- `polish::pair_held`'s order-agnostic clamp (`crates/geom-brep/src/curve_pair/polish.rs`).
+
+The fold-in pass should take all three to one.

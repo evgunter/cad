@@ -1982,6 +1982,30 @@ Flagged, NOT fixed here (dispositions):
   `work/onecopy/a-parameter-difference-is-decided-through-the-metres-margin-door.md`
   carries the class.
 
+- **F46** (added by ONEHOME's pair-read unit, fork 275 step 3)
+  `curve_pair_walk_nearer_end` — `geom-brep/src/curve_pair/walk.rs`
+  `at_end`: which end's parameter a polished parameter is snapped to
+  where its place reads it at an end, the one nearer it, on the sign of
+  `|u − t₁| − |u − t₀|`. What keeps it off the logged doors is that **no
+  outcome is a reading, only the pair's anchor**:
+  - Either end is a sound place. The pair read reads the pair at the
+    snapped parameter on its own rows (`curve_pair_walk_pair_gap` and the
+    place, logged), and the window anchored there bounds a reach only on
+    its own proved premises (`curve_pair_walk_basin`,
+    `curve_pair_walk_basin_held`, logged). A far anchor puts the pieces
+    far from it, and the window then bounds no reach and escalates; it
+    never prunes a meeting.
+  - It matters only where the two ends' points are one point within the
+    band (a span closed on itself), or where a mid-span point lies on an
+    end's (a carrier that comes back through its own end):
+    `walk::tests::a_polished_parameter_on_a_closed_span_is_the_end_on_its_side`
+    and `walk::tests::a_mid_span_parameter_at_an_ends_point_snaps_by_parameter`
+    pin both, the second for liveness only.
+
+  **Carried as `k_stats::choose(.., "F46")`**, its tie (a decided zero or
+  an undecided difference) taking the first end. Not a `decide_flagged`
+  site; `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved
