@@ -128,14 +128,15 @@ pub(in crate::blend) enum CornerArcs<T: Real> {
     },
 }
 
+/// A mixed fillet's link ([`CornerArcs::mixed_link`]).
+pub(in crate::blend) type MixedLink<T> = ([(EdgeKey, Point3<T>); 2], BallSection<T>, T);
+
 impl<T: Real> CornerArcs<T> {
     /// A mixed fillet's link: each pair edge with its ball's centre
     /// where its band meets the link, the odd band's section (the
     /// torus's centre, the odd band's axis, the ball's radius), and the
     /// radius its arc on `E` turns at. `None` at any other corner.
-    pub(in crate::blend) fn mixed_link(
-        &self,
-    ) -> Option<([(EdgeKey, Point3<T>); 2], BallSection<T>, T)> {
+    pub(in crate::blend) fn mixed_link(&self) -> Option<MixedLink<T>> {
         match self {
             Self::Mixed { sections, host } => Some((
                 [
