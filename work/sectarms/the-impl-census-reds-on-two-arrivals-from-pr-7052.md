@@ -2,11 +2,14 @@
 id: the-impl-census-reds-on-two-arrivals-from-pr-7052
 kind: issue
 title: hand_written_impl_census reds on main: two Debug impls PR 7052 added
-status: open
+status: closed
 opened: 2026-11-17
 priority: P1
 cost: E
 refs: [7052]
+closed: 2026-11-17
+pr: 7092
+branch: sectarms/green-impl-census
 ---
 
 
