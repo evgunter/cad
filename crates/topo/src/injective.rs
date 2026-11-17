@@ -6327,15 +6327,11 @@ mod presentation_rows {
         }
     }
 
-    /// **A cell reaching a cone face's nappe is not read vacuous off its
-    /// clips**: a face whose vertices off the apex stand on the positive
-    /// nappe while its lines and extent put it at `v ∈ [−1, −1/2]`, read
-    /// in a cell at its apex vertex that reaches `v = 1/2`. The clips
-    /// leave the rectangle on the other nappe while the cell is not, so
-    /// the face's lines contradict its nappe. Red if that reads vacuous,
-    /// as a cell on the other nappe does.
-    #[test]
-    fn a_cell_reaching_the_faces_nappe_is_not_vacuous_off_its_clips() {
+    /// **A cone face whose lines stand on the other nappe from its
+    /// vertices**: its vertices off the apex stand on the positive nappe
+    /// while its lines and extent put it at `v ∈ [−1, −1/2]`. Read in the
+    /// cell `u ∈ [1.2, 1.8]`, `v`, at its apex vertex.
+    fn off_its_nappe(v: (f64, f64)) -> Read {
         let s = Surface::Cone {
             apex: origin(),
             axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
@@ -6362,29 +6358,82 @@ mod presentation_rows {
             edges: all(4),
             vertices: vec![vertex(9)],
         };
-        let at = |v: (f64, f64)| {
-            let piece = Piece {
-                face: FaceKey::default(),
-                surface: &s,
-                whole: false,
-                boundary: &b,
-                u: (1.2, 1.8),
-                v,
-                local: &local,
-                ball: Ball::holding(origin(), origin()),
-            };
-            read(present_chart(&piece, &[], &[], band()))
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (1.2, 1.8),
+            v,
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
         };
+        read(present_chart(&piece, &[], &[], band()))
+    }
+
+    /// **A cell reaching a cone face's nappe is not read vacuous off its
+    /// clips** ([`off_its_nappe`]): a cell at the face's apex vertex that
+    /// reaches `v = 1/2`. The clips leave the rectangle on the other
+    /// nappe while the cell is not, so the face's lines contradict its
+    /// nappe. Red if that reads vacuous, as a cell on the other nappe
+    /// does.
+    #[test]
+    fn a_cell_reaching_the_faces_nappe_is_not_vacuous_off_its_clips() {
         assert_eq!(
-            at((-0.75, 0.5)),
+            off_its_nappe((-0.75, 0.5)),
             Read::Local,
             "the cell reaches the face's nappe"
         );
         assert_eq!(
-            at((-0.75, 0.0)),
+            off_its_nappe((-0.75, 0.0)),
             Read::Vacuous,
             "the cell on the other nappe"
         );
+    }
+
+    /// **A face is not read as holding nothing on both nappes**
+    /// ([`off_its_nappe`]): the two cells one split below the cell
+    /// `a_cell_reaching_the_faces_nappe_is_not_vacuous_off_its_clips`
+    /// refuses. The face has points on the nappe its vertices stand on or
+    /// on the one its lines stand on. Red while the cell on its vertices'
+    /// nappe misses its extent and the cell on its lines' nappe is read as
+    /// the other nappe: the refusal above is `Local`, so the pair splits
+    /// into these two and certifies on both.
+    #[test]
+    fn a_face_whose_lines_contradict_its_nappe_is_not_vacuous_on_both() {
+        let (lines, vertices) = (off_its_nappe((-0.75, -0.125)), off_its_nappe((-0.125, 0.5)));
+        assert!(
+            !(lines == Read::Vacuous && vertices == Read::Vacuous),
+            "the lines' nappe reads {lines:?}, the vertices' nappe {vertices:?}"
+        );
+    }
+
+    /// **A line apart from the face's extent contradicts it**
+    /// ([`face_extent`]): a cylinder face over `u ∈ [1, 3]` whose extent
+    /// claims `u ∈ [1, 2]`. Each of its lines has room in that extent on
+    /// its face side, so only the `u = 3` line's lying apart from the
+    /// extent says the extent does not hold the face. Red if a line is
+    /// read for that room alone: the cell `u ∈ [2.2, 2.8]`, wholly inside
+    /// the face, then misses the extent and reads the face as holding
+    /// nothing.
+    #[test]
+    fn a_line_apart_from_the_faces_extent_contradicts_it() {
+        let s = cylinder();
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 2], Axis::V, 0.0, (1.0, 0.0), (3.0, 0.0)),
+                rim(2, [2, 3], Axis::U, 3.0, (3.0, 0.0), (3.0, 1.0)),
+                rim(3, [3, 4], Axis::V, 1.0, (3.0, 1.0), (1.0, 1.0)),
+                rim(4, [4, 1], Axis::U, 1.0, (1.0, 1.0), (1.0, 0.0)),
+            ],
+            vertices: BTreeMap::new(),
+            extent: Some([(1.0, 2.0), (0.0, 1.0)]),
+        };
+        for u in [(2.2, 2.8), (1.2, 1.8)] {
+            let read = chart_near(&s, &b, &all(4), &[], (u, (0.2, 0.8)));
+            assert_eq!(read, Read::Structural, "u ∈ {u:?}");
+        }
     }
 
     /// A face whose extent is unknown has no sheet: a line on its
