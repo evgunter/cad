@@ -2433,12 +2433,17 @@ impl Trig {
 /// **A presentation's curved side**: the face's chart curve over the
 /// parameters `t` its columns hold, its image there, and the shared edge
 /// it is, `whole` where its carrier is a conic, whose own plane holds the
-/// curve continued past the edge too.
+/// curve continued past the edge too. `past`, the vertex it runs on
+/// through, where the side runs on past the shared edge over the face's
+/// next arc of the same conic ([`Reading::Conic`]), so the face has
+/// points on it off the shared cell: read only where [`sign_on`] admits
+/// it, as [`Zero::Past`] is.
 #[derive(Clone, Debug)]
 struct Curved {
     form: Form,
     t: (f64, f64),
     along: Along,
+    past: Option<VertexKey>,
 }
 
 /// What a curved side's chart curve is.
@@ -2668,7 +2673,15 @@ fn sharing(
 /// [`present_curved`]'s and [`present_wall`]'s step 1 rest on: a span a
 /// turn long or more would carry its continuation round to its own far
 /// end, so the columns could hold the edge and its continuation both.
+///
+/// A corner whose other edge continues the curve's conic ([`continues`],
+/// [`Reading::Conic`]) is read over the whole conic instead: a span
+/// centred on the vertex and a little longer than a turn, so every point
+/// of the conic is on it and the two ends' overlap lies opposite the
+/// vertex. A cell holding the conic twice there is refused by step 2's
+/// [`apart`], the guard the cap stands in for.
 fn through_of(
+    b: &Boundary,
     e: &Rim,
     corner: Option<Corner>,
     (t0, t1): (f64, f64),
@@ -2679,19 +2692,31 @@ fn through_of(
     if e.ends[0] == e.ends[1] {
         return Err(Unpresented::Local);
     }
-    let ext = (t1 - t0).min((TURN - (t1 - t0)) * 0.5);
-    if ext.is_nan() || ext <= 0.0 {
-        return Err(Unpresented::Local);
-    }
     let start = e.ends[0] == c.vertex;
-    Ok(Some(Through {
-        corner: c,
-        t: if start { t0 } else { t1 },
-        span: if start {
+    let t = if start { t0 } else { t1 };
+    let conic = b
+        .edges
+        .get(c.other)
+        .is_some_and(|o| continues(e, o, c.vertex));
+    let span = if conic {
+        let half = TURN * (0.5 + 1.0 / 64.0);
+        (t - half, t + half)
+    } else {
+        let ext = (t1 - t0).min((TURN - (t1 - t0)) * 0.5);
+        if ext.is_nan() || ext <= 0.0 {
+            return Err(Unpresented::Local);
+        }
+        if start {
             (t0 - ext, t1)
         } else {
             (t0, t1 + ext)
-        },
+        }
+    };
+    Ok(Some(Through {
+        corner: c,
+        t,
+        span,
+        conic,
     }))
 }
 
@@ -2780,7 +2805,7 @@ fn present_curved<'a>(
     });
     let continued = e.ends[0] == e.ends[1] && whole_turn(t0, t1) && lattice;
     let shared = sharing(ei, near_edges, near_vertices)?;
-    let through = through_of(e, corner, (t0, t1))?;
+    let through = through_of(piece.boundary, e, corner, (t0, t1))?;
     for column in [Axis::U, Axis::V] {
         let span = through.as_ref().map_or((t0, t1), |th| th.span);
         let pieces = Pieces::of(&chart, column, span, continued);
@@ -2801,6 +2826,10 @@ fn present_curved<'a>(
                         vertex: None,
                         whole: matches!(carrier, Curve3::Circle(_) | Curve3::Ellipse(_)),
                     },
+                    past: through
+                        .as_ref()
+                        .filter(|th| th.conic)
+                        .map(|th| th.corner.vertex),
                 }),
             )
         } else {
@@ -3051,7 +3080,7 @@ fn present_wall<'a>(
     }
     let shared = sharing(ei, near_edges, near_vertices)?;
     let closed = e.ends[0] == e.ends[1] && whole_turn(t0, t1);
-    let through = through_of(e, corner, (t0, t1))?;
+    let through = through_of(piece.boundary, e, corner, (t0, t1))?;
     // Through a corner `R` holds the vertex: the cell is widened to its
     // chart point, on the copy nearest the cell.
     let mut cell = (piece.u, piece.v);
@@ -3162,6 +3191,7 @@ fn present_wall<'a>(
                     vertex: None,
                     whole: false,
                 },
+                past: None,
             }),
         )
     } else {
@@ -3241,11 +3271,13 @@ struct Corner {
 }
 
 /// A curve read through a corner: the corner, the curve's parameter at
-/// the vertex, and the span continued past it.
+/// the vertex, the span continued past it, and whether the corner's
+/// other edge is an arc of the curve's own conic ([`Reading::Conic`]).
 struct Through {
     corner: Corner,
     t: f64,
     span: (f64, f64),
+    conic: bool,
 }
 
 /// **The corner a cell's two walls make**: two open edges with one end
@@ -3330,6 +3362,21 @@ fn corner_of(
 /// `R` is presented with `E`'s side or curve as its zero, as the edge's
 /// own presentations are. A corner `O` leaves into `E`'s other side
 /// (reflex) is read by neither, at any depth: `Structural`.
+///
+/// **Two arcs of one conic** ([`Reading::Conic`]): `O` is `E`'s
+/// continuation through `V` ([`continues`]): one conic as one value,
+/// leaving `V` the way `E` arrives, the two no more than a turn, so they
+/// meet only at their common ends. The curve is read over the whole
+/// conic ([`through_of`]), so step 2's guard leaves one run of it in
+/// `R`, a graph across every column, and nothing else in reach but `E`,
+/// `O` and `E`'s ends. That run holds `V`. Followed from `V` either way
+/// it stays on `E` or `O` until it leaves `R`: an end of either in reach
+/// that is not an end of both would bring another edge, or a vertex
+/// that is not `E`'s, into reach. So the boundary in `R` is the run,
+/// which every column crosses, traversed one way along it through `V`,
+/// so the face lies on the side `E`'s traversal names. The run past `V`
+/// is `O`: the zero is a curve with points off the shared cell, `past`
+/// ([`Curved`]), read only where [`past_read`] admits it.
 fn present_corner<'a>(
     piece: &Piece<'a>,
     c: Corner,
@@ -3338,7 +3385,9 @@ fn present_corner<'a>(
     band: Band,
 ) -> Option<Result<Presentation<'a>, Unpresented>> {
     Some(match reading(piece, c)? {
-        Reading::Curve => present_curved(piece, c.read, Some(c), near_edges, near_vertices, band),
+        Reading::Curve | Reading::Conic => {
+            present_curved(piece, c.read, Some(c), near_edges, near_vertices, band)
+        }
         Reading::Wall(w) => {
             present_wall(piece, c.read, w, Some(c), near_edges, near_vertices, band)
         }
@@ -3352,6 +3401,11 @@ enum Reading {
     /// The shared edge is a curve [`present_curved`] reads, the other
     /// edge straight in the chart.
     Curve,
+    /// The shared edge is a curve on a conic carrier, the other edge its
+    /// continuation through the vertex along the same conic
+    /// ([`continues`]): the curve is read on through the vertex along the
+    /// other edge.
+    Conic,
     /// The shared edge is a spiric's wall image on a torus
     /// ([`present_wall`]), the other edge a parallel of it.
     Wall(Wall),
@@ -3371,6 +3425,9 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
     let (e, o) = (b.edges.get(c.read)?, b.edges.get(c.other)?);
     let (s, curved) = (piece.surface, |r: &Rim| is_curved(piece.surface, r));
     if curved(e) {
+        if continues(e, o, c.vertex) {
+            return Some(Reading::Conic);
+        }
         let straight = straight(s, o, c.vertex).is_some();
         if let Some(w) = wall_image(s, e) {
             return (straight && parallel(o)).then_some(Reading::Wall(w));
@@ -3410,6 +3467,75 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
             }
             _ => None,
         }
+    }
+}
+
+/// **Whether two edges' stored carriers are one conic, as one value**:
+/// one plane through one centre ([`one_plane`]) and the same radius; on
+/// an ellipse the same semi-axes along the same lines (`u_ref` equal or
+/// opposed, a half-turn of the parameter). Every comparison is
+/// [`one_value`]'s, so a component held as a bracket wider than a point
+/// is never one conic, even against itself: at `Interval` this admits
+/// only carriers stored as points. The two parametrizations may differ;
+/// the reading never maps one onto the other ([`continues`]).
+fn one_conic(e: &Rim, o: &Rim) -> bool {
+    let (Some((ce, _)), Some((co, _))) = (e.arc.as_ref(), o.arc.as_ref()) else {
+        return false;
+    };
+    let plane = |f: &geom::Frame<Interval>, g: &geom::Frame<Interval>| {
+        one_plane((f.origin, f.axis), (g.origin, g.axis))
+    };
+    match (ce, co) {
+        (Curve3::Circle(a), Curve3::Circle(b)) => {
+            plane(&a.frame, &b.frame) && one_value(a.radius, b.radius, false)
+        }
+        (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
+            plane(&a.frame, &b.frame)
+                && one_line(a.frame.u_ref, b.frame.u_ref)
+                && one_value(a.semi_u, b.semi_u, false)
+                && one_value(a.semi_v, b.semi_v, false)
+        }
+        _ => false,
+    }
+}
+
+/// **`o` is `e`'s continuation through `v` along one conic**
+/// ([`Reading::Conic`]): the two are [`one_conic`], `o` has one use (a
+/// seam would put the face on both its sides), the two arcs together are
+/// no more than a turn of the conic, and `o` leaves `v` along the
+/// conic's tangent the way `e` arrives there, decided as an interval: the
+/// two directions are parallel, so their product is far from zero. So
+/// `o` does not lie back over `e`, and the two meet only at their common
+/// ends.
+fn continues(e: &Rim, o: &Rim, v: VertexKey) -> bool {
+    let (Some((ce, se)), Some((co, so))) = (e.arc.as_ref(), o.arc.as_ref()) else {
+        return false;
+    };
+    if o.uses.len() != 1 || !one_conic(e, o) || e.ends[0] == e.ends[1] || o.ends[0] == o.ends[1] {
+        return false;
+    }
+    let width = |(t0, t1): &(Interval, Interval)| t1.hi() - t0.lo();
+    // A NaN width reads as more than a turn.
+    let within_a_turn = (width(se) + width(so))
+        .partial_cmp(&(TURN + few_ulps(TURN)))
+        .is_some_and(core::cmp::Ordering::is_le);
+    if !within_a_turn {
+        return false;
+    }
+    // Away from `v`: along each edge's parameter from the end it has there.
+    let away = |c: &Curve3<Interval>, (t0, t1): &(Interval, Interval), ends: [VertexKey; 2]| {
+        if ends[0] == v {
+            Some(c.deriv(*t0))
+        } else if ends[1] == v {
+            Some(c.deriv(*t1) * at(-1.0))
+        } else {
+            None
+        }
+    };
+    match (away(ce, se, e.ends), away(co, so, o.ends)) {
+        // `e` arrives along the negation of its own away direction.
+        (Some(de), Some(d_o)) => (de.dot(d_o) * at(-1.0)).lo() > 0.0,
+        _ => false,
     }
 }
 
@@ -4342,18 +4468,22 @@ fn graph_read(
             Axis::V => [held, ends.along(th.t)],
         };
         let tau = (p.chart.rate(column, ts), p.chart.rate(other, ts));
-        if let Err(e) = leaves_graph(
-            piece,
-            th,
-            column,
-            tau,
-            ts,
-            rising,
-            above,
-            vertex,
-            (x, y),
-            band,
-        )? {
+        // An arc of the curve's own conic is on the run read: nothing
+        // leaves it ([`Reading::Conic`]).
+        if !th.conic
+            && let Err(e) = leaves_graph(
+                piece,
+                th,
+                column,
+                tau,
+                ts,
+                rising,
+                above,
+                vertex,
+                (x, y),
+                band,
+            )?
+        {
             return Some(Err(e));
         }
     }
@@ -4977,8 +5107,9 @@ impl On {
 /// and every point of the separating face is on its zero set), under a
 /// plane (not the graph's), on an analytic face: there a coincidence off
 /// the shared cell would be two points of this face with one image
-/// ([`partial_zero`]). Anywhere else it answers nothing. This is the one
-/// place that guard is kept.
+/// ([`partial_zero`]). A curve read on past the shared edge (a `past`
+/// [`Curved`]) is read under the same guard, [`past_read`], which holds
+/// its argument. Anywhere else either answers nothing.
 fn sign_on(
     psi: &Psi,
     on: Option<&On>,
@@ -5023,9 +5154,7 @@ fn sign_on(
             departs(*s)
         }
         Zero::Past(s, a) => {
-            let exact = against.is_some_and(|q| !matches!(q.zero, Zero::Past(..)));
-            let analytic = geom_brep::is_analytic(p.surface);
-            if !(exact && analytic && zero_on(*s, a, true)) {
+            if !(past_read(p, against) && zero_on(*s, a, true)) {
                 return None;
             }
             departs(*s)
@@ -5040,6 +5169,9 @@ fn sign_on(
             interval_sign_as(g, SELF_INTERSECTION_DEPARTURE, band)
         }
         Zero::Curve(s, c) => {
+            if c.past.is_some() && !past_read(p, against) {
+                return None;
+            }
             let zero = match (on, psi) {
                 (Some(on), Psi::Graph { piece, .. }) => {
                     on.holds(&c.along, false) && c.within(*piece)
@@ -5067,6 +5199,32 @@ fn sign_on(
             (a == b).then_some(a)
         }
     }
+}
+
+/// **Whether a zero side or curve that runs past the shared cell is
+/// read** ([`Zero::Past`], a past [`Curved`]): `against` a presentation
+/// whose zero set is on the shared cell, on an analytic face. So never
+/// in the carrier arm, where `against` is `None` and the separating
+/// face's every point is on its zero set.
+///
+/// Where both are zero, a point lies on the other face's zero set, so on
+/// the shared cell, and on this face's zero in `R`:
+/// - **a past curve**: on its edge `E` or on `O`, `E`'s continuation
+///   ([`continues`]). Nothing of the shared cell but `E` and its ends is
+///   in `R`'s reach ([`alone`]), and `O` meets `E` only at their common
+///   ends, so the point is on `E` or one of its ends: the shared cell.
+///   This rests on [`continues`], checked in the reading, and not on
+///   the face's injectivity;
+/// - **a past side**: a point of the side off the shared cell with the
+///   other face's image would be two points of this face with one
+///   image, which its injectivity by kind rules out ([`partial_zero`]).
+fn past_read(p: &Presented<'_>, against: Option<&Presented<'_>>) -> bool {
+    let exact = against.is_some_and(|q| match &q.zero {
+        Zero::Past(..) => false,
+        Zero::Curve(_, c) => c.past.is_none(),
+        _ => true,
+    });
+    exact && geom_brep::is_analytic(p.surface)
 }
 
 /// The carrier of a face as a separator.
@@ -5165,16 +5323,15 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
             }
         }
     }
+    if stuck(x, &px) && stuck(y, &py) {
+        return Outcome::Refuse(EngineRefusal::Uncertified {
+            a: x.face,
+            b: y.face,
+            shared,
+            arm: CertificateArm::Departure,
+        });
+    }
     let (Ok(Presentation::Of(qx)), Ok(Presentation::Of(qy))) = (&px, &py) else {
-        if matches!(px, Err(Unpresented::Structural)) && matches!(py, Err(Unpresented::Structural))
-        {
-            return Outcome::Refuse(EngineRefusal::Uncertified {
-                a: x.face,
-                b: y.face,
-                shared,
-                arm: CertificateArm::Departure,
-            });
-        }
         return split;
     };
     let opposite = |(psi, on): (Psi, On)| match (
@@ -5195,6 +5352,27 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         return Outcome::Cusp { shared };
     }
     split
+}
+
+/// **Whether a face's part of a cell pair is refused as unreadable**:
+/// it is not presented for a reason no smaller cell changes
+/// ([`Unpresented::Structural`]), or it is presented by a curve run on
+/// past the shared cell through a vertex in its reach. Every smaller
+/// cell holding that vertex reaches both its arcs, so it is read past
+/// the shared cell again or not at all, and a past curve is read only
+/// against a presented partner whose zero set is on the shared cell
+/// ([`past_read`]), which no stuck partner is. A pair both of whose
+/// parts are stuck is refused as two `Structural` parts are: a split
+/// could still part the two corners where they are at different
+/// vertices, which this does not wait for. Such a part is the corner
+/// [`beside_curve`] types `Structural` where the two arcs are not read.
+fn stuck(piece: &Piece<'_>, p: &Result<Presentation<'_>, Unpresented>) -> bool {
+    match p {
+        Err(Unpresented::Structural) => true,
+        Ok(Presentation::Of(q)) => matches!(&q.zero,
+            Zero::Curve(_, c) if c.past.is_some_and(|v| piece.local.vertices.contains(&v))),
+        _ => false,
+    }
 }
 
 /// A point of the shared cell: a shared vertex, or the shared edge's
@@ -5368,14 +5546,30 @@ fn one_plane(
     (q, n): (Point3<Interval>, Vec3<Interval>),
     (p, m): (Point3<Interval>, Vec3<Interval>),
 ) -> bool {
-    let point = |x: Interval| x.lo() == x.hi();
-    let is = |x: Interval, y: Interval| point(x) && y.lo() == x.lo() && y.hi() == x.hi();
-    let flipped = |x: Interval, y: Interval| point(x) && y.lo() == -x.lo() && y.hi() == -x.hi();
-    let [qs, ps] = [q, p].map(|a| [a.x, a.y, a.z]);
-    let [ns, ms] = [n, m].map(|a| [a.x, a.y, a.z]);
-    qs.iter().zip(&ps).all(|(&x, &y)| is(x, y))
-        && (ns.iter().zip(&ms).all(|(&x, &y)| is(x, y))
-            || ns.iter().zip(&ms).all(|(&x, &y)| flipped(x, y)))
+    one_vector(q - Point3::origin(), p - Point3::origin()) && one_line(n, m)
+}
+
+/// **`y` is `x`'s one value**: `x` is a point and `y` the same point, or
+/// with `negated` its negation. A point is the one value every member
+/// has; two brackets alike are not one value.
+fn one_value(x: Interval, y: Interval, negated: bool) -> bool {
+    let k = if negated { -x.lo() } else { x.lo() };
+    x.lo() == x.hi() && y.lo() == k && y.hi() == k
+}
+
+/// [`one_value`] on every component.
+fn one_vector(a: Vec3<Interval>, b: Vec3<Interval>) -> bool {
+    [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
+        .iter()
+        .all(|&(x, y)| one_value(x, y, false))
+}
+
+/// One direction or its negation, as one value.
+fn one_line(a: Vec3<Interval>, b: Vec3<Interval>) -> bool {
+    one_vector(a, b)
+        || [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
+            .iter()
+            .all(|&(x, y)| one_value(x, y, true))
 }
 
 /// The piece of the shared edge whose points can lie in the two
@@ -6996,6 +7190,366 @@ mod presentation_rows {
             Read::Local,
             "a cell holding both ends"
         );
+    }
+
+    /// **The unit circle on [`floor`] as two arcs of one conic**, meeting
+    /// at `(1, 0)` (vertex 1) and `(-1, 0)` (vertex 2), as a split rim's
+    /// halves are stored: edge 0 (key 10) the upper half counter-clockwise
+    /// on the axis `+z`, edge 1 (key `lower`) the lower half on the axis
+    /// `-z` from `(1, 0)`, the same points on the other parametrization.
+    /// `inside`: the disc, its loop counter-clockwise; else the face
+    /// outside the circle, its loop clockwise. `lower`, when given, is the
+    /// lower arc's own carrier in place of the circle's, over `(0, end)`.
+    fn halves(inside: bool, key: u64, lower: Option<(Curve3<Interval>, f64)>) -> Boundary {
+        let z = Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0));
+        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        let half = (iv0(0.0), iv0(core::f64::consts::PI));
+        let rim = |key: u64, carrier: Curve3<Interval>, span, plus: bool| Rim {
+            key: edge(key),
+            arc: Some((carrier, span)),
+            ends: [vertex(1), vertex(2)],
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let upper = rim(10, Curve3::circle(origin(), z, iv0(1.0), x), half, inside);
+        let lower = match lower {
+            Some((c, end)) => rim(key, c, (iv0(0.0), iv0(end)), !inside),
+            None => rim(
+                key,
+                Curve3::circle(origin(), -z, iv0(1.0), x),
+                half,
+                !inside,
+            ),
+        };
+        let p = |x: f64| Point3::new(iv0(x), iv0(0.0), iv0(0.0));
+        Boundary {
+            sense: true,
+            edges: vec![upper, lower],
+            vertices: BTreeMap::from([(vertex(1), p(1.0)), (vertex(2), p(-1.0))]),
+            extent: None,
+        }
+    }
+
+    /// [`present_plane`] of `b` in the cell `u × v` about `(1, 0)`, both
+    /// arcs and the vertex in reach, the upper arc shared.
+    fn on_halves<'a>(
+        s: &'a Surface<Interval>,
+        b: &'a Boundary,
+        local: &'a Local,
+    ) -> Result<Presentation<'a>, Unpresented> {
+        present_plane(&piece_on(s, b, local, 1), &[0], &[], band())
+    }
+
+    fn piece_on<'a>(
+        s: &'a Surface<Interval>,
+        b: &'a Boundary,
+        local: &'a Local,
+        n: u64,
+    ) -> Piece<'a> {
+        Piece {
+            face: face(n),
+            surface: s,
+            whole: false,
+            boundary: b,
+            u: (0.98, 1.02),
+            v: (-0.02, 0.02),
+            local,
+            ball: Ball::holding(origin(), origin()),
+        }
+    }
+
+    fn both_arcs() -> Local {
+        Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        }
+    }
+
+    /// **Two arcs of one circle are read on through their vertex**
+    /// ([`Reading::Conic`]): about `(1, 0)` the disc on the circle's two
+    /// halves, stored on opposite axes, is presented inside the circle
+    /// (at lower `u`), its zero the circle run on past the shared upper
+    /// arc through the vertex. A cell holding both vertices is `Local`.
+    /// A lower arc of another circle through both vertices, centred at
+    /// `(0, 1)`, makes a corner of 135° there, which no reading reads:
+    /// red if [`one_conic`] admits two circles that are not one.
+    #[test]
+    fn two_arcs_of_one_circle_are_read_on_through_their_vertex() {
+        let s = floor();
+        let local = both_arcs();
+        let disc = halves(true, 11, None);
+        match on_halves(&s, &disc, &local) {
+            Ok(Presentation::Of(q)) => match &q.zero {
+                Zero::Curve(side, c) => {
+                    assert_eq!(*side, Side::XHi, "the disc is inside the circle");
+                    assert_eq!(c.past, Some(vertex(1)), "run on past the shared arc");
+                    assert!(
+                        c.t.0 < 0.0 && 0.0 < c.t.1,
+                        "the curve's parameters straddle the vertex: {:?}",
+                        c.t
+                    );
+                }
+                other => panic!("the disc's zero is the circle: {other:?}"),
+            },
+            other => panic!("the disc is presented about (1, 0): {:?}", read(other)),
+        }
+        let everything = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1), vertex(2)],
+        };
+        let piece = Piece {
+            u: (-1.1, 1.1),
+            v: (-1.1, 1.1),
+            ..piece_on(&s, &disc, &everything, 1)
+        };
+        assert_eq!(
+            read(present_plane(&piece, &[0], &[], band())),
+            Read::Local,
+            "a cell holding both vertices"
+        );
+        let r = core::f64::consts::SQRT_2;
+        let lens = Curve3::circle(
+            Point3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+            Vec3::new(iv0(0.0), iv0(0.0), iv0(-1.0)),
+            iv0(r),
+            Vec3::new(iv0(1.0 / r), iv0(-1.0 / r), iv0(0.0)),
+        );
+        let tip = halves(true, 11, Some((lens, core::f64::consts::FRAC_PI_2)));
+        assert_eq!(
+            read(on_halves(&s, &tip, &local)),
+            Read::Structural,
+            "a corner of two circles that are not one"
+        );
+    }
+
+    /// **An arc of the same circle that does not continue the shared
+    /// arc through the vertex is not read on along it** ([`continues`]):
+    /// stored on the shared arc's own frame from `(1, 0)` over a quarter
+    /// turn, it leaves the vertex back over the shared arc; on the
+    /// opposed axis over three quarters of a turn, it continues the shared
+    /// arc and then runs back over it. Neither is read, at any depth. Red
+    /// if the reading compares the carriers alone. A lower half on a seam
+    /// (two uses) is not read either: the face would lie on both its sides.
+    #[test]
+    fn an_arc_of_one_circle_that_does_not_continue_the_shared_arc_is_not_read() {
+        let s = floor();
+        let local = both_arcs();
+        let (z, x) = (
+            Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        );
+        let quarter = core::f64::consts::FRAC_PI_2;
+        let back = halves(
+            true,
+            11,
+            Some((Curve3::circle(origin(), z, iv0(1.0), x), quarter)),
+        );
+        assert_eq!(
+            read(on_halves(&s, &back, &local)),
+            Read::Structural,
+            "an arc lying back over the shared arc"
+        );
+        let long = halves(
+            true,
+            11,
+            Some((Curve3::circle(origin(), -z, iv0(1.0), x), 3.0 * quarter)),
+        );
+        assert_eq!(
+            read(on_halves(&s, &long, &local)),
+            Read::Structural,
+            "two arcs more than a turn"
+        );
+        let mut seam = halves(true, 11, None);
+        let u = seam.edges[1].uses[0].clone();
+        seam.edges[1].uses.push(Use { plus: !u.plus, ..u });
+        assert_eq!(
+            read(on_halves(&s, &seam, &local)),
+            Read::Structural,
+            "a lower half on a seam"
+        );
+    }
+
+    /// **A curve run on past the shared cell reads only where admitted**
+    /// ([`sign_on`], [`past_read`]): against a presentation whose zero set
+    /// is on the shared cell, under a separator that lists the shared
+    /// edge. Not in the carrier arm, though the circle's cylinder vanishes
+    /// on the whole curve and departs across it; not against no partner,
+    /// nor against another curve run on past it. Red if the past curve is
+    /// read as an exact one.
+    #[test]
+    fn a_curve_past_the_shared_cell_reads_only_where_admitted() {
+        let s = floor();
+        let local = both_arcs();
+        let disc = halves(true, 11, None);
+        let Ok(Presentation::Of(p)) = on_halves(&s, &disc, &local) else {
+            panic!("the disc is presented about (1, 0)");
+        };
+        let exact = Presented {
+            surface: &s,
+            map: Map::Chart,
+            x: (1.0, 1.02),
+            y: (-0.02, 0.02),
+            zero: Zero::Side(Side::XLo, Along::of(&s, &disc, &[0])),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let (z, x, y) = (
+            Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+        );
+        let graph = Psi::Graph {
+            m: x,
+            t: y,
+            slope: iv0(0.0),
+            piece: (-1.0, 1.0),
+        };
+        let on = On {
+            edges: vec![edge(10)],
+            vertices: Vec::new(),
+            whole: false,
+        };
+        assert_eq!(
+            sign_on(&graph, Some(&on), &p, Some(&exact), band()),
+            Some(Sign::Negative),
+            "admitted"
+        );
+        let cylinder = Psi::Carrier(Implicit::Cylinder {
+            o: origin(),
+            axis: z,
+            r: iv0(1.0),
+        });
+        assert_eq!(
+            sign_on(&cylinder, None, &p, None, band()),
+            None,
+            "the carrier arm"
+        );
+        assert_eq!(
+            sign_on(&graph, Some(&on), &p, None, band()),
+            None,
+            "against no partner"
+        );
+        let twin = halves(false, 12, None);
+        let Ok(Presentation::Of(q)) = on_halves(&s, &twin, &local) else {
+            panic!("the outside is presented about (1, 0)");
+        };
+        assert_eq!(
+            sign_on(&graph, Some(&on), &p, Some(&q), band()),
+            None,
+            "against another curve run on past it"
+        );
+    }
+
+    /// **Two faces run on along one circle from both sides of the shared
+    /// arc do not certify**: the disc and the face outside the circle
+    /// share the upper arc, and each is bounded below `(1, 0)` by its own
+    /// lower arc on the same circle, so they meet along the lower half,
+    /// off the shared cell. Each is read on through the vertex, so the
+    /// pair is refused at once ([`stuck`]); red if it is not. Were a past
+    /// curve also read against another ([`past_read`]), the graph
+    /// separator would certify this pair.
+    #[test]
+    fn two_faces_run_on_along_one_circle_from_both_sides_do_not_certify() {
+        let s = floor();
+        let local = both_arcs();
+        let (disc, out) = (halves(true, 11, None), halves(false, 12, None));
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let got = certify_pair(
+            &piece_on(&s, &disc, &local, 1),
+            &piece_on(&s, &out, &local, 2),
+            &near,
+            band(),
+        );
+        assert!(
+            matches!(
+                got,
+                Outcome::Refuse(EngineRefusal::Uncertified {
+                    arm: CertificateArm::Departure,
+                    ..
+                })
+            ),
+            "the pair meets along the lower half: {got:?}"
+        );
+        let mut single = out.clone();
+        single.edges[1].key = edge(11);
+        let across = certify_pair(
+            &piece_on(&s, &disc, &local, 1),
+            &piece_on(&s, &single, &local, 2),
+            &near,
+            band(),
+        );
+        assert!(
+            matches!(across, Outcome::Refuse(..)),
+            "sharing the lower arc too, neither is read on past a shared cell: {across:?}"
+        );
+    }
+
+    /// **`one_conic` admits two carriers only as one conic**, each
+    /// component on its own: the same circle stored on the opposed axis
+    /// and another `u_ref`, and an ellipse with axis and `u_ref` both
+    /// turned over, are one; a circle moved along its axis, of another
+    /// radius, on a tilted axis, an ellipse of other semi-axes or turned
+    /// a quarter about its axis, and a circle beside an ellipse of equal
+    /// semi-axes are not; a bracketed centre is not one value even
+    /// against itself. Red if any one comparison is dropped.
+    #[test]
+    fn one_conic_compares_each_component() {
+        let p = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(y), iv0(z));
+        let v = |x: f64, y: f64, z: f64| Vec3::new(iv0(x), iv0(y), iv0(z));
+        let rim = |c: Curve3<Interval>| Rim {
+            key: edge(1),
+            arc: Some((c, (iv0(0.0), iv0(1.0)))),
+            ends: [vertex(1), vertex(2)],
+            uses: Vec::new(),
+        };
+        let circle = |o, a, r: f64, u| rim(Curve3::circle(o, a, iv0(r), u));
+        let ellipse = |o, a, su: f64, sv: f64, u| {
+            rim(Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(o, a, u),
+                iv0(su),
+                iv0(sv),
+            )))
+        };
+        let (o, z, x, y) = (p(0., 0., 0.), v(0., 0., 1.), v(1., 0., 0.), v(0., 1., 0.));
+        let c = circle(o, z, 1.0, x);
+        assert!(
+            one_conic(&c, &circle(o, v(0., 0., -1.), 1.0, y)),
+            "opposed axis"
+        );
+        assert!(
+            !one_conic(&c, &circle(p(0., 0., 1.), z, 1.0, x)),
+            "moved along its axis"
+        );
+        assert!(!one_conic(&c, &circle(o, z, 2.0, x)), "another radius");
+        assert!(
+            !one_conic(&c, &circle(o, v(0., 1., 0.), 1.0, x)),
+            "a tilted axis"
+        );
+        assert!(!one_conic(&c, &ellipse(o, z, 1.0, 1.0, x)), "an ellipse");
+        let e = ellipse(o, z, 2.0, 1.0, x);
+        assert!(
+            one_conic(&e, &ellipse(o, v(0., 0., -1.), 2.0, 1.0, v(-1., 0., 0.))),
+            "turned over"
+        );
+        assert!(
+            !one_conic(&e, &ellipse(o, z, 2.0, 1.5, x)),
+            "other semi-axes"
+        );
+        assert!(
+            !one_conic(&e, &ellipse(o, z, 2.0, 1.0, y)),
+            "a quarter turn"
+        );
+        let bracket = Point3::new(Interval::from_bounds(-1e-9, 1e-9), iv0(0.0), iv0(0.0));
+        let b = circle(bracket, z, 1.0, x);
+        assert!(!one_conic(&b, &b.clone()), "a bracketed centre");
     }
 
     /// [`present_plane`] of a [`quarter`] in the cell `u × v`, its local
