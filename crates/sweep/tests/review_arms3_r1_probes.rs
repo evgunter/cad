@@ -557,7 +557,7 @@ fn spinning_top() -> Body<f64> {
 }
 
 /// **The seam-vertex story, reproduced on a body the unit never
-/// built.** One arc of the cone×sphere rim refuses `SeamVertex` with no
+/// built.** One arc of the cone×sphere rim refuses `UnbuiltEnd::Seam` with no
 /// policy; the rim requested WHOLE gets past every corner door and
 /// CARVES — the recourse's promise, taken literally on a second
 /// pole-touching body.
@@ -574,7 +574,7 @@ fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_carves() {
                 "the recourse names the request: {text}"
             );
         }
-        other => panic!("one arc refuses SeamVertex, got {other:?}"),
+        other => panic!("one arc refuses its seam tag, got {other:?}"),
     }
     // The recourse's request, taken literally: past the seam and
     // through the closed-rim door, as one annulus over both arcs.

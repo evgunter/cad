@@ -7,8 +7,8 @@
 //! a fillet at right angles, removed past a convex pair and filled past
 //! a concave one. The odd edge requested with one other edge there
 //! chamfers, the other strip cut off in the odd strip's plane
-//! (`band_mixed_corner_odd_plus_one`), and refuses the fillet
-//! `MixedConvexity`; all three build the mixed corner
+//! (`band_mixed_corner_odd_plus_one`), and refuses the fillet's
+//! run-out (`UnbuiltEnd::RunOut`); all three build the mixed corner
 //! (`band_mixed_corner`).
 //!
 //! The section a band takes from (or adds to) a right dihedral is
@@ -52,7 +52,7 @@ fn l_bar<T: geom_core::Decide + topo::AtRestPolicy>() -> Body<T> {
 /// standing to z = 2, its low side at `x = inset` (flush with the
 /// plate's `x = 0` side at `inset = 0`). Each vertex where the boss
 /// meets the plate mixes convexity.
-fn plate_boss(inset: f64) -> Body<f64> {
+pub(crate) fn plate_boss(inset: f64) -> Body<f64> {
     let plate = prism_at(
         corners(&[(0.0, 0.0), (6.0, 0.0), (6.0, 4.0), (0.0, 4.0)]),
         0.0,

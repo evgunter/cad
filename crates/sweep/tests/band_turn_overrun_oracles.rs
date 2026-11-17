@@ -1184,7 +1184,7 @@ fn a_short_near_edge_refuses_foot_inside_a_face_where_the_overrun_fits() {
         match chamfered(&p.body, &p.edges(&TURN), D, &what) {
             Err(e) => assert!(
                 foot_inside_a_face(&e),
-                "{what}: refuses FOOT_INSIDE_A_FACE, got {e_at}",
+                "{what}: refuses FootInsideAFace, got {e_at}",
                 e_at = e.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(_) => panic!(
@@ -1227,7 +1227,7 @@ fn a_short_near_edge_refuses_foot_inside_a_face_where_the_overrun_fits() {
             match turn {
                 Err(e) => assert!(
                     foot_inside_a_face(&e),
-                    "{what}: refuses FOOT_INSIDE_A_FACE, got {e_at}",
+                    "{what}: refuses FootInsideAFace, got {e_at}",
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 ),
                 Ok(_) => panic!(

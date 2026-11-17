@@ -20,7 +20,7 @@ use geom::{Curve3, Surface};
 use geom_core::RigidMotion;
 use geom_core::{Bounds, CertifiedBounds, Decide, Point2, Point3, Real, Tol};
 use profile::SketchPlane;
-use sweep::blend::battery::END_FACE_CURVED;
+use sweep::blend::END_FACE_CURVED;
 use sweep::blend::build::{Blended, fillet_edges};
 use sweep::blend::{BlendError, UnbuiltEnd};
 use sweep::chamfer::chamfer_edges;

@@ -44,7 +44,7 @@
 //!    station `dihedral_wedge` and on a corner the blend's own
 //!    `fillet3_convexity_sign`, on a tangency `material_wedge_side` and
 //!    the end the blend's own `fillet3_knife_end`
-//! 6. [`battery::corner_config`] — `fillet3_corner_independence`; and,
+//! 6. [`battery::corner_independence`] — `fillet3_corner_independence`; and,
 //!    at a RULED link's end, [`battery::cap_transverse`] —
 //!    `fillet3_cap_transverse`, the same predicate's classification of
 //!    the termination a ruled band has (a plane cap, not a corner):
@@ -941,7 +941,7 @@ impl UnbuiltEnd {
     pub fn recourse(self) -> &'static str {
         match self {
             Self::Seam { .. } => FILLET3_SEAM_VERTEX_RECOURSE,
-            Self::DependentNormals { .. } => BlendDecision::CornerIndependence.lever(),
+            Self::DependentNormals { .. } => FILLET3_DEPENDENT_NORMALS_RECOURSE,
             Self::FeetCross { .. } => FEET_CROSS_RECOURSE,
             Self::FootInsideAFace { .. } => FOOT_INSIDE_A_FACE_RECOURSE,
             Self::RunOut { odd: Some(_), .. } => FILLET3_MIXED_CORNER_RECOURSE,
@@ -973,10 +973,20 @@ impl fmt::Display for UnbuiltEnd {
                 "an edge at a band's end does not resolve as a link of this blend, so the \
                  end's configuration cannot be read"
             ),
-            Self::CurvedEndFace { .. } => f.write_str(battery::END_FACE_CURVED),
-            Self::FootInsideAFace { .. } => f.write_str(open::end_face::FOOT_INSIDE_A_FACE),
-            Self::FeetCross { .. } => f.write_str(FEET_CROSS),
-            Self::RunOut { odd: None, .. } => f.write_str(battery::PARTIAL_TANGENT_RUN),
+            Self::CurvedEndFace { .. } => f.write_str(END_FACE_CURVED),
+            // A cut-off whose trimline runs past the end face's rim into
+            // the support: a band running into a wall or a step.
+            Self::FootInsideAFace { .. } => f.write_str(
+                "the band's trimline meets its end face's plane past the rim, so its foot \
+                 lands inside a face",
+            ),
+            // Two cut-offs' feet on the rim they share, or a straight
+            // link's two ends' feet along it.
+            Self::FeetCross { .. } => f.write_str(
+                "two band ends set their feet along one edge, which is too short for them: \
+                 the feet cross or coincide",
+            ),
+            Self::RunOut { odd: None, .. } => f.write_str(PARTIAL_TANGENT_RUN),
             Self::RunOut { odd: Some(_), .. } => {
                 f.write_str("the band would stop where its edge runs smoothly into a cut-off arc")
             }
@@ -984,11 +994,18 @@ impl fmt::Display for UnbuiltEnd {
     }
 }
 
-/// The text of [`UnbuiltEnd::FeetCross`], at either of its sites: two
-/// cut-offs' feet on the rim they share, and a straight link's two ends'
-/// feet along it.
-pub(crate) const FEET_CROSS: &str = "two band ends set their feet along one edge, which is \
-     too short for them: the feet cross or coincide";
+/// The text of [`UnbuiltEnd::RunOut`] without an odd edge: part of a
+/// tangent run, the band stopping where its edge runs on smoothly into
+/// the next edge of its outline, which the request leaves out
+/// (`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`).
+/// The tag names that edge, and the recourse asks for the whole run.
+pub const PARTIAL_TANGENT_RUN: &str = "the band would stop where its edge runs smoothly on into \
+     an edge the request leaves out, against a face tangent to its support";
+
+/// The text of [`UnbuiltEnd::CurvedEndFace`]: a straight band — either
+/// open band — ending at a curved end face.
+pub const END_FACE_CURVED: &str = "a straight blend would have to stop against a curved \
+     face, which is not supported yet; it can stop against a flat face";
 
 /// The recourse sentence for every radius/curvature situation (D4 ¶1
 /// addendum: one recourse per user situation, shared by the definite
@@ -1176,14 +1193,25 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner,
 /// it (`band_mixed_corner_odd_plus_one`).
 pub const FEET_CROSS_RECOURSE: &str = "the size is too large for this edge: use a smaller size, \
      or a longer edge, so the band ends' feet along it stand apart";
-/// The recourse of [`UnbuiltEnd::FootInsideAFace`]. A band's feet stand
+/// The recourse of [`UnbuiltEnd::FootInsideAFace`]: the requests that
+/// close the end instead. Every edge at the vertex ends the band in the
+/// corner patch, or at a corner whose edges round both ways in the mixed
+/// corner; there, where the shared face leans, the odd edge alone builds,
+/// and a pair edge's foot leaves the rim at any size. A band's feet stand
 /// off its vertex in proportion to its size, so a smaller one draws feet
-/// that stand just past the rim back onto it; feet that leave the rim at
-/// any size (a pair edge alone at a corner whose edges round both ways)
-/// want an end face the trimlines cross within its rim.
-pub const FOOT_INSIDE_A_FACE_RECOURSE: &str = "end the band at a flat face its trimlines cross \
-     within that face's rim; where its feet stand just past the rim, a smaller size draws them \
-     back onto it";
+/// that stand just past the rim back onto it. Held to it by
+/// `blend_recourse_followability::the_foot_inside_a_face_recourse_names_a_request_that_builds`.
+pub const FOOT_INSIDE_A_FACE_RECOURSE: &str = "request every edge at the vertex where the band \
+     ends, or, at a corner whose edges round both ways, the edge rounding unlike the other two \
+     alone; where its feet stand just past the rim, a smaller size draws them back onto it";
+/// The recourse of [`UnbuiltEnd::DependentNormals`]: the faces' lean is
+/// the one lever that reaches a decided-dependent trihedron at every
+/// site that reads it. The battery's reading levers `|det(n₁, n₂, n₃)|`
+/// at the size, but the reach's unitless read of an end face tangent to
+/// the spine does not, so no size advice is offered here; the in-band
+/// arm keeps its own ([`FILLET3_CORNER_INDEPENDENCE_RECOURSE`]).
+pub const FILLET3_DEPENDENT_NORMALS_RECOURSE: &str = "tilt the faces meeting at the corner so \
+     that no one line lies parallel to all three";
 
 /// The recourse at a corner whose edges round both ways, requested in a
 /// way that does not build ([`UnbuiltEnd::RunOut`] with its odd edge), or
@@ -1201,9 +1229,9 @@ pub const FOOT_INSIDE_A_FACE_RECOURSE: &str = "end the band at a flat face its t
 /// 120° and on an oblique `E` by
 /// `band_mixed_corner_odd_plus_one::the_mixed_corner_recourse_builds_where_it_says`.
 pub const FILLET3_MIXED_CORNER_RECOURSE: &str = "blend the edge that rounds the other way alone, \
-     or the two that round alike where the face they share is square to it; where the faces are \
-     also flat, blend all three, or bevel that edge with one other; it cannot round with one \
-     other (a band would stop mid-run)";
+     or the two that round alike where the face they share is square to it; where that face is \
+     square and all are flat, blend all three, or bevel that edge with one other; it cannot round \
+     with one other (a band would stop mid-run)";
 /// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third
@@ -1222,8 +1250,7 @@ pub const FILLET3_TURN_RECOURSE: &str = "make the two bands' feet on the vertex'
 /// kind, plainly.
 pub const FILLET3_CAP_TILT_RECOURSE: &str = "square the end face to the edge, where the band ends \
      in a circle, or tilt it clearly off square, where the band ends in an ellipse";
-/// The lever of `fillet3_corner_independence`, shared by its in-band
-/// arm and its decided-Zero one ([`UnbuiltEnd::DependentNormals`]).
+/// The lever of `fillet3_corner_independence`'s in-band arm.
 ///
 /// The corner it is read at is already trivalent and requested as some
 /// end builds it, so the corner sentence's configuration clause is
@@ -1237,7 +1264,7 @@ pub const FILLET3_CORNER_INDEPENDENCE_RECOURSE: &str = "tilt the faces meeting a
 /// smooth rim.
 ///
 /// It names the REQUEST that describes what the caller wants — the rim
-/// entire, which is a closed chain — rather than a run-out policy,
+/// entire, which is a closed chain — rather than a run-out,
 /// because a run-out at a smooth point is not what is missing, and it
 /// names the DOOR that produces it — the rim query, by its API name
 /// `rim_of` (`topo::query::rim_of`), since no user-facing verb wraps it
@@ -2390,7 +2417,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 30] = [
+pub const ALL_RECOURSES: [(&str, &str); 31] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("contact-arm", FILLET3_CONTACT_ARM_RECOURSE),
@@ -2421,6 +2448,7 @@ pub const ALL_RECOURSES: [(&str, &str); 30] = [
     ("chamfer-arm", CHAMFER_ARM_RECOURSE),
     ("feet-cross", FEET_CROSS_RECOURSE),
     ("foot-inside", FOOT_INSIDE_A_FACE_RECOURSE),
+    ("dependent-normals", FILLET3_DEPENDENT_NORMALS_RECOURSE),
 ];
 
 #[cfg(test)]

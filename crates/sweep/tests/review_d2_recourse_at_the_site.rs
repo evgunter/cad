@@ -63,7 +63,7 @@ fn only_recourse(err: &BlendError, expect: Option<&str>, what: &str) {
 }
 
 /// **The finding's own complaint, through the front door.** An edge
-/// ending at a curved end face is a run-out. Before #740 the user was
+/// ending at a curved end face is an unbuilt end. Before #740 the user was
 /// handed the ASSEMBLY recourse for a run-out. This row goes red if any
 /// site on that path ever re-attaches it.
 #[test]
@@ -75,7 +75,7 @@ fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
         R,
         Tol::witness(),
     )
-    .expect_err("an edge ending at a curved end face is a run-out");
+    .expect_err("an edge ending at a curved end face is an unbuilt end");
     assert!(
         matches!(err.error, BlendError::UnbuiltEnd(_)),
         "expected a corner frontier, got {err:?}"

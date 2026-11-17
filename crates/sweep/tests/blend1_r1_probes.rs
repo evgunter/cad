@@ -323,7 +323,7 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
 /// the ladder's struts.
 ///
 /// The composed pin the seam-vertex family owes: one arc alone refuses
-/// at a `SeamVertex` (the mate's seam cut the rim; the plane carries
+/// at a `UnbuiltEnd::Seam` (the mate's seam cut the rim; the plane carries
 /// both arcs and has no seam), and the whole-rim request that refusal
 /// names is then followed to a carve here. Both halves matter — a
 /// recourse that names a door has to reach one.
@@ -394,7 +394,7 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
 /// **Adding a seam meridian to the whole-rim request refuses at the
 /// battery**, before any door: the seam is a co-surface tangency at
 /// margin exactly zero (the wall-6 shape). So neither a subset (the
-/// `SeamVertex` rows) nor a superset of the rim's arcs reaches the
+/// `UnbuiltEnd::Seam` rows) nor a superset of the rim's arcs reaches the
 /// carve — only the rim itself.
 #[test]
 fn p5_the_rim_arcs_plus_a_seam_meridian_carve_the_rim_and_leave_the_seam() {

@@ -1031,61 +1031,28 @@ pub fn chain_g1<T: Decide + Bounds>(
 // Predicate 6 — corner configuration.
 // ---------------------------------------------------------------
 
-/// **`fillet3_corner_independence`** — is a chain termination a vertex
-/// the corner patch can be built at (OQ6): a valence-three vertex whose
-/// three support normals are definitely independent?
+/// **`fillet3_corner_independence`** — are a trivalent chain end's
+/// three face normals definitely independent?
 ///
-/// Margin: `|det(n₁, n₂, n₃)|·r` in METERS at lever arm `r`. The
-/// determinant is what makes the corner ball's centre a well-posed
-/// solve (`c` is the unique point at distance `r` inside all three
-/// planes); at a dependent trihedron the three distance conditions do
-/// not determine a centre and no sphere octant exists.
-///
-/// The valence is a COMBINATORIAL fact, so it is decided before any
-/// margin and reported with its own tag.
-///
-/// # What this predicate does NOT decide
+/// Margin: `|det(n₁, n₂, n₃)|·r` in METERS at lever arm `r`, the blend's
+/// radius. The determinant is what makes the corner ball's centre a
+/// well-posed solve (`c` is the unique point at distance `r` inside all
+/// three planes); at a dependent trihedron the three distance conditions
+/// do not determine a centre and no sphere octant exists. A ruled cap at
+/// an oblique end face reads it too ([`corner_at`]), where dependent
+/// normals are the cap nearly containing the ruling.
 ///
 /// It reads the CORNER and nothing about the request or its verb. A
-/// UNIFORM trihedron — three edges of one convexity — is one
-/// configuration whichever side of the material it is on, and the patch
-/// carves it on both, for both verbs: the chamfer's ruled strip and flat
-/// patch take no convexity argument, and the rolling ball's corner — its
-/// ball, its contact feet, its octant chart — folds the side as one
-/// verdict. Which requests a MIXED corner builds is [`corner_at`]'s
-/// reading, not this predicate's.
-///
-/// # Errors
-///
-/// [`BlendError::UnbuiltEnd`] ([`UnbuiltEnd::Valence`],
-/// [`UnbuiltEnd::DependentNormals`]); [`BlendError::Escalated`] on an
-/// in-band determinant.
-pub fn corner_config<T: Decide + Bounds>(
-    vertex: VertexKey,
-    valence: usize,
-    normals: [Vec3<T>; 3],
-    radius: T,
-    band: Band,
-) -> Result<(), BlendError> {
-    if valence != 3 {
-        return Err(unbuilt_end(UnbuiltEnd::Valence { vertex, valence }));
-    }
-    corner_independence(vertex, normals, radius, band)
-}
-
-/// **`fillet3_corner_independence`** at a trivalent vertex: its three
-/// face normals are independent, margin `|det(n₁, n₂, n₃)|` levered at
-/// the blend's radius, the radius of curvature its carriers state. A
-/// plane–plane end reads it inside
-/// [`corner_config`]; a ruled cap at an oblique end face reads it alone
-/// ([`corner_at`]), where dependent normals are the cap nearly
-/// containing the ruling.
+/// UNIFORM trihedron is one configuration whichever side of the material
+/// it is on, and the patch carves it on both, for both verbs. Which
+/// requests a MIXED corner builds is [`corner_at`]'s reading, and the
+/// valence is decided there before any margin.
 ///
 /// # Errors
 ///
 /// [`BlendError::UnbuiltEnd`] ([`UnbuiltEnd::DependentNormals`]) on a
 /// non-positive margin; [`BlendError::Escalated`] in band.
-fn corner_independence<T: Decide>(
+pub fn corner_independence<T: Decide>(
     vertex: VertexKey,
     normals: [Vec3<T>; 3],
     radius: T,
@@ -2468,19 +2435,6 @@ fn is_seam_vertex<T: Decide>(
     }
 }
 
-/// The text of [`UnbuiltEnd::RunOut`] without an odd edge: a request
-/// that stops where its edge runs on smoothly into an edge it does not
-/// name: part of a tangent run
-/// (`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`).
-/// Its recourse asks for the whole run.
-pub const PARTIAL_TANGENT_RUN: &str = "the request stops where its edge runs smoothly into an \
-     unrequested one, against a face tangent to its support";
-
-/// The text of [`UnbuiltEnd::CurvedEndFace`]: a straight band — either
-/// open band — ending at a curved end face.
-pub const END_FACE_CURVED: &str = "a straight blend would have to stop against a curved \
-     face, which is not supported yet; it can stop against a flat face";
-
 /// **What a band's plane end face cuts from it**: a chord from a plane
 /// band, and from a cylinder band the kind [`cap_transverse`] picked —
 /// one kind per configuration (D3).
@@ -3140,11 +3094,14 @@ fn corner_at<T: Decide + Bounds>(
     if valence != 3 {
         return refuse(UnbuiltEnd::Valence { vertex, valence });
     }
-    // A request that stops where its edge runs on smoothly: an edge at
-    // the end it does not name meets one of the link's supports
-    // smoothly, so the outline runs on past the end, tangentially, and
-    // the band would stop against a face tangent to its own support.
-    // That is the end's situation whatever the link's arm, and it is
+    // A request that stops where its edge runs on smoothly: a smooth
+    // edge at the end (a tangency seam, which no request carries) meets
+    // one of the link's supports, so the outline runs on past the end,
+    // tangentially, and the band would stop against a face tangent to its
+    // own support. The edge the run goes on into is the vertex's third,
+    // between the link's other support and the tangent face, and that is
+    // the edge the refusal names: the one whose request carries the band
+    // on. That is the end's situation whatever the link's arm, and it is
     // read before anything a cut-off or a corner would read.
     for e in edges.iter().filter(|e| !requested.contains(e)) {
         if let Ok(Resolved::Smooth(..)) = resolve_link(body, *e, radius, band, kind) {
@@ -3156,9 +3113,21 @@ fn corner_at<T: Decide + Bounds>(
             })?;
             let (f, g) = sides.faces();
             if [f, g].iter().any(|&x| x == link.face_a || x == link.face_b) {
+                let Some(&next) = edges.iter().find(|&&x| x != link.edge && x != *e) else {
+                    return Err(invariant_broken(
+                        EntityId::Vertex(vertex),
+                        "a trivalent chain end carries no third edge beside its link and seam",
+                    ));
+                };
+                if requested.contains(&next) {
+                    return Err(invariant_broken(
+                        EntityId::Edge(next),
+                        "a chain ends where its run goes on smoothly into a requested edge",
+                    ));
+                }
                 return refuse(UnbuiltEnd::RunOut {
                     vertex,
-                    unrequested: *e,
+                    unrequested: next,
                     odd: None,
                 });
             }
@@ -3290,7 +3259,7 @@ fn corner_at<T: Decide + Bounds>(
                 }),
             });
         }
-        _ => corner_config(vertex, valence, normals, radius, band)?,
+        _ => corner_independence(vertex, normals, radius, band)?,
     }
     if !plane_plane {
         return Ok(None);

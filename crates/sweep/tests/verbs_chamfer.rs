@@ -333,7 +333,7 @@ fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
 /// in the top face and that edge's strip in its plane, adding `(2/3)d³`
 /// (`band_mixed_corner_odd_plus_one`). Where the face the two convex
 /// edges share leans off square to the odd edge, the request refuses
-/// with the corner's configuration tag, naming no run-out policy.
+/// `ObliqueMixedCorner`, naming the odd edge.
 #[test]
 fn an_l_brackets_inner_edge_is_cut_off_and_chamfers_with_a_convex_neighbour() {
     let tol = Tol::witness();

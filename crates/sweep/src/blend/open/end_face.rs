@@ -57,12 +57,6 @@ use crate::blend::surgery::{
 };
 use crate::blend::{BlendDecision, BlendError, BlendSite, UnbuiltEnd, classify};
 
-/// The text of [`UnbuiltEnd::FootInsideAFace`]: a cut-off whose foot
-/// does not land inside its rim's span: the trimline runs past the end face's rim into the support,
-/// which is a band running into a wall or a step.
-pub(in crate::blend) const FOOT_INSIDE_A_FACE: &str = "a straight band's trimline meets the end \
-     face's plane past its rim, so its foot lands inside a face rather than on that rim";
-
 /// The band's section by the end face, between the two feet.
 #[derive(Clone)]
 pub(in crate::blend) enum EndCurve<T: Real> {
@@ -114,7 +108,7 @@ impl<T: Decide + Bounds> EndCut<T> {
     /// # Errors
     ///
     /// [`BlendError::UnbuiltEnd`] when a foot does not land
-    /// inside its rim's span ([`FOOT_INSIDE_A_FACE`]);
+    /// inside its rim's span ([`UnbuiltEnd::FootInsideAFace`]);
     /// [`BlendError::UnsupportedGeometry`] when a rim carries no
     /// certified line, circle or ellipse, or a round section has no
     /// cylinder band;
@@ -977,7 +971,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
 
 /// **Where a foot lands on its rim**: the parameter the carve splits the
 /// rim at, strictly inside the rim's stored span — or the one refusal
-/// for a foot that is not ([`FOOT_INSIDE_A_FACE`]), read at the plan on
+/// for a foot that is not ([`UnbuiltEnd::FootInsideAFace`]), read at the plan on
 /// the source rim and again by the carve on the live one. Between the
 /// two reads the only thing that changes a rim is another cut-off's
 /// split from its other end, which [`shared_rims_clear`] meters first.

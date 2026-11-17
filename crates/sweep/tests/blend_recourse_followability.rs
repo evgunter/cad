@@ -60,7 +60,7 @@ use crate::common::operands::half_round_end;
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
-use sweep::blend::battery::corner_config;
+use sweep::blend::battery::corner_independence;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
     ALL_RECOURSES, BlendDecision, BlendError, CHAMFER_ARM_RECOURSE, FILLET3_ASSEMBLY_RECOURSE,
@@ -739,7 +739,7 @@ fn fillet_turn_recourse_at_a_box_corner() {
 /// uniform trivalent corner needs three faces all nearly parallel to
 /// one line — two faces nearly coplanar, or the apex of a tall, sharp
 /// three-sided pyramid — and no builder these rows use mints either. So
-/// the row runs the classifier both doors run (`battery::corner_config`)
+/// the row runs the classifier both doors run (`battery::corner_independence`)
 /// on such a trihedron, reads the refusal it carries, and executes each
 /// lever the sentence names on the same corner: a face tilted clear, a
 /// larger blend size, and the tolerance the ending offers.
@@ -753,7 +753,7 @@ fn the_corner_independence_recourse_is_followed_by_each_of_its_levers() {
     let t = (band.zero() + band.escalate()) / 2.0;
     let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
     let near = [x, y, Vec3::new((1.0 - t * t).sqrt(), 0.0, t)];
-    let err = corner_config(vertex, 3, near, 1.0, band).unwrap_err();
+    let err = corner_independence(vertex, near, 1.0, band).unwrap_err();
     assert!(
         matches!(
             err,
@@ -770,10 +770,10 @@ fn the_corner_independence_recourse_is_followed_by_each_of_its_levers() {
         "{text}"
     );
     // The faces tilted clear of one line.
-    corner_config(vertex, 3, [x, y, Vec3::new(0.0, 0.0, 1.0)], 1.0, band)
+    corner_independence(vertex, [x, y, Vec3::new(0.0, 0.0, 1.0)], 1.0, band)
         .expect("an orthonormal corner passes");
     // A larger size, which the margin grows with.
-    corner_config(vertex, 3, near, 2.0 * k, band).expect("the same corner at a larger size");
+    corner_independence(vertex, near, 2.0 * k, band).expect("the same corner at a larger size");
     // The tolerance the ending names, at the margin's own value.
     let offered: f64 = text
         .split_once("tighten the tolerance below ")
@@ -782,7 +782,7 @@ fn the_corner_independence_recourse_is_followed_by_each_of_its_levers() {
         .unwrap_or_else(|| panic!("the ending offers a valued tolerance: {text}"));
     assert_eq!(offered, t / k, "{text}");
     let tighter = Band::new(offered / 2.0, offered / 2.0 * k).unwrap();
-    corner_config(vertex, 3, near, 1.0, tighter).expect("decided passing below the offer");
+    corner_independence(vertex, near, 1.0, tighter).expect("decided passing below the offer");
 }
 
 /// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
@@ -1608,4 +1608,87 @@ fn a_blind_hole_from_the_support_face_inside_the_region_goes_with_the_band() {
             "a blind hole from the support face",
         );
     }
+}
+
+/// **`FOOT_INSIDE_A_FACE_RECOURSE` names a request that builds at each
+/// site it is read at.** The inset boss's root edge alone, a pair edge
+/// of a corner whose edges round both ways, puts its foot inside the odd
+/// edge's face at any size: adding every edge at the vertex where it
+/// refused, step by step, builds the corner's mixed outline. On the leaning corner, where that would be
+/// oblique, the pair edge alone refuses the same and the odd edge alone
+/// builds. And a wedge's edge whose feet stand just past its end face's
+/// rim builds at a smaller size.
+#[test]
+fn the_foot_inside_a_face_recourse_names_a_request_that_builds() {
+    let foot_inside = |err: &BlendError, what: &str| {
+        let BlendError::UnbuiltEnd(UnbuiltEnd::FootInsideAFace { vertex }) = *err else {
+            panic!("{what}: a foot inside a face, got {err:?}");
+        };
+        carries(err, sweep::blend::FOOT_INSIDE_A_FACE_RECOURSE, what);
+        vertex
+    };
+    let inset = crate::band_mixed_vertex::plate_boss(1.0);
+    let root = crate::band_planar_cut_off::edge(&inset, [1.0, 0.5, 0.5], [1.5, 0.5, 0.5]);
+    for size in [0.1, 0.02] {
+        // Followed: each refusal's vertex, its every edge added, moves the
+        // refusal on along the outline or builds.
+        let mut request = vec![root];
+        let mut steps = 0;
+        loop {
+            let got = fillet_edges(
+                &sweep::test_support::at_rest(&inset, tol()),
+                &request,
+                size,
+                tol(),
+            )
+            .map_err(|r| r.error);
+            let Err(err) = got else { break };
+            let vertex = foot_inside(&err, "the inset boss's root edge, followed");
+            let before = request.len();
+            for e in inset.edges_of_vertex(vertex).expect("the vertex's edges") {
+                if !request.contains(&e) {
+                    request.push(e);
+                }
+            }
+            assert!(request.len() > before, "each step adds an edge, at {size}");
+            steps += 1;
+            assert!(
+                steps <= 6,
+                "the request builds within the corner's outline, at {size}"
+            );
+        }
+        builds(
+            &inset,
+            &request,
+            size,
+            "every edge at each vertex where the band ended",
+        );
+    }
+
+    let leaning = crate::band_mixed_corner::leaning();
+    let [odd, up] = crate::band_mixed_corner::leaning_odd_and_one(&leaning);
+    let err = refusal(
+        &leaning,
+        &[up],
+        0.1,
+        "the leaning corner's pair edge alone",
+        false,
+    );
+    foot_inside(&err, "the leaning corner's pair edge alone");
+    builds(
+        &leaning,
+        &[odd],
+        0.1,
+        "the edge rounding unlike the other two alone",
+    );
+
+    let wedge = prism(
+        vec![v(0.0, 0.0, 0.0), v(2.0, 0.0, 0.0), v(1.9, 0.05, 0.0)],
+        1.0,
+        tol(),
+    );
+    let edge = crate::band_planar_cut_off::edge(&wedge, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let err = refusal(&wedge, &[edge], 0.2, "the wedge's edge", false);
+    foot_inside(&err, "the wedge's edge");
+    builds(&wedge, &[edge], 0.02, "the wedge's edge at a smaller size");
 }

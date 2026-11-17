@@ -323,8 +323,8 @@ fn straight_edges_meter_bit_identically_to_the_endpoint_chord() {
 ///
 /// The legs no longer end in one place, and where they part is the
 /// finding: the CLOSED rim is a one-edge band the cylinder×cone arm
-/// builds, and the OPEN arc terminates at the revolve's seam-meridian
-/// vertices, whose corner configuration is unimplemented. Both are
+/// builds, and the OPEN arc ends at the revolve's cut faces, where an
+/// open chain's curved link has no built end (`UnsupportedChain`). Both are
 /// decisions taken after the dihedral was classified — which is the
 /// claim this row exists for, and it is asserted directly rather than
 /// through the class agreement that used to stand in for it (agreement

@@ -512,9 +512,12 @@ fn a_torus_link_at_an_open_chains_end_refuses_at_the_open_door() {
 /// where the request stops while its edge runs on smoothly into one it
 /// does not name, whatever the arm of the link that stops there
 /// (`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`):
-/// the rounded plate's run of line, arc and line requested alone, and
-/// the L-plate's line alone, line and arc, and arc alone. The recourse
-/// names the whole smooth run.
+/// the rounded plate's run of line, arc and line requested alone, the
+/// L-plate's line alone, line and arc, and arc alone, and a stadium's
+/// line alone. The refusal names exactly the edge the run goes on into —
+/// the next top edge of the outline at the refusing vertex, never the
+/// vertical tangency seam beside it — and its recourse names the whole
+/// smooth run. Following `edge()` one edge at a time builds the run.
 #[test]
 fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
     let q = (FRAC_PI_2 / 4.0).tan();
@@ -535,6 +538,16 @@ fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
         0.5,
     );
     let l = l_plate::<f64>();
+    let stadium = outline::<f64>(
+        &[
+            (0.0, 0.0, 0.0),
+            (2.0, 0.0, 1.0),
+            (2.0, 1.0, 0.0),
+            (0.0, 1.0, 1.0),
+        ],
+        0.0,
+        0.5,
+    );
     let rows = [
         (
             "rounded plate's run",
@@ -564,27 +577,45 @@ fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
             edges_at(&l, 0.5, |x, y| x > 1.5 && x < 1.99 && y > 1e-9 && y < 0.9),
             1,
         ),
+        (
+            "stadium's line",
+            &stadium,
+            edges_at(&stadium, 0.5, |_, y| y.abs() < 1e-9),
+            1,
+        ),
     ];
     for (what, body, run, n) in rows {
         assert_eq!(run.len(), n, "{what}: the request");
         let got = fillet_edges(&at_rest(body, tol()), &run, 0.1, tol()).map_err(|r| r.error);
         let Err(
             e @ BlendError::UnbuiltEnd(UnbuiltEnd::RunOut {
+                vertex,
                 unrequested,
                 odd: None,
-                ..
             }),
         ) = &got
         else {
             panic!("{what}: a part of a smooth outline refuses at its tangent end, got {got:?}");
         };
-        assert!(
-            !run.contains(unrequested) && e.edge() == Some(*unrequested),
-            "{what}: the refusal names the edge the tangent run goes on into"
+        // The next top edge at the refusing vertex: one of the outline's
+        // own edges, not in the request, and the only such edge there.
+        let top = edges_at(body, 0.5, |_, _| true);
+        let next: Vec<EdgeKey> = top
+            .iter()
+            .copied()
+            .filter(|t| !run.contains(t))
+            .filter(|&t| {
+                body.edge_vertices(t)
+                    .is_some_and(|(a, b)| a == *vertex || b == *vertex)
+            })
+            .collect();
+        assert_eq!(
+            (next.as_slice(), e.edge()),
+            ([*unrequested].as_slice(), Some(*unrequested)),
+            "{what}: the refusal names exactly the edge the tangent run goes on into"
         );
         assert!(
-            e.to_string()
-                .contains(sweep::blend::battery::PARTIAL_TANGENT_RUN),
+            e.to_string().contains(sweep::blend::PARTIAL_TANGENT_RUN),
             "{what}: the refusal names the tangent run requested in part"
         );
         let shown = e.to_string();
@@ -592,5 +623,28 @@ fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
             shown.contains("requesting its whole smooth run"),
             "{what}: {shown}"
         );
+        // Followed: each refusal's edge, added, moves the refusal or
+        // builds, until the run is whole.
+        let mut request = run.clone();
+        let whole = top.len();
+        loop {
+            match fillet_edges(&at_rest(body, tol()), &request, 0.1, tol()).map_err(|r| r.error) {
+                Ok(_) => break,
+                Err(e) => {
+                    let Some(next) = e.edge() else {
+                        panic!("{what}: following the run-out met {e:?}");
+                    };
+                    assert!(
+                        matches!(
+                            e,
+                            BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { odd: None, .. })
+                        ) && !request.contains(&next),
+                        "{what}: each step names a new edge of the run, got {e:?}"
+                    );
+                    request.push(next);
+                    assert!(request.len() <= whole, "{what}: the run is whole by now");
+                }
+            }
+        }
     }
 }

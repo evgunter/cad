@@ -532,7 +532,7 @@ pub(super) fn record<T: Real>(
 /// trim's window ends, so it is not read here. Nor is a turn's `Mitre`
 /// station, the trimlines' crossing on the shared face: a link too short
 /// for it lands that foot past its far end, which the cut-off's foot
-/// door refuses (`end_face::FOOT_INSIDE_A_FACE`), and a mitre chord that
+/// door refuses (`UnbuiltEnd::FootInsideAFace`), and a mitre chord that
 /// crosses a far foot on a long link is the strip screen's, which reads
 /// the face first (`blend_band_reach_chain_ends`'s trapezoid row refuses
 /// `FaceClearanceUncertified` there, and would refuse here instead).

@@ -1,4 +1,4 @@
-//! **Where `SeamVertex` fires with ONE co-surface seam, and where it
+//! **Where `UnbuiltEnd::Seam` fires with ONE co-surface seam, and where it
 //! does not.** A full revolve sweeps a planar wall whole, so a latitude
 //! rim between that disc and a curved wall split at its seam has one
 //! seam meridian at each crossing, not two. The one-seam reading of
@@ -26,7 +26,7 @@ fn tol() -> Tol {
 
 /// The lantern's base rim (plane disc × unit sphere at radius 1,
 /// station 0): the disc is whole, the sphere zone two half-bands, so
-/// each crossing has ONE seam. One arc of it refuses `SeamVertex`, and
+/// each crossing has ONE seam. One arc of it refuses `UnbuiltEnd::Seam`, and
 /// the rim the recourse names is there — two arcs, closing.
 #[test]
 fn one_arc_of_a_whole_disc_rim_refuses_seam_vertex() {
@@ -46,7 +46,7 @@ fn one_arc_of_a_whole_disc_rim_refuses_seam_vertex() {
     .map_err(|r| r.error)
     {
         Err(BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::Seam { .. })) => {}
-        other => panic!("one arc of a closed rim refuses SeamVertex, got {other:?}"),
+        other => panic!("one arc of a closed rim refuses its seam tag, got {other:?}"),
     }
 }
 

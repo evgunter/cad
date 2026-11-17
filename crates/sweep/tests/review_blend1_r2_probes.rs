@@ -533,7 +533,7 @@ fn a_cylinder_capped_both_ends_carves_both_seam_split_rims() {
     );
 }
 
-/// **The `SeamVertex` recourse names a door that answers.** At a site
+/// **The `UnbuiltEnd::Seam` recourse names a door that answers.** At a site
 /// where the tag fires — one arc of a capped cylinder's base rim — the
 /// request the recourse names ("the rim whole") must then CARVE, which
 /// is the standard the A3-2 correction set and the thing this PR

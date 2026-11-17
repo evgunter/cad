@@ -255,7 +255,7 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
     out.push((
         "fillet run-out",
         fillet_edges(&sweep::test_support::at_rest(&round, t), &[end], D, t)
-            .expect_err("a curved end face is a run-out")
+            .expect_err("a curved end face is an unbuilt end")
             .error,
     ));
     out.push((
@@ -306,7 +306,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     out.push((
         "run-out",
         chamfer_edges(&sweep::test_support::at_rest(&round, t), &[end], D, t)
-            .expect_err("a curved end face is a run-out")
+            .expect_err("a curved end face is an unbuilt end")
             .error,
     ));
     let (leaning, turn) = crate::common::operands::leaning_turn_in_band(t);

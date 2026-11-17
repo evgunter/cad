@@ -14,7 +14,7 @@ use geom_core::{Point2, Point3, Sign, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::battery::{
-    BlendRequest, chain_g1, corner_config, face_clearance, run_battery, spine_regularity,
+    BlendRequest, chain_g1, corner_independence, face_clearance, run_battery, spine_regularity,
 };
 use sweep::blend::{BlendDecision, BlendError, BlendSite, UnbuiltEnd};
 use sweep::test_support::cube;
@@ -52,19 +52,52 @@ fn keys(body: &Body<f64>) -> (FaceKey, VertexKey, EdgeKey) {
 }
 
 // ---------------------------------------------------------------------
-// §3 — every `UnbuiltEnd` tag `corner_config` itself can reach, each at
-// its own site. The others are read from the end's request and shape,
-// and pinned through the front door.
+// §3 — `UnbuiltEnd` tags, each at its own site: the valence through the
+// battery, the independence decision at its own predicate. The others
+// are read from the end's request and shape, and pinned through the
+// front door.
 // ---------------------------------------------------------------------
 
-/// A valence-four vertex: no spherical triangle, so no octant patch.
+/// A valence-four vertex: a chamfered cube's patch vertex, where a
+/// trimline of the chamfer ends. No spherical triangle, so no octant
+/// patch; the refusal carries the vertex and its valence.
 #[test]
 fn corner_tag_valence_carries_its_vertex_and_valence() {
-    let body = cube(1.0, Tol::witness());
-    let (_, v, _) = keys(&body);
-    match corner_config(v, 4, [Vec3::new(0.0, 0.0, 1.0); 3], 0.1, band()) {
+    let cube_body = cube::<f64>(1.0, Tol::witness());
+    let chamfered: Body<f64> = sweep::chamfer::chamfer_edges(
+        &sweep::test_support::at_rest(&cube_body, Tol::witness()),
+        &topo::query::all_edges(&cube_body),
+        0.1,
+        Tol::witness(),
+    )
+    .expect("the cube chamfers")
+    .body
+    .into_body();
+    let edge = topo::query::all_edges(&chamfered)
+        .into_iter()
+        .find(|&e| {
+            let he = chamfered.get_edge(e).expect("a live edge").he_plus;
+            let s = chamfered.get_half_edge(he).expect("a live half").start;
+            chamfered.edges_of_vertex(s).is_some_and(|es| es.len() == 4)
+        })
+        .expect("a valence-four vertex");
+    let req = BlendRequest {
+        body: &chamfered,
+        edges: vec![edge],
+        size: 0.02,
+    };
+    match run_battery(&req, band()) {
         Err(BlendError::UnbuiltEnd(UnbuiltEnd::Valence { vertex, valence })) => {
-            assert_eq!((vertex, valence), (v, 4));
+            assert_eq!(valence, 4);
+            let (a, b) = chamfered.edge_vertices(edge).expect("the edge's ends");
+            assert!(
+                vertex == a || vertex == b,
+                "the refusal is at an end of the edge"
+            );
+            assert_eq!(
+                chamfered.edges_of_vertex(vertex).map(|es| es.len()),
+                Some(4)
+            );
         }
         other => panic!("expected a valence refusal, got {other:?}"),
     }
@@ -82,7 +115,7 @@ fn corner_tag_dependent_normals_refuses_definitely() {
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
     ];
-    match corner_config(v, 3, normals, 0.1, band()) {
+    match corner_independence(v, normals, 0.1, band()) {
         Err(BlendError::UnbuiltEnd(UnbuiltEnd::DependentNormals { vertex })) => {
             assert_eq!(vertex, v);
         }
@@ -95,7 +128,7 @@ fn corner_tag_dependent_normals_refuses_definitely() {
 /// what lets one predicate serve two bands on either side of the
 /// material.
 #[test]
-fn corner_config_admits_an_independent_trihedron() {
+fn corner_independence_admits_an_independent_trihedron() {
     let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     let normals = [
@@ -103,7 +136,7 @@ fn corner_config_admits_an_independent_trihedron() {
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
     ];
-    corner_config(v, 3, normals, 0.1, band()).expect("the octant corner is in scope");
+    corner_independence(v, normals, 0.1, band()).expect("the octant corner is in scope");
 }
 
 /// A **same-surface smooth split** (the cylinder's two wall faces meet
@@ -528,9 +561,8 @@ fn trio_corner_independence() {
     let (_, v, _) = keys(&body);
     let b = band();
     // Definitely independent: the orthonormal trihedron.
-    corner_config(
+    corner_independence(
         v,
-        3,
         [
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
@@ -541,9 +573,8 @@ fn trio_corner_independence() {
     )
     .expect("|det| · r = 1 m");
     // Exactly dependent.
-    let exact = corner_config(
+    let exact = corner_independence(
         v,
-        3,
         [
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
@@ -559,9 +590,8 @@ fn trio_corner_independence() {
     ));
     // In band: a trihedron that is nearly flat.
     let t = in_band();
-    let escalated = corner_config(
+    let escalated = corner_independence(
         v,
-        3,
         [
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
@@ -577,7 +607,7 @@ fn trio_corner_independence() {
         }
         other => panic!("an in-band determinant must escalate, got {other:?}"),
     }
-    assert_same_recourse(&exact, &escalated, "clearly not all parallel to one line");
+    assert_same_recourse(&exact, &escalated, "tilt the faces meeting at the corner");
 }
 
 /// A cylinder whose top cap sits on a plane tilted off the rim

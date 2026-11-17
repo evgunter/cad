@@ -703,10 +703,14 @@ fn a_mixed_corner_the_carve_does_not_build_refuses_typed() {
         );
         let err = got.expect_err("refused");
         assert_eq!(err.edge(), Some(odd), "{verb:?}: names the odd edge");
-        let shown = err.render(geom_brep::recourse::Reading::Build);
-        assert!(
-            shown.contains(sweep::blend::FILLET3_MIXED_CORNER_RECOURSE) && shown.contains("square"),
-            "{verb:?}: {shown}"
+        assert_eq!(
+            err.render(geom_brep::recourse::Reading::Build),
+            format!(
+                "the corner's shared face leans off square to the edge rounding oppositely. \
+                 Recourse: {}",
+                sweep::blend::FILLET3_MIXED_CORNER_RECOURSE
+            ),
+            "{verb:?}: the detail and its recourse, exactly"
         );
     }
 

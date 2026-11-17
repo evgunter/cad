@@ -327,7 +327,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 //
 // The reach is worse here than for a payload at `topo`'s root, which
 // `pncad::topo::` names; `sweep` re-exports NOTHING from `blend`, so before this line the
-// only spelling was `pncad::sweep::blend::UnbuiltEnd` — and
+// only spelling was `pncad::sweep::blend::CornerConfig` (since retired) — and
 // `pncad::sweep::blend::battery::Convexity`, three submodules deep.
 // Contract clause 1 was met (one crate, a longer path); what was not
 // met is that a caller holding a prelude-curated `BlendError` could
@@ -338,9 +338,11 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 //
 // - `UnbuiltEnd` is `BlendError::UnbuiltEnd`'s whole content: why a
 //   band's end is not built, one tag per reason, each carrying its own
-//   site. A valence-4 vertex says "request the other edges"; a seam
-//   says "ask for the rim whole", a door that EXISTS; a run-out names
-//   the edge to add. Different recourses, so a caller branches, which
+//   site. A valence-4 vertex says "end the band at a flat-faced
+//   trivalent corner"; a seam says "ask for the rim whole", a door that
+//   EXISTS; a tangent run-out names the edge the run goes on into, whose
+//   request carries the band on. Different recourses, so a caller
+//   branches, which
 //   is exactly CUR3's test. What a built end IS stays the blend's own:
 //   no end-kind type is public.
 // - `OddEdge` is the run-out's payload at a vertex whose edges round
