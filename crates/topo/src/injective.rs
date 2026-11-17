@@ -1112,26 +1112,21 @@ fn forward(u: &Use, iso: Iso) -> Option<f64> {
 fn face_side(u: &Use, iso: Iso, orientation: PolygonOrientation) -> Option<f64> {
     let forward = forward(u, iso)?;
     let traversal = if u.plus { forward } else { -forward };
-    let left = match iso.held {
-        Axis::V => traversal,
-        Axis::U => -traversal,
-    };
-    Some(if orientation.interior_is_left() {
-        left
-    } else {
-        -left
-    })
+    let mut tau = [0.0; 2];
+    tau[iso.held.other().index()] = traversal;
+    Some(orientation.to_interior(left_turn(tau)[iso.held.index()]))
 }
 
-/// A line edge's chart traversal `tau` turned a quarter toward its face:
-/// to its left where its loop's `orientation` puts the face there, else
-/// to its right.
+/// The chart's quarter turn to the left, `(x, y)` to `(−y, x)`: the
+/// left of a direction in the `(u, v)` plane.
+fn left_turn<T: core::ops::Neg<Output = T>>([x, y]: [T; 2]) -> [T; 2] {
+    [-y, x]
+}
+
+/// A line edge's chart traversal `tau` turned a quarter toward its face,
+/// on the side its loop's `orientation` puts the face.
 fn toward_face(tau: [Interval; 2], orientation: PolygonOrientation) -> [Interval; 2] {
-    if orientation.interior_is_left() {
-        [-tau[1], tau[0]]
-    } else {
-        [tau[1], -tau[0]]
-    }
+    left_turn(tau).map(|x| orientation.to_interior(x))
 }
 
 /// The moving coordinate's range along a use, outer hull of its ends;
@@ -2058,6 +2053,7 @@ fn present_plane<'a>(
     band: Band,
 ) -> Result<Presentation<'a>, Unpresented> {
     let b = piece.boundary;
+    let orientation = b.orientation();
     let edges: Vec<usize> = piece
         .local
         .edges
@@ -2119,7 +2115,7 @@ fn present_plane<'a>(
             }
             let (p, q) = segment(*e)?;
             let a = [q.x - p.x, q.y - p.y];
-            let bv = toward_face(a, b.orientation());
+            let bv = toward_face(a, orientation);
             let len2 = a[0].powi(2) + a[1].powi(2);
             let d = [cell_u - p.x, cell_v - p.y];
             let x = (d[0] * a[0] + d[1] * a[1]) / len2;
@@ -2188,8 +2184,8 @@ fn present_plane<'a>(
             let t2 = [q2.x - p2.x, q2.y - p2.y];
             let a = [far1.x - o.x, far1.y - o.y];
             let bv = [far2.x - o.x, far2.y - o.y];
-            let n1 = toward_face(t1, b.orientation());
-            let n2 = toward_face(t2, b.orientation());
+            let n1 = toward_face(t1, orientation);
+            let n2 = toward_face(t2, orientation);
             let lean = |n: [Interval; 2], w: [Interval; 2]| {
                 (n[0] * w[0] + n[1] * w[1]) / (n[0].powi(2) + n[1].powi(2)).sqrt()
             };
@@ -3122,8 +3118,10 @@ fn present_wall<'a>(
     }
     // Step 3: the face's side.
     let rising = w.sigma > 0.0;
-    let above =
-        left_is_above(rising == u.plus, Axis::V) == piece.boundary.orientation().interior_is_left();
+    let above = piece
+        .boundary
+        .orientation()
+        .interior_is_on(left_is_above(rising == u.plus, Axis::V));
     if let Some(th) = &through {
         // The vertex is in `R`, on the lift read: its parameter among
         // the columns', its point within `R`'s `u` range.
@@ -4322,8 +4320,10 @@ fn graph_read(
         return None;
     }
     // Step 3: the face's side.
-    let above =
-        left_is_above(rising == plus, column) == piece.boundary.orientation().interior_is_left();
+    let above = piece
+        .boundary
+        .orientation()
+        .interior_is_on(left_is_above(rising == plus, column));
     if let Some(th) = through {
         // The vertex is in `R`, on the run read: its parameter in the
         // run's, and its point on the run's copy. The cell was widened to
@@ -4627,16 +4627,15 @@ fn only(piece: &Piece<'_>, local: &Local, edges: &[usize], vertices: &[VertexKey
     }) && local.vertices.iter().all(|v| vertices.contains(v))
 }
 
-/// **Whether a graph's traversal has its left above it** in the chart
-/// ([`present_curved`]'s step 3, which reads the face's side off this and
-/// [`PolygonOrientation::of_face`]). Travel along the column axis is
-/// `forward` where the curve rises with its parameter and the loop runs
-/// it forward; the left of a forward `u` is `+v`, of a forward `v` is `−u`.
+/// **Whether a graph's traversal has its left above it** in the chart,
+/// "above" being the far side of the other axis ([`present_wall`]'s and
+/// [`graph_read`]'s step 3, which read the face's side off this and the
+/// loop's orientation). Travel along the column axis is `forward` where
+/// the curve rises with its parameter and the loop runs it forward.
 fn left_is_above(forward: bool, column: Axis) -> bool {
-    match column {
-        Axis::U => forward,
-        Axis::V => !forward,
-    }
+    let mut tau = [0_i8; 2];
+    tau[column.index()] = if forward { 1 } else { -1 };
+    left_turn(tau)[column.other().index()] > 0
 }
 
 // --------------------------------------------------------- separators
@@ -6062,10 +6061,10 @@ mod presentation_rows {
         );
     }
 
-    /// **`face_side`**: the face lies left of its boundary about the
-    /// outward normal; the sense flips it.
+    /// **`face_side`**: the face lies left of its boundary where its loop
+    /// winds counter-clockwise, and right where it winds clockwise.
     #[test]
-    fn face_side_reads_the_loop_and_the_sense() {
+    fn face_side_reads_the_loop_and_its_orientation() {
         let iso = |held, at| Iso {
             held,
             at: iv0(at),
@@ -6086,7 +6085,7 @@ mod presentation_rows {
         assert_eq!(
             face_side(&up, iso(Axis::U, 1.0), PolygonOrientation::of_face(false)),
             Some(1.0),
-            "reversed sense"
+            "clockwise"
         );
         let east = Use {
             plus: true,
@@ -6486,6 +6485,76 @@ mod presentation_rows {
             present_plane(&piece((1.0, 2.0), (-0.5, -0.1)), &[0], &[], band()),
             Ok(Presentation::Vacuous)
         ));
+    }
+
+    /// **`present_plane`, two line edges**: a convex corner presents its
+    /// quadrant; the same corner run backward, or with the sense flipped,
+    /// is reflex (the face is the three other quadrants) and is not
+    /// presented as the wedge between its edges. Red if the lean gate
+    /// reads the face's side the wrong way, or not at all.
+    #[test]
+    fn a_planes_reflex_corner_of_two_lines_is_not_its_wedge() {
+        let plane = Surface::Plane {
+            origin: origin(),
+            normal: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        let line = |d: Vec3<Interval>, far: u64, plus: bool| Rim {
+            key: edge(far),
+            arc: Some((Curve3::line(origin(), d), (iv0(0.0), iv0(4.0)))),
+            ends: [vertex(1), vertex(far)],
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let y = Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0));
+        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        // Forward: (0, 4) to the vertex at the origin to (4, 0), the
+        // first quadrant on its left.
+        let corner = |forward: bool, sense: bool| Boundary {
+            sense,
+            edges: vec![line(y, 2, !forward), line(x, 3, forward)],
+            vertices: BTreeMap::new(),
+            extent: None,
+        };
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let read = |b: &Boundary| {
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &plane,
+                whole: false,
+                boundary: b,
+                u: (0.5, 1.0),
+                v: (0.5, 1.0),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            match present_plane(&piece, &[], &[], band()) {
+                Ok(Presentation::Of(_)) => "presented",
+                Err(Unpresented::Local) => "refused locally",
+                _ => "something else",
+            }
+        };
+        assert!(
+            read(&corner(true, true)) == "presented",
+            "the convex corner presents its quadrant"
+        );
+        for (forward, sense, what) in [
+            (false, true, "run backward"),
+            (true, false, "sense flipped"),
+        ] {
+            assert!(
+                read(&corner(forward, sense)) == "refused locally",
+                "{what}: the reflex corner is not presented as its wedge"
+            );
+        }
     }
 
     /// **`edge_piece`**: the hull of an edge's parameters whose points the
