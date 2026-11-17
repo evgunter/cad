@@ -484,13 +484,15 @@ fn every_run_of_a_draft_cones_rulings_meshes() {
 }
 
 /// **A run at a corner of the polygon is anchored along its ruling.** The
-/// wall at 26.6°, a wedge of 0.05, its second cone ruling split beside
-/// its end and placed obliquely, δ 0.01. The split vertex and the
-/// ruling's end are a run, and the end is a corner: the polygon reaches
-/// the run along the rim and leaves it along the ruling. The lane adds
-/// the run's triangle beside the neighbour along the ruling
-/// (`trimmed::Anchor`), and the face meshes. Added beside the neighbour
-/// before the run whichever side that is on, this cell refuses.
+/// wall at 26.6°, a wedge of 0.05, each of its two cone rulings split
+/// beside its start and beside its end in turn and placed obliquely, δ
+/// 0.1, 0.01 and 0.001. The split vertex and the ruling's end are a run,
+/// and the end is a corner: on one side the polygon reaches the run along
+/// the rim and leaves it along the ruling, on the other the reverse. The
+/// lane adds the run's triangle beside the neighbour along the ruling
+/// (`trimmed::Anchor`), and every cell meshes. Added beside the neighbour
+/// before the run whichever side that is on, the second ruling split
+/// beside its end refuses at δ 0.01.
 ///
 /// Inside a ruling side both neighbours are along the ruling and the lane
 /// takes the first; either gives a valid mesh, and which is held by
@@ -507,10 +509,85 @@ fn a_run_at_a_corner_is_anchored_along_its_ruling() {
         EpsRow::Default | EpsRow::Fine => 1e-8,
     };
     let body = turned(&wall(26.6), Revolution::Partial(0.05));
-    let ruling = cone_rulings(&body)[1];
-    let split = split_and_placed(&body, &[ruling], &[1.0 - gap]);
     let whole = split_and_placed(&body, &[], &[]);
-    assert_eq!(got_enclosing(&split, &whole, 0.01), Got::Meshed);
+    let lines = cone_rulings(&body);
+    assert_eq!(lines.len(), 2, "the wedge's cone face ends on two rulings");
+    for (k, ek) in lines.into_iter().enumerate() {
+        for frac in [gap, 1.0 - gap] {
+            let split = split_and_placed(&body, &[ek], &[frac]);
+            for delta in [0.1, 0.01, 0.001] {
+                assert_eq!(
+                    got_enclosing(&split, &whole, delta),
+                    Got::Meshed,
+                    "cone ruling {k} split at {frac}, δ {delta}"
+                );
+            }
+        }
+    }
+}
+
+/// The cells of the cut-face rows: the 1° wall revolved `turn`, under a
+/// slab tilted 0.1 about an oblique axis (`A ∩ B`), each ruling of the cut
+/// body's that rises along a cone split beside its start and beside its
+/// end in turn, placed obliquely, δ 0.01, each asserted `Meshed`.
+fn cut_cone_cells(turn: Revolution<f64>) {
+    use crate::reach_probes::{op_of, posed};
+    use sweep::test_support::{brick, finished};
+    let gap = match eps_row() {
+        EpsRow::Coarse => 1e-4,
+        EpsRow::Default | EpsRow::Fine => 1e-7,
+    };
+    let tilt = Affine3::translation(Vec3::new(0.0, 0.5, 0.0))
+        * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.6, 0.0, 0.8), 0.1);
+    let cone = finished("the wall", turned(&wall(1.0), turn), tol());
+    let slab = posed(
+        "the slab",
+        brick((-6.0, 6.0), (-6.0, 0.0), (-6.0, 6.0), tol()),
+        tilt,
+    );
+    let cut = op_of(&cone, &slab, "A ∩ B");
+    let whole = split_and_placed(&cut, &[], &[]);
+    let lines = cone_rulings(&cut);
+    assert!(!lines.is_empty(), "the cut face keeps a ruling");
+    for (k, ek) in lines.into_iter().enumerate() {
+        for frac in [gap, 1.0 - gap] {
+            let split = split_and_placed(&cut, &[ek], &[frac]);
+            assert_eq!(
+                got_enclosing(&split, &whole, 0.01),
+                Got::Meshed,
+                "ruling {k} split at {frac}"
+            );
+        }
+    }
+}
+
+/// **A run on a cone face that is no rectangle meshes.** The 1° wall, a
+/// half turn, under a slab tilted about an oblique axis
+/// ([`cut_cone_cells`]): the cone face keeps its lower rim and its two
+/// rulings, and its upper boundary is the slab's section of the cone, so
+/// it is the chart lane's by its trim carrier whether or not a ruling is
+/// split. A ruling split beside an end: the split vertex and the
+/// ruling's end are a run, and every cell meshes, passes `check_mesh`,
+/// and is the body's ([`crate::reach_probes::geometry`]).
+///
+/// **By ε.** The gap is `10⁻⁷` of the ruling at the default ε and at
+/// `10⁻¹²`. At `10⁻⁶` the smallest split of the cut rulings is wider
+/// than this cone's development merges (the gap is `10⁻⁴` of the
+/// ruling): the row holds that the cut face meshes with its two points
+/// apart.
+#[test]
+fn a_run_on_a_cone_face_cut_by_an_oblique_plane_meshes() {
+    cut_cone_cells(Revolution::Partial(core::f64::consts::PI));
+}
+
+/// **[`a_run_on_a_cone_face_cut_by_an_oblique_plane_meshes`], a full
+/// turn**: one cone face, cut, walking its seam twice, so the run is met
+/// on each of the seam's two rays of a polygon that is no rectangle.
+///
+/// **By ε.** As that row.
+#[test]
+fn a_run_on_a_cut_cone_faces_seam_meshes() {
+    cut_cone_cells(Revolution::Full);
 }
 
 /// **A run on an ordinary frustum, at ε `10⁻¹²`.** The frustum wall's
@@ -651,8 +728,12 @@ fn two_runs_anchored_by_the_apex_mesh() {
 ///
 /// **By ε**, each ε on the cone and gap that reach the refusal there:
 ///
-/// - the default: height 1000, a gap of `10⁻⁸` along the ruling, δ 1
-///   (height `3.3·10⁻¹³` against allowance `1.78·10⁻¹²`);
+/// - the default: height 1000, a gap of `10⁻⁸` along the ruling: δ 100
+///   and 10 mesh and δ 1 refuses (height `3.3·10⁻¹³` against allowance
+///   `1.78·10⁻¹²`). Where it meshes the row reads `check_mesh` and
+///   `check_winding` and not the volume: the mass properties of this
+///   cone are not read (`topo::test_support::pinned_volume` panics on
+///   it);
 /// - `10⁻¹²`: height 1, a gap of `10⁻¹⁰` of the ruling: δ 0.1 and 0.01
 ///   mesh and δ 0.001 refuses (`5.15·10⁻¹⁵` against `9.14·10⁻¹⁵`);
 /// - `10⁻⁶`: a split is a split from `10⁻⁵`, which neither cone's
@@ -674,7 +755,11 @@ fn a_run_anchored_on_a_needle_triangle_refuses_unresolved() {
         EpsRow::Default => (
             1000.0,
             1e-8 / (1000.0 * 2f64.sqrt()),
-            &[(1.0, refused.clone())],
+            &[
+                (100.0, Got::Meshed),
+                (10.0, Got::Meshed),
+                (1.0, refused.clone()),
+            ],
         ),
         EpsRow::Fine => (
             1.0,
@@ -691,7 +776,14 @@ fn a_run_anchored_on_a_needle_triangle_refuses_unresolved() {
     let split = split_and_placed(&body, &[ruling], &[1.0 - gap]);
     let whole = split_and_placed(&body, &[], &[]);
     for (delta, want) in cells {
-        assert_eq!(got_enclosing(&split, &whole, *delta), *want, "δ {delta}");
+        if eps_row() == EpsRow::Default && *want == Got::Meshed {
+            let m = mesh::tessellate(&split, *delta, tol())
+                .unwrap_or_else(|e| panic!("δ {delta}: {e:?}"));
+            mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("δ {delta}: {e:?}"));
+            mesh::validate::check_winding(&m).unwrap_or_else(|e| panic!("δ {delta}: {e:?}"));
+        } else {
+            assert_eq!(got_enclosing(&split, &whole, *delta), *want, "δ {delta}");
+        }
     }
 }
 
