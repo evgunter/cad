@@ -253,18 +253,12 @@ struct Site {
 /// [`every_known_hand_listed_impl_is_still_found`] reds until it is
 /// re-typed. That is the loud direction and it is the price of the
 /// key. Not keyed by LINE, which rots on every edit above it.
-const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 3] = [
+const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 2] = [
     (
         "crates/editor-core/src/clearance.rs",
         "PartialEq",
         "GeometryWitness",
         "work/shell/geometrywitness-eq-ignores-the-two-chart-axes-its-uv-fields-are-stated-in.md",
-    ),
-    (
-        "crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs",
-        "PartialEq",
-        "NodeFrame",
-        "work/sectarms/nodeframe-eq-reads-its-fields-by-name.md",
     ),
     (
         "crates/viewer/src/session.rs",
@@ -302,7 +296,7 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 3] = [
 /// stops after the first Debug-or-PartialEq impl of each file red that
 /// row before and is entirely green now, because each remaining
 /// entry names its file's FIRST such impl and so survives the
-/// blindness (two are their file's only one; `Stood` comes first of
+/// blindness (`GeometryWitness` is its file's only one; `Stood` comes first of
 /// `viewer/src/session.rs`'s four). The anchor was never per-impl sight; it was the accident
 /// that ONE of five entries — `mate/coset.rs`, which holds
 /// `PartialEq for Subgroup` above `PartialEq for Coset` — had a
