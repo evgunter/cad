@@ -157,6 +157,8 @@ mod shell_reads_a_chart_worn_both_ways;
 mod spiric_roundtrip;
 #[path = "split_iso_side.rs"]
 mod split_iso_side;
+#[path = "the_interpretation_layer_reads_the_file_at_its_band.rs"]
+mod the_interpretation_layer_reads_the_file_at_its_band;
 #[path = "tcost_k3_import_certificate.rs"]
 mod tcost_k3_import_certificate;
 #[path = "tier_gate.rs"]
