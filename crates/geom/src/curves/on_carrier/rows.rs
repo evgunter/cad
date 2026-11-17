@@ -773,3 +773,42 @@ fn a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance() {
          clearance's {clear:?} or above: {read:?}"
     );
 }
+
+/// **A foot over an interval is no farther than the interval's ends**
+/// (module docs, "The foot"): on an ellipse of a 60° pair of unit
+/// cylinders, over the span `(−π/2, π/2 − 0.4)`, a point the pair's walk
+/// read on its far side is seeded at the span's stop end. There the
+/// distance grows into the span, so the held polish does not move, and
+/// the start end is nearer. The foot is the least of the polish and the
+/// ends. Red where the ends are not read: the foot stays at the stop
+/// end, and the span reads the point past it by the wrong end (`sweep`'s
+/// `bisector_nodes` rows went unsettled on that).
+#[test]
+fn a_foot_over_an_interval_is_no_farther_than_its_ends() {
+    use core::f64::consts::FRAC_PI_2;
+    let c = Curve3::Ellipse(crate::Ellipse::new(
+        crate::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.866_025_403_784_438_5, -0.5),
+            Vec3::new(0.0, 0.5, 0.866_025_403_784_438_5),
+        ),
+        2.0,
+        1.0,
+    ));
+    let span = (-FRAC_PI_2, FRAC_PI_2 - 0.4);
+    let q = Point3::new(
+        0.198_669_330_795_061_2,
+        -0.980_066_577_841_241_6,
+        -1.697_525_107_621_187_7,
+    );
+    let foot = c.foot_within(q, span, span.1);
+    let ends = [span.0, span.1].map(|t| (q - c.eval(t)).norm());
+    assert!(
+        foot.gap() <= ends[0].min(ends[1]),
+        "the foot at {} ({:e}) is farther than an end ({:e}, {:e})",
+        foot.seed(),
+        foot.gap(),
+        ends[0],
+        ends[1]
+    );
+}
