@@ -74,6 +74,10 @@ pub(crate) const STEP_BAND_SEAM_LENGTH: &str = "step_band_seam_length";
 /// it, apart splits the rim there.
 pub(crate) const STEP_BAND_SEAM_VERTEX: &str = "step_band_seam_vertex";
 
+/// A length a construction takes only positive: it reads as a length only
+/// apart from zero.
+pub(crate) const STEP_POSITIVE_LENGTH: &str = "step_positive_length";
+
 /// The file's ε_in and the band it is read at. The band is always a
 /// band: a file whose ε_in makes none refuses where it is read
 /// ([`FileBand::new`]).
@@ -134,9 +138,10 @@ impl FileBand {
             unread.refused(
                 0,
                 Refusal::InvalidRoot {
-                    what: "the file's declared coincidence distance ε_in (metres), whose band \
-                           K·ε_in must be a finite length",
+                    what: "the file's declared coincidence distance ε_in, whose band K·ε_in must \
+                           be a finite length",
                     value: eps_in,
+                    unit: "m",
                 },
             )
         })?;
@@ -222,6 +227,47 @@ impl FileBand {
         }
     }
 
+    /// **A length a construction takes only positive** (a radius, a
+    /// semi-axis), as the file states it at `id`: refused as an invalid
+    /// root where it is not a positive number, and as a length the band
+    /// cannot tell from zero where it does not read apart.
+    ///
+    /// # Errors
+    ///
+    /// [`Refusal::InvalidRoot`] or [`Refusal::LengthUnread`].
+    pub(crate) fn positive_length(
+        self,
+        id: u64,
+        what: &'static str,
+        length: f64,
+    ) -> Result<f64, crate::StepImportError> {
+        if !(length.is_finite() && length > 0.0) {
+            return Err(self.refused(
+                id,
+                Refusal::InvalidRoot {
+                    what,
+                    value: length,
+                    unit: "m",
+                },
+            ));
+        }
+        match self.read(STEP_POSITIVE_LENGTH, length) {
+            Read::Apart => Ok(length),
+            Read::Zero | Read::InBand => Err(self.refused(id, self.length_unread(what, length))),
+        }
+    }
+
+    /// The refusal of a positive `length` the band does not tell from
+    /// zero.
+    pub(crate) fn length_unread(self, what: &'static str, length: f64) -> Refusal {
+        Refusal::LengthUnread {
+            what,
+            length,
+            k: self.band.escalate() / self.band.zero(),
+            run_eps: self.run_eps,
+        }
+    }
+
     /// `gap` read under `name` at `id`, refused as the import's typed
     /// interpretation refusal unless it reads Zero ([`Self::agree`]).
     pub(crate) fn agree_at(
@@ -262,6 +308,24 @@ impl FileBand {
             }),
         }
     }
+}
+
+/// What reads a distance `below` apart from zero: every one of ε_in and
+/// the run's ε that is not already below it, moved below it.
+fn finer(below: f64, eps_in: f64, run_eps: f64) -> String {
+    use geom_core::Readable;
+    let mut levers = Vec::new();
+    if eps_in >= below {
+        levers.push(format!(
+            "import with ε_in below {} m (re-export with a smaller declared uncertainty, or pass \
+             the override)",
+            Readable(below)
+        ));
+    }
+    if run_eps >= below {
+        levers.push(format!("tighten the tolerance below {} m", Readable(below)));
+    }
+    levers.join(" and ")
 }
 
 /// **An interpretation refusal** (D7): the file's evidence read at its
@@ -309,10 +373,27 @@ pub enum Refusal {
     /// whatever ε_in is (a radius that is not positive, a half-angle
     /// outside `(0, π/2)`).
     InvalidRoot {
-        /// What the value is, its unit, and what a construction needs.
+        /// What the value is, and what a construction needs.
         what: &'static str,
-        /// The value in the unit `what` names.
+        /// The value as the file states it, in `unit`.
         value: f64,
+        /// The value's unit, as the refusal prints it (`m`, `rad`).
+        unit: &'static str,
+    },
+    /// **A length the band cannot tell from zero**: a positive length a
+    /// construction takes only positive (a radius, a semi-axis) that does
+    /// not read apart from zero at the band the file is read at. Reading
+    /// it as a length takes a band whose escalation is below it, so both
+    /// ε_in and the run's ε below `length / K`.
+    LengthUnread {
+        /// What the length is.
+        what: &'static str,
+        /// The length, in metres.
+        length: f64,
+        /// The band's K.
+        k: f64,
+        /// The run's ε (metres), which floors the band.
+        run_eps: f64,
     },
 }
 
@@ -365,8 +446,21 @@ impl Refusal {
                 Readable(eps_in),
                 Readable(run_eps)
             ),
-            Self::InvalidRoot { what, value } => format!(
-                "{what}: the file states {value}, which no kernel construction takes at any ε_in"
+            Self::InvalidRoot { what, value, unit } => format!(
+                "{what}: the file states {value} {unit}, which no kernel construction takes at any \
+                 ε_in"
+            ),
+            Self::LengthUnread {
+                what,
+                length,
+                run_eps,
+                ..
+            } => format!(
+                "{what}: the file states {} m, which the band it is read at (from the larger of \
+                 its declared ε_in = {} m and this run's tolerance {} m) does not tell from zero",
+                Readable(length),
+                Readable(eps_in),
+                Readable(run_eps)
             ),
         }
     }
@@ -389,29 +483,60 @@ impl Refusal {
             ),
             Self::Ambiguous {
                 gap, k, run_eps, ..
-            } => {
-                // Apart takes a band whose zero is below gap/K: every one
-                // of ε_in and the run's ε that is not below it moves.
-                let below = gap / k;
-                let mut apart = Vec::new();
-                if eps_in >= below {
-                    apart.push(format!(
-                        "import with ε_in below {} m (re-export with a smaller declared \
-                         uncertainty, or pass the override)",
-                        Readable(below)
-                    ));
-                }
-                if run_eps >= below {
-                    apart.push(format!("tighten the tolerance below {} m", Readable(below)));
-                }
-                format!(
-                    "Recourse: {lever}, or, if this distance is intended, {}, or, if it is not, \
-                     import with ε_in ≥ {} m",
-                    apart.join(" and "),
-                    Readable(gap)
-                )
-            }
+            } => format!(
+                "Recourse: {lever}, or, if this distance is intended, {}, or, if it is not, \
+                 import with ε_in ≥ {} m",
+                finer(gap / k, eps_in, run_eps),
+                Readable(gap)
+            ),
+            Self::LengthUnread {
+                length, k, run_eps, ..
+            } => format!(
+                "Recourse: {lever}, or, if this length is intended, {}",
+                finer(length / k, eps_in, run_eps)
+            ),
             Self::InvalidRoot { .. } => format!("Recourse: {lever} from a valid model"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Refusal;
+
+    /// **An ambiguity's ending names exactly the levers that decide it.**
+    /// Apart takes a band whose zero is below `gap / K`, and the band's
+    /// zero is the larger of ε_in and the run's ε, so each of the two
+    /// that is not already below it is named, and neither that is.
+    #[test]
+    fn an_ambiguity_names_each_lever_not_already_below_the_distance_over_k() {
+        let ending = |eps_in: f64, run_eps: f64| {
+            Refusal::Ambiguous {
+                reading: "r",
+                gap: 3e-6,
+                k: 10.0,
+                run_eps,
+            }
+            .ending(eps_in)
+        };
+        for (eps_in, run_eps, file, run) in [
+            (1e-6, 1e-9, true, false),
+            (5e-7, 1e-6, true, true),
+            (1e-7, 1e-6, false, true),
+            (3e-7, 3e-7, true, true),
+        ] {
+            let text = ending(eps_in, run_eps);
+            assert_eq!(
+                text.contains("import with ε_in below 3e-7 m"),
+                file,
+                "ε_in {eps_in}, ε {run_eps}: {text}"
+            );
+            assert_eq!(
+                text.contains("tighten the tolerance below 3e-7 m"),
+                run,
+                "ε_in {eps_in}, ε {run_eps}: {text}"
+            );
+            assert!(text.contains("with ε_in ≥ 3e-6 m"), "{text}");
         }
     }
 }

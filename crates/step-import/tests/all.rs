@@ -95,6 +95,8 @@ mod mesh8r2_probes;
 mod nurbs_import;
 #[path = "onb_wild_normal_census.rs"]
 mod onb_wild_normal_census;
+#[path = "one_record_reads_facing_at_the_faces.rs"]
+mod one_record_reads_facing_at_the_faces;
 #[path = "p1b_r1_import_scan.rs"]
 mod p1b_r1_import_scan;
 #[path = "parser.rs"]

@@ -393,10 +393,9 @@ impl<'a> Resolver<'a> {
         id
     }
 
-    /// A length the file states as a root a kernel constructor takes only
-    /// positive (a radius, a semi-axis): refused as an invalid root
-    /// ([`interpret::Refusal::InvalidRoot`]) otherwise, before anything
-    /// reads it.
+    /// A length the file states as a root a kernel construction takes
+    /// only positive (a radius, a semi-axis), read at the file's band
+    /// ([`interpret::FileBand::positive_length`]) before anything reads it.
     fn root_length(
         &self,
         id: u64,
@@ -405,17 +404,7 @@ impl<'a> Resolver<'a> {
         what: &'static str,
     ) -> Result<f64, StepImportError> {
         let length = self.as_length(id, value, expected)?;
-        if length.is_finite() && length > 0.0 {
-            Ok(length)
-        } else {
-            Err(self.budget.refused(
-                id,
-                interpret::Refusal::InvalidRoot {
-                    what,
-                    value: length,
-                },
-            ))
-        }
+        self.budget.positive_length(id, what, length)
     }
 
     /// `CARTESIAN_POINT('', (x, y, z))` → kernel point, exact.
@@ -672,6 +661,7 @@ impl<'a> Resolver<'a> {
                         interpret::Refusal::InvalidRoot {
                             what: "a cone's base radius, which must be finite and not negative",
                             value: radius,
+                            unit: "m",
                         },
                     ));
                 }
@@ -679,9 +669,9 @@ impl<'a> Resolver<'a> {
                     return Err(self.budget.refused(
                         id,
                         interpret::Refusal::InvalidRoot {
-                            what: "a cone's half-angle (radians), which must lie strictly inside \
-                                   (0, π/2)",
+                            what: "a cone's half-angle, which must lie strictly inside (0, π/2)",
                             value: half_angle,
+                            unit: "rad",
                         },
                     ));
                 }
@@ -988,12 +978,11 @@ impl<'a> Resolver<'a> {
                 };
                 let frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 let (semi_u, semi_v) = (
-                    self.as_length(id, major, expected)?,
-                    self.as_length(id, minor, expected)?,
+                    self.root_length(id, major, expected, ELLIPSE_SEMI_AXIS)?,
+                    self.root_length(id, minor, expected, ELLIPSE_SEMI_AXIS)?,
                 );
-                // The kernel's deciding door, at the file's band: a
-                // semi-axis no ellipse takes is an invalid root, and one
-                // the band cannot call an ambiguity.
+                // The kernel's deciding door, at the file's band, which
+                // reads the minor semi-axis the rule above has read.
                 Curve3::ellipse(
                     frame.origin,
                     frame.axis,
@@ -1002,20 +991,12 @@ impl<'a> Resolver<'a> {
                     frame.u_ref,
                     self.budget.band(),
                 )
-                .map_err(|invalid| {
-                    let refusal = match invalid {
-                        geom::EllipseInvalid::Escalated(ref cause) => interpret::Refusal::in_band(
-                            ELLIPSE_SEMI_AXIS,
-                            cause,
-                            self.budget.run_eps(),
-                        ),
-                        _ => None,
-                    }
-                    .unwrap_or(interpret::Refusal::InvalidRoot {
-                        what: ELLIPSE_SEMI_AXIS,
-                        value: semi_u.min(semi_v),
-                    });
-                    self.budget.refused(id, refusal)
+                .map_err(|_| {
+                    self.budget.refused(
+                        id,
+                        self.budget
+                            .length_unread(ELLIPSE_SEMI_AXIS, semi_u.min(semi_v)),
+                    )
                 })
             }
             "QUASI_UNIFORM_CURVE" => {

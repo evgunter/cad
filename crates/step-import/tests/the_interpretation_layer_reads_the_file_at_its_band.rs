@@ -173,3 +173,133 @@ fn two_records_of_one_plane_become_one() {
     // file states fourteen faces on fourteen records).
     assert_eq!(planes.len(), 10, "one surface per flat side");
 }
+
+/// The band's zero the FreeCAD fixtures are read at: their declared
+/// 1e-7 mm, floored at the run's ε.
+fn zero() -> f64 {
+    1e-10_f64.max(Tol::witness().eps())
+}
+
+/// A `VERTEX_LOOP`'s point three band zeros off its sphere: the reading
+/// passes only where the two agree, so in band it is a miss whose one
+/// lever is an ε_in at least the miss, never a finer one.
+#[test]
+fn a_vertex_loop_point_in_the_band_is_a_miss_with_no_finer_lever() {
+    let z_mm = -(1.0 + 3.0 * zero() * 1e3);
+    let text = with(
+        &freecad_fixture("sphere"),
+        "#21 = CARTESIAN_POINT('',(6.123233995737E-17,-1.499759782662E-32,-1.));",
+        &format!("#21 = CARTESIAN_POINT('',(6.123233995737E-17,-1.499759782662E-32,{z_mm:e}));"),
+    );
+    match import(&text) {
+        Err(
+            ref e @ StepImportError::Interpretation {
+                id,
+                refusal: InterpretationRefusal::MissInBand { miss, .. },
+                ..
+            },
+        ) => {
+            assert_eq!(id, 20, "the VERTEX_POINT is named");
+            assert!(
+                (miss - 3.0 * zero()).abs() <= 0.01 * zero(),
+                "the miss: {miss}"
+            );
+            let text = e.render();
+            assert!(text.contains("import with ε_in ≥ "), "{text}");
+            assert!(
+                !text.contains("below") && !text.contains("tighten"),
+                "a decision that passes only at Zero offers no finer lever: {text}"
+            );
+        }
+        other => panic!("a miss in band, got {other:?}"),
+    }
+}
+
+/// An ellipse semi-axis of 5e-4 mm is a positive length the band of a
+/// file read at ε_in = 1 µm cannot tell from zero: refused as that, with
+/// the ε_in that reads it, not as an invalid root. At the file's own
+/// ε_in the same record is a length.
+#[test]
+fn a_semi_axis_the_band_cannot_tell_from_zero_is_no_invalid_root() {
+    let text = with(
+        &freecad_fixture("cylinder"),
+        "#24 = CIRCLE('',#25,0.5);",
+        "#24 = ELLIPSE('',#25,0.5,5.E-04);",
+    );
+    let options = ImportOptions {
+        eps_in: Some(1e-6),
+        ..ImportOptions::default()
+    };
+    match import_step(&text, &options, Tol::witness()) {
+        Err(
+            ref e @ StepImportError::Interpretation {
+                id,
+                refusal: InterpretationRefusal::LengthUnread { length, .. },
+                ..
+            },
+        ) => {
+            assert_eq!(id, 24, "the ELLIPSE is named");
+            assert!(
+                (length - 5e-7).abs() < 1e-15,
+                "the length in metres: {length}"
+            );
+            assert!(
+                e.render().contains("import with ε_in below"),
+                "{}",
+                e.render()
+            );
+        }
+        other => panic!("a length the band cannot tell from zero, got {other:?}"),
+    }
+    if let Err(StepImportError::Interpretation { id: 24, .. }) = import(&text) {
+        panic!("at the file's own ε_in the semi-axis is a length");
+    }
+}
+
+/// **An ambiguity's advice decides it.** FTC11 read at ε_in = 1 µm puts a
+/// rim vertex 1.6 µm from its seam azimuth, in band. Its ending names
+/// every lever the distance needs: an ε_in below the distance over K,
+/// and the run's tolerance below it too where the run's ε is not.
+/// Following the ε_in lever imports where the run's ε already lies below.
+#[test]
+fn ftc11s_ambiguity_names_what_decides_it_and_following_it_imports() {
+    let text = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/band/ftc11_uref_off.stp"
+    ))
+    .unwrap();
+    let at = |eps_in: f64| {
+        let options = ImportOptions {
+            eps_in: Some(eps_in),
+            ..ImportOptions::default()
+        };
+        import_step(&text, &options, Tol::witness())
+    };
+    let e = match at(1e-6) {
+        Err(e @ StepImportError::Interpretation { .. }) => e,
+        other => panic!("FTC11 at ε_in 1e-6 refuses in band, got {other:?}"),
+    };
+    let StepImportError::Interpretation {
+        refusal: InterpretationRefusal::Ambiguous { gap, k, .. },
+        ..
+    } = e
+    else {
+        panic!("an ambiguity: {e:?}")
+    };
+    let below = gap / k;
+    let rendered = e.render();
+    assert!(rendered.contains("import with ε_in below"), "{rendered}");
+    let eps = Tol::witness().eps();
+    assert_eq!(
+        rendered.contains("tighten the tolerance below"),
+        eps >= below,
+        "the run's tolerance is named exactly where it does not already decide ({eps} vs \
+         {below}): {rendered}"
+    );
+    if eps < below {
+        match at(below / 2.0) {
+            Ok(StepImport::Solid { .. }) => {}
+            other => panic!("following the advice imports, got {:?}", other.map(|_| ())),
+        }
+    }
+}
