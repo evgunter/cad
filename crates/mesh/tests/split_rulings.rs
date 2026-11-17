@@ -284,3 +284,57 @@ fn a_ruling_split_a_hair_from_its_end_folds_a_triangle() {
         Got::Folded(geom::SurfaceKind::Cone)
     );
 }
+
+/// **A ruling split within the development's resolution refuses: this
+/// row pins a gap**
+/// (`work/tesslane/a-ruling-split-within-the-developments-resolution-merges-two-points.md`).
+/// The frustum wall's outer cone face with its seam split `10⁻⁹` of its
+/// range from its start, placed obliquely. The face is the chart lane's,
+/// which triangulates a cone face in its development, whose slant radii
+/// are cut to 27 significant bits; the split vertex and the seam's end
+/// lie closer than `2⁻²⁷` of their radius, develop to one point, and the
+/// face refuses `SphereTrimShape { DevelopedMerge }` at every δ.
+///
+/// **By ε.** At `10⁻¹²` as above. At the default ε and `10⁻⁶`
+/// `split_edge` reads a split that near the end as no split, so the
+/// body cannot be built, and the row asserts that instead.
+#[test]
+fn a_ruling_split_within_the_developments_resolution_refuses() {
+    use mesh::TessellateError as E;
+    use mesh::types::SphereTrimCause;
+    let body = turned(
+        &[(1.0, 0.0), (3.0, 0.0), (2.0, 1.0), (1.5, 1.0)],
+        Revolution::Full,
+    );
+    let seam = rulings(&body)[0];
+    let mut unplaced = body.clone();
+    let (t0, t1) = unplaced
+        .get_curve_geom(unplaced.get_edge(seam).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .params();
+    let built = unplaced.split_edge(seam, t0 + (t1 - t0) * 1e-9, tol());
+    if tol().eps() > 1e-12 {
+        assert!(
+            built.is_err(),
+            "at ε {:e} the split is no split",
+            tol().eps()
+        );
+        return;
+    }
+    built.unwrap();
+    let split = split_and_placed(&body, &[seam], &[1e-9]);
+    for delta in [0.1, 0.01, 0.001] {
+        assert!(
+            matches!(
+                mesh::tessellate(&split, delta, tol()),
+                Err(E::SphereTrimShape {
+                    cause: SphereTrimCause::DevelopedMerge,
+                    ..
+                })
+            ),
+            "δ {delta}"
+        );
+    }
+}
