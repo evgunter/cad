@@ -82,10 +82,11 @@
 //! the span: off the span where the piece walk over the span clears it;
 //! past, the point is off the span by the span ([`OffBy::Span`]),
 //! whatever the carrier read, since no answer to it puts the point on
-//! the span. Whether a point past the span lies on the carrier is the
-//! whole carrier's question ([`geom::Curve3::on_carrier`]), asked by a
-//! reader that needs it, and only there: off by the carrier, that
-//! question is already decided. A place
+//! the span; the reading carries what the carrier's reading at the foot
+//! decided ([`AtFoot`]). Whether a point past the span lies on the
+//! carrier is the whole carrier's question ([`geom::Curve3::on_carrier`]),
+//! asked by a reader that needs it, and only where nothing decided it:
+//! off by the carrier, or on it at the foot, it is decided. A place
 //! the band cannot read is a refusal, the place's, with the carrier's
 //! beside it where that refused too ([`SpanRefusal`]).
 
@@ -211,9 +212,26 @@ pub enum OffBy {
     /// from the whole carrier).
     Carrier,
     /// The span's own readings decided the point past the span: its place
-    /// against the ends, or its clearance over the span. Whether the point
-    /// lies on the carrier is not read.
-    Span,
+    /// against the ends, or its clearance over the span. `carrier` is what
+    /// the carrier's reading at the foot decided: a point it read off the
+    /// carrier is [`Self::Carrier`], so here it read on, or nothing.
+    Span {
+        /// The carrier's reading at the foot.
+        carrier: AtFoot,
+    },
+}
+
+/// **What the carrier's reading at the foot decided of a point past the
+/// span** ([`OffBy::Span`]): no `Off`, which is [`OffBy::Carrier`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AtFoot {
+    /// On the carrier ([`geom::OnCarrier::On`]): its gap at the foot, a
+    /// carrier point, is in the zero band, the carrier's own certificate
+    /// that the point lies on the whole carrier. Its record is spliced.
+    On,
+    /// The reading refused: whether the point lies on the carrier is the
+    /// whole carrier's question, still to ask. Its record is superseded.
+    Undecided,
 }
 
 /// **Why [`Span::read`] refused**: which of its two readings refused,
@@ -840,14 +858,17 @@ impl<'a, T: Decide> Span<'a, T> {
             if clear {
                 k_stats::splice(record);
                 k_stats::splice_superseded(carrier);
-                return Ok(Reading::Off(OffBy::Span));
+                return Ok(Reading::Off(OffBy::Span {
+                    carrier: AtFoot::Undecided,
+                }));
             }
             k_stats::splice_superseded(record);
         }
         let place = self.place_at(&foot, band);
         // An end, and a past, are answers the carrier's reading does not
-        // decide: its escalation is superseded.
-        if matches!(place, Ok(Place::End(_) | Place::Past)) {
+        // decide: its escalation is superseded. Past the span, a decided
+        // `On` is spliced, since `AtFoot::On` carries it.
+        if matches!(place, Ok(Place::End(_))) || (matches!(place, Ok(Place::Past)) && on.is_err()) {
             k_stats::splice_superseded(carrier);
         } else {
             k_stats::splice(carrier);
@@ -861,7 +882,13 @@ impl<'a, T: Decide> Span<'a, T> {
                     margin,
                 }
             }
-            Ok(Place::Past) => Reading::Off(OffBy::Span),
+            Ok(Place::Past) => Reading::Off(OffBy::Span {
+                carrier: if on.is_ok() {
+                    AtFoot::On
+                } else {
+                    AtFoot::Undecided
+                },
+            }),
             Err(place) => {
                 return Err(match on {
                     Ok(_) => SpanRefusal::Place(place),
