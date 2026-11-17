@@ -138,8 +138,28 @@ failure-output = "immediate-final"
 #   23.6 s   topo::all boxed_revolved_bodies_read_what_their_members_read::aims_about_a_boxed_frustum_and_sphere_cap_read_no_wrong_side
 #   25 s     topo::all boxed_revolved_bodies_read_what_their_members_read::aims_beside_a_boxed_seams_vertices_read_no_wrong_side
 #    0.49 s  sweep::all a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside::a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside
+# The chamfer over rounded outlines, its strips and frustums meeting at
+# junctions: closed rims turned, moved and drawn in arc pieces, pockets,
+# open runs and the plate at the certified scalar, the adversarial rows,
+# and the plate's names through the document (a local run):
+#   55.5 s   sweep::all band_closed_mixed_chain_shapes::rounded_outlines_of_other_shapes_chamfer_whole
+#   40.9 s   sweep::all band_closed_mixed_chain_shapes::turned_and_moved_rounded_rectangles_chamfer_whole
+#    2.84 s  sweep::all band_closed_mixed_chain_shapes::rounded_outlines_at_their_limits_chamfer_whole
+#    2.57 s  sweep::all band_closed_mixed_chain_shapes::a_rounded_plate_with_a_rounded_through_hole_chamfers_every_edge
+#    0.98 s  sweep::all band_closed_mixed_chain_shapes::holes_at_an_arcs_wedge_build_clear_and_refuse_overlapping_under_a_chamfer
+#    0.71 s  sweep::all band_closed_mixed_chain_shapes::a_turned_l_pockets_top_mouth_and_floor_chamfer_in_one_call
+#    3.04 s  sweep::all band_closed_mixed_chain::a_rounded_plate_chamfers_all_round_at_pappuss_volume_at_interval
+#    0.92 s  sweep::all band_open_mixed_chain::open_mixed_chains_chamfer_whole_at_pappuss_volume_at_interval
+#    0.81 s  sweep::all band_closed_mixed_chain::a_rounded_pockets_floor_and_mouth_chamfer_whole
+#    0.78 s  sweep::all band_closed_mixed_chain_shapes::rounded_outlines_drawn_in_arc_pieces_chamfer_whole
+#    0.70 s  sweep::all band_closed_mixed_chain::a_rounded_plate_chamfers_all_round_at_pappuss_volume
+#    0.53 s  sweep::all band_closed_mixed_chain_shapes::a_setback_beside_the_arcs_radius_builds_below_it_and_refuses_past_it
+#    0.50 s  sweep::all band_closed_mixed_chain_shapes::a_hole_at_a_junctions_section_clears_its_trims_until_its_margin_turns
+#    0.60 s  editor-core::all band_closed_mixed_chain_names::a_rounded_plate_chamfered_by_name_names_each_section_once_and_keeps_its_names
 default-filter = """
 not (
+  (binary_id(sweep::all) & (test(=band_closed_mixed_chain_shapes::rounded_outlines_of_other_shapes_chamfer_whole) | test(=band_closed_mixed_chain_shapes::turned_and_moved_rounded_rectangles_chamfer_whole) | test(=band_closed_mixed_chain_shapes::rounded_outlines_at_their_limits_chamfer_whole) | test(=band_closed_mixed_chain_shapes::a_rounded_plate_with_a_rounded_through_hole_chamfers_every_edge) | test(=band_closed_mixed_chain_shapes::holes_at_an_arcs_wedge_build_clear_and_refuse_overlapping_under_a_chamfer) | test(=band_closed_mixed_chain_shapes::a_turned_l_pockets_top_mouth_and_floor_chamfer_in_one_call) | test(=band_closed_mixed_chain::a_rounded_plate_chamfers_all_round_at_pappuss_volume_at_interval) | test(=band_open_mixed_chain::open_mixed_chains_chamfer_whole_at_pappuss_volume_at_interval) | test(=band_closed_mixed_chain::a_rounded_pockets_floor_and_mouth_chamfer_whole) | test(=band_closed_mixed_chain_shapes::rounded_outlines_drawn_in_arc_pieces_chamfer_whole) | test(=band_closed_mixed_chain::a_rounded_plate_chamfers_all_round_at_pappuss_volume) | test(=band_closed_mixed_chain_shapes::a_setback_beside_the_arcs_radius_builds_below_it_and_refuses_past_it) | test(=band_closed_mixed_chain_shapes::a_hole_at_a_junctions_section_clears_its_trims_until_its_margin_turns))) |
+  (binary_id(editor-core::all) & test(=band_closed_mixed_chain_names::a_rounded_plate_chamfered_by_name_names_each_section_once_and_keeps_its_names)) |
   (binary_id(sweep::all) & test(=snowman::a_slab_cutting_a_cap_off_a_pole_strut_carve_builds)) |
   (binary_id(sweep::all) & test(=band_strip_mouth_cups::a_cups_mouth_a_hair_across_the_trimline_crosses_and_one_inside_goes)) |
   (binary_id(sweep::all) & (test(=a_sweep_keeps_the_frame_it_is_handed::an_arc_wall_whose_radial_turns_with_a_boxed_bulge_stores_every_members_direction) | test(=a_sweep_keeps_the_frame_it_is_handed::a_partial_revolve_on_a_tilted_plane_stores_its_frames_exactly) | test(=band_mixed_corner::the_bracket_fillets_all_round_at_its_closed_form) | test(=band_mixed_corner::a_mixed_corner_at_a_non_right_plan_angle_builds_at_its_closed_form) | test(=band_mixed_corner::a_mixed_corner_reach_metered_as_a_uniform_corner_refuses_typed) | test(=band_mixed_corner::a_bore_wholly_behind_a_pair_edges_line_clears_its_ring_meter))) |

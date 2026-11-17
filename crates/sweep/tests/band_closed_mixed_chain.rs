@@ -21,10 +21,11 @@
 use core::f64::consts::{FRAC_PI_2, PI};
 
 use crate::band_closed_mixed_chain_shapes::{assert_touch_escalation, tightest_interval};
+use crate::band_open_mixed_chain::chamfer_row;
 use crate::common::interval::iv;
 use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point2, Point3, Tol};
 use profile::{SketchPlane, test_support::bulge_loop};
-use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
+use sweep::blend::fillet_edges;
 use sweep::test_support::{assert_naming_totality, at_rest, extruded};
 use topo::{Body, EdgeKey, validate_geometric};
 
@@ -194,19 +195,56 @@ fn a_rounded_plate_filleted_all_round_removes_pappuss_volume_at_interval() {
     }
 }
 
-/// **The chamfer does not reach a rounded outline**: its frustum covers
-/// a whole plane–cylinder rim alone, and a strip and a frustum meeting
-/// at a junction is not built, so the chain refuses at an arc before any
-/// chain is carved.
+/// The plate's outline, whose chamfer Pappus reads by pieces
+/// (`Outline::chamfer_pappus`).
+fn outline() -> crate::band_closed_mixed_chain_shapes::Outline {
+    crate::band_closed_mixed_chain_shapes::rect(HX, HY, [R; 4])
+}
+
+/// A rim's chamfer, closed: one band face and one section per link.
+fn chamfer_rim<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    what: &str,
+    body: &Body<T>,
+    (edges, requested): (&[EdgeKey], &[EdgeKey]),
+    s: T,
+    dv: f64,
+) {
+    let n = requested.len();
+    chamfer_row(what, body, (edges, requested), s, (n, n), dv);
+}
+
+/// **A rounded plate chamfered all round**: its top outline alone, then
+/// its top and bottom outlines in one call (every edge, the walls' smooth
+/// seams among them, which the blend leaves as they are), at both
+/// scalars and at a setback near the arcs' radius.
+fn rounded_plate_chamfers<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(scalar: &str) {
+    let body = plate::<T>(0.0, 0.0, 0.0, H);
+    let top = rim_at(&body, H);
+    let both: Vec<EdgeKey> = rim_at(&body, 0.0).into_iter().chain(top.clone()).collect();
+    for s in [0.05, 0.2] {
+        let what = format!("{scalar}: the top, s = {s}");
+        let removed = outline().chamfer_pappus(s, true);
+        chamfer_rim(&what, &body, (&top, &top), T::from_f64(s), -removed);
+        let what = format!("{scalar}: both outlines, s = {s}");
+        let edges = every_edge(&body);
+        chamfer_rim(
+            &what,
+            &body,
+            (&edges, &both),
+            T::from_f64(s),
+            -2.0 * removed,
+        );
+    }
+}
+
 #[test]
-fn a_rounded_plate_chamfered_all_round_refuses_at_its_arcs() {
-    let body = plate::<f64>(0.0, 0.0, 0.0, H);
-    let got =
-        chamfer_edges(&at_rest(&body, tol()), &every_edge(&body), 0.05, tol()).map_err(|r| r.error);
-    assert!(
-        matches!(got, Err(BlendError::ChamferArmUnsupported { .. })),
-        "a chamfer has no junction between a strip and a frustum, got {got:?}"
-    );
+fn a_rounded_plate_chamfers_all_round_at_pappuss_volume() {
+    rounded_plate_chamfers::<f64>("f64");
+}
+
+#[test]
+fn a_rounded_plate_chamfers_all_round_at_pappuss_volume_at_interval() {
+    rounded_plate_chamfers::<Interval>("Interval");
 }
 
 /// **A pocket's floor**: a `3 × 2 × 1` block less the rounded prism
@@ -304,5 +342,38 @@ fn a_rounded_pockets_mouth_fillets_whole_removing_pappuss_volume() {
             (removed - truth).abs() <= w0 + w1 + 1e-12,
             "{what}: ΔV {removed} is Pappus's {truth}"
         );
+    }
+}
+
+/// **A pocket's floor and mouth chamfered whole.** The floor's rim is
+/// concave and its host runs toward the arcs' axes, so it adds the
+/// triangle about `R − s/3`; the mouth's is convex with its arcs concave
+/// in the outline, the block's top running away from their axes, so it
+/// removes it about `R + s/3`, its frustums' plane feet at `R + s`.
+#[test]
+fn a_rounded_pockets_floor_and_mouth_chamfer_whole() {
+    let body = pocket();
+    let floor = rim_at(&body, 0.5);
+    let mouth: Vec<EdgeKey> = rim_at(&body, 1.0)
+        .into_iter()
+        .filter(|&e| {
+            let (a, _) = body.edge_vertices(e).unwrap();
+            let p = body.get_point(body.get_vertex(a).unwrap().point).unwrap();
+            (p.x - 1.5).abs() <= HX + 1e-9 && (p.y - 1.0).abs() <= HY + 1e-9
+        })
+        .collect();
+    assert_eq!(mouth.len(), 8, "the mouth: four lines and four arcs");
+    for s in [0.05, 0.2] {
+        let what = format!("pocket floor, s = {s}");
+        chamfer_rim(
+            &what,
+            &body,
+            (&floor, &floor),
+            s,
+            outline().chamfer_pappus(s, true),
+        );
+        let what = format!("pocket mouth, s = {s}");
+        let removed = outline().chamfer_pappus(s, false);
+        chamfer_rim(&what, &body, (&mouth, &mouth), s, -removed);
     }
 }
