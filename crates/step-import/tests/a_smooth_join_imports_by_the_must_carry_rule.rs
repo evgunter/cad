@@ -348,3 +348,71 @@ fn thin_tangent_joins_round_trip() {
         }
     }
 }
+
+// ---------------------------------------------------------------
+// A wild file's rulings between two records of one cylinder.
+// ---------------------------------------------------------------
+
+const TAIL_TURBINE: &str = "stepcode/TAIL_TURBINE.stp";
+
+fn census(body: &Body<f64>) -> [usize; 5] {
+    [
+        body.solids().count(),
+        body.shells().count(),
+        body.faces().count(),
+        body.edges().count(),
+        body.vertices().count(),
+    ]
+}
+
+/// **`TAIL_TURBINE`'s half-cylinder rulings adopt as the pair, and only
+/// where the rule reads them so.** Two of its faces wear two records of
+/// one cylinder (`#152`, `#563`) and meet along rulings the rule reads
+/// under-determined. Pointing face `#593` at `#152` instead makes the
+/// two faces one record, whose rulings are read by identity: the same
+/// census, and the same volume to rounding. Moving `#563`'s axis `2ε`
+/// across puts the rulings' wedge in band, so the rule refuses them,
+/// where incidence alone would pass them. Pinned only where `tier_gate`
+/// pins the file importing: below that its spline edge refuses first.
+/// The import's pass is thin: `#544`'s residual is about `0.79ε`, so a
+/// flip here reads as a change in that edge's certification.
+#[test]
+fn tail_turbines_rulings_adopt_as_the_pair_where_the_rule_reads_them() {
+    if crate::wild::refuses_at_this_eps(TAIL_TURBINE) != Some(false) {
+        test_utils::vacuity::stood_down(
+            "TAIL_TURBINE at this ε",
+            "its rulings' adoption: the file refuses earlier at this ε",
+        );
+        return;
+    }
+    let text = crate::wild::wild(TAIL_TURBINE);
+    let pair = import(&text).expect("the file imports");
+    let merged = text.replacen("(#592),#563,.T.", "(#592),#152,.T.", 1);
+    assert_ne!(merged, text, "face #593 names #563");
+    let one = import(&merged).expect("the one-record control imports");
+    assert_eq!(census(&pair), census(&one), "one census either way");
+    let volume = |b| topo::test_support::pinned_volume("the turbine", b, tol()).volume;
+    let (vp, vo) = (volume(&pair), volume(&one));
+    assert!(
+        ((vp - vo) / vo).abs() < 1e-12,
+        "one volume either way: {vp:e} against {vo:e}"
+    );
+
+    const AXIS: &str =
+        "#559=CARTESIAN_POINT('Axis2P3D Location',(-7.87401574803,3.14960629921,0.))";
+    let shifted = format!(
+        "#559=CARTESIAN_POINT('Axis2P3D Location',(-7.87401574803,{:.15},0.))",
+        3.14960629921 + 2.0 * tol().eps() / 0.0254
+    );
+    assert_eq!(text.matches(AXIS).count(), 1, "#563's axis is stated once");
+    match import(&text.replacen(AXIS, &shifted, 1)) {
+        Err(StepImportError::Adoption { attempts, .. }) => assert!(
+            matches!(
+                attempts.last().map(|a| &a.refusal),
+                Some(topo::EulerOpError::RestJoinUndecided { .. })
+            ),
+            "the rule refuses the moved rulings in band: {attempts:?}"
+        ),
+        other => panic!("a ruling 2ε off one record refuses, got {other:?}"),
+    }
+}

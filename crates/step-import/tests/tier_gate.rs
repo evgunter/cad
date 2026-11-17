@@ -392,11 +392,11 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 39] = [
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
-const TAIL_TURBINE: &str = "tests/fixtures/wild/stepcode/TAIL_TURBINE.stp";
+pub(crate) const TAIL_TURBINE: &str = "tests/fixtures/wild/stepcode/TAIL_TURBINE.stp";
 /// `TAIL_TURBINE`'s refusal below 1e-6: its spline-carried edge (#170)
 /// misses one of its analytic surfaces past ε.
 const TAIL_TURBINE_MISS: &str = "the residual against one of the edge's surfaces";
-const NEARPOLAR_SPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_split.step";
+pub(crate) const NEARPOLAR_SPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_split.step";
 const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step";
 /// The nearpolar twins' coarse-band sub-reason: the rim/plane wedge
 /// angle's adoption certification, by predicate name, so a regression
@@ -1098,6 +1098,17 @@ fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
         .iter()
         .find(|(p, a, t, _)| *p == rel && *a == ambient && *t == eps_tag)
         .map(|(.., d)| *d)
+}
+
+/// **Whether the corpus file `rel` refuses at the run's ε**, read off its
+/// pin at its own ε_in: its [`CORPUS`] row, or for an `EpsSensitive` file
+/// its [`EPS_ROWS`] cell. `None` for a file not in the corpus, or an
+/// `EpsSensitive` one off the pinned ambient matrix, where its disposition
+/// is not known. The one statement other suites read a corpus file's
+/// disposition from.
+pub(crate) fn refuses_at_run_eps(rel: &str) -> Option<bool> {
+    let &(_, row) = CORPUS.iter().find(|(p, _)| *p == rel)?;
+    expected(rel, row, "file").map(|d| matches!(d, Refused(_) | Escalated(..)))
 }
 
 /// Every corpus file's disposition, and the positive tier-validity of

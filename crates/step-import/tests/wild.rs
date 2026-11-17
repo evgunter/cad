@@ -87,8 +87,8 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the
     // edge. The refusal is the ladder's own, with every candidate and
-    // its residual. The edge's miss lies below 1e-6, so at a coarser ε
-    // the file imports ([`TAIL_TURBINE_IMPORTS_FROM`]).
+    // its residual. Where it refuses is `tier_gate`'s pin
+    // ([`refuses_at_this_eps`]): at a coarse ε the edge certifies.
     (
         "stepcode/TAIL_TURBINE.stp",
         "no intensional description certifies",
@@ -104,18 +104,10 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // M7-5 seam re-mint flipped both to `WILD_IMPORTS`.
 ];
 
-/// **The ε from which `TAIL_TURBINE` imports.** Its spline-carried
-/// edge misses its surfaces by more than ε through `3e-7` and certifies
-/// at `1e-6`. There its half-cylinder faces, two records of one
-/// cylinder, meet along rulings the must-carry rule reads
-/// under-determined, which adopt as the pair, and the file imports
-/// tier-3 valid.
-pub(crate) const TAIL_TURBINE_IMPORTS_FROM: f64 = 1e-6;
-
-/// Whether `name` refuses at the run's ε (`TAIL_TURBINE` alone depends
-/// on it, [`TAIL_TURBINE_IMPORTS_FROM`]).
-pub(crate) fn refuses_at_this_eps(name: &str) -> bool {
-    !(name.contains("TAIL_TURBINE") && Tol::witness().eps() >= TAIL_TURBINE_IMPORTS_FROM)
+/// Whether the wild fixture `name` refuses at the run's ε, by its
+/// `tier_gate` pin ([`crate::tier_gate::refuses_at_run_eps`]).
+pub(crate) fn refuses_at_this_eps(name: &str) -> Option<bool> {
+    crate::tier_gate::refuses_at_run_eps(&format!("tests/fixtures/wild/{name}"))
 }
 
 /// A wild fixture's text (bytes as committed — CRLF line endings and
@@ -551,16 +543,26 @@ fn wild_refusals_are_typed_and_name_their_class() {
         if name.contains("dm1-id-214") {
             continue;
         }
-        if !refuses_at_this_eps(name) {
-            match import_step(&wild(name), &ImportOptions::default(), Tol::witness()) {
-                Ok(StepImport::Solid { body, .. }) => assert_eq!(
-                    topo::validate_geometric(&body, Tol::witness()),
-                    Ok(()),
-                    "{name}: imports tier-3 valid at this ε"
-                ),
-                other => panic!("{name}: imports a solid at this ε, got {other:?}"),
+        match refuses_at_this_eps(name) {
+            Some(true) => {}
+            Some(false) => {
+                match import_step(&wild(name), &ImportOptions::default(), Tol::witness()) {
+                    Ok(StepImport::Solid { body, .. }) => assert_eq!(
+                        topo::validate_geometric(&body, Tol::witness()),
+                        Ok(()),
+                        "{name}: imports tier-3 valid at this ε"
+                    ),
+                    other => panic!("{name}: imports a solid at this ε, got {other:?}"),
+                }
+                continue;
             }
-            continue;
+            None => {
+                test_utils::vacuity::stood_down(
+                    name,
+                    "its refusal's class: its disposition is not pinned at this ε",
+                );
+                continue;
+            }
         }
         let err = import_step(&wild(name), &ImportOptions::default(), Tol::witness())
             .err()
