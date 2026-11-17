@@ -43,3 +43,16 @@ body has the reasons):
   beside a kept leg) silently taking a held name, and the five other
   P1s.
 - The budget returns to the default of 30, and the load is 21/30.
+
+## 2026-11-17 — dispatches (DOCTAIL orchestrator)
+
+**Fable is out (Ev, in chat, 2026-11-17).** Everything runs on Opus, and nothing is drawn or recorded for the experiments (model comparison, design fork). Each design fork goes to two Opus designers working independently, to keep the weighing independent.
+
+- **Design forks**, two Opus designers each, no rows recorded:
+  - `valenv`: what the edit door's value-reading checks and reports are. It weighs `a-value-edit-never-re-asks-the-door-checks-that-read-values`, `a-profile-reshaping-replays-a-member-indexed-step-outside-a-member` and `a-reshapings-values-strand-what-a-value-edit-would-not` together.
+  - `split`: `split-widens-a-product-reading-one-of-several-cut-copies`.
+  - `verdict`: `verdict-log-tells-no-validation-reading-from-a-building-decision`.
+  - `faceframe`: what a face's frame is when no cell fixes its x. The spec's least-turn fallback refuses at the pole, which is a cylinder's bottom cap (FRAME's 2026-11-03 note). `a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face` waits on it.
+- **Implementers** (Opus):
+  - `a-reshaping-that-joins-a-kept-piece-into-a-run-reports-nothing` (P0 M), on branch `doctail/a-reshaping-…`. It gets a single FULL review: the door has to reach the sweep's own run grouping, and believing that takes more than reading it.
+  - `the-save-format-drops-its-edit-log` (P1 M), on branch `doctail/the-save-format-…`. It gets a single FULL review because it decides the die corpus's ε-portability.
