@@ -59,9 +59,8 @@ use geom_core::{Band, Decide, Point3};
 use super::{BooleanDecision, BooleanError, CrossingDecision, Operand};
 use crate::body::Body;
 use crate::contain::FaceContainment;
-use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
-use crate::live::BoundaryMember;
-use crate::null::CurveGeom;
+use crate::entity::{EdgeKey, FaceKey};
+use crate::face_boundary::face_boundary;
 
 /// What [`boundary_crossing`] found along an edge.
 #[derive(Debug, Clone, Copy)]
@@ -249,99 +248,6 @@ pub(super) fn held_on<T: Copy>(at: FaceContainment, held: Option<Held<T>>) -> Op
     }
 }
 
-/// A boundary edge as the pass reads it.
-pub(super) struct BoundaryEdge<'a, T: geom_core::Real> {
-    /// The edge.
-    pub(super) key: EdgeKey,
-    /// Its half-edge's start vertex, and that vertex's point.
-    pub(super) start: (VertexKey, Point3<T>),
-    /// Its certified curve.
-    pub(super) curve: &'a geom_brep::EdgeCurve<T>,
-    /// The edge's two vertices, its span's start first.
-    pub(super) ends: [VertexKey; 2],
-}
-
-/// `face`'s boundary as the pass reads it: its edges in walk order and
-/// its lone vertices.
-pub(super) struct FaceBoundary<'a, T: geom_core::Real> {
-    pub(super) edges: Vec<BoundaryEdge<'a, T>>,
-    pub(super) lone: Vec<(VertexKey, Point3<T>)>,
-}
-
-impl<T: Decide> FaceBoundary<'_, T> {
-    /// The edges as the pass takes them.
-    fn spans(&self) -> Vec<(Point3<T>, Span<'_, T>)> {
-        self.edges
-            .iter()
-            .map(|e| (e.start.1, Span::new(e.curve.carrier(), e.curve.params())))
-            .collect()
-    }
-
-    /// The lone vertices' points, as the pass takes them.
-    fn lone_points(&self) -> Vec<Point3<T>> {
-        self.lone.iter().map(|&(_, p)| p).collect()
-    }
-
-    /// **Every meeting of `swept` with the boundary** ([`curve_face::read`]).
-    pub(super) fn read(
-        &self,
-        swept: &Span<'_, T>,
-        band: Band,
-    ) -> Result<curve_face::BoundaryReading<T>, BoundaryRefusal> {
-        curve_face::read(swept, &self.spans(), &self.lone_points(), band)
-    }
-
-    /// **Every meeting of `swept` with the boundary, read past each
-    /// member's refusal** ([`curve_face::located`]).
-    pub(super) fn located(&self, swept: &Span<'_, T>, band: Band) -> curve_face::Located<T> {
-        curve_face::located(swept, &self.spans(), &self.lone_points(), band)
-    }
-}
-
-/// `face`'s boundary in its walk order; `None` where an edge has no
-/// certified curve.
-///
-/// # Errors
-///
-/// [`BooleanError::ClassificationInvariant`] where `face` does not
-/// resolve.
-///
-/// # Panics
-///
-/// As [`boundary_crossing`]'s.
-pub(super) fn face_boundary<T: Decide>(
-    y: &Body<T>,
-    face: FaceKey,
-) -> Result<Option<FaceBoundary<'_, T>>, BooleanError> {
-    let face_data = y.face(face).ok_or(BooleanError::ClassificationInvariant {
-        what: "boundary pass: face lost",
-    })?;
-    let mut boundary = FaceBoundary {
-        edges: Vec::new(),
-        lone: Vec::new(),
-    };
-    for member in face_data.boundary() {
-        match member {
-            BoundaryMember::Isolated { vertex, point } => boundary.lone.push((vertex, point)),
-            BoundaryMember::Edge { he, half, ek, edge } => {
-                let start = y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
-                let CurveGeom::Certified(curve) = y.edge_curve_linked(ek, edge) else {
-                    return Ok(None);
-                };
-                // A span runs forward from its `he_plus`'s start.
-                let (from, to) = crate::query::edge_ends(y, ek);
-                boundary.edges.push(BoundaryEdge {
-                    key: ek,
-                    start: (half.start, start),
-                    curve,
-                    ends: [from, to],
-                });
-            }
-        }
-    }
-    Ok(Some(boundary))
-}
-
 /// A boundary pass's refusal: an escalation is this module's, a meeting
 /// in band the meeting's ([`meeting`], as the edge is `on_carrier` or
 /// not), located at the edge the triple names (its operand, the curved
@@ -389,6 +295,14 @@ fn escalated(diag: geom_core::Indeterminate) -> BooleanError {
     BooleanError::Escalated {
         decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
         diag,
+    }
+}
+
+/// A boundary walk that lost its face is a kernel fault of the
+/// boolean's classification, named as the walk names it.
+impl From<crate::face_boundary::FaceBoundaryError> for BooleanError {
+    fn from(e: crate::face_boundary::FaceBoundaryError) -> Self {
+        Self::ClassificationInvariant { what: e.what() }
     }
 }
 

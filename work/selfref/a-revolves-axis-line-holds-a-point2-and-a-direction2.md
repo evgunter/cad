@@ -11,7 +11,7 @@ parent: a-profile-cannot-refer-to-its-own-earlier-parts
 ---
 
 
-U7 of `work/vseam/a-profile-cannot-refer-to-its-own-earlier-parts`. It
+U7 of `work/selfref/a-profile-cannot-refer-to-its-own-earlier-parts`. It
 was added by the designers on the residue fork (Q11) and ruled on
 `[ev]` PR 6346.
 
