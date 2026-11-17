@@ -96,6 +96,25 @@ fn ball_less_a_tilted_slab(x0: f64, theta: f64) -> Body<f64> {
     Body::clone(&cut.body().expect("a body").body)
 }
 
+/// The unit pipe `z ∈ [−2, 2]` less a box past `z = 1` turned 0.3 rad
+/// about `x`: the wall's top is two ellipse arcs, whose stored images are
+/// harmonic, so the route reads the wall at its doors.
+fn pipe_cut_on_a_tilt() -> Body<f64> {
+    let tol = Tol::witness();
+    let pipe = finished("the pipe", crate::reach_probes::rod(1.0, -2.0, 4.0), tol);
+    let cap = topo::transform_rigid(
+        &brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (1.0, 5.0), tol),
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), 0.3),
+            tol,
+        ),
+    )
+    .unwrap();
+    let cap = finished("the cap", cap, tol);
+    let cut = topo::subtract(&pipe, &cap, tol).expect("the cut builds");
+    Body::clone(&cut.body().expect("a body").body)
+}
+
 /// The corpus the K stream is read over: bodies that mesh on the curved
 /// lane, on the trimmed lane by a stored image of a non-iso form, and the reviewer's
 /// tilted cells, each at `δ = 5e-2`.
@@ -110,6 +129,7 @@ fn k_corpus() -> Vec<(String, Body<f64>)> {
             "ball less a slab turned 0.3".to_string(),
             ball_less_a_tilted_slab(0.3, 0.3),
         ),
+        ("pipe cut on a tilt".to_string(), pipe_cut_on_a_tilt()),
     ];
     for (x0, theta) in [(0.3, 2e-9), (0.6, 8e-9)] {
         out.push((
@@ -205,7 +225,7 @@ fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
 /// the mesh.
 #[test]
 fn a_body_that_meshes_records_mains_k_stream() {
-    const MAIN: [(&str, u64, u64, u64); 8] = [
+    const MAIN: [(&str, u64, u64, u64); 9] = [
         (
             "rounded prism",
             0x79cc_2cd7_7222_d8cd,
@@ -241,6 +261,12 @@ fn a_body_that_meshes_records_mains_k_stream() {
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
             0x7fbe_fdb6_9442_bb87,
+        ),
+        (
+            "pipe cut on a tilt",
+            0xcbf2_9ce4_8422_2325,
+            0xcbf2_9ce4_8422_2325,
+            0x4299_0881_b1b2_3fb5,
         ),
         (
             "ball less a slab at 0.3 turned 2e-9",
@@ -341,5 +367,64 @@ fn an_edge_off_its_surface_refuses_with_that_cause() {
                 what: "props_circle_axis_class",
             },
         })
+    );
+}
+
+/// The pipe cut on a tilt with its wall put on a cylinder 3e-9 wider
+/// than its rims, rulings and ellipse arcs: the swap drops the wall's
+/// images, so the route reads it at its doors.
+fn poisoned_ellipse_wall() -> (Body<f64>, topo::FaceKey) {
+    let mut body = pipe_cut_on_a_tilt();
+    let (fk, sense, was) = body
+        .faces()
+        .find(|(fk, f)| {
+            f.rings.is_empty() && matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. }))
+        })
+        .map(|(fk, f)| (fk, f.sense, body.face_surface(fk).unwrap().clone()))
+        .expect("the wall");
+    let Surface::Cylinder {
+        origin,
+        axis,
+        radius,
+        u_ref,
+    } = was
+    else {
+        unreachable!("the wall is a cylinder")
+    };
+    // Lifts RechartStrandsDescriptions: the poisoned surface is the mesher's input, edges as they were.
+    body.set_face_surface_unvouched_for_tests(
+        fk,
+        topo::construction::FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin,
+                axis,
+                radius: radius + 3e-9,
+                u_ref,
+            },
+            sense,
+        },
+    )
+    .unwrap();
+    (body, fk)
+}
+
+/// **A carrier of no iso kind is read before anything in band.** The
+/// ellipse-cut wall, its stored data 3e-9 off its surface: the shape
+/// door's first pass reads the ellipse's kind and decides the wall is no
+/// rectangle with no decision taken, so no rim's or ruling's incidence
+/// can escalate ahead of it, wherever the loop starts. The trimmed lane
+/// then finds no stored image to read, and refuses that — as it did when
+/// the route read carrier kinds, where this wall went to it unasked.
+#[test]
+fn a_carrier_of_no_iso_kind_is_read_before_anything_in_band() {
+    let (body, face) = poisoned_ellipse_wall();
+    let got = mesh::tessellate(&body, 5e-2, Tol::witness()).map(|_| ());
+    assert!(
+        matches!(
+            &got,
+            Err(TessellateError::DomainUnread { face: f, cause })
+                if *f == face && matches!(**cause, topo::pcurves::RingPlacementError::Gap(_))
+        ),
+        "{got:?}"
     );
 }
