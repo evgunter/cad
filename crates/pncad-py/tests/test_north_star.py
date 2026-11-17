@@ -1816,10 +1816,10 @@ class TestDiechamferDie(DieScene, unittest.TestCase):
     `select_where` call feeds `Node.chamfer` directly — the identical
     line `TestDiecomposed` feeds `Node.fillet`, one verb over.
 
-    The pip rims stay sharp on purpose: the chamfer's v1 door is
-    plane-plane only, so a plane-sphere rim would refuse
-    `ChamferArmUnsupported`. That is the door's scope, not an
-    omission, and the scene says so."""
+    The pip rims stay sharp on purpose: the chamfer's arms are
+    plane-plane and a cylinder meeting a plane square to its axis, so a
+    plane-sphere rim would refuse `ChamferArmUnsupported`. That is the
+    door's scope, not an omission, and the scene says so."""
 
     DIE_D = 0.12  # the box-edge SETBACK, the filleted die's radius
 
