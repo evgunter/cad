@@ -4005,6 +4005,9 @@ fn present_vertex_corner<'a>(
         cache: Cache::default(),
     };
     let (fu, fv) = reach.chart(iv(x), iv(y));
+    if !(fu.is_certified() && fv.is_certified()) {
+        return Err(Unpresented::Local);
+    }
     let footprint = ((fu.lo(), fu.hi()), (fv.lo(), fv.hi()));
     if [Axis::U, Axis::V].into_iter().any(|axis| {
         let (lo, hi) = axis.of(footprint);

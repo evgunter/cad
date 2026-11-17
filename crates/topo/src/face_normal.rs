@@ -1498,7 +1498,7 @@ mod tests {
             // The quarter-turn that rotates a line edge's chart direction
             // toward its face, in the plane's chart frame: once each in
             // `present_plane`, `present_plane_corner` and
-            // `present_plane_vertex`.
+            // `present_vertex_corner`.
             ("crates/topo/src/injective.rs", "1.0"),
             ("crates/topo/src/injective.rs", "1.0"),
             ("crates/topo/src/injective.rs", "1.0"),
