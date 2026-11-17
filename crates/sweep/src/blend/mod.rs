@@ -1331,8 +1331,8 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// `blend_recourse_followability` follows the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains of plane\u{2013}plane links, or of such \
      links joined by bands of revolution where they meet tangentially, ending at trivalent \
-     vertices between planes; single cylinder-ruling links at TRANSVERSE CAPS; or a whole \
-     latitude rim, where the verb's arms cover it and its rings clear the band's setback";
+     vertices between planes, or single cylinder-ruling links at TRANSVERSE CAPS. Also a whole \
+     latitude rim carves where the verb's arms cover it, its rings clear of the band's setback";
 /// The recourse for a stored geometry the surgery's closed forms do
 /// not cover. Everything this unit decides is exact and stored — never
 /// sampled — so a carrier outside the covered shapes refuses rather

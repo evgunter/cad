@@ -123,9 +123,9 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
         "open rim: a transverse 30° corner is not a tangency, got {open:?}"
     );
     assert!(
-        matches!(open, Err(BlendError::UnbuiltEnd(_))),
-        "open rim: the arc terminates at the revolve's seam-meridian vertices, whose \
-         corner configuration is unimplemented, got {open:?}"
+        matches!(open, Err(BlendError::UnsupportedChain { edge, .. }) if edge == arc),
+        "open rim: the arc ends at the revolve's cut faces, where an open chain's curved \
+         link has no built end, got {open:?}"
     );
 }
 

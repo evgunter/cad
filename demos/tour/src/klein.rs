@@ -105,9 +105,9 @@
 //!    band crosses the outer wall and the reach meter refuses it
 //!    (`FaceClearance`). The meridian arc stays the authoring: it is
 //!    exact and free, and the roll is the check that the two agree. On
-//!    the partial revolve the open rim's ends meet the cut faces, and
-//!    that corner does not classify (`UnsupportedCorner {
-//!    Indeterminate }`, wall 2).
+//!    the partial revolve the open rim's ends meet the cut faces, where
+//!    an open chain's curved link has no built end (`UnsupportedChain`
+//!    on the rim arc, wall 2).
 //! 4. **Neither join can start** (walls 3, 4). `union` and `subtract`
 //!    stop at one place (`wall3_pinned`): the join's germ pair of the
 //!    bulb's cone and the loop's spline wall has no section arm to frame
@@ -228,7 +228,7 @@ use pncad::geom_core::{KnotVector, Point3, RigidMotion, Tol, Turns, UnitVec3};
 use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, query};
 use pncad::prelude::{Convexity, SurfaceKind};
 use pncad::profile::SketchPlane;
-use pncad::sweep::blend::{BlendError, CornerConfig, fillet_edges};
+use pncad::sweep::blend::{BlendError, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve, sweep_body};
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{AtRestBody, Body, BooleanError, EdgeKey};
@@ -1059,8 +1059,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         far.map(|_| ()).map_err(|e| e.error)
     );
     // Wall 2: the SAME corner on a partial revolve. Its rim is open, so
-    // the chain ends where the rim meets the revolve's cut faces, and
-    // the corner there does not classify.
+    // the chain ends where the rim meets the revolve's cut faces, and an
+    // open chain's curved link has no built end there.
     let (inner, _) = corners_by_wall(&sharp_part, &part_edges);
     crate::walls::wall(
         "bottle",
@@ -1069,13 +1069,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          band authors for that wall",
         fillet_edges(&sharp_part, &[inner], S::from_f64(m.rf + WALL / 2.0), tol),
         |e| {
-            matches!(
-                e.error,
-                BlendError::UnsupportedCorner {
-                    corner: CornerConfig::Indeterminate,
-                    ..
-                }
-            )
+            matches!(e.error, BlendError::UnsupportedChain { edge, .. } if edge == inner)
         },
         "roll the partial revolve's corners as the full revolve's are rolled",
     );

@@ -375,10 +375,9 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
              once the dihedral has decided, got {closed_verdict:?}"
         );
         assert!(
-            matches!(open_verdict, Err(BlendError::UnbuiltEnd(_))),
-            "open rim at half-angle {half_angle} rad: the arc terminates at the revolve's \
-             seam-meridian vertices, whose corner configuration is unimplemented, got \
-             {open_verdict:?}"
+            matches!(open_verdict, Err(BlendError::UnsupportedChain { edge, .. }) if edge == open),
+            "open rim at half-angle {half_angle} rad: the arc ends at the revolve's cut \
+             faces, where an open chain's curved link has no built end, got {open_verdict:?}"
         );
     }
 }

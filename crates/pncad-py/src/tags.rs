@@ -149,7 +149,7 @@ use pncad::select::{
 use pncad::step_import::{
     NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, StepImportError,
 };
-use pncad::sweep::blend::BlendError;
+use pncad::sweep::blend::{BlendError, UnbuiltEnd};
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
@@ -1459,7 +1459,8 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::SpineIrregular { .. } => "spine_irregular",
         BlendError::ChainNotG1 { .. } => "chain_not_g1",
         BlendError::ConvexitySignFlip { .. } => "convexity_sign_flip",
-        BlendError::UnsupportedCorner { .. } => "unsupported_corner",
+        BlendError::UnbuiltEnd(end) => unbuilt_end_tag(*end),
+        BlendError::ObliqueMixedCorner { .. } => "oblique_mixed_corner",
         BlendError::SpineUnsupported { .. } => "spine_unsupported",
         BlendError::ChamferArmUnsupported { .. } => "chamfer_arm_unsupported",
         BlendError::WedgeUnsettled { .. } => "wedge_unsettled",
@@ -1467,7 +1468,6 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::RepeatedEdge { .. } => "repeated_edge",
         BlendError::NonpositiveSize { .. } => "nonpositive_size",
         BlendError::UnsupportedChain { .. } => "unsupported_chain",
-        BlendError::UnsupportedRunOut { .. } => "unsupported_run_out",
         BlendError::UnsupportedGeometry { .. } => "unsupported_geometry",
         BlendError::BodyNotIntact { .. } => "body_not_intact",
         BlendError::NotFinished { .. } => "not_finished",
@@ -1477,6 +1477,23 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::Certify { .. } => "certify",
         BlendError::Op { .. } => "op",
         BlendError::Join { refusal } => join_refusal_tag(refusal),
+    }
+}
+
+/// The stable tag for a blend's unbuilt end ([`UnbuiltEnd`]), the
+/// inner tag of [`BlendError::UnbuiltEnd`]: why the end is not built,
+/// which is what a caller acts on (a seam asks for the rim whole, a
+/// run-out for the edge it runs into).
+pub fn unbuilt_end_tag(end: UnbuiltEnd) -> &'static str {
+    match end {
+        UnbuiltEnd::Valence { .. } => "unbuilt_end_valence",
+        UnbuiltEnd::DependentNormals { .. } => "unbuilt_end_dependent_normals",
+        UnbuiltEnd::Seam { .. } => "unbuilt_end_seam",
+        UnbuiltEnd::Indeterminate { .. } => "unbuilt_end_indeterminate",
+        UnbuiltEnd::CurvedEndFace { .. } => "unbuilt_end_curved_end_face",
+        UnbuiltEnd::FootInsideAFace { .. } => "unbuilt_end_foot_inside_a_face",
+        UnbuiltEnd::FeetCross { .. } => "unbuilt_end_feet_cross",
+        UnbuiltEnd::RunOut { .. } => "unbuilt_end_run_out",
     }
 }
 

@@ -327,7 +327,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 //
 // The reach is worse here than for a payload at `topo`'s root, which
 // `pncad::topo::` names; `sweep` re-exports NOTHING from `blend`, so before this line the
-// only spelling was `pncad::sweep::blend::CornerConfig` — and
+// only spelling was `pncad::sweep::blend::UnbuiltEnd` — and
 // `pncad::sweep::blend::battery::Convexity`, three submodules deep.
 // Contract clause 1 was met (one crate, a longer path); what was not
 // met is that a caller holding a prelude-curated `BlendError` could
@@ -336,14 +336,15 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // What each one decides, which is why matchability is worth carrying
 // each:
 //
-// - `CornerConfig` is `UnsupportedCorner`'s whole content (the OQ6
-//   vocabulary, decided at #85). A valence-4 vertex says "request the
-//   other edges"; a `SeamVertex` says "ask for the rim whole", a door
-//   that EXISTS — and `CornerConfig::policy` is the map that keeps a
-//   refusal from disagreeing with its own tag. Different recourses,
-//   so a caller branches, which is exactly CUR3's test.
-// - `RunOutPolicy` is that arm's second field, and `None` is a fact
-//   of its own: a seam vertex is not a corner, so no run-out helps.
+// - `UnbuiltEnd` is `BlendError::UnbuiltEnd`'s whole content: why a
+//   band's end is not built, one tag per reason, each carrying its own
+//   site. A valence-4 vertex says "request the other edges"; a seam
+//   says "ask for the rim whole", a door that EXISTS; a run-out names
+//   the edge to add. Different recourses, so a caller branches, which
+//   is exactly CUR3's test. What a built end IS stays the blend's own:
+//   no end-kind type is public.
+// - `OddEdge` is the run-out's payload at a vertex whose edges round
+//   both ways: the edge that rounds the other way, and its convexity.
 // - `BlendSite` is `Escalated`'s: link, joint, or the chain whole —
 //   the payload half of the two-tolerance shape (D4 ¶1 addendum).
 // - `BlendDecision` is `Escalated`'s too: the question that could not
@@ -369,7 +370,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
 pub use sweep::blend::{
-    BlendDecision, BlendSite, Breach, CornerConfig, RunOutPolicy, UnsettledWedge,
+    BlendDecision, BlendSite, Breach, OddEdge, UnbuiltEnd, UnsettledWedge,
 };
 // **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
 // value over: the payloads above are what a carried REFUSAL says, this

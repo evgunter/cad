@@ -301,12 +301,12 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
             let expected = if closed {
                 v.is_ok()
             } else {
-                matches!(v, Err(BlendError::UnbuiltEnd(_)))
+                matches!(v, Err(BlendError::UnsupportedChain { edge, .. }) if edge == rims[0])
             };
             assert!(
                 expected,
                 "neck {a}, closed = {closed}: a closed rim builds its band and an open \
-                 arc reaches the unimplemented seam-meridian corner, got {v:?}; {}",
+                 arc reaches its unbuilt end, got {v:?}; {}",
                 fuzz::replay()
             );
         }
@@ -454,7 +454,7 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
         "the dihedral must decide at the honest lever, not starve: {v:?}"
     );
     assert!(
-        matches!(v, Err(BlendError::UnbuiltEnd(_))),
-        "expected the decided corner refusal at the honest lever, got {v:?}"
+        matches!(v, Err(BlendError::UnsupportedChain { edge, .. }) if edge == corner[0]),
+        "expected the open arc's end refused once its sign decided, got {v:?}"
     );
 }

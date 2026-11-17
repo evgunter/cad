@@ -2326,16 +2326,16 @@ pub fn run_battery_for<T: Decide + Bounds>(
             let last = chain.rest().last().unwrap_or(chain.first());
             for (v, link) in [(head, chain.first()), (tail, last)] {
                 match corner_at(body, v, link, (&blended, &turns), r, band, kind)? {
-                    BandEnd::CutOff(section) => end_faces.push((v, section)),
+                    Some(BandEnd::CutOff(section)) => end_faces.push((v, section)),
                     // Both chains a turn ends reach it; it is one turn,
                     // decided once.
-                    BandEnd::Mitre(turn) | BandEnd::Overrun(turn)
+                    Some(BandEnd::Mitre(turn) | BandEnd::Overrun(turn))
                         if !turns.iter().any(|t| t.vertex == v) =>
                     {
                         turns.push(*turn);
                     }
-                    BandEnd::Patch(Some(m)) if !mixed.contains(&m) => mixed.push(m),
-                    BandEnd::Mitre(_) | BandEnd::Overrun(_) | BandEnd::Patch(_) => {}
+                    Some(BandEnd::Patch(Some(m))) if !mixed.contains(&m) => mixed.push(m),
+                    Some(BandEnd::Mitre(_) | BandEnd::Overrun(_) | BandEnd::Patch(_)) | None => {}
                 }
             }
         }
@@ -3046,14 +3046,14 @@ fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, B
 }
 
 /// Predicate 6 at one termination vertex, beside the link that reaches
-/// it and against the `requested` edges: the [`BandEnd`] it classified.
-/// A RULED link's end must be a plane cap, cut off in the section
-/// [`cap_transverse`] picks — and where that is the ellipse, the cap's
-/// three face normals independent ([`corner_independence`]). Any other
-/// link must be plane–plane (the open-chain door's own test,
-/// [`super::admit::open_link`]), its end a trivalent vertex with
-/// independent support normals, classified by how many of its three
-/// edges the request names: all three, the corner patch; two, the turn,
+/// it and against the `requested` edges: the [`BandEnd`] it classified,
+/// or `None` at a curved link's end, which is judged as a corner alone
+/// and left to its open-chain door. A RULED link's end must be a plane
+/// cap, cut off in the section [`cap_transverse`] picks — and where that
+/// is the ellipse, the cap's three face normals independent
+/// ([`corner_independence`]). A plane–plane link's end is a trivalent
+/// vertex with independent support normals, classified by how many of
+/// its three edges the request names: all three, the corner patch; two, the turn,
 /// whose two bands' feet on the third edge [`turn_at`] decides one point
 /// (the mitre) or apart (the overrun), once per vertex, `turns` holding
 /// those already decided; one, the cut-off — its end face a plane,
@@ -3074,7 +3074,7 @@ fn corner_at<T: Decide + Bounds>(
     radius: T,
     band: Band,
     kind: BlendKind,
-) -> Result<BandEnd<T>, BlendError> {
+) -> Result<Option<BandEnd<T>>, BlendError> {
     let refuse = |end: UnbuiltEnd| Err(unbuilt_end(end));
     // In key order, so the supports below are gathered — and their
     // normals reach the independence determinant — in an order that
@@ -3135,7 +3135,7 @@ fn corner_at<T: Decide + Bounds>(
             }
             corner_independence(vertex, normals, radius, band)?;
         }
-        return Ok(BandEnd::CutOff(section));
+        return Ok(Some(BandEnd::CutOff(section)));
     }
     if valence != 3 {
         return refuse(UnbuiltEnd::Valence { vertex, valence });
@@ -3164,18 +3164,17 @@ fn corner_at<T: Decide + Bounds>(
             }
         }
     }
-    // Any other end is a plane–plane link's: a link that is neither
-    // ruled nor plane–plane is refused by the open-chain door wherever
-    // it ends, so its end reads no corner.
-    super::admit::open_link(link, false)?;
-    // How many of the three edges the request names decides the end;
-    // the link's own edge is one of them.
+    // Between planes, how many of the three edges the request names
+    // decides the end; the link's own edge is one of them. Any other
+    // band's end is judged as a corner alone, and the open-chain door
+    // says what it builds.
+    let plane_plane = link.arm.is_plane_plane();
     let named = edges.iter().filter(|e| requested.contains(e)).count();
     // One: the cut-off. Its end face's SHAPE is the end's own fact, read
     // before the neighbours are resolved as links — a curved end face's
     // rims need not have an arm, and the refusal is the end's, not a
     // neighbour's.
-    let end_normal = if named == 1 {
+    let end_normal = if plane_plane && named == 1 {
         // `None` only at a non-manifold vertex or a stale key
         // (`cap_incidence`).
         let Some((_, _, end)) = cap_incidence(body, vertex, link.edge, link.face_a, link.face_b)
@@ -3216,8 +3215,11 @@ fn corner_at<T: Decide + Bounds>(
             // land here alike: the situation and its recourse are the
             // same, and what is lost is the neighbour's own margin. A
             // smooth neighbour is no wedge to count, and folds the same
-            // way.
+            // way. A link the open-chain door refuses wherever it ends
+            // is refused in the door's words instead, since no reading
+            // of this end would build it.
             Ok(Resolved::Smooth(..)) | Err(_) => {
+                super::admit::open_link(link, false)?;
                 return refuse(UnbuiltEnd::Indeterminate { vertex });
             }
         }
@@ -3253,6 +3255,7 @@ fn corner_at<T: Decide + Bounds>(
         Some(odd)
             if named == 3
                 || (matches!(kind, BlendKind::Chamfer)
+                    && plane_plane
                     && !mixed_end_is_built(&resolved, requested, odd.edge)) =>
         {
             let host = mixed_corner_square(
@@ -3273,6 +3276,9 @@ fn corner_at<T: Decide + Bounds>(
                 });
             }
         }
+        // A curved link's end is judged as at a uniform vertex: its
+        // open-chain door says what it builds.
+        Some(_) if !plane_plane => corner_independence(vertex, normals, radius, band)?,
         // The fillet's odd edge with one other: the other band would have
         // to stop where its edge runs smoothly into the odd band's
         // cut-off arc, short of the pair edge it does not name.
@@ -3294,8 +3300,11 @@ fn corner_at<T: Decide + Bounds>(
         }
         _ => corner_config(vertex, valence, normals, radius, band)?,
     }
+    if !plane_plane {
+        return Ok(None);
+    }
     match (named, end_normal) {
-        (3, _) => Ok(BandEnd::Patch(mixed)),
+        (3, _) => Ok(Some(BandEnd::Patch(mixed))),
         (2, _) => {
             let mut requested_links = resolved.iter().filter(|l| requested.contains(&l.edge));
             let (Some(l1), Some(l2), None) = (
@@ -3318,16 +3327,15 @@ fn corner_at<T: Decide + Bounds>(
                 Some(decided) => decided.clone(),
                 None => turn_at(body, vertex, [l1, l2], *third, radius, band, kind)?,
             };
-            Ok(match turn.run_out {
+            Ok(Some(match turn.run_out {
                 TurnRunOut::Mitre(_) => BandEnd::Mitre(Box::new(turn)),
                 TurnRunOut::Overrun(_) => BandEnd::Overrun(Box::new(turn)),
-            })
+            }))
         }
         // A plane band's section by the end face is a chord at any
         // angle; a cylinder band's is the kind the picker decides.
-        (1, Some(normal)) => {
-            cut_off_section(vertex, link, normal, radius, kind, band).map(BandEnd::CutOff)
-        }
+        (1, Some(normal)) => cut_off_section(vertex, link, normal, radius, kind, band)
+            .map(|section| Some(BandEnd::CutOff(section))),
         _ => Err(disagrees(
             EntityId::Vertex(vertex),
             "a chain end's edge fan does not carry the requested link that reaches it",

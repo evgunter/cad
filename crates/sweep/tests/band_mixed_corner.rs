@@ -666,9 +666,19 @@ fn a_mixed_corner_the_carve_does_not_build_refuses_typed() {
             "{what}: closed by the chain roster: {}",
             shown(&got)
         );
+        (*edge, shown(&alone))
     };
     let body = disc_corner();
-    same_as_alone(&body, &at(&body, (0.0, -1.0, 0.0)), "the disc corner");
+    let (arc, text) = same_as_alone(&body, &at(&body, (0.0, -1.0, 0.0)), "the disc corner");
+    // Chamfered alone, the arc (a frustum's, which the chamfer's arms
+    // cover) refuses the same: a neighbour at its end the chamfer cannot
+    // resolve is not read as an end that did not classify.
+    let bevel = Verb::Chamfer.run(&body, &[arc], R).map(|_| ());
+    assert!(
+        matches!(&bevel, Err(e @ BlendError::UnsupportedChain { .. })
+            if e.render(geom_brep::recourse::Reading::Build) == text),
+        "the disc corner's arc chamfered alone, got {bevel:?}"
+    );
     let body = bowed_corner();
     let edges = at(&body, (0.0, 0.0, 0.0));
     assert_eq!(edges.len(), 3, "the bowed corner's three edges");
