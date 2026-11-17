@@ -984,3 +984,11 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - Rule 3 allows a re-dispatch on the other model as an unfair half (rule 8). Whether to substitute or wait is a choice the protocol does not make, and ratios are Ev's.
   - Asked as **[PR 7061](https://github.com/evgunter/cad/pull/7061)** [ev]: (A) substitute Opus while a model is out for more than a day, with draws continuing and the half recorded unfair; or (B) wait for the reset. I recommend (A).
   - Holding both lanes until Ev answers. Subscribed.
+- 2026-11-17 — **Ev on PR 7061:** "i don't want to record even the opus rows while there are no matched fable rows, since the population will be less comparable … i'm fine either continuing or pausing this, whichever seems like it'll get the best code most efficiently."
+  - **Decided (mine, within that answer): pause the paired work until 2026-11-23.** The two Fable lanes saved their work and resume as the same agents then, so their rows stay fair. PR 7061 is closed unmerged and the protocol is unchanged.
+  - **Meanwhile, work outside the population:**
+    1. Board triage after the three decisions (orchestrator's work).
+    2. The PR 7056 "measure first" step, as a measurement lane (Opus; no code merged, numbers into the item; brief `measure-sliver.md`).
+    3. A few orchestrator's-read units that only add rows pinning current behaviour.
+
+    Then idle until the reset.
