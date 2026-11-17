@@ -705,8 +705,7 @@ fn a_mixed_corner_the_carve_does_not_build_refuses_typed() {
         assert_eq!(err.edge(), Some(odd), "{verb:?}: names the odd edge");
         let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(
-            shown.contains(sweep::blend::FILLET3_MIXED_CORNER_RECOURSE)
-                && shown.contains("square"),
+            shown.contains(sweep::blend::FILLET3_MIXED_CORNER_RECOURSE) && shown.contains("square"),
             "{verb:?}: {shown}"
         );
     }

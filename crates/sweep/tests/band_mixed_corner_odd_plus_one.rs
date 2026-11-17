@@ -27,8 +27,8 @@ use core::f64::consts::PI;
 
 use geom::Surface;
 use geom_core::Interval;
-use sweep::blend::build::{Blended, fillet_edges};
 use sweep::blend::battery::Convexity;
+use sweep::blend::build::{Blended, fillet_edges};
 use sweep::blend::{BlendError, FILLET3_MIXED_CORNER_RECOURSE, UnbuiltEnd};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{assert_naming_totality, at_rest, corners, prism_at};
@@ -280,13 +280,14 @@ fn pair_of_length<T: Scalar>(y: f64) -> (Body<T>, [EdgeKey; 2]) {
 /// The short-edge boundaries at scalar `T`, each read `d = 100ε` either
 /// side (outside the predicates' bands at every ε) and 5% either side.
 fn short_edge_rows<T: Scalar>(scalar: &str) {
-    let run_out = |got: Result<Blended<T>, BlendError>, want: fn(&UnbuiltEnd) -> bool, what: &str| {
-        assert!(
-            matches!(&got, Err(BlendError::UnbuiltEnd(end)) if want(end)),
-            "{what}, {scalar}: refuses the end's tag, got {got:?}",
-            got = got.as_ref().map(|_| ())
-        );
-    };
+    let run_out =
+        |got: Result<Blended<T>, BlendError>, want: fn(&UnbuiltEnd) -> bool, what: &str| {
+            assert!(
+                matches!(&got, Err(BlendError::UnbuiltEnd(end)) if want(end)),
+                "{what}, {scalar}: refuses the end's tag, got {got:?}",
+                got = got.as_ref().map(|_| ())
+            );
+        };
     let cross: fn(&UnbuiltEnd) -> bool = |e| matches!(e, UnbuiltEnd::FeetCross { .. });
     let inside: fn(&UnbuiltEnd) -> bool = |e| matches!(e, UnbuiltEnd::FootInsideAFace { .. });
     let d = 100.0 * tol().eps();
@@ -385,7 +386,11 @@ fn the_odd_edge_with_one_other_refuses_the_fillet_and_an_oblique_shared_face() {
                 ),
                 "the {kind} fillet: the run-out at the left-out pair edge, got {got:?}"
             );
-            assert_eq!(got.unwrap_err().edge(), Some(left), "{kind}: names the edge to add");
+            assert_eq!(
+                got.unwrap_err().edge(),
+                Some(left),
+                "{kind}: names the edge to add"
+            );
         }
     }
     let body = leaning();

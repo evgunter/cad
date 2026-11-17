@@ -12,8 +12,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
-use sweep::blend::build::fillet_edges;
 use sweep::blend::BlendError;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::{lantern, prism, rim_arcs_at};
 use topo::EdgeKey;
 use topo::construction::Construct;

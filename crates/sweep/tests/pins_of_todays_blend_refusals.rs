@@ -41,7 +41,10 @@ fn a_slot_end_arc_alone_refuses_as_a_tangent_run_requested_in_part() {
     assert!(
         matches!(
             &got,
-            Err(BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::RunOut { odd: None, .. }))
+            Err(BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::RunOut {
+                odd: None,
+                ..
+            }))
         ),
         "a slot's end arc alone refuses as a tangent run requested in part, got {got:?}"
     );

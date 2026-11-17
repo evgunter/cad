@@ -66,8 +66,8 @@ use crate::blend::junction::{self, JunctionReading, MixedTrim, strut_foot};
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, ContactCarrier, Described, ExpectedSource, SourceFaces, chord_site,
-    disagrees, face_of_half, halves_of, host_side_half, op, open_trimline, point_of,
-    invariant_broken, retire_fragment, split_fragment, unbuilt_geometry, unresolved, unwalked,
+    disagrees, face_of_half, halves_of, host_side_half, invariant_broken, op, open_trimline,
+    point_of, retire_fragment, split_fragment, unbuilt_geometry, unresolved, unwalked,
 };
 use crate::blend::{BlendDecision, BlendError, BlendKind, BlendSite};
 

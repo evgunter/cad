@@ -3861,7 +3861,10 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 }),
             }),
         ),
-        ("ObliqueMixedCorner", E::ObliqueMixedCorner { vertex, odd: edge }),
+        (
+            "ObliqueMixedCorner",
+            E::ObliqueMixedCorner { vertex, odd: edge },
+        ),
         (
             "SpineUnsupported",
             E::SpineUnsupported {

@@ -53,8 +53,7 @@ use crate::blend::reach::{EDGE_SAMPLES, sure};
 use crate::blend::surgery::{
     ContactCarrier, Piece, SourceFaces, SplitFragments, arc_window, chord_site, disagrees,
     face_of_half, halves_of, op, piece_along, piece_distance, point_of, retire_fragment,
-    split_fragment, split_param_in_span, stored_piece, unbuilt_end, unbuilt_geometry,
-    unresolved,
+    split_fragment, split_param_in_span, stored_piece, unbuilt_end, unbuilt_geometry, unresolved,
 };
 use crate::blend::{BlendDecision, BlendError, BlendSite, UnbuiltEnd, classify};
 

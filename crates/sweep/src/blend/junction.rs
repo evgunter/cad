@@ -43,7 +43,6 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Tol, Vec3};
 use topo::construction::{Construct, MevSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-use super::{BlendError, UnbuiltEnd};
 use super::admit::{RequestedBoundary, StationKind};
 use super::arms::{BallSection, EdgeBlend, radial_about};
 use super::battery::{Link, same_supports};
@@ -55,6 +54,7 @@ use super::surgery::{
     halves_of, host_side_half, op, point_of, seam_split_param, split_fragment, stored_piece,
     unbuilt_chain, unbuilt_end, unbuilt_geometry, unresolved, unwalked,
 };
+use super::{BlendError, UnbuiltEnd};
 
 /// **What a junction is, read once for every admission**: the face its
 /// two links share (the HOST), each link's other support (its MATE,
@@ -794,12 +794,12 @@ mod tests {
     use profile::{SketchPlane, test_support::bulge_loop};
 
     use super::super::BlendError;
+    use super::super::UnbuiltEnd;
     use super::super::admit::{
         AdmittedOpen, Foot, OpenBand, PlannedStation, RequestedBoundary, StationKind,
     };
     use super::super::battery::{BlendRequest, run_battery};
     use super::super::open::planar::{cut_off_plan, junction_plan};
-    use super::super::UnbuiltEnd;
     use super::feet_clear;
 
     /// **[`feet_clear`] reads a straight link's two feet in order.** The

@@ -369,9 +369,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // here to split and none to pin. That the blend door is unprojected
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
-pub use sweep::blend::{
-    BlendDecision, BlendSite, Breach, OddEdge, UnbuiltEnd, UnsettledWedge,
-};
+pub use sweep::blend::{BlendDecision, BlendSite, Breach, OddEdge, UnbuiltEnd, UnsettledWedge};
 // **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
 // value over: the payloads above are what a carried REFUSAL says, this
 // is what a carried RESULT says, and a curated list owes matchability

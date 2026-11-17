@@ -273,10 +273,7 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
     let (round, edge) = half_round_end();
     let run_out = chamfer_edges(&sweep::test_support::at_rest(&round, t), &[edge], D, t)
         .expect_err("a curved end face is a run-out");
-    assert!(matches!(
-        run_out.error,
-        BlendError::UnbuiltEnd(_)
-    ));
+    assert!(matches!(run_out.error, BlendError::UnbuiltEnd(_)));
     assert!(
         chamfer_edges(&sweep::test_support::at_rest(&body, t), &edges[..1], D, t).is_ok(),
         "one edge ending at plane end faces, which the recourse names, must build"

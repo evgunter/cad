@@ -977,9 +977,7 @@ impl fmt::Display for UnbuiltEnd {
             Self::FootInsideAFace { .. } => f.write_str(open::end_face::FOOT_INSIDE_A_FACE),
             Self::FeetCross { .. } => f.write_str(FEET_CROSS),
             Self::RunOut { odd: None, .. } => f.write_str(battery::PARTIAL_TANGENT_RUN),
-            Self::RunOut {
-                odd: Some(odd), ..
-            } => write!(
+            Self::RunOut { odd: Some(odd), .. } => write!(
                 f,
                 "a band would have to stop where its edge runs smoothly into the cut-off arc \
                  of the edge that rounds the other way ({})",
@@ -2438,11 +2436,11 @@ mod recourse_tests {
 
     use super::{
         BlendDecision, BlendError, BlendSite, Breach, CHAMFER_ARM_RECOURSE, ClassifiedMargin,
-        Convexity, FILLET3_ASSEMBLY_RECOURSE, FILLET3_MIXED_CORNER_RECOURSE, OddEdge, UnbuiltEnd, FILLET3_CHAIN_RECOURSE,
-        FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
-        FILLET3_GEOMETRY_RECOURSE, FILLET3_INSIDE_RECOURSE,
-        FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
-        FILLET3_SPINE_RECOURSE,
+        Convexity, FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
+        FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_GEOMETRY_RECOURSE,
+        FILLET3_INSIDE_RECOURSE, FILLET3_MIXED_CORNER_RECOURSE, FILLET3_RADIUS_RECOURSE,
+        FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, OddEdge,
+        UnbuiltEnd,
     };
     use super::{
         FILLET3_BALL_ROOM_RECOURSE, FILLET3_KNIFE_RECOURSE, FILLET3_LAMINA_RECOURSE, KnifeRefusal,

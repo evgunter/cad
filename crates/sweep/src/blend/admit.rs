@@ -41,14 +41,13 @@
 use geom_core::{Decide, Point3, Real};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
+use super::BlendError;
 use super::battery::{Chain, Convexity, JointVerdict, Link, joint_verdict};
 use super::build::{fan_at, outward_of};
 use super::junction::{self, JUNCTION_ON_ONE_PAIR};
 use super::surgery::{
-    CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_chain, unbuilt_geometry,
-    unresolved, unwalked,
+    CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_chain, unbuilt_geometry, unresolved, unwalked,
 };
-use super::BlendError;
 
 /// **One link of an admitted open band**, whose arm is plane–plane
 /// (the band between trivalent corners) or ruled (the cylinder band

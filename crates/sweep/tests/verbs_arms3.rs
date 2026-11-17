@@ -349,9 +349,7 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
     )
     .map_err(|r| r.error)
     {
-        Err(
-            e @ BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::Seam { .. }),
-        ) => {
+        Err(e @ BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::Seam { .. })) => {
             let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains(sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE),

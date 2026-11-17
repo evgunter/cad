@@ -864,8 +864,7 @@ fn two_turns_on_one_l_match_the_slab_oracle() {
                         }
                     }
                     Err(e) => {
-                        let typed =
-                            a_clearance(&e) || matches!(e, BlendError::UnbuiltEnd(_));
+                        let typed = a_clearance(&e) || matches!(e, BlendError::UnbuiltEnd(_));
                         if !typed {
                             failures.push(format!(
                                 "{what}: refused untyped, {e_at}",

@@ -34,9 +34,7 @@ use geom_core::k_stats::Bracket;
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
-use sweep::blend::battery::{
-    BlendRequest, EndSection, cap_transverse, run_battery,
-};
+use sweep::blend::battery::{BlendRequest, EndSection, cap_transverse, run_battery};
 use sweep::blend::{BlendDecision, BlendError, Blended, UnbuiltEnd, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, finished, revolved_about_y,

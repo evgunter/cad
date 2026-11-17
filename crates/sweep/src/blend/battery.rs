@@ -54,8 +54,8 @@ use super::junction::JUNCTION_NO_HOST;
 use super::open::end_face::CycleReading;
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, invariant_broken, scaffolding,
-    strip_frame, strip_reading,
-    strip_ring, unbuilt_chain, unbuilt_end, unbuilt_geometry, unresolved, unwalked,
+    strip_frame, strip_reading, strip_ring, unbuilt_chain, unbuilt_end, unbuilt_geometry,
+    unresolved, unwalked,
 };
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, KnifeRefusal, OddEdge,
@@ -3258,15 +3258,7 @@ fn corner_at<T: Decide + Bounds>(
                     && plane_plane
                     && !mixed_end_is_built(&resolved, requested, odd.edge)) =>
         {
-            let host = mixed_corner_square(
-                vertex,
-                odd,
-                &resolved,
-                &faces,
-                normals,
-                radius,
-                band,
-            )?;
+            let host = mixed_corner_square(vertex, odd, &resolved, &faces, normals, radius, band)?;
             corner_independence(vertex, normals, radius, band)?;
             if named == 3 {
                 mixed = Some(MixedVertex {

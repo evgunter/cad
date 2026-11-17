@@ -21,8 +21,8 @@ use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile};
 use sweep::ExtrudeSide;
-use sweep::blend::build::fillet_edges;
 use sweep::blend::BlendError;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
     arc_polygon, arc_run, bored_block_of_arcs, circle_arcs_at_z, disc_of_arcs, finished,
     pocket_of_arcs,
@@ -806,7 +806,9 @@ fn refuses_seam_vertex(b: &Body<f64>, edges: &[EdgeKey]) -> bool {
     matches!(
         fillet_edges(&sweep::test_support::at_rest(b, tol()), edges, 0.1, tol())
             .map_err(|r| r.error),
-        Err(BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::Seam { .. }))
+        Err(BlendError::UnbuiltEnd(
+            sweep::blend::UnbuiltEnd::Seam { .. }
+        ))
     )
 }
 

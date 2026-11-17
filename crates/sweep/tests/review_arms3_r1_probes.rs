@@ -567,9 +567,7 @@ fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_carves() {
     let arcs = rim_arcs_at(&body, 0.6, 0.45);
     assert_eq!(arcs.len(), 2, "the seam splits the rim into two arcs");
     match fillet_edges(&body, &arcs[..1], 0.03, tol()).map_err(|r| r.error) {
-        Err(
-            e @ BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. }),
-        ) => {
+        Err(e @ BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. })) => {
             let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains("request the rim whole"),

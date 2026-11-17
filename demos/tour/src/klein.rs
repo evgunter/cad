@@ -1068,9 +1068,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "fillet the neck→flare corner on a partial revolve (open rim) at the radius the \
          band authors for that wall",
         fillet_edges(&sharp_part, &[inner], S::from_f64(m.rf + WALL / 2.0), tol),
-        |e| {
-            matches!(e.error, BlendError::UnsupportedChain { edge, .. } if edge == inner)
-        },
+        |e| matches!(e.error, BlendError::UnsupportedChain { edge, .. } if edge == inner),
         "roll the partial revolve's corners as the full revolve's are rolled",
     );
 

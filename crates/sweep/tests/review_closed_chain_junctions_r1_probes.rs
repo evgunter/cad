@@ -554,9 +554,7 @@ fn r1_an_open_chain_with_tangent_junctions_pairs_by_incidence_and_refuses_at_a_r
             Err(BlendRefusal {
                 error:
                     BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::RunOut {
-                        vertex,
-                        odd: None,
-                        ..
+                        vertex, odd: None, ..
                     }),
                 ..
             }) => assert!(

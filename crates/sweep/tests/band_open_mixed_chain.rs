@@ -583,7 +583,8 @@ fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
             "{what}: the refusal names the edge the tangent run goes on into"
         );
         assert!(
-            e.to_string().contains(sweep::blend::battery::PARTIAL_TANGENT_RUN),
+            e.to_string()
+                .contains(sweep::blend::battery::PARTIAL_TANGENT_RUN),
             "{what}: the refusal names the tangent run requested in part"
         );
         let shown = e.to_string();

@@ -646,10 +646,7 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
             panic!("{name}: one arc stops at a seam vertex and must refuse")
         };
         assert!(
-            matches!(
-                one,
-                BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. })
-            ),
+            matches!(one, BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. })),
             "{name}: the incidence-only tag fires on both material sides, got {one:?}"
         );
         let shown = one.render(geom_brep::recourse::Reading::Build);
