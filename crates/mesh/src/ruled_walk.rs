@@ -278,7 +278,8 @@ mod tests {
                         for &t in &tris {
                             assert!(area(&p, t) > 0.0, "{what}: {t:?} wound against the polygon");
                             let us = t.map(|k| p[k].0);
-                            let (lo, hi) = (us[0].min(us[1]).min(us[2]), us[0].max(us[1]).max(us[2]));
+                            let (lo, hi) =
+                                (us[0].min(us[1]).min(us[2]), us[0].max(us[1]).max(us[2]));
                             assert!(
                                 chord(ra, lo, hi) || chord(rb, lo, hi),
                                 "{what}: {t:?} spans [{lo}, {hi}], more than one chord"

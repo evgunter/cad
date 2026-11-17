@@ -591,7 +591,7 @@ pub(crate) fn tessellate_trimmed(
     if let ChartRow::Analytic(ref a) = row
         && walked(body, fk, surface, tol.band)?
     {
-        return walk_face(body, fk, face.sense, a, &polygon, &singular, shared, tol);
+        return walk_face(body, fk, a, &polygon, &singular, shared, tol);
     }
     // A CHART WITH SINGULAR POINTS keeps its polygon to the shape
     // `singular_row_shape` admits, so the duplicate-id skip in the emit
@@ -3128,6 +3128,113 @@ impl Creases {
     }
 }
 
+/// **A walked face's patch** (`crate::ruled_walk`): the walk of its two
+/// rows, each triangle then read as every triangle of this lane is: its
+/// winding resolved and outward, its certificate within δ.
+///
+/// It needs neither of the CDT's shared-side cures (the ear, the cone
+/// arm's rule): a walked side joins two points within one rim chord of
+/// each other, and two points a neighbouring face holds both of without
+/// being neighbours on this face's polygon lie on this face's two
+/// different sides, a whole face apart (module docs of
+/// `crate::ruled_walk`, "No edge of four triangles").
+///
+/// # Errors
+///
+/// [`TessellateError::MissingEntity`] where the polygon does not read as
+/// the two rows [`walked`] found in the loop (a cone face of one run of
+/// rims with no apex between its sides); and the lane's per-triangle
+/// refusals: [`TessellateError::UnresolvedWinding`],
+/// [`TessellateError::FoldedTriangle`],
+/// [`TessellateError::CertificateExceeded`],
+/// [`TessellateError::RoundingUnresolved`].
+fn walk_face(
+    body: &Body<f64>,
+    fk: FaceKey,
+    row: &AnalyticRow<'_>,
+    polygon: &TrimPolygon,
+    singular: &HashSet<u32>,
+    shared: &[Point3<f64>],
+    tol: &SizingTols,
+) -> Result<Patch, TessellateError> {
+    let sense = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?
+        .sense;
+    let points = &polygon.points;
+    let line = polygon
+        .edges
+        .iter()
+        .map(|&ek| Ok(matches!(edge_carrier(body, ek)?, Curve3::Line(..))))
+        .collect::<Result<Vec<bool>, TessellateError>>()?;
+    let rows = (polygon.ends.len() == 1)
+        .then(|| crate::ruled_walk::Rows::of(points, &line, singular))
+        .flatten()
+        .ok_or(TessellateError::MissingEntity {
+            what: "a walked face's two rows",
+        })?;
+    let mut triangles = Vec::new();
+    let (mut worst, mut exceeded, mut unresolved) = (0.0f64, false, None::<f64>);
+    for t in rows.walk(points) {
+        let ids = t.map(|k| points[k].2);
+        // A full turn's seam corners are one mesh vertex at two chart
+        // points; a triangle on both is no triangle in 3-D.
+        if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
+            continue;
+        }
+        let tri = ids.map(|id| shared[id as usize]);
+        let normal = crate::validate::resolved_normal(tri).map_err(|unresolved| {
+            TessellateError::UnresolvedWinding {
+                face: fk,
+                unresolved: Box::new(unresolved),
+            }
+        })?;
+        let centroid = Point3::new(
+            (tri[0].x + tri[1].x + tri[2].x) / 3.0,
+            (tri[0].y + tri[1].y + tri[2].y) / 3.0,
+            (tri[0].z + tri[1].z + tri[2].z) / 3.0,
+        );
+        // Folded unless wound outward: a zero dot is a fold.
+        if normal
+            .dot(row.outward(sense, centroid).vec())
+            .partial_cmp(&0.0)
+            != Some(core::cmp::Ordering::Greater)
+        {
+            return Err(TessellateError::FoldedTriangle { face: fk });
+        }
+        let uv = t.map(|k| [points[k].0, points[k].1]);
+        let (bound, scale) = row.cert(tri, uv, ids.map(|id| singular.contains(&id)));
+        match cert::verdict(bound, tol.delta, scale, tol.eps) {
+            cert::Verdict::Certified => {}
+            cert::Verdict::Exceeded => exceeded = true,
+            cert::Verdict::Unresolved { allowance } => {
+                unresolved = Some(unresolved.map_or(allowance, |a: f64| a.max(allowance)));
+            }
+        }
+        worst = cert::worse(worst, bound);
+        triangles.push(ids.map(PatchVertex::Shared));
+    }
+    if exceeded {
+        return Err(TessellateError::CertificateExceeded {
+            face: fk,
+            bound: worst,
+            requested: tol.delta,
+        });
+    }
+    if let Some(allowance) = unresolved {
+        return Err(TessellateError::RoundingUnresolved {
+            face: fk,
+            bound: worst,
+            requested: tol.delta,
+            allowance,
+        });
+    }
+    Ok(Patch {
+        interior: Vec::new(),
+        triangles,
+    })
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(super) mod tests {
@@ -5546,106 +5653,4 @@ pub(super) mod tests {
             assert_eq!(cause(&both), Some(SphereTrimCause::BothNappes));
         }
     }
-}
-
-/// **A walked face's patch** (`crate::ruled_walk`): the walk of its two
-/// rows, each triangle then read as every triangle of this lane is: its
-/// winding resolved and outward, its certificate within δ.
-///
-/// It needs neither of the CDT's shared-side cures (the ear, the cone
-/// arm's rule): a walked side joins two points within one rim chord of
-/// each other, and two points a neighbouring face holds both of without
-/// being neighbours on this face's polygon lie on this face's two
-/// different sides, a whole face apart (module docs of
-/// `crate::ruled_walk`, "No edge of four triangles").
-///
-/// # Errors
-///
-/// [`TessellateError::MissingEntity`] where the polygon does not read as
-/// the two rows [`walked`] found in the loop (a cone face of one run of
-/// rims with no apex between its sides); and the lane's per-triangle
-/// refusals: [`TessellateError::UnresolvedWinding`],
-/// [`TessellateError::FoldedTriangle`],
-/// [`TessellateError::CertificateExceeded`],
-/// [`TessellateError::RoundingUnresolved`].
-fn walk_face(
-    body: &Body<f64>,
-    fk: FaceKey,
-    sense: bool,
-    row: &AnalyticRow<'_>,
-    polygon: &TrimPolygon,
-    singular: &HashSet<u32>,
-    shared: &[Point3<f64>],
-    tol: &SizingTols,
-) -> Result<Patch, TessellateError> {
-    let points = &polygon.points;
-    let line = polygon
-        .edges
-        .iter()
-        .map(|&ek| Ok(matches!(edge_carrier(body, ek)?, Curve3::Line(..))))
-        .collect::<Result<Vec<bool>, TessellateError>>()?;
-    let rows = (polygon.ends.len() == 1)
-        .then(|| crate::ruled_walk::Rows::of(points, &line, singular))
-        .flatten()
-        .ok_or(TessellateError::MissingEntity {
-            what: "a walked face's two rows",
-        })?;
-    let mut triangles = Vec::new();
-    let (mut worst, mut exceeded, mut unresolved) = (0.0f64, false, None::<f64>);
-    for t in rows.walk(points) {
-        let ids = t.map(|k| points[k].2);
-        // A full turn's seam corners are one mesh vertex at two chart
-        // points; a triangle on both is no triangle in 3-D.
-        if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
-            continue;
-        }
-        let tri = ids.map(|id| shared[id as usize]);
-        let normal = crate::validate::resolved_normal(tri).map_err(|unresolved| {
-            TessellateError::UnresolvedWinding {
-                face: fk,
-                unresolved: Box::new(unresolved),
-            }
-        })?;
-        let centroid = Point3::new(
-            (tri[0].x + tri[1].x + tri[2].x) / 3.0,
-            (tri[0].y + tri[1].y + tri[2].y) / 3.0,
-            (tri[0].z + tri[1].z + tri[2].z) / 3.0,
-        );
-        // Folded unless wound outward: a zero dot is a fold.
-        if normal.dot(row.outward(sense, centroid).vec()).partial_cmp(&0.0)
-            != Some(core::cmp::Ordering::Greater)
-        {
-            return Err(TessellateError::FoldedTriangle { face: fk });
-        }
-        let uv = t.map(|k| [points[k].0, points[k].1]);
-        let (bound, scale) = row.cert(tri, uv, ids.map(|id| singular.contains(&id)));
-        match cert::verdict(bound, tol.delta, scale, tol.eps) {
-            cert::Verdict::Certified => {}
-            cert::Verdict::Exceeded => exceeded = true,
-            cert::Verdict::Unresolved { allowance } => {
-                unresolved = Some(unresolved.map_or(allowance, |a: f64| a.max(allowance)));
-            }
-        }
-        worst = cert::worse(worst, bound);
-        triangles.push(ids.map(PatchVertex::Shared));
-    }
-    if exceeded {
-        return Err(TessellateError::CertificateExceeded {
-            face: fk,
-            bound: worst,
-            requested: tol.delta,
-        });
-    }
-    if let Some(allowance) = unresolved {
-        return Err(TessellateError::RoundingUnresolved {
-            face: fk,
-            bound: worst,
-            requested: tol.delta,
-            allowance,
-        });
-    }
-    Ok(Patch {
-        interior: Vec::new(),
-        triangles,
-    })
 }

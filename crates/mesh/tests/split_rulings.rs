@@ -104,13 +104,17 @@ fn a_notched_wall_with_a_split_ruling_refuses_at_the_shape_door() {
 
 /// The traversals of every loop of face `fk`.
 fn traversals(body: &Body<f64>, fk: topo::FaceKey) -> usize {
-    let face = body.get_face(fk).expect("a live face");
-    std::iter::once(face.outer)
-        .chain(face.rings.iter().copied())
-        .map(|lk| match body.get_loop(lk).expect("a live loop").boundary {
-            topo::LoopBoundary::Cycle { first } => body.loop_cycle(first).expect("a cycle").len(),
-            _ => 0,
-        })
+    body.face(fk)
+        .expect("a live face")
+        .loops()
+        .map(
+            |(lk, _, _)| match body.get_loop(lk).expect("a live loop").boundary {
+                topo::LoopBoundary::Cycle { first } => {
+                    body.loop_cycle(first).expect("a cycle").len()
+                }
+                _ => 0,
+            },
+        )
         .sum()
 }
 
@@ -263,7 +267,10 @@ fn a_ruling_split_a_hair_from_its_end_meshes() {
         Revolution::Partial(core::f64::consts::TAU - 0.3),
     );
     let ruling = rulings(&body)[1];
-    if let Err(e) = body.clone().split_edge(ruling, at(&body, ruling, 3e-7), tol()) {
+    if let Err(e) = body
+        .clone()
+        .split_edge(ruling, at(&body, ruling, 3e-7), tol())
+    {
         assert!(
             tol().eps() != geom_core::tolerance::DEFAULT_EPS,
             "the split is interior at the default ε: {e:?}"
@@ -320,7 +327,10 @@ fn a_ruling_split_within_two_to_the_minus_27_of_its_slant_meshes() {
         Revolution::Full,
     );
     let seam = rulings(&frustum)[0];
-    match frustum.clone().split_edge(seam, at(&frustum, seam, 1e-9), tol()) {
+    match frustum
+        .clone()
+        .split_edge(seam, at(&frustum, seam, 1e-9), tol())
+    {
         Ok(_) => holds_everywhere(
             "the frustum wall's seam split 1e-9 from its start",
             &split_and_placed(&frustum, &[seam], &[1e-9]),
@@ -348,13 +358,28 @@ fn a_ruling_split_within_two_to_the_minus_27_of_its_slant_meshes() {
         .expect("the cone face's seam");
     let solid = split_and_placed(&draft, &[], &[]);
     for (what, fracs) in [
-        ("the draft wall's seam split 1e-5 from its start", &[1e-5][..]),
-        ("the draft wall's seam split twice 1e-5 apart", &[0.5 + 1e-5, 0.5][..]),
+        (
+            "the draft wall's seam split 1e-5 from its start",
+            &[1e-5][..],
+        ),
+        (
+            "the draft wall's seam split twice 1e-5 apart",
+            &[0.5 + 1e-5, 0.5][..],
+        ),
     ] {
-        holds_everywhere(what, &split_and_placed(&draft, &[ruling], fracs), &solid, &deltas);
+        holds_everywhere(
+            what,
+            &split_and_placed(&draft, &[ruling], fracs),
+            &solid,
+            &deltas,
+        );
     }
     let thin = turned(
-        &[(0.0, 0.0), (100.0 * 2f64.to_radians().tan(), 0.0), (0.0, 100.0)],
+        &[
+            (0.0, 0.0),
+            (100.0 * 2f64.to_radians().tan(), 0.0),
+            (0.0, 100.0),
+        ],
         Revolution::Full,
     );
     if tol().eps() < 1e-9 {
@@ -426,7 +451,7 @@ fn d_prism(angle: f64) -> Body<f64> {
         (Point2::new(0.0, 0.0), (angle / 4.0).tan()),
         (Point2::new(1.0, 0.0), 0.0),
     ]);
-    let profile = Profile::new(SketchPlane::xy_at(Point3::origin()), vec![lp.into()])
+    let profile = Profile::new(SketchPlane::xy_at(Point3::origin()), vec![lp])
         .validate(tol())
         .unwrap();
     let depth = 1.0;
@@ -526,7 +551,10 @@ fn no_walked_triangle_has_an_edge_a_neighbour_makes() {
         ),
         (
             "a half cone",
-            turned(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], Revolution::Partial(half)),
+            turned(
+                &[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                Revolution::Partial(half),
+            ),
             every,
         ),
         (
