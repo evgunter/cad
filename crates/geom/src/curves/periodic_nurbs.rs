@@ -625,8 +625,7 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
             (
                 ks.iter()
                     .filter(inner)
-                    .filter(onto(s0))
-                    .next_back()
+                    .rfind(onto(s0))
                     .copied()
                     .unwrap_or(r0),
                 ks.iter()
@@ -956,9 +955,9 @@ mod tests {
             (lo + 1.5 * t, lo + 2.4 * t),
             (lo + 7.0 * t, lo + 7.9 * t),
         ] {
-            let view = c
-                .clamped_view((a, b))
-                .unwrap_or_else(|e| panic!("[{a}, {b}]: {e}"));
+            let view = c.clamped_view((a, b));
+            assert!(view.is_ok(), "[{a}, {b}]: {view:?}");
+            let view = view.unwrap();
             assert!(interior(&view).iter().all(|k| k.1 == 1), "[{a}, {b}]");
             for k in 0..=20 {
                 let s = a + (b - a) * f64::from(k) / 20.0;
