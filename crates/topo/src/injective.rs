@@ -3783,24 +3783,11 @@ fn present_plane_corner<'a>(
         corner: true,
         cache: Cache::default(),
     };
-    let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
-    let ball = Ball::holding(reach.image((m(x), m(x)), (m(y), m(y))), reach.whole());
-    if !only(
-        piece,
-        &Local::of(b, ball, band),
-        &[c.read, c.other],
-        &[c.vertex],
-    ) {
+    if !reach_holds_only(piece, &reach, &[c.read, c.other], &[c.vertex], band) {
         return Err(Unpresented::Local);
     }
     let zero = at(0.0);
-    let base = lin([h.p0[0] - p[0], h.p0[1] - p[1]]);
-    let curve = Harmonic {
-        p0: base,
-        pa: lin(h.pa),
-        pb: lin(h.pb),
-        pl: [zero, zero],
-    };
+    let curve = in_frame(&h, p, lin);
     let speed = |w: [Interval; 2]| (u_ref * w[0] + v_ref * w[1]).norm().hi();
     leaves_line(
         [false; 2],
@@ -3877,11 +3864,7 @@ fn vertex_corner(
     let [u] = ro.uses.as_slice() else {
         return None;
     };
-    let h = match surface {
-        Surface::Plane { .. } => chart_curve(surface, ro, u)?,
-        _ => u.harmonic?,
-    };
-    Some((v, line, other, h))
+    Some((v, line, other, chart_curve(surface, ro, u)?))
 }
 
 /// **Present a cell at a corner whose vertex `V` is the shared cell
@@ -3890,17 +3873,30 @@ fn vertex_corner(
 /// reads a corner of two lines).
 ///
 /// The quadrant's first axis `A` is the straight edge's chart direction
-/// away from `V`, so that edge is `y = 0`, `x ≥ 0`; its second `B` is
-/// chosen on the edge's face side with the curve's chart tangent at `V`
-/// strictly between `A` and `B` (a choice, not a decision: everything
-/// below is decided for it). `V` is the straight edge's chart point at
-/// it, moved by whole turns nearest the cell. `R` is the cell's affine
-/// hull widened to hold `V`. Nothing in reach of it bounds the face but
-/// the two edges, `V` the only vertex ([`only`]); no copy of either
-/// edge by whole turns but the one through `V` meets `R`'s chart
-/// footprint; `B` lies on the edge's face side; and the curve's copy
-/// through `V` leaves it into `y > 0` and `x > 0` and stays there within
-/// `R` ([`leaves_line`], once per axis).
+/// away from `V`, so that edge is `y = 0`, `x ≥ 0`; its second `B` leans
+/// back off the curve's chart tangent at `V` by a quarter of `A`, the
+/// two measured in the surface's metric at `V`. Soundness does not rest
+/// on that choice, since everything below is decided for whatever `B`
+/// is; whether the corner is read at all does. With the lean in chart
+/// units, a thin cylinder's quadrant opens to nearly a straight angle
+/// on the surface, or is not presented. `V` is the straight edge's
+/// chart point at it, moved by whole turns nearest the cell. `R` is the
+/// cell's affine hull widened to hold `V`, its chart footprint narrower
+/// than a turn on each periodic axis. Nothing in reach of it bounds the
+/// face but the two edges, `V` the only vertex ([`only`]); no copy of
+/// the curve by whole turns but the one through `V` meets the footprint
+/// ([`copy_misses`]); `B` lies on the edge's face side; and the curve's
+/// copy through `V` leaves it into `y > 0` and `x > 0` and stays there
+/// within `R` ([`leaves_line`], once per axis).
+///
+/// **No copy of the straight edge but `V`'s meets `R`**, without a scan:
+/// `R` is convex and holds `V`. A coordinate line's copy held a turn
+/// away on its held axis meets `R` only if the footprint spans a turn,
+/// which is refused. A copy moved a turn along its own line meets `R`,
+/// on that line, in an interval holding `V` and shorter than a turn, so
+/// only with its far end inside it: a vertex [`only`] refuses. The edge
+/// itself is shorter than a turn ([`straight`] reads no full line). A
+/// plane's chart has no copies.
 ///
 /// **Why the face's part of the cell lies in the quadrant `Q`**
 /// (`x ≥ 0, y ≥ 0`): the face's preimage in the chart, every copy of it
@@ -3931,7 +3927,7 @@ fn present_vertex_corner<'a>(
         return Err(Unpresented::Local);
     };
     let periodic = periodic_axes(surface);
-    let (a, [near, far]) = straight(surface, e, v).ok_or(Unpresented::Local)?;
+    let (a, [near, _]) = straight(surface, e, v).ok_or(Unpresented::Local)?;
     let raw = [near.x, near.y];
     let cell_mid = [
         at(geom::mid_param(piece.u.0, piece.u.1)),
@@ -4009,61 +4005,31 @@ fn present_vertex_corner<'a>(
         return Err(Unpresented::Local);
     }
     let footprint = ((fu.lo(), fu.hi()), (fv.lo(), fv.hi()));
+    // The premise of the straight edge's copies (the doc above). No row
+    // reaches it alone: a cell a turn wide meets two copies of the face's
+    // extent and [`sheets`] refuses it first, and `R`'s footprint along a
+    // coordinate line's held axis is the hull of the cell and `V`.
     if [Axis::U, Axis::V].into_iter().any(|axis| {
         let (lo, hi) = axis.of(footprint);
         periodic[axis.index()] && whole_turn(lo, hi)
     }) {
         return Err(Unpresented::Local);
     }
-    // No copy of the straight edge but `V`'s meets the footprint.
-    // Defence: a copy of a straight segment by a turn meets `R` only
-    // with its far end in it, a vertex [`only`] refuses.
-    let segment = [hull(near.x, far.x), hull(near.y, far.y)];
-    for c in
-        copies(periodic, reach_of([segment].into_iter()), footprint).ok_or(Unpresented::Local)?
-    {
-        if c != k && meets_rect(shifted(segment, c), footprint) {
+    let chart = ChartCurve::Harmonic(h);
+    let kc = turns_to(periodic, chart.at(tv), vc);
+    let curve_reach = reach_of(pieces_of((t0, t1)).iter().map(|&t| chart.at(t)));
+    for c in copies(periodic, curve_reach, footprint).ok_or(Unpresented::Local)? {
+        if c != kc && !copy_misses(&chart, (t0, t1), c, footprint) {
             return Err(Unpresented::Local);
         }
     }
-    // Nor of the curve, a piece that is not told halved [`LEAVES`] times
-    // at most.
-    let chart = ChartCurve::Harmonic(h);
-    let kc = turns_to(periodic, chart.at(tv), vc);
-    let pieces = pieces_of((t0, t1));
-    let curve_reach = reach_of(pieces.iter().map(|&t| chart.at(t)));
-    for c in copies(periodic, curve_reach, footprint).ok_or(Unpresented::Local)? {
-        if c == kc {
-            continue;
-        }
-        let mut todo: Vec<((f64, f64), u32)> =
-            pieces.iter().map(|t| ((t.lo(), t.hi()), 0)).collect();
-        while let Some(((p, q), depth)) = todo.pop() {
-            if !meets_rect(shifted(chart.at(Interval::from_bounds(p, q)), c), footprint) {
-                continue;
-            }
-            let m = geom::mid_param(p, q);
-            if depth >= LEAVES || !(p < m && m < q) {
-                return Err(Unpresented::Local);
-            }
-            todo.extend([((p, m), depth + 1), ((m, q), depth + 1)]);
-        }
-    }
-    let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
-    let ball = Ball::holding(reach.image((m(x), m(x)), (m(y), m(y))), reach.whole());
-    if !only(piece, &Local::of(b, ball, band), &[line, other], &[v]) {
+    if !reach_holds_only(piece, &reach, &[line, other], &[v], band) {
         return Err(Unpresented::Local);
     }
-    let zero = at(0.0);
-    let p0 = shifted(h.p0, kc);
-    let curve = ChartCurve::Harmonic(Harmonic {
-        p0: lin([p0[0] - vc[0], p0[1] - vc[1]]),
-        pa: lin(h.pa),
-        pb: lin(h.pb),
-        pl: lin(h.pl),
-    });
+    let curve = ChartCurve::Harmonic(in_frame(&h, shifted(vc, kc.map(|k| -k)), lin));
     let (fx, fy, _) = reach.jet();
     let speeds = [fx.norm().hi(), fy.norm().hi()];
+    let zero = at(0.0);
     let leaves = |held: Axis| {
         leaves_line(
             [false; 2],
@@ -4090,6 +4056,72 @@ fn present_vertex_corner<'a>(
         corner: true,
         cache: Cache::default(),
     })))
+}
+
+/// **Whether no piece of the chart curve `h` over `(t0, t1)`, moved `c`
+/// whole turns, meets the rectangle `r`**: each of [`PIECES`] pieces
+/// that is not told is halved, [`LEAVES`] times at most, and one still
+/// meeting `r` then is `false`. The scan of a curve's copies by whole
+/// turns, for [`leaves_line`] and [`present_vertex_corner`];
+/// [`leaves_graph`]'s straight edge is one segment, read by its hull.
+fn copy_misses(
+    h: &ChartCurve,
+    (t0, t1): (f64, f64),
+    c: [f64; 2],
+    r: ((f64, f64), (f64, f64)),
+) -> bool {
+    let mut todo: Vec<((f64, f64), u32)> = pieces_of((t0, t1))
+        .iter()
+        .map(|t| ((t.lo(), t.hi()), 0))
+        .collect();
+    while let Some(((p, q), depth)) = todo.pop() {
+        if !meets_rect(shifted(h.at(Interval::from_bounds(p, q)), c), r) {
+            continue;
+        }
+        let m = geom::mid_param(p, q);
+        if depth >= LEAVES || !(p < m && m < q) {
+            return false;
+        }
+        todo.extend([((p, m), depth + 1), ((m, q), depth + 1)]);
+    }
+    true
+}
+
+/// **A harmonic chart curve in an affine frame**: `h` less the frame's
+/// origin `o`, every coefficient carried by the frame's linear map `lin`
+/// (its linear term too, so a helix keeps its pitch).
+fn in_frame(
+    h: &Harmonic,
+    o: [Interval; 2],
+    lin: impl Fn([Interval; 2]) -> [Interval; 2],
+) -> Harmonic {
+    Harmonic {
+        p0: lin([h.p0[0] - o[0], h.p0[1] - o[1]]),
+        pa: lin(h.pa),
+        pb: lin(h.pb),
+        pl: lin(h.pl),
+    }
+}
+
+/// **Whether nothing in reach of a corner presentation's rectangle
+/// `reach` bounds the face but `edges`, its only vertices `vertices`**
+/// ([`only`], over the ball holding `reach`'s image).
+fn reach_holds_only(
+    piece: &Piece<'_>,
+    reach: &Presented<'_>,
+    edges: &[usize],
+    vertices: &[VertexKey],
+    band: Band,
+) -> bool {
+    let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
+    let (x, y) = (reach.x, reach.y);
+    let ball = Ball::holding(reach.image((m(x), m(x)), (m(y), m(y))), reach.whole());
+    only(
+        piece,
+        &Local::of(piece.boundary, ball, band),
+        edges,
+        vertices,
+    )
 }
 
 /// **The corner's other edge leaves the line toward the face's side and
@@ -4133,7 +4165,12 @@ fn leaves_line(
     // that comes back into `R` after the run has left — from any side, at
     // any rate — from being read as the run.
     for c in copies(periodic, reach, r).ok_or(Unpresented::Local)? {
-        let through = c == k;
+        if c != k {
+            if copy_misses(h, (t0, t1), c, r) {
+                continue;
+            }
+            return Err(Unpresented::Local);
+        }
         // The pieces in order from the vertex, each with its depth.
         let mut todo: Vec<((f64, f64), u32)> =
             pieces.iter().map(|t| ((t.lo(), t.hi()), 0)).collect();
@@ -4144,7 +4181,7 @@ fn leaves_line(
         while let Some(((a, z), depth)) = todo.pop() {
             let t = Interval::from_bounds(a, z);
             if !meets_rect(shifted(h.at(t), c), r) {
-                gone |= through;
+                gone = true;
                 continue;
             }
             let split = |todo: &mut Vec<((f64, f64), u32)>| {
@@ -4162,7 +4199,7 @@ fn leaves_line(
                 todo.push((near, depth + 1));
                 true
             };
-            if !through || gone {
+            if gone {
                 if split(&mut todo) {
                     continue;
                 }
@@ -7451,16 +7488,38 @@ mod presentation_rows {
             Read::Structural,
             "the reflex corner is read by none"
         );
+        // `u = t`, `v = ½ + (t − 1)/1000` from a turn and more back: it
+        // leaves the vertex into the face, and its turn before passes
+        // through the cell at `v ≈ 0.494`. Red if [`leaves_line`] does
+        // not read the curve's other copies ([`copy_misses`]).
+        let helix = ruling_corner(
+            harmonic_rim(
+                11,
+                [3, 1],
+                harmonic([0.0, 0.499], 1.0, (0.0, 0.0, 0.001)),
+                (1.0 - TURN - 0.3, 1.0),
+            ),
+            Vec::new(),
+            (0.7, 0.4927),
+        );
+        assert_eq!(
+            on_cylinder(&helix, cell.0, cell.1),
+            Read::Local,
+            "the helix's turn before passes through the cell"
+        );
     }
 
     /// **A cylinder face's corner at `(1, ½)`, a vertex it shares
     /// alone**: the ruling `u = 1` (edge `n`) run from the vertex up
-    /// (`up`) or down, and the parallel `v = ½` reaching the vertex
-    /// (edge `n + 1`) from `u < 1` (`left`) or `u > 1`, stored as a
-    /// harmonic image, not a coordinate line, as a re-posed body's is.
-    /// The face is the quadrant between them, so with `sense` it lies on
-    /// the ruling's side the parallel leaves into; a `curve` in its place
-    /// replaces the parallel.
+    /// (`up`) or down, and the parallel `v = ½` (edge `n + 1`) between the
+    /// vertex and `u = ½` (`left`) or `u = 3/2`, its 3-D arc its circle,
+    /// its parameter `u`, its image stored as a harmonic, not a
+    /// coordinate line, as a re-posed body's is. The face is the quadrant
+    /// between them, so with `sense` it lies on the ruling's side the
+    /// parallel leaves into. A `curve` in its place replaces the
+    /// parallel: a helix or a weave, which no analytic carrier holds, so
+    /// its 3-D arc is [`harmonic_rim`]'s, out of reach, and [`only`] sees
+    /// its ends where they are.
     fn vertex_quadrant(n: u64, up: bool, left: bool, sense: bool, curve: Option<Rim>) -> Boundary {
         let dv = if up { 1.0 } else { -1.0 };
         let du = if left { 1.0 } else { -1.0 };
@@ -7484,12 +7543,22 @@ mod presentation_rows {
             }],
         };
         let parallel = curve.unwrap_or_else(|| {
-            harmonic_rim(
-                n + 1,
-                [3, 1],
-                harmonic([1.0 - du, 0.5], du, (0.0, 0.0, 0.0)),
-                (0.5, 1.0),
-            )
+            let (ends, t) = if left {
+                ([3, 1], (0.5, 1.0))
+            } else {
+                ([1, 3], (1.0, 1.5))
+            };
+            let mut rim = harmonic_rim(n + 1, ends, harmonic([0.0, 0.5], 1.0, (0.0, 0.0, 0.0)), t);
+            rim.arc = Some((
+                Curve3::circle(
+                    Point3::new(iv0(0.0), iv0(0.0), iv0(0.5)),
+                    Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                    iv0(1.0),
+                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                ),
+                (iv0(t.0), iv0(t.1)),
+            ));
+            rim
         });
         Boundary {
             sense,
@@ -7654,6 +7723,111 @@ mod presentation_rows {
         }
     }
 
+    /// **A cylinder face's corner at `(1, ½)` where the parallel `v = ½`
+    /// (edge 10, run from vertex 2 at `u = ½` to the vertex) meets the
+    /// plane section `u = t`, `v = ½ + s·(sin t − sin 1)` (edge 11,
+    /// reaching the vertex at `t = 1` from `t = 0.3`), the face below the
+    /// parallel.** The section's 3-D arc is the ellipse it is, the
+    /// parallel's its circle: `only` reads the curves where they are.
+    fn parallel_quadrant(s: f64) -> Boundary {
+        let parallel = Rim {
+            key: edge(10),
+            arc: Some((
+                Curve3::circle(
+                    Point3::new(iv0(0.0), iv0(0.0), iv0(0.5)),
+                    Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                    iv0(1.0),
+                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                ),
+                (iv0(0.5), iv0(1.0)),
+            )),
+            ends: [vertex(2), vertex(1)],
+            uses: vec![Use {
+                plus: false,
+                image: Some([p2((0.5, 0.5)), p2((1.0, 0.5))]),
+                iso: Some(Iso {
+                    held: Axis::V,
+                    at: iv0(0.5),
+                    full: false,
+                }),
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let b2 = 1.0 + s * s;
+        let section = Curve3::ellipse(
+            Point3::new(iv0(0.0), iv0(0.0), iv0(0.5 - s * 1f64.sin())),
+            Vec3::new(iv0(0.0), iv0(-s / b2.sqrt()), iv0(1.0 / b2.sqrt())),
+            iv0(1.0),
+            iv0(b2.sqrt()),
+            Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            band(),
+        )
+        .expect("the section's ellipse");
+        let curve = Rim {
+            key: edge(11),
+            arc: Some((section, (iv0(0.3), iv0(1.0)))),
+            ends: [vertex(3), vertex(1)],
+            uses: vec![Use {
+                plus: true,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: Some(Harmonic {
+                    p0: [iv0(0.0), iv0(0.5 - s * 1f64.sin())],
+                    pa: [iv0(0.0), iv0(0.0)],
+                    pb: [iv0(0.0), iv0(s)],
+                    pl: [iv0(1.0), iv0(0.0)],
+                }),
+            }],
+        };
+        Boundary {
+            sense: true,
+            edges: vec![parallel, curve],
+            vertices: BTreeMap::from([
+                (vertex(1), on_cyl(1.0, 0.5)),
+                (vertex(2), on_cyl(0.5, 0.5)),
+                (
+                    vertex(3),
+                    on_cyl(0.3, 0.5 + s * (0.3f64.sin() - 1f64.sin())),
+                ),
+            ]),
+            extent: Some([(0.0, 2.0), (-1.0, 1.0)]),
+        }
+    }
+
+    /// **A parallel's corner at a vertex alone is its quadrant too**
+    /// ([`present_vertex_corner`] with the straight edge's held axis
+    /// `v`): the section leaving `(1, ½)` below the parallel, `s = 1`,
+    /// is presented with the corner its zero; leaving above it, `s = −1`,
+    /// the corner is reflex, `Structural`. Red if the face side of a
+    /// parallel is read on the wrong axis or sign.
+    #[test]
+    fn a_parallels_corner_at_a_vertex_alone_is_its_quadrant() {
+        let s = cylinder();
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let at_vertex = |b: &Boundary| {
+            let piece = quadrant_piece(&s, b, &local, 1, ((0.98, 1.02), (0.48, 0.52)));
+            match present_chart(&piece, &[], &[vertex(1)], band()) {
+                Ok(Presentation::Of(q)) => Ok(q.zero),
+                other => Err(read(other)),
+            }
+        };
+        let got = at_vertex(&parallel_quadrant(1.0));
+        assert!(
+            matches!(got, Ok(Zero::Point(Side::XLo, Side::YLo, v)) if v == vertex(1)),
+            "the section below the parallel: {got:?}"
+        );
+        assert_eq!(
+            at_vertex(&parallel_quadrant(-1.0)).err(),
+            Some(Read::Structural),
+            "the section above the parallel"
+        );
+    }
+
     /// **On a cylinder of radius 0.055 the vertex-alone corner is still
     /// its quadrant** ([`present_vertex_corner`]): the chart's `u`-speed
     /// is 0.055 against `v`'s 1, the torus belly's, and a lean of a
@@ -7678,6 +7852,9 @@ mod presentation_rows {
         }
         if let Some((Curve3::Line(l), _)) = &mut b.edges[0].arc {
             l.origin = thin(l.origin);
+        }
+        if let Some((Curve3::Circle(c), _)) = &mut b.edges[1].arc {
+            c.radius = iv0(r);
         }
         let local = Local {
             edges: vec![0, 1],

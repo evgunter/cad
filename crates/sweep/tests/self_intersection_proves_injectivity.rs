@@ -1757,7 +1757,7 @@ fn shell_4s_vessel_holds() {
 }
 
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity
-/// refuses typed at the vertices its walls share alone.** At `Interval`
+/// refuses typed where two arcs of its ellipse meet.** At `Interval`
 /// the union builds at every ε, as the `f64` body: as many faces, edges
 /// and vertices, and a volume enclosure that brackets the `f64` volume.
 /// Two radius-1 rods on crossing axes, one mitred by
@@ -1777,7 +1777,7 @@ fn shell_4s_vessel_holds() {
 /// `Uncertified { Departure }` on `A`'s wall and the mitre — never
 /// certified, never measured by distance.
 #[test]
-fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone()
+fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_where_two_arcs_of_its_ellipse_meet()
  {
     fn tee_at<T: Scalar>() -> Result<topo::BooleanResult<T>, topo::BooleanError> {
         use core::f64::consts::{FRAC_PI_2, PI};
