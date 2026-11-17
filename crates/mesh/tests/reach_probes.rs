@@ -165,7 +165,7 @@ pub(super) fn got(body: &Body<f64>, delta: f64) -> Got {
         Err(E::Triangulation { face }) => Got::Triangulation(kind_of(body, face)),
         Err(E::CertificateExceeded { face, .. }) => Got::CertificateExceeded(kind_of(body, face)),
         Err(E::FoldedTriangle { face }) => Got::Folded(kind_of(body, face)),
-        Err(E::UnresolvedWinding { face }) => Got::Unresolved(kind_of(body, face)),
+        Err(E::UnresolvedWinding { face, .. }) => Got::Unresolved(kind_of(body, face)),
         Err(e) => Got::Other(format!("{e:?}")),
     }
 }

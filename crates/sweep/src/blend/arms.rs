@@ -58,7 +58,11 @@
 //! structure over the same supports, with the rolling ball's tube
 //! replaced by the flat strip at equal setback and its octant by the
 //! plane through the three feet. It is exact for the same reason — a
-//! straight edge over planes puts both trimlines on lines.
+//! straight edge over planes puts both trimlines on lines. Over a
+//! cylinder meeting a plane square to its axis ([`chamfer_frustum`])
+//! the feet lie in the meridian sheet instead, so the trimlines are
+//! circles about the axis and the band is the cone through them: a
+//! frustum coaxial with the cylinder, the strip carried round the axis.
 //!
 //! Every arm returns its blend surface, its spine, and the EXACT
 //! setback on each support — and the battery consumes the setback
@@ -221,7 +225,7 @@ pub enum BlendArm {
     /// Plane–sphere circular rim → torus patch, circular spine.
     PlaneSphereTorus,
     /// Plane–plane edge → flat strip at equal setback, no spine. The
-    /// chamfer's one arm ([`chamfer_strip`]).
+    /// chamfer's open-chain arm ([`chamfer_strip`]).
     PlanePlaneStrip,
     /// Sphere–cone coaxial rim → torus patch, circular spine.
     SphereConeTorus,
@@ -249,6 +253,10 @@ pub enum BlendArm {
     /// along a ruling → cylinder patch, straight spine. Carved between
     /// plane caps exactly as the row above.
     CylinderPlaneCylinder,
+    /// Cylinder–plane(⊥ axis) circular rim → cone frustum at equal
+    /// setback, no spine. The chamfer's closed-rim arm
+    /// ([`chamfer_frustum`]).
+    CylinderPlaneCone,
 }
 
 impl BlendArm {
@@ -258,6 +266,30 @@ impl BlendArm {
     #[must_use]
     pub fn is_plane_plane(self) -> bool {
         matches!(self, Self::PlanePlaneCylinder | Self::PlanePlaneStrip)
+    }
+
+    /// Whether this arm is a CHAMFER's: a ruled band at equal setback
+    /// rather than a rolling ball's envelope.
+    #[must_use]
+    pub fn is_chamfer(self) -> bool {
+        matches!(self, Self::PlanePlaneStrip | Self::CylinderPlaneCone)
+    }
+
+    /// Whether this arm's band is a surface of revolution about its
+    /// supports' common axis, meeting each support in a circle about it
+    /// — the shape a closed rim's band is carved from: the fillet's
+    /// torus ([`Self::is_coaxial_torus`]) or the chamfer's frustum.
+    #[must_use]
+    pub fn is_coaxial(self) -> bool {
+        self.is_coaxial_torus() || self == Self::CylinderPlaneCone
+    }
+
+    /// Whether the band meets its supports TANGENTIALLY along its
+    /// trimlines — every rolling ball's does — or crosses them at a
+    /// definite angle, as a chamfer's does.
+    #[must_use]
+    pub fn meets_supports_tangentially(self) -> bool {
+        !self.is_chamfer()
     }
 
     /// Whether this arm is a RULED one — a cylinder band about a
@@ -272,8 +304,8 @@ impl BlendArm {
     }
 
     /// Whether this arm's blend is the TORUS about a circular spine —
-    /// the shape a CLOSED rim's band is built from, whatever kinds its
-    /// two supports are. Every coaxial-revolution pair mints one; the
+    /// the shape a CLOSED rim's fillet band is built from, whatever kinds
+    /// its two supports are. Every coaxial-revolution pair mints one; the
     /// ruled pairs mint a cylinder and meet along an open edge instead.
     #[must_use]
     pub fn is_coaxial_torus(self) -> bool {
@@ -310,6 +342,7 @@ impl BlendArm {
             Self::SphereSphereTorus => "sphere–sphere → torus",
             Self::CylinderCylinderCylinder => "cylinder–cylinder → cylinder",
             Self::CylinderPlaneCylinder => "cylinder–plane(∥) → cylinder",
+            Self::CylinderPlaneCone => "cylinder–plane → cone",
         }
     }
 
@@ -336,7 +369,9 @@ impl BlendArm {
             Self::ConeConeTorus => [Cone, Cone],
             Self::CylinderConeTorus => [Cylinder, Cone],
             Self::CylinderSphereTorus => [Cylinder, Sphere],
-            Self::CylinderPlaneTorus | Self::CylinderPlaneCylinder => [Cylinder, Plane],
+            Self::CylinderPlaneTorus | Self::CylinderPlaneCylinder | Self::CylinderPlaneCone => {
+                [Cylinder, Plane]
+            }
             Self::SphereSphereTorus => [Sphere, Sphere],
             Self::CylinderCylinderCylinder => [Cylinder, Cylinder],
         }
@@ -344,7 +379,7 @@ impl BlendArm {
     }
 
     /// Every arm, for the coverage rows and the refusal-roster check.
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::PlanePlaneCylinder,
         Self::PlaneSphereTorus,
         Self::PlanePlaneStrip,
@@ -357,6 +392,7 @@ impl BlendArm {
         Self::SphereSphereTorus,
         Self::CylinderCylinderCylinder,
         Self::CylinderPlaneCylinder,
+        Self::CylinderPlaneCone,
     ];
 }
 
@@ -1382,6 +1418,26 @@ pub fn inward_unit<T: Real>(n: Vec3<T>, tau: Vec3<T>) -> Vec3<T> {
     n.cross(tau).normalize()
 }
 
+/// **A chamfer's two feet** at the edge point `p`: one setback
+/// `distance` along each support's inward unit ([`inward_unit`]), the
+/// FIRST support's `n_a × τ̂` and the second's `−(n_b × τ̂)`, for `τ̂` the
+/// `he_plus` traversal direction and `n_a`, `n_b` the supports' outward
+/// normals. The one home of the feet [`chamfer_strip`] runs its
+/// trimlines through and [`chamfer_frustum`] its trim circles.
+#[must_use]
+pub fn chamfer_feet<T: Real>(
+    p: Point3<T>,
+    tau: Vec3<T>,
+    n_a: Vec3<T>,
+    n_b: Vec3<T>,
+    distance: T,
+) -> (Point3<T>, Point3<T>) {
+    (
+        p + inward_unit(n_a, tau) * distance,
+        p - inward_unit(n_b, tau) * distance,
+    )
+}
+
 /// **The plane–plane chamfer strip**: the flat band that replaces a
 /// straight edge at equal setback `distance` along both supports.
 ///
@@ -1409,10 +1465,7 @@ pub fn chamfer_strip<T: Real>(
     n_b: Vec3<T>,
     distance: T,
 ) -> EdgeBlend<T> {
-    let m_a = inward_unit(n_a, tau);
-    let m_b = -inward_unit(n_b, tau);
-    let foot_a = p + m_a * distance;
-    let foot_b = p + m_b * distance;
+    let (foot_a, foot_b) = chamfer_feet(p, tau, n_a, n_b, distance);
     EdgeBlend {
         surface: Surface::Plane {
             origin: foot_a,
@@ -1435,6 +1488,93 @@ pub fn chamfer_strip<T: Real>(
             distance,
         ),
     }
+}
+
+/// **The plane–cylinder chamfer frustum**: the band that replaces a
+/// circular rim where a cylinder meets a plane square to its axis, at
+/// equal setback `distance` along both supports.
+///
+/// The feet are the strip's ([`chamfer_feet`]), read at the rim point
+/// `sheet.rim` with the `he_plus` traversal direction `tau`.
+/// Both units are normal to `tau`, which is normal to the meridian
+/// sheet, so both feet lie in the sheet — on the plane one setback off
+/// the rim radially, on the cylinder one setback along the axis — and
+/// each trimline is the circle about the axis through its foot. The band
+/// is the cone through the two circles: its generator is the segment
+/// between the feet, its apex where that segment's line meets the axis,
+/// its half-angle the generator's angle to the axis (a quarter turn's
+/// half at equal setbacks). The axis is signed so the feet lie on the
+/// `v > 0` nappe. Exact, nothing fitted.
+///
+/// The cone's chart normal is radially outward on that nappe, whichever
+/// side the material is, so the band's sense is not this constructor's
+/// to fix: its caller derives it from [`frustum_rim_side`], as the
+/// strip's normal is derived from the supports' outward normals.
+#[must_use]
+pub fn chamfer_frustum<T: Real>(
+    sheet: &Meridian<T>,
+    tau: Vec3<T>,
+    n_a: Vec3<T>,
+    n_b: Vec3<T>,
+    distance: T,
+) -> EdgeBlend<T> {
+    let radial = sheet.radial();
+    let k = sheet.axis.dir;
+    let (foot_a, foot_b) = chamfer_feet(sheet.rim, tau, n_a, n_b, distance);
+    let g = foot_b - foot_a;
+    let g_r = g.dot(radial);
+    let rho_a = (foot_a - sheet.axis.origin).dot(radial);
+    let apex = foot_a - g * (rho_a / g_r);
+    let trim = |q: Point3<T>| {
+        (
+            Curve3::circle(
+                sheet.axis.foot(q),
+                k,
+                (q - sheet.axis.origin).dot(radial),
+                radial,
+            ),
+            distance,
+        )
+    };
+    EdgeBlend {
+        surface: Surface::Cone {
+            apex,
+            axis: k * (foot_a - apex).dot(k).unit_sign(),
+            half_angle: (g_r.abs() / g.norm()).asin(),
+            u_ref: radial,
+        },
+        spine_curvature: T::zero(),
+        trim_a: trim(foot_a),
+        trim_b: trim(foot_b),
+    }
+}
+
+/// **Which side of its generator a frustum's rim lies on**, read along
+/// the cone's chart normal: the chart normal at the generator's midpoint
+/// in `rim`'s own meridian, dotted with the run from there to `rim`. The
+/// chamfer's outward normal is a positive combination of its supports'
+/// outward normals ([`chamfer_strip`]'s derivation), and over a definite
+/// wedge that sum points from the band toward the rim it cuts off on a
+/// convex rim and away from the rim it fills over on a concave one; so
+/// the cone's chart normal is outward exactly when this reading's sign
+/// agrees with the convexity, and the caller folds the two into the
+/// band's sense bit. At equal setbacks the rim stands `distance / √2`
+/// off its generator, so the sign is definite on any exact frustum.
+/// `None` for a band that is not a cone or trims that are not circles.
+#[must_use]
+pub fn frustum_rim_side<T: Real>(blend: &EdgeBlend<T>, rim: Point3<T>) -> Option<T> {
+    let Surface::Cone {
+        axis, half_angle, ..
+    } = blend.surface
+    else {
+        return None;
+    };
+    let (a, b) = (blend.trim_a.0.as_circle()?, blend.trim_b.0.as_circle()?);
+    let radial = perp_unit(rim - a.frame.origin, axis);
+    let fa = a.frame.origin + radial * a.radius;
+    let fb = b.frame.origin + radial * b.radius;
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    Some((radial * cos_a - axis * sin_a).dot(rim - fa.mid(fb)))
 }
 
 /// Where two coplanar lines of one support face meet, in that face's

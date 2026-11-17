@@ -591,19 +591,33 @@ pub enum TessellateError {
         face: FaceKey,
     },
     /// A face's patch holds a triangle whose winding is inside the
-    /// rounding of its own corner positions: its cross product does not
-    /// exceed the certificate's rounding allowance at its coordinate
-    /// scale times its longest side (`crates/mesh/README.md`
-    /// `[mesh.winding]`; `validate::check_winding` states the measure).
-    /// A normal computed from its stored corners is rounding noise, so
-    /// the face is refused, not returned. Read where the face's patch
-    /// joins the mesh, on every lane. It says what the triangle is, not
-    /// why: a rim chorded far finer than its radius asks for (the cap of
-    /// a frustum whose small rim inherits its cone's columns, at a δ
-    /// near `10⁻⁸` of the body) reaches it on three boundary points.
+    /// rounding of its own corner positions: its height over its longest
+    /// side does not exceed the certificate's rounding allowance at its
+    /// coordinate scale (`crates/mesh/README.md` `[mesh.winding]`;
+    /// `validate::check_winding` states the measure). A normal computed
+    /// from its stored corners is rounding noise, so the face is refused,
+    /// not returned.
+    ///
+    /// Raised in two places, by the one definition
+    /// (`validate::resolved_normal`): where a face's patch joins the
+    /// mesh, for every lane (the planar lane's, the rectangle lane's, a
+    /// patch the memo answers), and by the trimmed lane itself as soon as
+    /// an attempt holds such a triangle, since none of its retries is
+    /// built to resolve one.
+    ///
+    /// It says what the triangle is, not why. Bodies that reach it: the
+    /// plane cap of a frustum whose small rim inherits its cone's columns,
+    /// on three boundary chord points, at a δ near `10⁻⁸` of the body;
+    /// and, on the rectangle lane, a cone face through its apex with a
+    /// split straight side, on the apex and two lattice nodes of one
+    /// column
+    /// (`work/tesslane/a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it.md`).
     UnresolvedWinding {
         /// The face whose patch holds the triangle.
         face: FaceKey,
+        /// The triangle's corners, its height and the allowance that
+        /// height does not exceed.
+        unresolved: crate::validate::Unresolved,
     },
     /// A trimmed face on an analytic chart keeps, after the retry budget,
     /// a triangle a neighbouring face may make a side of too: an ear of
@@ -966,14 +980,27 @@ impl TessellateError {
                  it and is wound against the face in 3-D — the mesh would be \
                  closed and wrong, so it is refused; a finer δ may clear it",
             ),
-            Self::UnresolvedWinding { .. } => f.write_str(
-                "tessellate: a face's patch holds a triangle whose winding is \
-                 inside the f64 rounding of its own corner positions (its height \
-                 over its longest side is within eight epsilons of its coordinate \
-                 scale), so its normal would be rounding noise and the face is \
-                 refused; its corners are that close to one line at this δ and \
-                 this distance from the origin",
-            ),
+            Self::UnresolvedWinding { unresolved, .. } => {
+                let crate::validate::Unresolved {
+                    corners: [a, b, c],
+                    height,
+                    allowance,
+                } = unresolved;
+                let at = |p: &[f64; 3]| format!("({:e}, {:e}, {:e})", p[0], p[1], p[2]);
+                write!(
+                    f,
+                    "tessellate: a face's patch holds a triangle whose winding is inside \
+                     the f64 rounding of its own corner positions, so its normal would be \
+                     rounding noise and the face is refused: its height over its longest \
+                     side is {height:e} m, and the rounding allowance at its coordinate \
+                     scale ({ulps} f64 epsilons of its farthest corner's distance from the \
+                     origin) is {allowance:e} m; its corners are {}, {} and {}",
+                    at(a),
+                    at(b),
+                    at(c),
+                    ulps = crate::cert::ROUNDING_ULPS,
+                )
+            }
             Self::BoundaryEar { .. } => f.write_str(
                 "tessellate: a trimmed face's patch keeps a triangle on three \
                  consecutive boundary chord points after its retries — the face \
