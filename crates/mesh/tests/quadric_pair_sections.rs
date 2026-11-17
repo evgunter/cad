@@ -259,8 +259,9 @@ fn a_ball_across_a_cylinder_wall_builds_on_one_loop_and_its_arcs_rejoin() {
 }
 
 /// **No interior knot of multiplicity past one at any scale**: the
-/// cylinder and the ball at `s = 0.01`, `1` and `100`, intersected. The
-/// ε rows are the suite's (`CAD_TOLERANCE_EPS`).
+/// cylinder and the ball at `s = 0.01`, `1` and `100`, intersected, each
+/// lens one closed loop edge that tier 3 takes at rest. The ε rows are
+/// the suite's (`CAD_TOLERANCE_EPS`).
 #[test]
 fn a_loops_edges_read_simple_knots_at_every_scale() {
     for s in [0.01, 1.0, 100.0] {
@@ -268,6 +269,9 @@ fn a_loops_edges_read_simple_knots_at_every_scale() {
         let built = topo::intersect(&cylinder, &ball, tol())
             .unwrap_or_else(|e| panic!("s = {s}: the lens builds, got {e:?}"));
         let body = &built.body().expect("a body").body;
+        // Tier 3 re-certifies the loop's edge from its stored carrier
+        // and span, at the edge door.
+        let _ = finished(&format!("the lens at s = {s}"), body.clone(), tol());
         assert_eq!(
             section_of(body),
             Section {
