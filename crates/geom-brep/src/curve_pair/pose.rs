@@ -328,11 +328,11 @@
 //! span, `q` exactly an end of the second, and every pair of the window
 //! lies on the spans (the walk's pieces do), let `u` and `v` be each
 //! span's own half-tangent at its end: the one-sided derivative from
-//! inside the span, pointing into it. At a crease that is not the
-//! carrier's derivative from the other side, which a `C⁰` knot does not
-//! share, and `K` is read over the span's side of the end alone, the
-//! arcs the window holds. Every pair of the window is then at arc
-//! `α, β ≥ 0`.
+//! inside the span, pointing into it. At a crease (a `C⁰` knot) the two
+//! sides' derivatives differ, and the span's own side is the one its
+//! arcs leave along; `K` is likewise read over that side of the end
+//! alone, the arcs the window holds. Every pair of the window is then
+//! at arc `α, β ≥ 0`.
 //! With `c = u·v`, `|uα − vβ|² = α² + β² − 2αβc`:
 //!
 //! - where `c ≤ 0` this is at least `α² + β² ≥ m²`;
@@ -348,7 +348,8 @@
 //! two-sided ones with `g` for `sin φ` and `|w|` for `σ_w`. There is no
 //! floor: `|uα − vβ|` is not bounded above by anything the slack
 //! outweighs, so the window states its reach and bend and a floor of
-//! `−∞`. The walk reads it where the two-sided basin is not proved.
+//! `−∞`. The walk reads it where the two-sided reading bounds no reach:
+//! its basin not proved, or its move.
 //!
 //! **The run.** The *run* is the pairs of the window within `e` of each
 //! other. Where the polished pair is itself one of them (its gap `|w|`

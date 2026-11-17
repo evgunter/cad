@@ -1841,37 +1841,51 @@ macro_rules! nurbs_curve {
             }
 
             /// **[`Self::ders1`] from one side of `t`**: the point and
-            /// first derivative of the one nonempty span that `t` ends
-            /// (`below`, the span `(uᵢ, uᵢ₊₁]` holding `t`) or starts
-            /// (the span `[uᵢ, uᵢ₊₁)` holding it), evaluated at `t`
-            /// (the span window's `ders1_in_span`). At a knot where the curve is
-            /// only `C⁰` (a crease) this is the one-sided derivative a
-            /// reader standing in that span sees, where [`Self::ders1`]
-            /// reads one side's for both. Away from a knot it is
-            /// [`Self::ders1`]'s span. The span is located on the middle
-            /// of each bracket; where no span holds `t` on that side (a
-            /// domain end read from outside, or poison) it is
-            /// [`Self::ders1`].
-            pub fn ders1_from(&self, t: T, below: bool) -> ($Point<T>, $Vector<T>) {
-                let at = |x: T| x.structure_bracket().map(geom_core::bracket_mid);
-                let Some(tm) = at(t) else {
+            /// first derivative of the nonempty span `t` lies in on
+            /// `side`, evaluated at `t` through the span window's
+            /// `ders1_in_span`. A reading from below belongs to the span
+            /// `(uᵢ, uᵢ₊₁]` that holds it, one from above to
+            /// `[uᵢ, uᵢ₊₁)`. At a knot where the curve is only `C⁰` (a
+            /// crease) this is the one-sided derivative a reader standing
+            /// in that span sees, where [`Self::ders1`] reads the span
+            /// above for both sides.
+            ///
+            /// The spans are [`Self::ders1`]'s own ([`Knots::locate`],
+            /// which breaks a tie at a knot toward the span starting
+            /// there), with the nonempty span below added where `side`
+            /// is below and `t`'s lower end is exactly the first located
+            /// span's first knot: the members at that knot belong to the
+            /// span below. A point `t` at that knot reads that span
+            /// alone. Where `t` may lie in more than one span (an
+            /// enclosure astride a knot), no one side holds every member,
+            /// and the reading is the hull of every span's, which
+            /// encloses each side's derivative. Carriers refuse a knot
+            /// that is not a point ([`Self::new`]), so every knot is read
+            /// as one. At a domain end read from outside it no span lies
+            /// on that side, and the reading is the end span's.
+            pub fn ders1_from(&self, t: T, side: crate::ParamSide) -> ($Point<T>, $Vector<T>) {
+                let Some((first, last)) = self.knots.locate(t) else {
                     return self.ders1(t);
                 };
-                let values = self.knots.values();
-                let kv = self.knots.structure();
-                let window = (kv.first_span()..=kv.last_span())
-                    .filter_map(|i| self.span(i).map(|w| (i, w)))
-                    .find(|&(i, _)| {
-                        match (at(values[i]), at(values[i + 1])) {
-                            (Some(lo), Some(hi)) if below => lo < tm && tm <= hi,
-                            (Some(lo), Some(hi)) => lo <= tm && tm < hi,
-                            _ => false,
+                let (mut from, mut to) = (first.span().index(), last.span().index());
+                let knot = self.knots.values()[from].point_value();
+                let low_end = t.structure_bracket().map(|(lo, _)| lo);
+                if side == crate::ParamSide::Below && knot.is_some() && low_end == knot {
+                    let kv = self.knots.structure();
+                    if let Some(below) = (kv.first_span()..from).rev().find(|&j| self.span(j).is_some()) {
+                        if t.point_value() == knot {
+                            to = below;
                         }
-                    });
-                match window {
-                    Some((_, w)) => w.ders1_in_span(t),
-                    None => self.ders1(t),
+                        from = below;
+                    }
                 }
+                let mut read = (from..=to).filter_map(|j| self.span(j)).map(|w| w.ders1_in_span(t));
+                let Some(first_read) = read.next() else {
+                    return self.ders1(t);
+                };
+                read.fold(first_read, |(p, d1), (q, q1)| {
+                    (Self::hull_point(p, q), Self::hull_vector(d1, q1))
+                })
             }
 
             /// **The first derivative at `at`, read through the
