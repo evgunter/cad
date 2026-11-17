@@ -134,6 +134,16 @@ pub(crate) fn compute_chords(
             // rational-walled body's seam edges read back rational,
             // so this gate is what makes the face bound reachable).
             Curve3::Nurbs(ref n) => nurbs_chord_count(n, span, target, ek)?,
+            // An edge on a periodic cubic is read on its clamped view
+            // over the edge's span (`EdgeCurve::carrier`), the arm
+            // above; the loop itself is no edge's reading.
+            Curve3::Periodic(_) => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "a periodic B-spline carrier read whole: an edge reads its clamped \
+                           view over its own span",
+                });
+            }
         };
         // The one rule (module docs), on every carrier kind: a straight
         // wall edge is one 3-D chord but many UV steps of its wall's

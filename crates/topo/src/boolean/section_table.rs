@@ -49,8 +49,8 @@ use std::cell::{OnceCell, RefCell};
 use std::collections::BTreeMap;
 
 use geom_brep::{
-    CarriedComponent, CarriedSection, CarryError, ExtentBall, PairSection, Seated, SectionError,
-    SiteFoot, SiteRefusal, SsiLane,
+    CarriedComponent, CarriedSection, CarryError, ExtentBall, PairSection, SectionError, SiteFoot,
+    SiteRefusal, SsiLane,
 };
 use geom_core::{Band, Indeterminate, Real};
 
@@ -73,7 +73,7 @@ struct Held<T: Real> {
     carried: OnceCell<Result<CarriedSection<T>, CarryError>>,
     /// Each carried component, seated on the first ask for it
     /// ([`SectionTable::seated`]).
-    seated: OnceCell<Vec<OnceCell<Seated<T>>>>,
+    seated: OnceCell<Vec<OnceCell<Result<CarriedComponent<T>, CarryError>>>>,
 }
 
 /// **A held pair's classification**: the door's, or one waiting for its
@@ -440,7 +440,7 @@ impl<T: geom_core::Decide> SectionTable<T> {
         });
         Some(
             slots[k]
-                .get_or_init(|| section.seat(self.lane, component, at, held.band))
+                .get_or_init(|| section.seat(component, at))
                 .as_ref()
                 .map_err(Uncarried::Carry),
         )

@@ -289,7 +289,7 @@ pub(crate) fn winding(
     if chans.is_empty() {
         return Ok(Winding::default());
     }
-    let Curve3::Nurbs(net) = carrier else {
+    let Some(Ok(net)) = carrier.clamped_net((lo, hi)) else {
         return Err(WindsRefusal::NotSpline);
     };
     let tiled = pieces.first().is_some_and(|(_, _, (a, _))| *a == lo)

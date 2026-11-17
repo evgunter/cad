@@ -448,20 +448,30 @@ impl<T: Decide> Curve3<T> {
     /// parameter a consumer already holds for `q`, or any parameter of
     /// the interval it reads.
     pub fn foot(&self, q: Point3<T>, near: T) -> Foot<'_, T> {
-        let Self::Nurbs(n) = self else {
-            let Some(seed) = self.param_near(q, near) else {
-                unreachable!("only a spline reads no parameter near a point")
-            };
-            let at = self.foot_at(q, seed);
-            return if self.foot_is_nearest() {
-                at
-            } else {
-                self.polish(q, at, None)
-            };
+        // A spline's foot is searched over its knot spans: a clamped
+        // one's over its domain, held to it; a periodic cubic's over one
+        // turn's, free to leave it, since the loop runs on.
+        let (breaks, domain): (Vec<T>, Option<(T, T)>) = match self {
+            Self::Nurbs(n) => {
+                let knots = n.knot_values();
+                (knots.breakpoints().collect(), Some(knots.domain()))
+            }
+            Self::Periodic(p) => (p.turn_breaks().into_iter().map(T::from_f64).collect(), None),
+            Self::Line(_) | Self::Circle(_) | Self::Ellipse(_) | Self::Spiric { .. } => {
+                let Some(seed) = self.param_near(q, near) else {
+                    unreachable!("only a spline reads no parameter near a point")
+                };
+                let at = self.foot_at(q, seed);
+                return if self.foot_is_nearest() {
+                    at
+                } else {
+                    self.polish(q, at, None)
+                };
+            }
         };
-        let knots = n.knot_values();
-        let (lo, hi) = knots.domain();
-        let breaks: Vec<T> = knots.breakpoints().collect();
+        let (Some(&lo), Some(&hi)) = (breaks.first(), breaks.last()) else {
+            return self.foot_at(q, near);
+        };
         let mut samples = vec![self.foot_at(q, lo)];
         for k in breaks.windows(2) {
             samples.extend(
@@ -469,8 +479,12 @@ impl<T: Decide> Curve3<T> {
             );
         }
         samples.push(self.foot_at(q, hi));
-        let domain = Some((lo, hi));
-        let mut foot = self.polish(q, self.foot_at(q, near.max(lo).min(hi)), domain);
+        let seed = if domain.is_some() {
+            near.max(lo).min(hi)
+        } else {
+            near
+        };
+        let mut foot = self.polish(q, self.foot_at(q, seed), domain);
         for i in spline_starts(&samples) {
             let f = self.polish(q, samples[i], domain);
             if smaller(f.gap, foot.gap) {
@@ -631,6 +645,10 @@ impl<T: Decide> Curve3<T> {
     fn domain(&self) -> (T, T) {
         match (self, self.period()) {
             (Self::Nurbs(n), _) => n.knot_values().domain(),
+            (Self::Periodic(p), _) => {
+                let (lo, hi) = p.base_span();
+                (T::from_f64(lo), T::from_f64(hi))
+            }
             (_, Some(period)) => (T::zero(), period.length()),
             (_, None) => (T::zero(), T::zero()),
         }

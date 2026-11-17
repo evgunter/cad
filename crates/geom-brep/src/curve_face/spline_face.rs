@@ -318,7 +318,9 @@ impl<'a, T: CertifiedBounds> Path<'a, T> {
                     boxes: Box::new(NurbsBoxes::new(s)),
                 });
             }
-            Curve3::Spiric { .. } => return None,
+            // A periodic cubic's span is read on its clamped view, a
+            // spline with a sheet; the loop itself has none.
+            Curve3::Spiric { .. } | Curve3::Periodic(_) => return None,
         };
         let all = match &path {
             Self::Line { o, d } => o.iter().chain(d).all(|c| c.is_certified()),
