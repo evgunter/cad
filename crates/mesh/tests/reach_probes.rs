@@ -212,7 +212,7 @@ pub(super) fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Resul
 }
 
 /// [`geometry`], with the volume read off `solid` ([`got_enclosing`]).
-fn geometry_enclosing(
+pub(super) fn geometry_enclosing(
     body: &Body<f64>,
     solid: &Body<f64>,
     mesh: &mesh::Mesh,
@@ -1674,7 +1674,7 @@ fn donut() -> AtRestBody<f64> {
 /// whose edge sits at `(0.5·s, h − 1.5·s, 0)`: at `s = 0.6` the
 /// `cone_join_lane` pose, smaller `s` moving the box's cut toward the
 /// apex.
-fn t1_toward_the_apex(s: f64) -> (AtRestBody<f64>, AtRestBody<f64>) {
+pub(super) fn t1_toward_the_apex(s: f64) -> (AtRestBody<f64>, AtRestBody<f64>) {
     let height = 1.2 / FRAC_PI_6.tan();
     let cone = posed(
         "the cone",

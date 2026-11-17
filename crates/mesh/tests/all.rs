@@ -181,6 +181,8 @@ mod revolves;
 mod sizing_theorem_rows;
 #[path = "split_rulings.rs"]
 mod split_rulings;
+#[path = "ruled_cures_probe.rs"]
+mod ruled_cures_probe;
 #[path = "the_one_face_ball.rs"]
 mod the_one_face_ball;
 #[path = "wedge.rs"]

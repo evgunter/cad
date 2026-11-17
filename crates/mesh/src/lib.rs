@@ -341,6 +341,9 @@ mod planar;
 // `unreachable_pub` paragraph records as false for this workspace.
 // `--document-private-items` keeps the module's prose in the rendered
 // docs.
+#[doc(hidden)]
+#[allow(missing_docs, clippy::missing_docs_in_private_items)]
+pub mod ruled_probe;
 mod sizing;
 mod tessellate;
 mod trimmed;
