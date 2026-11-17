@@ -831,10 +831,12 @@ mod tests {
     #[test]
     fn a_sphere_arm_row_of_a_spline_carrier_refuses() {
         let sphere = geom::Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
         let quarter = NurbsCurve3::new(
             KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),

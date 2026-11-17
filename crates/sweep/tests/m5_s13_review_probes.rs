@@ -316,35 +316,27 @@ fn probe_plane_sphere_section_dense_residual() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let n = Vec3::new(0.3, -0.55, 0.9).normalize();
     let plane = Surface::Plane {
-        origin: Point3::new(0.1, -0.2, 0.35),
-        normal: n,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(Point3::new(0.1, -0.2, 0.35), n, Vec3::new(1.0, 0.0, 0.0)),
     };
     let c = Point3::new(0.4, 0.1, 0.9);
     let r = 1.7;
     let sphere = Surface::Sphere {
-        center: c,
+        frame: geom::Frame::new(
+            c,
+            Vec3::new(0.2, 0.9, -0.1).normalize(),
+            Vec3::new(0.9, -0.2, 0.1).normalize(),
+        ),
         radius: r,
-        axis: Vec3::new(0.2, 0.9, -0.1).normalize(),
-        u_ref: Vec3::new(0.9, -0.2, 0.1).normalize(),
     };
     let geom_brep::PlaneSphereSection::Circle(circ) =
         geom_brep::plane_sphere_section(&plane, &sphere, band).unwrap()
     else {
         panic!("expected a circle");
     };
-    let geom::Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: cc,
-                axis: ca,
-                u_ref: cu,
-            },
-        radius: cr,
-    }) = circ
-    else {
+    let geom::Curve3::Circle(geom::Circle { frame, radius: cr }) = circ else {
         panic!("non-circle carrier");
     };
+    let (cc, ca, cu) = (frame.origin(), frame.axis(), frame.u_ref());
     assert!(
         cu.dot(ca).abs() < 1e-14,
         "u_ref not in-plane: {}",

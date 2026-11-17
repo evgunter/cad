@@ -106,11 +106,12 @@ fn loop_probe_points(body: &Body<f64>, r#loop: LoopKey) -> Vec<Point3<f64>> {
 fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
     let outer = body.get_face(face).unwrap().outer;
     let pts = loop_probe_points(body, outer);
-    let Surface::Plane { normal, .. } =
+    let Surface::Plane { frame, .. } =
         newell_plane(&pts, pts[1] - pts[0], Band::linear(Tol::witness()).unwrap()).unwrap()
     else {
         panic!("newell returns a plane");
     };
+    let normal = frame.axis();
     normal
 }
 
@@ -769,15 +770,10 @@ fn wrap_crossing_arc_run_builds_one_wall() {
         .expect("the run's wall");
     assert_eq!(run.segments, vec![2, 3, 0], "the run, in sweep order");
     let key = t.body.get_face(sides[0]).unwrap().surface;
-    let Surface::Cylinder {
-        origin,
-        radius,
-        u_ref,
-        ..
-    } = *t.body.get_surface(key).unwrap()
-    else {
+    let Surface::Cylinder { frame, radius, .. } = *t.body.get_surface(key).unwrap() else {
         panic!("arc walls are cylinders");
     };
+    let (origin, u_ref) = (frame.origin(), frame.u_ref());
     assert!(origin.x.abs() < 1e-12 && origin.y.abs() < 1e-12);
     assert!((radius - 1.0).abs() < 1e-12);
     assert!(
@@ -900,9 +896,14 @@ fn survives_cosurface_bitwise_center_agreement() {
     assert_all_tiers(&t.body);
     let k = t.body.get_face(t.side_faces()[0][0]).unwrap().surface;
     assert_eq!(k, t.body.get_face(t.side_faces()[0][1]).unwrap().surface);
-    let Surface::Cylinder { origin, .. } = *t.body.get_surface(k).unwrap() else {
+    let Surface::Cylinder {
+        frame: carrier_frame,
+        ..
+    } = *t.body.get_surface(k).unwrap()
+    else {
         panic!("cylinder");
     };
+    let origin = carrier_frame.origin();
     // Every circle rim carrier's center is either bitwise the cylinder
     // origin (bottom rims — the identical expression) or bitwise
     // origin + w (top rims — translated placement; if this ever drifts
@@ -911,11 +912,10 @@ fn survives_cosurface_bitwise_center_agreement() {
     let mut bottom_rims = 0;
     let mut top_rims = 0;
     for (_, c) in t.body.curves() {
-        if let Some(geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
-            ..
-        })) = c.certified().map(|c| c.carrier().clone())
+        if let Some(geom::Curve3::Circle(geom::Circle { frame, .. })) =
+            c.certified().map(|c| c.carrier().clone())
         {
+            let center = frame.origin();
             if center.z.to_bits() == origin.z.to_bits() {
                 assert_eq!(center.x.to_bits(), origin.x.to_bits());
                 assert_eq!(center.y.to_bits(), origin.y.to_bits());
@@ -968,7 +968,8 @@ fn survives_mixed_turn_arcs_cap_certifies() {
     let mut axes = Vec::new();
     for (j, &fk) in t.side_faces()[0].iter().enumerate() {
         let sk = t.body.get_face(fk).unwrap().surface;
-        if let Surface::Cylinder { axis, .. } = *t.body.get_surface(sk).unwrap() {
+        if let Surface::Cylinder { frame, .. } = *t.body.get_surface(sk).unwrap() {
+            let axis = frame.axis();
             let profile::SegmentKind::Arc { turn, .. } = vp.loops()[0].segments()[j].kind else {
                 panic!("wall {j} is a cylinder but segment {j} is a line");
             };
@@ -1004,9 +1005,10 @@ fn survives_digon_caps_apex_determined() {
     .unwrap();
     let cap_plane = |face| {
         let sk = t.body.get_face(face).unwrap().surface;
-        let Surface::Plane { origin, normal, .. } = *t.body.get_surface(sk).unwrap() else {
+        let Surface::Plane { frame, .. } = *t.body.get_surface(sk).unwrap() else {
             panic!("cap is a plane");
         };
+        let (origin, normal) = (frame.origin(), frame.axis());
         (origin, normal)
     };
     let (bo, bn) = cap_plane(t.bottom);

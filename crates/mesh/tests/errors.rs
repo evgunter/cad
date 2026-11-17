@@ -460,23 +460,29 @@ fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     // lattice the chord pass reads, and a plane's half-edges store no
     // chart image for it to read.
     let sphere = || Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let cone = || Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 4.0),
-        axis: Vec3::new(0.0, 0.0, -1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 4.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
 
     let cylinder = || Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 3.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
 
     let clean = washer();

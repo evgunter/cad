@@ -180,9 +180,11 @@ fn general_seam_at_rest<T: AtRestPolicy>() -> (Body<T>, HalfEdgeKey, EdgeKey, Su
             flat_face,
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: Point3::new(T::zero(), T::from_f64(-SCALE), T::zero()),
-                    normal: Vec3::new(T::zero(), -T::one(), T::zero()),
-                    u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
+                    frame: geom::Frame::new(
+                        Point3::new(T::zero(), T::from_f64(-SCALE), T::zero()),
+                        Vec3::new(T::zero(), -T::one(), T::zero()),
+                        Vec3::new(T::one(), T::zero(), T::zero()),
+                    ),
                 },
                 sense: true,
             },

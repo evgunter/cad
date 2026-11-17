@@ -171,8 +171,8 @@ pub fn top_face(body: &Body<f64>) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() > 0.5 && origin.z > 0.5
+                Some(Surface::Plane { frame, .. })
+                    if frame.axis().z.abs() > 0.5 && frame.origin().z > 0.5
             )
         })
         .map(|(k, _)| k)

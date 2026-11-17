@@ -339,8 +339,8 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
     let bottom = body
         .faces()
         .find(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(geom::Surface::Plane { normal, .. })
-                if normal.z.abs() > 0.9)
+            matches!(body.face_surface(*fk), Some(geom::Surface::Plane { frame, .. })
+                if frame.axis().z.abs() > 0.9)
         })
         .map(|(k, _)| k)
         .expect("a horizontal face");

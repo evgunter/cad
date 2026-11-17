@@ -332,7 +332,8 @@ fn brick_with_face(surface: geom::Surface<f64>) -> (Body<f64>, topo::FaceKey) {
     let face = b
         .faces()
         .find(|(fk, _)| match b.face_surface(*fk) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => {
+            Some(geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
                 (origin.x - 3.0).abs() < 1e-9 && normal.x.abs() > 0.5
             }
             _ => false,
@@ -460,10 +461,12 @@ fn read_off(finding: &topo::PcurveMintError, kinds: (geom::SurfaceKind, geom::Cu
 /// `x = 3` face.
 fn tilted_cone_brick() -> (Body<f64>, topo::FaceKey) {
     brick_with_face(geom::Surface::Cone {
-        apex: Point3::new(2.5, 0.5, 2.0),
-        axis: Vec3::new(0.6, 0.0, 0.8), // unit
+        frame: geom::Frame::new(
+            Point3::new(2.5, 0.5, 2.0),
+            Vec3::new(0.6, 0.0, 0.8),
+            Vec3::new(0.8, 0.0, -0.6),
+        ),
         half_angle: 0.4,
-        u_ref: Vec3::new(0.8, 0.0, -0.6),
     })
 }
 
@@ -497,11 +500,9 @@ fn a_probe_on_a_tilted_cones_locus_is_always_refused() {
 fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
     let axis = Vec3::new(1.0, 2.0, 2.0).normalize();
     let (a, face) = brick_with_face(geom::Surface::Torus {
-        center: Point3::new(2.5, 0.5, 3.0),
-        axis,
+        frame: geom::Frame::new(Point3::new(2.5, 0.5, 3.0), axis, axis.orthonormal_basis().0),
         major_radius: 0.8,
         minor_radius: 0.2,
-        u_ref: axis.orthonormal_basis().0,
     });
     let (finding, kinds) = refused_on_the_relabelled_face(
         a,

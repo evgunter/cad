@@ -149,23 +149,21 @@ pub(crate) struct BallSection<T: Real> {
 impl<T: Real> BallSection<T> {
     pub(crate) fn of(blend: &EdgeBlend<T>, p: Point3<T>) -> Option<Self> {
         match blend.surface {
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => Some(Self {
-                centre: origin + axis * (p - origin).dot(axis),
-                normal: axis,
-                radius,
-            }),
+            Surface::Cylinder { frame, radius, .. } => {
+                let (origin, axis) = (frame.origin(), frame.axis());
+                Some(Self {
+                    centre: origin + axis * (p - origin).dot(axis),
+                    normal: axis,
+                    radius,
+                })
+            }
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
             } => {
+                let (center, axis) = (frame.origin(), frame.axis());
                 let radial = radial_about(center, axis, p);
                 Some(Self {
                     centre: center + radial * major_radius,
@@ -188,7 +186,7 @@ pub(crate) fn chamfer_setback_point<T: Real>(trim: &Curve3<T>, p: Point3<T>) -> 
     match trim {
         Curve3::Line(line) => Some(line.foot(p)),
         Curve3::Circle(c) => {
-            Some(c.frame.origin + perp_unit(p - c.frame.origin, c.frame.axis) * c.radius)
+            Some(c.frame.origin() + perp_unit(p - c.frame.origin(), c.frame.axis()) * c.radius)
         }
         _ => None,
     }
@@ -468,10 +466,8 @@ pub fn plane_plane_blend<T: Real>(
     let setback = radius * ((one - d) / (one + d)).sqrt();
     EdgeBlend {
         surface: Surface::Cylinder {
-            origin: center,
-            axis: tau,
+            frame: geom::Frame::new(center, tau, a.foot(center)),
             radius,
-            u_ref: a.foot(center),
         },
         spine_curvature: T::zero(),
         trim_a: (
@@ -607,11 +603,9 @@ pub fn plane_sphere_blend<T: Real>(
     let con_pt = sphere_trim_c + u_ref * sphere_trim_r;
     EdgeBlend {
         surface: Surface::Torus {
-            center: spine_center,
-            axis: n,
+            frame: geom::Frame::new(spine_center, n, u_ref),
             major_radius: s,
             minor_radius: radius,
-            u_ref,
         },
         spine_curvature: T::one() / s,
         trim_a: (
@@ -1099,31 +1093,35 @@ impl<T: Real> Meridian<T> {
         match *s {
             // A plane ⊥ the axis: its chart normal IS the meridian
             // trace's normal, and it must be the axis itself.
-            Surface::Plane { normal, .. } => Some((
-                SupportTrace::Straight { normal, side },
-                normal.cross(self.axis.dir).norm() * lever,
-            )),
+            Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
+                Some((
+                    SupportTrace::Straight { normal, side },
+                    normal.cross(self.axis.dir).norm() * lever,
+                ))
+            }
             // A coaxial cylinder: the meridian trace is the line through
             // the rim with the radially outward normal. The stored
             // radius never enters — the rim's own radius IS it.
-            Surface::Cylinder { axis, .. } => Some((
-                SupportTrace::Straight {
-                    normal: radial,
-                    side,
-                },
-                axis.cross(self.axis.dir).norm() * lever,
-            )),
+            Surface::Cylinder { frame, .. } => {
+                let axis = frame.axis();
+                Some((
+                    SupportTrace::Straight {
+                        normal: radial,
+                        side,
+                    },
+                    axis.cross(self.axis.dir).norm() * lever,
+                ))
+            }
             // A coaxial cone: the generator through the rim, whose chart
             // normal is `radial·cos α − k̂·(ω sin α)` for the NAPPE sign
             // ω — which nappe the rim sits on, read off the apex by sign
             // alone (a sign the apex's own placement round-off cannot
             // move).
             Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
+                frame, half_angle, ..
             } => {
+                let (apex, axis) = (frame.origin(), frame.axis());
                 let (sin_a, cos_a) = half_angle.sin_cos();
                 let nappe = ((self.rim - apex).dot(axis) * axis.dot(self.axis.dir)).unit_sign();
                 Some((
@@ -1138,7 +1136,8 @@ impl<T: Real> Meridian<T> {
             // great circle of the same radius, centred at the axis point
             // level with the sphere's centre. The departure is the
             // centre's own distance off the axis.
-            Surface::Sphere { center, radius, .. } => {
+            Surface::Sphere { frame, radius, .. } => {
+                let center = frame.origin();
                 let level = self.axis.foot(center);
                 Some((
                     SupportTrace::Round {
@@ -1200,11 +1199,9 @@ impl<T: Real> Meridian<T> {
         let (spine, toward) = ring_radius(s, radial);
         EdgeBlend {
             surface: Surface::Torus {
-                center: level(center),
-                axis: self.axis.dir,
+                frame: geom::Frame::new(level(center), self.axis.dir, toward),
                 major_radius: spine,
                 minor_radius: radius,
-                u_ref: toward,
             },
             spine_curvature: T::one() / spine,
             trim_a: trim(a),
@@ -1251,13 +1248,17 @@ impl<T: Real> Ruling<T> {
         match *s {
             // A plane containing the ruling: its chart normal is already
             // ⊥ the ruling, so it is the cross-section line's normal.
-            Surface::Plane { normal, .. } => Some((
-                SupportTrace::Straight { normal, side },
-                normal.dot(self.tau).abs() * self.lever,
-            )),
+            Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
+                Some((
+                    SupportTrace::Straight { normal, side },
+                    normal.dot(self.tau).abs() * self.lever,
+                ))
+            }
             // A cylinder about the ruling: the cross-section circle,
             // centred where the cylinder's axis crosses this sheet.
-            Surface::Cylinder { axis, radius, .. } => {
+            Surface::Cylinder { frame, radius, .. } => {
+                let axis = frame.axis();
                 let on_axis = s.axis_line()?.foot(self.rim);
                 Some((
                     SupportTrace::Round {
@@ -1295,10 +1296,8 @@ impl<T: Real> Ruling<T> {
         let (q_a, q_b) = (a.contact(center, radius), b.contact(center, radius));
         EdgeBlend {
             surface: Surface::Cylinder {
-                origin: center,
-                axis: self.tau,
+                frame: geom::Frame::new(center, self.tau, a.foot(center)),
                 radius,
-                u_ref: a.foot(center),
             },
             spine_curvature: T::zero(),
             trim_a: (Curve3::line(q_a, self.tau), (q_a - self.rim).norm()),
@@ -1399,10 +1398,8 @@ pub fn corner_ball<T: Real>(
     let (u_ref, axis) = corner_chart([foot(n1), foot(n2), foot(n3)]);
     CornerBall {
         surface: Surface::Sphere {
-            center: c,
+            frame: geom::Frame::new(c, axis, u_ref),
             radius,
-            axis,
-            u_ref,
         },
         center: c,
         independence: det.abs(),
@@ -1485,9 +1482,7 @@ pub fn chamfer_strip<T: Real>(
     let (foot_a, foot_b) = chamfer_feet(p, tau, n_a, n_b, distance);
     EdgeBlend {
         surface: Surface::Plane {
-            origin: foot_a,
-            normal: (n_a + n_b).normalize(),
-            u_ref: tau,
+            frame: geom::Frame::new(foot_a, (n_a + n_b).normalize(), tau),
         },
         spine_curvature: T::zero(),
         trim_a: (
@@ -1555,10 +1550,8 @@ pub fn chamfer_frustum<T: Real>(
     };
     EdgeBlend {
         surface: Surface::Cone {
-            apex,
-            axis: k * (foot_a - apex).dot(k).unit_sign(),
+            frame: geom::Frame::new(apex, k * (foot_a - apex).dot(k).unit_sign(), radial),
             half_angle: (g_r.abs() / g.norm()).asin(),
-            u_ref: radial,
         },
         spine_curvature: T::zero(),
         trim_a: trim(foot_a),
@@ -1581,15 +1574,18 @@ pub fn chamfer_frustum<T: Real>(
 #[must_use]
 pub fn frustum_rim_side<T: Real>(blend: &EdgeBlend<T>, rim: Point3<T>) -> Option<T> {
     let Surface::Cone {
-        axis, half_angle, ..
+        frame: carrier_frame,
+        half_angle,
+        ..
     } = blend.surface
     else {
         return None;
     };
+    let axis = carrier_frame.axis();
     let (a, b) = (blend.trim_a.0.as_circle()?, blend.trim_b.0.as_circle()?);
-    let radial = perp_unit(rim - a.frame.origin, axis);
-    let fa = a.frame.origin + radial * a.radius;
-    let fb = b.frame.origin + radial * b.radius;
+    let radial = perp_unit(rim - a.frame.origin(), axis);
+    let fa = a.frame.origin() + radial * a.radius;
+    let fb = b.frame.origin() + radial * b.radius;
     let (sin_a, cos_a) = half_angle.sin_cos();
     Some((radial * cos_a - axis * sin_a).dot(rim - fa.mid(fb)))
 }
@@ -1635,8 +1631,6 @@ pub fn chamfer_corner_patch<T: Real>(feet: [Point3<T>; 3], outward: Vec3<T>) -> 
     let g = (feet[1] - feet[0]).cross(feet[2] - feet[0]);
     let normal = (g * g.dot(outward)).normalize();
     Surface::Plane {
-        origin: feet[0],
-        normal,
-        u_ref: perp_unit(feet[1] - feet[0], normal),
+        frame: geom::Frame::new(feet[0], normal, perp_unit(feet[1] - feet[0], normal)),
     }
 }

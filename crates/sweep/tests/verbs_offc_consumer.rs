@@ -837,8 +837,8 @@ fn an_approx_face_moves_at_a_scalar_with_no_fit_lane() {
                 // The outward cap: `Interval` orders no better than its
                 // bracket does, so the choice reads the enclosure's low
                 // end — definite on these exact dyadic coordinates.
-                Some(Surface::Plane { origin, normal, .. })
-                    if Bounds::lo(normal.z) > 0.5 && Bounds::lo(origin.z) > 0.5
+                Some(Surface::Plane { frame, .. })
+                    if Bounds::lo(frame.axis().z) > 0.5 && Bounds::lo(frame.origin().z) > 0.5
             )
         })
         .map(|(k, _)| k)

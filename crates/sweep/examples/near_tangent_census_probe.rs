@@ -126,7 +126,10 @@ fn edge_ends(body: &Body<f64>, e: topo::EdgeKey) -> Option<String> {
 /// order.
 fn face_geo(body: &Body<f64>, f: topo::FaceKey) -> Option<String> {
     let (origin, normal) = match body.face_surface(f)? {
-        geom::Surface::Plane { origin, normal, .. } => (*origin, *normal),
+        geom::Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            (*origin, *normal)
+        }
         _ => return None,
     };
     let mut loops = Vec::new();

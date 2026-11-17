@@ -496,7 +496,10 @@ pub fn seams(body: &Body<f64>) -> (usize, usize, usize) {
             body.get_face(f2).unwrap().surface,
         );
         let plane = |k| match body.get_surface(k) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
+            Some(geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((origin, normal))
+            }
             _ => None,
         };
         if let (Some((o1, n1)), Some((o2, n2))) = (plane(k1), plane(k2)) {
@@ -1100,8 +1103,12 @@ pub fn assert_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
     for patch in &mesh.patches {
         let face = body.get_face(patch.face).expect("the patch's face");
         let radial = |p: Point3<f64>| match *body.face_surface(patch.face).expect("its surface") {
-            geom::Surface::Sphere { center, .. } => Some(p - center),
-            geom::Surface::Cylinder { origin, axis, .. } => {
+            geom::Surface::Sphere { frame, .. } => {
+                let center = frame.origin();
+                Some(p - center)
+            }
+            geom::Surface::Cylinder { frame, .. } => {
+                let (origin, axis) = (frame.origin(), frame.axis());
                 let d = p - origin;
                 Some(d - axis * d.dot(axis))
             }
@@ -1109,17 +1116,16 @@ pub fn assert_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
             // the point's own radial direction: across the axis on a
             // lemon sheet, where `R < 0`.
             geom::Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 ..
             }
             | geom::Surface::Spindle {
-                center,
-                axis,
+                frame,
                 major_radius,
                 ..
             } => {
+                let (center, axis) = (frame.origin(), frame.axis());
                 let w = p - center;
                 let radial = w - axis * w.dot(axis);
                 Some(p - (center + radial * (major_radius / radial.norm())))

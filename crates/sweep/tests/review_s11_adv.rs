@@ -84,7 +84,8 @@ fn adv_mixed_convex_concave_hole() {
     for &f in &t.side_faces()[1] {
         let sk = t.body.get_face(f).unwrap().surface;
         match *t.body.get_surface(sk).unwrap() {
-            Surface::Cylinder { origin, .. } => {
+            Surface::Cylinder { frame, .. } => {
+                let origin = frame.origin();
                 if origin.y < 3.0 {
                     assert!(!sense_of(&t.body, f), "bite arc (center y<3) must be false");
                     seen.0 += 1;
@@ -275,11 +276,14 @@ fn adv_asymmetric_downward_invariance() {
             .map(|&f| {
                 let sk = t.body.get_face(f).unwrap().surface;
                 let key = match *t.body.get_surface(sk).unwrap() {
-                    Surface::Cylinder { origin, radius, .. } => (
-                        (origin.x * 1e6).round() as i64,
-                        (origin.y * 1e6).round() as i64,
-                        (radius * 1e6).round() as i64,
-                    ),
+                    Surface::Cylinder { frame, radius, .. } => {
+                        let origin = frame.origin();
+                        (
+                            (origin.x * 1e6).round() as i64,
+                            (origin.y * 1e6).round() as i64,
+                            (radius * 1e6).round() as i64,
+                        )
+                    }
                     _ => (0, 0, 0),
                 };
                 (key, sense_of(&t.body, f))
@@ -333,7 +337,10 @@ fn adv_reversed_authoring_revolve_same_senses() {
                 let sk = t.body.get_face(f).unwrap().surface;
                 let key = match *t.body.get_surface(sk).unwrap() {
                     Surface::Cylinder { radius, .. } => format!("cyl{radius:.3}"),
-                    Surface::Plane { origin, .. } => format!("pl{:.3}", origin.y),
+                    Surface::Plane { frame, .. } => {
+                        let origin = frame.origin();
+                        format!("pl{:.3}", origin.y)
+                    }
                     _ => "other".into(),
                 };
                 (key, sense_of(&t.body, f))

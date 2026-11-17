@@ -140,20 +140,20 @@ fn same_cone(s: &Surface<f64>, cone: &Surface<f64>) -> bool {
     match (s, cone) {
         (
             Surface::Cone {
-                apex,
-                axis,
+                frame: cone_frame_2,
                 half_angle,
                 ..
             },
             Surface::Cone {
-                apex: a2,
-                axis: x2,
+                frame: cone_frame,
                 half_angle: h2,
                 ..
             },
         ) => {
-            (*apex - *a2).norm() < 1e-12
-                && (*axis - *x2).norm() < 1e-12
+            let (apex, axis) = (cone_frame_2.origin(), cone_frame_2.axis());
+            let (a2, x2) = (cone_frame.origin(), cone_frame.axis());
+            (apex - a2).norm() < 1e-12
+                && (axis - x2).norm() < 1e-12
                 && (half_angle - h2).abs() < 1e-12
         }
         _ => false,
@@ -193,11 +193,11 @@ fn conic_chords(body: &Body<f64>) -> Vec<Chord> {
 /// the other is `cone`.
 fn cut_by(chord: &Chord, cone: &Surface<f64>) -> Option<(Point3<f64>, Vec3<f64>)> {
     match &chord.surfaces {
-        [Surface::Plane { origin, normal, .. }, other]
-        | [other, Surface::Plane { origin, normal, .. }]
+        [Surface::Plane { frame, .. }, other] | [other, Surface::Plane { frame, .. }]
             if same_cone(other, cone) =>
         {
-            Some((*origin, *normal))
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Some((origin, normal))
         }
         _ => None,
     }
@@ -211,14 +211,14 @@ fn section(
     n: Vec3<f64>,
 ) -> (Point3<f64>, Vec3<f64>, f64, f64) {
     let &Surface::Cone {
-        apex,
-        axis,
+        frame: carrier_frame,
         half_angle,
         ..
     } = cone
     else {
         panic!("a cone")
     };
+    let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let n = n.normalize();
     let (s, c_a) = half_angle.sin_cos();
     let c = axis.dot(n);
@@ -236,24 +236,15 @@ fn section(
 /// `chord`'s carrier is the conic `(centre, normal, a, b)`.
 fn is_conic(chord: &Chord, (centre, normal, a, b): (Point3<f64>, Vec3<f64>, f64, f64)) -> bool {
     let (c, axis, ra, rb) = match chord.carrier {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            radius,
-        }) => (center, axis, radius, radius),
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            (center, axis, radius, radius)
+        }
         ref e @ Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
+            frame: carrier_frame,
             ..
         }) => {
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
             let frame = e.major_frame().unwrap();
             (center, axis, frame.major, frame.minor)
         }
@@ -388,37 +379,37 @@ fn cut_by_plane(chord: &Chord, cone: &Surface<f64>, (q, n): (Point3<f64>, Vec3<f
 /// parameter of a point on it.
 fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
     let Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+        frame: carrier_frame,
         semi_u,
         semi_v,
     }) = e
     else {
         panic!("an ellipse")
     };
-    *center + *u_ref * (semi_u * t.cos()) + axis.cross(*u_ref) * (semi_v * t.sin())
+    let (center, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
+    center + u_ref * (semi_u * t.cos()) + axis.cross(u_ref) * (semi_v * t.sin())
 }
 
 fn ellipse_param(e: &Curve3<f64>, p: Point3<f64>) -> f64 {
     let Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+        frame: carrier_frame,
         semi_u,
         semi_v,
     }) = e
     else {
         panic!("an ellipse")
     };
-    let w = p - *center;
-    (w.dot(axis.cross(*u_ref)) / semi_v).atan2(w.dot(*u_ref) / semi_u)
+    let (center, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
+    let w = p - center;
+    (w.dot(axis.cross(u_ref)) / semi_v).atan2(w.dot(u_ref) / semi_u)
 }
 
 /// `cone`'s outward normal at (the foot on it of) `p`, for a solid on
@@ -426,14 +417,12 @@ fn ellipse_param(e: &Curve3<f64>, p: Point3<f64>) -> f64 {
 /// half-angle.
 fn cone_outward(cone: &Surface<f64>, p: Point3<f64>) -> Vec3<f64> {
     let &Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
+        frame, half_angle, ..
     } = cone
     else {
         panic!("a cone")
     };
+    let (apex, axis) = (frame.origin(), frame.axis());
     let d = p - apex;
     let radial = (d - axis * d.dot(axis)).normalize();
     radial * half_angle.cos() - axis * half_angle.sin()

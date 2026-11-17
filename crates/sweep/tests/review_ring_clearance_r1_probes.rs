@@ -63,10 +63,11 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> [FaceKey; 2] {
 /// stored sense bit (`same_sense`), not from any sampled geometry.
 fn plane_outward(body: &Body<f64>, f: FaceKey) -> Vec3<f64> {
     let fd = body.get_face(f).unwrap();
-    let Surface::Plane { normal, .. } = body.face_surface(f).unwrap() else {
+    let Surface::Plane { frame, .. } = body.face_surface(f).unwrap() else {
         panic!("not a plane")
     };
-    geom_brep::OutwardNormal::from_chart(*normal, fd.sense).vec()
+    let normal = frame.axis();
+    geom_brep::OutwardNormal::from_chart(normal, fd.sense).vec()
 }
 
 /// The reading of whichever clearance predicate refused, by name.

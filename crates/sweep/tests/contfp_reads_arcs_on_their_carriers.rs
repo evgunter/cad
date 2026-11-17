@@ -46,10 +46,11 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 fn cap_at(body: &Body<f64>, z: f64) -> (FaceKey, Vec3<f64>) {
     body.faces()
         .find_map(|(k, _)| match body.face_surface(k)? {
-            Surface::Plane { origin, normal, .. }
-                if normal.x == 0.0 && normal.y == 0.0 && origin.z == z =>
+            Surface::Plane { frame, .. }
+                if frame.axis().x == 0.0 && frame.axis().y == 0.0 && frame.origin().z == z =>
             {
-                Some((k, *normal))
+                let normal = frame.axis();
+                Some((k, normal))
             }
             _ => None,
         })
@@ -375,9 +376,10 @@ fn a_near_full_arc_is_on_and_off_at_the_bands_own_width() {
 /// are ellipses — with its unit normal and its elliptic edges.
 fn section(body: &Body<f64>) -> ((FaceKey, Vec3<f64>), Vec<topo::EdgeKey>) {
     for (k, f) in body.faces() {
-        let Some(&Surface::Plane { normal, .. }) = body.face_surface(k) else {
+        let Some(&Surface::Plane { frame, .. }) = body.face_surface(k) else {
             continue;
         };
+        let normal = frame.axis();
         let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
             continue;
         };
@@ -543,18 +545,10 @@ fn a_steep_ellipse_is_off_where_it_is_off() {
                 .unwrap()
                 .certified()
                 .unwrap();
-            let geom::Curve3::Ellipse(geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        u_ref,
-                        ..
-                    },
-                ..
-            }) = *curve.carrier()
-            else {
+            let geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) = *curve.carrier() else {
                 panic!("an ellipse");
             };
+            let (center, u_ref) = (frame.origin(), frame.u_ref());
             let (t0, t1) = curve.params();
             for th in [0.0f64, core::f64::consts::PI] {
                 if (th - t0).rem_euclid(core::f64::consts::TAU) >= t1 - t0 {
@@ -721,9 +715,10 @@ fn an_in_band_ball_clearance_skips_the_ray() {
     let (_, cavity) = crate::common::torus_walls::vessel_cavity(1.0 / 128.0);
     let mut asked = 0;
     for (fk, f) in cavity.faces() {
-        let Some(&Surface::Plane { normal, .. }) = cavity.face_surface(fk) else {
+        let Some(&Surface::Plane { frame, .. }) = cavity.face_surface(fk) else {
             continue;
         };
+        let normal = frame.axis();
         let topo::LoopBoundary::Cycle { first } = cavity.get_loop(f.outer).unwrap().boundary else {
             continue;
         };

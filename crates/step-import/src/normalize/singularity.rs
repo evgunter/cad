@@ -74,28 +74,24 @@ enum Chart {
 impl Chart {
     fn of(surface: &Surface<f64>) -> Option<Self> {
         match *surface {
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Some(Self::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            }),
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Some(Self::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            }),
+            Surface::Sphere { frame, radius } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Some(Self::Sphere {
+                    center,
+                    radius,
+                    axis,
+                    u_ref,
+                })
+            }
+            Surface::Cone { frame, half_angle } => {
+                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Some(Self::Cone {
+                    apex,
+                    axis,
+                    half_angle,
+                    u_ref,
+                })
+            }
             _ => None,
         }
     }
@@ -129,10 +125,8 @@ impl Chart {
                 axis,
                 u_ref,
             } => Surface::Sphere {
-                center,
+                frame: geom::Frame::new(center, axis, u_ref),
                 radius,
-                axis,
-                u_ref,
             },
             Self::Cone {
                 apex,
@@ -140,10 +134,8 @@ impl Chart {
                 half_angle,
                 u_ref,
             } => Surface::Cone {
-                apex,
-                axis,
+                frame: geom::Frame::new(apex, axis, u_ref),
                 half_angle,
-                u_ref,
             },
         }
     }
@@ -767,24 +759,13 @@ fn crossings(
     match (ray, other) {
         (
             &Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: c,
-                        axis: n,
-                        u_ref: u,
-                    },
+                frame: ray_frame,
                 radius: r,
             }),
-            &Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: ce,
-                        axis: ne,
-                        ..
-                    },
-                radius: re,
-            }),
+            &Curve3::Circle(geom::Circle { frame, radius: re }),
         ) => {
+            let (c, n, u) = (ray_frame.origin(), ray_frame.axis(), ray_frame.u_ref());
+            let (ce, ne) = (frame.origin(), frame.axis());
             let w = n.cross(u);
             // ne · (C(t) − ce) = a cos t + b sin t + k.
             let (a, b, k) = (r * ne.dot(u), r * ne.dot(w), ne.dot(c - ce));
@@ -809,16 +790,9 @@ fn crossings(
         }
         (
             &Curve3::Line(geom::Line { origin: o, dir: g }),
-            &Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: ce,
-                        axis: ne,
-                        ..
-                    },
-                radius: re,
-            }),
+            &Curve3::Circle(geom::Circle { frame, radius: re }),
         ) => {
+            let (ce, ne) = (frame.origin(), frame.axis());
             let den = ne.dot(g);
             if den.abs() <= 1e-12 * g.norm() {
                 return Some(Vec::new());
@@ -859,17 +833,13 @@ fn crossings(
             })
         }
         (
-            &Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: c, axis: n, ..
-                },
-                radius: r,
-            }),
+            &Curve3::Circle(geom::Circle { frame, radius: r }),
             &Curve3::Line(geom::Line {
                 origin: oe,
                 dir: ge,
             }),
         ) => {
+            let (c, n) = (frame.origin(), frame.axis());
             let den = n.dot(ge);
             if den.abs() <= 1e-12 * ge.norm() {
                 return Some(Vec::new());
@@ -1425,10 +1395,12 @@ mod side_through_a_pole {
         };
         let vertices = BTreeMap::from([(1, a), (2, n), (3, bb)]);
         let surface = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let use_ = |edge, forward| EdgeUse { edge, forward };
         let read = Read {
@@ -1560,10 +1532,12 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
             faces: vec![FaceSpec {
                 id: 101,
                 surface: Surface::Sphere {
-                    center: Point3::new(0.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     radius: 1.0,
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
                 },
                 sense: true,
                 loops,

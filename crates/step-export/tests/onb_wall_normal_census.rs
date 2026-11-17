@@ -44,7 +44,8 @@ fn no_fixture_face_sits_on_the_frame_seam() {
     for (name, body) in common::fixture_corpus() {
         let mut c = SeamClasses::default();
         for (_, surface) in body.surfaces() {
-            if let Surface::Plane { normal, .. } = surface {
+            if let Surface::Plane { frame, .. } = surface {
+                let normal = frame.axis();
                 c.add((normal.x, normal.y, normal.z));
             }
         }
@@ -95,7 +96,8 @@ fn axis_tie_census_over_the_fixture_corpus() {
     for (name, body) in common::fixture_corpus() {
         let mut c = SeamClasses::default();
         for (_, surface) in body.surfaces() {
-            if let Surface::Plane { normal, .. } = surface {
+            if let Surface::Plane { frame, .. } = surface {
+                let normal = frame.axis();
                 c.add((normal.x, normal.y, normal.z));
             }
         }
@@ -211,9 +213,10 @@ fn the_direction_records_every_stored_frame_is_written_to() {
         let text = step_string(&common::at_rest(&body), &StepOptions::default(), tol)
             .expect("fixture exports");
         for (_, surface) in body.surfaces() {
-            let Surface::Plane { normal, u_ref, .. } = surface else {
+            let Surface::Plane { frame, .. } = surface else {
                 continue;
             };
+            let (normal, u_ref) = (frame.axis(), frame.u_ref());
             planes += 1;
             let minted = u_ref.same_bits(normal.orthonormal_basis().0);
             if minted {

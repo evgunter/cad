@@ -54,18 +54,14 @@ fn meridian_sharing_tori() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     let z = Vec3::new(0.0, 0.0, 1.0);
     let x = Vec3::new(1.0, 0.0, 0.0);
     let a = Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: z,
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z, x),
         major_radius: 1.0,
         minor_radius: r,
-        u_ref: x,
     };
     let b = Surface::Torus {
-        center: Point3::new(0.5, 0.0, 0.0),
-        axis: z,
+        frame: geom::Frame::new(Point3::new(0.5, 0.0, 0.0), z, x),
         major_radius: 0.5,
         minor_radius: r,
-        u_ref: x,
     };
     // θ = 0 at the outer equator point (1 + r, 0, 0); station i of the
     // schedule sits at θ = i·π/4.
@@ -139,18 +135,14 @@ fn an_edge_decided_at_the_second_station_spends_two_samples() {
     let pt = |x: f64, y: f64, z: f64| Point3::new(pr(x), pr(y), pr(z));
     let v = |x: f64, y: f64, z: f64| Vec3::new(pr(x), pr(y), pr(z));
     let a = Surface::Torus {
-        center: pt(0.0, 0.0, 0.0),
-        axis: v(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(pt(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
         major_radius: pr(1.0),
         minor_radius: pr(0.25),
-        u_ref: v(1.0, 0.0, 0.0),
     };
     let b = Surface::Torus {
-        center: pt(0.5, 0.0, 0.0),
-        axis: v(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(pt(0.5, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
         major_radius: pr(0.5),
         minor_radius: pr(0.25),
-        u_ref: v(1.0, 0.0, 0.0),
     };
     let carrier = Curve3::circle(
         pt(1.0, 0.0, 0.0),

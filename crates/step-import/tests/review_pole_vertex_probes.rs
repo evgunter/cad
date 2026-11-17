@@ -139,13 +139,14 @@ fn outcome(name: &str, text: &str) -> Result<(f64, usize), String> {
     let points: Vec<_> = b.vertex_points().collect();
     for (fk, _) in b.faces() {
         let s: Vec<Point3<f64>> = match *b.face_surface(fk).unwrap() {
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                ..
-            } => vec![center + axis * radius, center - axis * radius],
-            Surface::Cone { apex, .. } => vec![apex],
+            Surface::Sphere { frame, radius, .. } => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                vec![center + axis * radius, center - axis * radius]
+            }
+            Surface::Cone { frame, .. } => {
+                let apex = frame.origin();
+                vec![apex]
+            }
             _ => continue,
         };
         for s in s {

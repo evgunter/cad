@@ -7184,9 +7184,9 @@ mod wavy_loft {
         assert!(
             matches!(
                 plane,
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if (block.point_in_space(*origin).x - 1.0).abs() < 1e-9
-                        && block.vec_in_space(*normal).x.abs() > 1.0 - 1e-9
+                Some(geom::Surface::Plane { frame, .. })
+                    if (block.point_in_space(frame.origin()).x - 1.0).abs() < 1e-9
+                        && block.vec_in_space(frame.axis()).x.abs() > 1.0 - 1e-9
             ),
             "the pierced face is the box's face x = 1"
         );

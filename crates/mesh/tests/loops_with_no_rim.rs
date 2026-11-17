@@ -67,10 +67,8 @@ fn x_axis() -> Vec3<f64> {
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z_axis(), x_axis()),
         radius: 1.0,
-        axis: z_axis(),
-        u_ref: x_axis(),
     }
 }
 
@@ -163,11 +161,9 @@ fn sphere_slit_on_two_coincident_edges() -> Body<f64> {
 /// **The torus face bounded by one meridian circle**, and its complement.
 fn torus_on_one_meridian_circle() -> Body<f64> {
     let torus = Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z_axis(), x_axis()),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: x_axis(),
     };
     let minor = Curve3::circle(
         Point3::new(2.0, 0.0, 0.0),
@@ -188,10 +184,8 @@ fn sphere_on_one_great_circle() -> Body<f64> {
 fn one_seam_cylinder() -> Body<f64> {
     let tol = Tol::witness();
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z_axis(), x_axis()),
         radius: 1.0,
-        u_ref: x_axis(),
     };
     let mut body = Body::<f64>::new();
     let start = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
@@ -219,10 +213,8 @@ fn one_seam_cylinder() -> Body<f64> {
 fn one_seam_cone() -> Body<f64> {
     let tol = Tol::witness();
     let cone = Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z_axis(), x_axis()),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: x_axis(),
     };
     let mut body = Body::<f64>::new();
     let start = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();

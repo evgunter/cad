@@ -168,7 +168,7 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
         assert_eq!(tori.len(), 2, "a full revolve keeps the wall's cut");
         for f in tori {
             let geom::Surface::Torus {
-                center,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
@@ -176,6 +176,7 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
             else {
                 unreachable!()
             };
+            let center = frame.origin();
             assert!(center.distance(Point3::origin()) < 1e-12);
             assert!((major_radius - MAJOR).abs() < 1e-12);
             assert!((minor_radius - MINOR).abs() < 1e-12);
@@ -235,16 +236,7 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
     let mut meridians = 0;
     for (_, e) in a.edges() {
         let c = a.get_curve_geom(e.curve).unwrap().certified().unwrap();
-        let geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) = *c.carrier()
-        else {
+        let geom::Curve3::Circle(geom::Circle { frame, radius }) = *c.carrier() else {
             continue;
         };
         if (radius - MINOR).abs() > 1e-12 {
@@ -254,18 +246,11 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
         let (t0, t1) = c.params();
         for fb in faces_where(&b, is_torus) {
             let s = surface(&b, fb);
-            let (lo, hi) = geom_brep::circle_residual_extremes(
-                s,
-                &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
-            )
-            .unwrap();
-            let (arc_lo, arc_hi) = geom_brep::circle_arc_residual_range(
-                s,
-                &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
-                t0,
-                t1,
-            )
-            .unwrap();
+            let (lo, hi) =
+                geom_brep::circle_residual_extremes(s, &geom::Circle::new(frame, radius)).unwrap();
+            let (arc_lo, arc_hi) =
+                geom_brep::circle_arc_residual_range(s, &geom::Circle::new(frame, radius), t0, t1)
+                    .unwrap();
             let margin = (lo.max(-hi)).max(arc_lo.max(-arc_hi));
             assert!(
                 (margin + 1.733_498_408_828_498e-5).abs() < 1e-12,

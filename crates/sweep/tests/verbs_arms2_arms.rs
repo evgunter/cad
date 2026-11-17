@@ -50,23 +50,23 @@ const EPS: f64 = 1e-12;
 /// arms so the check is a specification and not a restatement.
 fn signed_dist(s: &Surface<f64>, p: Point3<f64>) -> f64 {
     match *s {
-        Surface::Plane { origin, normal, .. } => (p - origin).dot(normal),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            (p - origin).dot(normal)
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let d = p - origin;
             (d - axis * d.dot(axis)).norm() - radius
         }
-        Surface::Sphere { center, radius, .. } => (p - center).norm() - radius,
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            (p - center).norm() - radius
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let d = p - apex;
             let v = d.dot(axis);
             let rho = (d - axis * v).norm();
@@ -91,36 +91,32 @@ struct Row {
 
 fn cone(apex_y: f64, half_angle: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.0, apex_y, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, apex_y, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn cyl(origin: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Surface<f64> {
     Surface::Cylinder {
-        origin,
-        axis,
+        frame: geom::Frame::new(origin, axis, u_ref),
         radius,
-        u_ref,
     }
 }
 
 fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
         radius,
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn plane(origin: Point3<f64>, normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
     Surface::Plane {
-        origin,
-        normal,
-        u_ref,
+        frame: geom::Frame::new(origin, normal, u_ref),
     }
 }
 
@@ -330,10 +326,10 @@ fn every_curved_arm_solves_the_rolling_ball_equations_in_both_configurations() {
                 (&row.b, &blend.trim_b, "second"),
             ] {
                 let q = match trim.0 {
-                    Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { origin: center, .. },
-                        radius,
-                    }) => center + radial * radius,
+                    Curve3::Circle(geom::Circle { frame, radius }) => {
+                        let center = frame.origin();
+                        center + radial * radius
+                    }
                     Curve3::Line(geom::Line { origin, .. }) => origin,
                     _ => panic!("a blend trimline is a circle or a line"),
                 };
@@ -387,13 +383,13 @@ fn every_curved_arm_mints_its_spine_from_the_ball_centre() {
             (
                 Some((o, k)),
                 Surface::Torus {
-                    center: tc,
-                    axis,
+                    frame: torus_frame,
                     major_radius,
                     minor_radius,
                     ..
                 },
             ) => {
+                let (tc, axis) = (torus_frame.origin(), torus_frame.axis());
                 let d = center - o;
                 let along = k * d.dot(k);
                 assert!((tc - (o + along)).norm() < EPS, "{}", row.arm.name());
@@ -418,12 +414,12 @@ fn every_curved_arm_mints_its_spine_from_the_ball_centre() {
             (
                 None,
                 Surface::Cylinder {
-                    origin,
-                    axis,
+                    frame: cylinder_frame,
                     radius: cr,
                     ..
                 },
             ) => {
+                let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
                 assert!((origin - center).norm() < EPS, "{}", row.arm.name());
                 assert!((axis - row.tau.unwrap()).norm() < EPS, "{}", row.arm.name());
                 assert!((cr - radius).abs() < EPS, "{}", row.arm.name());
@@ -509,13 +505,13 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
         let new = sheet.blend(tp, ts, radius, Branch::Rim);
         let (
             Surface::Torus {
-                center: c0,
+                frame: torus_frame_2,
                 major_radius: m0,
                 minor_radius: n0,
                 ..
             },
             Surface::Torus {
-                center: c1,
+                frame: torus_frame,
                 major_radius: m1,
                 minor_radius: n1,
                 ..
@@ -524,23 +520,24 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
         else {
             panic!("both doors mint a torus");
         };
+        let c0 = torus_frame_2.origin();
+        let c1 = torus_frame.origin();
         assert!((c0 - c1).norm() < 1e-12, "sphere_sense = {sphere_sense}");
         assert!((m0 - m1).abs() < 1e-12, "sphere_sense = {sphere_sense}");
         assert!((n0 - n1).abs() < 1e-12, "sphere_sense = {sphere_sense}");
         for (o, w) in [(&old.trim_a, &new.trim_a), (&old.trim_b, &new.trim_b)] {
             let (
                 Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { origin: a, .. },
+                    frame: carrier_frame,
                     radius: ra,
                 }),
-                Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { origin: b, .. },
-                    radius: rb,
-                }),
+                Curve3::Circle(geom::Circle { frame, radius: rb }),
             ) = (o.0.clone(), w.0.clone())
             else {
                 panic!("both doors mint circles");
             };
+            let a = carrier_frame.origin();
+            let b = frame.origin();
             assert!((a - b).norm() < 1e-12, "sphere_sense = {sphere_sense}");
             assert!((ra - rb).abs() < 1e-12, "sphere_sense = {sphere_sense}");
             // The setbacks agree in MAGNITUDE: the plane–sphere arm keeps

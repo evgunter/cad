@@ -42,9 +42,10 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     assert_eq!(t.body.surfaces().count(), 1);
     // Every face lies on the unit sphere centered at the origin.
     let (face, _) = t.body.faces().next().unwrap();
-    let Surface::Sphere { center, radius, .. } = *t.body.face_surface(face).unwrap() else {
+    let Surface::Sphere { frame, radius, .. } = *t.body.face_surface(face).unwrap() else {
         panic!("ball face is a sphere");
     };
+    let center = frame.origin();
     assert!(center.distance(geom_core::Point3::origin()).abs() < 1e-12);
     assert!((radius - 1.0).abs() < 1e-12);
     // The two vertices are the poles (0, ±1, 0).
@@ -184,12 +185,20 @@ fn a_full_revolves_two_seam_meridians_share_one_frame() {
     }
     fn of<T: geom_core::Real>(f: &geom::Frame<T>, flip: bool) -> [T; 9] {
         let a = if flip {
-            geom_core::Vec3::zero() - f.axis
+            geom_core::Vec3::zero() - f.axis()
         } else {
-            f.axis
+            f.axis()
         };
         [
-            f.origin.x, f.origin.y, f.origin.z, a.x, a.y, a.z, f.u_ref.x, f.u_ref.y, f.u_ref.z,
+            f.origin().x,
+            f.origin().y,
+            f.origin().z,
+            a.x,
+            a.y,
+            a.z,
+            f.u_ref().x,
+            f.u_ref().y,
+            f.u_ref().z,
         ]
     }
     let [zero, pi] = frames::<f64>();

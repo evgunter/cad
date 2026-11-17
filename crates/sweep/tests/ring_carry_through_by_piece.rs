@@ -88,8 +88,8 @@ fn rim_at(body: &Body<f64>, z: f64, rad: f64) -> Vec<EdgeKey> {
     query::all_edges(body)
         .into_iter()
         .filter(|&k| {
-            matches!(carrier(body, k), geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, radius })
-                if (center.z - z).abs() < 1e-9 && (radius - rad).abs() < 1e-9)
+            matches!(carrier(body, k), geom::Curve3::Circle(geom::Circle { frame, radius })
+                if (frame.origin().z - z).abs() < 1e-9 && (radius - rad).abs() < 1e-9)
         })
         .collect()
 }

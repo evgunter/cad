@@ -332,22 +332,23 @@ fn window(body: &Body<Interval>, face: FaceKey, s: &Surface<f64>) -> ((f64, f64)
         (lo - pad, hi + pad)
     };
     match *s {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => {
+        Surface::Plane { frame } => {
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let w = normal.cross(u_ref);
             (
                 span(pts.iter().map(|p| (*p - origin).dot(u_ref)).collect()),
                 span(pts.iter().map(|p| (*p - origin).dot(w)).collect()),
             )
         }
-        Surface::Cylinder { origin, axis, .. } => (
-            (0.0, TAU),
-            span(pts.iter().map(|p| (*p - origin).dot(axis)).collect()),
-        ),
-        Surface::Cone { apex, .. } => {
+        Surface::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            (
+                (0.0, TAU),
+                span(pts.iter().map(|p| (*p - origin).dot(axis)).collect()),
+            )
+        }
+        Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
             let reach = pts.iter().map(|p| (*p - apex).norm()).fold(0.0, f64::max) + 0.3;
             ((0.0, TAU), (-reach, reach))
         }
@@ -860,14 +861,10 @@ fn a_plate_with_a_round_hole_drops_the_cells_in_the_hole() {
     )
     .unwrap();
     let s = surface_f64(&face_surface(&t.body, t.bottom));
-    let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = s
-    else {
+    let Surface::Plane { frame } = s else {
         panic!("the bottom cap is a plane")
     };
+    let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let w = normal.cross(u_ref);
     let chart = |x: f64, y: f64| {
         let p = Point3::new(x, y, 0.0) - origin;
@@ -958,9 +955,10 @@ fn a_cell_reaching_a_cone_apex_is_kept() {
         .find(|(f, _)| matches!(face_surface(&t.body, *f), Surface::Cone { .. }))
         .expect("the frustum has a cone wall");
     let s = surface_f64(&face_surface(&t.body, face));
-    let Surface::Cone { apex, .. } = s else {
+    let Surface::Cone { frame, .. } = s else {
         unreachable!("a cone")
     };
+    let apex = frame.origin();
     // A cell straddling the slant origin, at the far side of the turn
     // from the wall's quarter: the apex is its only feature.
     let at_apex = cell_region(&t.body, face, (PI, PI + 0.4), (-0.2, 0.2), band());

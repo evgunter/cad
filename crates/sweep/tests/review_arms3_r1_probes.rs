@@ -69,12 +69,14 @@ fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (Point3<f64>, Vec3<f64>,
     let s = body.face_surface(face).unwrap();
     match s {
         &Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => (center, axis, major_radius, minor_radius),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            (center, axis, major_radius, minor_radius)
+        }
         other => panic!("the band face is a torus, got {other:?}"),
     }
 }
@@ -117,7 +119,10 @@ fn an_unequal_lentil_fillets_to_the_radical_closed_form() {
     let mut spheres: Vec<(f64, f64)> = source
         .faces()
         .filter_map(|(fk, _)| match source.face_surface(fk) {
-            Some(&Surface::Sphere { center, radius, .. }) => Some((center.y, radius)),
+            Some(&Surface::Sphere { frame, radius, .. }) => {
+                let center = frame.origin();
+                Some((center.y, radius))
+            }
             _ => None,
         })
         .collect();

@@ -143,18 +143,10 @@ fn the_seam_vertex_moves_concentrically_at_its_old_azimuth() {
     let (mut meridians, mut equators) = (0, 0);
     for &(e, _) in &out.naming.inner_edges {
         let (c, (t0, t1)) = carrier(cavity, e);
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            radius,
-        }) = c
-        else {
+        let Curve3::Circle(geom::Circle { frame, radius }) = c else {
             panic!("{e:?}: a torus seam is a circle, got {c:?}");
         };
+        let (center, axis) = (frame.origin(), frame.axis());
         let (rho_c, h_c) = axial(center);
         if rho_c <= 1e-15 {
             // An equator seam: centred on the axis, normal along it,
@@ -938,7 +930,7 @@ fn a_partial_frustum_moving_only_its_cone_keeps_its_generators() {
             for (edge, data) in body.edges() {
                 let [f, g] = topo::edge_faces(&body, edge);
                 let (sf, sg) = (surface(&body, f), surface(&body, g));
-                let meridian = |s: &Surface<f64>| matches!(s, Surface::Plane { normal, .. } if normal.y.abs() <= 1e-12);
+                let meridian = |s: &Surface<f64>| matches!(s, Surface::Plane { frame, .. } if frame.axis().y.abs() <= 1e-12);
                 let cone_cap = (matches!(sf, Surface::Cone { .. }) && meridian(&sg))
                     || (matches!(sg, Surface::Cone { .. }) && meridian(&sf));
                 if cone_cap {

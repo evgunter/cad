@@ -208,13 +208,11 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     let (mut pole, mut radius) = (None, 0.0f64);
     for (fk, _) in body.faces() {
         if let Some(geom::Surface::Sphere {
-            center,
-            radius: r,
-            axis,
-            ..
+            frame, radius: r, ..
         }) = body.face_surface(fk)
         {
-            pole = Some(*center + *axis * *r);
+            let (center, axis) = (frame.origin(), frame.axis());
+            pole = Some(center + axis * *r);
             radius = *r;
         }
     }

@@ -172,13 +172,14 @@ fn the_waisted_body_against_its_copy_refuses_at_the_line_cone_lane() {
             .map(|c| c.carrier().clone());
         let (
             Some(geom::Surface::Cone {
-                axis, half_angle, ..
+                frame, half_angle, ..
             }),
             Some(geom::Curve3::Line(geom::Line { dir, .. })),
         ) = (surface, carrier)
         else {
             panic!("{label}: a line edge against a cone face");
         };
+        let axis = frame.axis();
         // The line × cone quadratic's lead coefficient is
         // `(d̂·a)² − cos²α`: zero, the lane's degenerate pose.
         let lead = (dir.normalize().dot(axis)).powi(2) - half_angle.cos().powi(2);

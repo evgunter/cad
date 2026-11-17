@@ -28,8 +28,8 @@ fn cap(body: &Body<f64>) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { origin, normal, .. })
-                    if normal.x.abs() == 1.0 && origin.x == 1.0
+                Some(Surface::Plane { frame, .. })
+                    if frame.axis().x.abs() == 1.0 && frame.origin().x == 1.0
             )
         })
         .map(|(k, _)| k)

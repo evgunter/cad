@@ -44,19 +44,19 @@ fn x_axis() -> Vec3<f64> {
 /// The sphere of radius `r` about +Z at the origin.
 fn sphere(r: f64) -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z_axis(), x_axis()),
         radius: r,
-        axis: z_axis(),
-        u_ref: x_axis(),
     }
 }
 
 /// The plane `z = z0`, outward normal up or down.
 fn plane(z0: f64, up: bool) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, z0),
-        normal: if up { z_axis() } else { -z_axis() },
-        u_ref: x_axis(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, z0),
+            if up { z_axis() } else { -z_axis() },
+            x_axis(),
+        ),
     }
 }
 
@@ -212,10 +212,8 @@ fn a_sphere_of_two_rim_only_caps_refuses_on_its_first_face() {
 #[test]
 fn a_cone_apex_cap_and_a_one_rim_cylinder_face_refuse_by_kind() {
     let cone = Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z_axis(), x_axis()),
         half_angle: FRAC_PI_4,
-        u_ref: x_axis(),
     };
     for (name, seed, made) in [
         ("cone seed, disc made", cone.clone(), plane(1.0, true)),
@@ -225,10 +223,8 @@ fn a_cone_apex_cap_and_a_one_rim_cylinder_face_refuse_by_kind() {
         assert_refuses_meridian_free(name, &body, SurfaceKind::Cone, 0.05);
     }
     let cylinder = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z_axis(), x_axis()),
         radius: 1.0,
-        u_ref: x_axis(),
     };
     let body = one_circle_cut(&rim(1.0, 1.0), cylinder, Some(plane(1.0, true)));
     assert_refuses_meridian_free("one-rim cylinder face", &body, SurfaceKind::Cylinder, 0.05);
@@ -357,11 +353,9 @@ fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
 #[test]
 fn a_rim_only_torus_face_refuses_at_the_shape_door_on_the_same_fact() {
     let torus = Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z_axis(), x_axis()),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: x_axis(),
     };
     for (name, circle) in [("outer equator", rim(0.0, 2.5)), ("top", rim(0.5, 2.0))] {
         let body = one_circle_cut(&circle, torus.clone(), None);

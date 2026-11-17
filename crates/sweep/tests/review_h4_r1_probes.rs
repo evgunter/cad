@@ -91,7 +91,7 @@ fn the_waist_arm_rests_the_ball_on_the_void_side_at_the_hand_value() {
     let want_spine = 0.5 + WAIST_R * 2f64.sqrt();
     let mirror = 0.5 - WAIST_R * 2f64.sqrt();
     let Surface::Torus {
-        center,
+        frame: carrier_frame,
         major_radius,
         minor_radius,
         ..
@@ -102,6 +102,7 @@ fn the_waist_arm_rests_the_ball_on_the_void_side_at_the_hand_value() {
             link.blend.surface
         )
     };
+    let center = carrier_frame.origin();
     assert_eq!(
         major_radius, want_spine,
         "the void-side rest, bit for bit: {major_radius} vs the hand value {want_spine} \
@@ -115,10 +116,10 @@ fn the_waist_arm_rests_the_ball_on_the_void_side_at_the_hand_value() {
 
     // The feet, from the trimlines, and the FACE each one must lie in.
     let foot = |c: &Curve3<f64>| match *c {
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
-            radius,
-        }) => (radius, center.y),
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let center = frame.origin();
+            (radius, center.y)
+        }
         ref other => panic!("a coaxial trimline is a circle, got {other:?}"),
     };
     let want_x = 0.5 + WAIST_R / 2f64.sqrt();
@@ -193,13 +194,14 @@ fn the_plane_sphere_fold_is_an_xnor_in_all_four_quadrants() {
         let convex = blend_sense(convexity);
         let blend = plane_sphere_blend(origin, n, u, sphere_c, big_r, r, sphere_convex, convexity);
         let Surface::Torus {
-            center,
+            frame: carrier_frame,
             major_radius,
             ..
         } = blend.surface
         else {
             panic!("the plane–sphere arm mints a torus")
         };
+        let center = carrier_frame.origin();
         // The ball centre, anywhere on the spine: `major_radius` out
         // along `u` from the spine's centre.
         let ball = center + u * major_radius;
@@ -224,13 +226,10 @@ fn the_plane_sphere_fold_is_an_xnor_in_all_four_quadrants() {
 
         // (3) The plane's trimline is ON the plane, and the hole widens
         // exactly on the outer offset.
-        let Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: tc, .. },
-            radius,
-        }) = blend.trim_a.0
-        else {
+        let Curve3::Circle(geom::Circle { frame, radius }) = blend.trim_a.0 else {
             panic!("the plane trimline is a circle")
         };
+        let tc = frame.origin();
         assert!(
             tc.z.abs() < 1e-15,
             "({sphere_convex}, {convexity}): the plane trim sits on the plane, got {tc:?}"
@@ -289,7 +288,8 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
     validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("valid at rest, got {e:?}"));
     let mut spheres = 0;
     for (fk, f) in body.faces() {
-        if let Some(Surface::Sphere { center, radius, .. }) = body.face_surface(fk) {
+        if let Some(Surface::Sphere { frame, radius, .. }) = body.face_surface(fk) {
+            let center = frame.origin();
             spheres += 1;
             assert!(
                 center.x.abs() < 1e-12
@@ -314,7 +314,7 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
     let link = rim_link(&body, &arcs, r);
     let s = ((big_r - r).powi(2) - r * r).sqrt();
     let Surface::Torus {
-        center,
+        frame: carrier_frame,
         major_radius,
         minor_radius,
         ..
@@ -325,6 +325,7 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
             link.blend.surface
         )
     };
+    let center = carrier_frame.origin();
     assert!(
         (center.y - (floor + r)).abs() < 1e-15 && center.x.abs() < 1e-15,
         "the ball rests r ABOVE the floor, in the void: {center:?}"
@@ -334,7 +335,7 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
         "the spine rides the INNER offset sphere, s = √((R−r)² − r²) = {s}, got {major_radius}"
     );
     let (plane_trim, sphere_trim) = {
-        let is_plane = |t: &(Curve3<f64>, f64)| matches!(t.0, Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if (center.y - floor).abs() < 1e-15);
+        let is_plane = |t: &(Curve3<f64>, f64)| matches!(t.0, Curve3::Circle(geom::Circle { frame, .. }) if (frame.origin().y - floor).abs() < 1e-15);
         if is_plane(&link.blend.trim_a) {
             (&link.blend.trim_a, &link.blend.trim_b)
         } else {
@@ -356,13 +357,10 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
         plane_trim.1
     );
     let scale = big_r / (big_r - r);
-    let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: sc, .. },
-        radius: sr,
-    }) = sphere_trim.0
-    else {
+    let Curve3::Circle(geom::Circle { frame, radius: sr }) = sphere_trim.0 else {
         panic!("the sphere trim is a circle")
     };
+    let sc = frame.origin();
     assert!(
         (sc.y - (floor + r * scale)).abs() < 1e-15 && (sr - s * scale).abs() < 1e-15,
         "the sphere trim is the ball's contact circle scaled to R: {sc:?} {sr}"

@@ -153,9 +153,11 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             flat_face,
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: Point3::new(0.0, -1.0, 0.0),
-                    normal: Vec3::new(0.0, -1.0, 0.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, -1.0, 0.0),
+                        Vec3::new(0.0, -1.0, 0.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                 },
                 sense: true,
             },

@@ -37,7 +37,7 @@ fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64, f64) {
     let s = body.face_surface(face).unwrap();
     let Surface::Torus {
-        center,
+        frame,
         major_radius,
         minor_radius,
         ..
@@ -45,6 +45,7 @@ fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64, f64) {
     else {
         panic!("the band's surface is a torus, got {s:?}");
     };
+    let center = frame.origin();
     (major_radius, minor_radius, center.y)
 }
 
@@ -121,13 +122,10 @@ fn a_sphere_cone_seam_at_a_second_latitude_fillets_to_its_hand_torus() {
             .unwrap()
             .certified()
             .unwrap();
-        let Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
-            radius,
-        }) = *c.carrier()
-        else {
+        let Curve3::Circle(geom::Circle { frame, radius }) = *c.carrier() else {
             panic!("a trim circle")
         };
+        let center = frame.origin();
         assert!((radius - want_r).abs() < 1e-12, "{which} trim radius");
         assert!((center.y - want_y).abs() < 1e-12, "{which} trim station");
     }
@@ -313,7 +311,10 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_carves_as_a_concave_chain() {
     let mut sphere_centres: Vec<f64> = source
         .faces()
         .filter_map(|(k, _)| match source.face_surface(k)? {
-            Surface::Sphere { center, .. } => Some(center.y),
+            Surface::Sphere { frame, .. } => {
+                let center = frame.origin();
+                Some(center.y)
+            }
             _ => None,
         })
         .collect();

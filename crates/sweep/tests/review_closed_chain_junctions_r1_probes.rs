@@ -445,7 +445,7 @@ fn r1_rim_of_names_the_extruded_two_and_three_arc_rims_from_every_seed() {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.carrier()),
-                    Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. })) if (center.z - 1.0).abs() < 1e-9
+                    Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if (frame.origin().z - 1.0).abs() < 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -459,15 +459,15 @@ fn r1_rim_of_names_the_extruded_two_and_three_arc_rims_from_every_seed() {
             .unwrap()
             .carrier()
         {
-            geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                radius,
-            }) => [
-                center.x.to_bits(),
-                center.y.to_bits(),
-                center.z.to_bits(),
-                radius.to_bits(),
-            ],
+            geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+                let center = frame.origin();
+                [
+                    center.x.to_bits(),
+                    center.y.to_bits(),
+                    center.z.to_bits(),
+                    radius.to_bits(),
+                ]
+            }
             other => panic!("an arc, got {other:?}"),
         };
         assert!(

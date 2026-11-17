@@ -59,23 +59,24 @@ fn tilted_cone(tilt: f64) -> Result<AtRestBody<f64>, String> {
     cones.dedup();
     assert_eq!(cones.len(), 1, "one cone carrier: {cones:?}");
     let Some(&Surface::Cone {
-        apex,
-        axis,
+        frame: carrier_frame,
         half_angle,
-        u_ref,
     }) = body.get_surface(cones[0])
     else {
         unreachable!()
     };
+    let (apex, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let leaning = u_ref * (1.0 - tilt * tilt).sqrt() + axis * tilt;
     assert!(topo::test_support::restate_surface(
         &mut body,
         cones[0],
         Surface::Cone {
-            apex,
-            axis,
+            frame: geom::Frame::new(apex, axis, leaning),
             half_angle,
-            u_ref: leaning,
         },
     ));
     topo::finish(body, Tol::witness()).map_err(|e| format!("{e:?}"))

@@ -71,15 +71,10 @@ fn concave_carve() -> (Body<f64>, Vec<FaceKey>) {
 /// which for a sphere octant are exactly its corner points.
 fn chart_and_feet(body: &Body<f64>, face: FaceKey) -> (Vec3<f64>, Vec3<f64>, Vec<Vec3<f64>>) {
     let f = body.get_face(face).expect("a minted corner face");
-    let Surface::Sphere {
-        center,
-        axis,
-        u_ref,
-        ..
-    } = body.face_surface(face).expect("its surface")
-    else {
+    let Surface::Sphere { frame, .. } = body.face_surface(face).expect("its surface") else {
         panic!("a fillet corner patch is a sphere octant");
     };
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let LoopBoundary::Cycle { first } = body.get_loop(f.outer).expect("an outer loop").boundary
     else {
         panic!("a minted face's boundary is a cycle");
@@ -94,10 +89,10 @@ fn chart_and_feet(body: &Body<f64>, face: FaceKey) -> (Vec3<f64>, Vec3<f64>, Vec
                 .get_vertex(vk)
                 .and_then(|x| body.get_point(x.point))
                 .expect("a boundary vertex's point");
-            (q - *center).normalize()
+            (q - center).normalize()
         })
         .collect();
-    (*axis, *u_ref, feet)
+    (axis, u_ref, feet)
 }
 
 // ------------------------------------------------------------------
@@ -223,11 +218,15 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
         let mut seen = 0usize;
         for face in corners {
             let f = body.get_face(face).expect("a minted corner face");
-            let Surface::Sphere { center, radius, .. } =
-                body.face_surface(face).expect("its surface")
+            let Surface::Sphere {
+                frame: carrier_frame,
+                radius,
+                ..
+            } = body.face_surface(face).expect("its surface")
             else {
                 panic!("a fillet corner patch is a sphere octant");
             };
+            let center = carrier_frame.origin();
             let LoopBoundary::Cycle { first } =
                 body.get_loop(f.outer).expect("an outer loop").boundary
             else {
@@ -241,12 +240,7 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
                     .and_then(|g| g.certified())
                     .expect("a corner arc is described and certified");
                 let Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: ac,
-                            axis: aa,
-                            u_ref: au,
-                        },
+                    frame: carrier_frame,
                     radius: ar,
                 }) = *c.carrier()
                 else {
@@ -255,9 +249,14 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
                     // only the arcs are this row's subject.
                     continue;
                 };
+                let (ac, aa, au) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
                 seen += 1;
                 assert!(
-                    (ac - *center).norm() < 1e-12,
+                    (ac - center).norm() < 1e-12,
                     "{tag}: a corner arc turns about the patch's own ball centre, \
                      got {ac:?} against {center:?}"
                 );

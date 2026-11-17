@@ -228,19 +228,18 @@ fn tori(body: &Body<f64>) -> Vec<TorusWall> {
     let mut out = Vec::new();
     for (fk, _) in body.faces() {
         if let Some(Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
-            u_ref,
         }) = body.face_surface(fk)
         {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             out.push(TorusWall {
                 minor: *minor_radius,
                 major: *major_radius,
-                center: *center,
-                axis: *axis,
-                u_ref: *u_ref,
+                center: center,
+                axis: axis,
+                u_ref: u_ref,
             });
         }
     }

@@ -95,17 +95,19 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
             let p = c.carrier().eval(t0 + (t1 - t0) * f64::from(k) / 64.0);
             for s in &surfaces {
                 let d = match *s {
-                    Surface::Plane { origin, normal, .. } => (p - origin).dot(normal).abs(),
-                    Surface::Cylinder {
-                        origin,
-                        axis,
-                        radius,
-                        ..
-                    } => {
+                    Surface::Plane { frame, .. } => {
+                        let (origin, normal) = (frame.origin(), frame.axis());
+                        (p - origin).dot(normal).abs()
+                    }
+                    Surface::Cylinder { frame, radius, .. } => {
+                        let (origin, axis) = (frame.origin(), frame.axis());
                         let d = p - origin;
                         ((d - axis * d.dot(axis)).norm() - radius).abs()
                     }
-                    Surface::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
+                    Surface::Sphere { frame, radius, .. } => {
+                        let center = frame.origin();
+                        ((p - center).norm() - radius).abs()
+                    }
                     ref other => panic!("an end arc joins a {other:?}"),
                 };
                 worst = worst.max(d);

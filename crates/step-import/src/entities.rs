@@ -576,15 +576,9 @@ impl<'a> Resolver<'a> {
                 let [_, placement] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin,
-                    axis: normal,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref,
+                    frame: carrier_frame,
                 })
             }
             "CYLINDRICAL_SURFACE" => {
@@ -592,16 +586,10 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Cylinder {
-                    origin,
-                    axis,
+                    frame: carrier_frame,
                     radius: self.as_length(id, radius, expected)?,
-                    u_ref,
                 })
             }
             "CONICAL_SURFACE" => {
@@ -650,21 +638,20 @@ impl<'a> Resolver<'a> {
                 {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 }
-                let geom::Frame {
-                    origin: location,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
+                let (location, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
                 let apex = if radius == 0.0 {
                     location
                 } else {
                     location - axis * (radius / half_angle.tan())
                 };
                 Ok(Surface::Cone {
-                    apex,
-                    axis,
+                    frame: geom::Frame::new(apex, axis, u_ref),
                     half_angle,
-                    u_ref,
                 })
             }
             "SPHERICAL_SURFACE" => {
@@ -672,16 +659,10 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Sphere {
-                    center,
+                    frame: carrier_frame,
                     radius: self.as_length(id, radius, expected)?,
-                    axis,
-                    u_ref,
                 })
             }
             // Both radii are read VERBATIM: D3's ring convention
@@ -697,17 +678,11 @@ impl<'a> Resolver<'a> {
                 let [_, placement, major, minor] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Torus {
-                    center,
-                    axis,
+                    frame: carrier_frame,
                     major_radius: self.as_length(id, major, expected)?,
                     minor_radius: self.as_length(id, minor, expected)?,
-                    u_ref,
                 })
             }
             "QUASI_UNIFORM_SURFACE" => {
@@ -1550,13 +1525,7 @@ impl<'a> Resolver<'a> {
                 what: "internal: an edge-free face without its vertex loop",
             });
         };
-        let Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } = surface
-        else {
+        let Surface::Sphere { frame, radius } = surface else {
             return Err(StepImportError::Topology {
                 id,
                 what: "an ADVANCED_FACE bounded by a VERTEX_LOOP on a surface that is \
@@ -1565,6 +1534,7 @@ impl<'a> Resolver<'a> {
                        refuses rather than guessing a splitting",
             });
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         // The budget is ε_in — the file's own declared uncertainty,
         // scaled into kernel metres (D7's rule, unchanged).
         let eps = self.eps_in;
@@ -2397,9 +2367,9 @@ impl Resolver<'_> {
         // tightly). Checked on the STATED fields, before any
         // orthonormalization, so an identity pair takes the same path
         // it took in M7-2 and moves nothing.
-        if (a.origin - b.origin).norm() <= self.eps_in
-            && (a.axis - b.axis).norm() <= self.eps_in
-            && (a.u_ref - b.u_ref).norm() <= self.eps_in
+        if (a.origin() - b.origin()).norm() <= self.eps_in
+            && (a.axis() - b.axis()).norm() <= self.eps_in
+            && (a.u_ref() - b.u_ref()).norm() <= self.eps_in
         {
             return Ok(None);
         }
@@ -2426,9 +2396,9 @@ impl Resolver<'_> {
         let band = geom_core::Band::least();
         let built = |f: geom::Frame<f64>| {
             geom_core::RigidMotion::from_axis_and_reference(
-                f.origin,
-                f.axis,
-                f.u_ref,
+                f.origin(),
+                f.axis(),
+                f.u_ref(),
                 crate::STEP_PLACEMENT_AXES,
                 band,
             )
@@ -2450,8 +2420,8 @@ impl Resolver<'_> {
         // frame and the built one, summed over the pair.
         let moved = |f: geom::Frame<f64>, built: geom_core::RigidMotion<f64>| {
             let stated = Affine3::from_parts(
-                Mat3::from_cols(f.u_ref, f.axis.cross(f.u_ref), f.axis),
-                f.origin - Point3::origin(),
+                Mat3::from_cols(f.u_ref(), f.axis().cross(f.u_ref()), f.axis()),
+                f.origin() - Point3::origin(),
             );
             geom_core::RigidMotion::check_rigid(&stated)
                 .is_err()

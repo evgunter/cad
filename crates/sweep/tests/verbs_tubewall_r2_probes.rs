@@ -91,8 +91,9 @@ fn minors(body: &Body<f64>) -> Vec<u64> {
 fn u_refs(body: &Body<f64>) -> Vec<Vec3<f64>> {
     let mut out = Vec::new();
     for (fk, _) in body.faces() {
-        if let Some(Surface::Torus { u_ref, .. }) = body.face_surface(fk) {
-            out.push(*u_ref);
+        if let Some(Surface::Torus { frame, .. }) = body.face_surface(fk) {
+            let u_ref = frame.u_ref();
+            out.push(u_ref);
         }
     }
     out

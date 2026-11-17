@@ -1423,9 +1423,11 @@ fn side_surface<T: Real>(
             let half = T::from_f64(0.5);
             let length = sketch_chord(&segs[j]).1;
             Surface::Plane {
-                origin: qs[j] + along.get() * (length * half) + sweep.w * half,
-                normal: course.wall_normal(place.into(), d).get(),
-                u_ref: along.get(),
+                frame: geom::Frame::new(
+                    qs[j] + along.get() * (length * half) + sweep.w * half,
+                    course.wall_normal(place.into(), d).get(),
+                    along.get(),
+                ),
             }
         }
         SegmentKind::Arc { arc, turn } => {
@@ -1444,10 +1446,12 @@ fn side_surface<T: Real>(
             // (`swept::register_rigidity`).
             crate::swept::register_rigidity(qs[j] - c_world, arc, segs[j].chord.a, tol);
             Surface::Cylinder {
-                origin: c_world,
-                axis: turn_axis(turn, normal),
+                frame: geom::Frame::new(
+                    c_world,
+                    turn_axis(turn, normal),
+                    Placing::from(place).direction(d).get(),
+                ),
                 radius: arc.radius,
-                u_ref: Placing::from(place).direction(d).get(),
             }
         }
     };

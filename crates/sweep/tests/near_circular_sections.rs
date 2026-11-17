@@ -178,18 +178,14 @@ fn about(p: Point3<f64>, o: Point3<f64>, a: Vec3<f64>) -> (Dd, Dd) {
 /// How far `p` misses the stored surface `s`, a cylinder or a cone.
 fn off_surface(p: Point3<f64>, s: &Surface<f64>) -> f64 {
     match *s {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => about(p, origin, axis).1.sub(Dd::of(radius)).value().abs(),
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            about(p, origin, axis).1.sub(Dd::of(radius)).value().abs()
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (h, rho) = about(p, apex, axis);
             let (sin, cos) = half_angle.sin_cos();
             rho.mul(Dd::of(cos)).sub(h.mul(Dd::of(sin))).value().abs()
@@ -221,13 +217,14 @@ fn assert_on_within(
     reach: f64,
 ) {
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame { origin: center, .. },
+        frame,
         semi_u,
         semi_v,
     }) = *curve
     else {
         panic!("{what}: an ellipse, got {curve:?}");
     };
+    let center = frame.origin();
     assert!(
         semi_u.is_finite() && semi_v.is_finite(),
         "{what}: the served semi-axes are {semi_u:e} and {semi_v:e}"
@@ -366,36 +363,45 @@ fn moved(map: &Affine3<f64>, s: &Surface<f64>) -> Surface<f64> {
     let (p, v) = (|x| map.transform_point(x), |x| map.transform_vec(x));
     match *s {
         Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => Surface::Plane {
-            origin: p(origin),
-            normal: v(normal),
-            u_ref: v(u_ref),
-        },
+            frame: carrier_frame,
+        } => {
+            let (origin, normal, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Plane {
+                frame: geom::Frame::new(p(origin), v(normal), v(u_ref)),
+            }
+        }
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin: p(origin),
-            axis: v(axis),
-            radius,
-            u_ref: v(u_ref),
-        },
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cylinder {
+                frame: geom::Frame::new(p(origin), v(axis), v(u_ref)),
+                radius,
+            }
+        }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
-        } => Surface::Cone {
-            apex: p(apex),
-            axis: v(axis),
-            half_angle,
-            u_ref: v(u_ref),
-        },
+        } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cone {
+                frame: geom::Frame::new(p(apex), v(axis), v(u_ref)),
+                half_angle,
+            }
+        }
         _ => unreachable!("a plane, a cylinder or a cone"),
     }
 }
@@ -413,10 +419,8 @@ fn rod(r: f64) -> Body<f64> {
 
 fn wall(r: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -440,9 +444,11 @@ fn a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse() {
                 let plane = moved(
                     &map,
                     &Surface::Plane {
-                        origin: Point3::new(0.0, 0.0, 0.5 * r),
-                        normal: tilted_z(s),
-                        u_ref: Vec3::unit_y(),
+                        frame: geom::Frame::new(
+                            Point3::new(0.0, 0.0, 0.5 * r),
+                            tilted_z(s),
+                            Vec3::unit_y(),
+                        ),
                     },
                 );
                 plane_cylinder_section(&plane, &cyl, &reach, band())
@@ -566,10 +572,12 @@ fn frustum(scale: f64) -> Frustum {
     Frustum {
         body,
         cone: Surface::Cone {
-            apex: Point3::new(0.0, apex, 0.0),
-            axis: Vec3::new(0.0, -1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, apex, 0.0),
+                Vec3::new(0.0, -1.0, 0.0),
+                Vec3::unit_x(),
+            ),
             half_angle: alpha,
-            u_ref: Vec3::unit_x(),
         },
         r0,
         r1,
@@ -654,9 +662,7 @@ fn a_near_square_plane_cuts_a_frustum_in_its_exact_ellipse() {
                 let plane = moved(
                     &map,
                     &Surface::Plane {
-                        origin: q0,
-                        normal: tilted_y(s),
-                        u_ref: Vec3::unit_z(),
+                        frame: geom::Frame::new(q0, tilted_y(s), Vec3::unit_z()),
                     },
                 );
                 plane_cone_section(&plane, &cone, &reach, band())
@@ -768,10 +774,12 @@ fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_ellipses() {
 /// `y`, through the origin, carried by `map`.
 fn sliver_walls(map: &Affine3<f64>, r: f64, phi: f64) -> (Surface<f64>, Surface<f64>) {
     let turned = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::new(phi.sin(), 0.0, phi.cos()),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(phi.sin(), 0.0, phi.cos()),
+            Vec3::unit_y(),
+        ),
         radius: r,
-        u_ref: Vec3::unit_y(),
     };
     (moved(map, &wall(r)), moved(map, &turned))
 }
@@ -834,10 +842,21 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
             let (a, b) = sliver_walls(&map, r, phi);
             let reach = Reach::of_frame(map.transform_point(Point3::origin()), (r, r));
             let got = cylinder_cylinder_section(&a, &b, &reach.ball(), band());
-            let (Surface::Cylinder { axis: aa, .. }, Surface::Cylinder { axis: ab, .. }) = (&a, &b)
+            let (
+                Surface::Cylinder {
+                    frame: cylinder_frame_2,
+                    ..
+                },
+                Surface::Cylinder {
+                    frame: cylinder_frame,
+                    ..
+                },
+            ) = (&a, &b)
             else {
                 unreachable!("two cylinders");
             };
+            let aa = cylinder_frame_2.axis();
+            let ab = cylinder_frame.axis();
             match &got {
                 Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) => {
                     let semi = |e: &Curve3<f64>| match *e {
@@ -845,7 +864,7 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
                         _ => panic!("{what}: an ellipse, got {e:?}"),
                     };
                     let long = semi(e1).max(semi(e2));
-                    let want = long_semi_axis(r, *aa, *ab);
+                    let want = long_semi_axis(r, aa, ab);
                     assert!(
                         long.is_finite() && (long - want).abs() <= 8.0 * f64::EPSILON * want,
                         "{what}: the long semi-axis is {long:e}, against {want:e}"

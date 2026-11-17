@@ -120,14 +120,17 @@ fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
 /// seam's quadrature partner)`.
 fn chart(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, f64, Vec3<f64>, Vec3<f64>, Vec3<f64>) {
     let Some(&geom::Surface::Sphere {
-        center,
+        frame: carrier_frame,
         radius,
-        axis,
-        u_ref,
     }) = body.face_surface(face)
     else {
         panic!("a sphere face")
     };
+    let (center, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     (center, radius, axis, u_ref, axis.cross(u_ref))
 }
 
@@ -383,7 +386,10 @@ fn probes_on_the_boundary_land_on_the_boundary_at_a_rim_and_at_a_meridian() {
 fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::EdgeKey> {
     let fd = body.get_face(face).unwrap();
     let axis = match body.face_surface(face) {
-        Some(&geom::Surface::Sphere { axis, .. }) => axis,
+        Some(&geom::Surface::Sphere { frame, .. }) => {
+            let axis = frame.axis();
+            axis
+        }
         _ => panic!("a sphere face"),
     };
     let topo::LoopBoundary::Cycle { first } = body.get_loop(fd.outer).unwrap().boundary else {
@@ -397,13 +403,10 @@ fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::
             let c = body
                 .get_curve_geom(ed.curve)
                 .and_then(topo::null::CurveGeom::certified)?;
-            let geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis: n, .. },
-                ..
-            }) = *c.carrier()
-            else {
+            let geom::Curve3::Circle(geom::Circle { frame, .. }) = *c.carrier() else {
                 return None;
             };
+            let n = frame.axis();
             ((n.dot(axis).abs() < 1e-9) == meridian).then(|| body.get_half_edge(he).unwrap().edge)
         })
         .collect()
@@ -577,18 +580,10 @@ fn a_meridian_edge_through_a_pole_is_read_at_the_face_door() {
 
     let mut planted = base.clone();
     let (edge, carrier, plane_key) = seam_meridian(&planted, f);
-    let geom::Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        radius,
-    }) = carrier
-    else {
+    let geom::Curve3::Circle(geom::Circle { frame, radius }) = carrier else {
         panic!("a meridian great circle")
     };
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     // Which seam: the azimuth-0 meridian's plane holds the chart's seam
     // direction, the other's its quadrature partner.
     let planted_at_zero = axis.dot(ch.3).abs() < 1e-9;
@@ -698,9 +693,7 @@ fn a_boundary_circle_tilted_against_the_chart_is_read_at_the_face_door() {
                 disc,
                 topo::construction::FaceSurface::New {
                     surface: geom::Surface::Plane {
-                        origin: c,
-                        normal: m,
-                        u_ref: u,
+                        frame: geom::Frame::new(c, m, u),
                     },
                     sense,
                 },
@@ -869,7 +862,7 @@ fn flat_disc(body: &Body<f64>) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { normal, .. }) if normal.y.abs() > 0.9
+                Some(geom::Surface::Plane { frame, .. }) if frame.axis().y.abs() > 0.9
             )
         })
         .map(|(k, _)| k)
@@ -899,7 +892,10 @@ fn boundary_pick(
 ) -> (topo::EdgeKey, geom::Curve3<f64>, topo::SurfaceKey) {
     let fd = body.get_face(face).unwrap();
     let axis = match body.face_surface(face) {
-        Some(&geom::Surface::Sphere { axis, .. }) => axis,
+        Some(&geom::Surface::Sphere { frame, .. }) => {
+            let axis = frame.axis();
+            axis
+        }
         _ => panic!("sphere"),
     };
     let topo::LoopBoundary::Cycle { first } = body.get_loop(fd.outer).unwrap().boundary else {
@@ -914,13 +910,10 @@ fn boundary_pick(
         else {
             continue;
         };
-        let geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { axis: n, .. },
-            ..
-        }) = *c.carrier()
-        else {
+        let geom::Curve3::Circle(geom::Circle { frame, .. }) = *c.carrier() else {
             continue;
         };
+        let n = frame.axis();
         let is_meridian = n.dot(axis).abs() < 1e-9;
         if is_meridian != meridian {
             continue;

@@ -223,8 +223,8 @@ fn top_face(body: &Body<f64>) -> FaceKey {
     body.faces()
         .find(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, normal, .. })
-                    if (origin.z - SLAB).abs() < 1e-12 && normal.z > 0.5)
+                Some(Surface::Plane { frame, .. })
+                    if (frame.origin().z - SLAB).abs() < 1e-12 && frame.axis().z > 0.5)
         })
         .map(|(k, _)| k)
         .expect("the slab's top face")

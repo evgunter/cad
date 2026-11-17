@@ -53,27 +53,35 @@ fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
         rim: Point3::new(2.0, 0.0, 1.0),
     };
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 2.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let sph1 = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 5.0f64.sqrt(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let sph2 = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 3.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 3.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 8.0f64.sqrt(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     // (pairing, side_a, side_b, torus centre, major radius, setbacks)
     #[allow(clippy::type_complexity)]
@@ -187,7 +195,7 @@ fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
         let (tb, _) = m.trace(b, side_b).expect("a coaxial support traces");
         let blend = m.blend(ta, tb, RADIUS, Branch::Rim);
         let Surface::Torus {
-            center: c,
+            frame,
             major_radius,
             ..
         } = blend.surface
@@ -197,6 +205,7 @@ fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
                 blend.surface
             );
         };
+        let c = frame.origin();
         let what = format!("{name} sides ({side_a:?}, {side_b:?})");
         assert_bits(c.x, center[0], &format!("{what} centre.x"));
         assert_bits(c.y, center[1], &format!("{what} centre.y"));
@@ -233,25 +242,33 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
         lever: 1.0,
     };
     let px = Surface::Plane {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
     };
     let py = Surface::Plane {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
     };
     let pd = Surface::Plane {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        normal: Vec3::new(1.0, 1.0, 0.0).normalize(),
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 0.0).normalize(),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
     };
     let cz = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     // (pairing, side_a, side_b, cylinder origin, u_ref, setbacks)
     #[allow(clippy::type_complexity)]
@@ -323,8 +340,7 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
         let (tb, _) = r.trace(b, side_b).expect("a ruled support traces");
         let blend = r.blend(ta, tb, RADIUS, Branch::Rim);
         let Surface::Cylinder {
-            origin: o,
-            u_ref: u,
+            frame: carrier_frame,
             ..
         } = blend.surface
         else {
@@ -333,6 +349,7 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
                 blend.surface
             );
         };
+        let (o, u) = (carrier_frame.origin(), carrier_frame.u_ref());
         let what = format!("{name} sides ({side_a:?}, {side_b:?})");
         assert_bits(o.x, origin[0], &format!("{what} origin.x"));
         assert_bits(o.y, origin[1], &format!("{what} origin.y"));
@@ -358,9 +375,14 @@ fn the_plane_plane_bands_u_ref_is_its_first_supports_foot_direction() {
     let tau = Vec3::new(1.0, 0.0, 0.0);
     for (convexity, sign) in [(Convexity::Convex, 1.0), (Convexity::Concave, -1.0)] {
         let blend = plane_plane_blend(p, tau, n, up, 0.1, convexity);
-        let Surface::Cylinder { u_ref, .. } = blend.surface else {
+        let Surface::Cylinder {
+            frame: carrier_frame,
+            ..
+        } = blend.surface
+        else {
             panic!("{convexity}: the plane–plane arm mints a cylinder");
         };
+        let u_ref = carrier_frame.u_ref();
         let want = n * sign;
         for (got, want, c) in [
             (u_ref.x, want.x, "x"),
@@ -372,9 +394,10 @@ fn the_plane_plane_bands_u_ref_is_its_first_supports_foot_direction() {
         let ivv = |v: Vec3<f64>| v.map(iv);
         let n_i = ivv(n);
         let blend = plane_plane_blend(p.map(iv), ivv(tau), n_i, ivv(up), iv(0.1), convexity);
-        let Surface::Cylinder { u_ref, .. } = blend.surface else {
+        let Surface::Cylinder { frame, .. } = blend.surface else {
             panic!("{convexity}: the plane–plane arm mints a cylinder at Interval");
         };
+        let u_ref = frame.u_ref();
         for (got, of, c) in [
             (u_ref.x, n_i.x, "x"),
             (u_ref.y, n_i.y, "y"),

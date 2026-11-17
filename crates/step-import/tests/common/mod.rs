@@ -200,12 +200,10 @@ pub fn halfcap_with_its_arc_through_the_pole(tol: Tol) -> Body<f64> {
     let (centre, axis, radius) = body
         .faces()
         .find_map(|(fk, _)| match body.face_surface(fk) {
-            Some(geom::Surface::Sphere {
-                center,
-                axis,
-                radius,
-                ..
-            }) => Some((*center, *axis, *radius)),
+            Some(geom::Surface::Sphere { frame, radius, .. }) => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                Some((center, axis, *radius))
+            }
             _ => None,
         })
         .expect("a sphere face");

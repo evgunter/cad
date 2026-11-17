@@ -2128,22 +2128,28 @@ mod tests {
         let lift = Interval::from_f64;
         let s1 = r.map_or(
             Surface::Plane {
-                origin: Point3::new(x, 0.0, 0.0),
-                normal: Vec3::new(1.0, 0.0, 0.0),
-                u_ref: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(x, 0.0, 0.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                ),
             },
             |radius| Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
         );
         let (sin, cos) = tilt.sin_cos();
         let s2 = Surface::Plane {
-            origin: Point3::new(x, 0.0, 0.0),
-            normal: Vec3::new(cos, sin, 0.0),
-            u_ref: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(x, 0.0, 0.0),
+                Vec3::new(cos, sin, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+            ),
         };
         let mut arena: slotmap::SlotMap<SurfaceKey, Surface<Interval>> =
             slotmap::SlotMap::with_key();

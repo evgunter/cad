@@ -63,8 +63,26 @@ fn the_spine_kind_sentence_refuses_the_coaxial_torus_rim_on_kind() {
     for e in rims {
         let (a, b) = surfaces_of(&s, e);
         let (t_axis, p_normal) = match (&a, &b) {
-            (Surface::Torus { axis, .. }, Surface::Plane { normal, .. })
-            | (Surface::Plane { normal, .. }, Surface::Torus { axis, .. }) => (*axis, *normal),
+            (
+                Surface::Torus {
+                    frame: torus_frame, ..
+                },
+                Surface::Plane {
+                    frame: plane_frame, ..
+                },
+            )
+            | (
+                Surface::Plane {
+                    frame: plane_frame, ..
+                },
+                Surface::Torus {
+                    frame: torus_frame, ..
+                },
+            ) => {
+                let normal = plane_frame.axis();
+                let axis = torus_frame.axis();
+                (axis, normal)
+            }
             _ => unreachable!(),
         };
         assert!(

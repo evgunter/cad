@@ -57,9 +57,7 @@ fn a_ring_half_in_band_reads_as_at_rest() {
     let outer = 2.0 * r + 1.02 * e;
     let gap = 0.98 * e;
     let geom::Surface::Torus {
-        center,
-        axis,
-        u_ref,
+        frame: carrier_frame,
         ..
     } = *body.face_surface(wall).unwrap()
     else {
@@ -68,9 +66,7 @@ fn a_ring_half_in_band_reads_as_at_rest() {
     let sense = body.get_face(wall).unwrap().sense;
     let charts = vec![topo::construction::Rechart::new(
         geom::Surface::Torus {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             major_radius: (outer + gap) / 2.0,
             minor_radius: (outer - gap) / 2.0,
         },

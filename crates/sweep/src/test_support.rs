@@ -715,13 +715,10 @@ pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey
     body.edges()
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
-            let geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                radius,
-            }) = *c.carrier()
-            else {
+            let geom::Curve3::Circle(geom::Circle { frame, radius }) = *c.carrier() else {
                 return None;
             };
+            let center = frame.origin();
             if !near(radius, rim_r) || !near(center.y, rim_y) {
                 return None;
             }
@@ -2042,8 +2039,8 @@ fn circle_arcs_where(
                 body.get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
-                Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, axis, .. }, radius }))
-                    if pick(*center, *radius, *axis)
+                Some(geom::Curve3::Circle(geom::Circle { frame, radius }))
+                    if pick(frame.origin(), *radius, frame.axis())
             )
         })
         .map(|(k, _)| k)

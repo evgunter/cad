@@ -133,13 +133,14 @@ fn singular_points(body: &topo::Body<f64>) -> Vec<Point3<f64>> {
     let mut out = Vec::new();
     for (fk, _) in body.faces() {
         match *body.face_surface(fk).unwrap() {
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                ..
-            } => out.extend([center + axis * radius, center - axis * radius]),
-            Surface::Cone { apex, .. } => out.push(apex),
+            Surface::Sphere { frame, radius, .. } => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                out.extend([center + axis * radius, center - axis * radius])
+            }
+            Surface::Cone { frame, .. } => {
+                let apex = frame.origin();
+                out.push(apex)
+            }
             _ => {}
         }
     }

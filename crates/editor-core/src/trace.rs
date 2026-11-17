@@ -912,7 +912,10 @@ fn square(
         unreachable!("a probe tracing two faces reads two")
     };
     let (origin, normal) = match picked.surface {
-        Ok(geom::Surface::Plane { origin, normal, .. }) => (origin, normal),
+        Ok(geom::Surface::Plane { frame, .. }) => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            (origin, normal)
+        }
         Ok(ref s) => return Err(TracedFrameFault::NotAPlane { carrier: s.kind() }),
         Err(carrier) => return Err(TracedFrameFault::NotAPlane { carrier }),
     };

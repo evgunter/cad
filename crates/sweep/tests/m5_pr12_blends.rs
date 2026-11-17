@@ -37,15 +37,10 @@ fn plane_plane_blend_on_a_right_dihedral_is_the_quarter_cylinder() {
         r,
         Convexity::Convex,
     );
-    let Surface::Cylinder {
-        origin,
-        axis,
-        radius,
-        ..
-    } = b.surface
-    else {
+    let Surface::Cylinder { frame, radius, .. } = b.surface else {
         panic!("a plane–plane blend is a cylinder");
     };
+    let (origin, axis) = (frame.origin(), frame.axis());
     assert!((origin.x - r).abs() < 1e-15 && (origin.y - r).abs() < 1e-15);
     assert!((axis - Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-15);
     assert!((radius - r).abs() < 1e-15);
@@ -113,11 +108,21 @@ fn a_concave_chain_rolls_the_ball_on_the_other_side_and_reverses_sense() {
         r,
         Convexity::Concave,
     );
-    let (Surface::Cylinder { origin: oc, .. }, Surface::Cylinder { origin: ok, .. }) =
-        (convex.surface, concave.surface)
+    let (
+        Surface::Cylinder {
+            frame: cylinder_frame_2,
+            ..
+        },
+        Surface::Cylinder {
+            frame: cylinder_frame,
+            ..
+        },
+    ) = (convex.surface, concave.surface)
     else {
         panic!("cylinders");
     };
+    let oc = cylinder_frame_2.origin();
+    let ok = cylinder_frame.origin();
     assert!((oc.x - r).abs() < 1e-15 && (ok.x + r).abs() < 1e-15);
     assert!(blend_sense(Convexity::Convex));
     assert!(!blend_sense(Convexity::Concave));
@@ -140,9 +145,15 @@ fn the_corner_ball_is_the_point_at_depth_r_inside_all_three_planes() {
     );
     assert!((ball.center - Point3::new(r, r, r)).norm() < 1e-15);
     assert!((ball.independence - 1.0).abs() < 1e-15);
-    let Surface::Sphere { center, radius, .. } = ball.surface else {
+    let Surface::Sphere {
+        frame: carrier_frame,
+        radius,
+        ..
+    } = ball.surface
+    else {
         panic!("a sphere");
     };
+    let center = carrier_frame.origin();
     assert!((center - Point3::new(r, r, r)).norm() < 1e-15);
     assert!((radius - r).abs() < 1e-15);
 }
@@ -184,14 +195,14 @@ fn the_corner_ball_centre_lies_on_every_incident_cylinder_axis() {
             Convexity::Convex,
         );
         let Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
             ..
         } = b.surface
         else {
             panic!("a cylinder");
         };
+        let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
         let d = ball.center - origin;
         let off = (d - axis * d.dot(axis)).norm();
         assert!(off < 1e-14, "the ball centre is off the axis by {off}");
@@ -230,7 +241,7 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
         "s² = a² + 2r(R − c)"
     );
     let Surface::Torus {
-        center,
+        frame: carrier_frame,
         major_radius,
         minor_radius,
         ..
@@ -238,29 +249,32 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
     else {
         panic!("a plane–sphere blend is a torus");
     };
+    let center = carrier_frame.origin();
     assert!((center - Point3::new(0.0, 0.0, -r)).norm() < 1e-14);
     assert!((major_radius - s).abs() < 1e-12);
     assert!((minor_radius - r).abs() < 1e-15);
     assert!((b.spine_curvature - 1.0 / s).abs() < 1e-12);
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: ca, .. },
+        frame: carrier_frame,
         radius: ra,
     }) = b.trim_a.0
     else {
         panic!("a circular trimline on the plane");
     };
+    let ca = carrier_frame.origin();
     assert!(ca.z.abs() < 1e-14 && (ra - s).abs() < 1e-12);
     assert!(
         (b.trim_a.1 - (s - a)).abs() < 1e-12,
         "the plane-side setback is s − a"
     );
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: cb, .. },
+        frame: carrier_frame,
         radius: rb,
     }) = b.trim_b.0
     else {
         panic!("a circular trimline on the sphere");
     };
+    let cb = carrier_frame.origin();
     assert!((rb - big_r * s / (big_r + r)).abs() < 1e-12);
     assert!((cb.z + r * (big_r - c) / (big_r + r)).abs() < 1e-12);
 }
@@ -293,7 +307,7 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
     let s = ((big_r - r).powi(2) - h * h).sqrt();
     assert!(s < big_r, "s = {s} must fall inside the rim radius {big_r}");
     let Surface::Torus {
-        center,
+        frame: carrier_frame,
         major_radius,
         minor_radius,
         ..
@@ -301,6 +315,7 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
     else {
         panic!("a plane–sphere blend is a torus");
     };
+    let center = carrier_frame.origin();
     assert!(
         (center - Point3::new(0.0, 0.0, r)).norm() < 1e-14,
         "the ball rests ABOVE the plane"
@@ -312,24 +327,22 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
         "the spine is a ring torus, which is what #889's net also checks at rest"
     );
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: ca, .. },
+        frame: carrier_frame,
         radius: ra,
     }) = b.trim_a.0
     else {
         panic!("a circular trimline on the plane");
     };
+    let ca = carrier_frame.origin();
     assert!(ca.z.abs() < 1e-14 && (ra - s).abs() < 1e-12);
     assert!(
         (b.trim_a.1 - (big_r - s)).abs() < 1e-12,
         "the plane-side setback is a − s: the flat face SHRINKS"
     );
-    let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: cb, .. },
-        radius: rb,
-    }) = b.trim_b.0
-    else {
+    let Curve3::Circle(geom::Circle { frame, radius: rb }) = b.trim_b.0 else {
         panic!("a circular trimline on the sphere");
     };
+    let cb = frame.origin();
     assert!((rb - big_r * s / (big_r - r)).abs() < 1e-12);
     assert!(
         (cb.z - r * big_r / (big_r - r)).abs() < 1e-12,
@@ -388,15 +401,19 @@ fn plane_sphere_blend_radii_hold_near_the_pole() {
 fn the_rim_trimlines_are_tangency_loci_with_definite_second_order_separation() {
     let (big_r, c, r) = (0.5, 0.2, 0.06);
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, c),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, c),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: big_r,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let b = plane_sphere_blend(
         Point3::new(0.0, 0.0, 0.0),

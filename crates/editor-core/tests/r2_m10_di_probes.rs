@@ -90,50 +90,38 @@ impl Fnv {
                 self.p3(origin);
                 self.v3(dir);
             }
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }) => {
+            Curve3::Circle(geom::Circle { frame, radius }) => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 self.u64(41);
-                self.p3(center);
-                self.v3(axis);
+                self.p3(&center);
+                self.v3(&axis);
                 self.s(*radius);
-                self.v3(u_ref);
+                self.v3(&u_ref);
             }
             Curve3::Ellipse(geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame,
                 semi_u,
                 semi_v,
             }) => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 self.u64(42);
-                self.p3(center);
-                self.v3(axis);
+                self.p3(&center);
+                self.v3(&axis);
                 self.s(*semi_u);
                 self.s(*semi_v);
-                self.v3(u_ref);
+                self.v3(&u_ref);
             }
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 self.u64(44);
-                self.p3(center);
-                self.v3(axis);
-                self.v3(u_ref);
+                self.p3(&center);
+                self.v3(&axis);
+                self.v3(&u_ref);
                 self.s(*major_radius);
                 self.s(*minor_radius);
                 self.s(*offset);
@@ -166,79 +154,62 @@ impl Fnv {
 
     fn surface<T: Decide + Bounds>(&mut self, s: &Surface<T>) {
         match s {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => {
+            Surface::Plane { frame } => {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 self.u64(60);
-                self.p3(origin);
-                self.v3(normal);
-                self.v3(u_ref);
+                self.p3(&origin);
+                self.v3(&normal);
+                self.v3(&u_ref);
             }
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => {
+            Surface::Cylinder { frame, radius } => {
+                let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 self.u64(61);
-                self.p3(origin);
-                self.v3(axis);
+                self.p3(&origin);
+                self.v3(&axis);
                 self.s(*radius);
-                self.v3(u_ref);
+                self.v3(&u_ref);
             }
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => {
+            Surface::Cone { frame, half_angle } => {
+                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 self.u64(62);
-                self.p3(apex);
-                self.v3(axis);
+                self.p3(&apex);
+                self.v3(&axis);
                 self.s(*half_angle);
-                self.v3(u_ref);
+                self.v3(&u_ref);
             }
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => {
+            Surface::Sphere { frame, radius } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 self.u64(63);
-                self.p3(center);
+                self.p3(&center);
                 self.s(*radius);
-                self.v3(axis);
-                self.v3(u_ref);
+                self.v3(&axis);
+                self.v3(&u_ref);
             }
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 self.u64(64);
-                self.p3(center);
-                self.v3(axis);
+                self.p3(&center);
+                self.v3(&axis);
                 self.s(*major_radius);
                 self.s(*minor_radius);
-                self.v3(u_ref);
+                self.v3(&u_ref);
             }
             Surface::Spindle {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 self.u64(67);
-                self.p3(center);
-                self.v3(axis);
+                self.p3(&center);
+                self.v3(&axis);
                 self.s(*major_radius);
                 self.s(*minor_radius);
-                self.v3(u_ref);
+                self.v3(&u_ref);
             }
             Surface::Nurbs(n) => {
                 self.u64(65);

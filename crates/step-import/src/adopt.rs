@@ -990,23 +990,18 @@ fn mapped_self_description(
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,
         })),
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
+        Curve3::Circle(geom::Circle { frame, .. }) => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            Some(MappedCurve::whole(MappedSource::RevolvedPoint {
+                point: Point2::new(0.0, 0.0),
+                place: Affine3::translation(p_start - Point3::origin()),
+                axis: geom::Line {
                     origin: center,
-                    axis,
-                    ..
+                    dir: axis,
                 },
-            ..
-        }) => Some(MappedCurve::whole(MappedSource::RevolvedPoint {
-            point: Point2::new(0.0, 0.0),
-            place: Affine3::translation(p_start - Point3::origin()),
-            axis: geom::Line {
-                origin: *center,
-                dir: *axis,
-            },
-            angle: t1 - t0,
-        })),
+                angle: t1 - t0,
+            }))
+        }
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
             None
         }
@@ -1063,20 +1058,12 @@ fn arc_rim_on_wall_boundary(
     p_end: Point3<f64>,
     tol: Tol,
 ) -> Result<(), ArcRimRefusal> {
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        radius,
-    }) = *carrier
-    else {
+    let Curve3::Circle(geom::Circle { frame, radius }) = *carrier else {
         // Only arc rims are gated (doc above); the caller matches
         // Circle before calling, so this arm is defensive totality.
         return Ok(());
     };
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let eps = tol.eps();
     let unit = |v: geom_core::Vec3<f64>| v.checked_direction().ok().map(|(d, _)| d);
     let (Some(a_hat), Some(u_hat)) = (unit(axis), unit(u_ref)) else {
@@ -1274,18 +1261,9 @@ fn bitwise_iso_match(carrier: &geom::NurbsCurve3<f64>, iso: &geom::NurbsCurve3<f
 fn coincident_surfaces(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>, tol: Tol) -> bool {
     let eps = tol.eps();
     match (s1, s2) {
-        (
-            Some(&Surface::Plane {
-                origin: o1,
-                normal: n1,
-                ..
-            }),
-            Some(&Surface::Plane {
-                origin: o2,
-                normal: n2,
-                ..
-            }),
-        ) => {
+        (Some(&Surface::Plane { frame: f1, .. }), Some(&Surface::Plane { frame: f2, .. })) => {
+            let (o1, n1) = (f1.origin(), f1.axis());
+            let (o2, n2) = (f2.origin(), f2.axis());
             // Parallel normals (either orientation — a face's material
             // side is its `sense`, not its surface record's normal),
             // and one plane's origin on the other.
@@ -1315,9 +1293,10 @@ fn carrier_on_surface(
     t1: f64,
     tol: Tol,
 ) -> bool {
-    let Some(&Surface::Plane { origin, normal, .. }) = surface else {
+    let Some(&Surface::Plane { frame, .. }) = surface else {
         return false;
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     let eps = tol.eps();
     let Some(n) = normal.checked_nonzero_length().ok() else {
         return false;

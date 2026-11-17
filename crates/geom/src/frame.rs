@@ -254,6 +254,7 @@ impl<T: Real> Frame<T> {
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl Frame<f64> {
     /// **A stated frame admitted as it is, at `f64`**: `axis` and `u_ref`
     /// kept bit for bit where the basis `(u_ref, axis × u_ref, axis)` is
@@ -261,6 +262,7 @@ impl Frame<f64> {
     /// `None` where it is not. The door for a caller whose `f64` entries
     /// are a frame already, and whose readings are pinned to those very
     /// bits (an oracle computed off them); [`Frame::new`] squares instead.
+    /// Test builds only: a production frame is minted by its construction.
     #[must_use]
     pub fn admitted(origin: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Option<Self> {
         let map = geom_core::Affine3 {

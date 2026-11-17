@@ -158,17 +158,24 @@ fn check<T: Decide + AtRestPolicy + Bounds + CertifiedBounds>() {
                 "a box's side plane",
                 findings(
                     cube::<T>(),
-                    |s| matches!(s, Surface::Plane { normal, .. } if normal.x.hi() > 0.5),
+                    |s| matches!(s, Surface::Plane { frame, .. } if frame.axis().x.hi() > 0.5),
                     |s| match s {
                         Surface::Plane {
-                            origin,
-                            normal,
-                            u_ref,
-                        } => Surface::Plane {
-                            origin: origin + Vec3::new(f(d), f(0.0), f(0.0)),
-                            normal,
-                            u_ref,
-                        },
+                            frame: carrier_frame,
+                        } => {
+                            let (origin, normal, u_ref) = (
+                                carrier_frame.origin(),
+                                carrier_frame.axis(),
+                                carrier_frame.u_ref(),
+                            );
+                            Surface::Plane {
+                                frame: geom::Frame::new(
+                                    origin + Vec3::new(f(d), f(0.0), f(0.0)),
+                                    normal,
+                                    u_ref,
+                                ),
+                            }
+                        }
                         _ => unreachable!("picked a plane"),
                     },
                 ),
@@ -180,15 +187,11 @@ fn check<T: Decide + AtRestPolicy + Bounds + CertifiedBounds>() {
                     |s| matches!(s, Surface::Cylinder { .. }),
                     |s| match s {
                         Surface::Cylinder {
-                            origin,
-                            axis,
+                            frame: carrier_frame,
                             radius,
-                            u_ref,
                         } => Surface::Cylinder {
-                            origin,
-                            axis,
+                            frame: carrier_frame,
                             radius: radius + f(d),
-                            u_ref,
                         },
                         _ => unreachable!("picked a cylinder"),
                     },
@@ -201,15 +204,11 @@ fn check<T: Decide + AtRestPolicy + Bounds + CertifiedBounds>() {
                     |s| matches!(s, Surface::Sphere { .. }),
                     |s| match s {
                         Surface::Sphere {
-                            center,
+                            frame: carrier_frame,
                             radius,
-                            axis,
-                            u_ref,
                         } => Surface::Sphere {
-                            center,
+                            frame: carrier_frame,
                             radius: radius + f(d),
-                            axis,
-                            u_ref,
                         },
                         _ => unreachable!("picked a sphere"),
                     },

@@ -82,7 +82,10 @@ fn assert_rims_on_caps(body: &Body<f64>, face: FaceKey) {
     let caps: Vec<(geom_core::Point3<f64>, geom_core::Vec3<f64>)> = body
         .faces()
         .filter_map(|(fk, _)| match body.face_surface(fk) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
+            Some(geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((origin, normal))
+            }
             _ => None,
         })
         .collect();
@@ -113,14 +116,12 @@ fn moved_cone(body: &Body<f64>, face: FaceKey) -> geom::Surface<f64> {
 /// axis is its axial height from the apex times `tan α`.
 fn on_cone(cone: &geom::Surface<f64>, p: geom_core::Point3<f64>) -> bool {
     let geom::Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
+        frame, half_angle, ..
     } = *cone
     else {
         panic!("the moved face is a cone")
     };
+    let (apex, axis) = (frame.origin(), frame.axis());
     let w = p - apex;
     let h = w.dot(axis);
     ((w - axis * h).norm() - h.abs() * half_angle.tan()).abs() < 1e-9
@@ -251,14 +252,12 @@ fn a_large_d_away_from_the_apex_is_not_an_apex_crossing() {
         )
     });
     let geom::Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
+        frame, half_angle, ..
     } = moved_cone(&body, face)
     else {
         panic!("the moved face is a cone")
     };
+    let (apex, axis) = (frame.origin(), frame.axis());
     // The meridian height at radius `r` on the moved cone (the revolve
     // axis is `+y`, through the origin).
     let y_at = |r: f64| apex.y + axis.y.signum() * r / half_angle.tan();
@@ -410,14 +409,15 @@ fn a_side_wall_replacement_re_anchors_the_rim_arcs() {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { normal, .. }) if normal.y.abs() < 1e-9
+                Some(geom::Surface::Plane { frame, .. }) if frame.axis().y.abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
         .expect("a partial revolve has planar side walls");
-    let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(side).cloned() else {
+    let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(side).cloned() else {
         unreachable!("the side wall is a plane")
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     topo::replace_face_offset(&mut body, side, 0.05, Tol::witness())
         .expect("the side wall moves and the rim arcs follow it");
     for (he, _) in body.half_edges() {
@@ -677,7 +677,7 @@ fn an_offset_as_deep_as_the_walls_collapses_their_seams() {
             .find(|(fk, _)| {
                 matches!(
                     body.face_surface(*fk),
-                    Some(geom::Surface::Plane { origin, .. }) if origin.z > 0.5
+                    Some(geom::Surface::Plane { frame, .. }) if frame.origin().z > 0.5
                 )
             })
             .map(|(k, _)| k)
@@ -783,7 +783,10 @@ fn a_hex_prisms_side_moves_with_its_corners_on_its_oblique_neighbours() {
     let planes: Vec<(FaceKey, geom_core::Point3<f64>, geom_core::Vec3<f64>)> = body
         .faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => Some((k, *origin, *normal)),
+            Some(geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((k, origin, normal))
+            }
             _ => None,
         })
         .collect();

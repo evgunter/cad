@@ -221,12 +221,13 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
     // Planar faces: the BIT is untouched, the stored normal negates.
     for &(k, sense, sk) in &planar {
         assert_eq!(rev.get_face(k).unwrap().sense, sense, "plane bit moved");
-        let (Some(Surface::Plane { normal: n0, .. }), Some(Surface::Plane { normal: n1, .. })) =
+        let (Some(Surface::Plane { frame: f0, .. }), Some(Surface::Plane { frame: f1, .. })) =
             (body.get_surface(sk), rev.get_surface(sk))
         else {
             panic!("plane surfaces stay planes");
         };
-        assert_eq!(format!("{:?}", *n1), format!("{:?}", -*n0));
+        let (n0, n1) = (f0.axis(), f1.axis());
+        assert_eq!(format!("{:?}", n1), format!("{:?}", -n0));
     }
     // Curved faces: the BIT flips, the chart is untouched.
     for &(k, sense, sk) in &curved {

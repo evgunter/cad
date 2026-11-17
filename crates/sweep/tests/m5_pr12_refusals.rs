@@ -508,9 +508,7 @@ fn plane(normal: Vec3<f64>) -> geom::Surface<f64> {
         Vec3::new(1.0, 0.0, 0.0)
     };
     geom::Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal,
-        u_ref,
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), normal, u_ref),
     }
 }
 
@@ -713,10 +711,9 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match c.carrier() {
-                geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { origin: center, .. },
-                    radius,
-                }) if center.z > 0.5 => Some((k, *radius)),
+                geom::Curve3::Circle(geom::Circle { frame, radius }) if frame.origin().z > 0.5 => {
+                    Some((k, *radius))
+                }
                 _ => None,
             }
         })
@@ -737,21 +734,26 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
         })
         .expect("the cap side of the rim");
     let geom::Surface::Plane {
-        origin,
-        normal,
-        u_ref,
+        frame: carrier_frame,
     } = *body.face_surface(cap).expect("the cap's plane")
     else {
         panic!("the cap side is a plane")
     };
+    let (origin, normal, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     // A turn about the plane's own `u_ref` keeps the frame orthonormal
     // and right-handed, and parts the normal from the rim's axis by
     // exactly `departure` at the lever arm.
     let theta = (departure / lever).asin();
     let tilted = geom::Surface::Plane {
-        origin,
-        normal: normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
-        u_ref,
+        frame: geom::Frame::new(
+            origin,
+            normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
+            u_ref,
+        ),
     };
     // Lifts RechartStrandsDescriptions: the tilted cap plane is the coaxiality fixture.
     body.set_face_surface_unvouched_for_tests(

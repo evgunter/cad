@@ -344,7 +344,7 @@ fn the_table<T: Decide + Bounds + AtRestPolicy>(band: Band) {
     let base = face_where(
         &f,
         "the frustum's base",
-        |s| matches!(s, Surface::Plane { origin, .. } if origin.y.lo().abs() < 1e-12),
+        |s| matches!(s, Surface::Plane { frame, .. } if frame.origin().y.lo().abs() < 1e-12),
     );
     judge(
         &f,

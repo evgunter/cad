@@ -261,9 +261,10 @@ fn az_coupled_flush_is_one_exact_body() {
     let y_planes = |body: &Body<f64>| -> Vec<(topo::FaceKey, f64)> {
         body.faces()
             .filter_map(|(k, _)| match body.face_surface(k) {
-                Some(&geom::Surface::Plane { origin, normal, .. })
-                    if normal.x == 0.0 && normal.z == 0.0 =>
+                Some(&geom::Surface::Plane { frame, .. })
+                    if frame.axis().x == 0.0 && frame.axis().z == 0.0 =>
                 {
+                    let origin = frame.origin();
                     Some((k, origin.y))
                 }
                 _ => None,

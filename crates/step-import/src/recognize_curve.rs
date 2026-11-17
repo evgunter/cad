@@ -730,22 +730,14 @@ mod tests {
     fn c1_the_rational_quadratic_circle_certifies_exactly() {
         let curve = rational_circle(0.005, false);
         let CurveRecognition::Promoted {
-            curve:
-                Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            u_ref,
-                        },
-                    radius,
-                }),
+            curve: Curve3::Circle(geom::Circle { frame, radius }),
             residual,
             kind,
         } = recognize(&curve, EPS_IN)
         else {
             panic!("dm1's carrier class must certify");
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         assert_eq!(kind, PromotedCurveKind::Circle);
         assert!(residual < 1e-15, "an exact circle's residual: {residual:e}");
         assert!((radius - 0.005).abs() < 1e-15, "radius {radius:e}");
@@ -763,16 +755,13 @@ mod tests {
     #[test]
     fn c2_winding_survives_the_promotion() {
         let CurveRecognition::Promoted {
-            curve:
-                Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { axis, .. },
-                    ..
-                }),
+            curve: Curve3::Circle(geom::Circle { frame, .. }),
             ..
         } = recognize(&rational_circle(0.005, true), EPS_IN)
         else {
             panic!("the reversed circle must certify too");
         };
+        let axis = frame.axis();
         assert!((axis.z + 1.0).abs() < 1e-12, "reversed axis {axis:?}");
     }
 
@@ -972,22 +961,14 @@ mod tests {
             )
             .unwrap();
             let CurveRecognition::Promoted {
-                curve:
-                    Curve3::Circle(geom::Circle {
-                        frame:
-                            geom::Frame {
-                                origin: center,
-                                axis,
-                                ..
-                            },
-                        radius: r,
-                    }),
+                curve: Curve3::Circle(geom::Circle { frame, radius: r }),
                 residual,
                 ..
             } = recognize(&curve, EPS_IN)
             else {
                 panic!("delta {delta:e} is inside the budget and must certify");
             };
+            let (center, axis) = (frame.origin(), frame.axis());
             let (a, b) = curve.domain();
             let mut worst = 0.0f64;
             for k in 0..=8192 {
@@ -1532,16 +1513,7 @@ mod r2_probes {
             .unwrap();
             let outcome = recognize(&curve, EPS_IN);
             let CurveRecognition::Promoted {
-                curve:
-                    Curve3::Circle(geom::Circle {
-                        frame:
-                            geom::Frame {
-                                origin: center,
-                                axis,
-                                ..
-                            },
-                        radius: r,
-                    }),
+                curve: Curve3::Circle(geom::Circle { frame, radius: r }),
                 residual,
                 ..
             } = outcome
@@ -1549,6 +1521,7 @@ mod r2_probes {
                 println!("R2-C[{i}] delta={delta:e}: stays NURBS");
                 continue;
             };
+            let (center, axis) = (frame.origin(), frame.axis());
             // Dense true deviation.
             let (a, b) = curve.domain();
             let mut worst = 0.0f64;

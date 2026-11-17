@@ -560,8 +560,8 @@ fn cap_at(piece: &Body<f64>, height: f64) -> topo::FaceKey {
         .filter(|(fk, _)| {
             matches!(
                 piece.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() > 0.5 && (origin.z - height).abs() < tol().eps()
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.axis().z.abs() > 0.5 && (frame.origin().z - height).abs() < tol().eps()
             )
         })
         .map(|(k, _)| k)

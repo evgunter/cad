@@ -69,15 +69,10 @@ fn every_corner_encodes_and_holds_no_pole<T: topo::AtRestPolicy + Decide + Bound
     for &face in &out.corner_faces {
         let f = body.get_face(face).expect("a minted corner face");
         let surface = body.face_surface(face).expect("its surface");
-        let Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } = *surface
-        else {
+        let Surface::Sphere { frame, radius } = *surface else {
             panic!("{tag}: a fillet corner patch is a sphere");
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let (outer, _) = topo::props::loop_edges(body, f.outer).expect("the loop reads");
         let want = if f.sense {
             Sign::Positive
@@ -307,14 +302,20 @@ fn the_corner_balls_pole_is_a_foot_or_its_antipode_on_either_side() {
             };
             let feet = normals.map(|n| n * sign);
             let f64_axis = match corner_ball([Point3::origin(); 3], normals, 0.1, side).surface {
-                Surface::Sphere { axis, .. } => axis,
+                Surface::Sphere { frame, .. } => {
+                    let axis = frame.axis();
+                    axis
+                }
                 _ => panic!("the corner ball is a sphere"),
             };
             let iv_normals = normals.map(|n| n.map(iv));
             let iv_axis =
                 match corner_ball([Point3::origin().map(iv); 3], iv_normals, iv(0.1), side).surface
                 {
-                    Surface::Sphere { axis, .. } => mid3(Point3::new(axis.x, axis.y, axis.z)),
+                    Surface::Sphere { frame, .. } => {
+                        let axis = frame.axis();
+                        mid3(Point3::new(axis.x, axis.y, axis.z))
+                    }
                     _ => panic!("the corner ball is a sphere"),
                 };
             for (lane, axis) in [("f64", f64_axis), ("Interval", iv_axis)] {

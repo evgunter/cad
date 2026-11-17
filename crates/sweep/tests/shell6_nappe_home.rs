@@ -101,13 +101,14 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
         for (door, d) in [("per-chart", small), ("axial", T)] {
             let want = geom_brep::offset_surface(&old, nappe.turn(-d), band()).expect("the mint");
             let Surface::Cone {
-                apex: b,
+                frame: carrier_frame,
                 half_angle: hb,
                 ..
             } = &want
             else {
                 panic!("a cone's offset is a cone");
             };
+            let b = carrier_frame.origin();
             let mut work = body.clone();
             let moves = moves_by(charts(&work), -d);
             let outcome = if door == "per-chart" {
@@ -122,13 +123,14 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
                 )
             });
             let Surface::Cone {
-                apex: a,
+                frame: carrier_frame,
                 half_angle: ha,
                 ..
             } = cone_of(&work, cone_faces(&work)[0])
             else {
                 panic!("a cone's offset is a cone");
             };
+            let a = carrier_frame.origin();
             assert_eq!(
                 (a.x.to_bits(), a.y.to_bits(), a.z.to_bits()),
                 (b.x.to_bits(), b.y.to_bits(), b.z.to_bits()),
@@ -160,10 +162,11 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
             // above is a claim about the nappe and not about a
             // difference too small to see.
             let wrong = geom_brep::offset_surface(&old, nappe.turn(d), band()).expect("the mint");
-            let Surface::Cone { apex: w, .. } = wrong else {
+            let Surface::Cone { frame, .. } = wrong else {
                 panic!("a cone's offset is a cone");
             };
-            let separation = (*b - w).norm();
+            let w = frame.origin();
+            let separation = (b - w).norm();
             assert!(
                 separation > tol.eps(),
                 "{what}: the {door} door's turn must be observable here \
@@ -409,14 +412,12 @@ fn the_displacement_moves_the_face_along_its_own_outward_normal() {
     ] {
         let face = cone_faces(&body)[0];
         let Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } = cone_of(&body, face)
         else {
             panic!("a frustum's wall is a cone");
         };
+        let (apex, axis) = (frame.origin(), frame.axis());
         let nappe = topo::face_nappe(&body, face, band()).expect("nappe");
         assert_eq!(nappe, want);
         let (sin_a, cos_a) = half_angle.sin_cos();

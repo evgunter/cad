@@ -172,9 +172,14 @@ fn the_bud_mouth_rim_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
     );
     // The band's torus sits on the axis at the ball centre's level.
     let s = out.body.face_surface(out.band_faces[0]).unwrap();
-    let Surface::Torus { center, .. } = *s else {
+    let Surface::Torus {
+        frame: carrier_frame,
+        ..
+    } = *s
+    else {
         panic!("torus")
     };
+    let center = carrier_frame.origin();
     assert!(
         center.x.abs() < 1e-12 && center.z.abs() < 1e-12 && (center.y - cy).abs() < 1e-12,
         "the spine circle is centred at (0, {cy}, 0), got {center:?}"
@@ -213,13 +218,10 @@ fn the_bud_band_meets_its_two_supports_on_the_closed_form_circles() {
             .unwrap()
             .certified()
             .unwrap();
-        let Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
-            radius,
-        }) = *c.carrier()
-        else {
+        let Curve3::Circle(geom::Circle { frame, radius }) = *c.carrier() else {
             panic!("a trim circle")
         };
+        let center = frame.origin();
         assert!(
             (radius - want_r).abs() < 1e-12,
             "the {which} trim circle's radius is {want_r}, got {radius}"
@@ -373,8 +375,11 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
         .faces()
         .find_map(|(k, _)| match *source.face_surface(k)? {
             Surface::Cone {
-                apex, half_angle, ..
-            } => Some((k, apex, half_angle)),
+                frame, half_angle, ..
+            } => {
+                let apex = frame.origin();
+                Some((k, apex, half_angle))
+            }
             _ => None,
         })
         .expect("the bud carries one cone wall");
@@ -385,10 +390,12 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
             cone_face,
             FaceSurface::New {
                 surface: Surface::Cone {
-                    apex,
-                    axis: Vec3::new(tilt.sin(), tilt.cos(), 0.0),
+                    frame: geom::Frame::new(
+                        apex,
+                        Vec3::new(tilt.sin(), tilt.cos(), 0.0),
+                        Vec3::new(tilt.cos(), -tilt.sin(), 0.0),
+                    ),
                     half_angle,
-                    u_ref: Vec3::new(tilt.cos(), -tilt.sin(), 0.0),
                 },
                 sense: true,
             },

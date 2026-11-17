@@ -513,11 +513,12 @@ fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
     let tops: Vec<_> = body
         .surfaces()
         .filter_map(|(k, s)| match s {
-            geom::Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } if origin.z == 1.0 && normal.z.abs() == 1.0 => Some((k, *origin, *normal, *u_ref)),
+            geom::Surface::Plane { frame }
+                if frame.origin().z == 1.0 && frame.axis().z.abs() == 1.0 =>
+            {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Some((k, origin, normal, u_ref))
+            }
             _ => None,
         })
         .collect();

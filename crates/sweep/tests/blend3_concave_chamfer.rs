@@ -116,18 +116,24 @@ fn the_chamfered_cavity() {
 /// stored sense bit — read, never sampled.
 fn outward(body: &Body<f64>, face: topo::FaceKey) -> Vec3<f64> {
     let f = body.get_face(face).expect("a minted face");
-    let Some(Surface::Plane { normal, .. }) = body.face_surface(face) else {
+    let Some(Surface::Plane {
+        frame: carrier_frame,
+        ..
+    }) = body.face_surface(face)
+    else {
         panic!("every face this carve mints is a plane");
     };
-    OutwardNormal::from_chart(*normal, f.sense).vec()
+    let normal = carrier_frame.axis();
+    OutwardNormal::from_chart(normal, f.sense).vec()
 }
 
 /// A point on a face's carrier plane.
 fn plane_origin(body: &Body<f64>, face: topo::FaceKey) -> Point3<f64> {
-    let Some(Surface::Plane { origin, .. }) = body.face_surface(face) else {
+    let Some(Surface::Plane { frame, .. }) = body.face_surface(face) else {
         panic!("every face this carve mints is a plane");
     };
-    *origin
+    let origin = frame.origin();
+    origin
 }
 
 /// **THE ORIENTATION ROW: every minted face faces the VOID.**

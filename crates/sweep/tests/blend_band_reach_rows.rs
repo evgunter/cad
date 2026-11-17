@@ -476,9 +476,10 @@ fn an_open_arc_link_s_reach_is_its_whole_turn() {
             panic!("{what}: a face refused uncertified, got {e:?}");
         };
         let surface = body.face_surface(f);
-        let Some(geom::Surface::Plane { origin, normal, .. }) = surface else {
+        let Some(geom::Surface::Plane { frame, .. }) = surface else {
             panic!("{what}: a plane face, got {surface:?}");
         };
+        let (origin, normal) = (frame.origin(), frame.axis());
         let (k, offset) = flat;
         let n = normal.normalize();
         let along = |v: [f64; 3]| v[k];

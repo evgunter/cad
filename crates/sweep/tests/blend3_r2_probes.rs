@@ -101,10 +101,11 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 
     let outward = |face: topo::FaceKey| -> Vec3<f64> {
         let f = body.get_face(face).expect("a support face");
-        let Some(Surface::Plane { normal, .. }) = body.face_surface(face) else {
+        let Some(Surface::Plane { frame, .. }) = body.face_surface(face) else {
             panic!("a cavity support face is a plane");
         };
-        OutwardNormal::from_chart(*normal, f.sense).vec()
+        let normal = frame.axis();
+        OutwardNormal::from_chart(normal, f.sense).vec()
     };
 
     let mut corner_edges: std::collections::BTreeMap<(i64, i64, i64), usize> =

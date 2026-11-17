@@ -2480,10 +2480,12 @@ mod tests {
     fn a_cone_patch_takes_no_rows_at_any_column_count() {
         // The π/6 wedge fixture's own chart: half-angle π/4, ρ_max = 1.
         let surface = Surface::Cone {
-            apex: Point3::new(0.0, 1.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let row = crate::chart_table::AnalyticRow::new(&surface, 1.0).unwrap();
         let (uspan, vspan) = (core::f64::consts::FRAC_PI_6, 2.0_f64.sqrt());

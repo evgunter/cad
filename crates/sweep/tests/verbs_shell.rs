@@ -43,8 +43,8 @@ fn plane_face_at(body: &Body<f64>, y: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if (origin.z - y).abs() < 1e-9 && normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
+                Some(geom::Surface::Plane { frame, .. })
+                    if (frame.origin().z - y).abs() < 1e-9 && frame.axis().x.abs() < 1e-9 && frame.axis().y.abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
@@ -565,7 +565,10 @@ fn assert_the_arm_walls_refuse(body: &Body<f64>, t: f64, why: &str) {
         );
     };
     let normal_x = |f: FaceKey| match body.face_surface(f) {
-        Some(geom::Surface::Plane { normal, .. }) => normal.x.abs(),
+        Some(geom::Surface::Plane { frame, .. }) => {
+            let normal = frame.axis();
+            normal.x.abs()
+        }
         _ => panic!("{f:?} is planar"),
     };
     assert!(
@@ -645,7 +648,10 @@ fn assert_the_tilted_arm_walls_cross(body: &Body<f64>, t: f64, why: &str) -> f64
     };
     assert_eq!(thickness, t, "{why}: the refusal quotes the wall");
     let normal = |f: FaceKey| match body.face_surface(f) {
-        Some(geom::Surface::Plane { normal, .. }) => *normal,
+        Some(geom::Surface::Plane { frame, .. }) => {
+            let normal = frame.axis();
+            normal
+        }
         _ => panic!("{f:?} is planar"),
     };
     let (wall, crossed) = if normal(face).x.abs() > normal(other).x.abs() {
@@ -2101,7 +2107,7 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
+                Some(geom::Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()
@@ -2272,7 +2278,10 @@ fn the_old_rim_composition_refuses_at_the_glue_on_an_annular_cap() {
         "the annular cap and its counterpart are one face each"
     );
     let plane_of = |b: &Body<f64>, f: FaceKey| match b.face_surface(f) {
-        Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+        Some(geom::Surface::Plane { frame, .. }) => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            (origin, normal)
+        }
         other => panic!("a non-planar cap: {other:?}"),
     };
     let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
@@ -2343,7 +2352,10 @@ fn a_re_slit_annular_caps_old_glue_reaches_check_9_through_an_outer_edge() {
         sealed.mekr_chord(site, tol).expect("the slit mekr");
     }
     let plane_of = |b: &Body<f64>, f: FaceKey| match b.face_surface(f) {
-        Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+        Some(geom::Surface::Plane { frame, .. }) => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            (origin, normal)
+        }
         other => panic!("a non-planar cap: {other:?}"),
     };
     let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
@@ -2770,7 +2782,10 @@ fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of = |b: &Body<f64>, f: FaceKey| match b.face_surface(f) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+            Some(geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                (origin, normal)
+            }
             other => panic!("{what}: a non-planar cap: {other:?}"),
         };
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
@@ -2857,7 +2872,10 @@ fn r2_probe_other_two_passes_dump() {
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of = |b: &Body<f64>, f: FaceKey| match b.face_surface(f) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+            Some(geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                (origin, normal)
+            }
             other => panic!("non-planar: {other:?}"),
         };
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
@@ -2980,12 +2998,13 @@ fn face_roles(body: &Body<f64>) -> Vec<(FaceKey, ShellRole)> {
 /// A planar face's origin and OUTWARD normal.
 fn plane_of(body: &Body<f64>, face: FaceKey) -> (geom_core::Point3<f64>, geom_core::Vec3<f64>) {
     let data = body.get_face(face).expect("the face");
-    let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(face) else {
+    let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(face) else {
         panic!("{face:?} is not planar")
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     (
-        *origin,
-        geom_brep::OutwardNormal::from_chart(*normal, data.sense).vec(),
+        origin,
+        geom_brep::OutwardNormal::from_chart(normal, data.sense).vec(),
     )
 }
 
@@ -3603,7 +3622,7 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
         .map(|(k, _)| k)
         .filter(|&k| {
             matches!(slab.face_surface(k),
-                Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.6).abs() < 1e-12)
+                Some(geom::Surface::Plane { frame, .. }) if (frame.origin().z - 0.6).abs() < 1e-12)
         })
         .collect();
     let (capped, _, _) = capped_vessel(0.5, 0.6, 60.0);
@@ -3795,7 +3814,7 @@ fn a_designated_face_with_a_hole_records_its_promoted_rim() {
         .map(|(k, _)| k)
         .filter(|&k| {
             matches!(seamless.face_surface(k),
-                Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.6).abs() < 1e-12)
+                Some(geom::Surface::Plane { frame, .. }) if (frame.origin().z - 0.6).abs() < 1e-12)
         })
         .collect();
     assert_eq!(seamless_chart.len(), 1, "one holed mouth face");

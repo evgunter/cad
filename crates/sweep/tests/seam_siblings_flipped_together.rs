@@ -287,18 +287,10 @@ fn split_along_a_meridian(
     let mut seam = None;
     let mut inside = None;
     for e in &edges {
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: c,
-                    axis: n,
-                    u_ref,
-                },
-            radius: r,
-        }) = e.carrier
-        else {
+        let Curve3::Circle(geom::Circle { frame, radius: r }) = e.carrier else {
             continue;
         };
+        let (c, n, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         if near(c, center) && (r - radius).abs() < 1e-9 && n.dot(pole).abs() < 1e-9 {
             seam = Some(n.normalize());
         } else {
@@ -337,8 +329,9 @@ fn a_chain_of_three_siblings_reads_one_side() {
     let (mut body, want) = build(p, tol);
     let [x, _] = seam_siblings(&body, tol)[0];
     let on_a = match body.get_surface(body.faces().find(|(k, _)| *k == x).unwrap().1.surface) {
-        Some(Surface::Sphere { center, .. }) => {
-            (*center - Point3::new(0.0, 0.0, 0.0)).norm() < 1e-9
+        Some(Surface::Sphere { frame, .. }) => {
+            let center = frame.origin();
+            (center - Point3::new(0.0, 0.0, 0.0)).norm() < 1e-9
         }
         _ => panic!("not a sphere face"),
     };

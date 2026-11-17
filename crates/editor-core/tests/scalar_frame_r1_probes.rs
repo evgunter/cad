@@ -104,17 +104,22 @@ fn a_tube_from_a_minted_frame_stores_the_frames_axes_verbatim() {
     for (what, body) in [("solid", &solid.body), ("hollow", &hollow.body)] {
         let mut tori = 0;
         for (fk, _) in body.faces() {
-            if let Some(Surface::Torus { axis: a, u_ref, .. }) = body.face_surface(fk) {
+            if let Some(Surface::Torus {
+                frame: carrier_frame,
+                ..
+            }) = body.face_surface(fk)
+            {
+                let (a, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
                 tori += 1;
                 assert_eq!(
-                    bits3(*a),
+                    bits3(a),
                     bits3(frame.w().get()),
                     "{what}: the torus axis is w"
                 );
                 // `u_ref` for the full ring is the frame's `u`
                 // verbatim; a window rotates it by `t0` first.
                 if what == "solid" {
-                    assert_eq!(bits3(*u_ref), bits3(frame.u().get()), "{what}: u_ref is u");
+                    assert_eq!(bits3(u_ref), bits3(frame.u().get()), "{what}: u_ref is u");
                 }
             }
         }

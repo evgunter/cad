@@ -28,52 +28,40 @@ pub(super) fn wall_surface<T: Real>(
 ) -> Surface<T> {
     match *kind {
         WallKind::Plane { .. } => Surface::Plane {
-            origin: frame.world(seg.a),
-            normal: frame.axis.get(),
-            u_ref: frame.u3,
+            frame: geom::Frame::new(frame.world(seg.a), frame.axis.get(), frame.u3),
         },
         WallKind::Cylinder { radius } => Surface::Cylinder {
-            origin: frame.foot3(seg.a),
-            axis: frame.axis.get(),
+            frame: geom::Frame::new(frame.foot3(seg.a), frame.axis.get(), frame.u3),
             radius,
-            u_ref: frame.u3,
         },
         WallKind::Cone {
             apex_sk,
             half_angle,
         } => Surface::Cone {
-            apex: frame.foot3(apex_sk),
-            axis: frame.axis.get(),
+            frame: geom::Frame::new(frame.foot3(apex_sk), frame.axis.get(), frame.u3),
             half_angle,
-            u_ref: frame.u3,
         },
         WallKind::Sphere { center_sk, radius } => Surface::Sphere {
-            center: frame.foot3(center_sk),
+            frame: geom::Frame::new(frame.foot3(center_sk), frame.axis.get(), frame.u3),
             radius,
-            axis: frame.axis.get(),
-            u_ref: frame.u3,
         },
         WallKind::Torus {
             center_sk,
             major,
             minor,
         } => Surface::Torus {
-            center: frame.foot3(center_sk),
-            axis: frame.axis.get(),
+            frame: geom::Frame::new(frame.foot3(center_sk), frame.axis.get(), frame.u3),
             major_radius: major,
             minor_radius: minor,
-            u_ref: frame.u3,
         },
         WallKind::Spindle {
             center_sk,
             major,
             minor,
         } => Surface::Spindle {
-            center: frame.foot3(center_sk),
-            axis: frame.axis.get(),
+            frame: geom::Frame::new(frame.foot3(center_sk), frame.axis.get(), frame.u3),
             major_radius: major,
             minor_radius: minor,
-            u_ref: frame.u3,
         },
     }
 }

@@ -289,18 +289,10 @@ fn m10r2_set_edge_curve_on_a_split_child() {
             .unwrap()
             .clone();
         let mut spec = cert.restated_spec();
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) = spec.carrier
-        else {
+        let Curve3::Circle(geom::Circle { frame, radius }) = spec.carrier else {
             panic!("the seam is a circle")
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let w = axis.cross(u_ref);
         spec.carrier = Curve3::circle(center, axis, radius, u_ref * phi.cos() + w * phi.sin());
         spec.param_start -= phi;

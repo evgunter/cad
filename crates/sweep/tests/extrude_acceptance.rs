@@ -112,11 +112,12 @@ fn loop_probe_points(body: &Body<f64>, r#loop: topo::LoopKey) -> Vec<Point3<f64>
 fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
     let outer = body.get_face(face).unwrap().outer;
     let pts = loop_probe_points(body, outer);
-    let Surface::Plane { normal, .. } =
+    let Surface::Plane { frame, .. } =
         newell_plane(&pts, pts[1] - pts[0], Band::linear(Tol::witness()).unwrap()).unwrap()
     else {
         panic!("newell returns a plane");
     };
+    let normal = frame.axis();
     normal
 }
 
@@ -281,11 +282,12 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
         let outward = outward_normal(&t.body, cap);
         let ring = t.body.get_face(cap).unwrap().rings[0];
         let pts = loop_probe_points(&t.body, ring);
-        let Surface::Plane { normal, .. } =
+        let Surface::Plane { frame, .. } =
             newell_plane(&pts, pts[1] - pts[0], Band::linear(Tol::witness()).unwrap()).unwrap()
         else {
             panic!("plane");
         };
+        let normal = frame.axis();
         assert!(normal.dot(outward) < -0.99, "ring winds against its cap");
     }
 }

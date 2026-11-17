@@ -216,10 +216,8 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
                 CornerArcs::Ball(ball.center, radius),
                 feet.map(Foot::At),
                 Surface::Sphere {
-                    center: ball.center,
+                    frame: geom::Frame::new(ball.center, axis, u_ref),
                     radius,
-                    axis,
-                    u_ref,
                 },
             )
         }
@@ -303,7 +301,10 @@ fn mixed_corner_plan<'a, T: Real>(
     let (arcs, surface) = match kind {
         BlendKind::Fillet => {
             let axis_of = |l: &Link<T>| match l.blend.surface {
-                Surface::Cylinder { origin, axis, .. } => Ok((origin, axis.normalize())),
+                Surface::Cylinder { frame, .. } => {
+                    let (origin, axis) = (frame.origin(), frame.axis());
+                    Ok((origin, axis.normalize()))
+                }
                 _ => Err(disagrees(
                     EntityId::Vertex(vertex),
                     "a mixed corner's plane–plane fillet band is not a cylinder",
@@ -343,11 +344,9 @@ fn mixed_corner_plan<'a, T: Real>(
                     host: (p_e, two_r),
                 },
                 Surface::Torus {
-                    center: q,
-                    axis: a_odd,
+                    frame: geom::Frame::new(q, a_odd, (rests[0].1.centre - q).normalize()),
                     major_radius: two_r,
                     minor_radius: radius,
-                    u_ref: (rests[0].1.centre - q).normalize(),
                 },
             )
         }
@@ -388,12 +387,13 @@ fn mixed_corner_plan<'a, T: Real>(
             };
             let host_feet = [on_chord(p1)?, on_chord(p2)?];
             feet[slot(host)?] = Foot::PerEdge(host_feet);
-            let Surface::Plane { normal: n_s, .. } = odd.blend.surface else {
+            let Surface::Plane { frame, .. } = odd.blend.surface else {
                 return Err(disagrees(
                     EntityId::Vertex(vertex),
                     "a mixed corner's odd chamfer strip is not a plane",
                 ));
             };
+            let n_s = frame.axis();
             // The patch closes the corner on the side `E` and the odd
             // strip face out to.
             (
@@ -834,16 +834,16 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
                 .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a turn's vertex"))?;
             let cylinder = |l: &Link<T>, axis: Vec3<T>| match l.blend.surface {
                 Surface::Cylinder {
-                    origin,
+                    frame: carrier_frame,
                     radius,
-                    u_ref,
                     ..
-                } => Ok(Surface::Cylinder {
-                    origin,
-                    axis,
-                    radius,
-                    u_ref,
-                }),
+                } => {
+                    let (origin, u_ref) = (carrier_frame.origin(), carrier_frame.u_ref());
+                    Ok(Surface::Cylinder {
+                        frame: geom::Frame::new(origin, axis, u_ref),
+                        radius,
+                    })
+                }
                 _ => Err(unbuilt()),
             };
             let [l1, l2] = [links[0].link(), links[1].link()];
@@ -1910,9 +1910,10 @@ mod tests {
             let super::CornerArcs::Ball(centre, _) = corner.arcs else {
                 panic!("a fillet corner plans an arc centre");
             };
-            let Surface::Sphere { axis, .. } = corner.surface else {
+            let Surface::Sphere { frame, .. } = corner.surface else {
                 panic!("a fillet corner patch is a sphere");
             };
+            let axis = frame.axis();
             let p = super::point_of(&body, v).expect("the corner's point");
             let feet = corner.feet.map(|f| match f {
                 Foot::At(p) => p,

@@ -332,7 +332,10 @@ fn carrier(ev: &Evaluation<f64>, cell: &editor_core::NamedCell) -> Option<Carrie
             Some(Carrier::Line(u, w - u))
         }
         editor_core::EntityKey::Face(f) => match body.face_surface(f)? {
-            topo::Surface::Plane { origin, normal, .. } => Some(Carrier::Plane(*origin, *normal)),
+            topo::Surface::Plane { frame, .. } => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some(Carrier::Plane(origin, normal))
+            }
             _ => None,
         },
         editor_core::EntityKey::Body => None,

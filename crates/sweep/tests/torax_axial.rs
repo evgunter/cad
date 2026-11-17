@@ -162,15 +162,24 @@ fn face_vertices(body: &Body<f64>, face: FaceKey) -> Vec<VertexKey> {
 fn residual(s: &Surface<f64>, p: Point3<f64>) -> f64 {
     let (rho, h) = axial(p);
     match s {
-        Surface::Plane { origin, normal, .. } => normal.dot(p - *origin),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            normal.dot(p - origin)
+        }
         Surface::Cylinder { radius, .. } => rho - *radius,
-        Surface::Sphere { center, radius, .. } => p.distance(*center) - *radius,
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            p.distance(center) - *radius
+        }
         Surface::Torus {
-            center,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => (rho - *major_radius).hypot(h - center.y) - *minor_radius,
+        } => {
+            let center = frame.origin();
+            (rho - *major_radius).hypot(h - center.y) - *minor_radius
+        }
         other => panic!("no fixture here carries a {other:?}"),
     }
 }
@@ -774,12 +783,10 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
-            geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                radius,
-            }) => {
+            geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+                let center = frame.origin();
                 rims += 1;
-                let (rho_c, h_c) = axial(*center);
+                let (rho_c, h_c) = axial(center);
                 assert!(
                     (rho_c - t).abs() <= 1e-15 && h_c.abs() <= 1e-15,
                     "a rim centre stands t off the axis at the equator station, got \
@@ -1206,12 +1213,10 @@ fn torax_the_outward_lune_offsets_through_the_same_arms() {
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
-            geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                radius,
-            }) => {
+            geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+                let center = frame.origin();
                 rims += 1;
-                let (rho_c, h_c) = axial(*center);
+                let (rho_c, h_c) = axial(center);
                 assert!(
                     (rho_c - t.abs()).abs() <= 1e-15 && h_c.abs() <= 1e-15,
                     "a rim centre stands |t| off the axis at the equator station, got \

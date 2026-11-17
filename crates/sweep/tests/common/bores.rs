@@ -78,9 +78,9 @@ pub fn section_faces(half: &Body<f64>, plane: &SplitPlane<f64>) -> Vec<FaceKey> 
         .filter(|(fk, _)| {
             matches!(
                 half.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.cross(plane.normal.get()).norm() < 1e-12
-                        && (*origin - plane.origin).dot(plane.normal.get()).abs() < 1e-12
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.axis().cross(plane.normal.get()).norm() < 1e-12
+                        && (frame.origin() - plane.origin).dot(plane.normal.get()).abs() < 1e-12
             )
         })
         .map(|(k, _)| k)

@@ -607,7 +607,7 @@ fn plane_nurbs_seams(
 /// plane × NURBS `Intersection` on a cap is a cap RIM, which the plane ×
 /// NURBS certificate takes for the line it is, not a wall–wall seam.
 fn is_cap(plane: &geom::Surface<f64>) -> bool {
-    matches!(plane, geom::Surface::Plane { normal, .. } if normal.z.abs() > 0.5)
+    matches!(plane, geom::Surface::Plane { frame, .. } if frame.axis().z.abs() > 0.5)
 }
 
 /// Every plane × described-NURBS `Intersection` edge: the seams of

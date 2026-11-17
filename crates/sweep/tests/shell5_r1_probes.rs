@@ -87,12 +87,13 @@ fn with_void(mut dst: Body<f64>, cavity: Body<f64>) -> Body<f64> {
 /// `(origin, OUTWARD normal)` of a planar face.
 fn plane_of(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, Vec3<f64>) {
     let data = body.get_face(face).expect("the face");
-    let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(face) else {
+    let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(face) else {
         panic!("{face:?} is not planar")
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     (
-        *origin,
-        geom_brep::OutwardNormal::from_chart(*normal, data.sense).vec(),
+        origin,
+        geom_brep::OutwardNormal::from_chart(normal, data.sense).vec(),
     )
 }
 

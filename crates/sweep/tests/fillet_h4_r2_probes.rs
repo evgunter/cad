@@ -118,7 +118,7 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
         .faces()
         .find(|(fk, _)| {
             matches!(boss.face_surface(*fk),
-                Some(Surface::Plane { origin, normal, .. }) if (origin.z - SLAB).abs() < 1e-12 && normal.z > 0.5)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().z - SLAB).abs() < 1e-12 && frame.axis().z > 0.5)
         })
         .map(|(k, _)| k)
         .expect("the top face");

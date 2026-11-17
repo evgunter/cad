@@ -20,8 +20,8 @@ fn plane_face_at(body: &Body<f64>, z: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if (origin.z - z).abs() < 1e-9 && normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
+                Some(geom::Surface::Plane { frame, .. })
+                    if (frame.origin().z - z).abs() < 1e-9 && frame.axis().x.abs() < 1e-9 && frame.axis().y.abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
@@ -35,8 +35,8 @@ fn plane_face_x(body: &Body<f64>, x: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if (origin.x - x).abs() < 1e-9 && normal.y.abs() < 1e-9 && normal.z.abs() < 1e-9
+                Some(geom::Surface::Plane { frame, .. })
+                    if (frame.origin().x - x).abs() < 1e-9 && frame.axis().y.abs() < 1e-9 && frame.axis().z.abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
@@ -427,7 +427,10 @@ fn probe_opened_vessel_cup() {
     let mut caps: Vec<(FaceKey, f64)> = v
         .faces()
         .filter_map(|(k, _)| match v.face_surface(k) {
-            Some(geom::Surface::Plane { origin, .. }) => Some((k, origin.y)),
+            Some(geom::Surface::Plane { frame, .. }) => {
+                let origin = frame.origin();
+                Some((k, origin.y))
+            }
             _ => None,
         })
         .collect();
@@ -471,7 +474,7 @@ fn probe_opened_vessel_cup() {
                 .faces()
                 .filter(|(fk, _)| {
                     matches!(cup.face_surface(*fk),
-                        Some(geom::Surface::Plane { origin, .. }) if (origin.y - h).abs() < 1e-12)
+                        Some(geom::Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() < 1e-12)
                 })
                 .map(|(k, _)| k)
                 .collect();

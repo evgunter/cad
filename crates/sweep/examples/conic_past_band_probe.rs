@@ -174,18 +174,14 @@ const U: f64 = f64::EPSILON / 2.0;
 fn arcs(e: &Curve3<f64>, coord: impl Fn(Point3<f64>) -> f64, lo: f64, hi: f64) -> Vec<(f64, f64)> {
     let tau = core::f64::consts::TAU;
     let Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+        frame,
         semi_u,
         semi_v,
     }) = *e
     else {
         unreachable!()
     };
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let v = axis.cross(u_ref);
     let c = coord(center);
     let zero = coord(Point3::new(0.0, 0.0, 0.0));
@@ -289,20 +285,13 @@ fn read(
     if let (
         Ok(Pcurve::FocalSection(fi)),
         &Surface::Cone {
-            apex, axis, u_ref, ..
+            frame: cone_frame, ..
         },
-        &Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    u_ref: e_u,
-                    origin: center,
-                    ..
-                },
-            semi_u,
-            ..
-        }),
+        &Curve3::Ellipse(geom::Ellipse { frame, semi_u, .. }),
     ) = (&image, quadric, e)
     {
+        let (e_u, center) = (frame.u_ref(), frame.origin());
+        let (apex, axis, u_ref) = (cone_frame.origin(), cone_frame.axis(), cone_frame.u_ref());
         let ra = e_u * semi_u - axis * (e_u * semi_u).dot(axis);
         let start = ra * (center - apex).dot(axis).signum();
         let u0 = start.dot(axis.cross(u_ref)).atan2(start.dot(u_ref));
@@ -391,10 +380,8 @@ fn cone_family(no_split: bool) {
             let apex = m.transform_point(Point3::new(0.0, h + r1 / alpha.tan(), 0.0));
             let axis = m.transform_vec(Vec3::new(0.0, -1.0, 0.0));
             let cone = Surface::Cone {
-                apex,
-                axis,
+                frame: geom::Frame::new(apex, axis, m.transform_vec(Vec3::unit_x())),
                 half_angle: alpha,
-                u_ref: m.transform_vec(Vec3::unit_x()),
             };
             let (o_frame, y_frame) = (
                 m.transform_point(Point3::new(0.0, 0.0, 0.0)),
@@ -409,9 +396,7 @@ fn cone_family(no_split: bool) {
                 let n = m.transform_vec(Vec3::new(phi.sin(), phi.cos(), 0.0));
                 let q = m.transform_point(Point3::new(0.0, 0.5 * h, 0.0));
                 let plane = Surface::Plane {
-                    origin: q,
-                    normal: n,
-                    u_ref: m.transform_vec(Vec3::unit_z()),
+                    frame: geom::Frame::new(q, n, m.transform_vec(Vec3::unit_z())),
                 };
                 let ep = alpha.tan() * phi.tan();
                 let k = (1.0 - ep * ep).max(0.0).sqrt();
@@ -474,10 +459,8 @@ fn cyl_family(no_split: bool) {
         let axis = m.transform_vec(Vec3::unit_z());
         let o = m.transform_point(Point3::new(0.0, 0.0, 0.0));
         let cyl = Surface::Cylinder {
-            origin: o,
-            axis,
+            frame: geom::Frame::new(o, axis, m.transform_vec(Vec3::unit_x())),
             radius: scale,
-            u_ref: m.transform_vec(Vec3::unit_x()),
         };
         let across = (4.0 * scale * scale + scale * scale).sqrt();
         let reach = Reach::fixture(
@@ -489,9 +472,7 @@ fn cyl_family(no_split: bool) {
             let n = m.transform_vec(Vec3::new(phi.sin(), 0.0, phi.cos()));
             let q = m.transform_point(Point3::new(0.0, 0.0, 0.5 * scale));
             let plane = Surface::Plane {
-                origin: q,
-                normal: n,
-                u_ref: m.transform_vec(Vec3::unit_y()),
+                frame: geom::Frame::new(q, n, m.transform_vec(Vec3::unit_y())),
             };
             let out = body
                 .as_ref()

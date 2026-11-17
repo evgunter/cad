@@ -455,7 +455,10 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
     let planes = |body: &Body<f64>| {
         body.faces()
             .filter_map(|(fk, _)| match body.face_surface(fk) {
-                Some(&geom::Surface::Plane { origin, normal, .. }) => Some((origin, normal)),
+                Some(&geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
+                    Some((origin, normal))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>()

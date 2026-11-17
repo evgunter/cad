@@ -291,13 +291,14 @@ fn outward(surface: &geom::Surface<f64>, sense: bool, p: Point3<f64>) -> Option<
     use geom::Surface as S;
     let radial = |w: Vec3<f64>, axis: Vec3<f64>| w - axis * w.dot(axis);
     let n = match *surface {
-        S::Cylinder { origin, axis, .. } => radial(p - origin, axis),
+        S::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            radial(p - origin, axis)
+        }
         S::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let w = p - apex;
             let r = radial(w, axis);
             // Off the axis on either nappe: the chart's `−(radial(u)·cos α
@@ -306,19 +307,21 @@ fn outward(surface: &geom::Surface<f64>, sense: bool, p: Point3<f64>) -> Option<
             let tilt = if w.dot(axis) < 0.0 { -1.0 } else { 1.0 };
             r * (half_angle.cos() / r.norm()) - axis * (tilt * half_angle.sin())
         }
-        S::Sphere { center, .. } => p - center,
+        S::Sphere { frame, .. } => {
+            let center = frame.origin();
+            p - center
+        }
         S::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             ..
         }
         | S::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let w = p - center;
             let r = radial(w, axis);
             w - r * (major_radius / r.norm())
@@ -341,18 +344,14 @@ fn distance(surface: &geom::Surface<f64>, p: Point3<f64>) -> Option<f64> {
         (h, (w - axis * h).norm())
     };
     Some(match *surface {
-        S::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => (split(p - origin, axis).1 - radius).abs(),
+        S::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            (split(p - origin, axis).1 - radius).abs()
+        }
         S::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (h, rho) = split(p - apex, axis);
             let (s, c) = (half_angle.sin(), half_angle.cos());
             // The meridian section is two rays from the apex,
@@ -365,21 +364,23 @@ fn distance(surface: &geom::Surface<f64>, p: Point3<f64>) -> Option<f64> {
                 .into_iter()
                 .fold(f64::INFINITY, f64::min)
         }
-        S::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
+        S::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            ((p - center).norm() - radius).abs()
+        }
         S::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         }
         | S::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (h, rho) = split(p - center, axis);
             ((rho - major_radius).hypot(h) - minor_radius).abs()
         }
@@ -717,9 +718,10 @@ fn nappes(body: &Body<f64>) -> Vec<f64> {
     let points: std::collections::HashMap<_, _> = body.vertex_points().collect();
     body.faces()
         .filter_map(|(fk, face)| {
-            let geom::Surface::Cone { apex, axis, .. } = *body.face_surface(fk)? else {
+            let geom::Surface::Cone { frame, .. } = *body.face_surface(fk)? else {
                 return None;
             };
+            let (apex, axis) = (frame.origin(), frame.axis());
             let topo::LoopBoundary::Cycle { first } = body.get_loop(face.outer)?.boundary else {
                 return None;
             };

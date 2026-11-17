@@ -40,11 +40,15 @@ fn charts(body: &Body<f64>) -> Vec<Chart> {
         .into_iter()
         .map(|faces| {
             let surface = body.get_face(faces[0]).unwrap().surface;
-            let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(surface)
+            let Some(geom::Surface::Plane {
+                frame: carrier_frame,
+                ..
+            }) = body.get_surface(surface)
             else {
                 panic!("every face here is a plane");
             };
-            (faces, *origin, *normal)
+            let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
+            (faces, origin, normal)
         })
         .collect()
 }
@@ -76,8 +80,9 @@ fn worst_incidence(body: &Body<f64>) -> f64 {
     let mut worst: f64 = 0.0;
     for (vk, p) in body.vertex_points() {
         for fk in body.faces_of_vertex(vk).expect("orbit") {
-            if let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(fk) {
-                worst = worst.max(normal.dot(p - *origin).abs());
+            if let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(fk) {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                worst = worst.max(normal.dot(p - origin).abs());
             }
         }
     }

@@ -174,29 +174,37 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     let pi = core::f64::consts::PI;
 
     let sphere = Surface::Sphere {
-        center: Point3::<f64>::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::<f64>::new(0.0, 0.0, 0.0),
+            Vec3::<f64>::new(0.0, 0.0, 1.0),
+            Vec3::<f64>::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
     let cone = Surface::Cone {
-        apex: Point3::<f64>::new(0.0, 0.0, 0.0),
-        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::<f64>::new(0.0, 0.0, 0.0),
+            Vec3::<f64>::new(0.0, 0.0, 1.0),
+            Vec3::<f64>::new(1.0, 0.0, 0.0),
+        ),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
     let cylinder = Surface::Cylinder {
-        origin: Point3::<f64>::new(0.0, 0.0, 0.0),
-        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::<f64>::new(0.0, 0.0, 0.0),
+            Vec3::<f64>::new(0.0, 0.0, 1.0),
+            Vec3::<f64>::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
     let torus = Surface::Torus {
-        center: Point3::<f64>::new(0.0, 0.0, 0.0),
-        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::<f64>::new(0.0, 0.0, 0.0),
+            Vec3::<f64>::new(0.0, 0.0, 1.0),
+            Vec3::<f64>::new(1.0, 0.0, 0.0),
+        ),
         major_radius: 1.0,
         minor_radius: 0.25,
-        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
 
     // A great-circle arc from latitude 0.5 OVER the north pole.

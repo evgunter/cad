@@ -405,7 +405,7 @@ fn fillet_products_carry_no_scaffold_at_rest() {
 fn plane_face_at(body: &Body<f64>, y: f64) -> topo::FaceKey {
     body.faces()
         .find(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-9)
+            matches!(body.face_surface(*fk), Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no planar face at y = {y}"))

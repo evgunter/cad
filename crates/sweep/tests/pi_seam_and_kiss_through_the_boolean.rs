@@ -66,8 +66,8 @@ fn planes_at_z(b: &Body<f64>, z: f64) -> Vec<FaceKey> {
         .filter(|(fk, _)| {
             matches!(
                 b.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if (origin.z - z).abs() < 1e-9 && normal.z.abs() > 0.5
+                Some(geom::Surface::Plane { frame, .. })
+                    if (frame.origin().z - z).abs() < 1e-9 && frame.axis().z.abs() > 0.5
             )
         })
         .map(|(k, _)| k)
@@ -265,13 +265,10 @@ fn the_sphere_capped_tube_builds_as_a_seam() {
             "{label}: the rim's two semicircles: {rims:?}"
         );
         for k in rims {
-            let geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                radius,
-            }) = carrier_of(&body, k)
-            else {
+            let geom::Curve3::Circle(geom::Circle { frame, radius }) = carrier_of(&body, k) else {
                 panic!("{label}: the rim is a circle");
             };
+            let center = frame.origin();
             assert!(
                 (center - Point3::new(0.0, 0.0, H)).norm() < 1e-12 && (radius - R).abs() < 1e-12,
                 "{label}: on the rim at z = H: {center:?}, {radius}"
@@ -743,10 +740,11 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
     let rim_radius = |b: &Body<f64>| -> Vec<f64> {
         b.edges()
             .filter_map(|(e, _)| match carrier_of(b, e) {
-                geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { origin: center, .. },
-                    radius,
-                }) if (center.z - H).abs() < 1e-9 => Some(radius),
+                geom::Curve3::Circle(geom::Circle { frame, radius })
+                    if (frame.origin().z - H).abs() < 1e-9 =>
+                {
+                    Some(radius)
+                }
                 _ => None,
             })
             .collect()

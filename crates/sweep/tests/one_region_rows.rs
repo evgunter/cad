@@ -105,39 +105,34 @@ enum Kind {
 impl Frame {
     fn of(surface: &Surface<f64>) -> Self {
         let (origin, axis, e1, kind) = match *surface {
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => (origin, axis, u_ref, Kind::Cylinder { radius }),
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => (apex, axis, u_ref, Kind::Cone { half_angle }),
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => (center, axis, u_ref, Kind::Sphere { radius }),
+            Surface::Cylinder { frame, radius } => {
+                let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                (origin, axis, u_ref, Kind::Cylinder { radius })
+            }
+            Surface::Cone { frame, half_angle } => {
+                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                (apex, axis, u_ref, Kind::Cone { half_angle })
+            }
+            Surface::Sphere { frame, radius } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                (center, axis, u_ref, Kind::Sphere { radius })
+            }
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => (
-                center,
-                axis,
-                u_ref,
-                Kind::Torus {
-                    major: major_radius,
-                    minor: minor_radius,
-                },
-            ),
+            } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                (
+                    center,
+                    axis,
+                    u_ref,
+                    Kind::Torus {
+                        major: major_radius,
+                        minor: minor_radius,
+                    },
+                )
+            }
             _ => panic!("a surface of revolution"),
         };
         Self {
@@ -1288,7 +1283,10 @@ fn a_frustums_apex<T: Scalar>(scalar: &str) {
     let (k, apex) = at_f64
         .faces()
         .find_map(|(k, _)| match at_f64.face_surface(k) {
-            Some(Surface::Cone { apex, .. }) => Some((k, *apex)),
+            Some(Surface::Cone { frame, .. }) => {
+                let apex = frame.origin();
+                Some((k, apex))
+            }
             _ => None,
         })
         .expect("the frustum's cone face");

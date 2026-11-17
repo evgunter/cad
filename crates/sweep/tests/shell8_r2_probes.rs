@@ -495,9 +495,10 @@ fn twin_of(naming: &ShellNaming, source: FaceKey) -> FaceKey {
 /// solid-scoped face query.
 fn wall(body: &Body<f64>, solid: SolidKey, axis: Vec3<f64>, value: f64) -> FaceKey {
     for face in faces_of(body, solid) {
-        let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(face) else {
+        let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(face) else {
             continue;
         };
+        let (origin, normal) = (frame.origin(), frame.axis());
         if normal.cross(axis).norm() < 1e-9
             && (Vec3::new(origin.x, origin.y, origin.z).dot(axis) - value).abs() < 1e-9
         {
@@ -743,8 +744,8 @@ fn plane_face_at_z(body: &Body<f64>, solid: SolidKey, z0: f64) -> Vec<FaceKey> {
         .filter(|&f| {
             matches!(
                 body.face_surface(f),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if (origin.z - z0).abs() < 1e-12 && normal.z.abs() > 0.5
+                Some(geom::Surface::Plane { frame, .. })
+                    if (frame.origin().z - z0).abs() < 1e-12 && frame.axis().z.abs() > 0.5
             )
         })
         .collect()
@@ -900,16 +901,19 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
     let top = plane_face_at_z(&body, down, 1.0)[0];
     let bottom = plane_face_at_z(&body, up, 1.0)[0];
     let key = body.get_face(top).unwrap().surface;
-    let Some(geom::Surface::Plane { normal: n_top, .. }) = body.get_surface(key).cloned() else {
+    let Some(geom::Surface::Plane {
+        frame: carrier_frame,
+        ..
+    }) = body.get_surface(key).cloned()
+    else {
         panic!("top is planar")
     };
+    let n_top = carrier_frame.axis();
     let bottom_data = body.get_face(bottom).unwrap();
-    let Some(geom::Surface::Plane {
-        normal: n_bottom, ..
-    }) = body.face_surface(bottom).cloned()
-    else {
+    let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(bottom).cloned() else {
         panic!("bottom is planar")
     };
+    let n_bottom = frame.axis();
     // The bottom's outward direction, stated against the shared chart.
     let outward = if bottom_data.sense {
         n_bottom

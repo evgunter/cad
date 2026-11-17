@@ -133,7 +133,7 @@ pub fn ring_on_cap(body: &mut Body<f64>, h: f64, r: f64, rr: f64) {
         .faces()
         .find(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if (origin.y - h).abs() <= 1e-12)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() <= 1e-12)
         })
         .expect("the cap")
         .0;

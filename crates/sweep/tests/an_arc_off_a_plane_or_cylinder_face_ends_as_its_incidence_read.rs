@@ -143,7 +143,10 @@ fn rows<T: Decide + AtRestPolicy + Bounds>() -> Vec<Row<T>> {
 
     let body = cube::<T>();
     let side = |s: &Surface<T>| match s {
-        Surface::Plane { normal, .. } => normal.x.hi().abs() > 0.5,
+        Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            normal.x.hi().abs() > 0.5
+        }
         _ => false,
     };
     let (edge, start, end, chart) = edge_at(&body, [1.0, 1.0, 0.0], [1.0, 1.0, H], side);

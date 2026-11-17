@@ -150,12 +150,10 @@ pub(crate) fn assert_refused(
 /// The sphere `key` lies on: centre, radius and unit polar axis.
 pub(crate) fn sphere_of(body: &Body<f64>, key: FaceKey) -> (Point3<f64>, f64, Vec3<f64>) {
     match body.face_surface(key) {
-        Some(&Surface::Sphere {
-            center,
-            radius,
-            axis,
-            ..
-        }) => (center, radius, axis.normalize()),
+        Some(&Surface::Sphere { frame, radius, .. }) => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            (center, radius, axis.normalize())
+        }
         _ => panic!("not a sphere face"),
     }
 }

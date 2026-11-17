@@ -346,9 +346,11 @@ mod tests {
 
     fn plane() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
     }
 
@@ -359,29 +361,37 @@ mod tests {
         let surfaces = [
             plane(),
             Surface::Cylinder {
-                origin: Point3::new(1.0, 2.0, 3.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(1.0, 2.0, 3.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 0.5,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             Surface::Cone {
-                apex: Point3::new(0.0, 0.0, 1.0),
-                axis: Vec3::new(0.0, 0.0, -1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 1.0),
+                    Vec3::new(0.0, 0.0, -1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 half_angle: core::f64::consts::FRAC_PI_4,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             Surface::Sphere {
-                center: Point3::new(-1.0, 0.0, 0.5),
+                frame: geom::Frame::new(
+                    Point3::new(-1.0, 0.0, 0.5),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 2.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             Surface::Torus {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 major_radius: 1.0,
                 minor_radius: 0.25,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
         ];
         for s in &surfaces {
@@ -453,10 +463,12 @@ mod review_outerness {
 
     fn cyl() -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
     fn ring_on_cyl(u0: f64, u1: f64, z0: f64, z1: f64, n: usize) -> Vec<Point3<f64>> {
@@ -566,10 +578,12 @@ mod review_outerness {
         );
         // 6. NotOnChart: a ring sample AT the sphere pole.
         let sph = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let mut polar = lat_ring(1.0, 1.2, 16, true);
         polar[3] = Point3::new(0.0, 0.0, 1.0); // the pole

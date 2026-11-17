@@ -1333,10 +1333,12 @@ mod tests {
             eps: 1e-9,
             k: 10.0,
             surface: Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
             loops: vec![vec![edge(1.0, [10, 11, 12]), edge(2.0, [12, 13, 10])]],
@@ -1365,9 +1367,7 @@ mod tests {
             (
                 "spiric",
                 Curve3::Spiric {
-                    center: frame.0,
-                    axis: frame.1,
-                    u_ref: frame.2,
+                    frame: geom::Frame::new(frame.0, frame.1, frame.2),
                     major_radius: 1.2,
                     minor_radius: 0.225,
                     offset: 0.05,
@@ -1401,10 +1401,12 @@ mod tests {
             "the surface's kind",
             |f| {
                 f.surface = Surface::Sphere {
-                    center: Point3::origin(),
+                    frame: geom::Frame::new(
+                        Point3::origin(),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     radius: 1.0,
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
                 }
             },
             [true, true, true],

@@ -151,10 +151,12 @@ fn pole_crossing_three_faces() -> (Body<f64>, [FaceKey; 3]) {
         seed.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -278,10 +280,12 @@ fn pole_crossing_three_faces_with_seam() -> (Body<f64>, [FaceKey; 3]) {
         seed.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },

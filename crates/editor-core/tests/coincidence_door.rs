@@ -4226,15 +4226,24 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                     let residuals = match key {
                         EntityKey::Face(face) => {
                             match body.face_surface(*face).expect("a face has a surface") {
-                                Surface::Cylinder { origin, axis, .. } => {
-                                    line_on(*origin, Some(*axis))
+                                Surface::Cylinder { frame, .. } => {
+                                    let (origin, axis) = (frame.origin(), frame.axis());
+                                    line_on(origin, Some(axis))
                                 }
-                                Surface::Cone { apex, axis, .. } => line_on(*apex, Some(*axis)),
-                                Surface::Torus { center, axis, .. } => {
-                                    line_on(*center, Some(*axis))
+                                Surface::Cone { frame, .. } => {
+                                    let (apex, axis) = (frame.origin(), frame.axis());
+                                    line_on(apex, Some(axis))
                                 }
-                                Surface::Sphere { center, .. } => line_on(*center, None),
-                                Surface::Plane { normal, .. } => {
+                                Surface::Torus { frame, .. } => {
+                                    let (center, axis) = (frame.origin(), frame.axis());
+                                    line_on(center, Some(axis))
+                                }
+                                Surface::Sphere { frame, .. } => {
+                                    let center = frame.origin();
+                                    line_on(center, None)
+                                }
+                                Surface::Plane { frame, .. } => {
+                                    let normal = frame.axis();
                                     let c = normal.cross(dir);
                                     vec![c.x, c.y, c.z]
                                 }
@@ -4248,15 +4257,10 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                             .map(geom_brep::EdgeCurve::carrier)
                             .expect("an edge has a carrier")
                         {
-                            Curve3::Circle(geom::Circle {
-                                frame:
-                                    geom::Frame {
-                                        origin: center,
-                                        axis,
-                                        ..
-                                    },
-                                ..
-                            }) => line_on(*center, Some(*axis)),
+                            Curve3::Circle(geom::Circle { frame, .. }) => {
+                                let (center, axis) = (frame.origin(), frame.axis());
+                                line_on(center, Some(axis))
+                            }
                             Curve3::Line(geom::Line { origin, dir }) => {
                                 line_on(*origin, Some(*dir))
                             }

@@ -304,46 +304,41 @@ pub(super) fn band_chart<T: Decide>(
     Ok(match (&l.blend.surface, at) {
         (
             &Surface::Torus {
-                center,
-                axis,
+                frame: torus_frame,
                 major_radius,
                 minor_radius,
                 ..
             },
             _,
         ) => {
+            let (center, axis) = (torus_frame.origin(), torus_frame.axis());
             let (c, (t0, t1)) = stored_piece(body, l.edge)?;
             let radial = radial_about(center, axis, c.eval(geom::mid_param(t0, t1)));
             Surface::Torus {
-                center,
-                axis,
+                frame: geom::Frame::new(center, axis, -radial),
                 major_radius,
                 minor_radius,
-                u_ref: -radial,
             }
         }
         (
             &Surface::Cone {
-                apex,
-                axis,
+                frame: cone_frame,
                 half_angle,
                 ..
             },
             _,
         ) => {
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
             let (c, (t0, t1)) = stored_piece(body, l.edge)?;
             let radial = radial_about(apex, axis, c.eval(geom::mid_param(t0, t1)));
             Surface::Cone {
-                apex,
-                axis,
+                frame: geom::Frame::new(apex, axis, -radial),
                 half_angle,
-                u_ref: -radial,
             }
         }
         (
             &Surface::Cylinder {
-                origin,
-                axis,
+                frame: cylinder_frame,
                 radius,
                 ..
             },
@@ -353,12 +348,11 @@ pub(super) fn band_chart<T: Decide>(
                 section: Section::Circle(section),
             }),
         ) => {
+            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
             let mid = (*host_foot - section.centre) + (*mate_foot - section.centre);
             Surface::Cylinder {
-                origin,
-                axis,
+                frame: geom::Frame::new(origin, axis, -(mid - axis * mid.dot(axis)).normalize()),
                 radius,
-                u_ref: -(mid - axis * mid.dot(axis)).normalize(),
             }
         }
         (s, _) => s.clone(),
@@ -621,7 +615,7 @@ pub(super) fn rim_trim_circles<T: Real>(
 ) -> Result<((Point3<T>, T), (Point3<T>, T)), BlendError> {
     let ((first_trim, _), (other_trim, _)) = blend.trims(first_is_a);
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: pc, .. },
+        frame: carrier_frame,
         radius: pr,
     }) = *first_trim
     else {
@@ -630,8 +624,9 @@ pub(super) fn rim_trim_circles<T: Real>(
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
+    let pc = carrier_frame.origin();
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: sc, .. },
+        frame: carrier_frame,
         radius: sr,
     }) = *other_trim
     else {
@@ -640,6 +635,7 @@ pub(super) fn rim_trim_circles<T: Real>(
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
+    let sc = carrier_frame.origin();
     Ok(((pc, pr), (sc, sr)))
 }
 
@@ -670,7 +666,7 @@ pub(super) fn rim_carrier<T: Decide>(
     let host_half = host_side_half(body, link, host)
         .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge's host-side half"))?;
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { axis, u_ref, .. },
+        frame: carrier_frame,
         ..
     }) = *c.carrier()
     else {
@@ -680,6 +676,7 @@ pub(super) fn rim_carrier<T: Decide>(
              for",
         ));
     };
+    let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
     let (t0, t1) = c.params();
     Ok(RimCarrier {
         axis,

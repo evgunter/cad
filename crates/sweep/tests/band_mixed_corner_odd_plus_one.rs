@@ -58,8 +58,9 @@ fn chamfer<T: Scalar>(body: &Body<T>, edges: &[EdgeKey], s: f64) -> Result<Blend
 /// bounds allow.
 fn off<T: Scalar>(s: &Surface<T>, p: geom_core::Point3<T>) -> f64 {
     match s {
-        Surface::Plane { origin, normal, .. } => {
-            let d = (p - *origin).dot(*normal);
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            let d = (p - origin).dot(normal);
             d.lo().abs().max(d.hi().abs())
         }
         other => panic!("a chamfer's corner edge joins a {other:?}"),

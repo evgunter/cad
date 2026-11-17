@@ -231,7 +231,10 @@ fn a_bore_rim_hosts_its_plane_too() {
 /// y ≈ 0.867. So `apex.y > 1` says "the LOWER wall".
 fn cone_apex_y(s: &Surface<f64>) -> f64 {
     match s {
-        Surface::Cone { apex, .. } => apex.y,
+        Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
+            apex.y
+        }
         other => panic!("expected a cone, got {other:?}"),
     }
 }

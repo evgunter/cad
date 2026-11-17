@@ -221,8 +221,8 @@ fn the_interval_seam_refuses_at_every_public_door() {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { origin, normal, .. })
-                    if Bounds::lo(normal.z) > 0.5 && Bounds::lo(origin.z) > 0.5
+                Some(Surface::Plane { frame, .. })
+                    if Bounds::lo(frame.axis().z) > 0.5 && Bounds::lo(frame.origin().z) > 0.5
             )
         })
         .map(|(k, _)| k)
@@ -303,8 +303,8 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { origin, normal, .. })
-                    if Bounds::lo(normal.z) > 0.5 && Bounds::lo(origin.z) > 0.5
+                Some(Surface::Plane { frame, .. })
+                    if Bounds::lo(frame.axis().z) > 0.5 && Bounds::lo(frame.origin().z) > 0.5
             )
         })
         .map(|(k, _)| k)

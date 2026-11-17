@@ -3771,14 +3771,12 @@ pub(super) mod tests {
             for (fk, face) in body.faces() {
                 let surface = body.face_surface(fk).unwrap();
                 let geom::Surface::Cone {
-                    apex,
-                    axis,
-                    half_angle,
-                    ..
+                    frame, half_angle, ..
                 } = *surface
                 else {
                     continue;
                 };
+                let (apex, axis) = (frame.origin(), frame.axis());
                 if crate::tessellate::lane_of(
                     &body,
                     fk,
@@ -4101,10 +4099,8 @@ pub(super) mod tests {
             let surfaces = [
                 (
                     Surface::Cone {
-                        apex: far,
-                        axis,
+                        frame: geom::Frame::new(far, axis, u_ref),
                         half_angle: 0.5,
-                        u_ref,
                     },
                     Analytic::Cone {
                         half_angle: 0.5,
@@ -4113,10 +4109,8 @@ pub(super) mod tests {
                 ),
                 (
                     Surface::Sphere {
-                        center: far,
+                        frame: geom::Frame::new(far, axis, u_ref),
                         radius: scale,
-                        axis,
-                        u_ref,
                     },
                     Analytic::Sphere {
                         radius: scale,
@@ -4125,11 +4119,9 @@ pub(super) mod tests {
                 ),
                 (
                     Surface::Spindle {
-                        center: far,
-                        axis,
+                        frame: geom::Frame::new(far, axis, u_ref),
                         major_radius: -0.5 * scale,
                         minor_radius: scale,
-                        u_ref,
                     },
                     Analytic::Spindle {
                         major: -0.5 * scale,
@@ -4172,20 +4164,16 @@ pub(super) mod tests {
             for (surface, kind) in [
                 (
                     Surface::Cylinder {
-                        origin: far,
-                        axis,
+                        frame: geom::Frame::new(far, axis, u_ref),
                         radius: scale,
-                        u_ref,
                     },
                     Analytic::Cylinder { radius: scale },
                 ),
                 (
                     Surface::Torus {
-                        center: far,
-                        axis,
+                        frame: geom::Frame::new(far, axis, u_ref),
                         major_radius: 2.0 * scale,
                         minor_radius: 0.5 * scale,
-                        u_ref,
                     },
                     Analytic::Torus {
                         major: 2.0 * scale,
@@ -5193,10 +5181,12 @@ pub(super) mod tests {
         use geom_core::{Band, Point3, Tol, Vec3};
         use spade::MIN_ALLOWED_VALUE as FLOOR;
         let sphere = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let row = crate::chart_table::ChartRow::Analytic(
             crate::chart_table::AnalyticRow::new(&sphere, 1.0).unwrap(),
@@ -5286,10 +5276,12 @@ pub(super) mod tests {
 
         fn cone(half_angle: f64) -> Surface<f64> {
             Surface::Cone {
-                apex: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 half_angle,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             }
         }
 

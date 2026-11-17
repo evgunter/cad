@@ -67,7 +67,10 @@ fn bottom_cap_ray(lo: f64, hi: f64) -> String {
             .faces()
             .map(|(face, _)| face)
             .find(|&face| match *body.face(face).unwrap().surface() {
-                geom::Surface::Plane { normal, .. } => normal.z.hi() < -0.5,
+                geom::Surface::Plane { frame, .. } => {
+                    let normal = frame.axis();
+                    normal.z.hi() < -0.5
+                }
                 _ => false,
             })
             .expect("the slab has a cap facing down");

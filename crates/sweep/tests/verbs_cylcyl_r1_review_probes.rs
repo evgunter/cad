@@ -547,10 +547,10 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
         .find(|(fk, _)| {
             matches!(
                 plate.face_surface(*fk),
-                Some(geom::Surface::Cylinder { origin: o, radius, .. })
+                Some(geom::Surface::Cylinder { frame, radius, .. })
                     if (*radius - 6.0).abs() < 1e-9
-                        && (o.x - 6.0).abs() < 1e-9
-                        && (o.y - 6.0).abs() < 1e-9
+                        && (frame.origin().x - 6.0).abs() < 1e-9
+                        && (frame.origin().y - 6.0).abs() < 1e-9
             )
         })
         .map(|(k, _)| k)

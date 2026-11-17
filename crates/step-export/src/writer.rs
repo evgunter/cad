@@ -319,9 +319,9 @@ impl<'a> Writer<'a> {
         frame: &geom::Frame<f64>,
         [origin_context, axis_context, ref_context]: [&'static str; 3],
     ) -> Result<u64, StepExportError> {
-        let cp = self.cartesian_point(frame.origin, origin_context)?;
-        let a = self.direction(frame.axis, axis_context)?;
-        let r = self.direction(frame.u_ref, ref_context)?;
+        let cp = self.cartesian_point(frame.origin(), origin_context)?;
+        let a = self.direction(frame.axis(), axis_context)?;
+        let r = self.direction(frame.u_ref(), ref_context)?;
         Ok(self.emit(&format!("AXIS2_PLACEMENT_3D('', #{cp}, #{a}, #{r})")))
     }
 

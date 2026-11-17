@@ -223,11 +223,9 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
         assert!(!keys.is_empty(), "{what}: no sheet");
         for key in keys {
             let Some(geom::Surface::Spindle {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             }) = body.get_surface(key).cloned()
             else {
                 unreachable!("the key was read off a sheet")
@@ -236,11 +234,9 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
                 .with_surface_moved_for_tests(
                     key,
                     geom::Surface::Spindle {
-                        center,
-                        axis,
+                        frame: carrier_frame,
                         major_radius: -major_radius,
                         minor_radius,
-                        u_ref,
                     },
                 )
                 .unwrap();

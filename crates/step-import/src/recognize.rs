@@ -230,9 +230,7 @@ fn try_plane(patch: &NurbsSurface<f64>, eps_in: f64) -> Option<(Surface<f64>, f6
     // them is a function of the input.
     let (u_ref, _) = normal.orthonormal_basis();
     let plane = Surface::Plane {
-        origin: plus_zero_point(origin),
-        normal,
-        u_ref: plus_zero(u_ref),
+        frame: geom::Frame::new(plus_zero_point(origin), normal, plus_zero(u_ref)),
     };
     // The hull sup-bound over the WHOLE net — BOTH tracks (R1 fix
     // pass, M-1): with strictly positive weights the rational basis
@@ -331,10 +329,12 @@ fn try_cylinder(
         return Ok(None);
     };
     let cylinder = Surface::Cylinder {
-        origin: plus_zero_point(center),
-        axis: plus_zero(axis),
+        frame: geom::Frame::new(
+            plus_zero_point(center),
+            plus_zero(axis),
+            plus_zero(radial_hat),
+        ),
         radius,
-        u_ref: plus_zero(radial_hat),
     };
     // The residual's Lipschitz constant in the point (envelope docs):
     // `|∇ implicit| = ρ/r`, and with positive weights the patch lies
@@ -715,10 +715,12 @@ mod review_probes {
     /// cylinder (chart normal radially outward by construction).
     fn unit_cylinder() -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -782,7 +784,10 @@ mod review_probes {
                     "a promoted plane is pre-aligned: never flipped"
                 );
                 match surface {
-                    Surface::Plane { normal, .. } => normal,
+                    Surface::Plane { frame, .. } => {
+                        let normal = frame.axis();
+                        normal
+                    }
                     other => panic!("a plane patch promotes to a plane: {other:?}"),
                 }
             }
@@ -859,7 +864,8 @@ mod review_probes {
                 assert_eq!(kind, PromotedKind::Cylinder);
                 assert!(residual <= 0.9, "truthful residual: {residual:e}");
                 match surface {
-                    Surface::Cylinder { radius, axis, .. } => {
+                    Surface::Cylinder { frame, radius, .. } => {
+                        let axis = frame.axis();
                         assert!((radius - 1.0).abs() < 1e-12, "radius {radius}");
                         assert!(axis.dot(Vec3::new(0.0, 0.0, 1.0)).abs() > 1.0 - 1e-12);
                     }

@@ -45,10 +45,12 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
 #[test]
 fn r1_the_steinmetz_seam_residual_is_a_nonnegative_parabola() {
     let b_wall = geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 2.0, 0.0),
-        axis: Vec3::new(0.0, -1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 2.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     for k in -20i32..=20 {
         let z = f64::from(k) * 0.1;

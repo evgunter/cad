@@ -390,7 +390,8 @@ fn d_prism_with_split_keys() -> (
     let y0_walls: Vec<_> = body
         .faces()
         .filter(|(fk, _)| match body.face_surface(*fk) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => {
+            Some(geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
                 origin.y.abs() < 1e-12 && normal.y < -0.5
             }
             _ => false,

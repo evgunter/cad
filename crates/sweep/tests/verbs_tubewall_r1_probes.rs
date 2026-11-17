@@ -229,8 +229,9 @@ fn u_ref_caveat_is_honest_in_both_directions() {
         .expect("builds");
         let mut out = Vec::new();
         for (fk, _) in t.body.faces() {
-            if let Some(Surface::Torus { u_ref, .. }) = t.body.face_surface(fk) {
-                out.push(*u_ref);
+            if let Some(Surface::Torus { frame, .. }) = t.body.face_surface(fk) {
+                let u_ref = frame.u_ref();
+                out.push(u_ref);
             }
         }
         out

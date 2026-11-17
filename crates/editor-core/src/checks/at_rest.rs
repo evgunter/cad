@@ -1915,7 +1915,10 @@ fn beyond(
     // The region is turned with the carrier's own chart, so it moves
     // with the inputs and not with the computing axes.
     let reference = match aggregate.face_surface(face) {
-        Some(topo::Surface::Plane { u_ref, .. } | topo::Surface::Cylinder { u_ref, .. }) => *u_ref,
+        Some(topo::Surface::Plane { frame, .. } | topo::Surface::Cylinder { frame, .. }) => {
+            let u_ref = frame.u_ref();
+            u_ref
+        }
         _ => return Err("the carrier's surface is unreadable".to_owned()),
     };
     let frame =

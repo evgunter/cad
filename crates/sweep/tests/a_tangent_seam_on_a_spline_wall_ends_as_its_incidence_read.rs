@@ -87,15 +87,10 @@ fn net_of(
     seams: &[HalfEdgeKey],
     radius: f64,
 ) -> Surface<f64> {
-    let Surface::Cylinder {
-        origin,
-        axis,
-        u_ref,
-        ..
-    } = *cylinder
-    else {
+    let Surface::Cylinder { frame, .. } = *cylinder else {
         unreachable!()
     };
+    let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let (e1, e3) = (u_ref.normalize(), axis.normalize());
     let e2 = e3.cross(e1);
     let (mut azimuths, mut heights) = (Vec::new(), Vec::new());

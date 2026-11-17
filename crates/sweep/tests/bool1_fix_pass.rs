@@ -101,8 +101,8 @@ fn a_coplanar_split_leaves_no_edge_between_two_coplanar_records() {
         .filter(|&(k, _)| {
             let (fa, fb) = faces_of(below, k);
             let plane_y1 = |f: FaceKey| {
-                matches!(below.get_surface(surf(f)), Some(geom::Surface::Plane { origin, normal, .. })
-                    if origin.y == 1.0 && normal.x == 0.0 && normal.z == 0.0)
+                matches!(below.get_surface(surf(f)), Some(geom::Surface::Plane { frame, .. })
+                    if frame.origin().y == 1.0 && frame.axis().x == 0.0 && frame.axis().z == 0.0)
             };
             plane_y1(fa) && plane_y1(fb)
         })
@@ -159,13 +159,10 @@ fn a_split_at_an_annulus_plane_merges_it_keeping_its_rims_carrier_bits() {
             .edges()
             .filter_map(|(_, e)| {
                 let c = b.get_curve_geom(e.curve)?.certified()?;
-                let geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { origin: center, .. },
-                    radius,
-                }) = *c.carrier()
-                else {
+                let geom::Curve3::Circle(geom::Circle { frame, radius }) = *c.carrier() else {
                     return None;
                 };
+                let center = frame.origin();
                 (center.y == 1.0 && radius == r).then(|| {
                     let (t0, t1) = c.params();
                     format!("{:?} [{:x},{:x}]", c.carrier(), t0.to_bits(), t1.to_bits())

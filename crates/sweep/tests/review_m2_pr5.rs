@@ -110,27 +110,22 @@ fn my_signed_volume(body: &Body<f64>) -> f64 {
 /// the u = 0 iso-curve of ITS surface.
 fn azimuth_about(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
     let (anchor, axis, u_ref): (Point3<f64>, Vec3<f64>, Vec3<f64>) = match *surface {
-        Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            ..
-        } => (origin, axis, u_ref),
-        Surface::Cone {
-            apex, axis, u_ref, ..
-        } => (apex, axis, u_ref),
-        Surface::Sphere {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => (center, axis, u_ref),
-        Surface::Torus {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => (center, axis, u_ref),
+        Surface::Cylinder { frame, .. } => {
+            let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (origin, axis, u_ref)
+        }
+        Surface::Cone { frame, .. } => {
+            let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (apex, axis, u_ref)
+        }
+        Surface::Sphere { frame, .. } => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (center, axis, u_ref)
+        }
+        Surface::Torus { frame, .. } => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (center, axis, u_ref)
+        }
         _ => panic!("not axisymmetric"),
     };
     let w = p - anchor;
@@ -335,11 +330,12 @@ fn survives_wire_four_segment_dome_two_band_structure() {
         Surface::Cylinder { .. }
     ));
     let Surface::Cone {
-        apex, half_angle, ..
+        frame, half_angle, ..
     } = kind_of(t.walls()[0][2].unwrap())
     else {
         panic!("cone wall");
     };
+    let apex = frame.origin();
     assert!(apex.distance(Point3::new(0.0, 2.0, 0.0)) < 1e-12);
     assert!((half_angle - FRAC_PI_2 / 2.0).abs() < 1e-12);
     assert!(matches!(
@@ -845,13 +841,10 @@ fn survives_rim_witness_is_bitwise_mid_parameter_antipode() {
         assert_eq!(witness.z.to_bits(), mid.z.to_bits());
         // And it is the start point's antipode, not the start point.
         let start = c.carrier().eval(t0);
-        let Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
-            ..
-        }) = c.carrier().clone()
-        else {
+        let Curve3::Circle(geom::Circle { frame, .. }) = c.carrier().clone() else {
             panic!("rim carrier")
         };
+        let center = frame.origin();
         assert!(
             witness.distance(start) > 1.0,
             "witness must not be the start point"

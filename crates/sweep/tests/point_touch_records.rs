@@ -31,8 +31,8 @@ fn top(body: &Body<f64>, z: f64) -> topo::FaceKey {
     body.faces()
         .find(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() > 0.5 && (origin.z - z).abs() < 1e-12)
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.axis().z.abs() > 0.5 && (frame.origin().z - z).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .unwrap()

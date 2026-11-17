@@ -81,10 +81,8 @@ fn lune() -> Lune {
         seed.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), z(), Vec3::new(1.0, 0.0, 0.0)),
                 radius: 1.0,
-                axis: z(),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },

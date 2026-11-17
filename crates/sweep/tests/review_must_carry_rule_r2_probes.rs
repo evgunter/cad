@@ -214,41 +214,29 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
     let circle = Curve3::circle(p, axis, 1.0, u_ref);
     let reps: Vec<Surface<f64>> = vec![
         Surface::Plane {
-            origin: p,
-            normal: axis,
-            u_ref,
+            frame: geom::Frame::new(p, axis, u_ref),
         },
         Surface::Cylinder {
-            origin: p,
-            axis,
+            frame: geom::Frame::new(p, axis, u_ref),
             radius: 1.0,
-            u_ref,
         },
         Surface::Cone {
-            apex: p,
-            axis,
+            frame: geom::Frame::new(p, axis, u_ref),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref,
         },
         Surface::Sphere {
-            center: p,
+            frame: geom::Frame::new(p, axis, u_ref),
             radius: 1.0,
-            axis,
-            u_ref,
         },
         Surface::Torus {
-            center: p,
-            axis,
+            frame: geom::Frame::new(p, axis, u_ref),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref,
         },
         Surface::Spindle {
-            center: p,
-            axis,
+            frame: geom::Frame::new(p, axis, u_ref),
             major_radius: -0.5,
             minor_radius: 1.0,
-            u_ref,
         },
     ];
     for a in &reps {
@@ -358,16 +346,20 @@ fn varying_triple() -> (
     geom_core::Lever<f64>,
 ) {
     let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let cylinder = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let carrier = Curve3::circle(
         Point3::new(0.0, 0.0, 0.0),

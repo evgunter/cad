@@ -899,9 +899,7 @@ pub(crate) fn cap_plane<T: Real>(
         normal.reversed()
     };
     Surface::Plane {
-        origin: station.origin(),
-        normal: normal.get(),
-        u_ref: station.first_axis().get(),
+        frame: geom::Frame::new(station.origin(), normal.get(), station.first_axis().get()),
     }
 }
 
@@ -1648,13 +1646,14 @@ mod tests {
             let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, tol);
             let Curve3::Circle(
                 circle @ geom::Circle {
-                    frame: geom::Frame { origin: center, .. },
+                    frame: carrier_frame,
                     radius,
                 },
             ) = spec.carrier
             else {
                 panic!("an arc places onto a circle carrier");
             };
+            let center = carrier_frame.origin();
             let sign = |m: S| m.sign_within(band).map(|d| d.sign).ok();
             let rim = (q_from - center).norm();
             let end = Curve3::circle_at(&circle.frame, radius, spec.param_end);
@@ -2046,15 +2045,19 @@ pub(crate) mod must_carry_fixtures {
     /// extent in band.
     pub(crate) fn arm() -> MustCarryEscalation {
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let cylinder = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.25, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.25, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 0.25,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         in_band_at(&plane, &cylinder, &z_axis(), in_band())
     }
@@ -2066,14 +2069,18 @@ pub(crate) mod must_carry_fixtures {
         let sin_theta = in_band() / extent;
         let cos_theta = (1.0 - sin_theta * sin_theta).sqrt();
         let flat = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let tilted = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(-sin_theta, cos_theta, 0.0),
-            u_ref: Vec3::new(cos_theta, sin_theta, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(-sin_theta, cos_theta, 0.0),
+                Vec3::new(cos_theta, sin_theta, 0.0),
+            ),
         };
         in_band_at(&flat, &tilted, &z_axis(), extent)
     }

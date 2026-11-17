@@ -39,10 +39,11 @@ fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
                 assert_eq!(radius, D, "{what}: a circle end")
             }
             Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { axis, .. },
+                frame: carrier_frame,
                 semi_u,
                 semi_v,
             }) => {
+                let axis = carrier_frame.axis();
                 ellipses += 1;
                 assert!(
                     (semi_v - D).abs() < 1e-15,
@@ -54,7 +55,10 @@ fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
                     .find_map(|f| {
                         let s = out.body.face_surface(*f)?;
                         match *s {
-                            geom::Surface::Cylinder { axis, .. } => Some(axis),
+                            geom::Surface::Cylinder { frame, .. } => {
+                                let axis = frame.axis();
+                                Some(axis)
+                            }
                             _ => None,
                         }
                     })

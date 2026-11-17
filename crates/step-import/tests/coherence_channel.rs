@@ -244,7 +244,10 @@ fn split_half_cap(tol: Tol) -> Body<f64> {
     let (centre, axis) = body
         .faces()
         .find_map(|(fk, _)| match body.face_surface(fk) {
-            Some(geom::Surface::Sphere { center, axis, .. }) => Some((*center, *axis)),
+            Some(geom::Surface::Sphere { frame, .. }) => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                Some((center, axis))
+            }
             _ => None,
         })
         .expect("a sphere face");
