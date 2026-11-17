@@ -1106,7 +1106,7 @@ measures agree at rounding level. On a curved body they differ by the
 budget, and the difference shrinks with it — `docs/guide/meshing.md`
 runs that convergence.
 
-Python's document also persists and replays bit-identically:
+Python's document also saves and loads bit-identically:
 
 ```python
 from pncad import Doc, Formula, Node, evaluate, load, mm
@@ -1120,8 +1120,8 @@ profile = doc.insert(Node.polygon([
 doc.insert(Node.extrude(profile, Formula.length_in(1, mm)))
 
 text = doc.save()
-replayed = load(text).doc
-assert doc.bit_eq(replayed), "replay is bit-identical, not merely close"
+loaded = load(text)
+assert doc.bit_eq(loaded), "the load is bit-identical, not merely close"
 ```
 
 Bit-identity is a real guarantee, not a hope: the kernel uses pure
