@@ -41,9 +41,9 @@
 //! (unsupported kind, malformed net, zero-touching divisor) yields
 //! [`Interval::refused`], which fails every downstream test. An
 //! enclosure is narrowed only by meeting it with another enclosure of
-//! the same quantity (the torus arm's mean-value and direct forms of
-//! one `g`), and a branch on a value only ever refuses (the torus's
-//! `A` not shown positive).
+//! the same quantity (the mean-value and direct forms of the torus
+//! arm's `g` and of [`graph_margin`]), and a branch on a value only
+//! ever refuses (the torus's `A` not shown positive).
 //!
 //! # The M6-2 seam: generic scalars in, enclosures out
 //!
