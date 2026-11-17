@@ -41,7 +41,6 @@ fn restamped_at_process_epsilon(text: &str) -> String {
     let tol = Tol::witness();
     let probe = save(
         &ProfileDoc::empty_derived("wire-rv-epsilon-probe", tol),
-        &[],
         tol,
     )
     .expect("an empty document saves");

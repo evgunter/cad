@@ -37,7 +37,7 @@ fn small() -> String {
             distance: len(1.0),
         },
     );
-    save(&doc, &[], Tol::witness()).expect("saves")
+    save(&doc, Tol::witness()).expect("saves")
 }
 
 fn split(text: &str) -> (String, serde_json::Value) {
@@ -123,8 +123,12 @@ fn an_unknown_snapshot_field_refuses_unreadable_naming_it() {
 #[test]
 fn a_missing_top_level_field_refuses_unreadable_naming_it() {
     let (header, mut v) = split(&small());
-    v.as_object_mut().unwrap().remove("edits").unwrap();
-    expect_unreadable_naming("missing edits", &join(&header, &v), "missing field `edits`");
+    v.as_object_mut().unwrap().remove("snapshot").unwrap();
+    expect_unreadable_naming(
+        "missing snapshot",
+        &join(&header, &v),
+        "missing field `snapshot`",
+    );
 }
 
 // ---- The seam: inputs that sit between "not JSON" and "not this shape" ----
@@ -209,17 +213,17 @@ fn deep_nesting_is_unreadable_within_the_limit_and_unparsable_past_it() {
 }
 
 /// serde's derived struct visitor accepts a SEQUENCE as a struct (fields
-/// positional), so a body spelled `[<snapshot>, <edits>]` is not
+/// positional), so a body spelled `[<snapshot>]` is not
 /// refused: it loads. Pre-existing serde behaviour, recorded because
 /// the module docs describe the body as an object.
 #[test]
 fn a_positional_array_body_loads() {
     let (header, v) = split(&small());
-    let arr = serde_json::json!([v["snapshot"], v["edits"]]);
+    let arr = serde_json::json!([v["snapshot"]]);
     let text = join(&header, &arr);
     match load(&text, Tol::witness()) {
         // The profile and the extrude, both.
-        Ok(loaded) => assert_eq!(loaded.doc.ids().len(), 2),
+        Ok(loaded) => assert_eq!(loaded.ids().len(), 2),
         Err(e) => panic!("recorded expectation: a positional body loads; got {e:?}"),
     }
 }
@@ -460,8 +464,8 @@ fn the_older_shaped_document_loads_at_the_ambient_eps() {
         .collect();
     assert_eq!(tags, ["Profile", "Extrude"]);
     let loaded = load(&text, Tol::witness()).expect("a minimal-vocabulary document loads");
-    assert_eq!(loaded.doc.ids().len(), 2);
-    assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
+    assert_eq!(loaded.ids().len(), 2);
+    assert_eq!(loaded.epsilon().to_bits(), eps.to_bits());
 }
 
 // ---- A break: the same bytes from before outputs refuse ----

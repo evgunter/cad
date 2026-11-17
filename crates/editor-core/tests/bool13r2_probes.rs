@@ -42,7 +42,7 @@ fn small() -> String {
             distance: len(1.0),
         },
     );
-    save(&doc, &[], Tol::witness()).expect("saves")
+    save(&doc, Tol::witness()).expect("saves")
 }
 
 fn split(text: &str) -> (String, serde_json::Value) {

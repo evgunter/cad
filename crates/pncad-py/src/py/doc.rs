@@ -295,18 +295,14 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
         snapshot,
         line,
         column,
-        index,
         process,
         document,
     ) = match err {
-        // The site is a RECURSIVE descriptor (an edit's index wrapping
-        // the site inside that edit's payload), so it crosses as the
-        // kernel's own prose for where the float sits rather than as a
-        // field per rung.
+        // The site crosses as the kernel's own prose for where the float
+        // sits.
         E::NonFinite { site } => (
             none(),
             text(&site.to_string()),
-            none(),
             none(),
             none(),
             none(),
@@ -335,14 +331,12 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            none(),
         ),
         E::Distribution { var: p, fault } => (
             word(crate::tags::distribution_fault_tag(fault)),
             none(),
             none(),
             text(&p.to_string()),
-            none(),
             none(),
             none(),
             none(),
@@ -373,7 +367,6 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            none(),
         ),
         // `message` here, `message` at the parse arm and `detail` at
         // the unreadable one are one concept — the reporter's own
@@ -393,7 +386,6 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            none(),
         ),
         E::HeaderId { found: what } => (
             none(),
@@ -404,7 +396,6 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             text(what),
-            none(),
             none(),
             none(),
             none(),
@@ -430,7 +421,6 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            none(),
         ),
         E::Parse {
             line: l,
@@ -451,7 +441,6 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             int(*c),
             none(),
             none(),
-            none(),
         ),
         E::Unreadable {
             line: l,
@@ -470,7 +459,6 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             int(*l),
             int(*c),
-            none(),
             none(),
             none(),
         ),
@@ -498,7 +486,6 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             int(*c),
             none(),
             none(),
-            none(),
         ),
         E::Snapshot(inner) => (
             word(crate::tags::snapshot_error_tag(inner)),
@@ -513,24 +500,6 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            none(),
-            none(),
-            none(),
-        ),
-        E::EditReplay { index: at, error } => (
-            word(edit_error_tag(error)),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            int(*at),
             none(),
             none(),
         ),
@@ -550,14 +519,12 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            none(),
             real(*committed),
             real(*recorded),
         ),
         // `value` IS the document's recorded ε — the same concept the
         // conflict arm reports as `document` — so it crosses there.
         E::ToleranceInvalid { value, .. } => (
-            none(),
             none(),
             none(),
             none(),
@@ -594,7 +561,6 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             ("snapshot", snapshot),
             ("line", line),
             ("column", column),
-            ("index", index),
             ("process", process),
             ("document", document),
         ],
@@ -1335,11 +1301,9 @@ impl Doc {
     /// record the kernel has rather than an empty list.
     ///
     /// **The reading begins at the load boundary.** A `Doc` handed out
-    /// by `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
-    /// empty even though the replayed history's last edit may well have
-    /// performed maintenance: the replay happens below this wrapper, so
-    /// "the last accepted edit" means the last one accepted THROUGH one
-    /// of these doors.
+    /// by `load` or `Workspace.resolve` starts empty: a file holds the
+    /// document's state and no edits, so "the last accepted edit" means
+    /// the last one accepted THROUGH one of these doors.
     ///
     /// Undo is keeping the prior document value, which restores every
     /// one of these exactly; what the record adds is VISIBILITY — a
@@ -2450,17 +2414,11 @@ impl Doc {
             .map_err(|err| super::expr::eval_err(py, &err, Some(&self.inner)))
     }
 
-    /// Serialize this document to the persistence text format
-    /// (the schema-v4 doors, via the curated façade).
-    ///
-    /// The Python wrapper holds only the CURRENT document — its edit
-    /// history lives in the Rust values it discarded — so the file is
-    /// a snapshot with an empty edit log. That is a complete, loadable
-    /// document; the GUI's edit-log-bearing files load through the
-    /// same `load` door.
+    /// Serialize this document to the persistence text format: the
+    /// document's state, which `load` reads back.
     fn save(&self, py: Python<'_>) -> PyResult<String> {
         let tol = Tol::witness();
-        d::save(&self.inner, &[], tol).map_err(|err| persist_err(py, &err))
+        d::save(&self.inner, tol).map_err(|err| persist_err(py, &err))
     }
 
     fn __len__(&self) -> usize {
@@ -5136,69 +5094,19 @@ impl DocEdit {
     }
 }
 
-/// A loaded document: what the persistence door
-/// answered — the snapshot as saved, the replayed current state, and
-/// how many recorded edits the replay ran.
-#[pyclass(frozen, module = "pncad")]
-pub(crate) struct Loaded {
-    snapshot: d::ProfileDoc,
-    doc: d::ProfileDoc,
-    edit_count: usize,
-}
-
-#[pymethods]
-impl Loaded {
-    /// The current document: the snapshot with every recorded edit
-    /// replayed through the `apply` door.
-    ///
-    /// The replay runs below this wrapper, so the returned `Doc`
-    /// reports no `last_maintenance` even where the replayed history's
-    /// last edit performed some — that reading starts here.
-    #[getter]
-    fn doc(&self) -> Doc {
-        Doc {
-            inner: self.doc.clone(),
-            maintenance: Vec::new(),
-        }
-    }
-
-    /// The snapshot exactly as saved, before replay.
-    #[getter]
-    fn snapshot(&self) -> Doc {
-        Doc {
-            inner: self.snapshot.clone(),
-            maintenance: Vec::new(),
-        }
-    }
-
-    /// How many recorded edits the load replayed.
-    #[getter]
-    fn edit_count(&self) -> usize {
-        self.edit_count
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "Loaded({} nodes, {} replayed edits)",
-            self.doc.len(),
-            self.edit_count
-        )
-    }
-}
-
-/// Parse, validate, and replay a saved document.
+/// Parse and validate a saved document.
 ///
-/// Every refusal is a typed `PersistError` carrying the arm's stable
-/// `variant` tag — bad header, unknown schema, unparseable body, a
-/// snapshot or edit log the shared validator rejects, an ε conflict.
+/// A save file holds the document's state, so the load answers that
+/// document. Every refusal is a typed `PersistError` carrying the arm's
+/// stable `variant` tag — bad header, unparseable body, a document the
+/// shared validator rejects, an ε conflict.
 #[pyfunction]
-pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
+pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Doc> {
     let tol = Tol::witness();
-    let loaded = d::load(text, tol).map_err(|err| persist_err(py, &err))?;
-    Ok(Loaded {
-        snapshot: loaded.snapshot,
-        doc: loaded.doc,
-        edit_count: loaded.edits.len(),
+    let inner = d::load(text, tol).map_err(|err| persist_err(py, &err))?;
+    Ok(Doc {
+        inner,
+        maintenance: Vec::new(),
     })
 }
 
@@ -5287,7 +5195,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Recognised>()?;
     m.add_class::<TubeWindow>()?;
     m.add_class::<StationMove>()?;
-    m.add_class::<Loaded>()?;
     m.add_function(wrap_pyfunction!(load, m)?)?;
     Ok(())
 }

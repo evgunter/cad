@@ -835,7 +835,7 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
     def test_a_document_carrying_a_measure_saves_and_loads(self):
         doc, measure, assertion = self.authored()
         before = measured(doc, measure).value
-        back = load(doc.save()).doc
+        back = load(doc.save())
         self.assertEqual(back.node_kind(measure), "measure")
         self.assertEqual(back.node_kind(assertion), "assertion")
         self.assertAlmostEqual(measured(back, measure).value, before, places=12)

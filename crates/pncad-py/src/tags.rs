@@ -2114,7 +2114,6 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
         // draws `ParseError.kind` from. One vocabulary, three doors.
         PersistError::Dimension { .. } => "dimension",
         PersistError::Snapshot(_) => "snapshot",
-        PersistError::EditReplay { .. } => "edit_replay",
         PersistError::ToleranceConflict { .. } => "tolerance_conflict",
         PersistError::ToleranceInvalid { .. } => "tolerance_invalid",
     }

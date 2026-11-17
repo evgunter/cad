@@ -426,11 +426,10 @@ fn bit_eq_is_blind_to_the_notation_edit() {
     );
 }
 
-/// The edit persists and replays like every other `DocEdit`: saved in
-/// the log, replayed through `apply` on load, and the loaded document
+/// A document the edit re-notated saves and loads: the loaded document
 /// carries the new notation with the annotation still on it.
 #[test]
-fn the_unit_edit_saves_replays_and_loads() {
+fn a_renotated_document_saves_and_loads() {
     let snapshot = fixture();
     let edits = [
         DocEdit::SetVarUnit {
@@ -442,39 +441,28 @@ fn the_unit_edit_saves_replays_and_loads() {
             unit: deg(),
         },
     ];
-    let text = save(&snapshot, edits.as_ref(), Tol::witness()).expect("a legal log saves");
+    let renotated = edits.iter().fold(snapshot, |doc, edit| {
+        apply(&doc, edit, Tol::witness())
+            .expect("a legal edit applies")
+            .doc
+    });
+    let text = save(&renotated, Tol::witness()).expect("the document saves");
     let loaded = load(&text, Tol::witness()).expect("and loads");
-    assert_eq!(loaded.edits.len(), 2, "the log round-tripped");
-    assert_eq!(
-        loaded.edits[0],
-        edits[0].clone(),
-        "the edit itself round-tripped, notation and all"
-    );
-    match *loaded.doc.free_named("wall").expect("declared") {
+    match *loaded.free_named("wall").expect("declared") {
         FreeVar::Continuous {
             display_unit,
             distribution,
             ..
         } => {
-            assert_eq!(display_unit, mm(), "replay wrote the notation");
+            assert_eq!(display_unit, mm(), "the notation landed");
             assert!(distribution.is_some(), "and kept the annotation");
         }
         FreeVar::Count { .. } => panic!("still continuous"),
     }
-    match *loaded.doc.free_named("sweep").expect("declared") {
+    match *loaded.free_named("sweep").expect("declared") {
         FreeVar::Continuous { display_unit, .. } => assert_eq!(display_unit, deg()),
         FreeVar::Count { .. } => panic!("still continuous"),
     }
-    // A log the replay would refuse never reaches a file: the save
-    // door runs the same `apply`, so the refusal is symmetric.
-    let bad = [DocEdit::SetVarUnit {
-        var: p("wall").into(),
-        unit: deg(),
-    }];
-    assert!(
-        save(&snapshot, bad.as_ref(), Tol::witness()).is_err(),
-        "save refuses a log that cannot replay"
-    );
 }
 
 // ---------------------------------------------------------------
@@ -505,56 +493,24 @@ fn declaring_log() -> Vec<DocEdit<editor_core::ProfileProgram>> {
     ]
 }
 
-/// Rewrite the EDITS half of a saved file (the snapshot half is left
-/// alone, so a name or symbol that also appears in a declaration is
-/// not touched).
-fn patch_edits(text: &str, from: &str, to: &str) -> String {
-    let at = text.find("\"edits\"").expect("the file has an edits array");
-    let (head, tail) = text.split_at(at);
-    format!("{head}{}", tail.replace(from, to))
-}
-
-/// **Claim 2.** Each refusal is the same typed `EditError` at all
-/// three doors: `apply`, `Doc::replay`, and `load` of a file whose
-/// edit log was edited by hand into the refusing shape.
+/// **Claim 2.** Each refusal is the same typed `EditError` at both
+/// doors that take an edit: `apply` and `Doc::replay`.
 #[test]
-fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
+fn the_three_refusals_are_symmetric_across_apply_and_replay() {
     let doc = fixture();
-    let cases: [(&str, &str, EditError); 3] = [
-        (
-            "\"Name\": \"wall\"",
-            "\"Name\": \"nonesuch\"",
-            EditError::UnknownVar {
-                var: p("nonesuch").into(),
-                door: CarryForwardDoor::Notation,
-            },
-        ),
-        (
-            "\"Name\": \"wall\"",
-            "\"Name\": \"ribs\"",
-            EditError::VarCountHasNoUnit { var: sv("ribs") },
-        ),
-        (
-            "\"unit\": \"mm\"",
-            "\"unit\": \"deg\"",
-            EditError::VarUnitMismatch {
-                var: sv("wall"),
-                unit: Dimension::Angle,
-                declared: Dimension::Length,
-            },
-        ),
+    let cases: [EditError; 3] = [
+        EditError::UnknownVar {
+            var: p("nonesuch").into(),
+            door: CarryForwardDoor::Notation,
+        },
+        EditError::VarCountHasNoUnit { var: sv("ribs") },
+        EditError::VarUnitMismatch {
+            var: sv("wall"),
+            unit: Dimension::Angle,
+            declared: Dimension::Length,
+        },
     ];
-    // A legal file carrying one notation edit; each case bends its log.
-    let legal = save(
-        &doc,
-        &[DocEdit::SetVarUnit {
-            var: p("wall").into(),
-            unit: mm(),
-        }],
-        Tol::witness(),
-    )
-    .expect("the legal log saves");
-    for (from, to, want) in cases {
+    for want in cases {
         let direct = match &want {
             EditError::UnknownVar { var, .. } => DocEdit::SetVarUnit {
                 var: var.clone(),
@@ -578,7 +534,7 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
         // Door 2: `Doc::replay` from empty over the declaring log plus
         // the refusing edit.
         let mut log = declaring_log();
-        log.push(direct.clone());
+        log.push(direct);
         assert_eq!(
             Doc::replay(
                 DocumentId::derive("edit-doc-param-unit"),
@@ -589,20 +545,6 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
             want,
             "replay's refusal"
         );
-        // Door 3: `load` of a hand-edited file.
-        let bent = patch_edits(&legal, from, to);
-        match load(&bent, Tol::witness()).expect_err("load refuses") {
-            PersistError::EditReplay { index, error } => {
-                assert_eq!(index, 0, "the refusing edit is named by index");
-                assert_eq!(*error, want, "load's refusal is the same typed error");
-            }
-            other => panic!("load refused with {other:?}, not EditReplay"),
-        }
-        // Door 4: and `save` of the same log refuses identically.
-        match save(&doc, &[direct], Tol::witness()).expect_err("save refuses") {
-            PersistError::EditReplay { error, .. } => assert_eq!(*error, want, "save's refusal"),
-            other => panic!("save refused with {other:?}"),
-        }
     }
 }
 
@@ -633,25 +575,30 @@ fn diff_is_blind_to_the_notation_edit() {
     );
 }
 
-/// **Claim 7.** The saved bytes carry the edit and its table symbol,
-/// and a load/re-save is byte-identical.
+/// **Claim 7.** The saved bytes carry the edited notation's table
+/// symbol, and a load/re-save is byte-identical.
 #[test]
 fn the_notation_edit_round_trips_the_bytes() {
-    let doc = fixture();
-    let edits = [DocEdit::SetVarUnit {
-        var: p("wall").into(),
-        unit: mm(),
-    }];
-    let text = save(&doc, edits.as_ref(), Tol::witness()).expect("saves");
+    let doc = apply(
+        &fixture(),
+        &DocEdit::SetVarUnit {
+            var: p("wall").into(),
+            unit: mm(),
+        },
+        Tol::witness(),
+    )
+    .expect("applies")
+    .doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
     assert!(
-        text.contains("SetVarUnit") && text.contains("\"unit\": \"mm\""),
-        "the wire form is the derive's, symbol and all"
+        text.contains("\"mm\""),
+        "the wire form carries the table symbol"
     );
     let loaded = load(&text, Tol::witness()).expect("loads");
-    let again = save(&loaded.snapshot, &loaded.edits, Tol::witness()).expect("re-saves");
+    let again = save(&loaded, Tol::witness()).expect("re-saves");
     assert_eq!(again, text, "byte-identical round trip");
     // An off-table symbol refuses at the token, not as a wrong unit.
-    let bent = patch_edits(&text, "\"unit\": \"mm\"", "\"unit\": \"furlong\"");
+    let bent = text.replace("\"mm\"", "\"furlong\"");
     assert!(
         load(&bent, Tol::witness()).is_err(),
         "an off-table notation refuses"
@@ -773,7 +720,7 @@ fn the_create_or_replace_door_refuses_a_mismatched_pairing() {
     // Still reachable from a FILE, which is why the validator keeps
     // its arm: the snapshot's `dim` and its symbol are independent
     // tokens there.
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     let bent = text.replacen("\"display_unit\": \"m\"", "\"display_unit\": \"deg\"", 1);
     assert_ne!(bent, text, "the snapshot really carried a metre notation");
     assert!(

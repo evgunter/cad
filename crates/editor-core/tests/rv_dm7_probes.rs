@@ -184,18 +184,17 @@ fn rv_a_stranded_appearance_key_round_trips_after_the_delete() {
     .doc;
 
     let after = delete(&doc, victim).doc;
-    let text = editor_core::persist::save(&after, &[], Tol::witness())
+    let text = editor_core::persist::save(&after, Tol::witness())
         .expect("the post-delete document saves with its stranded key");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
     assert!(
         loaded
-            .doc
-            .appearance_of(crate::fixture::painted_in(&loaded.doc, &painted), &painted)
+            .appearance_of(crate::fixture::painted_in(&loaded, &painted), &painted)
             .is_some(),
         "the stranded attachment is document state, not a residue"
     );
     assert!(
-        loaded.doc.node(victim).is_none(),
+        loaded.node(victim).is_none(),
         "and its minting node is still gone"
     );
 }

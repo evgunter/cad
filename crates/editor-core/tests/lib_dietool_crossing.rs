@@ -43,11 +43,9 @@
 //! `e55cffc81a5ad8cfe85239d944a3ae95` and the id is a line of the pin
 //! rather than a redaction from it.
 //!
-//! The edit log is saved EMPTY on purpose. `CorpusDoc` carries both a
-//! replayed snapshot and the log that built it, and Python's `Doc` is
-//! built by `insert` and carries no log at all; saving the snapshot
-//! with `&[]` is the shape both sides can say, so the pin compares
-//! recipes rather than authoring histories.
+//! A save holds the document's state, so the pin compares recipes
+//! rather than authoring histories: `CorpusDoc` carries the log that
+//! built its document, and Python's `Doc` is built by `insert`.
 //!
 //! Regenerate with:
 //!
@@ -85,7 +83,7 @@ fn the_die_tool_documents_saved_text_is_pinned() {
         .into_iter()
         .find(|d| d.name == "die_tool")
         .expect("die_tool is registered");
-    let text = editor_core::persist::save(&d.doc, &[], Tol::witness()).expect("the document saves");
+    let text = editor_core::persist::save(&d.doc, Tol::witness()).expect("the document saves");
 
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FILE);
     if std::env::var_os("PNCAD_BLESS").is_some() {

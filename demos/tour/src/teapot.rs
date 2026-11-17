@@ -1098,7 +1098,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
         placed.doc
     });
     // What the pot is: its four copies.
-    crate::world::set_product(&placed, &copies, tol).doc
+    crate::world::set_product(&placed, &copies, tol)
 }
 
 /// **The pair wall 3 meets on, as evaluated**: the belly's sphere

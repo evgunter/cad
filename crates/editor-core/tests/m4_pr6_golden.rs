@@ -16,8 +16,8 @@
 //! committed byte stream cannot record the ambient ε — it varies by
 //! CI row). Full `load` therefore ε-reconciles: under an ambient of
 //! 1e-9 it succeeds; under any other row it refuses
-//! `ToleranceConflict` — which still proves the bytes parsed,
-//! validated, and replayed, because that door is the LAST in the load
+//! `ToleranceConflict` — which still proves the bytes parsed
+//! and validated, because that door is the LAST in the load
 //! sequence. Both outcomes are asserted exactly.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -52,7 +52,7 @@ const GOLDEN_PATH: &str = "tests/golden/golden.cad";
 /// same `tangent_joints` wire coverage); content change only, format
 /// unchanged — both byte generations parse under the same schema-1
 /// loader.
-fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
+fn golden() -> ProfileDoc {
     let mut doc = ProfileDoc::empty_derived("m4_pr6_golden", Tol::witness());
     let push = |d: &ProfileDoc, e: &DocEdit<ProfileProgram>| {
         apply(d, e, Tol::witness()).expect("golden edit").doc
@@ -411,19 +411,21 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     for body in placed {
         doc = fixture::place(doc, body).0;
     }
-    // The committed EDIT LOG half: one trailing continuous edit —
-    // authored through the TEXT door with a display unit, so the v4
-    // wire's per-literal `unit` field is pinned in the FROZEN bytes
-    // (§4g: value canonical meters, `"unit": "mm"` on the wire).
-    let edits = vec![DocEdit::SetParam {
-        node: bulged,
-        slot: editor_core::SlotId::Distance,
-        value: editor_core::parse_formula("500 mm", &std::collections::BTreeMap::new())
-            .expect("golden unit literal")
-            .into(),
-        fresh: Vec::new(),
-    }];
-    (doc, edits)
+    // One continuous edit authored through the TEXT door with a display
+    // unit, so the wire's per-literal `unit` field is pinned in the
+    // FROZEN bytes (§4g: value canonical meters, `"unit": "mm"` on the
+    // wire).
+    push(
+        &doc,
+        &DocEdit::SetParam {
+            node: bulged,
+            slot: editor_core::SlotId::Distance,
+            value: editor_core::parse_formula("500 mm", &std::collections::BTreeMap::new())
+                .expect("golden unit literal")
+                .into(),
+            fresh: Vec::new(),
+        },
+    )
 }
 
 /// The frozen bytes, built at the golden's own pinned ε: a matrix row
@@ -434,8 +436,7 @@ fn golden_bytes_are_frozen() {
     if geom_core::Tol::witness().get().eps.to_bits() != 1e-9f64.to_bits() {
         return;
     }
-    let (doc, edits) = golden();
-    let text = save(&doc, &edits.to_vec(), Tol::witness()).expect("golden saves");
+    let text = save(&golden(), Tol::witness()).expect("golden saves");
     if std::env::var("M4_PR6_BLESS_GOLDEN").is_ok() {
         std::fs::write(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(GOLDEN_PATH),
@@ -460,13 +461,11 @@ fn golden_bytes_load() {
         Ok(loaded) => {
             // Only reachable when the process ε IS the golden's 1e-9.
             assert_eq!(ambient.to_bits(), 1e-9f64.to_bits());
-            let (doc, edits) = golden();
-            assert!(loaded.snapshot.bit_eq(&doc), "golden snapshot drifted");
-            assert_eq!(loaded.edits, edits.to_vec(), "golden edit log drifted");
+            assert!(loaded.bit_eq(&golden()), "golden document drifted");
         }
         Err(PersistError::ToleranceConflict { process, document }) => {
             // The ε door is the LAST load door, so this outcome still
-            // proves the golden bytes parse, validate, and replay.
+            // proves the golden bytes parse and validate.
             assert_eq!(document.to_bits(), 1e-9f64.to_bits());
             assert_eq!(process.to_bits(), ambient.to_bits());
             assert_ne!(ambient.to_bits(), 1e-9f64.to_bits());
@@ -490,10 +489,7 @@ fn golden_document_evaluates_green_at_its_pinned_eps() {
     if geom_core::Tol::witness().get().eps.to_bits() != 1e-9f64.to_bits() {
         return;
     }
-    let (mut doc, edits) = golden();
-    for e in &edits {
-        doc = apply(&doc, e, Tol::witness()).expect("golden edit").doc;
-    }
+    let doc = golden();
     let ev = evaluate::<f64>(
         &doc,
         None,

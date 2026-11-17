@@ -108,15 +108,15 @@ fn rest_union_rerun_is_bit_identical() {
 fn rest_union_persistence_round_trip() {
     let (doc, _) = rest_doc();
     let expected = fingerprint(&doc);
-    let text = save(&doc, &[], Tol::witness()).expect("save");
+    let text = save(&doc, Tol::witness()).expect("save");
     let loaded = load(&text, Tol::witness()).expect("load");
-    assert_eq!(loaded.doc, doc, "replayed document equals the original");
+    assert_eq!(loaded, doc, "replayed document equals the original");
     assert_eq!(
-        fingerprint(&loaded.doc),
+        fingerprint(&loaded),
         expected,
         "persisted → replayed evaluation is bit-identical"
     );
     // Save AGAIN from the loaded state: canonical bytes are stable.
-    let text2 = save(&loaded.doc, &[], Tol::witness()).expect("re-save");
+    let text2 = save(&loaded, Tol::witness()).expect("re-save");
     assert_eq!(text, text2, "canonical persisted bytes are stable");
 }

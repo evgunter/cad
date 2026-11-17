@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use editor_core::{
     DimensionError, DocEdit, EditError, EvalOptions, ExprPath, Formula, LoopProgram, Node,
-    NodeResult, ParseError, PersistError, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    NodeResult, ParseError, PersistError, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, RecipeNodeId, SlotId, ValuePayload, VarEnv, content_pin, eval, eval_count,
     parse_formula, unparse,
 };
@@ -116,13 +116,12 @@ fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
     (r, extrude)
 }
 
-/// **A copy placed by the deepest pose a mate holds**: the extrude of
+/// **A copy placed by a long pose chain**: the extrude of
 /// [`extrude_document`] placed into its own space by a plane mate of its
-/// start cap against its end cap's plane spun about a lateral edge and
-/// then slid along its normal [`POSE_SLIDES`] times — written inline in the mate's
-/// `to`, in the edit log, the spin's angle `levels` deep under every
-/// other bracket of the chain.
-fn deepest_pose_document(levels: usize) -> Recorder {
+/// start cap against its end cap's plane spun about a lateral edge by an
+/// angle `levels` deep, and then slid along its normal [`POSE_SLIDES`]
+/// times — written inline in the mate's `to`.
+fn pose_chain_document(levels: usize) -> Recorder {
     use editor_core::pose::{PoseDef, PoseRole, RoleRead};
     use editor_core::{Mate, Operand};
     let (mut r, extrude) = extrude_document(len(0.5));
@@ -179,31 +178,28 @@ fn deepest_pose_document(levels: usize) -> Recorder {
     r
 }
 
-/// How many slides [`deepest_pose_document`] nests its spin under: the
-/// chain that puts the spin's angle as deep as the load door's envelope
-/// reaches (`persist::nesting::ENVELOPE`).
-const POSE_SLIDES: usize = 6;
+/// How many slides [`pose_chain_document`] nests its spin under: far
+/// more than the load door's limit would admit if the chain nested in
+/// the file. It does not: the edit door mints each pose a variable of
+/// its own, and a save writes each beside the rest.
+const POSE_SLIDES: usize = 64;
 
-/// [`extrude_document`] over a plain length, saved as its edit log over
-/// the empty document: the log carries the distance as the formula it
-/// was written as, where the snapshot's slot holds a variable's id.
+/// [`extrude_document`] over a distance that is an expression,
+/// saved: a literal saves as a free variable, so the distance is a
+/// negation, which saves as the definition of the variable the slot
+/// reads, [`SAVED_LEVELS`] deep.
 fn saved_extrude() -> String {
-    let [_, (_, log)] = both_saves(&extrude_document(len(0.5)).0);
-    log
+    saved(&extrude_document(Formula::neg(len(-0.5)).expect("a negated length")).0)
 }
 
-/// `r` saved from its snapshot and from its edit log replayed over the
-/// empty document, each with its label.
-fn both_saves(r: &Recorder) -> [(&'static str, String); 2] {
-    let empty = ProfileDoc::empty_derived("mod", Tol::witness());
-    let save = |label: &str, snapshot: &ProfileDoc, edits| {
-        editor_core::persist::save(snapshot, edits, Tol::witness())
-            .unwrap_or_else(|err| panic!("the {label} saves: {err}"))
-    };
-    [
-        ("snapshot", save("snapshot", &r.doc, &[])),
-        ("edit log", save("edit log", &empty, &r.edits)),
-    ]
+/// How many levels the expression [`saved_extrude`] saves nests: a
+/// negation over the variable its literal saved as.
+const SAVED_LEVELS: usize = 2;
+
+/// `r`'s document, saved.
+fn saved(r: &Recorder) -> String {
+    editor_core::persist::save(&r.doc, Tol::witness())
+        .unwrap_or_else(|err| panic!("the document saves: {err}"))
 }
 
 /// The value an assertion compared.
@@ -225,14 +221,14 @@ fn body(text: &str) -> &str {
     &text[text.find('{').expect("a saved body is an object")..]
 }
 
-/// `text` with the first extrude distance wrapped in `levels` more
+/// `text` with its first variable definition wrapped in `levels` more
 /// negations, spelled as the wire spells one, and the body line the
-/// distance's value opens on.
-fn wrap_distance(text: &str, levels: usize) -> (String, usize) {
-    let key = "\"distance\": ";
-    let at = text.find(key).expect("the save holds a distance") + key.len();
-    // The distance's value is the object that opens here; its end is
-    // the brace that closes it.
+/// definition opens on.
+fn wrap_definition(text: &str, levels: usize) -> (String, usize) {
+    let key = "\"Defined\": ";
+    let at = text.find(key).expect("the save holds a definition") + key.len();
+    // The definition is the object that opens here; its end is the
+    // brace that closes it.
     let mut depth = 0usize;
     let mut end = at;
     for (i, c) in text[at..].char_indices() {
@@ -265,11 +261,10 @@ fn wrap_distance(text: &str, levels: usize) -> (String, usize) {
 /// stack: the constructors mint it, both evaluators value it, the
 /// derived walks and `unparse` read it, the text door reads it back,
 /// and a document holding it in its deepest slots applies, evaluates,
-/// pins, saves from its snapshot and from its edit log, and loads back
-/// to the same document, as does a copy placed by a world read at
-/// [`editor_core::MAX_WORLD_READ_DEPTH`] whose deepest angle is at the
-/// bound. The deepest of those saves nests exactly as deep as the load
-/// door reads.
+/// pins, saves and loads back to the same document, as does a copy
+/// placed by a pose chain [`POSE_SLIDES`] deep whose spin's angle is at
+/// the bound. The deeper of those saves nests exactly as deep as the
+/// load door reads.
 #[test]
 fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
@@ -336,24 +331,25 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
         );
         let pin = content_pin(&r.doc, Tol::witness()).expect("the document pins");
 
-        // Saved as a snapshot and as an edit log replayed over the empty
-        // document, it loads back to the document it was; and so does a
-        // copy placed by the deepest pose chain, its spin's angle at the
-        // expression's bound — the deepest position a save writes.
-        let chain = deepest_pose_document(BOUND);
+        // Saved, it loads back to the document it was; and so does a
+        // copy placed by a long pose chain, its spin's angle at the
+        // expression's bound.
+        let chain = pose_chain_document(BOUND);
         let chain_pin = content_pin(&chain.doc, Tol::witness()).expect("the document pins");
         let mut deepest = 0;
-        for (r, pin) in [(&r, pin), (&chain, chain_pin)] {
-            for (label, text) in both_saves(r) {
-                deepest = deepest.max(editor_core::test_support::bracket_depth(&text));
-                let loaded = editor_core::persist::load(&text, Tol::witness())
-                    .unwrap_or_else(|err| panic!("the {label} loads back: {err}"));
-                assert_eq!(
-                    content_pin(&loaded.doc, Tol::witness()).expect("the loaded document pins"),
-                    pin,
-                    "the {label} loads back to the document it saved"
-                );
-            }
+        for (label, r, pin) in [
+            ("deep document", &r, pin),
+            ("pose chain", &chain, chain_pin),
+        ] {
+            let text = saved(r);
+            deepest = deepest.max(editor_core::test_support::bracket_depth(&text));
+            let loaded = editor_core::persist::load(&text, Tol::witness())
+                .unwrap_or_else(|err| panic!("the {label} loads back: {err}"));
+            assert_eq!(
+                content_pin(&loaded, Tol::witness()).expect("the loaded document pins"),
+                pin,
+                "the {label} loads back to the document it saved"
+            );
         }
         assert_eq!(
             deepest,
@@ -436,10 +432,9 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
             other => panic!("the edit door refuses the deeper tree, got {other:?}"),
         }
 
-        // The load door: the saved distance wrapped in one more negation,
-        // in the edit log that writes it as a formula.
-        let [_, (_, text)] = both_saves(&r);
-        match editor_core::persist::load(&wrap_distance(&text, 1).0, Tol::witness()) {
+        // The load door: the saved distance's definition wrapped in one
+        // more negation.
+        match editor_core::persist::load(&wrap_definition(&saved(&r), 1).0, Tol::witness()) {
             Err(PersistError::Dimension { error, .. }) => assert_eq!(refused_bound(&error), BOUND),
             other => panic!("the load door refuses the deeper tree, got {other:?}"),
         }
@@ -449,7 +444,7 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
 /// **Text or a file nested far past the bound refuses typed on the
 /// smallest stack** rather than exhausting it: the text door reads
 /// signs, calls and terms nested a hundred thousand deep to a refusal,
-/// and the load door refuses a distance negated twice the bound deep
+/// and the load door refuses a definition negated twice the bound deep
 /// before reading into it, and one negated a hundred thousand deep
 /// before reading the body at all.
 #[test]
@@ -473,11 +468,13 @@ fn text_and_files_nested_far_past_the_bound_refuse_typed_on_the_smallest_stack()
         }
 
         let text = saved_extrude();
-        match editor_core::persist::load(&wrap_distance(&text, 2 * BOUND).0, Tol::witness()) {
+        match editor_core::persist::load(&wrap_definition(&text, 2 * BOUND).0, Tol::witness()) {
             Err(PersistError::Dimension { error, .. }) => assert_eq!(refused_bound(&error), BOUND),
-            other => panic!("a distance negated twice the bound deep refuses typed, got {other:?}"),
+            other => {
+                panic!("a definition negated twice the bound deep refuses typed, got {other:?}")
+            }
         }
-        match editor_core::persist::load(&wrap_distance(&text, FAR).0, Tol::witness()) {
+        match editor_core::persist::load(&wrap_definition(&text, FAR).0, Tol::witness()) {
             Err(err @ PersistError::Parse { .. }) => {
                 assert!(
                     err.to_string().contains("the body nests deeper than"),
@@ -563,15 +560,13 @@ fn an_assertion_value_shares_the_bound_at_every_split() {
                 relation: editor_core::AssertionRelation::AtLeast,
             }));
             let pin = content_pin(&r.doc, Tol::witness()).expect("the document pins");
-            for (label, text) in both_saves(&r) {
-                let loaded = editor_core::persist::load(&text, Tol::witness())
-                    .unwrap_or_else(|err| panic!("split {measure_levels}, {label}: {err}"));
-                assert_eq!(
-                    content_pin(&loaded.doc, Tol::witness()).expect("pins"),
-                    pin,
-                    "split {measure_levels}: the {label} loads back"
-                );
-            }
+            let loaded = editor_core::persist::load(&saved(&r), Tol::witness())
+                .unwrap_or_else(|err| panic!("split {measure_levels}: {err}"));
+            assert_eq!(
+                content_pin(&loaded, Tol::witness()).expect("pins"),
+                pin,
+                "split {measure_levels}: the save loads back"
+            );
             let one_more = Formula::add(at, len(0.0)).expect_err("one level more refuses");
             assert_eq!(refused_bound(&one_more), BOUND, "split {measure_levels}");
         }
@@ -579,25 +574,25 @@ fn an_assertion_value_shares_the_bound_at_every_split() {
 }
 
 /// **The load door reads an expression's child at the bound and refuses
-/// the next one before reading into it.** A saved distance negated to
+/// the next one before reading into it.** A saved definition negated to
 /// the bound loads; one negation more refuses with the constructors'
-/// own refusal at the child it declined, on the line the distance opens
-/// on, before the reader reaches the literal inside, rather than after
-/// reading the whole tree and rebuilding it.
+/// own refusal at the child it declined, on the line the definition
+/// opens on, before the reader reaches the leaf inside, rather than
+/// after reading the whole tree and rebuilding it.
 #[test]
 fn the_load_door_refuses_the_child_past_the_bound_before_reading_it() {
     on_the_smallest_stack(|| {
         let text = saved_extrude();
-        let (at_the_bound, _) = wrap_distance(&text, BOUND - 1);
+        let (at_the_bound, _) = wrap_definition(&text, BOUND - SAVED_LEVELS);
         let loaded = editor_core::persist::load(&at_the_bound, Tol::witness())
-            .unwrap_or_else(|err| panic!("a distance negated to the bound loads: {err}"));
+            .unwrap_or_else(|err| panic!("a definition negated to the bound loads: {err}"));
         drop(loaded);
-        let (past, distance_line) = wrap_distance(&text, BOUND);
+        let (past, definition_line) = wrap_definition(&text, BOUND - SAVED_LEVELS + 1);
         match editor_core::persist::load(&past, Tol::witness()) {
             Err(PersistError::Dimension { line, error, .. }) => {
                 assert_eq!(refused_bound(&error), BOUND);
                 assert_eq!(
-                    line, distance_line,
+                    line, definition_line,
                     "refused at the child it declined, not after reading the tree"
                 );
             }
@@ -607,30 +602,31 @@ fn the_load_door_refuses_the_child_past_the_bound_before_reading_it() {
 }
 
 /// A body the load door refuses in each way a refusal can leave the
-/// expression reader: at the bound's own guard, far past it, on a unit
-/// and a variant it does not know deep inside a tree, and on a body cut
-/// off mid-tree.
+/// expression reader: at the bound's own guard, far past it, on a
+/// dimension and a variant it does not know deep inside a tree, and on
+/// a body cut off mid-tree.
 fn refused_bodies() -> Vec<(&'static str, String)> {
     let text = saved_extrude();
-    let wrapped = |levels| wrap_distance(&text, levels).0;
+    let wrapped = |levels| wrap_definition(&text, levels).0;
     let deep = wrapped(BOUND - 8);
-    // The tree's own literal: the first unit after the distance opens.
-    let distance = deep
-        .find("\"distance\": ")
-        .expect("the save holds a distance");
-    let unit = distance
-        + deep[distance..]
-            .find("\"unit\": \"")
-            .expect("the literal's unit");
-    let (before, after) = deep.split_at(unit);
+    // The tree's own leaf: the first dimension after the definition
+    // opens.
+    let definition = deep
+        .find("\"Defined\": ")
+        .expect("the save holds a definition");
+    let dim = definition
+        + deep[definition..]
+            .find("\"dim\": \"")
+            .expect("the leaf's dimension");
+    let (before, after) = deep.split_at(dim);
     vec![
-        ("one past the bound", wrapped(BOUND)),
+        ("one past the bound", wrapped(BOUND - SAVED_LEVELS + 1)),
         ("far past the bound", wrapped(2 * BOUND)),
         (
-            "an unknown unit deep in the tree",
+            "an unknown dimension deep in the tree",
             format!(
                 "{before}{}",
-                after.replacen("\"unit\": \"", "\"unit\": \"zz", 1)
+                after.replacen("\"dim\": \"", "\"dim\": \"zz", 1)
             ),
         ),
         (
@@ -651,7 +647,7 @@ fn refused_bodies() -> Vec<(&'static str, String)> {
 fn a_refused_load_leaves_nothing_for_the_next_on_its_thread() {
     on_the_smallest_stack(|| {
         let (r, _, _) = deep_document(BOUND);
-        let [(_, at_the_bound), _] = both_saves(&r);
+        let at_the_bound = saved(&r);
         for (label, text) in refused_bodies() {
             assert!(
                 editor_core::persist::load(&text, Tol::witness()).is_err(),
@@ -669,7 +665,7 @@ fn a_refused_load_leaves_nothing_for_the_next_on_its_thread() {
 #[test]
 fn loads_on_several_threads_keep_their_own_count() {
     let (r, _, _) = deep_document(BOUND);
-    let [(_, at_the_bound), _] = both_saves(&r);
+    let at_the_bound = saved(&r);
     let at_the_bound = Arc::new(at_the_bound);
     let refused = Arc::new(refused_bodies());
     let threads: Vec<_> = (0..4)
@@ -792,13 +788,13 @@ fn envelope(body: &Value) -> (usize, usize) {
 
 /// **The load door reads exactly as deep as the deepest body a save
 /// writes.** Every expression and measurement root in every corpus
-/// document (which holds every node kind and every edit kind, welded to
-/// their vocabularies by `m4_pr8_corpus::vocabulary_coverage_is_total`),
-/// and in this suite's deepest document, saved from its snapshot and
-/// from its edit log, is found by its wire shape; the most brackets
-/// enclosing one, plus the `2 · BOUND` an expression at the bound spans,
-/// is the load door's limit. A slot added deeper than every one before
-/// it moves the left side, and this row fails until the limit follows.
+/// document (which holds every node kind, welded to the vocabulary by
+/// `m4_pr8_corpus::vocabulary_coverage_is_total`), in this suite's
+/// deepest document and in its long pose chain, saved, is found by its
+/// wire shape; the most brackets enclosing one, plus the `2 · BOUND` an
+/// expression at the bound spans, is the load door's limit. A slot
+/// added deeper than every one before it moves the left side, and this
+/// row fails until the limit follows.
 #[test]
 fn the_load_doors_limit_is_the_deepest_body_a_save_writes() {
     let mut recorders: Vec<(String, Recorder)> = crate::corpus::documents()
@@ -817,24 +813,22 @@ fn the_load_doors_limit_is_the_deepest_body_a_save_writes() {
         deep_document(1).0,
     ));
     recorders.push((
-        "this suite's deepest pose chain".to_string(),
-        deepest_pose_document(1),
+        "this suite's long pose chain".to_string(),
+        pose_chain_document(1),
     ));
-    let (mut deepest, mut at) = (0, String::new());
+    let (mut deepest, mut at, mut found) = (0, String::new(), 0);
     for (name, r) in &recorders {
-        // A snapshot whose slots all read free variables holds no
-        // expression; its edit log, written in formulas, does.
-        let mut found = 0;
-        for (label, text) in both_saves(r) {
-            let parsed: Value = serde_json::from_str(body(&text)).expect("a saved body is JSON");
-            let (enclosing, roots) = envelope(&parsed);
-            found += roots;
-            if enclosing > deepest {
-                (deepest, at) = (enclosing, format!("{name}'s {label}"));
-            }
+        let text = saved(r);
+        let parsed: Value = serde_json::from_str(body(&text)).expect("a saved body is JSON");
+        let (enclosing, roots) = envelope(&parsed);
+        found += roots;
+        if enclosing > deepest {
+            (deepest, at) = (enclosing, name.clone());
         }
-        assert!(found > 0, "{name}'s saves hold an expression");
     }
+    // A document whose slots all read free variables holds no
+    // expression, so the count is the corpus's, not each document's.
+    assert!(found > 0, "the saves hold an expression");
     assert_eq!(
         deepest + 2 * BOUND,
         editor_core::test_support::BODY_NESTING,

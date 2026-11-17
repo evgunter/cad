@@ -5,7 +5,7 @@
 //! mebibyte). A value at the bound passes every door that builds,
 //! walks, keeps or drops one: the constructors, `to_value` and
 //! `from_value`, `Clone`, equality, `Debug`, the D2 walk, the edit door,
-//! the content pin, save from a snapshot and from an edit log, and load.
+//! the content pin, save, and load.
 //! One past it, every door that builds one refuses typed with
 //! [`MetaError::NestedTooDeep`]; a value ten thousand levels deep, the
 //! depth that once overflowed the edit door, cannot be built at all;
@@ -21,7 +21,7 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    DocEdit, EntityKind, MetaError, MetaValue, Node, PersistError, ProfileDoc, RoleSeg, StableName,
+    DocEdit, EntityKind, MetaError, MetaValue, Node, PersistError, RoleSeg, StableName,
     content_pin, from_value, to_value,
 };
 use fixture::{Recorder, len};
@@ -251,18 +251,10 @@ fn set_meta(
     }
 }
 
-/// `r` saved from its snapshot and from its edit log replayed over the
-/// empty document, each with its label.
-fn both_saves(r: &Recorder) -> [(&'static str, String); 2] {
-    let empty = ProfileDoc::empty_derived("mod", Tol::witness());
-    let save = |label: &str, snapshot: &ProfileDoc, edits| {
-        editor_core::persist::save(snapshot, edits, Tol::witness())
-            .unwrap_or_else(|err| panic!("the {label} saves: {err}"))
-    };
-    [
-        ("snapshot", save("snapshot", &r.doc, &[])),
-        ("edit log", save("edit log", &empty, &r.edits)),
-    ]
+/// `r`'s document, saved.
+fn saved(r: &Recorder) -> String {
+    editor_core::persist::save(&r.doc, Tol::witness())
+        .unwrap_or_else(|err| panic!("the document saves: {err}"))
 }
 
 /// **One past the bound, every door that builds a value refuses typed**,
@@ -430,10 +422,9 @@ fn the_deserializer_stops_a_body_of_any_depth_on_the_smallest_stack() {
 
 /// **At the bound, every door takes the value**: it walks, clones,
 /// compares, prints and reads back as a producer type; the edit door
-/// applies it; the document pins, saves both ways and loads back to the
-/// document it was. The deepest save nests exactly as deep as
-/// `persist::nesting` says a value at the bound saves, which is within
-/// the load door's limit.
+/// applies it; the document pins, saves and loads back to the document
+/// it was. The save nests exactly as deep as `persist::nesting` says a
+/// value at the bound saves, which is within the load door's limit.
 #[test]
 fn every_door_takes_a_value_at_the_bound_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
@@ -453,27 +444,23 @@ fn every_door_takes_a_value_at_the_bound_on_the_smallest_stack() {
         let (mut r, body) = extrude_body();
         r.push(set_meta(&r.doc, &body, value.clone()));
         let pin = content_pin(&r.doc, Tol::witness()).expect("the document pins");
-        let mut deepest = 0;
-        for (label, text) in both_saves(&r) {
-            deepest = deepest.max(editor_core::test_support::bracket_depth(&text));
-            let loaded = editor_core::persist::load(&text, Tol::witness())
-                .unwrap_or_else(|err| panic!("the {label} loads back: {err}"));
-            assert_eq!(
-                content_pin(&loaded.doc, Tol::witness()).expect("the loaded document pins"),
-                pin,
-                "the {label} loads back to the document it saved"
-            );
-            assert_eq!(
-                crate::fixture::painted(&loaded.doc, &body)
-                    .and_then(|record| record.metadata.get(KEY)),
-                Some(&value),
-                "the {label} loads the value back"
-            );
-        }
+        let text = saved(&r);
+        let loaded = editor_core::persist::load(&text, Tol::witness())
+            .unwrap_or_else(|err| panic!("the save loads back: {err}"));
         assert_eq!(
-            deepest,
+            content_pin(&loaded, Tol::witness()).expect("the loaded document pins"),
+            pin,
+            "the save loads back to the document it saved"
+        );
+        assert_eq!(
+            crate::fixture::painted(&loaded, &body).and_then(|record| record.metadata.get(KEY)),
+            Some(&value),
+            "the save loads the value back"
+        );
+        assert_eq!(
+            editor_core::test_support::bracket_depth(&text),
             editor_core::test_support::META_BODY_NESTING,
-            "the deepest save of a value at the bound nests as deep as the load door is told"
+            "the save of a value at the bound nests as deep as the load door is told"
         );
     });
 }
@@ -496,31 +483,27 @@ fn a_file_nested_past_the_bound_refuses_on_the_smallest_stack() {
                 "]}".repeat(levels - 1)
             )
         };
-        for (label, text) in both_saves(&r) {
-            assert_eq!(
-                text.matches(empty).count(),
-                1,
-                "the {label} holds one empty list"
-            );
-            let one_past = text.replace(empty, &nest(1));
-            match editor_core::persist::load(&one_past, Tol::witness()) {
-                Err(error @ PersistError::Unreadable { .. }) => {
-                    let line = error.to_string();
-                    assert!(
-                        line.contains(PROBLEM),
-                        "the {label} one past names the bound: {line}"
-                    );
-                }
-                other => panic!("the {label} one past refuses as unreadable: {other:?}"),
+        let text = saved(&r);
+        assert_eq!(
+            text.matches(empty).count(),
+            1,
+            "the save holds one empty list"
+        );
+        let one_past = text.replace(empty, &nest(1));
+        match editor_core::persist::load(&one_past, Tol::witness()) {
+            Err(error @ PersistError::Unreadable { .. }) => {
+                let line = error.to_string();
+                assert!(line.contains(PROBLEM), "one past names the bound: {line}");
             }
-            let far = text.replace(empty, &nest(FAR));
-            match editor_core::persist::load(&far, Tol::witness()) {
-                Err(PersistError::Parse { message, .. }) => assert!(
-                    message.contains("deeper than any saved document does"),
-                    "the {label} {FAR} deep refuses at the scan: {message}"
-                ),
-                other => panic!("the {label} {FAR} deep refuses at the scan: {other:?}"),
-            }
+            other => panic!("one past refuses as unreadable: {other:?}"),
+        }
+        let far = text.replace(empty, &nest(FAR));
+        match editor_core::persist::load(&far, Tol::witness()) {
+            Err(PersistError::Parse { message, .. }) => assert!(
+                message.contains("deeper than any saved document does"),
+                "{FAR} deep refuses at the scan: {message}"
+            ),
+            other => panic!("{FAR} deep refuses at the scan: {other:?}"),
         }
     });
 }

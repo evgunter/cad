@@ -327,7 +327,7 @@ pub const GALLERY_RING: &str = include_str!("../gallery_ring.pncad");
 /// function's own arithmetic.
 pub fn gallery_ring_at(tol: Tol) -> String {
     let probe: Doc<ProfileProgram> = Doc::empty_derived("gui3-epsilon-probe", tol);
-    let probe_text = pncad::document::save(&probe, &[], tol).expect("an empty document saves");
+    let probe_text = pncad::document::save(&probe, tol).expect("an empty document saves");
     let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
     let wanted = probe_text
         .lines()

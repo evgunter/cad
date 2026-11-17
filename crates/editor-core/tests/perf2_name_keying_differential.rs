@@ -189,15 +189,15 @@ fn every_corpus_documents_name_tables_and_persisted_text_are_pinned() {
         .iter()
         .map(|d| {
             let ev = corpus::eval::<f64>(&d.doc);
-            let text = persist::save(&d.doc, &[], tol)
-                .unwrap_or_else(|e| panic!("{} saves: {e:?}", d.name));
+            let text =
+                persist::save(&d.doc, tol).unwrap_or_else(|e| panic!("{} saves: {e:?}", d.name));
             // Save → load → save is the file's own fixed point: a
             // representation change that survives serialization but not
             // deserialization lands here rather than on a user's disk.
             let back =
                 persist::load(&text, tol).unwrap_or_else(|e| panic!("{} reloads: {e:?}", d.name));
-            let again = persist::save(&back.snapshot, &back.edits, tol)
-                .unwrap_or_else(|e| panic!("{} re-saves: {e:?}", d.name));
+            let again =
+                persist::save(&back, tol).unwrap_or_else(|e| panic!("{} re-saves: {e:?}", d.name));
             assert_eq!(
                 text, again,
                 "{} does not round-trip to the same bytes",

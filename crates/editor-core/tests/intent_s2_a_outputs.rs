@@ -98,8 +98,8 @@ fn every_operation_defines_its_signature_at_insert() {
     }
     assert_eq!(doc.output(revolve, 3), None, "a revolve has three ports");
     // A file holds them, and loads as written.
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("loads").doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("loads");
     assert!(loaded.bit_eq(&doc), "the outputs round-trip");
 }
 
@@ -241,7 +241,7 @@ fn saved_block() -> (String, String, String) {
     let (doc, _, extrude) = block("s2a-load");
     let body = doc.output(extrude, 0).expect("an extrude defines its body");
     (
-        save(&doc, &[], Tol::witness()).expect("saves"),
+        save(&doc, Tol::witness()).expect("saves"),
         body.0.to_string(),
         extrude.0.to_string(),
     )
@@ -405,32 +405,6 @@ fn the_up_to_ids_comparator_holds_a_document_and_refuses_each_mutant() {
     *reads[1] = reads[0].clone();
     let err = up_to_ids::equal_up_to_ids(&swapped, &new).expect_err("an inconsistent renaming");
     assert!(err.contains("earlier"), "{err}");
-    // A document that is an edit log alone, which the walk compares
-    // edit by edit: itself, and not with one number of one edit moved.
-    let log = wire_body(include_str!("corpus/tour/die_composed_tour.pncad"));
-    assert!(
-        log["snapshot"]["nodes"]
-            .as_object()
-            .is_some_and(serde_json::Map::is_empty),
-        "the tour corpus is an edit log alone"
-    );
-    up_to_ids::equal_up_to_ids(&up_to_ids::without_outputs(&log), &log)
-        .expect("an edit log is itself up to ids");
-    let mut moved = log.clone();
-    let number = first_number(&mut moved["edits"]).expect("the log writes a number");
-    *number = (number.as_f64().unwrap() + 1.0).into();
-    let err = up_to_ids::equal_up_to_ids(&moved, &log).expect_err("a moved number in an edit");
-    assert!(err.contains("$.edits["), "{err}");
-}
-
-/// The first number in `value`, depth first.
-fn first_number(value: &mut serde_json::Value) -> Option<&mut serde_json::Value> {
-    match value {
-        serde_json::Value::Number(_) => Some(value),
-        serde_json::Value::Array(items) => items.iter_mut().find_map(first_number),
-        serde_json::Value::Object(map) => map.values_mut().find_map(first_number),
-        _ => None,
-    }
 }
 
 /// **Every re-blessed document is its pre-outputs self up to ids**: a
@@ -666,10 +640,8 @@ fn a_placer_on_a_deleted_operand_loads_and_refuses_its_read() {
     let (doc, moved) = xform(doc, extrude, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0], 0.0);
     let read = doc.output(extrude, 0).expect("the extrude's body");
     let (doc, _) = fixture::step(doc, DocEdit::DeleteNode { id: extrude });
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness())
-        .expect("a stranded read loads")
-        .doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("a stranded read loads");
     let ev = crate::corpus::eval::<f64>(&loaded);
     match ev.nodes.get(&moved) {
         Some(editor_core::NodeResult::Failed(error)) => assert!(

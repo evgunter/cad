@@ -3,8 +3,8 @@
 //!
 //! The behaviour of Open was never the defect. `docio::open` and
 //! `SessionOp::Open` are exercised in `doc_io.rs` and always were; the
-//! typed door works, the resolver rebinds, the log replays, the round
-//! trip is byte-stable. What went untested was what opening a document
+//! typed door works, the resolver rebinds, the round trip is
+//! byte-stable. What went untested was what opening a document
 //! COSTS: a request the budget does not bind must be drawn as asked,
 //! and one it binds must be coarsened to a picture near the budget
 //! rather than left to make Open wait on millions of triangles.
@@ -68,8 +68,7 @@ fn gallery_ring_doc(tol: Tol) -> ProfileDoc {
             // A different ε row: re-stamp exactly as `doc_io` does.
             let probe: pncad::document::Doc<pncad::document::ProfileProgram> =
                 pncad::document::Doc::empty_derived("budget-epsilon-probe", tol);
-            let probe_text =
-                pncad::document::save(&probe, &[], tol).expect("an empty document saves");
+            let probe_text = pncad::document::save(&probe, tol).expect("an empty document saves");
             let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
             let wanted = probe_text
                 .lines()
@@ -84,7 +83,7 @@ fn gallery_ring_doc(tol: Tol) -> ProfileDoc {
             pncad::document::load(&restamped, tol).expect("the re-stamped fixture loads")
         }
     };
-    loaded.snapshot
+    loaded
 }
 
 fn delta(value: f64) -> DisplayTolerance {

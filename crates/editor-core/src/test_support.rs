@@ -1230,7 +1230,7 @@ pub fn beside_past_the_bundle_rule(
 /// **A save's snapshot, read past the load door's validator**: the
 /// state a doctored save leaves, which [`crate::persist::load`]
 /// refuses; for rows that hold the save door's half of the shared
-/// validator. The edit log is parsed and dropped.
+/// validator.
 ///
 /// # Panics
 ///

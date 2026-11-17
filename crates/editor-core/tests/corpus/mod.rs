@@ -2,7 +2,8 @@
 //! proof-of-vocabulary.
 //!
 //! Every document here is a RECIPE authored through `DocEdit`s (an
-//! edit LOG, never a hand-built `Doc` value), so each one is at once:
+//! edit LOG, or the tour's, saved; never a hand-built `Doc` value), so
+//! each one is at once:
 //!
 //! - an evaluation fixture (green at every CI ε row and at the
 //!   certified scalar — `m4_pr8_corpus.rs` / `..._interval.rs`),
@@ -230,9 +231,11 @@ pub struct CorpusDoc {
     pub name: &'static str,
     /// One-line description (printed in the latency table).
     pub about: &'static str,
-    /// The recorded edit log (applied to the empty snapshot).
+    /// The edits that authored `doc` from the empty document, as the
+    /// corpus recorded them; empty for a document the corpus loads from
+    /// a save file, which holds the state alone.
     pub edits: Vec<editor_core::DocEdit<ProfileProgram>>,
-    /// The replayed current state (empty snapshot + `edits`).
+    /// The document.
     pub doc: ProfileDoc,
     /// The node carrying the document's headline solid, if it has one
     /// (`None` for documents whose result is not a single body).
@@ -351,9 +354,9 @@ pub fn documents() -> Vec<CorpusDoc> {
         // author: the demo tour is its single authoring site and the
         // document crosses as committed bytes, because `demos/tour` is
         // a detached workspace this crate must not depend on. The
-        // module docs carry the regeneration line, why the file's model
-        // rides its EDIT LOG rather than its snapshot, and which of the
-        // tour's three fillets the document leaves out.
+        // module docs carry the regeneration line, how the file is read
+        // at every ε row, and which of the tour's three fillets the
+        // document leaves out.
         die_composed_tour::document(),
         plate_param::document(),
         // `kiss_carry` (SEAT-5): the one corpus boolean whose result

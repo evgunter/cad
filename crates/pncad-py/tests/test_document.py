@@ -522,7 +522,7 @@ class TestDocumentIdentity(unittest.TestCase):
     def test_a_loaded_document_keeps_the_id_it_was_saved_under(self):
         doc = Doc()
         unit_box(doc, 1 * m, 1 * m, 1 * m)
-        self.assertEqual(load(doc.save()).doc.id, doc.id)
+        self.assertEqual(load(doc.save()).id, doc.id)
 
 
 class TestPersistence(unittest.TestCase):
@@ -540,9 +540,8 @@ class TestPersistence(unittest.TestCase):
         )
 
         loaded = load(text)
-        self.assertEqual(loaded.edit_count, 0)  # snapshot-only file
-        self.assertTrue(loaded.doc.bit_eq(doc), "load replays to the SAME document")
-        after = pinned(evaluate(loaded.doc).value(box).body()).volume
+        self.assertTrue(loaded.bit_eq(doc), "load answers the SAME document")
+        after = pinned(evaluate(loaded).value(box).body()).volume
         # D9: the same recipe replays to the same bits.
         self.assertEqual(struct.pack(">d", before), struct.pack(">d", after))
 
@@ -557,8 +556,8 @@ class TestPersistence(unittest.TestCase):
         self.assertEqual(refusal.found, "not a document")
         for absent in (
             "inner_variant", "site", "node", "name", "unit", "declared",
-            "detail", "header", "snapshot", "line", "column", "index",
-            "process", "document",
+            "detail", "header", "snapshot", "line", "column", "process",
+            "document",
         ):
             self.assertIsNone(getattr(refusal, absent), absent)
 
@@ -566,7 +565,7 @@ class TestPersistence(unittest.TestCase):
         """The format carries no schema version: a document a build
         cannot read refuses on the deserializer's own rejection, naming
         the vocabulary it could not place, with the regenerate recourse."""
-        body = '{"snapshot": {"no_such_field": 1}, "edits": []}'
+        body = '{"snapshot": {"no_such_field": 1}}'
         with self.assertRaises(pncad.PersistError) as caught:
             load(f"id: {'0' * 32}\n{body}")
         refusal = caught.exception
@@ -1288,14 +1287,11 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         self.assertEqual(evaluate(doc).resolve(box, rim).status, "resolved")
         self.assertEqual(doc.step(profile, 0, new[4]), s[3], "the kept step keeps its id")
         self.assertNotIn(doc.step(profile, 0, new[2]), s, "the new leg mints fresh")
-        # `Doc.save` writes the document as a SNAPSHOT with no log
-        # (the binding holds a value, not a history), so the reshaped
-        # program crosses in the snapshot and the loaded document
-        # re-saves to the same bytes.
+        # `Doc.save` writes the document's state, so the reshaped
+        # program crosses in it and the loaded document re-saves to the
+        # same bytes.
         text = doc.save()
-        loaded = load(text)
-        self.assertEqual(loaded.edit_count, 0)
-        self.assertEqual(loaded.doc.save(), text)
+        self.assertEqual(load(text).save(), text)
 
     def test_a_step_the_edit_drops_strands_the_fillets_name(self):
         """The same program with the wall's step left out of `keep`:
@@ -1683,7 +1679,7 @@ class TestNodeLabels(unittest.TestCase):
     def test_a_label_round_trips_through_save_and_load(self):
         doc = Doc("node-labels-save")
         sketch = self.sketch(doc, "floor plan")
-        loaded = load(doc.save()).doc
+        loaded = load(doc.save())
         self.assertEqual(loaded.label(sketch), "floor plan")
 
     def test_a_sentence_names_a_labelled_node_by_kind_label_and_tag(self):

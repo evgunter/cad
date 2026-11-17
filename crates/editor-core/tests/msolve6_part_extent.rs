@@ -588,12 +588,13 @@ fn a6_no_edit_asks_the_store() {
     );
 }
 
-/// **A saved document whose seat is taken apart replays
-/// bit-identically with no store**: the log is its edits, and replay
-/// re-applies them without evaluating — the copy the unseated seat
-/// pinned stands by the identity bundle, not re-pinned.
+/// **A document whose seat is taken apart saves, loads and replays
+/// bit-identically with no store**: replay re-applies the log without
+/// evaluating — the copy the unseated seat pinned stands by the
+/// identity bundle, not re-pinned.
 ///
-/// *Breaks if* replay consults a part, or re-pins what the log unseated.
+/// *Breaks if* replay or load consults a part, or replay re-pins what
+/// the log unseated.
 #[test]
 fn a6_a_saved_unseating_replays_bit_identically_with_no_store() {
     let (doc, [a, b], _, _, mut log, _) = seated("msolve6-a6-replay");
@@ -603,11 +604,9 @@ fn a6_a_saved_unseating_replays_bit_identically_with_no_store() {
         .expect("the unseating applies")
         .doc;
     log.push(remove);
-    let empty = ProfileDoc::empty(live.id(), Tol::witness());
-    let text = editor_core::save(&empty, &log, Tol::witness()).expect("saves");
+    let text = editor_core::save(&live, Tol::witness()).expect("saves");
     let loaded = editor_core::load(&text, Tol::witness()).expect("loads with no store");
-    assert!(loaded.doc.bit_eq(&live), "the document replays bit for bit");
-    assert_eq!(loaded.edits, log, "the log comes back as saved");
+    assert!(loaded.bit_eq(&live), "the document loads bit for bit");
     let replayed = ProfileDoc::replay(live.id(), &log, Tol::witness()).expect("replays");
     assert!(replayed.bit_eq(&live));
     assert!(
@@ -681,7 +680,7 @@ fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
             Err(e) => panic!("{}: loads with no store: {e}", path.display()),
         };
         loaded_count += 1;
-        let again = editor_core::save(&loaded.snapshot, &loaded.edits, Tol::witness())
+        let again = editor_core::save(&loaded, Tol::witness())
             .unwrap_or_else(|e| panic!("{}: re-saves: {e}", path.display()));
         assert_eq!(again, text, "{}: re-saves byte for byte", path.display());
     }
