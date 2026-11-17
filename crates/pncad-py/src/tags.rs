@@ -3450,6 +3450,7 @@ pub fn product_read_fault_tag(fault: &ProductReadFault) -> &'static str {
         ProductReadFault::Unresolved => "unresolved",
         ProductReadFault::Kind { .. } => "kind",
         ProductReadFault::Space { .. } => "space",
+        ProductReadFault::Member => "member_at_product",
         ProductReadFault::Path { .. } => "pick_path",
     }
 }

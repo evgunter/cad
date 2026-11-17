@@ -1344,10 +1344,8 @@ pub fn assemble_world_copies_edits(
         .and_then(|var| doc.operation_of(var))
         .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
         .filter(|&at| {
-            doc.output(at, 0).is_some_and(|var| {
-                let readers = doc.reader_counts().get(&var).copied().unwrap_or(0);
-                readers <= usize::from(doc.product() == Some(var))
-            })
+            doc.output(at, 0)
+                .is_some_and(|var| doc.read_by_nothing_but_the_product(var))
         });
     // A product already the world's copies is kept as it is, so a
     // document written twice is the one document.

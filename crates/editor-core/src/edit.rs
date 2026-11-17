@@ -4356,19 +4356,7 @@ impl EditError {
                 )
             }
             Self::PickPath { node, slot, at } => {
-                match at {
-                    Some(at) => write!(
-                        f,
-                        "{node}'s {slot} picks no piece: step {} of its path names no one \
-                         operand of the assemble the walk reaches",
-                        at + 1
-                    )?,
-                    None => write!(
-                        f,
-                        "{node}'s {slot} picks no piece: it reads no placement's copy, or its \
-                         path is empty"
-                    )?,
-                }
+                write!(f, "{node}'s {slot} picks no piece: {}", PickMiss(*at))?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -10027,6 +10015,24 @@ mod tests {
     }
 }
 
+/// **Why a pick's path picks no piece** ([`pick_fault`]'s answer), the
+/// clause every refusal of one ends in: the edit door's, the product
+/// slot's and the load door's.
+pub(crate) struct PickMiss(pub(crate) Option<usize>);
+
+impl core::fmt::Display for PickMiss {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.0 {
+            Some(at) => write!(
+                f,
+                "step {} of its path names no one operand of the assemble the walk reaches",
+                at + 1
+            ),
+            None => f.write_str("it reads no placement's copy, or its path is empty"),
+        }
+    }
+}
+
 /// **Why a read is no product** ([`EditError::ProductRead`]).
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProductReadFault {
@@ -10042,6 +10048,10 @@ pub enum ProductReadFault {
         /// The space it is in.
         space: Box<crate::spoken::SpokenSpace>,
     },
+    /// The slot reads one member of a family, through a source, and it
+    /// reads a whole body (the gather's, and a delete's hand-over,
+    /// `continuation::SpliceFault::MemberAtProduct`).
+    Member,
     /// A pick written at the slot picks no piece ([`EditError::PickPath`]'s
     /// rule).
     Path {
@@ -10061,26 +10071,23 @@ impl core::fmt::Display for ProductReadFault {
                 crate::sentence::article(&found.to_string())
             ),
             Self::Space { space } => write!(f, "its body is in {space}, not the world"),
-            Self::Path { at: Some(at) } => write!(
-                f,
-                "it picks no piece: step {} of its path names no one operand of the assemble \
-                 the walk reaches",
-                at + 1
-            ),
-            Self::Path { at: None } => {
-                f.write_str("it picks no piece: it reads no placement's copy, or its path is empty")
+            Self::Member => {
+                f.write_str("it reads one member of a family, and the slot reads a whole body")
             }
+            Self::Path { at } => write!(f, "it picks no piece: {}", PickMiss(*at)),
         }
     }
 }
 
 /// **The body a `SetProduct` read names**, held to be a `Body` in the
 /// world ([`EditError::ProductRead`]). The slot reads its body as a
-/// node's body seat does: a node, a port or a variable by id or name is
-/// itself, and a pick or a source written in place is minted as an
-/// anonymous variable the slot alone reads (VR2), a pick's path walked
-/// as a seat's is ([`pick_fault`]) and a source lowered as a declared
-/// one is (VR4). A plain read of a source is that source, shared.
+/// node's body seat does ([`lower_read`]): a node, a port or a variable
+/// by id or name is itself, and a pick or a source written in place is
+/// minted as an anonymous variable the slot alone reads (VR2). A read the
+/// seat lowering refuses is refused in the slot's words where it names
+/// the read (it resolves to nothing, to another kind, or picks no
+/// piece); any other refusal (an index formula of a source written in
+/// place) is the lowering's own.
 fn product_read<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     read: &crate::Operand,
@@ -10089,55 +10096,33 @@ fn product_read<P: crate::ProfilePayload>(
         read: Box::new(read.clone()),
         fault,
     };
-    // A body named in place: the forms that mint nothing.
-    let named = |doc: &Doc<P>, read: &crate::Operand| match read {
-        crate::Operand::Node(id) => match doc.seat_outputs(*id, false).as_slice() {
-            [one] => Some(*one),
-            _ => None,
-        },
-        crate::Operand::Output { node, port } => doc.output(*node, *port),
-        crate::Operand::Var(var) => doc.var(*var).map(|_| *var),
-        crate::Operand::Name(name) => doc.var_named(name.as_str()),
-        crate::Operand::Select { .. }
-        | crate::Operand::Pose(_)
-        | crate::Operand::Pick { .. }
-        | crate::Operand::Source(_) => None,
-    };
-    let var = match read {
-        crate::Operand::Pick { placement, of } => {
-            let copy = named(doc, placement)
-                .filter(|&var| doc.unresolved_read(var).is_none())
-                .ok_or_else(|| refused(ProductReadFault::Unresolved))?;
-            if let Some(at) = pick_fault(doc, copy, of) {
-                return Err(refused(ProductReadFault::Path { at }));
-            }
-            Some(mint_anonymous(
-                doc,
-                WrittenDef::Pick(crate::var::Pick {
-                    placement: copy,
-                    of: of.clone(),
-                }),
-            )?)
-        }
-        crate::Operand::Source(body) => {
-            match named(doc, &body.read).filter(|&var| doc.source(var).is_some()) {
-                Some(source) if !body.is_indexed() => Some(source),
-                _ => {
-                    let spoken = SpokenVar::new(doc.mint.would_declare(VarKind::Body), None);
-                    let def = lower_source_decl(doc, &Lowering::none(), &spoken, body)?;
-                    Some(mint_anonymous(doc, def)?)
-                }
-            }
-        }
-        _ => named(doc, read),
+    // A selection or a pose is no body: refused before it is minted.
+    if matches!(
+        read,
+        crate::Operand::Select { .. } | crate::Operand::Pose(_)
+    ) {
+        return Err(refused(ProductReadFault::Unresolved));
     }
-    .filter(|&var| doc.unresolved_read(var).is_none())
-    .ok_or_else(|| refused(ProductReadFault::Unresolved))?;
-    let kind = doc.var(var).map(crate::Var::kind);
-    if kind != Some(VarKind::Body) {
-        return Err(refused(ProductReadFault::Kind {
-            found: kind.unwrap_or(VarKind::Body),
-        }));
+    let body = crate::SlotKind::Is(VarKind::Body);
+    let var = lower_read(
+        doc,
+        &|| SpokenNode::absent(RecipeNodeId::WORLD),
+        SlotId::Operand(crate::OperandSlot::Source),
+        read,
+        body,
+        Reader::of(body),
+    )
+    .map_err(|error| match error {
+        EditError::UnresolvedInput { .. }
+        | EditError::DefinesNothing { .. }
+        | EditError::AmbiguousOutput { .. }
+        | EditError::OperandUnresolved { .. } => refused(ProductReadFault::Unresolved),
+        EditError::SlotVarKind { found, .. } => refused(ProductReadFault::Kind { found }),
+        EditError::PickPath { at, .. } => refused(ProductReadFault::Path { at }),
+        other => other,
+    })?;
+    if doc.unresolved_read(var).is_some() {
+        return Err(refused(ProductReadFault::Unresolved));
     }
     match product_fault(doc, var) {
         None => Ok(var),
@@ -10157,6 +10142,9 @@ pub(crate) fn product_fault<P: crate::program::SlotPayload<VarId>>(
     let held = doc.var(var)?;
     if held.kind() != VarKind::Body {
         return Some(ProductReadFault::Kind { found: held.kind() });
+    }
+    if doc.through_sources(var).is_indexed() {
+        return Some(ProductReadFault::Member);
     }
     match doc.space_of(var) {
         Some(VarId::WORLD) | None => None,

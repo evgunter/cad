@@ -5508,7 +5508,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "product_read_fault_tag",
-        values: &["kind", "pick_path", "space", "unresolved"],
+        values: &[
+            "kind",
+            "member_at_product",
+            "pick_path",
+            "space",
+            "unresolved",
+        ],
         delegates: &[],
     },
     TagEntry {

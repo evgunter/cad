@@ -1020,6 +1020,8 @@ pub(crate) enum ReadSite {
     Node {
         /// The node.
         node: RecipeNodeId,
+        /// The operand seat reading it, `None` for a scalar slot.
+        seat: Option<crate::OperandSlot>,
         /// The variable it reads.
         read: VarId,
     },
@@ -1523,6 +1525,27 @@ impl<P> Doc<P> {
         readers
     }
 
+    /// **Whether anything reads `var`** ([`Self::reader_counts`]).
+    #[must_use]
+    pub fn is_read(&self, var: VarId) -> bool
+    where
+        P: crate::ProfilePayload,
+    {
+        self.read_sites().any(|site| site.read() == var)
+    }
+
+    /// **Whether nothing but the product slot reads `var`**: what a door
+    /// that replaces the product, or moves the body it reads, may delete
+    /// or move without stranding another reader.
+    #[must_use]
+    pub fn read_by_nothing_but_the_product(&self, var: VarId) -> bool
+    where
+        P: crate::ProfilePayload,
+    {
+        self.read_sites()
+            .all(|site| site.read() != var || matches!(site, ReadSite::Product { .. }))
+    }
+
     /// **Every read of a variable the document holds, and the seat
     /// reading it**: the one enumeration of readers, in [`Readers::ALL`]'s
     /// order — the nodes in id order, then the definitions in
@@ -1544,11 +1567,14 @@ impl<P> Doc<P> {
     {
         match readers {
             Readers::Nodes => Box::new(self.nodes.iter().flat_map(|(&node, held)| {
-                let slots = held.exprs().into_iter().copied();
-                let operands = held.operand_rows().into_iter().map(|(_, var)| var);
+                let slots = held.exprs().into_iter().map(|&read| (None, read));
+                let operands = held
+                    .operand_rows()
+                    .into_iter()
+                    .map(|(seat, read)| (Some(seat), read));
                 slots
                     .chain(operands)
-                    .map(move |read| ReadSite::Node { node, read })
+                    .map(move |(seat, read)| ReadSite::Node { node, seat, read })
                     .collect::<Vec<_>>()
             })),
             Readers::Definitions => {

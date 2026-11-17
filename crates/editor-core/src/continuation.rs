@@ -824,14 +824,25 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
     if let Some(fault) = fault {
         return Err(fault);
     }
-    if let Some(product) = doc.product() {
-        let written = doc.written_operand(product);
-        if let Some(read) = handed(doc, &dead, &written, None)?
-            && read != written
-        {
-            edits.push(DocEdit::SetProduct {
-                product: Some(read),
-            });
+    for site in doc.read_sites() {
+        match site {
+            // Every node reading a deleted operation is decided by the
+            // walk above.
+            crate::doc::ReadSite::Node { .. } => {}
+            // A source's definition is handed over below
+            // ([`source_handovers`]); any other definition goes with the
+            // seat reading it.
+            crate::doc::ReadSite::Definition { .. } => {}
+            crate::doc::ReadSite::Product { read } => {
+                let written = doc.written_operand(read);
+                if let Some(read) = handed(doc, &dead, &written, None)?
+                    && read != written
+                {
+                    edits.push(DocEdit::SetProduct {
+                        product: Some(read),
+                    });
+                }
+            }
         }
     }
     let (redefined, sources) = source_handovers(doc, &dead)?;

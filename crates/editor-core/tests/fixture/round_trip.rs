@@ -21,6 +21,9 @@
 //!   read with the ids it reads as their images (a named variable's by
 //!   its name, an anonymous one's by its place in the definition that
 //!   reads it);
+//! - **the product slot reads the same body**, written as the slot reads
+//!   it (a pick written in place as its copy and path) with its ids read
+//!   as their images;
 //! - **the placements keep their document order**: the product's copies
 //!   are gathered in it. Order across other node kinds is not compared:
 //!   a split collapses its cut into a part and inline appends what it
@@ -264,6 +267,16 @@ fn same_payload(
     ));
 }
 
+/// **A body read as written**: an anonymous pick as the copy it picks
+/// (written the same way) and its path, any other read as
+/// [`ProfileDoc::written_operand`] writes it.
+fn written_read(d: &ProfileDoc, read: editor_core::VarId) -> String {
+    match d.pick(read).filter(|_| d.var_name(read).is_none()) {
+        Some(pick) => format!("pick({}, {:?})", written_read(d, pick.placement), pick.of),
+        None => format!("{:?}", d.written_operand(read)),
+    }
+}
+
 /// **`a` and `b` are one document up to node ids under `map` and
 /// `steps`** (module docs); the error lists every disagreement, one
 /// line each, opening with the check that found it.
@@ -392,6 +405,20 @@ pub fn same_up_to_ids(
     let (va, vb) = (vars(a, Some(&var_ids)), vars(b, None));
     if va != vb {
         problems.push(format!("variables: {va:?} vs {vb:?}"));
+    }
+    // The product slot reads its body as written, its ids read as their
+    // images: the two documents mint their own anonymous reads.
+    let pa = a.product().map(|read| {
+        renamed(
+            &written_read(a, read),
+            (&ids, &constraint_ids),
+            &step_ids,
+            &var_ids,
+        )
+    });
+    let pb = b.product().map(|read| written_read(b, read));
+    if pa != pb {
+        problems.push(format!("product: {pa:?} vs {pb:?}"));
     }
     if a.epsilon().to_bits() != b.epsilon().to_bits() {
         problems.push(format!("epsilon: {} vs {}", a.epsilon(), b.epsilon()));

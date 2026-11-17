@@ -853,6 +853,12 @@ pub fn product_recorded<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     if doc.operation_of(var).is_some() && doc.space_of(var) != Some(crate::VarId::WORLD) {
         return Err(ProductError::ProductOutsideWorld { read: var });
     }
+    // A source is read as the body it reads (VR4); a member read is none
+    // the slot reads ([`crate::edit::ProductReadFault::Member`]).
+    let var = match doc.through_sources(var) {
+        read if read.is_indexed() => return Err(ProductError::StrandedProduct { read: var }),
+        read => read.read,
+    };
     let mut product = gather(doc, evaluation, tol, var)?;
     product.assembles = assemble_gathers(doc, evaluation, tol, Some(var));
     Ok(product)

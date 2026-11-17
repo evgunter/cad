@@ -2025,16 +2025,9 @@ impl core::fmt::Display for SnapshotError {
                 "the name {name} is held by two variables, {a} and {b}, and a name is unique \
                  within a document"
             ),
-            Self::PickPath { var, at: Some(at) } => write!(
-                f,
-                "{var} picks no piece: step {} of its path names no one operand of the \
-                 assemble the walk reaches",
-                at + 1
-            ),
-            Self::PickPath { var, at: None } => write!(
-                f,
-                "{var} picks no piece: it reads no placement's copy, or its path is empty"
-            ),
+            Self::PickPath { var, at } => {
+                write!(f, "{var} picks no piece: {}", crate::edit::PickMiss(*at))
+            }
             Self::ProductRead { read, fault } => {
                 write!(f, "the product slot reads {read}, and {fault}")
             }
