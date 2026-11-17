@@ -10,32 +10,34 @@ opened: 2026-11-16
 
 ## What
 
-`tessellate::lane_of` routes a ringless analytic curved face by the
-curved lane's two doors (`curved::iso_rectangle_shape`): a face both
-pass goes to the curved lane's walk. Three walk refusals stand behind
-the doors, for faces they pass that the walk still cannot take:
-`UnsupportedCurvedDomain` (the zero-width slit,
-`curved::require_swept_rectangle`), `MeridianFreeCurvedFace`
-(`walk::require_a_meridian`) and `SingleColumnCurvedFace`
-(`walk::require_two_columns`). Each is a valid or invalid face the
-chart lane (`crate::trimmed`) might mesh, since it reads the domain
-from the stored images and needs no rectangle.
+`tessellate::route_of` routes a ringless analytic curved face whose
+stored images are iso forms by the curved lane's two doors
+(`curved::iso_rectangle_shape`): a face both pass goes to the curved
+lane's walk. Three walk refusals stand behind the doors, for faces they
+pass that the walk still cannot take: `UnsupportedCurvedDomain` (the
+zero-width slit, `curved::require_swept_rectangle`),
+`MeridianFreeCurvedFace` (`walk::require_a_meridian`) and
+`SingleColumnCurvedFace` (`walk::require_two_columns`). The chart lane
+(`crate::trimmed`) reads the domain from the stored images and needs no
+rectangle, so it might mesh such a face; the route never offers it one,
+since both doors passed.
 
-Whether it does is unmeasured, because every witness of those rows is
-assembled through the Euler doors (`mesh/tests/common/witness_bodies.rs`'s
-`slit`, `one_circle_cut`; the single-column rows in `mesh/tests/errors.rs`
-and `walk`'s units), which store no chart image and no joint element.
-Measured on the slit: 0 stored images over its faces, and
-`topo::Body::face_lift` answers `Gap(LiftGap { .. })`, so the chart lane
-would refuse `DomainUnread` for want of data, not for its shape. No
-public door is known to build a slit with its images (the boolean
-splits a cut into rectangles; a sheet does not finish).
+Whether it would is unmeasured. The witnesses are assembled through the
+Euler doors (`mesh/tests/common/witness_bodies.rs`'s `slit`,
+`one_circle_cut`; the single-column rows in `mesh/tests/errors.rs` and
+`walk`'s units), and `topo::mint_pcurves` mints their images (it does on
+the slit, the keyway, the lens, the half cap and the bow tie:
+`witness_bodies::minted`). The slit with its images minted still
+refuses `UnsupportedCurvedDomain`, because both doors pass it and the
+route sends it to the walk. What is missing is a way to hand such a face
+to the chart lane: a route override for a test, as
+`tessellate::Routes::with` is for the curved lane's unit rows, or a
+public one.
 
 ## What would settle it
 
-A witness of each walk refusal that stores its chart images (a door
-that builds one, or a test-support mint of the images on an Euler-built
-sheet), meshed by the chart lane at the reach probes' δ, with
+Each walk refusal's witness, minted, handed to the trimmed lane by a
+test-only route override, meshed at the reach probes' δ, with
 `reach_probes::geometry` read on the result. If the chart lane meshes
-them, the route could send them there; that is a routing change with
-its own measurement, not this row's.
+them, the route could send a face the walk refuses there; that is a
+routing change with its own measurement, not this row's.

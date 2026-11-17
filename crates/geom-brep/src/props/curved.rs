@@ -1969,12 +1969,20 @@ fn cylinder_boundary<T: Decide>(
                     band,
                     PropsCheck::Inventory,
                 )?;
-                // A circle whose plane holds the axis direction lies on no
-                // cylinder about that axis: an incidence miss, decided by
-                // the axis class.
+                // No rim by its axis class: either the circle's plane holds
+                // the axis direction, and it lies on no cylinder about that
+                // axis unless its radius is the cylinder's, or the circle is
+                // too small for the class to read. Which, is decided on this
+                // path alone, by the rim's own fit.
                 let Some(s) = s.nonzero() else {
-                    return Err(PropsError::OffSurface {
-                        what: "props_circle_axis_class",
+                    require_zero(
+                        "props_rim_fit",
+                        Margin::of(r_c - radius),
+                        band,
+                        Premise::OnSurface,
+                    )?;
+                    return Err(PropsError::NotIsoRectangle {
+                        what: "cylinder boundary circle is not a rim",
                     });
                 };
                 require_zero(
