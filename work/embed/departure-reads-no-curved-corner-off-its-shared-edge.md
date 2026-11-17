@@ -458,4 +458,29 @@ The torus, the cone and the sphere are not covered:
 - the drums' disc;
 - the two-arc lune.
 
+### Review fix pass (2026-11-17)
+
+**Which commit each measurement was taken at:**
+- The first pass above was measured on merge base `362cd72fd`, against
+  main at the same commit.
+- The fix pass head is `f3087b7070`, which merges main through PR
+  7071. At that head:
+  - the f64 cavity rows (switch on) refuse the same 16 rows as the
+    first pass, the belly shelling;
+  - the tour walk holds 82 of 85, with every verdict and pair count
+    identical to the first pass;
+  - `self_intersection_proves_injectivity` is green. The tee reads 8.
+
+**The tee with PR 7089 also landed** is not measured. PR 7089
+certifies `A`'s wall halves against the mitre (the two root pairs
+here), and this PR certifies the other four. If the two are
+independent, the tee then refuses six floor cells: `A`'s wall halves
+against `B`'s cap, a straight angle of two ellipse arcs at a vertex
+alone. Whichever lands second re-pins it against main.
+
+**Rows filed:**
+- `the-vertex-alone-plane-leans-along-a-cells-long-metric-side-so-an-anisotropic-pair-splits`
+  (the review's N1, traced to `planes_through`'s midpoint headings);
+- `the-corner-presentations-each-spell-their-reach-preamble`.
+
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
