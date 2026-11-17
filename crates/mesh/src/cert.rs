@@ -104,6 +104,9 @@ pub fn dist_point_triangle(p: Point3<f64>, a: Point3<f64>, b: Point3<f64>, c: Po
     if !all_finite(coordinates()) {
         return f64::NAN;
     }
+    // A power of two so that the scaling itself rounds nothing; any scale
+    // within a small factor of the furthest coordinate keeps the products
+    // in range, and differs from this one by rounding only.
     let unit = binade(
         from_p
             .iter()
@@ -132,7 +135,9 @@ fn dist_origin_triangle([u, v, w]: [Vec3<f64>; 3], [ab, bc, ca]: [Vec3<f64>; 3])
     // The foot's barycentric weights, each times `|n|²`.
     let inside = n.dot(v.cross(bc)) > 0.0 && n.dot(w.cross(ca)) > 0.0 && n.dot(u.cross(ab)) > 0.0;
     let area2 = n.norm();
-    // A normal whose length underflowed is a triangle of no width.
+    // A normal whose length underflowed is a triangle of no width. (Its
+    // weights are each at most `|n|²` and underflow with it, so only their
+    // rounding can read such a foot as inside.)
     if !inside || area2 == 0.0 {
         return nearest_side;
     }
@@ -162,7 +167,9 @@ fn dist_origin_segment(u: Vec3<f64>, v: Vec3<f64>, e: Vec3<f64>) -> f64 {
 }
 
 /// The largest power of two not above `|x|`, for a finite `x`; the
-/// smallest normal number for zero and below it. Dividing by it is exact.
+/// smallest normal number for zero and below it. Dividing by it is exact
+/// while the quotient is a normal number, and rounds to the nearest
+/// subnormal below that.
 fn binade(x: f64) -> f64 {
     f64::from_bits(x.to_bits() & 0x7ff0_0000_0000_0000).max(f64::MIN_POSITIVE)
 }
@@ -187,7 +194,10 @@ fn all_finite(values: impl IntoIterator<Item = f64>) -> bool {
 /// point–triangle distance ([`dist_point_triangle`], which takes a
 /// shadow of no area). `d` is any nonzero direction of any finite
 /// length: it is read at its own scale. NaN for a zero `d`, a coordinate
-/// that is not finite, or a corner whose offset from `o` is not.
+/// that is not finite, and a corner whose offset from `o` is not finite
+/// or is within a small factor of `f64`'s largest number, where its
+/// product with the direction overflows: a refusal, never a wrong
+/// number.
 pub fn dist_line_triangle(
     o: Point3<f64>,
     d: Vec3<f64>,
@@ -1670,27 +1680,49 @@ mod tests {
         }
     }
 
-    /// **Corners far apart in size are read at the largest.** A triangle
-    /// about the origin's foot with one coordinate `10⁻²⁰⁰` beside
-    /// unit-sized ones answers its plane's distance, and so does its
-    /// mirror, one unit-sized coordinate beside `10²⁰⁰` ones. Read at the
-    /// smallest coordinate's scale the first overflows; read as stored
-    /// the second does.
+    /// **Corners far apart in size are read at the largest coordinate of
+    /// all three.** Each fixture in every corner order, to one allowance:
+    ///
+    /// - a triangle about the origin's foot with one coordinate `10⁻²⁰⁰`
+    ///   beside unit-sized ones, and its mirror, one unit-sized coordinate
+    ///   beside `10²⁰⁰` ones: its plane's distance. Read at the smallest
+    ///   coordinate's scale the first overflows; read as stored the second
+    ///   does;
+    /// - a triangle `10⁻¹⁷⁰` wide, a feature far under what the scale's
+    ///   products hold: the nearest side's distance;
+    /// - four points at one place: 0, which the scale's floor at the
+    ///   smallest normal number keeps from `0/0`.
     #[test]
     fn corners_far_apart_in_size_are_read_at_the_largest() {
         let o = Point3::new(0.0, 0.0, 0.0);
+        let p = Point3::new;
+        let mut rows = Vec::new();
         for (small, big) in [(1e-200, 1.0), (1.0, 1e200)] {
-            let tri = [
-                Point3::new(small, -big, 0.5 * big),
-                Point3::new(big, big, 0.5 * big),
-                Point3::new(-big, big, 0.5 * big),
-            ];
+            rows.push((
+                o,
+                [
+                    p(small, -big, 0.5 * big),
+                    p(big, big, 0.5 * big),
+                    p(-big, big, 0.5 * big),
+                ],
+                0.5 * big,
+                big,
+            ));
+        }
+        rows.push((
+            p(0.0, 5e-171, 0.5),
+            [p(-1.0, 0.0, 0.0), p(1.0, 0.0, 0.0), p(0.0, 1e-170, 0.0)],
+            0.5,
+            1.0,
+        ));
+        let here = p(0.3, -0.2, 0.7);
+        rows.push((here, [here; 3], 0.0, 1.0));
+        for (from, tri, expected, scale) in rows {
             for [a, b, c] in orders(tri) {
-                let got = dist_point_triangle(o, a, b, c);
+                let got = dist_point_triangle(from, a, b, c);
                 assert!(
-                    (got - 0.5 * big).abs() <= rounding_allowance(big),
-                    "{small:e} beside {big:e}: {got:e}, not {:e}",
-                    0.5 * big
+                    (got - expected).abs() <= rounding_allowance(scale),
+                    "{tri:?} from {from:?}: {got:e}, not {expected:e}"
                 );
             }
         }
