@@ -91,3 +91,10 @@ body has the reasons):
   - the `{snapshot}` wrapper question is filed at P4.
 
   No second review, since there was no MAJOR.
+- 2026-11-17 — PR 7087 delta review: APPROVE WITH FIXES, with one new MAJOR in the PR's own class. A product, or a kept seat, that reads a NAMED source over a named pick of a cut copy still widens (volume 15 against 9), because `heir_of` sees through only anonymous sources. Comparator mutations confirm the rows can now fail. Second fix pass ruled:
+  - resolve through any source to the pick, and refuse typed where VR4 blocks the carry;
+  - lift or truthfully re-word the product's `Member` refusal;
+  - one re-pointing rule for anonymous sources (inline's node-seat path refuses as a "kernel defect" where the product path works);
+  - `splice`'s `read_sites` arms carry their walks.
+
+  A second delta review follows.
