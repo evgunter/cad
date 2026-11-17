@@ -81,6 +81,8 @@ mod cusp_round_trip;
 mod freecad;
 #[path = "halfcap_pole.rs"]
 mod halfcap_pole;
+#[path = "hollow_bodies_round_trip.rs"]
+mod hollow_bodies_round_trip;
 #[path = "imported_loft_rim_offset.rs"]
 mod imported_loft_rim_offset;
 #[path = "inst_review_probes.rs"]

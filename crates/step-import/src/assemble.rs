@@ -901,7 +901,9 @@ fn assemble_solid(
 
 /// The assembly proper: one `MANIFOLD_SOLID_BREP` into a body of its
 /// OWN (phase A + verification + adoption), then one pcurve mint over
-/// that body.
+/// that body. A `BREP_WITH_VOIDS` assembles each void shell the same
+/// way, into a body of its own, and files it under the outer shell's
+/// solid, so the body holds one solid of every shell the record names.
 ///
 /// A body per solid is what lets the shared at-rest gate be asked
 /// about that solid alone: the whole-body invariants the gate checks
@@ -910,6 +912,32 @@ fn assemble_solid(
 /// Nothing assembles two specs into one arena — each instance is
 /// built into a body of its own and the copies are grafted (`lib.rs`).
 pub(crate) fn build_one_solid(
+    solid: &SolidSpec,
+    tol: Tol,
+    file: FileCoincidence,
+) -> Result<(Body<f64>, Vec<StructureNormalization>), StepImportError> {
+    let (mut body, mut joins) = build_one_shell(solid, tol, file)?;
+    let Some((keeper, _)) = body.solids().next() else {
+        unreachable!("an assembled shell stands under the solid its mvfs minted")
+    };
+    for void in &solid.voids {
+        let (cavity, void_joins) = build_one_shell(void, tol, file)?;
+        joins.extend(void_joins);
+        let donor = topo::graft_disjoint(&mut body, &cavity).unwrap_or_else(|e| {
+            unreachable!(
+                "a one-solid source grafts: the disjoint graft refuses only a source \
+                 without exactly one solid ({e:?})"
+            )
+        });
+        body.fold_solid_into(donor, keeper).unwrap_or_else(|e| {
+            unreachable!("both solids were just minted in this body and resolve ({e:?})")
+        });
+    }
+    Ok((body, joins))
+}
+
+/// One shell of `solid` (its own, not its voids) into a body of its own.
+fn build_one_shell(
     solid: &SolidSpec,
     tol: Tol,
     file: FileCoincidence,
@@ -1113,6 +1141,7 @@ mod tests {
             )]),
             vertices: BTreeMap::from([(VERTEX, Point3::new(x, 0.0, 0.0))]),
             band_seams: std::collections::BTreeSet::new(),
+            voids: Vec::new(),
         };
         // Use 0 is the self-loop's forward use, 1 its reversed use, 2
         // the built neighbour. `sigma(0) = next[mate[0]] = next[1] =

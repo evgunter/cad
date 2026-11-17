@@ -66,7 +66,7 @@ use std::collections::HashMap;
 use geom::Curve3;
 use geom::Surface;
 use geom_core::Tol;
-use step_export::{StepExportError, StepOptions, step_string};
+use step_export::{StepOptions, step_string};
 
 /// The fixture options (matching `tests/export.rs` and the fixture
 /// generator: an EXPLICIT uncertainty, so nothing here reads ambient ε
@@ -932,13 +932,14 @@ fn two_curved_stubs_are_two_solids_and_export_at_both_tolerances() {
     }
 }
 
-/// **A curved void classifies** (VERBS-RING): the one-call hollow ring
-/// — a full revolve of an annulus, outer torus + toroidal cavity — is a
+/// **A curved void exports** (VERBS-RING): the one-call hollow ring —
+/// a full revolve of an annulus, outer torus + toroidal cavity — is a
 /// solid of two curved shells, and the writer reads the cavity's role
-/// off the kernel's shell-role door: it refuses as the void it is, its
-/// volume the cavity's `−2π²Rr²`, and never for the torus surfaces.
+/// off the kernel's shell-role door and writes it as the solid's void:
+/// one `BREP_WITH_VOIDS`, its cavity an `ORIENTED_CLOSED_SHELL(.F.)`
+/// whose toroidal faces state the kernel faces' senses negated.
 #[test]
-fn hollow_ring_refuses_as_a_void() {
+fn hollow_ring_exports_its_cavity_as_a_void() {
     use geom_core::{Point2, Vec2};
     let tol = Tol::witness();
     let outer = profile::circle(Point2::new(5.0, 0.0), 0.5, tol).unwrap();
@@ -957,29 +958,49 @@ fn hollow_ring_refuses_as_a_void() {
     )
     .unwrap();
     assert_eq!(ring.body.shells().count(), 2, "the ring is two-shell");
-    let cavity = ring.body.shells().nth(1).expect("two shells").0;
-    let ring = ring.body;
-    match step_string(&ring, &StepOptions::default(), tol) {
-        Err(StepExportError::VoidShellUnsupported {
-            shell,
-            volume_lo,
-            volume_hi,
-        }) => {
-            assert_eq!(shell, cavity, "the cavity is the void");
-            let expected = -2.0 * std::f64::consts::PI.powi(2) * 5.0 * 0.35_f64.powi(2);
-            assert!(
-                volume_lo <= volume_hi && volume_hi < 0.0,
-                "the cavity's enclosure is negative: [{volume_lo}, {volume_hi}]"
-            );
-            for end in [volume_lo, volume_hi] {
-                assert!(
-                    (end - expected).abs() <= 1e-6 * expected.abs(),
-                    "the cavity's signed volume: {end} vs {expected}"
-                );
-            }
-        }
-        other => panic!("expected VoidShellUnsupported, got {other:?}"),
-    }
+    let roles = topo::classify_shells(&ring.body, tol).expect("the ring classifies");
+    let senses = |role| -> Vec<bool> {
+        roles
+            .iter()
+            .filter(|row| row.role == role)
+            .flat_map(|row| ring.body.get_shell(row.shell).expect("shell").faces.clone())
+            .map(|face| ring.body.get_face(face).expect("face").sense)
+            .collect()
+    };
+    let (outer_senses, cavity_senses) = (
+        senses(topo::ShellRole::Outer),
+        senses(topo::ShellRole::Void),
+    );
+    let text = step_string(&ring.body, &StepOptions::default(), tol)
+        .unwrap_or_else(|e| panic!("the hollow ring exports: {e:?}"));
+    assert_eq!(
+        text.matches("MANIFOLD_SOLID_BREP(").count(),
+        0,
+        "not voidless"
+    );
+    assert_eq!(text.matches("= BREP_WITH_VOIDS(").count(), 1, "one solid");
+    let voids: Vec<&str> = text
+        .lines()
+        .filter(|line| line.contains("= ORIENTED_CLOSED_SHELL("))
+        .collect();
+    assert!(
+        matches!(voids[..], [void] if void.ends_with(", .F.);")),
+        "one void, reversed: {voids:?}"
+    );
+    let face_senses: Vec<bool> = text
+        .lines()
+        .filter(|line| line.contains("= ADVANCED_FACE("))
+        .map(|line| line.ends_with(".T.);"))
+        .collect();
+    assert_eq!(
+        face_senses,
+        outer_senses
+            .iter()
+            .copied()
+            .chain(cavity_senses.iter().map(|sense| !sense))
+            .collect::<Vec<_>>(),
+        "the outer torus's faces as stored, the cavity's reversed"
+    );
 }
 
 /// **Regression guard for `common::walk_order` (review probe).** The

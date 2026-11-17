@@ -889,6 +889,7 @@ mod tests {
             edges,
             vertices,
             band_seams: Default::default(),
+            voids: Vec::new(),
         };
         let mut minted = 0_u64;
         let mut sink = Vec::new();
