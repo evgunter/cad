@@ -1810,7 +1810,7 @@ macro_rules! nurbs_curve {
             /// domain end read from outside, or poison) it is
             /// [`Self::ders1`].
             pub fn ders1_from(&self, t: T, below: bool) -> ($Point<T>, $Vector<T>) {
-                let at = |x: T| x.structure_bracket().map(|(lo, hi)| 0.5 * (lo + hi));
+                let at = |x: T| x.structure_bracket().map(geom_core::bracket_mid);
                 let Some(tm) = at(t) else {
                     return self.ders1(t);
                 };
