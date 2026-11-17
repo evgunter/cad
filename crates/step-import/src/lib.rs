@@ -473,6 +473,19 @@ pub enum NormalizationKind {
         /// record lies from the other's surface.
         moved_by: f64,
     },
+    /// **A NURBS carrier promoted to an analytic kind** (D7 stage 1,
+    /// #327): the carrier's residual against the analytic curve read
+    /// Zero at the file's band, so every edge on it adopts the analytic
+    /// carrier ([`CurvePromotion`] is this record read off the ledger).
+    /// Keyed by the curve entity, not a face; its census pair is empty,
+    /// since nothing is re-tessellated.
+    CurvePromoted {
+        /// The kind that certified.
+        kind: PromotedCurveKind,
+        /// The certified residual sup (metres): the carrier's worst
+        /// deviation from the promoted curve over its whole domain.
+        residual: f64,
+    },
 }
 
 /// The K row a placement frame's two directions are decided under where
@@ -677,10 +690,6 @@ pub enum StepImport {
         /// resolution order — empty for a file whose boundary graph the
         /// kernel represents as stated (every own-corpus file).
         normalizations: Vec<StructureNormalization>,
-        /// The **curve promotions** this import applied (#327), by
-        /// ascending curve entity id — empty for a file whose carriers
-        /// are all stated analytically or all stay NURBS.
-        curve_promotions: Vec<CurvePromotion>,
         /// **The assembly record** ([`PlacedInstance`], A7): one entry
         /// per solid of `body`, in `body.solids()` order, saying what
         /// the file said about it — which component representation it
@@ -764,16 +773,18 @@ pub enum StepImport {
         /// stays as stated — and D7 stage-1 CURVE recognition runs on
         /// this lane too, so a carrier that CERTIFIES is handed back
         /// as its analytic kind, with the promotion recorded in
-        /// `curve_promotions` below. Recognition is a property of the
+        /// `normalizations` below
+        /// ([`NormalizationKind::CurvePromoted`]). Recognition is a property of the
         /// carrier, not of what a body later does with it; a wireframe
         /// whose promotions were silent would be the one place in this
         /// crate where a description changed without being reported.
         curves: Vec<geom::Curve3<f64>>,
         /// As [`StepImport::Solid::eps_in`].
         eps_in: f64,
-        /// The curve promotions applied to `curves` (#327), by
-        /// ascending curve entity id.
-        curve_promotions: Vec<CurvePromotion>,
+        /// The move ledger: the curve promotions applied to `curves`
+        /// (#327), by ascending curve entity id, and the placements
+        /// their frames were built from where the build moved them.
+        normalizations: Vec<StructureNormalization>,
     },
 }
 
@@ -786,28 +797,34 @@ impl StepImport {
         }
     }
 
-    /// The structure normalizations this import applied (empty for a
-    /// wireframe, which has no boundary graph to re-mint).
+    /// **The move ledger**: one record per file entity interpretation
+    /// moved beyond rounding or re-minted, naming the entity, what moved
+    /// and a bound in metres, in the order the import made them.
     pub fn normalizations(&self) -> &[StructureNormalization] {
         match self {
-            Self::Solid { normalizations, .. } => normalizations,
-            Self::Wireframe { .. } => &[],
+            Self::Solid { normalizations, .. } | Self::Wireframe { normalizations, .. } => {
+                normalizations
+            }
         }
     }
 
-    /// The curve promotions this import applied (#327). Both lanes
-    /// report: recognition fires at the sole `NurbsCurve3`
-    /// construction site, which the `GEOMETRIC_CURVE_SET` lane reaches
-    /// as well as the solid lane.
-    pub fn curve_promotions(&self) -> &[CurvePromotion] {
-        match self {
-            Self::Solid {
-                curve_promotions, ..
-            }
-            | Self::Wireframe {
-                curve_promotions, ..
-            } => curve_promotions,
-        }
+    /// The curve promotions this import applied (#327), read off the
+    /// ledger ([`NormalizationKind::CurvePromoted`]). Both lanes report:
+    /// recognition fires at the sole `NurbsCurve3` construction site,
+    /// which the `GEOMETRIC_CURVE_SET` lane reaches as well as the solid
+    /// lane.
+    pub fn curve_promotions(&self) -> Vec<CurvePromotion> {
+        self.normalizations()
+            .iter()
+            .filter_map(|n| match n.kind {
+                NormalizationKind::CurvePromoted { kind, residual } => Some(CurvePromotion {
+                    curve: n.face,
+                    kind,
+                    residual,
+                }),
+                _ => None,
+            })
+            .collect()
     }
 
     /// The assembly record ([`PlacedInstance`], A7) — empty for a
@@ -875,7 +892,7 @@ pub fn import_step(
             let mut record = Vec::with_capacity(model.instances.len());
             // The joins each solid's build ended with, reported once per
             // solid: each is built once.
-            let mut normalizations = model.normalizations.clone();
+            let mut normalizations = ledger(&model);
             // Each distinct solid is built once. Where the per-solid
             // subject is owed, it is finished once, on its first placed
             // instance (so it is asked in the box where it stands), and
@@ -1039,7 +1056,6 @@ pub fn import_step(
                 body,
                 eps_in,
                 normalizations,
-                curve_promotions: model.curve_promotions.clone(),
                 instances: record,
                 coherence,
                 contacts,
@@ -1049,9 +1065,34 @@ pub fn import_step(
         entities::Shape::Wireframe(ref curves) => Ok(StepImport::Wireframe {
             curves: curves.clone(),
             eps_in,
-            curve_promotions: model.curve_promotions.clone(),
+            normalizations: ledger(&model),
         }),
     }
+}
+
+/// The move ledger as the model's resolution left it: each curve
+/// promotion ([`NormalizationKind::CurvePromoted`], keyed by the carrier),
+/// then the normalizations in resolution order.
+fn ledger(model: &entities::Model) -> Vec<StructureNormalization> {
+    let empty = FaceCensus {
+        faces: 0,
+        edges: 0,
+        vertices: 0,
+    };
+    model
+        .curve_promotions
+        .iter()
+        .map(|p| StructureNormalization {
+            face: p.curve,
+            kind: NormalizationKind::CurvePromoted {
+                kind: p.kind,
+                residual: p.residual,
+            },
+            file_census: empty,
+            kernel_census: empty,
+        })
+        .chain(model.normalizations.iter().copied())
+        .collect()
 }
 
 /// The reader's per-solid contact with the kernel's at-rest gate: the

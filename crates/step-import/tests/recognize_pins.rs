@@ -432,11 +432,11 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
         // carriers additionally promote to LINE (#388 — their Greville
         // map fold is ~1.3e-7 at unit scale, between the two bands);
         // the seams chart the same way either side of it.
-        Ok(StepImport::Solid {
-            body,
-            curve_promotions,
-            ..
-        }) => {
+        Ok(imported @ StepImport::Solid { .. }) => {
+            let curve_promotions = imported.curve_promotions();
+            let StepImport::Solid { body, .. } = imported else {
+                unreachable!("matched as a solid")
+            };
             topo::validate_geometric(&*body, Tol::witness())
                 .expect("first-class at rest: the rational wall's flux reaches its target");
             let taken = plane_nurbs_intersections(&body);

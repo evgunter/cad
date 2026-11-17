@@ -2968,6 +2968,21 @@ fn import_report_row_tags_are_stable() {
             },
             "placement_re_minted",
         ),
+        (
+            NormalizationKind::OneRecord {
+                kept: 10,
+                joined: 20,
+                moved_by: 1e-12,
+            },
+            "one_record",
+        ),
+        (
+            NormalizationKind::CurvePromoted {
+                kind: pncad::step_import::PromotedCurveKind::Circle,
+                residual: 1e-17,
+            },
+            "curve_promoted",
+        ),
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
@@ -5325,10 +5340,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "normalization_kind_tag",
         values: &[
             "chart_singularity_vertex",
+            "curve_promoted",
             "edge_free_sphere",
             "edge_split_at_c0_knot",
             "face_split_at_c0_knot",
             "joined_edges",
+            "one_record",
             "placement_re_minted",
             "seamless_periodic_band",
             "surface_promotion",
@@ -5986,6 +6003,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "c0_knot_unsplit",
             "dangling_reference",
             "instance",
+            "interpretation",
             "invalid_eps_override",
             "join",
             "malformed_real",

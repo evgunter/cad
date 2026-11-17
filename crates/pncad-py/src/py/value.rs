@@ -2312,12 +2312,13 @@ impl StructureNormalization {
     }
 
     /// The certified residual sup (metres): the patch's worst
-    /// deviation from the surface it was promoted to. On
-    /// `surface_promotion` alone.
+    /// deviation from the surface it was promoted to, or the carrier's
+    /// from the curve. On `surface_promotion` and `curve_promoted`.
     #[getter]
     fn residual(&self) -> Option<f64> {
         match &self.0.kind {
-            pncad::step_import::NormalizationKind::SurfacePromotion { residual, .. } => {
+            pncad::step_import::NormalizationKind::SurfacePromotion { residual, .. }
+            | pncad::step_import::NormalizationKind::CurvePromoted { residual, .. } => {
                 Some(*residual)
             }
             _ => None,
@@ -2348,12 +2349,14 @@ impl StructureNormalization {
         }
     }
 
-    /// How far building the frames moved a point of the session box
-    /// (metres) — on `placement_re_minted` alone.
+    /// The move's bound (metres): how far building the frames moved a
+    /// point of the session box on `placement_re_minted`, how far a face
+    /// on either record lies from the other's surface on `one_record`.
     #[getter]
     fn moved_by(&self) -> Option<f64> {
         match &self.0.kind {
-            pncad::step_import::NormalizationKind::PlacementReMinted { moved_by, .. } => {
+            pncad::step_import::NormalizationKind::PlacementReMinted { moved_by, .. }
+            | pncad::step_import::NormalizationKind::OneRecord { moved_by, .. } => {
                 Some(*moved_by)
             }
             _ => None,
@@ -2643,12 +2646,16 @@ pub(crate) fn import_step(
         // The surface census carries the decision as a `NotBound` row.
         examine_chart_coherence: false,
     };
-    match pncad::step_import::import_step(text, &options, tol) {
+    let imported = pncad::step_import::import_step(text, &options, tol);
+    let curve_promotions = imported
+        .as_ref()
+        .map(pncad::step_import::StepImport::curve_promotions)
+        .unwrap_or_default();
+    match imported {
         Ok(pncad::step_import::StepImport::Solid {
             body,
             eps_in,
             normalizations,
-            curve_promotions,
             instances,
             // `None` by construction: the options above ask for no
             // examination, and `None` means NOT ASKED — which is the
