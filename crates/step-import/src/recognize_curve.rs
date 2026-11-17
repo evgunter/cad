@@ -369,10 +369,7 @@ fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(Curve3<f64>, f6
 /// INV-C2, then the coverage certificate). `Err(margin)` is the
 /// estimator's conditioning refusal; `Ok(None)` a refuted certificate
 /// or an out-of-scope (open-arc) carrier.
-fn try_circle(
-    curve: &NurbsCurve3<f64>,
-    file: FileBand,
-) -> Result<Option<(Curve3<f64>, f64)>, f64> {
+fn try_circle(curve: &NurbsCurve3<f64>, file: FileBand) -> Result<Option<(Curve3<f64>, f64)>, f64> {
     let control = curve.control();
     let (Some(first), Some(last)) = (control.first(), control.last()) else {
         return Ok(None);
@@ -780,7 +777,10 @@ mod tests {
                     ..
                 }),
             ..
-        } = recognize(&rational_circle(0.005, true), crate::interpret::FileBand::test(EPS_IN))
+        } = recognize(
+            &rational_circle(0.005, true),
+            crate::interpret::FileBand::test(EPS_IN),
+        )
         else {
             panic!("the reversed circle must certify too");
         };
@@ -804,7 +804,10 @@ mod tests {
         )
         .unwrap();
         assert!(
-            matches!(recognize(&curve, crate::interpret::FileBand::test(EPS_IN)), CurveRecognition::StaysNurbs),
+            matches!(
+                recognize(&curve, crate::interpret::FileBand::test(EPS_IN)),
+                CurveRecognition::StaysNurbs
+            ),
             "a dented circle is not a circle"
         );
     }
@@ -847,7 +850,9 @@ mod tests {
         ];
         let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
         let curve = NurbsCurve3::new(knots, control, vec![1.0; 5]).unwrap();
-        let CurveRecognition::IllConditioned { kind, margin } = recognize(&curve, crate::interpret::FileBand::test(EPS_IN)) else {
+        let CurveRecognition::IllConditioned { kind, margin } =
+            recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
+        else {
             panic!("collinear samples determine no radius");
         };
         assert_eq!(kind, PromotedCurveKind::Circle);
@@ -924,7 +929,10 @@ mod tests {
             "the full circle must wind once"
         );
         assert!(
-            !matches!(recognize(&back, crate::interpret::FileBand::test(EPS_IN)), CurveRecognition::Promoted { .. }),
+            !matches!(
+                recognize(&back, crate::interpret::FileBand::test(EPS_IN)),
+                CurveRecognition::Promoted { .. }
+            ),
             "a carrier covering a quarter of the circle must not become the circle"
         );
     }
@@ -1100,10 +1108,15 @@ mod tests {
         )
         .unwrap();
         assert!(
-            matches!(recognize(&curve, crate::interpret::FileBand::test(EPS_IN)), CurveRecognition::StaysNurbs),
+            matches!(
+                recognize(&curve, crate::interpret::FileBand::test(EPS_IN)),
+                CurveRecognition::StaysNurbs
+            ),
             "an overshooting net must not certify at the module budget"
         );
-        let CurveRecognition::Promoted { residual, kind, .. } = recognize(&curve, crate::interpret::FileBand::test(0.035)) else {
+        let CurveRecognition::Promoted { residual, kind, .. } =
+            recognize(&curve, crate::interpret::FileBand::test(0.035))
+        else {
             panic!("the map fold is 0.03, inside a 0.035 budget");
         };
         assert_eq!(kind, PromotedCurveKind::Line);
@@ -1112,7 +1125,10 @@ mod tests {
             "the residual IS the Greville map fold: {residual:e}"
         );
         assert!(
-            matches!(recognize(&curve, crate::interpret::FileBand::test(0.025)), CurveRecognition::StaysNurbs),
+            matches!(
+                recognize(&curve, crate::interpret::FileBand::test(0.025)),
+                CurveRecognition::StaysNurbs
+            ),
             "a budget below the hull refuses, even one an excursion-only reading clears"
         );
     }
@@ -1161,17 +1177,18 @@ mod tests {
                     "weights [{w}, {w1}, {w}] must refuse the map certificate at ε = {eps:e}"
                 );
             }
-            let line = |w: f64| match recognize(&carrier(w, w), crate::interpret::FileBand::test(eps)) {
-                CurveRecognition::Promoted {
-                    curve: Curve3::Line(geom::Line { origin, dir }),
-                    residual,
-                    ..
-                } => (
-                    [origin.x, origin.y, origin.z, dir.x, dir.y, dir.z].map(f64::to_bits),
-                    residual,
-                ),
-                other => panic!("weights [{w}; 3] at ε = {eps:e} must promote: {other:?}"),
-            };
+            let line =
+                |w: f64| match recognize(&carrier(w, w), crate::interpret::FileBand::test(eps)) {
+                    CurveRecognition::Promoted {
+                        curve: Curve3::Line(geom::Line { origin, dir }),
+                        residual,
+                        ..
+                    } => (
+                        [origin.x, origin.y, origin.z, dir.x, dir.y, dir.z].map(f64::to_bits),
+                        residual,
+                    ),
+                    other => panic!("weights [{w}; 3] at ε = {eps:e} must promote: {other:?}"),
+                };
             let unit = line(1.0);
             let twos = line(2.0);
             assert_eq!(
@@ -1189,7 +1206,10 @@ mod tests {
             }
             assert!(
                 matches!(
-                    recognize(&carrier(1e-300, 1e-300), crate::interpret::FileBand::test(eps)),
+                    recognize(
+                        &carrier(1e-300, 1e-300),
+                        crate::interpret::FileBand::test(eps)
+                    ),
                     CurveRecognition::StaysNurbs
                 ),
                 "weights [1e-300; 3] at ε = {eps:e}: a refused composite is no zero"
@@ -1223,7 +1243,10 @@ mod tests {
         )
         .unwrap();
         assert!(
-            matches!(recognize(&curve, crate::interpret::FileBand::test(EPS_LINE)), CurveRecognition::StaysNurbs),
+            matches!(
+                recognize(&curve, crate::interpret::FileBand::test(EPS_LINE)),
+                CurveRecognition::StaysNurbs
+            ),
             "a re-timed interior must not certify at the module band"
         );
         let CurveRecognition::Promoted {
@@ -1259,7 +1282,10 @@ mod tests {
         .unwrap();
         for eps in [1e-6, 1e-9, 1e-12] {
             assert!(
-                matches!(recognize(&curve, crate::interpret::FileBand::test(eps)), CurveRecognition::StaysNurbs),
+                matches!(
+                    recognize(&curve, crate::interpret::FileBand::test(eps)),
+                    CurveRecognition::StaysNurbs
+                ),
                 "a bulged quadratic is not a line at eps {eps:e}"
             );
         }
@@ -1324,7 +1350,10 @@ mod tests {
     #[test]
     fn l6_the_closure_gate_keeps_the_kinds_disjoint() {
         assert!(matches!(
-            recognize(&rational_circle(0.005, false), crate::interpret::FileBand::test(EPS_IN)),
+            recognize(
+                &rational_circle(0.005, false),
+                crate::interpret::FileBand::test(EPS_IN)
+            ),
             CurveRecognition::Promoted {
                 kind: PromotedCurveKind::Circle,
                 ..
@@ -1363,7 +1392,9 @@ mod tests {
             base.weights().to_vec(),
         )
         .unwrap();
-        let CurveRecognition::Promoted { residual, .. } = recognize(&curve, crate::interpret::FileBand::test(EPS_IN)) else {
+        let CurveRecognition::Promoted { residual, .. } =
+            recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
+        else {
             panic!("must certify at the module budget");
         };
         assert!(
@@ -1503,7 +1534,10 @@ mod r2_probes {
             "C6 mid |P| = {} vs r = {radius}",
             (m.x * m.x + m.y * m.y).sqrt()
         );
-        println!("C6 outcome: {:?}", recognize(&curve, crate::interpret::FileBand::test(EPS_IN)));
+        println!(
+            "C6 outcome: {:?}",
+            recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
+        );
     }
 
     /// R2-B: why C6 refuses — diagnostic, to see whether the witness
@@ -1513,7 +1547,10 @@ mod r2_probes {
         let d = |x: f64| x.to_radians();
         let curve = arc_chain(0.005, &[d(0.0), d(120.0), d(0.0)], &[0.5]);
         println!("R2-B azimuths: {:?}", azimuths(&curve));
-        println!("R2-B outcome: {:?}", recognize(&curve, crate::interpret::FileBand::test(EPS_IN)));
+        println!(
+            "R2-B outcome: {:?}",
+            recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
+        );
     }
 
     /// R2-C: CERTIFICATE SOUNDNESS. For a family of perturbed
@@ -2014,7 +2051,9 @@ mod r2_delta {
                 if covers_one_full_turn(&carrier, center, axis, (s0 - center) / radius) {
                     gate_true += 1;
                 }
-                if let CurveRecognition::Promoted { residual, .. } = recognize(&carrier, crate::interpret::FileBand::test(EPS_IN)) {
+                if let CurveRecognition::Promoted { residual, .. } =
+                    recognize(&carrier, crate::interpret::FileBand::test(EPS_IN))
+                {
                     promoted += 1;
                     if promoted <= 3 {
                         println!("FALSE PROMOTION eta={eta:e} phi={phi:.4} residual={residual:e}");
@@ -2090,7 +2129,10 @@ mod r2_delta {
                 "{spans} uniform spans is one turn"
             );
             assert!(
-                matches!(recognize(&full, crate::interpret::FileBand::test(EPS_IN)), CurveRecognition::Promoted { .. }),
+                matches!(
+                    recognize(&full, crate::interpret::FileBand::test(EPS_IN)),
+                    CurveRecognition::Promoted { .. }
+                ),
                 "{spans}-span circle must promote"
             );
         }

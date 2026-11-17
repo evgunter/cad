@@ -106,7 +106,10 @@ fn p2_dented_circle_above_eps_stays_nurbs() {
     )
     .unwrap();
     assert!(
-        !matches!(recognize(&curve, crate::interpret::FileBand::test(EPS_IN)), CurveRecognition::Promoted { .. }),
+        !matches!(
+            recognize(&curve, crate::interpret::FileBand::test(EPS_IN)),
+            CurveRecognition::Promoted { .. }
+        ),
         "a 1e-8 dent must not certify at 1e-9"
     );
 }
@@ -129,7 +132,10 @@ fn p3_small_eccentricity_ellipses_stay_nurbs() {
         )
         .unwrap();
         assert!(
-            !matches!(recognize(&curve, crate::interpret::FileBand::test(EPS_IN)), CurveRecognition::Promoted { .. }),
+            !matches!(
+                recognize(&curve, crate::interpret::FileBand::test(EPS_IN)),
+                CurveRecognition::Promoted { .. }
+            ),
             "an ellipse with a = r(1+{e:e}) must not certify at 1e-9 (dev ~{:e})",
             0.005 * e / 2.0
         );
@@ -153,7 +159,10 @@ fn p4_out_of_plane_wobble_stays_nurbs() {
     )
     .unwrap();
     assert!(
-        !matches!(recognize(&curve, crate::interpret::FileBand::test(EPS_IN)), CurveRecognition::Promoted { .. }),
+        !matches!(
+            recognize(&curve, crate::interpret::FileBand::test(EPS_IN)),
+            CurveRecognition::Promoted { .. }
+        ),
         "a 1e-8 out-of-plane wobble must not certify at 1e-9"
     );
 }

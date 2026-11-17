@@ -175,7 +175,8 @@ impl FileBand {
         name: &'static str,
         gap: f64,
     ) -> Result<(), crate::StepImportError> {
-        self.agree(name, gap).map_err(|refusal| self.refused(id, refusal))
+        self.agree(name, gap)
+            .map_err(|refusal| self.refused(id, refusal))
     }
 
     /// `refusal` at the file entity `id`, as the import door's error.

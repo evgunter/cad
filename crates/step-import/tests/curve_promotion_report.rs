@@ -108,7 +108,8 @@ fn past_the_files_band_nothing_is_promoted_and_nothing_is_reported() {
         eps_in: Some(1e-18),
         ..ImportOptions::default()
     };
-    let import = import_step(&lifted, &options, Tol::witness()).expect("the curve set still imports");
+    let import =
+        import_step(&lifted, &options, Tol::witness()).expect("the curve set still imports");
     assert!(
         import.curve_promotions().is_empty(),
         "nothing certifies past the band, got {:?}",

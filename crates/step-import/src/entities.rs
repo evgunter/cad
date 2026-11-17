@@ -30,8 +30,8 @@ use crate::recognize_curve;
 use crate::signed_zero;
 use crate::units::{self, UnitKind};
 use crate::{
-    CurvePromotion, FaceCensus, NormalizationKind, STEP_LINE_DIRECTION_UNIT, STEP_PLACEMENT_IDENTITY,
-    StructureNormalization,
+    CurvePromotion, FaceCensus, NormalizationKind, STEP_LINE_DIRECTION_UNIT,
+    STEP_PLACEMENT_IDENTITY, StructureNormalization,
 };
 
 /// A resolved model: the shape content plus the file's declared
@@ -411,9 +411,13 @@ impl<'a> Resolver<'a> {
         if length.is_finite() && length > 0.0 {
             Ok(length)
         } else {
-            Err(self
-                .budget
-                .refused(id, interpret::Refusal::InvalidRoot { what, value: length }))
+            Err(self.budget.refused(
+                id,
+                interpret::Refusal::InvalidRoot {
+                    what,
+                    value: length,
+                },
+            ))
         }
     }
 
@@ -493,12 +497,7 @@ impl<'a> Resolver<'a> {
 
     /// [`Self::placement`] unreported: the frame, the built motion, and
     /// the move the build made where it made one beyond rounding.
-    fn placement_built(
-        &self,
-        from: u64,
-        id: u64,
-    ) -> Result<(geom::Frame<f64>, geom_core::RigidMotion<f64>, Option<f64>), StepImportError>
-    {
+    fn placement_built(&self, from: u64, id: u64) -> Result<BuiltPlacement, StepImportError> {
         let args = self.simple(from, id, "AXIS2_PLACEMENT_3D")?;
         let expected = "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction)";
         let [_, location, axis, ref_dir] = args else {
@@ -2523,24 +2522,22 @@ fn unit_line_direction(ratios: Vec3<f64>) -> Option<Vec3<f64>> {
     let (unit, _) = ratios.checked_direction().ok()?;
     let squared = ratios.dot(ratios);
     let slack = geom_core::rounding_charge(squared + 1.0) - (squared - 1.0).abs();
-    let unit_within_rounding = geom_core::k_stats::prove(
-        STEP_LINE_DIRECTION_UNIT,
-        geom_core::Margin::of(slack),
-    )
-    .is_ok_and(|sign| !sign.is_negative());
+    let unit_within_rounding =
+        geom_core::k_stats::prove(STEP_LINE_DIRECTION_UNIT, geom_core::Margin::of(slack))
+            .is_ok_and(|sign| !sign.is_negative());
     Some(if unit_within_rounding { ratios } else { unit })
 }
+
+/// A placement as interpretation built it: the frame, the same frame as a
+/// rigid motion, and the move the build made beyond rounding, if any.
+type BuiltPlacement = (geom::Frame<f64>, geom_core::RigidMotion<f64>, Option<f64>);
 
 /// A placement frame as the file states it, as a map: its columns the
 /// reference direction, the axis crossed with it and the axis,
 /// unnormalized.
 fn stated_affine(stated: geom::Frame<f64>) -> Affine3<f64> {
     Affine3::from_parts(
-        Mat3::from_cols(
-            stated.u_ref,
-            stated.axis.cross(stated.u_ref),
-            stated.axis,
-        ),
+        Mat3::from_cols(stated.u_ref, stated.axis.cross(stated.u_ref), stated.axis),
         stated.origin - Point3::origin(),
     )
 }

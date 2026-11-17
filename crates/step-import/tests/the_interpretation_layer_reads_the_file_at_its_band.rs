@@ -161,7 +161,10 @@ fn two_records_of_one_plane_become_one() {
     };
     let mut planes = std::collections::BTreeSet::new();
     for (_, face) in body.faces() {
-        if matches!(body.get_surface(face.surface), Some(geom::Surface::Plane { .. })) {
+        if matches!(
+            body.get_surface(face.surface),
+            Some(geom::Surface::Plane { .. })
+        ) {
             planes.insert(face.surface);
         }
     }

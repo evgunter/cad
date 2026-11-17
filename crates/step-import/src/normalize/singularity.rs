@@ -861,11 +861,13 @@ fn crossings(
             }
             let t = ne.dot(ce - o) / den;
             let p = ray.eval(t);
-            Some(if read.near(STEP_SINGULARITY_RAY_HIT, (p - ce).norm() - re) {
-                vec![(t, p)]
-            } else {
-                Vec::new()
-            })
+            Some(
+                if read.near(STEP_SINGULARITY_RAY_HIT, (p - ce).norm() - re) {
+                    vec![(t, p)]
+                } else {
+                    Vec::new()
+                },
+            )
         }
         (
             &Curve3::Line(geom::Line { origin: o, dir: g }),

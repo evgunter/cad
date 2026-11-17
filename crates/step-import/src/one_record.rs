@@ -159,21 +159,18 @@ fn face_reach(solid: &SolidSpec, fi: usize, plane: &Surface<f64>) -> Option<f64>
         for u in &lp.uses {
             let spec = solid.edges.get(&u.edge)?;
             let r = match spec.carrier {
-                Curve3::Line(_) => height(spec.carrier.eval(spec.t0))
-                    .max(height(spec.carrier.eval(spec.t1))),
+                Curve3::Line(_) => {
+                    height(spec.carrier.eval(spec.t0)).max(height(spec.carrier.eval(spec.t1)))
+                }
                 Curve3::Circle(ref c) => {
                     height(c.frame.origin) + c.radius * normal.cross(c.frame.axis).norm()
                 }
                 Curve3::Ellipse(ref e) => {
                     let v = e.frame.axis.cross(e.frame.u_ref);
                     height(e.frame.origin)
-                        + (e.semi_u * normal.dot(e.frame.u_ref))
-                            .hypot(e.semi_v * normal.dot(v))
+                        + (e.semi_u * normal.dot(e.frame.u_ref)).hypot(e.semi_v * normal.dot(v))
                 }
-                Curve3::Nurbs(ref c) => c
-                    .control()
-                    .iter()
-                    .fold(0.0_f64, |m, &p| m.max(height(p))),
+                Curve3::Nurbs(ref c) => c.control().iter().fold(0.0_f64, |m, &p| m.max(height(p))),
                 _ => return None,
             };
             if !r.is_finite() {

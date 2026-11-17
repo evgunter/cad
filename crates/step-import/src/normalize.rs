@@ -499,32 +499,23 @@ fn mint_band(
     let mut splits = 0usize;
     let mut seam_v = [0u64; 2];
     for li in [ls, le] {
-        seam_v[li] = seam_vertex_on_loop(
-            solid,
-            fi,
-            li,
-            &surface,
-            file,
-            mint,
-            &mut splits,
-        )?;
+        seam_v[li] = seam_vertex_on_loop(solid, fi, li, &surface, file, mint, &mut splits)?;
     }
     let (p_start, p_end) = (solid.vertices[&seam_v[ls]], solid.vertices[&seam_v[le]]);
     let generator = (p_end - p_start).norm();
     match file.read(STEP_BAND_SEAM_LENGTH, generator) {
         Read::Apart => {}
         Read::InBand => {
-            return Err(file.refused(
-                face_id,
-                file.ambiguous(STEP_BAND_SEAM_LENGTH, generator),
-            ));
+            return Err(file.refused(face_id, file.ambiguous(STEP_BAND_SEAM_LENGTH, generator)));
         }
-        Read::Zero => return Err(StepImportError::Topology {
-            id: face_id,
-            what: "a seamless periodic band whose two rims meet at the seam azimuth — \
+        Read::Zero => {
+            return Err(StepImportError::Topology {
+                id: face_id,
+                what: "a seamless periodic band whose two rims meet at the seam azimuth — \
                    the seam generator would be a point, so the band is degenerate and \
                    the re-mint refuses",
-        }),
+            });
+        }
     }
     // ---- The minted seam generator (band_seam docs) ---------------
     let gen_id = mint();

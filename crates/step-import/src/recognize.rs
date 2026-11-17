@@ -357,7 +357,10 @@ fn try_cylinder(
     // Orientation: the cylinder chart's normal is radially outward by
     // construction, whatever the patch's chart orientation — the
     // caller compares chart normals and composes `same_sense`.
-    Ok((file.read(STEP_RECOGNIZED_RESIDUAL, residual) == Read::Zero).then_some((cylinder, residual)))
+    Ok(
+        (file.read(STEP_RECOGNIZED_RESIDUAL, residual) == Read::Zero)
+            .then_some((cylinder, residual)),
+    )
 }
 
 /// **The certified sampled-track residual: per-span schedule PLUS a
@@ -586,20 +589,29 @@ mod review_probes {
             ];
             NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
         };
-        match recognize(&patch_with(0.5 * EPS_IN), crate::interpret::FileBand::test(EPS_IN)) {
+        match recognize(
+            &patch_with(0.5 * EPS_IN),
+            crate::interpret::FileBand::test(EPS_IN),
+        ) {
             Recognition::Promoted { kind, residual, .. } => {
                 assert_eq!(kind, PromotedKind::Plane);
                 assert!(residual <= EPS_IN, "truthful residual: {residual:e}");
             }
             other => panic!("0.5×ε_in must promote: {other:?}"),
         }
-        match recognize(&patch_with(2.0 * EPS_IN), crate::interpret::FileBand::test(EPS_IN)) {
+        match recognize(
+            &patch_with(2.0 * EPS_IN),
+            crate::interpret::FileBand::test(EPS_IN),
+        ) {
             Recognition::Promoted { kind, residual, .. } => {
                 panic!("2×ε_in promoted as {kind:?} at {residual:e}")
             }
             other => println!("2×ε_in stayed unpromoted: {other:?}"),
         }
-        match recognize(&patch_with(1.2 * EPS_IN), crate::interpret::FileBand::test(EPS_IN)) {
+        match recognize(
+            &patch_with(1.2 * EPS_IN),
+            crate::interpret::FileBand::test(EPS_IN),
+        ) {
             Recognition::Promoted { residual, .. } => {
                 println!("boundary case promoted at residual {residual:e}")
             }
@@ -645,7 +657,10 @@ mod review_probes {
             }
         }
         let promoting = bulged_plane(0.0, 2.0);
-        let (a, b) = (recognize(&promoting, crate::interpret::FileBand::test(EPS_IN)), recognize(&promoting, crate::interpret::FileBand::test(EPS_IN)));
+        let (a, b) = (
+            recognize(&promoting, crate::interpret::FileBand::test(EPS_IN)),
+            recognize(&promoting, crate::interpret::FileBand::test(EPS_IN)),
+        );
         match (a, b) {
             (
                 Recognition::Promoted {
@@ -779,19 +794,20 @@ mod review_probes {
         );
 
         let plane_patch = bulged_plane(0.0, 1.0);
-        let promoted_normal = |p: &NurbsSurface<f64>| match recognize(p, crate::interpret::FileBand::test(EPS_IN)) {
-            Recognition::Promoted { surface, .. } => {
-                assert!(
-                    !chart_flipped(p, &surface),
-                    "a promoted plane is pre-aligned: never flipped"
-                );
-                match surface {
-                    Surface::Plane { normal, .. } => normal,
-                    other => panic!("a plane patch promotes to a plane: {other:?}"),
+        let promoted_normal =
+            |p: &NurbsSurface<f64>| match recognize(p, crate::interpret::FileBand::test(EPS_IN)) {
+                Recognition::Promoted { surface, .. } => {
+                    assert!(
+                        !chart_flipped(p, &surface),
+                        "a promoted plane is pre-aligned: never flipped"
+                    );
+                    match surface {
+                        Surface::Plane { normal, .. } => normal,
+                        other => panic!("a plane patch promotes to a plane: {other:?}"),
+                    }
                 }
-            }
-            other => panic!("the exact plane promotes: {other:?}"),
-        };
+                other => panic!("the exact plane promotes: {other:?}"),
+            };
         let n_fwd = promoted_normal(&plane_patch);
         let n_rev = promoted_normal(&plane_patch.transposed());
         assert!(
@@ -894,10 +910,13 @@ mod review_probes {
     fn p10_a_double_certifying_patch_selects_plane() {
         let patch = unit_full_cylinder(1.0);
         let eps_in = 0.99;
-        let Some((_, plane_residual)) = try_plane(&patch, crate::interpret::FileBand::test(eps_in)) else {
+        let Some((_, plane_residual)) = try_plane(&patch, crate::interpret::FileBand::test(eps_in))
+        else {
             panic!("the plane certificate must hold at this budget")
         };
-        let Ok(Some((_, cylinder_residual))) = try_cylinder(&patch, crate::interpret::FileBand::test(eps_in)) else {
+        let Ok(Some((_, cylinder_residual))) =
+            try_cylinder(&patch, crate::interpret::FileBand::test(eps_in))
+        else {
             panic!("the cylinder certificate must hold at this budget")
         };
         assert!(

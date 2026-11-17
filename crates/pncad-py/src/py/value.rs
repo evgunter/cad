@@ -2356,9 +2356,7 @@ impl StructureNormalization {
     fn moved_by(&self) -> Option<f64> {
         match &self.0.kind {
             pncad::step_import::NormalizationKind::PlacementReMinted { moved_by, .. }
-            | pncad::step_import::NormalizationKind::OneRecord { moved_by, .. } => {
-                Some(*moved_by)
-            }
+            | pncad::step_import::NormalizationKind::OneRecord { moved_by, .. } => Some(*moved_by),
             _ => None,
         }
     }

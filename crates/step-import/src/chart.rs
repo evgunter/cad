@@ -402,13 +402,17 @@ mod tests {
         assert_eq!(
             infer_outer(
                 &plane(),
-                &[outer.clone(), hole.clone()], crate::interpret::FileBand::new(1e-9, Tol::witness())),
+                &[outer.clone(), hole.clone()],
+                crate::interpret::FileBand::new(1e-9, Tol::witness())
+            ),
             Ok(0)
         );
         assert_eq!(
             infer_outer(
                 &plane(),
-                &[hole, outer], crate::interpret::FileBand::new(1e-9, Tol::witness())),
+                &[hole, outer],
+                crate::interpret::FileBand::new(1e-9, Tol::witness())
+            ),
             Ok(1)
         );
     }
@@ -422,7 +426,11 @@ mod tests {
             .collect();
         let b: Vec<Point3<f64>> = a.iter().map(|p| Point3::new(p.x + 5.0, p.y, 0.0)).collect();
         assert_eq!(
-            infer_outer(&plane(), &[a, b], crate::interpret::FileBand::new(1e-9, Tol::witness())),
+            infer_outer(
+                &plane(),
+                &[a, b],
+                crate::interpret::FileBand::new(1e-9, Tol::witness())
+            ),
             Err(super::OuternessRefusal::NoUniqueOuter)
         );
     }
@@ -494,7 +502,9 @@ mod review_outerness {
         assert_eq!(
             infer_outer(
                 &cyl(),
-                &[wrap, inner.clone()], crate::interpret::FileBand::new(1e-10, Tol::witness())),
+                &[wrap, inner.clone()],
+                crate::interpret::FileBand::new(1e-10, Tol::witness())
+            ),
             Err(OuternessRefusal::SeamDependent),
             "wrap ring"
         );
@@ -505,7 +515,9 @@ mod review_outerness {
         assert_eq!(
             infer_outer(
                 &cyl(),
-                &[outer.clone(), touching], crate::interpret::FileBand::new(1e-10, Tol::witness())),
+                &[outer.clone(), touching],
+                crate::interpret::FileBand::new(1e-10, Tol::witness())
+            ),
             Err(OuternessRefusal::UndecidableAtEps),
             "touching ring"
         );
@@ -516,7 +528,9 @@ mod review_outerness {
         assert_eq!(
             infer_outer(
                 &cyl(),
-                &[outer2.clone(), inner_same.clone()], crate::interpret::FileBand::new(1e-10, Tol::witness())),
+                &[outer2.clone(), inner_same.clone()],
+                crate::interpret::FileBand::new(1e-10, Tol::witness())
+            ),
             Err(OuternessRefusal::OrientationContradicts),
             "same-wound inner"
         );
@@ -525,14 +539,20 @@ mod review_outerness {
         assert_eq!(
             infer_outer(
                 &cyl(),
-                &[outer2, inner_same], crate::interpret::FileBand::new(1e-10, Tol::witness())),
+                &[outer2, inner_same],
+                crate::interpret::FileBand::new(1e-10, Tol::witness())
+            ),
             Ok(0)
         );
         // 5. NoUniqueOuter: disjoint rings.
         let a = ring_on_cyl(0.0, 0.5, 0.0, 0.5, 8);
         let b = ring_on_cyl(1.0, 1.5, 0.0, 0.5, 8);
         assert_eq!(
-            infer_outer(&cyl(), &[a, b], crate::interpret::FileBand::new(1e-10, Tol::witness())),
+            infer_outer(
+                &cyl(),
+                &[a, b],
+                crate::interpret::FileBand::new(1e-10, Tol::witness())
+            ),
             Err(OuternessRefusal::NoUniqueOuter),
             "disjoint"
         );
@@ -549,7 +569,9 @@ mod review_outerness {
         assert_eq!(
             infer_outer(
                 &sph,
-                &[polar, low.clone()], crate::interpret::FileBand::new(1e-10, Tol::witness())),
+                &[polar, low.clone()],
+                crate::interpret::FileBand::new(1e-10, Tol::witness())
+            ),
             Err(OuternessRefusal::NotOnChart),
             "pole sample"
         );
@@ -557,7 +579,11 @@ mod review_outerness {
         //    SeamDependent, refused not guessed.
         let cap = lat_ring(1.0, 1.4, 64, true);
         assert_eq!(
-            infer_outer(&sph, &[cap, low], crate::interpret::FileBand::new(1e-10, Tol::witness())),
+            infer_outer(
+                &sph,
+                &[cap, low],
+                crate::interpret::FileBand::new(1e-10, Tol::witness())
+            ),
             Err(OuternessRefusal::SeamDependent),
             "pole-enclosing ring"
         );
