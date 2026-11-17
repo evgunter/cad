@@ -471,16 +471,150 @@ The torus, the cone and the sphere are not covered:
     identical to the first pass;
   - `self_intersection_proves_injectivity` is green. The tee reads 8.
 
-**The tee with PR 7089 also landed** is not measured. PR 7089
-certifies `A`'s wall halves against the mitre (the two root pairs
-here), and this PR certifies the other four. If the two are
-independent, the tee then refuses six floor cells: `A`'s wall halves
-against `B`'s cap, a straight angle of two ellipse arcs at a vertex
-alone. Whichever lands second re-pins it against main.
+**The tee with PR 7089 landed** (merged here with main `7cb71c2981`):
+it refuses 6 floor cells. Two pairs refuse: `A`'s wall halves against
+`B`'s cap at `(0.2, ±0.98, 0.2)`, a straight angle of two ellipse arcs
+at a vertex alone. The verdict names `4v1 × 6v5` at `1v3`. Every other
+touching pair holds asked alone. That is the prediction both PRs made.
+The pin is re-set to it.
 
 **Rows filed:**
 - `the-vertex-alone-plane-leans-along-a-cells-long-metric-side-so-an-anisotropic-pair-splits`
   (the review's N1, traced to `planes_through`'s midpoint headings);
 - `the-corner-presentations-each-spell-their-reach-preamble`.
+## Read: two arcs of one conic at a corner (EMBED, lane conic-arcs, 2026-11-17)
+
+**What landed** (`crates/topo/src/injective.rs`):
+- **`Reading::Conic`.** A corner whose shared edge is a curve on a
+  conic and whose other edge continues it through the vertex is read on
+  through the vertex along the other arc.
+  - "Continues it" is `continues`: the two are `one_conic` (one plane
+    through one centre and one radius, or for an ellipse the same
+    semi-axes along the same lines, each compared as one value, sharing
+    `one_value` with `one_plane`); the other edge has one use; the two
+    are no more than a turn together; and the other leaves the vertex
+    the way the shared edge arrives. So the two meet only at their
+    common ends. Arcs split from one rim are not stored on one frame:
+    the drum's half-circles have opposed axes, and the tee's ellipse
+    arcs have opposed `u_ref`.
+  - The curve is read by the shared edge's own closed form over a whole
+    turn and a little more, centred on the vertex (`through_of`). Step
+    2's `apart` then leaves one run of the conic in `R`. `alone` admits
+    only the two arcs and the shared edge's ends, so the run in `R` is
+    those two arcs. The argument is at `present_corner`.
+  - Its zero is a `Zero::Curve` marked `past` (`Curved::past`), since the
+    face has points on it off the shared cell.
+- **When a past curve is read** (`sign_on`, `past_read`). This is the
+  first of the two things the previous section named, the rule for a
+  zero past the shared cell:
+  - The rule is the one `Zero::Past` already had: only against a
+    partner presentation whose zero set is on the shared cell, on an
+    analytic face, and never in the carrier arm.
+  - It holds under either separator the engine builds. A plane must hold
+    the whole conic (`On::whole`). The graph separator must hold the
+    curve's parameters in its piece (`Curved::within`). Those parameters
+    are the shared edge's own carrier's, continued, so `graph_of`
+    already extends the piece to them.
+  - The argument (`past_read`): where both are zero, a point is on the
+    partner's zero set, so on the shared cell, and on this face's zero
+    in `R`, so on the shared edge or the next arc. Nothing of the shared
+    cell but the shared edge and its ends is in `R`'s reach, and the
+    next arc meets the shared edge only at their common ends
+    (`continues`). So the point is on the shared cell. This rests on
+    `continues`, checked in the reading, and not on the face's
+    injectivity: past curves add no exposure to
+    `an-analytic-face-may-cover-its-carrier-more-than-once`, which past
+    sides (`Zero::Past`) still lean on.
+- **A separator for the coplanar faces.** This is the second thing the
+  previous section named, and it needed no new separator. The graph
+  separator over the conic continued vanishes on the whole run read. On
+  the drum's three coplanar faces its bisector lies in their plane, so
+  it departs across the circle where the conic's own plane cannot.
+- **A `Conic` cell that `graph_read` does not read is `Local`**, where
+  main typed every such corner `Structural`. On purpose: a smaller cell
+  is often read where a large one is not (step 2's `apart` and `alone`
+  refuse big cells), and the drum's cavity certifies only through those
+  smaller cells. A pair whose corner is never read now splits to
+  `Budget(Depth)` where main refused it `Uncertified` at once. No
+  measured row moved that way: the tee, the lune and the drums refuse
+  or hold as above, and the tour walk's pair counts did not move.
+- **`stuck`.** A pair refuses at once when each face is `Structural` or
+  read past at a vertex in its reach. This is the case the both-
+  `Structural` rule already refused: such a cell was `Structural` before
+  this reading. Without it, the two-arc lune's cap–sphere pairs split
+  to the floor, 0.27 s to 2.1 s, and still refuse.
+
+**Measured** (f64; the shell rows through the local, uncommitted
+`CavityGate` switch; before is the merge base `362cd72fd`):
+
+| row | before | after |
+|---|---|---|
+| `shell9_r1_probes::r1_drum_reverted_cavity_alone` | `Uncertified { 1v3, 2v1, Edge(6v3), Departure }` | shells |
+| `shell7_seam_corner::a_collinear_cap_vertex_drum_shells_to_its_closed_form` | refuses, the same | shells |
+| `torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows` | `Uncertified { 1v1, 3v1, Edge(3v1) }`, 0.27 s | `Uncertified { 3v1, 4v1, Edge(6v1) }`, 0.41 s |
+| `torax_the_torus_corners_survive_a_rigid_re_pose` | refuses | refuses, unchanged (not this reading) |
+| the tee (`crossing_equal_rods`), refused cells | 12 | 10, the six refusing pairs each at a vertex alone (pinned pair by pair) |
+| `self_intersection_proves_injectivity` | 46 pass | 47 pass (one new) |
+| the tour walk | 82 of 85 hold | 82 of 85, no body's pairs moved |
+
+- **The tee.** Both pairs across the mitre's ellipse now certify:
+  - `A`'s wall `4v1` against the mitre `5v9` across `3v5`;
+  - the mitre against `7v1` across `14v1`;
+  - each by the graph separator, against the corner read through the
+    line–arc corner.
+
+  The junction's arcs between the walls (`2v3`–`4v1` across `13v3`,
+  `7v1`–`10v1` across `9v3`) also certify cells at the junction's
+  vertices that a wall reads past, under the ellipse's own plane. What
+  still refuses:
+  - the walls against each other at `2v3`, `(1, 0, 1)`, two root pairs;
+  - the four plane–wall vertex-alone pairs, eight cells at the floor.
+
+  PR 7093 (`embed/cylinder-vertex`) certifies the walls at `(1, 0, 1)`
+  and `B`'s wall against the mitre, and leaves `A`'s wall halves against
+  the mitre (this reading's pairs) and against `B`'s cap at the floor.
+  With both, the tee should refuse only `A`'s wall halves against `B`'s
+  cap, at a vertex alone where `A`'s wall's corner is two arcs of the
+  ellipse, a straight angle no quadrant holds. Whichever lands second
+  re-pins against main and measures it.
+- **The two-arc lune.** Its caps are now presented at the equator
+  vertex, and its spheres are still not presented:
+  - The cap–sphere pairs have only the carrier arm, which a past curve
+    is not read in, so they refuse (`stuck`).
+  - The sphere halves against each other across the equator arc `6v1`
+    refuse at the root, both `Structural`. That pair refused before as
+    well, and the cap pair was reported first.
+- **The tour walk.** The merge base walks 82 of 85, not the 81 the
+  program counted at the cut. The three that do not hold are the
+  assemblies `bench`, `bench60` and `bench90`, at their recorded
+  contacts.
+
+**What remains of this row:**
+- **A cylinder's corner at a vertex alone**: the torus belly re-posed
+  (lane `embed/cylinder-vertex`).
+- **The tee's vertex-alone pairs**, which are second order at the
+  vertex.
+- **Two arcs of one conic where no partner is presented**, so only the
+  carrier arm applies. This is the two-arc lune: its sphere halves read
+  no image of an off-axis circle, so neither the cap pairs nor the
+  sphere pair can certify. It needs a presentation of the sphere beside
+  such an arc, or a carrier-arm reading of a past curve that rules out
+  the separating face holding the next arc. That reading would rest on
+  another pair's certificate, which is a design question and not
+  settled here.
+- **A corner of two curved edges of different conics** (the lily
+  leaves' lens tips). `Reading::Conic`
+  reads only a straight angle on one conic. A corner of two different
+  curves still needs the other edge's height over the continued curve.
+  No evidence row refuses on it today: SEAMDIAG's caps refuse on the
+  wall's zero side first.
+- **A spiric wall image continued onto the next arc of its spiric.**
+  `Reading::Wall` takes a straight parallel only. There is no instance.
+
+Filed beside it:
+`a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth`.
+The drum's own body, not its cavity, runs out of depth at f64 on a
+half-annulus cell a rounding off its half-circle, on main as on this
+branch.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
