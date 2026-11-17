@@ -2107,7 +2107,7 @@ impl<T: Decide> PairSection<T> {
             // of it lie in the two turns a clamped view is cut from
             // ([`geom::PeriodicNurbs3::view_window`]).
             Curve3::Periodic(p) => {
-                let base = T::from_f64(p.base_span().0);
+                let (base, _) = p.base_span_in();
                 let at = geom_core::period::Period::new(p.period()).at_or_above(at, base);
                 Ok(CarriedComponent {
                     span: (at, at + turn),

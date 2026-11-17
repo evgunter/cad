@@ -466,8 +466,10 @@ fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
             let (big, r) = (major_radius.abs(), minor_radius.abs());
             geom::curves::spiric_rate_bounds(r, *offset, (big - r, big + r), T::one()).0
         }
-        Curve3::Nurbs(spline) => spline.speed_upper_bound().get(),
-        Curve3::Periodic(p) => p.whole_loop().speed_upper_bound().get(),
+        Curve3::Nurbs(_) | Curve3::Periodic(_) => match carrier.whole_net() {
+            Some(net) => net.speed_upper_bound().get(),
+            None => unreachable!("a spline has a net"),
+        },
     }
 }
 
@@ -647,9 +649,10 @@ fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
         // A poison speed bound (a rational degree past its ceiling) or a
         // poison net reaches the result: `min`/`max` propagate it, and the
         // reading levered at it escalates rather than taking the other arm.
-        Curve3::Nurbs(spline) => chord.max(farthest_pair(spline.control()).min(lipschitz())),
-        // The base opening's net holds the whole loop.
-        Curve3::Periodic(p) => chord.max(farthest_pair(p.whole_loop().control()).min(lipschitz())),
+        Curve3::Nurbs(_) | Curve3::Periodic(_) => match carrier.whole_net() {
+            Some(net) => chord.max(farthest_pair(net.control()).min(lipschitz())),
+            None => unreachable!("a spline has a net"),
+        },
     }
 }
 

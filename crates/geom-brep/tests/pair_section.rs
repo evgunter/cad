@@ -421,8 +421,10 @@ fn interior_knots(net: &geom::NurbsCurve3<f64>) -> Vec<(f64, usize)> {
 /// clamped view whose interior knots are all simple, and whose every
 /// point is the loop's point there, a whole period back where the span
 /// runs past the base turn, to 1e-12. No seat is a special case: none
-/// refuses, none is decided near anything, the view's ends are one
-/// point, and the seats beside a knot certify.
+/// refuses, none is decided near anything, and the view's ends are one
+/// point. The seats on a knot certify; one an ulp under a knot reads a
+/// first span that narrow, which the certificate may refuse
+/// (`work/sectarms/a-clamped-view-ending-within-three-ulps-of-a-knot-holds-a-span-no-hull-reads.md`).
 #[test]
 fn a_seated_loop_has_no_start() {
     for (d, big) in [
@@ -486,18 +488,10 @@ fn a_seated_loop_has_no_start() {
                     let gap = (view.eval(u) - whole.eval(v)).norm();
                     assert!(gap < 1e-12, "d {d}, R {big}: seat {at}: {gap:e}");
                 }
-                // A seat within rounding of a knot is cut at the knot
-                // (`geom::periodic_nurbs`, "A view that ends beside a
-                // knot"): the view holds no span that narrow, and the
-                // edge door's limbs take it as they take any.
-                if [knot, knot.next_down(), knot.next_up(), lo + 1e-15].contains(&at) {
-                    let narrowest = interior_knots(&view)
-                        .first()
-                        .map_or(f64::INFINITY, |k| k.0 - s0);
-                    assert!(
-                        narrowest > 1e-9 * period,
-                        "d {d}, R {big}: seat {at}: a first span {narrowest:e} wide"
-                    );
+                // The seats on the base knot and on a knot read a view
+                // that starts there, and the edge door's limbs take it
+                // as they take the whole loop.
+                if at == knot || at == lo {
                     geom_brep::certify_rung3(
                         &view,
                         None,

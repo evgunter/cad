@@ -451,22 +451,22 @@ impl<T: Decide> Curve3<T> {
         // A spline's foot is searched over its knot spans: a clamped
         // one's over its domain, held to it; a periodic cubic's over one
         // turn's, free to leave it, since the loop runs on.
-        let (breaks, domain): (Vec<T>, Option<(T, T)>) = match self {
-            Self::Nurbs(n) => {
-                let knots = n.knot_values();
+        let Some(net) = self.whole_net() else {
+            let Some(seed) = self.param_near(q, near) else {
+                unreachable!("only a spline reads no parameter near a point")
+            };
+            let at = self.foot_at(q, seed);
+            return if self.foot_is_nearest() {
+                at
+            } else {
+                self.polish(q, at, None)
+            };
+        };
+        let (breaks, domain): (Vec<T>, Option<(T, T)>) = match self.as_periodic() {
+            Some(p) => (p.turn_breaks_in(), None),
+            None => {
+                let knots = net.knot_values();
                 (knots.breakpoints().collect(), Some(knots.domain()))
-            }
-            Self::Periodic(p) => (p.turn_breaks().into_iter().map(T::from_f64).collect(), None),
-            Self::Line(_) | Self::Circle(_) | Self::Ellipse(_) | Self::Spiric { .. } => {
-                let Some(seed) = self.param_near(q, near) else {
-                    unreachable!("only a spline reads no parameter near a point")
-                };
-                let at = self.foot_at(q, seed);
-                return if self.foot_is_nearest() {
-                    at
-                } else {
-                    self.polish(q, at, None)
-                };
             }
         };
         let (Some(&lo), Some(&hi)) = (breaks.first(), breaks.last()) else {
@@ -645,10 +645,7 @@ impl<T: Decide> Curve3<T> {
     fn domain(&self) -> (T, T) {
         match (self, self.period()) {
             (Self::Nurbs(n), _) => n.knot_values().domain(),
-            (Self::Periodic(p), _) => {
-                let (lo, hi) = p.base_span();
-                (T::from_f64(lo), T::from_f64(hi))
-            }
+            (Self::Periodic(p), _) => p.base_span_in(),
             (_, Some(period)) => (T::zero(), period.length()),
             (_, None) => (T::zero(), T::zero()),
         }

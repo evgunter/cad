@@ -2571,16 +2571,12 @@ fn cone_v_range<T: Decide>(
         // control polygon, and an affine functional's range over a hull
         // is its range over the vertices.
         Curve3::Nurbs(_) | Curve3::Periodic(_) => {
-            // A periodic cubic's whole loop lies in its base opening's
-            // hull.
-            let net = match carrier {
-                Curve3::Periodic(p) => p.whole_loop().control(),
-                Curve3::Nurbs(n) => n.control(),
-                _ => unreachable!("matched a spline above"),
+            let Some(net) = carrier.whole_net() else {
+                unreachable!("a spline has a net");
             };
             let mut lo: Option<T> = None;
             let mut hi: Option<T> = None;
-            for p in net {
+            for p in net.control() {
                 let v = v_of(*p);
                 lo = Some(lo.map_or(v, |x: T| x.min(v)));
                 hi = Some(hi.map_or(v, |x: T| x.max(v)));

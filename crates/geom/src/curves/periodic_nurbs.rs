@@ -39,18 +39,18 @@
 //! # A view that ends beside a knot
 //!
 //! A view whose end is exactly a knot ends there with nothing inserted.
-//! One whose end lies within [`VIEW_SNAP`] roundings of a knot that
-//! would fall *inside* the view would hold a first or last span that
-//! narrow, whose control points differ by less than their own rounding:
-//! exact as an insertion, and no net a derivative hull can read. Such a
-//! view is cut at the knot instead and its end knot restated as the end
-//! asked for. It is then the loop from the knot, not from the end asked:
-//! the two differ by that sliver of the loop, at most `VIEW_SNAP`
-//! roundings of the parameter long, and by as much in the parameter
-//! over the first span. It is not the exact restriction, and says so
-//! here; whoever certifies an edge certifies this view.
+//! One whose end lies a few ulps from a knot that falls *inside* the
+//! view holds that knot as its first or last interior one, a span that
+//! narrow. The insertion is exact and the view is the curve's
+//! restriction, but that span's control points differ by less than
+//! their own rounding, so a derivative hull over it reads nothing. A
+//! first span of one to three ulps has been measured to refuse the
+//! certificate's tube limb on some loops, and one of four or more never
+//! (`work/sectarms/a-clamped-view-ending-within-three-ulps-of-a-knot-holds-a-span-no-hull-reads.md`).
+//! Nothing here moves the end onto the knot: that would charge
+//! rounding, or decide a nearness, and neither is this type's to do.
 
-use geom_core::spline::{KnotVector, SpanLocate, SplineError};
+use geom_core::spline::{Built, KnotVector, SpanLocate, SplineError};
 use geom_core::{Point3, Real, Vec3};
 
 use super::fit::FitError;
@@ -58,14 +58,6 @@ use super::nurbs::NurbsCurve3;
 
 /// The periodic form's degree.
 pub const PERIODIC_DEGREE: usize = 3;
-
-/// How near a knot a view's end is cut at the knot itself, in units of
-/// the rounding of the larger of the two parameters
-/// ([`PeriodicNurbs3::clamped_view`]). A first span of one to three
-/// ulps has been measured to refuse the certificate's tube limb (6 of
-/// 36 seats on three cylinder × sphere loops) and one of four or more
-/// never (132 seats); this is twice that.
-pub const VIEW_SNAP: f64 = 8.0;
 
 /// The fewest knots a turn holds: fewer, and a clamped view's end
 /// formulas would read one control point twice.
@@ -92,7 +84,7 @@ pub enum PeriodicError {
         index: usize,
     },
     /// An opening's clamped net refused structure.
-    Opening(SplineError),
+    Opening(Built<SplineError>),
 }
 
 impl core::fmt::Display for PeriodicError {
@@ -256,14 +248,10 @@ impl PeriodicNurbs3<f64> {
             let mut net = vec![at, after];
             for turn in 0..turns {
                 let shift = period * turn as f64;
-                for i in 0..n {
+                for (i, &knot) in knots.iter().enumerate() {
                     if turn + i > 0 {
                         // The base turn's knots enter as stored.
-                        kv.push(if turn == 0 {
-                            knots[i]
-                        } else {
-                            knots[i] + shift
-                        });
+                        kv.push(if turn == 0 { knot } else { knot + shift });
                     }
                     // d₁ … dₙ₋₁ of each turn, then d₀ of the next but the last.
                     let j = (i + 1) % n;
@@ -275,8 +263,9 @@ impl PeriodicNurbs3<f64> {
             kv.extend(core::iter::repeat_n(end, PERIODIC_DEGREE + 1));
             net.extend([before, at]);
             let weights = vec![1.0; net.len()];
-            let kv = KnotVector::clamped(kv, PERIODIC_DEGREE).map_err(PeriodicError::Opening)?;
-            NurbsCurve3::new(kv, net, weights).map_err(PeriodicError::Opening)
+            let kv = KnotVector::clamped(kv, PERIODIC_DEGREE)
+                .map_err(|e| PeriodicError::Opening(Built::new(e)))?;
+            NurbsCurve3::new(kv, net, weights).map_err(|e| PeriodicError::Opening(Built::new(e)))
         };
         Ok(Self {
             base: opening(1)?,
@@ -353,7 +342,7 @@ impl PeriodicNurbs3<f64> {
             })
             .collect();
         Self::new(knots, control, period).map_err(|e| match e {
-            PeriodicError::Opening(e) => FitError::Assembly(geom_core::spline::Built::new(e)),
+            PeriodicError::Opening(e) => FitError::Assembly(e),
             PeriodicError::NonFinite => FitError::NonFinitePoint { index: 0 },
             PeriodicError::Count { knots, .. } => FitError::TooFewPoints {
                 have: knots,
@@ -494,6 +483,27 @@ impl<T: Real> PeriodicNurbs3<T> {
         &self.base
     }
 
+    /// [`Self::turn_breaks`] in the scalar: the base opening's held
+    /// knot values, negated and reversed on the loop run back.
+    pub fn turn_breaks_in(&self) -> Vec<T> {
+        let breaks: Vec<T> = self.base.knot_values().breakpoints().collect();
+        if self.flipped {
+            breaks.into_iter().rev().map(|k| T::zero() - k).collect()
+        } else {
+            breaks
+        }
+    }
+
+    /// [`Self::base_span`] in the scalar: the base opening's held ends.
+    pub fn base_span_in(&self) -> (T, T) {
+        let (lo, hi) = self.base.knot_values().domain();
+        if self.flipped {
+            (T::zero() - hi, T::zero() - lo)
+        } else {
+            (lo, hi)
+        }
+    }
+
     /// The parameter of the stored data at the carrier's `t`.
     fn data_param(&self, t: T) -> T {
         if self.flipped { T::zero() - t } else { t }
@@ -570,7 +580,7 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
             asked: (a, b),
             window: self.view_window(),
         };
-        if !(s0 < s1) {
+        if s0.partial_cmp(&s1) != Some(core::cmp::Ordering::Less) {
             return Err(span);
         }
         let period = self.period.point_value().ok_or(span)?;
@@ -584,7 +594,8 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
         } else {
             (s0 - period * turns, s1 - period * turns)
         };
-        if !(lo <= r0 && r0 < r1 && r1 <= hi) {
+        let inside = lo <= r0 && r0 < r1 && r1 <= hi;
+        if !inside {
             return Err(span);
         }
         let (base_lo, base_hi) = self.base.domain();
@@ -592,47 +603,29 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
             return Ok(self.base_opening());
         }
         let refused = |at: f64| PeriodicViewError::Insertion { asked: (a, b), at };
-        // An end within rounding of a knot the view would hold inside it
-        // is cut at the knot (module docs).
-        let breaks = self.two_turns.knot_values().breakpoint_values();
-        let beside = |r: f64, inside: fn(f64, f64) -> bool| {
-            breaks.as_ref().and_then(|ks| {
-                ks.iter().copied().find(|&k| {
-                    inside(k, r) && (k - r).abs() <= VIEW_SNAP * f64::EPSILON * k.abs().max(r.abs())
-                })
-            })
-        };
-        let (c0, c1) = (
-            beside(r0, |k, r| k > r).unwrap_or(r0),
-            beside(r1, |k, r| k < r).unwrap_or(r1),
-        );
-        if !(c0 < c1) {
-            return Err(span);
-        }
         let mut piece = self.two_turns.clone();
-        if c0 > lo {
-            piece = piece.split_at(c0).map_err(|_| refused(c0))?.1;
+        if r0 > lo {
+            piece = piece.split_at(r0).map_err(|_| refused(r0))?.1;
         }
-        if c1 < hi {
-            piece = piece.split_at(c1).map_err(|_| refused(c1))?.0;
+        if r1 < hi {
+            piece = piece.split_at(r1).map_err(|_| refused(r1))?.0;
         }
-        if turns != 0.0 || (c0, c1) != (r0, r1) {
+        if turns != 0.0 {
             piece = self.restated(&piece, turns, (s0, s1)).ok_or(refused(s0))?;
         }
         Ok(self.oriented(piece))
     }
 
-    /// `piece`, a cut of the two-turn opening, `turns` whole turns on
-    /// (none where only an end is restated): its ends `ends` exactly,
-    /// each interior knot its own plus the turns' periods. `None` where
-    /// the restated knots do not ascend.
+    /// `piece`, a cut of the two-turn opening, `turns` whole turns on:
+    /// its ends `ends` exactly, each interior knot its own plus the
+    /// turns' periods. `None` where the restated knots do not ascend.
     fn restated(
         &self,
         piece: &NurbsCurve3<T>,
         turns: f64,
         (s0, s1): (f64, f64),
     ) -> Option<NurbsCurve3<T>> {
-        let shift = self.period * T::from_f64(turns);
+        let shift = self.period * T::from_computed(turns);
         let runs: Vec<(T, usize)> = piece.knot_values().runs().collect();
         let last = runs.len().checked_sub(1)?;
         let restated: Vec<(T, core::num::NonZeroUsize)> = runs
@@ -640,11 +633,9 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
             .enumerate()
             .map(|(i, &(k, m))| {
                 let value = if i == 0 {
-                    T::from_f64(s0)
+                    T::from_computed(s0)
                 } else if i == last {
-                    T::from_f64(s1)
-                } else if turns == 0.0 {
-                    k
+                    T::from_computed(s1)
                 } else {
                     k + shift
                 };
@@ -672,7 +663,7 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
         if turns == 0.0 || !turns.is_finite() {
             return s;
         }
-        s - self.period * T::from_f64(turns)
+        s - self.period * T::from_computed(turns)
     }
 
     fn oriented_vec(&self, v: Vec3<T>) -> Vec3<T> {
@@ -822,7 +813,7 @@ mod tests {
         }
         // A view from a knot holds that knot as its end, not inside.
         let view = c.clamped_view((knot, knot + 1.0)).unwrap();
-        assert_eq!(interior(&view).into_iter().count(), c.knot_count() - 1);
+        assert_eq!(interior(&view).len(), c.knot_count() - 1);
         assert!(matches!(
             c.clamped_view((0.5, 2.7)),
             Err(PeriodicViewError::Span { .. })
@@ -855,31 +846,21 @@ mod tests {
         assert!(!r.same_content(&c, |a, b| a == b));
     }
 
-    /// A view that starts within rounding under a knot is cut at the
-    /// knot, its end restated: no span that narrow. One that starts
-    /// over the knot leaves the knot out, and one well clear of it
-    /// keeps it as an ordinary interior knot.
+    /// A view that starts an ulp under a knot keeps the knot inside, as
+    /// a first span that narrow: the insertion is exact, and nothing
+    /// moves the start onto the knot. One an ulp over it leaves the
+    /// knot out.
     #[test]
-    fn a_view_beside_a_knot_is_cut_at_the_knot() {
+    fn a_view_beside_a_knot_keeps_the_exact_insertion() {
         let c = PeriodicNurbs3::interpolate(&loop_points(23)).unwrap();
         let (knot, next) = (c.knots[9], c.knots[10]);
         let (under, over) = (knot.next_down(), knot.next_up());
-        for (start, first) in [
-            (under, next),
-            (under.next_down().next_down(), next),
-            (over, next),
-            (knot - 1e-9, knot),
-        ] {
+        for (start, first) in [(under, knot), (over, next), (knot, next)] {
             let view = c.clamped_view((start, start + 0.5)).unwrap();
             assert_eq!(view.domain(), (start, start + 0.5));
             assert_eq!(interior(&view)[0].0, first, "start {start:e}");
             assert!(dist(view.eval(start), c.eval(start)) < 1e-13);
         }
-        // The end, likewise: a knot within rounding under the end is not
-        // left as a last span that narrow.
-        let view = c.clamped_view((0.1, over)).unwrap();
-        assert_eq!(view.domain(), (0.1, over));
-        assert_eq!(interior(&view).last().unwrap().0, c.knots[8]);
     }
 
     #[test]

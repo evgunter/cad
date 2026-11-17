@@ -1094,6 +1094,35 @@ impl<T: Real> Curve3<T> {
         }
     }
 
+    /// **The carrier read as a periodic cubic**: its own
+    /// [`PeriodicNurbs3`], `None` for every other kind.
+    #[must_use]
+    pub fn as_periodic(&self) -> Option<&PeriodicNurbs3<T>> {
+        match self {
+            Self::Periodic(p) => Some(p),
+            Self::Line(_)
+            | Self::Circle(_)
+            | Self::Ellipse(_)
+            | Self::Spiric { .. }
+            | Self::Nurbs(_) => None,
+        }
+    }
+
+    /// **The net that holds a whole spline carrier**: a clamped spline's
+    /// own, and a periodic cubic's base opening
+    /// ([`PeriodicNurbs3::whole_loop`]), whose hull holds the whole loop
+    /// and whose rate bounds are the loop's. `None` for the closed
+    /// forms. For a reading that depends on neither a span nor the
+    /// parameter; a reader of a span asks [`Self::clamped_net`].
+    #[must_use]
+    pub fn whole_net(&self) -> Option<&NurbsCurve3<T>> {
+        match self {
+            Self::Nurbs(n) => Some(n),
+            Self::Periodic(p) => Some(p.whole_loop()),
+            Self::Line(_) | Self::Circle(_) | Self::Ellipse(_) | Self::Spiric { .. } => None,
+        }
+    }
+
     /// **The carrier's placement**: a conic's own [`Frame`], and a
     /// spiric's torus's (centre, axis and seam). `None` for a line and a
     /// spline.

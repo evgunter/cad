@@ -2402,38 +2402,39 @@ fn fit_loop(points: &[Point3<f64>]) -> Result<geom::PeriodicNurbs3<f64>, SsiErro
 
 /// An ℝ³ branch's fitted carrier: a clamped cubic where the march left
 /// the domain, a periodic one where it closed.
-enum FittedR3 {
-    Open(NurbsCurve3<f64>),
-    /// The loop, and its base opening: the clamped net its certificate
-    /// is taken on, once, at the loop's own base knot.
-    Loop {
-        periodic: geom::PeriodicNurbs3<f64>,
-        base: NurbsCurve3<f64>,
-    },
+struct FittedR3 {
+    /// The clamped net the certificate reads, the whole branch: an open
+    /// branch's carrier, and a loop's base opening, taken once at the
+    /// loop's own base knot.
+    net: NurbsCurve3<f64>,
+    /// A closed branch's loop.
+    periodic: Option<geom::PeriodicNurbs3<f64>>,
 }
 
 impl FittedR3 {
     fn of(points: &[Point3<f64>], closed: bool) -> Result<Self, SsiError> {
         if closed {
             let periodic = fit_loop(points)?;
-            let base = periodic.base_opening();
-            Ok(Self::Loop { periodic, base })
+            Ok(Self {
+                net: periodic.base_opening(),
+                periodic: Some(periodic),
+            })
         } else {
-            Ok(Self::Open(fit_branch(points, [None, None])?.0))
+            Ok(Self {
+                net: fit_branch(points, [None, None])?.0,
+                periodic: None,
+            })
         }
     }
 
-    /// The clamped net the certificate reads: the whole branch.
     fn net(&self) -> &NurbsCurve3<f64> {
-        match self {
-            Self::Open(net) | Self::Loop { base: net, .. } => net,
-        }
+        &self.net
     }
 
     fn carrier(self) -> Curve3<f64> {
-        match self {
-            Self::Open(net) => Curve3::Nurbs(std::sync::Arc::new(net)),
-            Self::Loop { periodic, .. } => Curve3::Periodic(std::sync::Arc::new(periodic)),
+        match self.periodic {
+            Some(periodic) => Curve3::Periodic(std::sync::Arc::new(periodic)),
+            None => Curve3::Nurbs(std::sync::Arc::new(self.net)),
         }
     }
 }

@@ -1148,7 +1148,7 @@ fn carried_far<T: Decide>(
     // on the loop run back ([`geom::Curve3::reversed`], the same data
     // at the negated parameter): its interval read on `kept`'s sense is
     // its own negated.
-    let run_back = matches!(carrier, geom::Curve3::Periodic(_))
+    let run_back = carrier.as_periodic().is_some()
         && gone
             .reversed()
             .is_some_and(|back| carrier.same_content(&back));
@@ -1163,10 +1163,10 @@ fn carried_far<T: Decide>(
     // where `kept` does (the two arcs either side of a loop's seat):
     // its far end is then that many turns on, where the stated
     // parameters differ by exactly those turns.
-    let turns = match carrier {
-        geom::Curve3::Periodic(p) if !same(gw, tw) => {
+    let turns = match carrier.as_periodic() {
+        Some(p) if !same(gw, tw) => {
             let k = ((tw - gw) / p.period()).point_value().map(f64::round)?;
-            let shift = p.period() * T::from_f64(k);
+            let shift = p.period() * T::from_computed(k);
             same(gw + shift, tw).then_some(shift)?
         }
         _ => same(gw, tw).then_some(T::zero())?,

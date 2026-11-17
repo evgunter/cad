@@ -10096,10 +10096,7 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
             (T::from_f64(a), T::from_f64(b))
         }
         // One turn from the base knot.
-        Curve3::Periodic(p) => {
-            let (a, b) = p.base_span();
-            (T::from_f64(a), T::from_f64(b))
-        }
+        Curve3::Periodic(p) => p.base_span_in(),
     }
 }
 

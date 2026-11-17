@@ -63,8 +63,10 @@ pub fn speed_floor<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<InfSpeed
         crate::Curve3::Circle(c) => Some(InfSpeed::new(c.radius)),
         crate::Curve3::Ellipse(e) => Some(InfSpeed::new(crate::Conic::speed_lo(e))),
         crate::Curve3::Spiric { minor_radius, .. } => Some(InfSpeed::new(*minor_radius)),
-        crate::Curve3::Periodic(p) => Some(p.speed_lower_bound()),
-        crate::Curve3::Line(_) | crate::Curve3::Nurbs(_) => None,
+        // Of the carriers with no closed form, the one with a period.
+        crate::Curve3::Line(_) | crate::Curve3::Nurbs(_) | crate::Curve3::Periodic(_) => carrier
+            .as_periodic()
+            .map(crate::PeriodicNurbs3::speed_lower_bound),
     }
 }
 

@@ -60,6 +60,9 @@ use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
 use crate::geometry::SurfaceKey;
 use crate::live::proven;
 
+/// One component's seating ([`PairSection::seat`]).
+type Seated<T> = Result<CarriedComponent<T>, CarryError>;
+
 /// One surface pair's section, and the band its reader classified it at
 /// (the table's one band), which it is carried at.
 #[derive(Debug)]
@@ -73,7 +76,7 @@ struct Held<T: Real> {
     carried: OnceCell<Result<CarriedSection<T>, CarryError>>,
     /// Each carried component, seated on the first ask for it
     /// ([`SectionTable::seated`]).
-    seated: OnceCell<Vec<OnceCell<Result<CarriedComponent<T>, CarryError>>>>,
+    seated: OnceCell<Vec<OnceCell<Seated<T>>>>,
 }
 
 /// **A held pair's classification**: the door's, or one waiting for its

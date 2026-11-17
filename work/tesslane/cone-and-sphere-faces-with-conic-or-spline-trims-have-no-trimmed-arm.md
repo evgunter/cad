@@ -51,3 +51,20 @@ the model).
 ## 2026-11-14 — what the one chord rule changes here (TESSLANE, `one-chord-rule-over-each-boundary-images-speed-bound`)
 
 The fix's sphere half no longer owes a speed bound: `geom_brep::Pcurve::speed_bound` answers a projected net's on every analytic chart (the carrier's certified `sup|C′|` over its control box's lever arm), and a focal section's on a cone. What the sphere arm owes is to admit the net: the chord pass refuses a projected spline or line image on a sphere-arm face (`chords::sphere_image`), as the arm meshes circle-bounded faces, and the arm itself does not walk one. The cone half's speed bound is the focal section's, `(1 + |β|)/(1 − |β|)` on the azimuth, attained; what it owes is the arm.
+
+## Measured with the closed-loop carrier in (2026-11-17, SECTARMS, branch `sectarms/periodic-loop-carrier`)
+
+A closed fitted section loop is now a periodic cubic, and no edge on it
+reads an interior knot past multiplicity one, so `chords::nurbs_chord_count`
+takes every carrier. What then answers, at δ 2e-2, 5e-3 and 1e-3
+(`crates/mesh/tests/quadric_pair_sections.rs`):
+
+| pair | ops | `mesh::tessellate` |
+|---|---|---|
+| cylinder × cylinder (a rod r 0.2 across a rod r 0.5, two loops) | all six | meshes, `check_mesh` passes |
+| cylinder × sphere (the measured pose) | all six | `UnsupportedCurve` from `chords::chart_image`, the sphere face's projected spline image |
+| sphere × torus | ∪, ∩ | the same refusal |
+| cylinder × torus (a rod through a donut) | ∪, ∩, donut ∖ rod | the same refusal, on the torus face (`trimmed-tessellation-lacks-torus-and-plane-arms`) |
+
+So this row's sphere half is now the first stop of every cylinder ×
+sphere boolean in a general pose.

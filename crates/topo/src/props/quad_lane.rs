@@ -792,24 +792,14 @@ fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
             })?,
         // The carrier's certified speed sup over its whole domain, crossed
         // to metres over the edge's span.
-        Curve3::Nurbs(ref c) => {
+        Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+            let Some(c) = e.carrier.whole_net() else {
+                unreachable!("a spline has a net");
+            };
             let len = c.speed_upper_bound().to_meters(Interval::point(span));
             if !len.is_certified() {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a B-spline rim whose speed bound is not certified",
-                });
-            }
-            len.mag()
-        }
-        // The whole loop's certified speed sup, likewise.
-        Curve3::Periodic(ref p) => {
-            let len = p
-                .whole_loop()
-                .speed_upper_bound()
-                .to_meters(Interval::point(span));
-            if !len.is_certified() {
-                return Err(PropsError::QuadratureUnsupported {
-                    what: "a periodic B-spline rim whose speed bound is not certified",
                 });
             }
             len.mag()
