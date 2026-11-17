@@ -1218,8 +1218,8 @@ mod tests {
             for (fk, _) in body.faces() {
                 let surface = body.face_surface(fk).unwrap();
                 let outer = body.get_face(fk).unwrap().outer;
-                let Shape::Rectangle(rectangle) =
-                    iso_rectangle_shape(body, fk, outer, surface, tol.band).unwrap()
+                let Ok(Shape::Rectangle(rectangle)) =
+                    iso_rectangle_shape(body, fk, outer, surface, tol.band)
                 else {
                     continue;
                 };

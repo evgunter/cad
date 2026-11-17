@@ -189,8 +189,10 @@ pub struct Tessellation {
 /// census and, with the `budget` feature, its recording; the cross-face
 /// census at the end runs either way. On a hit the route's doors and its
 /// split-side fact record nothing for the face (they are spliced only
-/// where the lane runs); the route's domain read is spliced on a hit as
-/// on a miss, since the read keys the patch as the lane's own read did.
+/// where the lane runs); a trimmed face's domain read, the route's or
+/// the face's own before its key is formed (`Route::ready`), is recorded
+/// on a hit as on a miss, since the read keys the patch as the lane's
+/// own read did.
 /// So a hit's stream is the chord pass's and each trimmed face's domain
 /// read.
 ///
@@ -282,10 +284,13 @@ pub(crate) enum Lane {
 /// chord pass, the sizing and the lanes, so no two of them can answer
 /// it differently.
 ///
-/// Answers the route, and where the route read the face's domain, the
-/// K-funnel recording of that read apart from the doors': a memo hit
-/// records the domain read, which keys the patch as the lane's own read
-/// did, and not the doors', which ran inside the lane.
+/// The route reads a face's domain ([`read_domain`]) where the doors
+/// decided it no rectangle, since a domain the chart lane cannot read
+/// makes that face no lane's; every other trimmed face's is read at its
+/// turn ([`Route::ready`]). Answers the route and, where it read the
+/// domain, the K-funnel recording of that read apart from the doors': a
+/// memo hit records the domain read, which keys the patch as the lane's
+/// own read does, and not the doors', which ran in place of the lane's.
 pub(crate) fn route_of(
     body: &Body<f64>,
     fk: FaceKey,
@@ -293,14 +298,14 @@ pub(crate) fn route_of(
     band: Band,
 ) -> Result<(Route, Option<Detached>), TessellateError> {
     Ok(match *surface {
-        Surface::Nurbs(_) | Surface::Approx(_) => (Route::Trimmed(None), None),
+        Surface::Nurbs(_) | Surface::Approx(_) => (Route::Trimmed(Trim::Structural), None),
         Surface::Plane { .. } => (Route::Planar, None),
         _ => {
             let face = body
                 .get_face(fk)
                 .ok_or(TessellateError::MissingEntity { what: "face" })?;
             if !face.rings.is_empty() {
-                return Ok((Route::Trimmed(None), None));
+                return Ok((Route::Trimmed(Trim::Structural), None));
             }
             let off_iso = crate::walk::loop_half_edges(body, face.outer, fk)?
                 .into_iter()
@@ -309,41 +314,25 @@ pub(crate) fn route_of(
                         .is_some_and(|c| c.pcurve().is_non_iso_form())
                 });
             if off_iso {
-                return Ok((Route::Trimmed(None), None));
+                return Ok((Route::Trimmed(Trim::Structural), None));
             }
             match crate::curved::iso_rectangle_shape(body, fk, face.outer, surface, band)? {
                 Shape::Rectangle(rectangle) => {
                     if crate::walk::splits_a_straight_side(body, fk, surface)? {
-                        // Fact 4: the token goes unspent, and the domain
-                        // is read at the face's turn, as for a ringed face.
-                        (Route::Trimmed(None), None)
+                        // Fact 4: the token goes unspent.
+                        (Route::Trimmed(Trim::Structural), None)
                     } else {
                         (Route::Curved(rectangle), None)
                     }
                 }
-                Shape::NoRectangle(source) => {
-                    match k_stats::detached(|| crate::trimmed::face_domain(body, fk, band)) {
-                        (Ok(lift), read) => (Route::Trimmed(Some(lift)), Some(read)),
-                        (Err(unread), read) => {
+                Shape::NoRectangle(verdict) => {
+                    let (lift, read) =
+                        k_stats::detached(|| read_domain(body, fk, band, Some(verdict)));
+                    match lift {
+                        Ok(lift) => (Route::Trimmed(Trim::Read(lift)), Some(read)),
+                        Err(refusal) => {
                             k_stats::splice(read);
-                            let stores_no_image = matches!(
-                                &unread,
-                                TessellateError::DomainUnread { cause, .. }
-                                    if matches!(**cause, topo::pcurves::RingPlacementError::Gap(_))
-                            );
-                            return Err(if stores_no_image {
-                                // The face stores no image for the lane to
-                                // read: that is the refusal, as the lane makes
-                                // it.
-                                unread
-                            } else {
-                                // Its loops have no reading in one sheet of the
-                                // chart (an arc through a pole, a loop that
-                                // winds it): no lane takes the face, and the
-                                // doors' verdict, with its recourse, is the
-                                // answer.
-                                TessellateError::UnsupportedCurvedShape { face: fk, source }
-                            });
+                            return Err(refusal);
                         }
                     }
                 }
@@ -352,15 +341,56 @@ pub(crate) fn route_of(
     })
 }
 
-/// **A face's route**: its lane with what that lane runs on. The curved
-/// lane runs on the doors' "rectangle" answer; the trimmed lane on the
-/// face's domain, read once (`trimmed::face_domain`) — by the route where
-/// the route had to read it, by the face's own work otherwise — which the
-/// memo key folds and the lane triangulates.
+/// **A face's route**: its lane, with what the route knows of it. The
+/// curved lane runs on the doors' "rectangle" answer; the trimmed lane on
+/// the face's domain, which [`Route::ready`] reads at the face's turn.
 pub(crate) enum Route {
     Planar,
     Curved(crate::curved::Rectangle),
-    Trimmed(Option<topo::pcurves::FaceLift<f64>>),
+    Trimmed(Trim),
+}
+
+/// A trimmed face's domain, as far as the route has it.
+pub(crate) enum Trim {
+    /// A fact of the face sends it to the trimmed lane before or past
+    /// the doors (a ring, a stored image of a non-iso form, a ruled
+    /// rectangle whose straight side holds a point, a spline chart); its
+    /// domain is read at its turn ([`Route::ready`]).
+    Structural,
+    /// The doors decided the face no rectangle, and the route read its
+    /// domain ([`route_of`]).
+    Read(topo::pcurves::FaceLift<f64>),
+}
+
+/// **The one read of a trimmed face's domain** (`trimmed::face_domain`),
+/// which the memo key folds and the lane triangulates, with what its
+/// miss answers. Where the doors decided the face no rectangle (their
+/// `verdict`), a domain stored with no image is the lane's refusal, and
+/// one whose loops have no reading in one sheet of the chart (an arc
+/// through a pole, a loop that winds it) is a face no lane takes: the
+/// doors' verdict, with its recourse, is the answer. Every other miss is
+/// the lane's refusal.
+fn read_domain(
+    body: &Body<f64>,
+    fk: FaceKey,
+    band: Band,
+    verdict: Option<geom_brep::props::PropsError>,
+) -> Result<topo::pcurves::FaceLift<f64>, TessellateError> {
+    crate::trimmed::face_domain(body, fk, band).map_err(|unread| match verdict {
+        Some(verdict)
+            if !matches!(
+                &unread,
+                TessellateError::DomainUnread { cause, .. }
+                    if matches!(**cause, topo::pcurves::RingPlacementError::Gap(_))
+            ) =>
+        {
+            TessellateError::UnsupportedCurvedShape {
+                face: fk,
+                source: verdict,
+            }
+        }
+        _ => unread,
+    })
 }
 
 impl Route {
@@ -373,11 +403,49 @@ impl Route {
         }
     }
 
-    /// The trimmed lane's domain, where it has been read; `None` on the
-    /// other lanes, which read none.
+    /// **The route, ready to run**: a trimmed face's domain, read here
+    /// where the route did not read it ([`read_domain`]).
+    ///
+    /// # Errors
+    ///
+    /// The read's miss.
+    pub(crate) fn ready(
+        self,
+        body: &Body<f64>,
+        fk: FaceKey,
+        band: Band,
+    ) -> Result<Ready, TessellateError> {
+        Ok(match self {
+            Self::Planar => Ready::Planar,
+            Self::Curved(rectangle) => Ready::Curved(rectangle),
+            Self::Trimmed(Trim::Read(lift)) => Ready::Trimmed(lift),
+            Self::Trimmed(Trim::Structural) => Ready::Trimmed(read_domain(body, fk, band, None)?),
+        })
+    }
+}
+
+/// A route with what its lane runs on: [`Route::ready`]'s answer.
+pub(crate) enum Ready {
+    Planar,
+    Curved(crate::curved::Rectangle),
+    Trimmed(topo::pcurves::FaceLift<f64>),
+}
+
+impl Ready {
+    /// The lane this runs.
+    fn lane(&self) -> Lane {
+        match self {
+            Self::Planar => Lane::Planar,
+            Self::Curved(_) => Lane::Curved,
+            Self::Trimmed(_) => Lane::Trimmed,
+        }
+    }
+
+    /// The trimmed lane's domain; `None` on the other lanes, which read
+    /// none.
     fn domain(&self) -> Option<&topo::pcurves::FaceLift<f64>> {
         match self {
-            Self::Trimmed(lift) => lift.as_ref(),
+            Self::Trimmed(lift) => Some(lift),
             Self::Planar | Self::Curved(_) => None,
         }
     }
@@ -392,9 +460,10 @@ pub(crate) enum Routed {
 }
 
 /// One face as [`Routes::of`] routed it: the face, its route or the
-/// route's refusal, and the K-funnel recordings the route made — the
-/// doors' (spliced where the lane runs), and the domain read's where the
-/// route read the domain (spliced on every run).
+/// route's refusal, and the K-funnel recordings the route made: the
+/// doors' and the split-side fact's (spliced where the lane runs), and
+/// the domain read's where the route read the domain (spliced on every
+/// run).
 pub(crate) struct FaceRoute {
     pub(crate) face: FaceKey,
     pub(crate) route: Result<Route, TessellateError>,
@@ -404,9 +473,9 @@ pub(crate) struct FaceRoute {
 
 /// **Every face's lane, read once per run** ([`route_of`]), in face-arena
 /// order, with the K-funnel recording each face's read made. The fold
-/// splices it in at that face's turn, before the lane's own: the doors'
-/// and the split-side fact's where the lane runs, the domain read's on a
-/// memo hit as well ([`FaceRoute`]).
+/// splices it in at that face's turn, before the face's own work: the
+/// doors' and the split-side fact's where the lane runs, the domain
+/// read's on a memo hit as well ([`FaceRoute`]).
 pub(crate) struct Routes {
     lanes: HashMap<FaceKey, Routed>,
 }
@@ -665,18 +734,9 @@ fn tessellate_impl(
                             Ok(surface) => surface,
                             Err(error) => return (None, Err(error)),
                         };
-                        let route = match route {
-                            // The trimmed lane's domain, read from the door
-                            // once — by the route where it had to read it,
-                            // here otherwise — and handed to the memo key and
-                            // the lane alike (`trimmed::face_domain`); its
-                            // miss is the lane's refusal.
-                            Ok(Route::Trimmed(None)) => {
-                                match crate::trimmed::face_domain(body, fk, tol.band) {
-                                    Ok(lift) => Route::Trimmed(Some(lift)),
-                                    Err(error) => return (None, Err(error)),
-                                }
-                            }
+                        // The trimmed lane's domain, read once and handed to
+                        // the memo key and the lane alike (`Route::ready`).
+                        let route = match route.and_then(|route| route.ready(body, fk, tol.band)) {
                             Ok(route) => route,
                             Err(error) => return (None, Err(error)),
                         };
@@ -691,7 +751,7 @@ fn tessellate_impl(
                         // projects valid boundaries below spade's
                         // coordinate domain.
                         let run = || match &route {
-                            Route::Trimmed(Some(lift)) => crate::trimmed::tessellate_trimmed(
+                            Ready::Trimmed(lift) => crate::trimmed::tessellate_trimmed(
                                 body,
                                 fk,
                                 surface,
@@ -702,11 +762,8 @@ fn tessellate_impl(
                                 lift,
                                 crate::trimmed::BOUNDARY_CLEARANCE,
                             ),
-                            Route::Trimmed(None) => {
-                                unreachable!("the trimmed route's domain is read above")
-                            }
-                            Route::Planar => tessellate_planar(body, fk, &chords.ids, shared),
-                            Route::Curved(rectangle) => tessellate_curved(
+                            Ready::Planar => tessellate_planar(body, fk, &chords.ids, shared),
+                            Ready::Curved(rectangle) => tessellate_curved(
                                 body,
                                 fk,
                                 surface,
