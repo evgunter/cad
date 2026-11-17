@@ -1,0 +1,6 @@
+fork: an-imported-body-names-its-source (EXPORT, step-import-discards-the-entity-ids-that-are-its-identity-channel)
+drawn: 2026-11-17T17:56:34Z, python3 os.urandom(1) x2
+arm byte: 33 (< 86: three designers)
+label byte: 154 (154 mod 3 = 1: Fable is B)
+mapping: A = Opus designer, B = Fable designer, C = Opus designer
+protocol: d327ffb520
