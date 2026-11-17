@@ -2,11 +2,10 @@
 id: cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm
 kind: issue
 title: a sphere face bounded by a spline has no trimmed-lane arm (its cone half is carried by the torus-and-cone row)
-status: parked
+status: open
 opened: 2026-10-28
 priority: P2
 cost: H
-blocked_on: [a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses]
 ---
 
 

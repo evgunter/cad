@@ -2,7 +2,8 @@
 id: a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses
 kind: issue
 title: a closed section loop seated off its start carries a full-multiplicity join knot inside an edge, so booleans of four quadric pairs build and never mesh (and tier 3 will refuse them)
-status: review
+status: closed
+closed: 2026-11-17
 opened: 2026-11-14
 priority: P0
 cost: M
@@ -92,3 +93,7 @@ Read, not run: torus × torus takes the same route; a closed circle or ellipse i
 **Who else is on its path.** Tier 3 has no knot-structure check today; `tier-3-refuses-a-carrier-with-an-interior-c0-knot` (MEASUREDOOR) will refuse every body above, and names two predecessors, neither of them this. Readers that already carry their own handling of a creased edge carrier: `mesh::chords::nurbs_chord_count` (refuses), `geom::nonrational_second_derivative_sup`, `NurbsCurve3::accel_upper_bound` (∞), `topo::boolean::edge_join::crease_at`, `geom_brep::curve_face::composite::creases`, `step_import::knot_split::split_edges`.
 
 **Why SECTARMS.** `pair_section.rs` is SECT's, SECTARMS's, SECTCONE's and SECTTORUS's; the seat is SECT's step 1b by charter, and SECTARMS is the one of the four with an orchestrator. Moved there by `git mv`; if SECT is the better home, its owner moves it on. `work/tesslane/cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm` stays parked on it, and `reach_probes::a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass` pins the pose.
+
+## Closed (PR 7052, 2026-11-17)
+
+The closed loop is a periodic carrier and no edge cut from it carries an interior knot of full multiplicity, at s = 0.01, 1 and 100 and the three ε. Cylinder × cylinder meshes and passes `check_mesh`. Cylinder × sphere, sphere × torus and cylinder × torus pass the chord pass and stop at `chords::chart_image`, a TESSLANE gate: `work/tesslane/cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm.md` and `work/tesslane/a-torus-face-bounded-by-a-projected-spline-image-has-no-chord-bound.md`. That stop is a different defect, so this row closes.
