@@ -40,12 +40,11 @@
 //! every pair of the pieces within the pieces' reach and the polish's
 //! run of it, and the curvature at most the carriers' bounds. An Off at
 //! the polished pair prunes only where that bound says the pieces hold
-//! no meeting of the spans. That Off still reads a foot: the window's
-//! reach is placed on each span through `Span::past_by`, which reads
-//! `Span::place` and so [`Curve3::foot`]; the point questions' feet move
-//! to the span, and the Off keeps its whole-carrier bound through the
-//! certified piece walk (`clear_of`), in fork 275's step 3b. Where the two-sided reading bounds no reach
-//! (its basin, `curve_pair_walk_basin`, or its move not proved), a pair
+//! no meeting of the spans. That Off reads a foot: the window's reach
+//! is placed on each span through `Span::past_by`, which reads
+//! `Span::place` and so [`Curve3::foot`]. Where the two-sided reading
+//! bounds no reach (its basin, `curve_pair_walk_basin`, or its move not
+//! proved), a pair
 //! held at an end of each span reads the one-sided window
 //! (`curve_pair_walk_basin_held`, [`window`]); where neither bounds a
 //! reach the window is undecided and the Off escalates. Every piece the
@@ -388,9 +387,14 @@ fn window<T: Decide>(
 /// it ([`held`]). Of the two ends it takes the one whose parameter is
 /// nearer `u` (`curve_pair_walk_nearer_end`, ledger row F46): on a span
 /// closed on itself the place reads either end, and the far one would put
-/// the pair a whole span from its pieces. Elsewhere, and where the place
-/// is not decided, `u` as polished. The place is read once, held apart
-/// with its record ([`super::PlaceRead`]), for the pair read to use.
+/// the pair a whole span from its pieces. The snapped parameter's place
+/// is that end's ([`super::Place::End`] of the end taken), so the
+/// parameter and the end the pair read reports are one: the place read at
+/// `u` names the first end whose chord it found zero, which on a carrier
+/// that comes back through an end's point mid-span need not be the end
+/// taken. Elsewhere, and where the place is not decided, `u` as polished.
+/// The place is read once, held apart with its record
+/// ([`super::PlaceRead`]), for the pair read to use.
 fn at_end<T: Decide>(span: &Span<'_, T>, u: T, band: Band) -> (T, super::PlaceRead) {
     let (place, record) = geom_core::k_stats::detached(|| span.place_param(u, band));
     let at_an_end = matches!(place, Ok(super::Place::End(_)));
@@ -407,11 +411,40 @@ fn at_end<T: Decide>(span: &Span<'_, T>, u: T, band: Band) -> (T, super::PlaceRe
         Margin::of((u - t1).abs() - (u - t0).abs()),
         "F46",
     );
-    let end = match nearer_first {
-        Pick::Positive | Pick::Tie => t0,
-        Pick::Negative => t1,
+    let (end, which) = match nearer_first {
+        Pick::Positive | Pick::Tie => (t0, super::SpanEnd::Start),
+        Pick::Negative => (t1, super::SpanEnd::Stop),
     };
-    (end, read)
+    // The snapped parameter and the place name one end: the place read
+    // at `u` may name the other, whose chord it tested first.
+    (
+        end,
+        super::PlaceRead {
+            place: Ok(super::Place::End(which)),
+            record: read.record,
+        },
+    )
+}
+
+/// **The stop's reading of its polished pair `(s, t)`** of the pieces
+/// `pa` and `pb` (module docs): each parameter at its span's end snapped
+/// to that end with its place ([`at_end`]), the window about the pair
+/// ([`window`]), and the pair read as a pair ([`Found::read_pair`]).
+fn read_polished<T: Decide>(
+    found: &mut Found<T>,
+    (ra, pa): (&Read<'_, '_, T>, Piece<T>),
+    (rb, pb): (&Read<'_, '_, T>, Piece<T>),
+    (s, t): (T, T),
+    band: Band,
+) {
+    let ((s, on_a), (t, on_b)) = (at_end(ra.span, s, band), at_end(rb.span, t, band));
+    let candidate = super::Candidate {
+        point: ra.curve().eval(s),
+        ta: s,
+        tb: t,
+        bound: Some(window((ra, pa, s), (rb, pb, t), band)),
+    };
+    found.read_pair(ra.span, rb.span, candidate, (on_a, on_b), band);
 }
 
 /// **Whether `u` is held at an end of `span`**: `u` is exactly one of
@@ -563,21 +596,14 @@ pub(super) fn meet<T: Decide>(
                     + pa.reach(ra.hi())
                     + pb.reach(rb.hi());
                 let hold = |span: &Span<'_, T>| span.ended().then(|| span.params());
-                let (s, t) = super::polish::pair_held(
+                let polished = super::polish::pair_held(
                     |s| ra.curve().ders1(s),
                     |t| rb.curve().ders1(t),
                     (ma, mb),
                     |m| step_taken(m, slack),
                     (hold(a), hold(b)),
                 );
-                let ((s, on_a), (t, on_b)) = (at_end(a, s, band), at_end(b, t, band));
-                let candidate = super::Candidate {
-                    point: ra.curve().eval(s),
-                    ta: s,
-                    tb: t,
-                    bound: Some(window((&ra, pa, s), (&rb, pb, t), band)),
-                };
-                found.read_pair(a, b, candidate, (on_a, on_b), band);
+                read_polished(&mut found, (&ra, pa), (&rb, pb), polished, band);
                 return Step::Settled;
             }
             if !stop_a && (stop_b || pa.depth <= pb.depth) {
@@ -601,7 +627,7 @@ mod tests {
     use geom_core::k_stats::decide;
     use geom_core::{Band, Margin, Point3, Sign, Vec3};
 
-    use super::{Piece, Read, at_end, step_taken, window, witnesses};
+    use super::{Piece, Read, at_end, read_polished, step_taken, window, witnesses};
     use crate::curve_pair::Span;
 
     /// **The one-sided window's reach, checked against its pairs**: the
@@ -818,15 +844,17 @@ mod tests {
     }
 
     /// **A mid-span parameter whose point is an end's is snapped by
-    /// parameter, not by point.** A degree-1 polyline through `(0, 0)`,
-    /// `(1, 0)`, `(1, 1)`, back through `(0, 0)` and on to `(0, −1)`, over
-    /// the uniform knots, so its parameter `0.75` is the start's point
-    /// mid-span. The place reads `0.75` at an end (its chord to the start
-    /// is zero), and the snap takes the end whose parameter is nearer,
-    /// `1`, whose point is `(0, −1)`, not the start. That is a place to
-    /// read and no decision: the pair read and the window then read the
-    /// pair at `1` on their own rows, and a far anchor leaves the window
-    /// undecided rather than wrong. Pinned for liveness, not soundness.
+    /// parameter, and its place is the end it snaps to.** A degree-1
+    /// polyline through `(0, 0)`, `(1, 0)`, `(1, 1)`, back through `(0, 0)`
+    /// and on to `(0, −1)`, over the uniform knots, so its parameter
+    /// `0.75` is the start's point mid-span. The place reads `0.75` at an
+    /// end (its chord to the start is zero), and the snap takes the end
+    /// whose parameter is nearer, `1`, whose point is `(0, −1)`. Read
+    /// through the stop's own composition ([`read_polished`]) against a
+    /// line through `(0, −1)`: the meeting is at `(0, −1)` and names the
+    /// polyline's stop end. Red where the snapped parameter keeps the
+    /// place read before the snap, which names the start, `(0, 0)`: a
+    /// wrong definite answer.
     #[test]
     fn a_mid_span_parameter_at_an_ends_point_snaps_by_parameter() {
         use geom_core::spline::{KnotVector, Knots};
@@ -849,6 +877,167 @@ mod tests {
         ));
         let span = Span::new(&loop_back, (0.0, 1.0));
         assert_eq!(at_end(&span, 0.75, band).0.to_bits(), 1.0f64.to_bits());
+        let across = Curve3::line(Point3::new(0.0, -1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let other = Span::new(&across, (-1.0, 1.0));
+        let (ra, rb) = (Read::of(&span), Read::of(&other));
+        let mut found = crate::curve_pair::Found::default();
+        read_polished(
+            &mut found,
+            (&ra, Piece::whole(span.params())),
+            (&rb, Piece::whole(other.params())),
+            (0.75, 0.0),
+            band,
+        );
+        assert!(
+            matches!(
+                found.points.as_slice(),
+                [m] if m.on_a == crate::curve_pair::Hit::End(crate::curve_pair::SpanEnd::Stop)
+                    && (m.point - Point3::new(0.0, -1.0, 0.0)).norm() < 1e-12
+            ),
+            "the meeting is at the stop end it snapped to: {:?}",
+            found.points
+        );
+    }
+
+    /// **A tie between the two ends takes the start** (ledger row F46): a
+    /// degree-1 polyline that comes back through its start's point at its
+    /// span's middle, `0.5`, where the two ends' parameters are equally
+    /// far. The place reads `0.5` at the start, the nearer-end choice ties,
+    /// and the tie takes `t₀`, the start, its place the start's. Red where
+    /// the tie takes the stop end.
+    #[test]
+    fn a_tie_between_the_ends_takes_the_start() {
+        use geom_core::spline::{KnotVector, Knots};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let back = Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                Knots::from(
+                    KnotVector::clamped(vec![0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0], 1).unwrap(),
+                ),
+                vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(1.0, 0.0, 0.0),
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(0.0, 1.0, 0.0),
+                    Point3::new(0.0, -1.0, 0.0),
+                ],
+                vec![1.0; 5],
+            )
+            .unwrap(),
+        ));
+        let span = Span::new(&back, (0.0, 1.0));
+        let (t, read) = at_end(&span, 0.5, band);
+        assert_eq!(t.to_bits(), 0.0f64.to_bits(), "the tie takes the start");
+        assert_eq!(
+            read.place,
+            Ok(crate::curve_pair::Place::End(crate::curve_pair::SpanEnd::Start))
+        );
+    }
+
+    /// The escalations a reading left on its frame, by predicate.
+    fn escalated<R>(read: impl FnOnce() -> R) -> Vec<&'static str> {
+        let (_, record) = geom_core::k_stats::detached(read);
+        record
+            .recorded()
+            .escalations
+            .iter()
+            .map(geom_core::k_stats::Escalation::predicate)
+            .collect()
+    }
+
+    /// The x axis over `(0, 1)`, and a line along `y` through the axis's
+    /// point at `x`, lifted `z` off it, over `(−1, 1)`.
+    fn axis_and_cross(x: f64, z: f64) -> (Curve3<f64>, Curve3<f64>) {
+        (
+            Curve3::line(Point3::origin(), Vec3::new(1.0, 0.0, 0.0)),
+            Curve3::line(Point3::new(x, 0.0, z), Vec3::new(0.0, 1.0, 0.0)),
+        )
+    }
+
+    /// **A pair read whose outcome rests on a place carries the place's
+    /// escalation, and one whose outcome does not leaves none**
+    /// ([`super::super::pair_both`]): the x axis's parameter `1 − 5·10⁻⁹`,
+    /// its chord to the stop end in the band's gap, so its place refuses.
+    /// Against a line crossing the axis there the gap is zero, the outcome
+    /// is the place's refusal, and its escalation is on the frame. Against
+    /// the same line lifted `10⁻⁶` off the axis the gap is positive, no
+    /// outcome rests on the place, and its escalation is superseded. Red
+    /// where a zero gap supersedes or drops the records, which leaves a
+    /// refusal with no escalation behind it, and where a positive gap
+    /// splices them.
+    #[test]
+    fn a_pair_read_carries_the_escalation_its_outcome_rests_on() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let ta = 1.0 - 5e-9;
+        let chord = "curve_pair_span_end_chord";
+        for (lift, carried) in [(0.0, true), (1e-6, false)] {
+            let (x, cross) = axis_and_cross(ta, lift);
+            let (a, b) = (Span::new(&x, (0.0, 1.0)), Span::new(&cross, (-1.0, 1.0)));
+            let candidate = crate::curve_pair::Candidate {
+                point: x.eval(ta),
+                ta,
+                tb: 0.0,
+                bound: None,
+            };
+            let mut read = None;
+            let left = escalated(|| {
+                let places = (at_end(&a, ta, band).1, at_end(&b, 0.0, band).1);
+                read = Some(super::super::pair_both(&a, &b, candidate, places, band).0);
+            });
+            assert_eq!(
+                left.contains(&chord),
+                carried,
+                "lift {lift}: escalations {left:?}, read {:?}",
+                read
+            );
+            if carried {
+                assert!(read.is_some_and(|r| r.is_err()), "the place's refusal is the outcome");
+            }
+        }
+    }
+
+    /// **The run arm reads only where the polished pair is in the run**
+    /// (`pose`'s module docs, "The run"; [`super::super::window_off`]):
+    /// the x axis over `(0, 1)` and a line square to it, read at a pair on
+    /// the axis at `x = 1.5`, past the span, with a window of reach 10
+    /// and no bend, so both of the axis span's ends are within reach.
+    /// Where the line crosses the axis at `1.5` the pair's gap is zero, the
+    /// pair is in the run, and each end's clearance from the line (0.5 and
+    /// 1.5) clears it: no meeting, and nothing held. Where the line crosses
+    /// at `0.5` instead, the pair at `1.5` is `1` off it, not in the run,
+    /// and the reach alone clears no end: the window holds the crossing at
+    /// `0.5`, and the Off escalates. Red where the run arm never reads (the
+    /// first escalates), and where any decided gap counts as in the run (the
+    /// second clears the crossing).
+    #[test]
+    fn the_run_arm_reads_only_where_the_pair_is_in_the_run() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let bound = crate::curve_pair::WindowBound {
+            floor: f64::NEG_INFINITY,
+            reach: 10.0,
+            bend: 0.0,
+        };
+        for (crossing, cleared) in [(1.5, true), (0.5, false)] {
+            let (x, cross) = axis_and_cross(crossing, 0.0);
+            let (a, b) = (Span::new(&x, (0.0, 1.0)), Span::new(&cross, (-1.0, 1.0)));
+            let tb = cross.param_near(x.eval(1.5), 0.0).unwrap();
+            let candidate = crate::curve_pair::Candidate {
+                point: x.eval(1.5),
+                ta: 1.5,
+                tb,
+                bound: Some(bound),
+            };
+            let places = (at_end(&a, 1.5, band).1, at_end(&b, tb, band).1);
+            let mut found = crate::curve_pair::Found::default();
+            found.read_pair(&a, &b, candidate, places, band);
+            assert!(found.points.is_empty(), "crossing {crossing}: {:?}", found.points);
+            assert_eq!(
+                found.held.is_empty(),
+                cleared,
+                "crossing {crossing}: held {:?}",
+                found.held
+            );
+        }
     }
 
     /// **A pair read at a positive gap is no meeting.** Two parallel lines

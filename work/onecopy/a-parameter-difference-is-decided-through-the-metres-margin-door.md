@@ -31,7 +31,10 @@ sweep sorted the band-decided parameter differences into four classes:
 - **(a)** `param_order` and its two readers (`curve_pair::compare` and
   `edge_join`'s crease reader): still open;
 - **(b)** the choose sites (the period's `run_from`, and `in_window` ×2):
-  still open;
+  still open. A fourth since: `geom-brep/src/curve_pair/walk.rs`
+  `at_end`, `choose("curve_pair_walk_nearer_end", Margin::of(|u − t₁| −
+  |u − t₀|), "F46")`, which end's parameter a polished parameter snaps to
+  (ONEHOME, fork 275 step 3);
 - **(c)** decided against the band, with a rate in hand or a ledger row.
   Landed on branch `onecopy/param-difference`:
   - `nurbs_iso::iso_boundary_row` (`iso_row_at_domain_end`) is metered at

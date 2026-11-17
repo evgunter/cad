@@ -51,7 +51,13 @@ const MOVE: &str = "curve_pair_pose_move";
 /// a step with no finite bracket even so, or one `keep` refuses, ends the
 /// search where it stands: the iterate has not moved, so the next step
 /// would be the same one. [`pair_held`] with nothing held, so the pose's
-/// closest pair (`Polish::closest`) takes the least-norm step too.
+/// closest pair (`Polish::closest`) takes the least-norm step too, where
+/// its system is singular. A closed-form pose reaches that only at an
+/// enclosing scalar, where `nn` straddles zero at rounding: its polish
+/// starts at a crossing of the other carrier's plane, where a line is
+/// never parallel to an in-plane tangent, and two conics' tangents are
+/// parallel only where their gap is across them, so the least-norm step
+/// (`û·w`) is zero.
 pub(super) fn pair<T: Decide>(
     a: impl Fn(T) -> (Point3<T>, Vec3<T>),
     b: impl Fn(T) -> (Point3<T>, Vec3<T>),
