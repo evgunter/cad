@@ -155,7 +155,9 @@ docs/MODEL-COMPARE-PROTOCOL.md`, after a fetch).
    or reviewer) whose agent ran under a method the other arm would not
    have had is recorded in full and excluded from that question's
    counts; the test is "would the other arm have been permitted the
-   same". Unrecoverable figures are missing data, never zeros.
+   same". Unrecoverable figures are missing data, never zeros. A
+   re-dispatch on Opus because Fable is unavailable is not this
+   rule's case: rule 12 governs it.
 9. **Record at merge.** The row rides the unit's own PR as its LAST
    commit, after every review is delivered, since it names the arms
    and reviewers read `git log`; a missing field blocks the row. An
@@ -173,3 +175,16 @@ docs/MODEL-COMPARE-PROTOCOL.md`, after a fetch).
     full readout runs when Ev asks for one; when ten fair rows per arm
     of either question have landed since the last readout, the
     orchestrator recording the tenth tells Ev so, with no result.
+12. **When Fable is unavailable.** If a Fable agent cannot run because
+    the account's Fable usage limit is exhausted (a dispatch, or an
+    agent mid-phase, refused with the limit error), the orchestrator
+    asks Ev whether to proceed on Opus or to pause the affected work
+    until the limit resets, stating the reset time. Until Ev answers,
+    nothing is dispatched in a Fable agent's place. If Ev says
+    proceed, the work runs on Opus and **no row is recorded for any
+    unit with an unmatched Opus agent**: one that ran on Opus where
+    its draw or its tier called for Fable (a Fable-drawn implementer
+    or reviewer, or the Fable half of a dual pair). A unit whose
+    every agent ran as drawn is recorded as usual. The draws already
+    taken stay on the `analysis/model-compare/` branch, with a note
+    there naming each unit that records no row and why.
