@@ -28,7 +28,7 @@ fn rounded(s: &str) -> String {
             && num.contains('.')
         {
             let r = (x * 1000.0).round() / 1000.0;
-            out.push_str(&format!("{}", if r == 0.0 { 0.0 } else { r }));
+            out.push_str(&format!("{}", geom_core::fold_signed_zero(r)));
         } else {
             out.push_str(num);
         }
