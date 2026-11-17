@@ -1,7 +1,7 @@
 ---
 id: a-rectangle-the-walk-refuses-has-no-witness-the-chart-lane-can-read
 kind: issue
-title: A rectangle the curved walk refuses has no witness carrying chart images, so whether the chart lane meshes it is unmeasured
+title: A rectangle the curved walk refuses cannot be handed to the chart lane by any route, so whether that lane meshes it is unmeasured
 status: open
 opened: 2026-11-16
 ---
