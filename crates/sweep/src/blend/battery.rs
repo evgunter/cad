@@ -3080,9 +3080,11 @@ fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, B
 /// picks. The patch needs the vertex's three edges of one convexity;
 /// at a plane–plane end where they mix, one edge and the two that round
 /// alike end as they do at a uniform vertex, all three build the mixed
-/// corner where [`mixed_corner_square`] admits it, and the odd edge with
-/// one other refuses [`CornerConfig::MixedConvexity`] through
-/// [`corner_config`] ([`mixed_end_is_built`]). A curved link's end at a
+/// corner where [`mixed_corner_square`] admits it, the odd edge with one
+/// other chamfers there as a turn whose overrun cuts the other strip off
+/// in the odd strip's plane, and the fillet's odd edge with one other
+/// refuses [`CornerConfig::MixedConvexity`] through [`corner_config`]
+/// ([`mixed_end_is_built`]). A curved link's end at a
 /// mixed vertex is judged as at a uniform one, short of all three: its
 /// open-chain door refuses it.
 /// The uniform trihedron returns `None`: the carved trihedral
@@ -3296,7 +3298,16 @@ fn corner_at<T: Decide + Bounds>(
     });
     let mut mixed = None;
     match odd {
-        Some(odd) if named == 3 => {
+        // All three named is the mixed corner; the chamfer's odd edge
+        // with one other cuts the other strip off in the odd strip's
+        // plane, which is the turn's overrun with the odd band the far
+        // one. Both are built where `E` is square to the odd edge.
+        Some(odd)
+            if named == 3
+                || (matches!(kind, BlendKind::Chamfer)
+                    && plane_plane
+                    && !mixed_end_is_built(&resolved, requested, odd.edge)) =>
+        {
             let host = mixed_corner_square(
                 vertex,
                 odd,
@@ -3307,11 +3318,13 @@ fn corner_at<T: Decide + Bounds>(
                 band,
             )?;
             corner_independence(vertex, normals, radius, band)?;
-            mixed = Some(MixedVertex {
-                vertex,
-                odd: odd.edge,
-                host,
-            });
+            if named == 3 {
+                mixed = Some(MixedVertex {
+                    vertex,
+                    odd: odd.edge,
+                    host,
+                });
+            }
         }
         Some(odd) if !plane_plane || mixed_end_is_built(&resolved, requested, odd.edge) => {
             corner_independence(vertex, normals, radius, band)?;
@@ -3357,7 +3370,8 @@ fn corner_at<T: Decide + Bounds>(
 /// refuses, the fillet [`BlendError::SpineUnsupported`] (its link would
 /// be a canal surface) and the chamfer [`CornerConfig::MixedConvexity`]
 /// (`work/band/an-all-three-mixed-corner-chamfer-at-an-oblique-shared-face-refuses.md`),
-/// as does a curved link at the corner.
+/// as does a curved link at the corner. The chamfer of the odd edge
+/// with one other is admitted, and refused, by the same reading.
 ///
 /// # Errors
 ///
@@ -3408,10 +3422,11 @@ fn mixed_corner_square<T: Decide + Bounds>(
 /// requested edge, odd or of the pair, ends in the cut-off; the pair
 /// alone meets in the mitre, which at the reflex sector of their shared
 /// face is a join over the corner's wedge. All three is the mixed
-/// corner ([`mixed_corner_square`]). The odd edge with one other refuses
-/// here: the fillet's for good, its partner's band having to stop where
-/// that edge runs smoothly into the cut-off arc, and the chamfer's until
-/// its own rule is built.
+/// corner ([`mixed_corner_square`]). The odd edge with one other is not
+/// built here: the chamfer's is the turn's overrun where
+/// [`mixed_corner_square`] admits its corner, and the fillet's refuses
+/// for good, its partner's band having to stop where that edge runs
+/// smoothly into the cut-off arc.
 fn mixed_end_is_built<T: Real>(links: &[Link<T>], requested: &[EdgeKey], odd: EdgeKey) -> bool {
     let mut named = links.iter().filter(|l| requested.contains(&l.edge));
     match (named.next(), named.next(), named.next()) {

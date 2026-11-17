@@ -82,7 +82,9 @@ pub(super) fn carrier_gate<T: Decide>(
             CurveGeom::Certified(curve) => match curve.carrier() {
                 geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {}
                 // No crossing-root arm reads a spiric or a spline.
-                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+                geom::Curve3::Spiric { .. }
+                | geom::Curve3::Nurbs(_)
+                | geom::Curve3::Periodic(_) => {
                     if !edge_clears(body, edge_key, plane, band, &frame) {
                         return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                     }

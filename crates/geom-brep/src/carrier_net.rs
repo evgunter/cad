@@ -149,7 +149,7 @@ fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>, frame: Option<&Frame>) -> O
                 },
             })
         }
-        Curve3::Line(_) | Curve3::Nurbs(_) => None,
+        Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
     }
 }
 

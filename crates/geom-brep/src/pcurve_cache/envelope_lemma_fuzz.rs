@@ -605,7 +605,9 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
                 scaled(s, semi_v),
             ))
         }
-        Curve3::Spiric { .. } | Curve3::Nurbs(_) => unreachable!("on_chart builds neither"),
+        Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+            unreachable!("on_chart builds neither")
+        }
     }
 }
 

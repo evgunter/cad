@@ -763,7 +763,6 @@ which is what actually moves the number.
 | chord_join.rs (`carried_chord_spec`) | chord_carried_at_seat | a carried chord end's distance from its seated component's start, `‖p − C(t₀)‖` | m | OK (SECT) |
 | chord_join.rs (`carried_chord_spec`) | chord_carried_leave | a boolean germ's unit direction against the component's tangent at the chord's start, `dir·Ĉ′(t₁)` (the cosine between them), levered at the section's scale (`CarriedSection::lever`, the cylinder's radius) | m | OK (SECT) |
 | chord_join.rs (`carried_chord_spec`) | chord_carried_forward | the parameter travel from the chord's start to its end the way it leaves, metered by the carrier's speed at the start; only its sign is consumed | m | OK (SECT) |
-| pair_section.rs (`seat_at`) | ssi_seat_at_the_start | where the knot edit opening a loop at `at` refuses: the seat's distance from the fitted loop's start (or end, one point), `‖C(at) − C(t₀)‖`; decided within the band the loop is kept, undecided the seat escalates | m | OK (SECT) |
 | pair_section.rs (`at_node`, read by `CarriedSection::site` and `CarriedComponent::place`) | section_site_at_node | whether a site stands at a node the section lists: its distance from the node, `‖p − node‖`; Zero is the node, an undecided one escalates, and a site decided off every node yet on two arcs that share one escalates on that distance | m | OK (SECT) |
 | pair_section.rs (`CarriedComponent::within_span`, read by `CarriedComponent::reads`) | section_site_in_span | whether a foot on an open arc of a circle or an ellipse lies within the arc's span: the span's last parameter less the foot's, read in the turn the span starts, metered by the carrier's speed at the foot; Zero is the arc's end, within the band of the node every reading tests first: a site decided off that node yet there lies in the band of two arcs crossing at it, and escalates. A Negative reading is confirmed by the second reading below before the site is excluded | m (metered) | OK (SECT) |
 | pair_section.rs (`CarriedComponent::within_span`, on `section_site_in_span`'s Negative arm) | section_site_in_span_past | whether the reading's witness stands past the span's end by more than any carrier point within the zero of the site could: `section_site_in_span`'s metered margin plus twice the band's zero, `Margin::of`. The witness is a parameter where the carrier passes within the zero of the site, not its foot, so a point within the zero of the site lies within twice the zero of the witness's. Negative excludes the site; Positive (a witness read past the span reads inside it nearer by twice the zero) refuses as a desync; undecided escalates. Sound only for a closed-form conic component, which carries no pad; a conic component with a pad refuses as a desync before either reading | m | OK (SECT) |
@@ -1981,6 +1980,41 @@ Flagged, NOT fixed here (dispositions):
   "one point" stays sound in metres.
   `work/onecopy/a-parameter-difference-is-decided-through-the-metres-margin-door.md`
   carries the class.
+
+- **F46** (added by ONEHOME's pair-read unit, fork 275 step 3)
+  `curve_pair_walk_nearer_end` — `geom-brep/src/curve_pair/walk.rs`
+  `at_end`: which end's parameter a polished parameter is snapped to
+  where its place reads it at an end, the one nearer it, on the sign of
+  `|u − t₁| − |u − t₀|`. What keeps it off the logged doors is that **no
+  outcome is a reading, only the pair's anchor**:
+  - Either end is a sound place. The snapped parameter's place is the
+    end taken (`Place::End` of it, set with the parameter), and the pair
+    read reads the pair at that parameter on its own rows
+    (`curve_pair_walk_pair_gap`, logged), its point the carrier's at the
+    end taken, so the end it reports is the end whose point it read. The
+    window anchored there bounds a reach only on its own proved premises
+    (`curve_pair_walk_basin`, `curve_pair_walk_basin_held`, logged). A far
+    anchor puts the pieces far from it, and the window then bounds no
+    reach and escalates; it never prunes a meeting.
+  - It matters only where the two ends' points are one point within the
+    band (a span closed on itself), or where a mid-span point lies on an
+    end's (a carrier that comes back through its own end):
+    `walk::tests::a_polished_parameter_on_a_closed_span_is_the_end_on_its_side`
+    and `walk::tests::a_mid_span_parameter_at_an_ends_point_snaps_by_parameter`
+    pin both, the second through the stop's own read (`read_polished`):
+    the meeting it finds names the end it snapped to, red where the
+    snapped parameter kept the place read before the snap.
+  - Measured: over the `geom`, `geom-brep` and `topo` suites (7656
+    rows, one run, 2026-11-17), 9522 snaps, of which one tie, that row's
+    own below.
+    `walk::tests::a_tie_between_the_ends_takes_the_start` pins the tie:
+    a polyline back through its start's point at its span's middle snaps
+    to the start, its place the start's.
+
+  **Carried as `k_stats::choose(.., "F46")`**, its tie (a decided zero or
+  an undecided difference) taking the first end. Its K samples reach the
+  sink under `curve_pair_walk_nearer_end`; the verdict log does not carry
+  it. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

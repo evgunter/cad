@@ -1135,7 +1135,7 @@ fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCur
         t,
         EdgeCurveSpec {
             description: curve.restated_description(),
-            carrier: curve.carrier().clone(),
+            carrier: curve.stored_carrier().clone(),
             param_start: t0,
             param_end: t1,
         },

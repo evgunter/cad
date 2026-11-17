@@ -1144,7 +1144,9 @@ impl<T: Decide> Sweep<T> {
                 geom::Curve3::Line(_) => continue,
                 geom::Curve3::Circle(c) => c,
                 geom::Curve3::Ellipse(e) => e,
-                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+                geom::Curve3::Spiric { .. }
+                | geom::Curve3::Nurbs(_)
+                | geom::Curve3::Periodic(_) => {
                     return Err(JoinError::RunEdgeCarrierUnsupported {
                         face,
                         edge: body

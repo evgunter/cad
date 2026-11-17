@@ -571,7 +571,9 @@ fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, S
                     }
                 }
                 geom::Curve3::Line(_) => HalfCarrier::Chord,
-                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => HalfCarrier::Unread,
+                geom::Curve3::Spiric { .. }
+                | geom::Curve3::Nurbs(_)
+                | geom::Curve3::Periodic(_) => HalfCarrier::Unread,
             },
         };
         halves.push(Half {

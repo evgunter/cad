@@ -151,6 +151,16 @@ impl Fnv {
                     self.u64(k.to_bits());
                 }
             }
+            // The whole loop's net and where its base turn starts.
+            Curve3::Periodic(p) => {
+                self.u64(45);
+                for q in p.whole_loop().control() {
+                    self.p3(q);
+                }
+                for k in p.turn_breaks() {
+                    self.u64(k.to_bits());
+                }
+            }
         }
     }
 

@@ -112,8 +112,9 @@ pub(crate) fn endpoint_params(
         // (`entities.rs`), so this arm names a carrier this crate cannot
         // have built. Written for exhaustiveness; reaching it is a
         // kernel bug, not an input's.
-        Curve3::Spiric { .. } => unreachable!(
-            "endpoint_params: the STEP import mints no spiric carrier (no entity maps to one)"
+        Curve3::Spiric { .. } | Curve3::Periodic(_) => unreachable!(
+            "endpoint_params: the STEP import mints no spiric or periodic carrier (no entity \
+             maps to one)"
         ),
         Curve3::Nurbs(payload) => {
             // Clamped B-splines interpolate their end control points,

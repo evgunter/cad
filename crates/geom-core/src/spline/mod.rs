@@ -22,8 +22,10 @@
 //! # Conventions (binding, stated once)
 //!
 //! - **Clamped-v1**: end-knot multiplicity exactly `degree + 1`;
-//!   interior multiplicity ≤ `degree`. Periodic and unclamped forms
-//!   are a **designed absence** until a consumer exists.
+//!   interior multiplicity ≤ `degree`. Unclamped forms are a
+//!   **designed absence**. The one periodic form (C11: `geom`'s periodic
+//!   cubic, a closed fitted section loop) is held outside this module
+//!   and read here as its clamped views.
 //! - **Structure vs values**: degrees, multiplicities, spans and every
 //!   decision a plan takes are `f64` structure, read off the values'
 //!   value channel; a carrier's knots ([`Knots`]), weights and control
