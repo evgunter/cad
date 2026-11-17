@@ -153,10 +153,18 @@
 //! triangles truly past δ.
 //!
 //! - **Which points are one CDT vertex.** Every copy of the apex is the
-//!   origin. The development rounds, so it is not injective: a face
-//!   whose polygon point would share a CDT vertex with one at another UV
-//!   location refuses `SphereTrimShape { DevelopedMerge }` before its
-//!   first attempt ([`developed_merge`]) rather than merge two mesh
+//!   origin. The development rounds, so it is not injective: the cut
+//!   resolves a slant radius to `2⁻²⁷` of itself, a length that grows as
+//!   the cone flattens toward a cylinder (`2⁻²⁷·r / sin α`). Consecutive
+//!   points of the loop along one ruling that it puts at one point are a
+//!   run ([`Run`]): the triangulation holds one vertex for them, and the
+//!   emit pass gives each triangle there the run's point it stands on
+//!   and adds the triangles between the run's points, each certified and
+//!   wound on its true corners like any other ([`TrimmedFace::emit`]).
+//!   A face whose polygon points would share a CDT vertex any other way
+//!   (a point with the apex, points of two sides, a ruling side wholly
+//!   inside the cut) refuses `SphereTrimShape { DevelopedMerge }` before
+//!   its first attempt ([`developed_runs`]) rather than merge two mesh
 //!   vertices. A lattice node is laid clear of every polygon point
 //!   ([`lay`]), the apex among them, so none shares a vertex with one.
 //!   [`crate::cdt::ids_at_two_uvs`] still reads UV locations, so it names
@@ -5619,7 +5627,7 @@ pub(super) mod tests {
         ///   predicate, and no triangle lies along a ruling;
         /// - a polygon point off the apex that would land on the apex's CDT
         ///   point (its development under spade's floor) is found before the
-        ///   first attempt (`developed_merge`), where the face refuses typed
+        ///   first attempt (`developed_runs`), where the face refuses typed
         ///   rather than merge two mesh vertices the chart keeps apart;
         /// - a lattice node there is not laid (`lay`: the apex is a point of
         ///   the polygon, and the node's sector holds it), and a point of the
