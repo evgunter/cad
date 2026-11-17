@@ -2,7 +2,8 @@
 id: a-node-end-row-certifies-a-coarse-span-onto-the-node-at-1e-6
 kind: issue
 title: Main red at 1e-6: node_end_rows' chain of one coarse span onto the node certifies (Chart rung 0.125) where the row wants TubeStraddles
-status: review
+status: closed
+closed: 2026-11-17
 opened: 2026-11-17
 priority: P1
 cost: E
@@ -19,3 +20,7 @@ Found by the sliver lane (`sectarms/sliver-loop-tube`, 2026-11-17) and replayed 
 ## Owed
 
 Find out whether the coarse span is a graph in truth at the 1e-6 band, in which case the row's case is pinned too tightly for that band. The alternative is that the node-end reading admits an end it should not, which is the class of PR 6897's review MAJOR (an unbound node end). Bisect when it went red.
+
+## Closed (PR 7057, 2026-11-17)
+
+Fixed by PR 7057, merged at `35570b0552`.
