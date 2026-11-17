@@ -300,8 +300,12 @@ fn a_ruling_split_a_hair_from_its_end_folds_a_triangle() {
 /// `SphereTrimShape { DevelopedMerge }` at every δ.
 ///
 /// **By ε.** At `10⁻¹²` as above. At the default ε and `10⁻⁶`
-/// `split_edge` reads a split that near the end as no split, so the
-/// body cannot be built, and the row asserts that instead.
+/// `split_edge` reads a split `10⁻⁹` from this body's seam end as no
+/// split, so this body cannot be built, and the row asserts that instead.
+/// That is this body's answer and not the class's: on a slender cone the
+/// development resolves a coarser length, which a split reaches at the
+/// default ε
+/// ([`a_draft_cone_ruling_split_within_the_developments_resolution_refuses`]).
 #[test]
 fn a_ruling_split_within_the_developments_resolution_refuses() {
     use mesh::TessellateError as E;
@@ -322,7 +326,8 @@ fn a_ruling_split_within_the_developments_resolution_refuses() {
     if tol().eps() > 1e-12 {
         assert!(
             built.is_err(),
-            "at ε {:e} the split is no split",
+            "this body at ε {:e}: a split 1e-9 from its seam end is no split (a slender \
+             cone reaches the merge at this ε: the draft-cone pin)",
             tol().eps()
         );
         return;
