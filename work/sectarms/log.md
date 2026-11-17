@@ -937,3 +937,10 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **Round 2 crossed on storage:** A moved to recording the cover, B to deriving it. I read `SsiTube`: it records limb 3's chosen inputs. Storage is left to the build, under the rule that the region banked is the region proved.
   - **Fork-log numbering:** PR 7032's rest-image row is numbered 278, which main already uses (a TESSLANE row). Renumber it when 7032 merges. This fork took 281, after a scan of every open ev branch.
   - The lane's branch `sectarms/sliver-loop-tube` stays as is (an earlier candidate); a build after Ev's answer starts fresh from main. Subscribed to PR 7056.
+- 2026-11-17 — **The main-red lane (Opus) handed back [PR 7057](https://github.com/evgunter/cad/pull/7057)** at `9e881625a2`, CI green, no kernel code changed.
+  - The roster entries follow `decide_turn`'s move into `ReadSpec::of`/`turn`.
+  - The close-rings pin moves from 206 to 208 boxes.
+  - The node-end row was pinned too tightly at 1e-6: the fixture's span reach of 0.05 sits under the band's cap of 16√ε′ = 0.0506, so the end is correctly a node. It is now stated per band. It has been red at 1e-6 since PR 6897's merge.
+  - Every roster row in five other crates is green.
+  - Harness: 3,704,953 ms, 144,400 tokens.
+- **Single review dispatched** on the frozen head. Reviewer byte 77 (odd, Fable). Brief `review-7057.md`; it probes the node-end soundness reading in particular.
