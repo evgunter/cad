@@ -103,9 +103,9 @@ failure-output = "immediate-final"
 # Ruled faces with a split ruling, nine bodies, 243 cells (a local run,
 # 4 vCPUs):
 #    4.65 s  mesh::all split_rulings::a_ruled_face_with_a_split_ruling_meshes
-# Runs of ruling points a draft cone's development merges, four bodies at
-# two half-angles, 210 cells at the default eps (a local run, 4 vCPUs):
-#    4.15 s  mesh::all split_rulings::every_run_of_a_draft_cones_rulings_meshes
+# Runs of ruling points a draft cone's development merges, six bodies at
+# two half-angles, 560 cells at the default eps (a local run, 4 vCPUs):
+#    9.30 s  mesh::all split_rulings::every_run_of_a_draft_cones_rulings_meshes
 # The lift measurements: the reach pins' bodies again, each loop's lift
 # sampled; the first is two booleans across a B-spline section (a local
 # run, 4 vCPUs):

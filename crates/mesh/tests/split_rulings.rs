@@ -286,97 +286,137 @@ fn a_ruling_split_a_hair_from_its_end_folds_a_triangle() {
     );
 }
 
-/// The body's cone rulings, on a body revolved about `y`: its line edges
-/// whose two ends differ both in radius and in height (a cylinder's
+/// Whether line edge `ek` of a body revolved about `y` is a cone's
+/// ruling: its two ends differ both in radius and in height (a cylinder's
 /// ruling keeps its radius, a cap's radial edge its height).
+fn on_a_cone(body: &Body<f64>, ek: topo::EdgeKey) -> bool {
+    let c = body
+        .get_curve_geom(body.get_edge(ek).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap();
+    let (t0, t1) = c.params();
+    let (a, b) = (c.carrier().eval(t0), c.carrier().eval(t1));
+    (a.x.hypot(a.z) - b.x.hypot(b.z)).abs() > 1e-12 && (a.y - b.y).abs() > 1e-12
+}
+
+/// The body's cone rulings ([`on_a_cone`]), in arena order.
 fn cone_rulings(body: &Body<f64>) -> Vec<topo::EdgeKey> {
     rulings(body)
         .into_iter()
-        .filter(|&ek| {
-            let c = body
-                .get_curve_geom(body.get_edge(ek).unwrap().curve)
-                .unwrap()
-                .certified()
-                .unwrap();
-            let (t0, t1) = c.params();
-            let (a, b) = (c.carrier().eval(t0), c.carrier().eval(t1));
-            (a.x.hypot(a.z) - b.x.hypot(b.z)).abs() > 1e-12 && (a.y - b.y).abs() > 1e-12
-        })
+        .filter(|&ek| on_a_cone(body, ek))
         .collect()
 }
 
-/// Whether `split_edge` admits each of `fracs` on `ek`, at this run's ε.
-fn admits(body: &Body<f64>, ek: topo::EdgeKey, fracs: &[f64]) -> bool {
-    let mut b = body.clone();
-    let (t0, t1) = b
-        .get_curve_geom(b.get_edge(ek).unwrap().curve)
-        .unwrap()
-        .certified()
-        .unwrap()
-        .params();
-    fracs
-        .iter()
-        .all(|&f| b.split_edge(ek, t0 + (t1 - t0) * f, tol()).is_ok())
+/// Which of the suite's three ε rows this run is.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum EpsRow {
+    /// `10⁻⁶`.
+    Coarse,
+    /// The default, `10⁻⁹`.
+    Default,
+    /// `10⁻¹²`.
+    Fine,
 }
 
-/// The wall `(1, 0), (2 + tan α, 0), (2, 1), (1, 1)` or, `through` the
-/// axis, the solid `(0, 0), (2 + tan α, 0), (2, 1), (0, 1)`, revolved
-/// about `y` through `turn`: its outer face is a cone of half-angle `α`
-/// degrees, of slant radius `2 / sin α` at its small end. `None` where
-/// this run's ε does not revolve it.
-fn draft_cone(alpha: f64, through: bool, turn: Revolution<f64>) -> Option<Body<f64>> {
+fn eps_row() -> EpsRow {
+    let eps = tol().eps();
+    if eps > geom_core::tolerance::DEFAULT_EPS {
+        EpsRow::Coarse
+    } else if eps < geom_core::tolerance::DEFAULT_EPS {
+        EpsRow::Fine
+    } else {
+        EpsRow::Default
+    }
+}
+
+/// A cone through its apex, `(0, 0), (h·tan α, 0), (0, h)`, `alpha` in
+/// degrees: its ruling runs from the rim to the apex.
+fn apex_cone(h: f64, alpha: f64) -> [(f64, f64); 3] {
+    [(0.0, 0.0), (h * alpha.to_radians().tan(), 0.0), (0.0, h)]
+}
+
+/// **The draft cones the run rows read at this run's ε**, each a
+/// half-angle in degrees with two gaps along a ruling of length about 1
+/// that the cone's development merges there (a slant radius of
+/// `2 / sin α` cut to 27 bits: one bin is `1.2·10⁻⁴` at 0.01° and
+/// `9.5·10⁻⁷` at 1°) and `split_edge` admits: the gap of a run of two or
+/// three, and the finer one of a run of five.
+///
+/// - the default ε: 0.01° and 1°;
+/// - `10⁻⁶`: 0.01° alone, where a split is a split from `10⁻⁵`, which 1°
+///   does not merge;
+/// - `10⁻¹²`: 1° alone; the 0.01° cone does not revolve there.
+fn draft_cones() -> &'static [(f64, f64, f64)] {
+    match eps_row() {
+        EpsRow::Coarse => &[(0.01, 1e-5, 1e-5)],
+        EpsRow::Default => &[(0.01, 1e-5, 2.5e-6), (1.0, 1e-7, 2.5e-8)],
+        EpsRow::Fine => &[(1.0, 1e-7, 2.5e-8)],
+    }
+}
+
+/// A body of the run rows: its profile at half-angle `alpha` degrees.
+type DraftBody<'a> = (&'a str, fn(f64) -> [(f64, f64); 4], Revolution<f64>);
+
+/// The wall `(1, 0), (2 + tan α, 0), (2, 1), (1, 1)`: its outer face is a
+/// cone of half-angle `α`.
+fn wall(alpha: f64) -> [(f64, f64); 4] {
     let t = alpha.to_radians().tan();
-    let inner = if through { 0.0 } else { 1.0 };
-    let pts = [(inner, 0.0), (2.0 + t, 0.0), (2.0, 1.0), (inner, 1.0)];
-    let lp = ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)));
-    revolve(&validated(vec![lp]), axis_y(), turn, tol())
-        .ok()
-        .map(|r| r.body.into_body())
+    [(1.0, 0.0), (2.0 + t, 0.0), (2.0, 1.0), (1.0, 1.0)]
 }
 
-/// The cells of [`a_run_of_ruling_points_the_development_merges_meshes`]
-/// and of its grid: each draft cone of `bodies` (through the axis or not,
-/// its turn), at each `(α, gap)` this run's ε builds, each of its cone
-/// rulings split five ways, placed obliquely, at each of `deltas`. Every
-/// cell is asserted `Meshed`; answers how many there were.
-fn run_cells(bodies: &[(&str, bool, Revolution<f64>)], deltas: &[f64]) -> usize {
+/// The solid `(0, 0), (2 + tan α, 0), (2, 1), (0, 1)`, through the axis.
+fn solid(alpha: f64) -> [(f64, f64); 4] {
+    let t = alpha.to_radians().tan();
+    [(0.0, 0.0), (2.0 + t, 0.0), (2.0, 1.0), (0.0, 1.0)]
+}
+
+/// The wall `(2 + tan α, 0), (3, 0), (3, 1), (2, 1)`: its INNER face is
+/// the cone, reversed.
+fn bored(alpha: f64) -> [(f64, f64); 4] {
+    let t = alpha.to_radians().tan();
+    [(2.0 + t, 0.0), (3.0, 0.0), (3.0, 1.0), (2.0, 1.0)]
+}
+
+/// The cells of the run rows: each of `bodies` at each of
+/// [`draft_cones`], each of its cone rulings split seven ways, placed
+/// obliquely, at each of `deltas`. Every cell is asserted `Meshed`;
+/// answers how many there were.
+///
+/// The seven: a split beside the ruling's start; one beside its end (the
+/// run then holds a corner of the polygon); two and three beside each
+/// other at its middle; one beside each end; five beside each other; and
+/// two beside each other and the end, a run of three at a corner.
+fn run_cells(bodies: &[DraftBody<'_>], deltas: &[f64]) -> usize {
     let mut cells = 0usize;
-    for (alpha, gap) in [(0.01, 1e-5), (1.0, 1e-7)] {
-        for &(name, through, turn) in bodies {
-            let Some(body) = draft_cone(alpha, through, turn) else {
-                eprintln!(
-                    "SKIPPED at ε {:e}: the {alpha}° {name} does not revolve",
-                    tol().eps()
-                );
-                continue;
-            };
-            let solid = split_and_placed(&body, &[], &[]);
-            let splits: [(&str, &[f64]); 5] = [
+    for &(alpha, gap, fine) in draft_cones() {
+        for &(name, profile, turn) in bodies {
+            let body = turned(&profile(alpha), turn);
+            let whole = split_and_placed(&body, &[], &[]);
+            let five: Vec<f64> = (0..5).rev().map(|k| 0.5 + f64::from(k) * fine).collect();
+            let splits: [(&str, &[f64]); 7] = [
                 ("a split beside its start", &[gap]),
                 ("a split beside its end", &[1.0 - gap]),
                 ("two splits beside each other", &[0.5 + gap, 0.5]),
                 (
-                    "three splits beside each other",
+                    "three beside each other",
                     &[0.5 + 2.0 * gap, 0.5 + gap, 0.5],
                 ),
                 ("a split beside each end", &[1.0 - gap, gap]),
+                ("five beside each other", &five),
+                (
+                    "two beside each other and the end",
+                    &[1.0 - fine, 1.0 - 2.0 * fine],
+                ),
             ];
             for (k, ek) in cone_rulings(&body).into_iter().enumerate() {
                 for (what, fracs) in splits {
-                    if !admits(&body, ek, fracs) {
-                        eprintln!(
-                            "SKIPPED at ε {:e}: `split_edge` reads a split {gap:e} from another \
-                             as no split",
-                            tol().eps()
-                        );
-                        continue;
-                    }
                     let split = split_and_placed(&body, &[ek], fracs);
                     for &delta in deltas {
                         assert_eq!(
-                            got_enclosing(&split, &solid, delta),
+                            got_enclosing(&split, &whole, delta),
                             Got::Meshed,
-                            "the {alpha}° {name}, cone ruling {k}, {what} ({gap:e}), δ {delta}"
+                            "the {alpha}° {name}, cone ruling {k}, {what}, δ {delta}"
                         );
                         cells += 1;
                     }
@@ -387,94 +427,119 @@ fn run_cells(bodies: &[(&str, bool, Revolution<f64>)], deltas: &[f64]) -> usize 
     cells
 }
 
-/// The cells [`run_cells`] reads of `per_family` at this run's ε, each
-/// family being one `(α, gap)`: both at the default ε; at `10⁻⁶` the
-/// 0.01° cone's alone (`split_edge` reads a split `10⁻⁷` from another as
-/// no split); at `10⁻¹²` the 1° cone's alone (the 0.01° cone does not
-/// revolve there).
-fn families_at_this_eps(per_family: usize) -> usize {
-    if tol().eps() == geom_core::tolerance::DEFAULT_EPS {
-        2 * per_family
-    } else {
-        per_family
-    }
-}
-
 /// **A run of ruling points the development merges meshes.** The chart
 /// lane triangulates a cone face in its development, which cuts a slant
 /// radius to 27 significant bits: two points of one ruling within about
 /// `2⁻²⁷` of their slant radius are one point there. On a draft cone that
-/// is a length a split reaches (`2 / sin α · 2⁻²⁷`: `8.5·10⁻⁵` at 0.01°,
-/// `8.5·10⁻⁷` at 1°). The lane holds such a run of consecutive ruling
-/// points as one vertex of its triangulation and tells them apart again
-/// when it emits (`trimmed::Run`).
+/// is a length a split reaches ([`draft_cones`]). The lane holds such a
+/// run of consecutive ruling points as one vertex of its triangulation
+/// and tells them apart again when it emits (`trimmed::Run`).
 ///
 /// The wall, a full turn: its one cone face walks its seam twice, so each
-/// run is met on each of the seam's two rays. The seam split beside its
-/// start, beside its end (the run then holds a corner of the polygon),
-/// twice and three times at its middle, and beside both ends at once;
-/// placed obliquely; δ 0.01. Every cell meshes, passes `check_mesh`, and
-/// is the body's ([`crate::reach_probes::geometry`]).
+/// run is met on each of the seam's two rays. The seam split seven ways
+/// ([`run_cells`]); placed obliquely; δ 0.01. Every cell meshes, passes
+/// `check_mesh`, and is the body's ([`crate::reach_probes::geometry`]).
 ///
-/// **By ε.** At the default both cones; at `10⁻⁶` and `10⁻¹²` the one
-/// that ε builds and splits ([`families_at_this_eps`]). The grid over the
-/// wall and the solid through the axis, full and half turns, and three δ
-/// is [`every_run_of_a_draft_cones_rulings_meshes`].
+/// **By ε.** The same at each, on the cones that ε builds
+/// ([`draft_cones`]). The grid over more bodies and δ is
+/// [`every_run_of_a_draft_cones_rulings_meshes`].
 #[test]
 fn a_run_of_ruling_points_the_development_merges_meshes() {
-    let cells = run_cells(&[("wall, full", false, Revolution::Full)], &[0.01]);
-    assert_eq!(cells, families_at_this_eps(5), "the cells this row reads");
+    let cells = run_cells(&[("wall, full", wall, Revolution::Full)], &[0.01]);
+    assert_eq!(cells, 7 * draft_cones().len(), "the cells this row reads");
 }
 
 /// **The grid of [`a_run_of_ruling_points_the_development_merges_meshes`]**:
-/// the wall and the solid through the axis, each a full turn and a half
-/// (a half turn's cone face ends on two rulings, each shared with a planar
-/// cut face), at δ 0.1, 0.01 and 0.001.
+/// the wall a full turn, a half and a wedge of 0.05; the solid through
+/// the axis a full turn and a half (a part turn's cone face ends on two
+/// rulings, each shared with a planar cut face); and the wall whose inner
+/// face is the cone, reversed, a full turn; at δ 1, 0.1, 0.01 and 0.001.
+///
+/// **By ε.** The same at each, on the cones that ε builds
+/// ([`draft_cones`]); but the wedge is read at the default ε and `10⁻¹²`
+/// alone: at `10⁻⁶` the 0.01° wedge does not revolve.
 #[test]
 fn every_run_of_a_draft_cones_rulings_meshes() {
     let half = Revolution::Partial(core::f64::consts::PI);
-    let cells = run_cells(
-        &[
-            ("wall, full", false, Revolution::Full),
-            ("wall, half", false, half),
-            ("solid, full", true, Revolution::Full),
-            ("solid, half", true, half),
-        ],
-        &[0.1, 0.01, 0.001],
+    let wedge: DraftBody<'_> = ("wall, a wedge of 0.05", wall, Revolution::Partial(0.05));
+    let mut bodies: Vec<DraftBody<'_>> = vec![
+        ("wall, full", wall, Revolution::Full),
+        ("wall, half", wall, half),
+        ("solid, full", solid, Revolution::Full),
+        ("solid, half", solid, half),
+        ("bored wall, full", bored, Revolution::Full),
+    ];
+    // Cone rulings: one on a full-turn wall, two on every other body.
+    let mut rulings = 1 + 2 + 2 + 2 + 1;
+    if eps_row() != EpsRow::Coarse {
+        bodies.push(wedge);
+        rulings += 2;
+    }
+    let cells = run_cells(&bodies, &[1.0, 0.1, 0.01, 0.001]);
+    assert_eq!(
+        cells,
+        rulings * 7 * 4 * draft_cones().len(),
+        "the cells this row reads"
     );
-    assert_eq!(cells, families_at_this_eps(105), "the cells this row reads");
 }
 
-/// **A run on an ordinary frustum, at ε `10⁻¹²`.** The frustum wall's
-/// outer cone face (half-angle 45°) with its seam split `10⁻⁹` of its
-/// range from its start, placed obliquely: the split vertex and the seam's
-/// end lie within `2⁻²⁷` of their slant radius, and the face meshes at
-/// every δ as [`a_run_of_ruling_points_the_development_merges_meshes`]
-/// says.
+/// **A run at a corner of the polygon is anchored along its ruling.** The
+/// wall at 26.6°, a wedge of 0.05, its second cone ruling split beside
+/// its end and placed obliquely, δ 0.01. The split vertex and the
+/// ruling's end are a run, and the end is a corner: the polygon reaches
+/// the run along the rim and leaves it along the ruling. The lane adds
+/// the run's triangle beside the neighbour along the ruling
+/// (`trimmed::Anchor`), and the face meshes. Added beside the neighbour
+/// before the run whichever side that is on, this cell refuses.
 ///
-/// **By ε.** At `10⁻¹²` as above. At the default ε and `10⁻⁶`
-/// `split_edge` reads a split `10⁻⁹` from this body's seam end as no
-/// split, so this body cannot be built, and the row asserts that instead.
+/// Inside a ruling side both neighbours are along the ruling and the lane
+/// takes the first; either gives a valid mesh, and which is held by
+/// `trimmed`'s unit rows alone.
+///
+/// **By ε.** The gap is `10⁻⁸` of the ruling at the default ε and at
+/// `10⁻¹²`. At `10⁻⁶` a split is a split from `10⁻⁵`, which this cone's
+/// development does not merge: the row holds that the face meshes with
+/// its two points apart.
+#[test]
+fn a_run_at_a_corner_is_anchored_along_its_ruling() {
+    let gap = match eps_row() {
+        EpsRow::Coarse => 1e-5,
+        EpsRow::Default | EpsRow::Fine => 1e-8,
+    };
+    let body = turned(&wall(26.6), Revolution::Partial(0.05));
+    let ruling = cone_rulings(&body)[1];
+    let split = split_and_placed(&body, &[ruling], &[1.0 - gap]);
+    let whole = split_and_placed(&body, &[], &[]);
+    assert_eq!(got_enclosing(&split, &whole, 0.01), Got::Meshed);
+}
+
+/// **A run on an ordinary frustum.** The frustum wall's outer cone face
+/// (half-angle 45°) with its seam split beside its start, placed
+/// obliquely: the split vertex and the seam's end lie within `2⁻²⁷` of
+/// their slant radius, and the face meshes at every δ as
+/// [`a_run_of_ruling_points_the_development_merges_meshes`] says.
+///
+/// **By ε.** The gap is `10⁻⁸` of the seam at the default ε and `10⁻⁹`
+/// at `10⁻¹²`. At `10⁻⁶` a split is a split from `10⁻⁵`, which this
+/// cone's development does not merge: the row holds that the face meshes
+/// with its two points apart.
 #[test]
 fn a_frustum_seam_split_within_the_developments_resolution_meshes() {
+    let gap = match eps_row() {
+        EpsRow::Coarse => 1e-5,
+        EpsRow::Default => 1e-8,
+        EpsRow::Fine => 1e-9,
+    };
     let body = turned(
         &[(1.0, 0.0), (3.0, 0.0), (2.0, 1.0), (1.5, 1.0)],
         Revolution::Full,
     );
     let seam = rulings(&body)[0];
-    if tol().eps() > 1e-12 {
-        assert!(
-            !admits(&body, seam, &[1e-9]),
-            "this body at ε {:e}: a split 1e-9 from its seam end is no split",
-            tol().eps()
-        );
-        return;
-    }
-    let split = split_and_placed(&body, &[seam], &[1e-9]);
-    let solid = split_and_placed(&body, &[], &[]);
+    let split = split_and_placed(&body, &[seam], &[gap]);
+    let whole = split_and_placed(&body, &[], &[]);
     for delta in [0.1, 0.01, 0.001] {
         assert_eq!(
-            got_enclosing(&split, &solid, delta),
+            got_enclosing(&split, &whole, delta),
             Got::Meshed,
             "δ {delta}"
         );
@@ -492,18 +557,18 @@ fn a_frustum_seam_split_within_the_developments_resolution_meshes() {
 /// mesh passes `check_mesh` and `check_winding`.
 #[test]
 fn a_draft_cone_ruling_split_within_the_developments_resolution_meshes() {
-    let body = draft_cone(0.1, false, Revolution::Full).expect("the 0.1° wall revolves");
+    let body = turned(&wall(0.1), Revolution::Full);
     let [ruling] = cone_rulings(&body)[..] else {
         panic!("the wall's cone face has one seam");
     };
-    let solid = split_and_placed(&body, &[], &[]);
+    let whole = split_and_placed(&body, &[], &[]);
     for (what, fracs) in [
         ("an end split", &[1e-5][..]),
         ("two splits mid-ruling", &[0.5 + 1e-5, 0.5][..]),
     ] {
         let split = split_and_placed(&body, &[ruling], fracs);
         for delta in [0.1, 0.01, 0.001] {
-            if tol().eps() < geom_core::tolerance::DEFAULT_EPS {
+            if eps_row() == EpsRow::Fine {
                 let m = mesh::tessellate(&split, delta, tol())
                     .unwrap_or_else(|e| panic!("{what}, δ {delta}: {e:?}"));
                 mesh::validate::check_mesh(&m)
@@ -512,7 +577,7 @@ fn a_draft_cone_ruling_split_within_the_developments_resolution_meshes() {
                     .unwrap_or_else(|e| panic!("{what}, δ {delta}: {e:?}"));
             } else {
                 assert_eq!(
-                    got_enclosing(&split, &solid, delta),
+                    got_enclosing(&split, &whole, delta),
                     Got::Meshed,
                     "{what}, δ {delta}"
                 );
@@ -522,39 +587,34 @@ fn a_draft_cone_ruling_split_within_the_developments_resolution_meshes() {
 }
 
 /// **Two runs beside the apex, anchored by it, mesh.** A cone of
-/// half-angle 45° through its apex, revolved 0.05: a thin wedge whose
-/// cone face is the apex, two rulings and one rim chord. Both rulings
-/// split `10⁻¹⁰` of their range from their rim ends, placed obliquely:
-/// each split vertex and its ruling's end are a run whose neighbour along
-/// the ruling is the apex, and the development's one triangle at the apex
-/// has both runs for corners. The lane cuts it along both, and the face
-/// is three triangles at every δ.
+/// half-angle 10° and height 100 through its apex, revolved 0.05: a thin
+/// wedge whose cone face is the apex, two rulings and one rim chord. Both
+/// rulings split beside their rim ends, placed obliquely: each split
+/// vertex and its ruling's end are a run whose neighbour along the ruling
+/// is the apex, and the development's one triangle at the apex has both
+/// runs for corners. The lane cuts it along both, and the face is three
+/// triangles at δ 10, 1 and 0.1.
 ///
-/// **By ε.** At `10⁻¹²` as above; at the default and `10⁻⁶`
-/// `split_edge` reads the split as no split, and the row says so and
-/// stops.
+/// **By ε.** The gap is `10⁻⁷` along the ruling at the default ε and at
+/// `10⁻¹²`. At `10⁻⁶` a split is a split from `10⁻⁵`, which this cone's
+/// development does not merge: the row holds that the face is the same
+/// three triangles with its points apart.
 #[test]
 fn two_runs_anchored_by_the_apex_mesh() {
-    let body = turned(
-        &[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
-        Revolution::Partial(0.05),
-    );
+    let gap = match eps_row() {
+        EpsRow::Coarse => 1e-5,
+        EpsRow::Default | EpsRow::Fine => 1e-7,
+    };
+    let profile = apex_cone(100.0, 10.0);
+    let body = turned(&profile, Revolution::Partial(0.05));
     let lines = cone_rulings(&body);
     assert_eq!(lines.len(), 2, "the wedge's cone face ends on two rulings");
-    let fracs = [1.0 - 1e-10];
-    if !lines.iter().all(|&ek| admits(&body, ek, &fracs)) {
-        assert!(tol().eps() > 1e-12, "the split is interior at ε 1e-12");
-        eprintln!(
-            "SKIPPED at ε {:e}: `split_edge` reads a split 1e-10 from the end as no split",
-            tol().eps()
-        );
-        return;
-    }
-    let split = split_and_placed(&body, &lines, &fracs);
-    let solid = split_and_placed(&body, &[], &[]);
-    for delta in [0.1, 0.01, 0.001] {
+    let length = profile[1].0.hypot(100.0);
+    let split = split_and_placed(&body, &lines, &[1.0 - gap / length]);
+    let whole = split_and_placed(&body, &[], &[]);
+    for delta in [10.0, 1.0, 0.1] {
         assert_eq!(
-            got_enclosing(&split, &solid, delta),
+            got_enclosing(&split, &whole, delta),
             Got::Meshed,
             "δ {delta}"
         );
@@ -576,92 +636,120 @@ fn two_runs_anchored_by_the_apex_mesh() {
 /// f64 cannot wind: this row pins a gap**
 /// (`work/tesslane/a-run-anchored-on-a-needle-triangle-makes-triangles-f64-cannot-wind.md`).
 /// A cone of half-angle 45° through its apex, a full turn (two half
-/// faces), one ruling split `10⁻¹⁰` of its range from its rim end, placed
-/// obliquely. The split vertex and the ruling's end are a run, and its
-/// neighbour along the ruling is the apex, a whole ruling away. At δ 0.1
-/// and 0.01 the face meshes. At δ 0.001 the lattice's rows stand close
-/// about the apex, the triangle on the side from the run to the apex takes
-/// a node there for its third corner, and the triangle added between the
-/// run's two points and that node is `1.4·10⁻¹⁰` wide and about `10⁻⁴` of
-/// its length high: under the winding rule's allowance, and the face
-/// refuses `UnresolvedWinding`.
+/// faces), one ruling split beside its rim end, placed obliquely. The
+/// split vertex and the ruling's end are a run, and its neighbour along
+/// the ruling is the apex, a whole ruling away. The triangle on the side
+/// from the run to the apex takes a lattice node near the apex for its
+/// third corner, and the triangle added between the run's two points and
+/// that node has height `g·d / L`: `g` the run's gap, `d` the node's
+/// distance from the ruling, `L` its distance from the run. The winding
+/// rule's allowance is about `1.8·10⁻¹⁵` of the coordinates' magnitude
+/// `M`, so the face refuses `UnresolvedWinding` where
+/// `g·d / L < 1.8·10⁻¹⁵·M`: a small gap, a node hugging a long ruling (a
+/// slender cone, a fine δ), a large part or one placed far out.
 ///
-/// **By ε.** At `10⁻¹²` as above; at the default and `10⁻⁶`
-/// `split_edge` reads the split as no split, and the row says so and
-/// stops.
+/// **By ε**, each ε on the cone and gap that reach the refusal there:
+///
+/// - the default: height 1000, a gap of `10⁻⁸` along the ruling, δ 1
+///   (height `3.3·10⁻¹³` against allowance `1.78·10⁻¹²`);
+/// - `10⁻¹²`: height 1, a gap of `10⁻¹⁰` of the ruling: δ 0.1 and 0.01
+///   mesh and δ 0.001 refuses (`5.15·10⁻¹⁵` against `9.14·10⁻¹⁵`);
+/// - `10⁻⁶`: a split is a split from `10⁻⁵`, which neither cone's
+///   development merges, and no body this row tried reaches the refusal:
+///   the row holds that the unit cone meshes with its two points apart.
 #[test]
 fn a_run_anchored_on_a_needle_triangle_refuses_unresolved() {
-    let body = turned(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], Revolution::Full);
+    let refused = Got::Unresolved(geom::SurfaceKind::Cone);
+    let (height, gap, cells): (f64, f64, &[(f64, Got)]) = match eps_row() {
+        EpsRow::Coarse => (
+            1.0,
+            1e-5,
+            &[
+                (0.1, Got::Meshed),
+                (0.01, Got::Meshed),
+                (0.001, Got::Meshed),
+            ],
+        ),
+        EpsRow::Default => (
+            1000.0,
+            1e-8 / (1000.0 * 2f64.sqrt()),
+            &[(1.0, refused.clone())],
+        ),
+        EpsRow::Fine => (
+            1.0,
+            1e-10,
+            &[
+                (0.1, Got::Meshed),
+                (0.01, Got::Meshed),
+                (0.001, refused.clone()),
+            ],
+        ),
+    };
+    let body = turned(&apex_cone(height, 45.0), Revolution::Full);
     let ruling = cone_rulings(&body)[0];
-    let fracs = [1.0 - 1e-10];
-    if !admits(&body, ruling, &fracs) {
-        assert!(tol().eps() > 1e-12, "the split is interior at ε 1e-12");
-        eprintln!(
-            "SKIPPED at ε {:e}: `split_edge` reads a split 1e-10 from the end as no split",
-            tol().eps()
-        );
-        return;
-    }
-    let split = split_and_placed(&body, &[ruling], &fracs);
-    let solid = split_and_placed(&body, &[], &[]);
-    for (delta, want) in [
-        (0.1, Got::Meshed),
-        (0.01, Got::Meshed),
-        (0.001, Got::Unresolved(geom::SurfaceKind::Cone)),
-    ] {
-        assert_eq!(got_enclosing(&split, &solid, delta), want, "δ {delta}");
+    let split = split_and_placed(&body, &[ruling], &[1.0 - gap]);
+    let whole = split_and_placed(&body, &[], &[]);
+    for (delta, want) in cells {
+        assert_eq!(got_enclosing(&split, &whole, *delta), *want, "δ {delta}");
     }
 }
 
 /// **A merge that is no run still refuses.** A cone band shorter than its
-/// development resolves: the wall `(1, 0), (2 + h·tan 1°, 0), (2, h),
-/// (1, h)` with `h = 10⁻⁷`, a full turn, its seam split at its middle and
+/// development resolves: a wall whose outer face is a cone of half-angle
+/// 1° and height `h`, a full turn, its seam split at its middle and
 /// placed obliquely. The whole ruling side, its two ends and the split
-/// vertex, lies inside one cut of the slant radius (about `8.5·10⁻⁷`
-/// here): three consecutive points at one point of the development whose
-/// neighbours either way are on the rims, so none lies along the ruling
-/// for the lane to cut a triangle beside. That is no run, and the face
-/// refuses `SphereTrimShape { DevelopedMerge }` at every δ.
+/// vertex, lies inside one cut of the slant radius: three consecutive
+/// points at one point of the development whose neighbours either way
+/// are on the rims, so none lies along the ruling for the lane to cut a
+/// triangle beside. That is no run, and the face refuses
+/// `SphereTrimShape { DevelopedMerge }` at every δ.
 ///
-/// **By ε.** At `10⁻¹²` as above; at the default and `10⁻⁶` the band
-/// is not built (its profile is a sliver beside ε, to the profile's
-/// validation or to the revolve), and the row says so and stops.
+/// **By ε**, each ε on the band it builds:
+///
+/// - the default: radius 200 (`(100, 0), (200 + h·tan 1°, 0), (200, h),
+///   (100, h)`), `h = 5·10⁻⁵`, δ 10 and 1;
+/// - `10⁻¹²`: radius 2, `h = 10⁻⁷`, δ 0.1, 0.01 and 0.001;
+/// - `10⁻⁶`: the default's band, which meshes there and passes
+///   `check_mesh`. The row holds that answer; what at that ε keeps the
+///   face from the merge was not measured.
 #[test]
 fn a_cone_band_shorter_than_the_developments_resolution_refuses() {
     use mesh::TessellateError as E;
     use mesh::types::SphereTrimCause;
-    let h = 1e-7;
-    let pts = [
-        (1.0, 0.0),
-        (2.0 + h * 1f64.to_radians().tan(), 0.0),
-        (2.0, h),
-        (1.0, h),
-    ];
-    let lp = ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)));
-    let built = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .ok()
-        .and_then(|profile| revolve(&profile, axis_y(), Revolution::Full, tol()).ok());
-    let Some(revolved) = built else {
-        assert!(tol().eps() > 1e-12, "the band revolves at ε 1e-12");
-        eprintln!("SKIPPED at ε {:e}: the band is not built", tol().eps());
-        return;
+    let (radius, h, deltas): (f64, f64, &[f64]) = match eps_row() {
+        EpsRow::Coarse | EpsRow::Default => (200.0, 5e-5, &[10.0, 1.0]),
+        EpsRow::Fine => (2.0, 1e-7, &[0.1, 0.01, 0.001]),
     };
-    let body = revolved.body.into_body();
+    let inner = radius / 2.0;
+    let body = turned(
+        &[
+            (inner, 0.0),
+            (radius + h * 1f64.to_radians().tan(), 0.0),
+            (radius, h),
+            (inner, h),
+        ],
+        Revolution::Full,
+    );
     let [seam] = cone_rulings(&body)[..] else {
         panic!("the band's cone face has one seam");
     };
     let split = split_and_placed(&body, &[seam], &[0.5]);
-    for delta in [0.1, 0.01, 0.001] {
-        assert!(
-            matches!(
-                mesh::tessellate(&split, delta, tol()),
-                Err(E::SphereTrimShape {
-                    cause: SphereTrimCause::DevelopedMerge,
-                    ..
-                })
-            ),
-            "δ {delta}"
-        );
+    for &delta in deltas {
+        let got = mesh::tessellate(&split, delta, tol());
+        if eps_row() == EpsRow::Coarse {
+            let m = got.unwrap_or_else(|e| panic!("δ {delta}: {e:?}"));
+            mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("δ {delta}: {e:?}"));
+        } else {
+            assert!(
+                matches!(
+                    got,
+                    Err(E::SphereTrimShape {
+                        cause: SphereTrimCause::DevelopedMerge,
+                        ..
+                    })
+                ),
+                "δ {delta}"
+            );
+        }
     }
 }
