@@ -80,9 +80,11 @@
 //! of δ is a typed choice nothing has measured as the coarsest
 //! (`work/tesslane/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
 //! The lanes without a theorem say so at their call sites: the trimmed
-//! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and so
-//! does a cylinder or cone face whose straight side holds a point, which
-//! is the trimmed lane's (`walk::splits_a_straight_side`).
+//! lane's analytic arms size at `trimmed::UNPROVED_HEADROOM` of δ. A
+//! cylinder or cone face whose straight side holds a point is the
+//! trimmed lane's (`walk::splits_a_straight_side`), which walks it
+//! (`crate::ruled_walk`) at δ, by the theorems at [`sagitta_step`] and
+//! [`cone_grid_step`].
 //!
 //! **One sizing question has a separate ratified answer**:
 //! `docs/TESS-BUDGET.md`'s *split schedule's aspect policy*
@@ -423,6 +425,20 @@ pub(crate) fn cap_angular(step: f64) -> f64 {
 /// chord of its extreme azimuths. So the cylinder's worst triangle is
 /// a rim chord's, and a rim chorded at `sagitta_step(δ, r)` lands it
 /// at δ (`cylinder_rim_triangle_lands_at_delta`).
+///
+/// **The chart lane's walk** (`crate::ruled_walk`). A cylinder face
+/// whose straight side holds a point has no CDT: its triangles join its
+/// two rim rows in order of azimuth, and each spans at most one chord of
+/// one row in azimuth (`ruled_walk`'s module docs; held by
+/// `ruled_walk::tests::the_walk_covers_the_face_once_within_one_chord`).
+/// A triangle whose corners lie on rulings within an azimuth range `Δu`
+/// lies in the hull of the cylinder between the range's two end rulings,
+/// whose projection is the circular segment of that chord, so it
+/// certifies at most `r·(1 − cos(Δu/2))`, as above. A point on a side
+/// lies on that side's ruling, a segment of the triangle it divides, so
+/// the triangles it fans lie in that triangle's plane. Rims chorded at
+/// this step (`chords::tighten` at the walked face's δ) land the worst
+/// walked triangle, a rim chord's, at δ.
 pub(crate) fn sagitta_step(target: f64, rho: f64) -> f64 {
     if target < rho {
         cap_angular(2.0 * (1.0 - target / rho).acos())
@@ -495,6 +511,22 @@ pub(crate) fn spiric_step(target: f64, major: f64, minor: f64, offset: f64) -> f
 /// `cos α · ρ_max · (1 − cos(h/2))`; this step solves that for δ,
 /// which is [`sagitta_step`] on the effective radius `ρ_max·cos α`
 /// (`cone_grid_step_lands_the_worst_triangle_at_delta`).
+///
+/// **The chart lane's walk** (`crate::ruled_walk`) holds a cone face
+/// whose straight side holds a point to the same step. Each walked
+/// triangle spans at most one chord of one row in azimuth, the apex
+/// counted as a row of one point (`ruled_walk`'s module docs), so all
+/// three of its corners lie on rulings within one column `h`; each of its
+/// sides is then a chord between radii across at most `h`, sagging at
+/// most `cos α · ρ_max · (1 − cos(h/2))` (`cert::cone_chord_sag`), which
+/// is what [`crate::cert::cert_cone`] reads. The hull view gives the same
+/// bound: a point `Σ λₖ tₖ d(θₖ)` of the triangle, `tₖ` the corners'
+/// slants (the apex's `0`) and `d(θ)` the unit ruling, is `T · Σ μₖ d(θₖ)`
+/// with `T = Σ λₖ tₖ ≤ t_max` and `μ` convex weights, a point of the hull of
+/// the slant-1 circle's arc over the range scaled toward the apex. A
+/// triangle fanned from a side's point divides the walked triangle in its
+/// plane. The worst walked triangle is a chord of the largest rim against
+/// the next row, certifying at δ where that rim's chords span `h`.
 pub(crate) fn cone_grid_step(target: f64, half_angle: f64, rho_max: f64) -> f64 {
     sagitta_step(target, rho_max * half_angle.cos())
 }

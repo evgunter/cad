@@ -356,6 +356,10 @@ fn last_attempt() -> usize {
 /// is missing on every chart alike is the lemma that bounds a triangle
 /// beside a boundary run crossing lattice lines
 /// (`work/tesslane/one-containment-lemma-for-an-oblique-boundary.md`).
+///
+/// A face the lane walks ([`walked`]) does not read it: its triangles
+/// are no CDT's, and the step functions' theorems hold them at δ
+/// (`crate::ruled_walk`).
 pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 
 /// **The sphere arm's per-edge chord budget**, `2^16`. **Work**: it
