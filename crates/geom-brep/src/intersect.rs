@@ -1225,7 +1225,7 @@ pub(crate) fn ruled_section<T: Decide>(
         (Sign::Zero, gap) => RuledSection::TangentLine {
             line: geom::Line {
                 origin: o - n * gap_signed,
-                dir: geom_core::UnitVec3::squared(a),
+                dir: a,
             },
             gap: gap.jointly(parallel.margin),
         },
@@ -1251,10 +1251,7 @@ pub(crate) struct RuledFrame<T: Real> {
 /// [`RuledFrame`] of the pair at `reach`.
 pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame<T> {
     let &PlaneCylinder { q, n, o, a, .. } = pc;
-    let o = reach.foot_on(geom::Line {
-        origin: o,
-        dir: geom_core::UnitVec3::squared(a),
-    });
+    let o = reach.foot_on(geom::Line { origin: o, dir: a });
     let c = a.dot(n);
     let gap_signed = (o - q).dot(n);
     // The rulings this lane mints stand on the hinge through `o − n·gap`,
@@ -1763,12 +1760,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
         },
     )??;
     let [a1, a2] = pose.axes();
-    let line = |origin| {
-        Curve3::Line(geom::Line {
-            origin,
-            dir: geom_core::UnitVec3::squared(a1),
-        })
-    };
+    let line = |origin| Curve3::Line(geom::Line { origin, dir: a1 });
     if let Some(parallel) = pose.parallel_section() {
         return Ok(match parallel {
             ParallelSection::Empty => EqualCylinderSection::Empty,
@@ -1839,7 +1831,7 @@ pub fn cylinder_axes_parallel_reported<T: Decide>(
     decide_reported(
         "cc_axes_parallel",
         Margin::levered(
-            line1.dir.get().cross(line2.dir.get()).norm(),
+            line1.dir.cross(line2.dir).norm(),
             reach.lever_between(line1, line2),
         ),
         band,
@@ -1890,8 +1882,8 @@ fn separation_range<T: Real>(
     geom::Line { origin: o, dir: b }: geom::Line<T>,
     lever: T,
 ) -> (T, T) {
-    let off = |v: Vec3<T>| v - b.get() * v.dot(b.get());
-    let (u, tau) = (off(p - o), off(a.get()));
+    let off = |v: Vec3<T>| v - b * v.dot(b);
+    let (u, tau) = (off(p - o), off(a));
     let dmax = (u + tau * lever).norm().max((u - tau * lever).norm());
     let at = (T::zero() - u.dot(tau)) / tau.dot(tau).max(T::from_f64(f64::MIN_POSITIVE));
     let dmin = (u + tau * at.max(T::zero() - lever).min(lever)).norm();
@@ -1937,7 +1929,7 @@ pub fn cylinder_axes_coplanar_reported<T: Decide>(
 ) -> Result<Decided, Indeterminate> {
     let (foot1, foot2) = axes_feet(reach, line1, line2);
     let w = foot2 - foot1;
-    let cross = line1.dir.get().cross(line2.dir.get());
+    let cross = line1.dir.cross(line2.dir);
     decide_reported(
         "cc_axes_coplanar",
         Margin::of(w.dot(cross) / cross.norm()),
@@ -1986,7 +1978,7 @@ pub fn parallel_axes_at<T: Real>(
     let w = foot2 - foot1;
     ParallelAxes {
         foot1,
-        d_vec: w - line1.dir.get() * w.dot(line1.dir.get()),
+        d_vec: w - line1.dir * w.dot(line1.dir),
         d: line2.distance(foot1).max(line1.distance(foot2)),
     }
 }
@@ -2531,7 +2523,7 @@ pub fn plane_cone_section<T: Decide>(
     let arm = geom::cover::Cover::circle(geom::cover::Core {
         axis: geom::Line {
             origin: apex + a * t,
-            dir: geom_core::UnitVec3::squared(a),
+            dir: a,
         },
         radius: rim_r,
     })
@@ -3256,12 +3248,9 @@ pub fn cone_cylinder_section<T: Decide>(
     let (cone_axis, cylinder_axis) = (
         geom::Line {
             origin: apex,
-            dir: geom_core::UnitVec3::squared(a),
+            dir: a,
         },
-        geom::Line {
-            origin: o,
-            dir: geom_core::UnitVec3::squared(b),
-        },
+        geom::Line { origin: o, dir: b },
     );
     let d = cylinder_axis.distance(apex);
     let (near, far) = separation_range(cone_axis, cylinder_axis, above.length());

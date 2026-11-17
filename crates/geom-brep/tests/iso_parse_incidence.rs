@@ -182,14 +182,7 @@ fn unit(v: [f64; 3]) -> Vec3<f64> {
 
 /// A line from `p` along the unit `d` over `[0, len]`.
 fn line(p: Point3<f64>, d: Vec3<f64>, len: f64) -> (Curve3<f64>, f64, f64) {
-    (
-        Curve3::Line(geom::Line {
-            origin: p,
-            dir: geom_core::UnitVec3::squared(d),
-        }),
-        0.0,
-        len,
-    )
+    (Curve3::Line(geom::Line { origin: p, dir: d }), 0.0, len)
 }
 
 /// A coaxial arc about `+z` at height `z`, radius `r`, from azimuth `a`

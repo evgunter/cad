@@ -315,47 +315,26 @@ fn swollen(partner: &Surface<f64>, dr: f64) -> Surface<f64> {
         Surface::Sphere {
             frame: carrier_frame,
             radius,
-        } => {
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Sphere {
-                frame: carrier_frame,
-                radius: radius + dr,
-            }
-        }
+        } => Surface::Sphere {
+            frame: carrier_frame,
+            radius: radius + dr,
+        },
         Surface::Cylinder {
             frame: carrier_frame,
             radius,
-        } => {
-            let (origin, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Cylinder {
-                frame: carrier_frame,
-                radius: radius + dr,
-            }
-        }
+        } => Surface::Cylinder {
+            frame: carrier_frame,
+            radius: radius + dr,
+        },
         Surface::Torus {
             frame: carrier_frame,
             major_radius,
             minor_radius,
-        } => {
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Torus {
-                frame: carrier_frame,
-                major_radius,
-                minor_radius: minor_radius + dr,
-            }
-        }
+        } => Surface::Torus {
+            frame: carrier_frame,
+            major_radius,
+            minor_radius: minor_radius + dr,
+        },
         other => panic!("the rows' partners are curved: {:?}", other.kind()),
     }
 }

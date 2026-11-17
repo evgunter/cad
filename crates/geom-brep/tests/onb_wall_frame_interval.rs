@@ -122,11 +122,7 @@ fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
             else {
                 panic!("wall {i}: newell_plane refused at Interval");
             };
-            let (origin, normal, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
+            let (normal, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
             let Ok(Surface::Plane {
                 frame: f64_frame, ..
             }) = newell_plane::<f64>(&wall::<f64>(i), segment::<f64>(i), band())

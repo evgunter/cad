@@ -853,7 +853,7 @@ impl<T: Decide> Side<'_, T> {
     /// `t1`: their difference at its greatest speed.
     fn run(self, t0: T, t1: T) -> T {
         let speed = match self {
-            Self::Line(line) => line.dir.get().norm(),
+            Self::Line(line) => line.dir.norm(),
             Self::Conic(k) => k.speed_hi(),
         };
         (t1 - t0).abs() * speed
@@ -956,7 +956,7 @@ fn on_line<T: Decide>(
     geom::Line { origin: o, dir: u }: geom::Line<T>,
     (p0, p1): Ends<T>,
 ) -> (T, T) {
-    ((p0 - o).dot(u.get()), (p1 - o).dot(u.get()))
+    ((p0 - o).dot(u), (p1 - o).dot(u))
 }
 
 /// Where the router sends a line's pair (module docs, "The router").
@@ -1083,7 +1083,7 @@ fn line_line<T: Decide>(
             dir: d2,
         },
     ) = (la, lb);
-    let (u1, u2) = (d1.get().normalize(), d2.get().normalize());
+    let (u1, u2) = (d1.normalize(), d2.normalize());
     let n = u1.cross(u2);
     let s = n.norm();
     // Read from `a`'s span start along its carrier, never from either
@@ -1094,18 +1094,18 @@ fn line_line<T: Decide>(
     let (ends_a, ends_b) = (line_ends(a)?, line_ends(b)?);
     let produced = |geom::Line { origin: o, dir: d }: geom::Line<T>, s: &Span<'_, T>| {
         let (t0, t1) = s.params();
-        (o - Point3::origin()).norm() * T::from_f64(2.0) + d.get().norm() * (t0.abs() + t1.abs())
+        (o - Point3::origin()).norm() * T::from_f64(2.0) + d.norm() * (t0.abs() + t1.abs())
     };
     let (a0, _) = ends_a;
     let at = on_one_line(u1, ends_a, ends_b, produced(la, a) + produced(lb, b));
     let (unit1, unit2) = (
         geom::Line {
             origin: o1,
-            dir: geom_core::UnitVec3::squared(u1),
+            dir: u1,
         },
         geom::Line {
             origin: o2,
-            dir: geom_core::UnitVec3::squared(u2),
+            dir: u2,
         },
     );
     let off = unit2.distance(a0 + u1 * at.mid());
@@ -1157,11 +1157,8 @@ fn line_conic<T: Decide>(
     let line = line_of(a.carrier())?;
     let k = conic_of(b.carrier())?;
     let geom::Line { origin: o, dir: d } = line;
-    let u = d.get().normalize();
-    let unit = geom::Line {
-        origin: o,
-        dir: geom_core::UnitVec3::squared(u),
-    };
+    let u = d.normalize();
+    let unit = geom::Line { origin: o, dir: u };
     let n = k.frame().axis();
     let den = u.dot(n);
     // Where they can meet (module docs): the line's span and the conic's
@@ -2072,12 +2069,12 @@ mod one_line_rows {
         let a = (p(0.0, 0.0), p(1.0, 0.0));
         let la = geom::Line {
             origin: a.0,
-            dir: geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, 0.0)),
+            dir: Vec3::new(1.0, 0.0, 0.0),
         };
         let b = (p(0.0, 3e-9), p(1.0, 1.0 + 3e-9));
         let lb = geom::Line {
             origin: b.0,
-            dir: geom_core::UnitVec3::squared((b.1 - b.0).normalize()),
+            dir: (b.1 - b.0).normalize(),
         };
         let first = lb.distance(a.0);
         assert!(

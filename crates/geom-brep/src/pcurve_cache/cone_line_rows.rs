@@ -258,7 +258,7 @@ fn the_cone_lines_incidence_over_reads_by_at_most_the_lever_spread() {
         unreachable!("a ruling is a line")
     };
     let frame = |v: Vec3<f64>| Vec3::new(v.dot(e[0]), v.dot(e[1]), v.dot(e[2]));
-    let (p, l) = (frame(origin - o), frame(dir.get()));
+    let (p, l) = (frame(origin - o), frame(dir));
     let (sa, ca) = alpha.sin_cos();
     for (t0, t1, once_over) in [(0.5, 2.0, 3.5), (1e-3, 2.0, 1e3)] {
         let (q0, q1) = (p + l * t0, p + l * t1);

@@ -563,7 +563,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 // door refuses.
                 if classify_as(
                     "props_meridian_apex",
-                    cone_generator_miss(apex, dir.get(), e),
+                    cone_generator_miss(apex, dir, e),
                     band,
                     PropsCheck::Exact,
                 )? != Sign::Zero
@@ -579,7 +579,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 if matches!(
                     decide(
                         "props_cone_apex",
-                        Margin::metered(m, InfSpeed::new(dir.get().norm())),
+                        Margin::metered(m, InfSpeed::new(dir.norm())),
                         band
                     ),
                     Ok(Sign::Positive)
@@ -1817,13 +1817,7 @@ fn cylinder_boundary<T: Decide>(
                 // Incidence at the true distance from the cylinder over
                 // the span: the ends' radial residuals, and how far the
                 // segment sags inside between them ([`radial_sag`]).
-                let radial = |p: Point3<T>| {
-                    geom::Line {
-                        origin,
-                        dir: UnitVec3::squared(axis),
-                    }
-                    .offset(p)
-                };
+                let radial = |p: Point3<T>| geom::Line { origin, dir: axis }.offset(p);
                 let (q0, q1) = (radial(e.p0()), radial(e.p1()));
                 let (f0, f1) = (q0.norm() - radius, q1.norm() - radius);
                 require_zero(
@@ -1886,13 +1880,7 @@ fn cylinder_boundary<T: Decide>(
                 let w = center - origin;
                 require_zero(
                     "props_cylinder_circle_off_axis",
-                    Margin::norm3(
-                        geom::Line {
-                            origin,
-                            dir: UnitVec3::squared(axis),
-                        }
-                        .offset(center),
-                    ),
+                    Margin::norm3(geom::Line { origin, dir: axis }.offset(center)),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -2273,7 +2261,7 @@ fn require_on_cone<T: Decide>(
 ) -> Result<(), PropsError> {
     match e.carrier {
         Curve3::Line(geom::Line { dir, .. }) => {
-            require_cone_generator(apex, axis, sin_a, cos_a, dir.get(), e, band)
+            require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)
         }
         Curve3::Circle(geom::Circle { frame, radius: r_c }) => {
             let (center, n_c) = (frame.origin(), frame.axis());
@@ -2494,7 +2482,7 @@ fn require_cone_generator<T: Decide>(
     let radial = |p: Point3<T>| {
         geom::Line {
             origin: apex,
-            dir: UnitVec3::squared(axis),
+            dir: axis,
         }
         .offset(p)
     };
@@ -2545,7 +2533,7 @@ fn cone_generator_miss<T: Decide>(apex: Point3<T>, dir: Vec3<T>, e: &LoopEdge<T>
         ruling_miss(
             &geom::Line {
                 origin: near,
-                dir: UnitVec3::squared(dir),
+                dir: dir,
             },
             (T::zero(), T::zero()),
             Ruling::Generator {
@@ -2769,7 +2757,7 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
             };
             let rho = geom::Line {
                 origin: apex,
-                dir: UnitVec3::squared(axis),
+                dir: axis,
             }
             .distance(p);
             if classify_as(
@@ -2799,7 +2787,7 @@ fn cone_joints<T: Decide>(
     let radial = |p: Point3<T>| {
         geom::Line {
             origin: apex,
-            dir: UnitVec3::squared(axis),
+            dir: axis,
         }
         .offset(p)
     };
@@ -2919,7 +2907,7 @@ fn cone_loop_winding<T: Decide>(
     let radial = |p: Point3<T>| {
         geom::Line {
             origin: apex,
-            dir: UnitVec3::squared(axis),
+            dir: axis,
         }
         .offset(p)
     };
@@ -3099,7 +3087,7 @@ fn cone_boundary<T: Decide>(
         match e.carrier {
             Curve3::Line(geom::Line { dir, .. }) => {
                 generators = true;
-                require_cone_generator(apex, axis, sin_a, cos_a, dir.get(), e, band)?;
+                require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)?;
                 levels.push((e.p0() - apex).dot(axis) / cos_a);
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
             }
@@ -3986,13 +3974,9 @@ fn agreed_side<T: Decide>(
     let mut reading: Option<Sign> = None;
     // The sphere's singular points, from their one home, as directions.
     let origin = Point3::new(T::zero(), T::zero(), T::zero());
-    for (_, pole) in crate::chart_singularity::sphere_poles(
-        geom::Line {
-            origin,
-            dir: UnitVec3::squared(up),
-        },
-        T::one(),
-    ) {
+    for (_, pole) in
+        crate::chart_singularity::sphere_poles(geom::Line { origin, dir: up }, T::one())
+    {
         let pole = pole - origin;
         let side = match read(pole) {
             Ok(side) => side,
@@ -4885,7 +4869,7 @@ fn sphere_boundary<T: Decide>(
     let latitude = |p: Point3<T>| {
         let (h, rho) = geom::Line {
             origin: center,
-            dir: UnitVec3::squared(axis),
+            dir: axis,
         }
         .height_and_distance(p);
         (h / radius, rho / radius)
@@ -5020,7 +5004,7 @@ fn torus_ends<T: Real>(
     // Anchor latitude from the meridian's t0 endpoint.
     let (ha, rho_a) = geom::Line {
         origin: center,
-        dir: UnitVec3::squared(axis),
+        dir: axis,
     }
     .height_and_distance(m0.anchor);
     let (sin_a, cos_a) = (ha / minor, (rho_a - major) / minor);
@@ -5458,7 +5442,7 @@ fn torus_chart_loop<T: Decide>(
     // circle and its height, the tube angle's cosine and sine arms.
     let core_axis = geom::Line {
         origin: Point3::origin(),
-        dir: UnitVec3::squared(axis),
+        dir: axis,
     };
     let tube = |w: Vec3<T>| {
         let (h, rho) = core_axis.height_and_distance(Point3::origin() + w);
@@ -5720,7 +5704,7 @@ fn sheet_apex_jumps<T: Decide>(
     let radial = |p: Point3<T>| {
         geom::Line {
             origin: center,
-            dir: UnitVec3::squared(axis),
+            dir: axis,
         }
         .offset(p)
     };
@@ -6134,7 +6118,7 @@ fn torus_meridian_orient<T: Decide>(
         geom::cover::Cover::circle(geom::cover::Core {
             axis: geom::Line {
                 origin: c_c,
-                dir: UnitVec3::squared(n_c),
+                dir: n_c,
             },
             radius: minor,
         })
@@ -6430,17 +6414,10 @@ mod sphere_region_cover_rows {
             Surface::Sphere {
                 frame: carrier_frame,
                 ..
-            } => {
-                let (center, axis, u_ref) = (
-                    carrier_frame.origin(),
-                    carrier_frame.axis(),
-                    carrier_frame.u_ref(),
-                );
-                Surface::Sphere {
-                    frame: carrier_frame,
-                    radius: r,
-                }
-            }
+            } => Surface::Sphere {
+                frame: carrier_frame,
+                radius: r,
+            },
             other => other,
         };
         let one = |i: &usize| core::slice::from_ref(&loops[*i]);

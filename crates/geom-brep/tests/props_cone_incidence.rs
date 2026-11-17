@@ -167,7 +167,7 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
     let p = |q: geom_core::Point3<f64>| pt::<T>([q.x, q.y, q.z]);
     let v = |q: geom_core::Vec3<f64>| vt::<T>([q.x, q.y, q.z]);
     match *e {
-        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(p(origin), v(dir.get())),
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(p(origin), v(dir)),
         Curve3::Circle(geom::Circle { frame, radius }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             Curve3::circle(p(center), v(axis), T::from_f64(radius), v(u_ref))
@@ -377,7 +377,6 @@ fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
     else {
         unreachable!()
     };
-    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let stretched = |k: f64| Curve3::Ellipse(geom::Ellipse::new(frame, semi_u * (1.0 + k), semi_v));
     // The distance is linear in a small stretch: read its slope at one.
     let k0 = 1e-6;

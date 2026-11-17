@@ -72,7 +72,7 @@ fn frame(c: [f64; 3], a: [f64; 3], u: [f64; 3]) -> geom::Frame<f64> {
 fn line(o: [f64; 3], d: [f64; 3]) -> Curve3<f64> {
     Curve3::Line(geom::Line {
         origin: pt(o),
-        dir: geom_core::UnitVec3::squared(v3(d)),
+        dir: v3(d),
     })
 }
 
@@ -126,10 +126,7 @@ fn kinds() -> Vec<Kind> {
     let mut line_twins = Vec::new();
     for i in 0..3 {
         line_twins.push((format!("origin[{i}]"), line(nudged(O, i), X)));
-        if i > 0 {
-            // `x̂` one ulp long along itself squares back to `x̂`.
-            line_twins.push((format!("dir[{i}]"), line(O, nudged(X, i))));
-        }
+        line_twins.push((format!("dir[{i}]"), line(O, nudged(X, i))));
     }
     let frames = frame_twins();
     let base = frame(O, Z, X);
@@ -203,7 +200,7 @@ fn a_twin_one_ulp_off_in_any_stated_value_is_another_carrier() {
     }
     assert_eq!(
         kinds.iter().map(|(_, _, t)| t.len()).collect::<Vec<_>>(),
-        [5, 7, 8, 9, 19],
+        [6, 7, 8, 9, 19],
         "one twin per stated value (a net's knots by run)"
     );
     for (a, ca, _) in &kinds {
@@ -223,11 +220,7 @@ fn a_value_carrying_a_derivative_is_no_answer() {
     let line = |o: Point3<Dual64>| {
         Curve3::Line(geom::Line {
             origin: o,
-            dir: geom_core::UnitVec3::squared(Vec3::new(
-                constant(1.0),
-                constant(0.0),
-                constant(0.0),
-            )),
+            dir: Vec3::new(constant(1.0), constant(0.0), constant(0.0)),
         })
     };
     let still = line(at(O));

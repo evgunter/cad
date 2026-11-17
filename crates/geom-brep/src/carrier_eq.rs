@@ -955,7 +955,7 @@ fn reading<T: Decide>(
         ) => {
             let pivot = reach.foot_on(geom::Line {
                 origin: o2,
-                dir: geom_core::UnitVec3::squared(a2),
+                dir: a2,
             });
             // The datum's offset and radius ([`cylinder_offset`],
             // [`cylinder_radius`]); the tilt is the chord [`line_tilt`] at

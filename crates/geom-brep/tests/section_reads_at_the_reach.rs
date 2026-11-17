@@ -385,7 +385,7 @@ fn a_tangent_cut_turns_about_its_rulings_hinge_not_its_foot() {
 /// escalation over its zero). Each pose puts one reading's datum `q` at
 /// half the band's zero, so `q·below` reads Zero and `q·above` reads past
 /// twice the escalation; the station pose puts the station between the
-/// two bounds. The rows that act on a Positive (the three convention
+/// two bounds. The rows that act on a Positive (the two aperture
 /// guards, the station admission) read the bound from below and refuse;
 /// `coc_axes_parallel`, which acts on its Zero, reads the bound from
 /// above and routes the tilt to the general rung. Reading any of them at
@@ -430,13 +430,6 @@ fn cone_cylinder_rows_each_read_their_side_of_the_extent() {
             b,
         ),
         "cot α",
-    );
-    // `coc_seam_off_axis`: the seam leaves the axis by q.
-    let seam = Vec3::new((1.0 - q * q).sqrt(), q, 0.0);
-    degenerate(
-        "a seam along the axis",
-        cone_cylinder_section(&cone(0.5, seam), &coaxial, extent, b),
-        "seam",
     );
     // `coc_station_reach`: the station stands between the two bounds.
     let station = 0.25 / 0.5_f64.tan();

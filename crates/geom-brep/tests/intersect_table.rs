@@ -259,7 +259,7 @@ fn plane_cylinder_parallel_trio() {
         let Curve3::Line(geom::Line { origin, dir }) = l else {
             panic!("ruling is a line");
         };
-        assert_eq!(dir.get().z, 1.0);
+        assert_eq!(dir.z, 1.0);
         assert!(implicit_residual(&mk_plane(1.0), *origin).abs() < 1e-12);
         assert!(implicit_residual(&cyl, *origin).abs() < 1e-12);
     }
@@ -554,9 +554,9 @@ fn plane_cone_apex_trio() {
         assert_eq!((origin.x, origin.y, origin.z), (0.0, 0.0, 1.0));
         // On the plane and on the cone: dir ⊥ normal, dir at angle α
         // to the axis.
-        assert!(dir.get().x.abs() < 1e-12, "in-plane");
+        assert!(dir.x.abs() < 1e-12, "in-plane");
         assert!(
-            (dir.get().dot(Vec3::unit_z()) - core::f64::consts::FRAC_PI_6.cos()).abs() < 1e-12,
+            (dir.dot(Vec3::unit_z()) - core::f64::consts::FRAC_PI_6.cos()).abs() < 1e-12,
             "generator angle"
         );
     }
@@ -584,13 +584,12 @@ fn plane_cone_apex_trio() {
     };
     // The tangent generator lies in the plane.
     assert!(
-        dir.get()
-            .dot(Vec3::new(
-                (core::f64::consts::FRAC_PI_2 - a).sin(),
-                0.0,
-                -(core::f64::consts::FRAC_PI_2 - a).cos()
-            ))
-            .abs()
+        dir.dot(Vec3::new(
+            (core::f64::consts::FRAC_PI_2 - a).sin(),
+            0.0,
+            -(core::f64::consts::FRAC_PI_2 - a).cos()
+        ))
+        .abs()
             < 1e-9,
         "tangent generator in-plane"
     );
@@ -2708,14 +2707,12 @@ fn cc_frame() -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
     (Point3::new(1.0, 2.0, 3.0), axis, u_ref)
 }
 
-/// **A cone's seam off square to its axis serves its circles in their
-/// planes.** The cone of [`cc_frame`] with its `u_ref` leaning along
-/// the axis, and once with its axis 1.5 long (nothing checks a cone's
-/// frame): the coaxial cylinder's two circles and the axis-normal
-/// plane's circle each carry a seam within `6u` of square to their axis
-/// (`geom::Frame::square`'s bound), and lie on both surfaces. A seam
-/// along the axis, or within rounding of it, places no azimuth zero and
-/// refuses typed in both arms.
+/// **A cone stated with its seam off square to its axis serves its
+/// circles in their planes.** The cone of [`cc_frame`] stated with its
+/// `u_ref` leaning along the axis, and once with its axis 1.5 long, each
+/// squared into its frame where it is stated: the coaxial cylinder's two
+/// circles and the axis-normal plane's circle each carry a seam square
+/// to their axis to rounding, and lie on both surfaces.
 #[test]
 fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
     use geom_brep::intersect::{ConeCylinderSection, cone_cylinder_section};
@@ -2768,17 +2765,6 @@ fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
                 );
             }
         }
-    }
-    for (which, seam) in [
-        ("along the axis", axis),
-        ("1e-20 off the axis", axis + u_ref * 1e-20),
-    ] {
-        let cone = cone_43(apex, axis, seam);
-        let refused = |r: Result<(), SectionError>| matches!(r, Err(SectionError::ConeAtTheBand { what }) if what.contains("seam"));
-        let coc = cone_cylinder_section(&cone, &cyl, fixture_lever(1.0), band()).map(|_| ());
-        let pn = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).map(|_| ());
-        assert!(refused(coc.clone()), "{which}: cone×cylinder {coc:?}");
-        assert!(refused(pn.clone()), "{which}: plane×cone {pn:?}");
     }
 }
 

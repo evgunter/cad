@@ -279,7 +279,7 @@ fn a_vertex_in_the_band_of_a_thin_ellipse_is_on_it() {
             let vertex = p + normal * (0.5 * z);
             let leaving = Curve3::Line(geom::Line {
                 origin: vertex,
-                dir: geom_core::UnitVec3::squared(normal),
+                dir: normal,
             });
             let edges = [(vertex, Span::new(&leaving, (0.0, 1.0)))];
             match boundary(&swept, &edges, &[], band) {

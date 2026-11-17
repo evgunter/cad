@@ -25,7 +25,7 @@ fn r1_f64_nested_restrict_round_trip() {
         place,
         axis: geom::Line {
             origin: Point3::new(1.0, 2.0, 3.0),
-            dir: geom_core::UnitVec3::squared(Vec3::new(2.0, 1.0, -2.0)),
+            dir: Vec3::new(2.0, 1.0, -2.0),
         },
         angle: TAU,
     });
@@ -45,7 +45,7 @@ fn r1_f64_nested_restrict_round_trip() {
         place,
         axis: geom::Line {
             origin: Point3::new(1.0, 2.0, 3.0),
-            dir: geom_core::UnitVec3::squared(Vec3::new(2.0, 1.0, -2.0)),
+            dir: Vec3::new(2.0, 1.0, -2.0),
         },
         angle: 1.0e-8,
     });
@@ -83,7 +83,7 @@ mod interval_lane {
             ),
             axis: geom::Line {
                 origin: Point3::new(wd(1.0), wd(2.0), wd(3.0)),
-                dir: geom_core::UnitVec3::squared(Vec3::new(wd(2.0), wd(1.0), wd(-2.0))),
+                dir: Vec3::new(wd(2.0), wd(1.0), wd(-2.0)),
             },
             angle: iv(angle),
         })

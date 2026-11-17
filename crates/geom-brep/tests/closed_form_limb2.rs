@@ -255,11 +255,6 @@ fn a_spiric_off_its_torus_between_samples_refuses_on_limb_2() {
     else {
         unreachable!("the section's oval is a spiric")
     };
-    let (center, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
-    );
     let delta = 1e-4;
     let moved = Curve3::Spiric {
         frame: carrier_frame,
@@ -294,11 +289,6 @@ fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     else {
         unreachable!("built as an ellipse")
     };
-    let (center, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
-    );
     let moved = Curve3::Ellipse(geom::Ellipse::new(carrier_frame, semi_u + 1e-4, semi_v));
     let sampled = sampled_max(&cylinder, &plane, &moved, SPAN);
     let peak = implicit_residual(&cylinder, moved.eval(0.0)).abs();
@@ -597,7 +587,7 @@ fn past_a_thin_lemons_apex_limb_2_reads_the_sheet_not_its_circle() {
     let (_, plane) = lemon_and_its_meridian_plane();
     let line = Curve3::Line(geom::Line {
         origin: Point3::new(3e-5, 0.0, h + 5e-4),
-        dir: geom_core::UnitVec3::squared(Vec3::unit_z()),
+        dir: Vec3::unit_z(),
     });
     let band = Band::new(1e-4, 3e-4).unwrap();
     let got = geom_brep::analytic_edge_limbs(&line, (0.0, 1e-5), &sheet, &plane, band);

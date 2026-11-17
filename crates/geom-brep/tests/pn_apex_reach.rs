@@ -342,7 +342,7 @@ fn line_residuals(pose: &Pose, line: &Curve3<f64>, extent: f64, tol: f64) -> (f6
         panic!("a line outcome carries a line, got {line:?}");
     };
     let gap = pose.realized_gap();
-    let dir = dir.get().normalize();
+    let dir = dir.normalize();
     let off_plane = [-extent, 0.0, extent]
         .into_iter()
         .map(|t| ((origin + dir * t - pose.apex).dot(pose.normal) + gap).abs())
@@ -1027,7 +1027,7 @@ fn apex_outcomes_agree_with_the_oracle() {
                 // Both azimuths are read off the normal's part square to
                 // the axis, so each carries `f64::EPSILON/s` of it.
                 let s = pose.axis.cross(pose.normal).norm();
-                let off = dir.get().normalize().cross(pose.grazed()).norm();
+                let off = dir.normalize().cross(pose.grazed()).norm();
                 if off > 1e-12 + 64.0 * f64::EPSILON / s {
                     contradictions.push(format!(
                         "{kind} {off:e} rad off the grazed generator: {}",

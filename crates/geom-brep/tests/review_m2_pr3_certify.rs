@@ -117,7 +117,7 @@ fn fixed_winding_aliased_full_period_refused() {
                 place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
                 axis: geom::Line {
                     origin: center,
-                    dir: geom_core::UnitVec3::squared(Vec3::unit_z()),
+                    dir: Vec3::unit_z(),
                 },
                 angle: TAU,
             },
@@ -1062,7 +1062,7 @@ mod interval_lane {
                     place: Affine3::translation(v3(0.0, 0.0, 3.0)),
                     axis: geom::Line {
                         origin: center,
-                        dir: geom_core::UnitVec3::squared(v3(0.0, 0.0, 1.0)),
+                        dir: v3(0.0, 0.0, 1.0),
                     },
                     angle: Interval::from_f64(core::f64::consts::TAU),
                 },

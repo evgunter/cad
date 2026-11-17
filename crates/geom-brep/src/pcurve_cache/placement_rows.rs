@@ -306,7 +306,7 @@ fn line_arms() -> Vec<Arm> {
             cone,
             Curve3::Line(geom::Line {
                 origin: o,
-                dir: geom_core::UnitVec3::squared(ruling),
+                dir: ruling,
             }),
             (-1.0, 1.0),
         ),
@@ -327,9 +327,7 @@ fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
                 u_ref * by.cos() + axis.cross(u_ref) * by.sin(),
             )
         }
-        Curve3::Line(geom::Line { origin, dir }) => {
-            Curve3::line(origin + dir.get() * by, dir.get())
-        }
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(origin + dir * by, dir),
         _ => unreachable!("only circles and lines are restarted here"),
     }
 }

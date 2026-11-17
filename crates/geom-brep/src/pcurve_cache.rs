@@ -5557,7 +5557,7 @@ fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
             c: origin,
             a: Vec3::zero(),
             b: Vec3::zero(),
-            l: dir.get(),
+            l: dir,
         }),
         Curve3::Circle(_) | Curve3::Ellipse(_) => carrier.conic().map(|k| {
             let (a, b) = k.semi_axis_vectors();
@@ -6636,13 +6636,13 @@ pub fn ruling_miss<T: Real>(
             } else {
                 reach
             };
-            Margin::metered(reach, InfSpeed::new(dir.get().cross(axis).norm()))
+            Margin::metered(reach, InfSpeed::new(dir.cross(axis).norm()))
         }
         Ruling::Generator { apex, g } => {
-            let off = |t: T| (origin + dir.get() * t - apex).cross(g).norm();
+            let off = |t: T| (origin + dir * t - apex).cross(g).norm();
             #[cfg(test)]
             if mutants::ruling_unplaced() {
-                return Margin::of(off(T::zero()) + dir.get().cross(g).norm() * (t1 - t0).abs());
+                return Margin::of(off(T::zero()) + dir.cross(g).norm() * (t1 - t0).abs());
             }
             Margin::of(off(t0).max(off(t1)))
         }
@@ -9649,7 +9649,7 @@ fn seam_envelope<T: Decide>(
             #[allow(clippy::cast_precision_loss)]
             let xi = window[1..].iter().fold(window[0], |a, k| a + *k) / T::from_f64(p as f64);
             let t_at = (xi - p0.y) / pl.y;
-            hull = hull.max((*cp - (origin + dir.get() * t_at)).norm());
+            hull = hull.max((*cp - (origin + dir * t_at)).norm());
         }
         // Domain containment, the siblings' gate verbatim on
         // this class's moving channel: the hull bound holds on
@@ -11268,7 +11268,7 @@ fn derive_class_zero<T: Decide>(
                     // the line by its distance from the generator.
                     let w = origin - apex;
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
-                    let (h0, hs) = (w.dot(axis), dir.get().dot(axis));
+                    let (h0, hs) = (w.dot(axis), dir.dot(axis));
                     // Read off the origin, the nappe names the same image
                     // from any origin on the line: `radial · sign h` is one
                     // direction at every point of a ruling through the
@@ -11291,11 +11291,11 @@ fn derive_class_zero<T: Decide>(
                                     Decided {
                                         sign: Sign::Positive,
                                         ..
-                                    } => (radial(dir.get()), Nappe::Pos, false),
+                                    } => (radial(dir), Nappe::Pos, false),
                                     Decided {
                                         sign: Sign::Negative,
                                         ..
-                                    } => (radial(dir.get()), Nappe::Neg, false),
+                                    } => (radial(dir), Nappe::Neg, false),
                                     // The apex plane meets the cone at
                                     // its radius `h·tan α = 0`: the apex
                                     // alone.
@@ -11366,7 +11366,7 @@ fn derive_class_zero<T: Decide>(
                                 c: w.dot(g),
                                 a: T::zero(),
                                 b: T::zero(),
-                                l: dir.get().dot(g),
+                                l: dir.dot(g),
                             },
                         },
                         Derivation::ConeRuling {
@@ -12665,7 +12665,7 @@ fn torus_oblique_circle<T: Decide>(
     let w = c - center;
     let w_r = geom::Line {
         origin: center,
-        dir: frame.axis_unit(),
+        dir: frame.axis(),
     }
     .offset(c);
     let gates = [
@@ -12837,11 +12837,11 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
         Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let apex = frame.origin();
             crate::implicit::cone_elevation(
                 geom::Line {
                     origin: apex,
-                    dir: frame.axis_unit(),
+                    dir: frame.axis(),
                 },
                 half_angle,
                 None,
@@ -13074,7 +13074,7 @@ mod incidence {
         let k = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => {
                 let [ox, oy, oz] = exact_vec(origin - geom_core::Point3::origin());
-                let [dx, dy, dz] = exact_vec(dir.get());
+                let [dx, dy, dz] = exact_vec(dir);
                 let m = Rounded::exact(mid);
                 [ox + dx * m, oy + dy * m, oz + dz * m]
             }
@@ -13138,9 +13138,7 @@ mod incidence {
         // carries), and at an enclosure scalar would otherwise be twice
         // `k`'s width wide.
         let carrier = match *carrier {
-            Curve3::Line(geom::Line { dir, .. }) => {
-                Curve3::line_along(geom_core::Point3::origin(), dir)
-            }
+            Curve3::Line(geom::Line { dir, .. }) => Curve3::line(geom_core::Point3::origin(), dir),
             _ => {
                 let k = geom_core::Vec3::new(kx.value, ky.value, kz.value);
                 let mut moved = carrier.translated(-k)?;
@@ -15653,10 +15651,7 @@ mod tests {
 
     /// A `Curve3::Line` from `origin` along `dir` (already unit here).
     fn ruling_line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Line(geom::Line {
-            origin,
-            dir: geom_core::UnitVec3::squared(dir),
-        })
+        Curve3::Line(geom::Line { origin, dir: dir })
     }
 
     /// The positive row: a promoted LINE carrier on the wall's `u = 0`
@@ -16333,12 +16328,7 @@ mod off_chart_class_rows {
         }
         let mid = 0.5 * (band().zero() + band().escalate());
         let dir = Vec3::new(0.0, 1.0, 0.3).normalize();
-        let line = |origin: Point3<f64>| {
-            Curve3::Line(geom::Line {
-                origin,
-                dir: geom_core::UnitVec3::squared(dir),
-            })
-        };
+        let line = |origin: Point3<f64>| Curve3::Line(geom::Line { origin, dir: dir });
         let at_mid = Point3::new(1.0, 0.0, mid);
         let (u, v) = (Vec3::unit_y(), Vec3::new(mid, 0.0, 1.0).normalize());
         let tilted_circle =
@@ -17033,11 +17023,6 @@ mod limb2_quick_rows {
             else {
                 unreachable!()
             };
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
             let c = Curve3::Circle(geom::Circle {
                 frame: carrier_frame,
                 radius,

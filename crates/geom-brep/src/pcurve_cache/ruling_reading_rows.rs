@@ -126,7 +126,7 @@ fn reading(carrier: &Curve3<f64>, span: (f64, f64), ruling: Ruling<f64>) -> (f64
     let point = |p: Point3<f64>| Point3::new(f(p.x), f(p.y), f(p.z));
     let line_i = geom::Line {
         origin: point(line.origin),
-        dir: geom_core::UnitVec3::squared(lift3(line.dir.get())),
+        dir: lift3(line.dir),
     };
     let ruling_i = match ruling {
         Ruling::Axis(axis) => Ruling::Axis(lift3(axis)),
@@ -340,7 +340,7 @@ fn a_scaled_direction_reads_the_same_margin() {
         let (base, _) = reading(&carrier, span, ruling);
         let [d, _] = derivations(&carrier, span, &surface);
         for k in [1e-3, 1e3] {
-            let scaled = Curve3::line(origin, dir.get() * k);
+            let scaled = Curve3::line(origin, dir * k);
             let span_k = (span.0 / k, span.1 / k);
             let (at, (lo, hi)) = reading(&scaled, span_k, ruling);
             // The cross product's rounding, metres over the span.

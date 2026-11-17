@@ -311,7 +311,7 @@ fn meridian_edge(
             (
                 Curve3::Line(geom::Line {
                     origin: apex,
-                    dir: geom_core::UnitVec3::squared(dir),
+                    dir: dir,
                 }),
                 v0,
                 v1,
@@ -643,7 +643,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     // (c) non-axial line on a cylinder.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
     if let Curve3::Line(geom::Line { dir, .. }) = &mut lp.edges[1].carrier {
-        *dir = geom_core::UnitVec3::squared(((*dir).get() + u_ref * 0.2).normalize());
+        *dir = (*dir + u_ref * 0.2).normalize();
     }
     assert!(
         matches!(

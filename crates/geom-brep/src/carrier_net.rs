@@ -894,7 +894,7 @@ fn enclosing_net<T: CertifiedBounds>(
         // spare, and an origin and direction framed apart lose what an
         // interval point's channels share (measured: a widened extrude's
         // edge bounds 1.2e-9 framed apart and under 1e-9 framed after).
-        let (o, d) = (lift_p(origin), lift_v(dir.get()));
+        let (o, d) = (lift_p(origin), lift_v(dir));
         let mut knots = vec![first];
         knots.extend_from_slice(breaks);
         knots.push(last);

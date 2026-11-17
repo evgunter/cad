@@ -273,7 +273,7 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
     let e2 = rounding_charge(two * big * (big + two * size));
     match spine {
         Spine::Line(line) => {
-            let [g, g1, g2] = squared(p - line.origin, dp, ddp, Some(line.dir.get()));
+            let [g, g1, g2] = squared(p - line.origin, dp, ddp, Some(line.dir));
             let d = g.sqrt();
             Reading {
                 d,
@@ -300,7 +300,7 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
             // circle's axis: `ρ′ = S′/2ρ`, `ρ″ = S″/2ρ − S′²/4ρ³`.
             let w = p - center;
             let [n, n1, n2] = squared(w, dp, ddp, None);
-            let [s0, s1, s2] = squared(w, dp, ddp, Some(axis.get()));
+            let [s0, s1, s2] = squared(w, dp, ddp, Some(axis));
             let rho = s0.sqrt();
             let r1 = s1 / (two * rho);
             let r2 = s2 / (two * rho) - s1.powi(2) / (four * rho.powi(3));
@@ -312,7 +312,7 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
                 + (big * e1 + T::from_f64(3.0) * big.powi(2) * e_rho) / rho.powi(2)
                 + rounding_charge(r2.abs());
             let sigma = if far { T::one() } else { -T::one() };
-            let h = w.dot(axis.get());
+            let h = w.dot(axis);
             let across = rho + sigma * radius;
             let d = (across.powi(2) + h.powi(2)).sqrt();
             Reading {
@@ -573,7 +573,7 @@ pub(crate) fn critical_gap<T: Decide>(
             geom::cover::Cover::circle(geom::cover::Core {
                 axis: geom::Line {
                     origin: core.circle.frame.origin(),
-                    dir: geom_core::UnitVec3::squared(core.circle.frame.axis()),
+                    dir: core.circle.frame.axis(),
                 },
                 radius: core.circle.radius,
             })

@@ -112,7 +112,7 @@ fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
         _ => (-axis.cross(u_ref), semi_v, semi_u),
     };
     Curve3::Ellipse(geom::Ellipse {
-        frame: carrier_frame,
+        frame: geom::Frame::new(center, axis, u_ref),
         semi_u,
         semi_v,
     })
@@ -227,11 +227,6 @@ fn a_wrong_number_in_the_image_refuses() {
     else {
         unreachable!()
     };
-    let (apex, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
-    );
     let other = Surface::Cone {
         frame: carrier_frame,
         half_angle: half_angle + h,

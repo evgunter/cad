@@ -346,7 +346,7 @@ fn off_span(s: &Span<'_, f64>, q: Point3<f64>) -> f64 {
     };
     match *s.carrier() {
         Curve3::Line(geom::Line { origin, dir }) => {
-            let t = (q - origin).dot(dir.get()) / dir.get().dot(dir.get());
+            let t = (q - origin).dot(dir) / dir.dot(dir);
             if (t0.min(t1)..=t0.max(t1)).contains(&t) {
                 distance(s.carrier(), q)
             } else {

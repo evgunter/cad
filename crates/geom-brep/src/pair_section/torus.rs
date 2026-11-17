@@ -132,7 +132,7 @@ pub fn axis_pose<T: Decide>(
     band: Band,
 ) -> AxisPose<T> {
     let at = ball.foot_on(partner);
-    let tilt = a.get().cross(d.get()).norm();
+    let tilt = a.cross(d).norm();
     if !matches!(
         geom_core::k_stats::decide(
             "section_axes_tilt",
@@ -143,8 +143,8 @@ pub fn axis_pose<T: Decide>(
     ) {
         return AxisPose::Other;
     }
-    let (perp, e) = square_part(at - c, a.get());
-    let swing = line_tilt(a.get(), d.get()) * ball.lever_from(at).length()
+    let (perp, e) = square_part(at - c, a);
+    let swing = line_tilt(a, d) * ball.lever_from(at).length()
         + turn(&Turn {
             at,
             tilt,

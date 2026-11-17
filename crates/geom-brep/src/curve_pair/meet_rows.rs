@@ -66,7 +66,7 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
     match *c {
         Curve3::Line(geom::Line { origin, dir }) => {
             let w = q - origin;
-            let u = dir.get().normalize();
+            let u = dir.normalize();
             (w - u * w.dot(u)).norm()
         }
         Curve3::Circle(geom::Circle { frame, radius }) => {

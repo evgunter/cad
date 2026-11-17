@@ -163,7 +163,7 @@ impl<T: Real> Frame<T> {
     pub fn axis_line(&self) -> Line<T> {
         Line {
             origin: self.origin(),
-            dir: self.axis_unit(),
+            dir: self.axis(),
         }
     }
 
@@ -251,6 +251,24 @@ impl<T: Real> Frame<T> {
             u_ref,
             width: len / u_len,
         }
+    }
+}
+
+impl Frame<f64> {
+    /// **A stated frame admitted as it is, at `f64`**: `axis` and `u_ref`
+    /// kept bit for bit where the basis `(u_ref, axis × u_ref, axis)` is
+    /// rigid within its own rounding ([`RigidMotion::check_rigid`]), and
+    /// `None` where it is not. The door for a caller whose `f64` entries
+    /// are a frame already, and whose readings are pinned to those very
+    /// bits (an oracle computed off them); [`Frame::new`] squares instead.
+    #[must_use]
+    pub fn admitted(origin: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Option<Self> {
+        let map = geom_core::Affine3 {
+            linear: geom_core::Mat3::from_cols(u_ref, axis.cross(u_ref), axis),
+            translation: origin - Point3::origin(),
+        };
+        let motion = RigidMotion::check_rigid(&map).ok()?;
+        Some(Self::of_motion(&motion))
     }
 }
 

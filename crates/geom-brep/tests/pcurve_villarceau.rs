@@ -312,11 +312,6 @@ fn a_wrong_number_in_the_image_refuses() {
     else {
         unreachable!()
     };
-    let (center, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
-    );
     for (major_radius, minor_radius) in [
         (major_radius + h, minor_radius),
         (major_radius, minor_radius + h),

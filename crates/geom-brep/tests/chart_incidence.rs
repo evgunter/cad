@@ -916,12 +916,7 @@ fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
         place: Affine3::identity(),
         vec: Vec3::unit_z(),
     });
-    let line = |origin: Point3<f64>, dir: Vec3<f64>| {
-        Curve3::Line(geom::Line {
-            origin,
-            dir: geom_core::UnitVec3::squared(dir),
-        })
-    };
+    let line = |origin: Point3<f64>, dir: Vec3<f64>| Curve3::Line(geom::Line { origin, dir: dir });
     // (read, face, carrier, span, the in-band read's lever, if any)
     type Row = (
         &'static str,

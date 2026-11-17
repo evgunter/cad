@@ -633,7 +633,7 @@ fn a_points_distance_within_a_span_is_the_dense_walks_least() {
     use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
     let segment = Curve3::Line(crate::Line {
         origin: Point3::new(0.0, 0.0, 0.0),
-        dir: geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, 0.0)),
+        dir: Vec3::new(1.0, 0.0, 0.0),
     });
     let dense = |c: &Curve3<f64>, q: Point3<f64>, (t0, t1): (f64, f64)| {
         (0..=20_000)

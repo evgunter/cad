@@ -71,7 +71,7 @@ pub use conic::{Circle, Conic, Ellipse, MajorFrame};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, UnitVec3, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::azimuth::{self, Azimuth};
 use crate::frame::Frame;
@@ -247,7 +247,7 @@ impl<T: SpanLocate> Curve3<T> {
         };
         match (self, other) {
             (Self::Line(Line { origin, dir }), Self::Line(Line { origin: o, dir: d })) => {
-                point(*origin, *o) && vec(dir.get(), d.get())
+                point(*origin, *o) && vec(*dir, *d)
             }
             (
                 Self::Circle(Circle { frame: f, radius }),
@@ -681,9 +681,8 @@ pub enum CurveData<'a, T: Real> {
 pub struct Line<T: Real> {
     /// The point at `t = 0`.
     pub origin: Point3<T>,
-    /// The unit direction increasing `t` runs along, so `t` is arc
-    /// length.
-    pub dir: UnitVec3<T>,
+    /// The direction increasing `t` runs along.
+    pub dir: Vec3<T>,
 }
 
 /// **Two lines' closest approach** ([`Line::closest_params`]): the
@@ -720,11 +719,11 @@ impl<T: Real> Line<T> {
     pub fn closest_params(&self, other: &Self) -> LinePair<T> {
         let w = self.origin - other.origin;
         let (aa, ab, bb) = (
-            self.dir.get().dot(self.dir.get()),
-            self.dir.get().dot(other.dir.get()),
-            other.dir.get().dot(other.dir.get()),
+            self.dir.dot(self.dir),
+            self.dir.dot(other.dir),
+            other.dir.dot(other.dir),
         );
-        let (aw, bw) = (self.dir.get().dot(w), other.dir.get().dot(w));
+        let (aw, bw) = (self.dir.dot(w), other.dir.dot(w));
         let gram = aa * bb - ab.powi(2);
         LinePair {
             s: (ab * bw - bb * aw) / gram,
@@ -737,7 +736,7 @@ impl<T: Real> Line<T> {
     /// parameterization ([`Curve3::eval`] on a line).
     #[must_use]
     pub fn at(&self, t: T) -> Point3<T> {
-        self.origin + self.dir.get() * t
+        self.origin + self.dir * t
     }
 
     /// **The same line with its direction normalised**, for a reader that
@@ -747,7 +746,7 @@ impl<T: Real> Line<T> {
     pub fn unit(self) -> Self {
         Self {
             origin: self.origin,
-            dir: UnitVec3::squared(self.dir.get()),
+            dir: self.dir.normalize(),
         }
     }
 
@@ -761,7 +760,7 @@ impl<T: Real> Line<T> {
     /// `w`'s coefficient along `dir`, `w·dir / |dir|²`: the one spelling
     /// [`Self::param`] and [`Self::param_and_offset`] read.
     fn coefficient(&self, w: Vec3<T>) -> T {
-        w.dot(self.dir.get()) / self.dir.get().norm_squared()
+        w.dot(self.dir) / self.dir.norm_squared()
     }
 
     /// **`p`'s foot**: the point of the line nearest `p`.
@@ -867,11 +866,8 @@ impl<T: Real> Line<T> {
     #[must_use]
     pub fn height_and_distance(&self, p: Point3<T>) -> (T, T) {
         let w = p - self.origin;
-        let len = self.dir.get().norm();
-        (
-            w.dot(self.dir.get()) / len,
-            w.cross(self.dir.get()).norm() / len,
-        )
+        let len = self.dir.norm();
+        (w.dot(self.dir) / len, w.cross(self.dir).norm() / len)
     }
 
     /// **`p`'s parameter and offset together**: [`Self::param`]'s `t` and
@@ -884,7 +880,7 @@ impl<T: Real> Line<T> {
     pub fn param_and_offset(&self, p: Point3<T>) -> (T, Vec3<T>) {
         let w = p - self.origin;
         let t = self.coefficient(w);
-        (t, w - self.dir.get() * t)
+        (t, w - self.dir * t)
     }
 
     /// **`p`'s foot on the plane through `origin` square to the line**:
@@ -892,7 +888,7 @@ impl<T: Real> Line<T> {
     /// the line read as that plane's normal.
     #[must_use]
     pub fn square_foot(&self, p: Point3<T>) -> Point3<T> {
-        p - (p - self.origin).project_onto(self.dir.get())
+        p - (p - self.origin).project_onto(self.dir)
     }
 }
 
@@ -933,10 +929,7 @@ impl<T: Real> Ray<T> {
     #[must_use]
     pub fn starting(origin: Point3<T>, dir: Vec3<T>, start: T) -> Self {
         Self {
-            line: Line {
-                origin,
-                dir: UnitVec3::squared(dir),
-            },
+            line: Line { origin, dir },
             start,
         }
     }
@@ -1025,19 +1018,9 @@ impl<T: Decide> Ray<T> {
 }
 
 impl<T: Real> Curve3<T> {
-    /// The line `origin + dir·t` as a carrier, `dir` squared with no
-    /// decision ([`UnitVec3::squared`]): `t` is arc length along `dir`'s
-    /// direction whatever its length. A construction that can decide its
-    /// direction mints it and takes [`Curve3::line_along`].
+    /// The line `origin + dir·t` as a carrier.
     #[must_use]
     pub fn line(origin: Point3<T>, dir: Vec3<T>) -> Self {
-        Self::line_along(origin, UnitVec3::squared(dir))
-    }
-
-    /// The line `origin + dir·t` as a carrier, along a direction held as
-    /// the witness it is.
-    #[must_use]
-    pub fn line_along(origin: Point3<T>, dir: UnitVec3<T>) -> Self {
         Self::Line(Line { origin, dir })
     }
 
@@ -1161,7 +1144,7 @@ impl<T: Real> Curve3<T> {
         use CurveDatum as D;
         CurveData::Analytic(match *self {
             Curve3::Line(Line { origin, dir }) => {
-                AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir.get()))])
+                AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
             }
             Curve3::Circle(Circle { frame, radius }) => AnalyticData::new([
                 (D::Center, Point(frame.origin())),
@@ -1289,7 +1272,7 @@ fn tube_section<T: Decide>(
 ) -> Azimuth<T> {
     let (h, rho) = Line {
         origin: center,
-        dir: UnitVec3::squared(axis),
+        dir: axis,
     }
     .height_and_distance(p);
     Azimuth::tube(h, rho, major_radius)
@@ -1506,7 +1489,7 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn reversed(&self) -> Option<Self> {
         Some(match self.clone() {
-            Curve3::Line(Line { origin, dir }) => Curve3::line(origin, (-dir).get()),
+            Curve3::Line(Line { origin, dir }) => Curve3::line(origin, -dir),
             Curve3::Circle(c) => Curve3::Circle(Circle {
                 frame: c.frame.reversed(),
                 ..c
@@ -1548,7 +1531,7 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn translated(&self, by: Vec3<T>) -> Option<Self> {
         Some(match self.clone() {
-            Curve3::Line(Line { origin, dir }) => Curve3::line(origin + by, dir.get()),
+            Curve3::Line(Line { origin, dir }) => Curve3::line(origin + by, dir),
             Curve3::Circle(c) => Curve3::Circle(Circle {
                 frame: c.frame.translated(by),
                 ..c
@@ -1897,7 +1880,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// pass).
     pub fn deriv(&self, t: T) -> Vec3<T> {
         match self {
-            Curve3::Line(Line { dir, .. }) => (*dir).get(),
+            Curve3::Line(Line { dir, .. }) => *dir,
             Curve3::Circle(c) => c.derivative_at(t),
             Curve3::Ellipse(e) => e.derivative_at(t),
             Curve3::Spiric {
@@ -1906,7 +1889,7 @@ impl<T: SpanLocate> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let axis = frame.axis();
                 let ((s, c), m) = azimuth::basis(&frame, t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
@@ -1948,7 +1931,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// passes and are not projections of this one.
     pub fn ders1(&self, t: T) -> (Point3<T>, Vec3<T>) {
         match self {
-            Curve3::Line(line) => (line.at(t), line.dir.get()),
+            Curve3::Line(line) => (line.at(t), line.dir),
             Curve3::Circle(c) => c.jet_at(t),
             Curve3::Ellipse(e) => e.jet_at(t),
             Curve3::Spiric {
@@ -2005,7 +1988,7 @@ impl<T: SpanLocate> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let axis = frame.axis();
                 let ((s, c), m) = azimuth::basis(&frame, t);
                 let r = *minor_radius;
                 let (rho, f) = spiric_radial(*major_radius, r, *offset, c);
@@ -2078,7 +2061,7 @@ mod tests {
         let open = [
             Curve3::Line(Line {
                 origin: frame.origin(),
-                dir: frame.axis_unit(),
+                dir: frame.axis(),
             }),
             Curve3::Nurbs(Arc::new(NurbsCurve3::placeholder())),
         ];
@@ -2088,25 +2071,24 @@ mod tests {
     }
 
     /// **Two lines' closest approach**: skew lines meet their common
-    /// perpendicular at the parameters the closed form reads, each an arc
-    /// length along its unit direction; `sin2` is one for perpendicular
-    /// lines, zero for parallel ones (where `s` and `t` divide by zero),
-    /// and NaN where a direction squared from zero is poison. Each point is
-    /// the other line's nearest.
+    /// perpendicular at the parameters the closed form reads, whatever the
+    /// directions' lengths; `sin2` is one for perpendicular lines, zero for
+    /// parallel ones (where `s` and `t` divide by zero), and NaN where a
+    /// direction is zero. Each point is the other line's nearest.
     #[test]
     fn two_lines_closest_approach_is_their_common_perpendicular() {
         let x = Line {
             origin: Point3::new(-2.0, 0.0, 0.0),
-            dir: UnitVec3::squared(Vec3::new(2.0, 0.0, 0.0)),
+            dir: Vec3::new(2.0, 0.0, 0.0),
         };
         let y = Line {
             origin: Point3::new(3.0, 5.0, 1.0),
-            dir: UnitVec3::squared(Vec3::new(0.0, -0.5, 0.0)),
+            dir: Vec3::new(0.0, -0.5, 0.0),
         };
         let pair = x.closest_params(&y);
         assert_eq!(
             (pair.s, pair.t, pair.sin2),
-            (5.0, 5.0, 1.0),
+            (2.5, 10.0, 1.0),
             "perpendicular skew lines"
         );
         let (p, q) = (x.at(pair.s), y.at(pair.t));
@@ -2117,15 +2099,15 @@ mod tests {
         );
         let tilted = Line {
             origin: Point3::new(0.3, -1.0, 2.0),
-            dir: UnitVec3::squared(Vec3::new(1.0, 2.0, -0.5)),
+            dir: Vec3::new(1.0, 2.0, -0.5),
         };
         let pair = x.closest_params(&tilted);
         let (p, q) = (x.at(pair.s), tilted.at(pair.t));
         assert!(
-            (p - q).dot(x.dir.get()).abs() < 1e-12 && (p - q).dot(tilted.dir.get()).abs() < 1e-12,
+            (p - q).dot(x.dir).abs() < 1e-12 && (p - q).dot(tilted.dir).abs() < 1e-12,
             "the joining vector is square to both lines: {p:?} {q:?}"
         );
-        let expected = 1.0 - (1.0_f64 / 5.25_f64.sqrt()).powi(2);
+        let expected = 1.0 - (2.0_f64 / (2.0 * 5.25_f64.sqrt())).powi(2);
         assert!(
             (pair.sin2 - expected).abs() < 1e-15,
             "sin² of the angle: {}",
@@ -2133,12 +2115,12 @@ mod tests {
         );
         let parallel = Line {
             origin: Point3::new(0.0, 1.0, 0.0),
-            dir: UnitVec3::squared(Vec3::new(-3.0, 0.0, 0.0)),
+            dir: Vec3::new(-3.0, 0.0, 0.0),
         };
         assert_eq!(x.closest_params(&parallel).sin2, 0.0, "parallel lines");
         let point = Line {
             origin: Point3::new(0.0, 1.0, 0.0),
-            dir: UnitVec3::squared(Vec3::new(0.0, 0.0, 0.0)),
+            dir: Vec3::new(0.0, 0.0, 0.0),
         };
         assert!(x.closest_params(&point).sin2.is_nan(), "a zero direction");
     }
@@ -2147,7 +2129,7 @@ mod tests {
     fn a_lines_offset_and_square_foot_read_a_non_unit_dir() {
         let l = Line {
             origin: Point3::new(1.0, 2.0, 3.0),
-            dir: UnitVec3::squared(Vec3::new(0.0, 0.0, 4.0)),
+            dir: Vec3::new(0.0, 0.0, 4.0),
         };
         let p = Point3::new(4.0, 6.0, 11.0);
         let xyz = |v: Vec3<f64>| (v.x, v.y, v.z);
@@ -2172,11 +2154,11 @@ mod tests {
         for scale in [1.0, 0.25, 3.0] {
             let line = Line {
                 origin,
-                dir: UnitVec3::squared(Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale),
+                dir: Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale,
             };
             let foot = line.foot(p);
             assert!(
-                (p - foot).dot(line.dir.get()).abs() < 1e-12,
+                (p - foot).dot(line.dir).abs() < 1e-12,
                 "|dir| = {scale}: the way to the foot is square to the line"
             );
         }
@@ -2192,11 +2174,11 @@ mod tests {
         for scale in [0.25, 3.0] {
             let line = Line {
                 origin,
-                dir: UnitVec3::squared(Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale),
+                dir: Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale,
             };
             let t = Curve3::Line(line).param_near(p, 0.0).unwrap();
             assert!(
-                (line.origin + line.dir.get() * t - line.foot(p)).norm() < 1e-12,
+                (line.origin + line.dir * t - line.foot(p)).norm() < 1e-12,
                 "|dir| = {scale}: param_near's point is the foot"
             );
         }
@@ -2213,10 +2195,7 @@ mod tests {
         let u = Vec3::new(1.0, -2.0, 2.0) / 3.0;
         let c = Point3::new(0.5, -1.0, 2.0);
         let curves = [
-            Curve3::Line(Line {
-                origin: c,
-                dir: UnitVec3::squared(u),
-            }),
+            Curve3::Line(Line { origin: c, dir: u }),
             Curve3::circle(c, n, 0.7, u),
             Curve3::Ellipse(crate::Ellipse::new(crate::Frame::new(c, n, u), 0.9, 0.4)),
             Curve3::Spiric {

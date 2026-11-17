@@ -88,15 +88,12 @@ pub(super) fn critical_fractions<T: SpanLocate>(
     (t0, t1): (T, T),
 ) -> Vec<f64> {
     let span = (middle(t0), middle(t1));
-    let (o, u) = (mid_point(line.origin), mid3(line.dir.get()));
+    let (o, u) = (mid_point(line.origin), mid3(line.dir));
     let length = span.1 - span.0;
     if !(length > 0.0 && length.is_finite()) {
         return Vec::new();
     }
-    let mid_line = geom::Line {
-        origin: o,
-        dir: geom_core::UnitVec3::squared(u),
-    };
+    let mid_line = geom::Line { origin: o, dir: u };
     let centre_foot = |c: Point3<f64>| mid_line.param(c);
     let ts = match *surface {
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),

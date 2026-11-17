@@ -324,29 +324,21 @@ impl<T: Decide> CylinderSpherePose<T> {
         );
         let center = sphere_frame.origin();
         Some(
-            Self::decide_stance(
-                geom::Line {
-                    origin,
-                    dir: geom_core::UnitVec3::squared(axis),
+            Self::decide_stance(geom::Line { origin, dir: axis }, center, r, big_r, band).map(
+                |(foot, offset, stance)| Self {
+                    cylinder: cylinder.clone(),
+                    sphere: sphere.clone(),
+                    cylinder_first,
+                    axis,
+                    u_ref,
+                    foot,
+                    center,
+                    r,
+                    big_r,
+                    offset,
+                    stance,
                 },
-                center,
-                r,
-                big_r,
-                band,
-            )
-            .map(|(foot, offset, stance)| Self {
-                cylinder: cylinder.clone(),
-                sphere: sphere.clone(),
-                cylinder_first,
-                axis,
-                u_ref,
-                foot,
-                center,
-                r,
-                big_r,
-                offset,
-                stance,
-            }),
+            ),
         )
     }
 
@@ -386,7 +378,7 @@ impl<T: Decide> CylinderSpherePose<T> {
                 .map_err(|diag| PoseRefusal::Undecided { decision, diag })
         };
         // `axis` is unit by the surface's own invariant.
-        let (off, d) = square_part(center - origin, axis.get());
+        let (off, d) = square_part(center - origin, axis);
         let foot = center - off;
         let coaxial = pose(CsDecision::Coaxial, d)?;
         let stance = if coaxial.sign == Sign::Zero {
@@ -4417,7 +4409,7 @@ mod end_at_rows {
         CarriedComponent {
             carrier: Curve3::Line(Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, 0.0)),
+                dir: Vec3::new(1.0, 0.0, 0.0),
             }),
             span: (0.0, 1.0),
             shape: ComponentShape::Open {

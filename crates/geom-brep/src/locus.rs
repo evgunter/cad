@@ -275,7 +275,6 @@ fn closed_form_locus<T: Decide>(
                 frame: plane_frame, ..
             },
         ) => {
-            let (q, n) = (plane_frame.origin(), plane_frame.axis());
             let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
             let (q, n) = (plane_frame.origin(), plane_frame.axis());
             let pc = PlaneCylinder {
@@ -311,11 +310,11 @@ fn closed_form_locus<T: Decide>(
             let (o2, a2) = (cylinder_frame.origin(), cylinder_frame.axis());
             let line1 = geom::Line {
                 origin: o1,
-                dir: cylinder_frame_2.axis_unit(),
+                dir: cylinder_frame_2.axis(),
             };
             let line2 = geom::Line {
                 origin: o2,
-                dir: cylinder_frame.axis_unit(),
+                dir: cylinder_frame.axis(),
             };
             let axes = parallel_axes_at(reach, line1, line2);
             let swing = parallel_swing(reach, line1, line2, axes.d);

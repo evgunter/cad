@@ -65,7 +65,7 @@ use std::sync::Arc;
 
 use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Point3, Real, UnitVec3, Vec3};
+use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::convention::{ConventionEnd, RepresentabilityMargin};
 use crate::curves::Line;

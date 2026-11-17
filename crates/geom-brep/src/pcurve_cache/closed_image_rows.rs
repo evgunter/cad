@@ -730,7 +730,7 @@ impl Mirror {
     /// is `axis × u_ref`, so its reflected axis is negated.
     fn carrier(self, c: &Curve3<f64>) -> Curve3<f64> {
         match c {
-            Curve3::Line(l) => Curve3::line(self.point(l.origin), self.vector(l.dir.get())),
+            Curve3::Line(l) => Curve3::line(self.point(l.origin), self.vector(l.dir)),
             Curve3::Circle(k) => Curve3::circle(
                 self.point(k.frame.origin()),
                 -self.vector(k.frame.axis()),

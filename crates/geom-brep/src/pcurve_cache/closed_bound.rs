@@ -351,11 +351,7 @@ fn spiric_residual<T: Decide>(
                 minor_radius: small_s,
             },
         ) => {
-            let (c_s, a_s, u_ref) = (
-                torus_frame.origin(),
-                torus_frame.axis(),
-                torus_frame.u_ref(),
-            );
+            let (c_s, a_s) = (torus_frame.origin(), torus_frame.axis());
             let reach = t_m.abs() + h;
             let decided = super::spiric_sense(sense, surface, reach, band)?;
             let residue = decided.residue;
@@ -463,7 +459,7 @@ fn focal_residual<T: Decide>(
     let mut slack = (image.sense - s).abs() * (e_reach + T::pi()) * arm;
     let mapped = match *surface {
         Surface::Cone { frame, half_angle } => {
-            let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (sin_a, cos_a) = half_angle.sin_cos();
             let slant = Trig::free([image.v0, image.va, image.vb, image.vl], t_m);
             Trig3::constant(apex - origin)
@@ -476,7 +472,7 @@ fn focal_residual<T: Decide>(
             major_radius,
             minor_radius,
         } => {
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            let (center, axis) = (frame.origin(), frame.axis());
             // The tube angle as `v₀ + w·t`; the stored `va·cos t + vb·sin t
             // + (vl − w)·t` beside it is a slack at the tube's radius.
             let Some(rate) = identity.tube_rate else {
@@ -580,13 +576,13 @@ fn chart_image<T: Real>(
                 .plus(&Trig3::along(&free(&v)?, v_ref))
         }
         Surface::Cylinder { frame, radius } => {
-            let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            let (origin, axis) = (frame.origin(), frame.axis());
             Trig3::constant(origin - geom_core::Point3::origin())
                 .plus(&radial(frame)?.times(&Trig::constant(radius)))
                 .plus(&Trig3::along(&free(&v)?, axis))
         }
         Surface::Cone { frame, half_angle } => {
-            let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (sin_a, cos_a) = half_angle.sin_cos();
             let slant = free(&v)?;
             Trig3::constant(apex - geom_core::Point3::origin())
@@ -594,7 +590,7 @@ fn chart_image<T: Real>(
                 .plus(&radial(frame)?.times(&slant.scaled(sin_a)))
         }
         Surface::Sphere { frame, radius } => {
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            let (center, axis) = (frame.origin(), frame.axis());
             let (cos_v, sin_v) = angle(&v)?;
             Trig3::constant(center - geom_core::Point3::origin())
                 .plus(&radial(frame)?.times(&cos_v.scaled(radius)))
@@ -610,7 +606,7 @@ fn chart_image<T: Real>(
             major_radius,
             minor_radius,
         } => {
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            let (center, axis) = (frame.origin(), frame.axis());
             let (cos_v, sin_v) = angle(&v)?;
             let rho = Trig::constant(major_radius).plus(&cos_v.scaled(minor_radius));
             Trig3::constant(center - geom_core::Point3::origin())

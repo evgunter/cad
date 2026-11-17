@@ -119,7 +119,7 @@ fn torus_walk<T: Decide>(
         conic,
         geom::Line {
             origin: center,
-            dir: geom_core::UnitVec3::squared(axis),
+            dir: axis,
         },
         major_radius,
         minor_radius,
@@ -129,7 +129,7 @@ fn torus_walk<T: Decide>(
             conic,
             geom::Line {
                 origin: center,
-                dir: geom_core::UnitVec3::squared(axis),
+                dir: axis,
             },
             major_radius,
             minor_radius,
@@ -286,7 +286,7 @@ mod tests {
                     &conic,
                     geom::Line {
                         origin: center,
-                        dir: geom_core::UnitVec3::squared(axis),
+                        dir: axis,
                     },
                     major_radius,
                     minor_radius,
@@ -1082,7 +1082,7 @@ mod torus_rows {
                                 &conic,
                                 geom::Line {
                                     origin: hub,
-                                    dir: geom_core::UnitVec3::squared(t_axis),
+                                    dir: t_axis,
                                 },
                                 *major_radius,
                                 *minor_radius,

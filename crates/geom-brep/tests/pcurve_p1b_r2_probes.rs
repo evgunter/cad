@@ -194,7 +194,7 @@ fn r2_the_rest_conversion_moves_only_the_description() {
                 "the carrier origin is bitwise untouched"
             );
             assert!(
-                d0.get().equals_exactly(d1.get()),
+                d0.equals_exactly(*d1),
                 "the carrier direction is bitwise untouched"
             );
         }

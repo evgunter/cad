@@ -76,7 +76,7 @@ fn from_rim(
         read(
             &Curve3::Line(geom::Line {
                 origin: at,
-                dir: geom_core::UnitVec3::squared(dir),
+                dir: dir,
             }),
             (0.0, 0.5),
         )

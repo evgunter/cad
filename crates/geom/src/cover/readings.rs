@@ -14,7 +14,7 @@ use geom_core::{Point3, Real};
 use geom_core::spline::SpanLocate;
 
 use super::{Cover, Covered, Entity, Lattice, ParamWindow, Uncovered, Unknown};
-use crate::{Curve3, Frame, Line, Surface};
+use crate::{Curve3, Line, Surface};
 
 impl<T: Real> Surface<T> {
     /// **The region the whole carrier occupies**: a sphere's, a torus's or
@@ -39,18 +39,14 @@ impl<T: Real> Surface<T> {
                 Err(refuse(Unknown::Unbounded))
             }
             Surface::Sphere { frame, radius } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 Cover::sphere(&frame, *radius).ok_or_else(|| refuse(Unknown::NonFinite))
             }
             Surface::Torus {
                 frame,
                 major_radius,
                 minor_radius,
-            } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                Cover::torus(&frame, *major_radius, *minor_radius)
-                    .ok_or_else(|| refuse(Unknown::NonFinite))
-            }
+            } => Cover::torus(&frame, *major_radius, *minor_radius)
+                .ok_or_else(|| refuse(Unknown::NonFinite)),
             // The sheet lies on its whole revolved circle, which is the
             // tube about the circle of radius `|R|`: the signed centre
             // and its mirror across the axis sweep the same set.
@@ -58,11 +54,8 @@ impl<T: Real> Surface<T> {
                 frame,
                 major_radius,
                 minor_radius,
-            } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                Cover::torus(&frame, major_radius.abs(), *minor_radius)
-                    .ok_or_else(|| refuse(Unknown::NonFinite))
-            }
+            } => Cover::torus(&frame, major_radius.abs(), *minor_radius)
+                .ok_or_else(|| refuse(Unknown::NonFinite)),
             Surface::Nurbs(patch) => net(entity, patch.control()),
             Surface::Approx(approx) => net(entity, approx.fit().control()),
         }
@@ -118,11 +111,10 @@ impl<T: SpanLocate> Curve3<T> {
         let entity = Entity::Curve(self.kind());
         let non_finite = || Uncovered::new(entity, Unknown::NonFinite);
         match self {
-            Curve3::Line(Line { origin, dir }) => Cover::segment(
-                *origin + (*dir).get() * window.lo,
-                *origin + (*dir).get() * window.hi,
-            )
-            .ok_or_else(non_finite),
+            Curve3::Line(Line { origin, dir }) => {
+                Cover::segment(*origin + *dir * window.lo, *origin + *dir * window.hi)
+                    .ok_or_else(non_finite)
+            }
             Curve3::Circle(circle) => {
                 Cover::arc(&circle.frame, (circle.radius, circle.radius), window)
                     .ok_or_else(non_finite)

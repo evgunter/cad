@@ -467,7 +467,7 @@ fn frame_moved(s: &mut fuzz::Rng, surface: &Surface<f64>, delta: f64) -> Surface
             );
             let (axis, u_ref) = off(s, axis, u_ref);
             Surface::Cylinder {
-                frame: carrier_frame,
+                frame: geom::Frame::new(origin, axis, u_ref),
                 radius,
             }
         }
@@ -482,7 +482,7 @@ fn frame_moved(s: &mut fuzz::Rng, surface: &Surface<f64>, delta: f64) -> Surface
             );
             let (axis, u_ref) = off(s, axis, u_ref);
             Surface::Cone {
-                frame: carrier_frame,
+                frame: geom::Frame::new(apex, axis, u_ref),
                 half_angle,
             }
         }
@@ -497,7 +497,7 @@ fn frame_moved(s: &mut fuzz::Rng, surface: &Surface<f64>, delta: f64) -> Surface
             );
             let (axis, u_ref) = off(s, axis, u_ref);
             Surface::Sphere {
-                frame: carrier_frame,
+                frame: geom::Frame::new(center, axis, u_ref),
                 radius,
             }
         }
@@ -513,7 +513,7 @@ fn frame_moved(s: &mut fuzz::Rng, surface: &Surface<f64>, delta: f64) -> Surface
             );
             let (axis, u_ref) = off(s, axis, u_ref);
             Surface::Torus {
-                frame: carrier_frame,
+                frame: geom::Frame::new(center, axis, u_ref),
                 major_radius,
                 minor_radius,
             }
@@ -542,10 +542,9 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         }
     };
     match *carrier {
-        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(
-            origin + nudge(s, 1),
-            dir.get() + nudge(s, 3) * dir.get().norm(),
-        ),
+        Curve3::Line(geom::Line { origin, dir }) => {
+            Curve3::line(origin + nudge(s, 1), dir + nudge(s, 3) * dir.norm())
+        }
         Curve3::Circle(geom::Circle { frame, radius }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let axis = (axis + nudge(s, 3)).normalize();
@@ -561,7 +560,11 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
                 } else {
                     (minor, major, axis.cross(u_ref))
                 };
-                return Curve3::Ellipse(geom::Ellipse::new(frame, major, minor));
+                return Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(center, axis, u_ref),
+                    major,
+                    minor,
+                ));
             }
             Curve3::circle(center, axis, scaled(s, radius), u_ref)
         }

@@ -50,7 +50,7 @@
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
-use geom_core::{Decide, Margin, Point2, Point3, Real, Sign, UnitVec3, Vec3};
+use geom_core::{Decide, Margin, Point2, Point3, Real, Sign, Vec3};
 
 use crate::Frame;
 use crate::azimuth::{Azimuth, Window};
@@ -447,16 +447,13 @@ impl<T: Decide> Surface<T> {
         // amplifies an axis carrying width at the interval scalar
         // ([`Line::offset`]).
         let about = |origin: Point3<T>, axis: Vec3<T>| {
-            let line = Line {
-                origin,
-                dir: UnitVec3::squared(axis),
-            };
+            let line = Line { origin, dir: axis };
             let (t, off) = line.param_and_offset(p);
             (line.at(t), along(off - off.project_onto(axis)))
         };
         match *self {
             Self::Plane { frame, .. } => {
-                let (origin, normal) = (frame.origin(), frame.axis_unit());
+                let (origin, normal) = (frame.origin(), frame.axis());
                 Some(
                     Line {
                         origin,
@@ -639,7 +636,7 @@ mod tests {
         let Some(axis) = surface.axis_line() else {
             return Vec::new();
         };
-        let a = axis.dir.get().normalize();
+        let a = axis.dir.normalize();
         let (e1, e2) = a.orthonormal_basis();
         let mut out = Vec::new();
         for k in 0..12 {

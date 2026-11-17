@@ -115,7 +115,7 @@ pub fn anchored_at<T: Real>(datum: Point3<T>, forgets: Forgets<T>, at: Point3<T>
         Forgets::Plane(normal) => at - normal * ((at - datum).dot(normal) / normal.norm_squared()),
         Forgets::Axis(dir) => Line {
             origin: datum,
-            dir: geom_core::UnitVec3::squared(dir),
+            dir: dir,
         }
         .foot(at),
     }
@@ -461,7 +461,7 @@ fn schedule<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T), n: u32) -> Vec
 /// rounding.
 fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
     match carrier {
-        Curve3::Line(geom::Line { dir, .. }) => dir.get().norm(),
+        Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
         Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
             Some(k) => k.speed_hi(),
             None => unreachable!("a circle or an ellipse is a conic"),
@@ -1008,7 +1008,7 @@ impl<T: Real> Reach<T> {
             Self::Face { at, across, .. } => {
                 let off_perp = Line {
                     origin: hinge,
-                    dir: geom_core::UnitVec3::squared(a),
+                    dir: a,
                 }
                 .offset(*at);
                 let off_axis = off_perp.norm();
@@ -1069,8 +1069,8 @@ impl<T: Real> Reach<T> {
             Self::Face { at, .. } => axis.foot(*at),
             Self::Ball(ball) => ball.foot_on(axis),
             Self::Measured { .. } | Self::Region(_) => {
-                let (lo, hi) = self.range_along(axis.origin, axis.dir.get());
-                axis.at((lo + hi) * T::from_f64(0.5) / axis.dir.get().norm_squared())
+                let (lo, hi) = self.range_along(axis.origin, axis.dir);
+                axis.at((lo + hi) * T::from_f64(0.5) / axis.dir.norm_squared())
             }
         }
     }
@@ -1168,7 +1168,7 @@ mod tests {
         assert!(reach < geom_core::tolerance::SESSION_BOX_EXTENT);
         let line = Curve3::Line(geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: geom_core::UnitVec3::squared(Vec3::new(1.0, 1.0, 0.0).normalize()),
+            dir: Vec3::new(1.0, 1.0, 0.0).normalize(),
         });
         let reach = edge_coordinate_reach_below(&line, (0.0, 1200.0), None);
         assert!(
@@ -1660,14 +1660,14 @@ mod tests {
                 "across its plane through its middle",
                 Line {
                     origin: Point3::new(r, 0.5, 0.0),
-                    dir: geom_core::UnitVec3::squared(Vec3::new(0.0, 0.0, 1.0)),
+                    dir: Vec3::new(0.0, 0.0, 1.0),
                 },
             ),
             (
                 "in its plane through the circle's centre",
                 Line {
                     origin: Point3::origin(),
-                    dir: geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, 0.0)),
+                    dir: Vec3::new(1.0, 0.0, 0.0),
                 },
             ),
         ] {
@@ -1708,7 +1708,7 @@ mod tests {
         let reach = Reach::of_span(&spline, (0.0, 0.1)).expect("the span is covered");
         let axis = Line {
             origin: Point3::new(0.0, 0.0, -3.0),
-            dir: geom_core::UnitVec3::squared(Vec3::new(0.0, 0.0, 1.0)),
+            dir: Vec3::new(0.0, 0.0, 1.0),
         };
         let (foot, lever) = pivot_and_lever(&reach, axis);
         assert!((foot.z - 0.5).abs() < 1e-12, "the pivot stands at {foot:?}");
@@ -1742,7 +1742,7 @@ mod tests {
         let reach = Reach::of_span(&polyline, (0.0, 1.0)).expect("the span is covered");
         let axis = Line {
             origin: Point3::new(0.0, 0.0, 5.0),
-            dir: geom_core::UnitVec3::squared(Vec3::new(0.0, 0.0, 1.0)),
+            dir: Vec3::new(0.0, 0.0, 1.0),
         };
         let (foot, lever) = pivot_and_lever(&reach, axis);
         let want = (1.8_f64.powi(2) + 1.0).sqrt();
@@ -1787,7 +1787,7 @@ mod tests {
         };
         let axis = Line {
             origin: Point3::new(-0.5, 0.2, 0.0),
-            dir: geom_core::UnitVec3::squared(Vec3::new(0.1, 0.3, 1.0).normalize()),
+            dir: Vec3::new(0.1, 0.3, 1.0).normalize(),
         };
         let here = Reach::of_span(&spline(control.to_vec()), (0.2, 0.9)).expect("covered");
         let there =
@@ -1795,7 +1795,7 @@ mod tests {
         let (foot, lever) = pivot_and_lever(&here, axis);
         let turned_axis = Line {
             origin: turn(axis.origin),
-            dir: geom_core::UnitVec3::squared(turn_v(axis.dir.get())),
+            dir: turn_v(axis.dir),
         };
         let (turned_foot, turned_lever) = pivot_and_lever(&there, turned_axis);
         assert!(
@@ -1822,18 +1822,17 @@ mod tests {
         let z = Vec3::new(0.0, 0.0, 1.0);
         let l1 = Line {
             origin: Point3::new(0.0, 0.0, -7.0),
-            dir: geom_core::UnitVec3::squared(z),
+            dir: z,
         };
         let l2 = Line {
             origin: Point3::new(3.0, 0.0, 11.0),
-            dir: geom_core::UnitVec3::squared(z),
+            dir: z,
         };
         for (what, (a, b)) in [("in order", (l1, l2)), ("swapped", (l2, l1))] {
             let axes = crate::intersect::parallel_axes_at(&reach, a, b);
             assert!((axes.d - 3.0).abs() < 1e-12, "{what}: d = {}", axes.d);
             assert!(
-                (axes.d_vec.norm() - 3.0).abs() < 1e-12
-                    && axes.d_vec.dot(a.dir.get()).abs() < 1e-12,
+                (axes.d_vec.norm() - 3.0).abs() < 1e-12 && axes.d_vec.dot(a.dir).abs() < 1e-12,
                 "{what}: d_vec = {:?}",
                 axes.d_vec
             );
@@ -1859,11 +1858,11 @@ mod tests {
         let reach = Reach::of_span(&arc, (0.0, 1.0)).expect("the span is covered");
         let l1 = Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: geom_core::UnitVec3::squared(Vec3::new(0.0, 0.0, 1.0)),
+            dir: Vec3::new(0.0, 0.0, 1.0),
         };
         let l2 = Line {
             origin: Point3::new(3.0, 0.0, 0.0),
-            dir: geom_core::UnitVec3::squared(Vec3::new(0.02_f64.sin(), 0.0, 0.02_f64.cos())),
+            dir: Vec3::new(0.02_f64.sin(), 0.0, 0.02_f64.cos()),
         };
         let (f1, f2) = (reach.foot_on(l1), reach.foot_on(l2));
         let want = l2.distance(f1).max(l1.distance(f2));

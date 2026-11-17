@@ -2475,7 +2475,7 @@ fn line_plane_ends<T: geom_core::CertifiedBounds>(
             },
         ) => {
             let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
-            let (q, d) = (vec(*q - geom_core::Point3::origin()), vec((*dir).get()));
+            let (q, d) = (vec(*q - geom_core::Point3::origin()), vec(*dir));
             let (o, n) = (vec(origin - geom_core::Point3::origin()), vec(normal));
             let lever = n.norm();
             Some([params.0, params.1].map(|t| ((q + d * lift(t) - o).dot(n), lever)))

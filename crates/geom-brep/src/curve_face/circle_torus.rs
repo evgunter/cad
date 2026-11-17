@@ -230,7 +230,7 @@ pub fn circle_torus_roots<T: Decide>(
     let tilt = radius * axis.cross(t_axis).norm();
     let (h0, w_perp) = geom::Line {
         origin: t_center,
-        dir: frame.axis_unit(),
+        dir: frame.axis(),
     }
     .param_and_offset(center);
     let offset = w_perp.norm();
@@ -333,7 +333,7 @@ pub fn circle_torus_roots<T: Decide>(
         &circle,
         geom::Line {
             origin: t_center,
-            dir: geom_core::UnitVec3::squared(t_axis),
+            dir: t_axis,
         },
         major_radius,
         minor_radius,
@@ -350,7 +350,7 @@ pub fn circle_torus_roots<T: Decide>(
             &circle,
             geom::Line {
                 origin: t_center,
-                dir: geom_core::UnitVec3::squared(t_axis),
+                dir: t_axis,
             },
             major_radius,
             minor_radius,
@@ -391,7 +391,7 @@ pub fn circle_torus_roots<T: Decide>(
                     &circle,
                     geom::Line {
                         origin: t_center,
-                        dir: geom_core::UnitVec3::squared(t_axis),
+                        dir: t_axis,
                     },
                     major_radius,
                     minor_radius,

@@ -576,7 +576,7 @@ impl<T: Decide> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 let w = q - center;
                 let plane = (w.dot(u_ref) - offset).abs();
                 let (h, rho) = crate::Line {
@@ -586,8 +586,8 @@ impl<T: Decide> Curve3<T> {
                 .height_and_distance(q);
                 let (major, minor) = (major_radius.abs(), minor_radius.abs());
                 let torus = ((rho - major).powi(2) + h.powi(2)).sqrt() - minor;
-                let side = ((major - minor).powi(2) - offset.powi(2)).sqrt()
-                    - w.dot(axis.get().cross(u_ref));
+                let side =
+                    ((major - minor).powi(2) - offset.powi(2)).sqrt() - w.dot(axis.cross(u_ref));
                 plane.max(torus.abs()).max(side)
             }
             Self::Nurbs(_) | Self::Periodic(_) => return None,

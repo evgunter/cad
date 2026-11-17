@@ -365,7 +365,7 @@ impl<T: Decide> SurfaceCurve<T> {
             chart,
             geom::Line {
                 origin: start,
-                dir: geom_core::UnitVec3::squared(dir),
+                dir: dir,
             },
             uv.x,
             opening,
@@ -394,7 +394,7 @@ impl<T: Decide> SurfaceCurve<T> {
             chart,
             geom::Line {
                 origin: apex,
-                dir: geom_core::UnitVec3::squared(g.normalize()),
+                dir: g.normalize(),
             },
             toward.x,
             Some(opening),
@@ -486,7 +486,7 @@ impl<T: Decide> SurfaceCurve<T> {
             chart,
             shape: Shape::Line(geom::Line {
                 origin: start,
-                dir: geom_core::UnitVec3::squared(f.u_ref().normalize()),
+                dir: f.u_ref().normalize(),
             }),
             plane: (start, f.v_ref().normalize()),
             section: Section::Whole,

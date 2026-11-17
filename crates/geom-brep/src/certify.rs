@@ -2023,7 +2023,7 @@ impl<T: Real> EdgeCurveSpec<T> {
         let Curve3::Circle(geom::Circle { frame, .. }) = carrier else {
             return None;
         };
-        let (center, axis) = (frame.origin(), frame.axis());
+        let center = frame.origin();
         let start = carrier.eval(t0);
         Some(Self {
             description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
@@ -2032,7 +2032,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     place: Affine3::translation(start - Point3::origin()),
                     axis: geom::Line {
                         origin: center,
-                        dir: frame.axis_unit(),
+                        dir: frame.axis(),
                     },
                     angle: t1 - t0,
                 },
@@ -2217,7 +2217,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     place: Affine3::translation(p - Point3::origin()),
                     axis: geom::Line {
                         origin: center,
-                        dir: geom_core::UnitVec3::squared(Vec3::unit_z()),
+                        dir: Vec3::unit_z(),
                     },
                     // A whole revolution, an angle by construction.
                     angle: geom_core::period::Period::<T>::angle().length(),
@@ -4486,10 +4486,7 @@ fn decide_turn<T: Decide>(
         (None, line) => {
             forward(Margin::of(span))?;
             if line.as_line().is_some_and(|geom::Line { dir, .. }| {
-                matches!(
-                    dir.get().checked_direction(),
-                    Err(geom_core::NoDirection::Zero)
-                )
+                matches!(dir.checked_direction(), Err(geom_core::NoDirection::Zero))
             }) {
                 forward(Margin::metered(
                     span,
@@ -7653,7 +7650,7 @@ mod tests {
         let mut bad = spec.clone();
         bad.carrier = Curve3::Line(geom::Line {
             origin: Point3::new(0.0, 0.5, 0.0), // on z = 0, off y = 0
-            dir: geom_core::UnitVec3::squared(Vec3::unit_x()),
+            dir: Vec3::unit_x(),
         });
         let err = EdgeCurve::certify(
             bad,
@@ -8074,7 +8071,7 @@ mod tests {
                     place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
                     axis: geom::Line {
                         origin: center,
-                        dir: geom_core::UnitVec3::squared(Vec3::unit_z()),
+                        dir: Vec3::unit_z(),
                     },
                     angle: TAU,
                 },
@@ -10223,7 +10220,7 @@ mod tests {
             },
             carrier: Curve3::Line(geom::Line {
                 origin: p0,
-                dir: geom_core::UnitVec3::squared(dir),
+                dir: dir,
             }),
             param_start: 0.0,
             param_end: 2.0 * reach,

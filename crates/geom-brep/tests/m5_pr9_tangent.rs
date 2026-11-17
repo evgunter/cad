@@ -79,7 +79,7 @@ fn the_c5_table_classifies_the_authored_pair_as_a_tangent_line() {
         panic!("a tangent locus of plane×cylinder is a line");
     };
     assert!((origin.x - 1.0).abs() < 1e-12 && origin.y.abs() < 1e-12);
-    assert!(dir.get().cross(Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12);
+    assert!(dir.cross(Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12);
 }
 
 #[test]

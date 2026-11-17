@@ -195,7 +195,7 @@ impl<T: geom_core::Real> ConeOffset<T> {
     /// trip's only slack is one rounded operation per leg: the apex
     /// coordinate addition here and the matching subtraction back.
     pub fn apex(&self) -> geom_core::Point3<T> {
-        self.axis.origin - self.axis.dir.get() * (self.d / self.half_angle.sin())
+        self.axis.origin - self.axis.dir * (self.d / self.half_angle.sin())
     }
 
     /// The chart parameter shift: `v ↦ v + d·cot α` at matched `u`.
@@ -221,9 +221,9 @@ impl<T: geom_core::Real> ConeOffset<T> {
     pub fn displacement(&self, nappe: Nappe, p: geom_core::Point3<T>) -> geom_core::Vec3<T> {
         let (sin_a, cos_a) = self.half_angle.sin_cos();
         let radial = (p - self.axis.origin)
-            .reject_from(self.axis.dir.get())
+            .reject_from(self.axis.dir)
             .normalize();
-        (radial * nappe.turn(cos_a) - self.axis.dir.get() * sin_a) * self.d
+        (radial * nappe.turn(cos_a) - self.axis.dir * sin_a) * self.d
     }
 }
 

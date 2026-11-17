@@ -723,7 +723,7 @@ pub(super) fn cone_coefficient_excess(
         conic,
         geom::Line {
             origin: apex,
-            dir: geom_core::UnitVec3::squared(axis),
+            dir: axis,
         },
         half_angle,
     );
@@ -1180,7 +1180,7 @@ fn a_circles_projected_envelope_covers_its_residual() {
             Curve3::Line(geom::Line { origin, dir }) => {
                 let t0 = s.log_uniform(1e-6, 1.0) * scale;
                 let t1 = t0 + s.log_uniform(1e-2, 3.0) * scale;
-                (Curve3::line(origin + offset, dir.get()), t0, t1)
+                (Curve3::line(origin + offset, dir), t0, t1)
             }
             _ => unreachable!("the draws are circles and lines"),
         };
@@ -1462,9 +1462,7 @@ fn turned(carrier: &Curve3<f64>, surface: &Surface<f64>, angle: f64) -> Curve3<f
             let (centre, n, x) = (frame.origin(), frame.axis(), frame.u_ref());
             Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x))
         }
-        Curve3::Line(geom::Line { origin, dir }) => {
-            Curve3::line(o + turn(origin - o), turn(dir.get()))
-        }
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(o + turn(origin - o), turn(dir)),
         _ => unreachable!("the rows' carriers are circles and lines"),
     }
 }
@@ -1609,7 +1607,7 @@ fn torus_coefficients_excess(
         conic,
         geom::Line {
             origin: at,
-            dir: geom_core::UnitVec3::squared(axis),
+            dir: axis,
         },
         big,
         small,
@@ -1956,7 +1954,7 @@ pub(super) fn other_charts_within(
                 conic,
                 geom::Line {
                     origin: at,
-                    dir: geom_core::UnitVec3::squared(axis),
+                    dir: axis,
                 },
                 r,
             )

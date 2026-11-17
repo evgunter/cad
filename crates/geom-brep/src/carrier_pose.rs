@@ -321,7 +321,7 @@ pub fn carrier_pose<T: Decide>(
                 convex: x2,
             },
         ) => {
-            parallel(Directions::Axes, l1.dir.get(), l2.dir.get(), arm, band)?;
+            parallel(Directions::Axes, l1.dir, l2.dir, arm, band)?;
             rounds(l1.distance(l2.origin), [r1, r2], [x1, x2], band)
         }
         (P::Sphere { .. }, P::Cylinder { .. }) | (P::Cylinder { .. }, P::Sphere { .. }) => {
@@ -365,7 +365,7 @@ pub fn carrier_pose<T: Decide>(
         ) => plane_round(
             PairSide::First,
             (origin, outward.vec()),
-            (axis.origin, radius, convex, Some(axis.dir.get())),
+            (axis.origin, radius, convex, Some(axis.dir)),
             arm,
             band,
         ),
@@ -379,7 +379,7 @@ pub fn carrier_pose<T: Decide>(
         ) => plane_round(
             PairSide::Second,
             (origin, outward.vec()),
-            (axis.origin, radius, convex, Some(axis.dir.get())),
+            (axis.origin, radius, convex, Some(axis.dir)),
             arm,
             band,
         ),
@@ -510,7 +510,7 @@ mod tests {
         Posed::Cylinder {
             axis: geom::Line {
                 origin,
-                dir: geom_core::UnitVec3::squared(dir.normalize()),
+                dir: dir.normalize(),
             },
             radius,
             convex,

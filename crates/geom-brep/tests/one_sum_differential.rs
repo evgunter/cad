@@ -107,7 +107,7 @@ fn circle_pts(c: &Curve3<f64>, n: usize) -> Vec<Point3<f64>> {
 fn line_pts(c: &Curve3<f64>, from: Point3<f64>, len: f64, n: usize) -> Vec<Point3<f64>> {
     match *c {
         Curve3::Line(geom::Line { origin, dir }) => {
-            let d = dir.get().normalize();
+            let d = dir.normalize();
             let t0 = (from - origin).dot(d);
             (0..=n)
                 .map(|i| origin + d * (t0 - len + 2.0 * len * i as f64 / n as f64))
@@ -374,7 +374,7 @@ fn one_sum_differential() {
                     format!(
                         "{:.4} {:.4}",
                         stations().map(|dd| (touch - dd).abs()).fold(0.0, f64::max) / z,
-                        ruling(&Curve3::line(*origin, (*dir).get()))
+                        ruling(&Curve3::line(*origin, *dir))
                     )
                 }
                 _ => "nan".into(),
