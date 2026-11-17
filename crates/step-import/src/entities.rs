@@ -495,15 +495,7 @@ impl<'a> Resolver<'a> {
             _ => self.direction(id, as_ref(id, axis, expected)?)?,
         };
         let reference = match ref_dir {
-            Value::Null => {
-                // `first_proj_axis`: the first coordinate axis the
-                // placement's own axis is not parallel to.
-                if axis.y == 0.0 && axis.z == 0.0 {
-                    Vec3::new(0.0, 1.0, 0.0)
-                } else {
-                    Vec3::new(1.0, 0.0, 0.0)
-                }
-            }
+            Value::Null => first_proj_axis(axis),
             _ => self.direction(id, as_ref(id, ref_dir, expected)?)?,
         };
         // A frame the file states rigid within its own rounding is
@@ -2508,6 +2500,17 @@ const CIRCLE_RADIUS: &str = "a circle's radius, which must be positive";
 /// An ellipse's semi-axis, as an invalid root names it.
 const ELLIPSE_SEMI_AXIS: &str = "an ellipse's semi-axis, which must be positive";
 
+/// ISO 10303-42's `first_proj_axis` for an unset reference: the first
+/// coordinate axis `axis` is not parallel to (`x̂`, or `ŷ` where `axis`
+/// lies along `x̂`).
+fn first_proj_axis(axis: Vec3<f64>) -> Vec3<f64> {
+    if axis.y == 0.0 && axis.z == 0.0 {
+        Vec3::new(0.0, 1.0, 0.0)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    }
+}
+
 /// **A line's unit direction from the file's ratio triple**: the triple
 /// itself where it is unit within its own rounding, so a unit direction
 /// the writer printed is kept bit for bit; otherwise the triple
@@ -2517,11 +2520,7 @@ const ELLIPSE_SEMI_AXIS: &str = "an ellipse's semi-axis, which must be positive"
 /// frame is still rigid within its rounding. `None` for a triple that
 /// names no direction.
 fn unit_line_direction(ratios: Vec3<f64>) -> Option<Vec3<f64>> {
-    let reference = if ratios.y == 0.0 && ratios.z == 0.0 {
-        Vec3::new(0.0, 1.0, 0.0)
-    } else {
-        Vec3::new(1.0, 0.0, 0.0)
-    };
+    let reference = first_proj_axis(ratios);
     let built = geom_core::RigidMotion::from_axis_and_reference(
         Point3::origin(),
         ratios,

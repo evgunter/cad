@@ -620,15 +620,12 @@ fn e5_closed_forms() {
     );
 }
 
-/// H8: ε_in governs interpretation, never certification — an override
-/// that reads every one of the file's statements the same way (one far
-/// below the run's ε, read at the run's band, and one coarser than the
-/// file declares but finer than any of its features) changes nothing
-/// about what is built.
+/// H8: ε_in governs interpretation, never certification — an extreme
+/// override in either direction changes nothing about what is built.
 #[test]
 fn h8_eps_in_not_consumed() {
     let text = fixture("cube", "step");
-    for eps in [1e-30, 1e-6] {
+    for eps in [1e-30, 1.0] {
         let import = import_step(
             &text,
             &ImportOptions {

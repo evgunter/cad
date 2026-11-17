@@ -4990,9 +4990,10 @@ class StructureNormalization:
     Volume and validity are exact either way; what changed is only the
     cut, and the two censuses are that change counted.
 
-    `promoted_to` and `residual` are `surface_promotion`'s payload
-    (`residual` also `curve_promoted`'s, whose `face` is the curve's
-    entity id), `singularity` is `chart_singularity_vertex`'s
+    `promoted_to` and `residual` are `surface_promotion`'s payload and
+    `curve_promoted`'s (whose `face` is the curve's entity id), `kept`
+    and `joined` are `one_record`'s (the surface record kept and the one
+    its faces left), `singularity` is `chart_singularity_vertex`'s
     (`interior`, `inside_edge` or `valence_one_vertex`), and `transform`
     and `moved_by` are `placement_re_minted`'s (the placement whose
     frames the import built by their axes, and the farthest a point of
@@ -5011,6 +5012,10 @@ class StructureNormalization:
     def promoted_to(self) -> Optional[str]: ...
     @property
     def residual(self) -> Optional[float]: ...
+    @property
+    def kept(self) -> Optional[int]: ...
+    @property
+    def joined(self) -> Optional[int]: ...
     @property
     def singularity(self) -> Optional[str]: ...
     @property

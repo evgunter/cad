@@ -2299,14 +2299,35 @@ impl StructureNormalization {
         normalization_kind_tag(&self.0.kind)
     }
 
-    /// Which analytic surface kind certified — on `surface_promotion`
-    /// alone.
+    /// Which analytic kind certified: the surface's on
+    /// `surface_promotion`, the curve's on `curve_promoted`.
     #[getter]
     fn promoted_to(&self) -> Option<&'static str> {
         match &self.0.kind {
             pncad::step_import::NormalizationKind::SurfacePromotion { to, .. } => {
                 Some(promoted_kind_tag(to))
             }
+            pncad::step_import::NormalizationKind::CurvePromoted { kind, .. } => {
+                Some(promoted_curve_kind_tag(kind))
+            }
+            _ => None,
+        }
+    }
+
+    /// The surface record kept — on `one_record` alone.
+    #[getter]
+    fn kept(&self) -> Option<u64> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::OneRecord { kept, .. } => Some(*kept),
+            _ => None,
+        }
+    }
+
+    /// The surface record its faces left — on `one_record` alone.
+    #[getter]
+    fn joined(&self) -> Option<u64> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::OneRecord { joined, .. } => Some(*joined),
             _ => None,
         }
     }
