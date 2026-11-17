@@ -8,7 +8,9 @@
 //! parse downstream with `str::parse::<f64>`, which round-trips the
 //! writer's printer to identical bits), strings are unescaped, and
 //! typed parameters (`LENGTH_MEASURE(1e-9)`) are their own variant.
-//! Errors are typed and carry the 1-based line number.
+//! Errors are typed and carry the 1-based line number. A parameter
+//! nested more than [`MAX_NESTING`] lists deep refuses as a syntax
+//! error at the line where it crosses the bound.
 
 use std::collections::BTreeMap;
 
@@ -58,6 +60,20 @@ pub(crate) struct StepFile {
     /// DATA section instances by id.
     pub(crate) data: BTreeMap<u64, Instance>,
 }
+
+/// How many parameter lists may nest, a record's own argument list
+/// counting as the first. The deepest aggregate a STEP schema declares
+/// (a B-spline volume's `LIST OF LIST OF LIST` of points) is four with
+/// its record's list; the bound keeps the parse, and every walk over a
+/// [`Value`] (its derived `Drop`, `Clone`, `PartialEq`, `Debug`),
+/// within the smallest stack an import runs on: about 5 KiB per level,
+/// measured on a debug x86_64 build (wasm32 not measured).
+pub(crate) const MAX_NESTING: usize = 32;
+
+/// The refusal past [`MAX_NESTING`], whose number it states.
+const NESTING_REFUSAL: &str = "a parameter nested at most 32 lists deep (this one nests \
+     deeper, which no STEP schema does: the file is damaged or was not \
+     written by a STEP exporter — re-export it from its source)";
 
 /// Character cursor with 1-based line tracking.
 struct Cursor<'a> {
@@ -248,8 +264,8 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// One parameter value.
-    fn value(&mut self) -> Result<Value, StepImportError> {
+    /// One parameter value, inside `depth` enclosing parameter lists.
+    fn value(&mut self, depth: usize) -> Result<Value, StepImportError> {
         self.skip_ws();
         match self.peek() {
             Some(b'$') => {
@@ -287,7 +303,7 @@ impl<'a> Cursor<'a> {
             }
             Some(b'(') => {
                 self.pos += 1;
-                Ok(Value::List(self.value_list()?))
+                Ok(Value::List(self.value_list(depth)?))
             }
             Some(c) if c == b'+' || c == b'-' || c.is_ascii_digit() => {
                 let start = self.pos;
@@ -310,14 +326,20 @@ impl<'a> Cursor<'a> {
                 // Typed parameter: KEYWORD(args).
                 let kw = self.keyword()?;
                 self.expect("(", "'(' after a typed parameter keyword")?;
-                Ok(Value::Typed(kw, self.value_list()?))
+                Ok(Value::Typed(kw, self.value_list(depth)?))
             }
             _ => Err(self.syntax("a parameter value")),
         }
     }
 
-    /// The remainder of a `( … )` list after the opening parenthesis.
-    fn value_list(&mut self) -> Result<Vec<Value>, StepImportError> {
+    /// The remainder of a `( … )` list after the opening parenthesis,
+    /// inside `outer` enclosing lists: entering it is the one place the
+    /// depth grows and is checked.
+    fn value_list(&mut self, outer: usize) -> Result<Vec<Value>, StepImportError> {
+        let depth = outer + 1;
+        if depth > MAX_NESTING {
+            return Err(self.syntax(NESTING_REFUSAL));
+        }
         let mut out = Vec::new();
         self.skip_ws();
         if self.peek() == Some(b')') {
@@ -325,7 +347,7 @@ impl<'a> Cursor<'a> {
             return Ok(out);
         }
         loop {
-            out.push(self.value()?);
+            out.push(self.value(depth)?);
             self.skip_ws();
             match self.peek() {
                 Some(b',') => self.pos += 1,
@@ -342,7 +364,7 @@ impl<'a> Cursor<'a> {
     fn record(&mut self) -> Result<Record, StepImportError> {
         let kw = self.keyword()?;
         self.expect("(", "'(' after an entity keyword")?;
-        Ok((kw, self.value_list()?))
+        Ok((kw, self.value_list(0)?))
     }
 }
 
@@ -406,7 +428,101 @@ pub(crate) fn parse_file(text: &str) -> Result<StepFile, StepImportError> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{Value, parse_file};
+    use super::{MAX_NESTING, NESTING_REFUSAL, Value, parse_file};
+    use crate::{ImportOptions, StepImportError, import_step};
+    use test_utils::own_thread::on_the_smallest_stack;
+
+    /// The three ways a parameter nests: a plain list, a typed
+    /// parameter, and a list inside one record of a complex instance.
+    const SHAPES: [&str; 3] = ["list", "typed", "complex"];
+
+    /// A file whose one entity, on line 8, nests `nesting` lists deep in
+    /// `shape`, its record's own list included.
+    fn nested(shape: &str, nesting: usize) -> String {
+        let levels = nesting - 1;
+        let close = ")".repeat(levels);
+        let entity = match shape {
+            "list" => format!("#1=CARTESIAN_POINT('',{}1{close});", "(".repeat(levels)),
+            "typed" => format!("#1=X('',{}1{close});", "LENGTH_MEASURE(".repeat(levels)),
+            "complex" => format!("#1=(A(1) B({}1{close}));", "(".repeat(levels)),
+            _ => panic!("unknown shape {shape}"),
+        };
+        format!(
+            "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION((''),'2;1');\n\
+             FILE_NAME('','',(''),(''),'','','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN'));\n\
+             ENDSEC;\nDATA;\n{entity}\nENDSEC;\nEND-ISO-10303-21;\n"
+        )
+    }
+
+    /// One list past the bound, and the item's hundred-thousand-deep
+    /// crash shape, refuse typed through the import door on the smallest
+    /// stack an import runs on, in every shape. The line is the one
+    /// where the nesting crosses the bound, here the entity's own.
+    #[test]
+    fn a_nesting_past_the_bound_refuses_typed_on_the_smallest_stack() {
+        for shape in SHAPES {
+            for nesting in [MAX_NESTING + 1, 100_000] {
+                let refused = on_the_smallest_stack(move || {
+                    import_step(
+                        &nested(shape, nesting),
+                        &ImportOptions::default(),
+                        geom_core::Tol::witness(),
+                    )
+                    .err()
+                });
+                let Some(StepImportError::Syntax { line, expected }) = refused else {
+                    panic!(
+                        "{shape} nesting {nesting}: expected the typed syntax refusal, \
+                         got {refused:?}"
+                    );
+                };
+                assert_eq!(
+                    (line, expected),
+                    (8, NESTING_REFUSAL),
+                    "{shape} nesting {nesting}: the refusal names the crossing line and the bound"
+                );
+            }
+        }
+    }
+
+    /// At the bound the file gets past the parser in every shape, and
+    /// the value every derived walk recurses over (clone, compare,
+    /// format, drop) fits the same stack.
+    #[test]
+    fn a_nesting_at_the_bound_is_not_refused_for_depth() {
+        on_the_smallest_stack(|| {
+            for shape in SHAPES {
+                let text = nested(shape, MAX_NESTING);
+                let outcome =
+                    import_step(&text, &ImportOptions::default(), geom_core::Tol::witness());
+                assert!(
+                    !matches!(
+                        outcome,
+                        Err(StepImportError::Syntax { expected, .. }) if expected == NESTING_REFUSAL
+                    ),
+                    "{shape}: a nesting at the bound is not refused for depth"
+                );
+                let file = parse_file(&text).expect("a nesting at the bound parses");
+                let records = &file.data[&1].records;
+                let copy = records.clone();
+                assert_eq!(&copy, records, "{shape}: the clone compares equal");
+                let debug = format!("{records:?}");
+                assert_eq!(
+                    debug.matches("List(").count() + debug.matches("Typed(").count(),
+                    MAX_NESTING - 1,
+                    "{shape}: every list below the record's own is in the value"
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn the_refusal_states_the_bound_it_enforces() {
+        assert!(
+            NESTING_REFUSAL.contains(&format!("at most {MAX_NESTING} lists")),
+            "{NESTING_REFUSAL}"
+        );
+    }
 
     /// A file whose HEADER carries `body` verbatim and whose DATA
     /// section is empty — the lexical rows need no entities.
