@@ -57,3 +57,25 @@ stated job is to be the single home. The other two files are LIB's
   the header paragraph that claims to be the one statement.
 - `crates/pncad-py/src/py/doc.rs` — `fold_zero`.
 - `crates/editor-core/src/distribution.rs` — `fold_signed_zeros`.
+
+## Resolution
+
+The fix is one home, not disclosure. The filer's reading rested on
+two premises, and the PR 7067 review showed both were false:
+- **No new dependency edge.** step-import, editor-core and sweep already
+  depend on geom-core, and pncad-py reaches it through
+  `pncad::geom_core`. geom-core also held a copy of its own
+  (`predicate.rs`'s `readable_number`).
+- **The invariants are not all different.** Three of the copies served
+  one contract, a hash that agrees with IEEE equality: pncad-py's two
+  `fold_zero`s and `Distribution::fold_signed_zeros`. `FreeVar.__hash__`
+  spelled that fold two ways, four lines apart.
+
+Disclosure would also have minted a hand-kept cross-reference set at
+every site, which is the class this item exists to close.
+
+So the fold is `geom_core::fold_signed_zero`. Every production copy
+calls it, and so does each test copy whose crate reaches geom-core.
+Each call site's reason stays where it was, at that site.
+`interval-transcendentals` keeps its own copy: it is a separate root
+that cannot depend on the kernel.

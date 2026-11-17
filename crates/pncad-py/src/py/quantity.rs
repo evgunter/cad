@@ -65,6 +65,7 @@ use crate::errors::{ErrorClass, QuantityOpMismatch, dimension_tag};
 use crate::py::typed_err;
 use crate::tags::fmt_quantity_error_tag;
 use pncad::document::Dimension;
+use pncad::geom_core::fold_signed_zero;
 use pncad::quantity as q;
 
 /// The dimension of a Python object, for mismatch reporting.
@@ -463,17 +464,6 @@ impl AngleUnit {
     }
 }
 
-/// Fold `-0.0` to `0.0` before hashing, so a hash never splits two
-/// values the IEEE equality above calls the same.
-///
-/// `doc.rs`'s `fold_zero` and `editor_core`'s
-/// `Distribution::fold_signed_zeros` state this same body for this same
-/// hash contract; other crates carry it for reasons of their own and do
-/// not share it (`git grep '== 0.0 { 0.0 }'` lists the copies).
-fn fold_zero(v: f64) -> f64 {
-    if v == 0.0 { 0.0 } else { v }
-}
-
 /// A length as it was AUTHORED: canonical metres plus the notation it
 /// was written in (`quantity::WrittenLength`).
 ///
@@ -569,7 +559,7 @@ impl WrittenLength {
     fn __hash__(&self) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut h = std::hash::DefaultHasher::new();
-        fold_zero(self.0.meters()).to_bits().hash(&mut h);
+        fold_signed_zero(self.0.meters()).to_bits().hash(&mut h);
         self.0.unit().symbol().hash(&mut h);
         h.finish()
     }
@@ -633,7 +623,7 @@ impl WrittenAngle {
     fn __hash__(&self) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut h = std::hash::DefaultHasher::new();
-        fold_zero(self.0.radians()).to_bits().hash(&mut h);
+        fold_signed_zero(self.0.radians()).to_bits().hash(&mut h);
         self.0.unit().symbol().hash(&mut h);
         h.finish()
     }

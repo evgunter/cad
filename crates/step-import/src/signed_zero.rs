@@ -1,6 +1,7 @@
-//! Signed-zero hygiene: the importer's **one** flush of `-0.0` to
-//! `+0.0`. Every site that states a representative for a zero calls
-//! this module; the argument for doing so is here, once.
+//! Signed-zero hygiene: where the importer flushes `-0.0` to `+0.0`
+//! (`geom_core::fold_signed_zero`), and why. Every site that states a
+//! representative for a zero calls this module; the argument for doing
+//! so is here, once.
 //!
 //! `-0.` is pervasive in the foreign dialect
 //! (`DIRECTION('',(1.,0.,-0.))` on nearly every FreeCAD placement) and
@@ -51,34 +52,24 @@
 
 use geom_core::{Point3, Vec3};
 
+pub(crate) use geom_core::fold_signed_zero;
+
 /// Negative zero normalized to `+0.0`, componentwise (module docs).
 pub(crate) fn plus_zero(v: Vec3<f64>) -> Vec3<f64> {
     Vec3::new(
-        plus_zero_scalar(v.x),
-        plus_zero_scalar(v.y),
-        plus_zero_scalar(v.z),
+        fold_signed_zero(v.x),
+        fold_signed_zero(v.y),
+        fold_signed_zero(v.z),
     )
 }
 
 /// [`plus_zero`] for a point.
 pub(crate) fn plus_zero_point(p: Point3<f64>) -> Point3<f64> {
     Point3::new(
-        plus_zero_scalar(p.x),
-        plus_zero_scalar(p.y),
-        plus_zero_scalar(p.z),
+        fold_signed_zero(p.x),
+        fold_signed_zero(p.y),
+        fold_signed_zero(p.z),
     )
-}
-
-/// [`plus_zero`] on one component — the predicate itself, which the
-/// reader's numeric path calls per parsed literal. `NaN` is not a zero
-/// and gets no representative here; one reaching this door is an
-/// upstream defect, not a value this module normalizes.
-///
-/// Other crates carry this one-line body for reasons of their own — a
-/// hash that must agree with IEEE equality, a printed reading — and do
-/// not share it (`git grep '== 0.0 { 0.0 }'` lists the copies).
-pub(crate) fn plus_zero_scalar(x: f64) -> f64 {
-    if x == 0.0 { 0.0 } else { x }
 }
 
 /// A minted carrier with its signed zeros made positive

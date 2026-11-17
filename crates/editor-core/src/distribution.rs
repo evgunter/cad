@@ -216,18 +216,14 @@ impl Distribution {
     /// equality it is paired with, and a hash built from the raw bits
     /// (or from a debug spelling, which shows the sign) splits two
     /// values `PartialEq` calls equal — which is the one thing a hash
-    /// may not do. Folding first is the fix, and it lives here so
-    /// there is one statement of it rather than one per consumer.
+    /// may not do. Folding first is the fix: this method says which
+    /// fields fold, so a consumer hashes its result rather than walking
+    /// the fields, and [`geom_core::fold_signed_zero`] is the fold.
     ///
     /// EXHAUSTIVE on purpose: a new form, or a new field on one, must
     /// say how it folds or the compile breaks.
-    ///
-    /// The scalar body is copied, not shared: `pncad-py`'s `fold_zero`
-    /// states it for this same hash contract on a bare value, and other
-    /// crates carry it for reasons of their own
-    /// (`git grep '== 0.0 { 0.0 }'` lists the copies).
     pub fn fold_signed_zeros(self) -> Self {
-        let f = |v: f64| if v == 0.0 { 0.0 } else { v };
+        let f = geom_core::fold_signed_zero;
         match self {
             Self::Band { lo, hi } => Self::Band {
                 lo: f(lo),
