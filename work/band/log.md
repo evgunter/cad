@@ -1393,3 +1393,4 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - `corner_at` passes the face count as the valence;
   - `run_out_recourse` picks the recourse by matching the detail string;
   - the dead `FILLET3_CORNER_RECOURSE` at the leaning corner's pair edges.
+- 2026-11-17 — Ev approved 7058: "sure, i have no strong opinions on the exact error strategy as long as they say correct, non-misleading stuff when it's not too burdensome to do so". Fork row 280's decision half and mapping are committed (bba8bab0b3), and the PR merges once CI is green. Cut 3 has resumed on the ruling, together with the designers' off-question items.
