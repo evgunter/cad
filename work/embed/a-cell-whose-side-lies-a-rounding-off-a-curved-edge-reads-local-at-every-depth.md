@@ -4,8 +4,9 @@ kind: issue
 title: A cell whose side lies a rounding off a curved edge it does not hold is read by no presentation at any depth, so the collinear-cap drum's own body runs out of depth at f64
 status: open
 opened: 2026-11-17
-priority: P1
+priority: P0
 cost: M
+refs: [the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause]
 ---
 
 
@@ -59,3 +60,11 @@ not reach this cell as it stands: `graph_read` refuses at step 1's
 choice of run, before any rectangle is built or any margin taken, so
 the reading needs a rectangle for a cell the curve passes outside of
 first.
+
+## Re-banded P0 (EMBED orchestrator, 2026-11-17)
+
+The at-rest gate (P0) would refuse this drum at its door, and a blocker
+takes the band of what waits on it. It is the curved twin of the
+question the sliver fork put to Ev (PR 7095), and by this row's own
+note that fork's reading does not reach the cell: `graph_read` refuses
+at its choice of run, before any rectangle or margin exists.
