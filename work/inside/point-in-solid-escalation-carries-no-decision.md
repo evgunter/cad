@@ -24,7 +24,7 @@ contfp's own (`boolean::ContainDecision`) to every renderer:
 
 **What it does not carry is the point-in-solid door's own escalation.**
 `PointInSolidError::Escalated { face, diag }`
-(`crates/topo/src/boolean/solid_contain.rs`) is raised from some thirty
+(`crates/topo/src/solid_contain.rs`) is raised from some thirty
 rows of that door: its chart trims, wall outlines, ray × surface roots
 and point-in-window tests. It names none of them, and it does not say
 how its reading stands (an in-band margin, a straddle of two bounds, or

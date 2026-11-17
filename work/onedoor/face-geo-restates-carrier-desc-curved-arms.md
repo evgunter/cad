@@ -12,7 +12,7 @@ design: true
 
 ## Finding
 
-`crates/topo/src/boolean/solid_contain.rs` `enum FaceGeo` is the
+`crates/topo/src/solid_contain.rs` `enum FaceGeo` is the
 containment ray's per-face description. Its plane arm holds the
 `geom_brep::PlaneDesc` that `face_normal::plane_desc_of` answers. Its
 curved arms (`Cylinder`, `Cone`, `Sphere`, `SpherePatch`, `Torus`,

@@ -21,7 +21,7 @@ cylinder × sphere boolean in `crates/sweep/tests/cylinder_sphere_frame.rs`
 builds at its oracle's volume, passing tiers 2 and 3′ and the at-rest
 certificate, but no result is a legal operand: its union with a far
 brick refuses `BooleanError::Containment(PartialSphereFace { face })`.
-`topo::boolean::solid_contain` (`face_geo`, the `Surface::Sphere` arm)
+`topo::solid_contain` (`face_geo`, the `Surface::Sphere` arm)
 reads a sphere face that is not closed on its surface through
 `sphere_face_region`, which crosses great circles with circle arcs
 only, so a face bounded by a spline chord (its pcurve a projected

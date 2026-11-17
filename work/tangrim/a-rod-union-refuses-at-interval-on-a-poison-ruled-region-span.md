@@ -27,7 +27,7 @@ Err(Escalated { decision: Containment { decision: None, escalation: Margin },
 ```
 
 The margin is `Invalid` (poison), not in-band, so this is an enclosure
-that did not evaluate, at `topo::boolean::ruled_region`'s
+that did not evaluate, at `topo::ruled_region`'s
 `bool_ruled_region_span` site, rather than a decision refinement could
 settle.
 

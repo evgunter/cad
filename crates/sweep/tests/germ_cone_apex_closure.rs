@@ -19,7 +19,7 @@
 //!   merged face among them.
 //!
 //! Containment reads no window: a cone face's region is read from its
-//! boundary edges (`topo::boolean::ruled_region`), the apex a point like
+//! boundary edges (`topo::ruled_region`), the apex a point like
 //! any other, so its rows here hold whatever the closure does. The
 //! closure's own rows are `describes`', here and in `topo`'s
 //! `section_cert_rows.rs`.

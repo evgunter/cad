@@ -23,10 +23,10 @@ Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #
   - `carrier_cross::circle_meets_plane`: retired (stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227));
   - `conic_plane_candidates`;
   - `ops::apply_cut_ins` (`crates/topo/src/boolean/ops.rs:6053`);
-  - `sphere_region::ray_roots` (`crates/topo/src/boolean/sphere_region.rs:414`);
+  - `sphere_region::ray_roots` (`crates/topo/src/sphere_region.rs:414`);
   - `ring_path::plane_roots` (`crates/topo/src/ring_path.rs:1520`);
   - `pcurve_cache` incidence.
-- **Line×cone** is solved twice, with different rows (`line_cone_roots`, and `solid_contain::cast_ray`'s own quadratic at `crates/topo/src/boolean/solid_contain.rs:5239`).
+- **Line×cone** is solved twice, with different rows (`line_cone_roots`, and `solid_contain::cast_ray`'s own quadratic at `crates/topo/src/solid_contain.rs:5239`).
 - **Census confirm:** `census::point::edge_face` (`crates/topo/src/census/point.rs:253`) serves only (circle, plane) and (line, sphere), and refuses the rest typed.
 
 ## Owed
