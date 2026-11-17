@@ -230,6 +230,8 @@ mod band_closed_mixed_chain;
 mod band_closed_mixed_chain_shapes;
 #[path = "band_mixed_corner.rs"]
 mod band_mixed_corner;
+#[path = "band_mixed_corner_odd_plus_one.rs"]
+mod band_mixed_corner_odd_plus_one;
 #[path = "band_mixed_rim_shared_supports.rs"]
 mod band_mixed_rim_shared_supports;
 #[path = "band_subdivided_side_walls.rs"]
