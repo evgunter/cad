@@ -647,7 +647,7 @@ impl StepImportError {
                                 format!(
                                     "{}: the distance lies in the band past the file's \
                                      coincidence distance, which no tolerance of this run decides",
-                                    refusal.ending_with(SINGULARITY_MOVE)
+                                    refusal.ending_with(SINGULARITY_MOVE, file.eps_in())
                                 )
                             },
                         )
@@ -683,7 +683,7 @@ impl StepImportError {
                     refusal.payload(file.eps_in())
                 )?;
                 if ended {
-                    write!(f, ". {}", refusal.ending())?;
+                    write!(f, ". {}", refusal.ending(file.eps_in()))?;
                 }
                 Ok(())
             }

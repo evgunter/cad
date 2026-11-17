@@ -90,7 +90,7 @@ use geom::Surface;
 use crate::entities::{EdgeSpec, EdgeUse, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
 use crate::interpret::{
-    FileBand, Read, Refusal, STEP_BAND_RIM_COAXIAL, STEP_BAND_SEAM_LENGTH, STEP_BAND_SEAM_VERTEX,
+    FileBand, Read, STEP_BAND_RIM_COAXIAL, STEP_BAND_SEAM_LENGTH, STEP_BAND_SEAM_VERTEX,
 };
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
@@ -516,11 +516,7 @@ fn mint_band(
         Read::InBand => {
             return Err(file.refused(
                 face_id,
-                Refusal::Ambiguous {
-                    reading: STEP_BAND_SEAM_LENGTH,
-                    gap: generator,
-                    k: file.k(),
-                },
+                file.ambiguous(STEP_BAND_SEAM_LENGTH, generator),
             ));
         }
         Read::Zero => return Err(StepImportError::Topology {
@@ -652,14 +648,7 @@ fn seam_vertex_on_loop(
             match file.read(STEP_BAND_SEAM_VERTEX, gap) {
                 Read::Zero => return Ok(vid),
                 Read::InBand => {
-                    return Err(file.refused(
-                        vid,
-                        Refusal::Ambiguous {
-                            reading: STEP_BAND_SEAM_VERTEX,
-                            gap,
-                            k: file.k(),
-                        },
-                    ));
+                    return Err(file.refused(vid, file.ambiguous(STEP_BAND_SEAM_VERTEX, gap)));
                 }
                 Read::Apart => {}
             }

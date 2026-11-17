@@ -260,21 +260,16 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Pass(1, 1, 6, 12, 8)),
-    (FTC11, 1e-9, "1e-6", Pass(1, 1, 6, 12, 8)),
+    // Read at an ε_in of 1e-6, a rim vertex 1.6e-6 m from the seam
+    // azimuth lies in the file's band: whether it is the seam's vertex
+    // is undecided, and the import refuses that ambiguity.
+    (FTC11, 1e-9, "1e-6", Refused(FTC11_SEAM_VERTEX_IN_BAND)),
     (FTC11, 1e-9, "1e-12", Pass(1, 1, 6, 12, 8)),
     (FTC11, 1e-6, "file", Pass(1, 1, 6, 12, 8)),
-    (
-        FTC11,
-        1e-6,
-        "1e-6",
-        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
-    ),
-    (
-        FTC11,
-        1e-6,
-        "1e-12",
-        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
-    ),
+    // At ambient 1e-6 the file is read no finer than the run, so the
+    // same vertex lies in band whatever ε_in it declares or is given.
+    (FTC11, 1e-6, "1e-6", Refused(FTC11_SEAM_VERTEX_IN_BAND)),
+    (FTC11, 1e-6, "1e-12", Refused(FTC11_SEAM_VERTEX_IN_BAND)),
     (FTC11, 1e-12, "file", Pass(1, 1, 6, 12, 8)),
     (FTC11, 1e-12, "1e-6", Pass(1, 1, 6, 12, 8)),
     (FTC11, 1e-12, "1e-12", Pass(1, 1, 6, 12, 8)),
@@ -381,6 +376,8 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+/// FTC11's rim vertex beside the seam azimuth, read in the file's band.
+const FTC11_SEAM_VERTEX_IN_BAND: &str = "(step_band_seam_vertex) lies in the";
 const NEARPOLAR_SPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_split.step";
 const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step";
 /// The nearpolar twins' coarse-band sub-reason: the rim/plane wedge

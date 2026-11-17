@@ -521,10 +521,23 @@ impl<'a> Resolver<'a> {
             }
             _ => self.direction(id, as_ref(id, ref_dir, expected)?)?,
         };
-        // The two directions' lengths are read at the least band, as an
-        // exact comparison would: a ratio vector's length is no distance
-        // for the file's band to read, so only a vanishing one (a
-        // reference exactly along its axis) is degenerate.
+        // A frame the file states rigid within its own rounding is
+        // admitted as the rigid motion it is, bit for bit (the f64 door,
+        // `check_rigid`): `build_axes` would move it by rounding alone.
+        // Any other is built by `build_axes`, its two directions' lengths
+        // read at the least band, as an exact comparison would: a ratio
+        // vector's length is no distance for the file's band to read, so
+        // only a vanishing one (a reference exactly along its axis) is
+        // degenerate, and the move is the build's to report.
+        let stated = geom::Frame {
+            origin,
+            axis,
+            u_ref: reference,
+        };
+        let stated_map = stated_affine(stated);
+        if let Ok(rigid) = geom_core::RigidMotion::check_rigid(&stated_map) {
+            return Ok((stated, rigid, None));
+        }
         let built = geom_core::RigidMotion::from_axis_and_reference(
             origin,
             axis,
@@ -538,13 +551,12 @@ impl<'a> Resolver<'a> {
                        whose reference direction is not parallel to its axis (a \
                        parallel pair states no frame)",
         })?;
-        let stated = geom::Frame {
-            origin,
-            axis,
-            u_ref: reference,
-        };
         let frame = geom::Frame::new(origin, built.w().get(), built.u().get());
-        Ok((frame, built, placement_move(stated, built)))
+        Ok((
+            frame,
+            built,
+            Some(in_box_displacement(&built.to_affine(), &stated_map)),
+        ))
     }
 
     /// Records a placement move ([`NormalizationKind::PlacementReMinted`])
@@ -2519,24 +2531,18 @@ fn unit_line_direction(ratios: Vec3<f64>) -> Option<Vec3<f64>> {
     Some(if unit_within_rounding { ratios } else { unit })
 }
 
-/// **The move `build_axes` made of a placement**, where it made one
-/// beyond rounding: `None` where the frame as the file states it (its
-/// columns the reference direction, the axis crossed with it and the
-/// axis, unnormalized) is rigid within its own rounding
-/// ([`geom_core::RigidMotion::check_rigid`]); otherwise the farthest a
-/// point of the session box moves between it and the built frame.
-fn placement_move(stated: geom::Frame<f64>, built: geom_core::RigidMotion<f64>) -> Option<f64> {
-    let stated = Affine3::from_parts(
+/// A placement frame as the file states it, as a map: its columns the
+/// reference direction, the axis crossed with it and the axis,
+/// unnormalized.
+fn stated_affine(stated: geom::Frame<f64>) -> Affine3<f64> {
+    Affine3::from_parts(
         Mat3::from_cols(
             stated.u_ref,
             stated.axis.cross(stated.u_ref),
             stated.axis,
         ),
         stated.origin - Point3::origin(),
-    );
-    geom_core::RigidMotion::check_rigid(&stated)
-        .is_err()
-        .then(|| in_box_displacement(&built.to_affine(), &stated))
+    )
 }
 
 /// **The farthest a point of the session box moves between two maps**:

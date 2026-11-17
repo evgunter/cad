@@ -149,15 +149,21 @@ impl FileBand {
     pub(crate) fn refusal(self, reading: &'static str, gap: f64, read: Read) -> Option<Refusal> {
         match read {
             Read::Zero => None,
-            Read::InBand => Some(Refusal::Ambiguous {
-                reading,
-                gap: gap.abs(),
-                k: self.k(),
-            }),
+            Read::InBand => Some(self.ambiguous(reading, gap)),
             Read::Apart => Some(Refusal::EvidenceMiss {
                 reading,
                 miss: gap.abs(),
             }),
+        }
+    }
+
+    /// The ambiguity of `gap` read in band under `reading`.
+    pub(crate) fn ambiguous(self, reading: &'static str, gap: f64) -> Refusal {
+        Refusal::Ambiguous {
+            reading,
+            gap: gap.abs(),
+            k: self.k(),
+            floor: self.band.map_or(self.eps_in, Band::zero),
         }
     }
 
@@ -208,10 +214,11 @@ pub enum Refusal {
         /// The miss, in metres.
         miss: f64,
     },
-    /// **An in-band ambiguity**: the distance lies past ε_in but within
-    /// `K·ε_in`, where the file's precision does not decide whether the
-    /// two are one. An ε_in below `gap / K` reads them apart, one at or
-    /// above `gap` reads them one.
+    /// **An in-band ambiguity**: the distance lies in the band the file
+    /// is read at, past its zero but within `K` times it, where the
+    /// file's precision does not decide whether the two are one. A band
+    /// whose zero is below `gap / K` reads them apart, one at or above
+    /// `gap` reads them one.
     Ambiguous {
         /// The reading (its decision name).
         reading: &'static str,
@@ -219,6 +226,8 @@ pub enum Refusal {
         gap: f64,
         /// The band's K.
         k: f64,
+        /// The band's zero: ε_in, or the run's ε where that is coarser.
+        floor: f64,
     },
     /// **An invalid root**: a value a kernel constructor refuses whatever
     /// ε_in is (a nonpositive radius, a half-angle outside `(0, π/2)`).
@@ -239,6 +248,7 @@ impl Refusal {
             reading,
             gap: gap.abs(),
             k: cause.band.escalate() / cause.band.zero(),
+            floor: cause.band.zero(),
         })
     }
 
@@ -251,6 +261,19 @@ impl Refusal {
                 "the file's statements miss each other by {} m ({reading}), past its declared \
                  coincidence distance ε_in = {} m",
                 Readable(miss),
+                Readable(eps_in)
+            ),
+            Self::Ambiguous {
+                reading,
+                gap,
+                floor,
+                ..
+            } if floor > eps_in => format!(
+                "the distance {} m ({reading}) lies in the band the file is read at (from {} m, \
+                 this run's tolerance, coarser than the file's declared ε_in = {} m), where it is \
+                 undecided whether the two are one",
+                Readable(gap),
+                Readable(floor),
                 Readable(eps_in)
             ),
             Self::Ambiguous { reading, gap, .. } => format!(
@@ -267,19 +290,26 @@ impl Refusal {
 
     /// The refusal's one ending at the import door: its recourse, in
     /// ε_in's own terms.
-    pub(crate) fn ending(&self) -> String {
-        self.ending_with("re-export the file")
+    pub(crate) fn ending(&self, eps_in: f64) -> String {
+        self.ending_with("re-export the file", eps_in)
     }
 
     /// [`Self::ending`] with the decision's own `lever` (the move that
     /// makes the reading true) in place of re-exporting the file.
-    pub(crate) fn ending_with(&self, lever: &str) -> String {
+    pub(crate) fn ending_with(&self, lever: &str, eps_in: f64) -> String {
         use geom_core::Readable;
         match *self {
             Self::EvidenceMiss { miss, .. } => format!(
                 "Recourse: {lever}, or, if the file is less exact than it declares, import with \
                  ε_in ≥ {} m",
                 Readable(miss)
+            ),
+            Self::Ambiguous { gap, k, floor, .. } if floor > eps_in => format!(
+                "Recourse: {lever}, or, if this distance is intended, tighten the tolerance below \
+                 {} m (the file is read no finer than the run's tolerance), or, if it is not, \
+                 import with ε_in ≥ {} m",
+                Readable(gap / k),
+                Readable(gap)
             ),
             Self::Ambiguous { gap, k, .. } => format!(
                 "Recourse: {lever}, or, if this distance is intended, import with ε_in below {} m \
