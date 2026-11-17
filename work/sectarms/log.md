@@ -882,3 +882,8 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - (1) reads it as a function of its inputs, (2) as certified.
   - PR 7042 is the same question one level up (a carrier depending on the march seed).
   - I offered the general `[edges]` sentence that would decide 7032 for (1). Waiting on Ev.
+- 2026-11-17 — **PR 7042 merged (`888ed6b612`).** Ev approved the closed-loop carrier: "i think this is good! it sounds like the right tool and i don't see any issues with it, but i'm not familiar with the method".
+  - The item records it, and row 279 has its second half: A = Fable 5.2, B = Opus 5.5.
+  - The chord-as-span item and MEASUREDOOR's `blocked_on` landed with it.
+  - The optional `[edges]` sentence was not answered and is not taken.
+- **Dispatched the build** of `a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses` (P0) on `sectarms/periodic-loop-carrier`. **Letter H, tier dual:** a new `Curve3` arm in the substrate, every exhaustive match deciding it, the fit, the seat and the certificate path. Closed-loop chords as spans are in scope; open fitted chords stay with the P2. Implementer byte drawn after this entry.
