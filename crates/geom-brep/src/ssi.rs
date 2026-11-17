@@ -1995,6 +1995,26 @@ pub struct SsiBranch {
     pub march_tol: f64,
 }
 
+impl SsiBranch {
+    /// **The clamped net the branch's certificate was taken on**: a
+    /// clamped carrier's own, and a closed ℝ³ branch's base opening
+    /// ([`geom::PeriodicNurbs3::base_opening`]), the whole loop over
+    /// [`Self::params`].
+    ///
+    /// # Panics
+    ///
+    /// Where the carrier is no spline over its span, which no door that
+    /// builds a branch leaves.
+    #[must_use]
+    pub fn net(&self) -> std::sync::Arc<NurbsCurve3<f64>> {
+        match self.carrier.clamped_net(self.params) {
+            Some(Ok(net)) => net,
+            Some(Err(e)) => unreachable!("a branch's carrier over its own span: {e}"),
+            None => unreachable!("a branch's carrier is a fitted spline (C1 rung 3)"),
+        }
+    }
+}
+
 /// The result of a rung-3 intersection: the certified branches **and**
 /// the proof that they are all of them.
 #[derive(Clone, Debug)]

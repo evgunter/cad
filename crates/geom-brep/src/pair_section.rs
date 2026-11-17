@@ -3884,9 +3884,11 @@ mod wiring {
     /// `branch` cut at its parameter midpoint into two branches, each
     /// witnessed at its own midpoint: two different branches over one arc.
     fn halves(branch: &super::FittedCarrier<f64>) -> [super::FittedCarrier<f64>; 2] {
-        let geom::Curve3::Nurbs(net) = &branch.carrier else {
-            panic!("a fitted branch is a spline");
-        };
+        let net = branch
+            .carrier
+            .clamped_net(branch.span)
+            .expect("a fitted branch is a spline")
+            .expect("over its own span");
         let (lo, hi) = net.domain();
         let (before, after) = net.split_at(0.5 * (lo + hi)).expect("a knot edit");
         [before, after].map(|half| {
@@ -3963,12 +3965,12 @@ mod wiring {
             branches
                 .iter()
                 .flat_map(|b| {
-                    let (geom::Curve3::Nurbs(net), crate::ssi::SsiTube::Spatial { radius }) =
-                        (&b.carrier, b.certificate.tube)
+                    let (Some(Ok(net)), crate::ssi::SsiTube::Spatial { radius }) =
+                        (b.carrier.clamped_net(b.span), b.certificate.tube)
                     else {
                         panic!("a fitted ℝ³ branch");
                     };
-                    crate::ssi::certify::tube_boxes(net, radius)
+                    crate::ssi::certify::tube_boxes(&net, radius)
                 })
                 .collect()
         };
@@ -4000,12 +4002,12 @@ mod wiring {
             branches
                 .iter()
                 .flat_map(|b| {
-                    let (geom::Curve3::Nurbs(net), crate::ssi::SsiTube::Spatial { radius }) =
-                        (&b.carrier, b.certificate.tube)
+                    let (Some(Ok(net)), crate::ssi::SsiTube::Spatial { radius }) =
+                        (b.carrier.clamped_net(b.span), b.certificate.tube)
                     else {
                         panic!("a fitted ℝ³ branch");
                     };
-                    crate::ssi::certify::tube_boxes(net, radius)
+                    crate::ssi::certify::tube_boxes(&net, radius)
                 })
                 .collect()
         };

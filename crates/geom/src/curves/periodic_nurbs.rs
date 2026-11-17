@@ -36,15 +36,19 @@
 //! the loop there to the rounding of `u_i + T`, and whoever certifies an
 //! edge on such a span certifies it on that span's own view.
 //!
-//! # A view that starts beside a knot
+//! # A view that ends beside a knot
 //!
-//! A view starting exactly at a knot starts there with nothing
-//! inserted. One starting within a few ulps below a knot keeps that knot
-//! as its first interior one, so its first span is that narrow: the
-//! insertion is exact, and the narrow span's control points differ by
-//! less than their own rounding, which a derivative hull over that span
-//! reports as a wide bound. Nothing here snaps the start onto the knot;
-//! a reader that cannot bound the narrow span refuses it.
+//! A view whose end is exactly a knot ends there with nothing inserted.
+//! One whose end lies within [`VIEW_SNAP`] roundings of a knot that
+//! would fall *inside* the view would hold a first or last span that
+//! narrow, whose control points differ by less than their own rounding:
+//! exact as an insertion, and no net a derivative hull can read. Such a
+//! view is cut at the knot instead and its end knot restated as the end
+//! asked for. It is then the loop from the knot, not from the end asked:
+//! the two differ by that sliver of the loop, at most `VIEW_SNAP`
+//! roundings of the parameter long, and by as much in the parameter
+//! over the first span. It is not the exact restriction, and says so
+//! here; whoever certifies an edge certifies this view.
 
 use geom_core::spline::{KnotVector, SpanLocate, SplineError};
 use geom_core::{Point3, Real, Vec3};
@@ -54,6 +58,14 @@ use super::nurbs::NurbsCurve3;
 
 /// The periodic form's degree.
 pub const PERIODIC_DEGREE: usize = 3;
+
+/// How near a knot a view's end is cut at the knot itself, in units of
+/// the rounding of the larger of the two parameters
+/// ([`PeriodicNurbs3::clamped_view`]). A first span of one to three
+/// ulps has been measured to refuse the certificate's tube limb (6 of
+/// 36 seats on three cylinder × sphere loops) and one of four or more
+/// never (132 seats); this is twice that.
+pub const VIEW_SNAP: f64 = 8.0;
 
 /// The fewest knots a turn holds: fewer, and a clamped view's end
 /// formulas would read one control point twice.
@@ -580,22 +592,40 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
             return Ok(self.base_opening());
         }
         let refused = |at: f64| PeriodicViewError::Insertion { asked: (a, b), at };
+        // An end within rounding of a knot the view would hold inside it
+        // is cut at the knot (module docs).
+        let breaks = self.two_turns.knot_values().breakpoint_values();
+        let beside = |r: f64, inside: fn(f64, f64) -> bool| {
+            breaks.as_ref().and_then(|ks| {
+                ks.iter().copied().find(|&k| {
+                    inside(k, r) && (k - r).abs() <= VIEW_SNAP * f64::EPSILON * k.abs().max(r.abs())
+                })
+            })
+        };
+        let (c0, c1) = (
+            beside(r0, |k, r| k > r).unwrap_or(r0),
+            beside(r1, |k, r| k < r).unwrap_or(r1),
+        );
+        if !(c0 < c1) {
+            return Err(span);
+        }
         let mut piece = self.two_turns.clone();
-        if r0 > lo {
-            piece = piece.split_at(r0).map_err(|_| refused(r0))?.1;
+        if c0 > lo {
+            piece = piece.split_at(c0).map_err(|_| refused(c0))?.1;
         }
-        if r1 < hi {
-            piece = piece.split_at(r1).map_err(|_| refused(r1))?.0;
+        if c1 < hi {
+            piece = piece.split_at(c1).map_err(|_| refused(c1))?.0;
         }
-        if turns != 0.0 {
+        if turns != 0.0 || (c0, c1) != (r0, r1) {
             piece = self.restated(&piece, turns, (s0, s1)).ok_or(refused(s0))?;
         }
         Ok(self.oriented(piece))
     }
 
-    /// `piece`, a cut of the two-turn opening, `turns` whole turns on:
-    /// its ends `ends` exactly, each interior knot its own plus the
-    /// turns' periods. `None` where the restated knots do not ascend.
+    /// `piece`, a cut of the two-turn opening, `turns` whole turns on
+    /// (none where only an end is restated): its ends `ends` exactly,
+    /// each interior knot its own plus the turns' periods. `None` where
+    /// the restated knots do not ascend.
     fn restated(
         &self,
         piece: &NurbsCurve3<T>,
@@ -613,6 +643,8 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
                     T::from_f64(s0)
                 } else if i == last {
                     T::from_f64(s1)
+                } else if turns == 0.0 {
+                    k
                 } else {
                     k + shift
                 };
@@ -823,23 +855,31 @@ mod tests {
         assert!(!r.same_content(&c, |a, b| a == b));
     }
 
-    /// A view that starts an ulp under a knot keeps the knot inside, as
-    /// a first span that narrow; one an ulp over it leaves the knot out.
+    /// A view that starts within rounding under a knot is cut at the
+    /// knot, its end restated: no span that narrow. One that starts
+    /// over the knot leaves the knot out, and one well clear of it
+    /// keeps it as an ordinary interior knot.
     #[test]
-    fn a_view_beside_a_knot_keeps_the_exact_insertion() {
+    fn a_view_beside_a_knot_is_cut_at_the_knot() {
         let c = PeriodicNurbs3::interpolate(&loop_points(23)).unwrap();
-        let knot = c.knots[9];
+        let (knot, next) = (c.knots[9], c.knots[10]);
         let (under, over) = (knot.next_down(), knot.next_up());
-        let below = c.clamped_view((under, under + 0.5)).unwrap();
-        let first = interior(&below).into_iter().next().unwrap().0;
-        assert_eq!(first, knot, "the knot is the view's first interior knot");
-        let above = c.clamped_view((over, over + 0.5)).unwrap();
-        let first = interior(&above).into_iter().next().unwrap().0;
-        assert_eq!(first, c.knots[10], "the knot is outside the view");
-        for view in [&below, &above] {
-            let (a, _) = view.domain();
-            assert!(dist(view.eval(a), c.eval(a)) < 1e-13);
+        for (start, first) in [
+            (under, next),
+            (under.next_down().next_down(), next),
+            (over, next),
+            (knot - 1e-9, knot),
+        ] {
+            let view = c.clamped_view((start, start + 0.5)).unwrap();
+            assert_eq!(view.domain(), (start, start + 0.5));
+            assert_eq!(interior(&view)[0].0, first, "start {start:e}");
+            assert!(dist(view.eval(start), c.eval(start)) < 1e-13);
         }
+        // The end, likewise: a knot within rounding under the end is not
+        // left as a last span that narrow.
+        let view = c.clamped_view((0.1, over)).unwrap();
+        assert_eq!(view.domain(), (0.1, over));
+        assert_eq!(interior(&view).last().unwrap().0, c.knots[8]);
     }
 
     #[test]

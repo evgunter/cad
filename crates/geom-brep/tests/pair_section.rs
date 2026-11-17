@@ -400,12 +400,13 @@ fn interior_knots(net: &geom::NurbsCurve3<f64>) -> Vec<(f64, usize)> {
 
 /// **A seated loop has no start**: over five poses, one loop and two,
 /// every component seated at nineteen interior parameters, at six
-/// within rounding of its base knot and at the base knot itself reads,
-/// over its seated span, a clamped view whose interior knots are all
-/// simple, and whose every point is the loop's point there, a whole
-/// period back where the span runs past the base turn, to 1e-12. No
-/// seat is a special case: none refuses, none is decided near anything,
-/// and the view's ends are one point.
+/// within rounding of its base knot, at the base knot itself, and on a
+/// knot and an ulp to each side of it reads, over its seated span, a
+/// clamped view whose interior knots are all simple, and whose every
+/// point is the loop's point there, a whole period back where the span
+/// runs past the base turn, to 1e-12. No seat is a special case: none
+/// refuses, none is decided near anything, the view's ends are one
+/// point, and the seats beside a knot certify.
 #[test]
 fn a_seated_loop_has_no_start() {
     for (d, big) in [
@@ -468,6 +469,30 @@ fn a_seated_loop_has_no_start() {
                     let v = if u <= hi { u } else { u - period };
                     let gap = (view.eval(u) - whole.eval(v)).norm();
                     assert!(gap < 1e-12, "d {d}, R {big}: seat {at}: {gap:e}");
+                }
+                // A seat within rounding of a knot is cut at the knot
+                // (`geom::periodic_nurbs`, "A view that ends beside a
+                // knot"): the view holds no span that narrow, and the
+                // edge door's limbs take it as they take any.
+                if [knot, knot.next_down(), knot.next_up(), lo + 1e-15].contains(&at) {
+                    let narrowest = interior_knots(&view)
+                        .first()
+                        .map_or(f64::INFINITY, |k| k.0 - s0);
+                    assert!(
+                        narrowest > 1e-9 * period,
+                        "d {d}, R {big}: seat {at}: a first span {narrowest:e} wide"
+                    );
+                    geom_brep::certify_rung3(
+                        &view,
+                        None,
+                        &geom_brep::SsiOperand::Analytic(&cyl),
+                        &geom_brep::SsiOperand::Analytic(&sph),
+                        big * 2.0,
+                        band(),
+                    )
+                    .unwrap_or_else(|e| {
+                        panic!("d {d}, R {big}: seat {at}: the view certifies, got {e:?}")
+                    });
                 }
             }
         }

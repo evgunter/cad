@@ -3720,6 +3720,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         None => Cow::Borrowed(match e {
             CertifyError::UnresolvedSurface { .. }
             | CertifyError::IntersectionSameSurface { .. }
+            | CertifyError::PeriodicView(_)
             | CertifyError::WrapOnNonPeriodic => DEFECT,
             CertifyError::Unimplemented
             | CertifyError::Row {
@@ -3737,7 +3738,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
             | CertifyError::StatedInterval { .. }
-            | CertifyError::PeriodicView(_)
             | CertifyError::SemiAxisNegative { .. }
             | CertifyError::SemiAxisNotFinite { .. }
             | CertifyError::NotTransverse { .. }
@@ -18747,6 +18747,14 @@ mod certify_escalation_rows {
                 says(CertifyError::WindingExceeded),
                 "its arc spans more than one full turn. There is no way through: this is a \
                  kernel defect or a damaged file; report it",
+            ),
+            (
+                says(CertifyError::PeriodicView(geom::PeriodicViewError::Span {
+                    asked: (0.5, 2.75),
+                    window: (0.0, 2.0),
+                })),
+                "its parameter interval is not a span of its closed spline the kernel can read. \
+                 There is no way through: this is a kernel defect or a damaged file; report it",
             ),
             // The tangent tube's margin is a lower bound: a Negative is
             // the certificate's limit, which the lever reaches.
