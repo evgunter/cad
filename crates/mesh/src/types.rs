@@ -326,27 +326,34 @@ pub enum TessellateError {
         /// kept rectangular, and is a bug report.
         max_distance: f64,
     },
-    /// A curved face's lane cannot be read: the curved lane's two doors
-    /// — `geom_brep::props::require_iso_rectangle`, the S58 single home
-    /// of `props_rim_level` and of the per-kind rim/meridian
-    /// classification under it, and `require_one_chart_branch` — neither
-    /// certify its outer loop an iso-parameter rectangle on one chart
-    /// branch nor decide it is none. The `source` is props' own refusal,
-    /// carrying the deciding predicate's `what` and its own recourse.
+    /// **No lane meshes a curved face**, by the curved lane's two doors —
+    /// `geom_brep::props::require_iso_rectangle`, the S58 single home of
+    /// `props_rim_level` and of the per-kind rim/meridian classification
+    /// under it, and `require_one_chart_branch`. The `source` is props'
+    /// own refusal, carrying the deciding predicate's `what` and its own
+    /// recourse.
     ///
     /// **This is the ROUTE's refusal**, raised once per face before any
     /// lane runs (`tessellate::route_of`, by
-    /// `curved::iso_rectangle_shape`). A face the doors certify goes to
-    /// the curved lane and a face they decide is no rectangle — a notch,
-    /// a curved cut, an arc through a pole — to the trimmed lane, so a
-    /// valid face of either shape never reaches this arm. What does is
-    /// a decision in band (an `Escalated` source: D4, escalate, never
-    /// guess) or stored data that contradicts itself (an `OffSurface` or
-    /// `SpanUncertified` source, among props' fault arms): a lane taken
-    /// on either would be a default taken because the doors could not
-    /// answer. [`Self::UnsupportedCurvedDomain`] is the other question —
-    /// did the walk trace the rectangle the doors certified — and is
-    /// asked after, by the curved lane.
+    /// `curved::iso_rectangle_shape`), on a ringless face whose stored
+    /// images are of iso forms. Three states reach it:
+    ///
+    /// - the doors decide the face is no iso rectangle (an arc through a
+    ///   pole or the apex, rims that encode different sides, a torus face
+    ///   with no meridian) and the trimmed lane has no reading of its
+    ///   loops in one sheet of the chart either: valid input no lane is
+    ///   built for, and the verdict's recourse is the caller's (D2
+    ///   addendum row 2);
+    /// - a door decides in band (an `Escalated` source: D4, escalate,
+    ///   never guess);
+    /// - the stored boundary contradicts its surface or its
+    ///   certification (`OffSurface`, `SpanUncertified`, `Defect`, among
+    ///   props' fault arms).
+    ///
+    /// No lane is taken on a door that could not answer.
+    /// [`Self::UnsupportedCurvedDomain`] is the other question — did the
+    /// walk trace the rectangle the doors certified — and is asked
+    /// after, by the curved lane.
     ///
     /// Naming: the arm keeps the name it had when it was the shape
     /// door's refusal of a notch, because it is public API with a stable
@@ -843,9 +850,10 @@ impl TessellateError {
             ),
             Self::UnsupportedCurvedShape { source, .. } => write!(
                 f,
-                "tessellate: whether a curved face is an iso-parameter \
-                 rectangle, which picks the lane that meshes it, is not \
-                 answered: {}",
+                "tessellate: no lane meshes this curved face — the curved lane \
+                 meshes an iso-parameter rectangle its doors certify, the \
+                 trimmed lane a domain it reads in one sheet of the chart, \
+                 and props' doors answer: {}",
                 geom_brep::recourse::read_at(source, at),
             ),
             Self::MeridianFreeCurvedFace { surface, .. } => {
