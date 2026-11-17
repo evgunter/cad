@@ -1250,6 +1250,7 @@ pub(crate) fn finding_solids<T: Decide>(
         // door already censused, it is that door's.
         E::BoundaryCrossesItself { solid, .. }
         | E::BoundaryCrossesItselfUndecided { solid, .. } => (*solid, *solid),
+        E::BoundaryMeetsItself { faces: [a, b], .. } => (face(*a)?, face(*b)?),
         E::ContactContradicted { record, .. } => (face(record.a)?, face(record.b)?),
         E::CensusUnsupported { subject, .. } | E::CensusLaneUnsupported { subject } => {
             match subject {
@@ -1264,7 +1265,8 @@ pub(crate) fn finding_solids<T: Decide>(
         // an arc end off its corner names one face.
         E::StaleContactDeclaration { .. }
         | E::CensusEscalated { .. }
-        | E::ArcEndOffCorner { .. } => {
+        | E::ArcEndOffCorner { .. }
+        | E::EmbeddingUncertified { .. } => {
             return None;
         }
         // Every other finding is about one body's own topology or

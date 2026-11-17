@@ -42,7 +42,11 @@ fn walls<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
 /// The injectivity question on `faces` of `body` alone, at the default
 /// depth and `budget` pairs; no candidate is witnessed.
 fn injective<T: Scalar>(body: &Body<T>, faces: Vec<FaceKey>, budget: usize) -> BoundReport<()> {
-    let side = Side { body, faces };
+    let side = Side {
+        body,
+        faces,
+        excluded: topo::clearance::FacePairs::none(),
+    };
     let windows = side.windows(Which::First).expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,

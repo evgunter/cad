@@ -168,6 +168,19 @@ pub const CLEARANCE_SUPPORT_GAP: &str = "clearance_support_gap";
 /// evaluation carries information at `f64`.
 pub const DEFAULT_MAX_CELL_DEPTH: u32 = 40;
 
+/// **The at-rest gate's pair budget**: how many cell pairs the
+/// body-level injectivity question examines before it refuses
+/// [`CellBudget::Pairs`]. One fixed budget for every finished body, so a
+/// verdict does not depend on who asked (PR 6102's rule).
+pub const GATE_MAX_CELL_PAIRS: usize = 65_536;
+
+/// The at-rest gate's dials: [`DEFAULT_MAX_CELL_DEPTH`] and
+/// [`GATE_MAX_CELL_PAIRS`].
+pub const GATE_BUDGETS: Budgets = Budgets {
+    max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+    max_cell_pairs: GATE_MAX_CELL_PAIRS,
+};
+
 /// **How deep a touching pair read at wedge 0 or 2π splits before it
 /// refuses**, naming the second-order arm. Above it the pair splits like
 /// any uncertified one, so the cells it holds away from the edge are
@@ -378,6 +391,91 @@ pub struct Side<'b, T: Real> {
     /// the candidate order — and so which of several equally true
     /// violations is reported — is a function of the body.
     pub faces: Vec<FaceKey>,
+    /// The face pairs the engine never offers: where one body's faces
+    /// meet at its recorded contacts ([`FacePairs::of_records`]), so the
+    /// injectivity question asks the body off them (`[topology.tiers]`).
+    pub excluded: FacePairs,
+}
+
+/// **Unordered face pairs** a question leaves out ([`Side::excluded`]):
+/// a pair and its reverse are one pair, and a face may pair with itself.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FacePairs(BTreeSet<(FaceKey, FaceKey)>);
+
+impl FacePairs {
+    /// No pair.
+    #[must_use]
+    pub fn none() -> Self {
+        Self::default()
+    }
+
+    /// Adds the pair `{a, b}`.
+    pub fn insert(&mut self, a: FaceKey, b: FaceKey) {
+        self.0.insert((a.min(b), a.max(b)));
+    }
+
+    /// Whether `{a, b}` is one of these pairs.
+    #[must_use]
+    pub fn holds(&self, a: FaceKey, b: FaceKey) -> bool {
+        self.0.contains(&(a.min(b), a.max(b)))
+    }
+
+    /// Whether there is no pair.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// The pairs, each as `(lesser, greater)`, ascending.
+    pub fn iter(&self) -> impl Iterator<Item = (FaceKey, FaceKey)> + '_ {
+        self.0.iter().copied()
+    }
+
+    /// **The face pairs `records` cite in `body`**: each record's two
+    /// cells reduced to their faces (a face is itself; an edge, the faces
+    /// of its half-edges; a vertex, the faces of the half-edges leaving
+    /// it), and every face of one cell paired with every face of the
+    /// other.
+    #[must_use]
+    pub fn of_records<T: Real>(body: &Body<T>, records: &crate::boolean::ContactRecords) -> Self {
+        let mut pairs = Self::none();
+        for (x, y) in records.cell_pairs() {
+            let (fx, fy) = (faces_of_cell(body, x), faces_of_cell(body, y));
+            for &a in &fx {
+                for &b in &fy {
+                    pairs.insert(a, b);
+                }
+            }
+        }
+        pairs
+    }
+}
+
+/// The faces a cell of `body` lies in, ascending and once each.
+fn faces_of_cell<T: Real>(body: &Body<T>, cell: crate::boolean::Cell) -> BTreeSet<FaceKey> {
+    use crate::boolean::Cell as C;
+    let face_of_half = |h| {
+        body.get_half_edge(h)
+            .and_then(|he| body.get_loop(he.parent_loop))
+            .map(|l| l.face)
+    };
+    match cell {
+        C::Face(f) => BTreeSet::from([f]),
+        C::Edge(e) => body
+            .get_edge(e)
+            .map(|edge| {
+                [edge.he_plus, edge.he_minus]
+                    .into_iter()
+                    .filter_map(face_of_half)
+                    .collect()
+            })
+            .unwrap_or_default(),
+        C::Vertex(v) => body
+            .half_edges()
+            .filter(|(_, he)| he.start == v)
+            .filter_map(|(h, _)| face_of_half(h))
+            .collect(),
+    }
 }
 
 impl<'b, T: Decide + CertifiedBounds> Side<'b, T> {
@@ -395,7 +493,10 @@ impl<'b, T: Decide + CertifiedBounds> Side<'b, T> {
             .iter()
             .map(|&k| window_of(self.body, k, which))
             .collect::<Result<_, _>>()?;
-        Ok(Windows { of })
+        Ok(Windows {
+            of,
+            excluded: self.excluded.clone(),
+        })
     }
 }
 
@@ -432,6 +533,7 @@ impl Which {
 #[derive(Debug, Clone)]
 pub struct Windows<'b, T: Real> {
     of: Vec<Window<'b, T>>,
+    excluded: FacePairs,
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -1452,6 +1554,7 @@ impl Sweep {
         F: FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
     {
         k_stats::unlogged("F41", move || {
+            let excluded = &wa.excluded;
             let (wa, wb) = (&wa.of[..], &wb.of[..]);
             let injective = same_body && matches!(self.bound, ClearanceBound::StrictlyPositive);
             // **The prune threshold carries the BAND.** The tree excludes a
@@ -1480,7 +1583,9 @@ impl Sweep {
                     let (Some(x), Some(y)) = (wa.get(i), wb.get(j)) else {
                         return false;
                     };
-                    !same_body || seen.insert((x.face.min(y.face), x.face.max(y.face)))
+                    !same_body
+                        || (!excluded.holds(x.face, y.face)
+                            && seen.insert((x.face.min(y.face), x.face.max(y.face))))
                 })
                 .collect();
             // What each candidate's two faces share, in M.
@@ -4856,6 +4961,7 @@ mod wiring_rows {
         let side = super::Side {
             body: &cube,
             faces: cube.faces().map(|(k, _)| k).collect(),
+            excluded: crate::clearance::FacePairs::none(),
         };
         let report = super::embedded(
             &side,
@@ -5395,10 +5501,12 @@ mod trv_rows {
             &Side {
                 body: &a,
                 faces: faces(&a),
+                excluded: crate::clearance::FacePairs::none(),
             },
             &Side {
                 body: &b,
                 faces: faces(&b),
+                excluded: crate::clearance::FacePairs::none(),
             },
             false,
             Band::linear(Tol::witness()).unwrap(),

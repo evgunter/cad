@@ -39,6 +39,7 @@ pub fn assert_holds(what: &str, body: &Body<f64>, (cap, wall): (FaceKey, FaceKey
         Side {
             body,
             faces: vec![f],
+            excluded: topo::clearance::FacePairs::none(),
         }
         .windows(Which::First)
         .expect("a face has a window")

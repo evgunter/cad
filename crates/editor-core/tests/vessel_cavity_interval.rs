@@ -82,9 +82,13 @@ fn sealed_cavity<T: Scalar>(pot: Body<T>) -> (Body<T>, Vec<FaceKey>) {
 /// document door's default budget.
 fn injective<T: Scalar>(body: &Body<T>, faces: Vec<FaceKey>) -> BoundReport<()> {
     let tol = Tol::witness();
-    let windows = Side { body, faces }
-        .windows(Which::First)
-        .expect("every face has a window");
+    let windows = Side {
+        body,
+        faces,
+        excluded: topo::clearance::FacePairs::none(),
+    }
+    .windows(Which::First)
+    .expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: Band::linear(tol).unwrap(),

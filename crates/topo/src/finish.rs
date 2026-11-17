@@ -870,7 +870,9 @@ impl ValidationError {
             | Self::CoincidentWedgesOverlap { .. }
             | Self::CoincidentWedgesOverlapUndecided { .. }
             | Self::BoundaryCrossesItself { .. }
-            | Self::BoundaryCrossesItselfUndecided { .. } => F::Embedding,
+            | Self::BoundaryCrossesItselfUndecided { .. }
+            | Self::BoundaryMeetsItself { .. }
+            | Self::EmbeddingUncertified { .. } => F::Embedding,
             Self::InstanceInterference { .. }
             | Self::SameSideInterference { .. }
             | Self::TouchInterference { .. } => F::Interference,

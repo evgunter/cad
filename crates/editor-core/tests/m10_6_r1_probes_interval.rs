@@ -336,10 +336,12 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
             &Side {
                 body: ba.body(),
                 faces: all(ba.body()),
+                excluded: topo::clearance::FacePairs::none(),
             },
             &Side {
                 body: bb.body(),
                 faces: all(bb.body()),
+                excluded: topo::clearance::FacePairs::none(),
             },
             // Body 0 of node `a` against body 0 of node `b`.
             a == b,
@@ -405,6 +407,7 @@ fn a_body_against_itself_meets_itself_at_zero_clearance() {
     let sel = || Side {
         body: body.body(),
         faces: faces.clone(),
+        excluded: topo::clearance::FacePairs::none(),
     };
     let m =
         min_separation(&sel(), &sel(), true, band(), Budgets::MIN_SEPARATION).expect("admitted");

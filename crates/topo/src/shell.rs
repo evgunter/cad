@@ -4605,6 +4605,7 @@ fn cavity_embedded<T: Decide + geom_core::CertifiedBounds + crate::props::AtRest
     let side = Side {
         body: cavity,
         faces: cavity.faces().map(|(k, _)| k).collect(),
+        excluded: crate::clearance::FacePairs::none(),
     };
     let budgets = Budgets {
         max_cell_depth: DEFAULT_MAX_CELL_DEPTH,

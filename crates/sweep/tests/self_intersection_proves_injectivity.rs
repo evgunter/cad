@@ -205,7 +205,11 @@ fn injective<T: Scalar>(
     budget: usize,
 ) -> BoundReport<Witness> {
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
-    let side = Side { body, faces };
+    let side = Side {
+        body,
+        faces,
+        excluded: topo::clearance::FacePairs::none(),
+    };
     let windows = side.windows(Which::First).expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
@@ -716,6 +720,7 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
         let side = |f| Side {
             body,
             faces: vec![f],
+            excluded: topo::clearance::FacePairs::none(),
         };
         let (sa, sb) = (side(fa), side(fb));
         let (wa, wb) = (
@@ -762,6 +767,7 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
     let side = |f| Side {
         body: &body,
         faces: vec![f],
+        excluded: topo::clearance::FacePairs::none(),
     };
     let m = min_separation(&side(fa), &side(fb), true, band(), Budgets::MIN_SEPARATION).unwrap();
     assert_eq!((m.lo(), m.hi()), (0.0, Some(0.0)), "{}", m.render());
@@ -2389,6 +2395,7 @@ fn pair_report<T: Scalar>(
         Side {
             body,
             faces: vec![f],
+            excluded: topo::clearance::FacePairs::none(),
         }
         .windows(Which::First)
         .expect("every face has a window")
@@ -2702,6 +2709,7 @@ fn wall_against_wall<T: Scalar>(
         Side {
             body,
             faces: vec![f],
+            excluded: topo::clearance::FacePairs::none(),
         }
         .windows(which)
         .expect("a wall has a window")
@@ -2833,6 +2841,7 @@ fn wall_against_wall_unwitnessed<T: Scalar>(
         Side {
             body,
             faces: vec![f],
+            excluded: topo::clearance::FacePairs::none(),
         }
         .windows(which)
         .expect("a wall has a window")
@@ -2960,6 +2969,7 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
     let side = Side {
         body: &body,
         faces: body.faces().map(|(k, _)| k).collect(),
+        excluded: topo::clearance::FacePairs::none(),
     };
     let windows = side.windows(Which::First).expect("every face has a window");
     let sweep = Sweep {

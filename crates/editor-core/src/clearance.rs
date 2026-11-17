@@ -1372,6 +1372,7 @@ impl crate::eval::AtLeaf for Replayed<'_> {
             &Side {
                 body: &body_a,
                 faces: faces_a.clone(),
+                excluded: topo::clearance::FacePairs::none(),
             },
             Which::First,
         ) {
@@ -1403,6 +1404,7 @@ impl crate::eval::AtLeaf for Replayed<'_> {
                 &Side {
                     body: &body_b,
                     faces: faces_b,
+                    excluded: topo::clearance::FacePairs::none(),
                 },
                 Which::Second,
             ) {

@@ -156,6 +156,7 @@ fn bound<T: Lane>(
     let side = |body, face| Side {
         body,
         faces: vec![face],
+        excluded: topo::clearance::FacePairs::none(),
     };
     let (sa, sb) = (side(a, fa), side(b, fb));
     let wa = sa
@@ -216,6 +217,7 @@ fn the_minimum_separation_of_two_loft_walls_brackets_the_gap() {
     let side = |body, face| Side {
         body,
         faces: vec![face],
+        excluded: topo::clearance::FacePairs::none(),
     };
     let bracket = min_separation(
         &side(&left.body, lw),
@@ -340,6 +342,7 @@ fn every_face_of_an_arc_railed_loft_has_a_window() {
     Side {
         body: &prism,
         faces: prism.faces().map(|(k, _)| k).collect(),
+        excluded: topo::clearance::FacePairs::none(),
     }
     .windows(Which::First)
     .expect("every face of the arc prism has a window");
@@ -465,6 +468,7 @@ fn curved_walls_are_violated_just_above_their_separation() {
     let side = |body, face| Side {
         body,
         faces: vec![face],
+        excluded: topo::clearance::FacePairs::none(),
     };
     let bracket = min_separation(
         &side(&left.body, lw),

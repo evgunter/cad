@@ -409,7 +409,11 @@ fn injectivity<T: Decide + Bounds + CertifiedBounds>(
     use topo::clearance::{Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which};
     let band = Band::linear(tol).unwrap();
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
-    let side = Side { body, faces };
+    let side = Side {
+        body,
+        faces,
+        excluded: topo::clearance::FacePairs::none(),
+    };
     let windows = side.windows(Which::First).expect("every face has a window");
     let bound = ClearanceBound::StrictlyPositive;
     let sweep = Sweep {

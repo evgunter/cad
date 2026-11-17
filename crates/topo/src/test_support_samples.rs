@@ -2171,6 +2171,21 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    s.push((
+        "BoundaryMeetsItself".to_owned(),
+        ValidationError::BoundaryMeetsItself {
+            faces: [face; 2],
+            witness: "(0.0, 0.0) and (0.5, 0.0), at most 0 m apart".to_owned(),
+        },
+    ));
+    s.push((
+        "EmbeddingUncertified".to_owned(),
+        ValidationError::EmbeddingUncertified {
+            refusal: crate::clearance::EngineRefusal::Budget(crate::clearance::CellBudget::Pairs {
+                max_cell_pairs: crate::clearance::GATE_MAX_CELL_PAIRS,
+            }),
+        },
+    ));
     let ContainError::ArcEndClearOfCorners(gaps) = arc_end_clear_of_corners(true) else {
         unreachable!("the sample builds the arc-end finding")
     };

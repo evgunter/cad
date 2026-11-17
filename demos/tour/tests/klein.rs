@@ -306,6 +306,7 @@ mod wall_gap_support {
             Side {
                 body: &body,
                 faces: vec![f],
+                excluded: topo::clearance::FacePairs::none(),
             }
             .windows(which)
             .expect("a wall has a window")

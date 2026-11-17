@@ -3206,6 +3206,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::BoundaryCrossesItselfUndecided { .. } => {
             "boundary_crosses_itself_undecided"
         }
+        ValidationError::BoundaryMeetsItself { .. } => "boundary_meets_itself",
+        ValidationError::EmbeddingUncertified { .. } => "embedding_uncertified",
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
         ValidationError::SameSideInterference { .. } => "same_side_interference",
