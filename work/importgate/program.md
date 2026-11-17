@@ -2,7 +2,7 @@
 id: importgate
 kind: program
 title: IMPORTGATE — the import door: how it reads the file at ε_in, what a foreign face becomes, what it validates, and how it refuses
-status: ready
+status: active
 opened: 2026-10-29
 group: kernel/exchange
 prefix: importgate/
