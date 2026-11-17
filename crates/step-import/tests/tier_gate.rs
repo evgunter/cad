@@ -506,7 +506,7 @@ const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 91] = [
+const CORPUS: [(&str, Disposition); 92] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 4, 2)),
@@ -943,6 +943,12 @@ const CORPUS: [(&str, Disposition); 91] = [
     (
         "../step-export/tests/fixtures/swept_elbow.step",
         Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        // The hollow box: one BREP_WITH_VOIDS, its cavity a second
+        // shell of the one solid.
+        "../step-export/tests/fixtures/voided.step",
+        Pass(1, 2, 12, 24, 16),
     ),
     (
         "../step-export/tests/fixtures/washer.step",

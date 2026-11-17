@@ -2622,12 +2622,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
              closed form less the lifted mouth disc, {cup_triangles} triangles at δ = \
              {DELTA}. On an ANNULAR mouth the same class needs two disjoint annuli — a \
              face SPLIT — and that is built too; `tests/verbs_teapot.rs` carries both \
-             shapes. THE OPENED POT NOW LEAVES AS STEP, which the sealed one could not: \
-             the writer refuses a void shell (VoidShellUnsupported: no \
-             BREP_WITH_VOIDS yet) — and a cup is ONE shell. That gate keeps three \
-             live probes (klein's wall 6, the `ring` scene's and `hollowtorus`'s); this \
-             scene is no longer one of them, because the body it ships no longer \
-             reaches it. THE LID, which is where the CURVED-SUPPORT fillet family \
+             shapes. THE OPENED POT LEAVES AS STEP as one shell, as the sealed one \
+             does as one BREP_WITH_VOIDS. THE LID, which is where the CURVED-SUPPORT fillet family \
              lives on this tour. It is what a potter turns: a SOLID knob, no vent — \
              the profile closes down the axis, so the revolve mints half-walls like \
              the pot's: 8/14/8 sharp (two whole discs, the cone, sphere and cylinder \

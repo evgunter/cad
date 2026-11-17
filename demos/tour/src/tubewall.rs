@@ -41,19 +41,14 @@
 //! for directly rather than inferred from the difference of two
 //! numbers.
 //!
-//! # The standing gate the torus scene declares
+//! # The torus scene's STEP
 //!
-//! **The full-period hollow tube cannot leave as STEP.** The writer
-//! reads its cavity as the void it is and refuses it,
-//! `VoidShellUnsupported`, because it does not write `BREP_WITH_VOIDS`
-//! yet — the gate the hollow ring hits at export and which
-//! `docs/KERNEL-VERBS.md` says this shape "joins".
-//! Until this scene, that sentence was an EXPECTATION: nothing in the
-//! tree ran a hollow tube through the STEP writer. The scene declares
-//! the frontier at the body (`SceneBody::step_at_frontier`), which runs
-//! the export on every pass and fails the tour if the refusal ever
-//! changes variant or stops — the same self-retiring shape as klein's
-//! wall 6, on a different door's shape.
+//! **The full-period hollow tube leaves as STEP and comes back.** The
+//! writer reads its cavity as the void it is and writes one
+//! `BREP_WITH_VOIDS`; the scene imports that text back
+//! ([`crate::step_round_trip`]), and the import is one solid with one
+//! cavity and the same volume — the hollow ring's answer, on the
+//! parameter door's shape.
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
@@ -73,11 +68,9 @@
 //!    surface, and the assertion below is on triangle counts, which is
 //!    the strongest statement the tour can make without reaching into
 //!    the sizing lane.
-//! 3. **`step_at_frontier` is the whole STEP story for BOTH hollow
-//!    curved bodies now, and they retire together.** The hollow ring's
-//!    pin, klein's wall 6, and this one all name one gate. The retire
-//!    note below says so, so a lane that widens the classifier finds
-//!    all three from any one of them.
+//! 3. **Both hollow curved bodies round-trip through STEP.** The
+//!    hollow ring and this torus are one shape through two doors, and
+//!    each re-imports as one solid with its one cavity.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -423,6 +416,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // per shell, 2 half-tube walls, 2 seam meridians, 2 full-period
     // rims and 2 vertices, twice over.
     assert_eq!((vt, et, ft), (4, 8, 4), "torus-shell census");
+    let trip = crate::step_round_trip("hollowtorus", &torus.body, tol);
+    assert_eq!(trip.voids, 1, "the re-imported torus keeps its one cavity");
 
     out.push(TourStop {
         name: "hollowtorus",
@@ -431,8 +426,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         // 2026-08-30) — see `hollowelbow` above and `ring::hollowring`,
         // which is this same shape through the profile door and goes
         // with it. The cavity, its `Void` shell role and the negated
-        // bore volume are printed; the STEP standing gate still runs
-        // on every pass.
+        // bore volume are printed; the STEP round trip still runs on
+        // every pass.
         montage: false,
         story: "the SAME door, the same spine and the same wall, closed on itself. At \
                 the full period the inner wall stops being a visible surface and \
@@ -453,13 +448,16 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
              {:.9} m³, the bore's own capacity negated by the orientation convention. \
              Drawn see-through at 45 because a cavity cannot be read from an opaque \
              render at any camera — the elbow panel next door is the same wall with the \
-             ends OPEN, which is why that one needs no transparency. Its remaining wall \
-             is STEP: the writer reads the cavity as a void and refuses it \
-             (VoidShellUnsupported: no BREP_WITH_VOIDS yet), which docs/KERNEL-VERBS.md \
-             predicted for this shape and this scene now PROBES on every pass. δ = {DELTA_TORUS} rather than the elbow's \
+             ends OPEN, which is why that one needs no transparency. It leaves as STEP — \
+             one BREP_WITH_VOIDS, the cavity its void — and imports back as one solid \
+             with {} cavity and V = {:.9} m³. δ = {DELTA_TORUS} rather than the elbow's \
              {DELTA_ELBOW}: the full period sweeps 2π of spine where the window sweeps \
              {theta}, so the same chord budget would cost 4.2x the mesh",
-            props_t.enclosure.volume, props_t.enclosure.surface_area, voids[0].enclosure.volume
+            props_t.enclosure.volume,
+            props_t.enclosure.surface_area,
+            voids[0].enclosure.volume,
+            trip.voids,
+            trip.volume
         )),
         // The hollow ring's camera, for the same reason and on the same
         // kind of body: the tube axis is +y, and this elevation shows
@@ -471,22 +469,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         },
         bodies: vec![
             SceneBody::plain("hollowtorus", [0.52, 0.60, 0.78], torus.body.into_body())
-                .transparent(45)
-                .step_at_frontier(
-                    |e| {
-                        matches!(
-                            e,
-                            pncad::step_export::StepExportError::VoidShellUnsupported { .. }
-                        )
-                    },
-                    "the writer writes BREP_WITH_VOIDS now. Say so \
-                     in klein's findings entry 7 and in docs/KERNEL-VERBS.md's hollow-ring \
-                     STEP row, and retire ALL FOUR probes of this one gate together: \
-                     klein's WALL 6, the `ring` scene's `step_at_frontier`, \
-                     `torusvessel`'s, and this one — the ring is the profile door's \
-                     shape, this is the parameter door's, the vessel is `shell`'s, and a \
-                     void-writing exporter retires all of them",
-                ),
+                .transparent(45),
         ],
     });
 

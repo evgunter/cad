@@ -527,6 +527,10 @@ pub fn fixture_corpus() -> Vec<(&'static str, Body<f64>)> {
         // than reproduce a closed-form surface.
         ("nonuniform_loft", nonuniform_loft()),
         ("swept_elbow", swept_elbow()),
+        // The first hollow body: one solid of an outer shell and a
+        // cavity, the writer's BREP_WITH_VOIDS and its reversed void
+        // shell under ORIENTED_CLOSED_SHELL(.F.).
+        ("voided", voided()),
     ]
 }
 

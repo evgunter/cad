@@ -3,7 +3,8 @@
 //!
 //! # Emission order (D9: one fixed traversal, ids by first encounter)
 //!
-//! Solids in arena order → shells in `Solid::shells` order → faces in
+//! Solids in arena order → the solid's `Outer` shell, then its voids in
+//! `Solid::shells` order → faces in
 //! `Shell::faces` order → the outer loop then rings in stored order →
 //! half-edges in loop-cycle (`next`) order. Vertex and edge entities
 //! are minted at first encounter and cached (lookup-only maps — no

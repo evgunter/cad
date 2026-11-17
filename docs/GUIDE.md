@@ -934,12 +934,13 @@ the geometry survived.
 `step_string` takes a finished body (`AtRestBody`), so a body the
 at-rest gate refuses never reaches the writer. Past the gate, STEP
 export is one of the few places the kernel refuses for a reason you
-should *expect* rather than fix: `UnsupportedSurface`,
-`UnsupportedCurve` and `VoidShellUnsupported` mean the AP214
-writer has no representation for a surface or a cavity the modeller
-can build.
-The tour treats exactly those three as tolerated, per scene, and
-panics on anything else.
+should *expect* rather than fix: `UnsupportedSurface` and
+`UnsupportedCurve` mean the AP214 writer has no representation for a
+surface or a curve the modeller can build. A solid with cavities is
+not one of them: it leaves as one `BREP_WITH_VOIDS` and re-imports as
+one solid with the same cavities.
+The tour's bodies reach neither refusal, and it panics on any refusal
+at all.
 
 ### 2.8 The same journey in Python
 
