@@ -21,3 +21,14 @@ Harness token counts (first report):
 - A (Opus): 131,692
 - B (Fable): 271,038
 - C (Opus): 133,731
+
+## Round 2 (2026-11-17)
+
+Each designer was shown the other two round-1 reports. A and C moved to B's answer; B held it.
+- **A** moved off keep-and-type. What moved it: PR 6821's ruling, which B cited ("the engine never establishes an equality from a cell bound"), names `self_intersection_on_shared`, the site A's analogy rested on, as a cell Zero to remove; and B's reading of `sign_on` (the departure margin is the rate times the presentation's own span, and a sweep cell is not a lever the kernel admits). A now recommends: retire the sliver and re-lever the departure reading at the faces' reach. Its two holes (a rectangle collapsed by a wrong clip; a foreign sheet touching the shared edge) close under it without rules of their own. C over C′ (the rate's sign read exactly, no band): unsure, "the one choice that is genuinely yours".
+- **C** moved off keep-and-type for the same two reasons, and because A's foreign-sheet case refutes its own round-1 sketch that a dropped defect still surfaces through a distance pair. It now recommends the same: retire, meter the rate at the faces' reach. It frames C against C′ as a question of who owns "how the faces leave their shared edge" over the whole edge, tier 3 or the engine. C over C′: unsure.
+- **B** held: retire, and meter the rate at the body cell's own extent. It took A's partner rule and C's constructor as the best form of keeping, and argues that form likely refuses `chute` (the cap is not one of the admitted partners there). `[topology.census]` moved it from unsure to likely on C over C′: the clause names the number and its arm ("its length times the sine of the angle between them", the cell's own extent as the arm).
+
+All three now recommend one final state, with C′ as a stated alternative each leans against. All three name the same unmeasured premise: that the bodies the sliver holds today certify once the departure margin is not scaled by the cell. B says which result would move it back to keeping (the rate's enclosure straddling zero on the thin rectangle). The measurement lane has that run; a closing round follows its numbers.
+
+Totals after round 2: A 151,717; B 315,428; C 153,732.
