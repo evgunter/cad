@@ -32,17 +32,24 @@
 //! ([`NurbsCurve3::split_at`]). Evaluation reads it too, at the
 //! parameter less whole periods.
 //!
-//! A view that crosses `u₀ + T` therefore stands on rounded knots: it is
-//! the loop there to the rounding of `u_i + T`, and whoever certifies an
-//! edge on such a span certifies it on that span's own view.
+//! **A view is the loop to rounding, not its exact restriction, wherever
+//! it leaves the base turn.** The second turn's knots are `u_i + T` as
+//! the scalar rounds them, most of them inexact, and a view cut whole
+//! turns away is restated on knots rounded once more. So a view over
+//! `[1 + x, …]` and the base opening over `[x, …]` are two nets whose
+//! points differ by the rounding of those knots (about `1e-15` of the
+//! loop's size; their `Interval` enclosures can be disjoint), and
+//! [`PeriodicNurbs3::eval`] at a parameter and a view's value there are
+//! likewise two readings. Nothing rests on their agreeing: a
+//! certificate of the whole loop is taken on the base opening, and
+//! whoever certifies an edge certifies it on that edge's own view.
 //!
 //! # A view that ends beside a knot
 //!
 //! A view whose end is exactly a knot ends there with nothing inserted.
 //! One whose end lies a few ulps from a knot that falls *inside* the
 //! view holds that knot as its first or last interior one, a span that
-//! narrow. The insertion is exact and the view is the curve's
-//! restriction, but that span's control points differ by less than
+//! narrow. The insertion is exact, but that span's control points differ by less than
 //! their own rounding, so a derivative hull over it reads nothing. A
 //! first span of one to three ulps has been measured to refuse the
 //! certificate's tube limb on some loops, and one of four or more never
@@ -50,6 +57,7 @@
 //! Nothing here moves the end onto the knot: that would charge
 //! rounding, or decide a nearness, and neither is this type's to do.
 
+use geom_core::period::Period;
 use geom_core::spline::{Built, KnotVector, SpanLocate, SplineError};
 use geom_core::{Point3, Real, Vec3};
 
@@ -555,24 +563,26 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
         self.oriented(self.base.clone())
     }
 
-    /// **The clamped view over `[a, b]`** (module docs): the curve's
-    /// restriction to the span as a clamped cubic in the carrier's own
-    /// parameter, its interior knots the curve's own, each simple. The
-    /// span is forward and at most a period long past rounding
-    /// ([`Self::view_window`] a turn on from wherever it starts).
+    /// **The clamped view over `[a, b]`** (module docs): the curve over
+    /// the span as a clamped cubic in the carrier's own parameter, its
+    /// interior knots the curve's own, each simple. The span is forward
+    /// and at most a period long: `b` is no greater than `a` plus the
+    /// period, as the scalar rounds that sum.
     ///
     /// A span inside [`Self::view_window`] is cut from the two-turn
-    /// opening as it is. Any other is cut `k` whole turns back and
+    /// opening as it is. Any other is cut whole turns back
+    /// ([`Period::at_or_above`] brings its start into the base turn) and
     /// restated: its ends are `a` and `b` themselves and each interior
-    /// knot is the cut's plus `k` periods, as the scalar rounds it.
+    /// knot is the cut's plus those turns, as the scalar rounds it. A
+    /// knot whose restated value is the view's own end, by exact
+    /// equality, is that end: the view is cut at that knot.
     ///
     /// # Errors
     ///
-    /// [`PeriodicViewError::Span`] for a span that is not forward, or
-    /// that no whole number of turns brings into the window;
-    /// [`PeriodicViewError::Insertion`] where the knot insertion at an
-    /// end refuses ([`NurbsCurve3::split_at`]), or a restated knot
-    /// rounds onto its neighbour.
+    /// [`PeriodicViewError::Span`] for a span that is not forward or is
+    /// longer than a period; [`PeriodicViewError::Insertion`] where the
+    /// knot insertion at an end refuses ([`NurbsCurve3::split_at`]), or
+    /// two restated knots round onto one value.
     pub fn clamped_view(&self, (a, b): (f64, f64)) -> Result<NurbsCurve3<T>, PeriodicViewError> {
         let (lo, hi) = self.two_turns.domain();
         let (s0, s1) = if self.flipped { (-b, -a) } else { (a, b) };
@@ -580,52 +590,76 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
             asked: (a, b),
             window: self.view_window(),
         };
-        if s0.partial_cmp(&s1) != Some(core::cmp::Ordering::Less) {
+        let period = self.period.point_value().ok_or(span)?;
+        let forward = s0 < s1 && s1 <= s0 + period;
+        if !forward {
             return Err(span);
         }
-        let period = self.period.point_value().ok_or(span)?;
-        let turns = if lo <= s0 && s1 <= hi {
+        let shift = if lo <= s0 && s1 <= hi {
             0.0
         } else {
-            ((s0 - lo) / period).floor()
+            s0 - Period::new(period).at_or_above(s0, lo)
         };
-        let (r0, r1) = if turns == 0.0 {
+        let (r0, r1) = if shift == 0.0 {
             (s0, s1)
         } else {
-            (s0 - period * turns, s1 - period * turns)
+            (s0 - shift, s1 - shift)
         };
         let inside = lo <= r0 && r0 < r1 && r1 <= hi;
         if !inside {
             return Err(span);
         }
         let (base_lo, base_hi) = self.base.domain();
-        if r0 == base_lo && r1 == base_hi && turns == 0.0 {
+        if r0 == base_lo && r1 == base_hi && shift == 0.0 {
             return Ok(self.base_opening());
         }
+        // A knot inside the cut whose restated value is the view's own
+        // end is that end, so the cut is taken at the knot.
+        let (c0, c1) = if shift == 0.0 {
+            (r0, r1)
+        } else {
+            let breaks = self.two_turns.knot_values().breakpoint_values();
+            let inner = |k: &&f64| r0 < **k && **k < r1;
+            let onto = |end: f64| move |k: &&f64| **k + shift == end;
+            let ks = breaks.as_deref().unwrap_or(&[]);
+            (
+                ks.iter()
+                    .filter(inner)
+                    .filter(onto(s0))
+                    .next_back()
+                    .copied()
+                    .unwrap_or(r0),
+                ks.iter()
+                    .filter(inner)
+                    .find(onto(s1))
+                    .copied()
+                    .unwrap_or(r1),
+            )
+        };
         let refused = |at: f64| PeriodicViewError::Insertion { asked: (a, b), at };
         let mut piece = self.two_turns.clone();
-        if r0 > lo {
-            piece = piece.split_at(r0).map_err(|_| refused(r0))?.1;
+        if c0 > lo {
+            piece = piece.split_at(c0).map_err(|_| refused(c0))?.1;
         }
-        if r1 < hi {
-            piece = piece.split_at(r1).map_err(|_| refused(r1))?.0;
+        if c1 < hi {
+            piece = piece.split_at(c1).map_err(|_| refused(c1))?.0;
         }
-        if turns != 0.0 {
-            piece = self.restated(&piece, turns, (s0, s1)).ok_or(refused(s0))?;
+        if shift != 0.0 {
+            piece = self.restated(&piece, shift, (s0, s1)).ok_or(refused(s0))?;
         }
         Ok(self.oriented(piece))
     }
 
-    /// `piece`, a cut of the two-turn opening, `turns` whole turns on:
+    /// `piece`, a cut of the two-turn opening, `shift` (whole turns) on:
     /// its ends `ends` exactly, each interior knot its own plus the
-    /// turns' periods. `None` where the restated knots do not ascend.
+    /// shift. `None` where the restated knots do not ascend.
     fn restated(
         &self,
         piece: &NurbsCurve3<T>,
-        turns: f64,
+        shift: f64,
         (s0, s1): (f64, f64),
     ) -> Option<NurbsCurve3<T>> {
-        let shift = self.period * T::from_computed(turns);
+        let shift = T::from_computed(shift);
         let runs: Vec<(T, usize)> = piece.knot_values().runs().collect();
         let last = runs.len().checked_sub(1)?;
         let restated: Vec<(T, core::num::NonZeroUsize)> = runs
@@ -647,9 +681,10 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
     }
 
     /// The data's parameter for the carrier's `t`, less the whole
-    /// periods that bring its bracket's lower end into the base turn,
-    /// so a value under a period wide reads inside the two-turn opening.
-    /// Poison is returned as it is.
+    /// periods that bring its bracket's lower end into the base turn
+    /// ([`Period::at_or_above`], on the value channel), so a value under
+    /// a period wide reads inside the two-turn opening. Poison is
+    /// returned as it is.
     fn reduced(&self, t: T) -> T {
         let s = self.data_param(t);
         let (lo, _) = self.base.domain();
@@ -659,11 +694,11 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
         let Some((at, _)) = s.structure_bracket() else {
             return s;
         };
-        let turns = ((at - lo) / period).floor();
-        if turns == 0.0 || !turns.is_finite() {
+        let shift = at - Period::new(period).at_or_above(at, lo);
+        if shift == 0.0 || !shift.is_finite() {
             return s;
         }
-        s - self.period * T::from_computed(turns)
+        s - T::from_computed(shift)
     }
 
     fn oriented_vec(&self, v: Vec3<T>) -> Vec3<T> {
@@ -760,6 +795,22 @@ mod tests {
         }
     }
 
+    /// A parameter a turn on is read a turn back: the point in the
+    /// second turn is the base opening's, to the rounding of the
+    /// second turn's knots.
+    #[test]
+    fn a_parameter_a_turn_on_reads_the_base_turn() {
+        let c = PeriodicNurbs3::interpolate(&loop_points(23)).unwrap();
+        let base = c.base_opening();
+        for k in 1..40 {
+            let x = f64::from(k) / 40.0;
+            for turn in [1.0, 2.0, -1.0, 5.0] {
+                let gap = dist(c.eval(x + turn), base.eval(x));
+                assert!(gap < 1e-13, "x = {x}, turn {turn}: {gap:e}");
+            }
+        }
+    }
+
     /// The loop is C² across its base knot: the two ends of the base
     /// opening agree in point, first and second derivative.
     #[test]
@@ -835,6 +886,7 @@ mod tests {
             let t = -1.7 + 1.9 * f64::from(k) / 30.0;
             assert_eq!(dist(r.eval(t), c.eval(-t)), 0.0);
             assert_eq!((r.deriv(t) + c.deriv(-t)).norm(), 0.0);
+            assert_eq!((r.deriv2(t) - c.deriv2(-t)).norm(), 0.0);
         }
         let view = r.clamped_view((-1.4, -0.6)).unwrap();
         assert_eq!(view.domain(), (-1.4, -0.6));
@@ -842,6 +894,12 @@ mod tests {
             let t = -1.4 + 0.8 * f64::from(k) / 20.0;
             assert!(dist(view.eval(t), c.eval(-t)) < 1e-13);
         }
+        // The run-back loop's knot spans, ascending in its own parameter.
+        let (fwd, back) = (c.turn_breaks_in(), r.turn_breaks_in());
+        assert_eq!(r.turn_breaks(), back);
+        assert!(back.windows(2).all(|w| w[0] < w[1]), "{back:?}");
+        let mirrored: Vec<f64> = fwd.iter().rev().map(|k| -k).collect();
+        assert_eq!(back, mirrored);
         assert!(r.reversed().same_content(&c, |a, b| a == b));
         assert!(!r.same_content(&c, |a, b| a == b));
     }
@@ -860,6 +918,114 @@ mod tests {
             assert_eq!(view.domain(), (start, start + 0.5));
             assert_eq!(interior(&view)[0].0, first, "start {start:e}");
             assert!(dist(view.eval(start), c.eval(start)) < 1e-13);
+        }
+    }
+
+    /// A whole turn from a knot's second-turn copy reads: the knot's
+    /// restated value is the view's own end, so the view is cut there.
+    #[test]
+    fn a_whole_turn_from_a_knots_second_turn_copy_reads() {
+        let c = PeriodicNurbs3::interpolate(&loop_points(265)).unwrap();
+        for &u in &c.knots[1..] {
+            let s0 = u + 1.0;
+            assert!(c.clamped_view((u, u + 1.0)).is_ok());
+            assert!(c.clamped_view((s0, 2.0)).is_ok());
+            let view = c.clamped_view((s0, s0 + 1.0));
+            assert!(view.is_ok(), "u = {u:e}: {view:?}");
+            let view = view.unwrap();
+            assert_eq!(view.domain(), (s0, s0 + 1.0));
+            assert!(interior(&view).iter().all(|k| k.1 == 1));
+            let mid = s0 + 0.37;
+            assert!(dist(view.eval(mid), c.eval(mid)) < 1e-12, "u = {u:e}");
+        }
+    }
+
+    /// A period that is no power of two, from a base knot off zero:
+    /// views and points whole turns away fold by the period's own rule.
+    #[test]
+    fn a_non_unit_period_folds_whole_turns() {
+        let fit = PeriodicNurbs3::interpolate(&loop_points(13)).unwrap();
+        let (lo, t) = (0.3, 0.7);
+        let knots: Vec<f64> = fit.knots.iter().map(|k| lo + k * t).collect();
+        let c = PeriodicNurbs3::new(knots, fit.control.clone(), t).unwrap();
+        for (a, b) in [
+            (lo + 2.0 * t, lo + 2.5 * t),
+            (lo + 3.0 * t, lo + 3.5 * t),
+            (lo - t, lo - 0.5 * t),
+            (lo - 2.0 * t, lo - 1.5 * t),
+            (lo + 1.5 * t, lo + 2.4 * t),
+            (lo + 7.0 * t, lo + 7.9 * t),
+        ] {
+            let view = c
+                .clamped_view((a, b))
+                .unwrap_or_else(|e| panic!("[{a}, {b}]: {e}"));
+            assert!(interior(&view).iter().all(|k| k.1 == 1), "[{a}, {b}]");
+            for k in 0..=20 {
+                let s = a + (b - a) * f64::from(k) / 20.0;
+                assert!(dist(view.eval(s), c.eval(s)) < 1e-12, "[{a}, {b}] at {s}");
+            }
+        }
+        // A point an ulp under a turn's end is the point at that end.
+        for m in 1..6 {
+            let edge = lo + f64::from(m) * t;
+            let gap = dist(c.eval(edge.next_down()), c.eval(edge));
+            assert!(gap < 1e-9, "turn {m}: {gap:e}");
+        }
+    }
+
+    /// A span longer than a period has no view.
+    #[test]
+    fn a_span_longer_than_a_period_is_refused() {
+        let c = PeriodicNurbs3::interpolate(&loop_points(23)).unwrap();
+        for span in [(0.2, 1.9), (0.0, 2.0), (0.5, 1.5 + 1e-9), (-0.3, 0.8)] {
+            assert!(
+                matches!(c.clamped_view(span), Err(PeriodicViewError::Span { .. })),
+                "{span:?}"
+            );
+        }
+        assert!(c.clamped_view((0.5, 1.5)).is_ok(), "a whole turn reads");
+    }
+
+    /// A mapped loop is the loop mapped, at every parameter: the cyclic
+    /// net and both openings go through the map.
+    #[test]
+    fn a_mapped_loop_is_the_loop_mapped() {
+        let c = PeriodicNurbs3::interpolate(&loop_points(19)).unwrap();
+        let f = |p: Point3<f64>| Point3::new(p.y + 1.0, -p.x, 2.0 * p.z);
+        let m = c.map_points(f);
+        for k in 0..=60 {
+            let t = -1.3 + 3.1 * f64::from(k) / 60.0;
+            assert!(dist(m.eval(t), f(c.eval(t))) < 1e-13, "t = {t}");
+        }
+        let (view, want) = (
+            m.clamped_view((0.6, 1.4)).unwrap(),
+            c.clamped_view((0.6, 1.4)).unwrap(),
+        );
+        assert!(dist(view.eval(1.1), f(want.eval(1.1))) < 1e-13);
+        assert!(dist(m.base_opening().eval(0.4), f(c.base_opening().eval(0.4))) < 1e-13);
+        assert!(
+            !m.same_content(&c, |a, b| a == b),
+            "a moved net is another loop"
+        );
+    }
+
+    /// C² at every knot of the base turn and of its copy a turn on, read
+    /// from both sides on the two-turn opening.
+    #[test]
+    fn the_loop_is_c2_at_every_knot() {
+        let c = PeriodicNurbs3::interpolate(&loop_points(29)).unwrap();
+        for (i, &k) in c.knots.iter().enumerate() {
+            for u in [k, k + 1.0] {
+                if u == 0.0 {
+                    continue;
+                }
+                let (left, right) = c.two_turns.split_at(u).unwrap();
+                let (_, dl, al) = left.ders(u);
+                let (_, dr, ar) = right.ders(u);
+                let j1 = (dl - dr).norm() / dl.norm();
+                let j2 = (al - ar).norm() / al.norm().max(1.0);
+                assert!(j1 < 1e-10 && j2 < 1e-8, "knot {i} at {u}: {j1:e} {j2:e}");
+            }
         }
     }
 
