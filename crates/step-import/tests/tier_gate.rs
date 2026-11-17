@@ -190,7 +190,7 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
     }
 }
 
-/// **The ε-row pins.** Ten corpus files' dispositions are a function
+/// **The ε-row pins.** Eleven corpus files' dispositions are a function
 /// of the ambient ε, and hiding that behind one row per file would make
 /// the suite either red for an honest reason or green for a wrong one.
 /// Each cell is `(file, ambient ε, eps_in row, disposition)`; the
@@ -229,7 +229,18 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   miss lies within the file's declared ε_in, so the refusal names
 ///   setting ε to ε_in as a stopgap beside re-exporting more precisely
 ///   (D4 ¶1).
-const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 39] = [
+    // -- tests/fixtures/wild/stepcode/TAIL_TURBINE.stp ----------------
+    // At the default and fine bands the spline-carried edge #170 misses
+    // its surface past ε and the ladder refuses it. At 1e-6 that edge
+    // certifies, and the half-cylinder faces (two records of one
+    // cylinder) meet along rulings the must-carry rule reads
+    // under-determined; they adopt as the pair, and the file passes.
+    // The census is the file's less its two reported `JoinedEdges`
+    // normalizations (56 edges and 38 vertices stated).
+    (TAIL_TURBINE, 1e-9, "file", Refused(TAIL_TURBINE_MISS)),
+    (TAIL_TURBINE, 1e-6, "file", Pass(1, 1, 20, 54, 36)),
+    (TAIL_TURBINE, 1e-12, "file", Refused(TAIL_TURBINE_MISS)),
     // -- tests/fixtures/cert1-r1/nearpolar_*.step ---------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). At ambient 1e-6 both
@@ -381,6 +392,10 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+const TAIL_TURBINE: &str = "tests/fixtures/wild/stepcode/TAIL_TURBINE.stp";
+/// `TAIL_TURBINE`'s refusal below 1e-6: its spline-carried edge (#170)
+/// misses one of its analytic surfaces past ε.
+const TAIL_TURBINE_MISS: &str = "the residual against one of the edge's surfaces";
 const NEARPOLAR_SPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_split.step";
 const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step";
 /// The nearpolar twins' coarse-band sub-reason: the rim/plane wedge
@@ -803,19 +818,8 @@ const CORPUS: [(&str, Disposition); 91] = [
         "tests/fixtures/wild/occ-oss/cq_red_cube_blue_cylinder.step",
         Pass(2, 2, 9, 15, 10),
     ),
-    (
-        // Refuses in EVERY ambient-ε cell, but the refusal SITE and
-        // sub-reason shift with ε (edge #170 SurfaceResidual at
-        // default/1e-12; edge #177 tangent-planes at 1e-6). This row's
-        // fragment is the shared adoption-ladder preamble, so the shift
-        // is invisible here BY DESIGN: pinning it would cost 9 more
-        // EpsSensitive cells to buy site-pinning the pin design does
-        // not offer anywhere (fragments pin sub-reason, not site). The
-        // preamble still pins the refusal to the adoption-ladder class
-        // — a drift to a parse error, crash, or Pass goes red.
-        "tests/fixtures/wild/stepcode/TAIL_TURBINE.stp",
-        Refused("no intensional description certifies"),
-    ),
+    // Pinned per ambient ε in [`EPS_ROWS`] (`TAIL_TURBINE`).
+    (TAIL_TURBINE, EpsSensitive),
     (
         // **Two halves of this refusal are now retired.** M8
         // instancing took the placement half (dm1's seven occurrences

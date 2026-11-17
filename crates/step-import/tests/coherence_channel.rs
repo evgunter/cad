@@ -39,7 +39,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
-use crate::wild::{WILD_IMPORTS, wild};
+use crate::wild::{WILD_IMPORTS, refuses_at_this_eps, wild};
 use topo::construction::Construct;
 
 use common::{
@@ -502,6 +502,14 @@ fn asking_for_the_examination_changes_nothing_about_acceptance() {
 #[test]
 fn a_refusing_file_refuses_identically_with_the_examination_asked_for() {
     let tol = Tol::witness();
+    if !refuses_at_this_eps("stepcode/TAIL_TURBINE.stp") {
+        test_utils::vacuity::stood_down(
+            "TAIL_TURBINE at this ε",
+            "that a refusing file refuses identically with the examination asked for: the \
+             fixture imports at this ε",
+        );
+        return;
+    }
     let text = wild("stepcode/TAIL_TURBINE.stp");
     let off = import_step(&text, &ImportOptions::default(), tol);
     let on = import_step(&text, &examining(), tol);

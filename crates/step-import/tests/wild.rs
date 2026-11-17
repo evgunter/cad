@@ -87,7 +87,8 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the
     // edge. The refusal is the ladder's own, with every candidate and
-    // its residual.
+    // its residual. The edge's miss lies below 1e-6, so at a coarser ε
+    // the file imports ([`TAIL_TURBINE_IMPORTS_FROM`]).
     (
         "stepcode/TAIL_TURBINE.stp",
         "no intensional description certifies",
@@ -102,6 +103,20 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // `cq_red_cube_blue_cylinder`) were refusal-class here until the
     // M7-5 seam re-mint flipped both to `WILD_IMPORTS`.
 ];
+
+/// **The ε from which `TAIL_TURBINE` imports.** Its spline-carried
+/// edge misses its surfaces by more than ε through `3e-7` and certifies
+/// at `1e-6`. There its half-cylinder faces, two records of one
+/// cylinder, meet along rulings the must-carry rule reads
+/// under-determined, which adopt as the pair, and the file imports
+/// tier-3 valid.
+pub(crate) const TAIL_TURBINE_IMPORTS_FROM: f64 = 1e-6;
+
+/// Whether `name` refuses at the run's ε (`TAIL_TURBINE` alone depends
+/// on it, [`TAIL_TURBINE_IMPORTS_FROM`]).
+pub(crate) fn refuses_at_this_eps(name: &str) -> bool {
+    !(name.contains("TAIL_TURBINE") && Tol::witness().eps() >= TAIL_TURBINE_IMPORTS_FROM)
+}
 
 /// A wild fixture's text (bytes as committed — CRLF line endings and
 /// column-72 string folds included, which is the point).
@@ -534,6 +549,17 @@ fn wild_refusals_are_typed_and_name_their_class() {
         // three fixtures put together to import, so it is imported
         // once per run, where the sharper assertions are.
         if name.contains("dm1-id-214") {
+            continue;
+        }
+        if !refuses_at_this_eps(name) {
+            match import_step(&wild(name), &ImportOptions::default(), Tol::witness()) {
+                Ok(StepImport::Solid { body, .. }) => assert_eq!(
+                    topo::validate_geometric(&body, Tol::witness()),
+                    Ok(()),
+                    "{name}: imports tier-3 valid at this ε"
+                ),
+                other => panic!("{name}: imports a solid at this ε, got {other:?}"),
+            }
             continue;
         }
         let err = import_step(&wild(name), &ImportOptions::default(), Tol::witness())
