@@ -100,6 +100,8 @@ use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Point3, Vec3};
 use topo::{Body, Link, LinkRefusal, TouchUnread};
 
+use super::Seat;
+
 use crate::measure::MeasurePrimitive;
 use crate::names::{EntityKey, EntityRef};
 
@@ -305,45 +307,58 @@ impl<T: geom_core::Real> Carrier<'_, T> {
 }
 
 /// **Where a vertex's or a line edge's link is read**: off its body,
-/// and only when an arm of [`gap`] asks, so a `distance` or an `angle`
-/// never walks the cell's faces.
+/// in the body's own coordinates, and only when an arm of [`gap`] asks,
+/// so a `distance` or an `angle` never walks the cell's faces.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum CellOf<'b, T: geom_core::Real> {
-    /// Vertex `v` of `body`.
-    Vertex(&'b Body<T>, topo::entity::VertexKey),
-    /// Line edge `e` of `body`.
-    Edge(&'b Body<T>, topo::entity::EdgeKey),
+    /// Vertex `v` of the seat's body.
+    Vertex(Seat<'b, T>, topo::entity::VertexKey),
+    /// Line edge `e` of the seat's body.
+    Edge(Seat<'b, T>, topo::entity::EdgeKey),
 }
 
 impl<T: Decide> CellOf<'_, T> {
-    /// The cell's link: at the vertex, or at `at` inside the edge.
+    /// The seat the cell is read from.
+    fn seat(&self) -> &Seat<'_, T> {
+        match self {
+            Self::Vertex(seat, _) | Self::Edge(seat, _) => seat,
+        }
+    }
+
+    /// The cell's link, read in its body's own coordinates: at the
+    /// vertex, or at `at` inside the edge, a point of the reader's frame
+    /// asked of the body where it stands ([`Seat::into_own`]).
     fn link(&self, at: Point3<T>, band: Band) -> Result<Link<T>, TouchUnread> {
         match self {
-            Self::Vertex(body, v) => Link::at_point(body, *v, band),
-            Self::Edge(body, e) => Link::on_edge(body, *e, at, band),
+            Self::Vertex(seat, v) => Link::at_point(seat.body(), *v, band),
+            Self::Edge(seat, e) => Link::on_edge(seat.body(), *e, seat.into_own(at), band),
         }
     }
 }
 
-/// **Face `k` as a plane**: a point on it, its chart normal and its
-/// outward normal; `None` where it does not read or is not a plane.
+/// **Face `k` as a plane**, in the reader's frame: a point on it, its
+/// chart normal and its outward normal; `None` where it does not read or
+/// is not a plane.
 fn plane_of<T: Decide>(
-    body: &Body<T>,
+    seat: Seat<'_, T>,
     k: topo::entity::FaceKey,
 ) -> Option<(Point3<T>, Vec3<T>, OutwardNormal<T>)> {
-    let face = body.get_face(k)?;
-    match body.face_surface(k)? {
+    let face = seat.body().get_face(k)?;
+    match seat.surface(seat.body().face_surface(k)?)? {
         Surface::Plane { origin, normal, .. } => Some((
-            *origin,
-            *normal,
-            OutwardNormal::from_chart(*normal, face.sense),
+            origin,
+            normal,
+            OutwardNormal::from_chart(normal, face.sense),
         )),
         _ => None,
     }
 }
 
 /// Reads the carrier a resolved entity sits on, out of the body its
-/// reference lands in.
+/// reference lands in, in the frame its reader computes in: each datum
+/// it takes off the body mapped through the seat's motion
+/// ([`Seat`]), and each reach, a distance, read in the body's own
+/// coordinates about the datum's own point.
 ///
 /// A dangling entity key is a KERNEL BUG, not a document fault: the
 /// entity came out of the very table this evaluation emitted for this
@@ -353,13 +368,18 @@ fn plane_of<T: Decide>(
 /// entity (a face's surface, a vertex's point) is not that: it panics in
 /// topo's door (`Body::face_surface`, `topo::readback::vertex_point`;
 /// D2 row 4).
-pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) -> Carrier<'_, T> {
+pub(crate) fn carrier_of<'b, T: Decide>(
+    seat: Seat<'b, T>,
+    ent: EntityRef,
+    band: Band,
+) -> Carrier<'b, T> {
+    let body = seat.body();
     match ent.key {
         EntityKey::Body => Carrier::Other("a whole body"),
         EntityKey::Vertex(v) => match topo::readback::vertex_point(body, v) {
             Ok(at) => Carrier::Point {
-                at,
-                cell: CellOf::Vertex(body, v),
+                at: seat.point(at),
+                cell: CellOf::Vertex(seat, v),
             },
             Err(_) => Carrier::Other("an unreadable vertex"),
         },
@@ -367,8 +387,17 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) 
             let Some(face) = body.get_face(k) else {
                 return Carrier::Other("an unreadable face");
             };
-            if let Some((origin, normal, outward)) = plane_of(body, k) {
-                let Some(reach) = reach_of(body, k, origin, band) else {
+            let own = body.face_surface(k);
+            // The reach is a distance, read about the datum's own point.
+            let reach = |about: fn(&Surface<T>) -> Option<Point3<T>>| {
+                own.and_then(about)
+                    .and_then(|at| reach_of(body, k, at, band))
+            };
+            if let Some((origin, normal, outward)) = plane_of(seat, k) {
+                let Some(reach) = reach(|s| match s {
+                    Surface::Plane { origin, .. } => Some(*origin),
+                    _ => None,
+                }) else {
                     return Carrier::Other("a face with no cover");
                 };
                 return Carrier::Plane {
@@ -378,19 +407,27 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) 
                     reach,
                 };
             }
-            let surface = body.face_surface(k);
-            let round = surface.and_then(|s| topo::Round::of(s, face.sense));
-            match (surface, round) {
+            let Some(surface) = own.map(|s| seat.surface(s)) else {
+                return Carrier::Other("an unreadable face");
+            };
+            let Some(surface) = surface else {
+                return Carrier::Other("an unmovable face");
+            };
+            let round = topo::Round::of(&surface, face.sense);
+            match (&surface, round) {
                 (
-                    Some(Surface::Cylinder {
+                    Surface::Cylinder {
                         origin,
                         axis,
                         radius,
                         ..
-                    }),
+                    },
                     Some(round),
                 ) => {
-                    let Some(reach) = reach_of(body, k, *origin, band) else {
+                    let Some(reach) = reach(|s| match s {
+                        Surface::Cylinder { origin, .. } => Some(*origin),
+                        _ => None,
+                    }) else {
                         return Carrier::Other("a face with no cover");
                     };
                     Carrier::Cylinder {
@@ -403,8 +440,11 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) 
                         round,
                     }
                 }
-                (Some(Surface::Sphere { center, .. }), Some(round)) => {
-                    let Some(reach) = reach_of(body, k, *center, band) else {
+                (Surface::Sphere { center, .. }, Some(round)) => {
+                    let Some(reach) = reach(|s| match s {
+                        Surface::Sphere { center, .. } => Some(*center),
+                        _ => None,
+                    }) else {
                         return Carrier::Other("a face with no cover");
                     };
                     Carrier::Sphere {
@@ -413,11 +453,10 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) 
                         round,
                     }
                 }
-                (Some(Surface::Cone { .. }), _) => Carrier::Other("a cone face"),
-                (Some(Surface::Torus { .. }), _) => Carrier::Other("a torus face"),
-                (Some(Surface::Spindle { .. }), _) => Carrier::Other("a spindle-torus sheet face"),
-                (Some(_), _) => Carrier::Other("a free-form face"),
-                (None, _) => Carrier::Other("an unreadable face"),
+                (Surface::Cone { .. }, _) => Carrier::Other("a cone face"),
+                (Surface::Torus { .. }, _) => Carrier::Other("a torus face"),
+                (Surface::Spindle { .. }, _) => Carrier::Other("a spindle-torus sheet face"),
+                _ => Carrier::Other("a free-form face"),
             }
         }
         EntityKey::Edge(k) => {
@@ -430,12 +469,12 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) 
                 .map(topo::EdgeCurve::carrier);
             match carrier {
                 Some(Curve3::Line(geom::Line { dir, .. })) => Carrier::Line {
-                    dir: *dir,
+                    dir: seat.vec(*dir),
                     ends: body
                         .half_edge_start_point(edge.he_plus)
                         .zip(body.half_edge_start_point(edge.he_minus))
-                        .map(|(start, end)| [start, end]),
-                    cell: CellOf::Edge(body, k),
+                        .map(|(start, end)| [seat.point(start), seat.point(end)]),
+                    cell: CellOf::Edge(seat, k),
                 },
                 Some(Curve3::Circle(..)) => Carrier::Other("a circular edge"),
                 Some(_) => Carrier::Other("a curved edge"),
@@ -1202,14 +1241,21 @@ fn link_reads<T: Decide>(
     read: Cell<'_, '_, T>,
     band: Band,
 ) -> Result<T, PrimitiveRefusal> {
-    let link = match reading {
-        Cell::Vertex(at, cell) => cell.link(at, band),
-        Cell::Edge([start, end], cell) => cell.link(start.mid(end), band),
+    // The link is a reading within its own body; the other cell's
+    // points, in the reader's frame, are asked of it in that body's
+    // coordinates.
+    let (at, cell) = match reading {
+        Cell::Vertex(at, cell) => (at, cell),
+        Cell::Edge([start, end], cell) => (start.mid(end), cell),
     };
-    let got = link.map_err(LinkRefusal::from).and_then(|link| match read {
-        Cell::Vertex(at, _) => link.offset(at, band),
-        Cell::Edge(ends, _) => link.lowest_on((ends[0], ends[1]), band),
-    });
+    let own = |p| cell.seat().into_own(p);
+    let got = cell
+        .link(at, band)
+        .map_err(LinkRefusal::from)
+        .and_then(|link| match read {
+            Cell::Vertex(at, _) => link.offset(own(at), band),
+            Cell::Edge(ends, _) => link.lowest_on((own(ends[0]), own(ends[1])), band),
+        });
     got.or_else(|why| {
         let class = match why {
             LinkRefusal::Undecided(source) => {
@@ -1473,14 +1519,14 @@ mod tests {
         Carrier::Line {
             dir: (end - start) / (end - start).norm(),
             ends: Some([start, end]),
-            cell: CellOf::Edge(nobody(), topo::entity::EdgeKey::default()),
+            cell: CellOf::Edge(Seat::own(nobody()), topo::entity::EdgeKey::default()),
         }
     }
 
     fn vertex(at: Point3<f64>) -> Carrier<'static, f64> {
         Carrier::Point {
             at,
-            cell: CellOf::Vertex(nobody(), topo::entity::VertexKey::default()),
+            cell: CellOf::Vertex(Seat::own(nobody()), topo::entity::VertexKey::default()),
         }
     }
 
@@ -1624,7 +1670,7 @@ mod tests {
         let bare = |dir| Carrier::<f64>::Line {
             dir,
             ends: None,
-            cell: CellOf::Edge(nobody(), topo::entity::EdgeKey::default()),
+            cell: CellOf::Edge(Seat::own(nobody()), topo::entity::EdgeKey::default()),
         };
         let got = angle(&bare(v(1.0, 0.0, 0.0)), &bare(v(0.0, 1.0, 0.0)))
             .unwrap_or_else(|e| panic!("the angle reads: {e:?}"));

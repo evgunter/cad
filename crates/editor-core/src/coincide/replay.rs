@@ -203,7 +203,7 @@ pub(super) fn rungs(
                                 &*ev.insert(replayed)
                             }
                         };
-                        Some(prove_row(ev, (node, row, at), stated, (band, tol), cancel)?)
+                        Some(prove_row(ev, (node, row, at), stated, band, cancel)?)
                     }
                 });
             }
@@ -256,7 +256,7 @@ fn prove_row(
     ev: &Evaluation<Lane>,
     (node, row, at): (RecipeNodeId, &NamedCoincidence, usize),
     stated: bool,
-    (band, tol): (Result<Band, BandError>, Tol),
+    band: Result<Band, BandError>,
     cancel: &crate::CancelToken,
 ) -> Result<Proved, Canceled> {
     if cancel.is_canceled() {
@@ -280,7 +280,7 @@ fn prove_row(
         let Ok(band) = band else {
             return left(Unreplayed::Refused);
         };
-        return Ok(match carrier_verdict(ev, row, band, tol, stated) {
+        return Ok(match carrier_verdict(ev, row, band, stated) {
             Some(Ok(())) => Ok(Rung::CarrierVerdict),
             Some(Err(CarrierFail::Undischarged(why))) => Err((numeric(why), None)),
             Some(Err(CarrierFail::Left(component, why))) => {
@@ -304,7 +304,7 @@ fn prove_row(
     };
     let mut component = None;
     if let Ok(band) = band {
-        match carrier_verdict(ev, row, band, tol, stated) {
+        match carrier_verdict(ev, row, band, stated) {
             Some(Ok(())) => return Ok(Ok(Rung::CarrierVerdict)),
             Some(Err(CarrierFail::Frame)) => return left(Unreplayed::Frame),
             Some(Err(CarrierFail::Left(left, _))) => component = Some(left),
@@ -424,7 +424,6 @@ fn carrier_verdict(
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
     band: Band,
-    tol: Tol,
     stated: bool,
 ) -> Option<Result<(), CarrierFail>> {
     let wanted = match row.relation {
@@ -437,18 +436,19 @@ fn carrier_verdict(
     };
     let ((a, fa), (b, fb)) = (face_of(ev, a)?, face_of(ev, b)?);
     // Decided in the frame `[placement.frame]` conditions on (the cell
-    // in its space's coordinates, else the first), the other read in.
+    // in its space's coordinates, else the first), each face read off its
+    // own body and the other's data through their relative motion.
     let computing = crate::eval::Framed::computing_among([a, b])?;
-    let (Ok(a_in), Ok(b_in)) = (computing.read_in(a, tol), computing.read_in(b, tol)) else {
+    let (Ok(a_in), Ok(b_in)) = (computing.seat(a), computing.seat(b)) else {
         return Some(Err(CarrierFail::Frame));
     };
-    let kernel = || match topo::boolean::carrier_pair_decided(&a_in, fa, &b_in, fb, band) {
+    let kernel = || match topo::boolean::seated_pair_decided((a_in, fa), (b_in, fb), band) {
         Ok(Ok(geom_brep::CarrierVerdict::One { relation, margin })) if relation == wanted => {
             Some(deferred::discharge_or_why(margin).map_err(CarrierFail::Undischarged))
         }
         _ => None,
     };
-    match one_cylinder((&a_in, fa), (&b_in, fb), wanted, band, stated) {
+    match one_cylinder((a_in, fa), (b_in, fb), wanted, band, stated) {
         None => kernel(),
         Some(Ok(())) => Some(Ok(())),
         Some(Err((component, why))) => match kernel() {
@@ -484,8 +484,8 @@ const ONE_CYLINDER_AXIS: &str = "replay_one_cylinder_axis";
 /// is read as it stands, with no extent. The rims and the sense are the
 /// replay's.
 fn one_cylinder(
-    (a, fa): (&topo::Body<Lane>, FaceKey),
-    (b, fb): (&topo::Body<Lane>, FaceKey),
+    (a, fa): (topo::Seat<'_, Lane>, FaceKey),
+    (b, fb): (topo::Seat<'_, Lane>, FaceKey),
     wanted: CarrierRelation,
     band: Band,
     stated: bool,
@@ -503,8 +503,8 @@ fn one_cylinder(
             ..
         }),
     ) = (
-        topo::face_normal::face_carrier_desc(a, fa),
-        topo::face_normal::face_carrier_desc(b, fb),
+        topo::face_normal::face_carrier_desc(a.body(), fa),
+        topo::face_normal::face_carrier_desc(b.body(), fb),
     )
     else {
         return None;
@@ -527,7 +527,7 @@ fn one_cylinder(
         let radii = if stated {
             geom_core::Margin::of(ra - rb)
         } else {
-            let data = match topo::boolean::cylinder_pair_data(a, fa, b, fb, band) {
+            let data = match topo::boolean::cylinder_pair_data((a, fa), (b, fb), band) {
                 Ok(Some(data)) => data,
                 Ok(None) => unreachable!("two faces on cylinders read a cylinder pair's data"),
                 Err(unread) => {
@@ -539,8 +539,8 @@ fn one_cylinder(
             data.radius
         };
         let radius = |why| (Component::Radius, why);
-        for ((body, face), r) in [((a, fa), &ra), ((b, fb), &rb)] {
-            let rims = rim_radii(body, face);
+        for ((seat, face), r) in [((a, fa), &ra), ((b, fb), &rb)] {
+            let rims = rim_radii(seat.body(), face);
             if rims.len() < 2 {
                 return Err(radius(Unestablished::Undischarged(
                     deferred::Undischarged::Otherwise,
@@ -649,8 +649,8 @@ mod tests {
                     let mut b = topo::Body::<Lane>::new();
                     let fb = cyl_wall_sheet(&mut b, slid, u, v, tol);
                     one_cylinder(
-                        (&a, fa),
-                        (&b, fb),
+                        (topo::Seat::own(&a), fa),
+                        (topo::Seat::own(&b), fb),
                         CarrierRelation::SameOriented,
                         band,
                         false,
@@ -716,8 +716,8 @@ mod tests {
                     let arm = topo::boolean::carrier_pair_arm(&a, fa, &b, fb, band)
                         .map(|arm| <Lane as geom_core::Bounds>::hi(arm.length()));
                     let read = one_cylinder(
-                        (&a, fa),
-                        (&b, fb),
+                        (topo::Seat::own(&a), fa),
+                        (topo::Seat::own(&b), fb),
                         CarrierRelation::SameOriented,
                         band,
                         false,

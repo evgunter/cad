@@ -579,26 +579,40 @@ pub(crate) fn read_directly_off<P>(
     doc.selection(*of).map(|_| (*of, held.kind()))
 }
 
-/// **The pose `kind` read off the entity `ent` of `body`**, as a
-/// measure's reference: [`read_off_body`]'s table, with the reach of the
-/// face it is read off as the lever a tilt between two axes is priced
-/// over (`None` off an edge or a vertex).
+/// **The pose `kind` read off the entity `ent` of the seat's body**, as
+/// a measure's reference: [`read_off_body`]'s table, read in the body's
+/// own coordinates and carried into its reader's frame
+/// ([`crate::eval::Seat`]), with the reach of the face it is read off as
+/// the lever a tilt between two axes is priced over (`None` off an edge
+/// or a vertex).
 ///
 /// # Errors
 ///
-/// [`read_off_body`]'s, where the cell has no such pose.
+/// [`read_off_body`]'s, where the cell has no such pose; the direction
+/// door's refusal of a carried direction.
 pub(crate) fn read_off_cell<T: crate::mate::SolveScalar>(
-    body: &topo::Body<T>,
+    seat: crate::eval::Seat<'_, T>,
     ent: names::EntityRef,
     kind: VarKind,
     band: geom_core::Band,
-) -> Result<crate::eval::measure::Carrier<'_, T>, NodeErrorKind> {
-    let value = read_off_body(body, ent.key, kind, band)?;
-    let pose = crate::eval::measure::Pose::of(&value)
-        .unwrap_or_else(|| unreachable!("a cell reads a point, an axis or a plane off it"));
+) -> Result<crate::eval::measure::Carrier<'static, T>, NodeErrorKind> {
+    let body = seat.body();
+    let own = read_off_body(body, ent.key, kind, band)?;
+    let at = |value: &PoseValue<T>| {
+        crate::eval::measure::Pose::of(value)
+            .unwrap_or_else(|| unreachable!("a cell reads a point, an axis or a plane off it"))
+    };
+    // The reach is a distance, read about the pose's own point.
     let reach = names::EntityKey::face(ent.key)
-        .and_then(|face| crate::eval::measure::reach_of(body, face, pose.at(), band));
-    Ok(crate::eval::measure::Carrier::Pose { pose, reach })
+        .and_then(|face| crate::eval::measure::reach_of(body, face, at(&own).at(), band));
+    let value = match seat.motion() {
+        None => own,
+        Some(motion) => carried(own, motion, band)?,
+    };
+    Ok(crate::eval::measure::Carrier::Pose {
+        pose: at(&value),
+        reach,
+    })
 }
 
 /// [`read_off`]'s read of the entity `key` of `body`, in the body's

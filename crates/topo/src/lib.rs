@@ -234,6 +234,8 @@ pub(crate) mod ring_path;
 #[cfg(test)]
 mod row_walk_proofs;
 pub mod rows;
+mod seat;
+pub use seat::Seat;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub(crate) mod separating;

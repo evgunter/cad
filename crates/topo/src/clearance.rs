@@ -8,9 +8,12 @@
 //! It reads a body, the proximity tree and the carriers, and nothing
 //! else. Which document, node or parameter box a body came from is the
 //! caller's: a [`Side`] carries a body and the faces in scope, no node
-//! address and no frame, so a caller reads both operands into one frame
-//! before handing them over and says itself whether the two sides are
-//! one body ([`Sweep::run`]'s `same_body`).
+//! address, and a caller says itself whether the two sides are one body
+//! ([`Sweep::run`]'s `same_body`). A side's body is read as it stands:
+//! where the two sides are in two frames, each window's carrier is
+//! mapped into the question's frame at the reading ([`Side::windows_at`],
+//! `[placement.frame]`), and which part of a face a cell holds is read
+//! off the face in its own coordinates.
 //!
 //! The door is generic over the lane scalar and the arithmetic is not.
 //! Every surface, curve and point the door reads is lifted through
@@ -115,7 +118,9 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::{Channel, Pcurve, SpiricImage, WallTorus};
 use geom_core::interval::Interval;
 use geom_core::k_stats::{self, decide};
-use geom_core::{Band, Bounds, CertifiedBounds, Decide, Margin, Point2, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, Bounds, CertifiedBounds, Decide, Margin, Point2, Point3, Real, RigidMotion, Sign, Vec3,
+};
 
 use crate::Body;
 use crate::FaceContainment;
@@ -367,8 +372,9 @@ impl Ask {
 /// scope.
 ///
 /// No node address and no frame. Where the body came from is the
-/// caller's to keep, and the two sides of one question are read into
-/// one frame before they reach the engine.
+/// caller's to keep; a side in another frame than the question's is
+/// read through its motion ([`Self::windows_at`]), its body as it
+/// stands.
 #[derive(Debug, Clone)]
 pub struct Side<'b, T: Real> {
     /// The body, at the lane's scalar.
@@ -390,10 +396,29 @@ impl<'b, T: Decide + CertifiedBounds> Side<'b, T> {
     /// [`EngineRefusal::Unsupported`] for the first face whose carrier
     /// has no admitted window.
     pub fn windows(&self, which: Which) -> Result<Windows<'b, T>, EngineRefusal> {
+        self.windows_at(which, None)
+    }
+
+    /// [`Self::windows`] of a side read from another frame: each window's
+    /// carrier mapped through `at`, the rigid motion from the body's
+    /// coordinates into the question's ([`crate::transform::surface_at`]),
+    /// and which part of its face a cell holds read off the face in its
+    /// own coordinates. Two sides of one body are in one frame, `at`
+    /// `None`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::windows`]; a face whose carrier, read through `at`,
+    /// does not certify.
+    pub fn windows_at(
+        &self,
+        which: Which,
+        at: Option<&RigidMotion<T>>,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
         let of = self
             .faces
             .iter()
-            .map(|&k| window_of(self.body, k, which))
+            .map(|&k| window_of(self.body, k, which, at))
             .collect::<Result<_, _>>()?;
         Ok(Windows { of })
     }
@@ -3194,7 +3219,12 @@ struct Window<'b, T: Real> {
     /// What the window is of its face, which says who reads a cell's
     /// region.
     region: Region,
+    /// The carrier, lifted, in the frame the question is read in.
     surface: Surface<Interval>,
+    /// The carrier lifted in the body's own coordinates, where the side
+    /// is read through a motion: what a cell's region is read against,
+    /// beside the face's own boundary. `None` where `surface` is it.
+    own: Option<Surface<Interval>>,
     u: (f64, f64),
     v: (f64, f64),
     /// **The body the face is read from**, which [`cell_region`](crate::cell_region::cell_region) reads
@@ -3289,7 +3319,7 @@ impl RegionMemo {
                     cell_region_lifted(
                         w.body,
                         w.face,
-                        (stored, &w.surface, boundary),
+                        (stored, w.own.as_ref().unwrap_or(&w.surface), boundary),
                         c.u,
                         c.v,
                         self.band,
@@ -3387,6 +3417,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     body: &'b Body<T>,
     face: FaceKey,
     side: Which,
+    at: Option<&RigidMotion<T>>,
 ) -> Result<Window<'b, T>, EngineRefusal> {
     let unsupported = |carrier| {
         Err(EngineRefusal::Unsupported {
@@ -3473,10 +3504,28 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
              neither half narrows the enclosure at one halving",
         );
     }
+    // Read through a motion, the window's carrier is the stored one
+    // mapped into the question's frame, then lifted; its rectangle is the
+    // stored one's, a rigid motion keeping every chart parameter.
+    let (surface, own) = match at {
+        None => (charted, None),
+        Some(motion) => {
+            let placed = crate::transform::surface_at(motion, stored)
+                .ok()
+                .and_then(|placed| certified_lift(|lift| placed.map_scalar(|x| lift.of(x))));
+            let Some(placed) = placed else {
+                return unsupported(
+                    "a face whose carrier, read through its motion, does not certify",
+                );
+            };
+            (placed, Some(charted))
+        }
+    };
     Ok(Window {
         face,
         region,
-        surface: charted.with_rect_memo(),
+        surface: surface.with_rect_memo(),
+        own,
         u,
         v,
         body,
@@ -4510,7 +4559,11 @@ fn split_self<T: Real>(pair: CellPair, w: &Window<'_, T>) -> Option<[CellPair; 3
 #[allow(clippy::type_complexity)]
 pub struct ClearanceLane<T: Decide> {
     /// [`Side::windows`] (`wiring_rows` pins the pointer).
-    windows: for<'b> fn(&Side<'b, T>, Which) -> Result<Windows<'b, T>, EngineRefusal>,
+    windows: for<'b> fn(
+        &Side<'b, T>,
+        Which,
+        Option<&RigidMotion<T>>,
+    ) -> Result<Windows<'b, T>, EngineRefusal>,
     /// [`Sweep::run`], with the verifier's witness kept by the caller
     /// ([`ClearanceLane::sweep`]).
     bound_sweep: fn(
@@ -4536,8 +4589,12 @@ impl<T: Decide + CertifiedBounds> ClearanceLane<T> {
         }
     }
 
-    fn windows_of<'b>(side: &Side<'b, T>, which: Which) -> Result<Windows<'b, T>, EngineRefusal> {
-        side.windows(which)
+    fn windows_of<'b>(
+        side: &Side<'b, T>,
+        which: Which,
+        at: Option<&RigidMotion<T>>,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
+        side.windows_at(which, at)
     }
 
     fn sweep_of(
@@ -4566,7 +4623,21 @@ impl<T: Decide> ClearanceLane<T> {
         side: &Side<'b, T>,
         which: Which,
     ) -> Result<Windows<'b, T>, EngineRefusal> {
-        (self.windows)(side, which)
+        (self.windows)(side, which, None)
+    }
+
+    /// [`Side::windows_at`], at this lane.
+    ///
+    /// # Errors
+    ///
+    /// [`Side::windows_at`]'s own.
+    pub fn windows_at<'b>(
+        self,
+        side: &Side<'b, T>,
+        which: Which,
+        at: Option<&RigidMotion<T>>,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
+        (self.windows)(side, which, at)
     }
 
     /// [`Sweep::run`], at this lane: the verdict, receipt and widths are
@@ -4754,9 +4825,9 @@ mod wiring_rows {
         let lane = ClearanceLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
             lane.windows,
-            ClearanceLane::<T>::windows_of as fn(_, _) -> _,
+            ClearanceLane::<T>::windows_of as fn(_, _, _) -> _,
         ) {
-            return Err("windows is not `Side::windows`");
+            return Err("windows is not `Side::windows_at`");
         }
         if !std::ptr::fn_addr_eq(
             lane.bound_sweep,
@@ -5200,7 +5271,7 @@ mod cone_window {
     fn a_cone_window_ends_at_the_face_unless_the_face_holds_the_apex() {
         let (mut body, face) = crate::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-        let w = window_of(&body, face, Which::First).unwrap();
+        let w = window_of(&body, face, Which::First, None).unwrap();
         assert!(
             (w.v.0 - slant(0.5)).abs() < 1e-12 && (w.v.1 - slant(1.0)).abs() < 1e-12,
             "the wall's window ends at its rims, short of the apex: {:?}",
@@ -5226,7 +5297,7 @@ mod cone_window {
             winding.deck.u.abs() == 1,
             "the cap's circle winds once about the axis: {winding:?}"
         );
-        let w = window_of(&body, face, Which::First).unwrap();
+        let w = window_of(&body, face, Which::First, None).unwrap();
         assert!(
             w.v.0 <= 0.0 && slant(1.0) <= w.v.1,
             "the cap's window runs from the apex it holds to its rim: {:?}",
@@ -5241,7 +5312,7 @@ mod cone_window {
         for he in cycle {
             let (mut body, face) = cone_cap(1.0);
             body.detach_joint(he);
-            let w = window_of(&body, face, Which::First).unwrap();
+            let w = window_of(&body, face, Which::First, None).unwrap();
             assert!(
                 w.v.0 <= 0.0,
                 "the cap missing its joint into {he:?} still reaches the apex: {:?}",
@@ -5494,7 +5565,7 @@ mod trv_rows {
                 faces(body)
                     .into_iter()
                     .find(|&f| {
-                        window_of(body, f, Which::First).is_ok_and(|w| {
+                        window_of(body, f, Which::First, None).is_ok_and(|w| {
                             let p = w.surface.eval(
                                 Interval::from_f64(geom::mid_param(w.u.0, w.u.1)),
                                 Interval::from_f64(geom::mid_param(w.v.0, w.v.1)),
@@ -5504,8 +5575,8 @@ mod trv_rows {
                     })
                     .expect("the facing face")
             };
-            let wa = window_of(&self.a, facing(&self.a, 1.0), Which::First).unwrap();
-            let wb = window_of(&self.b, facing(&self.b, 2.0), Which::Second).unwrap();
+            let wa = window_of(&self.a, facing(&self.a, 1.0), Which::First, None).unwrap();
+            let wb = window_of(&self.b, facing(&self.b, 2.0), Which::Second, None).unwrap();
             (wa, wb)
         }
     }
@@ -5865,7 +5936,7 @@ mod support_rows {
         ) -> super::Window<'_, Interval> {
             body.faces()
                 .find_map(|(f, _)| {
-                    let w = window_of(body, f, which).ok()?;
+                    let w = window_of(body, f, which, None).ok()?;
                     let p = w.surface.eval(
                         Interval::from_bounds(w.u.0, w.u.0),
                         Interval::from_bounds(w.v.0, w.v.0),

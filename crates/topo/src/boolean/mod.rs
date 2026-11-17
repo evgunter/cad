@@ -268,7 +268,7 @@ pub use crate::solid_contain::{
 };
 pub use carrier_pair::{
     PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, cylinder_pair_data,
-    flush_pair_relation,
+    flush_pair_relation, seated_pair_decided,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use voids::{

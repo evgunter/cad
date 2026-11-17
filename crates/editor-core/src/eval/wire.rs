@@ -2441,19 +2441,20 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
     }
     // Its two references are in one space (D′1): it measures in the
     // first cell's frame, or the second's where only that one is in its
-    // space's coordinates ([`super::Framed::computing_among`]), and reads
-    // the other cell into it through `relative`, a pose through its own
-    // relative map. Two poses measure in their space's coordinates.
+    // space's coordinates ([`super::Framed::computing_among`]). Each cell
+    // is read off its own body, the other's carrier taken through their
+    // relative motion ([`super::Seat`]), a pose through its own relative
+    // map. Two poses measure in their space's coordinates.
     let computing = super::Framed::computing_among(cells.iter().map(|(.., framed)| *framed))
         .or_else(|| cells.first().map(|(.., framed)| *framed));
     let bodies = cells
         .iter()
         .map(|(index, at, ent, kind, framed)| {
-            let body = match computing {
-                Some(computing) => computing.read_in(framed, tol)?,
+            let seat = match computing {
+                Some(computing) => computing.seat(framed).map_err(NodeErrorKind::Motion)?,
                 None => unreachable!("a cell gives the computing frame"),
             };
-            Ok((*index, *at, *ent, *kind, body))
+            Ok((*index, *at, *ent, *kind, seat))
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     let b = band(tol)?;
@@ -2469,12 +2470,12 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
         posed.push((index, pose));
     }
     let mut carriers: Vec<(usize, super::measure::Carrier<'_, T>)> = Vec::with_capacity(2);
-    for (index, _, ent, kind, body) in &bodies {
+    for (index, _, ent, kind, seat) in &bodies {
         carriers.push((
             *index,
             match kind {
-                None => super::measure::carrier_of(body, *ent, b),
-                Some(kind) => pose::read_off_cell(body, *ent, *kind, b)?,
+                None => super::measure::carrier_of(*seat, *ent, b),
+                Some(kind) => pose::read_off_cell(*seat, *ent, *kind, b)?,
             },
         ));
     }
@@ -2593,21 +2594,23 @@ where
         return answer(ClearanceReport::refused(refusal));
     }
     // In the frame the two seats condition on (`Framed::computing_among`),
-    // each body read into it.
+    // each body read as it stands and its carriers through their
+    // relative motion ([`super::Seat`]).
     let computing = super::Framed::computing_among(read.iter().map(|(.., framed)| *framed))
         .unwrap_or_else(|| unreachable!("two seats"));
     let bodies = read
         .iter()
-        .map(|(.., framed)| computing.read_in(framed, tol))
+        .map(|(.., framed)| computing.seat(framed).map_err(NodeErrorKind::Motion))
         .collect::<Result<Vec<_>, _>>()?;
     let seat = |i: usize| {
         let (at, ent, _) = read[i];
         crate::measure::ClearanceSeat {
             at,
             index: ent.body,
-            body: &bodies[i],
+            body: bodies[i].body(),
+            at_motion: bodies[i].motion().copied(),
             faces: match ent.key {
-                names::EntityKey::Body => bodies[i].faces().map(|(k, _)| k).collect(),
+                names::EntityKey::Body => bodies[i].body().faces().map(|(k, _)| k).collect(),
                 names::EntityKey::Face(k) => vec![k],
                 names::EntityKey::Edge(_) | names::EntityKey::Vertex(_) => {
                     unreachable!("a clearance seat reads a body or a face (its seat's kind)")
@@ -2619,8 +2622,16 @@ where
     let sides = [(sa.at, sa.index), (sb.at, sb.index)];
     let refused = |refusal| ClearanceRefusal::Engine { refusal, sides };
     let (wa, wb) = match (
-        lane.windows(&sa.side(), topo::clearance::Which::First),
-        lane.windows(&sb.side(), topo::clearance::Which::Second),
+        lane.windows_at(
+            &sa.side(),
+            topo::clearance::Which::First,
+            sa.at_motion.as_ref(),
+        ),
+        lane.windows_at(
+            &sb.side(),
+            topo::clearance::Which::Second,
+            sb.at_motion.as_ref(),
+        ),
     ) {
         (Ok(wa), Ok(wb)) => (wa, wb),
         (Err(r), _) | (_, Err(r)) => return answer(ClearanceReport::refused(refused(r))),
@@ -2628,7 +2639,7 @@ where
     // The `f64` bodies the verifier reads, in the same frame.
     let rebuilt = witness
         .ok_or_else(|| "no f64 rebuild stands beside this evaluation".to_owned())
-        .and_then(|w| w.bodies([sides[0], sides[1]], tol));
+        .and_then(|w| w.bodies([sides[0], sides[1]]));
     let sweep = topo::clearance::Sweep {
         bound: bounds.sweep_bound(),
         band: b,
@@ -2638,7 +2649,7 @@ where
         let (faces, ask, over) = (candidate.faces(), candidate.ask(), candidate.enclosure());
         let [bx, by] = rebuilt.as_ref().map_err(Clone::clone)?;
         crate::clearance::closest_pair(
-            (&**bx, &**by),
+            (*bx, *by),
             faces,
             lane.on_face_stations(candidate),
             (ask, b),
@@ -2692,11 +2703,7 @@ impl Witnessing<'_> {
     /// # Errors
     ///
     /// The prose of what the rebuild could not read.
-    fn bodies(
-        &self,
-        sides: [(RecipeNodeId, u32); 2],
-        tol: Tol,
-    ) -> Result<[super::Held<f64>; 2], String> {
+    fn bodies(&self, sides: [(RecipeNodeId, u32); 2]) -> Result<[topo::Seat<'_, f64>; 2], String> {
         let framed = |(at, index): (RecipeNodeId, u32)| {
             let value = value_of(self.results, at)
                 .map_err(|kind| format!("the f64 rebuild has no value for a seat: {kind}"))?;
@@ -2706,12 +2713,13 @@ impl Witnessing<'_> {
         let (fa, fb) = (framed(sides[0])?, framed(sides[1])?);
         let computing =
             super::Framed::computing_among([fa, fb]).unwrap_or_else(|| unreachable!("two seats"));
-        // A reader: each seat read as a body, no taker's finish.
+        // A reader: each seat's body as it stands, no taker's finish.
         let read = |f| {
-            computing.read_in(f, tol).map_err(|kind| {
+            computing.seat(f).map_err(|motion| {
                 format!(
                     "the f64 rebuild could not read a seat into the frame its pair is decided \
-                     in: {kind}"
+                     in: {}",
+                    NodeErrorKind::Motion(motion)
                 )
             })
         };

@@ -11,9 +11,10 @@ use geom_brep::{
 };
 use geom_core::{Band, Decide, Point3};
 
+use crate::Seat;
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey};
-use crate::face_normal::{face_carrier_desc, face_plane};
+use crate::face_normal::{face_plane, seated_carrier_desc};
 use crate::live::BoundaryMember;
 
 /// **The one flush-pair door**: the carrier ladder for a single
@@ -84,6 +85,13 @@ fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<Ext
     ExtentBall::of_cover(&cover).readable()
 }
 
+/// [`face_ball`] of a face read from another operand's frame: the ball
+/// of its own cover, its centre mapped through the seat's motion.
+fn seated_ball<T: Decide>(seat: Seat<'_, T>, face: FaceKey, band: Band) -> Option<ExtentBall<T>> {
+    let ball = face_ball(seat.body(), face, band)?;
+    Some(seat.motion().map_or(ball, |m| ball.moved(m)))
+}
+
 /// The face's boundary vertex positions (outer loop then rings; an
 /// empty loop contributes its lone vertex): points known to lie on the
 /// face. `None` where `face`, the caller's key, does not resolve.
@@ -137,8 +145,17 @@ pub(crate) fn pair_extent<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<PairExtent<T>, PairSide> {
-    let ball_a = face_ball(a, fa, band).ok_or(PairSide::First)?;
-    let ball_b = face_ball(b, fb, band).ok_or(PairSide::Second)?;
+    seated_extent((Seat::own(a), fa), (Seat::own(b), fb), band)
+}
+
+/// [`pair_extent`] of two faces each read from its seat.
+fn seated_extent<T: Decide>(
+    (a, fa): (Seat<'_, T>, FaceKey),
+    (b, fb): (Seat<'_, T>, FaceKey),
+    band: Band,
+) -> Result<PairExtent<T>, PairSide> {
+    let ball_a = seated_ball(a, fa, band).ok_or(PairSide::First)?;
+    let ball_b = seated_ball(b, fb, band).ok_or(PairSide::Second)?;
     // Two readable balls enclose readably short of overflow, which the
     // larger reach is what tips; the second face takes the blame
     // rather than neither.
@@ -199,8 +216,28 @@ pub fn carrier_pair_decided<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Result<CarrierVerdict, CarrierEqError>, PairUnread> {
-    let carriers = carriers_of(a, fa, b, fb)?;
-    let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
+    seated_pair_decided((Seat::own(a), fa), (Seat::own(b), fb), band)
+}
+
+/// [`carrier_pair_decided`] of two faces each read from its seat
+/// (`[placement.frame]`): a reading between two operands, so each datum
+/// it takes off a face (its carrier, its extent, its boundary points)
+/// is mapped through that face's seat, and neither body moves.
+///
+/// # Errors
+///
+/// As [`carrier_pair_relation`].
+///
+/// # Panics
+///
+/// As [`carrier_pair_relation`].
+pub fn seated_pair_decided<T: Decide>(
+    (a, fa): (Seat<'_, T>, FaceKey),
+    (b, fb): (Seat<'_, T>, FaceKey),
+    band: Band,
+) -> Result<Result<CarrierVerdict, CarrierEqError>, PairUnread> {
+    let carriers = seated_carriers((a, fa), (b, fb))?;
+    let extent = seated_extent((a, fa), (b, fb), band).map_err(PairUnread::Extent)?;
     Ok(decided_over((a, fa), (b, fb), carriers, &extent, band))
 }
 
@@ -228,7 +265,13 @@ pub(super) fn carrier_pair_decided_over<T: Decide>(
 ) -> Result<Result<CarrierVerdict, CarrierEqError>, PairUnread> {
     let carriers = carriers_of(a, fa, b, fb)?;
     let extent = glue_extent(a, fa, b, fb, moved, band).map_err(PairUnread::Extent)?;
-    Ok(decided_over((a, fa), (b, fb), carriers, &extent, band))
+    Ok(decided_over(
+        (Seat::own(a), fa),
+        (Seat::own(b), fb),
+        carriers,
+        &extent,
+        band,
+    ))
 }
 
 /// **The extent a glue verdict is read over**: one ball enclosing the
@@ -268,16 +311,25 @@ fn carriers_of<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
 ) -> Result<(CarrierDesc<T>, CarrierDesc<T>), PairUnread> {
+    seated_carriers((Seat::own(a), fa), (Seat::own(b), fb))
+}
+
+/// [`carriers_of`] of two faces each read from its seat
+/// ([`seated_carrier_desc`]).
+fn seated_carriers<T: Decide>(
+    (a, fa): (Seat<'_, T>, FaceKey),
+    (b, fb): (Seat<'_, T>, FaceKey),
+) -> Result<(CarrierDesc<T>, CarrierDesc<T>), PairUnread> {
     Ok((
-        face_carrier_desc(a, fa).ok_or(PairUnread::OutsideInventory)?,
-        face_carrier_desc(b, fb).ok_or(PairUnread::OutsideInventory)?,
+        seated_carrier_desc(a, fa).ok_or(PairUnread::OutsideInventory)?,
+        seated_carrier_desc(b, fb).ok_or(PairUnread::OutsideInventory)?,
     ))
 }
 
 /// [`carrier_pair_decided`]'s reading of `(ca, cb)` over `extent`.
 fn decided_over<T: Decide>(
-    (a, fa): (&Body<T>, FaceKey),
-    (b, fb): (&Body<T>, FaceKey),
+    (a, fa): (Seat<'_, T>, FaceKey),
+    (b, fb): (Seat<'_, T>, FaceKey),
     (ca, cb): (CarrierDesc<T>, CarrierDesc<T>),
     extent: &PairExtent<T>,
     band: Band,
@@ -318,21 +370,20 @@ pub fn carrier_pair_arm<T: Decide>(
 /// the second axis's offset at the foot of the pair's extent, and the
 /// radii's difference, from the one computation the ladder decides them
 /// on. A reader deciding one cylinder under its own names reads them
-/// here, so it and the kernel decide one cylinder's data alike. `None`
-/// where either face is not on a cylinder.
+/// here, so it and the kernel decide one cylinder's data alike, each
+/// face read from its seat ([`seated_pair_decided`]). `None` where
+/// either face is not on a cylinder.
 ///
 /// # Errors
 ///
 /// As [`carrier_pair_relation`]'s [`PairUnread`].
 pub fn cylinder_pair_data<T: Decide>(
-    a: &Body<T>,
-    fa: FaceKey,
-    b: &Body<T>,
-    fb: FaceKey,
+    (a, fa): (Seat<'_, T>, FaceKey),
+    (b, fb): (Seat<'_, T>, FaceKey),
     band: Band,
 ) -> Result<Option<geom_brep::CylinderPairData<T>>, PairUnread> {
-    let (ca, cb) = carriers_of(a, fa, b, fb)?;
-    let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
+    let (ca, cb) = seated_carriers((a, fa), (b, fb))?;
+    let extent = seated_extent((a, fa), (b, fb), band).map_err(PairUnread::Extent)?;
     Ok(geom_brep::carrier_eq::cylinder_data_at(
         &ca,
         &cb,
@@ -370,16 +421,19 @@ const TORUS_WITNESS_STRADDLE: &str = "carrier_torus_witness_straddle";
 /// Where `ca` or `cb` is not a torus, or a face's boundary does not
 /// read: the door reads both faces' carriers first.
 fn torus_pair_witnessed<T: Decide>(
-    (a, fa, ca): (&Body<T>, FaceKey, &CarrierDesc<T>),
-    (b, fb, cb): (&Body<T>, FaceKey, &CarrierDesc<T>),
+    (a, fa, ca): (Seat<'_, T>, FaceKey, &CarrierDesc<T>),
+    (b, fb, cb): (Seat<'_, T>, FaceKey, &CarrierDesc<T>),
     (relation, upper): (CarrierRelation, geom_core::Decided),
     band: Band,
 ) -> Result<CarrierVerdict, CarrierEqError> {
     use geom_brep::CoincidenceMeasure;
     use geom_core::{Margin, Sign};
-    let on = |body: &Body<T>, f: FaceKey| {
-        face_witnesses(body, f)
+    let on = |seat: Seat<'_, T>, f: FaceKey| {
+        face_witnesses(seat.body(), f)
             .unwrap_or_else(|| unreachable!("{f:?}'s carrier read, so its boundary does"))
+            .into_iter()
+            .map(|p| seat.point(p))
+            .collect::<Vec<_>>()
     };
     let distances = on(a, fa)
         .into_iter()
@@ -432,6 +486,7 @@ fn torus_distance<T: Decide>(c: &CarrierDesc<T>, p: Point3<T>) -> T {
 mod tests {
     use super::*;
     use crate::entity::LoopBoundary;
+    use crate::face_normal::face_carrier_desc;
     use geom_core::Tol;
 
     /// **The carrier reads answer a caller's stale face `None` and panic
@@ -495,6 +550,7 @@ mod lever_rows {
     use super::*;
     use crate::boxes::tests::torus_wall;
     use crate::contact::ContactRefusal;
+    use crate::face_normal::face_carrier_desc;
     use crate::test_support::{CylFrame, cyl_wall_sheet};
     use geom_core::{Point3, Tol, Vec3};
 
@@ -688,7 +744,7 @@ mod lever_rows {
         let level = carrier_pair_arm(&a, fa, &b, fb, band()).unwrap().length();
         let (b, fb) = twin(0.3 * e / level);
         let arm = carrier_pair_arm(&a, fa, &b, fb, band()).unwrap().length();
-        let data = cylinder_pair_data(&a, fa, &b, fb, band())
+        let data = cylinder_pair_data((Seat::own(&a), fa), (Seat::own(&b), fb), band())
             .unwrap()
             .expect("two cylinder walls");
         let (

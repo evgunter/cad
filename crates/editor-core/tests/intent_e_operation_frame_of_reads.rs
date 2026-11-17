@@ -605,3 +605,66 @@ fn a_value_edit_moves_a_copys_frame_and_not_its_mesh() {
         "the frame moved with the value"
     );
 }
+
+/// **A measure between two copies moves neither body**
+/// (`[placement.frame]`: "a reading within one operand is made in its own
+/// coordinates, and only a reading between two goes through their
+/// relative motion"). One block, placed twice: once slid up, once turned
+/// a half turn about `z` and slid 3 along `x`. Each copy keeps the
+/// block's `Arc`, so the measure's two references are one body in two
+/// frames, and the distance between the first copy's `+x` wall (at
+/// `x = 1`) and the second's (turned to face `−x`, at `x = 2`) is 1. The
+/// measure reads each wall off the block as it stands and the second's
+/// carrier through the relative motion, so the evaluation maps no body.
+///
+/// *Breaks if* the measure reads its other reference by moving its body
+/// (`Framed::read_in`: one rigid map counted), or reads it without the
+/// relative motion (the second wall read where the block stands, at
+/// `x = 1`: a distance of 0).
+#[test]
+fn a_measure_between_two_copies_maps_no_body() {
+    use editor_core::{MeasurePrimitive, SitedRef};
+    let doc = ProfileDoc::empty(DocumentId::derive("e-measure-seats"), Tol::witness());
+    let (doc, source) = block(doc);
+    let (doc, up) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([0.0, 0.0, 0.25]),
+    );
+    let turned = editor_core::Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        std::f64::consts::PI,
+        [3.0, 0.0, 0.0],
+        geom_core::Band::linear(Tol::witness()).unwrap(),
+    )
+    .unwrap();
+    let (doc, over) = in_world(doc, source, &turned);
+    let wall = fixture::fname(source, fixture::wall(&doc, source, 1));
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![SitedRef::new(up, wall.clone()), SitedRef::new(over, wall)],
+    );
+    let before = EvalCounters::on_this_thread();
+    let ev = run(&doc, None);
+    let counted = EvalCounters::on_this_thread().since(before);
+    let value = match ev.value(measure).map(|v| &v.payload) {
+        Some(ValuePayload::Measure { value, .. }) => *value,
+        other => panic!("the measure reads: {other:?}, {:?}", ev.node_error(measure)),
+    };
+    assert!(
+        (value - 1.0).abs() < 1e-12,
+        "the walls stand 1 apart where the copies put them: {value}"
+    );
+    assert_eq!(
+        counted.rigid_maps, 0,
+        "the measure maps neither copy's body: {counted:?}"
+    );
+    assert!(
+        Arc::ptr_eq(
+            framed(&ev, up).holding().arc(),
+            framed(&ev, over).holding().arc()
+        ),
+        "the premise: both references are the block's own Arc"
+    );
+}

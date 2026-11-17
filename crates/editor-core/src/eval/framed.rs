@@ -22,6 +22,15 @@
 //! [`Framed::relative`], the one door between two operands of a space;
 //! its result is in the frame it computed in.
 //!
+//! **A reading moves no operand.** A reader that relates two operands
+//! (measure, clearance and its witness, the replay's carrier verdict,
+//! the at-rest quieting rule) takes the other through
+//! [`Framed::seat`]: its body as it stands and the relative motion each
+//! datum it takes off it goes through ([`topo::Seat`]). An operation
+//! that builds one body out of its operands (the fold, the cut, the
+//! gather, a distribute) still reads them into its frame whole
+//! ([`Framed::read_in`]).
+//!
 //! A construction computes in its own coordinates ([`Frame::Own`]). A
 //! one-input construction over a body — blend, shell, split, mirror —
 //! computes in that body's frame, there being no second operand to
@@ -379,13 +388,30 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     pub fn relative(&self, other: &Self) -> Result<Option<RigidMotion<T>>, RigidMotionError> {
         self.frame.relative(&other.frame)
     }
+
+    /// **`other` as a reader in this one's frame reads it** ([`topo::Seat`]):
+    /// its body as it stands, and the relative motion
+    /// ([`Self::relative`]) each datum the reader takes off it is mapped
+    /// through.
+    ///
+    /// # Errors
+    ///
+    /// The relative map's overflow, or its inverse's.
+    pub(crate) fn seat<'b>(&self, other: &'b Self) -> Result<topo::Seat<'b, T>, RigidMotionError> {
+        Ok(match self.relative(other)? {
+            None => topo::Seat::own(other.body()),
+            Some(motion) => topo::Seat::at(other.body(), motion)?,
+        })
+    }
 }
 
 impl<T: topo::AtRestPolicy> Framed<T> {
-    /// **`other`'s body in this one's coordinates**: what it holds, as
-    /// it holds it, where the two are in one frame; else what it holds
-    /// moved once ([`Self::relative`], [`Held::moved`]), of the same
-    /// kind: a finished body stays finished, its verdict carried.
+    /// **`other`'s body in this one's coordinates**, for an operation
+    /// that builds one body out of both: what it holds, as it holds it,
+    /// where the two are in one frame; else what it holds moved once
+    /// ([`Self::relative`], [`Held::moved`]), of the same kind: a
+    /// finished body stays finished, its verdict carried. A reader that
+    /// only relates the two takes [`Self::seat`] instead.
     ///
     /// # Errors
     ///
