@@ -591,7 +591,7 @@ fn tessellate_impl(
                 {
                     refusal = Some(TessellateError::UnresolvedWinding {
                         face: face.face,
-                        unresolved,
+                        unresolved: Box::new(unresolved),
                     });
                     break;
                 }
