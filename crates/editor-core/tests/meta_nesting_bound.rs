@@ -466,10 +466,10 @@ fn every_door_takes_a_value_at_the_bound_on_the_smallest_stack() {
 }
 
 /// **A file holding a value one past the bound, or far past it, refuses
-/// on the smallest stack**, at the load door's scan, before any reader
-/// descends: a value at the bound in the deepest place a save writes
-/// one nests exactly as deep as the door reads, so one level more is
-/// deeper than any save.
+/// on the smallest stack**: one past, in the deepest place a save
+/// writes one, the value's own refusal, since the load door's scan
+/// reads one level past any save; far past, the scan's, before any
+/// reader descends.
 #[test]
 fn a_file_nested_past_the_bound_refuses_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
@@ -491,15 +491,26 @@ fn a_file_nested_past_the_bound_refuses_on_the_smallest_stack() {
             1,
             "the save holds one empty list"
         );
-        for levels in [1, FAR] {
-            let past = text.replace(empty, &nest(levels));
-            match editor_core::persist::load(&past, Tol::witness()) {
-                Err(PersistError::Parse { message, .. }) => assert!(
-                    message.contains("deeper than any saved document does"),
-                    "{levels} past refuses at the scan: {message}"
-                ),
-                other => panic!("{levels} past refuses at the scan: {other:?}"),
+        let one_past = text.replace(empty, &nest(1));
+        assert!(
+            editor_core::test_support::bracket_depth(&one_past)
+                <= editor_core::test_support::BODY_NESTING,
+            "one past the bound is within the scan"
+        );
+        match editor_core::persist::load(&one_past, Tol::witness()) {
+            Err(error @ PersistError::Unreadable { .. }) => {
+                let line = error.to_string();
+                assert!(line.contains(PROBLEM), "one past names the bound: {line}");
             }
+            other => panic!("one past refuses as unreadable: {other:?}"),
+        }
+        let far = text.replace(empty, &nest(FAR));
+        match editor_core::persist::load(&far, Tol::witness()) {
+            Err(PersistError::Parse { message, .. }) => assert!(
+                message.contains("deeper than any saved document does"),
+                "{FAR} past refuses at the scan: {message}"
+            ),
+            other => panic!("{FAR} past refuses at the scan: {other:?}"),
         }
     });
 }

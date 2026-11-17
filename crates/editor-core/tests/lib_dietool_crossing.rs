@@ -95,18 +95,7 @@ fn the_die_tool_documents_saved_text_is_pinned() {
     let committed = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("the die_tool fixture is missing: {e} — {recourse}"));
 
-    let sans_epsilon = |t: &str| -> String {
-        let (kept, excluded): (Vec<&str>, Vec<&str>) = t
-            .lines()
-            .partition(|l| !l.trim_start().starts_with("\"epsilon\":"));
-        assert_eq!(
-            excluded.len(),
-            1,
-            "expected exactly one \"epsilon\" line, found {}",
-            excluded.len()
-        );
-        kept.join("\n")
-    };
+    let sans_epsilon = editor_core::test_support::sans_epsilon;
     assert_eq!(
         sans_epsilon(&text),
         sans_epsilon(&committed),

@@ -8,8 +8,11 @@
 //! `Debug`, `unparse`, the edit door, a document's evaluation (its
 //! content key included), the content pin, save and load. One past the
 //! bound, every door that mints one refuses typed with
-//! [`DimensionError::NestedTooDeep`], and text or a file nested far
-//! past it refuses typed rather than exhausting the stack.
+//! [`DimensionError::NestedTooDeep`], the load door included wherever
+//! in a file the expression sits, the deepest place a save writes one
+//! too; and text or a file nested far past it refuses typed rather than
+//! exhausting the stack, a file nested deeper than any save writes at
+//! the load door's scan, before any reader descends.
 //!
 //! The bound is written here as the number the refusal carries, and the
 //! one-past row reads it back out of the refusal, so the two cannot
@@ -136,9 +139,9 @@ fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
 /// **A copy placed by a long pose chain**: the extrude of
 /// [`extrude_document`] placed into its own space by a plane mate of its
 /// start cap against its end cap's plane spun about a lateral edge by an
-/// angle `levels` deep, and then slid along its normal [`POSE_SLIDES`]
+/// angle `levels` deep, and then slid along its normal `slides`
 /// times — written inline in the mate's `to`.
-fn pose_chain_document(levels: usize) -> Recorder {
+fn pose_chain_document(levels: usize, slides: usize) -> Recorder {
     use editor_core::pose::{PoseDef, PoseRole, RoleRead};
     use editor_core::{Mate, Operand};
     let (mut r, extrude) = extrude_document(len(0.5));
@@ -165,7 +168,7 @@ fn pose_chain_document(levels: usize) -> Recorder {
         about: RoleRead::plain(edge),
         by,
     }));
-    for _ in 0..POSE_SLIDES {
+    for _ in 0..slides {
         to = Operand::Pose(Box::new(PoseDef::Slide {
             pose: RoleRead::plain(to),
             along: normal(),
@@ -201,6 +204,41 @@ fn pose_chain_document(levels: usize) -> Recorder {
 /// bounds it here is the edit door's stack, which no door guards
 /// (`work/doctail/a-pose-chain-written-deeper-than-the-load-doors-envelope-does-not-load.md`).
 const POSE_SLIDES: usize = 8;
+
+/// **A long pose chain evaluates on the smallest stack.** It does not
+/// yet: a chain of [`LONG_POSE_SLIDES`] slides, authored and saved on a
+/// large stack, loads on the smallest one (the save writes each pose a
+/// variable of its own) and then overflows it in evaluation, a process
+/// abort rather than a typed refusal. So do 128, 512 and 2048. The row
+/// is ignored because the abort takes the test process with it; the fix
+/// (`work/doctail/a-pose-chain-written-deeper-than-the-load-doors-envelope-does-not-load.md`)
+/// un-ignores it. Run it with
+/// `cargo nextest run -p editor-core --test all --run-ignored only -E
+/// 'test(=expr_nesting_bound::a_long_pose_chain_evaluates_on_the_smallest_stack)'`.
+#[test]
+#[ignore = "aborts the process: a pose chain's depth has no bound; see work/doctail/a-pose-chain-written-deeper-than-the-load-doors-envelope-does-not-load.md"]
+fn a_long_pose_chain_evaluates_on_the_smallest_stack() {
+    let text = std::thread::Builder::new()
+        .stack_size(1 << 30)
+        .spawn(|| saved(&pose_chain_document(1, LONG_POSE_SLIDES)))
+        .expect("a thread with a large stack starts")
+        .join()
+        .unwrap_or_else(|payload| std::panic::resume_unwind(payload));
+    on_the_smallest_stack(move || {
+        let doc = editor_core::persist::load(&text, Tol::witness())
+            .unwrap_or_else(|err| panic!("the chain loads on the smallest stack: {err}"));
+        let placed = *doc.ids().last().expect("the chain's document inserts");
+        let ev = run(&doc, &EvalOptions::default());
+        assert!(
+            matches!(ev.result(placed), Some(NodeResult::Ok(_))),
+            "the copy the chain places evaluates"
+        );
+    });
+}
+
+/// How many slides [`a_long_pose_chain_evaluates_on_the_smallest_stack`]
+/// nests its spin under: the fewest the evaluation overflow was seen at.
+const LONG_POSE_SLIDES: usize = 64;
 
 /// [`extrude_document`] over a distance that is an expression,
 /// saved: a literal saves as a free variable, so the distance is a
@@ -290,8 +328,8 @@ fn saved_negation_line(text: &str) -> usize {
 /// and a document holding it in its deepest slots applies, evaluates,
 /// pins, saves and loads back to the same document, as does a copy
 /// placed by a pose chain [`POSE_SLIDES`] deep whose spin's angle is at
-/// the bound. The deeper of those saves nests exactly as deep as the
-/// load door reads.
+/// the bound. The deeper of those saves nests exactly as deep as
+/// `persist::nesting` says an expression at the bound saves.
 #[test]
 fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
@@ -361,7 +399,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
         // Saved, it loads back to the document it was; and so does a
         // copy placed by a long pose chain, its spin's angle at the
         // expression's bound.
-        let chain = pose_chain_document(BOUND);
+        let chain = pose_chain_document(BOUND, POSE_SLIDES);
         let chain_pin = content_pin(&chain.doc, Tol::witness()).expect("the document pins");
         let mut deepest = 0;
         for (label, r, pin) in [
@@ -380,8 +418,8 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
         }
         assert_eq!(
             deepest,
-            editor_core::test_support::BODY_NESTING,
-            "the deepest save nests exactly as deep as the load door reads"
+            editor_core::test_support::EXPR_BODY_NESTING,
+            "the deepest save nests exactly as deep as an expression at the bound saves"
         );
     });
 }
@@ -632,6 +670,73 @@ fn the_load_door_refuses_the_child_past_the_bound_before_reading_it() {
     });
 }
 
+/// The object that opens after the first `key` that follows the first
+/// `after` in `text`, as the byte range it spans.
+fn object_after(text: &str, after: &str, key: &str) -> core::ops::Range<usize> {
+    let from = text.find(after).expect("the save holds the place");
+    let at = from + text[from..].find(key).expect("the place holds the key") + key.len();
+    let mut depth = 0usize;
+    for (i, c) in text[at..].char_indices() {
+        match c {
+            '{' | '[' => depth += 1,
+            '}' | ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return at..at + i + 1;
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("the object after {key} closes")
+}
+
+/// `text` with the index count [`deep_document`] saves summed with
+/// itself `times` times over, each sum one expression level deeper and
+/// spelled in two brackets, as many as a level ever costs.
+fn deepen_the_index_count(text: &str, times: usize) -> String {
+    let span = object_after(text, "\"Index\": ", "\"count\": ");
+    let count = &text[span.clone()];
+    let deeper = (0..times).fold(count.to_string(), |e, _| {
+        format!("{{\"Add\": [{e}, {count}]}}")
+    });
+    format!("{}{deeper}{}", &text[..span.start], &text[span.end..])
+}
+
+/// **One past the bound in the deepest place a save writes an
+/// expression, the load door still refuses typed**, naming the bound:
+/// an index's count at the bound, summed once more, nests the file
+/// exactly as deep as the load door's scan reads, so the expression's
+/// own reader is reached and refuses it with
+/// [`DimensionError::NestedTooDeep`], as it does at every shallower
+/// place. One level more is deeper than any save writes anywhere, and
+/// that is the scan's to refuse.
+#[test]
+fn one_past_the_bound_at_the_index_count_refuses_typed() {
+    on_the_smallest_stack(|| {
+        let (r, _, _) = deep_document(BOUND);
+        let text = saved(&r);
+        let one_past = deepen_the_index_count(&text, 1);
+        assert_eq!(
+            editor_core::test_support::bracket_depth(&one_past),
+            editor_core::test_support::BODY_NESTING,
+            "one past the bound at the index count nests as deep as the scan reads"
+        );
+        match editor_core::persist::load(&one_past, Tol::witness()) {
+            Err(PersistError::Dimension { error, .. }) => assert_eq!(refused_bound(&error), BOUND),
+            other => panic!("one past the bound at the index count refuses typed, got {other:?}"),
+        }
+        match editor_core::persist::load(&deepen_the_index_count(&text, 2), Tol::witness()) {
+            Err(err @ PersistError::Parse { .. }) => assert!(
+                err.to_string()
+                    .contains("deeper than any saved document does"),
+                "{err}"
+            ),
+            other => panic!("deeper than any save refuses at the scan, got {other:?}"),
+        }
+    });
+}
+
 /// A body the load door refuses in each way a refusal can leave the
 /// expression reader: at the bound's own guard, far past it, on a
 /// dimension and a variant it does not know deep inside a tree, and on
@@ -817,39 +922,33 @@ fn envelope(body: &Value) -> (usize, usize) {
     (deepest, roots)
 }
 
-/// **The load door reads exactly as deep as the deepest body a save
-/// writes.** Every expression and measurement root in every corpus
+/// **The load door's envelope is the deepest body a save writes.** Every expression and measurement root in every corpus
 /// document (which holds every node kind, welded to the vocabulary by
 /// `m4_pr8_corpus::vocabulary_coverage_is_total`), in this suite's
 /// deepest document and in its long pose chain, saved, is found by its
 /// wire shape; the most brackets enclosing one, plus the `2 · BOUND` an
-/// expression at the bound spans, is the load door's limit. A slot
-/// added deeper than every one before it moves the left side, and this
-/// row fails until the limit follows.
+/// expression at the bound spans, is the load door's envelope, and its
+/// limit is one expression level past that. A slot added deeper than
+/// every one before it moves the left side, and this row fails until
+/// the envelope follows.
 #[test]
 fn the_load_doors_limit_is_the_deepest_body_a_save_writes() {
-    let mut recorders: Vec<(String, Recorder)> = crate::corpus::documents()
+    let mut documents: Vec<(String, editor_core::ProfileDoc)> = crate::corpus::documents()
         .into_iter()
-        .map(|d| {
-            let r = Recorder {
-                doc: d.doc,
-                edits: d.edits,
-                last: None,
-            };
-            (d.name.to_string(), r)
-        })
+        .map(|d| (d.name.to_string(), d.doc))
         .collect();
-    recorders.push((
+    documents.push((
         "this suite's deepest document".to_string(),
-        deep_document(1).0,
+        deep_document(1).0.doc,
     ));
-    recorders.push((
+    documents.push((
         "this suite's long pose chain".to_string(),
-        pose_chain_document(1),
+        pose_chain_document(1, POSE_SLIDES).doc,
     ));
     let (mut deepest, mut at, mut found) = (0, String::new(), 0);
-    for (name, r) in &recorders {
-        let text = saved(r);
+    for (name, doc) in &documents {
+        let text = editor_core::persist::save(doc, Tol::witness())
+            .unwrap_or_else(|err| panic!("{name} saves: {err}"));
         let parsed: Value = serde_json::from_str(body(&text)).expect("a saved body is JSON");
         let (enclosing, roots) = envelope(&parsed);
         found += roots;
@@ -862,8 +961,18 @@ fn the_load_doors_limit_is_the_deepest_body_a_save_writes() {
     assert!(found > 0, "the saves hold an expression");
     assert_eq!(
         deepest + 2 * BOUND,
-        editor_core::test_support::BODY_NESTING,
+        editor_core::test_support::EXPR_BODY_NESTING,
         "the deepest expression position ({deepest} brackets, in {at}) and the load door's \
-         limit disagree"
+         envelope disagree"
+    );
+    // The scan reads one expression level past it, so an expression one
+    // past the bound there meets its own refusal
+    // (`one_past_the_bound_at_the_index_count_refuses_typed`).
+    assert_eq!(
+        editor_core::test_support::BODY_NESTING,
+        editor_core::test_support::EXPR_BODY_NESTING
+            .max(editor_core::test_support::META_BODY_NESTING)
+            + 2,
+        "the load door reads one level past the deepest save"
     );
 }

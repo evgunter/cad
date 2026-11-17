@@ -48,6 +48,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::persist;
+use editor_core::test_support::sans_epsilon;
 use geom_core::Tol;
 
 use crate::corpus;
@@ -103,22 +104,6 @@ fn perf2_table_digest(h: &mut Fnv, t: &editor_core::NameTable) {
             ));
         }
     }
-}
-
-/// The saved text with its one `"epsilon":` line removed — the line CI's
-/// eps rows sweep. Exactly one must be present: a missing or duplicated
-/// ε line is damage, not sweep variance.
-fn sans_epsilon(t: &str) -> String {
-    let (kept, excluded): (Vec<&str>, Vec<&str>) = t
-        .lines()
-        .partition(|l| !l.trim_start().starts_with("\"epsilon\":"));
-    assert_eq!(
-        excluded.len(),
-        1,
-        "expected exactly one \"epsilon\" line, found {}",
-        excluded.len()
-    );
-    kept.join("\n")
 }
 
 /// `(document, both-direction name digest, persisted-text digest)`.

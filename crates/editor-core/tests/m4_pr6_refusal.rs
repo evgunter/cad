@@ -271,6 +271,26 @@ fn an_off_table_display_unit_refuses_typed_without_the_regenerate_recourse() {
     assert!(!message.contains("regenerate"), "{message}");
 }
 
+/// A `Deserialize` impl driven from somewhere other than the load door
+/// records NOTHING, because the refusal frame belongs to a parse and
+/// there is no parse open.
+///
+/// Without that, a bare `from_str` of one wire type would arm the
+/// channel for whatever this thread loaded next — the hazard the guard
+/// exists to make unreachable rather than to document.
+#[test]
+fn a_refusal_outside_a_parse_arms_nothing() {
+    let bad = r#"{"Add":[{"Quantity":{"value":1.0,"dim":"Length","unit":"m"}},"#.to_owned()
+        + r#"{"Quantity":{"value":1.0,"dim":"Angle","unit":"rad"}}]}"#;
+    let refused: Result<Formula, _> = serde_json::from_str(&bad);
+    assert!(refused.is_err(), "the tree is ill-dimensioned");
+    // Now a clean load on the same thread. If that refusal had been
+    // recorded anywhere a later parse could read, this would answer a
+    // dimension refusal for a document that has nothing wrong with it.
+    let (_, text) = small();
+    load(&text, Tol::witness()).expect("the clean document still loads");
+}
+
 /// A load after one that refused does not inherit the refusal: the
 /// channel the structure crosses on belongs to ONE parse
 /// (`persist::refusal`), and a slot left dirty would make the next load

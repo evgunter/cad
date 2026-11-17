@@ -1780,6 +1780,35 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     }
 }
 
+/// **`display_unit_mismatch` is the tag of its own arm.** The load
+/// door has no snapshot route into it (a parameter whose unit measures
+/// another dimension is the validator's `display_unit` arm), so the
+/// dimension probe above cannot raise it. The authoring door that does
+/// (a written quantity whose unit measures another dimension) raises it
+/// here, and the tag is checked against the arm it came from rather
+/// than only listed in the census.
+#[test]
+fn display_unit_mismatch_is_the_tag_of_its_own_arm() {
+    use pncad::document::{DimensionError, Formula, UnitSym};
+    let err = Formula::literal_with_unit(
+        1.0,
+        Dimension::Length,
+        UnitSym::canonical_for(Dimension::Angle).def(),
+    )
+    .expect_err("a length written in an angle's unit refuses");
+    assert!(
+        matches!(
+            err,
+            DimensionError::DisplayUnitMismatch {
+                unit: Dimension::Angle,
+                literal: Dimension::Length,
+            }
+        ),
+        "the refusal is the display-unit arm: {err:?}"
+    );
+    assert_eq!(expr_dimension_error_tag(&err), "display_unit_mismatch");
+}
+
 /// Replaces the first value found under `key` in a depth-first walk:
 /// a single-key object `{key: …}` whole, or the value of a `key` field.
 /// Returns whether one was found — a probe that silently replaced

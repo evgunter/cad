@@ -60,7 +60,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "die_chamfer",
         about: "every edge of a unit cube chamfered at a setback of 0.125",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(blank),
         // √2- and √3-valued closed forms are not dyadic — module docs.

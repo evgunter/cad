@@ -412,9 +412,9 @@ fn golden() -> ProfileDoc {
         doc = fixture::place(doc, body).0;
     }
     // One continuous edit authored through the TEXT door with a display
-    // unit, so the wire's per-literal `unit` field is pinned in the
-    // FROZEN bytes (§4g: value canonical meters, `"unit": "mm"` on the
-    // wire).
+    // unit, so a display unit is pinned in the FROZEN bytes: the literal
+    // saves as the free variable its slot reads, its value in canonical
+    // meters and `"display_unit": "mm"` on its entry (§4g).
     push(
         &doc,
         &DocEdit::SetParam {

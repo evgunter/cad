@@ -57,8 +57,8 @@
 //! refuses it against a different process ε (one process, one ε —
 //! `PersistError::ToleranceConflict`), while the registry is evaluated
 //! at every CI ε row. So the file's one ε line is re-stamped to the
-//! process's own before it loads, as `die_tool`'s committed document
-//! is (`dm3_indexed_read`), and every row reads the same recipe under
+//! process's own before it loads (`editor_core::test_support::restamped_at`,
+//! the re-stamp every suite shares), and every row reads the same recipe under
 //! its own ε. Nothing else in the file depends on ε: the document is
 //! its recipe, and everything ε decides re-derives on evaluation.
 //!
@@ -79,7 +79,7 @@
 
 use std::path::Path;
 
-use editor_core::{Coord, Node, ProfileDoc, RecipeNodeId, TargetAxis, load, save};
+use editor_core::{Coord, Node, ProfileDoc, RecipeNodeId, TargetAxis, load};
 use geom_core::Tol;
 
 use super::CorpusDoc;
@@ -125,7 +125,7 @@ fn loaded() -> ProfileDoc {
     // them rather than by a second reader here, at the process's ε
     // (module docs).
     let tol = Tol::witness();
-    let doc = load(&restamped_at_process_epsilon(&text), tol)
+    let doc = load(&editor_core::test_support::restamped_at(&text, tol), tol)
         .unwrap_or_else(|e| panic!("the tour die document refuses to load: {e:?} — {recourse}"));
     assert_eq!(
         doc.id(),
@@ -133,31 +133,6 @@ fn loaded() -> ProfileDoc {
         "the committed document is not the tour's `{DOC_LABEL}` document — {recourse}"
     );
     doc
-}
-
-/// `text` with its one `"epsilon":` line replaced by the line the
-/// persistence layer writes for the process's own ε.
-fn restamped_at_process_epsilon(text: &str) -> String {
-    let tol = Tol::witness();
-    let probe: ProfileDoc = ProfileDoc::empty_derived("tour-corpus-epsilon-probe", tol);
-    let probe_text = save(&probe, tol).expect("an empty document saves");
-    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
-    let wanted = probe_text
-        .lines()
-        .find(|line| is_epsilon(line))
-        .expect("a saved document records its ε");
-    assert_eq!(
-        text.lines().filter(|l| is_epsilon(l)).count(),
-        1,
-        "the tour die document carries exactly one ε line"
-    );
-    let mut out: String = text
-        .lines()
-        .map(|line| if is_epsilon(line) { wanted } else { line })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    out.push('\n');
-    out
 }
 
 /// The first placement in the document — the +Z face's single pip,
@@ -205,8 +180,8 @@ pub fn document() -> CorpusDoc {
         about: "the demo tour's die: 21 pips fused by one n-ary union and cut in one \
                 grouped tool, then 12 box edges and 42 rim arcs blended behind \
                 member-keyed names",
-        // The file is the document's state: it carries no edits.
-        edits: Vec::new(),
+        // The file is the document's state: it records no edits.
+        edits: None,
         doc,
         result: Some(composed),
         // π-valued closed forms are not dyadic — module docs.

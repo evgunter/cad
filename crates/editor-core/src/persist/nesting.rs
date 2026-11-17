@@ -4,11 +4,16 @@
 //! A body nests only as deep as the values in it that nest. An
 //! expression is bounded where it is minted, by [`MAX_NESTING`], and a
 //! metadata value by its own bound ([`crate::meta::MAX_NESTING`]), so
-//! the deepest body this build saves outside its stable names is known,
-//! and [`BODY_NESTING`] is it. A stable name is not bounded: it nests one
-//! whole name per derivation level (`names::nest`), and a part chain at
-//! its bound already puts a thousand levels into one. So the load door
-//! reads a body in two ways at once:
+//! the deepest body this build saves outside its stable names is known
+//! ([`EXPR_BODY_NESTING`], [`META_BODY_NESTING`]). [`BODY_NESTING`] is
+//! one level of either value past that: a value one past its bound, in
+//! the deepest place a save writes one, is within the scan, so its own
+//! reader refuses it typed, naming its bound, wherever it sits. The
+//! scan's refusal is left for nesting no save writes at any position. A
+//! stable name is not bounded: it nests one whole name per derivation
+//! level (`names::nest`), and a part chain at its bound already puts a
+//! thousand levels into one. So the load door reads a body in two ways
+//! at once:
 //!
 //! - **everything but its names within [`BODY_NESTING`]**: [`read`]
 //!   scans the body's bracket nesting first, without recursing, and
@@ -71,8 +76,8 @@ use crate::expr::{DimensionError, MAX_NESTING};
 /// `the_load_doors_limit_is_the_deepest_body_a_save_writes` finds every
 /// expression and measurement in the corpus (every node kind) and in a
 /// pose chain of slides, saved, by its wire shape, and fails when the
-/// deepest disagrees with [`BODY_NESTING`]; its at-bound row saves an
-/// expression at the bound in that position and loads it back.
+/// deepest disagrees with [`EXPR_BODY_NESTING`]; its at-bound row saves
+/// an expression at the bound in that position and loads it back.
 pub(crate) const ENVELOPE: usize = 6;
 
 /// JSON levels per level of a value that bounds its nesting, at most,
@@ -87,17 +92,26 @@ pub(crate) const ENVELOPE: usize = 6;
 /// ([`META_BODY_NESTING`]).
 const LEVELS_PER_NESTING: usize = 2;
 
-/// The deepest a body this build saves can nest outside its stable
-/// names: an expression or a measurement nested to [`MAX_NESTING`] in
-/// the deepest position one sits, or a metadata value nested to its
-/// own bound ([`META_BODY_NESTING`]), whichever is deeper.
+/// The deepest a body nests around an expression or a measurement at
+/// its bound ([`MAX_NESTING`]) in the deepest position a save writes
+/// one ([`ENVELOPE`]), [`LEVELS_PER_NESTING`] brackets a level.
+pub(crate) const EXPR_BODY_NESTING: usize = ENVELOPE + LEVELS_PER_NESTING * MAX_NESTING;
+
+/// **The deepest the load door reads a body outside its stable names**:
+/// the deeper of [`EXPR_BODY_NESTING`] and [`META_BODY_NESTING`], the
+/// deepest a body this build saves can nest, and one level of either
+/// value more. That level is what lets a value one past its bound reach
+/// its own reader's typed refusal (an expression's [`Child`], a
+/// metadata value's `meta` reader) in the deepest place a save writes
+/// one, as it does everywhere shallower, rather than the scan's; the
+/// scan refuses only nesting no save writes at any position.
 pub(crate) const BODY_NESTING: usize = {
-    let expr = ENVELOPE + LEVELS_PER_NESTING * MAX_NESTING;
-    if expr > META_BODY_NESTING {
-        expr
+    let saved = if EXPR_BODY_NESTING > META_BODY_NESTING {
+        EXPR_BODY_NESTING
     } else {
         META_BODY_NESTING
-    }
+    };
+    saved + LEVELS_PER_NESTING
 };
 
 /// The most JSON brackets that enclose a metadata value's root anywhere
@@ -110,8 +124,7 @@ const META_ENVELOPE: usize = 6;
 ///
 /// Not a hand count: `meta_nesting_bound`'s
 /// `every_door_takes_a_value_at_the_bound_on_the_smallest_stack` saves
-/// a value at the bound both ways and fails when its deepest save
-/// disagrees.
+/// a value at the bound and fails when the save's depth disagrees.
 pub(crate) const META_BODY_NESTING: usize =
     META_ENVELOPE + LEVELS_PER_NESTING * crate::meta::MAX_NESTING;
 

@@ -107,8 +107,8 @@ fn real_historical_documents_refuse_typed_and_name_what_they_lack() {
         match load(&text, Tol::witness()) {
             // Additive growth would put a historical document here.
             // The recorded ε is the document's, so under a non-default
-            // ε row the parse, the validator and the replay all ran and
-            // only the LAST door refused — the same evidence.
+            // ε row the parse and the validator both ran and only the
+            // LAST door refused — the same evidence.
             Ok(_) | Err(PersistError::ToleranceConflict { .. }) => {}
             Err(err @ PersistError::Unreadable { .. }) => {
                 let msg = err.to_string();

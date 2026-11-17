@@ -354,8 +354,8 @@ fn a5_a_mated_part_is_evaluated_exactly_once() {
 
 /// Two instances of a box, the first pinned to the world and the
 /// second seated flush on it, through the door: the mated
-/// document the edit rows work on, with its log as the file carries
-/// it, and the seat's constraints.
+/// document the edit rows work on, the log of edits that authored it,
+/// and the seat's constraints.
 #[allow(clippy::type_complexity)]
 fn seated(
     label: &str,
@@ -589,8 +589,9 @@ fn a6_no_edit_asks_the_store() {
 }
 
 /// **A document whose seat is taken apart saves, loads and replays
-/// bit-identically with no store**: replay re-applies the log without
-/// evaluating — the copy the unseated seat pinned stands by the
+/// bit-identically with no store**: the load reads the saved state,
+/// and replay (`ProfileDoc::replay`, in memory) re-applies the log
+/// without evaluating — the copy the unseated seat pinned stands by the
 /// identity bundle, not re-pinned.
 ///
 /// *Breaks if* replay or load consults a part, or replay re-pins what
@@ -623,10 +624,9 @@ fn a6_a_saved_unseating_replays_bit_identically_with_no_store() {
 /// symlink, which is not a second corpus) — the four the row names,
 /// and it asserts that is what it walked — loads with no store in
 /// hand and re-saves byte for byte. The re-save is structural rather
-/// than lucky: `load` returns each entry as parsed, and replay performs
-/// exactly an entry's rows — a non-empty list re-applied verbatim, an
-/// empty one refused if its edit performs any — so the log that comes
-/// back is both the one the file holds and the one its replay did.
+/// than lucky: a file holds the document's state, `load` returns that
+/// state as parsed and validated, consulting no part, and `save`
+/// writes the canonical form of the same state.
 #[test]
 fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -660,7 +660,7 @@ fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
         let text = std::fs::read_to_string(path).expect("readable");
         let loaded = match editor_core::load(&text, Tol::witness()) {
             Ok(loaded) => loaded,
-            // D4's seam, before any replay: a document authored at
+            // D4's seam, the load door's last check: a document authored at
             // another ε refuses at THIS process's ε, typed. That is the
             // load door's own answer on the other ε rows and not this
             // row's subject.

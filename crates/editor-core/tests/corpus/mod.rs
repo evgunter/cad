@@ -1,14 +1,15 @@
 //! The **Band 4 model corpus** (M4 PR 8a spec D1) — the milestone's
 //! proof-of-vocabulary.
 //!
-//! Every document here is a RECIPE authored through `DocEdit`s (an
-//! edit LOG, or the tour's, saved; never a hand-built `Doc` value), so
-//! each one is at once:
+//! Every document here is a RECIPE authored through `DocEdit`s, never a
+//! hand-built `Doc` value: built here an edit at a time from the empty
+//! document, or, for `die_composed_tour`, authored by the demo tour and
+//! loaded from the save file it writes. So each one is at once:
 //!
 //! - an evaluation fixture (green at every CI ε row and at the
 //!   certified scalar — `m4_pr8_corpus.rs` / `..._interval.rs`),
-//! - a persistence fixture (the PR 6 D6.1 rows run the whole corpus:
-//!   `m4_pr6_roundtrip.rs` / `..._interval.rs`),
+//! - a persistence fixture (the PR 6 D6.1 row runs the whole corpus:
+//!   `m4_pr6_roundtrip.rs`),
 //! - a latency fixture (D2's full-rebuild + incremental-recompute
 //!   reporting row, `m4_pr8_latency.rs`).
 //!
@@ -232,9 +233,9 @@ pub struct CorpusDoc {
     /// One-line description (printed in the latency table).
     pub about: &'static str,
     /// The edits that authored `doc` from the empty document, as the
-    /// corpus recorded them; empty for a document the corpus loads from
-    /// a save file, which holds the state alone.
-    pub edits: Vec<editor_core::DocEdit<ProfileProgram>>,
+    /// corpus recorded them, or `None` for a document the corpus loads
+    /// from a save file, which holds the state alone and records none.
+    pub edits: Option<Vec<editor_core::DocEdit<ProfileProgram>>>,
     /// The document.
     pub doc: ProfileDoc,
     /// The node carrying the document's headline solid, if it has one
@@ -394,7 +395,7 @@ pub fn documents() -> Vec<CorpusDoc> {
         // crease filleted, then the block's program reshaped under
         // the fillet with the crease's name rebound by the door. The
         // registry battery is what makes the reshaping's rewrite a
-        // persisted, replayed, name-digested fact rather than a row's.
+        // persisted, loaded, name-digested fact rather than a row's.
         reshaped_rod::document(),
         // INTENT stage 6's scenes that every lane evaluates; the rest
         // stand beside the registry ([`stage6_beside_the_registry`]).
@@ -782,9 +783,10 @@ pub type Tally = BTreeMap<&'static str, Vec<&'static str>>;
 /// The corpus-wide vocabulary tallies (node kinds, node sub-kinds,
 /// edit kinds), derived from the documents themselves.
 ///
-/// Node kinds come from the INSERTED nodes (the edit logs) as well as
-/// the replayed DAG, so a node the corpus inserts and later deletes —
-/// the `DeleteNode` arm needs one — still counts as exercised.
+/// Node kinds come from the INSERTED nodes (the recorded edits, where a
+/// document has them) as well as the document's DAG, so a node the
+/// corpus inserts and later deletes — the `DeleteNode` arm needs one —
+/// still counts as exercised.
 pub fn vocabulary() -> (Tally, Tally, Tally) {
     let mut nodes: Tally = BTreeMap::new();
     let mut subs: Tally = BTreeMap::new();
@@ -806,7 +808,7 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
             );
         }
         let mut seen_e = BTreeSet::new();
-        for e in d.edits.iter().chain(std::iter::once(&d.bump)) {
+        for e in d.edits.iter().flatten().chain(std::iter::once(&d.bump)) {
             seen_e.insert(edit_kind(e));
             if let DocEdit::InsertNode { node, .. } = e {
                 seen_n.insert(node_kind(node));

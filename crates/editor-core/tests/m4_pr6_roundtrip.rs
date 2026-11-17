@@ -52,9 +52,21 @@ fn eval_fingerprint(label: &str, doc: &ProfileDoc) -> String {
     format!("{:?}|{:?}|{:?}", ev.order, ev.nodes, ev.appearance)
 }
 
+/// The fewest documents the corpus registers: as many as it held when
+/// this floor was written. A `documents()` that lost some would
+/// otherwise round-trip fewer of them and still pass.
+const CORPUS_FLOOR: usize = 34;
+
 #[test]
 fn save_load_replay_identity() {
-    for d in documents() {
+    let docs = documents();
+    assert!(
+        docs.len() >= CORPUS_FLOOR,
+        "the corpus registers {} documents, fewer than the {CORPUS_FLOOR} this row was written \
+         over",
+        docs.len()
+    );
+    for d in docs {
         let text = save(&d.doc, Tol::witness()).expect("save");
         let loaded = load(&text, Tol::witness())
             .unwrap_or_else(|e| panic!("{}: load refused: {e:?}", d.name));
@@ -67,7 +79,7 @@ fn save_load_replay_identity() {
         // file exactly (BTreeMap ordering + ryu canonical floats).
         let resaved = save(&loaded, Tol::witness()).expect("re-save");
         assert_eq!(resaved, text, "{}: save bytes not canonical", d.name);
-        // Replay identity: evaluation of the loaded document is
+        // Evaluation identity: evaluation of the loaded document is
         // bit-identical — name tables, bodies, verdicts, keys.
         assert_eq!(
             eval_fingerprint(d.name, &d.doc),

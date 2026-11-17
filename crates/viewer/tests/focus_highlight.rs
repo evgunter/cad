@@ -256,24 +256,7 @@ fn die_document(tol: Tol) -> pncad::document::Doc<pncad::document::ProfileProgra
                     ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad";
     let text = std::fs::read_to_string(DIE_DOCUMENT)
         .unwrap_or_else(|e| panic!("the corpus die document is unreadable: {e} — {recourse}"));
-    let probe: pncad::document::Doc<pncad::document::ProfileProgram> =
-        pncad::document::Doc::empty_derived("gui-focus-epsilon-probe", tol);
-    let probe_text = pncad::document::save(&probe, tol).expect("an empty document saves");
-    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
-    let wanted = probe_text
-        .lines()
-        .find(|line| is_epsilon(line))
-        .expect("a saved document records its ε");
-    assert_eq!(
-        text.lines().filter(|l| is_epsilon(l)).count(),
-        1,
-        "the die document must carry exactly one ε line"
-    );
-    let restamped: String = text
-        .lines()
-        .map(|line| if is_epsilon(line) { wanted } else { line })
-        .collect::<Vec<&str>>()
-        .join("\n");
+    let restamped = editor_core::test_support::restamped_at(&text, tol);
     pncad::document::load(&restamped, tol)
         .unwrap_or_else(|e| panic!("the die document refuses: {e:?} — {recourse}"))
 }
