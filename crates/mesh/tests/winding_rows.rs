@@ -91,7 +91,14 @@ fn the_whole_frustum_refuses_in_its_window_and_meshes_outside_it() {
         let mut memo = mesh::PatchMemo::new();
         let refused =
             |memo: &mut mesh::PatchMemo| match mesh::tessellate_with(&body, window, tol(), memo) {
-                Err(TessellateError::UnresolvedWinding { face }) => face,
+                Err(TessellateError::UnresolvedWinding { face, unresolved }) => {
+                    let share = unresolved.height / unresolved.allowance;
+                    assert!(
+                        (0.5..0.8).contains(&share),
+                        "the refusal names a triangle {share} of its allowance high"
+                    );
+                    face
+                }
                 other => panic!(
                     "the whole frustum at δ = {window:e} refuses UnresolvedWinding, got {:?}",
                     other.map(|t| t.mesh.patches.len())

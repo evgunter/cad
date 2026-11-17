@@ -152,6 +152,9 @@ const TESSELLATE_ERROR_FIELDS: &[&str] = &[
     "surface:",
     "error:",
     "cause:",
+    "unresolved:",
+    "corners:",
+    "height:",
 ];
 
 /// The Display contract (#1111): a façade consumer renders a
@@ -317,8 +320,21 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             vec!["folds over", "wound against"],
         ),
         (
-            TessellateError::UnresolvedWinding { face },
-            vec!["winding", "rounding of its own corner positions"],
+            TessellateError::UnresolvedWinding {
+                face,
+                unresolved: mesh::validate::Unresolved {
+                    corners: [[1.0, 0.0, 0.0]; 3],
+                    height: 2.5e-16,
+                    allowance: 1.75e-15,
+                },
+            },
+            vec![
+                "winding",
+                "rounding of its own corner positions",
+                "2.5e-16",
+                "1.75e-15",
+                "8 f64 epsilons",
+            ],
         ),
         (
             TessellateError::BoundaryEar { face },

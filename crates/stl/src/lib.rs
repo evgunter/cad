@@ -32,13 +32,19 @@
 //!
 //! Each facet normal is computed in f64 from the triangle's vertex
 //! winding (`(b−a)×(c−a)`, normalized), then cast to f32. That the
-//! normal means anything is the mesh's promise, not this writer's:
-//! every triangle `mesh::tessellate` returns has a winding resolved
-//! above the rounding of its own positions (`crates/mesh/README.md`
-//! `[mesh.winding]`), so its normal would not flip if each coordinate
-//! moved by its evaluation rounding, and `mesh::validate::check_winding`
-//! re-derives that for a mesh of any other provenance. The writer does
-//! not re-derive it. What it refuses is the one case in which it could
+//! normal means anything is the mesh's promise, not this writer's, and
+//! it is a promise about the **f64 mesh**: every triangle
+//! `mesh::tessellate` returns has a winding resolved above the f64
+//! rounding of its own positions (`crates/mesh/README.md`
+//! `[mesh.winding]`), and `mesh::validate::check_winding` re-derives
+//! that for a mesh of any other provenance. The writer does not
+//! re-derive it. The file carries that normal, computed in f64, beside
+//! vertices narrowed to f32: a triangle resolved in f64 can be far
+//! inside f32's rounding (the allowance is a few f64 epsilons of the
+//! coordinate scale, and one f32 ulp is about 5·10⁸ f64 epsilons), so a
+//! reader that recomputes a normal from the file's own vertices may get
+//! zero or the other sign. What the file can carry is the f64 normal;
+//! what it cannot is vertices that reproduce it. What it refuses is the one case in which it could
 //! not write a normal at all, a cross product of length exactly zero or
 //! not finite: a typed [`StlError::DegenerateTriangle`], never a
 //! silently zeroed or guessed normal (fail loud, D4/D9). `Mesh`'s

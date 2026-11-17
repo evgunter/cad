@@ -277,78 +277,82 @@ pub fn check_volume(mesh: &Mesh, volume: f64, area: f64, delta: f64) -> Result<(
     }
 }
 
+/// **A triangle whose winding is inside the rounding of its own
+/// positions** ([`resolved_normal`]): what it is, in the numbers the one
+/// definition reads.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Unresolved {
+    /// The triangle's corners, as wound, each `[x, y, z]`.
+    pub corners: [[f64; 3]; 3],
+    /// Its height over its longest side: its cross product over that
+    /// side's length.
+    pub height: f64,
+    /// The height it would have to exceed: [`cert::ROUNDING_ULPS`] f64
+    /// epsilons of the largest of its corners' norms.
+    pub allowance: f64,
+}
+
 /// **A triangle's normal as wound, `(b − a) × (c − a)`, where its
 /// winding is resolved above the rounding of its own positions**
 /// (`crates/mesh/README.md` `[mesh.winding]`, the one definition): its
 /// cross product exceeds [`cert::rounding_allowance`] at its coordinate
 /// scale ([`cert::coordinate_scale`]) times its longest side. The cross
-/// product is the longest side times the height over it, so this is a
-/// height above the rounding of the coordinates it is taken from: moving
-/// each corner by its evaluation rounding does not turn the normal over.
-/// `None` otherwise, and for a triangle with a corner that is not finite.
+/// product is the longest side times the height over it, so this holds
+/// the height against the allowance.
 ///
 /// It reads no ε and no δ: a triangle may be thin, and small beside
 /// either, and be resolved.
-pub(crate) fn resolved_normal(tri: [Point3<f64>; 3]) -> Option<Vec3<f64>> {
+///
+/// # Errors
+///
+/// [`Unresolved`] otherwise, and for a triangle with a corner that is
+/// not finite.
+pub(crate) fn resolved_normal(tri: [Point3<f64>; 3]) -> Result<Vec3<f64>, Unresolved> {
     let [a, b, c] = tri;
     let normal = (b - a).cross(c - a);
     let longest = (b - a).norm().max((c - b).norm()).max((a - c).norm());
-    (normal.norm() > cert::rounding_allowance(cert::coordinate_scale(tri)) * longest)
-        .then_some(normal)
-}
-
-/// What f64 can say of a triangle's winding against the direction its
-/// face points ([`winding`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Winding {
-    /// Resolved, and its normal has a positive dot with the direction.
-    Outward,
-    /// Resolved, and its normal does not: the triangle is wound against
-    /// its face. A direction that is not finite reads so too.
-    Folded,
-    /// Its winding is inside the rounding of its own positions
-    /// ([`resolved_normal`]): neither answer above is f64's to give.
-    Unresolved,
-}
-
-/// The winding of `tri`, as wound, against `outward`, the direction its
-/// face points there.
-pub(crate) fn winding(tri: [Point3<f64>; 3], outward: Vec3<f64>) -> Winding {
-    match resolved_normal(tri) {
-        None => Winding::Unresolved,
-        Some(normal) if normal.dot(outward) > 0.0 => Winding::Outward,
-        Some(_) => Winding::Folded,
+    let allowance = cert::rounding_allowance(cert::coordinate_scale(tri));
+    if normal.norm() > allowance * longest {
+        Ok(normal)
+    } else {
+        Err(Unresolved {
+            corners: tri.map(Point3::to_array),
+            height: normal.norm() / longest,
+            allowance,
+        })
     }
 }
 
 /// The first of `triangles`, indices into `positions`, whose winding is
-/// not resolved ([`resolved_normal`]).
+/// not resolved ([`resolved_normal`]), with what it is.
 pub(crate) fn first_unresolved(
     positions: &[Point3<f64>],
     triangles: &[[u32; 3]],
-) -> Option<[u32; 3]> {
-    triangles
-        .iter()
-        .copied()
-        .find(|t| resolved_normal(t.map(|i| positions[i as usize])).is_none())
+) -> Option<([u32; 3], Unresolved)> {
+    triangles.iter().find_map(|&t| {
+        resolved_normal(t.map(|i| positions[i as usize]))
+            .err()
+            .map(|unresolved| (t, unresolved))
+    })
 }
 
 /// A triangle whose winding f64 does not resolve ([`check_winding`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct UnresolvedWinding {
     /// The face whose patch holds the triangle.
     pub face: FaceKey,
     /// The triangle, as indices into [`Mesh::positions`].
     pub triangle: [u32; 3],
+    /// Its corners, its height and the allowance it does not exceed.
+    pub unresolved: Unresolved,
 }
 
 /// Whether **every triangle's winding is resolved above the rounding of
 /// its own positions** (`crates/mesh/README.md` `[mesh.winding]`): its
-/// cross product exceeds eight f64 epsilons of its largest corner
-/// coordinate norm, times its longest side. A normal computed from the
-/// stored corners of such a triangle would not flip if each coordinate
-/// moved by its evaluation rounding. Shape is not otherwise read: a thin
-/// triangle passes, and so does one small beside the kernel's ε.
+/// height over its longest side exceeds [`cert::ROUNDING_ULPS`] f64
+/// epsilons of the largest of its corners' norms (its cross product
+/// exceeds that allowance times the side). Shape is not otherwise read:
+/// a thin triangle passes, and so does one small beside the kernel's ε.
 ///
 /// [`fn@crate::tessellate`] refuses a face with a triangle that fails
 /// this ([`crate::TessellateError::UnresolvedWinding`]), by the same
@@ -365,12 +369,16 @@ pub struct UnresolvedWinding {
 /// The first unresolved triangle in patch order, with its face.
 pub fn check_winding(mesh: &Mesh) -> Result<(), UnresolvedWinding> {
     mesh.patches.iter().try_for_each(|patch| {
-        first_unresolved(&mesh.positions, &patch.triangles).map_or(Ok(()), |triangle| {
-            Err(UnresolvedWinding {
-                face: patch.face,
-                triangle,
-            })
-        })
+        first_unresolved(&mesh.positions, &patch.triangles).map_or(
+            Ok(()),
+            |(triangle, unresolved)| {
+                Err(UnresolvedWinding {
+                    face: patch.face,
+                    triangle,
+                    unresolved,
+                })
+            },
+        )
     })
 }
 
@@ -410,46 +418,25 @@ mod tests {
         for scale in [1e-3, 1.0, 1e3] {
             let allowance = 8.0 * f64::EPSILON * scale;
             assert!(
-                resolved_normal(sliver(scale, 1.5 * allowance)).is_some(),
+                resolved_normal(sliver(scale, 1.5 * allowance)).is_ok(),
                 "scale {scale:e}: a height of 1.5 allowances resolves"
             );
             assert!(
-                resolved_normal(sliver(scale, 0.75 * allowance)).is_none(),
+                resolved_normal(sliver(scale, 0.75 * allowance)).is_err(),
                 "scale {scale:e}: a height of 0.75 allowances does not"
             );
         }
         let near = sliver(1.0, 12.0 * f64::EPSILON);
         let far = near.map(|p| p + Vec3::new(0.0, 0.0, 1e3));
-        assert!(resolved_normal(near).is_some() && resolved_normal(far).is_none());
+        assert!(resolved_normal(near).is_ok() && resolved_normal(far).is_err());
         let none = [Point3::new(1.0, 2.0, 3.0); 3];
-        assert!(
-            resolved_normal(none).is_none(),
-            "three corners at one point"
-        );
+        assert!(resolved_normal(none).is_err(), "three corners at one point");
         let mut poison = sliver(1.0, 0.5);
         poison[2].y = f64::NAN;
         assert!(
-            resolved_normal(poison).is_none(),
+            resolved_normal(poison).is_err(),
             "a corner that is not finite"
         );
-    }
-
-    /// **The three answers** ([`winding`]): a resolved triangle is
-    /// outward or folded by the sign of its normal against the direction,
-    /// a zero or non-finite dot folded; an unresolved one is neither,
-    /// whatever the direction.
-    #[test]
-    fn a_winding_is_outward_folded_or_unresolved() {
-        let (up, down) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, -1.0));
-        let fat = sliver(1.0, 0.1);
-        assert_eq!(winding(fat, up), Winding::Outward);
-        assert_eq!(winding(fat, down), Winding::Folded);
-        assert_eq!(winding(fat, Vec3::new(1.0, 0.0, 0.0)), Winding::Folded);
-        assert_eq!(winding(fat, Vec3::new(0.0, 0.0, f64::NAN)), Winding::Folded);
-        let flat = sliver(1.0, 4.0 * f64::EPSILON);
-        for direction in [up, down] {
-            assert_eq!(winding(flat, direction), Winding::Unresolved);
-        }
     }
 
     /// **The public check names the first unresolved triangle and its
@@ -473,12 +460,15 @@ mod tests {
         };
         assert_eq!(check_winding(&mesh), Ok(()), "thin, and resolved");
         mesh.patches[1].triangles.push([0, 1, 3]);
+        let found = check_winding(&mesh).expect_err("the last triangle is unresolved");
         assert_eq!(
-            check_winding(&mesh),
-            Err(UnresolvedWinding {
-                face: FaceKey::default(),
-                triangle: [0, 1, 3],
-            })
+            (found.face, found.triangle),
+            (FaceKey::default(), [0, 1, 3])
         );
+        // The numbers it names: the triangle's own height, half the
+        // allowance at its scale, written out here.
+        assert_eq!(found.unresolved.height, 4.0 * f64::EPSILON);
+        assert_eq!(found.unresolved.allowance, 8.0 * f64::EPSILON);
+        assert_eq!(found.unresolved.corners[2], mesh.positions[3].to_array());
     }
 }
