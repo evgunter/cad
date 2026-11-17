@@ -401,8 +401,7 @@ pub(crate) fn face_target(
     let headroom = surface.spline_chart().is_none()
         && crate::tessellate::lane_of(body, fk, surface, tol.band)?
             == crate::tessellate::Lane::Trimmed
-        && !(crate::ruled_probe::cure() != 0
-            && crate::walk::splits_a_straight_side(body, fk, surface, tol.band)?);
+        && !(crate::ruled_probe::cure() != 0 && probe_routed(body, fk, surface, tol)?);
     Ok(if headroom {
         tol.delta * UNPROVED_HEADROOM
     } else {
@@ -544,8 +543,7 @@ pub(crate) fn tessellate_trimmed(
     }
     let orientation = trim_orientation(fk, face.sense, spline, &polygon)?;
     let cure = crate::ruled_probe::cure();
-    let routed = matches!(row, ChartRow::Analytic(_))
-        && crate::walk::splits_a_straight_side(body, fk, surface, tol.band)?;
+    let routed = matches!(row, ChartRow::Analytic(_)) && probe_routed(body, fk, surface, tol)?;
     let ruled = cure != 0 && routed;
     let rows_of = if ruled {
         Some(ruled_rows(body, &polygon, &singular).ok_or(TessellateError::MissingEntity {
@@ -5785,4 +5783,20 @@ fn walk_rows(
         },
         worst,
     ))
+}
+
+/// PROBE: the face is the chart lane's for a split straight side alone
+/// (`tessellate::lane_of`'s last arm).
+fn probe_routed(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &Surface<f64>,
+    tol: &SizingTols,
+) -> Result<bool, TessellateError> {
+    let face = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    Ok(face.rings.is_empty()
+        && !has_trim_carrier(body, fk)?
+        && crate::walk::splits_a_straight_side(body, fk, surface, tol.band)?)
 }

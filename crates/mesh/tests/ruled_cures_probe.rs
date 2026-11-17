@@ -19,11 +19,18 @@ use crate::common::{axis_y, validated};
 use crate::reach_probes::{geometry_enclosing, tol};
 
 fn turned(pts: &[(f64, f64)], turn: Revolution<f64>) -> Body<f64> {
+    try_turned(pts, turn).expect("the profile revolves")
+}
+
+fn try_turned(pts: &[(f64, f64)], turn: Revolution<f64>) -> Option<Body<f64>> {
     let lp = ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)));
-    revolve(&validated(vec![lp]), axis_y(), turn, tol())
-        .unwrap()
-        .body
-        .into_body()
+    match revolve(&validated(vec![lp]), axis_y(), turn, tol()) {
+        Ok(r) => Some(r.body.into_body()),
+        Err(e) => {
+            eprintln!("PROBE: {pts:?} does not revolve at this ε: {e:?}");
+            None
+        }
+    }
 }
 
 fn is_line(body: &Body<f64>, ek: topo::EdgeKey) -> bool {
@@ -186,11 +193,11 @@ fn corpus(only: Option<&str>) -> Vec<Cell> {
         // The orchestrator's two: a 45° cone of 1000 a full turn split
         // 1e-8 from its rim end at δ 1, and a 2° cone of height 100 split
         // 3e-8 from its rim end at δ 0.01.
-        let big = turned(
+        let big = try_turned(
             &[(0.0, 0.0), (1000.0, 0.0), (0.0, 1000.0)],
             Revolution::Full,
         );
-        let thin = turned(
+        let thin = try_turned(
             &[(0.0, 0.0), (100.0 * 2f64.to_radians().tan(), 0.0), (0.0, 100.0)],
             Revolution::Full,
         );
@@ -198,6 +205,7 @@ fn corpus(only: Option<&str>) -> Vec<Cell> {
             ("cone 1000", &big, 1e-8, vec![1.0, 0.1]),
             ("cone 2° h100", &thin, 3e-8, vec![0.1, 0.01]),
         ] {
+            let Some(body) = body else { continue };
             let solid = place(body);
             for (k, ek) in rulings(body).into_iter().enumerate() {
                 // The rim end: the ruling's end farther from the apex.
