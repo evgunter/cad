@@ -395,15 +395,16 @@ pub(crate) const BOUNDARY_CLEARANCE: f64 = 1.0 / 16.0;
 pub(crate) fn face_target(
     body: &Body<f64>,
     fk: FaceKey,
-    delta: f64,
+    tol: &SizingTols,
 ) -> Result<f64, TessellateError> {
     let surface = crate::tessellate::face_surface(body, fk)?;
     let headroom = surface.spline_chart().is_none()
-        && crate::tessellate::lane_of(body, fk, surface)? == crate::tessellate::Lane::Trimmed;
+        && crate::tessellate::lane_of(body, fk, surface, tol.band)?
+            == crate::tessellate::Lane::Trimmed;
     Ok(if headroom {
-        delta * UNPROVED_HEADROOM
+        tol.delta * UNPROVED_HEADROOM
     } else {
-        delta
+        tol.delta
     })
 }
 
@@ -433,13 +434,13 @@ pub(crate) fn arm_steps(
     body: &Body<f64>,
     fk: FaceKey,
     row: &AnalyticRow<'_>,
-    delta: f64,
+    tol: &SizingTols,
 ) -> Result<(f64, f64), TessellateError> {
     #[cfg(test)]
     let scale = tests::STEP_SCALE.with(std::cell::Cell::get);
     #[cfg(not(test))]
     let scale = 1.0;
-    let (hu, hv) = row.steps(face_target(body, fk, delta)?);
+    let (hu, hv) = row.steps(face_target(body, fk, tol)?);
     Ok((hu * scale, hv * scale))
 }
 
@@ -546,7 +547,13 @@ pub(crate) fn tessellate_trimmed(
     if let ChartRow::Analytic(ref a) = row
         && !a.singular_points().is_empty()
     {
-        singular_row_shape(fk, a.singular_points(), &singular, &polygon)?;
+        singular_row_shape(
+            fk,
+            a.singular_points(),
+            &singular,
+            &polygon,
+            a.development().is_some(),
+        )?;
     }
 
     // The lattice, over the trim box: on an analytic chart a uniform
@@ -569,7 +576,7 @@ pub(crate) fn tessellate_trimmed(
             // The row's steps at the face's target, the steps the chord
             // pass bounded this face's boundary UV steps by (`arm_steps`),
             // and the lattice the row lays from them.
-            let (hu, hv) = a.lattice_steps(arm_steps(body, fk, a, tol.delta)?);
+            let (hu, hv) = a.lattice_steps(arm_steps(body, fk, a, tol)?);
             let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
             let rows = a.lattice_rows((v0, v1), (hu, hv))?;
             // The other half of #678's shape on the cylinder, checked
@@ -1659,10 +1666,9 @@ impl TrimmedFace<'_> {
 ///
 /// An edge a loop uses twice (a seam) has `fk` across it, and `fk` is
 /// left out: a side between two of its points is this face's own, made
-/// once by this one triangulation. No accepted cone face reaches that
-/// arm today: a mesh id at two chart locations that is no singular
-/// vertex has refused `SeamTwice` ([`singular_row_shape`]) before this
-/// map is built, so nothing holds it but that refusal.
+/// once by this one triangulation. A one-face full-turn cone wall
+/// reaches that arm: its development holds the seam's two copies on the
+/// sector's two rays ([`singular_row_shape`]).
 fn faces_across(
     body: &Body<f64>,
     fk: FaceKey,
@@ -2166,8 +2172,17 @@ fn singular_vertices(
 /// - a point past a row that ends the chart's `v` domain
 ///   ([`SingularPoint::passed_by`]): an edge whose image runs through the
 ///   singular point mid-edge;
-/// - a mesh id at two chart locations that is no singular vertex: a seam
-///   traversed twice.
+/// - a mesh id at two chart locations that is no singular vertex (a seam
+///   traversed twice), where the CDT runs in the lattice (`developed`
+///   false): there the two copies are two columns of one lattice, and a
+///   triangle across them is the collapse #678 is about. In the cone's
+///   development (`developed` true) the seam's copies lie on the sector's
+///   two bounding rays, which the face's interior keeps apart. A
+///   triangle with a corner at each copy of one point lies outside the
+///   face when the sector is wider than a half turn; inside a narrower
+///   one it has two corners on one vertex and is dropped, as the apex
+///   row's are, and the emit pass's census of identified edges re-derives
+///   that what is left about the vertex is a fan.
 ///
 /// A loop that winds about a singular point inside the face does not
 /// close in the chart, and the door refuses it before any polygon is
@@ -2190,6 +2205,7 @@ fn singular_row_shape(
     points: &[SingularPoint],
     singular: &HashSet<u32>,
     trim: &TrimPolygon,
+    developed: bool,
 ) -> Result<(), TessellateError> {
     let (polygon, edges) = (trim.points.as_slice(), trim.edges.as_slice());
     let refuse = |i: usize, cause| -> Result<(), TessellateError> {
@@ -2215,6 +2231,9 @@ fn singular_row_shape(
         if let (Some(a), Some(b)) = (above, below) {
             return refuse(a.max(b), SphereTrimCause::BothNappes);
         }
+    }
+    if developed {
+        return Ok(());
     }
     let apart = crate::cdt::ids_at_two_uvs(polygon.iter().copied());
     if let Some(i) = polygon
@@ -3426,8 +3445,14 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass =
-            crate::chords::compute_chords(&body, 5e-3, &vids, &mut positions, &mut bounds).unwrap();
+        let chords: ChordPass = crate::chords::compute_chords(
+            &body,
+            &crate::sizing::tests::witness_tols(5e-3),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
         let mut rims = 0;
         for (ek, edge) in body.edges() {
             let curve = body
@@ -3571,21 +3596,34 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass =
-            crate::chords::compute_chords(&body, delta, &vids, &mut positions, &mut bounds)
-                .unwrap();
+        let chords: ChordPass = crate::chords::compute_chords(
+            &body,
+            &crate::sizing::tests::witness_tols(delta),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
         let (mut faces, mut worst) = (0, 0.0f64);
         for (fk, face) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
             if !matches!(surface, geom::Surface::Sphere { .. })
-                || crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                || crate::tessellate::lane_of(
+                    &body,
+                    fk,
+                    surface,
+                    crate::sizing::tests::witness_tols(1e-2).band,
+                )
+                .unwrap()
                     != crate::tessellate::Lane::Trimmed
             {
                 continue;
             }
             faces += 1;
             let row = crate::chart_table::AnalyticRow::of(&body, fk, surface).unwrap();
-            let (hu, hv) = super::arm_steps(&body, fk, &row, delta).unwrap();
+            let (hu, hv) =
+                super::arm_steps(&body, fk, &row, &crate::sizing::tests::witness_tols(delta))
+                    .unwrap();
             for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap() {
                 let image = body.pcurve(hek).unwrap().pcurve();
                 let uv: Vec<_> = chords.params[&ek].iter().map(|&t| image.eval(t)).collect();
@@ -3741,7 +3779,13 @@ pub(super) mod tests {
                 else {
                     continue;
                 };
-                if crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                if crate::tessellate::lane_of(
+                    &body,
+                    fk,
+                    surface,
+                    crate::sizing::tests::witness_tols(1e-2).band,
+                )
+                .unwrap()
                     != crate::tessellate::Lane::Trimmed
                 {
                     continue;
@@ -3802,22 +3846,39 @@ pub(super) mod tests {
                     positions.push(p);
                 }
                 let mut bounds = crate::nurbs_cert::FaceBounds::new();
-                let chords: ChordPass =
-                    crate::chords::compute_chords(&body, delta, &vids, &mut positions, &mut bounds)
-                        .unwrap();
+                let chords: ChordPass = crate::chords::compute_chords(
+                    &body,
+                    &crate::sizing::tests::witness_tols(delta),
+                    &vids,
+                    &mut positions,
+                    &mut bounds,
+                )
+                .unwrap();
                 for (fk, face) in body.faces() {
                     let surface = body.face_surface(fk).unwrap();
                     if !matches!(
                         surface,
                         geom::Surface::Cone { .. } | geom::Surface::Torus { .. }
-                    ) || crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                    ) || crate::tessellate::lane_of(
+                        &body,
+                        fk,
+                        surface,
+                        crate::sizing::tests::witness_tols(1e-2).band,
+                    )
+                    .unwrap()
                         != crate::tessellate::Lane::Trimmed
                     {
                         continue;
                     }
                     faces += 1;
                     let row = crate::chart_table::AnalyticRow::of(&body, fk, surface).unwrap();
-                    let (hu, hv) = super::arm_steps(&body, fk, &row, delta).unwrap();
+                    let (hu, hv) = super::arm_steps(
+                        &body,
+                        fk,
+                        &row,
+                        &crate::sizing::tests::witness_tols(delta),
+                    )
+                    .unwrap();
                     for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap()
                     {
                         let image = body.pcurve(hek).unwrap().pcurve();
@@ -3850,7 +3911,12 @@ pub(super) mod tests {
                             .certified()
                             .unwrap()
                             .carrier();
-                        let target = super::face_target(&body, fk, delta).unwrap();
+                        let target = super::face_target(
+                            &body,
+                            fk,
+                            &crate::sizing::tests::witness_tols(delta),
+                        )
+                        .unwrap();
                         // The new arms size at the lane's headroom, as the
                         // cylinder and sphere arms do: it stands in for
                         // the containment lemma no arm has yet.
@@ -4201,13 +4267,25 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass =
-            crate::chords::compute_chords(&body, 1e-2, &vids, &mut positions, &mut bounds).unwrap();
+        let chords: ChordPass = crate::chords::compute_chords(
+            &body,
+            &crate::sizing::tests::witness_tols(1e-2),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
         let mut with_poles = 0;
         for (fk, face) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
             if !matches!(surface, geom::Surface::Sphere { .. })
-                || crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                || crate::tessellate::lane_of(
+                    &body,
+                    fk,
+                    surface,
+                    crate::sizing::tests::witness_tols(1e-2).band,
+                )
+                .unwrap()
                     != crate::tessellate::Lane::Trimmed
             {
                 continue;
@@ -4978,17 +5056,17 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass =
-            crate::chords::compute_chords(body, delta, &vids, &mut positions, &mut bounds).unwrap();
         let tol = crate::sizing::SizingTols {
             delta,
             eps: crate::sizing::Eps::at(witness),
             band: geom_core::Band::linear(witness).unwrap(),
         };
+        let chords: ChordPass =
+            crate::chords::compute_chords(body, &tol, &vids, &mut positions, &mut bounds).unwrap();
         body.faces()
             .filter_map(|(fk, _)| {
                 let surface = body.face_surface(fk).unwrap();
-                (crate::tessellate::lane_of(body, fk, surface).unwrap()
+                (crate::tessellate::lane_of(body, fk, surface, tol.band).unwrap()
                     == crate::tessellate::Lane::Trimmed)
                     .then(|| {
                         let lift = super::face_domain(body, fk, &tol).unwrap();
@@ -5075,7 +5153,7 @@ pub(super) mod tests {
                 },
             ];
             let trim = super::TrimPolygon::new((poly.to_vec(), edges));
-            match super::singular_row_shape(fk, &poles, &HashSet::new(), &trim) {
+            match super::singular_row_shape(fk, &poles, &HashSet::new(), &trim, false) {
                 Err(TessellateError::SphereTrimShape { edge, cause, .. }) => Some((edge, cause)),
                 Ok(()) => None,
                 Err(other) => panic!("not a shape refusal: {other:?}"),
@@ -5402,6 +5480,7 @@ pub(super) mod tests {
                 &apex,
                 &singular,
                 &super::super::TrimPolygon::new((poly.to_vec(), edges[..poly.len()].to_vec())),
+                true,
             ) {
                 Err(TessellateError::SphereTrimShape { cause, .. }) => Some(cause),
                 Ok(()) => None,
