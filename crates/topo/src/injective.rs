@@ -898,6 +898,10 @@ struct Along {
     vertex: Option<VertexKey>,
     whole: bool,
     params: Option<Params>,
+    /// The side lies on its edges: the presentation's rectangle meets its
+    /// chart line only where the edges cover it ([`present_chart`]'s
+    /// coverage, a plane segment's own span).
+    on_edges: bool,
 }
 
 /// A side's parameters on its edge's carrier, and whether that carrier
@@ -929,6 +933,7 @@ impl Along {
             vertex: None,
             whole: analytic && rims.len() == edges.len() && rims.iter().all(own),
             params: None,
+            on_edges: false,
         }
     }
 
@@ -939,19 +944,29 @@ impl Along {
             vertex: Some(vertex),
             whole: true,
             params: None,
+            on_edges: false,
         }
     }
 
     /// The side on `b`'s one edge `edge`, its parameters `t` on that
-    /// edge's carrier.
-    fn over(surface: &Surface<Interval>, b: &Boundary, edge: usize, t: Option<(f64, f64)>) -> Self {
+    /// edge's carrier kept where the side is whole, and whether it lies
+    /// on the edge.
+    fn over(
+        surface: &Surface<Interval>,
+        b: &Boundary,
+        edge: usize,
+        t: Option<(f64, f64)>,
+        on_edges: bool,
+    ) -> Self {
+        let of = Self::of(surface, b, &[edge]);
         let circle = b
             .edges
             .get(edge)
             .is_some_and(|r| matches!(r.arc, Some((Curve3::Circle(_), _))));
         Self {
-            params: t.map(|t| Params { t, circle }),
-            ..Self::of(surface, b, &[edge])
+            params: t.filter(|_| of.whole).map(|t| Params { t, circle }),
+            on_edges,
+            ..of
         }
     }
 
@@ -986,17 +1001,13 @@ impl Along {
 /// the moving axis of `rim`'s one coordinate-line use, mapped by the
 /// affine relation its image's ends and its span's ends fix. On an
 /// analytic chart a coordinate line's image is a line or a circle, and
-/// an edge on it whose carrier is that line or circle has a parameter
-/// affine in the moving coordinate. On a periodic axis the image is
-/// first moved by the whole turns that bring it nearest the range.
-/// `None` for anything else.
+/// an edge on it whose carrier is that line or circle (a whole side,
+/// [`Along::of`]) has a parameter affine in the moving coordinate; only
+/// such a side keeps them ([`Along::over`]). On a periodic axis the
+/// image is first moved by the whole turns that bring it nearest the
+/// range.
 fn iso_params(surface: &Surface<Interval>, rim: &Rim, range: (f64, f64)) -> Option<(f64, f64)> {
-    if !geom_brep::is_analytic(surface) {
-        return None;
-    }
-    let (Curve3::Line(_) | Curve3::Circle(_), (t0, t1)) = rim.arc.as_ref()? else {
-        return None;
-    };
+    let (_, (t0, t1)) = rim.arc.as_ref()?;
     let [u] = rim.uses.as_slice() else {
         return None;
     };
@@ -1955,9 +1966,15 @@ fn present_chart<'a>(
                         .edges
                         .get(e)
                         .and_then(|r| iso_params(piece.surface, r, range));
-                    Zero::Side(side, Along::over(piece.surface, b, e, t))
+                    Zero::Side(side, Along::over(piece.surface, b, e, t, true))
                 }
-                None => Zero::Side(side, a),
+                None => Zero::Side(
+                    side,
+                    Along {
+                        on_edges: true,
+                        ..a
+                    },
+                ),
             }
         }
         Ok(zero) => zero,
@@ -2241,7 +2258,7 @@ fn present_plane<'a>(
                     };
                     segment_params(ta, tb, (x.lo(), x.hi()))
                 });
-                Zero::Side(Side::YLo, Along::over(piece.surface, b, *e, t))
+                Zero::Side(Side::YLo, Along::over(piece.surface, b, *e, t, true))
             } else {
                 Zero::None
             };
@@ -2330,7 +2347,7 @@ fn present_plane<'a>(
                     };
                     segment_params(ta, tb, (0.0, hi.hi()))
                 });
-                Along::over(piece.surface, b, e, t)
+                Along::over(piece.surface, b, e, t, true)
             };
             let (on1, on2) = (on(*e1, r1, x), on(*e2, r2, y));
             let zero = match (z1, z2) {
@@ -2919,6 +2936,7 @@ fn present_curved<'a>(
                         vertex: None,
                         whole: matches!(carrier, Curve3::Circle(_) | Curve3::Ellipse(_)),
                         params: None,
+                        on_edges: false,
                     },
                 }),
             )
@@ -3278,6 +3296,7 @@ fn present_wall<'a>(
                     vertex: None,
                     whole: false,
                     params: None,
+                    on_edges: false,
                 },
             }),
         )
@@ -3815,7 +3834,7 @@ fn present_line_corner<'a>(
         y,
         zero: Zero::Side(
             Side::of(held, sigma > 0.0),
-            Along::over(surface, b, c.read, iso_params(surface, e, along)),
+            Along::over(surface, b, c.read, iso_params(surface, e, along), false),
         ),
         corner: true,
         cache: Cache::default(),
@@ -3954,6 +3973,7 @@ fn present_plane_corner<'a>(
                     if ue.plus { *t1 } else { *t0 },
                     x,
                 ),
+                false,
             ),
         ),
         corner: true,
@@ -5102,8 +5122,11 @@ impl On {
 /// or curve is zero where its parameters lie in the graph's piece, the
 /// one stretch of its edge's carrier the graph vanishes on
 /// ([`graph_of`]): a corner presentation's side runs on past its vertex
-/// ([`present_corner`]), and a side whose parameters are not read
-/// answers nothing. A face's own
+/// ([`present_corner`]). A side whose chart line is not its edge's own
+/// line or circle (a spline's) has no parameters read, and is zero only
+/// where it lies on its edge ([`Along`]): its points are the edge's, in
+/// the presentation's image, which the piece the edge reaches holds up
+/// to the rounding of the chart against the stored carrier. A face's own
 /// carrier (`on` `None`, the carrier arm) is read over the side
 /// (`SELF_INTERSECTION_ON_SHARED`).
 ///
@@ -5137,7 +5160,9 @@ fn sign_on(
     let zero_on = |s: Side, a: &Along, whole: bool| {
         on.map_or_else(
             || read(s),
-            |on| on.holds(a, whole) && piece.is_none_or(|p| a.within(p)),
+            |on| {
+                on.holds(a, whole) && piece.is_none_or(|p| a.within(p) || (!a.whole && a.on_edges))
+            },
         )
     };
     let (fx, fy, fxy) = p.jet();
@@ -8347,6 +8372,7 @@ mod presentation_rows {
             vertex: None,
             whole: true,
             params: None,
+            on_edges: false,
         };
         let p = past(Zero::Past(Side::YLo, line.clone()));
         let exact = past(Zero::Side(Side::YLo, line.clone()));
