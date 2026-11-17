@@ -1775,6 +1775,29 @@ fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
     assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
 }
 
+/// **The drum the cavity above is cut from refuses, out of depth**: its
+/// half-annulus cells a rounding off the disc's half-circle are read by no
+/// presentation (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
+/// Pinned as `a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone`
+/// pins its refusals: red when the drum holds, and that row's reading
+/// has landed.
+#[test]
+fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
+    use crate::common::latitude_seam::collinear_cap_drum;
+    let drum = collinear_cap_drum();
+    let report = injective(&drum, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Budget(_))
+        ),
+        "the drum runs out of depth: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+    assert_eq!(report.receipt.refused, 282, "{:?}", report.receipt);
+}
+
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity
 /// refuses typed at the vertices its walls share alone.** At `Interval`
 /// the union builds at every ε, as the `f64` body: as many faces, edges
@@ -1889,6 +1912,56 @@ fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_
          pairs at a vertex alone, the plane read and the wall not, refuse eight cells at the \
          floor ({:?})",
         report.receipt
+    );
+    // Which pairs refuse, each touching pair asked alone: the six above,
+    // each at a vertex its faces share alone. Every pair sharing an edge
+    // holds, the wall halves against the mitre across its ellipse among
+    // them.
+    let edges = |f: FaceKey| -> BTreeSet<topo::EdgeKey> {
+        tee.face(f)
+            .unwrap()
+            .loops()
+            .flat_map(|(lk, _, _)| match tee.get_loop(lk).unwrap().boundary {
+                LoopBoundary::Empty { .. } => Vec::new(),
+                LoopBoundary::Cycle { first } => tee
+                    .loop_cycle(first)
+                    .unwrap()
+                    .into_iter()
+                    .map(|he| tee.get_half_edge(he).unwrap().edge)
+                    .collect(),
+            })
+            .collect()
+    };
+    let mut refusing: Vec<[&str; 2]> = Vec::new();
+    for (a, b) in touching_pairs(tee) {
+        let alone = injective(tee, Some(vec![a, b]), BUDGET);
+        let across = !edges(a).is_disjoint(&edges(b));
+        if matches!(alone.verdict, BoundVerdict::Holds) {
+            continue;
+        }
+        assert!(
+            !across,
+            "a pair sharing an edge holds: {a:?} ({}) against {b:?} ({}): {:?}",
+            kind(tee, a),
+            kind(tee, b),
+            alone.verdict
+        );
+        let mut kinds = [kind(tee, a), kind(tee, b)];
+        kinds.sort_unstable();
+        refusing.push(kinds);
+    }
+    refusing.sort_unstable();
+    assert_eq!(
+        refusing,
+        [
+            ["cylinder", "cylinder"],
+            ["cylinder", "cylinder"],
+            ["cylinder", "plane"],
+            ["cylinder", "plane"],
+            ["cylinder", "plane"],
+            ["cylinder", "plane"],
+        ],
+        "the walls against each other, and four plane–wall pairs, each at a vertex alone"
     );
     assert!(
         report

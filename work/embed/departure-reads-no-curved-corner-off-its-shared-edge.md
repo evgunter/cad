@@ -379,15 +379,18 @@ f64 row counted it out of pairs; it now refuses on the departure arm.
 ## Read: two arcs of one conic at a corner (EMBED, lane conic-arcs, 2026-11-17)
 
 **What landed** (`crates/topo/src/injective.rs`):
-- **`Reading::Conic`.** A corner whose shared edge is a curve
-  `present_curved` reads, and whose other edge is an arc of the same
-  conic, is read on through the vertex along the other arc.
-  - "The same conic" is `one_conic`: the stored carriers have one
-    centre, one plane (axes equal or opposed) and one radius, or for an
-    ellipse the same semi-axes along the same lines, each compared as one
-    value, as `one_plane` reads a plane. Arcs split from one rim are not
-    stored on one frame: the drum's half-circles have opposed axes, and
-    the tee's ellipse arcs have opposed `u_ref`.
+- **`Reading::Conic`.** A corner whose shared edge is a curve on a
+  conic and whose other edge continues it through the vertex is read on
+  through the vertex along the other arc.
+  - "Continues it" is `continues`: the two are `one_conic` (one plane
+    through one centre and one radius, or for an ellipse the same
+    semi-axes along the same lines, each compared as one value, sharing
+    `one_value` with `one_plane`); the other edge has one use; the two
+    are no more than a turn together; and the other leaves the vertex
+    the way the shared edge arrives. So the two meet only at their
+    common ends. Arcs split from one rim are not stored on one frame:
+    the drum's half-circles have opposed axes, and the tee's ellipse
+    arcs have opposed `u_ref`.
   - The curve is read by the shared edge's own closed form over a whole
     turn and a little more, centred on the vertex (`through_of`). Step
     2's `apart` then leaves one run of the conic in `R`. `alone` admits
@@ -406,16 +409,29 @@ f64 row counted it out of pairs; it now refuses on the departure arm.
     curve's parameters in its piece (`Curved::within`). Those parameters
     are the shared edge's own carrier's, continued, so `graph_of`
     already extends the piece to them.
-  - The argument: the partner's zero set is on the shared edge, so a
-    coincidence at a point of the next arc is two points of this face
-    with one image. The face's injectivity by kind rules that out. That
-    leans on `by_kind`'s premise, as `Zero::Past` does
-    (`an-analytic-face-may-cover-its-carrier-more-than-once`).
+  - The argument (`past_read`): where both are zero, a point is on the
+    partner's zero set, so on the shared cell, and on this face's zero
+    in `R`, so on the shared edge or the next arc. Nothing of the shared
+    cell but the shared edge and its ends is in `R`'s reach, and the
+    next arc meets the shared edge only at their common ends
+    (`continues`). So the point is on the shared cell. This rests on
+    `continues`, checked in the reading, and not on the face's
+    injectivity: past curves add no exposure to
+    `an-analytic-face-may-cover-its-carrier-more-than-once`, which past
+    sides (`Zero::Past`) still lean on.
 - **A separator for the coplanar faces.** This is the second thing the
   previous section named, and it needed no new separator. The graph
   separator over the conic continued vanishes on the whole run read. On
   the drum's three coplanar faces its bisector lies in their plane, so
   it departs across the circle where the conic's own plane cannot.
+- **A `Conic` cell that `graph_read` does not read is `Local`**, where
+  main typed every such corner `Structural`. On purpose: a smaller cell
+  is often read where a large one is not (step 2's `apart` and `alone`
+  refuse big cells), and the drum's cavity certifies only through those
+  smaller cells. A pair whose corner is never read now splits to
+  `Budget(Depth)` where main refused it `Uncertified` at once. No
+  measured row moved that way: the tee, the lune and the drums refuse
+  or hold as above, and the tour walk's pair counts did not move.
 - **`stuck`.** A pair refuses at once when each face is `Structural` or
   read past at a vertex in its reach. This is the case the both-
   `Structural` rule already refused: such a cell was `Structural` before
@@ -431,7 +447,7 @@ f64 row counted it out of pairs; it now refuses on the departure arm.
 | `shell7_seam_corner::a_collinear_cap_vertex_drum_shells_to_its_closed_form` | refuses, the same | shells |
 | `torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows` | `Uncertified { 1v1, 3v1, Edge(3v1) }`, 0.27 s | `Uncertified { 3v1, 4v1, Edge(6v1) }`, 0.41 s |
 | `torax_the_torus_corners_survive_a_rigid_re_pose` | refuses | refuses, unchanged (not this reading) |
-| the tee (`crossing_equal_rods`), refused cells | 12 | 10 |
+| the tee (`crossing_equal_rods`), refused cells | 12 | 10, the six refusing pairs each at a vertex alone (pinned pair by pair) |
 | `self_intersection_proves_injectivity` | 46 pass | 47 pass (one new) |
 | the tour walk | 82 of 85 hold | 82 of 85, no body's pairs moved |
 
@@ -443,9 +459,18 @@ f64 row counted it out of pairs; it now refuses on the departure arm.
 
   The junction's arcs between the walls (`2v3`–`4v1` across `13v3`,
   `7v1`–`10v1` across `9v3`) also certify cells at the junction's
-  vertices that a wall reads past, under the ellipse's own plane. What still refuses:
+  vertices that a wall reads past, under the ellipse's own plane. What
+  still refuses:
   - the walls against each other at `2v3`, `(1, 0, 1)`, two root pairs;
   - the four plane–wall vertex-alone pairs, eight cells at the floor.
+
+  PR 7093 (`embed/cylinder-vertex`) certifies the walls at `(1, 0, 1)`
+  and `B`'s wall against the mitre, and leaves `A`'s wall halves against
+  the mitre (this reading's pairs) and against `B`'s cap at the floor.
+  With both, the tee should refuse only `A`'s wall halves against `B`'s
+  cap, at a vertex alone where `A`'s wall's corner is two arcs of the
+  ellipse, a straight angle no quadrant holds. Whichever lands second
+  re-pins against main and measures it.
 - **The two-arc lune.** Its caps are now presented at the equator
   vertex, and its spheres are still not presented:
   - The cap–sphere pairs have only the carrier arm, which a past curve

@@ -49,4 +49,13 @@ cell the curve does not bound (its face's part of the cell is all on one
 side, or none of it), which is the sliver row's question for a curve.
 
 The at-rest gate asks every finished body, so it would refuse this
-drum at its door.
+drum at its door. Pinned by
+`the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle`
+(282 refused), which goes red when the drum holds.
+
+The sliver fork's recommendation (PR 7095: a thin rectangle read rather
+than conceded, the departure margin metered at the faces' reach) would
+not reach this cell as it stands: `graph_read` refuses at step 1's
+choice of run, before any rectangle is built or any margin taken, so
+the reading needs a rectangle for a cell the curve passes outside of
+first.
