@@ -7654,6 +7654,46 @@ mod presentation_rows {
         }
     }
 
+    /// **On a cylinder of radius 0.055 the vertex-alone corner is still
+    /// its quadrant** ([`present_vertex_corner`]): the chart's `u`-speed
+    /// is 0.055 against `v`'s 1, the torus belly's, and a lean of a
+    /// quarter of `A` taken in chart units does not present the corner
+    /// (`Local`, measured). Red if the lean is
+    /// chosen in chart units rather than in the surface's metric at the
+    /// vertex; every other row's cylinder has radius 1, where the two
+    /// agree.
+    #[test]
+    fn a_thin_cylinders_corner_at_a_vertex_alone_leans_in_the_surfaces_metric() {
+        let r = 0.055;
+        let s = Surface::Cylinder {
+            origin: origin(),
+            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            radius: iv0(r),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        let mut b = vertex_quadrant(10, true, true, true, None);
+        let thin = |p: Point3<Interval>| Point3::new(p.x * iv0(r), p.y * iv0(r), p.z);
+        for p in b.vertices.values_mut() {
+            *p = thin(*p);
+        }
+        if let Some((Curve3::Line(l), _)) = &mut b.edges[0].arc {
+            l.origin = thin(l.origin);
+        }
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let piece = quadrant_piece(&s, &b, &local, 1, ((0.98, 1.02), (0.48, 0.52)));
+        let got = match present_chart(&piece, &[], &[vertex(1)], band()) {
+            Ok(Presentation::Of(q)) => Ok(q.zero),
+            other => Err(read(other)),
+        };
+        assert!(
+            matches!(got, Ok(Zero::Point(Side::XLo, Side::YLo, v)) if v == vertex(1)),
+            "the thin cylinder's quadrant about the vertex: {got:?}"
+        );
+    }
+
     /// **A corner of a cylinder face at `(1, ½)` on the rim `v = ½`**:
     /// the rim (edge 0) run from the vertex (vertex 1) toward `u = ½`
     /// (vertex 2), the face below it, and `curve` (edge 1) leaving the
