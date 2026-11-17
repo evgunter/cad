@@ -1362,3 +1362,13 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - `the-odd-edge-with-one-pair-edge-fillet-refuses` (P3, design).
 
   Next: draw and dispatch cut 3 (the vocabulary) and the reach row.
+- 2026-11-17 — Dispatched two lanes:
+  - **Cut 3, the vocabulary** (P0). Letter M, dual sequential. Implementer byte 102 → Opus. Lane `band-cut3`, branch `band/bracket-end-vocabulary`. In scope:
+    - `UnbuiltEnd` per the 6866 payload;
+    - `BandEnd` made private;
+    - the prelude retirements;
+    - the designers' invariant defects;
+    - the doubled feet-cross advice.
+  - **The mixed-corner reach row** (P1). Letter H, dual concurrent. Implementer byte 236 → Opus. Lane `band-reach`, branch `band/mixed-corner-reach`. It also takes `reach.rs`'s unitless `|n·τ|` item.
+
+  Both lanes are told to keep out of each other's files and to fold main in by merge.
