@@ -5952,6 +5952,10 @@ pub(super) mod tests {
         /// the split vertex and the seam's end are a run of two on each ray,
         /// at a corner of the polygon, so one is anchored by the neighbour
         /// before it and the other by the one after.
+        ///
+        /// **By ε.** The same at the default and `10⁻¹²`. At `10⁻⁶`
+        /// `split_edge` reads splits `10⁻⁶` apart as no split, and the row
+        /// reads the end split alone and says so.
         #[test]
         fn a_split_seams_close_points_are_a_run_on_each_ray() {
             use std::collections::HashMap;
@@ -6004,7 +6008,7 @@ pub(super) mod tests {
                 let mut body = wall.clone();
                 let (_, _, (t0, t1)) = ends(&body, seam);
                 for &f in fracs {
-                    body.split_edge(seam, t0 + (t1 - t0) * f, tol).unwrap();
+                    body.split_edge(seam, t0 + (t1 - t0) * f, tol).ok()?;
                 }
                 let mut positions = Vec::new();
                 let mut vids = HashMap::new();
@@ -6044,25 +6048,39 @@ pub(super) mod tests {
                     carried_by_a_line(&body, polygon.edges[i])
                 })
                 .expect("every merge of the face is a run");
-                runs.into_iter()
-                    .map(|run| {
-                        let ids: Vec<u32> =
-                            run.members.iter().map(|&i| polygon.points[i].2).collect();
-                        (ids, run.anchor)
-                    })
-                    .collect::<Vec<_>>()
+                Some(
+                    runs.into_iter()
+                        .map(|run| {
+                            let ids: Vec<u32> =
+                                run.members.iter().map(|&i| polygon.points[i].2).collect();
+                            (ids, run.anchor)
+                        })
+                        .collect::<Vec<_>>(),
+                )
             };
-            let mid = runs_of(&[0.5 + 2e-6, 0.5 + 1e-6, 0.5]);
-            let [(one, Anchor::Before), (other, Anchor::Before)] = mid.as_slice() else {
-                panic!("three close splits: a run inside a ruling side on each ray, got {mid:?}");
-            };
-            assert_eq!(one.len(), 3, "a run of three");
-            assert_eq!(
-                one.iter().rev().collect::<Vec<_>>(),
-                other.iter().collect::<Vec<_>>(),
-                "the two rays hold the same mesh vertices, walked opposite ways"
-            );
-            let end = runs_of(&[1e-5]);
+            if let Some(mid) = runs_of(&[0.5 + 2e-6, 0.5 + 1e-6, 0.5]) {
+                let [(one, Anchor::Before), (other, Anchor::Before)] = mid.as_slice() else {
+                    panic!(
+                        "three close splits: a run inside a ruling side on each ray, got {mid:?}"
+                    );
+                };
+                assert_eq!(one.len(), 3, "a run of three");
+                assert_eq!(
+                    one.iter().rev().collect::<Vec<_>>(),
+                    other.iter().collect::<Vec<_>>(),
+                    "the two rays hold the same mesh vertices, walked opposite ways"
+                );
+            } else {
+                assert!(
+                    tol.eps() > geom_core::tolerance::DEFAULT_EPS,
+                    "splits 1e-6 apart are splits at the default ε and below"
+                );
+                eprintln!(
+                    "SKIPPED at ε {:e}: `split_edge` reads splits 1e-6 apart as no split",
+                    tol.eps()
+                );
+            }
+            let end = runs_of(&[1e-5]).expect("a split 1e-5 from the seam's end");
             let [(one, a), (other, b)] = end.as_slice() else {
                 panic!("a split beside the seam's end: a run of two on each ray, got {end:?}");
             };
