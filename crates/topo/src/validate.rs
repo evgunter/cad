@@ -5360,29 +5360,18 @@ impl ValidationError {
                  material is undecided: {}",
                 why.sentence(at)
             ),
-            Self::BoundaryMeetsItself {
-                faces: [a, b],
-                witness,
-            } => write!(
+            Self::BoundaryMeetsItself { witness, .. } => write!(
                 f,
-                "face {a:?} and face {b:?} meet at {witness}, off every edge and vertex they \
-                 share and every recorded contact, so the boundary crosses itself. Recourse: \
-                 change the construction so those faces stay apart, or record the contact if \
-                 it is intended"
+                "two faces meet at {witness}, off every edge and vertex they share and every \
+                 recorded contact, so the boundary crosses itself. Recourse: change the \
+                 construction so those faces stay apart, or record the contact if it is intended"
             ),
-            Self::EmbeddingUncertified { refusal } => {
-                struct Said<'r>(&'r crate::clearance::EngineRefusal);
-                impl fmt::Display for Said<'_> {
-                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                        self.0.say(f, [&"the body", &"the body"])
-                    }
-                }
-                write!(
-                    f,
-                    "whether the boundary meets itself off its records is undecided: {}",
-                    Said(refusal)
-                )
-            }
+            Self::EmbeddingUncertified { refusal } => write!(
+                f,
+                "whether the boundary meets itself off its records is undecided: {}. {}",
+                embedding_refusal_words(refusal),
+                geom_core::KERNEL_LIMIT_RECOURSE
+            ),
             Self::InstanceInterference { .. } => write!(
                 f,
                 "two instances overlap: a corner of one lies inside the other \
@@ -11104,13 +11093,40 @@ where
             Err(vec![ValidationError::BoundaryMeetsItself {
                 faces: [a, b],
                 witness: format!(
-                    "({ua}, {va}) on face {a:?} and ({ub}, {vb}) on face {b:?}, at most {} m \
-                     apart",
+                    "({ua}, {va}) and ({ub}, {vb}) of their charts, at most {} m apart",
                     crossing.distance
                 ),
             }])
         }
         Embedding::Refused(refusal) => Err(vec![ValidationError::EmbeddingUncertified { refusal }]),
+    }
+}
+
+/// **An injectivity refusal in words**, naming no arena key: what
+/// [`ValidationError::EmbeddingUncertified`] says the engine could not do.
+fn embedding_refusal_words(refusal: &crate::clearance::EngineRefusal) -> Cow<'static, str> {
+    use crate::clearance::{CellBudget, EngineRefusal as R};
+    match refusal {
+        R::Sliver { .. } => "a separation sits wholly inside the band".into(),
+        R::Budget(CellBudget::Depth { max_cell_depth }) => {
+            format!("a cell pair was split {max_cell_depth} times, the depth budget").into()
+        }
+        R::Budget(CellBudget::Pairs { max_cell_pairs }) => {
+            format!("the question examined {max_cell_pairs} cell pairs, its budget").into()
+        }
+        R::Budget(CellBudget::Resolution) => "a cell pair could not be bisected further".into(),
+        R::Unsupported { carrier, .. } => format!("the engine does not read {carrier}").into(),
+        R::WitnessUnverified { .. } => "a near pair was not confirmed by the verifier".into(),
+        R::PoisonEnclosure { .. } => "an enclosure between two faces did not evaluate".into(),
+        R::EmptyScope { .. } => "the body has no face to ask about".into(),
+        R::Uncertified { arm, .. } => {
+            format!("no local certificate discharged two touching faces ({arm:?} arm)").into()
+        }
+        R::CollapsedChart { .. } => {
+            "a face's chart collapses an edge to a point beside a touching pair".into()
+        }
+        R::TorusNotRing { .. } => "a torus face is not a ring torus".into(),
+        R::BoxDependent { .. } => "the parameter box does not decide a near pair".into(),
     }
 }
 

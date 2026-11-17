@@ -409,11 +409,6 @@ impl FacePairs {
         Self::default()
     }
 
-    /// Adds the pair `{a, b}`.
-    pub fn insert(&mut self, a: FaceKey, b: FaceKey) {
-        self.0.insert((a.min(b), a.max(b)));
-    }
-
     /// Whether `{a, b}` is one of these pairs.
     #[must_use]
     pub fn holds(&self, a: FaceKey, b: FaceKey) -> bool {
@@ -443,11 +438,22 @@ impl FacePairs {
             let (fx, fy) = (faces_of_cell(body, x), faces_of_cell(body, y));
             for &a in &fx {
                 for &b in &fy {
-                    pairs.insert(a, b);
+                    pairs.0.insert((a.min(b), a.max(b)));
                 }
             }
         }
         pairs
+    }
+}
+
+impl FromIterator<(FaceKey, FaceKey)> for FacePairs {
+    fn from_iter<I: IntoIterator<Item = (FaceKey, FaceKey)>>(pairs: I) -> Self {
+        Self(
+            pairs
+                .into_iter()
+                .map(|(a, b)| (a.min(b), a.max(b)))
+                .collect(),
+        )
     }
 }
 

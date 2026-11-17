@@ -2175,17 +2175,15 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         "BoundaryMeetsItself".to_owned(),
         ValidationError::BoundaryMeetsItself {
             faces: [face; 2],
-            witness: "(0.0, 0.0) and (0.5, 0.0), at most 0 m apart".to_owned(),
+            witness: "(0, 0) and (0.5, 0) of their charts, at most 0 m apart".to_owned(),
         },
     ));
-    s.push((
-        "EmbeddingUncertified".to_owned(),
-        ValidationError::EmbeddingUncertified {
-            refusal: crate::clearance::EngineRefusal::Budget(crate::clearance::CellBudget::Pairs {
-                max_cell_pairs: crate::clearance::GATE_MAX_CELL_PAIRS,
-            }),
-        },
-    ));
+    for (name, refusal) in embedding_refusals(face) {
+        s.push((
+            format!("EmbeddingUncertified/{name}"),
+            ValidationError::EmbeddingUncertified { refusal },
+        ));
+    }
     let ContainError::ArcEndClearOfCorners(gaps) = arc_end_clear_of_corners(true) else {
         unreachable!("the sample builds the arc-end finding")
     };
@@ -3163,4 +3161,62 @@ mod tests {
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
+}
+
+/// One injectivity refusal per arm of [`crate::clearance::EngineRefusal`],
+/// each named by its arm.
+fn embedding_refusals(face: FaceKey) -> Vec<(&'static str, crate::clearance::EngineRefusal)> {
+    use crate::clearance::{CellBudget, CertificateArm, EngineRefusal as R, SharedCell, Which};
+    vec![
+        ("Sliver", R::Sliver { predicate: "a" }),
+        ("Depth", R::Budget(CellBudget::Depth { max_cell_depth: 40 })),
+        (
+            "Pairs",
+            R::Budget(CellBudget::Pairs {
+                max_cell_pairs: crate::clearance::GATE_MAX_CELL_PAIRS,
+            }),
+        ),
+        ("Resolution", R::Budget(CellBudget::Resolution)),
+        (
+            "Unsupported",
+            R::Unsupported {
+                carrier: "a spindle sheet's face",
+                face,
+                side: Which::First,
+            },
+        ),
+        (
+            "WitnessUnverified",
+            R::WitnessUnverified {
+                what: "a".to_owned(),
+            },
+        ),
+        ("PoisonEnclosure", R::PoisonEnclosure { a: face, b: face }),
+        ("EmptyScope", R::EmptyScope { side: Which::First }),
+        (
+            "Uncertified",
+            R::Uncertified {
+                a: face,
+                b: face,
+                shared: SharedCell::Face(face),
+                arm: CertificateArm::Departure,
+            },
+        ),
+        (
+            "CollapsedChart",
+            R::CollapsedChart {
+                face,
+                side: Which::First,
+                vertex: VertexKey::default(),
+            },
+        ),
+        (
+            "BoxDependent",
+            R::BoxDependent {
+                a: face,
+                b: face,
+                separation: (0.0, 1.0),
+            },
+        ),
+    ]
 }
