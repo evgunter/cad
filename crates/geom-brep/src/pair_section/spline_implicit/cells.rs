@@ -51,13 +51,17 @@ const FIRST_CELL_RUNGS: f64 = 1.0;
 /// window `2¹²` rungs long is read to the rung.
 const FIRST_CUTS: u32 = 12;
 
-/// The carrier points a cell is read against, evenly over the arc's
-/// whole span, its ends among them.
-const CARRIER_SAMPLES: usize = 1025;
+/// How many carrier points a rung of the carrier's length is read
+/// against: they stand evenly over the arc's whole span, its ends among
+/// them, a quarter rung apart where the carrier's speed is even.
+const SAMPLES_PER_RUNG: f64 = 4.0;
 
-/// The stride of the first pass over the carrier's points for the one
-/// nearest a box; the second reads every point within a stride of it.
-const SAMPLE_STRIDE: usize = 16;
+/// The fewest and the most carrier points an arc is read against.
+const SAMPLES: (usize, usize) = (17, 1025);
+
+/// The strides the walk to the carrier point nearest a box takes, widest
+/// first.
+const SAMPLE_STRIDES: [usize; 4] = [64, 16, 4, 1];
 
 /// How many times the carrier point nearest a cell is settled between
 /// its neighbours, by golden section.
@@ -77,6 +81,8 @@ struct Cell {
     rect: Rect,
     image: Box3,
     pad: f64,
+    /// The carrier point its pad was read nearest, by index.
+    near: usize,
     window: usize,
     node: Option<usize>,
 }
@@ -91,6 +97,10 @@ struct Reader<'a> {
     carrier: geom::NurbsCurve3<Interval>,
     span: (f64, f64),
     samples: Vec<Point3<Interval>>,
+    /// The widest two consecutive carrier points stand apart.
+    spacing: f64,
+    /// The tube's pads along `u` and `v`, in chart units.
+    pads: (f64, f64),
 }
 
 fn unread(why: LoopTubeRefusal) -> CarryError {
@@ -129,21 +139,34 @@ impl Reader<'_> {
         self.span.0 + (self.span.1 - self.span.0) * share
     }
 
-    /// The carrier point nearest `b` in the farthest-point sense, by
-    /// index, and how far `b` reaches from it: a strided pass, then
-    /// every point within a stride of its best. `+∞` where none reads.
-    fn nearest(&self, b: Box3) -> (usize, f64) {
+    /// A carrier point near `b` in the farthest-point sense, by index,
+    /// and how far `b` reaches from it: walked from the `hint`th while a
+    /// neighbour at a stride reads nearer. Any carrier point bounds the
+    /// reach, so the walk's end need not be the nearest. `NaN` where the
+    /// hint does not read.
+    fn nearest(&self, b: Box3, hint: usize) -> (usize, f64) {
         let last = self.samples.len() - 1;
-        let better = |best: (usize, f64), k: usize| {
-            let far = farthest(b, self.samples[k]);
-            if far < best.1 { (k, far) } else { best }
-        };
-        let coarse = (0..=last)
-            .step_by(SAMPLE_STRIDE)
-            .chain([last])
-            .fold((0, f64::INFINITY), better);
-        let around = coarse.0.saturating_sub(SAMPLE_STRIDE)..=(coarse.0 + SAMPLE_STRIDE).min(last);
-        around.fold(coarse, better)
+        let far = |k: usize| farthest(b, self.samples[k]);
+        let mut best = (hint.min(last), far(hint.min(last)));
+        for stride in SAMPLE_STRIDES {
+            loop {
+                let from = best.0;
+                let sides = [
+                    from.checked_sub(stride),
+                    Some(from + stride).filter(|&k| k <= last),
+                ];
+                for k in sides.into_iter().flatten() {
+                    let f = far(k);
+                    if f < best.1 {
+                        best = (k, f);
+                    }
+                }
+                if best.0 == from {
+                    break;
+                }
+            }
+        }
+        best
     }
 
     /// A carrier point between the neighbours of the `k`th, settled
@@ -178,49 +201,74 @@ impl Reader<'_> {
         best.1
     }
 
-    /// **The farthest `image` stands from the carrier**, in metres: the
-    /// image is halved into parts (`pair_section::parts`), and a part's
-    /// every point is no farther from the carrier than from any one
-    /// carrier point, the nearest read of the whole span's and one
-    /// settled for the image.
-    fn pad(&self, image: Box3) -> Result<f64, CarryError> {
-        let settled = self.settled(image, self.nearest(image).0);
-        parts(image).into_iter().try_fold(0.0f64, |acc, part| {
-            let far = self.nearest(part).1.min(farthest(part, settled));
+    /// **The farthest `image` stands from the carrier**, in metres, and
+    /// the carrier point it was read nearest: the image is halved into
+    /// parts (`pair_section::parts`), and a part's every point is no
+    /// farther from the carrier than from any one carrier point, one
+    /// walked to from the `hint`th and, for an image no wider than the
+    /// carrier's points stand apart, one settled between them: a wider
+    /// image stands farther off than their spacing can matter to.
+    fn pad(&self, image: Box3, hint: usize) -> Result<(f64, usize), CarryError> {
+        let (near, _) = self.nearest(image, hint);
+        let settled = (image.width() <= self.spacing).then(|| self.settled(image, near));
+        let pad = parts(image).into_iter().try_fold(0.0f64, |acc, part| {
+            let mut far = self.nearest(part, near).1;
+            if let Some(p) = settled {
+                far = far.min(farthest(part, p));
+            }
             if far.is_finite() {
                 Ok(acc.max(far))
             } else {
                 Err(unread(LoopTubeRefusal::of(part, &self.samples)))
             }
+        })?;
+        Ok((pad, near))
+    }
+
+    /// The cell of `rect` imaged in `image`, a part of `window`, its pad
+    /// read from the `hint`th carrier point.
+    fn cell(
+        &self,
+        rect: Rect,
+        image: Box3,
+        hint: usize,
+        window: usize,
+        node: Option<usize>,
+    ) -> Result<Cell, CarryError> {
+        let (pad, near) = self.pad(image, hint)?;
+        Ok(Cell {
+            rect,
+            image,
+            pad,
+            near,
+            window,
+            node,
         })
     }
 
-    /// `rect` halved along the chart axis that leaves the narrower
-    /// images, each half with its image, the cleared halves dropped;
-    /// `None` where neither axis has a midpoint strictly inside.
+    /// `rect` halved along the chart axis it is longer along, measured in
+    /// the tube's pads (a rung over each axis's chart speed, so in metres
+    /// at the wall's fastest), each half with its image, the cleared halves dropped; `None` where neither
+    /// axis has a midpoint strictly inside.
     fn halves(&self, rect: Rect, image: Box3) -> Result<Option<Vec<(Rect, Box3)>>, CarryError> {
         let (u0, u1, v0, v1) = rect;
         let (um, vm) = (geom::mid_param(u0, u1), geom::mid_param(v0, v1));
-        let cut = |a: Rect, b: Rect| -> Result<Vec<(Rect, Box3)>, CarryError> {
-            let mut out = Vec::with_capacity(2);
-            for r in [a, b] {
-                if let Some(i) = self.image(r, Some(image))? {
-                    out.push((r, i));
-                }
-            }
-            Ok(out)
+        let across_u = [(u0, um, v0, v1), (um, u1, v0, v1)];
+        let across_v = [(u0, u1, v0, vm), (u0, u1, vm, v1)];
+        let (splits_u, splits_v) = (u0 < um && um < u1, v0 < vm && vm < v1);
+        let cut = match (splits_u, splits_v) {
+            (true, true) if (u1 - u0) / self.pads.0 >= (v1 - v0) / self.pads.1 => across_u,
+            (true, false) => across_u,
+            (_, true) => across_v,
+            (false, false) => return Ok(None),
         };
-        let across_u = (u0 < um && um < u1)
-            .then(|| cut((u0, um, v0, v1), (um, u1, v0, v1)))
-            .transpose()?;
-        let across_v = (v0 < vm && vm < v1)
-            .then(|| cut((u0, u1, v0, vm), (u0, u1, vm, v1)))
-            .transpose()?;
-        let widest = |h: &[(Rect, Box3)]| h.iter().map(|(_, i)| i.width()).fold(0.0, f64::max);
-        Ok(match (across_u, across_v) {
-            (Some(u), Some(v)) => Some(if widest(&u) <= widest(&v) { u } else { v }),
-            (one, other) => one.or(other),
-        })
+        let mut out = Vec::with_capacity(2);
+        for r in cut {
+            if let Some(i) = self.image(r, Some(image))? {
+                out.push((r, i));
+            }
+        }
+        Ok(Some(out))
     }
 }
 
@@ -304,19 +352,45 @@ impl<'a> Enclosure<'a> {
             carrier: lifted,
             span: b.params,
             samples: Vec::new(),
+            spacing: 0.0,
+            pads: (pad_u, pad_v),
         };
-        reader.samples = (0..CARRIER_SAMPLES)
+        // The control polygon is no shorter than the carrier.
+        let length: f64 = carrier
+            .control()
+            .windows(2)
+            .map(|p| (p[1] - p[0]).norm())
+            .sum();
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let count =
+            ((SAMPLES_PER_RUNG * length / rung).ceil() as usize + 1).clamp(SAMPLES.0, SAMPLES.1);
+        reader.samples = (0..count)
             .map(|k| {
-                let t = if k + 1 == CARRIER_SAMPLES {
+                let t = if k + 1 == count {
                     b.params.1
                 } else {
                     #[allow(clippy::cast_precision_loss)]
-                    let share = k as f64 / (CARRIER_SAMPLES - 1) as f64;
+                    let share = k as f64 / (count - 1) as f64;
                     b.params.0 + (b.params.1 - b.params.0) * share
                 };
                 reader.carrier.eval(lift(t))
             })
             .collect();
+        // A refused point reads `NaN`, which settles every cell.
+        reader.spacing = reader
+            .samples
+            .windows(2)
+            .map(|p| {
+                farthest(
+                    Box3 {
+                        x: p[0].x,
+                        y: p[0].y,
+                        z: p[0].z,
+                    },
+                    p[1],
+                )
+            })
+            .fold(0.0, f64::max);
         let last = windows.len() - 1;
         let mut cells = Vec::new();
         for (k, w) in windows.iter().enumerate() {
@@ -324,6 +398,14 @@ impl<'a> Enclosure<'a> {
                 "a window of a certified chart tube lies off the wall's knot rectangle",
             ))?;
             let whole = (cut.u.0, cut.u.1, cut.v.0, cut.v.1);
+            // The carrier point at the middle of the window's span.
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                clippy::cast_precision_loss
+            )]
+            let hint = (((w.mid - b.params.0) / (b.params.1 - b.params.0)).clamp(0.0, 1.0)
+                * (count - 1) as f64) as usize;
             if w.node {
                 let node = match k {
                     0 => ends[0],
@@ -333,13 +415,7 @@ impl<'a> Enclosure<'a> {
                 let uv = UvWindow::new(whole.0, whole.1, whole.2, whole.3)
                     .ok_or_else(|| unread(LoopTubeRefusal::NotFinite))?;
                 let image = reader.boxes.rect_box(uv);
-                cells.push(Cell {
-                    rect: whole,
-                    image,
-                    pad: reader.pad(image)?,
-                    window: k,
-                    node,
-                });
+                cells.push(reader.cell(whole, image, hint, k, node)?);
                 continue;
             }
             let Some(image) = reader.image(whole, None)? else {
@@ -358,13 +434,7 @@ impl<'a> Enclosure<'a> {
                 };
                 match halves {
                     Some(halves) => open.extend(halves.into_iter().map(|(r, i)| (r, i, depth + 1))),
-                    None => cells.push(Cell {
-                        rect,
-                        image,
-                        pad: reader.pad(image)?,
-                        window: k,
-                        node: None,
-                    }),
+                    None => cells.push(reader.cell(rect, image, hint, k, None)?),
                 }
             }
         }
@@ -402,12 +472,7 @@ impl<'a> Enclosure<'a> {
                     any = true;
                     for (rect, image) in halves {
                         active.push(cells.len());
-                        cells.push(Cell {
-                            rect,
-                            image,
-                            pad: self.reader.pad(image)?,
-                            ..c
-                        });
+                        cells.push(self.reader.cell(rect, image, c.near, c.window, c.node)?);
                     }
                 }
                 None => {
@@ -626,9 +691,26 @@ pub(super) fn apart(arcs: &mut [Arc<'_>], band: Band) -> Vec<Option<CarryRefusal
                     .filter(|c| shared(c.node))
                     .map(|c| c.image)
                     .collect();
-                for &ka in &active[i] {
+                // Only a cell within the reach of the other arc's cells'
+                // hull can stand within it of one of them.
+                let hull = |e: &Enclosure<'_>, live: &[usize]| {
+                    live.iter().map(|&k| e.cells[k].image).reduce(Box3::hull)
+                };
+                let (Some(hull_a), Some(hull_b)) = (hull(a, &active[i]), hull(b, &active[j]))
+                else {
+                    continue;
+                };
+                let within = |e: &Enclosure<'_>, live: &[usize], other: Box3| -> Vec<usize> {
+                    live.iter()
+                        .copied()
+                        .filter(|&k| stand(e.cells[k].image, other, &[], reach) != Stand::Apart)
+                        .collect()
+                };
+                let (live_a, live_b) =
+                    (within(a, &active[i], hull_b), within(b, &active[j], hull_a));
+                for &ka in &live_a {
                     let ca = &a.cells[ka];
-                    for &kb in &active[j] {
+                    for &kb in &live_b {
                         let cb = &b.cells[kb];
                         let gap = match stand(ca.image, cb.image, &node_boxes, reach) {
                             Stand::Apart => continue,
