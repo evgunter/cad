@@ -2526,8 +2526,10 @@ fn a_window_read_off_short_of_its_reach_escalates() {
     let (p, q) = (Point3::new(1e-6, 0.0, 0.0), Point3::origin());
     let Some(bound) = super::polish::bound(
         ("test_basin", None),
-        (p, Vec3::new(1.0, 0.0, 0.0)),
-        (q, Vec3::new(0.0, 1.0, 0.0)),
+        super::polish::Along::two_sided(
+            (p, Vec3::new(1.0, 0.0, 0.0)),
+            (q, Vec3::new(0.0, 1.0, 0.0)),
+        ),
         0.0,
         (band().escalate(), 0.1),
     ) else {
@@ -2700,8 +2702,7 @@ fn the_run_arm_needs_the_span_end_decidedly_off_the_other_carrier() {
         let (a, b) = (Span::new(&x, (0.0, 1.0)), Span::new(&other, (-1.0, 1.0)));
         let Some(bound) = super::polish::bound(
             ("test_basin", None),
-            (at, Vec3::new(1.0, 0.0, 0.0)),
-            (at, dir),
+            super::polish::Along::two_sided((at, Vec3::new(1.0, 0.0, 0.0)), (at, dir)),
             0.0,
             (band().escalate(), 0.1),
         ) else {

@@ -326,8 +326,13 @@
 //!
 //! **The one-sided window.** Where `p` is exactly an end of the first
 //! span, `q` exactly an end of the second, and every pair of the window
-//! lies on the spans (the walk's pieces do), turn `u` and `v` to point
-//! into their spans. Every pair of the window is then at arc `α, β ≥ 0`.
+//! lies on the spans (the walk's pieces do), let `u` and `v` be each
+//! span's own half-tangent at its end: the one-sided derivative from
+//! inside the span, pointing into it. At a crease that is not the
+//! carrier's derivative from the other side, which a `C⁰` knot does not
+//! share, and `K` is read over the span's side of the end alone, the
+//! arcs the window holds. Every pair of the window is then at arc
+//! `α, β ≥ 0`.
 //! With `c = u·v`, `|uα − vβ|² = α² + β² − 2αβc`:
 //!
 //! - where `c ≤ 0` this is at least `α² + β² ≥ m²`;
@@ -919,8 +924,7 @@ impl<T: Decide> Polish<'_, T> {
         let curvature = self.a.curvature_near(s0, span) + self.b.curvature_near(t0, span);
         let Some(bound) = super::polish::bound(
             (row::BASIN, Some(self.lever)),
-            (p, da),
-            (q, db),
+            super::polish::Along::two_sided((p, da), (q, db)),
             curvature,
             (e, span),
         ) else {

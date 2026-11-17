@@ -1797,6 +1797,40 @@ macro_rules! nurbs_curve {
                 )
             }
 
+            /// **[`Self::ders1`] from one side of `t`**: the point and
+            /// first derivative of the one nonempty span that `t` ends
+            /// (`below`, the span `(uᵢ, uᵢ₊₁]` holding `t`) or starts
+            /// (the span `[uᵢ, uᵢ₊₁)` holding it), evaluated at `t`
+            /// ([`$Window::ders1_in_span`]). At a knot where the curve is
+            /// only `C⁰` (a crease) this is the one-sided derivative a
+            /// reader standing in that span sees, where [`Self::ders1`]
+            /// reads one side's for both. Away from a knot it is
+            /// [`Self::ders1`]'s span. The span is located on the middle
+            /// of each bracket; where no span holds `t` on that side (a
+            /// domain end read from outside, or poison) it is
+            /// [`Self::ders1`].
+            pub fn ders1_from(&self, t: T, below: bool) -> ($Point<T>, $Vector<T>) {
+                let at = |x: T| x.structure_bracket().map(|(lo, hi)| 0.5 * (lo + hi));
+                let Some(tm) = at(t) else {
+                    return self.ders1(t);
+                };
+                let values = self.knots.values();
+                let kv = self.knots.structure();
+                let window = (kv.first_span()..=kv.last_span())
+                    .filter_map(|i| self.span(i).map(|w| (i, w)))
+                    .find(|&(i, _)| {
+                        match (at(values[i]), at(values[i + 1])) {
+                            (Some(lo), Some(hi)) if below => lo < tm && tm <= hi,
+                            (Some(lo), Some(hi)) => lo <= tm && tm < hi,
+                            _ => false,
+                        }
+                    });
+                match window {
+                    Some((_, w)) => w.ders1_in_span(t),
+                    None => self.ders1(t),
+                }
+            }
+
             /// **The first derivative at `at`, read through the
             /// hodograph**: the same derivative as [`Self::ders1`]'s,
             /// evaluated as the derivative curve's own sum. The

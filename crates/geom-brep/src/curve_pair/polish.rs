@@ -166,36 +166,76 @@ fn mid<T: Decide>(x: T) -> Option<f64> {
         .filter(|m| m.is_finite())
 }
 
-/// **The basin, and the window's bound** at the polished pair, `p` with
-/// its tangent `da` on the first carrier and `q` with `db` on the second
-/// (`pose`'s module docs, "The gap's lower bound"): every pair of the
-/// window lies within `span` metres of `(p, q)` along the carriers,
-/// `curvature` bounds the carriers' summed curvature there, and `e` is
-/// the band's escalation. The one spelling of the basin: the sine
-/// between the tangents less the turn over `span` is the sine's lower
-/// bound `s`, and the basin is `s − curvature · span > 0`, proved on
-/// `row` (levered by `lever` where the caller has one), which puts the
-/// window below the move's larger root. `None` where the basin is not
-/// proved. Otherwise the floor `|w·n̂| − bend`, the reach `m₋` and the
-/// bend; all three undecided (`−∞`, `+∞`, `+∞`) where the move's
-/// quadratic has no real root (`curve_pair_pose_move` not proved
-/// positive).
+/// **What a window reads of its polished pair along and across the
+/// carriers** (`pose`'s module docs, "The gap's lower bound" and "The
+/// one-sided window"): the sine `g` the along term reads, `|uα − vβ| ≥
+/// g·m`; the slack, the part of the gap a move along the carriers could
+/// still take up; and the height across, `|w·n̂|`, where a direction
+/// across both tangents is read.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Along<T> {
+    g: T,
+    slack: T,
+    across: Option<T>,
+}
+
+impl<T: Decide> Along<T> {
+    /// **The two-sided reading** at `p` with tangent `da` and `q` with
+    /// `db`: `g = sin φ` between the tangents, `n̂ = da×db/|da×db|`, the
+    /// slack `σ_w = |w − n̂(n̂·w)|` and the height `|w·n̂|`.
+    pub(super) fn two_sided((p, da): (Point3<T>, Vec3<T>), (q, db): (Point3<T>, Vec3<T>)) -> Self {
+        let n = da.cross(db).normalize();
+        let (along, slack) = geom::Line { origin: p, dir: n }.height_and_distance(q);
+        Self {
+            g: da.normalize().cross(db.normalize()).norm(),
+            slack,
+            across: Some(along.abs()),
+        }
+    }
+
+    /// **The one-sided reading** at a pair held at an end of each span:
+    /// `u` at `p` and `v` at `q` are the half-tangents pointing into the
+    /// spans, every pair of the window at arc `α, β ≥ 0` along them.
+    /// `g = √(1 − max(u·v, 0)²)`: `sin φ` while they part by less than a
+    /// right angle, `1` past it. The slack is the whole gap `|q − p|`, and
+    /// no direction across is read, so the window has no floor.
+    pub(super) fn one_sided((p, u): (Point3<T>, Vec3<T>), (q, v): (Point3<T>, Vec3<T>)) -> Self {
+        let cos = u.normalize().dot(v.normalize()).max(T::zero());
+        Self {
+            g: (T::one() - cos.powi(2)).max(T::zero()).sqrt(),
+            slack: (q - p).norm(),
+            across: None,
+        }
+    }
+}
+
+/// **The basin, and the window's bound** of a polished pair read
+/// `along` ([`Along::two_sided`] or [`Along::one_sided`]; `pose`'s module
+/// docs, "The gap's lower bound"): every pair of the window lies within
+/// `span` metres of the pair along the carriers, `curvature` bounds the
+/// carriers' summed curvature there, and `e` is the band's escalation.
+/// The one spelling of the basin, the move, the reach and the bend: the
+/// sine `g` less the turn over `span` is the sine's lower bound `s`, and
+/// the basin is `s − curvature · span > 0`, proved on `row` (levered by
+/// `lever` where the caller has one), which puts the window below the
+/// move's larger root. `None` where the basin is not proved. Otherwise
+/// the floor `|w·n̂| − bend` (`−∞` where no direction across is read),
+/// the reach `m₋` and the bend; all three undecided (`−∞`, `+∞`, `+∞`)
+/// where the move's quadratic has no real root (`curve_pair_pose_move`
+/// not proved positive).
 pub(super) fn bound<T: Decide>(
     (row, lever): (&'static str, Option<Lever<T>>),
-    (p, da): (Point3<T>, Vec3<T>),
-    (q, db): (Point3<T>, Vec3<T>),
+    along: Along<T>,
     curvature: T,
     (e, span): (T, T),
 ) -> Option<WindowBound<T>> {
-    let sine = da.normalize().cross(db.normalize()).norm() - curvature * span;
+    let sine = along.g - curvature * span;
     let basin = sine - curvature * span;
     let basin = lever.map_or_else(|| Margin::of(basin), |lever| Margin::levered(basin, lever));
     if prove(row, basin) != Ok(Sign::Positive) {
         return None;
     }
-    let n = da.cross(db).normalize();
-    let (along, slack) = geom::Line { origin: p, dir: n }.height_and_distance(q);
-    let excess = slack + e;
+    let excess = along.slack + e;
     let two = T::from_f64(2.0);
     let disc = sine.powi(2) - two * curvature * excess;
     if prove(MOVE, Margin::of(disc)) != Ok(Sign::Positive) {
@@ -206,47 +246,11 @@ pub(super) fn bound<T: Decide>(
     let reach = two * excess / (sine + disc.sqrt());
     let bend = curvature * reach.powi(2) / two;
     Some(WindowBound {
-        floor: along.abs() - bend,
+        floor: along
+            .across
+            .map_or_else(|| T::from_f64(f64::NEG_INFINITY), |h| h - bend),
         reach,
         bend,
-    })
-}
-
-/// **The one-sided window's bound** at a polished pair held at an end of
-/// each span (`pose`'s module docs, "The one-sided window"): `u` and `v`
-/// are the tangents at `p` and `q` each turned to point into its own
-/// span, so every pair of the window lies at arc `α, β ≥ 0` along them,
-/// within `span` metres. The along term's sine is `g`, `sin φ` where
-/// `u·v > 0` and `1` where the half-tangents part by a right angle or
-/// more, written `√(1 − max(cos φ, 0)²)`; the slack is the whole gap
-/// `|q − p|`, since the window reads no across direction, and there is
-/// no floor (`−∞`). The basin, proved on `row`, and the move are
-/// [`bound`]'s with `g` for the sine. `None` where the basin is not
-/// proved.
-pub(super) fn bound_held<T: Decide>(
-    row: &'static str,
-    (p, u): (Point3<T>, Vec3<T>),
-    (q, v): (Point3<T>, Vec3<T>),
-    curvature: T,
-    (e, span): (T, T),
-) -> Option<WindowBound<T>> {
-    let cos = u.normalize().dot(v.normalize()).max(T::zero());
-    let g = (T::one() - cos.powi(2)).max(T::zero()).sqrt();
-    let sine = g - curvature * span;
-    if prove(row, Margin::of(sine - curvature * span)) != Ok(Sign::Positive) {
-        return None;
-    }
-    let excess = (q - p).norm() + e;
-    let two = T::from_f64(2.0);
-    let disc = sine.powi(2) - two * curvature * excess;
-    if prove(MOVE, Margin::of(disc)) != Ok(Sign::Positive) {
-        return Some(undecided());
-    }
-    let reach = two * excess / (sine + disc.sqrt());
-    Some(WindowBound {
-        floor: T::from_f64(f64::NEG_INFINITY),
-        reach,
-        bend: curvature * reach.powi(2) / two,
     })
 }
 
