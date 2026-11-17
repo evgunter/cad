@@ -1112,7 +1112,7 @@ fn chamfer_reading(d: f64, t: f64, s: f64) -> Option<bool> {
 /// `s`, at any scalar: tier 3, naming total over both rims, one band face
 /// per link of each rim, Euler, and the volume removed at Pappus's closed
 /// form within a tight enclosure; at `Interval` at ε = 1e-12, the
-/// sections' shared rows refusing to admit instead.
+/// refusal there instead.
 fn chamfer_plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     what: &str,
     o: &Outline,
@@ -1130,7 +1130,7 @@ fn chamfer_plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
             out
         }
         Err(e) if tightest_interval::<T>() => {
-            crate::band_open_mixed_chain::assert_shared_row_unadmitted(what, &e.error);
+            crate::band_open_mixed_chain::assert_chamfer_unbuilt_at_the_tightest(what, &e.error);
             return None;
         }
         Err(e) => panic!("{what}: chamfers whole, got {:?}", e.error),

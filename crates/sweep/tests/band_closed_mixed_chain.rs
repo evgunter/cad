@@ -21,7 +21,7 @@
 use core::f64::consts::{FRAC_PI_2, PI};
 
 use crate::band_closed_mixed_chain_shapes::{assert_touch_escalation, tightest_interval};
-use crate::band_open_mixed_chain::assert_shared_row_unadmitted;
+use crate::band_open_mixed_chain::assert_chamfer_unbuilt_at_the_tightest;
 use crate::common::interval::iv;
 use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point2, Point3, Tol};
 use profile::{SketchPlane, test_support::bulge_loop};
@@ -214,9 +214,8 @@ fn chamfer_pappus(s: f64, inward: bool) -> f64 {
 /// total over `requested`, one band face and one section per link, the
 /// strips planes and the frustums cones, and `|ΔV|` at `want` (removed
 /// on a convex rim, added on a concave one) within the certified
-/// enclosure. At `Interval` at ε = 1e-12 the sections' shared rows do
-/// not admit, and the row pins that refusal instead
-/// ([`assert_shared_row_unadmitted`]).
+/// enclosure. At `Interval` at ε = 1e-12 the row pins the refusal there
+/// instead ([`assert_chamfer_unbuilt_at_the_tightest`]).
 fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     what: &str,
     body: &Body<T>,
@@ -233,7 +232,7 @@ fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
             out
         }
         Err(e) if tightest_interval::<T>() => {
-            assert_shared_row_unadmitted(what, &e.error);
+            assert_chamfer_unbuilt_at_the_tightest(what, &e.error);
             return None;
         }
         Err(e) => panic!("{what}: the outline chamfers whole, got {e:?}"),

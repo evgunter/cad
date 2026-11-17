@@ -146,6 +146,25 @@ pub(crate) fn assert_shared_row_unadmitted(what: &str, e: &BlendError) {
     );
 }
 
+/// **A chamfer's mixed chain at `Interval` at the tightest ε**: its
+/// section's shared row does not admit, on axis-aligned outlines too
+/// ([`assert_shared_row_unadmitted`]), or, where a junction runs off the
+/// axes (the teardrop, the barrel), a contact edge's certificate
+/// escalates first, its carrier's residual on a band or its rung-3
+/// reading on the cone in band
+/// (`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`).
+pub(crate) fn assert_chamfer_unbuilt_at_the_tightest(what: &str, e: &BlendError) {
+    let text = format!("{e:?}");
+    let contact = text.contains("surgery contact edge")
+        && text.contains("Indeterminate")
+        && ((text.contains("SurfaceResidual")
+            && text.contains("predicate: Some(\"carrier_on_surface"))
+            || text.contains("AnalyticRung3(Stalled { operand: Cone"));
+    if !contact {
+        assert_shared_row_unadmitted(what, e);
+    }
+}
+
 /// Fillet `edges` of `body` at `r` and check the carve: tier 3, naming
 /// total, one band face per link and one section per junction, and the
 /// volume moved (`sign` −1 removed, +1 added) at `truth`. At `Interval`
@@ -338,9 +357,8 @@ fn a_notchs_rounded_floor_run_fillets_whole_adding_pappuss_volume() {
 /// Chamfer `edges` of `body` at `s` and check the carve as [`run_row`]
 /// does a fillet's: tier 3, naming total, one band face per link and one
 /// section per junction, and the volume moved (`sign` −1 removed, +1
-/// added) at `truth`. At `Interval` at ε = 1e-12 every chamfer section's
-/// shared row refuses to admit, axis-aligned or not, and the row pins
-/// that refusal instead ([`assert_shared_row_unadmitted`]).
+/// added) at `truth`. At `Interval` at ε = 1e-12 the row pins the
+/// refusal there instead ([`assert_chamfer_unbuilt_at_the_tightest`]).
 pub(crate) fn chamfer_run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     what: &str,
     body: &Body<T>,
@@ -358,7 +376,7 @@ pub(crate) fn chamfer_run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRes
             out
         }
         Err(e) if tightest_interval::<T>() => {
-            assert_shared_row_unadmitted(what, &e.error);
+            assert_chamfer_unbuilt_at_the_tightest(what, &e.error);
             return None;
         }
         Err(e) => panic!("{what}: the open mixed chain chamfers whole, got {e:?}"),
