@@ -156,7 +156,15 @@ fn k_corpus() -> Vec<(String, Body<f64>)> {
 /// The washer with its first ringless curved face put on `surface`, its
 /// edges and images as they were: the face the run then routes.
 fn poisoned_washer(surface: impl Fn(&Surface<f64>) -> Surface<f64>) -> (Body<f64>, topo::FaceKey) {
-    let mut body = common::washer();
+    poisoned(common::washer(), surface)
+}
+
+/// [`poisoned_washer`] on `body`, a washer as [`common::washer`] builds it
+/// or one with edges split.
+fn poisoned(
+    mut body: Body<f64>,
+    surface: impl Fn(&Surface<f64>) -> Surface<f64>,
+) -> (Body<f64>, topo::FaceKey) {
     let (fk, sense, was) = body
         .faces()
         .find(|(fk, f)| {
@@ -325,6 +333,25 @@ fn a_body_that_meshes_records_mains_k_stream() {
     }
 }
 
+/// The cylinder wider by [`in_band`]: the poison of
+/// [`a_door_in_band_refuses_with_its_cause`].
+fn wider_in_band(s: &Surface<f64>) -> Surface<f64> {
+    match *s {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Surface::Cylinder {
+            origin,
+            axis,
+            radius: radius + in_band(),
+            u_ref,
+        },
+        _ => unreachable!("the poisoned face is a cylinder wall"),
+    }
+}
+
 /// **A door that cannot decide refuses with its cause.** A washer wall
 /// put on a cylinder wider than its rims and rulings by three zero-band
 /// widths ([`in_band`]), at every ε: no stored
@@ -343,20 +370,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
 /// reaches the doors in band.
 #[test]
 fn a_door_in_band_refuses_with_its_cause() {
-    let (body, face) = poisoned_washer(|s| match *s {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin,
-            axis,
-            radius: radius + in_band(),
-            u_ref,
-        },
-        _ => unreachable!("the poisoned face is a cylinder wall"),
-    });
+    let (body, face) = poisoned_washer(wider_in_band);
     assert!(
         no_non_iso_form(&body, face),
         "no stored image on the wall has a non-iso form"
@@ -372,6 +386,79 @@ fn a_door_in_band_refuses_with_its_cause() {
         ),
         "{got:?}"
     );
+}
+
+/// **A split side is read only of a rectangle the doors certify.** The
+/// wall of [`a_door_in_band_refuses_with_its_cause`] with its seam ruling
+/// split at its middle first: a one-face full-turn wall whose straight
+/// side holds a point, which the route sends to the chart lane once the
+/// doors pass it (`tessellate::route_of`'s fourth fact,
+/// `walk::splits_a_straight_side`). Here they cannot decide, so the
+/// face refuses with their escalation, as the unsplit wall does. Read
+/// the split side before the doors and the face is the chart lane's on a
+/// door that never answered.
+#[test]
+fn a_split_side_is_not_read_before_the_doors_answer() {
+    let mut washer = common::washer();
+    let (wall, _) = washer
+        .faces()
+        .find(|(fk, f)| {
+            f.rings.is_empty() && matches!(washer.face_surface(*fk), Some(Surface::Cylinder { .. }))
+        })
+        .expect("a ringless wall");
+    let seam: Vec<topo::EdgeKey> = washer
+        .edges()
+        .filter(|(_, e)| {
+            matches!(
+                washer
+                    .get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .map(|c| c.carrier()),
+                Some(geom::Curve3::Line(..))
+            )
+        })
+        .map(|(ek, _)| ek)
+        .filter(|&ek| outer_edges(&washer, wall).contains(&ek))
+        .collect();
+    assert_eq!(seam.len(), 1, "the wall's one seam ruling");
+    let (t0, t1) = washer
+        .get_curve_geom(washer.get_edge(seam[0]).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .params();
+    washer
+        .split_edge(seam[0], 0.5 * (t0 + t1), Tol::witness())
+        .expect("the seam splits");
+    let (body, face) = poisoned(washer, wider_in_band);
+    assert_eq!(face, wall, "the same wall is poisoned");
+    let got = mesh::tessellate(&body, 5e-2, Tol::witness()).map(|_| ());
+    assert!(
+        matches!(
+            &got,
+            Err(TessellateError::UnsupportedCurvedShape {
+                face: f,
+                source: geom_brep::props::PropsError::Escalated { cause, .. },
+            }) if *f == face && cause.predicate == Some("props_rim_fit")
+        ),
+        "{got:?}"
+    );
+}
+
+/// The edges `fk`'s outer loop walks.
+fn outer_edges(body: &Body<f64>, fk: topo::FaceKey) -> Vec<topo::EdgeKey> {
+    let topo::LoopBoundary::Cycle { first } = body
+        .get_loop(body.get_face(fk).unwrap().outer)
+        .unwrap()
+        .boundary
+    else {
+        return Vec::new();
+    };
+    body.loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .map(|h| body.get_half_edge(h).unwrap().edge)
+        .collect()
 }
 
 /// **An edge off its face's surface refuses with that cause.** The same
