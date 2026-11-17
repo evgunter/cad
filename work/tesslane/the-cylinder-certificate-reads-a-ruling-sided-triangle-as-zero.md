@@ -2,11 +2,13 @@
 id: the-cylinder-certificate-reads-a-ruling-sided-triangle-as-zero
 kind: issue
 title: cert_cylinder and cert_sphere clamp a NaN to 0: a cylinder triangle with a side on a ruling certifies at 0 in some corner orders
-status: dispatched
+status: closed
 opened: 2026-11-16
 priority: P1
 cost: M
 branch: tesslane/cylinder-cert
+closed: 2026-11-17
+pr: 7044
 ---
 
 
@@ -65,3 +67,17 @@ Branch `tesslane/cylinder-cert`, cut from `tesslane/cone-near-apex` (PR 6965, re
 - **Sweep the class** (implementer-discipline §5): a `.max(…)`, `.min(…)` or comparison in `mesh` that reads a NaN as a number where it decides or reports a bound; a distance or projection helper that divides by an area. One disposition per hit.
 - **Done when** no certificate in `cert.rs` reads a non-finite distance as a bound; the measurement above is in the PR body; every moved face is argued; this row closes.
 - **Run what CI runs before every push:** `bash scripts/run-gates.sh`; `scripts/doc-gate.sh --workspace-pass --skip-viewer-toolkit`; fmt; clippy for mesh, geom-brep, `demos/tour` and the viewer job (`cargo clippy -p viewer --features app --all-targets -- -D warnings`); `cargo nextest run -p mesh` whole and the viewer's tests; the steps of the `mesh budget meter + certificate falsifier` job (it runs `-p mesh --lib` in release) and of the `tools` job from `.github/workflows/ci.yml`; sweep's meshing rows; the rows you add or change at `CAD_TOLERANCE_EPS` 1e-6 and 1e-12 as well, each stating what it expects at each. A test costing 0.5 s or more goes in the slow set with its measured time.
+
+## Closed (2026-11-17, PR 7044)
+
+`cert::dist_point_triangle` answers the distance on every triangle, the same to the bit in every order of its corners, and the five certificates answer NaN on any input that is not finite (`cert::all_finite`). No verdict and no mesh byte moves.
+
+What the sections above had wrong, from the unit's measurement and its review:
+
+- **The sibling is no safeguard.** Both halves of a lattice cell have a side on a ruling, so both have a shadow of no area; which half read NaN was its corner order (two of the six). On the rectangle lane the triangles main read as 0 were within δ by that lane's theorem. On the chart lane's cylinder arm, which has no theorem and names the certificate as its guarantee, they were passed on no guarantee: 0.4 to 0.5 of δ in bulk on the mesh suite, with a tail to 0.652 of δ.
+- **The misreading was not only a NaN.** On a cylinder whose axis is off the coordinate axes the shadow of a ruling is a sliver with a rounding-sized area, and 127 emitted triangles read a finite distance too long, a certificate up to 11 % under the true deviation. A cure at "exactly zero area" would have left them.
+- **How many.** 689,547 emitted cylinder triangles over the mesh suite, sweep's meshing rows, the meter and the tour were certified at 0 or short. None is over its δ at its true value (the largest is 0.99980 δ), which is a measurement of that corpus and not a property of the lanes. No sphere triangle is misread by any body.
+
+What the review added: the distance was checked against exact arithmetic on about 480,000 triangles (worst 0.31 of a rounding allowance on triangles with their corners on the surface). It found a direction of length 10¹⁵⁵ answering a wrong finite distance and coordinates under 10⁻⁷⁷ underflowing; the function now reads its inputs at their own power-of-two scale, with no range guard. It found the choice of sides for the plane's normal pinned by no row; that choice is gone, and a row holds what does carry the accuracy on a needle, the corners' one order. The same reviewer then re-reviewed the rewrite (approve with fixes, no MAJOR): the oracle unchanged, the fixed pair of sides held on 135,000 needles built against it, and every mesh byte-identical again. It found that no row pinned which coordinate sets the scale, which a row with coordinates 200 decades apart now holds, and that the torus and spindle certificates answered `+∞` where finite inputs overflow, which now answer NaN.
+
+Left for others, each filed: the NURBS certificates' folds that drop a NaN chart corner (`work/chord/nurbs-cell-bounds-cert-drops-a-nan-vertex-and-lands-a-nan-end-on-the-first-cell.md`); the sizing folds that drop a NaN ahead of their own guard (`sizing-folds-drop-a-nan-before-their-own-guard`); a standing sample of the mesher's own cylinder triangles against the certificate (`work/chord/S236.md`).
