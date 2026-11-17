@@ -52,3 +52,37 @@ Decide whether the sliver is consistent with the clause.
   `present_line_corner`'s pins, and the tour walk.
 
 Until this is decided, no new reader adopts the sliver.
+
+## Evidence: `present_line_corner`'s rectangle (EMBED lane half-sphere, 2026-11-17)
+
+PR 7086 first changed this reader, then reverted the change at review.
+The finding is recorded here as evidence for the fork.
+
+**What it reads.** `present_line_corner` reads its reach (`only`) and
+the other edge's departure (`leaves_line`) over `R`, which is the cell
+clipped to the line's face side. The cell's part across the line is
+not in `R`. When the cell lies wholly across the line, `R` is the
+line's own strip, and the sliver can then read it `Vacuous`.
+
+`present_plane_corner` reads over `R ⊇ cell` instead: it widens `R` to
+hold the cell, the line and the vertex, and presents its face side.
+
+**The change and its effect.** The lane gave the line corner the plane
+corner's rectangle.
+- That moved no verdict and no receipt: not on the 46 body rows of
+  `self_intersection_proves_injectivity`, and not on the 85 bodies of
+  the tour walk.
+- The review measured the wider `R` on 368 of 1,024 entries.
+
+**Why no witness exists (the review's argument).**
+- `corner_of` needs exactly two walls in the cell.
+- A harmonic chart curve on a cylinder is a graph over `u`, so it
+  crosses a meridian once a turn.
+- Its re-crossing of a parallel lies inside the strip's `along` range,
+  where `leaves_line`'s rate and `gone` guards refuse.
+- A torus wall image's `v` is monotone.
+
+So no cell was built where the old rectangle certifies wrongly. The
+measurement lane also found this reader's sliver decides `Zero` in no
+sweep. If the fork keeps the sliver, read this reader over the
+plane corner's `R`, which needs no extra argument.

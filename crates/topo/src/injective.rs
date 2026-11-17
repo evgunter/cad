@@ -263,8 +263,8 @@ pub(crate) struct Boundary {
     /// the chart, its rows meeting at every joint and, at a pole or an
     /// apex, joined by a run along the singular latitude that lies
     /// between their ends. So on a periodic axis the hull is on ONE
-    /// sheet, not wrapped; [`sheets`] reads the face's own lines against
-    /// it before taking it ([`lines_agree`]). A
+    /// sheet, not wrapped; it is read only through [`face_extent`], which
+    /// reads the face's own lines against it first. A
     /// row that is a coordinate line whose moving coordinate is monotone
     /// gives its ends, which bound it; a harmonic or spiric wall row its enclosure over
     /// its span, so the hull may be a superset, which every reader takes
@@ -1212,24 +1212,6 @@ fn unread(edge: usize, near_edges: &[usize]) -> Unpresented {
     }
 }
 
-/// **Which sheet of each periodic axis the face lies on in a cell.**
-enum Sheets {
-    /// The cell meets no copy of the face's extent: it holds none of
-    /// the face.
-    Missed,
-    /// The cell meets two or more copies: the face enters it more than
-    /// once, which one rectangle does not present.
-    Several,
-    /// The cell's bounds are not finite: no turn count places it.
-    Unplaced,
-    /// The face's own lines put it outside its extent ([`lines_agree`]):
-    /// the extent is not on the face's sheet, and nothing read from it
-    /// is.
-    OffSheet,
-    /// Per axis, `[u, v]`.
-    On([Sheet; 2]),
-}
-
 /// The face's sheet on one axis of a cell.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Sheet {
@@ -1245,19 +1227,100 @@ enum Sheet {
     Within(f64, f64),
 }
 
-/// **The face's sheet in `cell`, per periodic axis**: the copy of its
-/// own extent ([`Boundary::extent`]) moved by whole turns that the cell
-/// meets. Read once from the face, so every line of it is placed on the
-/// same sheet ([`placed`]) whatever order its edges are read in. A face
-/// whose extent is unknown leaves the sheet unknown: a line on that
-/// axis then has no placement and the face is not presented there. On
-/// an axis that is not periodic the extent still says what the cell
-/// holds.
+/// **The slack a chart value is read with**: [`few_ulps`] of the
+/// largest of `values` and a whole turn, the rounding of a value placed
+/// by whole turns. Every reading of a cell against the face's extent and
+/// its lines takes this one scale.
+fn chart_slack(values: &[f64]) -> f64 {
+    few_ulps(values.iter().fold(TURN, |m, x| m.max(x.abs())))
+}
+
+/// **The face's extent, read against its own lines** ([`Boundary::extent`]):
+/// `Ok(None)` where it is unknown, or where the outer loop wraps a
+/// periodic axis and so bounds nothing (a band lies between it and a
+/// ring, a polar cap between it and the pole: its hull says nothing of
+/// the face on either axis).
 ///
-/// A cell MEETS a copy where their overlap is wider than [`few_ulps`]
+/// **A face lies within the hull of its boundary**, so every line of a
+/// boundary edge, placed by [`placed`] on the extent's sheet, meets the
+/// extent and has room in it, more than [`chart_slack`], on the line's
+/// face side. A line at the extent's high end with the face above it,
+/// or at its low end with the face below, or a line apart from the
+/// extent, contradicts it: on a periodic axis the extent is then a copy
+/// of the complement's, and on any axis nothing read from it holds the
+/// face. That is the face's fact, the same in every cell, so it refuses
+/// `Structural`.
+///
+/// **What this does not read**: an edge on the face twice (a seam, which
+/// is no boundary), a line whose face side or value does not certify,
+/// and every row that is not a coordinate line. A face whose boundary
+/// holds no line on an axis has its extent on that axis taken from its
+/// stored lift unchecked.
+fn face_extent(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+) -> Result<Option<[(f64, f64); 2]>, Unpresented> {
+    let Some(extent) = b.extent else {
+        return Ok(None);
+    };
+    if [Axis::U, Axis::V].into_iter().any(|axis| {
+        let (lo, hi) = extent[axis.index()];
+        periodic(surface, axis) && whole_turn(lo, hi)
+    }) {
+        return Ok(None);
+    }
+    let sheet = extent.map(|(lo, hi)| Sheet::Copy(lo, hi));
+    let agrees = b
+        .edges
+        .iter()
+        .filter(|e| e.arc.is_some() && e.uses.len() == 1)
+        .flat_map(|e| &e.uses)
+        .all(|u| {
+            let Some(iso) = u.iso.filter(|iso| iso.at.is_certified()) else {
+                return true;
+            };
+            let Some(sigma) = face_side(u, iso, b.sense) else {
+                return true;
+            };
+            let (lo, hi) = extent[iso.held.index()];
+            let Some(line) = placed(surface, iso, sheet, (lo, hi)) else {
+                return true;
+            };
+            let slack = chart_slack(&[lo, hi]);
+            let meets = lo - slack <= line.hi() && line.lo() <= hi + slack;
+            meets
+                && if sigma > 0.0 {
+                    line.lo() < hi - slack
+                } else {
+                    lo + slack < line.hi()
+                }
+        });
+    if agrees {
+        Ok(Some(extent))
+    } else {
+        Err(Unpresented::Structural)
+    }
+}
+
+/// **The face's sheet in `cell`, per axis**: on a periodic axis the copy
+/// of its own extent ([`face_extent`]) moved by whole turns that the cell
+/// meets, so every line of it is placed on the same sheet ([`placed`])
+/// whatever order its edges are read in. A face whose extent is unknown
+/// leaves the sheet unknown: a line on that axis then has no placement
+/// and the face is not presented there. On an axis that is not periodic
+/// the extent still says what the cell holds.
+///
+/// `Ok(None)` where the cell meets no copy of the extent: it holds none
+/// of the face. Refuses `Local` where it meets two or more copies (the
+/// face enters it more than once, which one rectangle does not present,
+/// and a smaller cell meets fewer), and `Structural` where the cell's
+/// bounds are not finite (no turn count places it, nor any of its
+/// children) or the extent contradicts the face's lines.
+///
+/// A cell MEETS a copy where their overlap is wider than [`chart_slack`]
 /// of the values involved, the rounding of a copy moved by whole turns.
-/// **That is an ε concession**: a cell overlapping a copy by less reads
-/// [`Sheets::Missed`], and the face's points in the overlap — within a
+/// **That is an ε concession**: a cell overlapping a copy by less holds
+/// none of the face, and the face's points in the overlap — within a
 /// few ulps, in the chart, of the copy's end line — go unread by this
 /// pair. Likewise an extent within [`few_ulps`] of a whole turn reads
 /// as wrapping, its gap unread.
@@ -1265,51 +1328,37 @@ enum Sheet {
 /// Every copy the cell can meet is tried: the turn counts from the
 /// cell's low end against the extent's high one to its high end against
 /// the extent's low one.
-fn sheets(surface: &Surface<Interval>, b: &Boundary, cell: ((f64, f64), (f64, f64))) -> Sheets {
+fn sheets(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    cell: ((f64, f64), (f64, f64)),
+) -> Result<Option<[Sheet; 2]>, Unpresented> {
     let mut on = [Sheet::Free; 2];
-    let Some(extent) = b.extent else {
-        for axis in [Axis::U, Axis::V] {
-            if periodic(surface, axis) {
-                on[axis.index()] = Sheet::Unknown;
+    let Some(extent) = face_extent(surface, b)? else {
+        if b.extent.is_none() {
+            for axis in [Axis::U, Axis::V] {
+                if periodic(surface, axis) {
+                    on[axis.index()] = Sheet::Unknown;
+                }
             }
         }
-        return Sheets::On(on);
+        return Ok(Some(on));
     };
-    // **An outer loop that wraps a periodic axis bounds nothing.** The
-    // face is not the inside of it: a band lies between it and a ring, a
-    // polar cap between it and the pole. Its hull says nothing of the
-    // face on either axis, and the face spans every value of the axis
-    // it wraps, so no axis has a sheet to choose.
-    let wraps = [Axis::U, Axis::V].into_iter().any(|axis| {
-        let (lo, hi) = extent[axis.index()];
-        periodic(surface, axis) && whole_turn(lo, hi)
-    });
-    if wraps {
-        return Sheets::On(on);
-    }
-    if !lines_agree(b, surface, extent) {
-        return Sheets::OffSheet;
-    }
     for axis in [Axis::U, Axis::V] {
         let (lo, hi) = extent[axis.index()];
         let (clo, chi) = axis.of(cell);
-        let slack = few_ulps(
-            TURN.max(lo.abs())
-                .max(hi.abs())
-                .max(clo.abs())
-                .max(chi.abs()),
-        );
+        let slack = chart_slack(&[lo, hi, clo, chi]);
         let meets = |(a, b): (f64, f64)| b.min(chi) - a.max(clo) > slack;
         if !periodic(surface, axis) {
             if !meets((lo, hi)) {
-                return Sheets::Missed;
+                return Ok(None);
             }
             on[axis.index()] = Sheet::Within(lo, hi);
             continue;
         }
         let (k0, k1) = (((clo - hi) / TURN).floor(), ((chi - lo) / TURN).ceil());
         if !(k0.is_finite() && k1.is_finite()) {
-            return Sheets::Unplaced;
+            return Err(Unpresented::Structural);
         }
         let copies: Vec<(f64, f64)> = core::iter::successors(Some(k0), |k| Some(k + 1.0))
             .take_while(|&k| k <= k1)
@@ -1318,47 +1367,12 @@ fn sheets(surface: &Surface<Interval>, b: &Boundary, cell: ((f64, f64), (f64, f6
             .take(2)
             .collect();
         match copies.as_slice() {
-            [] => return Sheets::Missed,
+            [] => return Ok(None),
             [one] => on[axis.index()] = Sheet::Copy(one.0, one.1),
-            _ => return Sheets::Several,
+            _ => return Err(Unpresented::Local),
         }
     }
-    Sheets::On(on)
-}
-
-/// **Whether the face's own lines agree with its extent** on each
-/// periodic axis, for an extent that does not wrap: every line of a
-/// boundary edge, placed on the extent's sheet, meets the extent and
-/// has room in it, more than [`few_ulps`], on the line's face side. A
-/// line at the extent's high end with the face above it, or at its low
-/// end with the face below, puts the face outside its own hull: the
-/// extent is a copy of the face's complement's, and every reading taken
-/// from it ([`sheets`], [`placed`], the clip to it) is on the wrong
-/// sheet. A line whose face side or value is not read here is not read
-/// against the extent either; its own reader refuses it.
-fn lines_agree(b: &Boundary, surface: &Surface<Interval>, extent: [(f64, f64); 2]) -> bool {
-    b.edges
-        .iter()
-        .filter(|e| e.arc.is_some() && e.uses.len() == 1)
-        .flat_map(|e| &e.uses)
-        .all(|u| {
-            let Some(iso) = u.iso.filter(|iso| periodic(surface, iso.held)) else {
-                return true;
-            };
-            let Some(sigma) = face_side(u, iso, b.sense).filter(|_| iso.at.is_certified()) else {
-                return true;
-            };
-            let (lo, hi) = extent[iso.held.index()];
-            let line = wrap(iso.at, geom::mid_param(lo, hi));
-            let slack = few_ulps(TURN.max(lo.abs()).max(hi.abs()));
-            let meets = lo - slack <= line.hi() && line.lo() <= hi + slack;
-            meets
-                && if sigma > 0.0 {
-                    line.lo() < hi - slack
-                } else {
-                    lo + slack < line.hi()
-                }
-        })
+    Ok(Some(on))
 }
 
 /// **Where an edge's line lies in a cell's chart**: on a periodic axis,
@@ -1575,11 +1589,14 @@ fn whole_space() -> Vec3<Interval> {
 ///   one is a face that re-enters the cell (a slot), which a rectangle
 ///   does not present.
 /// - A cell holds none of the face ([`Presentation::Vacuous`]) only
-///   when it misses the face's extent, or every near line puts it on its
-///   non-face side and one of them touches it along an edge that covers
-///   its side ([`vacuous`]), or its rectangle — read only once every
-///   side and corner is proven the face's own — is a sliver beside a
-///   shared line.
+///   when it misses the face's extent ([`sheets`]), or every near line
+///   puts it on its non-face side and one of them touches it along an
+///   edge that covers its side ([`vacuous`]), or it lies on a cone's
+///   other nappe, or its rectangle — read only once every side and
+///   corner is proven the face's own — is a sliver beside a shared line.
+/// - A face whose lines contradict its extent ([`face_extent`]) is never
+///   presented, and a rectangle its own clips leave with no width on an
+///   axis is not presented in that cell: neither is a sliver.
 fn present_chart<'a>(
     piece: &Piece<'a>,
     near_edges: &[usize],
@@ -1591,11 +1608,9 @@ fn present_chart<'a>(
     let sheet = if piece.whole {
         [Sheet::Free; 2]
     } else {
-        match sheets(piece.surface, b, cell) {
-            Sheets::Missed => return Ok(Presentation::Vacuous),
-            Sheets::Several => return Err(Unpresented::Local),
-            Sheets::Unplaced | Sheets::OffSheet => return Err(Unpresented::Structural),
-            Sheets::On(s) => s,
+        match sheets(piece.surface, b, cell)? {
+            Some(s) => s,
+            None => return Ok(Presentation::Vacuous),
         }
     };
     // A boundary edge whose image is no coordinate line: the curved
@@ -1754,14 +1769,6 @@ fn present_chart<'a>(
         // comes back into it, which no one rectangle presents.
         return Err(Unpresented::Local);
     }
-    // The face's own clips — its extent's copy and its lines, each with
-    // the cell on its face side — leaving an axis no width contradict
-    // one another: the face has interior wherever a line has it on the
-    // side the cell is on. That is no sliver to read as holding nothing.
-    let no_width = |(lo, hi): (f64, f64)| hi - lo <= few_ulps(lo.abs().max(hi.abs()));
-    if !piece.whole && (no_width(x) || no_width(y)) {
-        return Err(Unpresented::Local);
-    }
     // A cone's apex is a collapsed side of its chart.
     if let Surface::Cone { apex, axis, .. } = piece.surface {
         for &v in &piece.local.vertices {
@@ -1863,6 +1870,16 @@ fn present_chart<'a>(
                 }
             }
         }
+    }
+    // The face's own clips (its extent's copy, its lines, its apex and
+    // poles), each with the cell on its face side, leaving an axis no
+    // width contradict one another: the face has interior wherever a
+    // line has it on the side the cell is on. That is no sliver to read
+    // as holding nothing. The extent and the lines are proven to agree
+    // ([`face_extent`]), so this is the cell's own reading of them.
+    let no_width = |(lo, hi): (f64, f64)| hi - lo <= chart_slack(&[lo, hi]);
+    if !piece.whole && (no_width(x) || no_width(y)) {
+        return Err(Unpresented::Local);
     }
     // Every clip's side must be the edges' own, run on past its corners,
     // and every corner convex.
@@ -3634,8 +3651,8 @@ fn leaves_graph(
 }
 
 /// **Present a cell at a corner by its coordinate line** ([`present_corner`]):
-/// `R` the cell, the line and the vertex's chart point, presented on the
-/// line's face side, its side on the line the zero. Nothing in reach of `R` may bound
+/// `R` the cell and the vertex's chart point, clipped to the line's face
+/// side, its side on the line the zero. Nothing in reach of `R` may bound
 /// the face but the line's edge and the other one, whose chart curve
 /// leaves the vertex into the face's side ([`leaves_line`]); every
 /// vertex in reach is the corner's.
@@ -3660,8 +3677,8 @@ fn present_line_corner<'a>(
         return Err(Unpresented::Local);
     }
     let cell = (piece.u, piece.v);
-    let Sheets::On(sheet) = sheets(surface, b, cell) else {
-        return Err(Unpresented::Local);
+    let Some(sheet) = sheets(surface, b, cell)? else {
+        return Ok(Presentation::Vacuous);
     };
     let (held, moving) = (iso.held, iso.held.other());
     let line = placed(surface, iso, sheet, held.of(cell)).ok_or(Unpresented::Structural)?;
@@ -3675,24 +3692,15 @@ fn present_line_corner<'a>(
         vm
     };
     let (lo, hi) = held.of(cell);
-    // The reach and the other edge's departure are read over all of `R`,
-    // the cell's part across the line included, as in
-    // [`present_plane_corner`].
-    let reach = (lo.min(line.lo()), hi.max(line.hi()));
     let across = if sigma > 0.0 {
-        (line.lo(), reach.1)
+        (line.lo(), hi.max(line.hi()))
     } else {
-        (reach.0, line.hi())
+        (lo.min(line.lo()), line.hi())
     };
     let along = (mlo.min(vm.lo()), mhi.max(vm.hi()));
-    let rect = |a: (f64, f64)| match held {
-        Axis::U => (a, along),
-        Axis::V => (along, a),
-    };
-    let (x, y) = rect(reach);
-    let vertex = match held {
-        Axis::U => [line, vm],
-        Axis::V => [vm, line],
+    let ((x, y), vertex) = match held {
+        Axis::U => ((across, along), [line, vm]),
+        Axis::V => ((along, across), [vm, line]),
     };
     // Defence. On the moving axis a copy of the line's edge a turn on lies
     // in `R` only where its far end does, a vertex refused below; on the
@@ -3739,7 +3747,6 @@ fn present_line_corner<'a>(
     ) {
         return Ok(Presentation::Vacuous);
     }
-    let (x, y) = rect(across);
     Ok(Presentation::Of(Box::new(Presented {
         surface,
         map: Map::Chart,
@@ -6008,7 +6015,7 @@ mod presentation_rows {
     /// half-band is presented in its whole window and in its own half
     /// turn, and the other half turn holds none of it. On the
     /// complement's sheet its own lines put it outside its extent
-    /// ([`lines_agree`]), so it is not presented at any depth: neither
+    /// ([`face_extent`]), so it is not presented at any depth: neither
     /// the whole window's zero-width rectangle `u = π`, read as a sliver
     /// beside the shared meridian, nor its own half turn, which meets no
     /// copy of that extent, is read vacuous. Red if either reading is
@@ -6049,42 +6056,41 @@ mod presentation_rows {
     }
 
     /// **The face's own clips leaving an axis no width refuse**: a
-    /// cylinder face over `u ∈ [π/2, π]`, `v ∈ [1/2, 3]` whose extent
-    /// claims `v ∈ [0, 1/2]`, on an axis no sheet is chosen on, so
-    /// [`lines_agree`] does not read it. In the cell `v ∈ [0.2, 0.8]` the
-    /// extent clips `v` to `1/2` from above and the shared line `v = 1/2`,
-    /// the face above it, from below; the top line is out of reach. The
-    /// two contradict each other, and the rectangle they leave is no
-    /// sliver beside the shared line. Red if the zero width is read
-    /// vacuous.
+    /// cylinder face whose two lines `u = 3/2` have it above one and below
+    /// the other, each with room in its extent `u ∈ [1, 2]`, so the
+    /// extent agrees with both ([`face_extent`]). In a cell across them
+    /// they clip `u` to `3/2` from both sides. They contradict each other,
+    /// and the rectangle they leave is no sliver beside the shared line.
+    /// Red if the zero width is read vacuous.
     #[test]
     fn a_rectangle_its_own_clips_leave_no_width_refuses() {
         let s = cylinder();
-        let (q, h) = (core::f64::consts::FRAC_PI_2, core::f64::consts::PI);
         let b = Boundary {
             sense: true,
             edges: vec![
-                rim(1, [1, 2], Axis::U, h, (h, 0.5), (h, 3.0)),
-                rim(2, [2, 3], Axis::V, 3.0, (h, 3.0), (q, 3.0)),
-                rim(3, [3, 4], Axis::U, q, (q, 3.0), (q, 0.5)),
-                rim(4, [4, 1], Axis::V, 0.5, (q, 0.5), (h, 0.5)),
+                rim(1, [1, 2], Axis::U, 1.5, (1.5, 1.0), (1.5, 0.0)),
+                rim(2, [2, 3], Axis::V, 0.0, (1.0, 0.0), (2.0, 0.0)),
+                rim(3, [3, 4], Axis::U, 1.5, (1.5, 0.0), (1.5, 1.0)),
+                rim(4, [4, 1], Axis::V, 1.0, (2.0, 1.0), (1.0, 1.0)),
             ],
             vertices: BTreeMap::new(),
-            extent: Some([(q, h), (0.0, 0.5)]),
+            extent: Some([(1.0, 2.0), (0.0, 1.0)]),
         };
         assert_eq!(
-            chart_near(&s, &b, &all(4), &[3], ((q - 0.1, h + 0.1), (0.2, 0.8))),
+            chart_near(&s, &b, &all(4), &[0], ((1.2, 1.8), (0.0, 1.0))),
             Read::Local
         );
     }
 
-    /// **The guard's contradiction holds in every cell below it**: the
-    /// face of [`a_rectangle_its_own_clips_leave_no_width_refuses`], whose
-    /// extent claims `v ∈ [0, 1/2]` while it lies over `v ∈ [1/2, 3]`,
-    /// read in cells one split below the guarded one and wholly inside the
-    /// face. The extent is the face's, not the cell's, so a smaller cell
-    /// does not remove the contradiction; it only moves it past the guard.
-    /// Red while either cell reads the face as holding none of it.
+    /// **A face whose line contradicts its extent is not presented in
+    /// any cell**: a cylinder face over `v ∈ [1/2, 3]` whose extent claims
+    /// `v ∈ [0, 1/2]`, on an axis no sheet is chosen on. The contradiction
+    /// is the face's ([`face_extent`]), not the cell's, so it refuses
+    /// `Structural` in the cell across the extent's end and in the cells
+    /// one split below it, wholly inside the face, where the extent alone
+    /// would read the face missed. Red while any of them reads the face as
+    /// holding none of it, or refuses as though a smaller cell could read
+    /// it.
     #[test]
     fn a_face_whose_extent_its_line_contradicts_is_not_vacuous_below_the_guard() {
         let s = cylinder();
@@ -6100,10 +6106,70 @@ mod presentation_rows {
             vertices: BTreeMap::new(),
             extent: Some([(q, h), (0.0, 0.5)]),
         };
-        for v in [(0.5, 0.8), (1.0, 2.0)] {
+        for v in [(0.2, 0.8), (0.5, 0.8), (1.0, 2.0)] {
             let read = chart_near(&s, &b, &all(4), &[3], ((q + 0.2, h - 0.2), v));
-            assert_ne!(read, Read::Vacuous, "v ∈ {v:?} lies inside the face");
+            assert_eq!(read, Read::Structural, "v ∈ {v:?}");
         }
+    }
+
+    /// **A cell reaching a cone face's nappe is not read vacuous off its
+    /// clips**: a face whose vertices off the apex stand on the positive
+    /// nappe while its lines and extent put it at `v ∈ [−1, −1/2]`, read
+    /// in a cell at its apex vertex that reaches `v = 1/2`. The clips
+    /// leave the rectangle on the other nappe while the cell is not, so
+    /// the face's lines contradict its nappe. Red if that reads vacuous,
+    /// as a cell on the other nappe does.
+    #[test]
+    fn a_cell_reaching_the_faces_nappe_is_not_vacuous_off_its_clips() {
+        let s = Surface::Cone {
+            apex: origin(),
+            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        let up = |x: f64| Point3::new(iv0(x), iv0(0.0), iv0(1.0));
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 2], Axis::V, -1.0, (1.0, -1.0), (2.0, -1.0)),
+                rim(2, [2, 3], Axis::U, 2.0, (2.0, -1.0), (2.0, -0.5)),
+                rim(3, [3, 4], Axis::V, -0.5, (2.0, -0.5), (1.0, -0.5)),
+                rim(4, [4, 1], Axis::U, 1.0, (1.0, -0.5), (1.0, -1.0)),
+            ],
+            vertices: BTreeMap::from([
+                (vertex(1), up(1.0)),
+                (vertex(2), up(2.0)),
+                (vertex(9), origin()),
+            ]),
+            extent: Some([(1.0, 2.0), (-1.0, -0.5)]),
+        };
+        let local = Local {
+            edges: all(4),
+            vertices: vec![vertex(9)],
+        };
+        let at = |v: (f64, f64)| {
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: &b,
+                u: (1.2, 1.8),
+                v,
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            read(present_chart(&piece, &[], &[], band()))
+        };
+        assert_eq!(
+            at((-0.75, 0.5)),
+            Read::Local,
+            "the cell reaches the face's nappe"
+        );
+        assert_eq!(
+            at((-0.75, 0.0)),
+            Read::Vacuous,
+            "the cell on the other nappe"
+        );
     }
 
     /// A face whose extent is unknown has no sheet: a line on its
@@ -6543,6 +6609,13 @@ mod presentation_rows {
             rim(2, [7, 3], Axis::V, 1.0, (1.0, 1.0), (2.0, 1.0)),
             rim(3, [3, 6], Axis::V, 1.0, (2.0, 1.0), (3.0, 1.0)),
         ]);
+        // Each junction's extent is the one its lines agree with: the face
+        // lies above `v = 1`.
+        let extent = |mut b: Boundary, u: (f64, f64)| {
+            b.extent = Some([u, (0.0, 2.0)]);
+            b
+        };
+        let (through_u, through_v) = (extent(through_u, (1.0, 2.0)), extent(through_v, (1.0, 3.0)));
         for (what, b) in [("through u", through_u), ("through v", through_v)] {
             assert_eq!(
                 chart(&s, &b, &all(3), (1.5, 2.5), (0.5, 1.5)),

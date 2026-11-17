@@ -205,61 +205,75 @@ reads, 2 are `Vacuous`, and both are right: `1v1` in the cell
 `u ∈ [0, π]` and `2v1` in `[π, 2π]`, each through `Sheets::Missed`,
 each a cell the face does not enter.
 
-**2. What landed** (`crates/topo/src/injective.rs`):
-- **The face's lines against its extent** (`lines_agree`, read by
-  `sheets` before any copy is chosen). On a periodic axis, each line
-  of a boundary edge, placed on the extent's sheet, must meet the
-  extent and have room in it on its face side. Where one does not,
-  the extent is off the face's sheet, and `sheets` returns `OffSheet`,
-  which `present_chart` refuses `Structural`, and the line corner
-  `Local`. This is the trace's option 3 used as a check of the lift,
-  not as a reading.
+**2. What landed** (`crates/topo/src/injective.rs`, after review):
+- **The face's lines against its extent** (`face_extent`). It is the
+  one reader of `Boundary::extent`, and `sheets` takes the extent only
+  through it. A face lies within the hull of its boundary. So on every
+  axis, each line of a boundary edge, placed by `placed`, must meet
+  the extent and have room in it on its face side. Where one does not,
+  that is the face's fact, and every cell refuses `Structural` ("never
+  presents": in `departure`, one side's `Structural` only splits the
+  pair).
+  - This is the trace's option 3, used as a check of the lift.
+  - At first it read periodic axes only. The review showed the face
+    then read vacuous one split below the guard, on a non-periodic
+    extent its line contradicts. It now reads every axis.
+- **One kind per sheet fact.** `sheets` returns `Ok(None)` (the cell
+  holds none of the face), `Local` (two copies met, which a smaller
+  cell may fix) or `Structural` (bounds not finite, or the extent
+  contradicted). `present_chart` and `present_line_corner` both read
+  it.
 - **The row's guard.** `present_chart` refuses `Local` where the face's
-  own clips (its extent's copy and its lines) leave an axis no wider
-  than `few_ulps`. It reaches what `lines_agree` does not: a
-  contradiction on an axis no sheet is chosen on.
+  own clips leave an axis no wider than `chart_slack`. It runs after
+  the apex and pole clips. With the extent proven to agree with the
+  lines, it fires only on lines that contradict each other.
 - **The apex** reads `Vacuous` only where the CELL is on the other
-  nappe. Where the clips leave it there but the cell reaches the face's
-  nappe, the face's lines contradict its nappe, and it refuses `Local`.
-- **The line corner's `R` holds the cell.** `present_line_corner`
-  read `only` and `leaves_line` over the cell clipped to the line's
-  face side, so the cell's part across the line was never read. A cell
-  wholly across the line made `R` the line's own strip, and the sliver
-  then read it vacuous. `R` is now the cell, the line and the vertex,
-  as `present_plane_corner`'s is, and the presentation is `R` on the
-  face side.
+  nappe. Where only the clips leave it there, the lines contradict the
+  nappe, and it refuses `Local`.
+- **One slack, `chart_slack`,** for the readings this change touches.
+  The other `few_ulps` scales are filed:
+  `few-ulps-is-taken-at-several-scales-across-injectives-readings`.
+- **`present_line_corner`'s rectangle** was widened to hold the cell,
+  then reverted at review: no witness, and a reader frozen with the
+  sliver fork. The note is on that row.
 
 **3. The `Vacuous` paths, and what each rests on now:**
 - `Sheets::Missed`: the extent is the hull of the face's boundary on
-  one sheet (ONEDOOR's lift, and the region invariant), cross-checked
-  against the face's iso lines by `lines_agree`. A face whose boundary
-  holds no iso line on the periodic axis rests on the lift alone.
+  one sheet (ONEDOOR's lift, and the region invariant), checked
+  against every line of the face by `face_extent`. A face with no
+  checkable line on an axis rests on the lift alone there. Filed P3:
+  `a-face-with-no-line-on-a-periodic-axis-reads-its-sheet-off-the-stored-lift-unchecked`.
 - `vacuous()`: a line placed on the face's sheet (now checked), the
-  line's face side, and an edge covering the cell's side. It reads
-  nothing from the extent but the sheet.
+  line's face side, and an edge covering the cell's side.
 - `present_chart`'s sliver: reached only with a rectangle of some
-  width, the guard taking the zero ones. What is left is the band
-  concession, which is frozen with designers.
-- `present_line_corner`'s sliver: rests on `R` holding the cell, now
-  true.
-- `present_plane_corner`'s sliver: `R` already held the cell, and a
-  plane has no sheet. Unchanged.
-- Also found by the sweep: the apex (above); `present_plane`'s two
-  half-plane readings (a plane, no sheet, `R` holds the cell).
+  width. What is left is the band concession, frozen with designers.
+- `present_line_corner`'s and `present_plane_corner`'s slivers:
+  unchanged, and frozen with the fork.
+- The apex: above. `present_plane`'s two half-plane readings are on a
+  plane, where no sheet is chosen.
 
-**4. Pins and mutants** (unit rows in `injective.rs`):
-- `a_half_band_is_not_read_vacuous_where_it_lies`: a cylinder half-band
-  stored as the ball's `1v1` is, its extent on either sheet. Mutant:
-  drop `lines_agree`. It goes red: the face's own half reads `Vacuous`
-  through `Sheets::Missed`. The whole window is still refused, by the
-  guard.
-- `a_rectangle_its_own_clips_leave_no_width_refuses`: an extent on a
-  non-periodic axis that its line contradicts. Mutant: drop the guard.
-  It goes red: the zero-width rectangle reads `Vacuous`.
-- No pin on a body: since ONEDOOR, the ball's extents are right, and
-  no body measured carries an extent off its sheet.
+**4. Pins and mutants** (unit rows in `injective.rs`). Each mutant
+goes red with the reading named:
+- Drop `face_extent`'s check:
+  - `a_half_band_is_not_read_vacuous_where_it_lies` goes red. It is a
+    cylinder half-band stored as the ball's `1v1` is, and its own half
+    turn reads `Vacuous`.
+  - The review's
+    `a_face_whose_extent_its_line_contradicts_is_not_vacuous_below_the_guard`
+    goes red. It now asks for `Structural` in the guarded cell and the
+    two cells below it.
+- Drop the guard: `a_rectangle_its_own_clips_leave_no_width_refuses`
+  goes red. Two lines `u = 3/2`, the face above one and below the
+  other, read `Vacuous` through the sliver.
+- Revert the apex: `a_cell_reaching_the_faces_nappe_is_not_vacuous_off_its_clips`
+  goes red with `Vacuous`.
+- `a_corner_one_clips_edges_run_through_is_not_convex`: its two
+  junctions inherited `unit_face`'s extent, which their own `v = 1`
+  line contradicts. They now carry extents their lines agree with. The
+  row still goes red when `convex` reads true.
 
-**5. What moved.**
-- `self_intersection_proves_injectivity`: 46 of 46 pass. The ball's
-  receipt is unchanged.
-- The tour walk: see the PR.
+**5. What moved: nothing measured.** The 46 body rows of
+`self_intersection_proves_injectivity` and the 85 tour bodies give the
+same verdicts and receipts as main. Those rows exercise none of the
+change: the guard, the contradicted extent and the apex refusal fire
+on none of them. The tour walk holds 82 of 85, on main and the branch.
