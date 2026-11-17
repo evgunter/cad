@@ -26,7 +26,10 @@
 //! carrier** over the derived interval:
 //!
 //! - distinct adjacent surfaces: `Intersection` (transverse), then
-//!   `TangentIntersection` (the fillet-trimline contact class);
+//!   `TangentIntersection` (the fillet-trimline contact class), then
+//!   the conventional pair where the must-carry rule over the two
+//!   surfaces answers it ([`must_carry_rung`]) — an in-band or mixed
+//!   join refuses through the rule instead;
 //! - one surface on both sides: `Seam` (periodic charts only), then
 //!   the conventional `MappedCurve` self-description (a line as its
 //!   own extrusion trajectory, a circular arc as its own revolution
@@ -400,6 +403,7 @@ fn adopt_edges(
         let mut candidates: Vec<(AdoptionCandidate, EdgeDescriptionSpec<f64>)> = Vec::new();
         let mut conventional = true;
         let mut nurbs_rim = false;
+        let mut must_carry_refusal = None;
         // The IsoCurve rung is offered on BOTH sides of the branch
         // below (M8): between two walls it is the loft/sweep wall–wall
         // seam class, and on ONE wall — the same described NURBS
@@ -565,6 +569,33 @@ fn adopt_edges(
                     spec.t1,
                     tol,
                 ));
+            if !conventional {
+                let surface = |key| {
+                    body.get_surface(key).unwrap_or_else(|| {
+                        unreachable!("{key:?} names a face's surface `attach_surfaces` attached")
+                    })
+                };
+                let interval = (spec.t0, spec.t1);
+                let reach = topo::wedge_reach(
+                    body,
+                    [sides.plus.face, sides.minus.face],
+                    &spec.carrier,
+                    interval,
+                );
+                match must_carry_rung(
+                    [(fs_plus, surface(fs_plus)), (fs_minus, surface(fs_minus))],
+                    &spec.carrier,
+                    interval,
+                    reach,
+                    mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1, false),
+                    tol,
+                    edge_key,
+                ) {
+                    Some(Ok(pair)) => candidates.push((AdoptionCandidate::MappedCurve, pair)),
+                    Some(Err(refusal)) => must_carry_refusal = Some(refusal),
+                    None => {}
+                }
+            }
         } else {
             let periodic = body.get_surface(fs_plus).is_some_and(|s| {
                 matches!(
@@ -643,6 +674,7 @@ fn adopt_edges(
         // refuses with the ladder's own typed report.
         if solid.band_seams.contains(&edge_id) {
             candidates.retain(|(c, _)| matches!(c, AdoptionCandidate::Wrap));
+            must_carry_refusal = None;
         }
 
         let mut attempts = Vec::new();
@@ -669,6 +701,10 @@ fn adopt_edges(
             }
         }
         if !adopted {
+            attempts.extend(must_carry_refusal.map(|refusal| AdoptionAttempt {
+                candidate: AdoptionCandidate::MappedCurve,
+                refusal,
+            }));
             return Err(StepImportError::Adoption {
                 id: edge_id,
                 attempts,
@@ -677,6 +713,54 @@ fn adopt_edges(
         }
     }
     Ok(())
+}
+
+/// **The must-carry rung** for an edge between two distinct surface
+/// records that the coincidence rung did not take: what the rule over the
+/// pair says the edge stores ([`geom_brep::reask_pair`], levered at its
+/// faces' `reach` as tier 3 levers it, at the kernel's ε). `Some(Ok)` is
+/// the conventional pair the rule answers for an under-determined join,
+/// offered to certification like any candidate. `Some(Err)` is the rule's
+/// typed refusal of an in-band or mixed join, which is certifiable as
+/// neither, so no conventional candidate stands in for it. `None` where the
+/// rule demands an intrinsic description, which the ladder's intrinsic
+/// rungs offer and certify, or where a spline record is on either side:
+/// with no implicit form the rule reads nothing there
+/// ([`geom_brep::reask_chart`] exempts it alike), and the spline rungs own
+/// those edges.
+fn must_carry_rung(
+    surfaces: [(geom_brep::SurfaceKey, &Surface<f64>); 2],
+    carrier: &Curve3<f64>,
+    interval: (f64, f64),
+    reach: geom_core::Lever<f64>,
+    declared: Option<MappedCurve<f64>>,
+    tol: Tol,
+    edge: topo::EdgeKey,
+) -> Option<Result<EdgeDescriptionSpec<f64>, topo::EulerOpError>> {
+    if surfaces.iter().any(|(_, s)| s.spline_chart().is_some()) {
+        return None;
+    }
+    let band = match geom_core::Band::linear(tol) {
+        Ok(band) => band,
+        Err(e) => {
+            return Some(Err(topo::EulerOpError::Certification {
+                error: topo::CertifyError::Band(e),
+            }));
+        }
+    };
+    match geom_brep::reask_pair(surfaces, carrier, interval, reach, declared, band) {
+        Ok(pair @ EdgeDescriptionSpec::OnPair { .. }) => Some(Ok(pair)),
+        Ok(_) => None,
+        Err(geom_brep::PairRefusal::InBand(escalation)) => {
+            Some(Err(topo::EulerOpError::RestJoinUndecided {
+                edge,
+                diag: escalation.diag(),
+            }))
+        }
+        Err(geom_brep::PairRefusal::Mixed(stations)) => {
+            Some(Err(topo::EulerOpError::RestJoinMixed { edge, stations }))
+        }
+    }
 }
 
 /// The **`IsoCurve` rung's candidates** for one edge (M7-3, widened to
@@ -1579,6 +1663,83 @@ mod tests {
             surface_sig(&a),
             surface_sig(&b),
             "swapped u/v knot vectors must not collide"
+        );
+    }
+
+    /// **The must-carry rung offers only what the rule asks for.** A unit
+    /// cylinder resting on the plane `y = 0` along the `z` axis, its wedge
+    /// levered at `reach`, so the join's sagitta is `reach²/2`: definitely
+    /// positive offers nothing (the intrinsic rungs carry the tangency),
+    /// definitely zero offers the pair, in band refuses typed rather than
+    /// offering it. A crossing offers nothing, and neither does a pair
+    /// with a spline record on one side, where the rule would answer in
+    /// band for want of an implicit form.
+    #[test]
+    fn the_must_carry_rung_offers_only_what_the_rule_asks_for() {
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let mut keys = slotmap::SlotMap::<geom_brep::SurfaceKey, ()>::with_key();
+        let (kp, kc) = (keys.insert(()), keys.insert(()));
+        let plane = |normal| Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal,
+            u_ref: geom_core::Vec3::new(0.0, 0.0, 1.0),
+        };
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        };
+        let floor = plane(geom_core::Vec3::new(0.0, 1.0, 0.0));
+        let carrier = Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+        );
+        let rung = |a: &Surface<f64>, b: &Surface<f64>, sagitta: f64| {
+            let reach = geom_brep::points_lever_from(
+                Point3::new(0.0, 0.0, 0.5),
+                [Point3::new((2.0 * sagitta).sqrt(), 0.0, 0.5)],
+            );
+            must_carry_rung(
+                [(kp, a), (kc, b)],
+                &carrier,
+                (0.0, 1.0),
+                reach,
+                None,
+                tol,
+                topo::EdgeKey::default(),
+            )
+        };
+        let middle = (band.zero() * band.escalate()).sqrt();
+        assert!(
+            rung(&floor, &cylinder, 0.125).is_none(),
+            "a jet-determinate join is not offered the pair"
+        );
+        assert!(
+            matches!(
+                rung(&floor, &cylinder, band.zero() / 100.0),
+                Some(Ok(EdgeDescriptionSpec::OnPair { pair, declared: None }))
+                    if pair == SurfacePair::new(kp, kc)
+            ),
+            "an under-determined join is offered the pair"
+        );
+        assert!(
+            matches!(
+                rung(&floor, &cylinder, middle),
+                Some(Err(topo::EulerOpError::RestJoinUndecided { .. }))
+            ),
+            "an in-band join refuses typed: {:?}",
+            rung(&floor, &cylinder, middle)
+        );
+        let crossing = plane(geom_core::Vec3::new(1.0, 0.0, 0.0));
+        assert!(
+            rung(&crossing, &cylinder, band.zero() / 100.0).is_none(),
+            "a crossing is not offered the pair"
+        );
+        assert!(
+            rung(&wall(0.0), &cylinder, band.zero() / 100.0).is_none(),
+            "a spline record is not read by the rule"
         );
     }
 }
