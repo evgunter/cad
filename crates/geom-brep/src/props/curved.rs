@@ -478,8 +478,8 @@ impl IsoChart {
 
     /// The refusal a carrier this parse does not read gets: an ellipse
     /// (a curved cut) or a line where only circles bound,
-    /// [`PropsError::NotIsoRectangle`]; a spline, or a spiric where no
-    /// spiric lies, [`PropsError::Unimplemented`]. A kind the parse reads
+    /// [`PropsError::NotIsoRectangle`]; a spline or a periodic curve, or a
+    /// spiric where no spiric lies, [`PropsError::Unimplemented`]. A kind the parse reads
     /// has no refusal here, and reaching this with one is the parse's own
     /// defect.
     fn kind_refusal<T: Real>(self, carrier: &Curve3<T>) -> PropsError {
@@ -501,9 +501,9 @@ impl IsoChart {
             ),
             (
                 Self::Cylinder | Self::Cone | Self::Sphere,
-                Curve3::Nurbs(_) | Curve3::Spiric { .. },
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_),
             )
-            | (Self::Torus, Curve3::Nurbs(_)) => PropsError::Unimplemented,
+            | (Self::Torus, Curve3::Nurbs(_) | Curve3::Periodic(_)) => PropsError::Unimplemented,
             (Self::Sphere, Curve3::Line(_) | Curve3::Ellipse(..)) => {
                 not_iso("sphere boundary edge is not a circle")
             }
@@ -2028,7 +2028,10 @@ fn cylinder_boundary<T: Decide>(
                 )?);
                 levels.push(v);
             }
-            Curve3::Ellipse(..) | Curve3::Nurbs(_) | Curve3::Spiric { .. } => {
+            Curve3::Ellipse(..)
+            | Curve3::Nurbs(_)
+            | Curve3::Spiric { .. }
+            | Curve3::Periodic(_) => {
                 return Err(IsoChart::Cylinder.kind_refusal(&e.carrier));
             }
         }
@@ -2392,7 +2395,9 @@ fn require_on_cone<T: Decide>(
         )
         .map(|_| ()),
         Curve3::Ellipse(..) => require_cone_ellipse(apex, axis, sin_a, cos_a, e, band),
-        Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
+        Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
+            Err(PropsError::Unimplemented)
+        }
     }
 }
 
@@ -2760,7 +2765,9 @@ fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
             Some(k) => Ok(k.speed_hi() * (e.t1 - e.t0).abs()),
             None => unreachable!("a circle or an ellipse is a conic"),
         },
-        Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
+        Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
+            Err(PropsError::Unimplemented)
+        }
     }
 }
 
@@ -3248,7 +3255,10 @@ fn cone_boundary<T: Decide>(
                 )?);
                 levels.push(v);
             }
-            Curve3::Ellipse(..) | Curve3::Nurbs(_) | Curve3::Spiric { .. } => {
+            Curve3::Ellipse(..)
+            | Curve3::Nurbs(_)
+            | Curve3::Spiric { .. }
+            | Curve3::Periodic(_) => {
                 return Err(IsoChart::Cone.kind_refusal(&e.carrier));
             }
         }
@@ -3806,7 +3816,9 @@ fn sphere_loop<T: Decide>(
         }) = e.carrier
         else {
             return Err(match e.carrier {
-                Curve3::Nurbs(_) | Curve3::Spiric { .. } => PropsError::Unimplemented,
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
+                    PropsError::Unimplemented
+                }
                 _ => PropsError::SphereLoop {
                     what: "sphere boundary edge is not a circle",
                 },

@@ -1007,7 +1007,9 @@ fn mapped_self_description(
             },
             angle: t1 - t0,
         })),
-        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+            None
+        }
     }
 }
 

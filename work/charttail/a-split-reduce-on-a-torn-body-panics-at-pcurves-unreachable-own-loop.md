@@ -32,3 +32,12 @@ Owed: a torn body reaching that walk refuses naming a row-four premise, as the f
 - 2026-11-16 — **a sixth seed, from SECTARMS' PR 7028** (its diff touches no file under `pcurves/`, `splitting/site` or `review_d18.rs`): the same job drew `0x67c1bc918fe6753f` on head `3d06fe5550` (run 43968440036) and panicked on `HalfEdgeKey(3v1)` at `crates/topo/src/pcurves/site.rs:381`. Not replayed on main by this lane.
 
 - 2026-11-17 — **a seventh seed, from TESSLANE's PR 7049** (its diff is `crates/mesh` and `.config/nextest.toml`): the same job drew `0x9bc8f040d42bea99` on the work-in-progress head `9e9a2b151c` (run 44038615732) and panicked on `HalfEdgeKey(3v1)` at `crates/topo/src/pcurves/site.rs:381`; the heads either side of it were green. Not replayed on main by this lane.
+
+## Another seed (2026-11-17, from PR 7052's hosted run)
+
+`topo`'s `review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise`
+(release profile, the `corrupt input` job) drew
+`CAD_FUZZ_SEED=0x8d944d546a8687a6` and failed: `split_reduce` panicked
+at `pcurves/site.rs` with "HalfEdgeKey(4v1) is a member of its own
+loop", naming no row-4 premise. Replayed with that seed, in release, on
+main at `fa4e9ba921`: the same failure (run).

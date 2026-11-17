@@ -5913,7 +5913,7 @@ pub(crate) mod winding_arm_tests {
                     ),
                     selector: geom_brep::CurveSelector::Witness(curve.carrier().mid_point(t0, t1)),
                 },
-                carrier: curve.carrier().clone(),
+                carrier: curve.stored_carrier().clone(),
                 param_start: t0,
                 param_end: t1,
             };

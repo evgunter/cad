@@ -418,7 +418,7 @@ impl<T: Bounds> SectionFrame<T> {
                 Some(k) => self.scaled(k.frame().origin - center) + k.speed_hi() / self.minor(),
                 None => unreachable!("a circle or an ellipse is a conic"),
             },
-            Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
+            Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => return None,
         };
         Some(self.minor() * (T::one() - rho))
     }
@@ -446,7 +446,7 @@ impl<T: Bounds> SectionFrame<T> {
                 Some(k) => self.scaled(k.frame().origin - center) - k.speed_hi() / self.minor(),
                 None => unreachable!("a circle or an ellipse is a conic"),
             },
-            Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
+            Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => return None,
         };
         Some(self.minor() * (rho - T::one()))
     }
@@ -889,7 +889,10 @@ impl<T: Decide + Bounds> CapSliver<T> {
                         };
                         (center, axis, f.major, f.minor, f.major_dir)
                     }
-                    Curve3::Line(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                    Curve3::Line(_)
+                    | Curve3::Spiric { .. }
+                    | Curve3::Nurbs(_)
+                    | Curve3::Periodic(_) => {
                         return Err(unbuilt_geometry(
                             EntityId::Vertex(vertex),
                             "a cut-off's round end curve is neither a circle nor an ellipse",
@@ -1050,7 +1053,7 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
                     None => unreachable!("`speed_floor` answers a circle and an ellipse"),
                 }
             }
-            Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+            Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
                 return Err(unbuilt_geometry(
                     EntityId::Edge(rim),
                     "a rim two cut-offs share is neither a line, a circle nor an ellipse",

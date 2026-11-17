@@ -5441,18 +5441,18 @@ fn moved_walls<T: Decide>(
                                 from: (t0, v0),
                                 to: (t1, v1),
                             },
-                            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                                EdgeArc::Arc(ArcPiece::along(
-                                    curve.carrier(),
-                                    geom::carrier_speed::speed_range(curve.carrier()).1,
-                                    cover
-                                        .as_ref()
-                                        .and_then(|c| c.as_ref().ok())
-                                        .map(geom::cover::Cover::ball),
-                                    (t0, t1),
-                                    edge.he_plus == he,
-                                ))
-                            }
+                            geom::Curve3::Spiric { .. }
+                            | geom::Curve3::Nurbs(_)
+                            | geom::Curve3::Periodic(_) => EdgeArc::Arc(ArcPiece::along(
+                                curve.carrier(),
+                                geom::carrier_speed::speed_range(curve.carrier()).1,
+                                cover
+                                    .as_ref()
+                                    .and_then(|c| c.as_ref().ok())
+                                    .map(geom::cover::Cover::ball),
+                                (t0, t1),
+                                edge.he_plus == he,
+                            )),
                         }
                     }
                 };

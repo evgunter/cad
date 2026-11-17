@@ -5592,7 +5592,7 @@ fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
         // [`chart_pcurve`] refuses it here, typed: its exact chart
         // images are the data-free `Pcurve` variant of the spiric
         // unit's second PR, which precedes this gate when it lands.
-        Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
     }
 }
 
@@ -5972,6 +5972,7 @@ fn param_rate<T: SpanLocate>(carrier: &Curve3<T>) -> InfSpeed<T> {
     match *carrier {
         Curve3::Line(_) => InfSpeed::new(T::one()),
         Curve3::Nurbs(ref n) => n.speed_lower_bound(),
+        Curve3::Periodic(ref p) => p.speed_lower_bound(),
         Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => {
             match geom::carrier_speed::speed_floor(carrier) {
                 Some(floor) => floor,
@@ -10113,6 +10114,8 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
             let (a, b) = net.domain();
             (T::from_f64(a), T::from_f64(b))
         }
+        // One turn from the base knot.
+        Curve3::Periodic(p) => p.base_span_in(),
     }
 }
 
@@ -11602,7 +11605,7 @@ fn derive_class_zero<T: Decide>(
                     )?;
                     Ok((Pcurve::FocalSection(image(u0)), Derivation::FocalSection))
                 }
-                Curve3::Nurbs(_) | Curve3::Spiric { .. } => unreachable!(
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => unreachable!(
                     "chart_pcurve: spirics route to spiric_chart_pcurve and splines refuse \
                      at carrier_harmonic, both before the chart match"
                 ),

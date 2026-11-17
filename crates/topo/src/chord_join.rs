@@ -3110,9 +3110,17 @@ fn carried_chord_spec<T: Decide>(
         .surface;
     let component = &ctx.component;
     let carrier = &component.carrier;
+    // An open fitted component's chord is cut from its net; every other
+    // carrier's is the carrier and a span. Of those a periodic cubic, a
+    // closed fitted loop, is no closed form: its chord carries the
+    // component's evidence, as a cut one does.
+    let fitted_loop = matches!(carrier, geom::Curve3::Periodic(_));
     let spline = match carrier {
         geom::Curve3::Nurbs(net) => Some(net),
-        geom::Curve3::Line(_) | geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => None,
+        geom::Curve3::Line(_)
+        | geom::Curve3::Circle(_)
+        | geom::Curve3::Ellipse(_)
+        | geom::Curve3::Periodic(_) => None,
         geom::Curve3::Spiric { .. } => {
             return Err(invariant("a carried component's carrier is a spiric"));
         }
@@ -3238,10 +3246,20 @@ fn carried_chord_spec<T: Decide>(
             };
             ((forward_arc, if up { None } else { back() }), Some(arc))
         }
-        None => (
-            (carrier.clone(), if up { None } else { carrier.reversed() }),
-            None,
-        ),
+        None => {
+            let arc = fitted_loop
+                .then(|| {
+                    SplineArc::of_section(component, carrier, (lo_cut, hi_cut)).ok_or(invariant(
+                        "a carried chord's loop holds no certificate of lying on its surfaces, \
+                         or has no clamped view over the chord's span",
+                    ))
+                })
+                .transpose()?;
+            (
+                (carrier.clone(), if up { None } else { carrier.reversed() }),
+                arc,
+            )
+        }
     };
     let (carrier, t_start, t_end) = if up {
         (forward, t1, t2)
@@ -3586,7 +3604,7 @@ fn between_edge_is_section<T: Decide>(
     };
     match curve.carrier() {
         geom::Curve3::Line(_) => Ok(Some(true)),
-        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
             Err(JoinError::RunEdgeCarrierUnsupported {
                 face: body
                     .get_loop(he_data.parent_loop)
@@ -4192,7 +4210,9 @@ impl<T: Decide> IslandReading<T> {
                 let chord = match (&spec.carrier, &carrier) {
                     // The chord's locus, read in either sense: the arc
                     // its evidence was taken on.
-                    (geom::Curve3::Nurbs(_), _) => arc.cloned().map(LoopArc::Spline),
+                    (geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_), _) => {
+                        arc.cloned().map(LoopArc::Spline)
+                    }
                     (_, Carrier::Quadric(quadric)) => {
                         quadric_loop_arc(quadric, &spec.carrier, (t0, t1), band)
                             .map_err(|diag| JoinError::Escalated { face, diag })?
