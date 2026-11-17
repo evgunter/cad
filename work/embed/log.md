@@ -21,3 +21,13 @@
   - **`embed/gate`** on `the-at-rest-gate-certifies-embedding`, lane C with the rest of lane B (P0), and `the-f64-cavity-gate-refuses-thirty-two-valid-shells`, which closes into it. Letter H. **Dual, concurrent pair.** It changes what every finished body pays and promises. **Sequencing, decided here:** the lane builds the gate now and its first deliverable is the census, every suite with the gate asking, so the engine rows that block the gate are measured rather than inferred from the tour (81 of 85) and the shell rows (15 of 32). The alternative was to hold lane C until the known engine rows land, as the spec orders; that leaves the suite-wide refusal surface unknown until the end. The gate does not merge while it refuses a valid body.
   - **The sliver** (`the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`, P1, design): designers weigh it under the fork protocol; the draw is on `analysis/design-fork/embed-sliver`.
   - Model-comparison draws are on `analysis/model-compare/embed-2026-11-17`. (EMBED orchestrator)
+- 2026-11-17 — **The first wave is running.** Cloud sessions, each on its own branch and reporting to the orchestrator's session (`session_018u3gVFQSECnnYvnvggrF2a`) by `send_message`:
+  - `embed/half-sphere`: `session_018u3gVHEaCvZxsXLi5GcxYk`;
+  - `embed/conic-arcs`: `session_018u3gVGCMUzcq7uFb1Luw5M`;
+  - `embed/cylinder-vertex`: `session_018u3gVHZ3DM9epRAA2acBNJ`;
+  - `embed/graph-piece`: `session_018u3gVHLKzD3ohRGx9q2wjX`;
+  - `embed/winding-rule`: `session_018u3gVJWvkHqYveLQ1XgDaj`;
+  - `embed/gate`: `session_018u3gVH8SNTMN3JcG6kETSc`. Its stage 1 is the gate and the census; stage 2 is the rest of lane C that the census cannot change; stage 3 (the rest of lane B, item 7) waits for the orchestrator's word;
+  - `embed/sliver-measure`: `session_018u3gVGV8HhwfEYZY3qEefe`. A measurement lane with no PR: which bodies hold only through the sliver, per reader, written into the sliver row. It runs beside the designers so that the number they are most likely to ask for exists when they report.
+  - The sliver fork's three designers (the arm byte drew three) run as local subagents on the problem statement at `analysis/design-fork/embed-sliver:problem.md`.
+  - Every lane brief freezes the sliver: no new reader adopts it and none of the three changes, until the fork is decided. (EMBED orchestrator)
