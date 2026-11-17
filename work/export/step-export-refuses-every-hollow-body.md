@@ -2,11 +2,13 @@
 id: step-export-refuses-every-hollow-body
 kind: issue
 title: STEP export refuses every hollow body - a void shell is refused VoidShellUnsupported because the writer has no BREP_WITH_VOIDS
-status: open
+status: review
 opened: 2026-09-28
 priority: P1
 cost: M
 refs: [step-export-reclassifies-shell-roles-with-its-own-planar-flux]
+branch: export/void-shells
+pr: 7077
 ---
 
 Found while reviewing S-DUP's `step-export-reclassifies-shell-roles-with-its-own-planar-flux`
