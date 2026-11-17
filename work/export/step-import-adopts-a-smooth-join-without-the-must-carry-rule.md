@@ -2,13 +2,14 @@
 id: step-import-adopts-a-smooth-join-without-the-must-carry-rule
 kind: issue
 title: the adoption ladder offers no conventional rung for an under-determined tangency between distinct surfaces, so a native body with one does not re-import
-status: review
+status: closed
 opened: 2026-10-09
 priority: P1
 cost: M
 refs: [split-tangent-chord-mints-tangency-without-the-must-carry-rule]
 branch: export/smooth-join
 pr: 7081
+closed: 2026-11-17
 ---
 
 ## Finding
@@ -87,3 +88,7 @@ plane-only coincidence rung, which offered the same pair by its own
 angle test. The measured producers above no longer reach the class on
 main (the rule levers at the faces' reach); `bored_ring` and
 `TAIL_TURBINE` at 1e-6 do, and are the rows.
+
+## Closed (2026-11-17)
+
+PR 7081 (`export/smooth-join`). The ladder asks `geom_brep::reask_pair` (the must-carry rule) for a smooth join between two distinct records and offers the native `OnPair`, which is certified like any candidate. The rung subsumed the plane-only coincidence rung, and that rung was removed (the suite is unchanged at every ε). The review demonstrated the rule's soundness with adversarial files and mutants.
