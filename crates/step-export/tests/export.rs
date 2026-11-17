@@ -423,10 +423,6 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// `work/onecopy/the-filleted-dies-body-moved-at-6533-and-is-pinned-unjudged.md`;
 /// `composed_die.step` carries that and PR 6482's, on
 /// `work/onecopy/the-composed-dies-step-bytes-moved-at-6482-and-are-pinned-unjudged.md`.
-/// `swept_elbow.step` carries a move after 2026-11-15 in the last digits
-/// of five cap `DIRECTION` components of size 6.1e-17 (no point or edge
-/// moved), not yet traced to its merge, on
-/// `work/export/main-red-swept-elbows-step-fixture-drifted-in-five-cap-directions.md`.
 ///
 /// **Regenerated when a sweep's cap became its station's frame**
 /// (BOXFINISH's `boxfinish/sweep-frames`): 16 lines in six fixtures, every
@@ -436,6 +432,18 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// a point fitted to the cap's corners; a bottom cap's normal is spelled
 /// `(-0.0, -0.0, -1.0)`, the station's normal negated; `swept_elbow`'s end
 /// cap frame is its turned station's. No vertex, edge or wall moved.
+///
+/// **Regenerated when the station step's least turn took its W1
+/// spelling** (`RigidMotion::least_turn_selected`: Rodrigues where the
+/// pair's `a·b` reads non-negative, the quaternion matrix near the pole):
+/// 5 lines in `swept_elbow`, the end cap's plane reference direction and
+/// its four edges' directions. Each moved by 3 ulps in one component of
+/// size 6.1e-17 (3.7e-32 absolute), a component zero over the reals
+/// that the path's turn by `FRAC_PI_2` leaves behind. Forcing the
+/// quaternion spelling on the same head writes every fixture back byte
+/// for byte. Both spellings are the one turn, so this is rounding: the
+/// reference stays as orthogonal to the cap's normal as it was, and no
+/// point, normal or wall moved.
 #[test]
 fn committed_fixtures_are_byte_golden() {
     for (name, body) in common::fixture_corpus() {

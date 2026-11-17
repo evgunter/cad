@@ -2,10 +2,11 @@
 id: main-red-swept-elbows-step-fixture-drifted-in-five-cap-directions
 kind: issue
 title: main red (slow set): swept_elbow.step drifted in the last digits of five cap DIRECTIONs
-status: open
+status: closed
 opened: 2026-11-16
-priority: P1
+priority: P0
 cost: E
+closed: 2026-11-17
 ---
 
 
@@ -40,6 +41,29 @@ The test is green on main. The move has been traced to the change that
 caused it and judged rounding (or not), and the fixture has been
 regenerated deliberately.
 
-## Pinned (2026-11-17, GREEN)
+## Closed (2026-11-17)
 
-Red on the 11-17 nightly at every ε. Regenerating every fixture on main `1fd34c3e` moves `swept_elbow.step` alone, in exactly the five lines above, so nothing hides behind it. The fixture is committed at the writer's bytes and `committed_fixtures_are_byte_golden`'s doc names this row beside the two die fixtures pinned the same way. What this row owes is unchanged: trace the move to its merge and judge it rounding or not. Until then the pin holds main's bytes, so a further move reds again. P1 now that main is green. (GREEN)
+Measured again at `origin/main` `362cd72fd2`: the same five lines, and
+regenerating every fixture moves `swept_elbow.step` alone. Of the five,
+`#3` is the end cap's plane reference direction and `#11`, `#19`, `#27`,
+`#33` are the directions of that cap's four edge lines; each moved by
+3 ulps in one component of size 6.1e-17 (3.7e-32 absolute).
+
+**Cause: the station step's least turn took its W1 spelling.** PR 6988
+(`onehome/least-turn-mint`, merged as `034c11e242`) moved the sweep's
+station step (`PathCarry` in `crates/sweep/src/skin.rs`) from
+`RigidMotion::turned_between`, the quaternion matrix over `n²`, onto
+`RigidMotion::least_turn_selected`, which spells a pair whose `a·b`
+reads non-negative by Rodrigues (`least_turn_rodrigues`, `ad0da66ac6`)
+and keeps the quaternion matrix near the pole. Every station step of the
+elbow is far from the pole, so it now takes Rodrigues, and the end
+station's reference carries different rounding. Proven by A/B on
+`362cd72fd2`: forcing `least_turn_spelled` to the quaternion arm writes
+all seventeen fixtures back byte for byte.
+
+**Judgment: rounding.** Both spellings are the one turn over the reals
+(geom-core README W1: a few ulps at f64 decides nothing); the moved
+component is zero over the reals, left by the path's turn by
+`FRAC_PI_2`; the reference's dot with the cap normal is −9.6e-33 before
+and after. Fixture regenerated, and the move recorded on
+`committed_fixtures_are_byte_golden`, in `a25315379b`.
