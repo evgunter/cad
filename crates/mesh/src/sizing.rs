@@ -18,8 +18,10 @@
 //!   lanes do not land there: the NURBS lane spends its
 //!   `nurbs_cert::LATTICE_SHARE` of δ on its lattice (its sliver lands
 //!   at δ, its lattice cells at an eighth of it), and the trimmed
-//!   cylinder and trimmed sphere, which have no theorem, size at
-//!   `trimmed::UNPROVED_HEADROOM` of δ.
+//!   lane's analytic arms, which have no theorem, size at
+//!   `trimmed::UNPROVED_HEADROOM` of δ — but for a cylinder or cone face
+//!   it walks (`crate::ruled_walk`), which lands at δ by the theorems at
+//!   [`sagitta_step`] and [`cone_grid_step`].
 //! - a **step** — an increment in a *parameter* (a curve parameter, a
 //!   chart angle, a UV coordinate), always `f64`. Steps come from a
 //!   closed-form deviation bound: [`sagitta_step`] and [`ellipse_step`]
@@ -1290,6 +1292,124 @@ pub(crate) mod tests {
             worst <= 1.0 + 1e-12,
             "a strip triangle spans {worst} row spacings in azimuth"
         );
+    }
+
+    /// **A walked face's worst triangle lands at δ**
+    /// (`crate::ruled_walk`, the theorem at [`sagitta_step`] and
+    /// [`cone_grid_step`]). Faces in the chart, each walked by
+    /// `ruled_walk::Rows::walk` with three points on each straight side: a
+    /// cylinder face of radius `r` whose rims are chorded at
+    /// `sagitta_step(δ, r)`; a frustum face whose larger rim is chorded at
+    /// `cone_grid_step(δ, α, ρ_max)` and whose smaller rim takes two more
+    /// chords (each within the step, as the chord pass leaves them, and
+    /// not where the larger rim's fall); and a face to the apex. Every
+    /// triangle, read in 3-D at dense barycentric samples of its true
+    /// distance from the surface, lies within δ, and the worst lands at δ
+    /// to a part in a hundred: the step is no finer than the theorem needs.
+    #[test]
+    fn a_walked_triangle_lands_at_delta() {
+        use std::collections::HashSet;
+        // A ruled face's walked triangles, each as three 3-D corners.
+        let walk = |rows: [Vec<f64>; 2], v: [f64; 2], span: f64, apex: bool| {
+            let mut p: Vec<(f64, f64, u32)> = Vec::new();
+            let mut line = Vec::new();
+            let mut push = |u: f64, v: f64, is_line: bool, p: &mut Vec<(f64, f64, u32)>| {
+                #[allow(clippy::cast_possible_truncation)]
+                p.push((u, v, p.len() as u32));
+                line.push(is_line);
+            };
+            let n = rows[0].len();
+            for (k, &u) in rows[0].iter().enumerate() {
+                push(u, v[1], k + 1 == n, &mut p);
+            }
+            for t in [0.75, 0.5, 0.25] {
+                push(span, v[0] + (v[1] - v[0]) * t, true, &mut p);
+            }
+            if apex {
+                push(span, 0.0, true, &mut p);
+            } else {
+                let m = rows[1].len();
+                for (k, &u) in rows[1].iter().rev().enumerate() {
+                    push(u, v[0], k + 1 == m, &mut p);
+                }
+            }
+            for t in [0.25, 0.5, 0.75] {
+                push(0.0, v[0] + (v[1] - v[0]) * t, true, &mut p);
+            }
+            let singular: HashSet<u32> = if apex {
+                p.iter().filter(|q| q.1 == 0.0).map(|q| q.2).collect()
+            } else {
+                HashSet::new()
+            };
+            let rows = crate::ruled_walk::Rows::of(&p, &line, &singular).expect("two rows");
+            rows.walk(&p)
+                .into_iter()
+                .map(|t| t.map(|k| (p[k].0, p[k].1)))
+                .collect::<Vec<_>>()
+        };
+        let uniform = |n: usize, span: f64| -> Vec<f64> {
+            #[allow(clippy::cast_precision_loss)]
+            (0..=n).map(|i| span * i as f64 / n as f64).collect()
+        };
+        let sampled = |corners: [[f64; 3]; 3], dist: &dyn Fn([f64; 3]) -> f64| {
+            let mut worst = 0.0_f64;
+            for i in 0..=32 {
+                for j in 0..=(32 - i) {
+                    let (l0, l1) = (f64::from(i) / 32.0, f64::from(j) / 32.0);
+                    let l2 = 1.0 - l0 - l1;
+                    let q: [f64; 3] = core::array::from_fn(|k| {
+                        l0 * corners[0][k] + l1 * corners[1][k] + l2 * corners[2][k]
+                    });
+                    worst = worst.max(dist(q));
+                }
+            }
+            worst
+        };
+        let span = 1.3;
+        for delta in [1e-2, 1e-3, 1e-4] {
+            // The cylinder of radius 2, its rims at heights 0 and 1.
+            let r = 2.0;
+            let h = sagitta_step(delta, r);
+            let n = ceil_count(span, h).unwrap();
+            let at = |(u, z): (f64, f64)| [r * u.cos(), r * u.sin(), z];
+            let worst = walk(
+                [uniform(n, span), uniform(n, span)],
+                [0.0, 1.0],
+                span,
+                false,
+            )
+            .into_iter()
+            .map(|t| sampled(t.map(at), &|q| r - q[0].hypot(q[1])))
+            .fold(0.0_f64, f64::max);
+            assert!(
+                worst <= delta * (1.0 + 1e-9)
+                    && worst >= 0.99 * delta * (span / n as f64 / h).powi(2),
+                "cylinder, δ {delta}: the worst walked triangle lies {worst} off"
+            );
+            for (name, half_angle, apex) in
+                [("frustum", 0.6_f64, false), ("to the apex", 0.3, true)]
+            {
+                let (sa, ca) = half_angle.sin_cos();
+                let (v1, v0) = (2.0 / sa, if apex { 0.0 } else { 1.0 / sa });
+                let h = cone_grid_step(delta, half_angle, v1 * sa);
+                let n = ceil_count(span, h).unwrap();
+                let at = |(u, v): (f64, f64)| [v * sa * u.cos(), v * sa * u.sin(), v * ca];
+                let worst = walk(
+                    [uniform(n, span), uniform(n + 2, span)],
+                    [v0, v1],
+                    span,
+                    apex,
+                )
+                .into_iter()
+                .map(|t| sampled(t.map(at), &|q| (ca * q[0].hypot(q[1]) - sa * q[2]).abs()))
+                .fold(0.0_f64, f64::max);
+                assert!(
+                    worst <= delta * (1.0 + 1e-9)
+                        && worst >= 0.99 * delta * (span / n as f64 / h).powi(2),
+                    "cone {name}, δ {delta}: the worst walked triangle lies {worst} off"
+                );
+            }
+        }
     }
 
     /// **The cone's worst triangle lands at δ** at [`cone_grid_step`]: a

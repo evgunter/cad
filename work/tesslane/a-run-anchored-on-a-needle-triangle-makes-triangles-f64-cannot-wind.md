@@ -68,7 +68,7 @@ At ε `10⁻¹²`:
 At ε `10⁻⁶` a split is a split from `10⁻⁵`, and no body the unit tried
 reaches the refusal.
 
-Pinned: `split_rulings::a_run_anchored_on_a_needle_triangle_refuses_unresolved`.
+Pinned until unit 4c: `split_rulings::a_run_anchored_on_a_needle_triangle_refuses_unresolved` (below).
 
 ## How near the allowance the meshing faces come
 

@@ -27,7 +27,7 @@ returned either way. The review measured the same answer at 1° and 5°
 with a split `10⁻⁹` from an end at ε `10⁻¹²` (at the default ε
 `split_edge` reads that split as none).
 
-Pinned: `split_rulings::a_ruling_split_a_hair_from_its_end_folds_a_triangle`.
+Pinned while open: `split_rulings::a_ruling_split_a_hair_from_its_end_folds_a_triangle`, now `a_ruling_split_a_hair_from_its_end_meshes` (below).
 
 ## Not measured
 

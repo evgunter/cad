@@ -66,10 +66,16 @@ use std::collections::HashSet;
 /// traversals is a line, in loop order. A face is walked with one run
 /// (the second row is the apex) or two.
 pub(crate) fn rim_runs(line: &[bool]) -> usize {
+    rim_run_starts(line).len()
+}
+
+/// Where each run of rims starts: a traversal that is no line after one
+/// that is.
+fn rim_run_starts(line: &[bool]) -> Vec<usize> {
     let n = line.len();
     (0..n)
         .filter(|&i| !line[i] && line[(i + n - 1) % n])
-        .count()
+        .collect()
 }
 
 /// A walked face's two rows and its sides, by index into the trim
@@ -98,9 +104,7 @@ impl Rows {
         singular: &HashSet<u32>,
     ) -> Option<Self> {
         let n = points.len();
-        let starts: Vec<usize> = (0..n)
-            .filter(|&i| !line[i] && line[(i + n - 1) % n])
-            .collect();
+        let starts = rim_run_starts(line);
         // A run of rims: its points to the corner its last chord reaches.
         let run = |i: usize| {
             let mut v = vec![i];
@@ -183,27 +187,27 @@ impl Rows {
         if m == 0 && n == 1 && !self.start.is_empty() && !self.end.is_empty() {
             return self.zip_sides(points);
         }
-        for (from, side, to) in [(b[0], &self.start, a[0]), (a[n], &self.end, b[m])] {
+        // Otherwise the walk's first triangle holds the start side
+        // `b₀ → a₀` and its last the end side `aₙ → bₘ`, two triangles: the
+        // walk starts and ends on those front edges, and writes `n + m ≥ 2`
+        // triangles. Each side's points are fanned from the corner of its
+        // triangle off that side.
+        let last = out.len() - 1;
+        let fans = [(last, a[n], &self.end, b[m]), (0, b[0], &self.start, a[0])];
+        for (t, from, side, to) in fans {
             if side.is_empty() {
                 continue;
             }
-            let (t, q) = out
-                .iter()
-                .enumerate()
-                .find_map(|(t, tri)| {
-                    (0..3)
-                        .find(|&q| tri[q] == from && tri[(q + 1) % 3] == to)
-                        .map(|q| (t, q))
-                })
-                .unwrap_or_else(|| {
-                    unreachable!("the walk's first and last triangles hold its two sides")
-                });
-            let corner = out.swap_remove(t)[(q + 2) % 3];
+            let tri = out[t];
+            // The corner off the side: the triangle's third index.
+            let corner = tri.iter().sum::<usize>() - from - to;
             let chain: Vec<usize> = std::iter::once(from)
                 .chain(side.iter().copied())
                 .chain(std::iter::once(to))
                 .collect();
-            out.extend(chain.windows(2).map(|w| [corner, w[0], w[1]]));
+            let mut fan = chain.windows(2).map(|w| [corner, w[0], w[1]]);
+            out[t] = fan.next().unwrap_or(tri);
+            out.extend(fan);
         }
         out
     }

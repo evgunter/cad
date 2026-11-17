@@ -12,6 +12,13 @@
 //! place) refuses with the door's cause
 //! ([`TessellateError::DomainUnread`]).
 //!
+//! One class of face here is not triangulated: a cylinder or cone face
+//! that is an iso rectangle of its chart but for a point on a straight
+//! side (`walk::splits_a_straight_side`) is **walked** ([`walked`],
+//! `crate::ruled_walk`): no lattice and no CDT, its triangles written
+//! along its two rows in order of angle and each read by the row's
+//! certificate, at δ rather than the headroom.
+//!
 //! # Watertightness is inherited, not re-derived
 //!
 //! The polygon's mesh-vertex ids are the per-edge chord ids computed
@@ -23,7 +30,7 @@
 //!
 //! Every chart constructs here, from the face's chart row
 //! (`crate::chart_table`): the analytic charts — **cylinder** (M5 PR 11 —
-//! the tiltedcut walls; every split cylinder wall), **cone** (a frustum
+//! the tiltedcut walls; a split cylinder wall is walked), **cone** (a frustum
 //! cut by a tilted plane), **sphere** (a sphere face a circle tilted
 //! against its chart bounds — the sphere pairs, a ball cut by a tilted
 //! plane, the oblique fillet corners), **torus** (a hollowed partial

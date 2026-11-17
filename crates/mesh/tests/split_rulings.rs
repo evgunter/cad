@@ -14,7 +14,7 @@ use topo::Body;
 use topo::construction::Construct;
 
 use crate::common::{axis_y, validated};
-use crate::reach_probes::{Got, geometry_enclosing, got_enclosing, tol};
+use crate::reach_probes::{Got, geometry_but_the_volume, geometry_enclosing, got_enclosing, tol};
 
 /// The profile `pts` revolved about `y` through `turn`.
 fn turned(pts: &[(f64, f64)], turn: Revolution<f64>) -> Body<f64> {
@@ -118,6 +118,18 @@ fn traversals(body: &Body<f64>, fk: topo::FaceKey) -> usize {
         .sum()
 }
 
+std::thread_local! {
+    /// The cells of this row whose volume [`holds_the_relation`] did not
+    /// read ([`volume_read`]); each row that can meet one asserts the count
+    /// ([`unread_volumes`]).
+    static VOLUME_UNREAD: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+}
+
+/// The cells of this row so far whose volume was not read.
+fn unread_volumes() -> usize {
+    VOLUME_UNREAD.with(core::cell::Cell::get)
+}
+
 /// Whether `solid` is a finished body at this run's ε, whose volume
 /// [`geometry_enclosing`] reads: not where its mass properties escalate
 /// (the 0.1° draft wall at `10⁻¹²`, `props_cone_circle_off_axis`).
@@ -165,7 +177,9 @@ fn holds_the_relation(
         geometry_enclosing(split, solid, &mesh, delta)
             .unwrap_or_else(|e| panic!("{what}, δ {delta}: {e}"));
     } else {
-        mesh::validate::check_winding(&mesh).unwrap_or_else(|e| panic!("{what}, δ {delta}: {e:?}"));
+        geometry_but_the_volume(split, &mesh, delta)
+            .unwrap_or_else(|e| panic!("{what}, δ {delta}: {e}"));
+        VOLUME_UNREAD.with(|n| n.set(n.get() + 1));
     }
     let base = mesh::tessellate(solid, delta, tol()).unwrap();
     for patch in &mesh.patches {
@@ -279,6 +293,11 @@ fn a_split_side_adds_one_triangle_per_point() {
         }
     }
     assert_eq!(cells, 330, "the cells this row reads");
+    assert_eq!(
+        unread_volumes(),
+        0,
+        "the cells whose volume is not read: none"
+    );
 }
 
 /// **A ruling split a hair from its end meshes.** Cones through their
@@ -295,7 +314,7 @@ fn a_split_side_adds_one_triangle_per_point() {
 /// three: its certification escalates at `10⁻¹²`.)
 #[test]
 fn a_ruling_split_a_hair_from_its_end_meshes() {
-    let mut meshed = 0usize;
+    let (mut meshed, mut refused) = (0usize, Vec::new());
     for (half_angle, frac) in [(20.0f64, 3e-7), (5.0, 1e-9)] {
         let body = turned(
             &[(0.0, 0.0), (half_angle.to_radians().tan(), 0.0), (0.0, 1.0)],
@@ -307,7 +326,14 @@ fn a_ruling_split_a_hair_from_its_end_meshes() {
             .clone()
             .split_edge(ruling, at(&body, ruling, frac), tol())
         {
-            eprintln!("{what}: no split at ε {:e}: {e:?}", tol().eps());
+            refused.push((
+                half_angle,
+                format!("{e:?}")
+                    .split([' ', '{', '('])
+                    .next()
+                    .unwrap_or("")
+                    .to_string(),
+            ));
             continue;
         }
         let split = split_and_placed(&body, &[ruling], &[frac]);
@@ -315,12 +341,28 @@ fn a_ruling_split_a_hair_from_its_end_meshes() {
         holds_everywhere(&what, &split, &solid, &[0.1, 0.01, 0.001]);
         meshed += 1;
     }
-    let want = match tol().eps() {
-        e if e <= 1e-12 => 2,
-        e if e <= geom_core::tolerance::DEFAULT_EPS => 1,
-        _ => 0,
+    let (want, refusals): (usize, &[(f64, &str)]) = match eps_row() {
+        EpsRow::Fine => (2, &[]),
+        EpsRow::Default => (1, &[(5.0, "SplitParamEscalated")]),
+        EpsRow::Coarse => (
+            0,
+            &[
+                (20.0, "SplitParamNotInterior"),
+                (5.0, "SplitParamNotInterior"),
+            ],
+        ),
     };
     assert_eq!(meshed, want, "the bodies this ε builds");
+    let refused: Vec<(f64, &str)> = refused.iter().map(|(a, e)| (*a, e.as_str())).collect();
+    assert_eq!(
+        refused, refusals,
+        "the splits `split_edge` refuses at this ε, and why"
+    );
+    assert_eq!(
+        unread_volumes(),
+        0,
+        "the cells whose volume is not read: none"
+    );
 }
 
 /// The parameter `frac` of the way along edge `ek`'s range.
@@ -409,6 +451,11 @@ fn a_ruling_split_within_two_to_the_minus_27_of_its_slant_meshes() {
             &deltas,
         );
     }
+    assert_eq!(
+        unread_volumes(),
+        if eps_row() == EpsRow::Fine { 6 } else { 0 },
+        "the cells whose volume is not read: the draft wall's at 1e-12"
+    );
     let thin = turned(
         &[
             (0.0, 0.0),
@@ -631,6 +678,11 @@ fn no_walked_triangle_has_an_edge_a_neighbour_makes() {
         }
     }
     assert_eq!(cells, 218, "the cells this row reads");
+    assert_eq!(
+        unread_volumes(),
+        24,
+        "the cells whose volume is not read: the band's, which does not finish"
+    );
 }
 
 /// Whether line edge `ek` of a body revolved about `y` is a cone's
@@ -774,39 +826,40 @@ fn run_cells(bodies: &[DraftBody<'_>], deltas: &[f64]) -> usize {
     cells
 }
 
-/// **A run of ruling points the development merges meshes.** The chart
-/// lane triangulates a cone face in its development, which cuts a slant
-/// radius to 27 significant bits: two points of one ruling within about
-/// `2⁻²⁷` of their slant radius are one point there. On a draft cone that
-/// is a length a split reaches ([`draft_cones`]). The lane holds such a
-/// run of consecutive ruling points as one vertex of its triangulation
-/// and tells them apart again when it emits (`trimmed::Run`).
+/// **A draft cone's seam split within its development's resolution
+/// meshes.** On a draft cone two points of one ruling within about `2⁻²⁷`
+/// of their slant radius, a length a split reaches ([`draft_cones`]), are
+/// one point of the cone's development, where the chart lane's CDT runs.
+/// A cone face with a split side and no other trim is walked in its chart
+/// (`trimmed::walked`), which rounds no slant radius, so the points stay
+/// apart.
 ///
-/// The wall, a full turn: its one cone face walks its seam twice, so each
-/// run is met on each of the seam's two rays. The seam split seven ways
-/// ([`run_cells`]); placed obliquely; δ 0.01. Every cell meshes, passes
-/// `check_mesh`, and is the body's ([`crate::reach_probes::geometry`]).
+/// The wall, a full turn: its one cone face walks its seam twice. The seam
+/// split seven ways ([`run_cells`]); placed obliquely; δ 0.01. Every cell
+/// meshes, passes `check_mesh`, and is the body's
+/// ([`crate::reach_probes::geometry`]).
 ///
 /// **By ε.** The same at each, on the cones that ε builds
 /// ([`draft_cones`]). The grid over more bodies and δ is
-/// [`every_run_of_a_draft_cones_rulings_meshes`].
+/// [`every_close_split_of_a_draft_cones_rulings_meshes`].
 #[test]
-fn a_run_of_ruling_points_the_development_merges_meshes() {
+fn a_draft_cones_seam_split_within_its_developments_resolution_meshes() {
     let cells = run_cells(&[("wall, full", wall, Revolution::Full)], &[0.01]);
     assert_eq!(cells, 7 * draft_cones().len(), "the cells this row reads");
 }
 
-/// **The grid of [`a_run_of_ruling_points_the_development_merges_meshes`]**:
+/// **The grid of [`a_draft_cones_seam_split_within_its_developments_resolution_meshes`]**:
 /// the wall a full turn, a half and a wedge of 0.05; the solid through
 /// the axis a full turn and a half (a part turn's cone face ends on two
 /// rulings, each shared with a planar cut face); and the wall whose inner
 /// face is the cone, reversed, a full turn; at δ 1, 0.1, 0.01 and 0.001.
+/// Each face is walked.
 ///
 /// **By ε.** The same at each, on the cones that ε builds
 /// ([`draft_cones`]); but the wedge is read at the default ε and `10⁻¹²`
 /// alone: at `10⁻⁶` the 0.01° wedge does not revolve.
 #[test]
-fn every_run_of_a_draft_cones_rulings_meshes() {
+fn every_close_split_of_a_draft_cones_rulings_meshes() {
     let half = Revolution::Partial(core::f64::consts::PI);
     let wedge: DraftBody<'_> = ("wall, a wedge of 0.05", wall, Revolution::Partial(0.05));
     let mut bodies: Vec<DraftBody<'_>> = vec![
@@ -830,27 +883,18 @@ fn every_run_of_a_draft_cones_rulings_meshes() {
     );
 }
 
-/// **A run at a corner of the polygon is anchored along its ruling.** The
-/// wall at 26.6°, a wedge of 0.05, each of its two cone rulings split
-/// beside its start and beside its end in turn and placed obliquely, δ
-/// 0.1, 0.01 and 0.001. The split vertex and the ruling's end are a run,
-/// and the end is a corner: on one side the polygon reaches the run along
-/// the rim and leaves it along the ruling, on the other the reverse. The
-/// lane adds the run's triangle beside the neighbour along the ruling
-/// (`trimmed::Anchor`), and every cell meshes. Added beside the neighbour
-/// before the run whichever side that is on, the second ruling split
-/// beside its end refuses at δ 0.01.
-///
-/// Inside a ruling side both neighbours are along the ruling and the lane
-/// takes the first; either gives a valid mesh, and which is held by
-/// `trimmed`'s unit rows alone.
+/// **A split beside a corner of a draft cone meshes.** The wall at
+/// 26.6°, a wedge of 0.05, each of its two cone rulings split beside its
+/// start and beside its end in turn and placed obliquely, δ 0.1, 0.01 and
+/// 0.001. The split vertex sits a hair from a corner where the polygon
+/// turns between a rim and a ruling; the walk fans it from the corner
+/// across the side, and every cell meshes (`Meshed`: `check_mesh`, the
+/// winding, sampled deviation and the volume).
 ///
 /// **By ε.** The gap is `10⁻⁸` of the ruling at the default ε and at
-/// `10⁻¹²`. At `10⁻⁶` a split is a split from `10⁻⁵`, which this cone's
-/// development does not merge: the row holds that the face meshes with
-/// its two points apart.
+/// `10⁻¹²`, `10⁻⁵` at `10⁻⁶`, the smallest split each admits.
 #[test]
-fn a_run_at_a_corner_is_anchored_along_its_ruling() {
+fn a_split_beside_a_corner_of_a_draft_cone_meshes() {
     let gap = match eps_row() {
         EpsRow::Coarse => 1e-5,
         EpsRow::Default | EpsRow::Fine => 1e-8,
@@ -937,17 +981,17 @@ fn a_run_on_a_cut_cone_faces_seam_meshes() {
     cut_cone_cells(Revolution::Full);
 }
 
-/// **A run on an ordinary frustum, at ε `10⁻¹²`.** The frustum wall's
-/// outer cone face (half-angle 45°) with its seam split beside its start,
-/// placed obliquely, at δ 0.1, 0.01 and 0.001.
+/// **A frustum's seam split within its development's resolution meshes,
+/// at ε `10⁻¹²`.** The frustum wall's outer cone face (half-angle 45°)
+/// with its seam split beside its start, placed obliquely, at δ 0.1, 0.01
+/// and 0.001; the face is walked.
 ///
 /// **By ε.** At `10⁻¹²` the gap is `10⁻⁹` of the seam: the split vertex
-/// and the seam's end lie within `2⁻²⁷` of their slant radius, a run, and
-/// the face meshes as
-/// [`a_run_of_ruling_points_the_development_merges_meshes`] says. At the
+/// and the seam's end lie within `2⁻²⁷` of their slant radius, one point
+/// of the cone's development, which the walk does not read. At the
 /// default ε and `10⁻⁶` the smallest split of this seam (`10⁻⁸` and
-/// `10⁻⁵` of it) is wider than this cone's development merges: the row
-/// holds that the face meshes with its two points apart.
+/// `10⁻⁵` of it) is wider than that: the row holds that the face meshes
+/// with its two points apart.
 #[test]
 fn a_frustum_seam_split_within_the_developments_resolution_meshes() {
     let gap = match eps_row() {
@@ -971,10 +1015,10 @@ fn a_frustum_seam_split_within_the_developments_resolution_meshes() {
     }
 }
 
-/// **A draft cone the mass properties cannot read still meshes its
-/// runs.** The 0.1° wall, a full turn, its seam split `10⁻⁵` of its
+/// **A draft cone the mass properties cannot read still meshes its close
+/// splits.** The 0.1° wall, a full turn, its seam split `10⁻⁵` of its
 /// length from its start, and twice `10⁻⁵` apart at its middle, placed
-/// obliquely, at δ 0.1, 0.01 and 0.001.
+/// obliquely, at δ 0.1, 0.01 and 0.001; the face is walked.
 ///
 /// **By ε.** At the default and `10⁻⁶` every cell is `Meshed`
 /// ([`got_enclosing`]). At `10⁻¹²` the unsplit wall is no finished body
@@ -1011,21 +1055,18 @@ fn a_draft_cone_ruling_split_within_the_developments_resolution_meshes() {
     }
 }
 
-/// **Two runs beside the apex, anchored by it, mesh.** A cone of
-/// half-angle 10° and height 100 through its apex, revolved 0.05: a thin
-/// wedge whose cone face is the apex, two rulings and one rim chord. Both
-/// rulings split beside their rim ends, placed obliquely: each split
-/// vertex and its ruling's end are a run whose neighbour along the ruling
-/// is the apex, and the development's one triangle at the apex has both
-/// runs for corners. The lane cuts it along both, and the face is three
+/// **A one-chord face to the apex split beside both rim ends meshes.** A
+/// cone of half-angle 10° and height 100 through its apex, revolved 0.05:
+/// a thin wedge whose cone face is the apex, two rulings and one rim
+/// chord. Both rulings split beside their rim ends, placed obliquely: the
+/// one walked triangle holds both sides, whose points the walk joins to
+/// each other (`ruled_walk::Rows::zip_sides`), and the face is three
 /// triangles at δ 10, 1 and 0.1.
 ///
 /// **By ε.** The gap is `10⁻⁷` along the ruling at the default ε and at
-/// `10⁻¹²`. At `10⁻⁶` a split is a split from `10⁻⁵`, which this cone's
-/// development does not merge: the row holds that the face is the same
-/// three triangles with its points apart.
+/// `10⁻¹²`, `10⁻⁵` at `10⁻⁶`; the face is the same three triangles.
 #[test]
-fn two_runs_anchored_by_the_apex_mesh() {
+fn a_one_chord_face_to_the_apex_split_beside_both_rim_ends_meshes() {
     let gap = match eps_row() {
         EpsRow::Coarse => 1e-5,
         EpsRow::Default | EpsRow::Fine => 1e-7,
@@ -1085,6 +1126,11 @@ fn a_split_beside_a_large_cones_rim_end_meshes() {
     let split = split_and_placed(&body, &[ruling], &[1.0 - gap]);
     let whole = split_and_placed(&body, &[], &[]);
     holds_everywhere("a ruling split beside its rim end", &split, &whole, deltas);
+    assert_eq!(
+        unread_volumes(),
+        if eps_row() == EpsRow::Default { 3 } else { 0 },
+        "the cells whose volume is not read: the 1000 cone's at the default ε"
+    );
 }
 
 /// **A cone band shorter than its development resolves meshes.** A wall
@@ -1122,6 +1168,11 @@ fn a_cone_band_shorter_than_the_developments_resolution_meshes() {
     let split = split_and_placed(&body, &[seam], &[0.5]);
     let whole = split_and_placed(&body, &[], &[]);
     holds_everywhere("a band's seam split at its middle", &split, &whole, deltas);
+    assert_eq!(
+        unread_volumes(),
+        0,
+        "the cells whose volume is not read: none"
+    );
 }
 
 /// **A one-chord face through the apex with both sides split meshes.** A
@@ -1156,6 +1207,11 @@ fn a_one_chord_face_through_the_apex_with_both_sides_split_meshes() {
             holds_everywhere(&what, &split, &solid, deltas);
         }
     }
+    assert_eq!(
+        unread_volumes(),
+        0,
+        "the cells whose volume is not read: none"
+    );
 }
 
 /// A ball of radius 1.05 bored through along `y` by a coaxial cylinder of
@@ -1211,4 +1267,9 @@ fn a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge() {
         }
     }
     assert_eq!(cells, 20, "the cells this row reads");
+    assert_eq!(
+        unread_volumes(),
+        0,
+        "the cells whose volume is not read: none"
+    );
 }
