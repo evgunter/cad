@@ -2,11 +2,12 @@
 id: no-row-guards-the-krawczyk-existence-test-on-a-spline-critical-point
 kind: issue
 title: No row guards the Krawczyk existence test that decides a spline × implicit critical point
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P3
 cost: M
 refs: [6347]
+branch: sectarms/two-smalls
 ---
 
 
