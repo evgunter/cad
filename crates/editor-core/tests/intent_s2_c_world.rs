@@ -660,7 +660,8 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     let points = |body: &topo::Body<f64>| {
         let mut points: Vec<_> = body
             .vertex_points()
-            .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c * 1e6).round() / 1e6 + 0.0))
+            .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c * 1e6).round() / 1e6))
+            .map(|k| k.map(geom_core::fold_signed_zero))
             .zip(body.vertex_points().map(|(_, p)| [p.x, p.y, p.z]))
             .map(|(k, p)| (k.map(f64::to_bits), p))
             .collect();

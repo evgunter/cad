@@ -2,11 +2,12 @@
 id: face-geo-restates-carrier-desc-curved-arms
 kind: issue
 title: solid_contain's FaceGeo restates CarrierDesc's curved arms field by field
-status: open
+status: parked
 opened: 2026-11-13
 priority: P1
 cost: H
 design: true
+blocked_on: [analytic-surfaces-spell-their-frame-field-by-field]
 ---
 
 
@@ -30,3 +31,16 @@ fold that would remove the restatement gives `CarrierDesc` a named
 description per curved kind in `geom-brep` (`carrier_eq.rs`), which
 `FaceGeo`'s arms then hold beside their ray state. That reshapes a
 geom-brep type every carrier-ladder arm reads, which is more than a move.
+
+## Moved to ONECOPY (2026-11-17)
+
+Moved from ONEDOOR by `git mv`, id and body unchanged, when ONEDOOR went
+`ready` (Ev, in chat). The fold this row owes, a named description per
+curved kind in `geom_brep::CarrierDesc`, is the geom-brep side of the
+cause ONECOPY's `analytic-surfaces-spell-their-frame-field-by-field`
+settled for `geom::Surface` (struct-like variants are not types, so every
+reader memoizes the match in a struct of its own; its "Decided" section,
+cause 1). Parked on that row's stage 3: per-kind `CarrierDesc` types
+built before `geom`'s kind structs land would be reshaped by them, and
+whether they hold `geom`'s structs or mirror them is a question for
+that stage's design. `design: true` stands. (GREEN, at Ev's request)

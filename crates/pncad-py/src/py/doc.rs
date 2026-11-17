@@ -12,6 +12,7 @@ use crate::errors::{BoundaryEdit, ErrorClass};
 use crate::py::typed_err;
 use crate::tags::{edit_error_tag, edit_inner_variant_tag, persist_error_tag, workspace_error_tag};
 use pncad::document as d;
+use pncad::geom_core::fold_signed_zero;
 use pncad::tolerance::Tol;
 
 /// A point given as three lengths, as `Doc.corner_frame` takes each of
@@ -4059,13 +4060,6 @@ impl DeclArg {
     }
 }
 
-/// `-0.0` folded to `0.0`, every other value untouched — the
-/// normalization a hash must apply wherever the equality it mirrors is
-/// IEEE (`-0.0 == 0.0`).
-pub(crate) fn fold_zero(v: f64) -> f64 {
-    if v == 0.0 { 0.0 } else { v }
-}
-
 /// The shared body of the three continuous `FreeVar` constructors:
 /// declare the dimension, and hang an annotation on it if one was
 /// offered.
@@ -4283,7 +4277,7 @@ impl FreeVar {
             } => {
                 0u8.hash(&mut h);
                 format!("{dim:?}").hash(&mut h);
-                fold_zero(*value).to_bits().hash(&mut h);
+                fold_signed_zero(*value).to_bits().hash(&mut h);
                 // The authored notation is part of the DERIVED
                 // `PartialEq` this hash mirrors, so it is part of the
                 // hash: two parameters that `__eq__` calls different
