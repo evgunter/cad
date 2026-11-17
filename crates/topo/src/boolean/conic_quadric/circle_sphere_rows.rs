@@ -324,37 +324,6 @@ fn a_small_sphere_grazing_a_large_circle_is_placed_from_its_near_extreme() {
     }
 }
 
-/// **A frame that is not orthonormal is charged for it.** The
-/// carrier's `û` is stretched by `2⁻²⁰`, so the circle the frame
-/// evaluates has radius `1 + 2⁻²⁰` and its nearest point dips
-/// `2⁻²¹` into the sphere — a crossing. The factored form, which
-/// assumes the frame orthonormal, puts that point `≈ 2.1e-6` OUTSIDE
-/// and would answer a definite miss. The frame's defect is charged
-/// to both extremes (`CircleSphereHarmonic::frame_error`), and the
-/// door then refuses rather than answer.
-#[test]
-fn a_frame_that_is_not_orthonormal_is_charged_for_it() {
-    let stretch = 2f64.powi(-20);
-    let d = 1.0 + R + 2f64.powi(-21);
-    let truth = d - (1.0 + stretch);
-    assert!(
-        truth < R,
-        "the evaluated circle's nearest point is inside the sphere"
-    );
-    let got = conic_quadric_roots(
-        &framed([0.0; 3], [0.0, 0.0, 1.0], [1.0 + stretch, 0.0, 0.0], 1.0),
-        -1.0,
-        1.0,
-        &sphere([d, 0.0, 0.0], R),
-        band(),
-    )
-    .unwrap();
-    assert!(
-        got.is_err(),
-        "a crossing the factored form misreads is refused, got {got:?}"
-    );
-}
-
 /// A circle of radius `rho` about `c` in the frame `(n, u)`, as
 /// stored — orthonormal or not.
 fn framed(c: [f64; 3], n: [f64; 3], u: [f64; 3], rho: f64) -> geom::Curve3<f64> {

@@ -544,7 +544,7 @@ mod tests {
         let frame = geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0));
         let face = |minor: f64| {
             let carrier = Surface::Torus {
-                frame: geom::Frame::new(frame.origin(), frame.axis(), frame.u_ref()),
+                frame,
                 major_radius: 2.0,
                 minor_radius: minor,
             }

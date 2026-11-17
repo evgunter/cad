@@ -2048,7 +2048,7 @@ mod tests {
             Curve3::Circle(Circle::new(frame, 1.5)),
             Curve3::Ellipse(Ellipse::new(frame, 2.0, 1.0)),
             Curve3::Spiric {
-                frame: crate::Frame::new(frame.origin(), frame.axis(), frame.u_ref()),
+                frame,
                 major_radius: 3.0,
                 minor_radius: 1.0,
                 offset: 0.5,

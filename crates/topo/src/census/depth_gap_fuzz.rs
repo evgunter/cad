@@ -398,7 +398,10 @@ fn carrier(
     };
     let a = (n + skew(r)) * r.range(0.95, 1.05);
     let u = e1 / e1.norm() + skew(r);
+    // Drawn skewed and stated so: the frame squares them, and the
+    // samples are placed on the frame it holds.
     let frame = geom::Frame::new(centre(r, far), a, u);
+    let (a, u) = (frame.axis(), frame.u_ref());
     let sign = |r: &mut Rng| if r.unit() < 0.5 { -1.0 } else { 1.0 };
     let rho = |t: f64| u * t.cos() + a.cross(u) * t.sin();
     let tau = core::f64::consts::TAU;

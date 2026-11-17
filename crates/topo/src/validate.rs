@@ -12030,18 +12030,27 @@ mod tests {
         let face = FaceKey::default();
         let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
         let plane = |normal: Vec3<f64>| Surface::Plane {
-            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), normal, Vec3::unit_x()),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), normal, Vec3::unit_y()),
         };
         let cone = |half_angle: f64| Surface::Cone {
             frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
             half_angle,
         };
         let half_pi = core::f64::consts::FRAC_PI_2;
-        let normal_verdict = vec![ValidationError::PoisonedSurfaceDatum {
-            face,
-            kind: K::Plane,
-            datum: D::Normal,
-        }];
+        // A normal that is not a number poisons the seam squared against
+        // it too.
+        let normal_verdict = vec![
+            ValidationError::PoisonedSurfaceDatum {
+                face,
+                kind: K::Plane,
+                datum: D::Normal,
+            },
+            ValidationError::PoisonedSurfaceDatum {
+                face,
+                kind: K::Plane,
+                datum: D::URef,
+            },
+        ];
         let rows: Vec<(&str, Surface<f64>, Vec<ValidationError>)> = vec![
             (
                 "zero normal",
