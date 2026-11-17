@@ -715,9 +715,15 @@ face, and the section is described as the shared row of the two bands'
 charts (a cylinder's transverse circle, a torus's meridian; a strip's
 line, a cone's generator, along which the strip is the cone's tangent
 plane; `geom_brep::analytic_shared_row`); a section whose row does not
-certify at the scalar refuses `UnsupportedGeometry` at its link, as
-every chamfer section does at `Interval` at ε = 1e-12
-(`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`). Each link's
+certify at the scalar refuses `UnsupportedGeometry` at its link. At
+`Interval` at ε = 1e-12 a chamfered rounded outline refuses by more than
+one route: its sections' rows do not admit, or a contact edge's
+certificate escalates first, its carrier's residual on a band or its
+cone's rung-3 reading
+(`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`);
+so does a section beside its frustum's apex, a setback within `1e-4` of
+the arc's radius, at `Interval` at ε = 1e-9
+(`work/band/a-chamfer-section-beside-its-frustums-apex-does-not-admit-at-interval.md`). Each link's
 strip is read within its own window, the slab between a straight
 link's end normals or an arc's wedges (the union of its pieces', each
 under a half turn), by the support-boundary meter and

@@ -154,6 +154,8 @@ pub(crate) fn assert_shared_row_unadmitted(what: &str, e: &BlendError) {
 /// reading on the cone in band
 /// (`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`).
 pub(crate) fn assert_chamfer_unbuilt_at_the_tightest(what: &str, e: &BlendError) {
+    // Three shapes, not one: which certificate the carve's description
+    // pass reads first is the edge order's, and each is the same row's.
     let text = format!("{e:?}");
     let contact = text.contains("surgery contact edge")
         && text.contains("Indeterminate")
@@ -354,18 +356,21 @@ fn a_notchs_rounded_floor_run_fillets_whole_adding_pappuss_volume() {
     }
 }
 
-/// Chamfer `edges` of `body` at `s` and check the carve as [`run_row`]
-/// does a fillet's: tier 3, naming total, one band face per link and one
-/// section per junction, and the volume moved (`sign` −1 removed, +1
-/// added) at `truth`. At `Interval` at ε = 1e-12 the row pins the
+/// **The chamfer's one row check**, for its closed rims, open runs and
+/// shapes alike: chamfer `edges` of `body` at `s`, and check the carve
+/// is tier 3, its naming total over `requested` (the request less any
+/// smooth seam), one band face per link (`links`), a strip over each
+/// line and a frustum over each arc, one section per junction
+/// (`junctions`), and the signed volume change `V₁ − V₀` at `dv` within
+/// the certified enclosure. At `Interval` at ε = 1e-12 the row pins the
 /// refusal there instead ([`assert_chamfer_unbuilt_at_the_tightest`]).
-pub(crate) fn chamfer_run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     what: &str,
     body: &Body<T>,
-    edges: &[EdgeKey],
+    (edges, requested): (&[EdgeKey], &[EdgeKey]),
     s: T,
     (links, junctions): (usize, usize),
-    (sign, truth): (f64, f64),
+    dv: f64,
 ) -> Option<sweep::blend::Blended<T>> {
     let out = match chamfer_edges(&at_rest(body, tol()), edges, s, tol()) {
         Ok(out) => {
@@ -379,10 +384,10 @@ pub(crate) fn chamfer_run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRes
             assert_chamfer_unbuilt_at_the_tightest(what, &e.error);
             return None;
         }
-        Err(e) => panic!("{what}: the open mixed chain chamfers whole, got {e:?}"),
+        Err(e) => panic!("{what}: the chain chamfers whole, got {e:?}"),
     };
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
-    assert_naming_totality(body, &out, edges, what);
+    assert_naming_totality(body, &out, requested, what);
     let rec = out.naming.as_ref().expect("the carve's birth records");
     assert_eq!(rec.blends.len(), links, "{what}: one band face per link");
     assert_eq!(
@@ -390,6 +395,23 @@ pub(crate) fn chamfer_run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRes
         junctions,
         "{what}: one section per junction"
     );
+    for &(face, link) in &rec.blends {
+        let surface = out.body.face_surface(face).expect("a band face's surface");
+        let arc = matches!(
+            body.get_edge(link)
+                .and_then(|d| body.get_curve_geom(d.curve))
+                .and_then(|g| g.certified())
+                .map(|c| c.carrier()),
+            Some(geom::Curve3::Circle(_))
+        );
+        assert!(
+            matches!(
+                (arc, surface),
+                (true, geom::Surface::Cone { .. }) | (false, geom::Surface::Plane { .. })
+            ),
+            "{what}: an arc's band is a frustum and a line's a strip, got {surface:?}"
+        );
+    }
     let (v0, w0) = volume(body);
     let (v1, w1) = volume(&out.body);
     assert!(
@@ -397,10 +419,10 @@ pub(crate) fn chamfer_run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRes
         "{what}: the enclosure is a claim: ±{}",
         w0 + w1
     );
-    let moved = sign * (v1 - v0);
     assert!(
-        (moved - truth).abs() <= w0 + w1 + 1e-12,
-        "{what}: ΔV {moved} is Pappus's {truth} (enclosure ±{})",
+        ((v1 - v0) - dv).abs() <= w0 + w1 + 1e-12,
+        "{what}: V₁ − V₀ = {} is Pappus's {dv} (enclosure ±{})",
+        v1 - v0,
         w0 + w1
     );
     Some(out)
@@ -425,10 +447,10 @@ fn open_chamfer_rows<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     for s in [0.05, 0.14] {
         let truth = tri(s) * ((2.0 - R) + (1.0 - R) + FRAC_PI_2 * (R - s / 3.0));
         let what = format!("{scalar}: L-plate, s = {s}");
-        chamfer_run_row(&what, &l, &run, T::from_f64(s), (3, 2), (-1.0, truth));
+        chamfer_row(&what, &l, (&run, &run), T::from_f64(s), (3, 2), -truth);
         let truth = tri(s) * (1.0 - s / 3.0) * (2.0 * s3 + 4.0 * PI / 3.0);
         let what = format!("{scalar}: teardrop, s = {s}");
-        chamfer_run_row(&what, &tear, &rim, T::from_f64(s), (3, 2), (-1.0, truth));
+        chamfer_row(&what, &tear, (&rim, &rim), T::from_f64(s), (3, 2), -truth);
     }
 }
 
@@ -450,7 +472,7 @@ fn a_notchs_rounded_floor_run_chamfers_whole_adding_pappuss_volume() {
     for s in [0.05, 0.14] {
         let truth = 0.5 * s * s * ((1.0 - R) + (2.0 - R) + FRAC_PI_2 * (R - s / 3.0));
         let what = format!("notch floor, s = {s}");
-        chamfer_run_row(&what, &body, &floor, s, (3, 2), (1.0, truth));
+        chamfer_row(&what, &body, (&floor, &floor), s, (3, 2), truth);
     }
 }
 

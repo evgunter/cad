@@ -10,6 +10,7 @@
 
 use core::f64::consts::PI;
 
+use crate::band_open_mixed_chain::chamfer_row;
 use geom_core::{Band, Bounds, CertifiedBounds, Decide, Interval, Point2, Point3, Tol};
 use profile::{SketchPlane, test_support::bulge_loop};
 use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
@@ -161,13 +162,27 @@ pub(crate) fn rect(hx: f64, hy: f64, radii: [f64; 4]) -> Outline {
 }
 
 impl Outline {
+    /// Exact membership: the parity of the polygon through the chain's
+    /// vertices, toggled by each arc's circular segment (the disk on its
+    /// arc's side of its chord), so no chord stands in for an arc.
     fn inside(&self, q: P) -> bool {
         let mut wn = false;
-        let n = self.dense.len();
+        let n = self.chain.len();
         for i in 0..n {
-            let (a, b) = (self.dense[i], self.dense[(i + 1) % n]);
+            let (a, b) = (self.chain[i].0, self.chain[(i + 1) % n].0);
             if (a.1 > q.1) != (b.1 > q.1) && q.0 < a.0 + (q.1 - a.1) / (b.1 - a.1) * (b.0 - a.0) {
                 wn = !wn;
+            }
+        }
+        for p in &self.pieces {
+            if let Piece::Arc { c, r, a0, a1, turn } = *p {
+                let (sn, co) = (turn / 2.0).sin_cos();
+                let u = sub(a0, c);
+                let mid = add(c, (u.0 * co - u.1 * sn, u.0 * sn + u.1 * co));
+                let side = |x: P| cross(sub(a1, a0), sub(x, a0));
+                if norm(sub(q, c)) < r && side(q) * side(mid) > 0.0 {
+                    wn = !wn;
+                }
             }
         }
         wn
@@ -1052,7 +1067,7 @@ impl Outline {
     /// arc's axis, `−` where the host runs from the rim toward the axis
     /// (the arc's centre on the host's side of the wall, `host_inside`
     /// saying which side of the outline the host lies on).
-    fn chamfer_pappus(&self, s: f64, host_inside: bool) -> f64 {
+    pub(crate) fn chamfer_pappus(&self, s: f64, host_inside: bool) -> f64 {
         let a = 0.5 * s * s;
         let mut v = 0.0;
         for p in &self.pieces {
@@ -1113,10 +1128,9 @@ fn chamfer_reading(d: f64, t: f64, s: f64) -> Option<bool> {
 }
 
 /// A plate of outline `o`, `z ∈ [z0, z0 + h]`, every edge chamfered at
-/// `s`, at any scalar: tier 3, naming total over both rims, one band face
-/// per link of each rim, Euler, and the volume removed at Pappus's closed
-/// form within a tight enclosure; at `Interval` at ε = 1e-12, the
-/// refusal there instead.
+/// `s`, at any scalar: [`chamfer_row`]'s checks over both rims, the
+/// volume removed at Pappus's closed form, and Euler; at `Interval` at
+/// ε = 1e-12, the refusal there instead.
 fn chamfer_plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     what: &str,
     o: &Outline,
@@ -1125,47 +1139,25 @@ fn chamfer_plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
 ) -> Option<Body<T>> {
     let body = prism::<T>(o, z0, h);
     let edges = every_edge(&body);
-    let out = match chamfer_edges(&at_rest(&body, tol()), &edges, T::from_f64(s), tol()) {
-        Ok(out) => {
-            assert!(
-                !tightest_interval::<T>(),
-                "{what}: built where its section's row does not admit"
-            );
-            out
-        }
-        Err(e) if tightest_interval::<T>() => {
-            crate::band_open_mixed_chain::assert_chamfer_unbuilt_at_the_tightest(what, &e.error);
-            return None;
-        }
-        Err(e) => panic!("{what}: chamfers whole, got {:?}", e.error),
-    };
-    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
     let rims: Vec<EdgeKey> = rim_where(&body, z0, |_| true)
         .into_iter()
         .chain(rim_where(&body, z0 + h, |_| true))
         .collect();
-    sweep::test_support::assert_naming_totality(&body, &out, &rims, what);
-    let (f0, _, _) = counts(&body);
+    let n = rims.len();
+    let removed = 2.0 * o.chamfer_pappus(s, true);
+    let out = chamfer_row(
+        what,
+        &body,
+        (&edges, &rims),
+        T::from_f64(s),
+        (n, n),
+        -removed,
+    )?;
     let (f1, e1, v1) = counts(&out.body);
     assert_eq!(
         v1 as i64 - e1 as i64 + f1 as i64,
         2,
         "{what}: V − E + F = 2"
-    );
-    assert_eq!(f1, f0 + rims.len(), "{what}: one band face per link");
-    let truth = 2.0 * o.chamfer_pappus(s, true);
-    let (va, wa) = volume(&body);
-    let (vb, wb) = volume(&out.body);
-    let removed = va - vb;
-    assert!(
-        (removed - truth).abs() <= wa + wb + 1e-12,
-        "{what}: ΔV {removed} is Pappus's {truth} (±{})",
-        wa + wb
-    );
-    assert!(
-        wa + wb < 1e-7,
-        "{what}: the enclosure is a claim: ±{}",
-        wa + wb
     );
     Some(Body::clone(&out.body))
 }
@@ -1198,17 +1190,23 @@ fn chamfer_plate_both(what: &str, o: &Outline, (z0, h): (f64, f64), s: f64) {
     chamfer_plate_row::<Interval>(&format!("{what} at Interval"), o, (z0, h), s);
 }
 
-/// **Rounded outlines chamfered whole**, off the axes and off the
-/// origin: the rounded rectangle turned in its plane and moved, the slot
-/// turned, rounded polygons, and the four-arc barrel (every junction
-/// between two frustums, a cone–cone section).
+/// **The rounded rectangle chamfered whole, turned and moved**, off the
+/// axes and off the origin.
 #[test]
-fn turned_and_moved_rounded_outlines_chamfer_whole() {
+fn turned_and_moved_rounded_rectangles_chamfer_whole() {
     let rect = rect(1.0, 0.6, [0.3; 4]);
     for deg in [7.0_f64, 30.0, 45.0, 90.0] {
         let o = rotated(&rect, deg.to_radians()).shifted((2.5, -1.25));
         chamfer_plate_both(&format!("rectangle at {deg}°, moved"), &o, (0.75, 0.5), 0.1);
     }
+}
+
+/// **Rounded outlines of other shapes chamfered whole**: the slot
+/// turned, rounded polygons, the four-arc barrel (every junction between
+/// two frustums, a cone–cone section), and the peanut, whose convex ends
+/// meet its concave waist (a frustum into a frustum of opposite turn).
+#[test]
+fn rounded_outlines_of_other_shapes_chamfer_whole() {
     chamfer_plate_both(
         "slot at 30°",
         &rotated(&slot(0.7, 0.3), PI / 6.0),
@@ -1227,6 +1225,22 @@ fn turned_and_moved_rounded_outlines_chamfer_whole() {
         ((0.0, c), r2, PI + t0, PI - 2.0 * t0),
     ]);
     chamfer_plate_both("barrel", &barrel, (0.0, 0.5), 0.05);
+    chamfer_plate_both("peanut", &peanut(), (0.0, 0.5), 0.1);
+}
+
+/// **The peanut**: two end circles of radius `0.4` about `(±0.6, 0)`
+/// joined by two concave waist arcs about `(0, ±0.5)`, each tangent to
+/// both ends (radius `|(0.6, 0.5)| − 0.4`), so the waist is `0.238` wide.
+fn peanut() -> Outline {
+    let (a, c, r1) = (0.6_f64, 0.5_f64, 0.4_f64);
+    let r2 = a.hypot(c) - r1;
+    let t = c.atan2(a);
+    arcs(&[
+        ((a, 0.0), r1, t - PI, 2.0 * PI - 2.0 * t),
+        ((0.0, c), r2, -t, 2.0 * t - PI),
+        ((-a, 0.0), r1, t, 2.0 * PI - 2.0 * t),
+        ((0.0, -c), r2, PI - t, 2.0 * t - PI),
+    ])
 }
 
 /// **Arcs drawn in pieces**: each quarter of the rounded rectangle
@@ -1325,5 +1339,258 @@ fn a_hole_at_a_junctions_section_clears_its_trims_until_its_margin_turns() {
             reading.is_some_and(|m| (m - dy).abs() < 1e-9),
             "a hole {dy} into the junction's trims refuses reading its margin, got {got:?}"
         );
+    }
+}
+
+/// **Rounded outlines at their limits.** A rectangle whose short sides'
+/// lines are `2e-7` long between their arcs (`200 ε` where the profile
+/// reads `2e-7` as degenerate, at ε = 1e-6) chamfers whole at both
+/// scalars. A setback just under the arcs' radius puts each frustum's
+/// plane trim on a circle of the gap's radius about its axis, its
+/// generator ending that far from the cone's apex: `1e-3` under builds
+/// at both scalars, and `1e-7` under refuses at the clearance screen
+/// where the gap is inside the band (ε = 1e-6). Past the band, the
+/// section beside so near an apex does not admit as the shared row of
+/// its bands at `Interval` (measured: from a gap of `1e-4` down at
+/// ε = 1e-9), nor at `f64` at ε = 1e-12; `f64` builds at ε = 1e-9
+/// (`work/band/a-chamfer-section-beside-its-frustums-apex-does-not-admit-at-interval.md`).
+#[test]
+fn rounded_outlines_at_their_limits_chamfer_whole() {
+    let line = 2e-7_f64.max(200.0 * tol().eps());
+    let o = rect(0.3 + line / 2.0, 0.6, [0.3; 4]);
+    for_both_scalars(
+        &format!("a {line:e} line between two arcs"),
+        &o,
+        (0.0, 0.5),
+        0.1,
+    );
+    let o = rect(1.0, 0.6, [0.3; 4]);
+    for_both_scalars("s = R − 1e-3", &o, (0.0, 1.0), 0.3 - 1e-3);
+    let gap = 1e-7;
+    let in_band = tol().eps() >= gap;
+    let what = "s = R − 1e-7";
+    let tightest = tol().eps() <= 1e-12;
+    if in_band {
+        assert_screen_refuses(what, &o, 0.3 - gap);
+    } else if tightest {
+        let body = prism::<f64>(&o, 0.0, 1.0);
+        let got = chamfer_edges(&at_rest(&body, tol()), &every_edge(&body), 0.3 - gap, tol());
+        match got {
+            Err(e) => crate::band_open_mixed_chain::assert_shared_row_unadmitted(what, &e.error),
+            Ok(_) => panic!("{what}: the section beside the apex admitted at ε 1e-12"),
+        }
+    } else {
+        chamfer_plate_row::<f64>(what, &o, (0.0, 1.0), 0.3 - gap).expect("f64 never skips");
+    }
+    let body = prism::<Interval>(&o, 0.0, 1.0);
+    let edges = every_edge(&body);
+    let s = <Interval as geom_core::Real>::from_f64(0.3 - gap);
+    let got = chamfer_edges(&at_rest(&body, tol()), &edges, s, tol()).map_err(|e| e.error);
+    match got {
+        Err(e) if in_band => assert_clearance(&format!("{what} at Interval"), &e),
+        Err(e) => crate::band_open_mixed_chain::assert_shared_row_unadmitted(what, &e),
+        Ok(_) => panic!("{what} at Interval: the section beside the apex admitted"),
+    }
+}
+
+/// The clearance screen's refusal of a top too narrow, in or past its
+/// band.
+fn assert_clearance(what: &str, e: &BlendError) {
+    assert!(
+        matches!(
+            e,
+            BlendError::FaceClearanceUncertified { .. }
+                | BlendError::Escalated {
+                    decision: sweep::blend::BlendDecision::FaceClearance,
+                    ..
+                }
+        ),
+        "{what}: the screen refuses, got {e:?}"
+    );
+}
+
+/// [`assert_clearance`] of the plate of `o` chamfered at `s`, at `f64`.
+fn assert_screen_refuses(what: &str, o: &Outline, s: f64) {
+    let body = prism::<f64>(o, 0.0, 1.0);
+    let got = chamfer_edges(&at_rest(&body, tol()), &every_edge(&body), s, tol());
+    match got {
+        Err(e) => assert_clearance(what, &e.error),
+        Ok(_) => panic!("{what}: built inside the band"),
+    }
+}
+
+/// [`chamfer_plate_row`] at `f64` and at `Interval`.
+fn for_both_scalars(what: &str, o: &Outline, zh: (f64, f64), s: f64) {
+    chamfer_plate_row::<f64>(what, o, zh, s).expect("f64 never skips");
+    chamfer_plate_row::<Interval>(&format!("{what} at Interval"), o, zh, s);
+}
+
+/// A loop of the outline `o` at any scalar; `hole` runs it clockwise.
+fn outline_loop<T: geom_core::Real>(o: &Outline, hole: bool) -> profile::ProfileLoop<T> {
+    let n = o.chain.len();
+    let chain: Vec<(P, f64)> = if hole {
+        (0..n)
+            .rev()
+            .map(|i| (o.chain[(i + 1) % n].0, -o.chain[i].1))
+            .collect()
+    } else {
+        o.chain.clone()
+    };
+    bulge_loop(
+        chain
+            .iter()
+            .map(|&(q, b)| {
+                (
+                    Point2::new(T::from_f64(q.0), T::from_f64(q.1)),
+                    T::from_f64(b),
+                )
+            })
+            .collect(),
+    )
+}
+
+/// **A plate with a rounded through-hole, every edge chamfered** at both
+/// scalars: its outer outline's rims remove on the plate's side and the
+/// hole's on the far side of its arcs' axes, two rims each.
+#[test]
+fn a_rounded_plate_with_a_rounded_through_hole_chamfers_every_edge() {
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(what: &str) {
+        let (outer, inner) = (rect(1.5, 1.0, [0.3; 4]), rect(0.6, 0.3, [0.15; 4]));
+        let body = extruded(
+            SketchPlane::xy(),
+            vec![outline_loop(&outer, false), outline_loop(&inner, true)],
+            T::from_f64(0.5),
+            tol(),
+        );
+        let s = 0.05;
+        let rims: Vec<EdgeKey> = rim_where(&body, 0.0, |_| true)
+            .into_iter()
+            .chain(rim_where(&body, 0.5, |_| true))
+            .collect();
+        assert_eq!(rims.len(), 32, "{what}: two outlines of eight at each cap");
+        let n = rims.len();
+        let removed = 2.0 * (outer.chamfer_pappus(s, true) + inner.chamfer_pappus(s, false));
+        let edges = every_edge(&body);
+        chamfer_row(
+            what,
+            &body,
+            (&edges, &rims),
+            T::from_f64(s),
+            (n, n),
+            -removed,
+        );
+    }
+    row::<f64>("f64");
+    row::<Interval>("Interval");
+}
+
+/// **A turned rounded L pocketed in a turned rounded plate**, its top,
+/// mouth and floor chamfered in one call: the top and the mouth remove
+/// (the mouth on the far side of its arcs' axes, the L's reflex corner
+/// arc on the near side), the floor adds.
+#[test]
+fn a_turned_l_pockets_top_mouth_and_floor_chamfer_in_one_call() {
+    use topo::boolean::{BooleanInputs, BooleanOp, SweepStrategy, boolean_op_with};
+    let turn = 0.35;
+    let outer = rotated(&rect(1.5, 1.0, [0.3; 4]), turn);
+    let l = rounded(
+        &[
+            (-0.6, -0.5),
+            (0.6, -0.5),
+            (0.6, -0.1),
+            (-0.2, -0.1),
+            (-0.2, 0.5),
+            (-0.6, 0.5),
+        ],
+        &[0.15; 6],
+        &[0.0; 6],
+    );
+    let inner = rotated(&l, turn);
+    let block = sweep::test_support::finished("the plate", prism::<f64>(&outer, 0.0, 1.0), tol());
+    let cut = sweep::test_support::finished("the L", prism::<f64>(&inner, 0.4, 1.0), tol());
+    let body = boolean_op_with(
+        BooleanOp::Subtract,
+        &block,
+        &cut,
+        &BooleanInputs::default(),
+        SweepStrategy::Realized,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the pocket builds: {e:?}"))
+    .body()
+    .expect("the pocket is a body")
+    .body
+    .clone()
+    .into_body();
+    let edges: Vec<EdgeKey> = rim_where(&body, 1.0, |_| true)
+        .into_iter()
+        .chain(rim_where(&body, 0.4, |_| true))
+        .collect();
+    assert_eq!(edges.len(), 8 + 12 + 12, "the top, the mouth and the floor");
+    let s = 0.05;
+    let n = edges.len();
+    let dv = -outer.chamfer_pappus(s, true) - inner.chamfer_pappus(s, false)
+        + inner.chamfer_pappus(s, true);
+    chamfer_row("turned L pocket", &body, (&edges, &edges), s, (n, n), dv);
+}
+
+/// **Holes at a corner arc's wedge, chamfered**: the top-right arc
+/// (centre `(0.7, 0.3)`, `R = 0.3`) at `s = 0.05` takes the annulus
+/// `0.25…0.3` within its quarter turn off the cap, as the fillet's band
+/// does. A radius-0.02 hole inside the wedge, just outside it on either
+/// side, and beyond the axis: clear builds, overlapping refuses at the
+/// support screen. The frustum's reach is read within its wedge
+/// (`reach::circular_reach`).
+#[test]
+fn holes_at_an_arcs_wedge_build_clear_and_refuse_overlapping_under_a_chamfer() {
+    let (s, hr) = (0.05, 0.02);
+    let o = rect(1.0, 0.6, [0.3; 4]);
+    for (deg, rad) in [
+        (45.0_f64, 0.25 - hr - 0.005),
+        (45.0, 0.25 - hr + 0.005),
+        (-5.0, 0.225),
+        (-5.0, 0.235),
+        (95.0, 0.225),
+        (95.0, 0.235),
+        (180.0, 0.275),
+    ] {
+        let at = (
+            0.7 + rad * deg.to_radians().cos(),
+            0.3 + rad * deg.to_radians().sin(),
+        );
+        let clear = o.sd(at) - hr - s;
+        let what = format!("hole at {deg}°, {rad:.3} out (clear {clear:.4})");
+        let (_, body) = holed_plate::<f64>(at, hr);
+        let rim = rim_where(&body, 0.5, |p| o.sd((p.x, p.y)).abs() < 1e-9);
+        match chamfer_edges(&at_rest(&body, tol()), &rim, s, tol()) {
+            Ok(out) => {
+                assert!(clear > 0.0, "{what}: overlaps a strip and built");
+                validate_geometric(&out.body, tol())
+                    .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
+                let (va, wa) = volume(&body);
+                let (vb, wb) = volume(&out.body);
+                let truth = o.chamfer_pappus(s, true);
+                assert!(
+                    ((va - vb) - truth).abs() <= wa + wb + 1e-12,
+                    "{what}: ΔV {} is Pappus's {truth}",
+                    va - vb
+                );
+            }
+            Err(e) => {
+                assert!(clear < 0.0, "{what}: clear and refused, got {:?}", e.error);
+                let BlendError::FaceClearanceUncertified { margin, .. } = e.error else {
+                    panic!("{what}: refuses at the support screen, got {:?}", e.error);
+                };
+                let read = margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .expect("a definite reading");
+                assert!(
+                    read < 0.0 && read >= clear - 1e-9,
+                    "{what}: refuses at {read}"
+                );
+            }
+        }
     }
 }

@@ -43,7 +43,7 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
 use super::BlendError;
 use super::admit::{RequestedBoundary, StationKind};
-use super::arms::{BallSection, EdgeBlend, torus_radial};
+use super::arms::{BallSection, EdgeBlend, radial_about};
 use super::battery::{Link, same_supports};
 use super::build::{fan_at, outward_of};
 use super::naming::BlendNaming;
@@ -67,7 +67,7 @@ pub(super) struct Shape {
 
 /// A junction's link is none of the bands with a section.
 pub(super) const JUNCTION_UNSECTIONED: &str =
-    "a chain's junction joins a link whose band has no section there";
+    "a chain's junction joins a link that is no plane–plane band, torus or frustum";
 /// Two consecutive links on one support pair among links on others.
 pub(super) const JUNCTION_ON_ONE_PAIR: &str =
     "a chain of links on different supports has two consecutive links on one support pair";
@@ -311,7 +311,7 @@ pub(super) fn band_chart<T: Decide>(
             _,
         ) => {
             let (c, (t0, t1)) = stored_piece(body, l.edge)?;
-            let radial = torus_radial(center, axis, c.eval(geom::mid_param(t0, t1)));
+            let radial = radial_about(center, axis, c.eval(geom::mid_param(t0, t1)));
             Surface::Torus {
                 center,
                 axis,
@@ -330,7 +330,7 @@ pub(super) fn band_chart<T: Decide>(
             _,
         ) => {
             let (c, (t0, t1)) = stored_piece(body, l.edge)?;
-            let radial = torus_radial(apex, axis, c.eval(geom::mid_param(t0, t1)));
+            let radial = radial_about(apex, axis, c.eval(geom::mid_param(t0, t1)));
             Surface::Cone {
                 apex,
                 axis,
@@ -512,8 +512,8 @@ pub(super) fn record<T: Real>(
 }
 
 /// The refusal when a straight link is too short for its two ends.
-pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link between a junction and its \
-     other end is shorter than its two ends' feet need: they cross or coincide on its trimline";
+pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link beside a junction is shorter than \
+     its two ends' feet need, which cross or coincide on its trimline; reduce the radius or setback";
 
 /// **A straight link's feet in order, on each support, where one of its
 /// ends is a junction or a mixed corner** (`fillet3_cut_off_feet`,
@@ -526,8 +526,8 @@ pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link between a junction
 /// vertex too: a fillet's `r·cot(φ/2)` along a pair edge at the plan
 /// angle `φ` its pair makes in `E`, and `r` up the odd edge; a chamfer's
 /// host feet `(2 − √2)s` along a square corner's pair edges. So they are
-/// read the same way. A torus link's chords run between two junctions'
-/// feet, its own trim's window ends, so it is not read here.
+/// read the same way. A torus or frustum link's chords run between two
+/// junctions' feet, its own trim's window ends, so it is not read here.
 ///
 /// **It is what refuses a link too short for its ends.** Feet that
 /// cross put the far end's foot behind the junction's, so the end face's

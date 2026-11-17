@@ -266,23 +266,78 @@ fn every_edge_of_a_rounded_pocket_fillets_at_its_closed_form() {
     );
 }
 
-/// The names of `node`'s own table, sorted.
-fn every_name(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
-    let mut v: Vec<StableName> = table(ev, node)
+/// Each name of `node`'s own table with the entity it names: its kind
+/// and a point of it (a vertex's point, the middle of an edge's ends, the
+/// mean of a face's edges' middles). Ties are none of these rows'.
+fn named_sites(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+) -> Vec<(StableName, EntityKind, geom_core::Point3<f64>)> {
+    let b = body(ev, node);
+    let at = |v| *b.get_point(b.get_vertex(v).unwrap().point).unwrap();
+    let mid = |e| {
+        let (p, q) = b.edge_vertices(e).unwrap();
+        let (p, q) = (at(p), at(q));
+        geom_core::Point3::new(0.5 * (p.x + q.x), 0.5 * (p.y + q.y), 0.5 * (p.z + q.z))
+    };
+    let face_point = |f| {
+        let mids: Vec<_> = b
+            .edges()
+            .map(|(e, _)| e)
+            .filter(|&e| {
+                topo::readback::edge_sides(b, e)
+                    .is_ok_and(|s| s.plus.face == f || s.minus.face == f)
+            })
+            .map(mid)
+            .collect();
+        let n = mids.len() as f64;
+        let sum = mids
+            .iter()
+            .fold((0.0, 0.0, 0.0), |a, p| (a.0 + p.x, a.1 + p.y, a.2 + p.z));
+        geom_core::Point3::new(sum.0 / n, sum.1 / n, sum.2 / n)
+    };
+    table(ev, node)
         .iter()
         .filter(|(n, _)| n.node == node)
-        .map(|(n, _)| n.clone())
-        .collect();
-    v.sort();
-    v
+        .map(|(n, entry)| {
+            let editor_core::Entry::Unique(r) = entry else {
+                panic!("{n:?} names a tie");
+            };
+            let p = match r.key {
+                EntityKey::Vertex(v) => at(v),
+                EntityKey::Edge(e) => mid(e),
+                EntityKey::Face(f) => face_point(f),
+                EntityKey::Body => geom_core::Point3::new(0.0, 0.0, 0.0),
+            };
+            (n.clone(), n.kind, p)
+        })
+        .collect()
+}
+
+/// `got` names every entity of `want` alike: the same names, each of the
+/// same kind and within `within` of where it was.
+fn assert_same_sites(
+    what: &str,
+    want: &[(StableName, EntityKind, geom_core::Point3<f64>)],
+    got: &[(StableName, EntityKind, geom_core::Point3<f64>)],
+    within: f64,
+) {
+    assert_eq!(want.len(), got.len(), "{what}: as many names");
+    for ((n0, k0, p0), (n1, k1, p1)) in want.iter().zip(got) {
+        assert!(
+            n0 == n1 && k0 == k1 && p0.distance(*p1) <= within,
+            "{what}: {n0:?} named a {k0:?} at {p0:?}, now {n1:?} a {k1:?} at {p1:?}"
+        );
+    }
 }
 
 /// **The rounded plate chamfered by name**: every edge, each rim's
 /// strips' prisms and frustums' quarter rings removing
 /// `s²/2·ΣL + π·s²·(R − s/3)` (the top runs from each rim toward the
 /// arcs' axes), each junction's generator named once as `BandSection`,
-/// every name of the table unique, alike on a replay, and kept by an
-/// edit of the setback in place, over the prior and fresh.
+/// every name of the table unique, naming the same entity on a replay,
+/// and kept on its entity by an edit of the setback in place, over the
+/// prior and fresh.
 #[test]
 fn a_rounded_plate_chamfered_by_name_names_each_section_once_and_keeps_its_names() {
     let doc = ProfileDoc::empty_derived("band_mixed_plate_chamfer", Tol::witness());
@@ -303,19 +358,15 @@ fn a_rounded_plate_chamfered_by_name_names_each_section_once_and_keeps_its_names
         (16, 16),
         "one name per junction of both rims"
     );
-    let all = every_name(&ev, c);
-    let mut distinct = all.clone();
+    let sites = named_sites(&ev, c);
+    let mut distinct: Vec<&StableName> = sites.iter().map(|(n, _, _)| n).collect();
     distinct.dedup();
     assert_eq!(
-        all.len(),
+        sites.len(),
         distinct.len(),
         "every name of the table is unique"
     );
-    assert_eq!(
-        all,
-        every_name(&run(&doc), c),
-        "a replay names every entity alike"
-    );
+    assert_same_sites("a replay", &sites, &named_sites(&run(&doc), c), 0.0);
     let (edited, _) = crate::fixture::step(
         doc.clone(),
         DocEdit::SetParam {
@@ -325,14 +376,20 @@ fn a_rounded_plate_chamfered_by_name_names_each_section_once_and_keeps_its_names
             fresh: Vec::new(),
         },
     );
-    assert_eq!(
-        all,
-        every_name(&crate::fixture::run_with_prior(&edited, &ev), c),
-        "the setback edited, replayed over the prior"
+    // The setback's edit moves each foot and band by at most its own
+    // change, `0.02` along each support; two entities of one kind stand
+    // at least `0.1` apart.
+    let moved = 0.05;
+    assert_same_sites(
+        "the setback edited, replayed over the prior",
+        &sites,
+        &named_sites(&crate::fixture::run_with_prior(&edited, &ev), c),
+        moved,
     );
-    assert_eq!(
-        all,
-        every_name(&run(&edited), c),
-        "the setback edited, evaluated fresh"
+    assert_same_sites(
+        "the setback edited, evaluated fresh",
+        &sites,
+        &named_sites(&run(&edited), c),
+        moved,
     );
 }

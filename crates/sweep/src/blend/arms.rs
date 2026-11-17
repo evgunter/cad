@@ -166,7 +166,7 @@ impl<T: Real> BallSection<T> {
                 minor_radius,
                 ..
             } => {
-                let radial = torus_radial(center, axis, p);
+                let radial = radial_about(center, axis, p);
                 Some(Self {
                     centre: center + radial * major_radius,
                     normal: axis.cross(radial).normalize(),
@@ -194,8 +194,9 @@ pub(crate) fn chamfer_setback_point<T: Real>(trim: &Curve3<T>, p: Point3<T>) -> 
     }
 }
 
-/// The unit radial of a torus about `center` and `axis` at `p`'s azimuth.
-pub(crate) fn torus_radial<T: Real>(center: Point3<T>, axis: Vec3<T>, p: Point3<T>) -> Vec3<T> {
+/// The unit radial about the axis through `center` along `axis` at `p`'s
+/// azimuth: a torus's or a cone's.
+pub(crate) fn radial_about<T: Real>(center: Point3<T>, axis: Vec3<T>, p: Point3<T>) -> Vec3<T> {
     let q = p - center;
     (q - axis * q.dot(axis)).normalize()
 }

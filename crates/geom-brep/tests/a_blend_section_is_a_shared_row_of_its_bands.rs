@@ -30,9 +30,14 @@ struct Row<T: Real> {
 
 impl Row<f64> {
     fn lifted(&self) -> Row<Interval> {
-        let lift = Interval::from_f64;
+        self.widened(0.0)
+    }
+
+    /// Every input as the interval of half-width `w` about it.
+    fn widened(&self, w: f64) -> Row<Interval> {
+        let lift = |x: f64| Interval::from_bounds(x - w, x + w);
         Row {
-            walls: self.walls.clone().map(|w| w.map_scalar(lift)),
+            walls: self.walls.clone().map(|s| s.map_scalar(lift)),
             carrier: self.carrier.map_scalar(lift),
             span: (lift(self.span.0), lift(self.span.1)),
         }
@@ -303,7 +308,9 @@ fn a_section_on_a_rotated_band_certifies_as_a_touching_shared_row() {
 /// normal constant and the cone's constant along a generator on one
 /// nappe. The rounded plate's junction (arc radius 0.3, setback 0.05),
 /// turned and moved off the origin, and a setback just under the arc's
-/// radius.
+/// radius. Read at `f64` and at its point intervals: what this row says
+/// of the certified scalar is that the exact geometry certifies, not
+/// that a carve's computed geometry does (the next row).
 #[test]
 fn a_chamfer_section_certifies_as_a_touching_plane_cone_row() {
     let rows = [
@@ -337,6 +344,38 @@ fn a_chamfer_section_certifies_as_a_touching_plane_cone_row() {
             "Interval: {what}"
         );
     }
+}
+
+/// **How wide a chamfer section's inputs may be and still admit**, at
+/// `Interval`: the plate's junction with every input widened to an
+/// interval of half-width `w`, which is what a carve's computed feet and
+/// surfaces hand the admission. It certifies at `w = ε/100` and refuses
+/// at `w = 10ε`, at every ε row (measured at ε = 1e-12: to `1e-14`, not
+/// from `1e-13`; at ε = 1e-9: to `1e-11`), so a carve whose computed
+/// geometry encloses wider than a tenth of the band reaches the
+/// refusal its rows pin at the tightest ε
+/// (`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`).
+#[test]
+fn a_chamfer_section_admits_while_its_inputs_are_narrow_against_the_band() {
+    let eps = crate::shared::tol::eps();
+    let row = chamfer_junction(Point3::new(0.7, -0.3, 0.5), 0.3, 0.05, 30f64.to_radians());
+    let narrow = row.widened(eps / 100.0);
+    assert_eq!(
+        stated(&narrow)
+            .map(|_| ())
+            .ok_or(())
+            .and_then(|()| certified(&narrow).map_err(|_| ())),
+        Ok(RowContact::Touching),
+        "ε = {eps}: inputs {} wide admit and touch",
+        eps / 100.0
+    );
+    let wide = row.widened(10.0 * eps);
+    let admitted = stated(&wide).is_some() && certified(&wide).is_ok();
+    assert!(
+        !admitted,
+        "ε = {eps}: inputs {} wide admit, past the band",
+        10.0 * eps
+    );
 }
 
 /// The walls' angle along a shared circle is constant, and the reading

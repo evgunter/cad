@@ -44,7 +44,7 @@
 //! same two support faces, which a coplanar-face merge leaves wherever
 //! a wall was subdivided — and is then carved as ONE face over all its
 //! links; or across junctions (`admit::Junction`) onto links on other
-//! supports, a torus link between two of them, and is then carved one
+//! supports, a torus or frustum link between two of them, and is then carved one
 //! face per link with the section between each two
 //! ([`super::junction`]).
 //!
@@ -739,12 +739,12 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     }
     // ---- A straight link's two ends put their feet in order along it
     // where one is a junction ([`junction::feet_clear`]). ----
-    let torus = |e: EdgeKey| {
+    let revolved = |e: EdgeKey| {
         planar
             .iter()
             .any(|o| o.edge() == e && o.link().arm.is_coaxial())
     };
-    junction::feet_clear(source, &supports, |e| !torus(e), band)?;
+    junction::feet_clear(source, &supports, |e| !revolved(e), band)?;
 
     // ---- The ruled bands' caps, read off the source before anything
     // is carved: each end's cap face, the two rim edges it shares with
@@ -860,19 +860,24 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     }
     blend_rows.sort_by_key(|(o, _, _)| o.edge());
     let blend_faces: Vec<FaceKey> = blend_rows.iter().map(|(_, f, _)| *f).collect();
-    // **A link's band face's sense bit, the band's and not the verb's.**
-    // A rolling-ball band's chart normal is the radial one, which is
-    // outward exactly on a convex chain, so it folds the stored convexity
-    // verdict. A chamfer strip's chart normal is minted as an explicit
-    // positive combination of the supports' own outward normals
-    // (`arms::chamfer_strip`), so it is outward whatever the convexity
-    // is. A chamfer frustum has the cone's own chart normal, radially
-    // outward whichever side the material is, so its bit is read off the
-    // side of the generator the rim lies on, at the link's own middle on
-    // the source body (`arms::frustum_rim_side`).
+    // **A face's sense bit, the face's and not the verb's.** A
+    // rolling-ball band's or corner ball's chart normal is the radial
+    // one, which is outward exactly on a convex chain, so it folds the
+    // stored convexity verdict. A chamfer strip's and corner patch's
+    // chart normals are minted as explicit positive combinations of the
+    // supports' own outward normals (`arms::chamfer_strip`,
+    // `arms::chamfer_corner_patch`), so they are outward whatever the
+    // convexity is.
+    let minted_sense = |convexity: Convexity| match kind {
+        BlendKind::Fillet => blend_sense(convexity),
+        BlendKind::Chamfer => true,
+    };
+    // A chamfer frustum has the cone's own chart normal, radially outward
+    // whichever side the material is, so its bit is read off the side of
+    // the generator the rim lies on, at the link's own middle on the
+    // source body (`arms::frustum_rim_side`).
     let link_sense = |link: &Link<T>| -> Result<bool, BlendError> {
         match kind {
-            BlendKind::Fillet => Ok(blend_sense(link.convexity)),
             BlendKind::Chamfer if link.arm == BlendArm::CylinderPlaneCone => {
                 let (carrier, t0, t1) = super::battery::carrier_of(source, link.edge)?;
                 let at = carrier.eval(geom::mid_param(t0, t1));
@@ -886,7 +891,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                     })?;
                 Ok((side.lo() > 0.0) == blend_sense(link.convexity))
             }
-            BlendKind::Chamfer => Ok(true),
+            _ => Ok(minted_sense(link.convexity)),
         }
     };
     let mut band_faces = Vec::with_capacity(rims.len());
@@ -896,7 +901,11 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         if let RimShape::Mixed(mixed) = &rim.shape {
             let (faces, mut arcs) =
                 rim_phase_mixed(&mut body, rim, mixed, &sources, &mut rec, tol)?;
-            for ((face, surface), l) in faces.into_iter().zip(rim.chain.links()) {
+            for (face, surface, edge) in faces {
+                let l =
+                    rim.chain.links().find(|l| l.edge == edge).ok_or_else(|| {
+                        disagrees(EntityId::Edge(edge), "a mixed rim's band link")
+                    })?;
                 band_faces.push(face);
                 band_surfaces.push((surface, link_sense(l)?));
             }
@@ -956,13 +965,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             fk,
             FaceSurface::New {
                 surface: c.surface.clone(),
-                // A corner ball folds the verdict as its links' bands
-                // do; a chamfer's patch is minted outward
-                // ([`super::arms::chamfer_corner_patch`]).
-                sense: match kind {
-                    BlendKind::Fillet => blend_sense(c.convexity),
-                    BlendKind::Chamfer => true,
-                },
+                sense: minted_sense(c.convexity),
             },
         )
         .map_err(|e| op("corner patch surface", e))?;
@@ -3083,8 +3086,8 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     for support in supports {
         strip_clearance(body, support, opens, band)?;
     }
-    // (e) A torus link between two junctions: each of its supports'
-    // cycles against its strip there, within its own wedge, as a mixed
+    // (e) A torus or frustum link between two junctions: each of its
+    // supports' cycles against its strip there, within its own wedge, as a mixed
     // rim's link is read ([`support_boundary_clearance`]).
     for o in opens.iter().filter(|o| o.link().arm.is_coaxial()) {
         let l = o.link();
@@ -3179,17 +3182,17 @@ fn strip_clearance<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let face = support.face();
-    let torus = |e: EdgeKey| {
+    let revolved = |e: EdgeKey| {
         opens
             .iter()
             .any(|o| o.edge() == e && o.link().arm.is_coaxial())
     };
-    // A curved support is admitted only as a torus link's mate between
-    // two junctions (`RequestedBoundary::admit`), whose strip arm (e)
+    // A curved support is admitted only as a torus or frustum link's mate
+    // between two junctions (`RequestedBoundary::admit`), whose strip arm (e)
     // reads whole; anything else reaching here is a plan this meter
     // cannot read, refused rather than passed.
     if outward_of(body, face).is_none() {
-        let mate = support.chords().iter().all(|c| torus(c.edge))
+        let mate = support.chords().iter().all(|c| revolved(c.edge))
             && support
                 .stations()
                 .iter()
@@ -3199,8 +3202,8 @@ fn strip_clearance<T: Decide + Bounds>(
         }
         return Err(invariant_broken(
             EntityId::Face(face),
-            "a curved support reached the planar strip meter other than as a torus link's \
-             mate between two junctions",
+            "a curved support reached the planar strip meter other than as a torus or \
+             frustum link's mate between two junctions",
         ));
     }
     let outer = body
@@ -3213,8 +3216,8 @@ fn strip_clearance<T: Decide + Bounds>(
             .ok_or_else(|| unwalked(EntityId::Loop(lp), "a planar support's cycle"))?;
         boundary.extend(walk.into_iter().map(|(_, _, edge)| edge));
     }
-    // A torus link's strip is no rectangle; arm (e) reads it.
-    for chord in support.chords().iter().filter(|c| !torus(c.edge)) {
+    // A torus or frustum link's strip is no rectangle; arm (e) reads it.
+    for chord in support.chords().iter().filter(|c| !revolved(c.edge)) {
         let o = point_of(body, chord.from)
             .ok_or_else(|| unresolved(EntityId::Vertex(chord.from), "a station's point"))?;
         let t = point_of(body, chord.to)
@@ -5719,8 +5722,8 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     Ok((band_face, band_surface, described))
 }
 
-/// A mixed rim's band faces with their surfaces, in chain-link order.
-type BandFaces<T> = Vec<(FaceKey, Surface<T>)>;
+/// A mixed rim's band faces with their surfaces and their links, in chain-link order.
+type BandFaces<T> = Vec<(FaceKey, Surface<T>, EdgeKey)>;
 
 /// **The mixed rim's carve** ([`MixedRim`]): the annulus walk's moves
 /// with one band face per link.
@@ -5740,7 +5743,7 @@ type BandFaces<T> = Vec<(FaceKey, Surface<T>)>;
 /// The edge off the rim is read LIVE at each junction: another band of
 /// the same call carving the same mates (the other rim of an extruded
 /// wall) has split it already, and its fragment is what meets this rim.
-/// Returns each band face with its surface, in chain-link order.
+/// Returns each band face with its surface and its link's edge, in chain-link order.
 #[allow(clippy::too_many_lines)]
 fn rim_phase_mixed<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
@@ -5921,13 +5924,13 @@ fn rim_phase_mixed<T: Decide + Bounds + topo::AtRestPolicy>(
                  the `kef`s above kill the host strips"
             )
         };
-        if rim.mates.contains(&face) || face == host || faces.iter().any(|(f, _)| *f == face) {
+        if rim.mates.contains(&face) || face == host || faces.iter().any(|(f, _, _)| *f == face) {
             return Err(disagrees(
                 EntityId::Face(face),
                 "a mixed rim's band face merged into a support or another link's band",
             ));
         }
-        faces.push((face, surfaces[i].clone()));
+        faces.push((face, surfaces[i].clone(), l.edge));
         rec.blends.push((face, l.edge));
     }
 

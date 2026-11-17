@@ -21,11 +21,11 @@
 use core::f64::consts::{FRAC_PI_2, PI};
 
 use crate::band_closed_mixed_chain_shapes::{assert_touch_escalation, tightest_interval};
-use crate::band_open_mixed_chain::assert_chamfer_unbuilt_at_the_tightest;
+use crate::band_open_mixed_chain::chamfer_row;
 use crate::common::interval::iv;
 use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point2, Point3, Tol};
 use profile::{SketchPlane, test_support::bulge_loop};
-use sweep::blend::{chamfer_edges, fillet_edges};
+use sweep::blend::fillet_edges;
 use sweep::test_support::{assert_naming_totality, at_rest, extruded};
 use topo::{Body, EdgeKey, validate_geometric};
 
@@ -195,92 +195,22 @@ fn a_rounded_plate_filleted_all_round_removes_pappuss_volume_at_interval() {
     }
 }
 
-/// The chamfer's removed or added triangle `s²/2` along each straight
-/// link and each arc's quarter ring about the arc's axis: an outline of
-/// lines `ΣL` and a whole turn of arcs of radius `R` moves
-/// `s²/2·ΣL + π·s²·ρ̄`, `ρ̄ = R ∓ s/3` the triangle's centroid's radius,
-/// `−` where the host plane runs from the rim toward the arcs' axes (a
-/// plate's top, a pocket's floor) and `+` where it runs away (a pocket's
-/// mouth). Per quarter arc that is `(π/2)·(s²/2)·ρ̄ = π·s²·ρ̄/4`; the
-/// pieces abut at the generators the junctions leave, so the sum is the
-/// whole.
-fn chamfer_pappus(s: f64, inward: bool) -> f64 {
-    let lines = 4.0 * (HX - R) + 4.0 * (HY - R);
-    let centroid = if inward { R - s / 3.0 } else { R + s / 3.0 };
-    0.5 * s * s * lines + 4.0 * (PI * s * s * centroid / 4.0)
+/// The plate's outline, whose chamfer Pappus reads by pieces
+/// (`Outline::chamfer_pappus`).
+fn outline() -> crate::band_closed_mixed_chain_shapes::Outline {
+    crate::band_closed_mixed_chain_shapes::rect(HX, HY, [R; 4])
 }
 
-/// Chamfer `edges` of `body` at `s` and check the carve: tier 3, naming
-/// total over `requested`, one band face and one section per link, the
-/// strips planes and the frustums cones, and `|ΔV|` at `want` (removed
-/// on a convex rim, added on a concave one) within the certified
-/// enclosure. At `Interval` at ε = 1e-12 the row pins the refusal there
-/// instead ([`assert_chamfer_unbuilt_at_the_tightest`]).
-fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+/// A rim's chamfer, closed: one band face and one section per link.
+fn chamfer_rim<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     what: &str,
     body: &Body<T>,
     (edges, requested): (&[EdgeKey], &[EdgeKey]),
     s: T,
-    want: f64,
-) -> Option<sweep::blend::Blended<T>> {
-    let out = match chamfer_edges(&at_rest(body, tol()), edges, s, tol()) {
-        Ok(out) => {
-            assert!(
-                !tightest_interval::<T>(),
-                "{what}: built where its section's row does not admit"
-            );
-            out
-        }
-        Err(e) if tightest_interval::<T>() => {
-            assert_chamfer_unbuilt_at_the_tightest(what, &e.error);
-            return None;
-        }
-        Err(e) => panic!("{what}: the outline chamfers whole, got {e:?}"),
-    };
-    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
-    assert_naming_totality(body, &out, requested, what);
-    let rec = out.naming.as_ref().expect("the carve's birth records");
-    assert_eq!(
-        rec.blends.len(),
-        requested.len(),
-        "{what}: one band face per link"
-    );
-    assert_eq!(
-        rec.sections.len(),
-        requested.len(),
-        "{what}: one section per junction"
-    );
-    for &(face, link) in &rec.blends {
-        let surface = out.body.face_surface(face).expect("a band face's surface");
-        let arc = matches!(
-            body.get_edge(link)
-                .and_then(|d| body.get_curve_geom(d.curve))
-                .and_then(|g| g.certified())
-                .map(|c| c.carrier()),
-            Some(geom::Curve3::Circle(_))
-        );
-        assert!(
-            matches!(
-                (arc, surface),
-                (true, geom::Surface::Cone { .. }) | (false, geom::Surface::Plane { .. })
-            ),
-            "{what}: an arc's band is a frustum and a line's a strip, got {surface:?}"
-        );
-    }
-    let (v0, w0) = volume(body);
-    let (v1, w1) = volume(&out.body);
-    let moved = (v1 - v0).abs();
-    assert!(
-        (moved - want).abs() <= w0 + w1 + 1e-12,
-        "{what}: |ΔV| {moved} is Pappus's {want} (enclosure ±{})",
-        w0 + w1
-    );
-    assert!(
-        w0 + w1 < 1e-7,
-        "{what}: the enclosure is a claim: ±{}",
-        w0 + w1
-    );
-    Some(out)
+    dv: f64,
+) {
+    let n = requested.len();
+    chamfer_row(what, body, (edges, requested), s, (n, n), dv);
 }
 
 /// **A rounded plate chamfered all round**: its top outline alone, then
@@ -293,20 +223,16 @@ fn rounded_plate_chamfers<T: Decide + Bounds + CertifiedBounds + topo::AtRestPol
     let both: Vec<EdgeKey> = rim_at(&body, 0.0).into_iter().chain(top.clone()).collect();
     for s in [0.05, 0.2] {
         let what = format!("{scalar}: the top, s = {s}");
-        chamfer_row(
-            &what,
-            &body,
-            (&top, &top),
-            T::from_f64(s),
-            chamfer_pappus(s, true),
-        );
+        let removed = outline().chamfer_pappus(s, true);
+        chamfer_rim(&what, &body, (&top, &top), T::from_f64(s), -removed);
         let what = format!("{scalar}: both outlines, s = {s}");
-        chamfer_row(
+        let edges = every_edge(&body);
+        chamfer_rim(
             &what,
             &body,
-            (&every_edge(&body), &both),
+            (&edges, &both),
             T::from_f64(s),
-            2.0 * chamfer_pappus(s, true),
+            -2.0 * removed,
         );
     }
 }
@@ -439,8 +365,15 @@ fn a_rounded_pockets_floor_and_mouth_chamfer_whole() {
     assert_eq!(mouth.len(), 8, "the mouth: four lines and four arcs");
     for s in [0.05, 0.2] {
         let what = format!("pocket floor, s = {s}");
-        chamfer_row(&what, &body, (&floor, &floor), s, chamfer_pappus(s, true));
+        chamfer_rim(
+            &what,
+            &body,
+            (&floor, &floor),
+            s,
+            outline().chamfer_pappus(s, true),
+        );
         let what = format!("pocket mouth, s = {s}");
-        chamfer_row(&what, &body, (&mouth, &mouth), s, chamfer_pappus(s, false));
+        let removed = outline().chamfer_pappus(s, false);
+        chamfer_rim(&what, &body, (&mouth, &mouth), s, -removed);
     }
 }

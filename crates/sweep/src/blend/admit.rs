@@ -161,11 +161,11 @@ impl Joint {
 
 /// **A junction of an admitted open band**: an interior vertex of the
 /// chain where two links on DIFFERENT supports meet tangentially, their
-/// bands sharing the rolling ball's section there (predicate 4's band
-/// reading certified it).
+/// bands sharing one section there, the rolling ball's circle or the
+/// chamfer's generator (predicate 4's band reading certified it).
 ///
-/// Each link is a rolling-ball band with a section, a cylinder over two
-/// planes or a torus; the two share exactly one support, the HOST, which
+/// Each link is a band with a section: a cylinder or a strip over two
+/// planes, or a torus or a frustum about its supports' axis; the two share exactly one support, the HOST, which
 /// is a plane; and the vertex carries one edge besides the two links,
 /// which separates their other supports, the two MATES. That is the
 /// junction of a closed mixed rim ([`super::junction`]), here between
