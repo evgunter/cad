@@ -562,15 +562,71 @@ pub(crate) fn tube_encloses<T: geom_core::Decide>(
 /// docs). An enclosure excluding zero proves the solution set inside
 /// `b` is a graph over the `e` axis: at most one solution on each
 /// slice. One arc in `b` is `super::one_arc`'s proof, not this one.
+///
+/// The cross product of the two gradients' boxes reads each coordinate
+/// of the point several times over, so its width is first order in the
+/// box however nearly the quantity is constant there. Where both
+/// gradients are affine in the point ([`gradient_jacobian`]) it is met
+/// with the mean-value form about the box's centre `c`,
+/// `m(c) + Σₖ ∂ₖm(b)·(bₖ − cₖ)`, whose excess is second order.
 pub(crate) fn graph_margin<T: CertifiedBounds>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     b: Box3,
     e: Vec3<T>,
 ) -> Interval {
+    let e = constv(e);
     let g1 = implicit_gradient_enclosure(s1, b);
     let g2 = implicit_gradient_enclosure(s2, b);
-    dot(&cross(&g1, &g2), &constv(e))
+    let natural = dot(&cross(&g1, &g2), &e);
+    let (Some(j1), Some(j2)) = (gradient_jacobian(s1), gradient_jacobian(s2)) else {
+        return natural;
+    };
+    let c = b.center();
+    let mid = Box3::between(c, c);
+    let at_mid = cross(
+        &implicit_gradient_enclosure(s1, mid),
+        &implicit_gradient_enclosure(s2, mid),
+    );
+    let d = [b.x - mid.x, b.y - mid.y, b.z - mid.z];
+    let centred = (0..3).fold(dot(&at_mid, &e), |sum, k| {
+        // `∂ₖ(g₁ × g₂) = ∂ₖg₁ × g₂ + g₁ × ∂ₖg₂`, over the box.
+        let slope = dot(&cross(&j1[k], &g2), &e) + dot(&cross(&g1, &j2[k]), &e);
+        sum + slope * d[k]
+    });
+    natural.meet(centred)
+}
+
+/// The derivative of [`implicit_gradient_enclosure`]'s own function
+/// where it is the same at every point, `[k]` its partial along
+/// coordinate `k`: zero on the plane, `I/r` on the sphere,
+/// `(I − â âᵀ (2 − |â|²))/r` on the cylinder. `None` on every other
+/// kind.
+fn gradient_jacobian<T: CertifiedBounds>(surface: &Surface<T>) -> Option<[[Interval; 3]; 3]> {
+    let (zero, one) = (Interval::point(0.0), Interval::point(1.0));
+    let unit = |k: usize, i: usize| if i == k { one } else { zero };
+    match *surface {
+        Surface::Plane { .. } => Some([[zero; 3]; 3]),
+        Surface::Sphere { radius, .. } => {
+            let r = Interval::from_certified(radius);
+            Some(core::array::from_fn(|k| {
+                core::array::from_fn(|i| unit(k, i) / r)
+            }))
+        }
+        Surface::Cylinder { axis, radius, .. } => {
+            let a = constv(axis);
+            let twice = Interval::from_bounds(2.0, 2.0) - norm_sq(&a);
+            let r = Interval::from_certified(radius);
+            Some(core::array::from_fn(|k| {
+                core::array::from_fn(|i| (unit(k, i) - a[i] * a[k] * twice) / r)
+            }))
+        }
+        Surface::Torus { .. }
+        | Surface::Cone { .. }
+        | Surface::Spindle { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => None,
+    }
 }
 
 /// **The partner a chart tube reads `φ` of**, along the wall `S`: the
@@ -3035,6 +3091,142 @@ pub(super) mod tests {
             m.lo(),
             m.hi()
         );
+    }
+
+    /// **The graph margin over a box holds the quantity at every point of
+    /// it**: random planes, spheres and cylinders, a random box from a
+    /// micron to a third of a unit a side, a random axis; at the box's
+    /// corners, its centre and points inside it, `(∇f₁ × ∇f₂)·e` as
+    /// `f64` reads it lies in the enclosure, to that reading's rounding.
+    #[test]
+    fn the_graph_margin_holds_the_quantity_at_every_point_of_its_box() {
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("enclose::graph_margin_holds_its_quantity");
+        let vec3 = |rng: &mut fuzz::Rng, r: f64| {
+            Vec3::new(rng.range(-r, r), rng.range(-r, r), rng.range(-r, r))
+        };
+        let unit = |rng: &mut fuzz::Rng| loop {
+            let v = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            if v.norm() > 0.1 {
+                return v.normalize();
+            }
+        };
+        let surface = |rng: &mut fuzz::Rng| {
+            let at = Point3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            let (axis, u_ref) = (unit(rng), Vec3::new(1.0, 0.0, 0.0));
+            let radius = rng.log_uniform(0.05, 5.0);
+            match rng.below(3) {
+                0 => Surface::Plane {
+                    origin: at,
+                    normal: axis,
+                    u_ref,
+                },
+                1 => Surface::Sphere {
+                    center: at,
+                    radius,
+                    axis,
+                    u_ref,
+                },
+                _ => Surface::Cylinder {
+                    origin: at,
+                    axis,
+                    radius,
+                    u_ref,
+                },
+            }
+        };
+        for case in 0..fuzz::scaled(400) {
+            let (s1, s2) = (surface(&mut rng), surface(&mut rng));
+            let c = Point3::new(0.0, 0.0, 0.0) + vec3(&mut rng, 1.5);
+            let h = [(); 3].map(|()| rng.log_uniform(5e-7, 0.15));
+            let b = Box3::between(
+                Point3::new(c.x - h[0], c.y - h[1], c.z - h[2]),
+                Point3::new(c.x + h[0], c.y + h[1], c.z + h[2]),
+            );
+            let e = unit(&mut rng);
+            let m = graph_margin(&s1, &s2, b, e);
+            assert!(m.is_certified(), "case {case}: refused; {}", fuzz::replay());
+            let mut at: Vec<[f64; 3]> = (0..8u8)
+                .map(|k| [0, 1, 2].map(|i| if k >> i & 1 == 0 { -1.0 } else { 1.0 }))
+                .collect();
+            at.push([0.0; 3]);
+            at.extend((0..8).map(|_| [(); 3].map(|()| rng.range(-1.0, 1.0))));
+            for t in at {
+                let p = Point3::new(c.x + t[0] * h[0], c.y + t[1] * h[1], c.z + t[2] * h[2]);
+                let q = implicit_gradient(&s1, p)
+                    .cross(implicit_gradient(&s2, p))
+                    .dot(e);
+                let slack = 1e-12 * (1.0 + m.lo().abs().max(m.hi().abs()));
+                assert!(
+                    m.lo() - slack <= q && q <= m.hi() + slack,
+                    "case {case}: {q} at {p:?} outside [{}, {}] of {s1:?} × {s2:?} along \
+                     {e:?}; {}",
+                    m.lo(),
+                    m.hi(),
+                    fuzz::replay()
+                );
+            }
+        }
+    }
+
+    /// **A chain box wider than the locus's turning radius still reads a
+    /// graph.** The box is one a marched loop's chain holds where a
+    /// cylinder of radius 0.5 meets a sphere a millimetre short of its
+    /// far wall: 36 mm by 28 mm beside a tip that turns on a 24 mm
+    /// radius, where the two normals stand 0.1 rad apart. The quantity is
+    /// one-signed over it, at least 0.07; the cross product of the
+    /// gradients' boxes reads the cylinder's and the sphere's shares of
+    /// each coordinate apart and leaves 5e-5 of that.
+    #[test]
+    fn a_box_wider_than_the_turning_radius_keeps_its_graph_margin() {
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, -3.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.5,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let sphere = Surface::Sphere {
+            center: Point3::new(0.2, 0.0, 0.2),
+            radius: 0.699,
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let raw = Box3::between(
+            Point3::new(-0.492_331, -0.123_026, 0.241_059),
+            Point3::new(-0.484_709, -0.087_371, 0.268_972),
+        );
+        let e = Vec3::new(-0.1621, 0.7759, -0.6096);
+        let floor = |b: Box3| {
+            let mut least = f64::INFINITY;
+            for k in 0..8u8 {
+                let pick = |i: Interval, bit: u8| if k >> bit & 1 == 0 { i.lo() } else { i.hi() };
+                let p = Point3::new(pick(b.x, 0), pick(b.y, 1), pick(b.z, 2));
+                let q = implicit_gradient(&cylinder, p)
+                    .cross(implicit_gradient(&sphere, p))
+                    .dot(e);
+                least = least.min(q);
+            }
+            least
+        };
+        for (pad, share) in [(0.0, 0.5), (1.092_187_5e-2, 0.25)] {
+            let b = raw.pad(pad);
+            let m = graph_margin(&cylinder, &sphere, b, e);
+            let least = floor(b);
+            assert!(
+                m.is_certified() && m.lo() >= share * least && least > 0.0,
+                "padded by {pad}: [{}, {}] against a least corner value of {least}",
+                m.lo(),
+                m.hi()
+            );
+        }
     }
 
     #[test]
