@@ -1836,11 +1836,15 @@ mod tests {
     /// **A ruled face whose straight side holds a point meshes**, on the
     /// trimmed lane (`walk::splits_a_straight_side`): a full and a half
     /// cylinder wall, cones through their apex at half-angles 45°, 80°
-    /// and 5°, and a frustum, each with one ruling split at one point and
-    /// at two, obliquely placed, at δ 0.1, 0.01 and 0.001. Each meshes
-    /// and passes `check_mesh`; `tessellate`'s join has read every
+    /// and 5°, and a frustum, each with a ruling split at one point and at
+    /// two, obliquely placed, at δ 0.1, 0.01 and 0.001. A full turn's
+    /// ruling is its seam, which its one face walks twice. Each meshes,
+    /// passes `check_mesh`, and encloses the unsplit body's volume to δ
+    /// over the two meshes' area; `tessellate`'s join has read every
     /// triangle's winding. With the route gone each reaches this lane and
     /// refuses as the router's defect ([`SPLIT_SIDE_ROUTED_HERE`]).
+    ///
+    /// **By ε.** Every cell meshes at the default, `10⁻⁶` and `10⁻¹²`.
     #[test]
     fn a_ruled_face_with_a_split_ruling_meshes() {
         let tau = core::f64::consts::TAU;
@@ -1851,8 +1855,24 @@ mod tests {
                 .body
                 .into_body()
         };
-        let cone = |half_angle: f64| [(0.0, 0.0), (half_angle.to_radians().tan(), 0.0), (0.0, 1.0)];
+        let cone = |half_angle: f64| {
+            [
+                (0.0, 0.0),
+                (f64::tan(half_angle.to_radians()), 0.0),
+                (0.0, 1.0),
+            ]
+        };
         let wall = [(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)];
+        let area = |mesh: &crate::Mesh| -> f64 {
+            mesh.patches
+                .iter()
+                .flat_map(|p| &p.triangles)
+                .map(|t| {
+                    let [a, b, c] = t.map(|k| mesh.positions[k as usize]);
+                    0.5 * (b - a).cross(c - a).norm()
+                })
+                .sum()
+        };
         let bodies = [
             ("full cylinder wall", solid(&wall, Revolution::Full)),
             (
@@ -1870,50 +1890,60 @@ mod tests {
                 ),
             ),
         ];
+        const DELTAS: [f64; 3] = [0.1, 0.01, 0.001];
         for (name, body) in &bodies {
-            let rulings: Vec<usize> = body
-                .edges()
-                .enumerate()
-                .filter(|(_, (_, e))| {
-                    matches!(
-                        body.get_curve_geom(e.curve)
-                            .and_then(|g| g.certified())
-                            .map(|c| c.carrier()),
-                        Some(geom::Curve3::Line(..))
-                    )
-                })
-                .map(|(i, _)| i)
+            // The edges a ruled face's loop walks that are lines: its rulings.
+            let mut rulings = std::collections::HashSet::new();
+            for (fk, face) in body.faces() {
+                if matches!(
+                    body.face_surface(fk),
+                    Some(Surface::Cylinder { .. } | Surface::Cone { .. })
+                ) {
+                    for (_, ek, _) in crate::walk::loop_half_edges(body, face.outer, fk).unwrap() {
+                        let line = matches!(
+                            body.get_curve_geom(body.get_edge(ek).unwrap().curve)
+                                .and_then(|g| g.certified())
+                                .map(|c| c.carrier()),
+                            Some(geom::Curve3::Line(..))
+                        );
+                        if line {
+                            rulings.insert(ek);
+                        }
+                    }
+                }
+            }
+            let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+            let (plain, _) = split_each_edge_then_place(body, &[]);
+            let unsplit: Vec<crate::Mesh> = DELTAS
+                .iter()
+                .map(|&delta| crate::tessellate(&plain[0].1, delta, Tol::witness()).unwrap())
                 .collect();
             let mut split = 0usize;
             for fracs in [&[0.5][..], &[0.312_9, 0.156_45][..]] {
                 let (placed, skipped) = split_each_edge_then_place(body, fracs);
                 assert!(skipped.is_empty(), "{name} @{fracs:?}: {skipped:?}");
-                for (i, placed) in placed.iter().filter(|(i, _)| rulings.contains(i)) {
-                    let curved = placed
-                        .faces()
-                        .filter(|&(fk, _)| {
-                            matches!(
-                                placed.face_surface(fk),
-                                Some(Surface::Cylinder { .. } | Surface::Cone { .. })
-                            )
-                        })
-                        .count();
-                    if curved == 0 {
-                        continue;
-                    }
+                for (i, placed) in placed.iter().filter(|(i, _)| rulings.contains(&edges[*i])) {
                     split += 1;
-                    for delta in [0.1, 0.01, 0.001] {
-                        let mesh =
-                            crate::tessellate(placed, delta, Tol::witness()).unwrap_or_else(|e| {
-                                panic!("{name}, edge {i} split @{fracs:?}, δ {delta}: {e:?}")
-                            });
-                        crate::validate::check_mesh(&mesh).unwrap_or_else(|e| {
-                            panic!("{name}, edge {i} split @{fracs:?}, δ {delta}: {e:?}")
-                        });
+                    for (delta, plain) in DELTAS.iter().zip(&unsplit) {
+                        let at = || format!("{name}, edge {i} split @{fracs:?}, δ {delta}");
+                        let mesh = crate::tessellate(placed, *delta, Tol::witness())
+                            .unwrap_or_else(|e| panic!("{}: {e:?}", at()));
+                        crate::validate::check_mesh(&mesh)
+                            .unwrap_or_else(|e| panic!("{}: {e:?}", at()));
+                        let (v, v0) = (
+                            crate::validate::signed_volume(&mesh),
+                            crate::validate::signed_volume(plain),
+                        );
+                        let reach = delta * (area(&mesh) + area(plain));
+                        assert!(
+                            (v - v0).abs() <= reach,
+                            "{}: volume {v} against the unsplit body's {v0}, past {reach}",
+                            at()
+                        );
                     }
                 }
             }
-            assert!(split > 0, "{name}: no ruling of a ruled face was split");
+            assert!(split > 0, "{name}: no ruling was split");
         }
     }
 
@@ -2393,8 +2423,11 @@ mod tests {
 
         let mesh = crate::tessellate(&body, 0.1, Tol::witness()).expect("must not refuse");
         crate::validate::check_mesh(&mesh).expect("must mesh watertight");
+        // The split ruling's face is the trimmed lane's
+        // (`walk::splits_a_straight_side`), which lays rows this face
+        // does not need: 40 where the rectangle lane's chart CDT made 28.
         let n: usize = mesh.patches.iter().map(|p| p.triangles.len()).sum();
-        assert_eq!(n, 28, "the split+placed wedge's triangle count at δ = 0.1");
+        assert_eq!(n, 40, "the split+placed wedge's triangle count at δ = 0.1");
     }
 
     /// **What the refusal replaces**, replayed through this lane's own

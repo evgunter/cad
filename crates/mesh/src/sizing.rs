@@ -80,9 +80,9 @@
 //! of δ is a typed choice nothing has measured as the coarsest
 //! (`work/tesslane/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
 //! The lanes without a theorem say so at their call sites: the trimmed
-//! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and a cone face
-//! whose side carries a point keeps the lattice `curved::grid_counts`
-//! names.
+//! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and so
+//! does a cylinder or cone face whose straight side holds a point, which
+//! is the trimmed lane's (`walk::splits_a_straight_side`).
 //!
 //! **One sizing question has a separate ratified answer**:
 //! `docs/TESS-BUDGET.md`'s *split schedule's aspect policy*

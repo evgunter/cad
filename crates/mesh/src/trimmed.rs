@@ -407,7 +407,8 @@ pub(crate) fn face_target(
 ) -> Result<f64, TessellateError> {
     let surface = crate::tessellate::face_surface(body, fk)?;
     let headroom = surface.spline_chart().is_none()
-        && crate::tessellate::lane_of(body, fk, surface, tol)? == crate::tessellate::Lane::Trimmed;
+        && crate::tessellate::lane_of(body, fk, surface, tol.band)?
+            == crate::tessellate::Lane::Trimmed;
     Ok(if headroom {
         tol.delta * UNPROVED_HEADROOM
     } else {
@@ -3521,7 +3522,7 @@ pub(super) mod tests {
                     &body,
                     fk,
                     surface,
-                    &crate::sizing::tests::witness_tols(1e-2),
+                    crate::sizing::tests::witness_tols(1e-2).band,
                 )
                 .unwrap()
                     != crate::tessellate::Lane::Trimmed
@@ -3692,7 +3693,7 @@ pub(super) mod tests {
                     &body,
                     fk,
                     surface,
-                    &crate::sizing::tests::witness_tols(1e-2),
+                    crate::sizing::tests::witness_tols(1e-2).band,
                 )
                 .unwrap()
                     != crate::tessellate::Lane::Trimmed
@@ -3772,7 +3773,7 @@ pub(super) mod tests {
                         &body,
                         fk,
                         surface,
-                        &crate::sizing::tests::witness_tols(1e-2),
+                        crate::sizing::tests::witness_tols(1e-2).band,
                     )
                     .unwrap()
                         != crate::tessellate::Lane::Trimmed
@@ -4192,7 +4193,7 @@ pub(super) mod tests {
                     &body,
                     fk,
                     surface,
-                    &crate::sizing::tests::witness_tols(1e-2),
+                    crate::sizing::tests::witness_tols(1e-2).band,
                 )
                 .unwrap()
                     != crate::tessellate::Lane::Trimmed

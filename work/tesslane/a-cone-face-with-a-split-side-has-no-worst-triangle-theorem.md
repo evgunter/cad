@@ -1,7 +1,7 @@
 ---
 id: a-cone-face-with-a-split-side-has-no-worst-triangle-theorem
 kind: issue
-title: a cone face whose meridian side carries a point between its rims is outside the two-rim strip argument, and keeps a lattice no theorem sizes
+title: a ruled face whose straight side holds a point meshes on the chart lane at the unproved headroom, and no theorem sizes it
 status: open
 priority: P3
 cost: M
@@ -38,3 +38,24 @@ beside `sizing::cone_grid_step`, and drop the fallback.
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
 
 - 2026-11-14 — moved from TESSSIZE to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+## Re-pointed (2026-11-17, `a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it`)
+
+The arm this row describes is deleted. `curved::grid_counts`' cone arm
+takes no rows on any face, and the rectangle lane takes a cylinder or
+cone face only with bare sides: one whose straight side holds a point
+(a ruling split into several edges, or a cone's apex between two
+nappes) is routed to the chart lane (`walk::splits_a_straight_side`,
+read in `tessellate::lane_of`), and reaching the rectangle lane anyway
+refuses as the router's defect (`curved::SPLIT_SIDE_ROUTED_HERE`). The
+fallback lattice made triangles of no area on a cone through its apex
+(the apex copy fanned down the column beside the split side, three
+points of one ruling) and the cylinder wall's split ruling exceeded its
+certificate (`a-cylinder-wall-with-a-split-ruling-exceeds-its-certificate`).
+
+What is left is this row's debt on the chart lane: such a face meshes
+there at `trimmed::UNPROVED_HEADROOM`, on a lattice of rows it does not
+need, and no theorem sizes it. The settling shape is the strip unit's:
+the face without the split, with no interior rows, plus one triangle
+per split vertex.
+

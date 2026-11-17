@@ -214,7 +214,9 @@ pub(crate) enum Lane {
     /// grid on a swept analytic chart.
     Curved,
     /// `trimmed::tessellate_trimmed`: the pcurve-driven lane, on a
-    /// cylinder chart with a trim carrier or on any NURBS chart.
+    /// face that is no iso-rectangle of its analytic chart (a ring, a
+    /// trim carrier, a tilted circle on a sphere, a straight side holding
+    /// a point) or on any NURBS chart.
     Trimmed,
 }
 
@@ -250,11 +252,16 @@ pub(crate) enum Lane {
 /// (`walk::require_a_meridian` and `walk::require_two_columns`), which
 /// is why this dispatch can hand an iso boundary over without deciding
 /// anything about its shape.
+///
+/// One shape is decided here: a cylinder or cone face whose straight
+/// side holds a point between its ends, which the rectangle lane's ruled
+/// arms cannot take (`walk::splits_a_straight_side`, the one reader of
+/// `band` here). Such a face is the trimmed lane's.
 pub(crate) fn lane_of(
     body: &Body<f64>,
     fk: FaceKey,
     surface: &Surface<f64>,
-    tol: &SizingTols,
+    band: Band,
 ) -> Result<Lane, TessellateError> {
     Ok(match *surface {
         Surface::Nurbs(_) | Surface::Approx(_) => Lane::Trimmed,
@@ -262,7 +269,7 @@ pub(crate) fn lane_of(
         _ if has_ring(body, fk)? => Lane::Trimmed,
         _ if crate::trimmed::has_trim_carrier(body, fk)? => Lane::Trimmed,
         Surface::Sphere { .. } if crate::trimmed::has_tilted_circle(body, fk)? => Lane::Trimmed,
-        _ if crate::walk::splits_a_straight_side(body, fk, surface, tol)? => Lane::Trimmed,
+        _ if crate::walk::splits_a_straight_side(body, fk, surface, band)? => Lane::Trimmed,
         _ => Lane::Curved,
     })
 }
@@ -350,7 +357,8 @@ fn tessellate_impl(
     let eps = Eps::at(tol);
     // Props' decision band, built once at operation entry as
     // `Band::linear` prescribes; the curved lane's shape door is its
-    // only consumer (`SizingTols::band`). Eager on purpose: a run whose
+    // only consumer (`SizingTols::band`), read by the lane and by the
+    // dispatch (`lane_of`). Eager on purpose: a run whose
     // ε cannot form a band refuses every body alike, the all-planar
     // ones included, rather than meshing until the first curved face
     // (`TessellateError::Band` says why).
@@ -474,7 +482,7 @@ fn tessellate_impl(
                             Ok(surface) => surface,
                             Err(error) => return (None, Err(error)),
                         };
-                        let lane = match lane_of(body, fk, surface, &tol) {
+                        let lane = match lane_of(body, fk, surface, tol.band) {
                             Ok(lane) => lane,
                             Err(error) => return (None, Err(error)),
                         };

@@ -325,7 +325,7 @@ fn tighten(
         // refuses that face at its own guard — before its window is read.
         if !matches!(curve.carrier(), Curve3::Circle(..)) {
             let surface = crate::tessellate::face_surface(body, s.face)?;
-            if crate::tessellate::lane_of(body, s.face, surface, tol)?
+            if crate::tessellate::lane_of(body, s.face, surface, tol.band)?
                 == crate::tessellate::Lane::Curved
             {
                 continue;
@@ -458,43 +458,45 @@ impl FaceLattice {
         bounds: &mut FaceBounds,
     ) -> Result<Option<Self>, TessellateError> {
         use crate::tessellate::Lane;
-        Ok(match crate::tessellate::lane_of(body, fk, surface, tol)? {
-            Lane::Planar => None,
-            Lane::Curved => {
-                let target = crate::trimmed::face_target(body, fk, tol)?;
-                let Some(chart) = topo::chart::Chart::of(surface) else {
-                    unreachable!("Chart::of answers every curved-lane surface: {surface:?}")
-                };
-                Some(Self {
-                    steps: AnalyticRow::of(body, fk, surface)?.steps(target),
-                    reads: Reads::Iso(chart),
-                })
-            }
-            Lane::Trimmed => {
-                // The spline row borrows the face's cell table, which this
-                // pass is the one to assemble (`face_bound`).
-                if let Some(payload) = surface.spline_chart() {
-                    if payload.is_placeholder() {
-                        return Err(TessellateError::UnsupportedSurface { face: fk });
+        Ok(
+            match crate::tessellate::lane_of(body, fk, surface, tol.band)? {
+                Lane::Planar => None,
+                Lane::Curved => {
+                    let target = crate::trimmed::face_target(body, fk, tol)?;
+                    let Some(chart) = topo::chart::Chart::of(surface) else {
+                        unreachable!("Chart::of answers every curved-lane surface: {surface:?}")
+                    };
+                    Some(Self {
+                        steps: AnalyticRow::of(body, fk, surface)?.steps(target),
+                        reads: Reads::Iso(chart),
+                    })
+                }
+                Lane::Trimmed => {
+                    // The spline row borrows the face's cell table, which this
+                    // pass is the one to assemble (`face_bound`).
+                    if let Some(payload) = surface.spline_chart() {
+                        if payload.is_placeholder() {
+                            return Err(TessellateError::UnsupportedSurface { face: fk });
+                        }
+                        face_bound(bounds, payload, fk)?;
                     }
-                    face_bound(bounds, payload, fk)?;
+                    match ChartRow::of(body, fk, surface, bounds)? {
+                        row @ ChartRow::Spline { .. } => Some(Self {
+                            steps: row.steps(crate::trimmed::face_target(body, fk, tol)?),
+                            reads: Reads::SplineRows,
+                        }),
+                        ChartRow::Analytic(row) if row.chorded_to_lattice() => Some(Self {
+                            steps: crate::trimmed::arm_steps(body, fk, &row, tol)?,
+                            reads: Reads::ChartRows {
+                                singular: !row.singular_points().is_empty(),
+                                budget: row.chord_budget(),
+                            },
+                        }),
+                        ChartRow::Analytic(_) => None,
+                    }
                 }
-                match ChartRow::of(body, fk, surface, bounds)? {
-                    row @ ChartRow::Spline { .. } => Some(Self {
-                        steps: row.steps(crate::trimmed::face_target(body, fk, tol)?),
-                        reads: Reads::SplineRows,
-                    }),
-                    ChartRow::Analytic(row) if row.chorded_to_lattice() => Some(Self {
-                        steps: crate::trimmed::arm_steps(body, fk, &row, tol)?,
-                        reads: Reads::ChartRows {
-                            singular: !row.singular_points().is_empty(),
-                            budget: row.chord_budget(),
-                        },
-                    }),
-                    ChartRow::Analytic(_) => None,
-                }
-            }
-        })
+            },
+        )
     }
 
     /// What this face asks of the half-edge `hek`'s edge: the per-axis
