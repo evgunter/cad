@@ -803,6 +803,7 @@ fn assemble_solid(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     tol: Tol,
+    band: geom_core::Band,
     file: FileCoincidence,
 ) -> Result<BTreeMap<FaceKey, u64>, StepImportError> {
     let target = Target::build(solid)?;
@@ -892,7 +893,7 @@ fn assemble_solid(
     let assembled = Assembled { target, use_he };
     // Each body face's `ADVANCED_FACE`: the join the build ends with
     // reports against the file's faces.
-    let keys = adopt::finish(body, solid, &assembled, tol, file)?;
+    let keys = adopt::finish(body, solid, &assembled, tol, band, file)?;
     Ok(keys
         .into_iter()
         .zip(solid.faces.iter().map(|f| f.id))
@@ -943,6 +944,14 @@ fn build_one_shell(
     tol: Tol,
     file: FileCoincidence,
 ) -> Result<(Body<f64>, Vec<StructureNormalization>), StepImportError> {
+    // A tolerance that makes no band (an ε within K of `f64::MAX`) reads
+    // neither a smooth join nor whether a vertex is joinable, so the
+    // solid refuses here, once, rather than at each edge.
+    let band = geom_core::Band::linear(tol).map_err(|e| StepImportError::Join {
+        solid: solid.id,
+        refusal: topo::JoinRefusal::of(&topo::BooleanError::Band(e)),
+        file,
+    })?;
     let mut body = Body::new();
     // The import IS a door: it runs the operator sequence a foreign
     // file describes, and D1's whole-body tier-1 postcondition is paid
@@ -951,11 +960,11 @@ fn build_one_shell(
     // it used to cost one per mint. The guard owns the borrow, so a
     // refusal part-way closes the scope by dropping it.
     let mut door = body.begin_surgery();
-    let faces = assemble_solid(&mut door, solid, tol, file)?;
+    let faces = assemble_solid(&mut door, solid, tol, band, file)?;
     topo::mint_pcurves(&mut door, tol)
         .map_err(|source| StepImportError::Pcurves { source, file })?;
     door.sweep_and_close();
-    let joins = join(&mut body, solid.id, &faces, tol, file)?;
+    let joins = join(&mut body, solid.id, &faces, tol, band, file)?;
     Ok((body, joins))
 }
 
@@ -976,6 +985,7 @@ fn join(
     solid: u64,
     faces: &BTreeMap<FaceKey, u64>,
     tol: Tol,
+    band: geom_core::Band,
     file: FileCoincidence,
 ) -> Result<Vec<StructureNormalization>, StepImportError> {
     let refused = |refusal: &topo::BooleanError| StepImportError::Join {
@@ -983,10 +993,6 @@ fn join(
         refusal: topo::JoinRefusal::of(refusal),
         file,
     };
-    // A tolerance that makes no band (an ε within K of `f64::MAX`) cannot
-    // read whether a vertex is joinable, so the join refuses here rather
-    // than leave one unread for the gate behind it.
-    let band = geom_core::Band::linear(tol).map_err(|e| refused(&topo::BooleanError::Band(e)))?;
     let joins = body.join_edges(band, tol).map_err(|e| refused(&e))?;
     joins
         .iter()
