@@ -7,7 +7,7 @@ opened: 2026-11-14
 priority: P1
 cost: H
 design: true
-blocked_on: [a-curved-face-is-routed-by-its-domain-not-its-carriers, a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line, a-ruled-face-is-meshed-as-a-strip]
+blocked_on: [a-curved-face-is-routed-by-its-domain-not-its-carriers, a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line, a-ruled-face-with-a-split-side-meshes-at-the-density-of-the-face-without-it]
 ---
 
 
@@ -37,4 +37,4 @@ Measured by the turned-ball unit (`a-sphere-face-tilted-by-an-ulp-against-its-co
 
 - 2026-11-16 — **also behind unit 4b** (`a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line`). Until a face bounded by iso runs sizes at δ on the chart lane, moving a rectangle there would mesh it at the headroom's share of δ and move every curved byte main emits, so the density measurement this row owes Ev has nothing fair to measure before then.
 
-- 2026-11-17 — **also behind unit 4c** (`a-ruled-face-is-meshed-as-a-strip`), and the measurement is owed per chart. On today's chart lane a cylinder or cone rectangle takes 7 to 86 times the rectangle lane's triangles (500 on a slender cone), because the lane lays rows a ruled face does not need; this unit's own rule would answer "stop at unit 4" for a reason unit 4c removes.
+- 2026-11-17 — **also behind unit 4c** (`a-ruled-face-with-a-split-side-meshes-at-the-density-of-the-face-without-it`), and the measurement is owed per chart. On today's chart lane a cylinder or cone rectangle takes 7 to 86 times the rectangle lane's triangles (500 on a slender cone), because the lane lays rows a ruled face does not need; this unit's own rule would answer "stop at unit 4" for a reason unit 4c removes.
