@@ -4,11 +4,11 @@ kind: issue
 title: a cone face with two points of one ruling closer than its development resolves refuses DevelopedMerge
 status: open
 opened: 2026-11-17
-priority: P2
+priority: P1
 cost: M
 ---
 
-Found by PR 7049's review (`a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it`); ruled a residual of that PR (TESSLANE, 2026-11-17), then raised to P2 when the review showed it at the default ε.
+Found by PR 7049's review (`a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it`); ruled a residual of that PR (TESSLANE, 2026-11-17), then raised to P1 when the review showed it at the default ε.
 
 ## Finding
 
@@ -58,16 +58,9 @@ Pinned: `split_rulings::a_draft_cone_ruling_split_within_the_developments_resolu
 `split_rulings::a_ruling_split_within_the_developments_resolution_refuses`
 (ε `10⁻¹²`).
 
-## The cures seen
+## The cure
 
-- In the chart lane's cone arm, keeping the exact-collinearity rule:
-  where the merging points are consecutive points of one straight side of
-  the developed polygon, give the CDT one vertex for the run and re-split
-  its fan after triangulation (the first triangle takes the first point,
-  the rest of the fan the last, and one triangle per gap joins them to
-  the fan's first spoke); a merge of points not consecutive on one side
-  still refuses.
-- Give the radius more bits on a face whose points need them, at the cost
-  of direction bits: a per-face design choice about the development's cut.
-- For these faces the strip unit (`a-ruled-face-is-meshed-as-a-strip`,
-  parked on Ev's answer) takes them out of the development altogether.
+Its cure is specified in
+`work/tesslane/a-run-of-ruling-points-the-development-merges-is-re-split-after-the-triangulation.md`.
+The strip unit (`a-ruled-face-is-meshed-as-a-strip`, parked on Ev's
+answer) would take these faces out of the development altogether.
