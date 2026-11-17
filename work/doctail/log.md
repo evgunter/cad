@@ -65,3 +65,13 @@ body has the reasons):
 - 2026-11-17 — **`verdict` fork, to Ev as `[ev]` PR 7076.** Both designers recommend a check-or-choice tag on each logged decision, set by a scope where the outcome is used, with the diagnosis naming a flip only at the first choice two runs take differently. The pass-over list, `in_family`'s prefixes and `FoldNames` retire. A third defect was found: inside a node the named cause is the alphabetically first moved predicate. The row is parked on 7076. Unchecked: the side reader's ANSWER may be an unlogged steering decision.
 - 2026-11-17 — **The P0 (`a-reshaping-that-joins…`) implementer stopped before building, correctly.** Runs are decided by value (`swept::cosurface`); nothing records carrier continuation by construction; profile validation's `judge_joints` is a second, value-based copy of the carrier rule. So a value-free strand report cannot see a run join, which couples the P0 to 7075. It went to a designer pair (`runwall`) on what a swept wall's run is. The abandoned draft is at `~/.local/share/cad-work/doctail/doctail-runstrand/` (local only).
 - 2026-11-17 — **`split` fork: decided here, not Ev's.** Both designers find that ratified A4 *Split* and A10 already prescribe the answer and that the code departs from them: the product slot is a reader like any slot. One designer measured it: split takes the product's volume from 9 to 12. Built as one enumeration of read sites including the product, re-pointed by split, inline and flatten's shared rule, with no refusal (`doctail/split-widens-…`). Tier: single FULL review. The part-product generalisation and the census question are filed by that unit.
+- 2026-11-17 — **`runwall` fork, to Ev as `[ev]` PR 7082, stacked on 7075.** Both designers agree:
+  - a run is a value fact, decided once by profile validation's per-joint carrier verdict, with a margin that reads both legs; the sweep, the names, the lint and the door read that record, and `swept::cosurface` goes;
+  - DM7 compares the partition (pieces, runs, corners) at generic values and judges each held name whole, which closes both pinned rows.
+
+  Open for Ev: whether a held wall name should survive a corner fillet. Both designers lean to keeping N3 (loud retirement). The P0 is parked on 7082 and 7075. Off-question findings, to be filed with the build:
+  - `collapse_runs` chains pairwise verdicts, so runs of three or more pieces are never re-decided against their collapsed carrier;
+  - the lint (`coincide.rs` from `decided_joints`) and the body's glue can disagree;
+  - N1's "Undrawn pieces" example is stale since PR 6682;
+  - `[topology]` has a garbled sentence on main ("The join never removes a cut either / exception requires.");
+  - the swept-order asymmetry is reachable from raw loop tables.
