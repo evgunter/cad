@@ -1400,3 +1400,8 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - cut 3 and the reach row, drawn earlier, are dropped from the experiment, so they get no rows;
   - reviews keep the tier's depth with Opus reviewers: two concurrent on the reach row, and a single review on cut 3 with a second only on a MAJOR;
   - any design fork goes to two Opus designers and is flagged as single-model on its `[ev]` PR.
+- 2026-11-17 — Cut 3 opened PR 7072 (head 892c86881b, CI green; 33-row site table). It implements the 6866 and 7058 vocabulary: `UnbuiltEnd` with 8 tags, `ObliqueMixedCorner`, and the curved-link `UnsupportedChain` minted through a shared `admit::open_link`. The prelude retirements are done. It moved two things outside the brief, and both go to review:
+  - `FootInsideAFace` gets its own recourse;
+  - the open rim arcs of partial revolves now refuse `UnsupportedChain` instead of `Indeterminate`.
+
+  It has a single Opus review, with no experiment arm.
