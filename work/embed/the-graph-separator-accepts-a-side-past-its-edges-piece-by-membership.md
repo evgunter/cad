@@ -38,3 +38,63 @@ No instance has been shown.
    soundness takes the gate's band. Then make membership require the
    side's parameters to lie in the graph's piece, as the curve arm
    already does.
+
+## Measured and landed (embed/graph-piece, PR 7080, 2026-11-17)
+
+**It occurs.** A presentation does hand the graph separator a side past
+its edge's piece, and membership accepted it.
+
+- **Where.** `present_line_corner` reads a corner by its coordinate line,
+  and its zero side runs over the cell's range widened to the vertex, so
+  past the vertex onto the line's continuation. `present_plane_corner`
+  does the same on a plane's line edge. The graph's piece is clipped to
+  the edge's span.
+- **The fixture.** `rim_corner`'s cylinder (the rim `v = ½` at `u ≤ 1`,
+  the other edge leaving `(1, ½)` down and on toward `u > 1`) against a
+  torus whose crest is the rim. The torus is tangent to the rim's
+  plane, so the plane arm fails, and the carrier arm fails once the
+  torus's cell passes `v = 0`. On 36 of 36 pairs that reached the
+  graph, the cylinder's side ran 0.01–0.1 rad past the piece, and
+  `sign_on` read it `Some(Positive)`. No pair went on to `Certified`:
+  the torus's sign under the graph was `None`.
+- **In the suites.** In topo's suite, 0 sides reached the graph (all 365
+  readings were curves). In sweep's injectivity, cavity and embedding
+  suites (77 rows), 876 corner sides reached it. A projection probe
+  found those past the piece all on line edges. There the graph's
+  extension, affine with the line's own slope, vanishes on all of the
+  line, so main was sound on them, though nothing said so. No circle
+  corner side was seen past its piece outside the fixture.
+- **And a second, ulp-level instance.** `edge_piece` reads the piece off
+  the presentations' image boxes, which can miss the stored carrier by
+  the chart's rounding. In the filleted drum, the box at `u = π` has
+  `y ≥ sin π ≈ 1.2e-16`, and the ruling is stored at `y = 0`. So a
+  side over `(0, 1.7)` met a piece of `(0, 0.85)`. Filed as
+  `edge-piece-misses-a-chart-sides-stored-carrier-by-the-charts-rounding`.
+
+**What landed.**
+- Every side presenter records the side's parameters on its one edge
+  (`Along::params`): an affine map of the chart side through the use
+  image's and span's ends (`iso_params`), or of a plane segment's
+  coordinate (`segment_params`). Parameters are kept only for a whole
+  side, whose chart line is its edge's own line or circle.
+- `graph_of` folds a whole side's parameters into the piece, as it
+  already folded a whole curve's, a circle's moved by whole turns. The
+  graph is then the carrier's own graph over the side, and the advance
+  check covers it.
+- `sign_on` under the graph reads a side zero where its parameters lie
+  in the piece. A spline side, with no parameters, is read zero where
+  it lies on its edge (`Along::on_edges`, present_chart's coverage and
+  the plane segment's span), as main read it; the filed row is what
+  that leaves.
+
+**Pins.** `a_corner_side_past_its_vertex_is_zero_under_the_graph_only_within_its_piece`,
+`the_graphs_piece_holds_a_whole_sides_parameters_past_its_edge`,
+`a_plane_side_is_zero_under_the_graph_only_within_its_piece` (topo), and
+the drum and the lofts for the fold's turns and the spline reading.
+
+**Mutants.** Membership alone reds the corner and plane pins. Without
+the fold, the piece pin goes red. The chart map read off the wrong end
+reds the corner and piece pins; the segment map read off the wrong end
+reds the plane pin. Without the whole-turn shift, the filleted drum
+refuses (`Uncertified`, Departure). Without the spline reading, the
+triangle loft and editor-core's loft refuse.
