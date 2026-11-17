@@ -3,7 +3,9 @@
 //! `Node::Subtract` — its mouth by name, and every edge of the pocketed
 //! block. Each removes Pappus's closed form, and each junction is named
 //! once, as `BandSection { vertex }`, a name an unrelated edit keeps.
-//! The fixtures are review lane band-chain-r2's for PR 6520.
+//! The fixtures are review lane band-chain-r2's for PR 6520. The plate
+//! chamfers whole too, its strips and frustums meeting along the
+//! generators the junctions leave, under the same names.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -261,5 +263,68 @@ fn every_edge_of_a_rounded_pocket_fillets_at_its_closed_form() {
         sections(&ev, f).len(),
         16,
         "the mouth's and the floor's junctions"
+    );
+}
+
+/// The names of `node`'s own table, sorted.
+fn every_name(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
+    let mut v: Vec<StableName> = table(ev, node)
+        .iter()
+        .filter(|(n, _)| n.node == node)
+        .map(|(n, _)| n.clone())
+        .collect();
+    v.sort();
+    v
+}
+
+/// **The rounded plate chamfered by name**: every edge, each rim's
+/// strips' prisms and frustums' quarter rings removing
+/// `s²/2·ΣL + π·s²·(R − s/3)` (the top runs from each rim toward the
+/// arcs' axes), each junction's generator named once as `BandSection`,
+/// every name of the table unique, alike on a replay, and kept by an
+/// edit of the setback in place, over the prior and fresh.
+#[test]
+fn a_rounded_plate_chamfered_by_name_names_each_section_once_and_keeps_its_names() {
+    let doc = ProfileDoc::empty_derived("band_mixed_plate_chamfer", Tol::witness());
+    let (doc, plate) = prism(doc, rounded(0.0, 0.0, 2.0, 1.2, 0.3), 0.5);
+    let ev0 = run(&doc);
+    let every = editor_core::all_edges(&ev0, plate);
+    let s = 0.1;
+    let (doc, c) = insert(doc, Node::chamfer(plate, len(s), every));
+    let ev = run(&doc);
+    let lines = 2.0 * (2.0 - 0.6) + 2.0 * (1.2 - 0.6);
+    let truth = 2.0 * (0.5 * s * s * lines + PI * s * s * (0.3 - s / 3.0));
+    assert_removed("chamfered plate", &ev0, plate, &ev, c, truth);
+    let named = sections(&ev, c);
+    let mut unique = named.clone();
+    unique.dedup();
+    assert_eq!(
+        (named.len(), unique.len()),
+        (16, 16),
+        "one name per junction of both rims"
+    );
+    let all = every_name(&ev, c);
+    let mut distinct = all.clone();
+    distinct.dedup();
+    assert_eq!(all.len(), distinct.len(), "every name of the table is unique");
+    assert_eq!(all, every_name(&run(&doc), c), "a replay names every entity alike");
+    let (edited, _) = crate::fixture::step(
+        doc.clone(),
+        DocEdit::SetParam {
+            node: c,
+            slot: SlotId::ChamferDistance,
+            value: len(0.08).into(),
+            fresh: Vec::new(),
+        },
+    );
+    assert_eq!(
+        all,
+        every_name(&crate::fixture::run_with_prior(&edited, &ev), c),
+        "the setback edited, replayed over the prior"
+    );
+    assert_eq!(
+        all,
+        every_name(&run(&edited), c),
+        "the setback edited, evaluated fresh"
     );
 }

@@ -338,7 +338,9 @@ fn a_notchs_rounded_floor_run_fillets_whole_adding_pappuss_volume() {
 /// Chamfer `edges` of `body` at `s` and check the carve as [`run_row`]
 /// does a fillet's: tier 3, naming total, one band face per link and one
 /// section per junction, and the volume moved (`sign` −1 removed, +1
-/// added) at `truth`.
+/// added) at `truth`. At `Interval` at ε = 1e-12 every chamfer section's
+/// shared row refuses to admit, axis-aligned or not, and the row pins
+/// that refusal instead ([`assert_shared_row_unadmitted`]).
 pub(crate) fn chamfer_run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     what: &str,
     body: &Body<T>,
@@ -346,9 +348,21 @@ pub(crate) fn chamfer_run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRes
     s: T,
     (links, junctions): (usize, usize),
     (sign, truth): (f64, f64),
-) -> sweep::blend::Blended<T> {
-    let out = chamfer_edges(&at_rest(body, tol()), edges, s, tol())
-        .unwrap_or_else(|e| panic!("{what}: the open mixed chain chamfers whole, got {e:?}"));
+) -> Option<sweep::blend::Blended<T>> {
+    let out = match chamfer_edges(&at_rest(body, tol()), edges, s, tol()) {
+        Ok(out) => {
+            assert!(
+                !tightest_interval::<T>(),
+                "{what}: built where its section's row does not admit"
+            );
+            out
+        }
+        Err(e) if tightest_interval::<T>() => {
+            assert_shared_row_unadmitted(what, &e.error);
+            return None;
+        }
+        Err(e) => panic!("{what}: the open mixed chain chamfers whole, got {e:?}"),
+    };
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
     assert_naming_totality(body, &out, edges, what);
     let rec = out.naming.as_ref().expect("the carve's birth records");
@@ -371,7 +385,7 @@ pub(crate) fn chamfer_run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRes
         "{what}: ΔV {moved} is Pappus's {truth} (enclosure ±{})",
         w0 + w1
     );
-    out
+    Some(out)
 }
 
 /// **The open mixed chains chamfered**, each at Pappus by pieces: the

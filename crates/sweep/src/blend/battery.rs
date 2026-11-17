@@ -2083,7 +2083,7 @@ fn feet_apart<T: Real>(a: &Link<T>, b: &Link<T>, p: Point3<T>) -> Result<T, Blen
             .ok_or_else(|| {
                 unbuilt_geometry(
                     EntityId::Edge(l.edge),
-                    "a chamfer band's trim is neither a line nor a circle",
+                    "a band's trim at a junction is neither a line nor a circle",
                 )
             })
     };

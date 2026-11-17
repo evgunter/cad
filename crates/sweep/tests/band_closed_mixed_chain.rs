@@ -21,6 +21,7 @@
 use core::f64::consts::{FRAC_PI_2, PI};
 
 use crate::band_closed_mixed_chain_shapes::{assert_touch_escalation, tightest_interval};
+use crate::band_open_mixed_chain::assert_shared_row_unadmitted;
 use crate::common::interval::iv;
 use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point2, Point3, Tol};
 use profile::{SketchPlane, test_support::bulge_loop};
@@ -213,16 +214,30 @@ fn chamfer_pappus(s: f64, inward: bool) -> f64 {
 /// total over `requested`, one band face and one section per link, the
 /// strips planes and the frustums cones, and `|ΔV|` at `want` (removed
 /// on a convex rim, added on a concave one) within the certified
-/// enclosure.
+/// enclosure. At `Interval` at ε = 1e-12 the sections' shared rows do
+/// not admit, and the row pins that refusal instead
+/// ([`assert_shared_row_unadmitted`]).
 fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     what: &str,
     body: &Body<T>,
     (edges, requested): (&[EdgeKey], &[EdgeKey]),
     s: T,
     want: f64,
-) -> sweep::blend::Blended<T> {
-    let out = chamfer_edges(&at_rest(body, tol()), edges, s, tol())
-        .unwrap_or_else(|e| panic!("{what}: the outline chamfers whole, got {e:?}"));
+) -> Option<sweep::blend::Blended<T>> {
+    let out = match chamfer_edges(&at_rest(body, tol()), edges, s, tol()) {
+        Ok(out) => {
+            assert!(
+                !tightest_interval::<T>(),
+                "{what}: built where its section's row does not admit"
+            );
+            out
+        }
+        Err(e) if tightest_interval::<T>() => {
+            assert_shared_row_unadmitted(what, &e.error);
+            return None;
+        }
+        Err(e) => panic!("{what}: the outline chamfers whole, got {e:?}"),
+    };
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
     assert_naming_totality(body, &out, requested, what);
     let rec = out.naming.as_ref().expect("the carve's birth records");
@@ -266,7 +281,7 @@ fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
         "{what}: the enclosure is a claim: ±{}",
         w0 + w1
     );
-    out
+    Some(out)
 }
 
 /// **A rounded plate chamfered all round**: its top outline alone, then
