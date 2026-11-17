@@ -1154,7 +1154,28 @@ pub(crate) fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEncl
         min_sin = min_sin.min(sin_theta);
         Ok(())
     };
-    let pcurve = chart_image(carrier, params, wall, band, per_sample)?;
+    let pcurve = match chart_image(carrier, params, wall, band, per_sample) {
+        // An image that misses past its cap may be the carrier's own
+        // fault (a carrier no net encloses, one off the partner): what
+        // the partner's limbs refuse of the carrier alone stands first.
+        Err(
+            missed @ PlaneNurbsRefusal::Limb {
+                limb: SsiLimb::ImageMiss,
+                ..
+            },
+        ) => {
+            crate::ssi::certify::incidence_limbs(
+                carrier,
+                params,
+                &[crate::ssi::certify::IncidenceOperand::Analytic(partner)],
+                band,
+                &mut crate::ssi::certify::Refused::default(),
+            )
+            .map_err(refusal)?;
+            return Err(missed);
+        }
+        image => image?,
+    };
     // FAIL LOUD on a poisoned aggregate. A NaN sine cannot reach here
     // today — the per-sample `decide` above escalates on its levered
     // margin first — but the reported transversality must not depend on

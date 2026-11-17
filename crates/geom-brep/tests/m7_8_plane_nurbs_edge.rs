@@ -529,10 +529,11 @@ fn a_non_lane_defect_on_this_class_is_reported() {
 /// one producer, in both of its shapes.** The true locus, on two
 /// carrier domains:
 ///
-/// - `[1e6, 1e6 + 1e-9]`, far narrower than an ulp of its ends times
-///   the schedule's 32 steps: every foot converges and the
-///   interpolation succeeds, and re-expressing the image on that domain
-///   collapses its knots under `f64` rounding;
+/// - `[1e6, 1e6 + 3e-10]`, three ulps of its ends wide: narrower than
+///   an ulp times a line's chain of 8 spans, whose knots collapse there
+///   under `f64` rounding, and too narrow for the feet of a spline's
+///   one-span chain to be read at their own parameters, so its image
+///   takes knots until they collapse too;
 /// - `[−f64::MAX, f64::MAX]`, whose width overflows: no knot vector
 ///   admits it, and a line's image over it is refused at the door with
 ///   the interval's fault (`DomainInvalid`, the span check), before the
@@ -553,7 +554,7 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
     let wall = quarter_cylinder_wall();
     // (lo, hi, whether the fault is the knot collapse, what it says)
     let rows = [
-        (1.0e6, 1.0e6 + 1.0e-9, true, "collapsed"),
+        (1.0e6, 1.0e6 + 3.0e-10, true, "collapsed"),
         (
             -f64::MAX,
             f64::MAX,

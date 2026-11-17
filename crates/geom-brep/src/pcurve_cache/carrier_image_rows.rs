@@ -1,27 +1,25 @@
-//! **The mint's `General` image climbs on its measured miss** (D3), not on
-//! its carrier's class: `general_image_lane` takes the degree-1 image the
-//! edge certificate reads, reads its miss midway between feet, and climbs
-//! `edge_nurbs::general_chart_image`'s rungs where that miss exceeds the
-//! rung's share of the band. A refusal of the image the mint produced is
-//! the lane's gap ([`super::minted_refusal`]), never a tolerance offer.
+//! **The mint's `General` image is the carrier's one image on its wall**
+//! (C2, [`crate::carrier_image`]): the wall's foot path interpolated on
+//! the carrier's own knots, refined by knot insertion only where its
+//! measured miss asks. A refusal of the image the mint produced is the
+//! lane's gap ([`super::minted_refusal`]), never a tolerance offer.
 //!
 //! - A curved spline carrier, the rational one-span arc of a ring's
 //!   circle on that ring, and a line on a flat wall whose `v` is not
 //!   affine in height (control rows at `z = 0, 0.1, 1`) bend on their
-//!   walls and climb: each certifies at `f64` and at `Interval`.
+//!   walls and take knots past their chains: each certifies at `f64` and
+//!   at `Interval`.
 //! - A line and a degree-1 spline on a flat bilinear wall follow their
-//!   degree-1 images and keep them: no climb. Nor does a line a few ε
-//!   off that wall, whose feet's miss is its standoff, which no finer
-//!   image lowers.
-//! - The threshold: a line on the uneven wall whose chord miss is 0.6 of
-//!   the rung's share keeps degree 1, one at 1.6 of it climbs.
-//! - A chord miss beside a standoff across the wall climbs: the standoff
+//!   chains' images and keep them. Nor does a line a few ε off that wall
+//!   take a knot: its feet's miss is its standoff, which no finer image
+//!   lowers.
+//! - The threshold: a line on the uneven wall whose chain misses by 0.6
+//!   of the image's share of the band keeps its chain, one at 1.6 of it
+//!   takes a knot.
+//! - A miss beside a standoff across the wall takes a knot: the standoff
 //!   is subtracted as a vector, not a norm.
-//!
-//! The `general-image-class-gate` mutant (the climb and the relabel keyed
-//! on a curved carrier with no net) reds every row whose carrier is a
-//! line or a spline that should climb: each takes the degree-1 image, and
-//! a refusal keeps its own term.
+//! - A spline carrier's image holds the carrier's knots, each at the
+//!   multiplicity that keeps its continuity.
 
 use std::sync::Arc;
 
@@ -32,7 +30,7 @@ use geom_core::{Decide, Interval, Point3, Vec3};
 use super::spline_door_rows::band;
 use super::{LaneGap, Pcurve, PcurveCache, PcurveCertifyError, minted_refusal};
 use crate::FittedLane;
-use crate::edge_nurbs::{GENERAL_IMAGE_DEGREE, PXN_FIT_SAMPLES, PXN_IMAGE_DEGREE};
+use crate::carrier_image::{CLOSED_FORM_SPANS, IMAGE_DEGREE};
 use crate::recourse::Reading;
 
 /// The unit cylinder over `z ∈ [−½, ½]` through `1.2` rad from `x̂`, in
@@ -168,17 +166,16 @@ fn mint<T: Decide>(
     Minted { image, certified }
 }
 
-/// Whether `image` is the degree-1 image of [`PXN_FIT_SAMPLES`] feet.
-fn degree_one<T: geom_core::Real>(image: &NurbsCurve2<T>) -> bool {
-    image.degree() == PXN_IMAGE_DEGREE && image.control().len() == PXN_FIT_SAMPLES as usize
-}
+/// The control points of a carrier's chain at the image's degree: a
+/// closed form's uniform spans.
+const CLOSED_FORM_CHAIN: usize = CLOSED_FORM_SPANS + IMAGE_DEGREE;
 
-/// A carrier whose feet bend on its wall climbs past the degree-1 image.
-/// Where `certifies`, the climbed image certifies; anywhere else its
-/// refusal ends the lane's gap, "not yet" ([`LaneGap::Image`], or the
-/// same check escalated in band), never a tolerance offer.
-/// It climbs to the curved rung of `rung` nodes.
-fn bends_and_climbs<T: Decide>(name: &str, minted: &Minted<T>, rung: usize, certifies: bool) {
+/// A carrier whose feet bend on its wall takes knots past its chain of
+/// `chain` control points. Where `certifies`, the image certifies;
+/// anywhere else its refusal ends the lane's gap, "not yet"
+/// ([`LaneGap::Image`], or the same check escalated in band), never a
+/// tolerance offer.
+fn bends_and_refines<T: Decide>(name: &str, minted: &Minted<T>, chain: usize, certifies: bool) {
     if let Err(got) = &minted.certified {
         let ending = got.ending(Reading::Build);
         assert!(
@@ -193,19 +190,19 @@ fn bends_and_climbs<T: Decide>(name: &str, minted: &Minted<T>, rung: usize, cert
                 }
             ) && ending.contains(geom_core::NOT_YET_ENDING)
                 && !ending.contains("loosen"),
-            "{name} at {}: a refused climb is the lane's gap: {got:?} :: {ending}",
+            "{name} at {}: a refused image is the lane's gap: {got:?} :: {ending}",
             T::NAME
         );
     }
     assert!(
         !certifies || minted.certified.is_ok(),
-        "{name} at {}: the climbed image certifies: {:?}",
+        "{name} at {}: the image certifies: {:?}",
         T::NAME,
         minted.certified
     );
     assert!(
-        minted.image.degree() == GENERAL_IMAGE_DEGREE && minted.image.control().len() == rung,
-        "{name} at {}: the feet bend, so the image climbs to the rung of {rung} nodes \
+        minted.image.degree() == IMAGE_DEGREE && minted.image.control().len() > chain,
+        "{name} at {}: the feet bend, so the image takes knots past its chain of {chain} \
          (degree {}, {} control points)",
         T::NAME,
         minted.image.degree(),
@@ -213,40 +210,35 @@ fn bends_and_climbs<T: Decide>(name: &str, minted: &Minted<T>, rung: usize, cert
     );
 }
 
-fn the_bending_carriers_climb<T: Decide>(lane: FittedLane<T>) {
-    // The rung each reaches at the ε rows the suite runs: a finer band
-    // asks a finer one.
-    let zero = band().zero();
-    bends_and_climbs(
+fn the_bending_carriers_refine<T: Decide>(lane: FittedLane<T>) {
+    // A one-span quadratic's chain at the image's degree: one cubic span.
+    bends_and_refines(
         "the ring's spline arc",
         &mint::<T>(lane, &ring_arc(), (0.0, 1.0), &ring_wall()),
-        if zero >= 1e-9 { 33 } else { 65 },
+        IMAGE_DEGREE + 1,
         true,
     );
-    // Below `ε = 1e-10` the hull over-reads the climbed image's miss on
-    // this stretched chart (`a-climbed-general-image-on-a-stretched-chart-
-    // reads-its-hull-wide-at-fine-eps`), which ends the lane's gap.
-    bends_and_climbs(
+    bends_and_refines(
         "a line on the uneven wall",
         &mint::<T>(lane, &uneven_line(), (0.0, 1.2), &uneven_wall()),
-        if zero >= 1e-6 { 129 } else { 257 },
-        zero >= 1e-10,
+        CLOSED_FORM_CHAIN,
+        true,
     );
 }
 
 #[test]
-fn the_bending_carriers_climb_at_f64() {
-    the_bending_carriers_climb(FittedLane::<f64>::certified());
+fn the_bending_carriers_refine_at_f64() {
+    the_bending_carriers_refine(FittedLane::<f64>::certified());
 }
 
 #[test]
-fn the_bending_carriers_climb_at_interval() {
-    the_bending_carriers_climb(FittedLane::<Interval>::certified());
+fn the_bending_carriers_refine_at_interval() {
+    the_bending_carriers_refine(FittedLane::<Interval>::certified());
 }
 
-/// A carrier whose degree-1 image follows it keeps that image, the one
-/// its edge certificate reads, and certifies.
-fn straight_feet_keep_degree_one<T: Decide>(lane: FittedLane<T>) {
+/// A carrier whose chain's image follows it keeps that chain, and
+/// certifies.
+fn straight_feet_keep_their_chain<T: Decide>(lane: FittedLane<T>) {
     let line = Curve3::line(Point3::new(0.1, 0.0, 0.2), Vec3::new(0.6, 0.0, 0.8));
     let spline = Curve3::Nurbs(Arc::new(
         NurbsCurve3::new(
@@ -256,11 +248,14 @@ fn straight_feet_keep_degree_one<T: Decide>(lane: FittedLane<T>) {
         )
         .unwrap(),
     ));
-    for (name, carrier) in [("the line", line), ("the degree-1 spline", spline)] {
+    for (name, carrier, chain) in [
+        ("the line", line, CLOSED_FORM_CHAIN),
+        ("the degree-1 spline", spline, IMAGE_DEGREE + 1),
+    ] {
         let minted = mint::<T>(lane, &carrier, (0.0, 1.0), &flat_wall());
         assert!(
-            degree_one(&minted.image) && minted.certified.is_ok(),
-            "{name} at {}: the degree-1 image, certified (degree {}, {} control points): {:?}",
+            minted.image.control().len() == chain && minted.certified.is_ok(),
+            "{name} at {}: its chain's image, certified (degree {}, {} control points): {:?}",
             T::NAME,
             minted.image.degree(),
             minted.image.control().len(),
@@ -268,7 +263,7 @@ fn straight_feet_keep_degree_one<T: Decide>(lane: FittedLane<T>) {
         );
     }
     // In band of the wall: its certificate is the incidence read's, but
-    // its image is the degree-1 one.
+    // its image is its chain's.
     let standoff = 3.0 * band().zero();
     let off = Curve3::line(Point3::new(0.1, standoff, 0.2), Vec3::new(0.6, 0.0, 0.8));
     let image = lane
@@ -280,7 +275,7 @@ fn straight_feet_keep_degree_one<T: Decide>(lane: FittedLane<T>) {
         )
         .unwrap();
     assert!(
-        degree_one(&image),
+        image.control().len() == CLOSED_FORM_CHAIN,
         "a line {standoff:e} m off the wall at {}: its standoff is no bend (degree {}, {} \
          control points)",
         T::NAME,
@@ -290,69 +285,70 @@ fn straight_feet_keep_degree_one<T: Decide>(lane: FittedLane<T>) {
 }
 
 #[test]
-fn straight_feet_keep_degree_one_at_f64() {
-    straight_feet_keep_degree_one(FittedLane::<f64>::certified());
+fn straight_feet_keep_their_chain_at_f64() {
+    straight_feet_keep_their_chain(FittedLane::<f64>::certified());
 }
 
 #[test]
-fn straight_feet_keep_degree_one_at_interval() {
-    straight_feet_keep_degree_one(FittedLane::<Interval>::certified());
+fn straight_feet_keep_their_chain_at_interval() {
+    straight_feet_keep_their_chain(FittedLane::<Interval>::certified());
 }
 
-/// The largest miss of the degree-1 image of `carrier` on `wall` over
+/// The largest miss of the chain's image of `carrier` on `wall` over
 /// `(0, l)`, midway between its feet and net of the standoff its feet
 /// carry, as the producer reads it, at `f64`: the image taken under a
-/// band too wide for any rung to climb past it.
-fn chord_miss(carrier: &Curve3<f64>, l: f64, wall: &NurbsSurface<f64>) -> f64 {
+/// band too wide for any miss to ask a knot.
+fn chain_miss(carrier: &Curve3<f64>, l: f64, wall: &NurbsSurface<f64>) -> f64 {
     let wide = geom_core::Band::new(1e3, 2e3).unwrap();
     let image = FittedLane::<f64>::certified()
         .general_image(carrier, (0.0, l), wall, wide)
         .unwrap();
-    assert!(degree_one(&image), "a band of a kilometre keeps degree 1");
+    assert_eq!(
+        image.control().len(),
+        CLOSED_FORM_CHAIN,
+        "a band of a kilometre keeps the chain"
+    );
     let gap = |t: f64| {
         let p = image.eval(t);
         wall.eval(p.x, p.y) - carrier.eval(t)
     };
-    let steps = f64::from(PXN_FIT_SAMPLES - 1);
-    (0..PXN_FIT_SAMPLES - 1)
-        .map(|i| {
-            let at = |f: f64| l * f / steps;
-            let (a, m, b) = (
-                at(f64::from(i)),
-                at(f64::from(i) + 0.5),
-                at(f64::from(i) + 1.0),
-            );
-            (gap(m) - (gap(a) + gap(b)) * 0.5).norm()
-        })
+    // The chain's feet: the Greville abscissae of its uniform cubic knots.
+    let n = CLOSED_FORM_SPANS;
+    let knot = |i: isize| (i.clamp(0, n as isize) as f64) / n as f64;
+    let nodes: Vec<f64> = (0..CLOSED_FORM_CHAIN as isize)
+        .map(|j| l * (knot(j - 2) + knot(j - 1) + knot(j)) / 3.0)
+        .collect();
+    nodes
+        .windows(2)
+        .map(|w| (gap(0.5 * (w[0] + w[1])) - (gap(w[0]) + gap(w[1])) * 0.5).norm())
         .fold(0.0, f64::max)
 }
 
-/// The length of [`uneven_line`] whose degree-1 chord miss is `share` of
-/// the band: the miss grows as the square of the length, read again
+/// The length of [`uneven_line`] whose chain's miss is `share` of the
+/// band: the miss grows as the fourth power of the length, read again
 /// until it lands within 2% of the share.
 fn uneven_line_at(share: f64) -> f64 {
     let target = share * band().zero();
     let mut l = 0.3_f64;
-    for _ in 0..8 {
-        let miss = chord_miss(&uneven_line(), l, &uneven_wall());
+    for _ in 0..12 {
+        let miss = chain_miss(&uneven_line(), l, &uneven_wall());
         if (miss / target - 1.0).abs() <= 0.02 {
             return l;
         }
-        l *= (target / miss).sqrt();
+        l *= (target / miss).powf(0.25);
     }
     panic!("no length of the uneven line reads {share} of the band");
 }
 
-/// **The threshold**: the climb stops where the degree-1 image's miss is
-/// within `GENERAL_IMAGE_MISS` of the band. A line on the uneven wall
-/// whose chord miss is 0.6 of that share keeps degree 1, and one at 1.6
-/// of it climbs: halving the share reds the first, doubling it the
-/// second.
-fn the_threshold_is_the_rungs_share<T: Decide>(lane: FittedLane<T>) {
-    // `GENERAL_IMAGE_MISS`, pinned here as a value: a row that read the
-    // constant would move with it.
+/// **The threshold**: the image keeps its chain where the chain's miss
+/// is within `IMAGE_MISS` of the band. A line on the uneven wall whose
+/// miss is 0.6 of that share keeps its chain, and one at 1.6 of it takes
+/// a knot: halving the share reds the first, doubling it the second.
+fn the_threshold_is_the_images_share<T: Decide>(lane: FittedLane<T>) {
+    // `IMAGE_MISS`, pinned here as a value: a row that read the constant
+    // would move with it.
     let share = 1.0 / 16.0;
-    for (r, climbs) in [(0.6, false), (1.6, true)] {
+    for (r, refines) in [(0.6, false), (1.6, true)] {
         let l = uneven_line_at(r * share);
         let lift = |x: f64| T::from_f64(x);
         let image = lane
@@ -364,9 +360,9 @@ fn the_threshold_is_the_rungs_share<T: Decide>(lane: FittedLane<T>) {
             )
             .unwrap();
         assert!(
-            degree_one(&image) != climbs,
-            "a line {l:e} m long whose chord miss is {r} of the share at {}: climbs {climbs} \
-             (degree {}, {} control points)",
+            (image.control().len() > CLOSED_FORM_CHAIN) == refines,
+            "a line {l:e} m long whose chain's miss is {r} of the share at {}: takes a knot \
+             {refines} (degree {}, {} control points)",
             T::NAME,
             image.degree(),
             image.control().len()
@@ -375,21 +371,21 @@ fn the_threshold_is_the_rungs_share<T: Decide>(lane: FittedLane<T>) {
 }
 
 #[test]
-fn the_threshold_is_the_rungs_share_at_f64() {
-    the_threshold_is_the_rungs_share(FittedLane::<f64>::certified());
+fn the_threshold_is_the_images_share_at_f64() {
+    the_threshold_is_the_images_share(FittedLane::<f64>::certified());
 }
 
 #[test]
-fn the_threshold_is_the_rungs_share_at_interval() {
-    the_threshold_is_the_rungs_share(FittedLane::<Interval>::certified());
+fn the_threshold_is_the_images_share_at_interval() {
+    the_threshold_is_the_images_share(FittedLane::<Interval>::certified());
 }
 
 /// **The standoff is read out as a vector.** A line 0.9 ε off the uneven
-/// wall, across it, whose chord misses its path by 0.3 ε along it: read as
+/// wall, across it, whose chain misses its path by 0.3 ε along it: read as
 /// norms the excess is `√(0.9² + 0.3²) − 0.9 ≈ 0.05` ε, under the share,
-/// and the image would keep degree 1; read as vectors it is the chord's
-/// 0.3 ε, and the image climbs.
-fn a_chord_miss_beside_a_standoff_climbs<T: Decide>(lane: FittedLane<T>) {
+/// and the image would keep its chain; read as vectors it is the chain's
+/// 0.3 ε, and the image takes a knot.
+fn a_miss_beside_a_standoff_takes_a_knot<T: Decide>(lane: FittedLane<T>) {
     let l = uneven_line_at(0.3);
     let r = core::f64::consts::FRAC_1_SQRT_2;
     let off = Curve3::line(
@@ -406,8 +402,8 @@ fn a_chord_miss_beside_a_standoff_climbs<T: Decide>(lane: FittedLane<T>) {
         )
         .unwrap();
     assert!(
-        !degree_one(&image),
-        "a chord miss of 0.3 ε beside a standoff of 0.9 ε climbs at {} (degree {}, {} control \
+        image.control().len() > CLOSED_FORM_CHAIN,
+        "a miss of 0.3 ε beside a standoff of 0.9 ε takes a knot at {} (degree {}, {} control \
          points)",
         T::NAME,
         image.degree(),
@@ -416,11 +412,11 @@ fn a_chord_miss_beside_a_standoff_climbs<T: Decide>(lane: FittedLane<T>) {
 }
 
 #[test]
-fn a_chord_miss_beside_a_standoff_climbs_at_f64() {
-    a_chord_miss_beside_a_standoff_climbs(FittedLane::<f64>::certified());
+fn a_miss_beside_a_standoff_takes_a_knot_at_f64() {
+    a_miss_beside_a_standoff_takes_a_knot(FittedLane::<f64>::certified());
 }
 
 #[test]
-fn a_chord_miss_beside_a_standoff_climbs_at_interval() {
-    a_chord_miss_beside_a_standoff_climbs(FittedLane::<Interval>::certified());
+fn a_miss_beside_a_standoff_takes_a_knot_at_interval() {
+    a_miss_beside_a_standoff_takes_a_knot(FittedLane::<Interval>::certified());
 }

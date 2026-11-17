@@ -13715,7 +13715,7 @@ mod cylinder_line_rows;
 mod ellipse_lane_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
-mod general_climb_rows;
+mod carrier_image_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;

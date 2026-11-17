@@ -540,14 +540,13 @@ fn plane_lane_at<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     )
 }
 
-/// **A fitted refusal after an in-band exact image stands as itself.**
+/// **A fitted answer after an in-band exact image stands as itself.**
 /// The circle on the cylinder's wall `in_band()` above its `v = 0` row,
 /// cut by the plane at that height: the pick reads every row in band,
-/// so the wall reads its fitted image, which holds the circle (limb 1)
-/// and misses its arc between feet past the band (limb 2). That limb's
-/// refusal is the wall's whole answer: no exact image refused, so none
-/// is named.
-fn a_fitted_refusal_after_an_in_band_exact_image_stands_as_itself<
+/// so the wall reads its fitted image, which follows the circle's arc
+/// and certifies it. That is the wall's whole answer: no exact image
+/// refused, so none is named.
+fn a_fitted_answer_after_an_in_band_exact_image_stands_as_itself<
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 >() {
     let carrier = rim_at(in_band());
@@ -558,21 +557,21 @@ fn a_fitted_refusal_after_an_in_band_exact_image_stands_as_itself<
     );
     let got = plane_lane_at::<T>(&carrier, (0.0, TURN), in_band());
     assert!(
-        matches!(got, Err(PlaneNurbsRefusal::Limb { .. })),
-        "the fitted limb's refusal stands as itself, at {}: {:?}",
+        got.is_ok(),
+        "the fitted image's certificate stands as itself, at {}: {:?}",
         T::NAME,
         got.as_ref().map(|_| ())
     );
 }
 
 #[test]
-fn a_fitted_refusal_after_an_in_band_exact_image_stands_as_itself_at_f64() {
-    a_fitted_refusal_after_an_in_band_exact_image_stands_as_itself::<f64>();
+fn a_fitted_answer_after_an_in_band_exact_image_stands_as_itself_at_f64() {
+    a_fitted_answer_after_an_in_band_exact_image_stands_as_itself::<f64>();
 }
 
 #[test]
-fn a_fitted_refusal_after_an_in_band_exact_image_stands_as_itself_at_interval() {
-    a_fitted_refusal_after_an_in_band_exact_image_stands_as_itself::<geom_core::Interval>();
+fn a_fitted_answer_after_an_in_band_exact_image_stands_as_itself_at_interval() {
+    a_fitted_answer_after_an_in_band_exact_image_stands_as_itself::<geom_core::Interval>();
 }
 
 /// **An in-band exact image gives way to a fitted image that

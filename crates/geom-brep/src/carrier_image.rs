@@ -27,8 +27,10 @@
 //!   points; it takes the one the path leaves into the rectangle from
 //!   ([`start`]).
 //! - **The miss.** Midway between each pair of feet the image is read
-//!   against the carrier, net of the carrier's own standoff at the two
-//!   feet ([`excess`]). A chain whose every reading is within
+//!   against the path: the distance on the wall between the image's
+//!   point and the carrier's foot there, followed from the image's
+//!   ([`miss`]). The carrier's own standoff from the wall is no part of
+//!   it. A chain whose every reading is within
 //!   [`IMAGE_MISS`] of the band's zero is the image. Otherwise each
 //!   knot span holding a larger one takes a knot at its middle and the
 //!   feet are followed again, at most [`IMAGE_ROUNDS`] times; past that
@@ -54,10 +56,9 @@ pub(crate) const IMAGE_DEGREE: usize = 3;
 /// for more (D9).
 pub(crate) const CLOSED_FORM_SPANS: usize = 8;
 
-/// The share of `band.zero()` a chain's miss, read midway between its
-/// feet net of the carrier's standoff, must fall within: the
-/// certificate's hull reads the miss between those midpoints too, and
-/// over-reads it.
+/// The share of `band.zero()` a chain's miss of the foot path, read
+/// midway between its feet, must fall within: the certificate's hull
+/// reads the miss between those midpoints too, and over-reads it.
 pub(crate) const IMAGE_MISS: f64 = 1.0 / 16.0;
 
 /// The most rounds of knot insertion (D9). Each halves the spans that
@@ -127,14 +128,12 @@ impl<T: geom_core::Real> Read<'_, T> {
     }
 }
 
-/// A foot of the path: the unit fraction of the carrier's span, the
-/// wall's chart point there, and the carrier's standoff, the wall's
-/// point less the carrier's.
+/// A foot of the path: the unit fraction of the carrier's span and the
+/// wall's chart point there.
 #[derive(Clone, Copy, Debug)]
 struct Foot {
     at: f64,
     uv: Point2<f64>,
-    gap: Vec3<f64>,
 }
 
 fn mid<T: Bounds>(x: T) -> f64 {
@@ -228,6 +227,13 @@ where
     let tol = IMAGE_MISS * band.zero();
     for round in 0..=IMAGE_ROUNDS {
         let knots = KnotVector::clamped(chain.clone(), degree).map_err(|_| ImageRefusal::Fit)?;
+        // The chain on the carrier's own span, before any foot is read
+        // at its parameters: knots that collide there are the span's
+        // fault, not the path's.
+        let n = knots.control_count();
+        NurbsCurve2::new(knots.clone(), vec![Point2::new(0.0, 0.0); n], vec![1.0; n])
+            .and_then(|flat| flat.on_domain(t0, t1))
+            .map_err(|e| domain_refusal(t0, t1, &e))?;
         let nodes = greville(&chain, degree);
         let feet = path(&read, wall, &nodes, band)?;
         let collocation = geom::Collocation::on(&nodes, knots).map_err(|_| ImageRefusal::Fit)?;
@@ -237,9 +243,10 @@ where
         // The spans that miss, by the knot at each one's middle, and the
         // largest miss read.
         let (mut add, mut worst) = (Vec::new(), 0.0_f64);
-        for pair in feet.windows(2) {
+        for (i, pair) in feet.windows(2).enumerate() {
             let at = 0.5 * (pair[0].at + pair[1].at);
-            let miss = excess(&read, wall, pair, image.eval(at));
+            #[allow(clippy::cast_possible_truncation)]
+            let miss = miss(&read, wall, (at, i as u32 + 1), image.eval(at))?;
             worst = worst.max(miss);
             if miss > tol
                 && let Some(k) = span_middle(&chain, at)
@@ -328,20 +335,36 @@ fn span_middle(knots: &[f64], at: f64) -> Option<f64> {
     (a < k && k < b).then_some(k)
 }
 
-/// The image's miss midway between two feet, net of the standoff they
-/// carry: its gap from the carrier at the middle, less the mean of the
-/// feet's gaps, as vectors. A foot is the wall's nearest point, so its
-/// gap is the carrier's offset from the wall, which no finer image
-/// lowers; subtracting it as a vector leaves a miss across that offset
-/// whole. Poison reads `+∞`.
-fn excess<T>(read: &Read<'_, T>, wall: &NurbsSurface<T>, pair: &[Foot], p: Point2<f64>) -> f64
+/// **The image's miss of the foot path** at the unit fraction `at`,
+/// short of the chain's foot `node`, where the image reads the chart
+/// point `p`: the distance between the
+/// wall's point at `p` and its point at the carrier's foot there, which
+/// Newton reaches from `p`. Poison reads `+∞`.
+///
+/// # Errors
+///
+/// [`ImageRefusal::Foot`] where that foot does not converge.
+fn miss<T>(
+    read: &Read<'_, T>,
+    wall: &NurbsSurface<T>,
+    (at, node): (f64, u32),
+    p: Point2<f64>,
+) -> Result<f64, ImageRefusal>
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
-    let at = 0.5 * (pair[0].at + pair[1].at);
-    let gap = mid3(wall.eval(T::from_computed(p.x), T::from_computed(p.y)) - read.point(at));
-    let d = (gap - (pair[0].gap + pair[1].gap) * 0.5).norm();
-    if d.is_nan() { f64::INFINITY } else { d }
+    let foot = wall
+        .project_from_seed(read.point(at), p.x, p.y)
+        .map_err(|e| {
+            let (t0, t1) = read.domain;
+            ImageRefusal::Foot {
+                t: t0 + (t1 - t0) * at,
+                node,
+                last_distance: e.last_distance,
+            }
+        })?;
+    let d = mid((wall.eval(T::from_computed(p.x), T::from_computed(p.y)) - foot.foot).norm());
+    Ok(if d.is_nan() { f64::INFINITY } else { d })
 }
 
 /// The foot path at `nodes`, by continuation from the start.
@@ -377,14 +400,13 @@ where
 }
 
 /// A converged projection as a foot.
-fn foot_of<T>(at: f64, p: Point3<T>, proj: &geom::SurfaceProjection<T>) -> Foot
+fn foot_of<T>(at: f64, proj: &geom::SurfaceProjection<T>) -> Foot
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
     Foot {
         at,
         uv: Point2::new(proj.u, proj.v),
-        gap: mid3(proj.foot - p),
     }
 }
 
@@ -412,7 +434,7 @@ where
         }
     };
     let proj = wall.project(p).map_err(refused)?;
-    let mut best = (foot_of(at, p, &proj), mid(proj.distance));
+    let mut best = (foot_of(at, &proj), mid(proj.distance));
     let domains = [
         wall.knots_u_f64_interim().domain(),
         wall.knots_v_f64_interim().domain(),
@@ -442,7 +464,7 @@ where
         let Ok(other) = wall.project_from_seed(p, across.x, across.y) else {
             continue;
         };
-        let other = (foot_of(at, p, &other), mid(other.distance));
+        let other = (foot_of(at, &other), mid(other.distance));
         let tied = (other.1 - best.1).abs() <= band.zero();
         let leaves = |f: &Foot| {
             // Whether the path's first step, as the wall's tangents at
@@ -530,7 +552,7 @@ where
                 off <= FOLLOW_AGREEMENT * dc.norm()
             });
             if agrees {
-                return Ok(foot_of(at, p, proj));
+                return Ok(foot_of(at, proj));
             }
             mid(proj.distance)
         }
