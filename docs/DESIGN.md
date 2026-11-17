@@ -1190,6 +1190,16 @@ replay; and structural parameters (hole *count*) are explicitly
 distinct from continuous ones (hole *diameter*), so parameter-driven
 topology change is stated, not emergent.
 
+**A door judges the document, never one evaluation of it.**
+`[recipe.doors]` An edit is refused only for what it writes that no
+values of the document make valid: a kind, a read, an id, a cycle, a
+profile's lattice of verbs, a written count, a loft's list of
+sections. A fault that depends on values is evaluation's, judged at
+every binding it runs (each member, each analysis sample, the nominal)
+and reported as that node's typed error. So the edit door and the load
+door admit the same documents, a value edit owes either door nothing,
+and no edit is refused for a fault it did not write.
+
 **The recipe keeps the form that was written.** `[recipe.forms]`
 Where people state the
 same thing in more than one natural way, the recipe may hold a family
