@@ -155,10 +155,14 @@ fn holds_the_count_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, de
 enum Walked {
     /// The relation exactly.
     Exact,
-    /// The relation plus two triangles per side the walk shares with a
-    /// neighbour holding both of its ends (`trimmed::walk_face`), each
-    /// cut at its midpoint: an even surplus, on the walked face alone.
+    /// The relation plus two triangles per side the walk cuts: a side
+    /// whose two ends one neighbouring face holds and whose midpoint lies
+    /// within `δ·(1 + ALLOWANCE_SHARE)` of that face's surface, so that the
+    /// face may make it too (`trimmed::may_make`). An even surplus, on the
+    /// walked face alone, nought where no side is cut.
     SharedSidesCut,
+    /// [`Walked::SharedSidesCut`] with some side cut: a positive surplus.
+    Cut,
 }
 
 /// [`holds_the_count_relation`], with what a walked face owes.
@@ -195,7 +199,8 @@ fn holds_the_relation(
         let held = match walked {
             Walked::Exact => surplus == Some(0),
             Walked::SharedSidesCut if ruled => surplus.is_some_and(|s| s % 2 == 0),
-            Walked::SharedSidesCut => surplus == Some(0),
+            Walked::Cut if ruled => surplus.is_some_and(|s| s % 2 == 0 && s > 0),
+            Walked::SharedSidesCut | Walked::Cut => surplus == Some(0),
         };
         assert!(
             held,
@@ -1234,17 +1239,22 @@ fn bored_ball(sign: f64) -> Body<f64> {
 }
 
 /// **A walked face whose neighbour holds both of its rims makes no edge
-/// of four triangles.** A ball of radius 1.05 bored by a coaxial cylinder
-/// of radius 1 ([`bored_ball`]), its bore's seam split at its middle and
-/// at five points, placed obliquely, at δ 3, 1, 0.3, 0.1 and 0.03, with a
-/// sphere face round the bore and with a torus face. The neighbour holds
-/// every point of both rims, so where it lays no point between them (δ
-/// past the shell's thickness, 0.05) its triangles join the rims as the
-/// walk does; the walk cuts each rim-to-rim side at its midpoint
-/// (`trimmed::walk_face`), each cell passes `check_mesh` and is the body's,
-/// and the count relation holds but for the cuts
-/// ([`Walked::SharedSidesCut`]). The unsplit ball is not manifold at δ 3
-/// to 0.1 (`work/tesslane/a-strip-against-a-neighbour-holding-both-rims-makes-an-edge-of-four-triangles.md`).
+/// of four triangles, and is cut only where the neighbour may make the
+/// edge.** A ball of radius 1.05 bored by a coaxial cylinder of radius 1
+/// ([`bored_ball`]), its bore's seam split at its middle and at five
+/// points, placed obliquely, with a sphere face round the bore and with a
+/// torus face. The neighbour holds every point of both rims. A rim-to-rim
+/// side's midpoint stands about the shell's thickness (0.05) from it, so
+/// at δ 0.04 and coarser the neighbour's certificate passes a triangle on
+/// that side and it may make it too: the walk cuts it
+/// (`trimmed::may_make`), and the bore gains two triangles per cut side
+/// ([`Walked::Cut`]). At δ 0.035 and finer the midpoint lies past
+/// `δ·(1 + ALLOWANCE_SHARE)`, no triangle the neighbour certifies holds
+/// the side, and the bore keeps the count relation exactly. δ 0.04 and
+/// 0.035 are the cells nearest the threshold on either side. Every cell
+/// passes `check_mesh` and is the body's. The unsplit ball is not
+/// manifold at δ 3 to 0.1 on the rectangle lane
+/// (`work/tesslane/a-strip-against-a-neighbour-holding-both-rims-makes-an-edge-of-four-triangles.md`).
 ///
 /// **By ε.** The same at the default, `10⁻⁶` and `10⁻¹²`.
 #[test]
@@ -1259,13 +1269,18 @@ fn a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge() {
         for fracs in [&[0.5][..], &[0.9, 0.7, 0.5, 0.3, 0.1][..]] {
             let what = format!("the ball bored with sign {sign}, its seam split at {fracs:?}");
             let split = split_and_placed(&body, &[seam], fracs);
-            for delta in [3.0, 1.0, 0.3, 0.1, 0.03] {
-                holds_the_relation(&what, &split, &solid, delta, Walked::SharedSidesCut);
+            for delta in [3.0, 1.0, 0.3, 0.1, 0.04, 0.035, 0.03] {
+                let walked = if delta >= 0.04 {
+                    Walked::Cut
+                } else {
+                    Walked::Exact
+                };
+                holds_the_relation(&what, &split, &solid, delta, walked);
                 cells += 1;
             }
         }
     }
-    assert_eq!(cells, 20, "the cells this row reads");
+    assert_eq!(cells, 28, "the cells this row reads");
     assert_eq!(
         unread_volumes(),
         0,

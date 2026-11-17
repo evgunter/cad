@@ -51,14 +51,16 @@
 //! sphere or torus face round a bore holds both of the bore's rims, and
 //! where it lays no point between them (δ past the shell's thickness) its
 //! own triangles join the rims as the walk does. So the chart lane cuts
-//! any walked side whose two ends one neighbouring face holds
-//! (`trimmed::walk_face`, reading `trimmed::faces_across`, the fact the
-//! cone arm's shared-side rule reads): a surface point at its chart
-//! midpoint, between the same two rulings, makes each triangle on it two.
-//! The rule reads which faces hold the points, not how they are meshed,
-//! so it also cuts a side no neighbour would make (the corners of a
-//! one-chord face beside a wider face of the same surface), at two
-//! triangles each.
+//! a walked side whose two ends one neighbouring face holds
+//! (`trimmed::faces_across`, the fact the cone arm's shared-side rule
+//! reads) and which that face may make (`trimmed::may_make`: the side's
+//! midpoint within `δ·(1 + ALLOWANCE_SHARE)` of its surface, past which no
+//! triangle it certifies holds the side): a surface point at the side's
+//! chart midpoint, between the same two rulings, makes each triangle on it
+//! two. The rule reads where the neighbour lies, not how it is meshed, so
+//! it also cuts a side a neighbour on the same surface would not make (the
+//! corners of a one-chord face beside a wider face of its cylinder), at
+//! two triangles each.
 
 use std::collections::HashSet;
 

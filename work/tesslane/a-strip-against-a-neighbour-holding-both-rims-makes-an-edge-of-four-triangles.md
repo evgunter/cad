@@ -48,8 +48,15 @@ walked side whose two ends one neighbouring face holds at its midpoint
 (`trimmed::walk_face`, reading `trimmed::faces_across`, the fact the cone
 arm's shared-side rule reads), and those cells mesh manifold
 (`split_rulings::a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge`).
-The unsplit bore is the rectangle lane's, which reads no such fact. The
-same cut there would cure it, at two triangles per cut side; the rule reads
-which faces hold the points, not how they are meshed, so on a ball bored
-at a fine δ it cuts sides the neighbour's interior rows would never make
-(the walked bore's 80 triangles become 240 at δ 0.03).
+The unsplit bore is the rectangle lane's, which reads no such fact.
+
+**The candidate cure here** is the walk's rule as it reads now
+(`trimmed::may_make`): cut a side whose two ends one neighbouring face
+holds only where its midpoint lies within `δ·(1 + cert::ALLOWANCE_SHARE)`
+of that face's surface (`geom::Surface::foot`, past the distance's own
+rounding), so that the face's certificate could pass a triangle on it. On
+the bored ball that is δ 0.04 and coarser (the shell is 0.05 thick); the
+cut adds two triangles per side cut, so the bore's strip of `2n`
+triangles becomes `6n` there, and nothing moves at a finer δ. Each cut
+point lies between the same two rulings, so the rectangle lane's theorem
+(every triangle within one column) still covers the cut strip.

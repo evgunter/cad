@@ -3478,6 +3478,38 @@ impl Creases {
     }
 }
 
+/// **Whether a neighbouring face on `neighbour` may make the side `a–b`**
+/// in a mesh at `delta`, read where it provably cannot: a triangle the
+/// neighbour emits passes its certificate, which bounds the triangle's
+/// distance from its surface, and a certified bound is at most
+/// `δ·(1 + cert::ALLOWANCE_SHARE)` (the verdict absorbs rounding only while
+/// it is that small, `cert::verdict`). So where the side's midpoint lies
+/// farther than that from the neighbour's surface, past the rounding of
+/// the distance itself ([`SIDE_DISTANCE_ROUNDING`]), no triangle of the
+/// neighbour holds the side. The distance is to the surface's own foot of
+/// the point (`geom::Surface::foot`, in closed form on every analytic
+/// kind); a surface with no such foot, or a point where it is not one
+/// point, may make it. Every face of one run is meshed at its one δ (the
+/// run's `SizingTols`), and a face sized finer than δ is still within it.
+fn may_make(neighbour: &Surface<f64>, a: Point3<f64>, b: Point3<f64>, delta: f64) -> bool {
+    let mid = Point3::new(0.5 * (a.x + b.x), 0.5 * (a.y + b.y), 0.5 * (a.z + b.z));
+    let Some(foot) = neighbour.foot(mid) else {
+        return true;
+    };
+    let scale = cert::coordinate_scale([mid, foot, a]);
+    let far = delta * (1.0 + cert::ALLOWANCE_SHARE) + SIDE_DISTANCE_ROUNDING * f64::EPSILON * scale;
+    (mid - foot).norm() <= far
+}
+
+/// **The rounding of a side's distance from a neighbour's surface**
+/// ([`may_make`]), in epsilons of the coordinates' magnitude:
+/// **structural**, a bound on the arithmetic, not a margin chosen for a
+/// mesh. The midpoint is one rounding per coordinate, the foot a few
+/// (the axis foot, a normalisation, a scaled step; the torus two of
+/// them), the norm two: the certificate's own count of a position's
+/// rounding (`cert::ROUNDING_ULPS`) covers each, and the sum is taken.
+const SIDE_DISTANCE_ROUNDING: f64 = 4.0 * cert::ROUNDING_ULPS;
+
 /// **A walked face's patch** (`crate::ruled_walk`): the walk of its two
 /// rows, a triangle a neighbouring face may also make a side of split at a
 /// point of the surface inside it, then each triangle read as every
@@ -3541,13 +3573,22 @@ fn walk_face(
             (p.min(q), p.max(q))
         })
         .collect();
+    // A side two neighbouring faces' points both lie on, which one of
+    // them may also make ([`may_make`]).
     let shares = |p: u32, q: u32| {
-        !beside.contains(&(p.min(q), p.max(q)))
-            && across.get(&p).is_some_and(|fp| {
-                across
-                    .get(&q)
-                    .is_some_and(|fq| fp.iter().any(|f| fq.contains(f)))
-            })
+        if beside.contains(&(p.min(q), p.max(q))) {
+            return Ok(false);
+        }
+        let (Some(fp), Some(fq)) = (across.get(&p), across.get(&q)) else {
+            return Ok(false);
+        };
+        for &f in fp.iter().filter(|f| fq.contains(f)) {
+            let neighbour = crate::tessellate::face_surface(body, f)?;
+            if may_make(neighbour, shared[p as usize], shared[q as usize], tol.delta) {
+                return Ok(true);
+            }
+        }
+        Ok::<bool, TessellateError>(false)
     };
     // Each corner: its mesh vertex, its chart point, and whether it is the
     // apex.
@@ -3566,8 +3607,8 @@ fn walk_face(
     for c in &corners {
         for q in 0..3 {
             if let (PatchVertex::Shared(p), PatchVertex::Shared(r)) = (c[q].0, c[(q + 1) % 3].0)
-                && shares(p, r)
                 && !split.contains(&(p.min(r), p.max(r)))
+                && shares(p, r)?
             {
                 split.push((p.min(r), p.max(r)));
             }
