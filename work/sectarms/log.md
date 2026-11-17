@@ -914,3 +914,4 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
     - SECTARMS: the sliver P1; the three-ulp view fork (P2, design); the offset door on the base opening; the `Interval` view; the `replace_face` write-back.
     - TESSLANE: a torus face bounded by a projected spline image.
 - 2026-11-17 — **Dispatching `a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band` (P1). Letter M, tier single:** a measurement first, with a local fix or a typed refusal on one lane. Brief `impl-sliver.md`, branch `sectarms/sliver-loop-tube`. The brief now cites `docs/MODEL-COMPARE-PROTOCOL.md` as the user's rule outranking the harness's attribution reminder, since 7052's lane followed the reminder. Implementer byte drawn after this entry.
+- **Sliver implementer byte 159 (Fable),** on the model-compare branch; dispatched.
