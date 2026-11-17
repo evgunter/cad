@@ -177,6 +177,8 @@ mod review_m3_pr1_mesh;
 mod revolves;
 #[path = "sizing_theorem_rows.rs"]
 mod sizing_theorem_rows;
+#[path = "split_rulings.rs"]
+mod split_rulings;
 #[path = "the_one_face_ball.rs"]
 mod the_one_face_ball;
 #[path = "wedge.rs"]
