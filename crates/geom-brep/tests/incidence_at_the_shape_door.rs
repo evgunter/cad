@@ -6,6 +6,8 @@
 //! answer `NotIsoRectangle`, the valid face outside the inventory, whose
 //! caller routes it to a lane. Where the band cannot tell, it escalates.
 
+#![allow(clippy::expect_used)]
+
 use crate::shared::point::{p3, v3};
 use crate::shared::surf;
 use crate::shared::tol::band;
