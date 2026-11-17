@@ -1560,7 +1560,7 @@ pub(crate) enum Rim {
 /// reads tier-1-valid, so it panics as a kernel bug under every caller.
 ///
 /// Named `rim_between` rather than `shared_rim`: `topo`'s
-/// `boolean::rim_wedge::shared_rim` answers the same question one layer
+/// `rim_wedge::shared_rim` answers the same question one layer
 /// down, and one name for two functions in two crates costs every
 /// future reader a `grep` they cannot disambiguate.
 #[track_caller]

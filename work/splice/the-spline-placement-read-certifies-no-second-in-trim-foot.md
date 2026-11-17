@@ -15,7 +15,7 @@ fixture reaches it.
 
 ## What
 
-`topo::boolean::spline_region::read` (`read_capped`) walks a spline
+`topo::spline_region::read` (`read_capped`) walks a spline
 chart's Bézier cells breadth first and returns `Reading::In` at the
 FIRST cell centre decided within the band of the point and placed in
 the trim. It certifies nothing about any other kept cell: a second

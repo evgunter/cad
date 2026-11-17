@@ -11,7 +11,7 @@ cost: E
 
 ## The finding
 
-`Tally::compare` (`crates/topo/src/boolean/r1_probes.rs`) flags a ROOT
+`Tally::compare` (`crates/topo/src/r1_probes.rs`) flags a ROOT
 disagreement when a certified root is more than an absolute `1e-6`
 from the geometric oracle, at every ε. `line_torus_roots`'s own ladder
 doc (rung 2, `bool_ray_torus_odd` Zero) says the biquadratic arm solves

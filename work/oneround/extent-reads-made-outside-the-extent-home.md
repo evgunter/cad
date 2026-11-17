@@ -55,7 +55,7 @@ sites), `pcurve_cache` spiric `chart_tilt` (`of_torus`), `intersect`
 `pt_axis_normal` (`of_torus`), `pair_section::gap` slope and
 `torus_coincidence` (core circles), and in topo `boolean::arcs`
 `arcs_along`, `boolean::trace` circle crossing, `boolean::boxes`
-`sphere_window`, `boolean::solid_contain` `sphere_chart_trim` (2),
+`sphere_window`, `solid_contain` `sphere_chart_trim` (2),
 `chord_join` `holds_outer`. Each should read the lever from its own
 pivot (`lever_from(pivot)`), which moves its margin and wants the
 row's own differential.

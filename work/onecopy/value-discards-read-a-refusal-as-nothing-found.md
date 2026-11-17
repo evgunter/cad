@@ -44,7 +44,7 @@ items excluded):
 - `crates/topo/src/boolean/join.rs` `germ_side` (line 5775): `Ok(Sign::Zero) | Err(_) => None,`
 - `crates/topo/src/boolean/mod.rs` `boundary_cuts` (line 8176): `Err(_) => None,`
 - `crates/topo/src/boolean/plane_eq.rs` `senses` (line 214): `Ok(Sign::Zero) | Err(_) => None,`
-- `crates/topo/src/boolean/solid_contain.rs` `ray_crossings` (line 4488): `Err(_) => false,`
+- `crates/topo/src/solid_contain.rs` `ray_crossings` (line 4488): `Err(_) => false,`
 - `crates/topo/src/chart_region.rs` `interior_witness` (line 2057): `Err(_) => false,`
 - `crates/topo/src/link.rs` `off` (line 221): `Err(_) => None,`
 - `crates/topo/src/link.rs` `at` (line 232): `Err(_) => None,`

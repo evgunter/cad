@@ -1,5 +1,5 @@
 //! **Where a point lies against a spline face**: the NURBS and
-//! approximating-surface arm of [`super::contain::curved_face_placement`],
+//! approximating-surface arm of [`crate::contain::curved_face_placement`],
 //! reached once the boundary walk has placed the point off every edge.
 //!
 //! # The carrier: a foot, or a lower bound past the band
@@ -44,8 +44,8 @@ use std::collections::VecDeque;
 use geom::NurbsSurface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
 
-use super::contain::{ContainDecision, ContainError, CurvedPlacement, FaceContainment};
 use crate::body::Body;
+use crate::contain::{ContainDecision, ContainError, CurvedPlacement, FaceContainment};
 use crate::entity::FaceKey;
 use crate::pcurves::PIECE_VISITS;
 use crate::pcurves::Side;
@@ -85,7 +85,7 @@ impl Caps {
     };
 }
 
-/// **The spline arm of [`super::contain::curved_face_placement`]** (module
+/// **The spline arm of [`crate::contain::curved_face_placement`]** (module
 /// docs): the point `q`, already off every boundary edge, against `face`,
 /// a face whose carrier is a spline chart.
 ///

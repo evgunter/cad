@@ -25,7 +25,7 @@
 // door it reads, the band and the rounding charge they decide with.
 test_utils::gated_to![
     "crates/topo/src/census.rs",
-    "crates/topo/src/boolean/contain.rs",
+    "crates/topo/src/contain.rs",
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/k_stats.rs",

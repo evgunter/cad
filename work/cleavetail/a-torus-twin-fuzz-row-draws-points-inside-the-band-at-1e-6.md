@@ -11,7 +11,7 @@ cost: E
 ## What
 
 `solid_contain::stated_periods_rows::a_wall_and_its_clockwise_twin_read_complementary_sides`
-(`crates/topo/src/boolean/solid_contain.rs`, about `:4776`) is a
+(`crates/topo/src/solid_contain.rs`, about `:4776`) is a
 counterexample search over random `(u, v)` on the torus `R = 2`, `r = 0.5`.
 It keeps a point only where it is "a micron clear of the patch's boundary",
 and its `clear` filter tests `1e-6` in **parameter**, whatever the band is.
@@ -27,7 +27,7 @@ CI drew it:
 
 ```
 CAD_TOLERANCE_EPS=1e-6 CAD_FUZZ_SEED=0x7493a4fcbaad4a4b CAD_FUZZ_EFFORT=1 \
-  cargo nextest run -p topo -E 'test(=boolean::solid_contain::stated_periods_rows::a_wall_and_its_clockwise_twin_read_complementary_sides)'
+  cargo nextest run -p topo -E 'test(=solid_contain::stated_periods_rows::a_wall_and_its_clockwise_twin_read_complementary_sides)'
 ```
 
 ## Owed
