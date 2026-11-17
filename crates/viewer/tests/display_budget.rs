@@ -62,7 +62,7 @@ fn gallery_ring_doc(tol: Tol) -> ProfileDoc {
     // the re-stamp and the proof that ε is its only ε-dependent byte.
     // Here the document only has to LOAD, so the born-at ε is fine and
     // the row runs at whatever the draw gave it.
-    let loaded = match pncad::document::load(text, tol) {
+    match pncad::document::load(text, tol) {
         Ok(loaded) => loaded,
         Err(_) => {
             // A different ε row: re-stamp exactly as `doc_io` does.
@@ -82,8 +82,7 @@ fn gallery_ring_doc(tol: Tol) -> ProfileDoc {
             restamped.push('\n');
             pncad::document::load(&restamped, tol).expect("the re-stamped fixture loads")
         }
-    };
-    loaded
+    }
 }
 
 fn delta(value: f64) -> DisplayTolerance {
