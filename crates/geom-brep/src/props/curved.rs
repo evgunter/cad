@@ -589,7 +589,11 @@ impl<T: Real> IsoChart<T> {
     ///   the surface escalates; one within band keeps its kind's class.
     ///   Nine points are a lower bound on the distance, so a miss is
     ///   sound and a reading of zero is the kind's class, as it was
-    ///   before the distance was read.
+    ///   before the distance was read. A sample whose distance is poison
+    ///   poisons the margin ([`Real::max`] propagates it), and the
+    ///   decision answers [`PropsError::Escalated`] with the poisoned
+    ///   margin as its diagnostic: no reading of where the edge lies is
+    ///   made of a carrier that names no finite point.
     ///
     /// A kind the parse reads has no refusal here, and reaching this
     /// with one is the parse's own defect.
@@ -636,13 +640,18 @@ impl<T: Real> IsoChart<T> {
                 not_iso("torus boundary edge is not a circle")
             }
         };
-        let eight = T::from_f64(8.0);
-        let miss = (0..=8u8)
-            .map(|k| {
-                let t = e.t0 + (e.t1 - e.t0) * T::from_f64(f64::from(k)) / eight;
-                self.distance(e.carrier.eval(t))
-            })
-            .fold(T::zero(), T::max);
+        // Nine points of the span, `t0` and eight steps of an eighth of
+        // it, stepped in `T`. `Real::max` propagates poison, so a sample
+        // that evaluates to no finite point poisons the margin, and the
+        // decision's poison arm answers it (escalated, the poisoned
+        // margin its diagnostic) rather than the fold dropping it.
+        let step = (e.t1 - e.t0) / T::from_f64(8.0);
+        let mut t = e.t0;
+        let mut miss = T::zero();
+        for _ in 0..=8 {
+            miss = miss.max(self.distance(e.carrier.eval(t)));
+            t = t + step;
+        }
         match require_zero(
             "props_carrier_on_surface",
             Margin::of(miss),
