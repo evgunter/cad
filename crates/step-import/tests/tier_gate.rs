@@ -271,7 +271,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     (FTC11, 1e-6, "1e-6", Refused(FTC11_SEAM_VERTEX_IN_BAND)),
     (FTC11, 1e-6, "1e-12", Refused(FTC11_SEAM_VERTEX_IN_BAND)),
     (FTC11, 1e-12, "file", Pass(1, 1, 6, 12, 8)),
-    (FTC11, 1e-12, "1e-6", Pass(1, 1, 6, 12, 8)),
+    (FTC11, 1e-12, "1e-6", Refused(FTC11_SEAM_VERTEX_IN_BAND)),
     (FTC11, 1e-12, "1e-12", Pass(1, 1, 6, 12, 8)),
     // -- tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp ------------
     // The AMBIENT sweep only, at this file's own ε_in — the same shape
