@@ -79,6 +79,12 @@ docs/MODEL-COMPARE-PROTOCOL.md`, after a fetch).
    records the loss; a re-dispatch on the other model, or a harness
    fallback to another model, makes that arm's half of the row unfair
    (rule 8).
+   **An arm's model unavailable.** While one model cannot be served
+   for longer than a day (a usage limit, with its reset time known),
+   an agent lost to it, or drawn to it, is dispatched at once on the
+   other model, and the row records the substitution, the reset time
+   and the unfair half under rule 8. Draws continue unchanged, so the
+   population stays balanced once the model returns.
 4. **Model version, always.** Every agent the row names — the
    implementer, the fix pass, each reviewer, the orchestrator —
    carries its model's exact version ("Opus 5.5", "Fable 5.2"), never
