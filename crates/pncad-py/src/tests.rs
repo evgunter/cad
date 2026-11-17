@@ -5929,6 +5929,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_on_dropped_step",
             "name_outside_part_world",
             "name_straddles_cut",
+            "named_read_uncarried",
             "no_material",
             "part_edit",
             "part_id_collides",

@@ -4356,7 +4356,7 @@ impl EditError {
                 )
             }
             Self::PickPath { node, slot, at } => {
-                write!(f, "{node}'s {slot} picks no piece: {}", PickMiss(*at))?;
+                write!(f, "{}", PicksNoPiece(format_args!("{node}'s {slot}"), *at))?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -10015,14 +10015,15 @@ mod tests {
     }
 }
 
-/// **Why a pick's path picks no piece** ([`pick_fault`]'s answer), the
-/// clause every refusal of one ends in: the edit door's, the product
-/// slot's and the load door's.
-pub(crate) struct PickMiss(pub(crate) Option<usize>);
+/// **The sentence a pick that picks no piece is refused in**
+/// ([`pick_fault`]'s answer), its subject the read refused: the edit
+/// door's seat, the product slot's read, the load door's variable.
+pub(crate) struct PicksNoPiece<S>(pub(crate) S, pub(crate) Option<usize>);
 
-impl core::fmt::Display for PickMiss {
+impl<S: core::fmt::Display> core::fmt::Display for PicksNoPiece<S> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self.0 {
+        write!(f, "{} picks no piece: ", self.0)?;
+        match self.1 {
             Some(at) => write!(
                 f,
                 "step {} of its path names no one operand of the assemble the walk reaches",
@@ -10048,9 +10049,10 @@ pub enum ProductReadFault {
         /// The space it is in.
         space: Box<crate::spoken::SpokenSpace>,
     },
-    /// The slot reads one member of a family, through a source, and it
-    /// reads a whole body (the gather's, and a delete's hand-over,
-    /// `continuation::SpliceFault::MemberAtProduct`).
+    /// The slot reads one member of a family, through a source. A member
+    /// is a body (D10 `[repetition]`), and a placement or a `⊔` reads
+    /// one; the product's gather does not, so the slot refuses it rather
+    /// than gather the family whole.
     Member,
     /// A pick written at the slot picks no piece ([`EditError::PickPath`]'s
     /// rule).
@@ -10071,10 +10073,10 @@ impl core::fmt::Display for ProductReadFault {
                 crate::sentence::article(&found.to_string())
             ),
             Self::Space { space } => write!(f, "its body is in {space}, not the world"),
-            Self::Member => {
-                f.write_str("it reads one member of a family, and the slot reads a whole body")
-            }
-            Self::Path { at } => write!(f, "it picks no piece: {}", PickMiss(*at)),
+            Self::Member => f.write_str(
+                "it reads one member of a family, which the product's gather does not read",
+            ),
+            Self::Path { at } => write!(f, "{}", PicksNoPiece("it", *at)),
         }
     }
 }

@@ -853,8 +853,10 @@ pub fn product_recorded<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     if doc.operation_of(var).is_some() && doc.space_of(var) != Some(crate::VarId::WORLD) {
         return Err(ProductError::ProductOutsideWorld { read: var });
     }
-    // A source is read as the body it reads (VR4); a member read is none
-    // the slot reads ([`crate::edit::ProductReadFault::Member`]).
+    // A source is read as the body it reads (VR4). One member of a family
+    // this gather does not read, and the edit and load doors refuse the
+    // slot that reads one ([`crate::edit::ProductReadFault::Member`]), so
+    // no door leaves a slot this arm answers.
     let var = match doc.through_sources(var) {
         read if read.is_indexed() => return Err(ProductError::StrandedProduct { read: var }),
         read => read.read,

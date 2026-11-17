@@ -1832,3 +1832,121 @@ fn the_products_pick_lives_as_long_as_the_slot_reads_it() {
     let (doc, _) = step(doc, DocEdit::SetProduct { product: None });
     assert!(doc.var(read).is_none(), "an unread pick is swept");
 }
+
+/// `three_pinned` with a copy of the fixture's `⊔` placed in the world:
+/// `(doc, [c, a, b, the `⊔`, its placement], that copy, a's copy)`.
+fn copy_of_the_union(p: &Parts, label: &str) -> (ProfileDoc, [RecipeNodeId; 5], VarId, VarId) {
+    let (doc, [c, a, b]) = three_pinned(p, label);
+    let group = doc.product().expect("the fixture's `⊔`");
+    let g = doc.operation_of(group).expect("its node");
+    let (doc, placed) = insert(
+        doc,
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::Var(
+            group,
+        ))),
+    );
+    let whole = doc.output(placed, 0).expect("the copy");
+    let a_copy = doc.output(a, 0).expect("a copy");
+    (doc, [c, a, b, g, placed], whole, a_copy)
+}
+
+/// **A read through a source of a pick keeps its piece across a split**:
+/// the product, and a kept `⊔` the product reads, each read a source
+/// written over a pick of `a`'s piece of a cut copy of `c ⊔ a ⊔ b`.
+/// Split-then-evaluate delivers `a` alone, as `d` does.
+///
+/// *Breaks if* split decides the heir off the source and not the pick
+/// under it, re-pointing the reader to the instance's copy whole (`c`,
+/// `a` and `b` again).
+#[test]
+fn a_read_through_a_source_of_a_pick_keeps_its_piece_across_a_split() {
+    let p = parts("source-of-a-pick");
+    let o = p.opts();
+    for at_product in [true, false] {
+        let label = format!("source-of-a-pick-{at_product}");
+        let (doc, cut, whole, a_copy) = copy_of_the_union(&p, &label);
+        let read = editor_core::Operand::Source(Box::new(editor_core::BodyRead::plain(
+            editor_core::Operand::pick(editor_core::Operand::Var(whole), vec![a_copy]),
+        )));
+        let doc = if at_product {
+            step(doc, product(read)).0
+        } else {
+            let (doc, kept) = insert(
+                doc,
+                Node::Assemble {
+                    members: editor_core::Bodies::Spelled(vec![editor_core::BodyRead::plain(read)]),
+                },
+            );
+            step(doc, product(editor_core::Operand::Node(kept))).0
+        };
+        let out = split(&doc, &cut, &label, &o).unwrap_or_else(|e| panic!("{label}: {e}"));
+        let mut store = p.store.clone();
+        store.insert(out.part.clone(), Tol::witness());
+        same_extent(
+            extent(&out.remainder, &with_resolver(store)),
+            extent(&doc, &o),
+            &format!("{label}: split-then-evaluate delivers `a` alone"),
+        );
+    }
+}
+
+/// **A named source or pick the remainder keeps over a cut piece refuses,
+/// typed**: `P` a named pick of `a`'s piece of a cut copy of `c ⊔ a ⊔ b`,
+/// `s` a named source of `P`, read by the product slot or by a kept `⊔`.
+/// Neither `P` nor `s` can be defined afresh over the instance's copy (a
+/// definition writes no pick, VR4), so split refuses
+/// `NamedReadUncarried` rather than leave them reading a deleted copy.
+///
+/// *Breaks if* split re-points the reader past `s` and `P`, leaving them
+/// stranded in the remainder, or reads them as the copy whole.
+#[test]
+fn a_named_source_of_a_named_pick_over_the_cut_refuses_typed() {
+    let p = parts("named-pick-source");
+    for at_product in [true, false] {
+        let label = format!("named-pick-source-{at_product}");
+        let (doc, cut, whole, a_copy) = copy_of_the_union(&p, &label);
+        let (doc, _) = step(
+            doc,
+            product(editor_core::Operand::pick(
+                editor_core::Operand::Var(whole),
+                vec![a_copy],
+            )),
+        );
+        let pick = doc.product().expect("the pick");
+        let (doc, _) = step(
+            doc,
+            DocEdit::RenameVar {
+                var: pick.into(),
+                name: Some(editor_core::VarName::from_static("P")),
+            },
+        );
+        let (doc, _) = step(
+            doc,
+            DocEdit::DeclareVar {
+                name: editor_core::VarName::from_static("s"),
+                def: editor_core::VarDecl::Source(editor_core::BodyRead::plain(
+                    editor_core::Operand::Name(editor_core::VarName::from_static("P")),
+                )),
+            },
+        );
+        let s = doc.var_named("s").expect("s");
+        let doc = if at_product {
+            step(doc, product(editor_core::Operand::Var(s))).0
+        } else {
+            let (doc, kept) = insert(
+                doc,
+                Node::Assemble {
+                    members: editor_core::Bodies::Spelled(vec![editor_core::BodyRead::plain(
+                        editor_core::Operand::Var(s),
+                    )]),
+                },
+            );
+            step(doc, product(editor_core::Operand::Node(kept))).0
+        };
+        let refused = split(&doc, &cut, &label, &p.opts()).expect_err("`P` cannot be carried");
+        assert!(
+            matches!(&refused, SplitError::NamedReadUncarried { var } if var.id() == pick),
+            "{label}: {refused}"
+        );
+    }
+}

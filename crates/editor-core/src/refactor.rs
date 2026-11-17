@@ -79,7 +79,10 @@
 //! body is a cut copy crossing whole is defined afresh over the
 //! instance's copy, as inline and flatten define a source reading the
 //! copy they take away; an anonymous one the product slot reads is the
-//! slot's own, written afresh with it. Inline carries every variable of the part
+//! slot's own, written afresh with it. A named source or pick the
+//! remainder keeps that reads the cut otherwise refuses
+//! ([`SplitError::NamedReadUncarried`]): carried to a piece, it would
+//! read a pick written in a definition, which none writes. Inline carries every variable of the part
 //! under an id the host mints, and refuses a name the host already
 //! holds ([`InlineError::VarNameConflict`]): two variables are never
 //! one because their values agree (VR1).
@@ -991,6 +994,15 @@ pub enum SplitError {
         /// Why no one copy carries the read, where a copy was asked.
         why: Option<Uncarried>,
     },
+    /// **A named source or pick the remainder keeps reads the cut, and
+    /// cannot be carried** (A4, VR4): only a source whose read crosses to
+    /// the instance's copy whole is defined afresh over it; a pick, or a
+    /// source over a piece of it, would read a pick written in a
+    /// definition, which no definition authors.
+    NamedReadUncarried {
+        /// The variable.
+        var: Box<SpokenVar>,
+    },
     /// A recipe edge crosses the cut: its consumer is on one side and
     /// its input on the other, so the cut would sever it (D-2 — the
     /// cut must be ancestor- and consumer-closed).
@@ -1236,6 +1248,16 @@ impl core::fmt::Display for SplitError {
                     ))
                 )
             }
+            Self::NamedReadUncarried { var } => write!(
+                f,
+                "split: {var} stays and reads cut material, and only a source of a body the \
+                 instance's copy carries whole is defined afresh over it; a pick, or a \
+                 source of a piece, reads a pick no definition writes. {}",
+                Recourse(&format!(
+                    "cut what reads {var} too, or read the piece at a seat rather than \
+                     through {var}"
+                ))
+            ),
             Self::UncutVarReference {
                 var,
                 cut_node,
@@ -3176,7 +3198,9 @@ pub fn split(
                 seat: Some(_),
                 read,
             } if cut.contains(&node) => Some(read),
-            _ => None,
+            // A scalar slot reads no body; a kept seat, a definition and
+            // the product slot are the remainder's.
+            ReadSite::Node { .. } | ReadSite::Definition { .. } | ReadSite::Product { .. } => None,
         })
         .collect();
     let whole_heir = |key: &SourceKey| match key {
@@ -3187,15 +3211,20 @@ pub fn split(
     };
     let mut crossing_sources: BTreeMap<VarId, SourceKey> = BTreeMap::new();
     for site in doc.read_sites() {
-        if let ReadSite::Definition { var, read } = site
-            && doc.var_name(var).is_some()
-            && !cut_seated.contains(&var)
-            && doc.source(read).is_none()
-            && let Some(body) = doc.source(var).filter(|body| body.read == read)
-            && let Ok(Some(heir)) = heir_of(body, read)
-            && whole_heir(&heir)
-        {
-            crossing_sources.insert(var, heir);
+        match site {
+            ReadSite::Definition { var, read } => {
+                if doc.var_name(var).is_some()
+                    && !cut_seated.contains(&var)
+                    && doc.source(read).is_none()
+                    && let Some(body) = doc.source(var).filter(|body| body.read == read)
+                    && let Ok(Some(heir)) = heir_of(body, read)
+                    && whole_heir(&heir)
+                {
+                    crossing_sources.insert(var, heir);
+                }
+            }
+            // Only a definition defines a source.
+            ReadSite::Node { .. } | ReadSite::Product { .. } => {}
         }
     }
     let rides = |var: VarId| {
@@ -3255,22 +3284,31 @@ pub fn split(
                                     .is_some_and(|names| names.iter().all(|name| holds(name, at)))
                         }),
                     ),
-                    None => match node
-                        .body_read(slot)
-                        .map_or(Ok(None), |read| heir_of(read, var))
-                    {
-                        Ok(Some(heir)) => {
-                            heirs.insert(ReadAt::Operand(consumer, slot), heir);
-                            (var, true)
+                    // A source is read through to what it reads, so a pick
+                    // under it is re-pointed to the same piece.
+                    None => {
+                        let heir = match (doc.source(var), node.body_read(slot)) {
+                            (Some(_), Some(_)) => {
+                                let through = doc.through_sources(var);
+                                heir_of(&through, through.read)
+                            }
+                            (None, Some(read)) => heir_of(read, var),
+                            (_, None) => Ok(None),
+                        };
+                        match heir {
+                            Ok(Some(heir)) => {
+                                heirs.insert(ReadAt::Operand(consumer, slot), heir);
+                                (var, true)
+                            }
+                            Ok(None) => (var, false),
+                            Err(why) => {
+                                return Err(SplitError::RemainderReadUncarried {
+                                    reader: doc.spoken(consumer),
+                                    why,
+                                });
+                            }
                         }
-                        Ok(None) => (var, false),
-                        Err(why) => {
-                            return Err(SplitError::RemainderReadUncarried {
-                                reader: doc.spoken(consumer),
-                                why,
-                            });
-                        }
-                    },
+                    }
                 };
                 if crosses && let Some(input) = doc.operation_of(body) {
                     crossing_reads.push((consumer, slot, var));
@@ -3298,12 +3336,10 @@ pub fn split(
                     input: doc.spoken(input),
                     why,
                 };
-                let plain = crate::BodyRead::plain(var);
-                let (body, read) = match own_source(doc, var) {
-                    Some(body) => (body, body.read),
-                    None => (&plain, var),
-                };
-                match heir_of(body, read) {
+                // Read through any source to what it reads, so a pick
+                // under it is re-pointed to the same piece.
+                let through = doc.through_sources(var);
+                match heir_of(&through, through.read) {
                     Ok(Some(heir)) => {
                         heirs.insert(ReadAt::Product, heir);
                     }
@@ -3312,6 +3348,22 @@ pub fn split(
                 }
             }
         }
+    }
+    // A named source or pick the remainder keeps that reads the cut is
+    // carried only where it is defined afresh over the instance's copy
+    // (`crossing_sources`): a pick, or a source whose read crosses to a
+    // piece, would need a pick written in a definition, which no
+    // definition authors (VR4). One the cut's own seats read goes with
+    // them.
+    if let Some(&var) = doc.var_names().keys().find(|&&var| {
+        (doc.source(var).is_some() || doc.pick(var).is_some())
+            && !crossing_sources.contains_key(&var)
+            && !cut_seated.contains(&var)
+            && doc.operation_of(var).is_some_and(|at| cut.contains(&at))
+    }) {
+        return Err(SplitError::NamedReadUncarried {
+            var: Box::new(doc.spoken_var(var)),
+        });
     }
     for consumer in doc.ids() {
         let Some(node) = doc.node(consumer) else {

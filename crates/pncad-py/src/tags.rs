@@ -2561,6 +2561,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::SeveredEdge { .. } => "severed_edge",
         SplitError::RemainderReadUncarried { .. } => "remainder_read_uncarried",
         SplitError::ProductReadSevered { .. } => "product_read_severed",
+        SplitError::NamedReadUncarried { .. } => "named_read_uncarried",
         SplitError::CutsTheWorld => "cuts_the_world",
         SplitError::NoMaterial { .. } => "no_material",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",

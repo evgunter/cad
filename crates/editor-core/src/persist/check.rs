@@ -2026,7 +2026,7 @@ impl core::fmt::Display for SnapshotError {
                  within a document"
             ),
             Self::PickPath { var, at } => {
-                write!(f, "{var} picks no piece: {}", crate::edit::PickMiss(*at))
+                write!(f, "{}", crate::edit::PicksNoPiece(var, *at))
             }
             Self::ProductRead { read, fault } => {
                 write!(f, "the product slot reads {read}, and {fault}")

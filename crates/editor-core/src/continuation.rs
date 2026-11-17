@@ -487,52 +487,45 @@ fn source_survives<P: crate::ProfilePayload>(
     }
 }
 
-/// **The sources a delete hands over** (DM6: a definition is a reader):
-/// each source whose definition reads a body a deleted operation defines,
-/// redefined as a read of what that body stands for ([`live`]), a member
-/// where it continues one; and the sources so redefined. A source whose
-/// body continues to nothing is left reading it, unresolved (VR7), its
-/// readers gone with the walk.
-fn source_handovers<P: crate::ProfilePayload>(
+/// **The source `var` a delete hands over** (DM6: a definition is a
+/// reader), where its definition reads a body a deleted operation
+/// defines: redefined as a read of what that body stands for ([`live`]),
+/// a member where it continues one. A source whose body continues to
+/// nothing is left reading it, unresolved (VR7), its readers gone with
+/// the walk.
+fn source_handover<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     dead: &Dead,
-) -> Result<(Vec<DocEdit<P>>, Vec<VarId>), SpliceFault> {
-    let mut edits = Vec::new();
-    let mut handed = Vec::new();
-    for (&var, held) in doc.vars() {
-        let VarDef::Source(body) = held.def() else {
-            continue;
-        };
-        if doc.source(body.read).is_some()
-            || !doc
-                .operation_of(body.read)
-                .is_some_and(|op| dead.contains_key(&op))
-        {
-            continue;
-        }
-        let Some(now) = live(doc, dead, body.read)? else {
-            continue;
-        };
-        let at = match (body.is_indexed(), now.is_member()) {
-            (true, true) => {
-                return Err(SpliceFault::MemberOfAMember {
-                    node: doc.operation_of(body.read).unwrap_or(RecipeNodeId::WORLD),
-                });
-            }
-            (true, false) => doc.written_body(body, Operand::Var(now.read)).at,
-            (false, _) => now.at,
-        };
-        edits.push(DocEdit::DefineVar {
-            var: var.into(),
-            def: crate::VarDecl::Source(BodyRead {
-                read: Operand::Var(now.read),
-                at,
-            }),
-            fresh: Vec::new(),
-        });
-        handed.push(var);
+    var: VarId,
+    body: &BodyRead<VarId>,
+) -> Result<Option<DocEdit<P>>, SpliceFault> {
+    if doc.source(body.read).is_some()
+        || !doc
+            .operation_of(body.read)
+            .is_some_and(|op| dead.contains_key(&op))
+    {
+        return Ok(None);
     }
-    Ok((edits, handed))
+    let Some(now) = live(doc, dead, body.read)? else {
+        return Ok(None);
+    };
+    let at = match (body.is_indexed(), now.is_member()) {
+        (true, true) => {
+            return Err(SpliceFault::MemberOfAMember {
+                node: doc.operation_of(body.read).unwrap_or(RecipeNodeId::WORLD),
+            });
+        }
+        (true, false) => doc.written_body(body, Operand::Var(now.read)).at,
+        (false, _) => now.at,
+    };
+    Ok(Some(DocEdit::DefineVar {
+        var: var.into(),
+        def: crate::VarDecl::Source(BodyRead {
+            read: Operand::Var(now.read),
+            at,
+        }),
+        fresh: Vec::new(),
+    }))
 }
 
 /// **One seat handed over**: its new read, and, for a body read, the
@@ -585,7 +578,7 @@ fn hand<P: crate::ProfilePayload>(
         // A seat reaching a deleted operation only through sources — a
         // placement's source, a mate's side selecting the source — keeps
         // its read: the source's definition is the reader handed over
-        // ([`source_handovers`]), and the names in it are rebound after.
+        // ([`source_handover`]), and the names in it are rebound after.
         let mut sources = Vec::new();
         if !reaches_directly(doc, dead, var, &mut sources) {
             for source in sources {
@@ -772,7 +765,7 @@ fn fate<P: crate::ProfilePayload + Clone>(
 /// - anything else goes, continuing nothing.
 ///
 /// The product slot reading a deleted operation is handed the same way,
-/// and so is every source reading one ([`source_handovers`]). A placement
+/// and so is every source reading one ([`source_handover`]). A placement
 /// whose source was handed over is followed by a `Rebind` of every name
 /// read through what carries its copy's names, or selected in the source,
 /// that a deleted node carried in.
@@ -824,28 +817,39 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
     if let Some(fault) = fault {
         return Err(fault);
     }
+    let mut product = None;
+    let mut redefined = Vec::new();
+    let mut sources = Vec::new();
     for site in doc.read_sites() {
         match site {
             // Every node reading a deleted operation is decided by the
-            // walk above.
+            // walk above: a node's fate turns on its inputs' fates, so it
+            // is decided in evaluation order, not one read at a time.
             crate::doc::ReadSite::Node { .. } => {}
-            // A source's definition is handed over below
-            // ([`source_handovers`]); any other definition goes with the
+            // A source's definition is its reader, handed over in place
+            // ([`source_handover`]); any other definition goes with the
             // seat reading it.
-            crate::doc::ReadSite::Definition { .. } => {}
+            crate::doc::ReadSite::Definition { var, read } => {
+                if let Some(body) = doc.source(var).filter(|body| body.read == read)
+                    && let Some(edit) = source_handover(doc, &dead, var, body)?
+                {
+                    redefined.push(edit);
+                    sources.push(var);
+                }
+            }
             crate::doc::ReadSite::Product { read } => {
                 let written = doc.written_operand(read);
                 if let Some(read) = handed(doc, &dead, &written, None)?
                     && read != written
                 {
-                    edits.push(DocEdit::SetProduct {
+                    product = Some(DocEdit::SetProduct {
                         product: Some(read),
                     });
                 }
             }
         }
     }
-    let (redefined, sources) = source_handovers(doc, &dead)?;
+    edits.extend(product);
     edits.extend(redefined);
     let reading: BTreeSet<VarId> = sources
         .iter()

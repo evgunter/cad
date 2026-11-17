@@ -268,11 +268,28 @@ fn same_payload(
 }
 
 /// **A body read as written**: an anonymous pick as the copy it picks
-/// (written the same way) and its path, any other read as
+/// and its path, an anonymous source as what it reads and its indices
+/// (each written the same way), any other read as
 /// [`ProfileDoc::written_operand`] writes it.
 fn written_read(d: &ProfileDoc, read: editor_core::VarId) -> String {
-    match d.pick(read).filter(|_| d.var_name(read).is_none()) {
-        Some(pick) => format!("pick({}, {:?})", written_read(d, pick.placement), pick.of),
+    if d.var_name(read).is_some() {
+        return format!("{:?}", d.written_operand(read));
+    }
+    if let Some(pick) = d.pick(read) {
+        return format!("pick({}, {:?})", written_read(d, pick.placement), pick.of);
+    }
+    match d.source(read) {
+        Some(body) => format!(
+            "source({}, {:?})",
+            written_read(d, body.read),
+            body.at
+                .iter()
+                .map(|&index| d.written(&editor_core::Expr::var(
+                    index,
+                    editor_core::Dimension::Count
+                )))
+                .collect::<Vec<_>>()
+        ),
         None => format!("{:?}", d.written_operand(read)),
     }
 }

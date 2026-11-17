@@ -6742,9 +6742,11 @@ def split(
     crosses only where the instance's copy carries what it reads,
     re-pointed to a pick of that copy, the product slot's read among
     them; any other is severed (`severed_edge`,
-    `remainder_read_uncarried`, `product_read_severed`), as is a name
-    reaching material the
-    part's world does not hold once (`name_outside_part_world`). Pure —
+    `remainder_read_uncarried`, `product_read_severed`), as is a named
+    source or pick the remainder keeps that cannot be defined afresh over
+    the instance's copy (`named_read_uncarried`), and a name reaching
+    material the part's world does not hold once
+    (`name_outside_part_world`). Pure —
     `doc` is untouched. Raises SplitError, typed, naming the offending
     edge, constraint, parameter or name.
 
