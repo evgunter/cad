@@ -62,7 +62,7 @@ not for an implementer.
 ## Closed — 2026-11-02, a duplicate of VSEAM's ruled build
 
 This row's question is the narrower half of
-`work/vseam/a-profile-cannot-refer-to-its-own-earlier-parts.md`, filed
+`work/selfref/a-profile-cannot-refer-to-its-own-earlier-parts.md`, filed
 from Ev's comment on `[ev]` PR 6143. Ev ruled that build's residue on
 `[ev]` PR 6346. A point argument holds one `Point2` (U1, doctail).
 A point may read an earlier piece's vertex or centre (U3,

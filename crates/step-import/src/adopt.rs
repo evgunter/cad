@@ -50,7 +50,7 @@ use geom_core::spline::{Built, SplineError};
 use geom_core::{Affine3, FileCoincidence, Point2, Point3};
 use topo::construction::Construct;
 use topo::construction::FaceSurface;
-use topo::{Body, FaceKey, LoopKey};
+use topo::{Body, FaceKey, HalfEdgeKey, LoopKey};
 
 use crate::assemble::Assembled;
 use crate::entities::SolidSpec;
@@ -74,6 +74,11 @@ pub(crate) fn finish(
     Ok(face_keys)
 }
 
+/// The body half-edge realizing target loop `l`'s first use.
+fn first_he(asm: &Assembled, l: usize) -> HalfEdgeKey {
+    asm.use_he[asm.target.loops[l][0]]
+}
+
 /// The body loop realizing target loop `l`.
 fn body_loop(
     body: &Body<f64>,
@@ -81,9 +86,8 @@ fn body_loop(
     l: usize,
     solid_id: u64,
 ) -> Result<LoopKey, StepImportError> {
-    let first = asm.target.loops[l][0];
     Ok(body
-        .get_half_edge(asm.use_he[first])
+        .get_half_edge(first_he(asm, l))
         .ok_or(StepImportError::Topology {
             id: solid_id,
             what: "internal: a realized half-edge does not resolve in adoption",
@@ -91,15 +95,29 @@ fn body_loop(
         .parent_loop)
 }
 
-/// The face currently owning a body loop.
-fn owning_face(body: &Body<f64>, l: LoopKey, solid_id: u64) -> Result<FaceKey, StepImportError> {
+/// The face currently owning body loop `lk`.
+fn loop_face(body: &Body<f64>, lk: LoopKey, solid_id: u64) -> Result<FaceKey, StepImportError> {
     Ok(body
-        .get_loop(l)
+        .get_loop(lk)
         .ok_or(StepImportError::Topology {
             id: solid_id,
             what: "internal: a realized loop does not resolve in adoption",
         })?
         .face)
+}
+
+/// The face currently owning target loop `l`'s body loop.
+fn owning_face(
+    body: &Body<f64>,
+    asm: &Assembled,
+    l: usize,
+    solid_id: u64,
+) -> Result<FaceKey, StepImportError> {
+    body.face_of_half_edge(first_he(asm, l))
+        .ok_or(StepImportError::Topology {
+            id: solid_id,
+            what: "internal: a realized half-edge's face does not resolve in adoption",
+        })
 }
 
 /// Phase B's partition surgery: normalize (every loop an outer), then
@@ -119,7 +137,7 @@ fn designate_faces(
     // Normalize: promote every ring-designated realized loop.
     for l in 0..asm.target.loops.len() {
         let lk = body_loop(body, asm, l, solid.id)?;
-        let f = owning_face(body, lk, solid.id)?;
+        let f = loop_face(body, lk, solid.id)?;
         let outer = body
             .get_face(f)
             .ok_or(StepImportError::Topology {
@@ -144,14 +162,13 @@ fn designate_faces(
     if asm.target.loops.len() > 1 {
         for (outer_l, _) in &asm.target.face_loops {
             let lk = body_loop(body, asm, *outer_l, solid.id)?;
-            let f_cur = owning_face(body, lk, solid.id)?;
+            let f_cur = loop_face(body, lk, solid.id)?;
             // Park anchor: the first realized loop living on another
             // face (deterministic scan; one always exists with ≥ 2
             // loops, since every face here is single-loop).
             let mut park = None;
             for other in 0..asm.target.loops.len() {
-                let ok = body_loop(body, asm, other, solid.id)?;
-                let of = owning_face(body, ok, solid.id)?;
+                let of = owning_face(body, asm, other, solid.id)?;
                 if of != f_cur {
                     park = Some(of);
                     break;
@@ -170,11 +187,9 @@ fn designate_faces(
     // appended in file ring order — the writer's ring emission order.
     let mut face_keys = Vec::with_capacity(asm.target.face_loops.len());
     for (outer_l, ring_ls) in &asm.target.face_loops {
-        let outer_lk = body_loop(body, asm, *outer_l, solid.id)?;
-        let f0 = owning_face(body, outer_lk, solid.id)?;
+        let f0 = owning_face(body, asm, *outer_l, solid.id)?;
         for &rl in ring_ls {
-            let ring_lk = body_loop(body, asm, rl, solid.id)?;
-            let fr = owning_face(body, ring_lk, solid.id)?;
+            let fr = owning_face(body, asm, rl, solid.id)?;
             body.kfmrh(f0, fr).map_err(op_err)?;
         }
         face_keys.push(f0);
@@ -202,14 +217,10 @@ fn rotate_loop_firsts(
         source: source.from_driver(),
         file,
     };
-    for seq in &asm.target.loops {
-        let t = asm.use_he[seq[0]];
-        let he = body.get_half_edge(t).ok_or(StepImportError::Topology {
-            id: solid.id,
-            what: "internal: a realized half-edge does not resolve in rotation",
-        })?;
+    for l in 0..asm.target.loops.len() {
+        let t = first_he(asm, l);
         let current_first = match body
-            .get_loop(he.parent_loop)
+            .get_loop(body_loop(body, asm, l, solid.id)?)
             .ok_or(StepImportError::Topology {
                 id: solid.id,
                 what: "internal: a realized loop does not resolve in rotation",
@@ -227,10 +238,8 @@ fn rotate_loop_firsts(
         if current_first == t {
             continue;
         }
-        let start = he.start;
-        let p = *body
-            .get_vertex(start)
-            .and_then(|v| body.get_point(v.point))
+        let p = body
+            .half_edge_start_point(t)
             .ok_or(StepImportError::Topology {
                 id: solid.id,
                 what: "internal: a realized vertex does not resolve in rotation",

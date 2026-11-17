@@ -521,7 +521,7 @@ const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 91] = [
+const CORPUS: [(&str, Disposition); 93] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 4, 2)),
@@ -542,9 +542,18 @@ const CORPUS: [(&str, Disposition); 91] = [
     ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 3, 2)),
     // The C⁰-knot split: each wall is two sub-patches, each ridge edge
     // two sub-arcs and each cone rim two arcs, and a knot on an edge alone
-    // is a vertex the closing join keeps
+    // is a vertex the closing join keeps; the C prism's top is three
+    // pieces, and the half ridge's top stays whole along its knot line
     // (`a_foreign_carrier_splits_at_each_c0_knot`).
+    (
+        "tests/fixtures/c0-knot/c_prism.step",
+        Pass(1, 1, 12, 30, 20),
+    ),
     ("tests/fixtures/c0-knot/half_cone.step", Pass(1, 1, 5, 9, 6)),
+    (
+        "tests/fixtures/c0-knot/half_ridge.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
     ("tests/fixtures/c0-knot/ridge_u.step", Pass(1, 1, 7, 15, 10)),
     ("tests/fixtures/c0-knot/ridge_v.step", Pass(1, 1, 7, 15, 10)),
     (
