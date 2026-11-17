@@ -1748,9 +1748,10 @@ fn cdt_point(plane: CdtPlane, u: f64, v: f64, singular: bool) -> SpadePoint<f64>
 /// ([`BOUNDARY_CLEARANCE`]) of its own step each way, per chart axis
 /// ([`Side::meets`] says in which plane it is read). Every loop's
 /// sides are read, a ring's, a period seam's and a singular row's as
-/// any other. A node exactly on a crease is the crease's own point on
-/// its grid line ([`Creases::cut_candidates`]) and is held clear of
-/// the polygon alone.
+/// any other. A crease's own point on a grid line
+/// ([`Creases::cut_candidates`], [`Node::on_crease`]) is held clear of
+/// the polygon alone. One location laid more than once is laid where
+/// each copy clears ([`Node`], "its own step").
 ///
 /// Nothing is merged or moved: a node is laid or it is not, and the
 /// decision is made before the first attempt.
