@@ -2,11 +2,12 @@
 id: a-node-end-row-certifies-a-coarse-span-onto-the-node-at-1e-6
 kind: issue
 title: Main red at 1e-6: node_end_rows' chain of one coarse span onto the node certifies (Chart rung 0.125) where the row wants TubeStraddles
-status: dispatched
+status: review
 opened: 2026-11-17
 priority: P1
 cost: E
 branch: sectarms/main-red-1e-6
+pr: 7057
 ---
 
 Found by the sliver lane (`sectarms/sliver-loop-tube`, 2026-11-17) and replayed by the orchestrator on main at `f50b58e2f3`. It is also red at `fa4e9ba921`, PR 7052's first parent, so it predates that PR. When it went red is not measured.

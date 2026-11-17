@@ -2,11 +2,12 @@
 id: main-red-since-pr-7052-the-recourse-roster-and-a-close-rings-pin
 kind: issue
 title: Main red since PR 7052: geom-brep's recourse_roster lists two certify.rs sites that went and misses two that came, and close_rings_carry_counted's 1e-6 pin names a chain of 206 boxes where the periodic fit has 208
-status: dispatched
+status: review
 opened: 2026-11-17
 priority: P1
 cost: E
 branch: sectarms/main-red-1e-6
+pr: 7057
 ---
 
 Found by the sliver lane (`sectarms/sliver-loop-tube`, 2026-11-17) and replayed by the orchestrator on main at `f50b58e2f3`, in a clean worktree with its own target directory.
