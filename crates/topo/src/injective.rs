@@ -5130,18 +5130,23 @@ impl On {
 /// **Where `ψ` is zero.** A separator the engine builds carries the
 /// cells it vanishes on (`on`), and a zero side, corner point or curve
 /// is zero under it where it lies on those cells: membership, no value
-/// read. A side or curve that may run on past its edges (a side past
-/// the shared cell, two sides at a corner, a curve) is zero only where
-/// the separator holds its edges' whole line or circle and the side's
-/// chart line is that line or circle; under the graph separator a side
-/// or curve is zero where its parameters lie in the graph's piece, the
-/// one stretch of its edge's carrier the graph vanishes on
-/// ([`graph_of`]): a corner presentation's side runs on past its vertex
-/// ([`present_corner`]). A side whose chart line is not its edge's own
-/// line or circle (a spline's) has no parameters read, and is zero only
-/// where it lies on its edge ([`Along`]): its points are the edge's, in
-/// the presentation's image, which the piece the edge reaches holds up
-/// to the rounding of the chart against the stored carrier. A face's own
+/// read. A side that lies on its edges ([`Along::on_edges`]) is zero
+/// wherever its edges are. A side or curve that may run on past its
+/// edges (a corner presentation's side, which runs past its vertex
+/// ([`present_corner`]); a side past the shared cell; two sides at a
+/// corner; a curve) is zero only where the separator vanishes on the
+/// side's whole chart line:
+/// - under a plane, where the plane holds its edges' whole line or
+///   circle and the side's chart line is that line or circle;
+/// - under the graph separator, where the side's or curve's parameters
+///   lie in the graph's piece, the one stretch of its edge's carrier the
+///   graph vanishes on, as [`graph_of`] states it.
+///
+/// A side whose chart line is not its edge's own line or circle (a
+/// spline's) has no parameters read; under the graph it is zero where it
+/// lies on its edge, its points the edge's in the presentation's image,
+/// which the piece the edge reaches holds up to the rounding of the
+/// chart against the stored carrier. A face's own
 /// carrier (`on` `None`, the carrier arm) is read over the side
 /// (`SELF_INTERSECTION_ON_SHARED`).
 ///
@@ -5176,7 +5181,11 @@ fn sign_on(
         on.map_or_else(
             || read(s),
             |on| {
-                on.holds(a, whole) && piece.is_none_or(|p| a.within(p) || (!a.whole && a.on_edges))
+                on.holds(a, whole)
+                    && match piece {
+                        Some(p) => a.within(p) || (!a.whole && a.on_edges),
+                        None => a.on_edges || (on.whole && a.whole),
+                    }
             },
         )
     };
@@ -10078,9 +10087,12 @@ mod presentation_rows {
     /// answers nothing, and over a piece holding the side's parameters
     /// the face's sign. A side of the same rim off the corner, inside the
     /// edge ([`present_chart`]), reads its sign over a piece holding it
-    /// and nothing over one that stops short. Red if membership under
-    /// the graph drops the parameters, or reads them off the wrong end
-    /// of the rim.
+    /// and nothing over one that stops short. Under the rim's plane the
+    /// corner side is zero, the plane holding the whole circle, and not
+    /// where its chart line is taken off the circle. Red if membership
+    /// under the graph drops the parameters, reads them off the wrong
+    /// end of the rim, or a plane reads a side past its vertex without
+    /// its whole line.
     #[test]
     fn a_corner_side_past_its_vertex_is_zero_under_the_graph_only_within_its_piece() {
         let s = cylinder();
@@ -10131,6 +10143,36 @@ mod presentation_rows {
             corner.zero
         );
         assert_eq!(sign(&corner, (0.94, 1.0)), None, "past the edge's piece");
+        let rim_plane = Psi::Linear {
+            n: ez(),
+            q: Point3::new(iv0(0.0), iv0(0.0), iv0(0.5)),
+        };
+        let holds_rim = On {
+            edges: vec![edge(10)],
+            vertices: Vec::new(),
+            whole: true,
+        };
+        assert!(
+            sign_on(&rim_plane, Some(&holds_rim), &corner, None, band()).is_some(),
+            "the rim's plane holds the side's whole circle"
+        );
+        let mut off_line = Presented {
+            surface: corner.surface,
+            map: corner.map,
+            x: corner.x,
+            y: corner.y,
+            zero: corner.zero.clone(),
+            corner: true,
+            cache: Cache::default(),
+        };
+        if let Zero::Side(_, a) = &mut off_line.zero {
+            a.whole = false;
+        }
+        assert_eq!(
+            sign_on(&rim_plane, Some(&holds_rim), &off_line, None, band()),
+            None,
+            "a side past its vertex whose chart line is not the rim's circle"
+        );
         assert_eq!(
             sign(&corner, (0.94, 1.04)),
             Some(Sign::Positive),
