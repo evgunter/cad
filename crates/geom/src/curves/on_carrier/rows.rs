@@ -549,6 +549,13 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
              end, the premise of the place it pins",
         ),
         (
+            "topo/src/boolean/edge_join.rs",
+            1,
+            "`read_far` inverts a periodic cubic's far end by its whole-carrier foot, \
+             named in the turn nearest the parameter walked from: the foot's parameter \
+             taken as the end's, which no reading certifies (filed with fork 275 step 3b)",
+        ),
+        (
             "topo/src/boolean/solid_contain/curved_edges.rs",
             1,
             "the ray's foot iteration carries its point to the closest approach, which \
