@@ -41,7 +41,7 @@ cylinder × sphere poses (wall radius 0.5; ball `(d, R)` = `(0.5, 0.3)`,
 | `k` ulps under the knot | seats | certify | refuse `TubeProbeSilent { rungs: 20, refused: 20 }` |
 |---|---|---|---|
 | 0 (on the knot) | 12 | 12 | 0 |
-| 1 | 12 | 7 | 5 |
+| 1 | 12 | 8 | 4 |
 | 2 | 12 | 11 | 1 |
 | 3 | 12 | 11 | 1 |
 | 4, 6, 8, 12, 16, 32, 64, 256, 4096, 2²⁰ | 120 | 120 | 0 |
