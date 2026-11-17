@@ -42,7 +42,7 @@ its other nappe and nowhere on its own, through the crossing sweep —
   tell-off: it does not reach the decision either.
 - **r2** (n-1, mutant M5): the tell-off cannot decide where the trim
   answers, because `solid_contain::point_on_cone_in_face` refuses the
-  far nappe first (`crates/topo/src/boolean/solid_contain.rs:3018-3022`,
+  far nappe first (`crates/topo/src/solid_contain.rs:3018-3022`,
   `bool_ray_cone_nappe`). It decides only on faces the trim declines —
   rings, `PartialConeFace` — and there it turns a frontier into
   `Elsewhere`. r2 could not build one through a public door.

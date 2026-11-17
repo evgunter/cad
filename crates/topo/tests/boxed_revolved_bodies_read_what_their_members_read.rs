@@ -12,7 +12,7 @@
 //! face's in-face walk refuses over a box (`CorruptLoop`;
 //! `work/inside/a-whole-turn-circle-cap-refuses-corrupt-loop-over-a-box-where-f64-answers.md`),
 //! so a read that needs a cap's crossing reads nothing, and no mutant
-//! of the ray's edge arms (`boolean::solid_contain::edge_gap`, the
+//! of the ray's edge arms (`solid_contain::edge_gap`, the
 //! curved arm, `reaches_root_in_band`) turns any of them red today. The
 //! day that walk reads, the curved edge's reading is first live over a
 //! box, and these are where a wrong answer would show. They were

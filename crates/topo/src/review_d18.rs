@@ -3712,8 +3712,8 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
     }
     let q = Point3::new(0.5, 0.5, 0.0);
     for (face, _) in body.faces() {
-        use crate::boolean::ContainError;
-        use crate::boolean::solid_contain::PointInSolidError as Solid;
+        use crate::contain::ContainError;
+        use crate::solid_contain::PointInSolidError as Solid;
         let contain = |answer: Result<bool, ContainError>| match answer {
             Err(e @ ContainError::StaleFace(_)) => Err(e.to_string()),
             Ok(_)
@@ -3737,10 +3737,10 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
             Err(e) => panic!("a torn read answered a refusal a sound face cannot give: {e}"),
         };
         judge_read(capture, &mut census, "contfp", || {
-            contain(crate::boolean::contfp(body, face, Vec3::unit_z(), q, band).map(|_| true))
+            contain(crate::contain::contfp(body, face, Vec3::unit_z(), q, band).map(|_| true))
         });
         judge_read(capture, &mut census, "curved_face_containment", || {
-            contain(crate::boolean::curved_face_containment(body, face, q, band).map(|_| true))
+            contain(crate::contain::curved_face_containment(body, face, q, band).map(|_| true))
         });
         // The window walk: the face is the caller's key; a record past
         // it that does not resolve had to panic.
@@ -3974,7 +3974,7 @@ fn torn_bodies_fail_reads_only_on_a_row_four_premise() {
 /// record would panic instead.
 #[test]
 fn a_callers_key_that_does_not_resolve_answers_typed() {
-    use crate::boolean::ContainError;
+    use crate::contain::ContainError;
     use crate::splitting::SplitReduceError;
     use geom_core::{Band, Vec3};
     let band = Band::linear(Tol::witness()).unwrap();
@@ -3991,12 +3991,12 @@ fn a_callers_key_that_does_not_resolve_answers_typed() {
     );
     let q = Point3::new(0.5, 0.5, 0.0);
     assert_eq!(
-        crate::boolean::contfp(&body, face, Vec3::unit_z(), q, band),
+        crate::contain::contfp(&body, face, Vec3::unit_z(), q, band),
         Err(ContainError::StaleFace(face)),
         "contfp"
     );
     assert_eq!(
-        crate::boolean::curved_face_containment(&body, face, q, band),
+        crate::contain::curved_face_containment(&body, face, q, band),
         Err(ContainError::StaleFace(face)),
         "curved_face_containment"
     );

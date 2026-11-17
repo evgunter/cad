@@ -9,7 +9,7 @@ opened: 2026-09-15
 
 ## What
 
-`crates/topo/src/boolean/rim_wedge.rs`'s `classify_shared_rim` builds
+`crates/topo/src/rim_wedge.rs`'s `classify_shared_rim` builds
 its sample stations from the `Rim`'s `center`/`axis`/`radius`/`u_ref`
 by hand — `station(i)` computes `v = axis × u`, takes `theta.sin()` and
 `theta.cos()` as two separate calls, and returns

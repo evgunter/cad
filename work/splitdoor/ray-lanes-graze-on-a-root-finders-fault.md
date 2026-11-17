@@ -17,9 +17,9 @@ walk sets the ray aside and casts another. Two readers fold a root
 finder's fault (`geom_brep::roots::RootFault`, today only
 `ImpossibleCount`, which no legal input reaches) into that graze:
 
-- `crates/topo/src/boolean/region.rs` `found`: `RootRefusal::Fault(_)`
+- `crates/topo/src/region.rs` `found`: `RootRefusal::Fault(_)`
   grazes with `Touch` and `Unsettled`.
-- `crates/topo/src/boolean/solid_contain.rs` `carrier_roots` and
+- `crates/topo/src/solid_contain.rs` `carrier_roots` and
   `ray_crossings`: `RootRefusal::Fault(_)` grazes with `Touch`.
 
 Both kept the behaviour they had before the split (the fault was then

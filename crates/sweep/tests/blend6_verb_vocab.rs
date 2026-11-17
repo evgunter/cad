@@ -76,7 +76,7 @@ fn assert_speaks_once_as_the_fillet(refusal: &BlendRefusal, label: &str) {
 }
 
 /// **THE HEADLINE ROW, flipped.** An edge ending at a curved end face,
-/// through `chamfer_edges`, refuses over the SHARED run-out arm; the
+/// through `chamfer_edges`, refuses over the SHARED unbuilt-end arm; the
 /// caller who asked for a chamfer reads `"chamfer: …"` with a recourse
 /// that speaks of the band rather than telling them to fillet. The
 /// suite's first commit measured the run-out reading
@@ -90,12 +90,12 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
         D,
         Tol::witness(),
     )
-    .expect_err("a curved end face is a run-out");
+    .expect_err("a curved end face is an unbuilt end");
     assert!(
-        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
-        "the shared run-out arm is what refused: {err:?}"
+        matches!(err.error, BlendError::UnbuiltEnd(_)),
+        "the shared end arm is what refused: {err:?}"
     );
-    assert_speaks_as_the_chamfer(&err, "run-out");
+    assert_speaks_as_the_chamfer(&err, "curved end face");
     let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains("end the blend at a flat-faced corner"),
@@ -132,7 +132,7 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_turn() {
 }
 
 /// The fillet caller's verb stays right, and renders ONCE: the same
-/// shared run-out arm through `fillet_edges` opens `"fillet: "` with
+/// shared unbuilt-end arm through `fillet_edges` opens `"fillet: "` with
 /// no second verb prefix anywhere in the composition.
 #[test]
 fn a_fillet_caller_reads_the_fillet_verb_once_over_the_same_shared_arm() {
@@ -143,12 +143,12 @@ fn a_fillet_caller_reads_the_fillet_verb_once_over_the_same_shared_arm() {
         D,
         Tol::witness(),
     )
-    .expect_err("a curved end face is a run-out");
+    .expect_err("a curved end face is an unbuilt end");
     assert!(
-        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
-        "the shared run-out arm is what refused: {err:?}"
+        matches!(err.error, BlendError::UnbuiltEnd(_)),
+        "the shared end arm is what refused: {err:?}"
     );
-    assert_speaks_once_as_the_fillet(&err, "run-out");
+    assert_speaks_once_as_the_fillet(&err, "curved end face");
 }
 
 /// The chamfer's own arm still speaks as the chamfer — through the
@@ -212,12 +212,11 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
     ));
     assert_speaks_as_the_chamfer(&clearance, "clearance");
 
-    // The shared corner-configuration vocabulary: a mixed corner's odd
-    // edge with one other where the face the other two share leans off
-    // square to it, which the mixed corner's rule does not build — the
-    // corner CONFIGURATION case (distinct from the run-out row above,
-    // which is about the REQUEST's coverage). Square, as at the
-    // L-bracket's reflex edge with one floor edge, the request chamfers.
+    // The oblique mixed corner: a mixed corner's odd edge with one other
+    // where the face the other two share leans off square to it, which
+    // the mixed corner's rule does not build (`ObliqueMixedCorner`).
+    // Square, as at the L-bracket's reflex edge with one floor edge, the
+    // request chamfers.
     let bracket = l_bracket();
     let odd_and_one = sweep::test_support::reflex_edge_and_floor_leg(&bracket, (0.5, 0.5));
     chamfer_edges(
@@ -235,8 +234,11 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
         t,
     )
     .expect_err("an oblique mixed corner's odd edge with one other has no rule built");
-    assert!(matches!(corner.error, BlendError::UnsupportedCorner { .. }));
-    assert_speaks_as_the_chamfer(&corner, "corner-config");
+    assert!(matches!(
+        corner.error,
+        BlendError::ObliqueMixedCorner { .. }
+    ));
+    assert_speaks_as_the_chamfer(&corner, "oblique corner");
 }
 
 /// **Followability, per verb (the issue-1278 rule)**: a recourse is a
@@ -269,11 +271,8 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
 
     let (round, edge) = half_round_end();
     let run_out = chamfer_edges(&sweep::test_support::at_rest(&round, t), &[edge], D, t)
-        .expect_err("a curved end face is a run-out");
-    assert!(matches!(
-        run_out.error,
-        BlendError::UnsupportedRunOut { .. }
-    ));
+        .expect_err("a curved end face is an unbuilt end");
+    assert!(matches!(run_out.error, BlendError::UnbuiltEnd(_)));
     assert!(
         chamfer_edges(&sweep::test_support::at_rest(&body, t), &edges[..1], D, t).is_ok(),
         "one edge ending at plane end faces, which the recourse names, must build"

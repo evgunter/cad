@@ -22,8 +22,8 @@
 use geom_core::{Band, BandError, Indeterminate, MarginDiag, Sign, Tol};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{
-    BlendError, BlendKind, BlendRefusal, BlendSite, ClassifiedMargin, Convexity, CornerConfig,
-    KnifeRefusal,
+    BlendError, BlendKind, BlendRefusal, BlendSite, ClassifiedMargin, Convexity, KnifeRefusal,
+    OddEdge, UnbuiltEnd,
 };
 use sweep::test_support::cube;
 use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
@@ -94,15 +94,44 @@ fn seeds() -> Vec<BlendError> {
             margin: decided("fillet3_convexity_sign", -1e-3, Sign::Negative),
             chain: Convexity::Convex,
         },
-        BlendError::UnsupportedCorner {
+        BlendError::UnbuiltEnd(UnbuiltEnd::Valence {
             vertex: VertexKey::default(),
-            corner: CornerConfig::NEdgeVertex { valence: 4 },
-            policy: CornerConfig::NEdgeVertex { valence: 4 }.policy(),
-        },
-        BlendError::UnsupportedCorner {
+            valence: 4,
+        }),
+        BlendError::UnbuiltEnd(UnbuiltEnd::Seam {
             vertex: VertexKey::default(),
-            corner: CornerConfig::SeamVertex,
-            policy: CornerConfig::SeamVertex.policy(),
+        }),
+        BlendError::UnbuiltEnd(UnbuiltEnd::DependentNormals {
+            vertex: VertexKey::default(),
+        }),
+        BlendError::UnbuiltEnd(UnbuiltEnd::Indeterminate {
+            vertex: VertexKey::default(),
+        }),
+        BlendError::UnbuiltEnd(UnbuiltEnd::CurvedEndFace {
+            vertex: VertexKey::default(),
+        }),
+        BlendError::UnbuiltEnd(UnbuiltEnd::FootInsideAFace {
+            vertex: VertexKey::default(),
+        }),
+        BlendError::UnbuiltEnd(UnbuiltEnd::FeetCross {
+            edge: EdgeKey::default(),
+        }),
+        BlendError::UnbuiltEnd(UnbuiltEnd::RunOut {
+            vertex: VertexKey::default(),
+            unrequested: EdgeKey::default(),
+            odd: None,
+        }),
+        BlendError::UnbuiltEnd(UnbuiltEnd::RunOut {
+            vertex: VertexKey::default(),
+            unrequested: EdgeKey::default(),
+            odd: Some(OddEdge {
+                edge: EdgeKey::default(),
+                convexity: Convexity::Concave,
+            }),
+        }),
+        BlendError::ObliqueMixedCorner {
+            vertex: VertexKey::default(),
+            odd: EdgeKey::default(),
         },
         BlendError::SpineUnsupported {
             edge: EdgeKey::default(),
@@ -163,10 +192,6 @@ fn seeds() -> Vec<BlendError> {
         BlendError::UnsupportedChain {
             edge: EdgeKey::default(),
             detail: "a chain shape that is not built",
-        },
-        BlendError::UnsupportedRunOut {
-            at: EntityId::Vertex(VertexKey::default()),
-            detail: "a termination the request does not cover",
         },
         BlendError::UnsupportedGeometry {
             at: EntityId::Face(FaceKey::default()),

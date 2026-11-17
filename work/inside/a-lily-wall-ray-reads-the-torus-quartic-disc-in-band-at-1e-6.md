@@ -20,7 +20,7 @@ Measured with `scripts/k_probe_sweep.sh`'s dump half on main `9fe94da35`
 
 `bool_ray_torus_disc` is the disc row of `topo`'s ray × torus quartic
 (`geom_brep::rows::RAY_TORUS`, read by
-`crates/topo/src/boolean/solid_contain.rs` through `RAY_TORUS_ROWS`,
+`crates/topo/src/solid_contain.rs` through `RAY_TORUS_ROWS`,
 ~2880). At 1e-6 it lands in the band 14 times: 8 on `demo/lily_walls`
 and 4 on `demo/lily` at −5.966e-6, and 2 on `demo/lily_walls` at
 −7.774e-6. At 1e-9 the same scenes record it as definite and under the

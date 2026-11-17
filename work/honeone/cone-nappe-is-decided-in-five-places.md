@@ -29,7 +29,7 @@ independently, by name, in:
   window straddle refusing `NappeSpanning` — the twin of
   `ReplaceFaceError::NappeStraddles`, decided from a window instead
   of the corners) — PROPS' file;
-- `crates/topo/src/boolean/solid_contain.rs` (`bool_cone_trim_nappe`,
+- `crates/topo/src/solid_contain.rs` (`bool_cone_trim_nappe`,
   `bool_cone_trim_side`, `bool_ray_cone_nappe`, from a face's slant
   window) — S-BOOL's / CURVED's file;
 - and inside SHELL's own fence `offset_axial_side` (per corner) beside
@@ -69,7 +69,7 @@ when the cone face's flux and area got one home,
   sites, per point);
 - `geom-brep/src/props/curved.rs` — `props_cone_nappe` (per edge
   endpoint, in `cone_face_closed_form`);
-- `topo/src/boolean/solid_contain.rs` — `bool_cone_trim_nappe`,
+- `topo/src/solid_contain.rs` — `bool_cone_trim_nappe`,
   `bool_ray_cone_nappe` (and `bool_cone_trim_side`);
 - `topo/src/chord_join.rs` — `split_cone_chord_nappe` (per point, the
   chord start's side for the arc-side frame) and `bool_cone_apex_nappe`
@@ -87,7 +87,7 @@ is not matched by this sweep.
 Branch `chart/ringed-curved-doors` (PR 5664) deletes
 `bool_cone_trim_nappe` and `bool_cone_trim_side` with the cone chart
 trim, and `bool_cone_apex_nappe` with `cone_apex_closure`. Its region
-reading, `topo::boolean::ruled_region`, decides which nappe a POINT lies
+reading, `topo::ruled_region`, decides which nappe a POINT lies
 on under one name, `bool_ruled_region_nappe`, at four sites, each the
 sign of `(y − apex)·â`:
 
