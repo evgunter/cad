@@ -150,7 +150,7 @@ fn phi_over<T: CertifiedBounds>(
 }
 
 /// The intersection of two rectangles, `None` when it has no interior.
-fn meet(a: UvRect, b: UvRect) -> Option<UvRect> {
+pub(crate) fn meet(a: UvRect, b: UvRect) -> Option<UvRect> {
     let u = (a.u.0.max(b.u.0), a.u.1.min(b.u.1));
     let v = (a.v.0.max(b.v.0), a.v.1.min(b.v.1));
     (u.0 < u.1 && v.0 < v.1).then_some(UvRect { u, v })

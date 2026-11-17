@@ -2344,7 +2344,7 @@ impl Tube {
                 samples: PAD_SAMPLES,
             })
             .collect();
-        let TubeRead { pad, reach, .. } = pad_and_reach(net, &pieces, certificate.hull_sup, at)?;
+        let TubeRead { pad, reach } = pad_and_reach(net, &pieces, certificate.hull_sup, at)?;
         Ok(Self { chain, pad, reach })
     }
 }
@@ -2352,10 +2352,10 @@ impl Tube {
 /// **A piece of a component's tube**: boxes covering a region limb 3
 /// puts a piece of the component in, the carrier's span over that piece,
 /// and how many carrier points over the span its boxes are read against.
-pub(super) struct TubePiece {
-    pub(super) boxes: Vec<crate::ssi::enclose::Box3>,
-    pub(super) span: (f64, f64),
-    pub(super) samples: usize,
+struct TubePiece {
+    boxes: Vec<crate::ssi::enclose::Box3>,
+    span: (f64, f64),
+    samples: usize,
 }
 
 /// **A tube's pad and its witness's reach** ([`CarriedComponent::pad`],
@@ -2380,7 +2380,7 @@ pub(super) struct TubePiece {
 /// [`CarryRefusal::TubeUnread`] for no piece, or a box or carrier point
 /// that is refused ([`LoopTubeRefusal`]); [`CarryRefusal::PadShort`];
 /// and a desync where no piece's span holds `at`.
-pub(super) fn pad_and_reach(
+fn pad_and_reach(
     carrier: &geom::NurbsCurve3<f64>,
     pieces: &[TubePiece],
     hull_sup: f64,
@@ -2464,16 +2464,14 @@ pub(super) fn pad_and_reach(
             core::slice::from_ref(&witness),
         )));
     }
-    Ok(TubeRead { pad, reach, each })
+    Ok(TubeRead { pad, reach })
 }
 
-/// What [`pad_and_reach`] reads of a tube: the pad, the witness's reach,
-/// and each piece's own pad, the farthest its boxes stand from the
-/// carrier, in the pieces' order.
-pub(super) struct TubeRead {
-    pub(super) pad: f64,
-    pub(super) reach: f64,
-    pub(super) each: Vec<f64>,
+/// What [`pad_and_reach`] reads of a tube: the pad and the witness's
+/// reach.
+struct TubeRead {
+    pad: f64,
+    reach: f64,
 }
 
 /// How many times [`pad_and_reach`] halves each tube box for the pad:
@@ -2549,14 +2547,15 @@ pub enum CarryRefusal {
     },
     /// A fitted loop's uniqueness tube could not be read ([`Tube::of`]).
     TubeUnread(LoopTubeRefusal),
-    /// Two arcs of a spline × implicit section stand no farther apart
-    /// than the pads their points are read within, so a point near both
-    /// would read on both ([`CarriedSection::site`]).
+    /// Two arcs of a spline × implicit section whose cells
+    /// ([`CarriedComponent::boxes`]) still stand within the band of each
+    /// other where their refinement stopped, so a point near both would
+    /// read on both ([`CarriedSection::site`]).
     PadsMeet {
-        /// The two arcs' pads, in metres.
+        /// The pads of the two arcs' nearest cells, in metres.
         pads: [f64; 2],
-        /// The least their carriers' hulls stand apart, in metres;
-        /// `NaN` where a hull did not read.
+        /// The least the two arcs' cells stand apart, in metres; `NaN`
+        /// where a cell did not read.
         gap: f64,
     },
     /// A spline component's piece walk could not run
@@ -2613,8 +2612,9 @@ impl CarryRefusal {
             ),
             Self::PadsMeet { pads: [a, b], gap } => write!(
                 f,
-                "two arcs of the section stand {gap:e} m apart, within the {a:e} m and {b:e} m \
-                 their points are read within, so a point near both could not be read on one. {}",
+                "two arcs of the section are read in regions {gap:e} m apart, each within \
+                 {a:e} m and {b:e} m of its arc, so a point near both could not be read on one. \
+                 {}",
                 geom_core::move_recourse!("so the section's arcs stand farther apart")
             ),
             Self::Unwalked(why) => write!(
@@ -2772,51 +2772,61 @@ pub struct CarriedComponent<T: Real> {
     /// **How far from its carrier a point of this component is read**,
     /// in metres; zero for a closed form. Every reading of a point
     /// against the component pads its band by it ([`Self::reads`]), and
-    /// the certificate's W3 rests on it. It is [`pad_and_reach`]'s over
-    /// the component's tube: a marched loop's chain boxes ([`Tube::of`]),
-    /// or a fitted spline × implicit arc's chart windows imaged on the
-    /// wall (`spline_implicit::pad_of`). Two facts make it the pad, each
-    /// a limb of the C2 certificate.
+    /// the certificate's W3 rests on it. A marched loop's is
+    /// [`pad_and_reach`]'s over its chain boxes ([`Tube::of`]). A fitted
+    /// spline × implicit arc's is the widest of its cells'
+    /// ([`Self::boxes`]): the farthest its carrier stands from the cells
+    /// of its chart tube's windows, cut to the knot rectangle, that the
+    /// partner's form does not clear of the band, imaged on the wall,
+    /// each read against the whole carrier (`spline_implicit::cells`).
+    /// Two facts make it the pad, each a limb of the C2 certificate.
     ///
     /// - **Closeness**: every point of the component lies within `pad`
     ///   of the carrier. The exhaustiveness receipt accounts each cell of
     ///   the domain to a branch's uniqueness tube (limb 3 says it holds
     ///   exactly one arc, the branch's own), and the pad bounds every
-    ///   point of the tube's distance from the carrier. And limbs 1 and 2
-    ///   put the carrier within `hull_sup` of each surface, which the pad
-    ///   is checked to hold ([`CarryRefusal::PadShort`]), so a point of the
-    ///   carrier lies within the pad of each surface too.
+    ///   point of the tube's distance from the carrier, or every point of
+    ///   it the partner's form does not clear, which the section's points
+    ///   are among. And limbs 1 and 2 put the carrier within `hull_sup`
+    ///   of each surface, which the pad holds: a marched loop's is
+    ///   checked to ([`CarryRefusal::PadShort`]), and a cell's is no less
+    ///   than it. So a point of the carrier lies within the pad of each
+    ///   surface too.
     /// - **Uniqueness**: limb 3's tube holds this component's arc alone,
-    ///   but the pad is a ball about the carrier wider than the tube. Two
-    ///   fitted spline × implicit arcs are held apart by more than both
-    ///   pads, or carry neither ([`CarryRefusal::PadsMeet`]); a point read
-    ///   on two components (each within its pad) is not chosen between:
-    ///   it desyncs.
+    ///   but a point is read on an arc by its cells, not by its tube. Two
+    ///   fitted spline × implicit arcs' cells are refined until they
+    ///   stand apart by more than the band they are read within, or the
+    ///   arcs carry neither ([`CarryRefusal::PadsMeet`]); a point read
+    ///   on two components is not chosen between: it desyncs.
     pub pad: f64,
     /// **How far the witness may stand from the component**, in metres;
     /// zero for a closed form. It is the farthest a piece of the tube
     /// whose span holds the witness's parameter reaches from the witness
     /// ([`pad_and_reach`]): limb 3 puts a piece of the component in every
-    /// piece of the tube, a marched loop's chain box or a fitted arc's
-    /// chart window, so for an arc whose pcurve is one span it is about
-    /// half the arc. The certificate's W3 reads the witness within it.
+    /// piece of the tube, a marched loop's chain box or the cells of a
+    /// fitted arc's chart window, so for an arc whose pcurve is one span
+    /// it is about half the arc. The certificate's W3 reads the witness
+    /// within it.
     pub reach: f64,
     /// A point of the carrier, `carrier(mid)`: the witness the component
     /// is read by.
     pub witness: Point3<T>,
-    /// **The pad read box by box** (C2's node end), empty where it is
-    /// read whole: an arc carried to a node reads its pad per box of its
-    /// tube, each the farthest that window's image stands from the
-    /// carrier, narrowing toward the node, so a site reads the pad of the
-    /// boxes it lies in, and a site in none is not on the component
-    /// ([`Self::reads`]). A node's own box is marked with the node
-    /// ([`PadBox::node`]): a site in it and not at the node escalates
-    /// ([`CarriedSection::site`]). [`Self::pad`] is the widest of them.
+    /// **The cells a site is read in** (C2's carry), empty for a marched
+    /// loop and a closed form, which are read whole: a fitted spline ×
+    /// implicit arc's surviving cells (`spline_implicit::cells`), each an
+    /// enclosure of the cell's image on the wall with the farthest it
+    /// stands from the carrier. Every point of the component lies in one,
+    /// so a site reads the pad of the boxes it lies in, and a site in
+    /// none is not on the component ([`Self::reads`]); they are the
+    /// regions the carry holds the section's arcs apart by. A node's own
+    /// box is marked with the node ([`PadBox::node`]): a site in it and
+    /// not at the node escalates ([`CarriedSection::site`]).
+    /// [`Self::pad`] is the widest of them.
     pub boxes: Vec<PadBox>,
 }
 
-/// **One box of a component's tube and the pad a site in it reads**
-/// ([`CarriedComponent::boxes`]): an enclosure of the window's image on
+/// **One cell of a component and the pad a site in it reads**
+/// ([`CarriedComponent::boxes`]): an enclosure of the cell's image on
 /// the wall, in metres, the farthest a point of it stands from the
 /// carrier, and the node it holds, where it is a node's box.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -2862,10 +2872,11 @@ impl<T: Decide> CarriedComponent<T> {
     /// **Where the point `p` of the section lies against this
     /// component**: its foot on the carrier where `p` is within the band
     /// padded by [`Self::pad`] ([`Curve3::on_carrier`], [`Band::padded`]),
-    /// `None` where it is past it. Where the pad is read box by box
-    /// ([`Self::boxes`]) it is the widest of the boxes `p` lies in,
-    /// each widened by the band's escalation, and `None` where it lies in
-    /// none: every point of the component lies in its tube's windows. The one reading of "a point on this
+    /// `None` where it is past it. Where the component is read by its
+    /// cells ([`Self::boxes`]) the pad is the widest of the boxes `p`
+    /// lies in, each widened by the band's escalation, and `None` where
+    /// it lies in none: every point of the component lies in one. The
+    /// one reading of "a point on this
     /// component", by [`CarriedSection::site`] and the counted section's
     /// cross-check alike.
     ///

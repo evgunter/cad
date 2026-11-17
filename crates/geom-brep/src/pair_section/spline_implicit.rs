@@ -84,12 +84,15 @@
 //!
 //! **An open branch is carried as the reading fitted it**
 //! ([`super::ClassCarrier::Fitted`]): its certified carrier, its
-//! certificate, and its pad and reach in metres, each the chart tube's
-//! padded windows read through the wall's chart speeds ([`pad_of`]). An
-//! arc to a node is carried on to it (C5's node end): its carrier runs
-//! to the node's point, its tube is graded toward the node and ends in
-//! the node's own box, its pad is read box by box, and the ray it names
-//! is the one whose sector holds its tube's last box ([`ray_at`]). A
+//! certificate, and its cells ([`cells`]): the windows of its chart
+//! tube, cut to the knot rectangle, less the cells the partner's form
+//! clears of the band, imaged on the wall, and refined until the
+//! section's arcs read apart. A site is read on the arc in those cells,
+//! and the arc's pad and reach are read off them in metres. An arc to a
+//! node is carried on to it (C5's node end): its carrier runs to the
+//! node's point, its tube is graded toward the node and ends in the
+//! node's own box, kept whole among its cells, and the ray it names is
+//! the one whose sector holds its tube's last box ([`ray_at`]). A
 //! loop on the chart ([`super::NoCarrier::ChartLoop`]) is listed with no
 //! carrier.
 //!
@@ -123,6 +126,7 @@ use crate::ssi::{BranchEnd, BranchTip, SsiBoundaryContact, SsiBranch, SsiDomain,
 
 #[cfg(test)]
 mod carry_rows;
+mod cells;
 mod curved;
 #[cfg(test)]
 mod node_rows;
@@ -538,300 +542,6 @@ impl Bracketed<'_> {
             crate::implicit_gradient(self.surface, p),
             f64::EPSILON * geom_core::interval::norm_sup(&[q.x, q.y, q.z]),
         )
-    }
-}
-
-/// **An open branch as the component it carries**
-/// (`ClassCarrier::Fitted`): its certified carrier over its span, its
-/// certificate, its witness `carrier(mid)`, and its pad and reach in
-/// metres ([`pad_of`]); where an end is at a node, by its index among
-/// the section's in `nodes` (start first), the pad read box by box
-/// (C2's node end). It claims no winding: an open arc winds about
-/// neither surface.
-fn fitted(
-    b: &SsiBranch,
-    shape: ComponentShape,
-    net: &NurbsSurface<f64>,
-    nodes: [Option<usize>; 2],
-) -> Result<super::CarriedComponent<f64>, super::CarryError> {
-    let (read, boxes) = pad_of(b, net, nodes)?;
-    Ok(super::CarriedComponent {
-        carrier: b.carrier.clone(),
-        span: b.params,
-        shape,
-        certificate: Some(b.certificate),
-        winds: [false, false],
-        pad: read.pad,
-        reach: read.reach,
-        witness: b.witness,
-        boxes,
-    })
-}
-
-/// **A chart-tubed branch's pad and reach in metres**
-/// ([`super::CarriedComponent::pad`], [`super::CarriedComponent::reach`]):
-/// the windows of the certificate's chart tube (the pcurve's hull over
-/// each of its spans, padded by `pad_u` and `pad_v`,
-/// `ssi::certify::chart_tube_windows`), each one piece of the tube
-/// ([`super::pad_and_reach`]). Limb 3 holds the section in the windows
-/// one arc, a piece of it in each, and the reading's accounting banks
-/// every other cell of the wall's rectangle, so every point of the
-/// component lies in some window's image on the wall.
-///
-/// Each window is halved, along whichever chart axis leaves the
-/// narrower halves, until each cell's image on the wall
-/// (`NurbsBoxes::rect_box`: the cell's midpoint enclosure plus its
-/// half-widths times the certified partials over it) is no wider than
-/// [`PAD_CELL_RUNGS`] of the tube's rungs, or [`PAD_CUTS`] times; each cell is read against
-/// eight carrier points per cell (at most [`PAD_SAMPLES_MAX`]) over the
-/// window's span. The cells cover
-/// the window, so the pad bounds every point of its image: it is the
-/// farthest point of the window's image from the carrier, read at the
-/// cell's size. A window is the pcurve's hull over a whole span, so the
-/// pad is at least the window's own width across the carrier imaged on
-/// the wall: for a pcurve of one span, the arc's whole bend in the chart,
-/// however narrow the rung.
-///
-/// # Errors
-///
-/// A desync where the certificate is not a chart tube, the branch
-/// carries no wall pcurve or its carrier is not a spline; otherwise
-/// [`super::pad_and_reach`]'s, with [`super::CarryRefusal::TubeUnread`]
-/// where the windows or a cell do not read.
-fn pad_of(
-    b: &SsiBranch,
-    net: &NurbsSurface<f64>,
-    ends: [Option<usize>; 2],
-) -> Result<(super::TubeRead, Vec<super::PadBox>), super::CarryError> {
-    use super::{CarryError, CarryRefusal, LoopTubeRefusal, TubePiece};
-    let (
-        SsiTube::Chart {
-            pad_u,
-            pad_v,
-            rung,
-            nodes,
-        },
-        Some(pcurve),
-    ) = (b.certificate.tube, b.pcurve_b.as_ref())
-    else {
-        return Err(CarryError::Desync(
-            "a spline × implicit branch holds no chart tube on the wall's pcurve",
-        ));
-    };
-    let geom::Curve3::Nurbs(carrier) = &b.carrier else {
-        return Err(CarryError::Desync(
-            "a spline × implicit branch's carrier is not a spline",
-        ));
-    };
-    // The listing's node ends and the certificate's are one fact, read
-    // twice: the branch's tips, and the node boxes limb 3 proved.
-    if [0, 1]
-        .iter()
-        .any(|&e| ends[e].is_some() != nodes[e].is_some())
-    {
-        return Err(CarryError::Desync(
-            "a spline × implicit arc's node ends are not its certificate's node boxes",
-        ));
-    }
-    let unread = || CarryError::Refused(CarryRefusal::TubeUnread(LoopTubeRefusal::NotFinite));
-    let windows = crate::ssi::certify::chart_tube(pcurve, (pad_u, pad_v), nodes).ok_or(
-        CarryError::Refused(CarryRefusal::TubeUnread(LoopTubeRefusal::Uncertified)),
-    )?;
-    let boxes = NurbsBoxes::new(net);
-    let image = |(u0, u1, v0, v1): (f64, f64, f64, f64)| {
-        UvWindow::new(u0, u1, v0, v1)
-            .map(|uv| boxes.rect_box(uv))
-            .ok_or_else(unread)
-    };
-    let pieces: Vec<TubePiece> = windows
-        .iter()
-        .map(|w| {
-            let mut cells = Vec::new();
-            let whole = (w.rect.u.0, w.rect.u.1, w.rect.v.0, w.rect.v.1);
-            let mut open = vec![(whole, image(whole)?, 0u32)];
-            while let Some(((u0, u1, v0, v1), cell, depth)) = open.pop() {
-                // A cell no wider than `PAD_CELL_RUNGS` rungs, or one cut
-                // as often as a window is, is read as it stands.
-                let narrow = cell.width().partial_cmp(&(PAD_CELL_RUNGS * rung))
-                    != Some(core::cmp::Ordering::Greater);
-                if narrow || depth == PAD_CUTS {
-                    cells.push(cell);
-                    continue;
-                }
-                let (um, vm) = (geom::mid_param(u0, u1), geom::mid_param(v0, v1));
-                let halves =
-                    |a, b| -> Result<_, CarryError> { Ok([(a, image(a)?), (b, image(b)?)]) };
-                let across_u = halves((u0, um, v0, v1), (um, u1, v0, v1))?;
-                let across_v = halves((u0, u1, v0, vm), (u0, u1, vm, v1))?;
-                let widest = |h: &[(_, Box3); 2]| h[0].1.width().max(h[1].1.width());
-                let cut = if widest(&across_u) <= widest(&across_v) {
-                    across_u
-                } else {
-                    across_v
-                };
-                open.extend(cut.map(|(rect, cell)| (rect, cell, depth + 1)));
-            }
-            let samples = (8 * cells.len() + 1).min(PAD_SAMPLES_MAX);
-            Ok(TubePiece {
-                boxes: cells,
-                span: w.ends,
-                samples,
-            })
-        })
-        .collect::<Result<_, CarryError>>()?;
-    let read = super::pad_and_reach(
-        carrier,
-        &pieces,
-        b.certificate.hull_sup,
-        geom::mid_param(b.params.0, b.params.1),
-    )?;
-    // Read box by box where an end is a node: the node's box is the
-    // window at that end of the chain, marked with its node.
-    if nodes == [None, None] {
-        return Ok((read, Vec::new()));
-    }
-    let last = windows.len() - 1;
-    let boxes = windows
-        .iter()
-        .zip(&pieces)
-        .zip(&read.each)
-        .enumerate()
-        .map(|(k, ((w, piece), &pad))| {
-            let hull = piece.boxes.iter().fold(None, |acc: Option<Box3>, &c| {
-                Some(acc.map_or(c, |a| a.hull(c)))
-            });
-            let hull = hull
-                .filter(|h| [h.x, h.y, h.z].iter().all(|i| i.is_certified()))
-                .ok_or_else(unread)?;
-            let side = |i: Interval| (i.lo(), i.hi());
-            let [x, y, z] = [side(hull.x), side(hull.y), side(hull.z)];
-            let node = match k {
-                0 if w.node => ends[0],
-                _ if k == last && w.node => ends[1],
-                _ => None,
-            };
-            Ok(super::PadBox {
-                lo: [x.0, y.0, z.0],
-                hi: [x.1, y.1, z.1],
-                pad,
-                node,
-            })
-        })
-        .collect::<Result<Vec<_>, CarryError>>()?;
-    Ok((read, boxes))
-}
-
-/// How many rungs wide a cell's image [`pad_of`] reads as it stands:
-/// a window is padded by the rung's chart width on each side, so its
-/// image is about two rungs across the carrier however short its span.
-const PAD_CELL_RUNGS: f64 = 2.0;
-
-/// How many times [`pad_of`] halves a chart window, at most, toward
-/// cells whose image is no wider than [`PAD_CELL_RUNGS`] rungs: up to
-/// `2⁸` cells a window.
-const PAD_CUTS: u32 = 8;
-
-/// The most carrier points [`pad_of`] reads a window's cells against:
-/// eight intervals a cell, one per part (`super::PAD_SPLITS`), up to
-/// this.
-const PAD_SAMPLES_MAX: usize = 2049;
-
-/// **Two carried arcs whose pads may meet carry neither**
-/// ([`super::CarryRefusal::PadsMeet`]). A site is read on a component
-/// where it stands within the band padded by that component's pad
-/// ([`super::CarriedComponent::reads`]): an arc read whole, within its
-/// pad of its carrier, so within its pad of the carrier's control hull
-/// (`ssi::certify::tube_chain` at radius zero); an arc read box by box,
-/// within one of its boxes widened by the band's escalation. A point
-/// read on two arcs that share no node is a desync, and one read on two
-/// that share a node escalates on its distance from it
-/// ([`super::CarriedSection::site`]), so the carry holds each pair of
-/// fitted arcs apart by those regions, read region by region, except
-/// where one of the two meets the box of a node both arcs end at: there
-/// the arcs meet, and a site escalates. Limb 3 holds each arc alone in
-/// its own tube, but a pad reaches past the tube, so the tube's
-/// uniqueness does not give this.
-fn apart(components: &mut [SectionComponent<f64>], band: Band) {
-    // Each fitted arc's regions: a box, the pad about it, and the node
-    // whose box it is.
-    let regions = |c: &SectionComponent<f64>| -> Option<Vec<(Box3, f64, Option<usize>)>> {
-        let ClassCarrier::Fitted(fitted) = &c.carrier else {
-            return None;
-        };
-        let arc = fitted.as_ref().as_ref().ok()?;
-        if arc.boxes.is_empty() {
-            let geom::Curve3::Nurbs(net) = &arc.carrier else {
-                return None;
-            };
-            let chain = crate::ssi::certify::tube_chain(net, 0.0);
-            return Some(
-                chain
-                    .into_iter()
-                    .map(|(b, _, _)| (b, arc.pad, None))
-                    .collect(),
-            );
-        }
-        Some(
-            arc.boxes
-                .iter()
-                .map(|b| {
-                    let side = |k: usize| Interval::from_bounds(b.lo[k], b.hi[k]);
-                    (
-                        Box3 {
-                            x: side(0),
-                            y: side(1),
-                            z: side(2),
-                        },
-                        0.0,
-                        b.node,
-                    )
-                })
-                .collect(),
-        )
-    };
-    let read: Vec<_> = components.iter().map(regions).collect();
-    let mut meet: Vec<Option<super::CarryRefusal>> = vec![None; components.len()];
-    for (i, a) in read.iter().enumerate() {
-        let Some(a) = a else { continue };
-        for (j, b) in read.iter().enumerate().skip(i + 1) {
-            let Some(b) = b else { continue };
-            let (ends_a, ends_b) = (components[i].shape.nodes(), components[j].shape.nodes());
-            let shared = |n: Option<usize>| {
-                n.is_some_and(|n| ends_a.contains(&Some(n)) && ends_b.contains(&Some(n)))
-            };
-            // The boxes of the nodes both arcs end at: a region meeting
-            // one is the node's, where the two arcs meet.
-            let node_boxes: Vec<Box3> = a
-                .iter()
-                .chain(b.iter())
-                .filter(|&&(_, _, n)| shared(n))
-                .map(|&(r, _, _)| r)
-                .collect();
-            let at_node = |r: Box3| node_boxes.iter().any(|&n| box_gap(r, n) <= 0.0);
-            for &(ba, pad_a, _) in a {
-                for &(bb, pad_b, _) in b {
-                    if at_node(ba) || at_node(bb) {
-                        continue;
-                    }
-                    let gap = box_gap(ba, bb);
-                    let reach = pad_a + pad_b + 2.0 * band.escalate();
-                    // A refused box reads `NaN`, which holds nothing apart.
-                    if gap.partial_cmp(&reach) != Some(core::cmp::Ordering::Greater) {
-                        let refusal = super::CarryRefusal::PadsMeet {
-                            pads: [pad_a, pad_b],
-                            gap,
-                        };
-                        meet[i].get_or_insert(refusal.clone());
-                        meet[j].get_or_insert(refusal);
-                    }
-                }
-            }
-        }
-    }
-    for (c, refusal) in components.iter_mut().zip(meet) {
-        if let Some(refusal) = refusal {
-            c.carrier = ClassCarrier::Fitted(Box::new(Err(super::CarryError::Refused(refusal))));
-        }
     }
 }
 
@@ -1327,9 +1037,9 @@ pub(super) const NODE_RAY: &str = "spline_node_ray";
 /// - each point a tangency decided Zero, and the arcs sharing nodes one
 ///   node-joined set ([`NodeSet`]).
 ///
-/// - each open branch carried as the reading fitted it ([`fitted`]), an
-///   arc to a node carried on to it, its pad read box by box; a loop
-///   with no carrier.
+/// - each open branch carried as the reading fitted it, on its cells
+///   ([`cells`]), an arc to a node carried on to it; a loop with no
+///   carrier.
 ///
 /// # Errors
 ///
@@ -1449,15 +1159,33 @@ fn listed(
             });
         }
     }
+    // Each arc's cells, the section's arcs held apart on them, then each
+    // arc carried on the cells it was held apart by.
+    let mut arcs: Vec<cells::Arc<'_>> = read
+        .iter()
+        .map(|(b, _, minted)| {
+            let ends = *minted.as_ref().ok()?;
+            Some(cells::Enclosure::first(b, pose.net(), partner, ends, band))
+        })
+        .collect();
+    let meets = cells::apart(&mut arcs, band);
     let mut components = Vec::with_capacity(read.len() + out.boundary.len());
-    for (b, shape, minted) in read {
-        let witness = witness(&b, pose.net(), partner);
-        let carrier = match minted {
-            Ok(ends) => ClassCarrier::Fitted(Box::new(fitted(&b, shape, pose.net(), ends))),
-            Err(why) => ClassCarrier::Unminted(why),
+    for (((b, shape, minted), arc), meet) in read.iter().zip(arcs).zip(meets) {
+        let witness = witness(b, pose.net(), partner);
+        let carrier = match (arc, meet, minted) {
+            (Some(Ok(_)), Some(refusal), _) => {
+                ClassCarrier::Fitted(Box::new(Err(super::CarryError::Refused(refusal))))
+            }
+            (Some(arc), ..) => {
+                ClassCarrier::Fitted(Box::new(arc.and_then(|cells| cells.carried(b, *shape))))
+            }
+            (None, _, Err(why)) => ClassCarrier::Unminted(*why),
+            (None, _, Ok(_)) => ClassCarrier::Fitted(Box::new(Err(super::CarryError::Desync(
+                "a rim arc to mint was read no cells",
+            )))),
         };
         components.push(SectionComponent {
-            shape,
+            shape: *shape,
             winds: [false, false],
             witness: witness.map(|(q, _)| q),
             pad: witness.map_or(0.0, |(_, pad)| pad),
@@ -1485,7 +1213,6 @@ fn listed(
             });
         }
     }
-    apart(&mut components, band);
     let verdicts = decided
         .iter()
         .map(|c| super::ZeroVerdict {
