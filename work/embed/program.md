@@ -43,7 +43,7 @@ valid bodies:
 - `the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`
   (P1, design).
 
-**Measuring.** The tour walk is the measure: 81 of 85 bodies hold at
+**Measuring.** The tour walk is the measure: 82 of 85 bodies hold at
 the cut, and the three bench assemblies are recorded contacts. The
 harness is an uncommitted patch: an example plus `demos/tour` edits
 exposing `walk_tour`. Each lane has re-applied it.
