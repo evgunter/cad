@@ -94,11 +94,12 @@ worst triangle, and takes the coarsest step that bound allows.
   spans at most one lattice step (the rim-chord rule above). A lattice
   node is laid only where the box `BOUNDARY_CLEARANCE` of its own step
   each way, per chart axis, meets no side or point of the trim polygon
-  and no crease line. Nothing is merged or moved, and nothing asks
-  whether two points are the same: a node near the boundary is not
-  laid, and the boundary point already there serves. A triangle beside
-  the boundary then reaches `1 + BOUNDARY_CLEARANCE` steps, and the
-  bound for a boundary run is a function of that reach.
+  and no crease line but one it is laid on as that crease's own point.
+  Nothing is merged or moved, and nothing asks whether two points are
+  the same: a node near the boundary is not laid, and the boundary
+  point already there serves. A triangle that joins the boundary to a
+  node then reaches `1 + BOUNDARY_CLEARANCE` steps, and the bound for a
+  boundary run is a function of that reach.
 - **A lane without its theorem yet** keeps an explicitly named
   `UNPROVED_HEADROOM` factor at its call site, filed as a debt. The fix
   is to write the theorem, not to tune the factor.

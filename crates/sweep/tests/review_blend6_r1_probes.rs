@@ -211,23 +211,18 @@ fn seeds() -> Vec<BlendError> {
 /// (`RadiusHeadroom`, `SpineIrregular`, a knife or a rim with no room
 /// for the ball, and an escalation routed to a ball predicate's
 /// recourse), the
-/// chamfer's own arm speaks as the chamfer (`ChamferArmUnsupported`),
-/// and three recourse constants carry deliberately
-/// CONDITIONED per-verb clauses ("for a fillet, …", "a chamfer has no
-/// closed-chain band") on `UnsupportedChain`, `UnsupportedGeometry`
-/// and the seam-vertex corner tag.
+/// chamfer's own arm speaks as the chamfer (`ChamferArmUnsupported`).
+/// The recourse constants the chain, geometry and seam-vertex arms
+/// carry name no verb: the chamfer reaches each of them over its
+/// plane–cylinder rims, so a clause conditioned on a verb would have a
+/// chamfer refusal speak as the fillet.
 fn verb_words_allowed(err: &BlendError) -> bool {
     match err {
         BlendError::RadiusHeadroom { .. }
         | BlendError::SpineIrregular { .. }
         | BlendError::KnifeEdge { .. }
         | BlendError::BallDoesNotFit { .. }
-        | BlendError::ChamferArmUnsupported { .. }
-        | BlendError::UnsupportedChain { .. }
-        | BlendError::UnsupportedGeometry { .. } => true,
-        BlendError::UnsupportedCorner { corner, .. } => {
-            matches!(corner, CornerConfig::SeamVertex)
-        }
+        | BlendError::ChamferArmUnsupported { .. } => true,
         BlendError::Escalated { source, .. } => matches!(
             source.predicate,
             Some(

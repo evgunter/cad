@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-16
 priority: P1
 cost: M
-blocked_on: [the-lattice-keeps-clear-of-the-boundary-and-every-winding-is-resolved, a-curved-face-is-routed-by-its-domain-not-its-carriers]
+blocked_on: [a-curved-face-is-routed-by-its-domain-not-its-carriers]
 ---
 
 

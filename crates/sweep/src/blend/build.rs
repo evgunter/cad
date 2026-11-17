@@ -97,9 +97,9 @@ pub struct Blended<T: topo::AtRestPolicy> {
     /// chamfer's planar patches, one per original vertex, in
     /// original-vertex order.
     pub corner_faces: Vec<FaceKey>,
-    /// The torus band faces — one per CLOSED chain (the fillet's rim
-    /// blends; a chamfer has no closed-chain band), in
-    /// first-link-edge order. Empty when no requested chain closes.
+    /// The closed-rim band faces — one per CLOSED chain (the fillet's
+    /// torus, the chamfer's cone frustum), in first-link-edge order.
+    /// Empty when no requested chain closes.
     pub band_faces: Vec<FaceKey>,
     /// **Per-entity birth records**: what the blend minted and which
     /// source entity each mint was made for.
@@ -428,7 +428,7 @@ pub type Filleted<T> = Blended<T>;
 
 /// A chamfered body. The same record the fillet's assembly returns —
 /// `blend_faces` are the strips, `corner_faces` the flat patches, and
-/// `band_faces` is empty, since a chamfer has no closed-chain band.
+/// `band_faces` the cone frustums over closed plane–cylinder rims.
 pub type Chamfered<T> = Blended<T>;
 
 /// **Chamfer a set of a body's edges** at equal setback `distance`
@@ -447,7 +447,9 @@ pub type Chamfered<T> = Blended<T>;
 /// [`BlendError::NonpositiveSize`] when `distance` is not definitely
 /// positive; [`BlendError::RepeatedEdge`] when the request names one
 /// edge twice; [`BlendError::ChamferArmUnsupported`] when a requested
-/// edge's supports are not both planes; any predicate refusal the
+/// edge's supports are neither both planes nor a cylinder meeting a
+/// plane in a circle about its axis, or the latter's arc lies in a
+/// chain with links over other supports; any predicate refusal the
 /// battery raises, or [`BlendError::Escalated`] carrying the margin;
 /// [`BlendError::UnsupportedChain`],
 /// [`BlendError::UnsupportedRunOut`],
