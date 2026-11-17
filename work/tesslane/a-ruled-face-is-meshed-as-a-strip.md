@@ -2,11 +2,10 @@
 id: a-ruled-face-is-meshed-as-a-strip
 kind: unit
 title: A cylinder or cone face bounded by two rows and two rulings is meshed as a strip, written by walking its rows, in the chart lane at δ
-status: parked
+status: open
 opened: 2026-11-17
 priority: P1
 cost: H
-blocked_on: [a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it]
 ---
 
 Unit 4c of the chart lane (`work/tesslane/plan.md`). The final state of the design fork of 2026-11-17 (row 279 of `docs/DESIGN-FORK-LOG.md`), agreed by three designers after three rounds. It builds `crates/mesh/README.md` `[mesh.sizing]`'s two bullets "The triangulation is built to what the theorem assumes" and "A ruled face is meshed as a strip".
@@ -59,3 +58,12 @@ The strip column is a prototype that held edges in the rectangle lane, not the w
 ## Fallback the designers stand behind
 
 If the walk is judged too large a step inside the chart lane: no rows, plus one held edge per split side, with a test that fails if any triangle spans more than one chord in angle. Its unsplit half then rests on a proof per chart that Delaunay zips two parallel rows or two concentric arcs locally.
+
+## What the interim route left (2026-11-17, PR 7049)
+
+The interim this unit follows has merged: a ruled face whose straight side holds a vertex is the chart lane's (`walk::splits_a_straight_side`), and the rectangle lane's fallback lattice is deleted. Its review measured what the route costs beyond density, each filed and pinned in `crates/mesh/tests/split_rulings.rs`, and this unit says of each whether the strip removes it:
+
+- a planar neighbour narrower than δ beside a routed face refuses `Triangulation` where the rectangle lane's coarser rim meshed it (373 cells in the review's sweep; `a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta`);
+- two points of one ruling closer than 2⁻²⁷ of a cone's slant radius refuse `DevelopedMerge`, which on a draft-angle cone is reached at the default ε (408 cells; `a-ruling-split-within-the-developments-resolution-merges-two-points`, with a cure inside the development in flight as `a-run-of-ruling-points-the-development-merges-is-re-split-after-the-triangulation`). A strip is not triangulated in the development, so it has no such limit;
+- a ruling split a hair from its end folds a triangle (`a-ruling-split-a-hair-from-its-end-folds-a-triangle`).
+
