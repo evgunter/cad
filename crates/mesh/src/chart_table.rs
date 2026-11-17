@@ -300,6 +300,11 @@ impl<'a> AnalyticRow<'a> {
         })
     }
 
+    /// The surface the row charts.
+    pub(crate) fn surface(&self) -> &Surface<f64> {
+        self.surface
+    }
+
     /// **The chart's kind, with what its steps and certificate read**,
     /// from the surface's own data and the face's window.
     pub(crate) fn kind(&self) -> Analytic {

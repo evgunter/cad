@@ -136,6 +136,28 @@ fn volume_read(solid: &Body<f64>) -> bool {
 /// the unsplit one (the chart lane's headroom on a walked face's rims) or
 /// gains interior points (a lattice, a refinement).
 fn holds_the_count_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, delta: f64) {
+    holds_the_relation(what, split, solid, delta, Walked::Exact);
+}
+
+/// What a walked face owes beside the count relation.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Walked {
+    /// The relation exactly.
+    Exact,
+    /// The relation plus two triangles per side the walk shares with a
+    /// neighbour holding both of its ends (`trimmed::walk_face`), each
+    /// cut at its midpoint: an even surplus, on the walked face alone.
+    SharedSidesCut,
+}
+
+/// [`holds_the_count_relation`], with what a walked face owes.
+fn holds_the_relation(
+    what: &str,
+    split: &Body<f64>,
+    solid: &Body<f64>,
+    delta: f64,
+    walked: Walked,
+) {
     let mesh = mesh::tessellate(split, delta, tol())
         .unwrap_or_else(|e| panic!("{what}, δ {delta}: meshes, got {e:?}"));
     mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{what}, δ {delta}: {e:?}"));
@@ -153,11 +175,19 @@ fn holds_the_count_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, de
             .find(|p| p.face == patch.face)
             .expect("the face in the unsplit body");
         let gained = traversals(split, patch.face) - traversals(solid, patch.face);
-        assert_eq!(
-            patch.triangles.len(),
-            unsplit.triangles.len() + gained,
-            "{what}, δ {delta}: a {:?} face that gained {gained} points",
-            crate::reach_probes::kind_of(split, patch.face),
+        let owed = unsplit.triangles.len() + gained;
+        let kind = crate::reach_probes::kind_of(split, patch.face);
+        let ruled = matches!(kind, geom::SurfaceKind::Cylinder | geom::SurfaceKind::Cone);
+        let surplus = patch.triangles.len().checked_sub(owed);
+        let held = match walked {
+            Walked::Exact => surplus == Some(0),
+            Walked::SharedSidesCut if ruled => surplus.is_some_and(|s| s % 2 == 0),
+            Walked::SharedSidesCut => surplus == Some(0),
+        };
+        assert!(
+            held,
+            "{what}, δ {delta}: a {kind:?} face that gained {gained} points has {} triangles, owes {owed}",
+            patch.triangles.len()
         );
     }
 }
@@ -514,17 +544,16 @@ fn is_line(body: &Body<f64>, ek: topo::EdgeKey) -> bool {
     rulings(body).contains(&ek)
 }
 
-/// **No walked triangle has an edge a neighbouring face also makes.** A
-/// walked triangle's sides are boundary segments, edges between the two
-/// rows, and fan edges from a side's point to the corner opposite, each
-/// spanning at most one rim chord. Two points of the polygon that are
-/// not neighbours on it and that one other face holds both of lie on this
-/// face's two different sides (or a side and the corner across it), the
-/// face's whole span apart, so the walk joins them only where its rims
-/// are one chord each (`ruled_walk`, "No edge of four triangles"). The
-/// tightest bodies for that, each holding the count relation exactly
-/// ([`holds_the_count_relation`]) and `check_mesh` (an edge of four
-/// triangles fails it):
+/// **No walked triangle has an edge a neighbouring face also makes**, on
+/// the tightest bodies with a neighbour holding both of a walked face's
+/// sides. A walked side joining two polygon points that are not neighbours
+/// on it, and that one neighbouring face holds both of, is cut at its
+/// midpoint (`trimmed::walk_face`); on these bodies that is a side between
+/// the corners of a one-chord face. Each cell passes `check_mesh` (an edge
+/// of four triangles fails it), is the body's, and holds the count relation
+/// but for the cuts ([`Walked::SharedSidesCut`]). The bored ball
+/// ([`a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge`]) is
+/// the case of a neighbour holding both rims.
 ///
 /// - a **band**: the cylinder wall's outer face cut along a ruling 0.5
 ///   rad from its seam ([`banded`]), so a face of one rim chord at δ 0.1
@@ -594,7 +623,9 @@ fn no_walked_triangle_has_an_edge_a_neighbour_makes() {
             for fracs in [&[0.5][..], &[0.9, 0.5, 0.1][..]] {
                 let what = format!("{name}, {which} split at {fracs:?}");
                 let split = split_and_placed(body, edges, fracs);
-                holds_everywhere(&what, &split, &solid, deltas);
+                for &delta in *deltas {
+                    holds_the_relation(&what, &split, &solid, delta, Walked::SharedSidesCut);
+                }
                 cells += deltas.len();
             }
         }
@@ -1125,4 +1156,59 @@ fn a_one_chord_face_through_the_apex_with_both_sides_split_meshes() {
             holds_everywhere(&what, &split, &solid, deltas);
         }
     }
+}
+
+/// A ball of radius 1.05 bored through along `y` by a coaxial cylinder of
+/// radius 1: the profile is the bore's line from `(1, −h)` to `(1, h)` and
+/// an arc back, `h = √(1.05² − 1)`, its bulge `sign · tan(θ/4)`,
+/// `θ = 2·atan2(h, 1)`: a torus face round the bore for one sign, a
+/// sphere face for the other. Either holds both of the bore's rims.
+fn bored_ball(sign: f64) -> Body<f64> {
+    use profile::test_support::bulge_loop;
+    let r: f64 = 1.05;
+    let h = (r * r - 1.0).sqrt();
+    let theta = 2.0 * h.atan2(1.0);
+    let lp = bulge_loop(vec![
+        (Point2::new(1.0, -h), 0.0),
+        (Point2::new(1.0, h), sign * (theta / 4.0).tan()),
+    ]);
+    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+/// **A walked face whose neighbour holds both of its rims makes no edge
+/// of four triangles.** A ball of radius 1.05 bored by a coaxial cylinder
+/// of radius 1 ([`bored_ball`]), its bore's seam split at its middle and
+/// at five points, placed obliquely, at δ 3, 1, 0.3, 0.1 and 0.03, with a
+/// sphere face round the bore and with a torus face. The neighbour holds
+/// every point of both rims, so where it lays no point between them (δ
+/// past the shell's thickness, 0.05) its triangles join the rims as the
+/// walk does; the walk cuts each rim-to-rim side at its midpoint
+/// (`trimmed::walk_face`), each cell passes `check_mesh` and is the body's,
+/// and the count relation holds but for the cuts
+/// ([`Walked::SharedSidesCut`]). The unsplit ball is not manifold at δ 3
+/// to 0.1 (`work/tesslane/a-strip-against-a-neighbour-holding-both-rims-makes-an-edge-of-four-triangles.md`).
+///
+/// **By ε.** The same at the default, `10⁻⁶` and `10⁻¹²`.
+#[test]
+fn a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge() {
+    let mut cells = 0usize;
+    for sign in [1.0, -1.0] {
+        let body = bored_ball(sign);
+        let solid = split_and_placed(&body, &[], &[]);
+        let [seam] = rulings(&body)[..] else {
+            panic!("the bore has one seam");
+        };
+        for fracs in [&[0.5][..], &[0.9, 0.7, 0.5, 0.3, 0.1][..]] {
+            let what = format!("the ball bored with sign {sign}, its seam split at {fracs:?}");
+            let split = split_and_placed(&body, &[seam], fracs);
+            for delta in [3.0, 1.0, 0.3, 0.1, 0.03] {
+                holds_the_relation(&what, &split, &solid, delta, Walked::SharedSidesCut);
+                cells += 1;
+            }
+        }
+    }
+    assert_eq!(cells, 20, "the cells this row reads");
 }

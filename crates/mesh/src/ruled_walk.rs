@@ -41,31 +41,24 @@
 //! # No edge of four triangles
 //!
 //! An edge two faces both make between two of their shared boundary
-//! points bounds four triangles; the chart lane's CDT keeps none (its ear
-//! and shared-side cures, `crate::trimmed`). A walked face needs no such
-//! cure. Each of its edges spans at most one rim chord in angle: a rim
-//! chord or a piece of a side (neighbours on the polygon), an edge
-//! between the rows, a fan edge from a side's point to the corner across
-//! from that side, or, on a one-chord face to the apex with both sides
-//! split, an edge between a point of each side. A neighbour holds points of this face's
-//! boundary only along the edges it shares with it, so two points it holds
-//! that are not neighbours on the polygon lie on this face's two sides,
-//! or on a side and the rim corner at the other side's foot: the face's
-//! whole span apart. The walk joins such points only on a face of one rim
-//! chord, at most `sizing::MAX_ANGULAR_STEP` wide, and the neighbour then
-//! cannot make the edge as well:
-//!
-//! - a plane holding both sides closes the face's rims with chords that
-//!   are the rims' own, so its caps are two coincident chords, which do
-//!   not mesh;
-//! - another walked or rectangle-lane face on the same surface spans the
-//!   rest of the turn, more than one chord, and its edges span one;
-//! - a face of the CDT would make it as a side of a triangle spanning
-//!   that rest of the turn: on a cone its own shared-side rule splits
-//!   such a triangle, and on a cylinder its certificate refuses it unless
-//!   every chord of the surface is within δ (a radius under δ/2), and even
-//!   there the edge is the diagonal of its whole chart, across its
-//!   lattice. No body here reaches that last corner.
+//! points bounds four triangles. A walked edge is a rim chord or a piece of
+//! a side (neighbours on the polygon), an edge between the rows, a fan
+//! edge from a side's point to the corner across from that side, or, on a
+//! one-chord face to the apex with both sides split, an edge between a
+//! point of each side. A neighbouring face holds points of this face's
+//! boundary only along the edges it shares with it, and it can make an
+//! edge between two of them that are not neighbours on the polygon: a
+//! sphere or torus face round a bore holds both of the bore's rims, and
+//! where it lays no point between them (δ past the shell's thickness) its
+//! own triangles join the rims as the walk does. So the chart lane cuts
+//! any walked side whose two ends one neighbouring face holds
+//! (`trimmed::walk_face`, reading `trimmed::faces_across`, the fact the
+//! cone arm's shared-side rule reads): a surface point at its chart
+//! midpoint, between the same two rulings, makes each triangle on it two.
+//! The rule reads which faces hold the points, not how they are meshed,
+//! so it also cuts a side no neighbour would make (the corners of a
+//! one-chord face beside a wider face of the same surface), at two
+//! triangles each.
 
 use std::collections::HashSet;
 
