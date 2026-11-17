@@ -147,7 +147,7 @@ fn outside<T: Decide>(x: T, hold: Hold<T>) -> bool {
 fn least_norm<T: Decide>(w: Vec3<T>, da: Vec3<T>, db: Vec3<T>) -> (T, T) {
     let u = da.normalize();
     let (ka, kb) = (da.dot(u), db.dot(u));
-    let k = w.dot(u) / (ka * ka + kb * kb);
+    let k = w.dot(u) / (ka.powi(2) + kb.powi(2));
     (ka * k, -kb * k)
 }
 
