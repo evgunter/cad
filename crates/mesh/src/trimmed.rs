@@ -673,14 +673,7 @@ pub(crate) fn tessellate_trimmed(
     // `MAX_GRID_RETRIES`, so the last attempt accepts or refuses.
     let mut outcome: Option<Result<Patch, TessellateError>> = None;
     let plane = CdtPlane::of(&row, metric, &polygon, &singular);
-    // Whether the polygon's side from point `i` to its successor is
-    // carried by a line, which on a cone is a ruling.
-    let straight = |i: usize| {
-        body.get_edge(polygon.edges[i])
-            .and_then(|edge| body.get_curve_geom(edge.curve))
-            .and_then(|geom| geom.certified())
-            .is_some_and(|curve| matches!(curve.carrier(), Curve3::Line(..)))
-    };
+    let straight = |i: usize| carried_by_a_line(body, polygon.edges[i]);
     let runs = developed_runs(plane, &polygon, &singular, &straight).map_err(|i| {
         TessellateError::SphereTrimShape {
             face: fk,
@@ -2290,6 +2283,15 @@ fn developed_runs(
         runs.push(run_of(trim, &keys, &group, singular, straight).ok_or(i)?);
     }
     Ok(runs)
+}
+
+/// Whether edge `ek` is carried by a line, which on a cone is a ruling:
+/// what [`developed_runs`] reads of the polygon side an edge carries.
+fn carried_by_a_line(body: &Body<f64>, ek: EdgeKey) -> bool {
+    body.get_edge(ek)
+        .and_then(|edge| body.get_curve_geom(edge.curve))
+        .and_then(|geom| geom.certified())
+        .is_some_and(|curve| matches!(curve.carrier(), Curve3::Line(..)))
 }
 
 /// The [`Run`] that `group`, every polygon point at one CDT point, is;
@@ -5517,6 +5519,7 @@ pub(super) mod tests {
                 shared: &[],
                 tol: &tol,
                 across: None,
+                runs: &[],
                 clearance: super::BOUNDARY_CLEARANCE,
             };
             let bits = |p: SpadePoint<f64>| (p.x.to_bits(), p.y.to_bits());
@@ -5708,16 +5711,350 @@ pub(super) mod tests {
                 &[],
             );
             let crushed = face(&crushed);
+            let no_line = |_: usize| false;
             assert_eq!(
-                super::super::developed_merge(crushed.plane(), &crushed.polygon.points, &singular),
-                Some(1),
+                super::super::developed_runs(crushed.plane(), crushed.polygon, &singular, &no_line),
+                Err(1),
                 "a polygon point off the apex whose development lands on the apex's CDT point \
                  merges two mesh vertices; the face refuses there"
             );
             assert_eq!(
-                super::super::developed_merge(wedge.plane(), &wedge.polygon.points, &singular),
-                None,
+                super::super::developed_runs(wedge.plane(), wedge.polygon, &singular, &no_line),
+                Ok(Vec::new()),
                 "the apex copies alone share a point"
+            );
+        }
+
+        /// **A run is read from the polygon's own order**
+        /// ([`super::super::developed_runs`]). On a cone of half-angle 0.3,
+        /// `(u, 1)` and `(u, 1 + 2⁻⁴⁰)` develop to one point (the slant
+        /// radius is cut to 27 bits). Polygon points there are a run when
+        /// they are consecutive on one loop along sides a line carries, with
+        /// a neighbour reached along one too; the run is anchored by the
+        /// first such neighbour. Every other merge refuses at its second
+        /// point: a point merged with the apex, points of two sides or of
+        /// two loops, a side wholly within the cut, points out of order
+        /// along the ruling, one mesh vertex twice, sides no line carries,
+        /// and a run whose two neighbours are one CDT point.
+        #[test]
+        fn a_run_is_read_from_the_polygons_order() {
+            use super::super::{Anchor, Run, TrimPolygon, developed_runs};
+            let plane = CdtPlane::Development {
+                sin_alpha: 0.3f64.sin(),
+                nappe: 1.0,
+            };
+            let e = (0.5f64).powi(40);
+            assert_eq!(
+                cdt_point(plane, 0.2, 1.0, false),
+                cdt_point(plane, 0.2, 1.0 + 2.0 * e, false),
+                "the two radii are one after the cut"
+            );
+            let apex: HashSet<u32> = [9].into_iter().collect();
+            let runs =
+                |outer: &[(f64, f64, u32)], rings: &[&[(f64, f64, u32)]], lines: &[usize]| {
+                    developed_runs(plane, &TrimPolygon::of_loops(outer, rings), &apex, &|i| {
+                        lines.contains(&i)
+                    })
+                };
+            let run = |members: &[usize], anchor| Run {
+                members: members.to_vec(),
+                anchor,
+            };
+            // A wall's quad, its ruling at u = 0.2 walked upward.
+            let mid = [
+                (0.2, 0.5, 1),
+                (0.2, 1.0, 2),
+                (0.2, 1.0 + e, 3),
+                (0.2, 1.5, 4),
+                (0.9, 1.5, 5),
+                (0.9, 0.5, 6),
+            ];
+            assert_eq!(
+                runs(&mid, &[], &[0, 1, 2]),
+                Ok(vec![run(&[1, 2], Anchor::Before)]),
+                "two points inside a ruling side: anchored by the first neighbour"
+            );
+            let three = [
+                (0.2, 0.5, 1),
+                (0.2, 1.0, 2),
+                (0.2, 1.0 + e, 3),
+                (0.2, 1.0 + 2.0 * e, 7),
+                (0.2, 1.5, 4),
+                (0.9, 1.5, 5),
+                (0.9, 0.5, 6),
+            ];
+            assert_eq!(
+                runs(&three, &[], &[0, 1, 2, 3]),
+                Ok(vec![run(&[1, 2, 3], Anchor::Before)]),
+                "a run of three"
+            );
+            let wrapped = [
+                (0.2, 1.0 + e, 3),
+                (0.2, 1.5, 4),
+                (0.9, 1.5, 5),
+                (0.9, 0.5, 6),
+                (0.2, 0.5, 1),
+                (0.2, 1.0, 2),
+            ];
+            assert_eq!(
+                runs(&wrapped, &[], &[4, 5, 0]),
+                Ok(vec![run(&[5, 0], Anchor::Before)]),
+                "a run across the polygon's first point, in walk order"
+            );
+            // The ruling's lower end is the corner the rim arrives at.
+            let corner_first = [
+                (0.9, 1.0, 6),
+                (0.2, 1.0, 2),
+                (0.2, 1.0 + e, 3),
+                (0.2, 1.5, 4),
+                (0.9, 1.5, 5),
+            ];
+            assert_eq!(
+                runs(&corner_first, &[], &[1, 2]),
+                Ok(vec![run(&[1, 2], Anchor::After)]),
+                "a run starting at a corner: anchored by the neighbour after it"
+            );
+            let corner_last = [
+                (0.2, 0.5, 1),
+                (0.2, 1.0, 2),
+                (0.2, 1.0 + e, 3),
+                (0.9, 1.0, 5),
+                (0.9, 0.5, 6),
+            ];
+            assert_eq!(
+                runs(&corner_last, &[], &[0, 1]),
+                Ok(vec![run(&[1, 2], Anchor::Before)]),
+                "a run ending at a corner"
+            );
+            let from_the_apex = [
+                (0.2, 0.0, 9),
+                (0.2, 1.0, 2),
+                (0.2, 1.0 + e, 3),
+                (0.9, 1.0, 5),
+            ];
+            assert_eq!(
+                runs(&from_the_apex, &[], &[0, 1]),
+                Ok(vec![run(&[1, 2], Anchor::Before)]),
+                "the apex is a neighbour like another: the side from it is a ruling"
+            );
+
+            let with_the_apex = [(0.5, 0.0, 9), (0.2, 1e-60, 2), (0.2, 1.0, 3), (0.9, 1.0, 5)];
+            assert_eq!(
+                runs(&with_the_apex, &[], &[0, 1]),
+                Err(1),
+                "a point merged with the apex is no run, though consecutive and on a ruling"
+            );
+            let two_sides = [
+                (0.2, 1.0, 1),
+                (0.9, 1.0, 2),
+                (0.2, 1.0 + e, 3),
+                (0.9, 2.0, 4),
+                (0.5, 2.0, 5),
+            ];
+            assert_eq!(
+                runs(&two_sides, &[], &[0, 1, 2, 3, 4]),
+                Err(2),
+                "two points that are not consecutive: two sides"
+            );
+            let ring = [(0.2, 1.0 + e, 7), (0.4, 1.2, 8), (0.3, 1.3, 10)];
+            assert_eq!(
+                runs(&mid[..2], &[&ring], &[0, 1, 2, 3, 4]).err(),
+                Some(2),
+                "points of two loops"
+            );
+            let whole_side = [
+                (0.9, 1.0, 6),
+                (0.2, 1.0, 2),
+                (0.2, 1.0 + e, 3),
+                (0.9, 1.5, 5),
+            ];
+            assert_eq!(
+                runs(&whole_side, &[], &[1]),
+                Err(2),
+                "a ruling side wholly within the cut: no neighbour is on the ruling"
+            );
+            let out_of_order = [
+                (0.2, 0.5, 1),
+                (0.2, 1.0, 2),
+                (0.2, 1.0 + 2.0 * e, 7),
+                (0.2, 1.0 + e, 3),
+                (0.2, 1.5, 4),
+                (0.9, 1.5, 5),
+                (0.9, 0.5, 6),
+            ];
+            assert_eq!(
+                runs(&out_of_order, &[], &[0, 1, 2, 3]),
+                Err(2),
+                "points out of order along the ruling"
+            );
+            let mut twice = mid;
+            twice[2].2 = 2;
+            assert_eq!(
+                runs(&twice, &[], &[0, 1, 2]),
+                Err(2),
+                "one mesh vertex at two points"
+            );
+            assert_eq!(
+                runs(&mid, &[], &[0, 2]),
+                Err(2),
+                "a side between the two that no line carries"
+            );
+            let closed = [(0.2, 1.0, 2), (0.2, 1.0 + e, 3), (0.9, 1.0, 5)];
+            assert_eq!(
+                runs(&closed[..2], &[], &[0, 1]).err(),
+                Some(1),
+                "the whole loop at one point"
+            );
+            let pinched = [
+                (0.9, 1.0, 5),
+                (0.2, 1.0, 2),
+                (0.2, 1.0 + e, 3),
+                (0.9, 1.0, 6),
+                (0.5, 2.0, 7),
+            ];
+            assert_eq!(
+                runs(&pinched, &[], &[0, 1, 2]).err(),
+                Some(2),
+                "a run whose two neighbours are one point"
+            );
+        }
+
+        /// **A split seam's close points are a run on each of its two rays.**
+        /// A wall whose outer face is a cone of half-angle 0.1°, one face a
+        /// full turn, so its loop walks the seam ruling twice, once on each
+        /// bounding ray of its development. The seam split three times
+        /// `10⁻⁶` of its length apart at its middle: the three vertices are
+        /// one run of three on each ray, the same mesh vertices in opposite
+        /// orders, each inside a ruling side. Split `10⁻⁵` from its start:
+        /// the split vertex and the seam's end are a run of two on each ray,
+        /// at a corner of the polygon, so one is anchored by the neighbour
+        /// before it and the other by the one after.
+        #[test]
+        fn a_split_seams_close_points_are_a_run_on_each_ray() {
+            use std::collections::HashMap;
+
+            use geom_core::{Point2, Vec2};
+            use profile::{Profile, ProfileLoop, RawLoop as _, SketchPlane};
+            use sweep::{Revolution, RevolveAxis, revolve};
+
+            use topo::construction::Construct as _;
+
+            use super::super::{Anchor, carried_by_a_line, developed_runs};
+
+            let tol = Tol::witness();
+            let band = Band::linear(tol).unwrap();
+            let t = 0.1f64.to_radians().tan();
+            let lp = ProfileLoop::polygon(
+                [(1.0, 0.0), (2.0 + t, 0.0), (2.0, 1.0), (1.0, 1.0)]
+                    .map(|(x, y)| Point2::new(x, y)),
+            );
+            let profile = Profile::new(SketchPlane::xy(), vec![lp])
+                .validate(tol)
+                .unwrap();
+            let axis = RevolveAxis {
+                origin: Point2::new(0.0, 0.0),
+                dir: Vec2::new(0.0, 1.0),
+            };
+            let wall = revolve(&profile, axis, Revolution::Full, tol)
+                .unwrap()
+                .body
+                .into_body();
+            let ends = |body: &topo::Body<f64>, ek| {
+                let c = body
+                    .get_curve_geom(body.get_edge(ek).unwrap().curve)
+                    .unwrap()
+                    .certified()
+                    .unwrap();
+                let (t0, t1) = c.params();
+                (c.carrier().eval(t0), c.carrier().eval(t1), (t0, t1))
+            };
+            // The cone face's seam: the line edge whose ends differ in radius.
+            let seam = wall
+                .edges()
+                .map(|(ek, _)| ek)
+                .find(|&ek| {
+                    let (a, b, _) = ends(&wall, ek);
+                    carried_by_a_line(&wall, ek) && (a.x.hypot(a.z) - b.x.hypot(b.z)).abs() > 1e-6
+                })
+                .expect("the cone face's seam");
+            let runs_of = |fracs: &[f64]| {
+                let mut body = wall.clone();
+                let (_, _, (t0, t1)) = ends(&body, seam);
+                for &f in fracs {
+                    body.split_edge(seam, t0 + (t1 - t0) * f, tol).unwrap();
+                }
+                let mut positions = Vec::new();
+                let mut vids = HashMap::new();
+                for (vk, p) in body.vertex_points() {
+                    #[allow(clippy::cast_possible_truncation)]
+                    vids.insert(vk, positions.len() as u32);
+                    positions.push(p);
+                }
+                let mut bounds = crate::nurbs_cert::FaceBounds::new();
+                let chords = crate::chords::compute_chords(
+                    &body,
+                    &crate::sizing::tests::witness_tols(1e-2),
+                    &vids,
+                    &mut positions,
+                    &mut bounds,
+                )
+                .unwrap();
+                let (fk, surface) = body
+                    .faces()
+                    .map(|(fk, _)| (fk, body.face_surface(fk).unwrap()))
+                    .find(|(_, surface)| matches!(surface, Surface::Cone { .. }))
+                    .expect("the cone face");
+                let row = ChartRow::of(&body, fk, surface, &bounds).unwrap();
+                let ChartRow::Analytic(ref analytic) = row else {
+                    panic!("a cone face has an analytic row");
+                };
+                let lift = body.face_lift(fk, band).unwrap();
+                let singular = super::super::singular_vertices(
+                    &body, fk, &lift, &chords, &positions, analytic, band,
+                )
+                .unwrap();
+                let polygon =
+                    super::super::trim_polygon(&body, fk, &lift, &chords, false, None, &singular)
+                        .unwrap();
+                let plane = CdtPlane::of(&row, 1.0, &polygon, &singular);
+                let runs = developed_runs(plane, &polygon, &singular, &|i| {
+                    carried_by_a_line(&body, polygon.edges[i])
+                })
+                .expect("every merge of the face is a run");
+                runs.into_iter()
+                    .map(|run| {
+                        let ids: Vec<u32> =
+                            run.members.iter().map(|&i| polygon.points[i].2).collect();
+                        (ids, run.anchor)
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let mid = runs_of(&[0.5 + 2e-6, 0.5 + 1e-6, 0.5]);
+            let [(one, Anchor::Before), (other, Anchor::Before)] = mid.as_slice() else {
+                panic!("three close splits: a run inside a ruling side on each ray, got {mid:?}");
+            };
+            assert_eq!(one.len(), 3, "a run of three");
+            assert_eq!(
+                one.iter().rev().collect::<Vec<_>>(),
+                other.iter().collect::<Vec<_>>(),
+                "the two rays hold the same mesh vertices, walked opposite ways"
+            );
+            let end = runs_of(&[1e-5]);
+            let [(one, a), (other, b)] = end.as_slice() else {
+                panic!("a split beside the seam's end: a run of two on each ray, got {end:?}");
+            };
+            assert_eq!((one.len(), other.len()), (2, 2));
+            assert_eq!(
+                one.iter().rev().collect::<Vec<_>>(),
+                other.iter().collect::<Vec<_>>()
+            );
+            assert!(
+                matches!(
+                    (a, b),
+                    (Anchor::Before, Anchor::After) | (Anchor::After, Anchor::Before)
+                ),
+                "at a corner one run is reached along the ruling and the other leaves along it: \
+                 {a:?}, {b:?}"
             );
         }
 
