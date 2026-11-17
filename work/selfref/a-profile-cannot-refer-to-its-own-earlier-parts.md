@@ -2,12 +2,13 @@
 id: a-profile-cannot-refer-to-its-own-earlier-parts
 kind: issue
 title: A profile cannot refer to its own earlier parts, so a bore's centre is written twice
-status: open
+status: parked
 opened: 2026-11-02
 priority: P1
 cost: X
 points: 30
 refs: [the-rectangle-and-circle-templates-reopen-as-paths, a-profile-step-cannot-refer-to-its-own-earlier-points]
+blocked_on: [a-profile-point-argument-holds-one-point2-variable, the-prefix-replay-reports-each-drawn-pieces-start-centre-and-ray, a-profile-point-reads-an-earlier-pieces-centre-or-vertex, a-profile-director-holds-one-direction2-and-reads-a-straight-pieces-heading, python-writes-a-shared-point-and-reads-a-pieces-centre-vertex-and-heading, the-profile-editor-picks-an-earlier-piece-as-a-points-or-directors-value, a-revolves-axis-line-holds-a-point2-and-a-direction2]
 ---
 
 Filed by the VSEAM orchestrator from Ev's comment on `[ev]` PR 6143
@@ -307,7 +308,7 @@ This changes U4. The director slot holds a `Direction2` written as an
 angle or a ray, with reads added. `Toward`'s components change from
 `Scalar` to `Length`, and the stored formulas migrate. The revolve
 migrates as U7,
-`work/doctail/a-revolves-axis-line-holds-a-point2-and-a-direction2`.
+`work/selfref/a-revolves-axis-line-holds-a-point2-and-a-direction2`.
 
 Every unit is unblocked from the residue. The order stays as filed, and
 doctail's load is still open with Ev.
