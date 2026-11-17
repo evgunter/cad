@@ -27,5 +27,7 @@ mod hand_written_impl_census;
 mod predicate_name_coverage;
 #[path = "reader_census.rs"]
 mod reader_census;
+#[path = "torus_verdict_matches.rs"]
+mod torus_verdict_matches;
 
 test_utils::every_suite_file_is_aggregated!();

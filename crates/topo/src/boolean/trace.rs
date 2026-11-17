@@ -153,7 +153,9 @@ fn door(error: BooleanError) -> TraceFault {
 
 /// A curve × face door's refusal, as the trace's: its escalation is the
 /// trace's own, carrying no decision of the Boolean's.
-fn door_refusal(refusal: geom_brep::curve_face::circle_roots::DoorRefusal) -> TraceFault {
+fn door_refusal(
+    refusal: geom_brep::curve_face::circle_roots::DoorRefusal<geom_brep::TorusRefusal>,
+) -> TraceFault {
     use geom_brep::curve_face::circle_roots::DoorRefusal;
     match refusal {
         DoorRefusal::Escalated(diag) => TraceFault::Escalated(diag),
