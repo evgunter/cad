@@ -338,9 +338,7 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             b.certificate
         );
         // The witness is carrier(mid), unchanged from M2.
-        let Curve3::Nurbs(ref n) = b.carrier else {
-            panic!("a rung-3 carrier is a NURBS curve");
-        };
+        let n = &*b.net();
         let (t0, t1) = n.domain();
         let mid = n.eval(0.5 * (t0 + t1));
         assert!(
@@ -397,10 +395,8 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     );
 
     // ---- The corrupted-cache limb rows, on the fixture's own carrier
-    let Curve3::Nurbs(ref first) = out.branches[0].carrier else {
-        panic!("a rung-3 carrier is a NURBS curve");
-    };
-    let carrier: NurbsCurve3<f64> = (**first).clone();
+    let first = &*out.branches[0].net();
+    let carrier: NurbsCurve3<f64> = first.clone();
 
     // LIMBS: the carrier the operation produced re-certifies, all three.
     let cert = certify_against(&carrier).expect("LIMBS: the branch this came from certified");
@@ -579,9 +575,7 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     // topology, and every idealized sample within the realized branch's
     // own certified band of the realized carrier.
     for b in out.branches.iter() {
-        let Curve3::Nurbs(ref realized) = b.carrier else {
-            panic!("a rung-3 carrier is a NURBS curve");
-        };
+        let realized = &*b.net();
         let seed = b.witness;
         let (pts, end) = ssi::idealized_trace_r3(&c, &s, seed, slab(), band())
             .expect("DIFFERENTIAL: the idealized trace");
@@ -1134,9 +1128,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     // at a break of its composite, past the band, so it refuses on that
     // value rather than on its bound. The displacement scales from the
     // resolved band (definitely positive at any battery ε).
-    let Curve3::Nurbs(ref carrier) = b.carrier else {
-        panic!("a rung-3 carrier is a NURBS curve");
-    };
+    let carrier = &*b.net();
     let pb = b
         .pcurve_b
         .as_ref()
@@ -3872,10 +3864,8 @@ fn a_rational_walls_plane_three_eps_off_its_edge_certifies_as_mid_wall() {
 
 /// Whether `b`'s carrier is one cubic Bézier span: the Hermite
 /// candidate's shape.
-fn one_cubic_span(at: &str, b: &geom_brep::SsiBranch) -> bool {
-    let geom::Curve3::Nurbs(carrier) = &b.carrier else {
-        panic!("{at}: a NURBS carrier, got {:?}", b.carrier);
-    };
+fn one_cubic_span(_at: &str, b: &geom_brep::SsiBranch) -> bool {
+    let carrier = &*b.net();
     carrier.control().len() == 4 && carrier.knots_f64_interim().knots().len() == 8
 }
 

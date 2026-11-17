@@ -37,10 +37,12 @@ use test_utils::fuzz::{self, Rng};
 /// The arcs of `net` cut at `cuts` (interior parameters, ascending), each
 /// a spline arc on `component`'s evidence.
 fn cut_into(component: &geom_brep::CarriedComponent<f64>, cuts: &[f64]) -> Vec<LoopArc<f64>> {
-    let geom::Curve3::Nurbs(net) = &component.carrier else {
-        panic!("a fitted component's carrier is a spline");
-    };
-    let mut rest = (**net).clone();
+    let net = component
+        .carrier
+        .clamped_net(component.span)
+        .expect("a fitted component's carrier is a spline")
+        .expect("over its own span");
+    let mut rest = (*net).clone();
     let mut pieces = Vec::new();
     for &u in cuts {
         let (head, tail) = rest.split_at(u).unwrap();
@@ -407,7 +409,7 @@ fn random_torus_sections() {
         if components.is_empty()
             || components
                 .iter()
-                .any(|c| !matches!(c.carrier, geom::Curve3::Nurbs(_)) || !c.closed())
+                .any(|c| !matches!(c.carrier, geom::Curve3::Periodic(_)) || !c.closed())
         {
             continue;
         }

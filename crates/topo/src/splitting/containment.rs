@@ -1391,6 +1391,8 @@ pub(crate) fn carrier_loop<T: Decide>(
                 geom::Curve3::Nurbs(ref n) => {
                     LoopEdge::Spline(SplineArc::new(n, curve.params()).ok_or_else(corrupt)?)
                 }
+                // An edge is read on its clamped view, a spline.
+                geom::Curve3::Periodic(_) => return Err(corrupt()),
             }),
             Err(ConicArcError::WoundPastPeriod) => return Err(corrupt()),
             Err(ConicArcError::Escalated(e)) => {
@@ -1431,14 +1433,16 @@ pub(crate) fn arc_distance_floor<T: Decide>(
     Some(match carrier {
         geom::Curve3::Line(_) => ArcFloor::Segment(near),
         geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => ArcFloor::Conic(near),
-        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => ArcFloor::Ball {
-            ball: near,
-            pieces: ArcPieces {
-                carrier,
-                span: (t0, t1),
-                q,
-            },
-        },
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
+            ArcFloor::Ball {
+                ball: near,
+                pieces: ArcPieces {
+                    carrier,
+                    span: (t0, t1),
+                    q,
+                },
+            }
+        }
     })
 }
 

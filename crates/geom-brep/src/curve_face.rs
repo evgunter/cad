@@ -77,7 +77,7 @@ pub struct Route {
 /// compile error here until it has a door.
 #[must_use]
 pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
-    use CurveKind::{Circle, Ellipse, Line, Nurbs, Spiric};
+    use CurveKind::{Circle, Ellipse, Line, Nurbs, Periodic, Spiric};
     use SurfaceKind::{Approx, Cone, Cylinder, Plane, Sphere, Spindle, Torus};
     let built = |door, note| Route {
         door,
@@ -126,12 +126,24 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
             "a spiric operand edge, deferred until its first producer \
              (work/reachhold/spiric-operand-edges-reopen-with-their-first-producer)",
         ),
-        (Line | Circle | Ellipse | Spiric | Nurbs, Spindle) => unbuilt(
+        (Line | Circle | Ellipse | Spiric | Nurbs | Periodic, Spindle) => unbuilt(
             Door::Sheet,
             "a span against a spindle sheet's face, which has no lane yet",
         ),
+        (Periodic, Plane | Cylinder | Cone | Sphere | Torus) => {
+            unbuilt(Door::SplineComposite, PERIODIC_READS_ITS_VIEW)
+        }
+        (Periodic, SurfaceKind::Nurbs | Approx) => {
+            unbuilt(Door::SplineFace, PERIODIC_READS_ITS_VIEW)
+        }
     }
 }
+
+/// Why no door takes a periodic cubic: an edge on one is read on its
+/// clamped view over the edge's span (`EdgeCurve::carrier`), which is a
+/// spline and routes as one.
+const PERIODIC_READS_ITS_VIEW: &str = "a periodic cubic's span is read on its clamped view, \
+     which routes as a spline";
 
 /// **The K-name prefix of every door this crate decides in**, by door:
 /// a K name's prefix is the module that decides its margin

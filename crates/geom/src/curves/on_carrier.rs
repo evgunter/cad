@@ -19,7 +19,9 @@
 //!   point lies up to `(1 + a/b)·d` from a point `d` off the ellipse;
 //! - a spiric oval: [`Curve3::param_near`]'s angle, then Gauss–Newton;
 //! - a spline: Gauss–Newton from the caller's seed, clamped into the
-//!   interval (the domain, for the whole carrier).
+//!   interval. Over the whole carrier, a clamped spline's foot is held
+//!   to its domain, and a periodic cubic's is free to leave its turn,
+//!   since the loop runs on.
 //!
 //! Over an interval, a line's and a circle's foot is the whole carrier's
 //! nearest point, which the interval's own reading of its ends places
@@ -235,7 +237,10 @@ impl<T: Decide> Foot<'_, T> {
     /// reading is superseded, since the walk's decides.
     fn restart(&self, mid: T, band: Band) -> Option<OnCarrier<T>> {
         let c = self.carrier;
-        let foot = c.polish(self.q, c.foot_at(self.q, mid), Some(c.domain()));
+        // Held to the domain as the whole carrier's foot is: a periodic
+        // cubic's runs on past its turn.
+        let hold = c.as_periodic().is_none().then(|| c.domain());
+        let foot = c.polish(self.q, c.foot_at(self.q, mid), hold);
         let (gap, record) = geom_core::k_stats::detached(|| {
             decide_reported("curve_carrier_gap", Margin::of(foot.gap), band)
         });
@@ -484,7 +489,7 @@ impl<T: Decide> Curve3<T> {
         match self {
             Self::Line(line) => Some(ClosedForm::Line(line)),
             Self::Circle(circle) => Some(ClosedForm::Circle(circle)),
-            Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
+            Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) | Self::Periodic(_) => None,
         }
     }
 
@@ -519,26 +524,39 @@ impl<T: Decide> Curve3<T> {
     }
 
     /// [`Self::foot`] and [`Self::foot_within`]'s one search, `hold` the
-    /// interval the foot is held to, `None` for the whole carrier. A
-    /// nearest kind's foot is held to nothing: clamped, a circle's would
-    /// name an end where a box of the point's angle lies astride the arc's
-    /// gap, which only the place reads, by the copy a turn away.
+    /// interval the foot is held to, `None` for the whole carrier: a
+    /// clamped spline's whole carrier is its domain, and a periodic cubic's
+    /// runs on past its turn, held to nothing. A nearest kind's foot is
+    /// held to nothing either: clamped, a circle's would name an end where
+    /// a box of the point's angle lies astride the arc's gap, which only
+    /// the place reads, by the copy a turn away. Over an interval the seed
+    /// is read on the branch about its middle ([`Self::branch_near`]) and
+    /// clamped into it.
     fn foot_held(&self, q: Point3<T>, hold: Option<(T, T)>, near: T) -> Foot<'_, T> {
-        let Self::Nurbs(n) = self else {
-            let Some(seed) = self.param_near(q, near) else {
-                unreachable!("only a spline reads no parameter near a point")
-            };
-            if self.foot_is_nearest() {
-                return self.foot_at(q, seed);
-            }
-            let Some(hold) = hold else {
-                return self.polish(q, self.foot_at(q, seed), None);
-            };
-            let seed = self.branch_near(seed, crate::mid_param(hold.0, hold.1));
-            return self.polish(q, self.foot_at(q, seed.max(hold.0).min(hold.1)), Some(hold));
+        let into = |t: T, (lo, hi): (T, T)| {
+            self.branch_near(t, crate::mid_param(lo, hi)).max(lo).min(hi)
         };
-        let hold = hold.unwrap_or_else(|| n.knot_values().domain());
-        self.polish(q, self.foot_at(q, near.max(hold.0).min(hold.1)), Some(hold))
+        if let Some(net) = self.whole_net() {
+            let hold = hold.or_else(|| {
+                self.as_periodic()
+                    .is_none()
+                    .then(|| net.knot_values().domain())
+            });
+            let Some(hold) = hold else {
+                return self.polish(q, self.foot_at(q, near), None);
+            };
+            return self.polish(q, self.foot_at(q, into(near, hold)), Some(hold));
+        }
+        let Some(seed) = self.param_near(q, near) else {
+            unreachable!("only a spline reads no parameter near a point")
+        };
+        if self.foot_is_nearest() {
+            return self.foot_at(q, seed);
+        }
+        let Some(hold) = hold else {
+            return self.polish(q, self.foot_at(q, seed), None);
+        };
+        self.polish(q, self.foot_at(q, into(seed, hold)), Some(hold))
     }
 
     /// The foot at `t` as read, unpolished.
@@ -638,7 +656,7 @@ impl<T: Decide> Curve3<T> {
                     ((major - minor).powi(2) - offset.powi(2)).sqrt() - w.dot(axis.cross(u_ref));
                 plane.max(torus.abs()).max(side)
             }
-            Self::Nurbs(_) => return None,
+            Self::Nurbs(_) | Self::Periodic(_) => return None,
         })
     }
 
@@ -692,6 +710,7 @@ impl<T: Decide> Curve3<T> {
     fn domain(&self) -> (T, T) {
         match (self, self.period()) {
             (Self::Nurbs(n), _) => n.knot_values().domain(),
+            (Self::Periodic(p), _) => p.base_span_in(),
             (_, Some(period)) => (T::zero(), period.length()),
             (_, None) => (T::zero(), T::zero()),
         }

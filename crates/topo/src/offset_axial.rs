@@ -2455,7 +2455,7 @@ fn mint_carrier<T: Decide>(
                 ..
             }) => Some(axis.normalize()),
             Curve3::Spiric { u_ref, .. } => Some(u_ref.normalize()),
-            Curve3::Line(_) | Curve3::Nurbs(_) => None,
+            Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
         };
         let Some(old_normal) = normal_of(old) else {
             return Err(refuse(
@@ -2775,7 +2775,7 @@ fn param_on<T: Decide>(
                 Err(source) => return Err(ReplaceFaceError::Escalated { source }),
             }
         }
-        Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Nurbs(_) => t_old,
+        Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Nurbs(_) | Curve3::Periodic(_) => t_old,
     };
     let read = carrier.param_near(q, guess).ok_or_else(unread)?;
     // On a carried frame the read IS the old parameter, and a second
@@ -2895,7 +2895,7 @@ fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(InfSpeed<T>, SupS
         Curve3::Circle(..) | Curve3::Spiric { .. } => {
             Some(geom::carrier_speed::speed_range(carrier))
         }
-        Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Nurbs(_) => None,
+        Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
     }
 }
 

@@ -438,10 +438,12 @@ fn spline_island_rehome(
     cuts: &[f64],
     points: &[Point3<f64>],
 ) -> Result<Vec<bool>, JoinError> {
-    let geom::Curve3::Nurbs(net) = &c.carrier else {
-        panic!("a fitted component's carrier is a spline");
-    };
-    let mut rest = (**net).clone();
+    let net = c
+        .carrier
+        .clamped_net(c.span)
+        .expect("a fitted component's carrier is a spline")
+        .expect("over its own span");
+    let mut rest = (*net).clone();
     let mut pieces = Vec::new();
     for &u in cuts {
         let (head, tail) = rest.split_at(u).unwrap();

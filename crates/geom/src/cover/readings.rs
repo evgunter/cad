@@ -91,8 +91,13 @@ impl<T: SpanLocate> Curve3<T> {
         // A spline is covered by its net; a carrier that repeats over its
         // one period ([`Curve3::period`], which says which kinds repeat);
         // any other, a line, bounds no region.
-        if let Curve3::Nurbs(spline) = self {
-            return net(Entity::Curve(self.kind()), spline.control());
+        match self {
+            Curve3::Nurbs(spline) => return net(Entity::Curve(self.kind()), spline.control()),
+            // The base opening's net holds the whole loop.
+            Curve3::Periodic(p) => {
+                return net(Entity::Curve(self.kind()), p.whole_loop().control());
+            }
+            Curve3::Line(_) | Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => {}
         }
         match self.period() {
             Some(turn) => self.cover_over(ParamWindow::new(T::zero(), turn.length())),
@@ -194,6 +199,22 @@ impl<T: SpanLocate> Curve3<T> {
                     })
                     .ok_or_else(non_finite);
                 Ok(whole).meet(pieces)
+            }
+            // The whole loop's net, met with the clamped view's cover
+            // over the window where the window has one.
+            Curve3::Periodic(p) => {
+                let whole = net(entity, p.whole_loop().control())?;
+                let view = window
+                    .lo
+                    .point_value()
+                    .zip(window.hi.point_value())
+                    .and_then(|span| p.clamped_view(span).ok());
+                match view {
+                    Some(view) => {
+                        Ok(whole).meet(Curve3::Nurbs(std::sync::Arc::new(view)).cover_over(window))
+                    }
+                    None => Ok(whole),
+                }
             }
         }
     }

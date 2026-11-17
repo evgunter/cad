@@ -90,6 +90,14 @@ pub(crate) struct AnalyticRow<'a> {
     singular: Vec<SingularPoint>,
 }
 
+/// **Whether `surface` is ruled in its chart's `v`**: a cylinder or a
+/// cone, whose lines `u = const` are straight rulings, so a line edge of
+/// one of its faces is one of them and a lattice needs no step along it
+/// ([`AnalyticRow::steps`]'s `hv = ∞`).
+pub(crate) fn ruled(surface: &Surface<f64>) -> bool {
+    matches!(surface, Surface::Cylinder { .. } | Surface::Cone { .. })
+}
+
 /// The analytic charts, each with what its steps and certificate read.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Analytic {

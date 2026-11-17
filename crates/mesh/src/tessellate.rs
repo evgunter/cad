@@ -214,7 +214,9 @@ pub(crate) enum Lane {
     /// grid on a swept analytic chart.
     Curved,
     /// `trimmed::tessellate_trimmed`: the pcurve-driven lane, on a
-    /// cylinder chart with a trim carrier or on any NURBS chart.
+    /// face that is no iso-rectangle of its analytic chart (a ring, a
+    /// trim carrier, a tilted circle on a sphere, a straight side holding
+    /// a point) or on any NURBS chart.
     Trimmed,
 }
 
@@ -250,10 +252,16 @@ pub(crate) enum Lane {
 /// (`walk::require_a_meridian` and `walk::require_two_columns`), which
 /// is why this dispatch can hand an iso boundary over without deciding
 /// anything about its shape.
+///
+/// One shape is decided here: a cylinder or cone face whose straight
+/// side holds a point between its ends, which the rectangle lane's ruled
+/// arms cannot take (`walk::splits_a_straight_side`, the one reader of
+/// `band` here). Such a face is the trimmed lane's.
 pub(crate) fn lane_of(
     body: &Body<f64>,
     fk: FaceKey,
     surface: &Surface<f64>,
+    band: Band,
 ) -> Result<Lane, TessellateError> {
     Ok(match *surface {
         Surface::Nurbs(_) | Surface::Approx(_) => Lane::Trimmed,
@@ -261,6 +269,7 @@ pub(crate) fn lane_of(
         _ if has_ring(body, fk)? => Lane::Trimmed,
         _ if crate::trimmed::has_trim_carrier(body, fk)? => Lane::Trimmed,
         Surface::Sphere { .. } if crate::trimmed::has_tilted_circle(body, fk)? => Lane::Trimmed,
+        _ if crate::walk::splits_a_straight_side(body, fk, surface, band)? => Lane::Trimmed,
         _ => Lane::Curved,
     })
 }
@@ -347,8 +356,9 @@ fn tessellate_impl(
     let ambient = tol;
     let eps = Eps::at(tol);
     // Props' decision band, built once at operation entry as
-    // `Band::linear` prescribes; the curved lane's shape door is its
-    // only consumer (`SizingTols::band`). Eager on purpose: a run whose
+    // `Band::linear` prescribes, for props' predicates
+    // (`SizingTols::band` names the sites; the dispatch and the chord
+    // pass ask the shape door through `lane_of`). Eager on purpose: a run whose
     // ε cannot form a band refuses every body alike, the all-planar
     // ones included, rather than meshing until the first curved face
     // (`TessellateError::Band` says why).
@@ -370,7 +380,12 @@ fn tessellate_impl(
     // Chord pass: per-edge polylines, computed once (crate docs);
     // `chord_ts` is the matching parameter schedule (the trimmed lane
     // evaluates pcurves on it — one derivation, both consumers).
-    let chords = compute_chords(body, chordal, &vids, &mut positions, &mut bounds)?;
+    let tol = SizingTols {
+        delta: chordal,
+        eps,
+        band,
+    };
+    let chords = compute_chords(body, &tol, &vids, &mut positions, &mut bounds)?;
     // Every id a face can SHARE with another face is now minted:
     // topology vertices, then chord points, then (per face, below) that
     // face's own interior grid. So a shared id is exactly an id below
@@ -428,11 +443,6 @@ fn tessellate_impl(
     // 54.1 MB — +18 % where it shows, on a figure the mesh value itself
     // dominates. A body with MANY faces pays less, not more: the
     // patches are smaller.
-    let tol = SizingTols {
-        delta: chordal,
-        eps,
-        band,
-    };
     let faces: Vec<FaceKey> = body.faces().map(|(fk, _)| fk).collect();
     // The meter's arming as a value: a lane runs on a worker thread,
     // which nobody armed (`budget`'s module docs).
@@ -472,7 +482,7 @@ fn tessellate_impl(
                             Ok(surface) => surface,
                             Err(error) => return (None, Err(error)),
                         };
-                        let lane = match lane_of(body, fk, surface) {
+                        let lane = match lane_of(body, fk, surface, tol.band) {
                             Ok(lane) => lane,
                             Err(error) => return (None, Err(error)),
                         };

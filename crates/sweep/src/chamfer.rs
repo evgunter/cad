@@ -44,7 +44,11 @@
 //! meets a plane square to its axis** — a bore's mouth, a boss's top or
 //! foot, a counterbore's step — carved by the fillet's closed-rim walks
 //! (the ladder, the seam-split and the one-edge annulus), the frustum in
-//! the torus's place.
+//! the torus's place. **A rounded outline** — lines and arcs meeting
+//! tangentially, closed or run between cut-offs, turns and corners — a
+//! strip over each line and a frustum over each arc, the two meeting at
+//! each junction along the generator between their feet, carved by the
+//! fillet's mixed-rim and open-band walks.
 //!
 //! **Either side of the material.** A chain of concave edges ending at
 //! all-concave trihedra carves exactly as a convex one does, because
@@ -58,14 +62,13 @@
 //! corner's own rule, not the convexity one.
 //!
 //! Everything else refuses typed and names itself: another curved
-//! support, or a frustum's arc inside a chain over other supports, whose
-//! strip and frustum would meet at a junction
-//! ([`crate::blend::BlendError::ChamferArmUnsupported`]), a corner whose
+//! support ([`crate::blend::BlendError::ChamferArmUnsupported`]), a corner whose
 //! CONFIGURATION is out of scope
 //! ([`crate::blend::BlendError::UnsupportedCorner`] with the OQ6 corner
 //! tags), a request that does not cover a supported corner's other edges
-//! ([`crate::blend::BlendError::UnsupportedRunOut`]), and a closed chain
-//! on several support pairs ([`crate::blend::BlendError::UnsupportedChain`]).
+//! ([`crate::blend::BlendError::UnsupportedRunOut`]), and a chain on
+//! several support pairs that is no rounded outline's
+//! ([`crate::blend::BlendError::UnsupportedChain`]).
 //!
 //! The symmetric setback is the whole parameter surface at v1. A
 //! distance–distance or distance–angle chamfer is a widening of this

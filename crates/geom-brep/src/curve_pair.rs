@@ -97,7 +97,7 @@ pub enum Arm {
 /// it has a method.
 #[must_use]
 pub fn method(a: CurveKind, b: CurveKind) -> Method {
-    use CurveKind::{Circle, Ellipse, Line, Nurbs, Spiric};
+    use CurveKind::{Circle, Ellipse, Line, Nurbs, Periodic, Spiric};
     match (a, b) {
         (Line, Line) => Method::Closed(Arm::LineLine),
         (Line, Circle | Ellipse) => Method::Closed(Arm::LineConic),
@@ -106,8 +106,10 @@ pub fn method(a: CurveKind, b: CurveKind) -> Method {
         (Ellipse, Circle) => Method::Closed(Arm::EllipseCircle),
         (Circle, Ellipse) => Method::Closed(Arm::CircleEllipse),
         (Ellipse, Ellipse) => Method::Closed(Arm::EllipseEllipse),
-        (Line | Circle | Ellipse | Spiric | Nurbs, Spiric | Nurbs)
-        | (Spiric | Nurbs, Line | Circle | Ellipse) => Method::Walk,
+        // A periodic cubic walks as every carrier with no closed form
+        // does, its pieces read by evaluation.
+        (Line | Circle | Ellipse | Spiric | Nurbs | Periodic, Spiric | Nurbs | Periodic)
+        | (Spiric | Nurbs | Periodic, Line | Circle | Ellipse) => Method::Walk,
     }
 }
 

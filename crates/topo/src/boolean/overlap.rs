@@ -546,7 +546,7 @@ fn half_plane<T: Decide>(
             let dd = carrier.deriv2(t);
             Some((dd - u * dd.dot(u)) / speed.powi(2))
         }
-        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => None,
     };
     // The piece from `p` to a vertex: the edge's start at `t0`, its end
     // at `t1`.
