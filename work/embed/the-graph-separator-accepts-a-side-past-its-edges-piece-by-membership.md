@@ -98,3 +98,41 @@ reds the corner and piece pins; the segment map read off the wrong end
 reds the plane pin. Without the whole-turn shift, the filleted drum
 refuses (`Uncertified`, Departure). Without the spline reading, the
 triangle loft and editor-core's loft refuse.
+
+**Is a wrong `Embedded` reachable?** I ran a bounded search with main's
+reading restored as a local mutant. The cylinder corner was paired with
+the faces of revolution sharing the rim as a parallel, varied over
+radius or angle, cell width, corner lean, sense and side. The faces were
+tori (36 poses), spheres (9 latitudes), cones (5 angles, both nappes)
+and the coaxial cylinder; 23,544 pairs in all.
+- **The graph certified 84 pairs through a corner side past its piece**
+  (torus 12, sphere 3, cone 69). So the unproven reading did feed
+  certificates, not just readings.
+- **None was wrong.** These faces meet the cylinder only where their
+  radius is 1. Inside each certified cell that is the rim alone: the
+  torus's second crossing at `v = −v0`, and the sphere's at latitude
+  `−φ`, lie outside every certified cell. And the cylinder's face
+  excludes the rim's continuation past the vertex (`present_corner`'s
+  step 3).
+- **Why a wrong one needs more than this family.** The other face would
+  have to meet the cylinder's face at a point whose column runs past the
+  vertex. There ψ on the side is the extension's second-order deviation
+  from the circle, against a first-order departure. I found no such
+  configuration, but that is no proof.
+- **With the fix,** the same search certifies 93 pairs through such
+  sides: the fold makes ψ the circle's own graph over the side.
+
+**The class, every separator.** A corner presentation's side runs past
+its vertex under every separator, not only the graph.
+- Under a plane it was read by membership alone. That was sound only
+  because a plane listing the edge holds the edge's whole line or
+  circle, and the corner's chart line is that line or circle.
+- `sign_on` now requires it: a side that does not lie on its edges is
+  zero under a plane only where the plane and the side are both whole.
+- Pinned in the corner pin. The mutant (`None => true`) reds it.
+- No verdict moved in sweep's 77 rows or editor-core's loft.
+
+**The piece is stated in one place.** Membership reads `Psi::Graph`'s
+`piece`, which `graph_of` alone builds, the folds included. A change
+there (embed/conic-arcs) changes what every side and curve is measured
+against.
