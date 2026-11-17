@@ -41,3 +41,5 @@ Owed: a torn body reaching that walk refuses naming a row-four premise, as the f
 at `pcurves/site.rs` with "HalfEdgeKey(4v1) is a member of its own
 loop", naming no row-4 premise. Replayed with that seed, in release, on
 main at `fa4e9ba921`: the same failure (run).
+
+- 2026-11-17 — **another seed, from ONEHOME's PR 7088** (its topo diff touches no file under `pcurves/`, `splitting/` or `review_d18.rs`): the same job drew `0x8355fd3ccc62e2f2` on head `0abb37a2d6` (run 44161940743) and panicked on `HalfEdgeKey(4v1)` at `crates/topo/src/pcurves/site.rs:381`. It reproduces with main's `topo` and `geom-brep` (`a20dcef4d`) using the command above and that seed.
