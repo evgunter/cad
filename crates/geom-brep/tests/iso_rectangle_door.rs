@@ -543,3 +543,43 @@ fn the_doors_zero_extent_charter_is_exactly_at_zero() {
         }
     }
 }
+
+/// **The door reads every carrier's kind before it decides anything.** A
+/// cylinder loop whose FIRST edge is a rim 3e-9 off the unit cylinder
+/// (its fit lands in the band) and whose third is an ellipse arc (a
+/// tilted section): the face is no iso rectangle whatever its rim reads,
+/// and the door says so, by the parse's own ellipse refusal, rather than
+/// escalating on the rim it meets first.
+#[test]
+fn a_carrier_of_no_iso_kind_is_decided_before_an_edge_in_band() {
+    let tilt = 0.3_f64;
+    let off = Curve3::circle(
+        p3(0.0, 0.0, 0.0),
+        v3(0.0, 0.0, 1.0),
+        1.0 + 3e-9,
+        v3(1.0, 0.0, 0.0),
+    );
+    let section = Curve3::ellipse(
+        p3(0.0, 0.0, 1.0),
+        v3(0.0, tilt.sin(), tilt.cos()),
+        1.0,
+        1.0 / tilt.cos(),
+        v3(1.0, 0.0, 0.0),
+        band(),
+    )
+    .expect("the section ellipse");
+    let lp = vec![
+        edge(off, 0.0, 1.5, 0, 1),
+        mer(1.5, 0.0, 1.0, 1, 2),
+        edge(section, 0.0, 1.5, 2, 3),
+        mer(0.0, 1.0, 0.0, 3, 0),
+    ];
+    assert!(
+        matches!(
+            require_iso_rectangle(&cylinder(), &lp, band()),
+            Err(PropsError::NotIsoRectangle { what }) if what.starts_with("cylinder boundary carries an ellipse arc")
+        ),
+        "{:?}",
+        require_iso_rectangle(&cylinder(), &lp, band())
+    );
+}
