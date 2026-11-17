@@ -408,6 +408,38 @@ fn the_general_rung_carries_through_its_door() {
     assert_eq!(off.span.0, at, "a seat is read in the loop's base turn");
 }
 
+/// **A loop short of tangency carries on a tube of its own scale.** A
+/// sphere `0.7 − R` short of the cylinder's far wall cuts one loop that
+/// turns back in two tips beside the far ruling, `h = r sin θ` to either
+/// side of it, where `cos θ = −(R² − d² − r²)/2dr`. The surfaces cross
+/// at `(d/R) sin θ` there, and `(∇f₁ × ∇f₂)·ẑ` keeps its sign from a
+/// tip to the far ruling, so the certified tube is no narrower than an
+/// eighth of `h`, at every band.
+#[test]
+fn a_loop_short_of_tangency_carries_on_a_tube_of_its_own_scale() {
+    let (r, d) = (0.5_f64, 0.2_f64);
+    for big in [0.69_f64, 0.699, 0.6995] {
+        let cos = -(big * big - d * d - r * r) / (2.0 * d * r);
+        let h = r * (1.0 - cos * cos).sqrt();
+        let section = built(&cylinder(r), &sphere(d, big));
+        let carried = section
+            .carry(Some(SsiLane::marched()), band())
+            .unwrap_or_else(|e| panic!("R {big}: the section carries, got {e:?}"));
+        let [c] = carried.components() else {
+            panic!("R {big}: one loop");
+        };
+        let Some(geom_brep::SsiTube::Spatial { radius }) =
+            c.certificate.as_ref().map(|cert| cert.tube)
+        else {
+            panic!("R {big}: a spatial tube, got {:?}", c.certificate);
+        };
+        assert!(
+            c.closed() && radius >= h / 8.0,
+            "R {big}: a closed loop on a tube of {radius:e}, its tips {h:e} from the far ruling"
+        );
+    }
+}
+
 /// The interior knots of `net`, each with its multiplicity.
 fn interior_knots(net: &geom::NurbsCurve3<f64>) -> Vec<(f64, usize)> {
     let runs: Vec<(f64, usize)> = net.knot_values().runs().collect();
@@ -436,22 +468,9 @@ fn a_seated_loop_has_no_start() {
     ] {
         let (cyl, sph) = (cylinder(0.5), sphere(d, big));
         let section = built(&cyl, &sph);
-        // The sliver pose, a millimetre short of the far wall, carries
-        // at a band of 1e-9 and finer and refuses its tube at 1e-6,
-        // where the clamped fit of the same points certified at a tube
-        // 60 times narrower than a normal pose's. The cause is not found
-        // (`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`).
-        let coarse_sliver = (d, big) == (0.2, 0.699) && band().zero() > 1e-7;
-        let carried = match section.carry(Some(SsiLane::marched()), band()) {
-            Ok(carried) => {
-                assert!(!coarse_sliver, "d {d}, R {big}: the coarse sliver carries");
-                carried
-            }
-            Err(CarryError::Refused(CarryRefusal::March(
-                geom_brep::ssi::SsiError::TubeStraddles { .. },
-            ))) if coarse_sliver => continue,
-            Err(e) => panic!("d {d}, R {big}: the section carries, got {e:?}"),
-        };
+        let carried = section
+            .carry(Some(SsiLane::marched()), band())
+            .unwrap_or_else(|e| panic!("d {d}, R {big}: the section carries, got {e:?}"));
         for c in carried.components() {
             let (lo, hi) = c.span;
             let period = hi - lo;
