@@ -66,8 +66,8 @@ pub(super) struct Shape {
 }
 
 /// A junction's link is none of the bands with a section.
-pub(super) const JUNCTION_UNSECTIONED: &str = "a chain's junction joins a link that is neither \
-     a plane–plane band nor a band of revolution about its supports' axis";
+pub(super) const JUNCTION_UNSECTIONED: &str =
+    "a chain's junction joins a link whose band has no section there";
 /// Two consecutive links on one support pair among links on others.
 pub(super) const JUNCTION_ON_ONE_PAIR: &str =
     "a chain of links on different supports has two consecutive links on one support pair";

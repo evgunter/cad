@@ -51,6 +51,7 @@ use super::arms::{
     plane_sphere_room,
 };
 use super::build::fan_at;
+use super::junction::JUNCTION_NO_HOST;
 use super::open::end_face::CycleReading;
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, scaffolding, strip_frame, strip_reading,
@@ -2075,7 +2076,7 @@ fn feet_apart<T: Real>(a: &Link<T>, b: &Link<T>, p: Point3<T>) -> Result<T, Blen
     let shared = [a.face_a, a.face_b]
         .into_iter()
         .find(|&f| f == b.face_a || f == b.face_b)
-        .ok_or_else(|| unbuilt_chain(a.edge, super::junction::JUNCTION_NO_HOST))?;
+        .ok_or_else(|| unbuilt_chain(a.edge, JUNCTION_NO_HOST))?;
     let other = |l: &Link<T>| if l.face_a == shared { l.face_b } else { l.face_a };
     let foot = |l: &Link<T>, f: FaceKey| {
         l.trim_on(f)
