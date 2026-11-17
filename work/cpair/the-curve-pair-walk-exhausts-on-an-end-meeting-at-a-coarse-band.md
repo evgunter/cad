@@ -34,4 +34,40 @@ The import's C⁰-knot split (`crates/step-import/src/knot_split.rs`, `split_fac
 
 ## Reproduce
 
-The table above was taken by a scratch test calling `meet` on these spans at both bands; build the two spans from the numbers above.
+In any crate that depends on `geom`, `geom-brep` and `geom-core`, as a test:
+
+```rust
+use std::sync::Arc;
+use geom::{Curve3, NurbsCurve3};
+use geom_brep::curve_pair::{Span, meet};
+use geom_core::spline::KnotVector;
+use geom_core::{Band, Point3, Vec3};
+
+let q0 = Point3::new(0.012555109324577004, 0.0, 0.06066987298107802);
+let q1 = Point3::new(0.012555109324577004, 0.010000000000000005, 0.06066987298107802);
+let spline = Curve3::Nurbs(Arc::new(
+    NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![q0, q1],
+        vec![1.0, 1.0],
+    )
+    .unwrap(),
+));
+let circle = Curve3::circle(
+    Point3::new(0.010055109324576903, 0.010000000000000005, 0.06500000000000034),
+    Vec3::new(0.0, -1.0, 0.0),
+    0.005000000000000101,
+    Vec3::new(-1.0, 0.0, -6.106226635438239e-14),
+);
+let a = Span::new(&spline, (0.0, 1.0));
+let b = Span::new(&circle, (0.0, core::f64::consts::TAU));
+// Err(MeetRefusal { fault: Unsettled(Exhausted), found: [one meeting], .. })
+let coarse = meet(&a, &b, Band::new(1e-5, 1e-4).unwrap());
+// Ok(Meetings { points: [one meeting], .. })
+let fine = meet(&a, &b, Band::new(1e-9, 1e-8).unwrap());
+// The same spline as the line it is takes the LineConic arm: Ok, one meeting.
+let line = Curve3::line(q0, q1 - q0);
+let closed = meet(&Span::new(&line, (0.0, 1.0)), &b, Band::new(1e-5, 1e-4).unwrap());
+```
+
+The other rows of the table swap the spans; cut the circle at the meeting, `t = 2π/3` (`(2π/3, 5)` and `(0.5, 2π/3)`); replace the spline's controls by `[q1 + (q1 − c), q1]`, `c` the circle's centre (radial); or replace them by `[q0 − (q1 − q0), q0]` (apart).

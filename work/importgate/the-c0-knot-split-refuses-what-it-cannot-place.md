@@ -36,12 +36,25 @@ Placing either needs the line's crossings with the trim: a curve-surface inversi
 - **(b)** a crossed face with rings: a crossed ring joins its pieces' outer loops, and an uncrossed ring joins the one piece on its side (unit rows in `knot_split`). No import reaches it yet: a NURBS face with rings refuses earlier, at the curved-face ring gate in `entities::Resolver::face`;
 - **(c)** a face the selection cannot certify clear: the split itself finds no crossing, and the face stays whole, its chart narrowed to the sub-patch on its side (`a_face_bounded_by_a_curved_knot_line_imports_whole`, `half_ridge.step`).
 
-What still refuses `C0KnotUnsplit`, each naming the face and the knot:
+What still refuses `C0KnotUnsplit`, each naming the face and the knot, one line per reason the code gives (`split_face_once`), with the row that reaches it where there is one:
 
-- **a pair the curve-pair reader does not settle at the file's band.** One case is a crossing within a few ε_in of tangency (`a_trim_crossing_by_twice_eps_in_is_kept_and_refuses_typed`). Another is a curved iso meeting a circle at a span's end at a coarse band, where the walk exhausts (`work/cpair/the-curve-pair-walk-exhausts-on-an-end-meeting-at-a-coarse-band.md`). A straight iso is read as a line in closed form, which settles that case.
-- **an edge along the line its iso pcurve does not certify**: one whose parameter is not affine in the line's, or a line beside a rational column. It goes to the walk, which reads no shared run.
-- **a touch of the line, or an edge along it, inside a run of the line in the face**: the piece would be pinched at a vertex.
-- **crossings that do not alternate into and out of the face** along the line, or a loop that changes side away from it.
+- **no band**: the file's uncertainty makes no chart band (`chart::file_band` answers `None`).
+- **the chart refused its split** at its own crease knot (`split_net`), or **the knot's iso curve, or the chart's boundary column, did not re-wrap as a curve**. Each is a structural refusal of the stored net.
+- **a seam edge of a chart closed across the split that did not project onto its column** within the band.
+- **a pair the curve-pair reader does not settle at the file's band**:
+  - a crossing within a few ε_in of tangency (`a_trim_crossing_by_twice_eps_in_is_kept_and_refuses_typed`);
+  - a curved iso meeting a circle at a span's end at a coarse band, where the walk exhausts (`work/cpair/the-curve-pair-walk-exhausts-on-an-end-meeting-at-a-coarse-band.md`).
+
+  A straight iso is read as the line `recognize_curve::try_line` certifies, in closed form, which settles that case.
+- **a boundary edge sharing a run with the line by a closed form**, or **an edge along the line its iso pcurve does not certify** (a parameter not affine in the line's, or a line beside a rational column). The latter goes to the walk, which reads no shared run.
+- **a boundary piece between meetings that reads no side**: no chart foot within the band (`a_trim_off_its_chart_past_the_band_reads_no_side_and_refuses_typed`; the incidence premise, `import-splits-knot-lines-on-an-unchecked-incidence-premise`).
+- **a boundary edge that refused its split** where the line crosses it (`NurbsCurve3::split_at`).
+- **a loop that changes side away from the line** (`a_tube_loop_against_its_sense_changes_side_away_from_the_line_and_refuses_typed`).
+- **loops on both sides of a line none crosses.**
 - **a crossed line that closes on itself** (a chart closed in the other direction).
-- **a ring on a side the line parts into several pieces**: telling which piece holds it needs containment on a chart with no inverse (`chart::infer_outer` has no NURBS arm).
-- **a boundary piece whose middle has no chart foot within the band** (the incidence premise, `import-splits-knot-lines-on-an-unchecked-incidence-premise`).
+- **crossings that do not alternate into and out of the face** (`a_loop_turning_against_its_faces_sense_refuses_typed`).
+- **a touch of the line, or an edge along it, inside a run of the line in the face**, where a piece would be pinched at a vertex (`a_notch_touching_the_line_inside_a_run_refuses_typed`, `a_ring_touching_the_line_inside_a_run_refuses_typed`).
+- **a ring the line crosses while it does not cross the outer loop.**
+- **a ring on a side the line parts into several pieces**: telling which piece holds it needs containment on a chart with no inverse; `chart::infer_outer` has no NURBS arm (`a_ring_on_a_side_parted_into_several_pieces_refuses_typed`).
+
+Unexercised: a boundary within about ε_in of the line where the chart's speed across it varies. It now reaches the same reading, but no fixture builds it. This residue is filed as `the-c0-knot-split-residue-after-placement`.

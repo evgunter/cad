@@ -32,6 +32,20 @@ fn fixture(name: &str) -> String {
     std::fs::read_to_string(p).unwrap()
 }
 
+/// Asserts every spline face of `body` (the file's wall and the pieces
+/// its split made) keeps the wall's stated `same_sense`.
+fn walls_keep_sense(body: &topo::Body<f64>, sense: bool, name: &str) {
+    for (fk, _) in body.faces() {
+        if let Some(geom::Surface::Nurbs(_)) = body.face_surface(fk) {
+            assert_eq!(
+                body.face(fk).map(|f| f.sense()),
+                Some(sense),
+                "{name}: a wall piece keeps the wall's sense"
+            );
+        }
+    }
+}
+
 /// Whether a carrier's knots hold an interior run of multiplicity at
 /// least the degree.
 fn creased(knots: &geom_core::spline::Knots<f64>) -> bool {
@@ -46,7 +60,7 @@ fn creased(knots: &geom_core::spline::Knots<f64>) -> bool {
 #[test]
 fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
     let tol = Tol::witness();
-    for name in ["ridge_u.step", "ridge_v.step"] {
+    for (name, sense) in [("ridge_u.step", true), ("ridge_v.step", false)] {
         let imported = import_step(&fixture(name), &ImportOptions::default(), tol)
             .unwrap_or_else(|e| panic!("{name} imports: {e_at}", e_at = e.render()));
         let StepImport::Solid {
@@ -78,6 +92,7 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
             }
         }
         assert_eq!(walls, 2, "{name}: the top is two sub-patches");
+        walls_keep_sense(b, sense, name);
         let mut spline_edges = 0;
         for (_, c) in b.curves() {
             if let CurveGeom::Certified(c) = c
@@ -269,6 +284,7 @@ fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
         ),
         "the wall become two faces, its two rims four arcs, and one new edge between them"
     );
+    walls_keep_sense(b, true, "half_cone");
     let rim_points: Vec<_> = b
         .points()
         .map(|(_, p)| *p)
@@ -316,10 +332,12 @@ fn under_top((x0, x1): (f64, f64), (y0, y1): (f64, f64)) -> f64 {
 
 /// Imports `name`, holds it to the shared tier gate (valid at rest,
 /// the reading `tier_gate::every_corpus_import_passes_the_shared_gate`
-/// applies), its census and a watertight mesh, and measures its volume
-/// against `volume`. Answers the import's normalizations.
+/// applies), its census, its wall pieces' `sense` and a watertight
+/// mesh, and measures its volume against `volume`. Answers the import's
+/// normalizations.
 fn gated(
     name: &str,
+    sense: bool,
     census: (usize, usize, usize),
     volume: f64,
 ) -> Vec<step_import::StructureNormalization> {
@@ -345,6 +363,7 @@ fn gated(
         census,
         "{name}: census (faces, edges, vertices)"
     );
+    walls_keep_sense(b, sense, name);
     let m = tessellate(b, 1e-2, tol).unwrap_or_else(|e| panic!("{name} meshes: {e:?}"));
     check_mesh(&m).unwrap_or_else(|e| panic!("{name}: the mesh is watertight: {e:?}"));
     let v = body
@@ -372,6 +391,7 @@ fn gated(
 fn a_trim_crossing_the_knot_line_four_times_imports_in_three_pieces() {
     let normalizations = gated(
         "c_prism.step",
+        true,
         // The file's 10 faces, 24 edges and 16 vertices; four top edges
         // split at a crossing each, two runs of the line minted, and the
         // top three faces.
@@ -414,6 +434,7 @@ fn a_trim_crossing_the_knot_line_four_times_imports_in_three_pieces() {
 fn a_face_bounded_by_a_curved_knot_line_imports_whole() {
     let normalizations = gated(
         "half_ridge.step",
+        true,
         (6, 12, 8),
         under_top((0.0, 1.0), (0.0, 1.0)),
     );

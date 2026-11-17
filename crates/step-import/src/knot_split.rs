@@ -22,8 +22,11 @@
 //! done. A minted run of the line is carried by that shared row, so its
 //! carrier is bitwise both sub-patches' boundary column.
 //!
-//! Every split is reported as a [`StructureNormalization`], never done
-//! silently. A knot vertex is one the closing join keeps
+//! Every split that changes the census, an edge into sub-arcs or a face
+//! into pieces, is reported as a [`StructureNormalization`], never done
+//! silently. A face the knot line leaves whole has its chart narrowed to
+//! the sub-patch on its side: an exact partition of the net that moves
+//! no point and changes no census, so it is not reported. A knot vertex is one the closing join keeps
 //! (`topo`'s `joinable`): two spline pieces meeting at a knot of full
 //! multiplicity are never joined. A face whose trim the split cannot
 //! place ([`split_face_once`]) refuses typed rather than ship the
@@ -935,25 +938,33 @@ fn split_face_once(
         .all(|(&l, &h)| near(l, h));
     let up_is_low = sense != along_v;
     let w_domain = iso.knot_values().domain();
-    // The line as the curve-pair reader reads it: a degree-one iso of
-    // two controls and equal weights is the line between them, on the
-    // same parameter, which the reader's table reads in closed form.
-    let reading = match (iso.control(), iso.weights()) {
-        ([a, b], [wa, wb]) if wa == wb => {
-            let dir = (*b - *a) / (w_domain.1 - w_domain.0);
-            Curve3::line(*a - dir * w_domain.0, dir)
+    // The line as the curve-pair reader reads it: an iso the import's
+    // curve recognition certifies straight is read as that line, which
+    // the reader's table reads in closed form, its arc length carried
+    // back to the iso's parameter by the chord map the recognition
+    // certifies within `ε_in`.
+    let straight = crate::recognize_curve::try_line(&iso, eps_in).map(|(line, _)| line);
+    let chord = (q1 - q0).norm();
+    let (reading, read_span) = match straight {
+        Some(line) => (line, (0.0, chord)),
+        None => (Curve3::Nurbs(Arc::new(iso.clone())), w_domain),
+    };
+    let to_w = |t: f64| {
+        if matches!(reading, Curve3::Line(_)) {
+            w_domain.0 + t / chord * (w_domain.1 - w_domain.0)
+        } else {
+            t
         }
-        _ => Curve3::Nurbs(Arc::new(iso.clone())),
     };
-    let line = Span::new(&reading, w_domain);
-    // The chart's side of a point and its coordinate along the line,
-    // read at its foot, which must lie within the band of it.
-    let foot = |p: Point3<f64>| -> Option<(f64, f64)> {
-        let f = s.project(p).ok()?;
-        (f.distance <= band.escalate()).then_some(if along_v { (f.v, f.u) } else { (f.u, f.v) })
-    };
+    let line = Span::new(&reading, read_span);
+    // The chart's side of a point: its coordinate across the line, read
+    // at its foot, which must lie within the band of it.
     let side_at = |p: Point3<f64>| -> Option<Side> {
-        let (across, _) = foot(p)?;
+        let f = s
+            .project(p)
+            .ok()
+            .filter(|f| f.distance <= band.escalate())?;
+        let across = if along_v { f.v } else { f.u };
         if across < knot {
             Some(Side::Low)
         } else if across > knot {
@@ -962,6 +973,46 @@ fn split_face_once(
             None
         }
     };
+
+    // The parameter along `column` (an iso curve of the chart) of a point
+    // within the band of it.
+    let on = |column: &NurbsCurve3<f64>, p: Point3<f64>| {
+        let f = column.project(p).ok()?;
+        (f.distance <= band.escalate()).then_some(f.t)
+    };
+    // The chart's iso pcurve at `at` an edge runs along, certified, as
+    // its ends' parameters on that iso's curve `column`. The vertices'
+    // reading on the column only proposes the pcurve's ends; the
+    // certificate decides.
+    let along = |spec: &EdgeSpec, at: f64, column: &NurbsCurve3<f64>| -> Option<(f64, f64)> {
+        let wa = on(column, solid.vertices[&spec.start])?;
+        let wb = on(column, solid.vertices[&spec.end])?;
+        if wa == wb {
+            return None;
+        }
+        let image = if along_v {
+            Pcurve::iso_row(at, (wa, wb), (spec.t0, spec.t1))
+        } else {
+            Pcurve::iso_column(at, (wa, wb), (spec.t0, spec.t1))
+        };
+        let surface = &solid.faces[fi].surface;
+        PcurveCache::certify(image, spec.t0, spec.t1, &spec.carrier, surface, band)
+            .ok()
+            .map(|_| (wa, wb))
+    };
+    // The chart's low boundary column across the split, which a chart
+    // closed across it wears on both sides as its seam.
+    let seam_at = if along_v {
+        s.knot_values_v().domain().0
+    } else {
+        s.knot_values_u().domain().0
+    };
+    let seam = if along_v {
+        geom_brep::boundary_iso_v(&s, false)
+    } else {
+        geom_brep::boundary_iso_u(&s, false)
+    }
+    .map_err(|_| refuse("the chart's boundary column did not re-wrap as a curve"))?;
 
     // Read every boundary edge against the line before anything moves.
     let mut uses_of: BTreeMap<u64, usize> = BTreeMap::new();
@@ -976,8 +1027,8 @@ fn split_face_once(
     for (&e, &n) in &uses_of {
         let spec = &solid.edges[&e];
         let (pa, pb) = (solid.vertices[&spec.start], solid.vertices[&spec.end]);
-        if closed && n == 2 {
-            let (Some((_, wa)), Some((_, wb))) = (foot(pa), foot(pb)) else {
+        if closed && (n == 2 || along(spec, seam_at, &seam).is_some()) {
+            let (Some(wa), Some(wb)) = (on(&seam, pa), on(&seam, pb)) else {
                 return Err(refuse(
                     "a seam edge of the chart closed across the split did not project onto it",
                 ));
@@ -985,26 +1036,12 @@ fn split_face_once(
             stand.insert(e, Stand::Seam { w: (wa, wb) });
             continue;
         }
-        let on_iso = |p: Point3<f64>| {
-            let f = iso.project(p).ok()?;
-            (f.distance <= band.escalate()).then_some(f.t)
-        };
-        if let (Some(wa), Some(wb)) = (on_iso(pa), on_iso(pb))
-            && wa != wb
-        {
-            let image = if along_v {
-                Pcurve::iso_row(knot, (wa, wb), (spec.t0, spec.t1))
-            } else {
-                Pcurve::iso_column(knot, (wa, wb), (spec.t0, spec.t1))
-            };
-            let surface = &solid.faces[fi].surface;
-            if PcurveCache::certify(image, spec.t0, spec.t1, &spec.carrier, surface, band).is_ok() {
-                on_line.insert(spec.start, wa);
-                on_line.insert(spec.end, wb);
-                alongs.push((wa.min(wb), wa.max(wb)));
-                stand.insert(e, Stand::Along { w: (wa, wb) });
-                continue;
-            }
+        if let Some((wa, wb)) = along(spec, knot, &iso) {
+            on_line.insert(spec.start, wa);
+            on_line.insert(spec.end, wb);
+            alongs.push((wa.min(wb), wa.max(wb)));
+            stand.insert(e, Stand::Along { w: (wa, wb) });
+            continue;
         }
         let met = curve_pair::meet(&line, &Span::new(&spec.carrier, (spec.t0, spec.t1)), band)
             .map_err(|_| {
@@ -1027,7 +1064,7 @@ fn split_face_once(
         };
         let mut inner = Vec::new();
         for m in &met.points {
-            let w = line.at(m.on_a);
+            let w = to_w(line.at(m.on_a));
             match m.on_b {
                 Hit::End(SpanEnd::Start) => {
                     on_line.insert(spec.start, w);
@@ -1614,13 +1651,14 @@ mod tests {
     /// What the split made of the unit chart's face: per face, its
     /// loop count and the shoelace area of its sampled loops (a ring's
     /// reversed walk subtracts); asserting first that every loop closes
-    /// vertex to vertex and every boundary point lies on its face's own
-    /// sub-patch.
-    fn parts(solid: &SolidSpec) -> Vec<(usize, f64)> {
+    /// vertex to vertex, every boundary point lies on its face's own
+    /// sub-patch, and every piece keeps the face's `sense`.
+    fn parts(solid: &SolidSpec, sense: bool) -> Vec<(usize, f64)> {
         solid
             .faces
             .iter()
             .map(|face| {
+                assert_eq!(face.sense, sense, "a piece keeps the face's sense");
                 let Surface::Nurbs(ref s) = face.surface else {
                     panic!("a split face stays on a spline chart")
                 };
@@ -1680,7 +1718,7 @@ mod tests {
         assert_eq!(crossing_knots(&solid, 0, false, EPS_IN), vec![0.5]);
         let sink = split(&mut solid).expect("the crossed face splits");
         assert_eq!(sink.len(), 1, "one record for the face");
-        let parts = parts(&solid);
+        let parts = parts(&solid, true);
         assert_eq!(
             parts.iter().map(|p| p.0).collect::<Vec<_>>(),
             [1, 1],
@@ -1727,7 +1765,7 @@ mod tests {
             let mut solid = bounded(&[Bound::Polygon(c)]);
             solid.faces[0].sense = sense;
             split(&mut solid).expect("the C splits");
-            let turned: Vec<_> = parts(&solid)
+            let turned: Vec<_> = parts(&solid, sense)
                 .into_iter()
                 .map(|(n, a)| (n, if sense { a } else { -a }))
                 .collect();
@@ -1754,7 +1792,7 @@ mod tests {
             },
         ]);
         split(&mut solid).expect("the ringed face splits");
-        let parts = parts(&solid);
+        let parts = parts(&solid, true);
         assert_eq!(
             parts.iter().map(|p| p.0).collect::<Vec<_>>(),
             [1, 1],
@@ -1775,7 +1813,7 @@ mod tests {
             },
         ]);
         split(&mut solid).expect("the ringed face splits");
-        let parts = parts(&solid);
+        let parts = parts(&solid, true);
         assert_eq!(
             parts.iter().map(|p| p.0).collect::<Vec<_>>(),
             [2, 1],
@@ -1834,6 +1872,256 @@ mod tests {
                     if what.contains("did not settle where they meet")
             ),
             "the crossing refuses typed: {refused:?}"
+        );
+    }
+
+    /// Whether `split` refused naming face 10 with `what` containing
+    /// `reason`.
+    fn refused_for(
+        split: &Result<Vec<crate::StructureNormalization>, StepImportError>,
+        reason: &str,
+    ) -> bool {
+        matches!(
+            split,
+            Err(StepImportError::C0KnotUnsplit { face: 10, what, .. }) if what.contains(reason)
+        )
+    }
+
+    /// The square `[0.1, 0.9]²` the line crosses at `y = 0.1` and
+    /// `y = 0.9`, counter-clockwise.
+    const SQUARE: [(f64, f64); 4] = [(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)];
+
+    /// The square walked clockwise on a face whose `sense` agrees with
+    /// `S_u × S_v`: along the line the loop leaves the high side first,
+    /// so its crossings do not alternate into and out of the face.
+    #[test]
+    fn a_loop_turning_against_its_faces_sense_refuses_typed() {
+        let mut cw = SQUARE.to_vec();
+        cw.reverse();
+        let refused = split(&mut bounded(&[Bound::Polygon(cw)]));
+        assert!(
+            refused_for(&refused, "do not alternate"),
+            "the crossings do not alternate: {refused:?}"
+        );
+    }
+
+    /// A notch from the square's left side whose tip vertex touches the
+    /// line at `y = 0.5`, inside the run `0.1 < y < 0.9`: the low piece
+    /// would be pinched at that vertex.
+    #[test]
+    fn a_notch_touching_the_line_inside_a_run_refuses_typed() {
+        let notched = vec![
+            (0.1, 0.1),
+            (0.9, 0.1),
+            (0.9, 0.9),
+            (0.1, 0.9),
+            (0.1, 0.6),
+            (0.5, 0.5),
+            (0.1, 0.4),
+        ];
+        let refused = split(&mut bounded(&[Bound::Polygon(notched)]));
+        assert!(
+            refused_for(&refused, "inside the face"),
+            "the touch inside the run refuses: {refused:?}"
+        );
+    }
+
+    /// A clockwise triangle ring whose vertex touches the line inside the
+    /// square's run.
+    #[test]
+    fn a_ring_touching_the_line_inside_a_run_refuses_typed() {
+        let refused = split(&mut bounded(&[
+            Bound::Polygon(SQUARE.to_vec()),
+            Bound::Polygon(vec![(0.3, 0.4), (0.3, 0.6), (0.5, 0.5)]),
+        ]));
+        assert!(
+            refused_for(&refused, "inside the face"),
+            "the ring's touch inside the run refuses: {refused:?}"
+        );
+    }
+
+    /// A circle trim lifted off the chart by three times the band's
+    /// escalation: no meeting with the line, and no foot of its pieces
+    /// within the band, so no side to read it on.
+    #[test]
+    fn a_trim_off_its_chart_past_the_band_reads_no_side_and_refuses_typed() {
+        let lift = 3.0 * band().unwrap().escalate();
+        let mut solid = solid(0.4);
+        let circle = Curve3::circle(
+            Point3::new(0.4, 0.5, lift),
+            Vec3::new(0.0, 0.0, 1.0),
+            0.2,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let spec = solid.edges.get_mut(&20).unwrap();
+        solid.vertices.insert(30, circle.eval(spec.t0));
+        spec.carrier = circle;
+        assert_eq!(crossing_knots(&solid, 0, false, EPS_IN), vec![0.5]);
+        let refused = split(&mut solid);
+        assert!(
+            refused_for(&refused, "did not read a side"),
+            "a piece off the chart reads no side: {refused:?}"
+        );
+    }
+
+    /// A tube closed in `u`: degree 1 in `u` over knots `0, 0, 1, 2, 3,
+    /// 4, 4`, its five control columns a square's corners with the first
+    /// repeated, and `z` from 0 to 1 in `v`. Every interior knot is a
+    /// crease. The face is the chart polygon `poly` (in `(u, v)`), its
+    /// edges the lines between its corners' images.
+    fn tube(poly: &[(f64, f64)]) -> SolidSpec {
+        let corners = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0), (1.0, 0.0)];
+        let s = NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0], 1).unwrap(),
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            corners
+                .iter()
+                .flat_map(|&(x, y)| [0.0, 1.0].map(|z| Point3::new(x, y, z)))
+                .collect(),
+            vec![1.0; 10],
+        )
+        .unwrap();
+        let mut solid = bounded(&[Bound::Polygon(
+            poly.iter()
+                .map(|&(u, v)| {
+                    let p = s.eval(u, v);
+                    (p.x, p.y)
+                })
+                .collect(),
+        )]);
+        // `bounded` places its polygon at `z = 0`; lift each corner to
+        // its own height and rebuild the lines between them.
+        for (k, &(u, v)) in poly.iter().enumerate() {
+            solid.vertices.insert(300 + k as u64, s.eval(u, v));
+        }
+        let n = poly.len() as u64;
+        for k in 0..n {
+            let (a, b) = (
+                solid.vertices[&(300 + k)],
+                solid.vertices[&(300 + (k + 1) % n)],
+            );
+            solid.edges.get_mut(&(200 + k)).unwrap().carrier = Curve3::line(a, b - a);
+        }
+        solid.faces[0].surface = Surface::Nurbs(Arc::new(s));
+        solid
+    }
+
+    /// The tube's pieces: each loop closes, each keeps `sense`, and each
+    /// piece's corners lie on its own chart within one knot span, so no
+    /// crease is left inside a cell. Answers the pieces' `u` extents.
+    fn tube_pieces(solid: &SolidSpec, sense: bool) -> Vec<(f64, f64)> {
+        let mut out: Vec<(f64, f64)> = solid
+            .faces
+            .iter()
+            .map(|face| {
+                assert_eq!(face.sense, sense, "a piece keeps the face's sense");
+                let Surface::Nurbs(ref s) = face.surface else {
+                    panic!("a piece stays on a spline chart")
+                };
+                let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+                for lp in &face.loops {
+                    let n = lp.uses.len();
+                    for i in 0..n {
+                        let (a, b) = (lp.uses[i], lp.uses[(i + 1) % n]);
+                        let spec = &solid.edges[&a.edge];
+                        let end = if a.forward { spec.end } else { spec.start };
+                        assert_eq!(end, super::use_start(solid, b), "the loop closes");
+                        let foot = s.project(solid.vertices[&end]).unwrap();
+                        assert!(foot.distance < 1e-9, "a corner lies on its piece's chart");
+                        (lo, hi) = (lo.min(foot.u), hi.max(foot.u));
+                    }
+                }
+                assert!(
+                    s.knot_values_u()
+                        .crease_values()
+                        .iter()
+                        .all(|&k| k <= lo + 1e-9 || k >= hi - 1e-9),
+                    "no crease inside the piece [{lo}, {hi}]"
+                );
+                (lo, hi)
+            })
+            .collect();
+        out.sort_by(|a, b| a.0.total_cmp(&b.0));
+        out
+    }
+
+    /// The tube's face over `u ∈ [1.5, 4]`, bounded on the right by the
+    /// chart's closed column at `u = 4`, which a projection reads at
+    /// `u = 0`. That edge is sided by the column it is certified on and
+    /// the way it walks it, so the face parts at the knots 2 and 3.
+    #[test]
+    fn a_tube_face_ending_on_its_charts_closed_column_parts_at_its_knots() {
+        let poly = [
+            (1.5, 0.0),
+            (2.0, 0.0),
+            (3.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 1.0),
+            (3.0, 1.0),
+            (2.0, 1.0),
+            (1.5, 1.0),
+        ];
+        let mut solid = tube(&poly);
+        split(&mut solid).expect("the face on the closed column splits");
+        let pieces = tube_pieces(&solid, true);
+        let want = [(1.5, 2.0), (2.0, 3.0), (3.0, 4.0)];
+        assert_eq!(pieces.len(), 3, "three pieces: {pieces:?}");
+        for (got, want) in pieces.iter().zip(want) {
+            assert!(
+                (got.0 - want.0).abs() < 1e-9 && (got.1 - want.1).abs() < 1e-9,
+                "pieces {pieces:?}"
+            );
+        }
+    }
+
+    /// The mirror: the face over `u ∈ [0, 2.5]`, bounded on the left by
+    /// the closed column at `u = 0`.
+    #[test]
+    fn a_tube_face_starting_on_its_charts_closed_column_parts_at_its_knots() {
+        let poly = [
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (2.0, 0.0),
+            (2.5, 0.0),
+            (2.5, 1.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
+        ];
+        let mut solid = tube(&poly);
+        split(&mut solid).expect("the face on the closed column splits");
+        let pieces = tube_pieces(&solid, true);
+        let want = [(0.0, 1.0), (1.0, 2.0), (2.0, 2.5)];
+        assert_eq!(pieces.len(), 3, "three pieces: {pieces:?}");
+        for (got, want) in pieces.iter().zip(want) {
+            assert!(
+                (got.0 - want.0).abs() < 1e-9 && (got.1 - want.1).abs() < 1e-9,
+                "pieces {pieces:?}"
+            );
+        }
+    }
+
+    /// The tube face over `[1.5, 4]` walked clockwise on a face whose
+    /// `sense` agrees with `S_u × S_v`: walking its closed column down
+    /// sides it below the knots while its neighbours lie above, so the
+    /// loop changes side at a corner off every knot line.
+    #[test]
+    fn a_tube_loop_against_its_sense_changes_side_away_from_the_line_and_refuses_typed() {
+        let mut poly = vec![
+            (1.5, 0.0),
+            (2.0, 0.0),
+            (3.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 1.0),
+            (3.0, 1.0),
+            (2.0, 1.0),
+            (1.5, 1.0),
+        ];
+        poly.reverse();
+        let refused = split(&mut tube(&poly));
+        assert!(
+            refused_for(&refused, "away from it"),
+            "the side changes off the line: {refused:?}"
         );
     }
 
