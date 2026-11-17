@@ -2,10 +2,12 @@
 id: nodeframe-eq-reads-its-fields-by-name
 kind: issue
 title: NodeFrame's hand-written PartialEq reads its fields by name, so a field added to it falls outside equality silently
-status: dispatched
+status: closed
 opened: 2026-11-14
 priority: P4
 cost: E
+closed: 2026-11-17
+pr: 7083
 branch: sectarms/two-smalls
 ---
 
