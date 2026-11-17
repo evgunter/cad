@@ -171,9 +171,11 @@ fn binade(x: f64) -> f64 {
 /// answers NaN**, which [`verdict`] reads as exceeded and [`worse`]
 /// keeps. Each certificate asks this of everything it is handed before
 /// it computes, since `f64::max`, `f64::min` and a comparison each read a
-/// NaN as a number. (`+∞` is a different answer: finite corners that are
-/// no triangle of the surface, [`cert_cone`]'s two nappes and
-/// [`cert_spindle`]'s two apexes.)
+/// NaN as a number. Finite inputs whose arithmetic passes `f64`'s range
+/// on the way answer NaN too, each certificate where it happens. (`+∞`
+/// is a different answer: finite corners that are no triangle of the
+/// surface, [`cert_cone`]'s two nappes and [`cert_spindle`]'s two
+/// apexes.)
 fn all_finite(values: impl IntoIterator<Item = f64>) -> bool {
     values.into_iter().all(f64::is_finite)
 }
@@ -400,13 +402,15 @@ pub fn cert_torus(major: f64, minor: f64, uv: [[f64; 2]; 3]) -> f64 {
         v0 = v0.min(v);
         v1 = v1.max(v);
     }
-    torus_chord_bound(
+    let bound = torus_chord_bound(
         abs_radial_max(major, minor, v0, v1),
         minor * abs_sin_max(v0, v1),
         minor,
         u1 - u0,
         v1 - v0,
-    )
+    );
+    // Finite radii and corners past `f64`'s range on the way.
+    if bound.is_finite() { bound } else { f64::NAN }
 }
 
 /// Spindle-sheet certificate: [`cert_torus`] over the triangle with
@@ -1465,6 +1469,20 @@ mod tests {
             cert_cylinder(o, Vec3::new(0.0, 0.0, 0.0), 1.0, on),
             "a zero axis",
         );
+        // Finite radii and corners whose extents or products are not.
+        let wide = [[1e308, 0.0], [-1e308, 0.0], [0.0, 0.1]];
+        poisoned(
+            cert_torus(1.0, 0.2, wide),
+            "torus, a u extent past the range",
+        );
+        poisoned(
+            cert_spindle(0.2, 1.0, wide, [false; 3]),
+            "spindle, a u extent past the range",
+        );
+        poisoned(
+            cert_torus(1e308, 1e308, flat),
+            "torus, radii past the range",
+        );
         // Finite points whose difference is not.
         let far = Point3::new(-1.5e308, 0.0, 0.0);
         let mut tri = on;
@@ -1649,6 +1667,32 @@ mod tests {
                 "{got:e} is {:e} off, past {allowance:e}",
                 got - 0.5
             );
+        }
+    }
+
+    /// **Corners far apart in size are read at the largest.** A triangle
+    /// about the origin's foot with one coordinate `10⁻²⁰⁰` beside
+    /// unit-sized ones answers its plane's distance, and so does its
+    /// mirror, one unit-sized coordinate beside `10²⁰⁰` ones. Read at the
+    /// smallest coordinate's scale the first overflows; read as stored
+    /// the second does.
+    #[test]
+    fn corners_far_apart_in_size_are_read_at_the_largest() {
+        let o = Point3::new(0.0, 0.0, 0.0);
+        for (small, big) in [(1e-200, 1.0), (1.0, 1e200)] {
+            let tri = [
+                Point3::new(small, -big, 0.5 * big),
+                Point3::new(big, big, 0.5 * big),
+                Point3::new(-big, big, 0.5 * big),
+            ];
+            for [a, b, c] in orders(tri) {
+                let got = dist_point_triangle(o, a, b, c);
+                assert!(
+                    (got - 0.5 * big).abs() <= rounding_allowance(big),
+                    "{small:e} beside {big:e}: {got:e}, not {:e}",
+                    0.5 * big
+                );
+            }
         }
     }
 
