@@ -1490,9 +1490,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         let normal_of =
             |side: PlaneSide| section_loops::section_normal(red.plane.normal.get(), side);
         let plane_for = |side: PlaneSide| Surface::Plane {
-            origin: red.plane.origin,
-            normal: normal_of(side),
-            u_ref,
+            frame: geom::Frame::new(red.plane.origin, normal_of(side), u_ref),
         };
         let ring_side = if ring == section.above_loop {
             PlaneSide::Above
@@ -2402,7 +2400,7 @@ mod torn_hop_rows {
             .find(|(_, f)| {
                 matches!(
                     body.get_surface(f.surface),
-                    Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.5).abs() < 1e-12
+                    Some(geom::Surface::Plane { frame, .. }) if (frame.origin().z - 0.5).abs() < 1e-12
                 )
             })
             .map(|(k, _)| k)
@@ -2484,8 +2482,8 @@ mod smooth_arm_rows {
             .find(|(_, f)| {
                 matches!(
                     body.get_surface(f.surface),
-                    Some(Surface::Plane { origin, normal, .. })
-                        if (origin.z - 0.5).abs() < 1e-12 && normal.z.abs() == 1.0
+                    Some(Surface::Plane { frame, .. })
+                        if (frame.origin().z - 0.5).abs() < 1e-12 && frame.axis().z.abs() == 1.0
                 )
             })
             .map(|(k, _)| k)
@@ -2504,9 +2502,14 @@ mod smooth_arm_rows {
         };
         let other = body.face_of_half_edge(mate).unwrap();
         let s_other = body.get_face(other).unwrap().surface;
-        let Some(Surface::Plane { normal, .. }) = body.get_surface(s_self).cloned() else {
+        let Some(Surface::Plane {
+            frame: carrier_frame,
+            ..
+        }) = body.get_surface(s_self).cloned()
+        else {
             panic!("the section face is planar");
         };
+        let normal = carrier_frame.axis();
         let outward_up = (normal.z > 0.0) == sense_self;
         body.get_face_mut(other).unwrap().sense = outward_up;
         let curve = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
@@ -2534,10 +2537,8 @@ mod smooth_arm_rows {
     /// [`cylinder_under`] of radius `r`.
     fn cylinder_of_radius_under(mid: Point3<f64>, axis: Vec3<f64>, r: f64) -> Surface<f64> {
         Surface::Cylinder {
-            origin: mid - Vec3::unit_z() * r,
-            axis,
+            frame: geom::Frame::new(mid - Vec3::unit_z() * r, axis, Vec3::unit_z()),
             radius: r,
-            u_ref: Vec3::unit_z(),
         }
     }
 
@@ -2684,10 +2685,8 @@ mod smooth_arm_rows {
             let cos = (1.0 - sin * sin).sqrt();
             let lean = Vec3::unit_z() * cos + Vec3::unit_z().cross(along) * sin;
             body.surfaces[s_other] = Surface::Cylinder {
-                origin: mid - lean,
-                axis: along,
+                frame: geom::Frame::new(mid - lean, along, lean),
                 radius: 1.0,
-                u_ref: lean,
             };
             let refusal = super::describe_section_boundary(&mut body, face, band, tol())
                 .expect_err("a refused pairing refuses the split");
@@ -2727,10 +2726,8 @@ mod smooth_arm_rows {
             let (k, below) = (escalate / zero, 0.99 * quoted);
             let mut body = section_edge().body;
             body.surfaces[s_other] = Surface::Cylinder {
-                origin: mid - lean,
-                axis: along,
+                frame: geom::Frame::new(mid - lean, along, lean),
                 radius: 1.0,
-                u_ref: lean,
             };
             let tighter = Band::new(below, k * below).unwrap();
             if let Err(other) = super::describe_section_boundary(&mut body, face, tighter, tol()) {
@@ -2775,17 +2772,13 @@ mod smooth_arm_rows {
         body.set_edge_curve(edge, spec, tol())
             .expect("plane against a unit cylinder along the edge certifies tangent");
         let Some(Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         }) = body.get_surface(s_self).cloned()
         else {
             panic!("the section face is planar");
         };
         body.surfaces[s_other] = Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         };
         let band = Band::linear(tol()).unwrap();
         super::describe_section_boundary(&mut body, face, band, tol())

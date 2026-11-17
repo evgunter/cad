@@ -26,10 +26,8 @@ use geom_core::{Point3, Vec3};
 fn cone_about(apex: Point3<f64>, axis: Vec3<f64>, alpha: f64) -> Surface<f64> {
     let axis = axis.normalize();
     Surface::Cone {
-        apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, axis.orthonormal_basis().0),
         half_angle: alpha,
-        u_ref: axis.orthonormal_basis().0,
     }
 }
 

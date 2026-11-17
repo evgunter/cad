@@ -608,10 +608,12 @@ const EDGE_JOIN_SITE: Door = Door::Site(
 /// pole.
 fn vertex_off_a_pole(rho: f64) -> Result<(), BooleanError> {
     let sphere = geom::Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let p = Point3::new(rho, 0.0, (1.0 - rho * rho).sqrt());
     super::super::edge_join::singular_at(&sphere, p, band())
@@ -629,10 +631,12 @@ fn vertex_off_a_pole(rho: f64) -> Result<(), BooleanError> {
 /// admits (along a ruling).
 fn resting_cylinder(side: f64) -> geom::Surface<f64> {
     geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, side),
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, side),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -1024,10 +1028,8 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         (body, st.face)
     };
     let (ca, fca) = face_on(geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        axis: z,
+        frame: geom::Frame::new(Point3::new(0.0, 1.0, 0.0), z, x),
         radius: 1.0,
-        u_ref: x,
     });
     let (cb, fcb) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
     // Each corner's face counterclockwise about its outward normal, its
@@ -1212,11 +1214,13 @@ fn pierced_torus(major: f64, minor: f64) -> Result<(), BooleanError> {
         st.face,
         crate::euler::FaceSurface::New {
             surface: geom::Surface::Torus {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 major_radius: major,
                 minor_radius: minor,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -1233,16 +1237,20 @@ fn pierced_torus(major: f64, minor: f64) -> Result<(), BooleanError> {
 /// as the germ mint reads it.
 fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
     let c = geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: cyl,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let s = geom::Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: sph,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     // On the upper circle, `z = √(R² − r²)`, where the sphere meets the
     // wall; a sphere too small to meet it has no such point, and the
@@ -1283,16 +1291,20 @@ fn section_site(
 /// reaches `reach` past the cylinder's far side.
 fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
     let c = geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let s = geom::Surface::Sphere {
-        center: Point3::new(0.25, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.25, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.75 + reach,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     // On the nearest ruling, where the sphere meets the wall at
     // `h² = R² − (r − d)²`.
@@ -1385,10 +1397,12 @@ fn seam_tangent(extent: f64) -> Result<(), BooleanError> {
     let r = |v: Vec3<f64>| v * a.cos() + k.cross(v) * a.sin() + k * (k.dot(v) * (1.0 - a.cos()));
     let c0 = Point3::new(0.4, -1.3, 2.2);
     let cylinder = geom::Surface::Cylinder {
-        origin: c0 + r(Vec3::new(0.0, 1.0, 0.0)),
-        axis: r(Vec3::new(0.0, 0.0, 1.0)),
+        frame: geom::Frame::new(
+            c0 + r(Vec3::new(0.0, 1.0, 0.0)),
+            r(Vec3::new(0.0, 0.0, 1.0)),
+            r(Vec3::new(1.0, 0.0, 0.0)),
+        ),
         radius: 1.0,
-        u_ref: r(Vec3::new(1.0, 0.0, 0.0)),
     };
     let plane = plane_through(
         c0,

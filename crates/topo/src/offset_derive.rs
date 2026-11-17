@@ -398,62 +398,106 @@ pub(crate) fn holds_the_move<T: Decide>(
     let across = |a: Vec3<T>, b: Vec3<T>| a.cross(b).norm() * reach;
     let through = |q: Point3<T>, m: Vec3<T>, p: Point3<T>| (q - p).dot(m);
     match (moved, held) {
-        (Surface::Plane { normal, .. }, Surface::Plane { normal: m, .. }) => {
-            zero_as("offset_holds_plane_plane", normal.dot(*m) * reach)
-        }
-        (Surface::Plane { normal, .. }, Surface::Cylinder { axis, .. }) => {
-            zero_as("offset_holds_plane_cylinder", across(*normal, *axis))
-        }
-        (Surface::Plane { normal, .. }, Surface::Nurbs(wall)) => {
-            translates_along(wall, *normal, reach, band)
+        (
+            Surface::Plane {
+                frame: plane_frame_2,
+                ..
+            },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+        ) => {
+            let normal = plane_frame_2.axis();
+            let m = plane_frame.axis();
+            zero_as("offset_holds_plane_plane", normal.dot(m) * reach)
         }
         (
-            Surface::Cylinder { origin, axis, .. },
             Surface::Plane {
-                origin: q,
-                normal: m,
+                frame: plane_frame, ..
+            },
+            Surface::Cylinder {
+                frame: cylinder_frame,
                 ..
             },
         ) => {
-            zero_as("offset_holds_cylinder_across", across(*m, *axis))
-                || (zero_as("offset_holds_cylinder_along", m.dot(*axis) * reach)
-                    && zero_as("offset_holds_cylinder_axis", through(*q, *m, *origin)))
+            let normal = plane_frame.axis();
+            let axis = cylinder_frame.axis();
+            zero_as("offset_holds_plane_cylinder", across(normal, axis))
         }
         (
-            Surface::Sphere { center, .. },
             Surface::Plane {
-                origin: q,
-                normal: m,
+                frame: plane_frame, ..
+            },
+            Surface::Nurbs(wall),
+        ) => {
+            let normal = plane_frame.axis();
+            translates_along(wall, normal, reach, band)
+        }
+        (
+            Surface::Cylinder {
+                frame: cylinder_frame,
                 ..
             },
-        ) => zero_as("offset_holds_sphere_centre", through(*q, *m, *center)),
-        (
-            Surface::Cone { apex, axis, .. },
             Surface::Plane {
-                origin: q,
-                normal: m,
-                ..
+                frame: plane_frame, ..
             },
         ) => {
-            zero_as("offset_holds_cone_along", m.dot(*axis) * reach)
-                && zero_as("offset_holds_cone_axis", through(*q, *m, *apex))
+            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
+            let (q, m) = (plane_frame.origin(), plane_frame.axis());
+            zero_as("offset_holds_cylinder_across", across(m, axis))
+                || (zero_as("offset_holds_cylinder_along", m.dot(axis) * reach)
+                    && zero_as("offset_holds_cylinder_axis", through(q, m, origin)))
         }
         (
-            Surface::Torus { center, axis, .. },
-            Surface::Plane {
-                origin: q,
-                normal: m,
+            Surface::Sphere {
+                frame: sphere_frame,
                 ..
             },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
         ) => {
-            zero_as("offset_holds_torus_centre", through(*q, *m, *center))
-                && (zero_as("offset_holds_torus_along", m.dot(*axis) * reach)
-                    || zero_as("offset_holds_torus_across", across(*m, *axis)))
+            let center = sphere_frame.origin();
+            let (q, m) = (plane_frame.origin(), plane_frame.axis());
+            zero_as("offset_holds_sphere_centre", through(q, m, center))
         }
-        (Surface::Nurbs(_) | Surface::Approx(_), Surface::Plane { normal: m, .. }) => {
+        (
+            Surface::Cone {
+                frame: cone_frame, ..
+            },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+        ) => {
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
+            let (q, m) = (plane_frame.origin(), plane_frame.axis());
+            zero_as("offset_holds_cone_along", m.dot(axis) * reach)
+                && zero_as("offset_holds_cone_axis", through(q, m, apex))
+        }
+        (
+            Surface::Torus {
+                frame: torus_frame, ..
+            },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+        ) => {
+            let (center, axis) = (torus_frame.origin(), torus_frame.axis());
+            let (q, m) = (plane_frame.origin(), plane_frame.axis());
+            zero_as("offset_holds_torus_centre", through(q, m, center))
+                && (zero_as("offset_holds_torus_along", m.dot(axis) * reach)
+                    || zero_as("offset_holds_torus_across", across(m, axis)))
+        }
+        (
+            Surface::Nurbs(_) | Surface::Approx(_),
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+        ) => {
+            let m = plane_frame.axis();
             match (moved.spline_chart(), row) {
                 (Some(net), Some((axis, at))) => {
-                    normal_in_plane_along(net, axis, at, *m, reach, band)
+                    normal_in_plane_along(net, axis, at, m, reach, band)
                 }
                 _ => false,
             }
@@ -790,20 +834,19 @@ fn plane_plane<T: Decide>(
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     let (
         Surface::Plane {
-            origin: q1,
-            normal: n1,
+            frame: plane_frame_2,
             ..
         },
         Surface::Plane {
-            origin: q2,
-            normal: n2,
-            ..
+            frame: plane_frame, ..
         },
     ) = (a, b)
     else {
         unreachable!("plane_plane is handed two planes")
     };
-    let dir = n1.cross(*n2);
+    let (q1, n1) = (plane_frame_2.origin(), plane_frame_2.axis());
+    let (q2, n2) = (plane_frame.origin(), plane_frame.axis());
+    let dir = n1.cross(n2);
     if matches!(
         decide(
             "offset_section_planes_parallel",
@@ -821,9 +864,9 @@ fn plane_plane<T: Decide>(
     // Three planes: the two given, and the one across `dir` through the
     // old middle.
     let o = Point3::origin();
-    let (d1, d2, d3) = (n1.dot(*q1 - o), n2.dot(*q2 - o), dir.dot(mid - o));
+    let (d1, d2, d3) = (n1.dot(q1 - o), n2.dot(q2 - o), dir.dot(mid - o));
     let det = n1.dot(n2.cross(dir));
-    let x = (n2.cross(dir) * d1 + dir.cross(*n1) * d2 + n1.cross(*n2) * d3) / det;
+    let x = (n2.cross(dir) * d1 + dir.cross(n1) * d2 + n1.cross(n2) * d3) / det;
     Ok(Ok(Curve3::line(o + x, dir)))
 }
 
@@ -847,18 +890,17 @@ pub(crate) fn analytic_root<T: Decide>(
     };
     if let (
         Surface::Plane {
-            origin: q,
-            normal: m,
-            ..
+            frame: plane_frame, ..
         },
         Curve3::Line(geom::Line { origin, dir }),
     ) = (surface, carrier)
     {
-        let sine = dir.dot(*m);
+        let (q, m) = (plane_frame.origin(), plane_frame.axis());
+        let sine = dir.dot(m);
         if graze(sine.abs())? {
             return Ok(Err(CornerVerdict::Graze { sine }));
         }
-        return Ok(Ok((*q - *origin).dot(*m) / sine));
+        return Ok(Ok((q - *origin).dot(m) / sine));
     }
     if matches!(carrier, Curve3::Nurbs(_)) {
         return Ok(Err(CornerVerdict::Unsupported {
@@ -924,9 +966,10 @@ fn plane_wall_section<'w, 's>(
     extent: geom_core::Lever<f64>,
     band: Band,
 ) -> Result<Result<NurbsCurve3<f64>, SectionVerdict>, Indeterminate> {
-    let Surface::Plane { origin, normal, .. } = *plane else {
+    let Surface::Plane { frame, .. } = *plane else {
         unreachable!("the spline lane is handed a plane")
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     let mid = old.mid_point(t0, t1);
     let tangent = old.deriv(geom::mid_param(t0, t1));
     let carrier = match level_row(wall, origin, normal, extent, band)? {
@@ -1231,11 +1274,12 @@ fn plane_spline_root(
     extent: geom_core::Lever<f64>,
     band: Band,
 ) -> Result<SplineRoot, CornerVerdict<f64>> {
-    let Surface::Plane { origin, normal, .. } = *plane else {
+    let Surface::Plane { frame, .. } = *plane else {
         return Err(CornerVerdict::Unsupported {
             what: "a moved surface's root along a spline edge is solved for a plane only",
         });
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     let speed = certified_speed(carrier);
     let section = geom_brep::boundary_section(
         carrier,
@@ -1340,9 +1384,7 @@ mod holds {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("a clamped linear vector");
         let (o, x) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let band = Band::linear(Tol::witness()).expect("the witness band");
         let answer = |axis, control| {
@@ -1418,33 +1460,23 @@ mod square {
         let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
         let o = Point3::origin();
         let plane = |origin, normal: Vec3<f64>, u_ref| Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: geom::Frame::new(origin, normal, u_ref),
         };
         let line = |origin, dir| Curve3::Line(geom::Line { origin, dir });
         let circle = |center, axis, radius, u_ref| {
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+                frame: geom::Frame::new(center, axis, u_ref),
                 radius,
             })
         };
         let cylinder = Surface::Cylinder {
-            origin: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             radius: 1.0,
-            u_ref: x,
         };
         let torus = Surface::Torus {
-            center: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             major_radius: 3.0,
             minor_radius: 1.0,
-            u_ref: x,
         };
         let s = std::f64::consts::FRAC_1_SQRT_2;
         let poses: Vec<Pose> = vec![
@@ -1479,10 +1511,8 @@ mod square {
             (
                 "sphere beside a plane through its centre",
                 Surface::Sphere {
-                    center: o,
+                    frame: geom::Frame::new(o, z, x),
                     radius: 1.0,
-                    axis: z,
-                    u_ref: x,
                 },
                 plane(o, z, x),
                 circle(o, z, 1.0, x),
@@ -1491,10 +1521,8 @@ mod square {
             (
                 "cone beside a plane holding its axis",
                 Surface::Cone {
-                    apex: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     half_angle: std::f64::consts::FRAC_PI_4,
-                    u_ref: x,
                 },
                 plane(o, x, y),
                 line(o, Vec3::new(0.0, s, s)),
@@ -1568,9 +1596,7 @@ mod regions {
 
     fn ground() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         }
     }
 
@@ -1677,9 +1703,7 @@ mod rational_carriers {
         let weights = (0..9).map(|n| [1.0, 0.5, 1.0][n % 3]).collect();
         let wall = NurbsSurface::new(quad(), quad(), control, weights).expect("a rational wall");
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let old = Curve3::line(Point3::new(0.0, 0.05, 0.0), Vec3::unit_x());
         let row = match plane_wall_section(
@@ -1720,9 +1744,7 @@ mod rational_carriers {
         )
         .expect("a quarter arc");
         let plane = Surface::Plane {
-            origin: Point3::new(0.5, 0.0, 0.0),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(0.5, 0.0, 0.0), Vec3::unit_x(), Vec3::unit_y()),
         };
         match plane_spline_root(
             &plane,

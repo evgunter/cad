@@ -243,10 +243,10 @@ fn mirror_identity_scenario<
         ] {
             let mut found = 0;
             for (fk, _) in part.faces() {
-                let Some(topo::Surface::Plane { origin, normal, .. }) = part.face_surface(fk)
-                else {
+                let Some(topo::Surface::Plane { frame, .. }) = part.face_surface(fk) else {
                     continue;
                 };
+                let (origin, normal) = (frame.origin(), frame.axis());
                 let on_plane = (origin.y - T::from_f64(1.0)).abs().hi() < 1e-9;
                 if on_plane && normal.y.lo().abs().max(normal.y.hi().abs()) > 0.99 {
                     found += 1;

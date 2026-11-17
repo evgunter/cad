@@ -52,19 +52,23 @@ fn slit_cap_with(
             seed.face,
             FaceSurface::New {
                 surface: Surface::Sphere {
-                    center: Point3::new(0.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::unit_z(),
+                        Vec3::unit_x(),
+                    ),
                     radius: 1.0,
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
                 },
                 sense: true,
             },
         )
         .unwrap();
     let rim_plane = body.add_surface(Surface::Plane {
-        origin: Point3::new(0.0, 0.0, v0.sin()),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, v0.sin()),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+        ),
     });
     let rim = |t0: f64, t1: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
@@ -116,9 +120,11 @@ fn slit_cap_with(
     // The slit: up the meridian `u = π`, a great circle in the plane
     // `y = 0`, from the rim to the north pole.
     let meridian_plane = body.add_surface(Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::new(-1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::new(-1.0, 0.0, 0.0),
+        ),
     });
     let strut = body
         .mev(
@@ -336,10 +342,12 @@ pub(crate) fn cylinder_patch_turned(
             seed.face,
             FaceSurface::New {
                 surface: Surface::Cylinder {
-                    origin: Point3::new(0.0, 0.0, 0.0),
-                    axis: Vec3::unit_z(),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::unit_z(),
+                        Vec3::new(turn.cos(), turn.sin(), 0.0),
+                    ),
                     radius: 1.0,
-                    u_ref: Vec3::new(turn.cos(), turn.sin(), 0.0),
                 },
                 sense: true,
             },
@@ -347,9 +355,7 @@ pub(crate) fn cylinder_patch_turned(
         .unwrap();
     let rim = |body: &mut Body<f64>, z: f64, t0: f64, t1: f64| {
         let plane = body.add_surface(Surface::Plane {
-            origin: Point3::new(0.0, 0.0, z),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
         });
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
@@ -439,10 +445,12 @@ pub(crate) fn cone_patch_turned(turn: f64) -> Result<Body<f64>, super::PcurveMin
             seed.face,
             FaceSurface::New {
                 surface: Surface::Cone {
-                    apex: Point3::new(0.0, 0.0, 0.0),
-                    axis: Vec3::unit_z(),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::unit_z(),
+                        Vec3::new(turn.cos(), turn.sin(), 0.0),
+                    ),
                     half_angle: alpha,
-                    u_ref: Vec3::new(turn.cos(), turn.sin(), 0.0),
                 },
                 sense: true,
             },
@@ -450,9 +458,7 @@ pub(crate) fn cone_patch_turned(turn: f64) -> Result<Body<f64>, super::PcurveMin
         .unwrap();
     let rim = |body: &mut Body<f64>, z: f64, t0: f64, t1: f64| {
         let plane = body.add_surface(Surface::Plane {
-            origin: Point3::new(0.0, 0.0, z),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
         });
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
@@ -1083,11 +1089,7 @@ fn a_sphere_patch_anywhere_in_latitude_reads_in_the_charts_region() {
     let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::unit_z());
     let circle = |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| {
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            frame: geom::Frame::new(center, axis, u_ref),
             radius,
         })
     };
@@ -1106,10 +1108,8 @@ fn a_sphere_patch_anywhere_in_latitude_reads_in_the_charts_region() {
             seed.face,
             FaceSurface::New {
                 surface: Surface::Sphere {
-                    center: o,
+                    frame: geom::Frame::new(o, z, Vec3::unit_x()),
                     radius: 1.0,
-                    axis: z,
-                    u_ref: Vec3::unit_x(),
                 },
                 sense: true,
             },
@@ -1224,31 +1224,25 @@ fn a_one_edge_loops_split_closes_on_its_children() {
         (
             "cylinder rim",
             Surface::Cylinder {
-                origin: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 radius: 1.0,
-                u_ref: x,
             },
             circle(Point3::new(0.0, 0.0, 0.5), 1.0),
         ),
         (
             "sphere parallel",
             Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, z, x),
                 radius: 1.0,
-                axis: z,
-                u_ref: x,
             },
             circle(Point3::new(0.0, 0.0, lat.sin()), lat.cos()),
         ),
         (
             "torus parallel",
             Surface::Torus {
-                center: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 major_radius: 2.0,
                 minor_radius: 0.5,
-                u_ref: x,
             },
             circle(Point3::new(0.0, 0.0, 0.5), 2.0),
         ),
@@ -1357,7 +1351,7 @@ fn a_split_of_an_edge_stated_periods_off_is_the_mints_and_closes() {
                         let he = body.get_edge(e).unwrap().he_plus;
                         matches!(
                             super::half_edge_carrier(&body, he),
-                            Ok((Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }), _, _)) if center.z == 0.0
+                            Ok((Curve3::Circle(geom::Circle { frame, .. }), _, _)) if frame.origin().z == 0.0
                         )
                     })
                     .expect("the bottom arc");

@@ -83,10 +83,12 @@ fn two_level_rim_cap(dv: f64) -> Result<Body<f64>, EulerOpError> {
         seed.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: RS,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },

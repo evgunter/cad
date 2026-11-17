@@ -63,22 +63,16 @@ fn body<T: Decide + AtRestPolicy>(kind: Kind, a: T, b: T, tol: Tol) -> (Body<T>,
     let seed = body.mvfs(Point3::new(r0, zero, z0), true).unwrap();
     let wall = match kind {
         Kind::Cylinder => Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: z,
+            frame: geom::Frame::new(Point3::origin(), z, x),
             radius: a,
-            u_ref: x,
         },
         Kind::Frustum => Surface::Cone {
-            apex: Point3::new(zero, zero, a),
-            axis: z,
+            frame: geom::Frame::new(Point3::new(zero, zero, a), z, x),
             half_angle: T::from_f64(K.atan()),
-            u_ref: x,
         },
         Kind::SphereCap => Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), z, x),
             radius: a,
-            axis: z,
-            u_ref: x,
         },
     };
     body.set_face_surface(
@@ -95,9 +89,7 @@ fn body<T: Decide + AtRestPolicy>(kind: Kind, a: T, b: T, tol: Tol) -> (Body<T>,
     };
     let cap = |at: T, normal: Vec3<T>| FaceSurface::New {
         surface: Surface::Plane {
-            origin: Point3::new(zero, zero, at),
-            normal,
-            u_ref: x,
+            frame: geom::Frame::new(Point3::new(zero, zero, at), normal, x),
         },
         sense: true,
     };

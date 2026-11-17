@@ -13,20 +13,16 @@ fn band() -> Band {
 /// The ring torus `(R, r)` about `y` through the origin.
 fn torus(big_r: f64, r: f64) -> geom::Surface<f64> {
     geom::Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
         major_radius: big_r,
         minor_radius: r,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 /// The plane through `origin` with unit normal `normal`.
 fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> geom::Surface<f64> {
     geom::Surface::Plane {
-        origin,
-        normal,
-        u_ref: normal.cross(Vec3::unit_z()).normalize(),
+        frame: geom::Frame::new(origin, normal, normal.cross(Vec3::unit_z()).normalize()),
     }
 }
 
@@ -88,10 +84,10 @@ fn a_chord_whose_sites_lie_on_c2_is_an_arc_of_c2() {
             let on = |t: f64| Point3::new(0.0, 0.5 * t.sin(), z + 0.5 * t.cos());
             let got = circle(pick(&two, [on(0.3), on(2.1)]).unwrap());
             assert!(
-                (got.conic().frame().origin - Point3::new(0.0, 0.0, z)).norm() < 1e-12,
+                (got.conic().frame().origin() - Point3::new(0.0, 0.0, z)).norm() < 1e-12,
                 "normal {n:?}: the chord's sites on the circle about z = {z} took the one about \
                  {:?}",
-                got.conic().frame().origin
+                got.conic().frame().origin()
             );
         }
     }
@@ -142,9 +138,10 @@ fn a_chords_sites_on_two_loops_or_neither_are_refused() {
 /// The largest distance off `cut` and off `wall`'s torus of points
 /// round `c`.
 fn off_both(c: &SectionCurve<f64>, cut: &geom::Surface<f64>, (big_r, r): (f64, f64)) -> (f64, f64) {
-    let geom::Surface::Plane { origin, normal, .. } = *cut else {
+    let geom::Surface::Plane { frame, .. } = *cut else {
         unreachable!()
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     (0..720)
         .map(|k| {
             c.carrier()

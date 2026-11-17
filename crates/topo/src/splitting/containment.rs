@@ -1354,23 +1354,24 @@ pub(crate) fn carrier_loop<T: Decide>(
                 // A line: its segment is its two end vertices'.
                 geom::Curve3::Line(_) => LoopEdge::Chord,
                 geom::Curve3::Spiric {
-                    center,
-                    axis,
-                    u_ref,
+                    frame,
                     major_radius,
                     minor_radius,
                     offset,
-                } => LoopEdge::Spiric(SpiricArc::new(
-                    Oval {
-                        center,
-                        axis,
-                        u_ref,
-                        major: major_radius,
-                        minor: minor_radius,
-                        offset,
-                    },
-                    curve.params(),
-                )),
+                } => {
+                    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                    LoopEdge::Spiric(SpiricArc::new(
+                        Oval {
+                            center,
+                            axis,
+                            u_ref,
+                            major: major_radius,
+                            minor: minor_radius,
+                            offset,
+                        },
+                        curve.params(),
+                    ))
+                }
                 // A certified edge's span is forward, between point
                 // parameters.
                 geom::Curve3::Nurbs(ref n) => {
@@ -1952,9 +1953,7 @@ fn conic_crossings<T: Decide>(
     let plane = Charted::held(
         face,
         geom::Surface::Plane {
-            origin: q,
-            normal,
-            u_ref: d,
+            frame: geom::Frame::new(q, normal, d),
         },
     );
     let Ok(ray) = SurfaceCurve::u_line(&plane, geom_core::Point2::new(T::zero(), T::zero())) else {
@@ -2306,11 +2305,11 @@ mod tests {
         }
         // A circle: an overlap in its band escalates, one past it is wound.
         let circle = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
         });
         let tau = core::f64::consts::TAU;

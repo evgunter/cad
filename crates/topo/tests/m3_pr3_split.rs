@@ -107,7 +107,8 @@ fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> Vec<topo::VertexKey>
 fn section_faces_with(body: &Body<f64>, o: Point3<f64>, n: Vec3<f64>) -> Vec<topo::FaceKey> {
     body.faces()
         .filter(|(fk, _)| match body.face_surface(*fk) {
-            Some(Surface::Plane { origin, normal, .. }) => {
+            Some(Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
                 origin.equals_exactly(o) && normal.equals_exactly(n)
             }
             _ => false,
@@ -364,7 +365,8 @@ fn notched_block_end_to_end() {
     let up_faces = below
         .faces()
         .filter(|(fk, _)| match below.face_surface(*fk) {
-            Some(Surface::Plane { normal, .. }) => {
+            Some(Surface::Plane { frame, .. }) => {
+                let normal = frame.axis();
                 normal.x == 0.0 && normal.y == 1.0 && normal.z == 0.0
             }
             _ => false,
@@ -580,9 +582,10 @@ fn a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch() {
                         .flat_map(|m| section_faces_with(body, o, m))
                     {
                         let surface = body.get_face(face).unwrap().surface;
-                        let Some(Surface::Plane { u_ref, .. }) = body.get_surface(surface) else {
+                        let Some(Surface::Plane { frame, .. }) = body.get_surface(surface) else {
                             panic!("{at}: a section face is a plane")
                         };
+                        let u_ref = frame.u_ref();
                         assert_eq!(u_ref.y, 0.0, "{at}: the section chart's u axis {u_ref:?}");
                         sections += 1;
                     }
@@ -1148,9 +1151,7 @@ fn seed<T: geom_core::Decide + topo::AtRestPolicy>() -> (Body<T>, topo::LoopKey)
         seed.face,
         topo::construction::FaceSurface::New {
             surface: Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             },
             sense: true,
         },
@@ -1260,7 +1261,10 @@ fn offset_one_plane(
         .into_values()
         .map(|faces| {
             let hit = match above.face_surface(faces[0]) {
-                Some(Surface::Plane { origin, normal, .. }) => pick(*origin, *normal),
+                Some(Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
+                    pick(origin, normal)
+                }
                 _ => false,
             };
             topo::ChartMove {

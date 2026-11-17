@@ -677,7 +677,8 @@ impl<T: Decide> Body<T> {
                     Reading::Residuals {
                         door, band, charts, ..
                     } => match self.slot_surface(charts, sides.after[side]) {
-                        Some(&Surface::Plane { origin, normal, .. }) => {
+                        Some(&Surface::Plane { frame, .. }) => {
+                            let (origin, normal) = (frame.origin(), frame.axis());
                             Some((*door, origin, normal, *band))
                         }
                         _ => None,
@@ -2326,7 +2327,8 @@ mod tests {
     fn face_at(body: &Body<f64>, axis: usize, value: f64) -> FaceKey {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(Surface::Plane { origin, normal, .. }) => {
+                Some(Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     let (o, n) = (origin.to_array(), normal.to_array());
                     n[axis].abs() > 0.5 && o[axis] == value
                 }
@@ -2357,17 +2359,18 @@ mod tests {
     /// onto it is a swap onto another chart.
     fn plane_moved(body: &Body<f64>, face: FaceKey, by: Vec3<f64>) -> Surface<f64> {
         let Some(&Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         }) = body.get_surface(surf(body, face))
         else {
             panic!("a brick face is a plane")
         };
+        let (origin, normal, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         Surface::Plane {
-            origin: origin + by,
-            normal,
-            u_ref,
+            frame: geom::Frame::new(origin + by, normal, u_ref),
         }
     }
 
@@ -2927,10 +2930,12 @@ mod tests {
     #[test]
     fn a_curved_chart_no_edge_names_is_refused_by_both_doors() {
         let cylinder = Surface::Cylinder {
-            origin: Point3::new(10.0, 10.0, 10.0),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(
+                Point3::new(10.0, 10.0, 10.0),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+            ),
             radius: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         for (label, surface) in [
             ("the patch through the cap", nurbs_plane(1.0)),
@@ -3028,10 +3033,8 @@ mod tests {
         let edges = cycle_edges(&body, seed.face);
         assert_eq!(edges.len(), 1, "the wall is bounded by its rim alone");
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let charts = || vec![Rechart::new(sphere.clone(), seed.face, true)];
         assert_err_deep_unchanged(
@@ -3070,9 +3073,7 @@ mod tests {
     #[test]
     fn neither_door_asks_a_lone_vertex() {
         let far = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 5.0),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 5.0), Vec3::unit_z(), Vec3::unit_x()),
         };
         for describing in [false, true] {
             let mut body = Body::<f64>::new();
@@ -3239,11 +3240,11 @@ mod tests {
             assert_eq!(surf(&both, top), top_key, "flipped={flipped}");
             assert_eq!(surf(&both, front), front_key, "flipped={flipped}");
             assert!(
-                matches!(both.get_surface(top_key), Some(Surface::Plane { origin, .. }) if origin.z == 1.0 + d),
+                matches!(both.get_surface(top_key), Some(Surface::Plane { frame, .. }) if frame.origin().z == 1.0 + d),
                 "the top wears the top's plane"
             );
             assert!(
-                matches!(both.get_surface(front_key), Some(Surface::Plane { origin, .. }) if origin.y == -d),
+                matches!(both.get_surface(front_key), Some(Surface::Plane { frame, .. }) if frame.origin().y == -d),
                 "the front wears the front's plane"
             );
             assert_eq!(validate_geometric(&both, tol()), Ok(()));
@@ -3597,15 +3598,11 @@ mod tests {
         Surface<f64>,
     ) {
         let cylinder = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let mut body = Body::<f64>::new();
         let mut wear = |at: Point3<f64>, surface: &Surface<f64>| {
@@ -4780,9 +4777,10 @@ mod tests {
             .map(|(f, _)| f)
             .find(|&f| body.proven_face(f).half_edges().len() == 4)
             .expect("a prism has quadrilateral sides");
-        let Some(&Surface::Plane { normal, .. }) = body.get_surface(surf(&body, side)) else {
+        let Some(&Surface::Plane { frame, .. }) = body.get_surface(surf(&body, side)) else {
             panic!("a prism's side is a plane")
         };
+        let normal = frame.axis();
         let charts = vec![Rechart::new(
             plane_moved(&body, side, normal * 0.01),
             side,
@@ -4952,10 +4950,8 @@ mod tests {
                 seed.face,
                 FaceSurface::New {
                     surface: Surface::Cylinder {
-                        origin: Point3::origin(),
-                        axis: Vec3::unit_z(),
+                        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                         radius: 1.0,
-                        u_ref: Vec3::unit_x(),
                     },
                     sense: true,
                 },

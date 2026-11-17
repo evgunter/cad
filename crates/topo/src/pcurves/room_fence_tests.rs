@@ -47,10 +47,12 @@ fn room(surface: &Surface<f64>, vertex: Point3<f64>) -> bool {
 fn at_a_small_k_a_cone_joint_near_the_axis_has_no_room() {
     let alpha: f64 = 0.3;
     let cone = Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: alpha,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let at = |d: f64| Point3::new(d, 0.0, d / alpha.tan());
     assert!(!room(&cone, at(3.0 * EPS)), "3ε from the axis: no room");
@@ -63,10 +65,12 @@ fn at_a_small_k_a_cone_joint_near_the_axis_has_no_room() {
 #[test]
 fn at_a_small_k_a_sphere_joint_near_a_pole_has_no_room() {
     let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let at = |d: f64| Point3::new(d, 0.0, (1.0 - d * d).sqrt());
     assert!(!room(&sphere, at(4.5 * EPS)), "4.5ε from the axis: no room");

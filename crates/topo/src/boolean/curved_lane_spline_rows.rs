@@ -57,9 +57,7 @@ pub(super) fn spline_sheet(
             seed.face,
             FaceSurface::New {
                 surface: geom::Surface::Plane {
-                    origin: p0,
-                    normal,
-                    u_ref,
+                    frame: geom::Frame::new(p0, normal, u_ref),
                 },
                 sense: true,
             },

@@ -206,10 +206,8 @@ impl Frame {
     }
     pub(super) fn surface(&self) -> Surface<f64> {
         Surface::Cone {
-            apex: self.apex,
-            axis: self.a,
+            frame: geom::Frame::new(self.apex, self.a, self.e1),
             half_angle: self.alpha,
-            u_ref: self.e1,
         }
     }
 }
@@ -298,9 +296,7 @@ fn plane_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     (window < 30.0 * k.scale || margin.abs() < 0.03 * k.scale).then(|| Pose {
         what: format!("plane p0 {p0:?} n {n:?} (β {beta})"),
         partner: Surface::Plane {
-            origin: p0,
-            normal: n,
-            u_ref: n.orthonormal_basis().0,
+            frame: geom::Frame::new(p0, n, n.orthonormal_basis().0),
         },
         window,
         count: Count::Exact,
@@ -328,10 +324,8 @@ fn sphere_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     (rho > 0.05 * sc).then(|| Pose {
         what: format!("sphere {centre:?} ρ {rho}"),
         partner: Surface::Sphere {
-            center: centre,
+            frame: geom::Frame::new(centre, k.a, k.e1),
             radius: rho,
-            axis: k.a,
-            u_ref: k.e1,
         },
         window: delta.norm() + rho + 0.1 * sc,
         count: Count::Exact,
@@ -344,10 +338,12 @@ fn coaxial_cylinder_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     Some(Pose {
         what: format!("coaxial cylinder r {rc}"),
         partner: Surface::Cylinder {
-            origin: k.apex + k.a * (k.scale * rng.range(-2.0, 2.0)),
-            axis: if rng.unit() < 0.5 { k.a } else { -k.a },
+            frame: geom::Frame::new(
+                k.apex + k.a * (k.scale * rng.range(-2.0, 2.0)),
+                if rng.unit() < 0.5 { k.a } else { -k.a },
+                k.e1,
+            ),
             radius: rc,
-            u_ref: k.e1,
         },
         window: 1.4 * rc / k.alpha.sin(),
         count: Count::Parallels(&[2]),
@@ -374,10 +370,12 @@ fn coaxial_cone_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     (far < 20.0 * k.scale).then(|| Pose {
         what: format!("coaxial cone d {d} α₂ {alpha2}"),
         partner: Surface::Cone {
-            apex: k.apex + k.a * d,
-            axis: if rng.unit() < 0.5 { k.a } else { -k.a },
+            frame: geom::Frame::new(
+                k.apex + k.a * d,
+                if rng.unit() < 0.5 { k.a } else { -k.a },
+                k.e1,
+            ),
             half_angle: alpha2,
-            u_ref: k.e1,
         },
         window: 1.3 * far,
         count: Count::Parallels(&[2]),
@@ -400,11 +398,9 @@ fn coaxial_torus_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     (big > r + 0.05 * sc).then(|| Pose {
         what: format!("coaxial torus z {z} R {big} r {r}"),
         partner: Surface::Torus {
-            center: k.apex + k.a * z,
-            axis: k.a,
+            frame: geom::Frame::new(k.apex + k.a * z, k.a, k.e1),
             major_radius: big,
             minor_radius: r,
-            u_ref: k.e1,
         },
         window: z.abs() + big + r + 0.2 * sc,
         count: Count::Parallels(&[0, 2, 4]),
@@ -420,10 +416,12 @@ fn parallel_cylinder_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     (rc > 0.05 * sc).then(|| Pose {
         what: format!("parallel cylinder e {e} r {rc}"),
         partner: Surface::Cylinder {
-            origin: k.apex + k.e1 * e + k.a * (sc * rng.range(-2.0, 2.0)),
-            axis: k.a,
+            frame: geom::Frame::new(
+                k.apex + k.e1 * e + k.a * (sc * rng.range(-2.0, 2.0)),
+                k.a,
+                k.e1,
+            ),
             radius: rc,
-            u_ref: k.e1,
         },
         window: 1.3 * (e + rc) / k.alpha.sin(),
         count: Count::Exact,
@@ -571,14 +569,10 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
             ));
         }
     }
-    if let Surface::Cylinder {
-        origin,
-        axis,
-        radius,
-        ..
-    } = pose.partner
+    if let Surface::Cylinder { frame, radius, .. } = pose.partner
         && !matches!(pose.count, Count::Parallels(_))
     {
+        let (origin, axis) = (frame.origin(), frame.axis());
         let (e1, e2) = axis.orthonormal_basis();
         let z0 = (k.apex - origin).dot(axis);
         let on_cyl = trace(
@@ -699,16 +693,12 @@ fn near_axis_balls_agree_with_the_closed_form() {
             _ => (near - gap, &[]),
         };
         let cone = Surface::Cone {
-            apex,
-            axis: a,
+            frame: geom::Frame::new(apex, a, b1),
             half_angle: alpha,
-            u_ref: b1,
         };
         let ball = Surface::Sphere {
-            center: centre,
+            frame: geom::Frame::new(centre, a, b1),
             radius: rho,
-            axis: a,
-            u_ref: b1,
         };
         let what = format!("L {scale}, e/L {frac}, α {alpha}, ρ {rho}, want {want:?}");
         let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(apex, 5.0 * scale));

@@ -38,10 +38,8 @@ fn cylinder<T: Decide + AtRestPolicy>(radius: T, top: T, tol: Tol) -> (Body<T>, 
         seed.face,
         FaceSurface::New {
             surface: Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: z,
+                frame: geom::Frame::new(Point3::origin(), z, x),
                 radius,
-                u_ref: x,
             },
             sense: true,
         },
@@ -53,9 +51,7 @@ fn cylinder<T: Decide + AtRestPolicy>(radius: T, top: T, tol: Tol) -> (Body<T>, 
     };
     let cap = |at: T, normal: Vec3<T>| FaceSurface::New {
         surface: Surface::Plane {
-            origin: Point3::new(zero, zero, at),
-            normal,
-            u_ref: x,
+            frame: geom::Frame::new(Point3::new(zero, zero, at), normal, x),
         },
         sense: true,
     };

@@ -529,25 +529,18 @@ fn line_meetings<T: Decide>(
         geom::Curve3::Line(geom::Line { origin, dir }) => {
             vec![(origin - m).cross(dir).dot(normal) / w.cross(dir).dot(normal)]
         }
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => conic(center, axis, u_ref, radius, radius),
+        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            conic(center, axis, u_ref, radius, radius)
+        }
         geom::Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame,
             semi_u,
             semi_v,
-        }) => conic(center, axis, u_ref, semi_u, semi_v),
+        }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            conic(center, axis, u_ref, semi_u, semi_v)
+        }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
             Vec::new()
         }

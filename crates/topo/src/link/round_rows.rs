@@ -48,17 +48,13 @@ fn surface<T: Real>(cyl: bool, c: Point3<f64>, a: Vec3<f64>, radius: f64) -> geo
     let u_ref = a.cross(Vec3::new(0.3, -0.5, 0.8)).normalize();
     if cyl {
         geom::Surface::Cylinder {
-            origin: pt(c),
-            axis: vc(a),
+            frame: geom::Frame::new(pt(c), vc(a), vc(u_ref)),
             radius: T::from_f64(radius),
-            u_ref: vc(u_ref),
         }
     } else {
         geom::Surface::Sphere {
-            center: pt(c),
+            frame: geom::Frame::new(pt(c), vc(a), vc(u_ref)),
             radius: T::from_f64(radius),
-            axis: vc(a),
-            u_ref: vc(u_ref),
         }
     }
 }

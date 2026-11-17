@@ -255,73 +255,115 @@ fn map_surface<T: Real>(
         // The normal is the face's outward side, so the inside-out
         // image's is the axial one; the chart is then `M∘S` exactly.
         Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => Surface::Plane {
-            origin: map.transform_point(origin),
-            normal: hand.axial(map, normal),
-            u_ref: map_vec(map, u_ref),
-        },
+            frame: carrier_frame,
+        } => {
+            let (origin, normal, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Plane {
+                frame: geom::Frame::new(
+                    map.transform_point(origin),
+                    hand.axial(map, normal),
+                    map_vec(map, u_ref),
+                ),
+            }
+        }
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin: map.transform_point(origin),
-            axis: map_vec(map, axis),
-            radius,
-            u_ref: map_vec(map, u_ref),
-        },
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cylinder {
+                frame: geom::Frame::new(
+                    map.transform_point(origin),
+                    map_vec(map, axis),
+                    map_vec(map, u_ref),
+                ),
+                radius,
+            }
+        }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
-        } => Surface::Cone {
-            apex: map.transform_point(apex),
-            axis: map_vec(map, axis),
-            half_angle,
-            u_ref: map_vec(map, u_ref),
-        },
+        } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cone {
+                frame: geom::Frame::new(
+                    map.transform_point(apex),
+                    map_vec(map, axis),
+                    map_vec(map, u_ref),
+                ),
+                half_angle,
+            }
+        }
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
-        } => Surface::Sphere {
-            center: map.transform_point(center),
-            radius,
-            axis: map_vec(map, axis),
-            u_ref: map_vec(map, u_ref),
-        },
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Sphere {
+                frame: geom::Frame::new(
+                    map.transform_point(center),
+                    map_vec(map, axis),
+                    map_vec(map, u_ref),
+                ),
+                radius,
+            }
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
-        } => Surface::Torus {
-            center: map.transform_point(center),
-            axis: map_vec(map, axis),
-            major_radius,
-            minor_radius,
-            u_ref: map_vec(map, u_ref),
-        },
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Torus {
+                frame: geom::Frame::new(
+                    map.transform_point(center),
+                    map_vec(map, axis),
+                    map_vec(map, u_ref),
+                ),
+                major_radius,
+                minor_radius,
+            }
+        }
         Surface::Spindle {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
-        } => Surface::Spindle {
-            center: map.transform_point(center),
-            axis: map_vec(map, axis),
-            major_radius,
-            minor_radius,
-            u_ref: map_vec(map, u_ref),
-        },
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Spindle {
+                frame: geom::Frame::new(
+                    map.transform_point(center),
+                    map_vec(map, axis),
+                    map_vec(map, u_ref),
+                ),
+                major_radius,
+                minor_radius,
+            }
+        }
         // A DESCRIBED net maps by its control points, weights and
         // knots untouched — the exact image, not a re-fit, so there is
         // no certificate to re-derive and no fit door to reach
@@ -389,9 +431,9 @@ fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, T
     let frame = |f: &geom::Frame<T>| match iso {
         Isometry::Proper(motion) => f.moved(motion),
         Isometry::Improper(_) => geom::Frame::new(
-            map.transform_point(f.origin),
-            hand.axial(map, f.axis),
-            map_vec(map, f.u_ref),
+            map.transform_point(f.origin()),
+            hand.axial(map, f.axis()),
+            map_vec(map, f.u_ref()),
         ),
     };
     Ok(match *c {
@@ -415,13 +457,16 @@ fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, T
         // regime and the carried side transfer unchanged — no
         // re-decision (the mint decided; this is data motion).
         Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             offset,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             // `(axis, u_ref, offset)` and `(−axis, −u_ref, −offset)` name
             // one oval; under a reflection the image keeps its `v` with
             // `axis` mapped and the plane's side negated.
@@ -430,9 +475,7 @@ fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, T
                 Hand::Improper => (-map_vec(map, u_ref), -offset),
             };
             Curve3::Spiric {
-                center: map.transform_point(center),
-                axis: map_vec(map, axis),
-                u_ref,
+                frame: geom::Frame::new(map.transform_point(center), map_vec(map, axis), u_ref),
                 major_radius,
                 minor_radius,
                 offset,
@@ -962,9 +1005,7 @@ mod tests {
             (
                 "spiric",
                 Curve3::Spiric {
-                    center: c,
-                    axis: a,
-                    u_ref: u,
+                    frame: geom::Frame::new(c, a, u),
                     major_radius: 2.0,
                     minor_radius: 0.5,
                     offset: 0.2,
@@ -997,50 +1038,40 @@ mod tests {
             (
                 "plane",
                 Surface::Plane {
-                    origin: o,
-                    normal: a,
-                    u_ref,
+                    frame: geom::Frame::new(o, a, u_ref),
                 },
                 1.0,
             ),
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: o,
-                    axis: a,
+                    frame: geom::Frame::new(o, a, u_ref),
                     radius: 0.7,
-                    u_ref,
                 },
                 -1.0,
             ),
             (
                 "cone",
                 Surface::Cone {
-                    apex: o,
-                    axis: a,
+                    frame: geom::Frame::new(o, a, u_ref),
                     half_angle: 0.4,
-                    u_ref,
                 },
                 -1.0,
             ),
             (
                 "sphere",
                 Surface::Sphere {
-                    center: o,
+                    frame: geom::Frame::new(o, a, u_ref),
                     radius: 0.7,
-                    axis: a,
-                    u_ref,
                 },
                 -1.0,
             ),
             (
                 "torus",
                 Surface::Torus {
-                    center: o,
-                    axis: a,
+                    frame: geom::Frame::new(o, a, u_ref),
                     major_radius: 2.0,
                     minor_radius: 0.5,
-                    u_ref,
                 },
                 -1.0,
             ),

@@ -1118,18 +1118,10 @@ mod tests {
             .edges()
             .find_map(|(e, data)| {
                 let c = body.get_curve_geom(data.curve)?.certified()?;
-                let geom::Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            u_ref,
-                        },
-                    ..
-                }) = *c.carrier()
-                else {
+                let geom::Curve3::Circle(geom::Circle { frame, .. }) = *c.carrier() else {
                     return None;
                 };
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 if center.z != z {
                     return None;
                 }

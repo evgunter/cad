@@ -102,14 +102,8 @@ fn whole_conic_principal<T: Real>(
         return None;
     }
     match *curve.carrier() {
-        geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { u_ref, .. },
-            ..
-        })
-        | geom::Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame { u_ref, .. },
-            ..
-        }) => Some(u_ref),
+        geom::Curve3::Circle(geom::Circle { frame, .. })
+        | geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(frame.u_ref()),
         _ => None,
     }
 }
@@ -388,12 +382,12 @@ fn line_clears_conic<T: Decide>(
     {
         return false;
     }
-    let m = c.frame().axis.cross(along.normalize());
+    let m = c.frame().axis().cross(along.normalize());
     let (p_m, q_m) = c.along(m);
     let reach = (p_m.powi(2) + q_m.powi(2)).sqrt();
     positive(
         "split_nest_line_conic",
-        m.dot(c.frame().origin - p).abs() - reach,
+        m.dot(c.frame().origin() - p).abs() - reach,
         band,
     )
 }
@@ -418,7 +412,7 @@ fn conics_clear<T: Decide>(e: &dyn Conic<T>, h: &dyn Conic<T>, band: geom_core::
         return false;
     }
     let (ha, hb) = h.semi_axis_vectors();
-    let (cx, cy) = e.unit_in_plane(h.frame().origin);
+    let (cx, cy) = e.unit_in_plane(h.frame().origin());
     let (ax, ay) = e.unit_of(ha);
     let (bx, by) = e.unit_of(hb);
     let centre = (cx.powi(2) + cy.powi(2)).sqrt();

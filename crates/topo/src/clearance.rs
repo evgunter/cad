@@ -3425,18 +3425,18 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     };
     let superset = |u, v| (u, v, Region::Trimmed);
     let (u, v, region) = match &charted {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => superset(along(*origin, *u_ref), along(*origin, normal.cross(*u_ref))),
-        Surface::Cylinder { origin, axis, .. } => superset(full_turn(), along(*origin, *axis)),
+        Surface::Plane { frame } => {
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            superset(along(origin, u_ref), along(origin, normal.cross(u_ref)))
+        }
+        Surface::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            superset(full_turn(), along(origin, axis))
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             // `slant` encloses `v` over the boundary. The face's `v`
             // peaks on its boundary or at the apex, so `slant` widened
             // to `0` holds it, and `slant` alone does wherever it holds
@@ -3447,7 +3447,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             // homologous, on the punctured nappe, to the whole boundary,
             // which would wind once. So a boundary winding nowhere
             // leaves the apex off the face, or `0` inside `slant`.
-            let slant = (extent - *apex).dot(*axis) / half_angle.cos();
+            let slant = (extent - apex).dot(axis) / half_angle.cos();
             let v = if winds_nowhere(body, f) {
                 (slant.lo(), slant.hi())
             } else {
@@ -5433,10 +5433,12 @@ mod trv_rows {
         };
         for axis in 0..3 {
             let carrier = refusal(&|b| {
-                let Some(Surface::Plane { origin, .. }) = b.surfaces.values_mut().next() else {
+                let Some(Surface::Plane { frame, .. }) = b.surfaces.values_mut().next() else {
                     panic!("a brick's faces are planes");
                 };
-                refuse(origin, axis);
+                let mut origin = frame.origin();
+                refuse(&mut origin, axis);
+                *frame = frame.with_origin(origin);
             });
             assert_eq!(
                 carrier, "a face whose carrier does not certify",
@@ -5596,10 +5598,12 @@ mod trv_rows {
         for refuse in [false, true] {
             let mut x = wa.clone();
             if refuse {
-                let Surface::Plane { origin, .. } = &mut x.surface else {
+                let Surface::Plane { frame, .. } = &mut x.surface else {
                     panic!("a brick's face is a plane");
                 };
+                let mut origin = frame.origin();
                 origin.x = refused(origin.x);
+                *frame = frame.with_origin(origin);
             }
             let (ca, cb) = (Cell::of(&wa), Cell::of(&wb));
             let mut q = start(&x, &wb);
@@ -5724,41 +5728,33 @@ mod support_rows {
             (
                 "cone",
                 Surface::Cone {
-                    apex: o,
-                    axis,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     half_angle: 30f64.to_radians(),
-                    u_ref,
                 },
                 (1.0, 1.1),
             ),
             (
                 "torus",
                 Surface::Torus {
-                    center: o,
-                    axis,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     major_radius: 1.6,
                     minor_radius: 0.8,
-                    u_ref,
                 },
                 (2.5, 2.6),
             ),
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: o,
-                    axis,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     radius: 0.7,
-                    u_ref,
                 },
                 (0.2, 0.3),
             ),
             (
                 "sphere",
                 Surface::Sphere {
-                    center: o,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     radius: 0.9,
-                    axis,
-                    u_ref,
                 },
                 (0.4, 0.5),
             ),

@@ -1290,7 +1290,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 let in_plane = match &section.components()[k].carrier {
                     geom::Curve3::Ellipse(e) => e
                         .frame
-                        .axis
+                        .axis()
                         .normalize()
                         .cross(datum.vec().normalize())
                         .norm()

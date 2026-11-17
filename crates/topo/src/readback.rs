@@ -307,37 +307,63 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
     };
     match surface {
         Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => Ok(frame(*origin, *normal, *u_ref)),
+            frame: carrier_frame,
+        } => {
+            let (origin, normal, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Ok(frame(origin, normal, u_ref))
+        }
         Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             ..
-        } => Ok(frame(*origin, *axis, *u_ref)),
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Ok(frame(origin, axis, u_ref))
+        }
         Surface::Cone {
-            apex, axis, u_ref, ..
-        } => Ok(frame(*apex, *axis, *u_ref)),
-        Surface::Sphere {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             ..
-        } => Ok(frame(*center, *axis, *u_ref)),
+        } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Ok(frame(apex, axis, u_ref))
+        }
+        Surface::Sphere {
+            frame: carrier_frame,
+            ..
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Ok(frame(center, axis, u_ref))
+        }
         Surface::Torus {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             ..
         }
         | Surface::Spindle {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             ..
-        } => Ok(frame(*center, *axis, *u_ref)),
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Ok(frame(center, axis, u_ref))
+        }
         Surface::Nurbs(_) => Err(ReadbackError::NoCanonicalFrame {
             carrier: "nurbs surface",
         }),
@@ -565,27 +591,22 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             u_ref: None,
             sense: true,
         }),
-        ellipse @ Curve3::Ellipse(geom::Ellipse { frame: geom::Frame { origin: center, axis, .. }, .. }) => Ok(Pose {
-            origin: *center,
-            axis: *axis,
+        ellipse @ Curve3::Ellipse(geom::Ellipse { frame, .. }) => { let (center, axis) = (frame.origin(), frame.axis()); Ok(Pose {
+            origin: center,
+            axis: axis,
             u_ref: ellipse.major_frame().map(|f| f.major_dir),
             sense: true,
-        }),
-        Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, axis, u_ref }, .. })
-        // The spiric's six fields ARE a canonical frame: the torus
-        // centre, its axis and the cutting plane's normal — the frame
-        // the model holds, answered as the pose.
-        | Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => Ok(Pose {
-            origin: *center,
-            axis: *axis,
-            u_ref: Some(*u_ref),
+        }) },
+        Curve3::Circle(geom::Circle { frame, .. })
+        // The spiric's frame is a canonical one: the torus centre, its
+        // axis and the cutting plane's normal — the frame the model
+        // holds, answered as the pose.
+        | Curve3::Spiric { frame, .. } => { let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref()); Ok(Pose {
+            origin: center,
+            axis: axis,
+            u_ref: Some(u_ref),
             sense: true,
-        }),
+        }) },
         Curve3::Nurbs(_) | Curve3::Periodic(_) => Err(ReadbackError::NoCanonicalFrame {
             carrier: "nurbs curve",
         }),

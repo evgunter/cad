@@ -56,11 +56,13 @@ fn tilted(s: f64) -> Vec3<f64> {
 /// plane so that the tilt reads `tilt` at the lever over the donut's ball.
 fn tori_pose(e: f64, tilt: f64, m: f64) -> Surface<f64> {
     Surface::Torus {
-        center: p(e, 0.0, 0.0),
-        axis: tilted(tilt / (2.0 * (e + BALL))),
+        frame: geom::Frame::new(
+            p(e, 0.0, 0.0),
+            tilted(tilt / (2.0 * (e + BALL))),
+            Vec3::unit_y(),
+        ),
         major_radius: 3.0 - m,
         minor_radius: 0.5,
-        u_ref: Vec3::unit_y(),
     }
 }
 
@@ -69,8 +71,7 @@ fn tori_pose(e: f64, tilt: f64, m: f64) -> Surface<f64> {
 /// torus's core circle.
 fn tori_truth(t2: &Surface<f64>) -> (f64, f64) {
     let &Surface::Torus {
-        center,
-        axis,
+        frame,
         major_radius,
         minor_radius,
         ..
@@ -78,6 +79,7 @@ fn tori_truth(t2: &Surface<f64>) -> (f64, f64) {
     else {
         panic!("a torus pose is a torus")
     };
+    let (center, axis) = (frame.origin(), frame.axis());
     extremes(|u| {
         let q = p(2.0 * u.cos(), 2.0 * u.sin(), 0.0) - center;
         let (_, rho) = perp_to(q, axis);
@@ -327,10 +329,8 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
     let (reach, tilt) = turn_reach(at);
     let d = tilted(tilt);
     let cone = Surface::Cone {
-        apex: at,
-        axis: d,
+        frame: geom::Frame::new(at, d, Vec3::unit_y()),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: Vec3::unit_y(),
     };
     for (rise, refuses) in [(0.5, true), (0.0, false)] {
         let s = classify(
@@ -354,16 +354,12 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
         // the pivot, against a cone whose apex is a metre down the first
         // axis: refused coaxial, the pair goes to the ruling charts.
         let apexes = Surface::Cone {
-            apex: at + d * rise,
-            axis: d,
+            frame: geom::Frame::new(at + d * rise, d, Vec3::unit_y()),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::unit_y(),
         };
         let first = Surface::Cone {
-            apex: p(0.0, 0.0, -1.0),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(p(0.0, 0.0, -1.0), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::unit_x(),
         };
         let s = classify(
             &first,

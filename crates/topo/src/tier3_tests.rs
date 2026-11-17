@@ -43,9 +43,7 @@ pub(crate) fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::construction::MefC
         )
         .unwrap();
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
     };
     let split = body
         .mef(
@@ -412,46 +410,36 @@ fn datum_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
 
 fn cylinder(radius: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn sphere(radius: f64) -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn cone(half_angle: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn torus(major_radius: f64, minor_radius: f64) -> Surface<f64> {
     Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         major_radius,
         minor_radius,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
     Surface::Plane {
-        origin,
-        normal,
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(origin, normal, Vec3::unit_x()),
     }
 }
 
@@ -535,9 +523,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "plane, NaN u_ref",
             Surface::Plane {
-                origin: o,
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::new(f64::NAN, 0.0, 0.0),
+                frame: geom::Frame::new(o, Vec3::unit_z(), Vec3::new(f64::NAN, 0.0, 0.0)),
             },
             K::Plane,
             D::URef,
@@ -623,10 +609,12 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "cone, NaN apex",
             Surface::Cone {
-                apex: Point3::new(0.0, f64::NAN, 0.0),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, f64::NAN, 0.0),
+                    Vec3::unit_z(),
+                    Vec3::unit_x(),
+                ),
                 half_angle: core::f64::consts::FRAC_PI_4,
-                u_ref: Vec3::unit_x(),
             },
             K::Cone,
             D::Apex,
@@ -635,10 +623,8 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "cylinder, infinite axis",
             Surface::Cylinder {
-                origin: o,
-                axis: Vec3::new(0.0, 0.0, f64::INFINITY),
+                frame: geom::Frame::new(o, Vec3::new(0.0, 0.0, f64::INFINITY), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             K::Cylinder,
             D::Axis,
@@ -647,10 +633,12 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "sphere, NaN center",
             Surface::Sphere {
-                center: Point3::new(f64::NAN, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(f64::NAN, 0.0, 0.0),
+                    Vec3::unit_z(),
+                    Vec3::unit_x(),
+                ),
                 radius: 1.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             K::Sphere,
             D::Center,
@@ -659,10 +647,8 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "cylinder, zero axis",
             Surface::Cylinder {
-                origin: o,
-                axis: Vec3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(o, Vec3::new(0.0, 0.0, 0.0), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             K::Cylinder,
             D::Axis,
@@ -671,10 +657,8 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "cylinder, zero u_ref",
             Surface::Cylinder {
-                origin: o,
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(o, Vec3::unit_z(), Vec3::new(0.0, 0.0, 0.0)),
                 radius: 1.0,
-                u_ref: Vec3::new(0.0, 0.0, 0.0),
             },
             K::Cylinder,
             D::URef,
@@ -683,9 +667,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "plane, zero u_ref",
             Surface::Plane {
-                origin: o,
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(o, Vec3::unit_z(), Vec3::new(0.0, 0.0, 0.0)),
             },
             K::Plane,
             D::URef,
@@ -694,10 +676,8 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "cone, zero axis",
             Surface::Cone {
-                apex: o,
-                axis: Vec3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(o, Vec3::new(0.0, 0.0, 0.0), Vec3::unit_x()),
                 half_angle: core::f64::consts::FRAC_PI_4,
-                u_ref: Vec3::unit_x(),
             },
             K::Cone,
             D::Axis,
@@ -706,10 +686,8 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "sphere, zero u_ref",
             Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, Vec3::unit_z(), Vec3::new(0.0, 0.0, 0.0)),
                 radius: 1.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::new(0.0, 0.0, 0.0),
             },
             K::Sphere,
             D::URef,
@@ -718,10 +696,12 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "cylinder, u_ref 100 eps long at r = 1",
             Surface::Cylinder {
-                origin: o,
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(
+                    o,
+                    Vec3::unit_z(),
+                    Vec3::new(1.0 + 100.0 * tol.get().eps, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::new(1.0 + 100.0 * tol.get().eps, 0.0, 0.0),
             },
             K::Cylinder,
             D::URef,
@@ -730,10 +710,8 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "sphere, axis of half length",
             Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, Vec3::new(0.0, 0.0, 0.5), Vec3::unit_x()),
                 radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 0.5),
-                u_ref: Vec3::unit_x(),
             },
             K::Sphere,
             D::Axis,
@@ -742,11 +720,9 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "torus, unit u_ref tilted off the axis's normal plane",
             Surface::Torus {
-                center: o,
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(o, Vec3::unit_z(), Vec3::new(0.6, 0.0, 0.8)),
                 major_radius: 2.0,
                 minor_radius: 0.5,
-                u_ref: Vec3::new(0.6, 0.0, 0.8),
             },
             K::Torus,
             D::URef,
@@ -755,11 +731,9 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "torus, zero axis",
             Surface::Torus {
-                center: o,
-                axis: Vec3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(o, Vec3::new(0.0, 0.0, 0.0), Vec3::unit_x()),
                 major_radius: 2.0,
                 minor_radius: 0.5,
-                u_ref: Vec3::unit_x(),
             },
             K::Torus,
             D::Axis,
@@ -818,18 +792,22 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
         (
             "cylinder, u_ref eps/100 long at r = 1",
             Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::unit_z(),
+                    Vec3::new(1.0 + 0.01 * tol.get().eps, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::new(1.0 + 0.01 * tol.get().eps, 0.0, 0.0),
             },
         ),
         (
             "plane, normal and u_ref of length 3 (the same plane)",
             Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, 0.0, 3.0),
-                u_ref: Vec3::new(3.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 3.0),
+                    Vec3::new(3.0, 0.0, 0.0),
+                ),
             },
         ),
         (
@@ -1032,18 +1010,12 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     let zero = Vec3::new(0.0, 0.0, 0.0);
     let circle = |center, axis, radius, u_ref| {
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            frame: geom::Frame::new(center, axis, u_ref),
             radius,
         })
     };
     let spiric = |minor_radius: f64, offset: f64| Curve3::Spiric {
-        center: o,
-        axis: z,
-        u_ref: x,
+        frame: geom::Frame::new(o, z, x),
         major_radius: 2.0,
         minor_radius,
         offset,
@@ -1235,10 +1207,8 @@ fn the_frame_lever_is_the_kinds_radius() {
     let o = Point3::new(0.0, 0.0, 0.0);
     let long = |d: f64| 1.0 + d;
     let cylinder = |r: f64, d: f64| Surface::Cylinder {
-        origin: o,
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(o, Vec3::unit_z(), Vec3::new(long(d), 0.0, 0.0)),
         radius: r,
-        u_ref: Vec3::new(long(d), 0.0, 0.0),
     };
     let circle =
         |r: f64, d: f64| Curve3::circle(o, Vec3::new(0.0, 0.0, long(d)), r, Vec3::unit_x());
@@ -1463,10 +1433,8 @@ fn pillow_with_an_arc_past_a_turn_in(
         ArcChart::Face | ArcChart::Pair => (face_chart, false),
         ArcChart::Wrap => {
             *body.surfaces.get_mut(face_chart).unwrap() = Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             };
             (face_chart, true)
         }
@@ -1601,9 +1569,11 @@ fn tilted_pillow_with_an_arc_past_a_turn(
     let key = body.get_face(other).unwrap().surface;
     let theta: f64 = 0.5;
     *body.surfaces.get_mut(key).unwrap() = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(0.0, theta.sin(), theta.cos()),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, theta.sin(), theta.cos()),
+            Vec3::unit_x(),
+        ),
     };
     (body, split)
 }
@@ -1728,16 +1698,12 @@ fn a_seam_tangency_on_an_arc_past_a_turn_is_a_kernel_bug() {
     let own = body.get_face(split.face).unwrap().surface;
     let theirs = body.get_face(other_face(&body, &split)).unwrap().surface;
     body.surfaces[own] = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     body.surfaces[theirs] = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let band = geom_core::Band::linear(tol).unwrap();
     panics_as_a_kernel_bug_at(KernelSite::SeamTangency, || {
@@ -1827,9 +1793,11 @@ fn offset_plane_at_rest_fails_planar_residuals() {
     let eps = tol.eps();
     let surface_key = body.get_face(split.face).unwrap().surface;
     *body.surfaces.get_mut(surface_key).unwrap() = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 100.0 * eps),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 100.0 * eps),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+        ),
     };
     let errs = validate_geometric(&body, tol).unwrap_err();
     let off_plane = errs
@@ -1851,9 +1819,11 @@ fn sliver_dihedral_at_rest_is_rejected() {
     let theta = 3.0 * eps;
     let surface_key = body.get_face(split.face).unwrap().surface;
     *body.surfaces.get_mut(surface_key).unwrap() = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, theta.sin(), theta.cos()),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, theta.sin(), theta.cos()),
+            Vec3::unit_x(),
+        ),
     };
     let errs = validate_geometric(&body, tol).unwrap_err();
     assert!(
@@ -1887,9 +1857,7 @@ fn dangling_description_is_a_tier1_error() {
     // NB: coincident planes would fail transversality — so tilt the
     // split face definitively first (a legal corner), then upgrade.
     *body.surfaces.get_mut(s_plus).unwrap() = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x()),
     };
     body.set_edge_curve(split.edge, spec, tol).unwrap();
     // Rip the referenced surface out (raw removal past the hygiene
@@ -1915,9 +1883,7 @@ fn description_references_keep_a_surface_alive() {
     let s_seed = body.get_face(seed_face).unwrap().surface;
     // Make the corner genuine, then describe the edge intrinsically.
     *body.surfaces.get_mut(s_plus).unwrap() = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x()),
     };
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
@@ -1933,9 +1899,7 @@ fn description_references_keep_a_surface_alive() {
         split.face,
         FaceSurface::New {
             surface: Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::unit_y(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x()),
             },
             sense: true,
         },
@@ -1986,31 +1950,21 @@ pub(crate) fn cusp_prism(tol: Tol) -> crate::fixtures::RawPrism {
         }
     }
     let inner = Surface::Cylinder {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 1.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let outer = Surface::Cylinder {
-        origin: Point3::new(0.0, 2.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 2.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 2.0,
-        u_ref: Vec3::unit_x(),
     };
     let flat = Surface::Plane {
-        origin: Point3::new(0.0, 2.0, 0.0),
-        normal: -Vec3::unit_x(),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(0.0, 2.0, 0.0), -Vec3::unit_x(), Vec3::unit_y()),
     };
     let cap_top = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
     };
     let cap_bottom = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: -Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), -Vec3::unit_z(), Vec3::unit_x()),
     };
     for (face, surface) in [
         (p.face_top, cap_top),
@@ -2093,11 +2047,7 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
             };
             (
                 geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                    frame: geom::Frame::new(center, axis, u_ref),
                     radius,
                 }),
                 0.0,
@@ -2483,10 +2433,12 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
     let eps = tol.get().eps;
     let band = geom_core::Band::linear(tol).expect("the witness band");
     let cylinder = |radius: f64| Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, radius),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, radius),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+        ),
         radius,
-        u_ref: Vec3::unit_x(),
     };
     let carrier = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y());
     // The pillow's two faces are bounded by its two coincident seams, so
@@ -2661,10 +2613,12 @@ fn kissing_cylinder_pillow(
         )
         .unwrap();
     let cylinder = |radius: f64| Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, radius),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, radius),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+        ),
         radius,
-        u_ref: Vec3::unit_x(),
     };
     let split = body
         .mef(
@@ -2868,16 +2822,12 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         .0;
     let origin = Point3::new(0.0, 0.0, 0.0);
     let floor = Surface::Plane {
-        origin,
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(origin, Vec3::unit_z(), Vec3::unit_x()),
     };
     let leaning = |degrees: f64| {
         let (sin, cos) = degrees.to_radians().sin_cos();
         Surface::Plane {
-            origin,
-            normal: Vec3::new(sin, 0.0, cos),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(origin, Vec3::new(sin, 0.0, cos), Vec3::unit_y()),
         }
     };
     let lead = "which side of an edge the material of its two smoothly meeting faces lies on \
@@ -3492,18 +3442,19 @@ fn far_anchored_slab(x0: f64, w: f64, t: f64, far: f64, tol: Tol) -> Body<f64> {
     for key in surfaces {
         let surface = body.surfaces.get_mut(key).unwrap();
         let Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         } = *surface
         else {
             panic!("a brick's faces are planes");
         };
+        let (origin, normal, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         let along = (u_ref + normal.cross(u_ref) * 0.37) * far;
         *surface = Surface::Plane {
-            origin: origin + along,
-            normal,
-            u_ref,
+            frame: geom::Frame::new(origin + along, normal, u_ref),
         };
     }
     body
@@ -3704,25 +3655,29 @@ pub(crate) fn half_disc(
         }
     }
     let wall = Surface::Cylinder {
-        origin: Point3::new(cx, cy, k * z0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(cx, cy, k * z0), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     };
     let chord = Surface::Plane {
-        origin: Point3::new(k * cx, cy, k * z0),
-        normal: -Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(k * cx, cy, k * z0),
+            -Vec3::unit_y(),
+            Vec3::unit_x(),
+        ),
     };
     let top = Surface::Plane {
-        origin: Point3::new(k * cx, k * cy, z0 + h),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(k * cx, k * cy, z0 + h),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+        ),
     };
     let bottom = Surface::Plane {
-        origin: Point3::new(k * cx, k * cy, z0),
-        normal: -Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(k * cx, k * cy, z0),
+            -Vec3::unit_z(),
+            Vec3::unit_x(),
+        ),
     };
     for (face, surface) in [
         (p.face_top, top),
@@ -3819,8 +3774,8 @@ mod line_conic_review {
             .find(|(_, f)| {
                 matches!(
                     body.surfaces.get(f.surface),
-                    Some(Surface::Plane { normal, origin, .. })
-                        if normal.z == 1.0 && origin.z == 0.5
+                    Some(Surface::Plane { frame, .. })
+                        if frame.axis().z == 1.0 && frame.origin().z == 0.5
                 )
             })
             .map(|(k, _)| k)
@@ -4161,7 +4116,8 @@ mod a_tangent_record_off_the_cusp {
         let top = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(Surface::Plane { origin, normal, .. }) => {
+                Some(Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.y.abs() > 0.5 && origin.y.abs() < 1e-12
                 }
                 _ => false,

@@ -1007,8 +1007,8 @@ impl<T: Decide> Round<T> {
     /// The angle round the circle between the start and `y`, a point of
     /// the circle, the shorter way, in `[0, π]` ([`between`]).
     fn swept(&self, y: Point3<T>) -> T {
-        let w = y - self.circle.frame.origin;
-        between(w.normalize(), self.circle.frame.u_ref)
+        let w = y - self.circle.frame.origin();
+        between(w.normalize(), self.circle.frame.u_ref())
     }
 
     /// The arc length from the start round to `y`, a point of the
@@ -1016,7 +1016,7 @@ impl<T: Decide> Round<T> {
     /// of the start's diameter, the longer way where it lies behind.
     pub(crate) fn arc(&self, y: Point3<T>) -> T {
         let s = self.swept(y);
-        let ahead = (y - self.circle.frame.origin).dot(self.circle.frame.v_ref());
+        let ahead = (y - self.circle.frame.origin()).dot(self.circle.frame.v_ref());
         let turn = geom::conic_period::<T>().length();
         self.circle.radius * (T::zero() - ahead).select_le_zero(s, turn - s)
     }
@@ -1043,7 +1043,11 @@ impl<T: Decide> Course<T> for Round<T> {
     }
 
     fn heading(&self, y: Point3<T>) -> Vec3<T> {
-        let h = self.circle.frame.axis.cross(y - self.circle.frame.origin);
+        let h = self
+            .circle
+            .frame
+            .axis()
+            .cross(y - self.circle.frame.origin());
         h.normalize()
     }
 
@@ -1212,10 +1216,12 @@ mod tests {
     /// ruling of the unit cylinder about the `x` axis through `(0, 1, 0)`.
     fn x_line() -> Line<f64> {
         let cylinder = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 1.0, 0.0),
-            axis: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, -1.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(0.0, -1.0, 0.0),
         };
         Line::on(built(SurfaceCurve::ruling(
             &Charted::record(Default::default(), &cylinder),
@@ -1235,10 +1241,12 @@ mod tests {
     /// at height `0` of the unit cylinder about `z`.
     fn unit_round() -> Round<f64> {
         let cylinder = geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         Round::on(built(SurfaceCurve::parallel(
             &Charted::record(Default::default(), &cylinder),

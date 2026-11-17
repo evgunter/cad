@@ -29,10 +29,12 @@ use topo::construction::{FaceSurface, MefSite, MevSite};
 /// The unit sphere about `+Z` at the origin.
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -41,9 +43,11 @@ fn unit_sphere() -> Surface<f64> {
 /// material it caps.
 fn cut_plane(z: f64, up: bool) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, z),
-        normal: Vec3::new(0.0, 0.0, if up { 1.0 } else { -1.0 }),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, z),
+            Vec3::new(0.0, 0.0, if up { 1.0 } else { -1.0 }),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     }
 }
 
@@ -369,10 +373,12 @@ fn a_tilted_cap_holds_a_pole_by_its_region() {
     let z = 0.5;
     for (tilt, poles) in [(0.3_f64, &[Singularity::North][..]), (1.2, &[][..])] {
         let tilted = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+                Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+            ),
             radius: 1.0,
-            axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-            u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
         };
         let body = cut_ball(z, tilted, Some(cut_plane(z, false)));
         let got = tier_checked_volume(&format!("cap tilted {tilt}"), &body, poles);
@@ -500,10 +506,12 @@ fn a_pole_a_hair_either_side_of_a_tilted_rim_is_read_at_both_scalars() {
     for delta in [1e-2_f64, 1e-3, 1e-4] {
         for (tilt, inside) in [(rim - delta, true), (rim + delta, false)] {
             let tilted = Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+                    Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+                ),
                 radius: 1.0,
-                axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-                u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
             };
             let want = |face| {
                 if inside {

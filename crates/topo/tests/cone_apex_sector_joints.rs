@@ -31,10 +31,8 @@ fn sector<T: Real + AtRestPolicy>(alpha: f64) -> Result<Body<T>, String> {
         seed.face,
         FaceSurface::New {
             surface: Surface::Cone {
-                apex,
-                axis: v(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(apex, v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
                 half_angle: f(alpha),
-                u_ref: v(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -170,10 +168,8 @@ fn truncated<T: Real + AtRestPolicy>(alpha: f64, inner: f64) -> Result<Body<T>, 
         seed.face,
         FaceSurface::New {
             surface: Surface::Cone {
-                apex: p(0.0, 0.0, 0.0),
-                axis: v(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
                 half_angle: f(alpha),
-                u_ref: v(1.0, 0.0, 0.0),
             },
             sense: true,
         },

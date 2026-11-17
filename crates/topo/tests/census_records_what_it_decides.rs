@@ -272,10 +272,11 @@ fn faces_of(row: &topo::Coincidence) -> Option<[topo::FaceKey; 2]> {
 /// by the face's sense.
 fn outward(body: &Body<f64>, face: topo::FaceKey) -> geom_core::Vec3<f64> {
     let f = body.get_face(face).unwrap();
-    let geom::Surface::Plane { normal, .. } = body.face_surface(face).unwrap() else {
+    let geom::Surface::Plane { frame, .. } = body.face_surface(face).unwrap() else {
         panic!("a block's faces are planes");
     };
-    let n = *normal;
+    let normal = frame.axis();
+    let n = normal;
     if f.sense { n } else { -n }
 }
 

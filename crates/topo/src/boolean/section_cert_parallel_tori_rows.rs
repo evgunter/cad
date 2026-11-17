@@ -24,11 +24,9 @@ use geom_core::{Point3, Vec3};
 fn torus_about(center: Point3<f64>, axis: Vec3<f64>, major: f64, minor: f64) -> Surface<f64> {
     let axis = axis.normalize();
     Surface::Torus {
-        center,
-        axis,
+        frame: geom::Frame::new(center, axis, axis.orthonormal_basis().0),
         major_radius: major,
         minor_radius: minor,
-        u_ref: axis.orthonormal_basis().0,
     }
 }
 
@@ -505,11 +503,13 @@ fn a_tilt_within_the_band_routes_parallel_and_the_gap_reads_the_operands() {
     let eps = geom_core::Tol::witness().eps();
     let f = torus(p(0.0, 0.0, 0.0), 2.0, 0.5);
     let partner = |n: f64, t: f64| Surface::Torus {
-        center: p(3.2 + n * eps, 0.0, 0.0),
-        axis: Vec3::new(t.sin(), 0.0, t.cos()),
+        frame: geom::Frame::new(
+            p(3.2 + n * eps, 0.0, 0.0),
+            Vec3::new(t.sin(), 0.0, t.cos()),
+            Vec3::new(t.cos(), 0.0, -t.sin()),
+        ),
         major_radius: 1.0,
         minor_radius: 0.3,
-        u_ref: Vec3::new(t.cos(), 0.0, -t.sin()),
     };
     for t in [0.0, eps / 100.0] {
         assert_eq!(

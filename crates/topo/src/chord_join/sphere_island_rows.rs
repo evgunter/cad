@@ -38,10 +38,8 @@ impl Sph {
     }
     fn surface(&self) -> geom::Surface<f64> {
         geom::Surface::Sphere {
-            center: self.f.o,
+            frame: geom::Frame::new(self.f.o, self.f.z, self.f.x),
             radius: self.r,
-            axis: self.f.z,
-            u_ref: self.f.x,
         }
     }
     /// Stereographic image of `p` from the antipode of `+x`.

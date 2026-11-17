@@ -8251,9 +8251,10 @@ pub(crate) fn tier3_local_checks_marked<
     // be falsified rather than as a sign to be honored.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
-        let Some(&Surface::Plane { normal, .. }) = body.surfaces.get(face.surface) else {
+        let Some(&Surface::Plane { frame, .. }) = body.surfaces.get(face.surface) else {
             continue;
         };
+        let normal = frame.axis();
         // The face's outward normal through the one door: the bit is
         // read here for what it CLAIMS (which side is material), and
         // the loop's stored winding is falsified against that claim.
@@ -9829,7 +9830,7 @@ fn ring_outer_meeting<T: Decide>(
         crate::contain::loop_circle(body, ring, band),
     ) {
         return match circle_pair(
-            circles_of(o.frame.origin, o.radius, r.frame.origin, r.radius),
+            circles_of(o.frame.origin(), o.radius, r.frame.origin(), r.radius),
             band,
         ) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
@@ -9969,15 +9970,8 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
             let (a, b) = edge_endpoints(body, he)?;
             MeetSegment::Line { a, b }
         }
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => {
+        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let (t0, t1) = geom.params();
             MeetSegment::Arc {
                 center,
@@ -10310,11 +10304,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
             t1,
         } => {
             let carrier = geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+                frame: geom::Frame::new(center, axis, u_ref),
                 radius,
             });
             let span = geom_brep::curve_pair::Span::new(&carrier, (t0, t1));
@@ -10350,7 +10340,10 @@ fn plane_chart_normal<T: Real>(
     surface: crate::geometry::SurfaceKey,
 ) -> Option<geom_core::Vec3<T>> {
     match body.surfaces.get(surface) {
-        Some(&Surface::Plane { normal, .. }) => Some(normal),
+        Some(&Surface::Plane { frame, .. }) => {
+            let normal = frame.axis();
+            Some(normal)
+        }
         _ => None,
     }
 }
@@ -10529,18 +10522,11 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         geom::Curve3::Line(line) => Some(line.distance(p)),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            radius,
-        }) => {
+        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (along, rho) = geom::Line {
-                origin: *center,
-                dir: *axis,
+                origin: center,
+                dir: axis,
             }
             .height_and_distance(p);
             let radial = rho - *radius;
@@ -12044,15 +12030,11 @@ mod tests {
         let face = FaceKey::default();
         let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
         let plane = |normal: Vec3<f64>| Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal,
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), normal, Vec3::unit_x()),
         };
         let cone = |half_angle: f64| Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
             half_angle,
-            u_ref: Vec3::unit_x(),
         };
         let half_pi = core::f64::consts::FRAC_PI_2;
         let normal_verdict = vec![ValidationError::PoisonedSurfaceDatum {
@@ -13704,17 +13686,13 @@ mod tests {
         use geom_core::Vec3;
         let band = Band::linear(Tol::witness()).unwrap();
         let plane = |normal: Vec3<f64>, u_ref| Surface::Plane {
-            origin: Point3::origin(),
-            normal,
-            u_ref,
+            frame: geom::Frame::new(Point3::origin(), normal, u_ref),
         };
         let floor = plane(Vec3::unit_z(), Vec3::unit_x());
         let wall = plane(Vec3::unit_x(), Vec3::unit_y());
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: std::f64::consts::FRAC_PI_6,
-            u_ref: Vec3::unit_x(),
         };
         let theta = 3.0 * Tol::witness().get().eps;
         let tilted = plane(Vec3::new(theta.sin(), 0.0, theta.cos()), Vec3::unit_y());
@@ -14731,10 +14709,12 @@ mod tests {
                     bottom,
                     crate::construction::FaceSurface::New {
                         surface: crate::Surface::Cone {
-                            apex,
-                            axis: geom_core::Vec3::new(1.0, 0.0, 0.0),
+                            frame: geom::Frame::new(
+                                apex,
+                                geom_core::Vec3::new(1.0, 0.0, 0.0),
+                                geom_core::Vec3::new(0.0, 0.0, -1.0),
+                            ),
                             half_angle: alpha,
-                            u_ref: geom_core::Vec3::new(0.0, 0.0, -1.0),
                         },
                         sense: true,
                     },
@@ -14885,9 +14865,7 @@ mod tests {
             }
             let centre = frame.origin + frame.axis * v0;
             let plane = body.add_surface(geom::Surface::Plane {
-                origin: centre,
-                normal: frame.axis,
-                u_ref: frame.u_ref,
+                frame: geom::Frame::new(centre, frame.axis, frame.u_ref),
             });
             let (axis, seam, t0, t1) = if u1 > u0 {
                 (frame.axis, frame.u_ref, u0, u1)
@@ -15204,11 +15182,7 @@ mod tests {
         let radius = (s - center).norm();
         let u_ref = (s - center) / radius;
         let carrier = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            frame: geom::Frame::new(center, axis, u_ref),
             radius,
         });
         let spec =
@@ -15680,9 +15654,10 @@ mod tests {
             )
         {
             let f = body.get_face(face).unwrap();
-            let Some(&Surface::Plane { normal, .. }) = body.surfaces.get(f.surface) else {
+            let Some(&Surface::Plane { frame, .. }) = body.surfaces.get(f.surface) else {
                 panic!("a plane")
             };
+            let normal = frame.axis();
             let render = |v: RingNestingVerdict| match v {
                 RingNestingVerdict::Inside => "Inside".to_string(),
                 RingNestingVerdict::Outside { ring_vertex } => format!("Outside({ring_vertex:?})"),
@@ -15894,9 +15869,10 @@ mod tests {
             });
             b.faces.get_mut(face).unwrap().rings.push(lone);
             let f = b.get_face(face).unwrap();
-            let Some(&Surface::Plane { normal, .. }) = b.surfaces.get(f.surface) else {
+            let Some(&Surface::Plane { frame, .. }) = b.surfaces.get(f.surface) else {
                 panic!("a plane")
             };
+            let normal = frame.axis();
             let verdict = ring_nesting(&b, f.outer, lone, normal, band);
             if outside {
                 assert!(
@@ -16264,9 +16240,11 @@ mod tests {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
         let spiric = geom::Curve3::Spiric {
-            center: Point3::origin(),
-            axis: geom_core::Vec3::unit_z(),
-            u_ref: geom_core::Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
             major_radius: 2.0,
             minor_radius: 1.0,
             offset: 0.5,
@@ -16275,16 +16253,20 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
-            origin: Point3::new(0.5, 0.0, 0.0),
-            normal: geom_core::Vec3::unit_x(),
-            u_ref: geom_core::Vec3::unit_y(),
+            frame: geom::Frame::new(
+                Point3::new(0.5, 0.0, 0.0),
+                geom_core::Vec3::unit_x(),
+                geom_core::Vec3::unit_y(),
+            ),
         });
         let torus = body.add_surface(Surface::Torus {
-            center: Point3::origin(),
-            axis: geom_core::Vec3::unit_z(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
             major_radius: 2.0,
             minor_radius: 1.0,
-            u_ref: geom_core::Vec3::unit_x(),
         });
         let arc = body
             .mev(
@@ -16473,11 +16455,7 @@ mod tests {
             })
             .expect("one sense of the circle is the arc asked for");
         let carrier = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            frame: geom::Frame::new(center, axis, u_ref),
             radius,
         });
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1).unwrap();
@@ -19074,11 +19052,13 @@ mod door_roster {
             let face = body.faces().next().unwrap().0;
             let key = body.get_face(face).unwrap().surface;
             *body.surfaces.get_mut(key).unwrap() = geom::Surface::Spindle {
-                center: geom_core::Point3::new(0.5, 0.5, 0.5),
-                axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    geom_core::Point3::new(0.5, 0.5, 0.5),
+                    geom_core::Vec3::new(0.0, 0.0, 1.0),
+                    geom_core::Vec3::new(1.0, 0.0, 0.0),
+                ),
                 major_radius,
                 minor_radius: 0.5,
-                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
             };
             crate::AtRestBody::validate(body, tol)
                 .err()
@@ -19135,11 +19115,13 @@ mod door_roster {
             .unwrap();
         let key = body.get_face(face).unwrap().surface;
         *body.surfaces.get_mut(key).unwrap() = geom::Surface::Spindle {
-            center,
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                center,
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius,
             minor_radius,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
         crate::AtRestBody::validate(body, tol)
             .err()
@@ -19253,11 +19235,13 @@ mod door_roster {
         assert_eq!(geom::spindle_sheet(major, minor, band), Ok(()));
         let center = geom_core::Point3::new(0.5, 0.5, 1.0);
         let sheet = geom::Surface::Spindle {
-            center,
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                center,
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: major,
             minor_radius: minor,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
         let poles = crate::chart::Chart::of(&sheet).unwrap().poles();
         assert_eq!(poles.len(), 1, "{poles:?}");

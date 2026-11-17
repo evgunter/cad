@@ -43,9 +43,7 @@ fn minted_kind(
     let (centre, normal) = edge.plane;
     let u_ref = normal.cross(f.x + f.y * 0.5).normalize();
     let plane = geom::Surface::Plane {
-        origin: centre + u_ref * (shift * f.s),
-        normal,
-        u_ref,
+        frame: geom::Frame::new(centre + u_ref * (shift * f.s), normal, u_ref),
     };
     let extent = geom_core::test_support::fixture_lever(2.0 * (RADII.0 + RADII.1) * f.s);
     let (section, circles) = match geom_brep::plane_torus_section(&plane, &surface, extent, band) {
@@ -57,17 +55,18 @@ fn minted_kind(
         Err(_) => ("refused", vec![]),
     };
     let geom::Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: k, .. },
+        frame: carrier_frame,
         radius: rho,
     }) = edge.carrier
     else {
         unreachable!("a meridian or a parallel")
     };
+    let k = carrier_frame.origin();
     let off = |c: &geom::Curve3<f64>| match c {
-        geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
-            radius,
-        }) => (*center - k).norm() + (radius - rho).abs(),
+        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+            let center = frame.origin();
+            (center - k).norm() + (radius - rho).abs()
+        }
         _ => f64::INFINITY,
     };
     let kind = circles

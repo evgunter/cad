@@ -35,18 +35,22 @@ const TILT: f64 = 0.6;
 
 fn sphere<T: Real>(radius: f64) -> Surface<T> {
     Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(T::zero(), T::zero(), T::one()),
+            Vec3::new(T::one(), T::zero(), T::zero()),
+        ),
         radius: T::from_f64(radius),
-        axis: Vec3::new(T::zero(), T::zero(), T::one()),
-        u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
     }
 }
 
 fn tilted_plane<T: Real>() -> Surface<T> {
     Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(T::from_f64(TILT.sin()), T::zero(), T::from_f64(TILT.cos())),
-        u_ref: Vec3::new(T::from_f64(TILT.cos()), T::zero(), T::from_f64(-TILT.sin())),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(T::from_f64(TILT.sin()), T::zero(), T::from_f64(TILT.cos())),
+            Vec3::new(T::from_f64(TILT.cos()), T::zero(), T::from_f64(-TILT.sin())),
+        ),
     }
 }
 

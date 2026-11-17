@@ -788,10 +788,12 @@ mod tests {
     #[test]
     fn the_two_axes_take_the_levers_their_charts_state() {
         let sphere = Chart::of(&geom::Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 3.0,
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         })
         .unwrap();
         assert!((sphere.v_lever() - 3.0).abs() < 1e-15);
@@ -809,9 +811,11 @@ mod tests {
     fn a_plane_is_out_of_domain_rather_than_unexamined() {
         assert!(
             Chart::of(&geom::Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
-                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    geom_core::Vec3::new(0.0, 0.0, 1.0),
+                    geom_core::Vec3::new(1.0, 0.0, 0.0)
+                ),
             })
             .is_none()
         );

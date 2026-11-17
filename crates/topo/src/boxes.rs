@@ -434,18 +434,14 @@ pub(crate) mod tests {
 
     fn plane_z0() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         }
     }
 
     fn cyl_r(r: f64) -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: r,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -514,9 +510,7 @@ pub(crate) mod tests {
             r,
         ));
         let plane_surface = Surface::Plane {
-            origin: Point3::origin(),
-            normal,
-            u_ref,
+            frame: geom::Frame::new(Point3::origin(), normal, u_ref),
         };
         conic_sector(
             plane_surface,
@@ -707,9 +701,7 @@ pub(crate) mod tests {
         let rim = |body: &mut Body<f64>, z: f64, ccw: bool| {
             let r = rho(z);
             let plane = body.add_surface(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, z),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
             });
             let wall = body.add_surface(cyl_r(r));
             let (carrier, t0, t1) = if ccw {
@@ -842,10 +834,8 @@ pub(crate) mod tests {
                 &mut body,
                 face,
                 Surface::Sphere {
-                    center,
+                    frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
                     radius: r,
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
                 },
             );
             let b = face_box(&body, face, pad(), witness_band());
@@ -1118,10 +1108,10 @@ pub(crate) mod tests {
         let with_axis = |axis: Vec3<f64>| {
             let mut body = unit.clone();
             let key = body.get_face(face).unwrap().surface;
-            let Surface::Cylinder { axis: a, .. } = &mut body.surfaces[key] else {
+            let Surface::Cylinder { frame, .. } = &mut body.surfaces[key] else {
                 panic!("cyl_wall's face carries a cylinder")
             };
-            *a = axis;
+            *frame = geom::Frame::new(frame.origin(), axis, frame.u_ref());
             body
         };
         let want = face_box(&unit, face, pad(), witness_band());
@@ -1369,10 +1359,8 @@ pub(crate) mod tests {
                 &mut body,
                 face,
                 Surface::Sphere {
-                    center: c,
+                    frame: geom::Frame::new(c, Vec3::unit_z(), Vec3::unit_x()),
                     radius: r,
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
                 },
             );
             let b = face_box(&body, face, pad, witness_band());
@@ -1498,23 +1486,17 @@ pub(crate) mod tests {
             plane_z0(),
             cyl_r(1.0),
             Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 half_angle: 0.5,
-                u_ref: Vec3::unit_x(),
             },
             Surface::Torus {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 2.0,
                 minor_radius: 0.5,
-                u_ref: Vec3::unit_x(),
             },
         ];
         for s in kinds {
@@ -1618,11 +1600,9 @@ pub(crate) mod tests {
         // rejects.
         let seed = body.mvfs(on(u0, v0), true).unwrap();
         let torus = body.add_surface(Surface::Torus {
-            center,
-            axis,
+            frame: geom::Frame::new(center, axis, u_ref),
             major_radius: major,
             minor_radius: minor,
-            u_ref,
         });
         // A PARALLEL at `v`: the torus cut by the plane ⊥ the axis
         // there. Ascending in `u` when `up`, descending otherwise.
@@ -1630,9 +1610,7 @@ pub(crate) mod tests {
             let c = center + axis * (minor * v.sin());
             let radius = major + minor * v.cos();
             let plane = body.add_surface(Surface::Plane {
-                origin: c,
-                normal: axis,
-                u_ref,
+                frame: geom::Frame::new(c, axis, u_ref),
             });
             let (carrier, t0, t1) = if up {
                 (
@@ -1666,9 +1644,7 @@ pub(crate) mod tests {
                     pair: SurfacePair::new(
                         torus,
                         body.add_surface(Surface::Plane {
-                            origin: center,
-                            normal: axis.cross(e(u)),
-                            u_ref: e(u),
+                            frame: geom::Frame::new(center, axis.cross(e(u)), e(u)),
                         }),
                     ),
                     selector: geom_brep::CurveSelector::Witness(on(u, (v0 + v1) * 0.5)),
@@ -1783,10 +1759,8 @@ pub(crate) mod tests {
     ) -> (Body<f64>, FaceKey) {
         let (mut body, face) = revolved_wall(&|z| z * alpha.tan(), u0, u1, z0, z1);
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: alpha,
-            u_ref: Vec3::unit_x(),
         };
         relabel(&mut body, face, cone);
         // The cone arm reads the wall's stored lift.
@@ -1897,11 +1871,9 @@ pub(crate) mod tests {
                     &mut body,
                     face,
                     Surface::Torus {
-                        center,
-                        axis,
+                        frame: geom::Frame::new(center, axis, u_ref),
                         major_radius: major,
                         minor_radius: minor,
-                        u_ref,
                     },
                 );
                 let b = face_box(&body, face, pad(), witness_band());
@@ -1958,11 +1930,9 @@ pub(crate) mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(on(u0, 0.0), true).unwrap();
         let torus = body.add_surface(Surface::Torus {
-            center,
-            axis,
+            frame: geom::Frame::new(center, axis, u_ref),
             major_radius: major,
             minor_radius: minor,
-            u_ref,
         });
         // The seed wears the torus before any circle is minted on it:
         // each circle's description names the torus and its cap's plane,
@@ -1980,9 +1950,7 @@ pub(crate) mod tests {
          -> (EdgeCurveSpec<f64>, crate::geometry::SurfaceKey) {
             let spine = center + e(u) * major;
             let plane = Surface::Plane {
-                origin: center,
-                normal: axis.cross(e(u)),
-                u_ref: e(u),
+                frame: geom::Frame::new(center, axis.cross(e(u)), e(u)),
             };
             let pk = body.add_surface(plane);
             let ax = if forward {
@@ -2018,9 +1986,7 @@ pub(crate) mod tests {
             )
             .expect("mef Lone: the circular edge at u0");
         let eq_plane = body.add_surface(Surface::Plane {
-            origin: center,
-            normal: axis,
-            u_ref,
+            frame: geom::Frame::new(center, axis, u_ref),
         });
         let strut_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
@@ -2710,11 +2676,9 @@ pub(crate) mod tests {
                             &mut body,
                             face,
                             Surface::Torus {
-                                center: c,
-                                axis,
+                                frame: geom::Frame::new(c, axis, u_ref),
                                 major_radius: major,
                                 minor_radius: minor,
-                                u_ref,
                             },
                         );
                         let b = face_box(&body, face, pad, witness_band());
@@ -2908,16 +2872,12 @@ pub(crate) mod tests {
         let carrier = Curve3::spiric(center, axis, u_ref, big_r, r, d, band).unwrap();
         let foot = center + u_ref * d;
         let plane_surface = Surface::Plane {
-            origin: foot,
-            normal: u_ref,
-            u_ref: axis.cross(u_ref),
+            frame: geom::Frame::new(foot, u_ref, axis.cross(u_ref)),
         };
         let torus_surface = Surface::Torus {
-            center,
-            axis,
+            frame: geom::Frame::new(center, axis, u_ref),
             major_radius: big_r,
             minor_radius: r,
-            u_ref,
         };
         let (t0, t1) = (0.4, 2.9);
         let (body, face) = conic_sector(
@@ -3385,25 +3345,18 @@ pub(crate) mod tests {
     /// point at parameter `t` is `centre_i + (a·û)_i·cos t + (b·v̂)_i·sin t`.
     fn conic_frame(carrier: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
         match carrier {
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }) => (*center, *u_ref * *radius, axis.cross(*u_ref) * *radius),
+            Curve3::Circle(geom::Circle { frame, radius }) => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                (center, u_ref * *radius, axis.cross(u_ref) * *radius)
+            }
             Curve3::Ellipse(geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame,
                 semi_u,
                 semi_v,
-            }) => (*center, *u_ref * *semi_u, axis.cross(*u_ref) * *semi_v),
+            }) => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                (center, u_ref * *semi_u, axis.cross(u_ref) * *semi_v)
+            }
             other => panic!("a conic sector's rim is a conic, got {other:?}"),
         }
     }
@@ -3952,10 +3905,8 @@ pub(crate) mod sphere_rect_rows {
                 seed.face,
                 FaceSurface::New {
                     surface: Surface::Sphere {
-                        center: Point3::origin(),
+                        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                         radius: 1.0,
-                        axis: Vec3::unit_z(),
-                        u_ref: Vec3::unit_x(),
                     },
                     sense: true,
                 },
@@ -3963,26 +3914,23 @@ pub(crate) mod sphere_rect_rows {
             .unwrap();
         let arc = |body: &mut Body<f64>, carrier: Curve3<f64>, (t0, t1): (f64, f64)| {
             let Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
+                frame: carrier_frame,
                 ..
             }) = carrier
             else {
                 unreachable!("a sheet edge is a circle");
             };
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
             let plane = body.add_surface(Surface::Plane {
-                origin: center,
-                normal: axis,
-                // A rim's plane is horizontal and a meridian's vertical.
-                u_ref: if axis.z.abs() > 0.5 {
-                    Vec3::unit_x()
-                } else {
-                    Vec3::unit_z()
-                },
+                frame: geom::Frame::new(
+                    center,
+                    axis,
+                    if axis.z.abs() > 0.5 {
+                        Vec3::unit_x()
+                    } else {
+                        Vec3::unit_z()
+                    },
+                ),
             });
             let witness = carrier.mid_point(t0, t1);
             EdgeCurveSpec {
@@ -4223,10 +4171,8 @@ pub(crate) mod sphere_rect_rows {
                 seed.face,
                 FaceSurface::New {
                     surface: Surface::Sphere {
-                        center: c,
+                        frame: geom::Frame::new(c, z, x),
                         radius: r,
-                        axis: z,
-                        u_ref: x,
                     },
                     sense: true,
                 },
@@ -4237,21 +4183,15 @@ pub(crate) mod sphere_rect_rows {
         let arc =
             |body: &mut Body<f64>, carrier: Curve3<f64>, u_ref: Vec3<f64>, (t0, t1): (f64, f64)| {
                 let Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            ..
-                        },
+                    frame: carrier_frame,
                     ..
                 }) = carrier
                 else {
                     unreachable!("a cap edge is a circle");
                 };
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let plane = body.add_surface(Surface::Plane {
-                    origin: center,
-                    normal: axis,
-                    u_ref,
+                    frame: geom::Frame::new(center, axis, u_ref),
                 });
                 let witness = carrier.mid_point(t0, t1);
                 EdgeCurveSpec {
@@ -4329,7 +4269,7 @@ pub(crate) mod sphere_rect_rows {
             let (outer, _) = crate::props::loop_edges(&body, body.faces[north].outer).unwrap();
             let base = outer
                 .iter()
-                .find(|e| matches!(e.carrier, Curve3::Circle(geom::Circle { frame: geom::Frame { axis, .. }, .. }) if axis.dot(z) > 0.5))
+                .find(|e| matches!(e.carrier, Curve3::Circle(geom::Circle { frame, .. }) if frame.axis().dot(z) > 0.5))
                 .expect("the base rim runs about +ẑ");
             body.set_face_sense(north, base.forward == (hc > h0))
                 .unwrap();

@@ -47,10 +47,12 @@ use topo::{Body, CoherenceCondition, CoherenceFinding, EdgeKey};
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -163,10 +165,12 @@ fn chord_wobble(metres: f64) -> Body<f64> {
         seed.face,
         FaceSurface::New {
             surface: Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: rr,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -516,10 +520,12 @@ fn split_meridian_wobble(metres: f64) -> Body<f64> {
         seed.face,
         FaceSurface::New {
             surface: Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: rr,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -659,10 +665,8 @@ fn tilted_lune(radius: f64, theta: f64, offset: f64) -> Option<Body<f64>> {
         seed.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: c,
+                frame: geom::Frame::new(c, axis, u_ref),
                 radius,
-                axis,
-                u_ref,
             },
             sense: true,
         },

@@ -299,17 +299,17 @@ fn feet(
 fn a_tilted_ellipse_on_a_cylinder_walks_one_order_in_both_lanes() {
     let origin = Point3::new(0.3, -0.2, 0.0);
     let wall = Surface::Cylinder {
-        origin,
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(origin, Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let (s, c) = (60f64.to_radians().sin(), 60f64.to_radians().cos());
     let normal = Vec3::new(s * 0.7f64.cos(), s * 0.7f64.sin(), c);
     let plane = Surface::Plane {
-        origin: origin + Vec3::unit_z() * 0.5,
-        normal,
-        u_ref: Vec3::unit_z().cross(normal).normalize(),
+        frame: geom::Frame::new(
+            origin + Vec3::unit_z() * 0.5,
+            normal,
+            Vec3::unit_z().cross(normal).normalize(),
+        ),
     };
     let reach = geom_brep::Reach::fixture(origin, 4.0);
     let conic = match geom_brep::plane_cylinder_section(&plane, &wall, &reach, band()).unwrap() {
@@ -327,25 +327,19 @@ fn a_circle_on_a_sphere_walks_one_order_in_all_three_lanes() {
     let n = Vec3::new(1.0, -2.0, 2.0).normalize();
     let u_ref = Vec3::unit_z().cross(n).normalize();
     let sphere = Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.5,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let plane = Surface::Plane {
-        origin: center + n * 0.6,
-        normal: n,
-        u_ref,
+        frame: geom::Frame::new(center + n * 0.6, n, u_ref),
     };
     let conic = match geom_brep::plane_sphere_section(&plane, &sphere, band()).unwrap() {
         geom_brep::PlaneSphereSection::Circle(c) => c,
         other => panic!("{other:?}"),
     };
     let cylinder = Surface::Cylinder {
-        origin: center,
-        axis: n,
+        frame: geom::Frame::new(center, n, u_ref),
         radius: (1.5f64 * 1.5 - 0.6 * 0.6).sqrt(),
-        u_ref,
     };
     let section = match geom_brep::pair_section(&cylinder, &sphere, None, None, band()).unwrap() {
         geom_brep::SectionRead::Built(s) => s.carry(None, band()).unwrap(),
@@ -366,10 +360,8 @@ fn a_circle_on_a_sphere_walks_one_order_in_all_three_lanes() {
 fn steep() -> (Surface<f64>, Curve3<f64>) {
     let origin = Point3::new(0.3, -0.2, 0.0);
     let wall = Surface::Cylinder {
-        origin,
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(origin, Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let tilt = (1.0f64 / 30.0).acos();
     let normal = Vec3::new(
@@ -378,9 +370,11 @@ fn steep() -> (Surface<f64>, Curve3<f64>) {
         tilt.cos(),
     );
     let plane = Surface::Plane {
-        origin: origin + Vec3::unit_z() * 0.5,
-        normal,
-        u_ref: Vec3::unit_z().cross(normal).normalize(),
+        frame: geom::Frame::new(
+            origin + Vec3::unit_z() * 0.5,
+            normal,
+            Vec3::unit_z().cross(normal).normalize(),
+        ),
     };
     let reach = geom_brep::Reach::fixture(origin, 64.0);
     let conic = match geom_brep::plane_cylinder_section(&plane, &wall, &reach, band()).unwrap() {

@@ -1713,18 +1713,19 @@ fn present_chart<'a>(
         return Err(Unpresented::Local);
     }
     // A cone's apex is a collapsed side of its chart.
-    if let Surface::Cone { apex, axis, .. } = piece.surface {
+    if let Surface::Cone { frame, .. } = piece.surface {
+        let (apex, axis) = (frame.origin(), frame.axis());
         for &v in &piece.local.vertices {
             let Some(&p) = b.vertices.get(&v) else {
                 continue;
             };
             if !matches!(
-                decide(SELF_INTERSECTION_APEX, Margin::of((p - *apex).norm()), band),
+                decide(SELF_INTERSECTION_APEX, Margin::of((p - apex).norm()), band),
                 Ok(Sign::Zero)
             ) {
                 continue;
             }
-            let Some(lo) = nappe(b, *apex, *axis, band) else {
+            let Some(lo) = nappe(b, apex, axis, band) else {
                 return Err(Unpresented::Local);
             };
             if (lo && y.1 <= 0.0) || (!lo && y.0 >= 0.0) {
@@ -1754,13 +1755,8 @@ fn present_chart<'a>(
     // A sphere's pole is a collapsed side of its chart, `v = ±π/2`, a
     // bound of its canonical domain. A vertex is at it by the one reading
     // of that incidence.
-    if let &Surface::Sphere {
-        center,
-        radius,
-        axis,
-        ..
-    } = piece.surface
-    {
+    if let &Surface::Sphere { frame, radius, .. } = piece.surface {
+        let (center, axis) = (frame.origin(), frame.axis());
         use geom_brep::chart_singularity::{Singularity, sphere_poles, vertex_at_singular_point};
         let half = Interval::pi() * at(0.5);
         let poles = sphere_poles(
@@ -2068,14 +2064,10 @@ fn present_plane<'a>(
     }
     // A line edge's chart image, in traversal order: its two ends read
     // into the plane's affine chart.
-    let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = *piece.surface
-    else {
+    let Surface::Plane { frame } = *piece.surface else {
         return Err(Unpresented::Structural);
     };
+    let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let v_ref = normal.cross(u_ref);
     let chart = |p: Point3<Interval>| {
         let d = p - origin;
@@ -2310,11 +2302,8 @@ impl Trig {
     /// whose height has no linear term. `None` elsewhere.
     fn of(surface: &Surface<Interval>, h: &Harmonic) -> Option<Self> {
         match *surface {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => {
+            Surface::Plane { frame } => {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 if !(exactly(h.pl[0], 0.0) && exactly(h.pl[1], 0.0)) {
                     return None;
                 }
@@ -2327,16 +2316,15 @@ impl Trig {
                 })
             }
             Surface::Cylinder {
-                origin,
-                axis,
+                frame: carrier_frame,
                 radius,
-                u_ref,
             } => {
+                let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let w = [1.0, -1.0].into_iter().find(|&w| exactly(h.pl[0], w))?;
                 if !(exactly(h.pa[0], 0.0) && exactly(h.pb[0], 0.0) && exactly(h.pl[1], 0.0)) {
                     return None;
                 }
-                let frame = geom::Frame::new(origin, axis, u_ref);
+                let frame = carrier_frame;
                 // cos(φ + w·t) = cos φ·cos t − w·sin φ·sin t, and
                 // sin(φ + w·t) = sin φ·cos t + w·cos φ·sin t: the radial
                 // and its derivative at φ.
@@ -2483,25 +2471,18 @@ impl Curved {
 /// A conic carrier as a [`Trig`]: `center + u_ref·a·cos t + v_ref·b·sin t`.
 fn conic(c: &Curve3<Interval>) -> Option<Trig> {
     let (center, axis, a, b, x) = match *c {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => (center, axis, radius, radius, u_ref),
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (center, axis, radius, radius, u_ref)
+        }
         Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame,
             semi_u,
             semi_v,
-        }) => (center, axis, semi_u, semi_v, u_ref),
+        }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (center, axis, semi_u, semi_v, u_ref)
+        }
         _ => return None,
     };
     Some(Trig {
@@ -2515,14 +2496,10 @@ fn conic(c: &Curve3<Interval>) -> Option<Trig> {
 /// on**: a plane's image of a conic carrier, through its affine chart;
 /// any other face's harmonic row.
 fn chart_curve(surface: &Surface<Interval>, rim: &Rim, u: &Use) -> Option<Harmonic> {
-    let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = *surface
-    else {
+    let Surface::Plane { frame } = *surface else {
         return u.harmonic;
     };
+    let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let edge = conic(&rim.arc.as_ref()?.0)?;
     let v_ref = normal.cross(u_ref);
     let chart = |w: Vec3<Interval>| [w.dot(u_ref), w.dot(v_ref)];
@@ -2900,15 +2877,14 @@ impl WallImage {
     /// The image of `w` on `surface`, a torus; `None` on anything else.
     fn of(surface: &Surface<Interval>, w: Wall) -> Option<Self> {
         let Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
-            u_ref,
         } = *surface
         else {
             return None;
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let v_ref = axis.cross(u_ref);
         let (su, cu) = w.u0.sin_cos();
         let (sv, cv) = w.v0.sin_cos();
@@ -3407,12 +3383,8 @@ fn straight(
     if !from_start && rim.ends[1] != v {
         return None;
     }
-    let (p, q, d) = if let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = *surface
-    {
+    let (p, q, d) = if let Surface::Plane { frame } = *surface {
+        let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let (carrier, (t0, t1)) = rim.arc.as_ref().filter(|(c, _)| !c.is_curved())?;
         let v_ref = normal.cross(u_ref);
         let chart = |p: Point3<Interval>| {
@@ -3707,14 +3679,10 @@ fn present_plane_corner<'a>(
 ) -> Result<Presentation<'a>, Unpresented> {
     let b = piece.boundary;
     let surface = piece.surface;
-    let &Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = surface
-    else {
+    let &Surface::Plane { frame } = surface else {
         return Err(Unpresented::Local);
     };
+    let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let (Some(e), Some(o)) = (b.edges.get(c.read), b.edges.get(c.other)) else {
         return Err(Unpresented::Local);
     };
@@ -3889,9 +3857,10 @@ fn present_plane_vertex<'a>(
 ) -> Result<Presentation<'a>, Unpresented> {
     let b = piece.boundary;
     let surface = piece.surface;
-    let &Surface::Plane { normal, u_ref, .. } = surface else {
+    let &Surface::Plane { frame, .. } = surface else {
         return Err(Unpresented::Local);
     };
+    let (normal, u_ref) = (frame.axis(), frame.u_ref());
     let (Some(e), Some(o)) = (b.edges.get(line), b.edges.get(other)) else {
         return Err(Unpresented::Local);
     };
@@ -4805,21 +4774,20 @@ fn iso_circle(surface: &Surface<Interval>, held: Axis, b: f64) -> Option<Trig> {
     let b = at(b);
     let ring = |frame: geom::Frame<Interval>, c: Point3<Interval>, r: Interval| Trig {
         c,
-        a: frame.u_ref * r,
+        a: frame.u_ref() * r,
         b: frame.v_ref() * r,
     };
     match (surface, held) {
         (
             &Surface::Torus {
-                center,
-                axis,
+                frame: torus_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             },
             Axis::U,
         ) => {
-            let radial = geom::Frame::new(center, axis, u_ref).radial(b);
+            let (center, axis) = (torus_frame.origin(), torus_frame.axis());
+            let radial = torus_frame.radial(b);
             Some(Trig {
                 c: center + radial * major_radius,
                 a: radial * minor_radius,
@@ -4828,31 +4796,29 @@ fn iso_circle(surface: &Surface<Interval>, held: Axis, b: f64) -> Option<Trig> {
         }
         (
             &Surface::Torus {
-                center,
-                axis,
+                frame: torus_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             },
             Axis::V,
         ) => {
+            let (center, axis) = (torus_frame.origin(), torus_frame.axis());
             let (s, c) = b.sin_cos();
             Some(ring(
-                geom::Frame::new(center, axis, u_ref),
+                torus_frame,
                 center + axis * (minor_radius * s),
                 major_radius + minor_radius * c,
             ))
         }
         (
             &Surface::Sphere {
-                center,
+                frame: sphere_frame,
                 radius,
-                axis,
-                u_ref,
             },
             Axis::U,
         ) => {
-            let radial = geom::Frame::new(center, axis, u_ref).radial(b);
+            let (center, axis) = (sphere_frame.origin(), sphere_frame.axis());
+            let radial = sphere_frame.radial(b);
             Some(Trig {
                 c: center,
                 a: radial * radius,
@@ -4861,48 +4827,35 @@ fn iso_circle(surface: &Surface<Interval>, held: Axis, b: f64) -> Option<Trig> {
         }
         (
             &Surface::Sphere {
-                center,
+                frame: sphere_frame,
                 radius,
-                axis,
-                u_ref,
             },
             Axis::V,
         ) => {
+            let (center, axis) = (sphere_frame.origin(), sphere_frame.axis());
             let (s, c) = b.sin_cos();
-            Some(ring(
-                geom::Frame::new(center, axis, u_ref),
-                center + axis * (radius * s),
-                radius * c,
-            ))
+            Some(ring(sphere_frame, center + axis * (radius * s), radius * c))
         }
         (
             &Surface::Cylinder {
-                origin,
-                axis,
+                frame: cylinder_frame,
                 radius,
-                u_ref,
-            },
-            Axis::V,
-        ) => Some(ring(
-            geom::Frame::new(origin, axis, u_ref),
-            origin + axis * b,
-            radius,
-        )),
-        (
-            &Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
             },
             Axis::V,
         ) => {
+            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
+            Some(ring(cylinder_frame, origin + axis * b, radius))
+        }
+        (
+            &Surface::Cone {
+                frame: cone_frame,
+                half_angle,
+            },
+            Axis::V,
+        ) => {
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
             let (s, c) = half_angle.sin_cos();
-            Some(ring(
-                geom::Frame::new(apex, axis, u_ref),
-                apex + axis * (b * c),
-                b * s,
-            ))
+            Some(ring(cone_frame, apex + axis * (b * c), b * s))
         }
         _ => None,
     }
@@ -5057,30 +5010,32 @@ fn sign_on(
 /// The carrier of a face as a separator.
 fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
     Some(match *piece.surface {
-        Surface::Plane { origin, normal, .. } => Implicit::Plane {
-            o: origin,
-            n: normal,
-        },
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Implicit::Cylinder {
-            o: origin,
-            axis,
-            r: radius,
-        },
-        Surface::Sphere { center, radius, .. } => Implicit::Sphere {
-            c: center,
-            r: radius,
-        },
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Implicit::Plane {
+                o: origin,
+                n: normal,
+            }
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            Implicit::Cylinder {
+                o: origin,
+                axis,
+                r: radius,
+            }
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            Implicit::Sphere {
+                c: center,
+                r: radius,
+            }
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (sin, cos) = half_angle.sin_cos();
             let positive = nappe(piece.boundary, apex, axis, band)?;
             Implicit::Cone {
@@ -5260,16 +5215,10 @@ fn planes_through(
     };
     let conic = |r: &Rim| match r.arc.as_ref()? {
         (
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin, axis, .. },
-                ..
-            })
-            | Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { origin, axis, .. },
-                ..
-            }),
+            Curve3::Circle(geom::Circle { frame, .. })
+            | Curve3::Ellipse(geom::Ellipse { frame, .. }),
             _,
-        ) => Some((*origin, *axis)),
+        ) => Some((frame.origin(), frame.axis())),
         _ => None,
     };
     if !rims.is_empty()
@@ -5623,11 +5572,13 @@ mod by_kind_rows {
     fn torus(major: f64) -> Surface<Interval> {
         let p = |x: f64| Interval::from_bounds(x, x);
         Surface::Torus {
-            center: Point3::new(p(0.0), p(0.0), p(0.0)),
-            axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
+            frame: geom::Frame::new(
+                Point3::new(p(0.0), p(0.0), p(0.0)),
+                Vec3::new(p(0.0), p(0.0), p(1.0)),
+                Vec3::new(p(1.0), p(0.0), p(0.0)),
+            ),
             major_radius: p(major),
             minor_radius: p(1.0),
-            u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
         }
     }
 
@@ -5743,10 +5694,12 @@ mod presentation_rows {
 
     fn cylinder() -> Surface<Interval> {
         Surface::Cylinder {
-            origin: origin(),
-            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
             radius: iv0(1.0),
-            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
         }
     }
 
@@ -6417,9 +6370,11 @@ mod presentation_rows {
     #[test]
     fn a_plane_presents_the_face_side_of_its_one_edge() {
         let plane = Surface::Plane {
-            origin: origin(),
-            normal: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
-            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
         };
         // The edge from (0, 0) to (4, 0), run forward: the face above it.
         let b = Boundary {
@@ -6496,9 +6451,11 @@ mod presentation_rows {
     /// The plane `z = 0`, `u_ref = x`.
     fn floor() -> Surface<Interval> {
         Surface::Plane {
-            origin: origin(),
-            normal: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
-            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
         }
     }
 
@@ -7001,10 +6958,8 @@ mod presentation_rows {
         let z = Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0));
         let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
         let s = Surface::Sphere {
-            center: origin(),
+            frame: geom::Frame::new(origin(), z, x),
             radius: iv0(1.0),
-            axis: z,
-            u_ref: x,
         };
         let q = core::f64::consts::FRAC_PI_2;
         let p = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(y), iv0(z));
@@ -7793,15 +7748,10 @@ mod presentation_rows {
             pl: [iv0(1.0), iv0(0.0)],
         };
         let image = Trig::of(&cyl, &h).expect("a section winding the cylinder once");
-        let Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } = cyl
-        else {
+        let Surface::Cylinder { frame, radius, .. } = cyl else {
             unreachable!()
         };
+        let (origin, axis) = (frame.origin(), frame.axis());
         let psi = Psi::Carrier(Implicit::Cylinder {
             o: origin,
             axis,
@@ -8293,14 +8243,18 @@ mod presentation_rows {
             extent: None,
         };
         let floor = Surface::Plane {
-            origin: origin(),
-            normal: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
-            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
         };
         let wall = Surface::Plane {
-            origin: origin(),
-            normal: Vec3::new(Interval::from_f64(0.0) - s, iv0(1.0), iv0(0.0)),
-            u_ref: d,
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(Interval::from_f64(0.0) - s, iv0(1.0), iv0(0.0)),
+                d,
+            ),
         };
         (floor, wall, face(true), face(false))
     }
@@ -8671,11 +8625,9 @@ mod presentation_rows {
     /// The torus `(major, 0.5)` about `z`, `u_ref = x`.
     fn ring(major: f64) -> Surface<Interval> {
         Surface::Torus {
-            center: origin(),
-            axis: ez(),
+            frame: geom::Frame::new(origin(), ez(), ex()),
             major_radius: iv0(major),
             minor_radius: iv0(0.5),
-            u_ref: ex(),
         }
     }
 
@@ -8689,9 +8641,7 @@ mod presentation_rows {
     /// side.
     fn spiric() -> Curve3<Interval> {
         Curve3::Spiric {
-            center: origin(),
-            axis: ez(),
-            u_ref: ex(),
+            frame: geom::Frame::new(origin(), ez(), ex()),
             major_radius: iv0(2.0),
             minor_radius: iv0(0.5),
             offset: iv0(OFF),
@@ -8985,11 +8935,13 @@ mod presentation_rows {
     #[test]
     fn the_walls_closed_form_encloses_the_separator_along_its_image() {
         let s = Surface::Torus {
-            center: Point3::new(iv0(0.1), iv0(-0.2), iv0(0.05)),
-            axis: Vec3::new(iv0(0.0), iv0(0.6), iv0(0.8)),
+            frame: geom::Frame::new(
+                Point3::new(iv0(0.1), iv0(-0.2), iv0(0.05)),
+                Vec3::new(iv0(0.0), iv0(0.6), iv0(0.8)),
+                ex(),
+            ),
             major_radius: iv0(2.03),
             minor_radius: iv0(0.47),
-            u_ref: ex(),
         };
         for (sigma, kappa) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
             let w = Wall {
@@ -9106,9 +9058,11 @@ mod presentation_rows {
     /// The cap of [`spiric`]: the plane `x = 0.3`, the rim its one edge.
     fn cap() -> (Surface<Interval>, Boundary) {
         let plane = Surface::Plane {
-            origin: Point3::new(iv0(OFF), iv0(0.0), iv0(0.0)),
-            normal: ex(),
-            u_ref: Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+            frame: geom::Frame::new(
+                Point3::new(iv0(OFF), iv0(0.0), iv0(0.0)),
+                ex(),
+                Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+            ),
         };
         let mut b = spiric_face(false, true);
         b.edges[0].uses[0].wall = None;
@@ -9340,11 +9294,9 @@ mod presentation_rows {
                 _ => origin(),
             };
             Surface::Torus {
-                center,
-                axis: ez(),
+                frame: geom::Frame::new(center, ez(), ex()),
                 major_radius: iv0(2.0),
                 minor_radius: iv0(0.5),
-                u_ref: ex(),
             }
         }
 
@@ -9354,9 +9306,7 @@ mod presentation_rows {
                 _ => ez(),
             };
             Curve3::Spiric {
-                center: origin(),
-                axis,
-                u_ref: ex(),
+                frame: geom::Frame::new(origin(), axis, ex()),
                 major_radius: iv0(2.0),
                 minor_radius: iv0(0.5),
                 offset: iv0(OFF),
@@ -9673,10 +9623,12 @@ mod presentation_rows {
         let cell = ((1.5, 1.5 + 1e-13), (0.3, 0.7));
         let on = |radius| {
             let s = Surface::Cylinder {
-                origin: origin(),
-                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                frame: geom::Frame::new(
+                    origin(),
+                    Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                ),
                 radius,
-                u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
             };
             chart_near(&s, &b, &[0, 1], &[1], cell)
         };
@@ -9718,9 +9670,11 @@ mod presentation_rows {
     #[test]
     fn an_edge_that_does_not_certify_bounds_no_half_plane() {
         let plane = Surface::Plane {
-            origin: origin(),
-            normal: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
-            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
         };
         let along = |end: Interval| Boundary {
             sense: true,

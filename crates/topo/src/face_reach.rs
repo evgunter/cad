@@ -126,19 +126,15 @@ mod tests {
         for (surface, want) in [
             (
                 geom::Surface::Cylinder {
-                    origin: Point3::origin(),
-                    axis: Vec3::unit_z(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     radius: 1.0,
-                    u_ref: Vec3::unit_x(),
                 },
                 chord,
             ),
             (
                 geom::Surface::Sphere {
-                    center: Point3::origin(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     radius: 1.0,
-                    u_ref: Vec3::unit_x(),
-                    axis: Vec3::unit_z(),
                 },
                 2.0,
             ),
@@ -155,9 +151,7 @@ mod tests {
             .unwrap();
             let wall = body.get_face(seed.face).unwrap().surface;
             let rim_plane = body.add_surface(geom::Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             });
             body.mev(
                 crate::construction::MevSite::Lone {

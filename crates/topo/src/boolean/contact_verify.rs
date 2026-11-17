@@ -800,9 +800,11 @@ mod tests {
 
     fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::from_array(o),
-            normal: Vec3::from_array(n),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::from_array(o),
+                Vec3::from_array(n),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
     }
 
@@ -816,10 +818,12 @@ mod tests {
     #[test]
     fn cylinder_on_plane_verifies_definite_through_the_jet_loop() {
         let cyl = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0),
-            axis: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let ruling = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
@@ -836,10 +840,12 @@ mod tests {
     #[test]
     fn definite_normal_independence_rules_the_contact_out() {
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let equator = geom::Curve3::circle(
@@ -878,10 +884,12 @@ mod tests {
     #[test]
     fn perpendicular_normals_over_a_collapsed_locus_refuse() {
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let equator = geom::Curve3::circle(
@@ -922,10 +930,12 @@ mod tests {
     #[test]
     fn outside_the_lane_refuses_typed_rather_than_sampling() {
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 2.0),
-            axis: Vec3::new(0.0, 0.0, -1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 2.0),
+                Vec3::new(0.0, 0.0, -1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: 0.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let along = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
@@ -1076,11 +1086,13 @@ mod tests {
         // one the finest schedule's bounds end inside it and escalate.
         let b = Band::linear_at(Tol::witness(), 1e-9).unwrap();
         let torus = |x: f64| Surface::Torus {
-            center: Point3::new(x, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(x, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 1.0,
             minor_radius: 0.1,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let (near, far) = (torus(0.0), torus(2.0));
         let meridian = geom::Curve3::circle(
@@ -1194,11 +1206,9 @@ mod tests {
         let torus = |c: Point3<f64>, a: Vec3<f64>, big: f64, r: f64| {
             let a = a.normalize();
             Surface::Torus {
-                center: c,
-                axis: a,
+                frame: geom::Frame::new(c, a, a.orthonormal_basis().0),
                 major_radius: big,
                 minor_radius: r,
-                u_ref: a.orthonormal_basis().0,
             }
         };
         let first = torus(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), 2.0, 0.5);
@@ -1254,10 +1264,12 @@ mod tests {
     /// and the witness's place are set apart.
     fn lifted_cylinder_on_plane(gap: f64, witness: f64) -> TangentVerdict {
         let cyl = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0 + gap),
-            axis: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0 + gap),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let along = line([0.0, 0.0, witness], [1.0, 0.0, 0.0]);
@@ -1337,10 +1349,12 @@ mod tests {
     fn pin_in_bore(so_in_eps: f64, phi: f64) -> (Surface<f64>, Surface<f64>, geom::Curve3<f64>) {
         let b = band();
         let cyl = |c: [f64; 3], radius: f64| Surface::Cylinder {
-            origin: Point3::from_array(c),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::from_array(c),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         // `κ_rel = 1 − 1/R₂` across the touch, levered at the pin's
         // unit radius: the sagitta is `κ_rel / 2`.
@@ -1434,10 +1448,12 @@ mod tests {
     fn the_door_reads_any_sense_and_any_crescent() {
         let b = band();
         let cyl = |cx: f64, radius: f64| Surface::Cylinder {
-            origin: Point3::new(cx, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(cx, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let (fat, small) = (cyl(0.0, 2.0), cyl(1.0, 1.0));
         let at_two = line([2.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
@@ -1531,11 +1547,9 @@ mod tests {
         let m = Vec3::new(-tilt.sin(), 0.0, tilt.cos());
         let mirror = |v: Vec3<f64>| v - m * (2.0 * v.dot(m));
         let torus = |axis: Vec3<f64>, u_ref: Vec3<f64>| Surface::Torus {
-            center: Point3::origin(),
-            axis,
+            frame: geom::Frame::new(Point3::origin(), axis, u_ref),
             major_radius: big,
             minor_radius: small,
-            u_ref,
         };
         let (z, x) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
         let circle = geom::Curve3::circle(

@@ -37,11 +37,13 @@ fn mirror_oval<T: AtRestPolicy>(sigma: f64) -> (Body<T>, [HalfEdgeKey; 2]) {
             seed.face,
             FaceSurface::New {
                 surface: geom::Surface::Torus {
-                    center: WallTorus::Mirror.center(Point3::origin(), n, d),
-                    axis: a * f(sigma),
+                    frame: geom::Frame::new(
+                        WallTorus::Mirror.center(Point3::origin(), n, d),
+                        a * f(sigma),
+                        n,
+                    ),
                     major_radius: big,
                     minor_radius: r,
-                    u_ref: n,
                 },
                 sense: true,
             },

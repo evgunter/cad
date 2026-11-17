@@ -157,9 +157,7 @@ fn tilted_arc(
 ) -> EdgeCurveSpec<f64> {
     let (ellipse, normal) = crate::ring_path::tilted_section(h, TILT);
     let plane = body.add_surface(geom::Surface::Plane {
-        origin: Point3::new(0.0, 0.0, h),
-        normal,
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, h), normal, Vec3::unit_y()),
     });
     let (carrier, t0, t1) = if u1 > u0 {
         (ellipse, u0, u1)
@@ -512,10 +510,8 @@ fn spline_island_rehome(
 /// The sphere of the ball about `centre` of radius `big`.
 fn ball(centre: Point3<f64>, big: f64) -> geom::Surface<f64> {
     geom::Surface::Sphere {
-        center: centre,
+        frame: geom::Frame::new(centre, Vec3::unit_z(), Vec3::unit_x()),
         radius: big,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -780,10 +776,12 @@ fn a_carried_ruling_chord_runs_back_where_it_leaves_back() {
     // A parallel wall of radius 0.8 holding the ruling: its axis 0.8
     // along `x` from the ruling.
     let partner = geom::Surface::Cylinder {
-        origin: at(0.8, 0.0) + Vec3::new(0.8, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(
+            at(0.8, 0.0) + Vec3::new(0.8, 0.0, 0.0),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+        ),
         radius: 0.8,
-        u_ref: Vec3::unit_x(),
     };
     assert!(
         geom_brep::implicit_residual(&partner, at(0.8, 0.5)).abs() < 1e-12,
@@ -832,10 +830,8 @@ fn a_carried_circle_chord_runs_back_where_it_leaves_back() {
         Vec3::unit_x(),
     );
     let partner = geom::Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.25_f64.sqrt(),
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let tangent = |u: f64| Vec3::new(-u.sin(), u.cos(), 0.0);
     for (what, (a, b), dir, want) in [
@@ -906,9 +902,7 @@ fn a_carried_ellipse_chord_starts_at_its_nodes_span_end() {
     )
     .unwrap();
     let partner = geom::Surface::Plane {
-        origin: center,
-        normal,
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(center, normal, Vec3::unit_x()),
     };
     let span = (FRAC_PI_2, FRAC_PI_2 + PI);
     let node_at = |t: f64| geom_brep::SectionNode {
@@ -996,10 +990,8 @@ fn a_carried_chord_on_an_unwalkable_spline_refuses_unwalked() {
         reach: 0.0,
     };
     let partner = geom::Surface::Cylinder {
-        origin: Point3::new(1.6, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(1.6, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 0.8,
-        u_ref: Vec3::unit_x(),
     };
     let ends = (at(0.8, 0.3), at(0.8, 0.7));
     let (got, _) = closed_form_chord(component, partner, ends, Vec3::unit_z());

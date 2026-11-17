@@ -346,7 +346,10 @@ fn fixed_partners<T: Decide>(
             });
         }
         let pairs = match *wall {
-            geom::Surface::Plane { normal, .. } => line_pairs(red, face, normal, &crossings, band)?,
+            geom::Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
+                line_pairs(red, face, normal, &crossings, band)?
+            }
             _ => {
                 let at = body
                     .get_half_edge(halves[0])
@@ -1155,7 +1158,7 @@ impl<T: Decide> Sweep<T> {
                     });
                 }
             };
-            let (c_e, axis_e) = (conic.frame().origin, conic.frame().axis);
+            let (c_e, axis_e) = (conic.frame().origin(), conic.frame().axis());
             let ((sa, sb), reach) = (conic.semi_axes(), conic.speed_hi());
             let (t0, t1) = curve.params();
             let span = t1 - t0;

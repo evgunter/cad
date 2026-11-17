@@ -26,9 +26,11 @@ fn iv(x: f64) -> Interval {
 
 fn base_plane() -> Surface<Interval> {
     Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-        u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+        ),
     }
 }
 

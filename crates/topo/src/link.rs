@@ -1777,9 +1777,11 @@ impl<T: Real> FaceSector<T> {
     #[cfg(test)]
     pub(crate) fn planar(sector: Sector<T>) -> Self {
         let surface = geom::Surface::Plane {
-            origin: sector.apex,
-            normal: sector.outward,
-            u_ref: (sector.wedges[0].0 - sector.apex).normalize(),
+            frame: geom::Frame::new(
+                sector.apex,
+                sector.outward,
+                (sector.wedges[0].0 - sector.apex).normalize(),
+            ),
         };
         Self {
             sector,
@@ -2833,9 +2835,10 @@ impl<T: Decide> FaceSector<T> {
     ) -> Result<Vec<Self>, TouchUnread> {
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
-        let geom::Surface::Plane { u_ref, .. } = surface else {
+        let geom::Surface::Plane { frame, .. } = surface else {
             return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
         };
+        let u_ref = frame.u_ref();
         if holds.iter().any(|h| matches!(h, Hold::Corner(_))) {
             return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
         }
@@ -3216,7 +3219,10 @@ impl<T: Decide> FaceSector<T> {
         use Sign::{Negative, Positive, Zero};
         let apex = match face.surface {
             geom::Surface::Cylinder { .. } => None,
-            geom::Surface::Cone { apex, .. } => Some(apex),
+            geom::Surface::Cone { frame, .. } => {
+                let apex = frame.origin();
+                Some(apex)
+            }
             _ => return Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
         };
         let line = face
@@ -4052,19 +4058,18 @@ impl<T: Decide> Round<T> {
     /// `None` off a sphere or a cylinder.
     pub fn of(surface: &geom::Surface<T>, sense: bool) -> Option<Self> {
         match *surface {
-            geom::Surface::Sphere { center, radius, .. } => {
+            geom::Surface::Sphere { frame, radius, .. } => {
+                let center = frame.origin();
                 Some(Self::sphere(center, radius, sense))
             }
-            geom::Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => Some(Self::cylinder(
-                geom::Line { origin, dir: axis },
-                radius,
-                sense,
-            )),
+            geom::Surface::Cylinder { frame, radius, .. } => {
+                let (origin, axis) = (frame.origin(), frame.axis());
+                Some(Self::cylinder(
+                    geom::Line { origin, dir: axis },
+                    radius,
+                    sense,
+                ))
+            }
             _ => None,
         }
     }
@@ -4632,9 +4637,10 @@ pub(crate) mod rest {
         r: Point3<T>,
         rd: Reading<T>,
     ) -> bool {
-        let geom::Surface::Cylinder { axis, .. } = face.surface else {
+        let geom::Surface::Cylinder { frame, .. } = face.surface else {
             return false;
         };
+        let axis = frame.axis();
         let along = p + axis * (r - p).norm();
         wedge_side(p, m, along, r, rd) == Some(Sign::Zero)
             && Round::of(&face.surface, face.sense)

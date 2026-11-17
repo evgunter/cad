@@ -30,28 +30,30 @@ fn band() -> Band {
 
 fn widening() -> geom::Surface<f64> {
     geom::Surface::Cone {
-        apex: Point3::new(0.0, -1.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, -1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: 0.5_f64.atan(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn full() -> geom::Surface<f64> {
     geom::Surface::Cone {
-        apex: Point3::new(0.0, 1.0, 0.0),
-        axis: Vec3::new(0.0, -1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn plane(origin: [f64; 3], normal: Vec3<f64>) -> geom::Surface<f64> {
     let normal = normal.normalize();
     geom::Surface::Plane {
-        origin: Point3::new(origin[0], origin[1], origin[2]),
-        normal,
-        u_ref: normal,
+        frame: geom::Frame::new(Point3::new(origin[0], origin[1], origin[2]), normal, normal),
     }
 }
 
@@ -118,14 +120,14 @@ fn shape(frame: &Frame) -> String {
 /// `K = (cos α·|c| − sin α·s)·(cos α·|c| + sin α·s)`.
 fn dandelin_centre(cone: &geom::Surface<f64>, q: Point3<f64>, n: Vec3<f64>) -> Point3<f64> {
     let &geom::Surface::Cone {
-        apex,
-        axis,
+        frame: carrier_frame,
         half_angle,
         ..
     } = cone
     else {
         panic!("a cone")
     };
+    let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let (axis, n) = (axis.normalize(), n.normalize());
     let (sin_a, cos_a) = half_angle.sin_cos();
     let (c, s_vec) = (axis.dot(n), axis.cross(n));
@@ -344,10 +346,12 @@ fn a_near_parabola_escalates_and_is_never_snapped_to_an_ellipse() {
 /// `y ∈ [0, 1]`.
 fn far_cone() -> geom::Surface<f64> {
     geom::Surface::Cone {
-        apex: Point3::new(0.0, -100.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, -100.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: 0.01_f64.atan(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -479,10 +483,12 @@ fn a_near_circular_tilt_is_the_ellipses_frame_and_only_the_pose_escalates() {
         shape(&got)
     );
     let wall = geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let n = tilted(clear, 1.0);
     let at = Point3::new(1.0, 0.5, 0.0);
@@ -538,16 +544,20 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
         );
     }
     let wall = geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let other = geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
         radius: 0.5,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
     };
     for (label, a, c) in [("plane, wall", &p, &wall), ("wall, wall", &wall, &other)] {
         let got = one_loop(pair_section_frame_at(
@@ -581,10 +591,12 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
 fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
     let b = band();
     let wall = |phi: f64| geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(-phi.sin(), phi.cos(), 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(-phi.sin(), phi.cos(), 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
     };
     let phi = (4.0 * b.escalate()).asin();
     let (a, c) = (wall(0.0), wall(phi));
@@ -641,10 +653,12 @@ fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
 fn the_frames_cone_window_holds_its_face() {
     let b = band();
     let cone = geom::Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let p = plane([0.0, 0.0, 0.6], Vec3::new(1.0, 0.0, 0.0));
     for (u1, (z0, z1)) in [(1.0, (0.5, 1.0)), (1.0, (0.01, 2.0)), (5.0, (0.25, 0.75))] {
@@ -800,8 +814,8 @@ fn apex_pair_faces(
     };
     let cone = face_of(cone_body, &|s| matches!(s, geom::Surface::Cone { .. }));
     let plane = face_of(plane_body, &|s| {
-        matches!(s, geom::Surface::Plane { origin, normal, .. }
-            if normal.cross(x).norm() < 1e-9 && (*origin - Point3::origin()).dot(x).abs() < 1e-9)
+        matches!(s, geom::Surface::Plane { frame, .. }
+            if frame.axis().cross(x).norm() < 1e-9 && (frame.origin() - Point3::origin()).dot(x).abs() < 1e-9)
     });
     (cone, plane)
 }

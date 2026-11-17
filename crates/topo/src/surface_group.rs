@@ -138,21 +138,14 @@ fn unmated_boundary<T: Decide>(
             if members.contains(&body.face_of_linked(hop.mate)) {
                 continue;
             }
-            let Some(geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            })) = body
+            let Some(geom::Curve3::Circle(geom::Circle { frame, radius })) = body
                 .edge_curve_linked(hop.edge, hop.edge_data)
                 .certified()
                 .map(|c| c.carrier().clone())
             else {
                 return Ok(None);
             };
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             found.push((
                 member,
                 Rim {

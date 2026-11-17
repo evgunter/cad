@@ -187,7 +187,7 @@ impl<T: Decide> Chart<T> {
     pub fn rim_v(&self, center: Point3<T>, radius: T) -> T {
         let f = self.frame();
         let h = f.height(center);
-        self.v_of(f.origin + f.axis * h + f.u_ref * radius)
+        self.v_of(f.origin() + f.axis() * h + f.u_ref() * radius)
     }
 }
 
@@ -258,10 +258,12 @@ mod tests {
     #[test]
     fn cone_mirror_nappe_u_of() {
         let chart = Chart::of(&Surface::Cone {
-            apex: Point3::new(0.0, 1.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         })
         .unwrap();
         let u = chart.u_of(Point3::new(0.5, 0.5, 0.0));
@@ -281,18 +283,18 @@ mod tests {
     fn a_sheets_poles_are_its_own_apexes() {
         for (major, minor, count) in [(-0.5, 1.0, 2), (0.4, 1.0, 2), (0.3, 0.7, 2), (1.0, 1.0, 1)] {
             let sheet = z_chart(|center, axis, u_ref| Surface::Spindle {
-                center,
-                axis,
+                frame: geom::Frame::new(center, axis, u_ref),
                 major_radius: major,
                 minor_radius: minor,
-                u_ref,
             });
             let surface = Surface::Spindle {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 major_radius: major,
                 minor_radius: minor,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
             let poles = sheet.poles();
             assert_eq!(poles.len(), count, "R {major}: {poles:?}");
@@ -317,10 +319,8 @@ mod tests {
     #[test]
     fn radial_is_the_distance_from_the_axis() {
         let c = z_chart(|origin, axis, u_ref| Surface::Cylinder {
-            origin,
-            axis,
+            frame: geom::Frame::new(origin, axis, u_ref),
             radius: 2.0,
-            u_ref,
         });
         for z in [-10.0, 0.0, 7.5] {
             let d = c.radial(Point3::new(3.0, 4.0, z));
@@ -336,10 +336,8 @@ mod tests {
     #[test]
     fn radial_varies_along_a_cone_whose_kind_carries_no_radius() {
         let c = z_chart(|apex, axis, u_ref| Surface::Cone {
-            apex,
-            axis,
+            frame: geom::Frame::new(apex, axis, u_ref),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref,
         });
         for h in [3.0, 9.0] {
             let d = c.radial(Point3::new(0.0, h, h));
@@ -353,17 +351,13 @@ mod tests {
     #[test]
     fn a_rim_reads_the_v_of_its_points() {
         let sphere = z_chart(|center, axis, u_ref| Surface::Sphere {
-            center,
+            frame: geom::Frame::new(center, axis, u_ref),
             radius: 2.0,
-            axis,
-            u_ref,
         });
         let torus = z_chart(|center, axis, u_ref| Surface::Torus {
-            center,
-            axis,
+            frame: geom::Frame::new(center, axis, u_ref),
             major_radius: 3.0,
             minor_radius: 1.0,
-            u_ref,
         });
         for (chart, center, radius, on) in [
             (

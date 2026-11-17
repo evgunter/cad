@@ -462,11 +462,9 @@ mod tests {
             "the band-free reading states one"
         );
         let torus = Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         assert_eq!(
             moved(up, &torus),
@@ -474,10 +472,8 @@ mod tests {
             "a torus's second angle"
         );
         let cylinder = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         assert_eq!(moved(up, &cylinder), None, "a cylinder's v is a length");
     }

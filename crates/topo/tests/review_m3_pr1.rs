@@ -931,9 +931,11 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
     // The center face gets a NUMERICALLY coplanar but descriptively
     // different plane (another on-plane origin) - the round-8 teeth.
     let numeric_plane = geom::Surface::Plane {
-        origin: Point3::new(0.5, 0.5, 1.0),
-        normal: Point3::new(0.0, 0.0, 1.0) - Point3::new(0.0, 0.0, 0.0),
-        u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.5, 0.5, 1.0),
+            Point3::new(0.0, 0.0, 1.0) - Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
+        ),
     };
     cube.body
         .set_face_surface(
@@ -1074,18 +1076,19 @@ fn merge_coplanar_uref_and_signed_zero_variants_merge() {
     // in-plane direction - only the FRAME differs.
     let mut uref = diagonal_split(|s| {
         let geom::Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         } = *s
         else {
             panic!("plane");
         };
+        let (origin, normal, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         let swapped = geom_core::Vec3::new(-u_ref.y, u_ref.x, u_ref.z);
         geom::Surface::Plane {
-            origin,
-            normal,
-            u_ref: swapped,
+            frame: geom::Frame::new(origin, normal, swapped),
         }
     });
     assert_eq!(
@@ -1101,18 +1104,23 @@ fn merge_coplanar_uref_and_signed_zero_variants_merge() {
     // numerically equal everywhere, one sign bit apart.
     let mut zero = diagonal_split(|s| {
         let geom::Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         } = *s
         else {
             panic!("plane");
         };
+        let (origin, normal, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         assert_eq!(normal.x, 0.0, "test assumes a +z top normal");
         geom::Surface::Plane {
-            origin,
-            normal: geom_core::Vec3::new(-0.0, normal.y, normal.z),
-            u_ref,
+            frame: geom::Frame::new(
+                origin,
+                geom_core::Vec3::new(-0.0, normal.y, normal.z),
+                u_ref,
+            ),
         }
     });
     assert_eq!(
@@ -1193,9 +1201,11 @@ fn merge_coplanar_nan_payload_debug_collision() {
         .get_point(cube.body.get_vertex(c1).unwrap().point)
         .unwrap();
     let nan_plane = |payload: u64| geom::Surface::Plane {
-        origin: Point3::new(0.5, 0.5, 1.0),
-        normal: geom_core::Vec3::new(f64::from_bits(payload), 0.0, 1.0),
-        u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.5, 0.5, 1.0),
+            geom_core::Vec3::new(f64::from_bits(payload), 0.0, 1.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let split = cube
         .body

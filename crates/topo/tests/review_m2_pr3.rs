@@ -410,9 +410,11 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
     // Replace the top cap's plane with one shifted definitely off the
     // top vertices (1000·eps ≥ K·eps at every CI row).
     let shifted = Surface::Plane {
-        origin: Point3::new(0.5, 0.5, 1.0 + 1000.0 * eps()),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(0.5, 0.5, 1.0 + 1000.0 * eps()),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+        ),
     };
     let swap = || FaceSurface::New {
         surface: shifted.clone(),
@@ -559,14 +561,14 @@ fn survives_sliver_dihedral_isolated_at_rest() {
     let theta = 3.0 * eps();
     let (mut body, seed, split) = lamina();
     let flat = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     let tilted = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(0.0, theta.sin(), theta.cos()),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, theta.sin(), theta.cos()),
+            Vec3::unit_x(),
+        ),
     };
     let flat_key = body
         .set_face_surface(
@@ -636,9 +638,7 @@ fn survives_nurbs_seed_gate_and_clear() {
     // name at tier 3.
     let (mut body, seed, split) = lamina();
     let flat = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     let key = body
         .set_face_surface(
@@ -863,14 +863,10 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
         )
         .unwrap();
     let z0 = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     let y0 = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
     };
     body.set_face_surface(
         seed.face,

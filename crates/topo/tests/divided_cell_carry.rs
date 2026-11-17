@@ -58,8 +58,8 @@ fn face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() == 1.0 && origin.z == z
+                Some(Surface::Plane { frame, .. })
+                    if frame.axis().z.abs() == 1.0 && frame.origin().z == z
             )
         })
         .map(|(k, _)| k)
@@ -325,8 +325,8 @@ fn a_side_holding_two_fragments_lands_the_record_on_the_one_holding_the_corner()
                 .filter(|(fk, _)| {
                     matches!(
                         body.face_surface(*fk),
-                        Some(Surface::Plane { origin, normal, .. })
-                            if normal.z.abs() == 1.0 && origin.z == 1.0
+                        Some(Surface::Plane { frame, .. })
+                            if frame.axis().z.abs() == 1.0 && frame.origin().z == 1.0
                     )
                 })
                 .count();

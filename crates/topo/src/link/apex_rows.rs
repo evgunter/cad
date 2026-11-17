@@ -122,9 +122,7 @@ fn halves<T: Real>(
 /// A whole plane through `p` of outward unit `m`, its material behind it.
 fn whole<T: Decide>(p: Point3<T>, m: Vec3<T>) -> TangentPiece<T> {
     let surface = geom::Surface::Plane {
-        origin: p,
-        normal: m,
-        u_ref: m.cross(v::<T>(1.0, 0.3, 0.7)).normalize(),
+        frame: geom::Frame::new(p, m, m.cross(v::<T>(1.0, 0.3, 0.7)).normalize()),
     };
     let fan = TangentFan::Inside {
         reach: T::from_f64(2.0),
@@ -337,9 +335,7 @@ fn a_plane_the_nappe_does_not_keep_off_crosses_it_or_refuses<T: Decide>() {
         let k = edges(1)[0];
         let half = |m: Vec3<T>, along: Vec3<T>| {
             let surface = geom::Surface::Plane {
-                origin: p,
-                normal: m,
-                u_ref: along,
+                frame: geom::Frame::new(p, m, along),
             };
             let fan = TangentFan::Edge {
                 along,
@@ -377,16 +373,12 @@ fn boss_on_hole<T: Decide>(p: Point3<T>, hole: f64, circle: bool) -> Vec<Tangent
     let (seam, rim_out, rim_in, rim) = (k[0], k[1], k[2], k[3]);
     let r = 0.3;
     let wall = geom::Surface::Cylinder {
-        origin: p - w::<T>(r, 0.0, 0.0),
-        axis: w(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p - w::<T>(r, 0.0, 0.0), w(0.0, 0.0, 1.0), w(1.0, 0.0, 0.0)),
         radius: T::from_f64(r),
-        u_ref: w(1.0, 0.0, 0.0),
     };
     let bore = geom::Surface::Cylinder {
-        origin: p - w::<T>(r, 0.0, 0.5),
-        axis: w(0.0, 0.0, -1.0),
+        frame: geom::Frame::new(p - w::<T>(r, 0.0, 0.5), w(0.0, 0.0, -1.0), w(1.0, 0.0, 0.0)),
         radius: T::from_f64(r),
-        u_ref: w(1.0, 0.0, 0.0),
     };
     let arc = |edge, bend: f64, circle| Bound {
         edge,
@@ -422,9 +414,7 @@ fn boss_on_hole<T: Decide>(p: Point3<T>, hole: f64, circle: bool) -> Vec<Tangent
         FaceSector::tangent(surface, sense, m, p, fan, band()).expect("a half-plane")
     };
     let plane = |m: Vec3<T>| geom::Surface::Plane {
-        origin: p,
-        normal: m,
-        u_ref: w(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(p, m, w(1.0, 0.0, 0.0)),
     };
     let x = w::<T>(1.0, 0.0, 0.0);
     let (y, z) = (w::<T>(0.0, 1.0, 0.0), w::<T>(0.0, 0.0, 1.0));
@@ -481,9 +471,7 @@ fn two_arcs_of_one_circle_are_kept_as_one<T: Decide>() {
 /// bend apart.
 fn horn<T: Decide>(p: Point3<T>, m: Vec3<T>, d: Vec3<T>, ends: [Bound<T>; 2]) -> TangentPiece<T> {
     let surface = geom::Surface::Plane {
-        origin: p,
-        normal: m,
-        u_ref: m.cross(v::<T>(1.0, 0.3, 0.7)).normalize(),
+        frame: geom::Frame::new(p, m, m.cross(v::<T>(1.0, 0.3, 0.7)).normalize()),
     };
     let fan = TangentFan::Corner {
         d0: d,
@@ -546,10 +534,12 @@ fn a_nappe_is_read_only_beside_a_rest_and_no_horn<T: Decide>() {
         // refuses (two whole tangent planes on one plane), and so does
         // the link.
         let ball = geom::Surface::Sphere {
-            center: p - v::<T>(0.0, 2.0, 0.0),
+            frame: geom::Frame::new(
+                p - v::<T>(0.0, 2.0, 0.0),
+                v(0.0, 1.0, 0.0),
+                v(1.0, 0.0, 0.0),
+            ),
             radius: T::from_f64(2.0),
-            axis: v(0.0, 1.0, 0.0),
-            u_ref: v(1.0, 0.0, 0.0),
         };
         let fan = TangentFan::Inside {
             reach: T::from_f64(2.0),

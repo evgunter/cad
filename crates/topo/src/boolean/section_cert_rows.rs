@@ -38,38 +38,30 @@ pub(super) fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
 pub(super) fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
     let normal = normal.normalize();
     Surface::Plane {
-        origin,
-        normal,
-        u_ref: normal.orthonormal_basis().0,
+        frame: geom::Frame::new(origin, normal, normal.orthonormal_basis().0),
     }
 }
 
 pub(super) fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
     let axis = axis.normalize();
     Surface::Cylinder {
-        origin,
-        axis,
+        frame: geom::Frame::new(origin, axis, axis.orthonormal_basis().0),
         radius,
-        u_ref: axis.orthonormal_basis().0,
     }
 }
 
 pub(super) fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
 pub(super) fn torus(center: Point3<f64>, major: f64, minor: f64) -> Surface<f64> {
     Surface::Torus {
-        center,
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         major_radius: major,
         minor_radius: minor,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -372,11 +364,13 @@ fn a_general_torus_pose_is_read_from_its_march() {
         0.15,
     );
     let tilted = |center| Surface::Torus {
-        center,
-        axis: v(0.0, (0.5f64).sin(), (0.5f64).cos()),
+        frame: geom::Frame::new(
+            center,
+            v(0.0, (0.5f64).sin(), (0.5f64).cos()),
+            Vec3::unit_x(),
+        ),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::unit_x(),
     };
     for (what, partner, count) in [
         ("the tilted rod", rod.clone(), 2),
@@ -453,22 +447,18 @@ fn a_general_torus_pose_is_read_from_its_march() {
 /// The distance in metres of `q` from a cylinder or a torus.
 fn metric_distance(s: &Surface<f64>, q: Point3<f64>) -> f64 {
     match *s {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let w = q - origin;
             ((w - axis * w.dot(axis)).norm() - radius).abs()
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let w = q - center;
             let z = w.dot(axis);
             (((w - axis * z).norm() - major_radius).hypot(z) - minor_radius).abs()
@@ -522,10 +512,8 @@ fn a_marched_witness_is_placed_padded() {
 #[test]
 fn intractable_poses_refuse_on_reach() {
     let cone = Surface::Cone {
-        apex: p(0.0, 0.0, 3.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(p(0.0, 0.0, 3.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: 0.4,
-        u_ref: Vec3::unit_x(),
     };
     for (what, partner) in [
         ("a non-coaxial torus", torus(p(1.0, 0.0, 0.0), 2.0, 0.5)),
@@ -1988,10 +1976,8 @@ fn a_glued_pair_exempts_itself_only() {
 /// rim at `z = 1` has radius 1.
 pub(super) fn unit_cone() -> Surface<f64> {
     Surface::Cone {
-        apex: p(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(p(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: PI / 4.0,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -2435,11 +2421,7 @@ fn torus_iso(
             selector: geom_brep::CurveSelector::Witness(torus_at((major, minor), mid)),
         },
         carrier: Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            frame: geom::Frame::new(center, axis, u_ref),
             radius,
         }),
         param_start: 0.0,
@@ -3047,11 +3029,9 @@ impl Tor {
 
     fn surface(&self) -> Surface<f64> {
         Surface::Torus {
-            center: self.c,
-            axis: self.a,
+            frame: geom::Frame::new(self.c, self.a, self.e1),
             major_radius: self.big_r,
             minor_radius: self.r,
-            u_ref: self.e1,
         }
     }
 }

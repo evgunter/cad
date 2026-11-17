@@ -164,14 +164,17 @@ impl<T: Real> Reversal<T> {
     fn of(surface: &Surface<T>) -> Self {
         match surface {
             Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => Self::Chart(Surface::Plane {
-                origin: *origin,
-                normal: -*normal,
-                u_ref: *u_ref,
-            }),
+                frame: carrier_frame,
+            } => {
+                let (origin, normal, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Self::Chart(Surface::Plane {
+                    frame: geom::Frame::new(origin, -normal, u_ref),
+                })
+            }
             Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }
@@ -535,15 +538,19 @@ mod tests {
     #[test]
     fn a_reverted_faces_sense_is_the_doors_answer_for_its_source() {
         let plane = geom::Surface::Plane {
-            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::unit_z(),
-            u_ref: geom_core::Vec3::unit_x(),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
         };
         let cylinder = geom::Surface::Cylinder {
-            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-            axis: geom_core::Vec3::unit_z(),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
             radius: 1.0,
-            u_ref: geom_core::Vec3::unit_x(),
         };
         let cube = declined_cube::<f64>(Tol::witness()).body;
         assert!(
@@ -606,9 +613,11 @@ mod tests {
                 seed.face,
                 crate::construction::FaceSurface::New {
                     surface: geom::Surface::Plane {
-                        origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-                        normal: geom_core::Vec3::unit_z(),
-                        u_ref: geom_core::Vec3::unit_x(),
+                        frame: geom::Frame::new(
+                            geom_core::Point3::new(0.0, 0.0, 0.0),
+                            geom_core::Vec3::unit_z(),
+                            geom_core::Vec3::unit_x(),
+                        ),
                     },
                     sense: true,
                 },
@@ -745,9 +754,7 @@ mod tests {
             Vec3::unit_x(),
         );
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         };
         let mut body = crate::Body::<f64>::new();
         let seed = body.mvfs(circle.eval(0.0), true).unwrap();
@@ -819,9 +826,7 @@ mod tests {
         let (t0, t1) = (0.0, core::f64::consts::PI);
         let (start, end) = (circle.eval(t0), circle.eval(t1));
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         };
         let mut body = crate::Body::<f64>::new();
         let seed = body.mvfs(start, true).unwrap();

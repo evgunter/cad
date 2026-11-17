@@ -1314,10 +1314,8 @@ mod tests {
             "a poisoned Hessian refuses"
         );
         let cone = geom::Surface::Cone {
-            apex: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             half_angle: 0.5,
-            u_ref: x,
         };
         let apex = FaceDatum::of_face(
             OutwardNormal::from_chart(Vec3::new(0.5f64.cos(), 0.0, -0.5f64.sin()), true),
@@ -1588,38 +1586,30 @@ mod tests {
             (
                 "cylinder",
                 geom::Surface::Cylinder {
-                    origin: o,
-                    axis: a,
+                    frame: geom::Frame::new(o, a, u),
                     radius: 0.7,
-                    u_ref: u,
                 },
             ),
             (
                 "cone",
                 geom::Surface::Cone {
-                    apex: o,
-                    axis: a,
+                    frame: geom::Frame::new(o, a, u),
                     half_angle: 0.5,
-                    u_ref: u,
                 },
             ),
             (
                 "sphere",
                 geom::Surface::Sphere {
-                    center: o,
+                    frame: geom::Frame::new(o, a, u),
                     radius: 0.9,
-                    axis: a,
-                    u_ref: u,
                 },
             ),
             (
                 "torus",
                 geom::Surface::Torus {
-                    center: o,
-                    axis: a,
+                    frame: geom::Frame::new(o, a, u),
                     major_radius: 2.0,
                     minor_radius: 0.6,
-                    u_ref: u,
                 },
             ),
         ]
@@ -1722,10 +1712,8 @@ mod tests {
                         let side = if rng(&mut st) < 0.5 { 1.0 } else { -1.0 };
                         let c = p + n * (side * rad);
                         let own = geom::Surface::Sphere {
-                            center: c,
+                            frame: geom::Frame::new(c, n.cross(d).normalize(), d),
                             radius: rad,
-                            axis: n.cross(d).normalize(),
-                            u_ref: d,
                         };
                         let own_n = (p - c).normalize();
                         (
@@ -1871,10 +1859,8 @@ mod tests {
             "plane arc down"
         );
         let cyl = geom::Surface::Cylinder {
-            origin: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             radius: 1.0,
-            u_ref: x,
         };
         let p = pt(1.0, 0.0, 0.0);
         for (outward, across, wide, tight) in [(x, a, a, b), (-x, b, b, a)] {
@@ -1901,10 +1887,8 @@ mod tests {
             );
         }
         let sph = geom::Surface::Sphere {
-            center: o,
+            frame: geom::Frame::new(o, z, x),
             radius: 1.0,
-            axis: z,
-            u_ref: x,
         };
         let p = pt(0.0, 0.0, 1.0);
         assert_eq!(side(&sph, p, z, line(p, x, 0.3)), a, "ball line");
@@ -1917,10 +1901,8 @@ mod tests {
             "great circle"
         );
         let cone = geom::Surface::Cone {
-            apex: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             half_angle: q,
-            u_ref: x,
         };
         let p = pt(1.0, 0.0, 1.0);
         let n = v(1.0, 0.0, -1.0).normalize();
@@ -1944,11 +1926,9 @@ mod tests {
         );
         assert_eq!(side(&cone, p, n, arc(p, y, -x, 2.0, q)), a, "cone wide arc");
         let tor = |minor| geom::Surface::Torus {
-            center: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             major_radius: 2.0,
             minor_radius: minor,
-            u_ref: x,
         };
         let p = pt(3.0, 0.0, 0.0);
         assert_eq!(side(&tor(1.0), p, x, line(p, y, 0.3)), a, "outer parallel");
@@ -2052,10 +2032,8 @@ mod tests {
         let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let o = Point3::new(shift, 0.0, 0.0);
         let cylinder = geom::Surface::Cylinder {
-            origin: o,
-            axis: x,
+            frame: geom::Frame::new(o, x, z),
             radius: 1.0,
-            u_ref: z,
         };
         let d = Vec3::new(1.0, 1.0, 0.0).normalize();
         let p = o + z;
@@ -2110,10 +2088,8 @@ mod tests {
                 let o = Point3::new(shift, 0.0, 0.0);
                 let what = format!("ε {:e}, {shift} m", b.zero());
                 let ball = geom::Surface::Sphere {
-                    center: o - z * r,
+                    frame: geom::Frame::new(o - z * r, z, x),
                     radius: r,
-                    axis: z,
-                    u_ref: x,
                 };
                 let line = (
                     x * r,
@@ -2169,10 +2145,8 @@ mod tests {
         let (z, d) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(c, c, 0.0));
         let w = z.cross(d);
         let cylinder = geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), z),
             radius: 1.0,
-            u_ref: z,
         };
         let descent = |cos_psi: f64, arm: f64| {
             let sin_psi = -(1.0 - cos_psi * cos_psi).sqrt();
@@ -2219,13 +2193,14 @@ mod tests {
         // Positive along the face's outward normal at the vertex `p`.
         let off = |s: &geom::Surface<f64>, n: Vec3<f64>, p: Point3<f64>, q: Point3<f64>| {
             let d = match *s {
-                geom::Surface::Sphere { center, radius, .. } => (q - center).norm() - radius,
-                geom::Surface::Cylinder {
-                    origin,
-                    axis,
-                    radius,
-                    ..
-                } => geom::Line { origin, dir: axis }.distance(q) - radius,
+                geom::Surface::Sphere { frame, radius, .. } => {
+                    let center = frame.origin();
+                    (q - center).norm() - radius
+                }
+                geom::Surface::Cylinder { frame, radius, .. } => {
+                    let (origin, axis) = (frame.origin(), frame.axis());
+                    geom::Line { origin, dir: axis }.distance(q) - radius
+                }
                 _ => unreachable!("a sphere or a cylinder"),
             };
             d * n.dot(geom_brep::implicit_gradient(s, p)).signum()
@@ -2242,17 +2217,13 @@ mod tests {
                 let (cylinder, sense) = (trial % 2 == 0, (trial / 2) % 2 == 0);
                 let s = if cylinder {
                     geom::Surface::Cylinder {
-                        origin: o,
-                        axis: a,
+                        frame: geom::Frame::new(o, a, u),
                         radius: rad,
-                        u_ref: u,
                     }
                 } else {
                     geom::Surface::Sphere {
-                        center: o,
+                        frame: geom::Frame::new(o, a, u),
                         radius: rad,
-                        axis: a,
-                        u_ref: u,
                     }
                 };
                 let t = Vec3::new(rng(&mut st) - 0.5, rng(&mut st) - 0.5, rng(&mut st) - 0.5);

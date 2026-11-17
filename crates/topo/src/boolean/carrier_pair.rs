@@ -912,10 +912,12 @@ mod lever_rows {
         let (mut b, fb) = sphere_zone_sheet(u, h, tol);
         let key = b.get_face(fb).unwrap().surface;
         b.surfaces[key] = geom::Surface::Sphere {
-            center: Point3::new(0.9 * e, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.9 * e, 0.0, 0.0),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+            ),
             radius: 1.0 + 0.9 * e,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let sense = a.get_face(fa).unwrap().sense;
         b.set_face_sense(fb, !sense).unwrap();

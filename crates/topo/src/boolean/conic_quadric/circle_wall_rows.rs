@@ -32,10 +32,12 @@ fn default_band() -> bool {
 /// The wall of radius `r` about the `z` axis through `(x, y, 0)`.
 fn wall<T: Real>(x: f64, y: f64, r: f64) -> geom::Surface<T> {
     geom::Surface::Cylinder {
-        origin: Point3::new(T::from_f64(x), T::from_f64(y), T::zero()),
-        axis: Vec3::new(T::zero(), T::zero(), T::one()),
+        frame: geom::Frame::new(
+            Point3::new(T::from_f64(x), T::from_f64(y), T::zero()),
+            Vec3::new(T::zero(), T::zero(), T::one()),
+            Vec3::new(T::one(), T::zero(), T::zero()),
+        ),
         radius: T::from_f64(r),
-        u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
     }
 }
 

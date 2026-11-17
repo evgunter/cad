@@ -44,9 +44,11 @@ fn chart(s: &Surface<f64>) -> DescribedChart<'_, f64> {
 
 fn plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     }
 }
 
@@ -184,10 +186,12 @@ fn the_singular_gate_answers_all_three_ways() {
     assert!(matches!(read(&flat_chart(100.0), anywhere), Singular::Off));
     // The sphere: on a pole, within the band of one, and clear of both.
     let sphere: Surface<f64> = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 2.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     assert!(matches!(
         read(&sphere, Point3::new(0.0, 0.0, -2.0)),
@@ -204,10 +208,12 @@ fn the_singular_gate_answers_all_three_ways() {
     // A cylinder has no singular set, so it decides nothing, even on
     // its axis.
     let cylinder: Surface<f64> = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     assert!(matches!(
         read(&cylinder, Point3::new(0.0, 0.0, 0.0)),
@@ -318,10 +324,12 @@ fn a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point() {
     };
     let alpha = 0.01f64;
     let cone: Surface<f64> = Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: alpha,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     for d in [2.0, 5.0, 10.0, 100.0, 1000.0].map(|m| m * band().escalate()) {
         let vertex = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
@@ -359,10 +367,12 @@ fn a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point() {
         );
     }
     let sphere: Surface<f64> = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 2.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let near_pole = Point3::new(5e-9, 0.0, 2.0);
     assert!(
@@ -437,10 +447,12 @@ fn a_half_turn_gap_answers_by_the_band_at_every_turn_count() {
     use geom_core::Point2;
     let alpha = 0.01f64;
     let cone: Surface<f64> = Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: alpha,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let (pi, tau) = (core::f64::consts::PI, core::f64::consts::TAU);
     let (zero, esc) = (band().zero(), band().escalate());

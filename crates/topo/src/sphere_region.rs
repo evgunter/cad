@@ -233,9 +233,10 @@ impl<T: Decide> SphereFaceRegion<T> {
     ///
     /// Where `charted` is not a sphere: the caller reads the record first.
     fn on(charted: Charted<T>, sense: bool, outer: LoopKey, edges: Vec<Arc<T>>) -> Self {
-        let &geom::Surface::Sphere { center, radius, .. } = charted.surface() else {
+        let &geom::Surface::Sphere { frame, radius, .. } = charted.surface() else {
             unreachable!("a sphere region is built on a sphere record")
         };
+        let center = frame.origin();
         Self {
             charted,
             center,
@@ -525,10 +526,12 @@ mod tests {
         Charted::record(
             Default::default(),
             &geom::Surface::Sphere {
-                center,
+                frame: geom::Frame::new(
+                    center,
+                    Vec3::new(zero, zero, one),
+                    Vec3::new(one, zero, zero),
+                ),
                 radius,
-                axis: Vec3::new(zero, zero, one),
-                u_ref: Vec3::new(one, zero, zero),
             },
         )
     }
@@ -593,10 +596,8 @@ mod tests {
                 .iter()
                 .map(|&(axis, u_ref)| {
                     let sphere = geom::Surface::Sphere {
-                        center: Point3::origin(),
+                        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
                         radius: 1.0,
-                        axis,
-                        u_ref,
                     };
                     carved_on(Charted::record(Default::default(), &sphere), forward)
                 })
@@ -945,10 +946,8 @@ mod tests {
             seed.face,
             FaceSurface::New {
                 surface: geom::Surface::Sphere {
-                    center: Point3::origin(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     radius: 1.0,
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
                 },
                 sense: true,
             },

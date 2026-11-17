@@ -51,15 +51,11 @@ fn build(
     Result<topo::construction::MevCreated, EulerOpError>,
 ) {
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let mut body = Body::<f64>::new();
     let (p0, p1) = (c.eval(0.0), c.eval(1.0));

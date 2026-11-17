@@ -56,10 +56,8 @@ fn cylinder<T: Real>(p: Point3<T>, axis: Vec3<T>, r: f64) -> geom::Surface<T> {
 /// `r` behind `p` along the unit `out`, square to `axis`.
 fn cylinder_behind<T: Real>(p: Point3<T>, r: f64, out: Vec3<T>, axis: Vec3<T>) -> geom::Surface<T> {
     geom::Surface::Cylinder {
-        origin: p - out * T::from_f64(r),
-        axis,
+        frame: geom::Frame::new(p - out * T::from_f64(r), axis, out),
         radius: T::from_f64(r),
-        u_ref: out,
     }
 }
 
@@ -323,10 +321,12 @@ fn a_lens_the_bends_do_not_decide_is_not_read<T: Decide>() {
         let near_rod = |up: f64, keys| {
             let (rod, _) = rod_and_bore(p, 1.0);
             let twin = geom::Surface::Cylinder {
-                origin: p - v::<T>(1.0, 0.0, 0.0),
-                axis: v(0.0, tilt.cos(), tilt.sin()),
+                frame: geom::Frame::new(
+                    p - v::<T>(1.0, 0.0, 0.0),
+                    v(0.0, tilt.cos(), tilt.sin()),
+                    v(1.0, 0.0, 0.0),
+                ),
                 radius: T::from_f64(1.0),
-                u_ref: v(1.0, 0.0, 0.0),
             };
             let (d0, d1) = quarter::<T>([0.0, 0.0, up]);
             lens(p, (rod, twin), (d0, d1), keys)
@@ -380,10 +380,12 @@ fn a_lens_the_bends_do_not_decide_is_not_read<T: Decide>() {
         // their curve's tangent. Each refuses on that bound.
         let psi = 60f64.to_radians();
         let turned = geom::Surface::Cylinder {
-            origin: p - v::<T>(1.0 + (2.0 * psi).sin(), 0.0, 0.0),
-            axis: v(0.0, -psi.sin(), psi.cos()),
+            frame: geom::Frame::new(
+                p - v::<T>(1.0 + (2.0 * psi).sin(), 0.0, 0.0),
+                v(0.0, -psi.sin(), psi.cos()),
+                v(1.0, 0.0, 0.0),
+            ),
             radius: T::from_f64(1.0 + (2.0 * psi).sin()),
-            u_ref: v(1.0, 0.0, 0.0),
         };
         let one: Vec<_> = lens(
             p,
@@ -460,9 +462,7 @@ fn flat<T: Decide>(
     ends: [EdgeKey; 2],
 ) -> TangentPiece<T> {
     let surface = geom::Surface::Plane {
-        origin: p,
-        normal: m,
-        u_ref: m.cross(v::<T>(1.0, 0.3, 0.7)).normalize(),
+        frame: geom::Frame::new(p, m, m.cross(v::<T>(1.0, 0.3, 0.7)).normalize()),
     };
     let line = |edge| Bound {
         edge,
@@ -583,10 +583,8 @@ fn a_dihedral_along_two_edges_on_one_line_is_no_lens<T: Decide>() {
         };
         let top = flat(p, v(0.0, 0.0, 1.0), (x, -x), [k[0], k[1]]);
         let wall = geom::Surface::Cylinder {
-            origin: p - n,
-            axis: v(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(p - n, v(1.0, 0.0, 0.0), v(0.0, 0.0, 1.0)),
             radius: T::from_f64(1.0),
-            u_ref: v(0.0, 0.0, 1.0),
         };
         let fan = TangentFan::Corner {
             d0: -x,
@@ -650,9 +648,7 @@ fn thorn<T: Decide>(
     .into_iter()
     .map(|(m, ends)| {
         let surface = geom::Surface::Plane {
-            origin: p,
-            normal: m,
-            u_ref: m.cross(v(1.0, 0.3, 0.7)).normalize(),
+            frame: geom::Frame::new(p, m, m.cross(v(1.0, 0.3, 0.7)).normalize()),
         };
         let fan = TangentFan::Corner {
             d0: d,
@@ -920,9 +916,7 @@ fn corner_along<T: Decide>(
 /// The plane through `p` of outward unit `m`.
 fn plane<T: Real>(p: Point3<T>, m: Vec3<T>) -> geom::Surface<T> {
     geom::Surface::Plane {
-        origin: p,
-        normal: m,
-        u_ref: m.cross(v::<T>(1.0, 0.3, 0.7)).normalize(),
+        frame: geom::Frame::new(p, m, m.cross(v::<T>(1.0, 0.3, 0.7)).normalize()),
     }
 }
 
@@ -1262,10 +1256,12 @@ fn a_lune_the_bends_do_not_decide_is_not_read<T: Decide>() {
         // `x`: it bends `sin²30°/2` along `z`, its arc `cos²30°/2` along `y`.
         let psi = 30f64.to_radians();
         let turned = geom::Surface::Cylinder {
-            origin: p - v::<T>(2.0, 0.0, 0.0),
-            axis: v(0.0, psi.sin(), psi.cos()),
+            frame: geom::Frame::new(
+                p - v::<T>(2.0, 0.0, 0.0),
+                v(0.0, psi.sin(), psi.cos()),
+                v(1.0, 0.0, 0.0),
+            ),
             radius: T::from_f64(2.0),
-            u_ref: v(1.0, 0.0, 0.0),
         };
         let mut off = lune(p, [1.0, 2.0], 1.0, true, one);
         let arc = curve(k[2], v::<T>(-psi.cos().powi(2) / 2.0, 0.0, 0.0));
@@ -1318,10 +1314,12 @@ fn a_lune_the_bends_do_not_decide_is_not_read<T: Decide>() {
         // A cylinder along `x` under the floor, tangent to it at `p`,
         // its material above: in the cut along `y` a line below the cap.
         let under = geom::Surface::Cylinder {
-            origin: p - v::<T>(0.0, 0.0, 3.0),
-            axis: v(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                p - v::<T>(0.0, 0.0, 3.0),
+                v(1.0, 0.0, 0.0),
+                v(0.0, 0.0, 1.0),
+            ),
             radius: T::from_f64(3.0),
-            u_ref: v(0.0, 0.0, 1.0),
         };
         let fan = TangentFan::Inside {
             reach: T::from_f64(2.0),
@@ -1507,10 +1505,8 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
         Ridge::Sunk => (cylinder_behind(p, r, x, z), false, -1.0 / r),
         Ridge::Ball | Ridge::BallTip => (
             geom::Surface::Sphere {
-                center: p + x * T::from_f64(r),
+                frame: geom::Frame::new(p + x * T::from_f64(r), z, -x),
                 radius: T::from_f64(r),
-                axis: z,
-                u_ref: -x,
             },
             true,
             1.0 / r,
@@ -1519,10 +1515,12 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
             let alpha = core::f64::consts::FRAC_PI_6;
             (
                 geom::Surface::Cone {
-                    apex: p - z * T::from_f64(3.0),
-                    axis: x * T::from_f64(alpha.sin()) + z * T::from_f64(alpha.cos()),
+                    frame: geom::Frame::new(
+                        p - z * T::from_f64(3.0),
+                        x * T::from_f64(alpha.sin()) + z * T::from_f64(alpha.cos()),
+                        y,
+                    ),
                     half_angle: T::from_f64(alpha),
-                    u_ref: y,
                 },
                 true,
                 1.0 / (3.0 * alpha.tan()),
@@ -1550,10 +1548,8 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
         Ridge::BallFloor => whole_on(
             p,
             geom::Surface::Sphere {
-                center: p - x * two,
+                frame: geom::Frame::new(p - x * two, z, x),
                 radius: two,
-                axis: z,
-                u_ref: x,
             },
             x,
         ),
@@ -1787,18 +1783,18 @@ fn tacnode<T: Decide>(
     let ep = raw::<T>(0.0, 1.0, 0.0);
     let tm = raw::<T>(-a.sin(), 0.0, a.cos());
     let torus = geom::Surface::Torus {
-        center: p - raw::<T>(rr + r * a.cos(), 0.0, r * a.sin()),
-        axis: raw(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            p - raw::<T>(rr + r * a.cos(), 0.0, r * a.sin()),
+            raw(0.0, 0.0, 1.0),
+            raw(1.0, 0.0, 0.0),
+        ),
         major_radius: T::from_f64(rr),
         minor_radius: T::from_f64(r),
-        u_ref: raw(1.0, 0.0, 0.0),
     };
     let k1 = a.cos() / (rr + r * a.cos());
     let cylinder = geom::Surface::Cylinder {
-        origin: p - n * T::from_f64(1.0 / k1),
-        axis: tm,
+        frame: geom::Frame::new(p - n * T::from_f64(1.0 / k1), tm, n),
         radius: T::from_f64((1.0 / k1).abs()),
-        u_ref: n,
     };
     let pinch = curve(k[0], n * T::from_f64(k1) + tm * T::from_f64(0.385));
     let arc = curve(k[1], -n);

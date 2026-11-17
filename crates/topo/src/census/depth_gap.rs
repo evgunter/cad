@@ -510,21 +510,17 @@ mod tests {
             cover.range_about(&site)
         };
         let torus = |major_radius, minor_radius| Surface::Torus {
-            center: p(0.0, 1.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             major_radius,
             minor_radius,
-            u_ref: v(1.0, 0.0, 0.0),
         };
         assert_eq!(about(torus(2.0, 0.5)), (0.5, 0.5), "a ring torus");
         assert_eq!(about(torus(0.5, 0.5)), (0.5, 0.5), "a horn torus");
         assert_eq!(about(torus(0.75, -0.3)), (0.3, 0.3), "a negative tube");
         assert_eq!(about(torus(0.4, 0.5)), (0.0, 0.5), "a spindle torus");
         let sphere = Surface::Sphere {
-            center: p(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(p(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             radius: -0.7,
-            axis: v(0.0, 0.0, 1.0),
-            u_ref: v(1.0, 0.0, 0.0),
         };
         assert!(
             matches!(sphere.cover().unwrap().about()[..], [Around::Point(c)] if c.equals_exactly(p(0.0, 1.0, 0.0))),
@@ -548,11 +544,9 @@ mod tests {
         let frame = geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0));
         let face = |minor: f64| {
             let carrier = Surface::Torus {
-                center: frame.origin,
-                axis: frame.axis,
+                frame: geom::Frame::new(frame.origin(), frame.axis(), frame.u_ref()),
                 major_radius: 2.0,
                 minor_radius: minor,
-                u_ref: frame.u_ref,
             }
             .cover()
             .unwrap();
@@ -663,10 +657,8 @@ mod tests {
             .expect("the top face");
         let key = body.get_face(top).unwrap().surface;
         *body.surfaces.get_mut(key).expect("its surface") = Surface::Cone {
-            apex,
-            axis,
+            frame: geom::Frame::new(apex, axis, v(1.0, 0.0, 0.0)),
             half_angle: 0.3,
-            u_ref: v(1.0, 0.0, 0.0),
         };
         (body, top)
     }

@@ -50,10 +50,8 @@ fn half_cap<T: Real + SpanLocate + AtRestPolicy>(phi: f64) -> Result<Body<T>, St
         seed.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: p(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
                 radius: f(1.0),
-                axis: v(0.0, 0.0, 1.0),
-                u_ref: v(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -233,7 +231,7 @@ fn split_meridian<T: Real + SpanLocate + AtRestPolicy + Bounds>(
             let Some(topo::CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
                 return None;
             };
-            matches!(curve.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if center.z.hi().abs() < 1e-12)
+            matches!(curve.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z.hi().abs() < 1e-12)
                 .then_some(key)
         })
         .expect("the half cap's meridian arc");

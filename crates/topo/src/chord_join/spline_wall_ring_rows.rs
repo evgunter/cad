@@ -150,9 +150,7 @@ fn plane_through(
 ) -> crate::geometry::SurfaceKey {
     let along = (b - a).normalize();
     body.add_surface(geom::Surface::Plane {
-        origin: a,
-        normal: Vec3::unit_z().cross(along),
-        u_ref: along,
+        frame: geom::Frame::new(a, Vec3::unit_z().cross(along), along),
     })
 }
 

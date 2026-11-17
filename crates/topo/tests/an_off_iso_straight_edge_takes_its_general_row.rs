@@ -297,7 +297,7 @@ fn an_intersection_seam_on_an_interior_column_takes_its_exact_column() {
             !f.rings.is_empty()
                 && matches!(
                     body.face_surface(*fk),
-                    Some(Surface::Plane { normal, .. }) if normal.z > 0.5
+                    Some(Surface::Plane { frame, .. }) if frame.axis().z > 0.5
                 )
         })
         .map(|(k, _)| k)
@@ -433,7 +433,7 @@ fn holed_cap<T: AtRestPolicy + geom_core::Bounds>(z: f64) -> (Body<T>, Vec<HalfE
             !f.rings.is_empty()
                 && matches!(
                     body.face_surface(*fk),
-                    Some(Surface::Plane { normal, .. }) if normal.z.lo() > 0.5
+                    Some(Surface::Plane { frame, .. }) if frame.axis().z.lo() > 0.5
                 )
         })
         .map(|(k, _)| k)

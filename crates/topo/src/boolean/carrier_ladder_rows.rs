@@ -37,11 +37,9 @@ fn the_ladder_reads_two_tori_as_their_pose_does() {
     let surface = |(center, axis, major, minor): (Point3<f64>, Vec3<f64>, f64, f64)| {
         let axis = axis.normalize();
         geom::Surface::Torus {
-            center,
-            axis,
+            frame: geom::Frame::new(center, axis, axis.orthonormal_basis().0),
             major_radius: major,
             minor_radius: minor,
-            u_ref: axis.orthonormal_basis().0,
         }
     };
     let ring = (Point3::origin(), Vec3::unit_z(), 2.0, 0.5);

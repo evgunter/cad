@@ -53,10 +53,12 @@ fn quarter(vertex_at_pole: bool) -> Body<f64> {
         start.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },

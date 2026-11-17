@@ -162,19 +162,15 @@ pub fn cone_cap(alpha: f64, z: f64, tol: Tol) -> (Body<f64>, FaceKey) {
     use core::f64::consts::{FRAC_PI_2, PI};
     use geom_brep::CurveSelector;
     let cone = || Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     };
     let r = z * alpha.tan();
     let on = |u: f64| Point3::new(r * u.cos(), r * u.sin(), z);
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(on(0.0), true).unwrap();
     let plane = body.add_surface(Surface::Plane {
-        origin: Point3::new(0.0, 0.0, z),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
     });
     body.set_face_surface(
         seed.face,
@@ -241,9 +237,7 @@ pub fn sphere_cap(z: f64, tol: Tol) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(on(0.0), true).unwrap();
     let plane = body.add_surface(Surface::Plane {
-        origin: Point3::new(0.0, 0.0, z),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
     });
     body.set_face_surface(
         seed.face,
@@ -254,10 +248,8 @@ pub fn sphere_cap(z: f64, tol: Tol) -> (Body<f64>, FaceKey) {
     )
     .unwrap();
     let carrier = body.add_surface(Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     });
     let half = |u0: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
@@ -1500,10 +1492,12 @@ impl CylFrame {
     /// This frame's cylinder.
     pub fn surface<T: Real>(&self) -> Surface<T> {
         Surface::Cylinder {
-            origin: self.origin.map(T::from_f64),
-            axis: self.axis.map(T::from_f64),
+            frame: geom::Frame::new(
+                self.origin.map(T::from_f64),
+                self.axis.map(T::from_f64),
+                self.u_ref.map(T::from_f64),
+            ),
             radius: T::from_f64(self.radius),
-            u_ref: self.u_ref.map(T::from_f64),
         }
     }
 }
@@ -1599,9 +1593,11 @@ pub fn cyl_wall_sheet_tilted<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let rim = |body: &mut Body<T>, v: f64, ccw: bool| {
         let centre = frame.centre(v).map(T::from_f64);
         let plane = body.add_surface(Surface::Plane {
-            origin: centre,
-            normal: frame.axis.map(T::from_f64),
-            u_ref: frame.u_ref.map(T::from_f64),
+            frame: geom::Frame::new(
+                centre,
+                frame.axis.map(T::from_f64),
+                frame.u_ref.map(T::from_f64),
+            ),
         });
         // Ascending: the frame's own axis and seam, over [u0, u1].
         // Descending: the REVERSED axis with the seam moved to u1, so
@@ -1639,9 +1635,11 @@ pub fn cyl_wall_sheet_tilted<T: geom_core::Decide + crate::props::AtRestPolicy>(
         let u_ref = -(m + frame.axis * tilt) / reach;
         let origin = frame.centre(v0) - frame.axis * (tilt * frame.radius * c);
         let plane = body.add_surface(Surface::Plane {
-            origin: origin.map(T::from_computed),
-            normal: normal.map(T::from_computed),
-            u_ref: u_ref.map(T::from_computed),
+            frame: geom::Frame::new(
+                origin.map(T::from_computed),
+                normal.map(T::from_computed),
+                u_ref.map(T::from_computed),
+            ),
         });
         let ellipse = Curve3::Ellipse(geom::Ellipse::new(
             geom::Frame::new(origin, normal, u_ref),
@@ -2073,10 +2071,12 @@ pub(crate) fn oblique_rim_wall_from<T: geom_core::Decide + crate::props::AtRestP
         seed.face,
         FaceSurface::New {
             surface: Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::new(zero, zero, one),
+                frame: geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(zero, zero, one),
+                    Vec3::new(one, zero, zero),
+                ),
                 radius: one,
-                u_ref: Vec3::new(one, zero, zero),
             },
             sense: true,
         },
@@ -2084,9 +2084,11 @@ pub(crate) fn oblique_rim_wall_from<T: geom_core::Decide + crate::props::AtRestP
     .unwrap();
     let cyl = body.get_face(seed.face).unwrap().surface;
     let plane = body.add_surface(Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(f(-s), zero, f(c)),
-        u_ref: Vec3::new(f(c), zero, f(s)),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(f(-s), zero, f(c)),
+            Vec3::new(f(c), zero, f(s)),
+        ),
     });
     let tau = T::tau();
     body.mef(
@@ -2121,12 +2123,7 @@ pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> (Body<T>, FaceKey) {
     let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+        frame: carrier_frame,
         radius,
     }) = carrier
     else {
@@ -2136,15 +2133,11 @@ pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1) + off);
     let seed = body.mvfs(p0, true).unwrap();
     let plane = body.add_surface(Surface::Plane {
-        origin: center,
-        normal: axis,
-        u_ref,
+        frame: carrier_frame,
     });
     let wall = body.add_surface(Surface::Cylinder {
-        origin: center,
-        axis,
+        frame: carrier_frame,
         radius,
-        u_ref,
     });
     let arc = body
         .mev(
@@ -2257,7 +2250,7 @@ pub fn box_with_a_lone_ring(tol: Tol) -> (Body<f64>, FaceKey, crate::VertexKey) 
     let top = body
         .face_views()
         .find(|f| {
-            matches!(*f.surface(), Surface::Plane { normal, .. } if normal.z.abs() > 0.5)
+            matches!(*f.surface(), Surface::Plane { frame } if frame.axis().z.abs() > 0.5)
                 && f.boundary().map(|m| m.vertex()).all(|v| {
                     body.get_vertex(v)
                         .and_then(|v| body.get_point(v.point))
@@ -2336,9 +2329,7 @@ pub fn bezier_arc_sheet(mx: f64, h: f64, tol: Tol) -> (Body<f64>, EdgeKey) {
             seed.face,
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: p0,
-                    normal: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    frame: geom::Frame::new(p0, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
                 },
                 sense: true,
             },
@@ -2399,9 +2390,11 @@ pub fn spiric_cap(
     tol: Tol,
 ) -> (Body<f64>, EdgeKey) {
     let spiric = Curve3::Spiric {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         major_radius: big_r,
         minor_radius: r,
         offset,
@@ -2414,20 +2407,24 @@ pub fn spiric_cap(
             seed.face,
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: Point3::new(offset, 0.0, 0.0),
-                    normal: Vec3::new(1.0, 0.0, 0.0),
-                    u_ref: Vec3::new(0.0, 1.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(offset, 0.0, 0.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                        Vec3::new(0.0, 1.0, 0.0),
+                    ),
                 },
                 sense: true,
             },
         )
         .unwrap();
     let torus = body.add_surface(Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         major_radius: big_r,
         minor_radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     });
     let e = body
         .mev(
@@ -2516,10 +2513,10 @@ mod tests {
             .edges()
             .filter_map(
                 |(_, e)| match body.get_curve_geom(e.curve)?.certified()?.carrier() {
-                    Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { axis, .. },
-                        ..
-                    }) => Some(axis.to_array()),
+                    Curve3::Circle(geom::Circle { frame, .. }) => {
+                        let axis = frame.axis();
+                        Some(axis.to_array())
+                    }
                     _ => None,
                 },
             )

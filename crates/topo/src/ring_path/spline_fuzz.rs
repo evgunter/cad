@@ -75,10 +75,8 @@ fn a_path_across_a_carried_loop_reads_the_membership_parity() {
     let mut rng = fuzz::start("ring_path::spline_fuzz::carried_loop");
     let r = 0.5;
     let cylinder = geom::Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     };
     // One loop (centre on the wall), one wider than the wall, two loops.
     let poses = [(0.5, 0.3), (0.2, 0.699), (0.1, 0.7)];
@@ -86,10 +84,8 @@ fn a_path_across_a_carried_loop_reads_the_membership_parity() {
     for (d, big) in poses {
         let centre = Point3::new(d, 0.0, 0.0);
         let sphere = geom::Surface::Sphere {
-            center: centre,
+            frame: geom::Frame::new(centre, Vec3::unit_z(), Vec3::unit_x()),
             radius: big,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let geom_brep::SectionRead::Built(section) =
             geom_brep::pair_section(&cylinder, &sphere, None, None, band()).unwrap()
@@ -170,11 +166,9 @@ fn a_path_across_a_carried_torus_oval_reads_the_membership_parity() {
     let mut rng = fuzz::start("ring_path::spline_fuzz::torus_oval");
     let (big_r, r) = (0.6, 0.2);
     let torus = geom::Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: big_r,
         minor_radius: r,
-        u_ref: Vec3::unit_x(),
     };
     let on_torus = |q: Point3<f64>| {
         let core = Point3::new(q.x, q.y, 0.0);
@@ -190,10 +184,8 @@ fn a_path_across_a_carried_torus_oval_reads_the_membership_parity() {
     let (mut asked, mut decided) = (0usize, 0usize);
     for (centre, big) in poses {
         let sphere = geom::Surface::Sphere {
-            center: centre,
+            frame: geom::Frame::new(centre, Vec3::unit_z(), Vec3::unit_x()),
             radius: big,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let geom_brep::SectionRead::Built(section) =
             geom_brep::pair_section(&torus, &sphere, None, None, band()).unwrap()
@@ -282,16 +274,12 @@ impl Partner {
     fn surface(self) -> geom::Surface<f64> {
         match self {
             Self::Ball { centre, radius } => geom::Surface::Sphere {
-                center: centre,
+                frame: geom::Frame::new(centre, Vec3::unit_z(), Vec3::unit_x()),
                 radius,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             Self::Rod { x, y, radius } => geom::Surface::Cylinder {
-                origin: Point3::new(x, y, -2.0),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::new(x, y, -2.0), Vec3::unit_z(), Vec3::unit_x()),
                 radius,
-                u_ref: Vec3::unit_x(),
             },
         }
     }
@@ -340,11 +328,9 @@ fn random_torus_sections() {
     let mut rng = fuzz::start("ring_path::spline_fuzz::random_torus_sections");
     let (big_r, r) = (0.6, 0.2);
     let torus = geom::Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: big_r,
         minor_radius: r,
-        u_ref: Vec3::unit_x(),
     };
     let core = |q: Point3<f64>| {
         let h = q.x.hypot(q.y);
@@ -567,10 +553,8 @@ fn a_path_across_a_spline_bounded_cylinder_island_reads_the_membership_parity() 
     let mut rng = fuzz::start("ring_path::spline_fuzz::cylinder_island");
     let r = 0.5;
     let cylinder = geom::Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     };
     let quadric = Quadric::of(&cylinder).unwrap();
     let (mut asked, mut decided) = (0usize, 0usize);
@@ -712,11 +696,9 @@ fn a_spline_arc_is_made_only_on_its_evidence() {
 #[test]
 fn a_ball_path_reads_a_crossing_near_its_end() {
     let torus = geom::Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 0.6,
         minor_radius: 0.2,
-        u_ref: Vec3::unit_x(),
     };
     let torus_margin = |q: Point3<f64>| (q.x.hypot(q.y) - 0.6).hypot(q.z) - 0.2;
     let partner = Partner::Ball {

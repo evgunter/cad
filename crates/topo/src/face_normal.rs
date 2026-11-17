@@ -137,7 +137,10 @@ pub(crate) fn surface_outward_normal<T: Real>(
 pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
     let f = body.face(face)?;
     match f.surface() {
-        geom::Surface::Plane { normal, .. } => Some(plane_outward_normal(f.record(), *normal)),
+        geom::Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            Some(plane_outward_normal(f.record(), normal))
+        }
         _ => None,
     }
 }
@@ -159,8 +162,9 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 pub fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
     let f = body.face(face)?;
     match f.surface() {
-        geom::Surface::Plane { origin, normal, .. } => {
-            Some(plane_desc_of(f.record(), *origin, *normal))
+        geom::Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Some(plane_desc_of(f.record(), origin, normal))
         }
         _ => None,
     }
@@ -206,51 +210,57 @@ pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Car
     // signs (S10's exact-bit discipline).
     let outward = f.sense();
     match f.surface() {
-        geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane(plane_desc_of(
-            f.record(),
-            *origin,
-            *normal,
-        ))),
-        geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
-            center: *center,
-            radius: *radius,
-            outward,
-        }),
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Some(CarrierDesc::Cylinder {
-            origin: *origin,
-            axis: *axis,
-            radius: *radius,
-            outward,
-        }),
+        geom::Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Some(CarrierDesc::Plane(plane_desc_of(
+                f.record(),
+                origin,
+                normal,
+            )))
+        }
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            Some(CarrierDesc::Sphere {
+                center: center,
+                radius: *radius,
+                outward,
+            })
+        }
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            Some(CarrierDesc::Cylinder {
+                origin: origin,
+                axis: axis,
+                radius: *radius,
+                outward,
+            })
+        }
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => Some(CarrierDesc::Torus {
-            center: *center,
-            axis: *axis,
-            major_radius: *major_radius,
-            minor_radius: *minor_radius,
-            outward,
-        }),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            Some(CarrierDesc::Torus {
+                center: center,
+                axis: axis,
+                major_radius: *major_radius,
+                minor_radius: *minor_radius,
+                outward,
+            })
+        }
         geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => Some(CarrierDesc::Cone {
-            apex: *apex,
-            axis: *axis,
-            half_angle: *half_angle,
-            outward,
-        }),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            Some(CarrierDesc::Cone {
+                apex: apex,
+                axis: axis,
+                half_angle: *half_angle,
+                outward,
+            })
+        }
         geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
@@ -560,7 +570,10 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     };
     let surface = f.surface();
     match surface {
-        geom::Surface::Plane { normal, .. } => Ok(Some(plane_outward_normal(f.record(), *normal))),
+        geom::Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            Ok(Some(plane_outward_normal(f.record(), normal)))
+        }
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }
         | geom::Surface::Torus { .. } => {
@@ -601,16 +614,14 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             }
         }
         geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let nappe = face_nappe_or_double(body, face, band);
             let elevation = geom_brep::cone_elevation(
                 geom::Line {
-                    origin: *apex,
-                    dir: *axis,
+                    origin: apex,
+                    dir: axis,
                 },
                 *half_angle,
                 nappe,
@@ -622,8 +633,8 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             }
             cone_axis_clearance(
                 geom::Line {
-                    origin: *apex,
-                    dir: *axis,
+                    origin: apex,
+                    dir: axis,
                 },
                 p,
                 band,
@@ -687,14 +698,20 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     };
     let surface = f.surface();
     match *surface {
-        geom::Surface::Plane { normal, .. } => {
+        geom::Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
             return Ok(Some(plane_outward_normal(f.record(), normal)));
         }
-        geom::Surface::Cylinder { origin, axis, .. } => {
+        geom::Surface::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             clear(Margin::norm3(geom::Line { origin, dir: axis }.offset(p)))?;
         }
-        geom::Surface::Sphere { center, .. } => clear(Margin::norm3(p - center))?,
-        geom::Surface::Cone { apex, axis, .. } => {
+        geom::Surface::Sphere { frame, .. } => {
+            let center = frame.origin();
+            clear(Margin::norm3(p - center))?
+        }
+        geom::Surface::Cone { frame, .. } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             cone_axis_clearance(
                 geom::Line {
                     origin: apex,
@@ -707,11 +724,11 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             clear(Margin::of((p - apex).dot(axis)))?;
         }
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let radial = geom::Line {
                 origin: center,
                 dir: axis,
@@ -1068,9 +1085,7 @@ mod tests {
     fn on_a_plane_the_two_doors_agree_bit_for_bit() {
         let normal = Vec3::new(0.0, 0.0, 1.0);
         let (mut body, face) = face_on(geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 3.0),
-            normal,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 3.0), normal, Vec3::new(1.0, 0.0, 0.0)),
         });
         for sense in [true, false] {
             body.set_face_sense(face, sense).unwrap();
@@ -1105,10 +1120,12 @@ mod tests {
     #[test]
     fn on_a_wall_the_normal_is_radial_at_the_point() {
         let (mut body, face) = face_on(geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 2.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         });
         for (p, radial) in [
             (Point3::new(2.0, 0.0, 5.0), Vec3::new(1.0, 0.0, 0.0)),
@@ -1150,10 +1167,12 @@ mod tests {
             "an `Approx` face has no arm here"
         );
         let (body, face) = face_on(geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 2.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         });
         assert!(matches!(
             face_outward_normal_at(&body, face, Point3::new(5.0, 0.0, 0.0), band()),
@@ -1176,10 +1195,12 @@ mod tests {
     fn frustum_wall(axis_sign: f64) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
         let (mut body, face) = crate::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
         let cone = geom::Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, axis_sign),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, axis_sign),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: ALPHA,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         body.lifting_rechart_refusals_for_tests(|body| {
             body.set_face_surfaces_describing(
@@ -1327,10 +1348,8 @@ mod tests {
             .map(|(_, p)| p)
             .unwrap();
         let (body, face) = face_on(geom::Surface::Cone {
-            apex: corner,
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(corner, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
             half_angle: ALPHA,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         });
         for z in [0.7, -0.7] {
             let (p, chart) = on_wall(0.4, z);
@@ -1592,11 +1611,13 @@ mod tests {
     fn the_torus_arm_is_the_tube_normal_and_refuses_on_the_axis() {
         let (big_r, r, v) = (0.8, 0.5, 2.3_f64);
         let (mut body, face) = face_on(geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: big_r,
             minor_radius: r,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         });
         let (sv, cv) = v.sin_cos();
         let p = Point3::new(big_r + r * cv, r * sv, 0.0);
@@ -1629,11 +1650,13 @@ mod tests {
     #[test]
     fn a_fat_ring_meters_at_the_tube_and_a_horn_torus_is_refused() {
         let torus = |big_r: f64, r: f64| geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: big_r,
             minor_radius: r,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let (body, face) = face_on(torus(0.8, 0.5));
         // Off the tube by one and a half escalation widths: definite at
@@ -1666,11 +1689,13 @@ mod tests {
     #[test]
     fn a_nonpositive_tube_is_refused_though_its_ring_margin_is_definite() {
         let (body, face) = face_on(geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 0.75,
             minor_radius: -0.3,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         });
         let got = face_outward_normal_at(&body, face, Point3::new(1.05, 0.0, 0.0), band());
         assert!(
@@ -1906,9 +1931,7 @@ mod tests {
             super::spline_outward_normal_at(body, face, (0.5, 0.5), p, band())
         };
         let (plane, face) = face_on(geom::Surface::Plane {
-            origin: p,
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(p, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
         });
         assert!(matches!(
             read(&plane, face),

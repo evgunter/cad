@@ -5140,9 +5140,11 @@ mod tests {
             )
             .unwrap();
         let plane = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::unit_z(),
-            u_ref: geom_core::Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
         };
         let split = body
             .mef(
@@ -5207,14 +5209,18 @@ mod tests {
         let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
         let s_seed = body.get_face(seed_face).unwrap().surface;
         *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::unit_z(),
-            u_ref: geom_core::Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
         };
         *body.surfaces.get_mut(s_plus).unwrap() = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::unit_y(),
-            u_ref: geom_core::Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::unit_y(),
+                geom_core::Vec3::unit_x(),
+            ),
         };
         let mut spec = geom_brep::EdgeCurveSpec::line_between(
             Point3::new(0.0, 0.0, 0.0),
@@ -5657,9 +5663,11 @@ mod tests {
         assert!(!patch.is_placeholder());
         *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Nurbs(std::sync::Arc::new(patch));
         *body.surfaces.get_mut(s_plus).unwrap() = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::unit_y(),
-            u_ref: geom_core::Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::unit_y(),
+                geom_core::Vec3::unit_x(),
+            ),
         };
         // The lane's certificate is a hull statement about a control
         // net, so the declared carrier is the chord as a degree-1 spline.

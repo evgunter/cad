@@ -199,7 +199,10 @@ fn place<T: Decide>(
     crate::held::Held::constructed(station, "a station of the face's own stored chart")
         .check(surface, band);
     match *surface {
-        Surface::Plane { normal, .. } => contfp(body, face, normal, station, band).ok(),
+        Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            contfp(body, face, normal, station, band).ok()
+        }
         _ => match curved_face_placement(body, face, station, band).ok()? {
             CurvedPlacement::Trim(at) => at,
             // A spline chart's station is read by the spline region's own
@@ -294,8 +297,12 @@ fn clear_of_singular(
     clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
     match *surface {
-        Surface::Cone { apex, .. } => clear_as(CELL_REGION_SINGULAR, (station - apex).norm()),
-        Surface::Torus { center, axis, .. } | Surface::Spindle { center, axis, .. } => {
+        Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
+            clear_as(CELL_REGION_SINGULAR, (station - apex).norm())
+        }
+        Surface::Torus { frame, .. } | Surface::Spindle { frame, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let axis_line = geom::Line {
                 origin: center,
                 dir: axis,

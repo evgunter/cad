@@ -39,9 +39,7 @@ fn dir(a: f64) -> Vec3<f64> {
 
 fn plane(n: Vec3<f64>, p: Point3<f64>) -> geom::Surface<f64> {
     geom::Surface::Plane {
-        origin: p,
-        normal: n,
-        u_ref: n.cross(Z).normalize(),
+        frame: geom::Frame::new(p, n, n.cross(Z).normalize()),
     }
 }
 
@@ -78,18 +76,18 @@ impl Carrier {
     fn surface(self, p: Point3<f64>, bend: Vec3<f64>, rho: f64) -> geom::Surface<f64> {
         match self {
             Self::Cylinder => geom::Surface::Cylinder {
-                origin: p + bend * rho,
-                axis: Z,
+                frame: geom::Frame::new(p + bend * rho, Z, -bend),
                 radius: rho,
-                u_ref: -bend,
             },
             Self::Cone(alpha) => {
                 let axis = Z * alpha.cos() + bend * alpha.sin();
                 geom::Surface::Cone {
-                    apex: p - Z * (rho / alpha.sin()),
-                    axis,
+                    frame: geom::Frame::new(
+                        p - Z * (rho / alpha.sin()),
+                        axis,
+                        axis.cross(bend.cross(axis)).normalize() * -1.0,
+                    ),
                     half_angle: alpha,
-                    u_ref: axis.cross(bend.cross(axis)).normalize() * -1.0,
                 }
             }
         }
@@ -408,8 +406,14 @@ fn the_chord_is_the_half_plane_through_the_arcs_point() {
             };
             let chord = FaceSector::chord(&ruled, p, floor, band()).expect("a chord");
             let (origin, axis, apex) = match surface {
-                geom::Surface::Cylinder { origin, axis, .. } => (origin, axis, None),
-                geom::Surface::Cone { apex, axis, .. } => (apex, axis, Some(apex)),
+                geom::Surface::Cylinder { frame, .. } => {
+                    let (origin, axis) = (frame.origin(), frame.axis());
+                    (origin, axis, None)
+                }
+                geom::Surface::Cone { frame, .. } => {
+                    let (apex, axis) = (frame.origin(), frame.axis());
+                    (apex, axis, Some(apex))
+                }
                 _ => unreachable!("a ruled carrier"),
             };
             let centre = origin + axis * axis.dot(p - origin);
@@ -686,10 +690,8 @@ fn a_tight_cylinder_face_on_a_plate_reads_by_its_sector() {
     let y = v(0.0, 1.0, 0.0);
     for p in AT {
         let cylinder = geom::Surface::Cylinder {
-            origin: p + Z * r,
-            axis: x,
+            frame: geom::Frame::new(p + Z * r, x, -Z),
             radius: r,
-            u_ref: -Z,
         };
         let m = geom_brep::implicit_outward_normal(&cylinder, true, p).vec();
         assert!(
@@ -734,9 +736,7 @@ fn a_tight_cylinder_face_on_a_plate_reads_by_its_sector() {
                 },
                 face: LinkFace {
                     surface: geom::Surface::Plane {
-                        origin: p,
-                        normal: n,
-                        u_ref: x,
+                        frame: geom::Frame::new(p, n, x),
                     },
                     sense: true,
                     clear: None,

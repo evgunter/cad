@@ -188,17 +188,15 @@ fn slop_of(carrier: &Surface<f64>) -> Slop {
 fn along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>, slop: Slop) -> ([f64; 3], [f64; 3]) {
     let (w0, n, k, r2) = match *partner {
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => (b - apex, axis.normalize(), half_angle.cos().powi(2), 0.0),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => (b - origin, axis.normalize(), 1.0, radius * radius),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            (b - apex, axis.normalize(), half_angle.cos().powi(2), 0.0)
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            (b - origin, axis.normalize(), 1.0, radius * radius)
+        }
         _ => unreachable!("the search's partners are cylinders and cones"),
     };
     let (hw, hv) = (w0.dot(n), v.dot(n));
@@ -487,10 +485,8 @@ fn cylinder(o: Point3<f64>, d: Vec3<f64>, r: f64, scale: f64) -> Partner {
     let (e1, e2) = d.orthonormal_basis();
     Partner {
         surface: Surface::Cylinder {
-            origin: o,
-            axis: d,
+            frame: geom::Frame::new(o, d, e1),
             radius: r,
-            u_ref: e1,
         },
         line: Box::new(move |u| geom::Line {
             origin: o + (e1 * u.cos() + e2 * u.sin()) * r,
@@ -754,13 +750,14 @@ fn traceable(k: &Frame, partner: &Surface<f64>) -> bool {
         return false;
     }
     match *partner {
-        Surface::Cylinder { axis, .. } => (axis.dot(k.a).abs().acos() - k.alpha).abs() > 0.05,
+        Surface::Cylinder { frame, .. } => {
+            let axis = frame.axis();
+            (axis.dot(k.a).abs().acos() - k.alpha).abs() > 0.05
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             if !clear(&k.surface(), apex) {
                 return false;
             }
@@ -833,23 +830,17 @@ fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
         (rho * alpha.cos() - h.abs() * alpha.sin()).abs()
     };
     match *partner {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let d = axis.normalize();
             let apex = (geom::Line { origin, dir: d }.distance(k.apex) - radius).abs();
             let aperture = (d.dot(k.a).abs().acos() - k.alpha).abs() * lever;
             apex.min(aperture)
         }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let a2 = axis.normalize();
             let apexes =
                 off_cone(k.apex, k.a, k.alpha, apex).min(off_cone(apex, a2, half_angle, k.apex));
@@ -927,18 +918,18 @@ fn precision_floor(row: &str) -> bool {
 /// A partner's ruling chart, read off its carrier.
 fn partner_of(surface: &Surface<f64>, scale: f64) -> Partner {
     match *surface {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => cylinder(origin, axis.normalize(), radius, scale),
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            cylinder(origin, axis.normalize(), radius, scale)
+        }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
             ..
-        } => cone(frame(apex, axis.normalize(), half_angle, scale)),
+        } => {
+            let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            cone(frame(apex, axis.normalize(), half_angle, scale))
+        }
         _ => unreachable!("the search's partners are cylinders and cones"),
     }
 }
@@ -954,14 +945,14 @@ pub(super) fn traced_mismatches(
     single: bool,
 ) -> Vec<String> {
     let &Surface::Cone {
-        apex,
-        axis,
+        frame: carrier_frame,
         half_angle,
         ..
     } = cone
     else {
         unreachable!("the first carrier is a cone")
     };
+    let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let k = frame(apex, axis.normalize(), half_angle, scale);
     against_the_trace(&k, &partner_of(partner, scale), parts, single).unwrap_or_else(|| {
         vec!["no grid within the budget resolves the section on both charts".to_owned()]
@@ -1213,25 +1204,23 @@ fn json_vec(v: Vec3<f64>) -> String {
 fn json_surface(s: &Surface<f64>) -> String {
     match *s {
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => format!(
-            r#"{{"kind": "cone", "apex": {}, "axis": {}, "half_angle": {half_angle:e}}}"#,
-            json_point(apex),
-            json_vec(axis)
-        ),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => format!(
-            r#"{{"kind": "cylinder", "origin": {}, "axis": {}, "radius": {radius:e}}}"#,
-            json_point(origin),
-            json_vec(axis)
-        ),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            format!(
+                r#"{{"kind": "cone", "apex": {}, "axis": {}, "half_angle": {half_angle:e}}}"#,
+                json_point(apex),
+                json_vec(axis)
+            )
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            format!(
+                r#"{{"kind": "cylinder", "origin": {}, "axis": {}, "radius": {radius:e}}}"#,
+                json_point(origin),
+                json_vec(axis)
+            )
+        }
         _ => unreachable!("the search's partners are cylinders and cones"),
     }
 }

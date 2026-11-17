@@ -431,9 +431,16 @@ pub(super) fn singular_at<T: Decide>(
         geom::Line { origin, dir: axis }.distance(p)
     };
     let arm = match *s {
-        geom::Surface::Cone { apex, .. } => (p - apex).norm(),
-        geom::Surface::Sphere { center, axis, .. } => off_axis(center, axis),
-        geom::Surface::Torus { center, axis, .. } | geom::Surface::Spindle { center, axis, .. } => {
+        geom::Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
+            (p - apex).norm()
+        }
+        geom::Surface::Sphere { frame, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            off_axis(center, axis)
+        }
+        geom::Surface::Torus { frame, .. } | geom::Surface::Spindle { frame, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             off_axis(center, axis)
         }
         _ => return Ok(false),
@@ -1450,19 +1457,23 @@ mod crease {
                 seed.face,
                 FaceSurface::New {
                     surface: geom::Surface::Sphere {
-                        center: p3(0.0, 0.0),
+                        frame: geom::Frame::new(
+                            p3(0.0, 0.0),
+                            Vec3::new(c(0.0), c(0.0), c(1.0)),
+                            Vec3::new(c(1.0), c(0.0), c(0.0)),
+                        ),
                         radius: c(1.0),
-                        axis: Vec3::new(c(0.0), c(0.0), c(1.0)),
-                        u_ref: Vec3::new(c(1.0), c(0.0), c(0.0)),
                     },
                     sense: true,
                 },
             )
             .unwrap();
         let plane = body.add_surface(geom::Surface::Plane {
-            origin: p3(0.0, 0.0),
-            normal: Vec3::new(c(0.0), c(0.0), c(-1.0)),
-            u_ref: Vec3::new(c(1.0), c(0.0), c(0.0)),
+            frame: geom::Frame::new(
+                p3(0.0, 0.0),
+                Vec3::new(c(0.0), c(0.0), c(-1.0)),
+                Vec3::new(c(1.0), c(0.0), c(0.0)),
+            ),
         });
         let on_both = |carrier, (t0, t1): (f64, f64), at: (f64, f64)| geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
@@ -1603,9 +1614,7 @@ mod carry {
             ))
         };
         let spiric = |offset: f64| Curve3::Spiric {
-            center: o,
-            axis: z,
-            u_ref: x,
+            frame: geom::Frame::new(o, z, x),
             major_radius: 2.0,
             minor_radius: 0.5,
             offset,
@@ -2454,10 +2463,8 @@ mod class_zero_rows {
             seed.face,
             FaceSurface::New {
                 surface: geom::Surface::Sphere {
-                    center: Point3::origin(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     radius: c(1.0),
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
                 },
                 sense: true,
             },

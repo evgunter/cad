@@ -17,10 +17,12 @@ fn band() -> Band {
 
 fn sphere<T: Real>(c: [f64; 3], r: f64) -> geom::Surface<T> {
     geom::Surface::Sphere {
-        center: Point3::new(T::from_f64(c[0]), T::from_f64(c[1]), T::from_f64(c[2])),
+        frame: geom::Frame::new(
+            Point3::new(T::from_f64(c[0]), T::from_f64(c[1]), T::from_f64(c[2])),
+            Vec3::new(T::zero(), T::one(), T::zero()),
+            Vec3::new(T::one(), T::zero(), T::zero()),
+        ),
         radius: T::from_f64(r),
-        axis: Vec3::new(T::zero(), T::one(), T::zero()),
-        u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
     }
 }
 

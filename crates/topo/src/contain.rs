@@ -564,7 +564,7 @@ pub(crate) fn loop_circle<T: Decide>(
     let Some(geom::Curve3::Circle(c)) = carriers[at] else {
         unreachable!("loop_circle: the reference is a circle")
     };
-    let (c0, a0, r0) = (c.frame.origin, c.frame.axis, c.radius);
+    let (c0, a0, r0) = (c.frame.origin(), c.frame.axis(), c.radius);
     // Any edge decided off the reference circle answers "not one circle",
     // whatever another edge read ([`climb`], [`Answering::Any`]: an
     // identity). An edge read in band is kept, and refuses only where
@@ -574,9 +574,9 @@ pub(crate) fn loop_circle<T: Decide>(
         carriers.iter().enumerate().filter(|&(k, _)| k != at),
         |(_, carrier)| match carrier {
             Some(geom::Curve3::Circle(arc)) => {
-                let d = (arc.frame.origin - c0).norm()
+                let d = (arc.frame.origin() - c0).norm()
                     + (arc.radius - r0).abs()
-                    + arc.frame.axis.cross(a0).norm() * r0;
+                    + arc.frame.axis().cross(a0).norm() * r0;
                 match decide("bool_face_disc_carrier", Margin::of(d), band) {
                     Ok(Sign::Zero) => Rung::Passes,
                     Ok(Sign::Positive | Sign::Negative) => Rung::Answers(()),
@@ -822,7 +822,8 @@ pub(crate) fn face_placement<T: Decide>(
     band: Band,
     on_plane: &'static str,
 ) -> Result<CurvedPlacement, PlacementError> {
-    if let geom::Surface::Plane { origin, normal, .. } = *body.proven_face(face).surface() {
+    if let geom::Surface::Plane { frame, .. } = *body.proven_face(face).surface() {
+        let (origin, normal) = (frame.origin(), frame.axis());
         match decide(
             on_plane,
             Margin::of(geom::plane_offset(origin, normal, q)),
@@ -878,8 +879,11 @@ pub(crate) fn placement_unheld<T: Decide>(
 ) -> Result<ChartedPlacement, ContainError> {
     let view = body.face(face).ok_or(ContainError::StaleFace(face))?;
     match *view.surface() {
-        geom::Surface::Plane { normal, .. } => contfp_decided(body, face, normal, q, band)
-            .map(|(at, margin)| (CurvedPlacement::Trim(Some(at)), margin, None)),
+        geom::Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            contfp_decided(body, face, normal, q, band)
+                .map(|(at, margin)| (CurvedPlacement::Trim(Some(at)), margin, None))
+        }
         _ => curved_face_placement_decided(body, face, q, band),
     }
 }
@@ -949,12 +953,8 @@ fn curved_interior_placement<T: Decide>(
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
     let view = body.proven_face(face);
     let analytic = match *view.surface() {
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let radial = geom::Line { origin, dir: axis }.offset(q);
             ruled_face_containment(body, face, radial.norm() - radius, q, band, cut)
         }
@@ -963,11 +963,9 @@ fn curved_interior_placement<T: Decide>(
         // a point on the mirror nappe is ON the carrier, and the face's
         // region puts it outside the face.
         geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let elevation = geom_brep::cone_elevation(
                 geom::Line {
                     origin: apex,
@@ -979,30 +977,33 @@ fn curved_interior_placement<T: Decide>(
             );
             ruled_face_containment(body, face, elevation, q, band, cut)
         }
-        geom::Surface::Sphere { center, radius, .. } => {
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             sphere_face_containment(body, face, center, radius, q, band, cut)
         }
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => torus_face_containment(
-            body,
-            face,
-            TorusCarrier {
-                axis: geom::Line {
-                    origin: center,
-                    dir: axis,
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            torus_face_containment(
+                body,
+                face,
+                TorusCarrier {
+                    axis: geom::Line {
+                        origin: center,
+                        dir: axis,
+                    },
+                    major_radius,
+                    minor_radius,
                 },
-                major_radius,
-                minor_radius,
-            },
-            q,
-            band,
-            cut,
-        ),
+                q,
+                band,
+                cut,
+            )
+        }
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) if cut.is_some() => {
             Ok(CurvedPlacement::Trim(None))
         }

@@ -208,9 +208,8 @@ pub fn ray_crossings<T: Decide>(
         }
     };
     let roots: Vec<T> = match *surface {
-        Surface::Plane {
-            origin: o, normal, ..
-        } => {
+        Surface::Plane { frame, .. } => {
+            let (o, normal) = (frame.origin(), frame.axis());
             let lead = normal.dot(dir);
             match sign_as(TRACE_PLANE_LEAD, Margin::levered(lead, arm), band)? {
                 Sign::Zero => return on_carrier(),
@@ -273,7 +272,8 @@ pub fn circle_crossings<T: Decide>(
     // The circle's period: its parameter is its angle.
     let tau = geom::conic_period::<T>().length();
     let points: Vec<Point3<T>> = match *surface {
-        Surface::Plane { origin, normal, .. } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
             // `A cos θ + B sin θ + K = 0`, solved for the cosine and sine.
             let a = normal.dot(u_ref) * radius;
             let b = normal.dot(v_ref) * radius;
@@ -311,11 +311,7 @@ pub fn circle_crossings<T: Decide>(
         }
         _ => {
             let circle = Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+                frame: geom::Frame::new(center, axis, u_ref),
                 radius,
             });
             let found = match surface {
@@ -420,8 +416,12 @@ fn crossing<T: Decide>(
     // carrier's double root there (`reduce::line_cone_roots`,
     // `conic_quadric`'s "Through the apex"), has no outward normal and
     // no sense to read: the piece crosses at the apex.
-    if let Surface::Cone { apex, .. } = *surface
-        && sign_as(TRACE_CROSSING_APEX, Margin::norm3(point - apex), band)? != Sign::Positive
+    if let Surface::Cone { frame, .. } = *surface
+        && sign_as(
+            TRACE_CROSSING_APEX,
+            Margin::norm3(point - frame.origin()),
+            band,
+        )? != Sign::Positive
     {
         return Err(TraceFault::Apex);
     }
@@ -504,9 +504,8 @@ pub fn plane_misses<T: Decide>(
     // from `anchor` across it.
     let off = |anchor: Point3<T>, reach: T| beyond((anchor - point).dot(normal).abs() - reach);
     match *surface {
-        Surface::Plane {
-            origin, normal: n, ..
-        } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, n) = (frame.origin(), frame.axis());
             // A tilted plane meets it; a parallel one misses it off it.
             let tilt = n.cross(normal).norm();
             match sign_as(
@@ -535,19 +534,17 @@ pub fn plane_misses<T: Decide>(
         }
         // A tilted cylinder runs across the plane; one parallel to it
         // misses it beyond its radius.
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => match sign_as(
-            TRACE_PLANE_LEAD,
-            Margin::levered(axis.dot(normal), geom_core::Lever::curvature_radius(radius)),
-            band,
-        )? {
-            Sign::Zero => off(origin, radius),
-            Sign::Positive | Sign::Negative => Ok(false),
-        },
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            match sign_as(
+                TRACE_PLANE_LEAD,
+                Margin::levered(axis.dot(normal), geom_core::Lever::curvature_radius(radius)),
+                band,
+            )? {
+                Sign::Zero => off(origin, radius),
+                Sign::Positive | Sign::Negative => Ok(false),
+            }
+        }
         Surface::Cone { .. } => Ok(false),
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Err(unsupported()),
     }

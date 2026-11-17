@@ -189,9 +189,10 @@ fn standing<T: Decide>(
     band: Band,
 ) -> bool {
     let face = body.proven_face(a);
-    let geom::Surface::Plane { origin, .. } = *face.surface() else {
+    let geom::Surface::Plane { frame, .. } = *face.surface() else {
         return false;
     };
+    let origin = frame.origin();
     let (Some((n, _)), Some((nb, lever))) = (normal(body, a, band), normal(body, b, band)) else {
         return false;
     };

@@ -72,10 +72,11 @@ fn holds(body: &Body<f64>, cell: Cell, p: Point3<f64>, band: Band) -> bool {
             foot.distance(p) <= ON && t0.min(t1) + ON < t && t < t0.max(t1) - ON
         }
         Cell::Face(f) => {
-            let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(f) else {
+            let Some(Surface::Plane { frame, .. }) = body.face_surface(f) else {
                 panic!("a brick face is a plane");
             };
-            (p - *origin).dot(*normal).abs() <= ON
+            let (origin, normal) = (frame.origin(), frame.axis());
+            (p - origin).dot(normal).abs() <= ON
                 && topo::test_support::face_holds(body, f, p, band)
                     == Ok(Some(topo::FaceContainment::In))
         }

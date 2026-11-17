@@ -1491,11 +1491,20 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
         let c = run.about.point();
         let about = |p: Point3<T>| one_norm(p.x - c.x, p.y - c.y, p.z - c.z);
         let anchor = match surface {
-            Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => Some(origin),
-            Surface::Cone { apex, .. } => Some(apex),
-            Surface::Sphere { center, .. }
-            | Surface::Torus { center, .. }
-            | Surface::Spindle { center, .. } => Some(center),
+            Surface::Plane { frame, .. } | Surface::Cylinder { frame, .. } => {
+                let origin = frame.origin();
+                Some(origin)
+            }
+            Surface::Cone { frame, .. } => {
+                let apex = frame.origin();
+                Some(apex)
+            }
+            Surface::Sphere { frame, .. }
+            | Surface::Torus { frame, .. }
+            | Surface::Spindle { frame, .. } => {
+                let center = frame.origin();
+                Some(center)
+            }
             Surface::Nurbs(_) | Surface::Approx(_) => None,
         };
         // One plus the face's edge count, kept in `T`.
@@ -1790,7 +1799,15 @@ fn shell_polygons<T: Decide>(
             vertex_rings(body, surface, &flat_loops(body, face.record())?, lane)?,
             surface,
         ) {
-            (Some(rings), &Surface::Plane { normal, .. }) => polygons.push((rings, lift(normal))),
+            (
+                Some(rings),
+                &Surface::Plane {
+                    frame: plane_frame, ..
+                },
+            ) => {
+                let normal = plane_frame.axis();
+                polygons.push((rings, lift(normal)))
+            }
             _ => return Ok(None),
         }
     }
@@ -2935,9 +2952,11 @@ mod region_carry_tests {
         let mut edges = square(true);
         edges.push(LoopEdge::hand_built(
             geom::Curve3::Spiric {
-                center: iv(Point3::origin()),
-                axis: iv(Point3::new(0.0, 0.0, 1.0)) - Point3::origin(),
-                u_ref: iv(Point3::new(1.0, 0.0, 0.0)) - Point3::origin(),
+                frame: geom::Frame::new(
+                    iv(Point3::origin()),
+                    iv(Point3::new(0.0, 0.0, 1.0)) - Point3::origin(),
+                    iv(Point3::new(1.0, 0.0, 0.0)) - Point3::origin(),
+                ),
                 major_radius: Interval::from_f64(2.0),
                 minor_radius: Interval::from_f64(1.0),
                 offset: Interval::from_f64(0.5),
@@ -4634,7 +4653,10 @@ fn region_edges<T: Decide>(
         let face = body.proven_face(key);
         let surface = face.surface();
         let plane = match *surface {
-            Surface::Plane { normal, .. } => Some(normal),
+            Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
+                Some(normal)
+            }
             _ => None,
         };
         for (edges, hes) in flat_loops(body, face.record()).ok()? {
@@ -8327,18 +8349,16 @@ mod face_list_door_tests {
                 let at = face_start(&body, f);
                 let k = body.proven_face(f).record().surface;
                 let Some(Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref,
+                    frame: carrier_frame,
                 }) = body.surfaces.get_mut(k)
                 else {
                     continue;
                 };
+                let (normal, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
                 // Turned about `u_ref` through a corner.
-                let v = normal.cross(*u_ref);
-                let turned = (*normal + v * lean).normalize();
-                *origin = at;
-                *normal = turned;
+                let v = normal.cross(u_ref);
+                let turned = (normal + v * lean).normalize();
+                *carrier_frame = geom::Frame::new(at, turned, u_ref);
             }
             let read = |body: &Body<f64>| {
                 let faces: Vec<FaceKey> = body
@@ -8358,8 +8378,12 @@ mod face_list_door_tests {
             let before = read(&body);
             for (_, surface) in body.surfaces.iter_mut() {
                 match surface {
-                    Surface::Plane { origin, u_ref, .. } => *origin = *origin + *u_ref * slide,
-                    Surface::Cylinder { origin, axis, .. } => *origin = *origin + *axis * slide,
+                    Surface::Plane { frame, .. } => {
+                        *frame = frame.translated(frame.u_ref() * slide)
+                    }
+                    Surface::Cylinder { frame, .. } => {
+                        *frame = frame.translated(frame.axis() * slide)
+                    }
                     _ => {}
                 }
             }
@@ -9103,7 +9127,7 @@ mod shell_reference_rows {
         measured: Option<((Interval, Interval), Point3<Interval>)>,
     ) -> Result<(FaceContribution<Interval>, bool), PropsError> {
         use geom_core::Bounds;
-        let up = matches!(surface, Surface::Plane { normal, .. } if normal.z > 0.5);
+        let up = matches!(surface, Surface::Plane { frame, .. } if frame.axis().z > 0.5);
         let off = [centre.x, centre.y, centre.z]
             .iter()
             .any(|x| x.lo() != 0.0 || x.hi() != 0.0);

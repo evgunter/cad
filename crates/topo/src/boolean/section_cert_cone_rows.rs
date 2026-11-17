@@ -345,10 +345,8 @@ fn coaxial_partners_meet_the_cone_in_parallels() {
         pair
     );
     let other = |apex: Point3<f64>, axis: Vec3<f64>| Surface::Cone {
-        apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, Vec3::unit_x()),
         half_angle: 0.3,
-        u_ref: Vec3::unit_x(),
     };
     assert_eq!(
         shape(&both(&cone, &other(p(0.0, 0.0, 2.0), -Vec3::unit_z()))),
@@ -361,11 +359,9 @@ fn coaxial_partners_meet_the_cone_in_parallels() {
     assert_eq!(at_apex.name, "section_cone_coaxial_apexes");
     assert_eq!((at_apex.at - p(0.0, 0.0, 0.0)).norm(), 0.0);
     let ring = |z: f64, big: f64| Surface::Torus {
-        center: p(0.0, 0.0, z),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(p(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: big,
         minor_radius: 0.2,
-        u_ref: Vec3::unit_x(),
     };
     assert_eq!(shape(&both(&cone, &ring(1.0, 1.0))), pair);
     assert_eq!(shape(&both(&cone, &ring(-1.0, 1.0))), pair);
@@ -638,10 +634,8 @@ fn a_parabola_on_a_seamless_band_refuses_undecided() {
 fn cone_about(apex: Point3<f64>, axis: Vec3<f64>, alpha: f64) -> Surface<f64> {
     let axis = axis.normalize();
     Surface::Cone {
-        apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, axis.orthonormal_basis().0),
         half_angle: alpha,
-        u_ref: axis.orthonormal_basis().0,
     }
 }
 
@@ -676,12 +670,18 @@ fn a_ball_in_a_skewed_conical_seat_is_one_null_loop() {
         14.14213533816754,
     );
     let s = both(&cone, &ball);
-    let Surface::Cone { apex, axis, .. } = cone else {
+    let Surface::Cone {
+        frame: carrier_frame,
+        ..
+    } = cone
+    else {
         unreachable!()
     };
-    let Surface::Sphere { center, .. } = ball else {
+    let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
+    let Surface::Sphere { frame, .. } = ball else {
         unreachable!()
     };
+    let center = frame.origin();
     let margin = (center - apex).cross(axis).norm() * FRAC_PI_4.cos();
     if let Section::Tangent(name) = s {
         assert!(
@@ -741,8 +741,8 @@ fn brick_top() -> (Body<f64>, FaceKey) {
         .find(|(_, f)| {
             matches!(
                 b.get_surface(f.surface),
-                Some(Surface::Plane { origin, normal, .. })
-                    if normal.z > 0.5 && (origin.z - 0.5).abs() < 1e-12
+                Some(Surface::Plane { frame, .. })
+                    if frame.axis().z > 0.5 && (frame.origin().z - 0.5).abs() < 1e-12
             )
         })
         .map(|(k, _)| k)

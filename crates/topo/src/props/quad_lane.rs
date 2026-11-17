@@ -158,7 +158,8 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
         return about_centre(flux, area, from);
     }
     let surface = surface.map_scalar(Interval::from_certified);
-    if let Surface::Plane { normal, .. } = surface {
+    if let Surface::Plane { frame, .. } = surface {
+        let normal = frame.axis();
         return Ok((planar_face_about(&loops, normal, centre)?, true));
     }
     match moved_by(&surface, &loops, centre) {
@@ -239,73 +240,91 @@ pub(super) fn translated_surface<T: Decide>(
     let shift = |p: Point3<T>| moved_point(p, by);
     Some(match surface.clone() {
         Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => Surface::Plane {
-            origin: shift(origin),
-            normal,
-            u_ref,
-        },
+            frame: carrier_frame,
+        } => {
+            let (origin, normal, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Plane {
+                frame: geom::Frame::new(shift(origin), normal, u_ref),
+            }
+        }
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin: shift(origin),
-            axis,
-            radius,
-            u_ref,
-        },
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cylinder {
+                frame: geom::Frame::new(shift(origin), axis, u_ref),
+                radius,
+            }
+        }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
-        } => Surface::Cone {
-            apex: shift(apex),
-            axis,
-            half_angle,
-            u_ref,
-        },
+        } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cone {
+                frame: geom::Frame::new(shift(apex), axis, u_ref),
+                half_angle,
+            }
+        }
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
-        } => Surface::Sphere {
-            center: shift(center),
-            radius,
-            axis,
-            u_ref,
-        },
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Sphere {
+                frame: geom::Frame::new(shift(center), axis, u_ref),
+                radius,
+            }
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
-        } => Surface::Torus {
-            center: shift(center),
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        },
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Torus {
+                frame: geom::Frame::new(shift(center), axis, u_ref),
+                major_radius,
+                minor_radius,
+            }
+        }
         Surface::Spindle {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
-        } => Surface::Spindle {
-            center: shift(center),
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        },
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Spindle {
+                frame: geom::Frame::new(shift(center), axis, u_ref),
+                major_radius,
+                minor_radius,
+            }
+        }
         _ => return None,
     })
 }
@@ -327,20 +346,23 @@ pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> O
             ..e
         }),
         Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             offset,
-        } => Curve3::Spiric {
-            center: shift(center),
-            axis,
-            u_ref,
-            major_radius,
-            minor_radius,
-            offset,
-        },
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Curve3::Spiric {
+                frame: geom::Frame::new(shift(center), axis, u_ref),
+                major_radius,
+                minor_radius,
+                offset,
+            }
+        }
         Curve3::Nurbs(n) => Curve3::Nurbs(std::sync::Arc::new(n.map_points(shift))),
         Curve3::Periodic(n) => Curve3::Periodic(std::sync::Arc::new(n.map_points(shift))),
     })
@@ -583,32 +605,41 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     }
     let iv = Interval::from_certified;
     let (origin, chart) = match surface {
-        Surface::Cylinder { origin, radius, .. } => (
-            origin,
-            quad::RotationalChartQ::Cylinder {
-                radius: iv(*radius),
-            },
-        ),
-        Surface::Sphere { center, radius, .. } => (
-            center,
-            quad::RotationalChartQ::Sphere {
-                radius: iv(*radius),
-                outward: sense,
-            },
-        ),
+        Surface::Cylinder { frame, radius, .. } => {
+            let origin = frame.origin();
+            (
+                origin,
+                quad::RotationalChartQ::Cylinder {
+                    radius: iv(*radius),
+                },
+            )
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            (
+                center,
+                quad::RotationalChartQ::Sphere {
+                    radius: iv(*radius),
+                    outward: sense,
+                },
+            )
+        }
         Surface::Torus {
-            center,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => (
-            center,
-            quad::RotationalChartQ::Torus {
-                major: iv(*major_radius),
-                minor: iv(*minor_radius),
-                outward: sense,
-            },
-        ),
+        } => {
+            let center = frame.origin();
+            (
+                center,
+                quad::RotationalChartQ::Torus {
+                    major: iv(*major_radius),
+                    minor: iv(*minor_radius),
+                    outward: sense,
+                },
+            )
+        }
         _ => {
             return Err(PropsError::QuadratureUnsupported {
                 what: "a trimmed face with no volume lane on its chart — a cone face takes \
@@ -643,17 +674,17 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
                         iv(e.t0),
                         iv(e.t1),
                         e.forward,
-                        lift(*origin),
+                        lift(origin),
                     )?);
                 }
                 Curve3::Spiric { .. } => {
-                    spirics.push(spiric_edge_q(&lifted_edge(e), lift(*origin)).ok_or(
+                    spirics.push(spiric_edge_q(&lifted_edge(e), lift(origin)).ok_or(
                         PropsError::QuadratureUnsupported {
                             what: "a spiric carrier that is no spiric",
                         },
                     )?)
                 }
-                _ => va = va + loop_vector_area(core::slice::from_ref(e), *origin)?,
+                _ => va = va + loop_vector_area(core::slice::from_ref(e), origin)?,
             }
         }
     }
@@ -664,12 +695,12 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     // origin.
     let (closed, lever) = match centre {
         None => (
-            Interval::from_certified((*origin - Point3::origin()).dot(va)),
-            lift(*origin) - Point3::origin(),
+            Interval::from_certified((origin - Point3::origin()).dot(va)),
+            lift(origin) - Point3::origin(),
         ),
         Some(c) => {
             let va = geom_core::Vec3::new(iv(va.x), iv(va.y), iv(va.z));
-            ((lift(*origin) - c).dot(va), lift(*origin) - c)
+            ((lift(origin) - c).dot(va), lift(origin) - c)
         }
     };
     let mut terms = Vec::with_capacity(loops.len());
@@ -732,7 +763,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
                     (iv(*v0), iv(*sense), *torus),
                     ends,
                     env,
-                    lift(*origin),
+                    lift(origin),
                 )?));
                 continue;
             }
@@ -818,9 +849,7 @@ fn spiric_edge_q(
     reference: Point3<Interval>,
 ) -> Option<spiric::SpiricEdgeQ> {
     let Curve3::Spiric {
-        center,
-        axis,
-        u_ref,
+        frame,
         major_radius,
         minor_radius,
         offset,
@@ -828,6 +857,7 @@ fn spiric_edge_q(
     else {
         return None;
     };
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     Some(spiric::SpiricEdgeQ {
         centre: rv(center - reference),
         axis: rv(axis),
@@ -937,11 +967,9 @@ fn rim_face<T: Decide + geom_core::CertifiedBounds>(
             plane_cap(&loops, centre)?
         }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let loops: Vec<Vec<LoopEdge<Interval>>> = loops
                 .iter()
                 .map(|(edges, _)| edges.iter().map(lift).collect())
@@ -1774,9 +1802,11 @@ mod tests {
         fn spiric(major: f64, minor: f64) -> LoopEdge<Interval> {
             LoopEdge::hand_built(
                 Curve3::Spiric {
-                    center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                    u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    frame: geom::Frame::new(
+                        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                        Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                        Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    ),
                     major_radius: iv(major),
                     minor_radius: iv(minor),
                     offset: iv(0.05),
@@ -1977,9 +2007,11 @@ mod tests {
         fn the_length_bound_reads_a_spline_edge_so_a_spiric_cap_it_closes_forms() {
             use core::f64::consts::FRAC_PI_2;
             let spiric = Curve3::Spiric {
-                center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                frame: geom::Frame::new(
+                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                ),
                 major_radius: iv(2.0),
                 minor_radius: iv(1.0),
                 offset: iv(0.5),
@@ -2251,9 +2283,10 @@ mod tests {
                 let rings = vertex_rings(body, surface, &loops, lane)
                     .unwrap()
                     .expect("a planar face bounded by lines");
-                let &geom::Surface::Plane { normal, .. } = surface else {
+                let &geom::Surface::Plane { frame, .. } = surface else {
                     panic!("a planar face");
                 };
+                let normal = frame.axis();
                 let lifted = geom_core::Vec3::new(
                     Interval::from_f64(normal.x),
                     Interval::from_f64(normal.y),
@@ -2442,9 +2475,10 @@ mod tests {
                     .unwrap()
                     {
                         Some(rings) => {
-                            let &geom::Surface::Plane { normal, .. } = surface else {
+                            let &geom::Surface::Plane { frame, .. } = surface else {
                                 panic!("a polygon face is a plane");
                             };
+                            let normal = frame.axis();
                             let normal = geom_core::Vec3::new(
                                 Interval::from_f64(normal.x),
                                 Interval::from_f64(normal.y),

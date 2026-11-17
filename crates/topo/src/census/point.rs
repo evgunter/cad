@@ -61,8 +61,14 @@ enum Locus<T: Real> {
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
     match *body.face(f)?.surface() {
-        geom::Surface::Plane { origin, normal, .. } => Some(Surface::Plane { origin, normal }),
-        geom::Surface::Sphere { center, radius, .. } => Some(Surface::Sphere { center, radius }),
+        geom::Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Some(Surface::Plane { origin, normal })
+        }
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            Some(Surface::Sphere { center, radius })
+        }
         _ => None,
     }
 }
@@ -287,28 +293,23 @@ pub(super) fn edge_face<T: Decide>(
     };
     let touch = match (curve, surface(body, face)) {
         (
-            geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
-                radius,
-            }),
+            geom::Curve3::Circle(geom::Circle { frame, radius }),
             Some(Surface::Plane { origin, normal }),
-        ) => match circle_plane((center, axis, radius), (origin, normal), band, errors) {
-            None => None,
-            Some(Locus::Touch(touch)) => Some(touch),
-            Some(Locus::Lies) => {
-                errors.push(refused(
-                    subject,
-                    "a circle lying in a plane away from a conventional vertex: the census \
+        ) => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            match circle_plane((center, axis, radius), (origin, normal), band, errors) {
+                None => None,
+                Some(Locus::Touch(touch)) => Some(touch),
+                Some(Locus::Lies) => {
+                    errors.push(refused(
+                        subject,
+                        "a circle lying in a plane away from a conventional vertex: the census \
                      builds no curve-touch lane along an edge's carrier",
-                ));
-                return Read::Pushed;
+                    ));
+                    return Read::Pushed;
+                }
             }
-        },
+        }
         (geom::Curve3::Line(line), Some(Surface::Sphere { center, radius })) => {
             on_sphere((center, radius), line.foot(center), band, errors)
         }

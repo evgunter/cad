@@ -9275,29 +9275,21 @@ mod tests {
         let p = |a: f64, b: f64, c: f64| Point3::new(a, b, c);
         let (big, r) = (2.0_f64, 0.5_f64);
         let plane = |h: f64| Surface::Plane {
-            origin: p(0.0, 0.0, h),
-            normal: z,
-            u_ref: x,
+            frame: geom::Frame::new(p(0.0, 0.0, h), z, x),
         };
         let cyl =
             |o: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| Surface::Cylinder {
-                origin: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius,
-                u_ref,
             };
         let ball = |c: Point3<f64>, radius: f64| Surface::Sphere {
-            center: c,
+            frame: geom::Frame::new(c, z, x),
             radius,
-            axis: z,
-            u_ref: x,
         };
         let torus = |c: Point3<f64>| Surface::Torus {
-            center: c,
-            axis: z,
+            frame: geom::Frame::new(c, z, x),
             major_radius: big,
             minor_radius: r,
-            u_ref: x,
         };
         let samples = |s: &Surface<f64>| -> Vec<Point3<f64>> {
             let tau = core::f64::consts::TAU;
@@ -9423,16 +9415,18 @@ mod tests {
             .find(|(_, f)| {
                 matches!(
                     body.get_surface(f.surface),
-                    Some(geom::Surface::Plane { origin, normal, .. })
-                        if origin.z > 0.5 && normal.z.abs() > 0.5
+                    Some(geom::Surface::Plane { frame, .. })
+                        if frame.origin().z > 0.5 && frame.axis().z.abs() > 0.5
                 )
             })
             .map(|(k, _)| k)
             .unwrap();
         let wall = |x: f64| geom::Surface::Plane {
-            origin: Point3::new(x, 0.0, 0.0),
-            normal: Vec3::new(1.0, 0.0, 0.0),
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(x, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
         };
         assert_eq!(
             read_cover_side(
@@ -9557,18 +9551,23 @@ mod tests {
         let (fa, fb) = (cap(&a, 1.0), cap(&b, -1.0));
         let face = a.get_face(fa).unwrap();
         let Some(geom::Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         }) = a.get_surface(face.surface).cloned()
         else {
             panic!("the cap is planar");
         };
+        let (origin, normal, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         let surface = crate::euler::FaceSurface::New {
             surface: geom::Surface::Plane {
-                origin: Point3::new(origin.x, origin.y, f64::INFINITY),
-                normal,
-                u_ref,
+                frame: geom::Frame::new(
+                    Point3::new(origin.x, origin.y, f64::INFINITY),
+                    normal,
+                    u_ref,
+                ),
             },
             sense: face.sense,
         };
@@ -10187,17 +10186,21 @@ mod tests {
         let key = |n: u64| FaceKey::from(slotmap::KeyData::from_ffi((1 << 32) | n));
         let (fa, fb) = (key(1), key(2));
         let sphere = geom::Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
             radius: 1.0,
-            axis: geom_core::Vec3::unit_z(),
-            u_ref: geom_core::Vec3::unit_x(),
         };
         let torus = geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: geom_core::Vec3::unit_z(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
             major_radius: 2.0,
             minor_radius: 1.0,
-            u_ref: geom_core::Vec3::unit_x(),
         };
         let faces = [(Operand::A, fa, &sphere), (Operand::B, fb, &torus)];
         let refused = |unread| match rim_unread(unread, DeclarationRead::Moot, faces) {

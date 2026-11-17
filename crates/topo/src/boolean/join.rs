@@ -416,8 +416,8 @@ fn segment_arm<T: Decide>(
 ) -> Result<KindArm, BooleanError> {
     // Two cones through one apex meet in rulings through it, the plane
     // they span their straight lane's.
-    if let (geom::Surface::Cone { apex: p1, .. }, geom::Surface::Cone { apex: p2, .. }) = (sa, sb)
-        && super::fan::cones_share_apex(*p1, *p2, band).map_err(|diag| {
+    if let (geom::Surface::Cone { frame: f1, .. }, geom::Surface::Cone { frame: f2, .. }) = (sa, sb)
+        && super::fan::cones_share_apex(f1.origin(), f2.origin(), band).map_err(|diag| {
             BooleanError::coincidence(Coincide::Section, DeclarationRead::Moot, diag)
         })?
     {
@@ -1422,27 +1422,12 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 Operand::A => &gb,
                 Operand::B => &ga,
             };
-            let (geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
-                ..
-            })
-            | geom::Curve3::Ellipse(geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
-                ..
-            })) = along.carrier
+            let (geom::Curve3::Circle(geom::Circle { frame, .. })
+            | geom::Curve3::Ellipse(geom::Ellipse { frame, .. })) = along.carrier
             else {
                 return Err(no_arm());
             };
+            let (center, axis) = (frame.origin(), frame.axis());
             if matches!(holder, Sf::Plane { .. }) {
                 return Err(no_arm());
             }
@@ -1456,7 +1441,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             Some(GermLane::Carried(k))
         } else if let Some(arm) = arm {
             let plane_of = |s: &geom::Surface<T>| match *s {
-                Sf::Plane { origin, normal, .. } => {
+                Sf::Plane { frame, .. } => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     Ok((origin, germ_normal(germ_reach(&red.a)?, origin, normal)?))
                 }
                 _ => Err(desync("a planar kind arm's face is not a plane")),
@@ -1477,16 +1463,11 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 KindArm::Spheres => {
                     let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
                         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
-                            geom::Circle {
-                                frame:
-                                    geom::Frame {
-                                        origin: center,
-                                        axis,
-                                        ..
-                                    },
-                                ..
-                            },
-                        ))) => (center, germ_normal(germ_reach(&red.a)?, center, axis)?),
+                            geom::Circle { frame, .. },
+                        ))) => {
+                            let (center, axis) = (frame.origin(), frame.axis());
+                            (center, germ_normal(germ_reach(&red.a)?, center, axis)?)
+                        }
                         Ok(_) => {
                             return Err(desync(
                                 "germ pair's sphere×sphere section is not a circle",
@@ -2575,8 +2556,18 @@ fn two_rulings<T: Decide>(
     let (_, sa) = keyed_surface(&red.a, germ.a_face);
     let (_, sb) = keyed_surface(&red.b, germ.b_face);
     Ok(match (sa, sb) {
-        (geom::Surface::Cone { apex: p1, .. }, geom::Surface::Cone { apex: p2, .. }) => {
-            super::fan::cones_share_apex(*p1, *p2, band).map_err(join_escalate)?
+        (
+            geom::Surface::Cone {
+                frame: cone_frame_2,
+                ..
+            },
+            geom::Surface::Cone {
+                frame: cone_frame, ..
+            },
+        ) => {
+            let p1 = cone_frame_2.origin();
+            let p2 = cone_frame.origin();
+            super::fan::cones_share_apex(p1, p2, band).map_err(join_escalate)?
         }
         _ => false,
     })
@@ -2886,11 +2877,25 @@ pub(super) fn frame_extent<T: Decide>(
     band: Band,
 ) -> Result<FrameExtent<T>, &'static str> {
     let (body, face, axis) = match (sa, sb) {
-        (geom::Surface::Plane { .. }, geom::Surface::Cylinder { axis, .. }) => {
-            (body_b, face_b, *axis)
+        (
+            geom::Surface::Plane { .. },
+            geom::Surface::Cylinder {
+                frame: cylinder_frame,
+                ..
+            },
+        ) => {
+            let axis = cylinder_frame.axis();
+            (body_b, face_b, axis)
         }
-        (geom::Surface::Cylinder { axis, .. }, geom::Surface::Plane { .. }) => {
-            (body_a, face_a, *axis)
+        (
+            geom::Surface::Cylinder {
+                frame: cylinder_frame,
+                ..
+            },
+            geom::Surface::Plane { .. },
+        ) => {
+            let axis = cylinder_frame.axis();
+            (body_a, face_a, axis)
         }
         (geom::Surface::Plane { .. }, cone @ geom::Surface::Cone { .. }) => {
             return cone_reach((body_b, face_b), (body_a, face_a), at, cone, band);
@@ -3075,13 +3080,12 @@ fn cone_apex_plane<T: Decide>(
     let desync = |what| BooleanError::JoinDesync { what };
     let (
         &geom::Surface::Cone {
-            apex,
-            axis: a1,
+            frame: cone_frame_2,
             half_angle: h1,
             ..
         },
         &geom::Surface::Cone {
-            axis: a2,
+            frame: cone_frame,
             half_angle: h2,
             ..
         },
@@ -3091,6 +3095,8 @@ fn cone_apex_plane<T: Decide>(
             "a cone pair's apex plane asked of a pair that is not two cones",
         ));
     };
+    let (apex, a1) = (cone_frame_2.origin(), cone_frame_2.axis());
+    let a2 = cone_frame.axis();
     let onto = |a: Vec3<T>| a.turned_toward(g);
     let (b1, b2) = (onto(a1), onto(a2));
     // Nearly coaxial past what the axes can place the rulings to
@@ -3939,8 +3945,9 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         // Two cones through one apex: both forms are homogeneous about it,
         // so they meet in rulings through it, straight
         // (`fan::cones_share_apex`).
-        (Sf::Cone { apex: p1, .. }, Sf::Cone { apex: p2, .. })
-            if super::fan::cones_share_apex(*p1, *p2, band).map_err(FrameError::section)? =>
+        (Sf::Cone { frame: f1, .. }, Sf::Cone { frame: f2, .. })
+            if super::fan::cones_share_apex(f1.origin(), f2.origin(), band)
+                .map_err(FrameError::section)? =>
         {
             Ok(None)
         }
@@ -4200,9 +4207,14 @@ pub(super) fn pk_section<T: Decide>(
             })),
         ) => Ok(PkSection::Loop(frame.axis_line())),
         Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, l2 }) => {
-            let geom::Surface::Cone { apex, .. } = *cone else {
+            let geom::Surface::Cone {
+                frame: carrier_frame,
+                ..
+            } = *cone
+            else {
                 return Err(FrameError::Desync("a plane×cone section of no cone"));
             };
+            let apex = carrier_frame.origin();
             Ok(PkSection::Lines(super::section_table::ApexLines {
                 apex,
                 dirs: [line(l1)?, line(l2)?],
@@ -4278,13 +4290,10 @@ fn pt_germ_frame<T: Decide>(
     };
     let (
         &geom::Surface::Plane {
-            origin: q,
-            normal: n,
-            ..
+            frame: plane_frame, ..
         },
         &geom::Surface::Torus {
-            center: c,
-            axis: a,
+            frame: torus_frame,
             major_radius: big_r,
             minor_radius: r,
             ..
@@ -4295,6 +4304,8 @@ fn pt_germ_frame<T: Decide>(
             "the plane×torus frame was handed another kind pair",
         ));
     };
+    let (q, n) = (plane_frame.origin(), plane_frame.axis());
+    let (c, a) = (torus_frame.origin(), torus_frame.axis());
     let carried = || FrameError::Desync("plane×torus classification carried another carrier");
     let circle = |curve: geom::Curve3<T>| match curve {
         geom::Curve3::Circle(geom::Circle { frame, .. }) => Ok(SectionLoop {
@@ -4321,13 +4332,12 @@ fn pt_germ_frame<T: Decide>(
                 let ball = geom_brep::ExtentBall::of_covered(curve.cover().as_ref().ok());
                 match curve {
                     geom::Curve3::Spiric {
-                        center,
-                        axis,
-                        u_ref,
+                        frame,
                         major_radius,
                         offset,
                         ..
                     } => {
+                        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                         let side = axis.cross(u_ref);
                         let foot = center + u_ref * offset;
                         let along =
@@ -6659,17 +6669,17 @@ mod frame_dispatch_tests {
     #[test]
     fn the_germ_frame_reads_at_the_wall_not_the_table() {
         let plane = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let tilt = 0.5 * Tol::witness().eps();
         let axis = Vec3::new(1.0, 0.0, tilt).normalize();
         let cyl = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0),
-            axis,
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), axis, Vec3::new(0.0, 1.0, 0.0)),
             radius: 1.0,
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
         };
         let table: Vec<Point3<f64>> = [(995.0, -5.0), (1005.0, -5.0), (1005.0, 5.0), (995.0, 5.0)]
             .iter()
@@ -6709,9 +6719,11 @@ mod frame_dispatch_tests {
     #[test]
     fn the_germ_frame_reads_at_the_face_wherever_the_origin_is_stored() {
         let plane = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let table: Vec<Point3<f64>> = [(-5.0, -5.0), (5.0, -5.0), (5.0, 5.0), (-5.0, 5.0)]
             .iter()
@@ -6725,10 +6737,12 @@ mod frame_dispatch_tests {
             .collect();
         for along in [1000.0, -1000.0] {
             let cyl = geom::Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, 1.0) + axis * along,
-                axis,
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 1.0) + axis * along,
+                    axis,
+                    Vec3::new(0.0, 1.0, 0.0),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::new(0.0, 1.0, 0.0),
             };
             for (label, a, b, on_a, on_b) in [
                 ("plane, wall", &plane, &cyl, table.clone(), wall.clone()),
@@ -6779,9 +6793,11 @@ mod frame_dispatch_tests {
         normal: Vec3<f64>,
     ) -> Vec<(&'static str, Frame)> {
         let plane = geom::Surface::Plane {
-            origin: base,
-            normal,
-            u_ref: Vec3::new(0.0, 1.0, 0.0).cross(normal).normalize(),
+            frame: geom::Frame::new(
+                base,
+                normal,
+                Vec3::new(0.0, 1.0, 0.0).cross(normal).normalize(),
+            ),
         };
         let wall = crate::boolean::join::keyed_surface(body, face).1.clone();
         let on = super::super::carrier_pair::face_witnesses(body, face).unwrap();
@@ -6941,9 +6957,11 @@ mod frame_dispatch_tests {
         .unwrap();
         let cyl = body.get_face(seed.face).unwrap().surface;
         let plane = body.add_surface(geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(-s, 0.0, c),
-            u_ref: Vec3::new(c, 0.0, s),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(-s, 0.0, c),
+                Vec3::new(c, 0.0, s),
+            ),
         });
         let end = carrier.eval(t1);
         let arc = body
@@ -7097,9 +7115,11 @@ mod frame_dispatch_tests {
         .unwrap();
         let cyl = body.get_face(seed.face).unwrap().surface;
         let rim_plane = body.add_surface(geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         });
         let quarter = core::f64::consts::FRAC_PI_2;
         body.mev(
@@ -7140,19 +7160,23 @@ mod frame_dispatch_tests {
     #[test]
     fn a_coin_on_edge_is_levered_at_its_radius() {
         let plane = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let r = 0.01;
         let coin_face = Point3::new(0.001, 0.0, r);
         for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
             let tilt = k * Tol::witness().eps() / r;
             let coin = geom::Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, r),
-                axis: Vec3::new(1.0, 0.0, tilt).normalize(),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, r),
+                    Vec3::new(1.0, 0.0, tilt).normalize(),
+                    Vec3::new(0.0, 1.0, 0.0),
+                ),
                 radius: r,
-                u_ref: Vec3::new(0.0, 1.0, 0.0),
             };
             for (label, a, b) in [
                 ("plane, coin", &plane, &coin),
@@ -7188,10 +7212,12 @@ mod frame_dispatch_tests {
         let b = band();
         let mid = (b.zero() + b.escalate()) / 2.0;
         let cyl = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: mid,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let sph = sphere();
         let Err(e) = geom_brep::pair_section(&cyl, &sph, None, None, b) else {
@@ -7231,27 +7257,29 @@ mod frame_dispatch_tests {
 
     fn plane() -> geom::Surface<f64> {
         geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
     }
 
     fn cylinder(axis: Vec3<f64>) -> geom::Surface<f64> {
         geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis,
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), axis, Vec3::new(1.0, 0.0, 0.0)),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn sphere() -> geom::Surface<f64> {
         geom::Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 2.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -7259,10 +7287,12 @@ mod frame_dispatch_tests {
     /// axis at one azimuth (`R = r + d`), the transverse frame's node.
     fn node_sphere() -> geom::Surface<f64> {
         geom::Surface::Sphere {
-            center: Point3::new(0.5, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.5, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.5,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -7270,10 +7300,8 @@ mod frame_dispatch_tests {
     /// any unit vector across the axis: this dispatch never reads it.
     fn cylinder_at(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> geom::Surface<f64> {
         geom::Surface::Cylinder {
-            origin,
-            axis,
+            frame: geom::Frame::new(origin, axis, axis.orthonormal_basis().0),
             radius,
-            u_ref: axis.orthonormal_basis().0,
         }
     }
 
@@ -7380,16 +7408,12 @@ mod frame_dispatch_tests {
             let a2 = Vec3::new(t.sin(), 0.0, t.cos());
             let r = 0.9;
             let c1 = geom::Surface::Cylinder {
-                origin: p,
-                axis: a1,
+                frame: geom::Frame::new(p, a1, Vec3::new(1.0, 0.0, 0.0)),
                 radius: r,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
             let c2 = geom::Surface::Cylinder {
-                origin: p,
-                axis: a2,
+                frame: geom::Frame::new(p, a2, a2.cross(Vec3::new(0.0, 1.0, 0.0)).normalize()),
                 radius: r,
-                u_ref: a2.cross(Vec3::new(0.0, 1.0, 0.0)).normalize(),
             };
             let sec = cylinder_cylinder_section(
                 &c1,
@@ -7406,18 +7430,18 @@ mod frame_dispatch_tests {
                 let pinch = p + n * (sign * r);
                 for (name, e) in [("e1", &e1), ("e2", &e2)] {
                     let geom::Curve3::Ellipse(geom::Ellipse {
-                        frame:
-                            geom::Frame {
-                                origin: center,
-                                axis,
-                                u_ref,
-                            },
+                        frame: carrier_frame,
                         semi_u,
                         semi_v,
                     }) = *e
                     else {
                         panic!("{deg}°, {name}: the section carried a non-ellipse");
                     };
+                    let (center, axis, u_ref) = (
+                        carrier_frame.origin(),
+                        carrier_frame.axis(),
+                        carrier_frame.u_ref(),
+                    );
                     // The eccentric anomaly of the pinch point, read
                     // off the ellipse's own frame, then evaluated back:
                     // an exact round trip iff the point is ON the
@@ -7497,10 +7521,12 @@ mod frame_dispatch_tests {
     #[test]
     fn the_sphere_pair_names_its_circle_frame_at_any_chart_tilt() {
         let ball = |c: Point3<f64>, r: f64, axis: Vec3<f64>| geom::Surface::Sphere {
-            center: c,
+            frame: geom::Frame::new(
+                c,
+                axis,
+                axis.cross(Vec3::new(0.37, -0.91, 0.18)).normalize(),
+            ),
             radius: r,
-            axis,
-            u_ref: axis.cross(Vec3::new(0.37, -0.91, 0.18)).normalize(),
         };
         let z = Vec3::new(0.0, 0.0, 1.0);
         let tilted = Vec3::new(0.3, -0.5, 0.81).normalize();
@@ -8453,10 +8479,8 @@ mod apex_plane_rows {
 
     fn cone(axis: Vec3<f64>) -> geom::Surface<f64> {
         geom::Surface::Cone {
-            apex: Point3::origin(),
-            axis,
+            frame: geom::Frame::new(Point3::origin(), axis, Vec3::new(1.0, 0.0, 0.0)),
             half_angle: 0.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 

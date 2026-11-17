@@ -227,8 +227,9 @@ fn max_witness_residual(b: &Body<f64>) -> f64 {
         } = geom.description()
         {
             for sk in pair.keys() {
-                if let Some(Surface::Plane { origin, normal, .. }) = b.get_surface(sk) {
-                    let d = (*witness - *origin).dot(normal.normalize()).abs();
+                if let Some(Surface::Plane { frame, .. }) = b.get_surface(sk) {
+                    let (origin, normal) = (frame.origin(), frame.axis());
+                    let d = (*witness - origin).dot(normal.normalize()).abs();
                     worst = worst.max(d);
                 }
             }

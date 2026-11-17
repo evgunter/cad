@@ -214,19 +214,20 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                 .face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
             let surface = data.surface();
-            let Surface::Plane { origin, normal, .. } = surface else {
+            let Surface::Plane { frame, .. } = surface else {
                 return Err(ReplaceFaceError::TogetherNonPlanar {
                     face,
                     kind: surface.kind(),
                 });
             };
-            let delta = *normal * m.distance;
+            let (origin, normal) = (frame.origin(), frame.axis());
+            let delta = normal * m.distance;
             planes.push((
                 face,
                 MovedPlane {
                     old_key: data.record().surface,
-                    normal: *normal,
-                    c: normal.dot(radius(*origin + delta)),
+                    normal: normal,
+                    c: normal.dot(radius(origin + delta)),
                     delta,
                     distance: m.distance,
                     of_move,
@@ -437,14 +438,17 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         // The edge's two planes as the door leaves them.
         let moved = |p: &MovedPlane<T>| match body.get_surface(p.old_key) {
             Some(&Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            }) => Surface::Plane {
-                origin: origin + p.delta,
-                normal,
-                u_ref,
-            },
+                frame: carrier_frame,
+            }) => {
+                let (origin, normal, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Plane {
+                    frame: geom::Frame::new(origin + p.delta, normal, u_ref),
+                }
+            }
             _ => unreachable!("{:?} was read a plane in this call's plan phase", p.old_key),
         };
         let (sa, sb) = (moved(pa), moved(pb));
@@ -511,15 +515,18 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         };
         let p = plane_of(first).unwrap_or_else(|| unmoved_in_scope(first));
         let face = work.proven_face(first);
-        let Surface::Plane { origin, u_ref, .. } = face.surface().clone() else {
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = face.surface().clone()
+        else {
             unreachable!("{first:?}'s chart was read a plane in this call's plan phase")
         };
+        let (origin, u_ref) = (carrier_frame.origin(), carrier_frame.u_ref());
         charts.push(crate::replace_face::offset_rechart(
             &work,
             Surface::Plane {
-                origin: origin + p.delta,
-                normal: p.normal,
-                u_ref,
+                frame: geom::Frame::new(origin + p.delta, p.normal, u_ref),
             },
             &m.faces,
         )?);
@@ -1214,10 +1221,12 @@ mod scope_walks {
             victim,
             crate::euler::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
-                    origin: Point3::new(10.5, 0.5, 0.0),
-                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    frame: geom::Frame::new(
+                        Point3::new(10.5, 0.5, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     radius: 0.5,
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
                 },
                 sense: true,
             },

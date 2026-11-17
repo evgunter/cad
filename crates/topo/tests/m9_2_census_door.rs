@@ -118,7 +118,7 @@ pub(crate) fn interface_record(body: &Body<f64>) -> topo::Cited<topo::Contact> {
     let mut faces: Vec<_> = body
         .faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(Surface::Plane { origin, .. }) if (origin.z - 1.0).abs() < 1e-9 => Some(k),
+            Some(Surface::Plane { frame, .. }) if (frame.origin().z - 1.0).abs() < 1e-9 => Some(k),
             _ => None,
         })
         .collect();
@@ -167,18 +167,14 @@ fn metre_patch() -> geom_brep::ExtentBall<f64> {
 
 fn plane_at(z: f64) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, z),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
     }
 }
 
 fn cyl_r(cy: f64, r: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(0.0, cy, 0.0),
-        axis: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, cy, 0.0), Vec3::unit_x(), Vec3::unit_y()),
         radius: r,
-        u_ref: Vec3::unit_y(),
     }
 }
 
@@ -187,10 +183,8 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
     // The x-axis cylinder (radius 1, centre height 1) rests on z = 0:
     // the tangent ruling is the x-axis itself.
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_x(), Vec3::unit_z()),
         radius: 1.0,
-        u_ref: Vec3::unit_z(),
     };
     let TangentLocus::Line {
         line: geom::Line { origin, dir },
@@ -223,10 +217,12 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
     }
     // An oblique axis is outside the closed-form lane, typed.
     let oblique = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::new(0.6, 0.0, 0.8),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.6, 0.0, 0.8),
+            Vec3::unit_y(),
+        ),
         radius: 1.0,
-        u_ref: Vec3::unit_y(),
     };
     match tangent_locus(&plane_at(0.0), &oblique, metre_patch(), band()) {
         Err(TangentLocusError::Unsupported { .. }) => {}
@@ -274,10 +270,8 @@ fn parallel_cylinders_mint_the_external_and_internal_generators() {
     }
     // Skew/crossing axes and unsupported kinds are typed.
     let crossed = Surface::Cylinder {
-        origin: Point3::new(0.0, 5.0, 0.0),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(0.0, 5.0, 0.0), Vec3::unit_y(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     match tangent_locus(&cyl_r(0.0, 1.0), &crossed, metre_patch(), band()) {
         Err(TangentLocusError::Unsupported { .. }) => {}
@@ -323,7 +317,7 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     let mut ifaces: Vec<_> = body
         .faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(Surface::Plane { origin, .. }) if (origin.z - 1.0).abs() < 1e-9 => Some(k),
+            Some(Surface::Plane { frame, .. }) if (frame.origin().z - 1.0).abs() < 1e-9 => Some(k),
             _ => None,
         })
         .collect();
@@ -350,8 +344,8 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     let mut outers: Vec<_> = body
         .faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(Surface::Plane { origin, .. })
-                if origin.z.abs() < 1e-9 || (origin.z - 2.0).abs() < 1e-9 =>
+            Some(Surface::Plane { frame, .. })
+                if frame.origin().z.abs() < 1e-9 || (frame.origin().z - 2.0).abs() < 1e-9 =>
             {
                 Some(k)
             }
@@ -403,10 +397,12 @@ fn r1_probe_plane_cylinder_gap_row_is_scale_covariant() {
     // Metre twin: cylinder r 1 at height 1 + 3e-9 above the plane —
     // gap 3e-9, in Band{1e-9, 1e-8} ⇒ escalate.
     let cyl_m = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 1.0 + 3e-9),
-        axis: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0 + 3e-9),
+            Vec3::unit_x(),
+            Vec3::unit_z(),
+        ),
         radius: 1.0,
-        u_ref: Vec3::unit_z(),
     };
     match tangent_locus(&plane_at(0.0), &cyl_m, metre_patch(), band()) {
         Err(TangentLocusError::Escalated(d)) => {
@@ -422,10 +418,12 @@ fn r1_probe_plane_cylinder_gap_row_is_scale_covariant() {
     // band ⇒ the tangency mints. A scale-invariant row would treat
     // the twins identically.
     let cyl_mm = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 1e-3 + 3e-12),
-        axis: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1e-3 + 3e-12),
+            Vec3::unit_x(),
+            Vec3::unit_z(),
+        ),
         radius: 1e-3,
-        u_ref: Vec3::unit_z(),
     };
     match tangent_locus(&plane_at(0.0), &cyl_mm, metre_patch(), band()) {
         Ok(TangentLocus::Line { .. }) => {}

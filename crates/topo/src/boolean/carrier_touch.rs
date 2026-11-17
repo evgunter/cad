@@ -170,17 +170,14 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
         (a * h, off)
     };
     match *surface {
-        geom::Surface::Sphere { center, radius, .. } => {
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let w = q - center;
             let (w_hat, n) = w.direction_and_length();
             Some((n - radius, center + w * (radius / n), w_hat))
         }
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let (along, across) = split(origin, axis);
             let (across_hat, rho) = across.direction_and_length();
             Some((
@@ -190,19 +187,20 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
             ))
         }
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (_, across) = split(center, axis);
             let core = center + across * (major_radius / across.norm());
             let v = q - core;
             let (v_hat, d) = v.direction_and_length();
             Some((d - minor_radius, core + v * (minor_radius / d), v_hat))
         }
-        geom::Surface::Plane { origin, normal, .. } => {
+        geom::Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
             let n = normal.normalize();
             let d = (q - origin).dot(n);
             Some((d, q - n * d, n))

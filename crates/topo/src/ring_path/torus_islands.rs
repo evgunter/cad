@@ -15,11 +15,9 @@ pub(crate) const RADII: (f64, f64) = (2.0, 0.8);
 /// set with its chart turned the other way), its seam at the frame's `x`.
 pub(crate) fn torus(f: Frame, mirror: bool) -> geom::Surface<f64> {
     geom::Surface::Torus {
-        center: f.o,
-        axis: if mirror { -f.z } else { f.z },
+        frame: geom::Frame::new(f.o, if mirror { -f.z } else { f.z }, f.x),
         major_radius: RADII.0 * f.s,
         minor_radius: RADII.1 * f.s,
-        u_ref: f.x,
     }
 }
 
@@ -165,9 +163,7 @@ pub(crate) fn oval(f: Frame, d: f64, side: bool, (v0, v1): (f64, f64)) -> Island
     let (u_ref, offset) = if side { (f.x, d) } else { (-f.x, -d) };
     IslandEdge {
         carrier: geom::Curve3::Spiric {
-            center: f.o,
-            axis: f.z,
-            u_ref,
+            frame: geom::Frame::new(f.o, f.z, u_ref),
             major_radius: big * f.s,
             minor_radius: small * f.s,
             offset: offset * f.s,

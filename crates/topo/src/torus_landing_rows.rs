@@ -128,11 +128,9 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
         );
         let face = prism.sides[0].face;
         let surface = geom::Surface::Torus {
-            center,
-            axis,
+            frame: geom::Frame::new(center, axis, Vec3::new(1.0, 0.0, 0.0)),
             major_radius: big_r,
             minor_radius: r,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         body.set_face_surface(
             face,

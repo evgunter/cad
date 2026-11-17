@@ -278,17 +278,20 @@ fn skew<T: Decide>(normal: Vec3<T>, plane: SectionPlane<T>, at: Point3<T>) -> T 
 fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band) -> bool {
     let f = body.proven_face(face);
     match *f.surface() {
-        geom::Surface::Cone { apex, axis, .. } => !matches!(
-            crate::face_normal::cone_point(
-                geom::Line {
-                    origin: apex,
-                    dir: axis
-                },
-                at,
-                band
-            ),
-            Ok(crate::face_normal::ConePoint::Apex | crate::face_normal::ConePoint::NearAxis)
-        ),
+        geom::Surface::Cone { frame, .. } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            !matches!(
+                crate::face_normal::cone_point(
+                    geom::Line {
+                        origin: apex,
+                        dir: axis
+                    },
+                    at,
+                    band
+                ),
+                Ok(crate::face_normal::ConePoint::Apex | crate::face_normal::ConePoint::NearAxis)
+            )
+        }
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }
         | geom::Surface::Torus { .. } => true,
@@ -434,10 +437,8 @@ mod tests {
             seed.face,
             FaceSurface::New {
                 surface: geom::Surface::Cone {
-                    apex: Point3::origin(),
-                    axis: Vec3::unit_z(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     half_angle: alpha,
-                    u_ref: Vec3::unit_x(),
                 },
                 sense: true,
             },

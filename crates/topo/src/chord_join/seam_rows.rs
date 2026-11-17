@@ -39,7 +39,7 @@ fn the_seam_goes_to_the_nearest_principal_vertex() {
         (pi, -Vec3::unit_x(), A),
     ] {
         let s = conic().seamed_near(theta);
-        let (s_seam, (s_sa, _)) = (s.conic().frame().u_ref, s.conic().semi_axes());
+        let (s_seam, (s_sa, _)) = (s.conic().frame().u_ref(), s.conic().semi_axes());
         assert!(
             s_seam.equals_exactly(seam) && s_sa == sa,
             "θ = {theta}: {s_seam:?} {s_sa}"
@@ -66,7 +66,7 @@ fn the_seam_goes_to_the_nearest_principal_vertex() {
     .unwrap()
     .seamed_near(core::f64::consts::FRAC_PI_2);
     assert_eq!(
-        (circle.conic().frame().u_ref - Vec3::unit_x()).norm(),
+        (circle.conic().frame().u_ref() - Vec3::unit_x()).norm(),
         0.0,
         "a circle keeps its seam"
     );

@@ -55,10 +55,12 @@ fn three_arc_rim() -> (Body<f64>, [EdgeKey; 3]) {
         seed.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -106,9 +108,11 @@ fn three_arc_rim() -> (Body<f64>, [EdgeKey; 3]) {
             EdgeCurveSpec::arc_of_circle(rim_circle(), 2.0 * third, TAU).unwrap(),
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: Point3::new(0.0, 0.0, RIM_Z),
-                    normal: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, RIM_Z),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                 },
                 sense: true,
             },

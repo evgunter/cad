@@ -1268,7 +1268,10 @@ fn plane_frame<T: Decide>(
     face: FaceKey,
 ) -> Result<(geom_core::Point3<T>, geom_core::Vec3<T>), ChartRegionError> {
     match face_surface(body, face)? {
-        Surface::Plane { origin, normal, .. } => Ok((*origin, *normal)),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Ok((origin, normal))
+        }
         _ => Err(ChartRegionError::Corrupt),
     }
 }
@@ -1638,8 +1641,8 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     for (body, face) in [(body_a, face_a), (body_b, face_b)] {
         let cover = pair_cover(body, face, band)?;
         for frame in [a, b] {
-            let (lo, hi) = cover.range_along(frame.axis);
-            let base = (frame.origin - geom_core::Point3::origin()).dot(frame.axis);
+            let (lo, hi) = cover.range_along(frame.axis());
+            let base = (frame.origin() - geom_core::Point3::origin()).dot(frame.axis());
             reach = reach.max((lo - base).abs()).max((hi - base).abs());
         }
     }
@@ -1667,14 +1670,14 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     norm_gate(
         "chart_region_cyl_tilt",
         Margin::levered(
-            a.axis.cross(b.axis).norm(),
+            a.axis().cross(b.axis()).norm(),
             // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
             // and the larger radius; no extent read computes it.
             geom_core::Lever::unsourced(hyp),
         ),
     )?;
-    let perp_a = a.axis_line().distance(b.origin);
-    let perp_b = b.axis_line().distance(a.origin);
+    let perp_a = a.axis_line().distance(b.origin());
+    let perp_b = b.axis_line().distance(a.origin());
     norm_gate("chart_region_cyl_offset", Margin::of(perp_a.max(perp_b)))?;
 
     // --- The transfer parameters (doc above). The sense margin is the
@@ -1684,7 +1687,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     let sigma: T = match decide(
         "chart_region_cyl_axis_sense",
         Margin::levered(
-            a.axis.dot(b.axis),
+            a.axis().dot(b.axis()),
             // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
             // and the larger radius; no extent read computes it.
             geom_core::Lever::unsourced(hyp),
@@ -1707,8 +1710,8 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         Err(diag) => return Err(ChartRegionError::Escalated(diag)),
     };
     let w_a = a.v_ref();
-    let delta = b.u_ref.dot(w_a).atan2(b.u_ref.dot(a.u_ref));
-    let c = a.height(b.origin);
+    let delta = b.u_ref().dot(w_a).atan2(b.u_ref().dot(a.u_ref()));
+    let c = a.height(b.origin());
 
     // --- Extraction (each face read in its OWN minted chart). ---
     let surface_a = face_surface(body_a, face_a)?.clone();
@@ -2124,14 +2127,10 @@ fn interior_witness<T: Decide + Bounds>(
     if premise == CarrierPremise::InBand {
         return WitnessOutcome::Declined;
     }
-    let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = *carrier
-    else {
+    let Surface::Plane { frame } = *carrier else {
         return WitnessOutcome::Declined;
     };
+    let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let v_ref = normal.cross(u_ref);
     let Ok((_, normal_b)) = plane_frame(body_b, face_b) else {
         return WitnessOutcome::Declined;
@@ -4897,9 +4896,7 @@ mod tests {
     /// ẑ ⇒ v_ref = ẑ × x̂ = ŷ).
     pub(super) fn xy_plane() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         }
     }
 
@@ -4907,9 +4904,7 @@ mod tests {
     /// (`u_ref` rotated 90°).
     pub(super) fn xy_plane_rotated() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_y()),
         }
     }
 
@@ -5213,10 +5208,8 @@ mod tests {
             (0.25, 1.0)
         );
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         // A window clear of the poles certifies `r·cos v_max`.
         let (arm_u, arm_v) = arm_values(certified_arms(&sphere, -0.5, 0.5, band())).unwrap();
@@ -5615,29 +5608,35 @@ mod inf_arms {
 
     fn sphere(radius: f64) -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn cone(half_angle: f64) -> Surface<f64> {
         Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn torus(major: f64, minor: f64) -> Surface<f64> {
         Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: major,
             minor_radius: minor,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -6002,10 +6001,12 @@ mod inf_arms {
             (1.0, 1.0)
         );
         let c: Surface<f64> = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 3.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         assert_eq!(
             arm_values(certified_arms(&c, -5.0, 5.0, band())).unwrap(),

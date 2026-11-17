@@ -952,79 +952,81 @@ fn face_geo_arms<T: Decide>(
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
     match f.surface() {
-        Surface::Plane { origin, normal, .. } => {
-            Ok(FaceGeo::Plane(plane_desc_of(f.record(), *origin, *normal)))
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Ok(FaceGeo::Plane(plane_desc_of(f.record(), origin, normal)))
         }
-        &Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => match ruled_face_region(body, face)? {
-            Some(region) => Ok(FaceGeo::Cylinder {
-                axis: geom::Line { origin, dir: axis },
-                radius,
-                region,
-                sense: f.sense(),
-            }),
-            None => {
-                let anchor = boundary_point(body, face)?;
-                Ok(FaceGeo::PartialWall {
+        &Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            match ruled_face_region(body, face)? {
+                Some(region) => Ok(FaceGeo::Cylinder {
                     axis: geom::Line { origin, dir: axis },
-                    radius,
-                    anchor,
-                    reach: partial_reach(body, face, anchor, band)?.length(),
-                })
-            }
-        },
-        &Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => match ruled_face_region(body, face)? {
-            Some(region) => Ok(FaceGeo::Cone {
-                axis: geom::Line {
-                    origin: apex,
-                    dir: axis,
-                },
-                half_angle,
-                region,
-                sense: f.sense(),
-            }),
-            None => Ok(FaceGeo::PartialCone {
-                axis: geom::Line {
-                    origin: apex,
-                    dir: axis,
-                },
-                half_angle,
-                reach: partial_reach(body, face, apex, band)?,
-            }),
-        },
-        &Surface::Sphere { center, radius, .. } => match closed_sphere_group(body, face, charts) {
-            Some(representative) => Ok(FaceGeo::Sphere {
-                center,
-                radius,
-                representative,
-                sense: proven(&body.faces, representative, EntityId::Face).sense,
-            }),
-            None => match sphere_face_region(body, face)? {
-                Some(region) => Ok(FaceGeo::SpherePatch {
-                    center,
                     radius,
                     region,
                     sense: f.sense(),
                 }),
-                None => Err(PointInSolidError::PartialSphereFace { face }),
-            },
-        },
+                None => {
+                    let anchor = boundary_point(body, face)?;
+                    Ok(FaceGeo::PartialWall {
+                        axis: geom::Line { origin, dir: axis },
+                        radius,
+                        anchor,
+                        reach: partial_reach(body, face, anchor, band)?.length(),
+                    })
+                }
+            }
+        }
+        &Surface::Cone {
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            match ruled_face_region(body, face)? {
+                Some(region) => Ok(FaceGeo::Cone {
+                    axis: geom::Line {
+                        origin: apex,
+                        dir: axis,
+                    },
+                    half_angle,
+                    region,
+                    sense: f.sense(),
+                }),
+                None => Ok(FaceGeo::PartialCone {
+                    axis: geom::Line {
+                        origin: apex,
+                        dir: axis,
+                    },
+                    half_angle,
+                    reach: partial_reach(body, face, apex, band)?,
+                }),
+            }
+        }
+        &Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            match closed_sphere_group(body, face, charts) {
+                Some(representative) => Ok(FaceGeo::Sphere {
+                    center,
+                    radius,
+                    representative,
+                    sense: proven(&body.faces, representative, EntityId::Face).sense,
+                }),
+                None => match sphere_face_region(body, face)? {
+                    Some(region) => Ok(FaceGeo::SpherePatch {
+                        center,
+                        radius,
+                        region,
+                        sense: f.sense(),
+                    }),
+                    None => Err(PointInSolidError::PartialSphereFace { face }),
+                },
+            }
+        }
         &Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             if let Some(representative) = torus_closed_group(body, face, charts)? {
                 return Ok(FaceGeo::Torus {
                     axis: geom::Line {
@@ -1397,18 +1399,10 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             continue;
         };
         let (t0, t1) = curve.params();
-        let geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: c_c,
-                    axis: n_c,
-                    u_ref: u_c,
-                },
-            radius: r_c,
-        }) = *curve.carrier()
-        else {
+        let geom::Curve3::Circle(geom::Circle { frame, radius: r_c }) = *curve.carrier() else {
             return Ok(None);
         };
+        let (c_c, n_c, u_c) = (frame.origin(), frame.axis(), frame.u_ref());
         let w = c_c - center;
         // A unit-vector cross/dot is a SINE or COSINE (dimensionless)
         // and is levered by the radius; a length difference is already
@@ -3563,15 +3557,8 @@ fn wall_crosses_by_turn<T: Decide>(
                 geom_brep::ruling_miss(&start, (T::zero(), t1 - t0), geom_brep::Ruling::Axis(axis))
                     .value()
             }
-            geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis: normal,
-                        ..
-                    },
-                radius: r,
-            }) => {
+            geom::Curve3::Circle(geom::Circle { frame, radius: r }) => {
+                let (center, normal) = (frame.origin(), frame.axis());
                 r.abs() * normal.normalize().cross(axis).norm()
                     + geom::Line { origin, dir: axis }.distance(center)
             }
@@ -6217,41 +6204,29 @@ mod kind_arm_tests {
             let surface: Surface<f64> =
                 match kind {
                     SurfaceKind::Plane => Surface::Plane {
-                        origin: o,
-                        normal: z,
-                        u_ref: x,
+                        frame: geom::Frame::new(o, z, x),
                     },
                     SurfaceKind::Cylinder => Surface::Cylinder {
-                        origin: o,
-                        axis: z,
+                        frame: geom::Frame::new(o, z, x),
                         radius: 0.5,
-                        u_ref: x,
                     },
                     SurfaceKind::Cone => Surface::Cone {
-                        apex: o,
-                        axis: z,
+                        frame: geom::Frame::new(o, z, x),
                         half_angle: 0.5,
-                        u_ref: x,
                     },
                     SurfaceKind::Sphere => Surface::Sphere {
-                        center: o,
+                        frame: geom::Frame::new(o, z, x),
                         radius: 0.5,
-                        axis: z,
-                        u_ref: x,
                     },
                     SurfaceKind::Torus => Surface::Torus {
-                        center: o,
-                        axis: z,
+                        frame: geom::Frame::new(o, z, x),
                         major_radius: 0.4,
                         minor_radius: 0.1,
-                        u_ref: x,
                     },
                     SurfaceKind::Spindle => Surface::Spindle {
-                        center: o,
-                        axis: z,
+                        frame: geom::Frame::new(o, z, x),
                         major_radius: -0.3,
                         minor_radius: 0.5,
-                        u_ref: x,
                     },
                     SurfaceKind::Nurbs => Surface::nurbs_placeholder(),
                     SurfaceKind::Approx => Surface::Approx(std::sync::Arc::new(
@@ -6407,10 +6382,12 @@ mod reach_tests {
         let face = body.faces().next().expect("a face").0;
         let key = body.get_face(face).expect("the face").surface;
         *body.surfaces.get_mut(key).expect("its surface") = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let (q, d) = (Point3::new(-3.0, 0.6, 0.5), Vec3::new(1.0, 0.0, 0.0));
         let root = 2.2;

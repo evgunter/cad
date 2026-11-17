@@ -56,10 +56,8 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
         let n = unit(|lo, hi| rng.range(lo, hi));
         let t = n.cross(unit(|lo, hi| rng.range(lo, hi))).normalize();
         let s = geom::Surface::Sphere {
-            center: o,
+            frame: geom::Frame::new(o, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
             radius: r,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         (s, o + n * r, n, t)
     } else {
@@ -70,10 +68,8 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
         let along = e2 * phi.cos() - e1 * phi.sin();
         let g = rng.range(0.0, TAU);
         let s = geom::Surface::Cylinder {
-            origin: o,
-            axis,
+            frame: geom::Frame::new(o, axis, e1),
             radius: r,
-            u_ref: e1,
         };
         let on = o + radial * r + axis * rng.range(-2.0, 2.0);
         (
@@ -134,54 +130,53 @@ fn lift_v(v: Vec3<f64>) -> Vec3<Interval> {
 fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
     let at = Interval::from_f64;
     let carrier = match pose.carrier {
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => geom::Curve3::circle(lift_p(center), lift_v(axis), at(radius), lift_v(u_ref)),
+        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            geom::Curve3::circle(lift_p(center), lift_v(axis), at(radius), lift_v(u_ref))
+        }
         geom::Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame,
             semi_u,
             semi_v,
-        }) => geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(lift_p(center), lift_v(axis), lift_v(u_ref)),
-            at(semi_u),
-            at(semi_v),
-        )),
+        }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(lift_p(center), lift_v(axis), lift_v(u_ref)),
+                at(semi_u),
+                at(semi_v),
+            ))
+        }
         _ => panic!("the sweep draws circles and ellipses"),
     };
     let surface = match pose.surface {
         geom::Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
-        } => geom::Surface::Sphere {
-            center: lift_p(center),
-            radius: at(radius),
-            axis: lift_v(axis),
-            u_ref: lift_v(u_ref),
-        },
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            geom::Surface::Sphere {
+                frame: geom::Frame::new(lift_p(center), lift_v(axis), lift_v(u_ref)),
+                radius: at(radius),
+            }
+        }
         geom::Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
-        } => geom::Surface::Cylinder {
-            origin: lift_p(origin),
-            axis: lift_v(axis),
-            radius: at(radius),
-            u_ref: lift_v(u_ref),
-        },
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            geom::Surface::Cylinder {
+                frame: geom::Frame::new(lift_p(origin), lift_v(axis), lift_v(u_ref)),
+                radius: at(radius),
+            }
+        }
         _ => panic!("the sweep draws spheres and walls"),
     };
     (carrier, surface)

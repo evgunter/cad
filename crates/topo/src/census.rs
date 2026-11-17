@@ -1945,7 +1945,10 @@ fn placed<T: Decide>(
     let plane = body.face(f).and_then(|view| {
         held.check(view.surface(), band);
         match *view.surface() {
-            geom::Surface::Plane { normal, .. } => Some(normal),
+            geom::Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
+                Some(normal)
+            }
             _ => None,
         }
     });
@@ -2843,7 +2846,10 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         std::collections::BTreeMap::new();
     for (key, face) in body.faces.iter() {
         let plane = match body.surfaces.get(face.surface) {
-            Some(&geom::Surface::Plane { origin, normal, .. }) => Some((origin, normal)),
+            Some(&geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((origin, normal))
+            }
             _ => {
                 curved_faces.push(key);
                 None
@@ -4454,10 +4460,8 @@ mod variety_reading_rows {
 
     fn cylinder() -> geom::Surface<f64> {
         geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -4494,10 +4498,8 @@ mod variety_reading_rows {
     #[test]
     fn a_conics_samples_in_band_then_off_are_not_on_the_sphere() {
         let sphere = geom::Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let r = 1.0 + in_band();
         // Five samples of a circle's arc, as `carrier_on_surface` reads
@@ -6649,7 +6651,8 @@ fn curved_same_side_pairs<T: Decide>(
             // interiors, whose heights lie strictly inside their
             // boundaries', are apart unless the spans overlap.
             let axially = match surface(fa) {
-                Some(&geom::Surface::Cylinder { origin, axis, .. }) => {
+                Some(&geom::Surface::Cylinder { frame, .. }) => {
+                    let (origin, axis) = (frame.origin(), frame.axis());
                     match (axial(fa, origin, axis), axial(fb, origin, axis)) {
                         (Some(a), Some(b)) => Some(decide(
                             "census_aligned_axial_overlap",
@@ -9528,12 +9531,18 @@ fn tangent_sectors<T: Decide>(
 /// `None` on a spline, which has no such frame.
 pub(crate) fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3<T>; 3]> {
     let (u, a) = match *surface {
-        geom::Surface::Plane { u_ref, normal, .. } => (u_ref, normal),
-        geom::Surface::Cylinder { u_ref, axis, .. }
-        | geom::Surface::Cone { u_ref, axis, .. }
-        | geom::Surface::Sphere { u_ref, axis, .. }
-        | geom::Surface::Torus { u_ref, axis, .. }
-        | geom::Surface::Spindle { u_ref, axis, .. } => (u_ref, axis),
+        geom::Surface::Plane { frame, .. } => {
+            let (u_ref, normal) = (frame.u_ref(), frame.axis());
+            (u_ref, normal)
+        }
+        geom::Surface::Cylinder { frame, .. }
+        | geom::Surface::Cone { frame, .. }
+        | geom::Surface::Sphere { frame, .. }
+        | geom::Surface::Torus { frame, .. }
+        | geom::Surface::Spindle { frame, .. } => {
+            let (u_ref, axis) = (frame.u_ref(), frame.axis());
+            (u_ref, axis)
+        }
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => return None,
     };
     Some([u, a.cross(u), a])
@@ -15402,9 +15411,7 @@ mod tests {
                     f,
                     FaceSurface::New {
                         surface: Surface::Plane {
-                            origin: centroid,
-                            normal,
-                            u_ref,
+                            frame: geom::Frame::new(centroid, normal, u_ref),
                         },
                         sense: true,
                     },
@@ -15578,9 +15585,7 @@ mod tests {
         let seed = body.mvfs(p0, true).expect("a seed");
         // After the seed: a surface on an empty body is an orphan.
         let plane = body.add_surface(Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         });
         let cyl = body.add_surface(CylFrame::canonical(1.0).surface());
         let arc = body
@@ -16392,9 +16397,7 @@ mod tests {
         let body =
             crate::test_support_fixtures::spiric_cap(10.0, 1.0, 5.0, (v0, v1), Tol::witness()).0;
         let spiric = geom::Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 10.0,
             minor_radius: 1.0,
             offset: 5.0,
@@ -18704,9 +18707,7 @@ mod tests {
             assert!(errors.is_empty(), "{errors:?}");
             let cuts = cuts.expect("decided");
             let oval = geom::Curve3::Spiric {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 2.0,
                 minor_radius: 1.0,
                 offset: 0.5,
@@ -18736,12 +18737,7 @@ mod tests {
         ) -> (Body<f64>, FaceKey) {
             use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
             let geom::Curve3::Ellipse(geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame,
                 ..
             }) = carrier
             else {
@@ -18752,9 +18748,7 @@ mod tests {
             let mut body = Body::<f64>::new();
             let seed = body.mvfs(p0, true).expect("a seed");
             let plane = body.add_surface(Surface::Plane {
-                origin: center,
-                normal: axis,
-                u_ref,
+                frame: carrier_frame,
             });
             let cyl = body.add_surface(cyl.surface());
             let arc = body
@@ -19318,7 +19312,8 @@ mod records_by_carrier {
     fn face_at_z(body: &Body<f64>, z: f64, up: bool) -> FaceKey {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5
                         && (origin.z - z).abs() < 1e-12
                         && ((normal.z > 0.0) == f.sense) == up
@@ -19434,7 +19429,8 @@ mod records_by_carrier {
             let side = block
                 .faces()
                 .find(|(_, f)| match block.get_surface(f.surface) {
-                    Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    Some(geom::Surface::Plane { frame, .. }) => {
+                        let (origin, normal) = (frame.origin(), frame.axis());
                         normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-12
                     }
                     _ => false,
@@ -19710,7 +19706,8 @@ mod two_carrier_records {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - 1.0).abs() < 1e-12
                 }
                 _ => false,
@@ -19770,7 +19767,8 @@ mod two_carrier_records {
         let top = body
             .faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
                 }
                 _ => false,
@@ -19839,7 +19837,8 @@ mod two_carrier_records {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-15
                 }
                 _ => false,
@@ -19897,7 +19896,8 @@ mod two_carrier_records {
         let a_top = body
             .faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5
                         && (origin.z - 1.0).abs() < 1e-12
                         && ((normal.z > 0.0) == f.sense)
@@ -20064,7 +20064,8 @@ mod two_carrier_records {
             let top = body
                 .faces()
                 .find(|(_, f)| match body.get_surface(f.surface) {
-                    Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    Some(geom::Surface::Plane { frame, .. }) => {
+                        let (origin, normal) = (frame.origin(), frame.axis());
                         normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
                     }
                     _ => false,
@@ -21112,8 +21113,8 @@ mod edge_face_residual {
             .faces()
             .find(|&(k, f)| {
                 matches!(body.get_surface(f.surface),
-                    Some(geom::Surface::Plane { origin, normal, .. })
-                        if normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12)
+                    Some(geom::Surface::Plane { frame, .. })
+                        if frame.axis().z.abs() > 0.5 && (frame.origin().z - 1.0).abs() < 1e-12)
                     && body.vertices().any(|(v, _)| {
                         at(v) == [0.0, 0.0, 1.0]
                             && Contact::new(&body, Cell::Vertex(v), Cell::Face(k)).is_err()
@@ -21181,7 +21182,8 @@ mod point_touch {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - x).abs() <= 1e-15 * x.abs().max(1.0)
                 }
                 _ => false,
@@ -21349,15 +21351,11 @@ mod curved_edge_edge {
         let (p0, p1) = (circle.eval(0.0), circle.eval(std::f64::consts::PI));
         let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
-            origin: center,
-            normal: axis,
-            u_ref,
+            frame: geom::Frame::new(center, axis, u_ref),
         });
         let cyl = body.add_surface(Surface::Cylinder {
-            origin: center,
-            axis,
+            frame: geom::Frame::new(center, axis, u_ref),
             radius: 1.0,
-            u_ref,
         });
         let arc = body
             .mev(
@@ -21507,7 +21505,7 @@ mod curved_edge_edge {
                         .and_then(|d| body.get_curve_geom(d.curve))
                         .and_then(|g| g.certified())
                         .is_some_and(|c| {
-                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if center.z == 0.0)
+                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z == 0.0)
                         })
             })
             .expect("the sheet's bottom rim");
@@ -22366,15 +22364,11 @@ mod arc_interiors {
         let (p0, p1) = (circle.eval(t0), circle.eval(t1));
         let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
-            origin,
-            normal: n,
-            u_ref: u,
+            frame: geom::Frame::new(origin, n, u),
         });
         let cyl = body.add_surface(Surface::Cylinder {
-            origin: center,
-            axis: n,
+            frame: geom::Frame::new(center, n, u),
             radius: r,
-            u_ref: u,
         });
         let arc = body
             .mev(
@@ -23005,7 +22999,7 @@ mod lone_vertex_rows {
         let mut post = crate::tier3_tests::half_disc(0.3, 0.5, (0.5, 0.5, 1.0), false, tol);
         let plane = |body: &crate::Body<f64>, normal: geom_core::Vec3<f64>| {
             body.face_views()
-                .find(|f| matches!(*f.surface(), geom::Surface::Plane { normal: n, .. } if (n - normal).norm() < 1e-12))
+                .find(|f| matches!(*f.surface(), geom::Surface::Plane { frame, .. } if (frame.axis() - normal).norm() < 1e-12))
                 .map(|f| f.key())
                 .expect("the face")
         };

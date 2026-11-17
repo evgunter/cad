@@ -146,10 +146,8 @@ impl<T: Decide> ConeApex<T> {
     /// The cone as a surface.
     pub(crate) fn surface(&self) -> geom::Surface<T> {
         geom::Surface::Cone {
-            apex: self.apex,
-            axis: self.axis,
+            frame: geom::Frame::new(self.apex, self.axis, self.u_ref),
             half_angle: self.half_angle,
-            u_ref: self.u_ref,
         }
     }
 
@@ -371,17 +369,21 @@ pub(crate) fn resolve<T: Decide>(
         });
     }
     match surface {
-        geom::Surface::Cylinder { origin, axis, .. } => charted(
-            geom::Line {
-                origin: *origin,
-                dir: *axis,
-            }
-            .offset(point())
-            .normalize(),
-            SectorCarrier::Cylinder,
-        ),
-        geom::Surface::Sphere { center, .. } => {
-            charted((point() - *center).normalize(), SectorCarrier::Sphere)
+        geom::Surface::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            charted(
+                geom::Line {
+                    origin: origin,
+                    dir: axis,
+                }
+                .offset(point())
+                .normalize(),
+                SectorCarrier::Cylinder,
+            )
+        }
+        geom::Surface::Sphere { frame, .. } => {
+            let center = frame.origin();
+            charted((point() - center).normalize(), SectorCarrier::Sphere)
         }
         // The chart normal of a ring torus at `p` is `p` minus its foot
         // on the core circle, over `r` — the implicit gradient, read from
@@ -396,12 +398,8 @@ pub(crate) fn resolve<T: Decide>(
         // A cone's implicit gradient IS its chart normal, nappe sign
         // included, everywhere off its axis. On the axis it is `0/0`, and
         // the axis point of the surface is the apex, read as its rulings.
-        s @ &geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => {
+        s @ &geom::Surface::Cone { frame, half_angle } => {
+            let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let p = point();
             match crate::face_normal::cone_point(
                 geom::Line {
@@ -560,10 +558,12 @@ pub(crate) mod tests {
             face,
             crate::construction::FaceSurface::New {
                 surface: geom::Surface::Sphere {
-                    center: geom_core::Point3::new(0.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        geom_core::Point3::new(0.0, 0.0, 0.0),
+                        geom_core::Vec3::new(0.0, 0.0, 1.0),
+                        geom_core::Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     radius: 2.0,
-                    axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
                 },
                 sense: true,
             },
@@ -677,10 +677,12 @@ pub(crate) mod tests {
                 face,
                 crate::construction::FaceSurface::New {
                     surface: geom::Surface::Cone {
-                        apex: at - g * along,
-                        axis: Vec3::new(0.0, 0.0, 1.0),
+                        frame: geom::Frame::new(
+                            at - g * along,
+                            Vec3::new(0.0, 0.0, 1.0),
+                            Vec3::new(1.0, 0.0, 0.0),
+                        ),
                         half_angle: alpha,
-                        u_ref: Vec3::new(1.0, 0.0, 0.0),
                     },
                     sense: true,
                 },
@@ -731,11 +733,9 @@ pub(crate) mod tests {
             face,
             crate::construction::FaceSurface::New {
                 surface: geom::Surface::Torus {
-                    center,
-                    axis: z,
+                    frame: geom::Frame::new(center, z, x),
                     major_radius: big_r,
                     minor_radius: r,
-                    u_ref: x,
                 },
                 sense: true,
             },

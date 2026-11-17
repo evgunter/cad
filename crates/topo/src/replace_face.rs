@@ -1251,34 +1251,36 @@ fn transport_curve<T: Decide>(
     band: Band,
 ) -> Result<Transported<T>, Indeterminate> {
     Ok(match old {
-        Surface::Plane { normal, .. } => {
-            let delta = *normal * d;
+        Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            let delta = normal * d;
             Some((translate_curve(curve, delta), Some(delta)))
         }
-        Surface::Cylinder { origin, axis, .. } => match curve {
-            Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
-                let radial = (mid - *origin).reject_from(*axis).normalize();
-                let delta = radial * d;
-                Some((translate_curve(curve, delta), Some(delta)))
+        Surface::Cylinder {
+            frame: carrier_frame,
+            ..
+        } => {
+            let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            match curve {
+                Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+                    let radial = (mid - origin).reject_from(axis).normalize();
+                    let delta = radial * d;
+                    Some((translate_curve(curve, delta), Some(delta)))
+                }
+                Curve3::Circle(geom::Circle { frame, radius }) => {
+                    let (center, ca, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                    Some((Curve3::circle(center, ca, *radius + d, u_ref), None))
+                }
+                // Neither an ellipse nor a spiric lies on a cylinder.
+                Curve3::Ellipse(..) | Curve3::Spiric { .. } => None,
             }
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis: ca,
-                        u_ref,
-                    },
-                radius,
-            }) => Some((Curve3::circle(*center, *ca, *radius + d, *u_ref), None)),
-            // Neither an ellipse nor a spiric lies on a cylinder.
-            Curve3::Ellipse(..) | Curve3::Spiric { .. } => None,
-        },
+        }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
             ..
         } => {
+            let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
             // ONE derivation, read from `geom_brep`: the apex slide,
             // the parameter shift and the pointwise displacement are
             // three faces of the mint's own action, and this door reads
@@ -1286,8 +1288,8 @@ fn transport_curve<T: Decide>(
             // costs is a second copy, not a second call).
             let action = geom_brep::ConeOffset::new(
                 geom::Line {
-                    origin: *apex,
-                    dir: *axis,
+                    origin: apex,
+                    dir: axis,
                 },
                 *half_angle,
                 d,
@@ -1304,23 +1306,16 @@ fn transport_curve<T: Decide>(
                 // A parallel: `v` shifts by the action's own shift, and
                 // the circle re-mints against the action's own APEX —
                 // the slide the mint applies and this arm used to omit.
-                Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis: ca,
-                            u_ref,
-                        },
-                    ..
-                }) => {
-                    let v = (*center - *apex).dot(*axis) / cos_a;
+                Curve3::Circle(geom::Circle { frame, .. }) => {
+                    let (center, ca, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                    let v = (center - apex).dot(axis) / cos_a;
                     let v_new = v + action.shift();
                     Some((
                         Curve3::circle(
-                            action.apex() + *axis * (v_new * cos_a),
-                            *ca,
+                            action.apex() + axis * (v_new * cos_a),
+                            ca,
                             (v_new * sin_a).abs(),
-                            *u_ref,
+                            u_ref,
                         ),
                         None,
                     ))
@@ -1332,64 +1327,67 @@ fn transport_curve<T: Decide>(
         // The sphere's offset IS the homothety of ratio `(R + d)/R`
         // about the centre, so every curve on it transports by that one
         // map — no per-kind case analysis, only per-kind arithmetic.
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let k = (*radius + d) / *radius;
-            homothety(curve, *center, k).map(|c| (c, None))
+            homothety(curve, center, k).map(|c| (c, None))
         }
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             ..
-        } => match curve {
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: c,
-                        axis: ca,
-                        u_ref,
-                    },
-                radius,
-            }) => {
-                // Meridian or parallel is a question about the STORED
-                // circle's frame against the torus'; the margin is the
-                // sine/cosine split at the half-turn, and a carrier
-                // whose axis sits between the two is not a curve either
-                // arm describes.
-                let along = ca.dot(*axis);
-                let parallel = matches!(
-                    decide(
-                        "offset_torus_carrier_axis",
-                        Margin::of(along.abs() - T::from_f64(0.5)),
-                        band,
-                    )?,
-                    Sign::Positive
-                );
-                if parallel {
-                    // A parallel: recover `v` from the stored circle
-                    // (`radius = R + r·cos v`, axial offset `r·sin v`)
-                    // and re-mint it at `r + d`.
-                    let cos_v = (*radius - *major_radius) / *minor_radius;
-                    let sin_v = (*c - *center).dot(*axis) / *minor_radius;
-                    let r_new = *minor_radius + d;
-                    Some((
-                        Curve3::circle(
-                            *center + *axis * (r_new * sin_v),
-                            *ca,
-                            *major_radius + r_new * cos_v,
-                            *u_ref,
-                        ),
-                        None,
-                    ))
-                } else {
-                    // A meridian (tube) circle: the tube centre is
-                    // fixed and the radius moves with the minor.
-                    Some((Curve3::circle(*c, *ca, *minor_radius + d, *u_ref), None))
+        } => {
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            match curve {
+                Curve3::Circle(geom::Circle {
+                    frame: carrier_frame,
+                    radius,
+                }) => {
+                    let (c, ca, u_ref) = (
+                        carrier_frame.origin(),
+                        carrier_frame.axis(),
+                        carrier_frame.u_ref(),
+                    );
+                    // Meridian or parallel is a question about the STORED
+                    // circle's frame against the torus'; the margin is the
+                    // sine/cosine split at the half-turn, and a carrier
+                    // whose axis sits between the two is not a curve either
+                    // arm describes.
+                    let along = ca.dot(axis);
+                    let parallel = matches!(
+                        decide(
+                            "offset_torus_carrier_axis",
+                            Margin::of(along.abs() - T::from_f64(0.5)),
+                            band,
+                        )?,
+                        Sign::Positive
+                    );
+                    if parallel {
+                        // A parallel: recover `v` from the stored circle
+                        // (`radius = R + r·cos v`, axial offset `r·sin v`)
+                        // and re-mint it at `r + d`.
+                        let cos_v = (*radius - *major_radius) / *minor_radius;
+                        let sin_v = (c - center).dot(axis) / *minor_radius;
+                        let r_new = *minor_radius + d;
+                        Some((
+                            Curve3::circle(
+                                center + axis * (r_new * sin_v),
+                                ca,
+                                *major_radius + r_new * cos_v,
+                                u_ref,
+                            ),
+                            None,
+                        ))
+                    } else {
+                        // A meridian (tube) circle: the tube centre is
+                        // fixed and the radius moves with the minor.
+                        Some((Curve3::circle(c, ca, *minor_radius + d, u_ref), None))
+                    }
                 }
+                _ => None,
             }
-            _ => None,
-        },
+        }
         // The fitted lane: the chart normal at the domain midpoint is
         // the one direction this door has, and the cost of using it is
         // `d·|n − n₀|` — classified downstream by the certified gate,
@@ -1436,20 +1434,23 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
             ..*e
         }),
         Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             offset,
-        } => Curve3::Spiric {
-            center: *center + delta,
-            axis: *axis,
-            u_ref: *u_ref,
-            major_radius: *major_radius,
-            minor_radius: *minor_radius,
-            offset: *offset,
-        },
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Curve3::Spiric {
+                frame: geom::Frame::new(center + delta, axis, u_ref),
+                major_radius: *major_radius,
+                minor_radius: *minor_radius,
+                offset: *offset,
+            }
+        }
         // A translation is affine: the net's image, knots and weights
         // as they are held.
         Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.map_points(|p| p + delta))),
@@ -1462,15 +1463,10 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
 fn homothety<T: Real>(curve: &Curve3<T>, c: Point3<T>, k: T) -> Option<Curve3<T>> {
     let map = |p: Point3<T>| c + (p - c) * k;
     Some(match curve {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => Curve3::circle(map(*center), *axis, *radius * k, *u_ref),
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            Curve3::circle(map(center), axis, *radius * k, u_ref)
+        }
         // A homothety is affine: the net's image, knots and weights as
         // they are held.
         Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.map_points(map))),
@@ -2107,12 +2103,10 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
         // ---- Decide: the apex window (cones only). ----
         let shift = apex_shift(&old_surface, d);
         if let Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } = old_surface
         {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (v_min, v_max) = group_cone_v_window(
                 body,
                 faces,
@@ -2224,14 +2218,12 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     // the face now has: its near end must still clear the moved apex.
     for chart in &charts {
         let Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } = chart.new_surface
         else {
             continue;
         };
+        let (apex, axis) = (frame.origin(), frame.axis());
         let face = chart.faces[0];
         let own = group_boundary(body, chart.faces);
         let mut window: Option<(T, T)> = None;
@@ -2448,19 +2440,19 @@ pub(crate) fn region_reach<T: Real>(
 fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
     match old {
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => geom_brep::ConeOffset::new(
-            geom::Line {
-                origin: *apex,
-                dir: *axis,
-            },
-            *half_angle,
-            d,
-        )
-        .shift(),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            geom_brep::ConeOffset::new(
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                *half_angle,
+                d,
+            )
+            .shift()
+        }
         _ => T::zero(),
     }
 }
@@ -2534,37 +2526,26 @@ fn cone_v_range<T: Decide>(
         // amplitude is the semi-axes' own components along the cone
         // axis. Taken over the FULL period, which is conservative on a
         // sub-arc and exact on a closed rim.
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis: ca,
-                    u_ref,
-                },
-            radius,
-        }) => {
-            let v_ref = ca.cross(*u_ref);
+        Curve3::Circle(geom::Circle { frame, radius }) => {
+            let (center, ca, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            let v_ref = ca.cross(u_ref);
             let amp = ((u_ref.dot(axis) * *radius).powi(2) + (v_ref.dot(axis) * *radius).powi(2))
                 .sqrt()
                 / cos_a;
-            let c = v_of(*center);
+            let c = v_of(center);
             (c - amp, c + amp)
         }
         Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis: ca,
-                    u_ref,
-                },
+            frame,
             semi_u,
             semi_v,
         }) => {
-            let v_ref = ca.cross(*u_ref);
+            let (center, ca, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            let v_ref = ca.cross(u_ref);
             let amp = ((u_ref.dot(axis) * *semi_u).powi(2) + (v_ref.dot(axis) * *semi_v).powi(2))
                 .sqrt()
                 / cos_a;
-            let c = v_of(*center);
+            let c = v_of(center);
             (c - amp, c + amp)
         }
         // The convex-hull property: the image lies in the hull of the
@@ -5232,10 +5213,12 @@ mod pose_reach_rows {
         let eps = band().zero();
         let alpha: f64 = 0.5;
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: alpha,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let edge = Curve3::line(Point3::new(2.0, -2.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
         let tight = 8.0_f64.sqrt();
@@ -5248,9 +5231,11 @@ mod pose_reach_rows {
             // tilted `β` off the axis.
             let beta = (k * eps / tight).acos() - alpha;
             let plane = Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 1.0),
-                normal: Vec3::new(beta.sin(), 0.0, beta.cos()),
-                u_ref: Vec3::new(0.0, 1.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 1.0),
+                    Vec3::new(beta.sin(), 0.0, beta.cos()),
+                    Vec3::new(0.0, 1.0, 0.0),
+                ),
             };
             let got = pose_route(&plane, &cone, &span(&edge, (0.0, 4.0)), band());
             assert!(
@@ -5283,17 +5268,17 @@ mod pose_reach_rows {
     #[test]
     fn a_general_cylinder_torus_pose_is_served() {
         let torus = Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 1.0,
             minor_radius: 0.25,
-            u_ref: Vec3::unit_x(),
         };
         let rod = |axis: Vec3<f64>| Surface::Cylinder {
-            origin: Point3::new(1.0, 0.05, 0.02),
-            axis,
+            frame: geom::Frame::new(
+                Point3::new(1.0, 0.05, 0.02),
+                axis,
+                axis.cross(Vec3::new(0.3, 0.5, 0.7)).normalize(),
+            ),
             radius: 0.1,
-            u_ref: axis.cross(Vec3::new(0.3, 0.5, 0.7)).normalize(),
         };
         let edge = Curve3::line(Point3::new(1.0, 0.0, 0.2), Vec3::unit_z());
         let general = rod(Vec3::new(0.3, 0.4, 1.0).normalize());
@@ -5341,16 +5326,12 @@ mod pose_reach_rows {
     fn a_cone_cylinder_pose_is_read_at_the_apex() {
         let theta: f64 = 0.5 * band().zero() / 1.5;
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         let cylinder = |origin, axis| Surface::Cylinder {
-            origin,
-            axis,
+            frame: geom::Frame::new(origin, axis, Vec3::unit_y()),
             radius: 0.5,
-            u_ref: Vec3::unit_y(),
         };
         let stored = Point3::new(0.0, 0.0, 1000.0);
         let cyl = cylinder(stored, Vec3::new(theta.sin(), 0.0, theta.cos()));
@@ -5397,19 +5378,15 @@ mod pose_reach_rows {
         let edge = Curve3::line(Point3::new(1.0, 0.0, 1.0), Vec3::unit_z());
         let lever = (Point3::new(1.0, 0.0, 1.1_f64) - Point3::origin()).norm();
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         for (k, serves) in [(0.8, true), (1.3, false)] {
             let theta: f64 = k * band().zero() / lever;
             let axis = Vec3::new(theta.sin(), 0.0, theta.cos());
             let cyl = Surface::Cylinder {
-                origin: Point3::origin() + axis * 1000.0,
-                axis,
+                frame: geom::Frame::new(Point3::origin() + axis * 1000.0, axis, Vec3::unit_y()),
                 radius: 0.5,
-                u_ref: Vec3::unit_y(),
             };
             for (label, a, b) in [("cone, cyl", &cone, &cyl), ("cyl, cone", &cyl, &cone)] {
                 let got = pose_route(a, b, &span(&edge, (0.0, 0.1)), band());
@@ -5449,10 +5426,8 @@ mod pose_reach_rows {
     fn a_nurbs_rulings_pose_is_one_verdict_across_its_parametrisations() {
         let eps = band().zero();
         let c1 = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let ruling = |zs: &[f64], knots: Vec<f64>| {
             let control: Vec<Point3<f64>> = zs.iter().map(|&z| Point3::new(1.0, 0.0, z)).collect();
@@ -5492,10 +5467,12 @@ mod pose_reach_rows {
             for k in [1.2, 8.0, 9.0, 9.9] {
                 let theta: f64 = k * eps / 2.0_f64.sqrt();
                 let c2 = Surface::Cylinder {
-                    origin: Point3::new(2.0, 0.0, 0.0),
-                    axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
+                    frame: geom::Frame::new(
+                        Point3::new(2.0, 0.0, 0.0),
+                        Vec3::new(theta.sin(), 0.0, theta.cos()),
+                        Vec3::unit_y(),
+                    ),
                     radius: 1.0,
-                    u_ref: Vec3::unit_y(),
                 };
                 for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
                     let got = pose_route(a, b, &span(edge, (0.0, 1.0)), band());
@@ -5523,19 +5500,19 @@ mod pose_reach_rows {
     fn a_ruling_edges_pose_is_read_at_its_endpoints_not_its_ball() {
         let eps = band().zero();
         let c1 = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let edge = Curve3::line(Point3::new(1.0, 0.0, -1.0), Vec3::unit_z());
         for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
             let theta: f64 = k * eps / 2.0_f64.sqrt();
             let c2 = Surface::Cylinder {
-                origin: Point3::new(2.0, 0.0, 0.0),
-                axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
+                frame: geom::Frame::new(
+                    Point3::new(2.0, 0.0, 0.0),
+                    Vec3::new(theta.sin(), 0.0, theta.cos()),
+                    Vec3::unit_y(),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::unit_y(),
             };
             for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
                 let got = pose_route(a, b, &span(&edge, (0.0, 2.0)), band());
@@ -5572,9 +5549,11 @@ mod torn_body_rows {
     /// A surface key the arena no longer holds.
     fn dead_surface(body: &mut Body<f64>) -> crate::geometry::SurfaceKey {
         let dead = body.add_surface(Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         });
         body.surfaces.remove(dead);
         dead
@@ -5774,15 +5753,15 @@ mod pair_over_its_span_rows {
         let eps = band.zero();
         let alpha = (1.0_f64 / 64.0).asin();
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: alpha,
-            u_ref: Vec3::unit_x(),
         };
         let plane = Surface::Plane {
-            origin: Point3::new(-0.4 * eps, 0.0, 0.0),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(
+                Point3::new(-0.4 * eps, 0.0, 0.0),
+                Vec3::unit_x(),
+                Vec3::unit_y(),
+            ),
         };
         let start = 0.4 * eps * 64.0;
         let old = {
@@ -5854,10 +5833,8 @@ mod pair_over_its_span_rows {
         let eps = band.zero();
         let alpha = core::f64::consts::PI / 12.0;
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: alpha,
-            u_ref: Vec3::unit_x(),
         };
         let lean = (-1.0_f64 / 512.0).acos() - alpha;
         let n = Vec3::new(lean.sin(), 0.0, lean.cos());
@@ -5865,9 +5842,7 @@ mod pair_over_its_span_rows {
         // `δ·(axis·n) < 0`, so where `δ < 0`.
         for (delta, kept) in [(-0.04 * eps, true), (0.04 * eps, false)] {
             let plane = Surface::Plane {
-                origin: Point3::origin() - n * delta,
-                normal: n,
-                u_ref: Vec3::unit_y(),
+                frame: geom::Frame::new(Point3::origin() - n * delta, n, Vec3::unit_y()),
             };
             let old = geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 0.75), 0.25);
             let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
@@ -5942,9 +5917,7 @@ mod spline_corner {
     /// The plane `x = at`, across the segment's run.
     fn across(at: f64) -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::new(at, 0.0, 0.0),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(at, 0.0, 0.0), Vec3::unit_x(), Vec3::unit_y()),
         }
     }
 
@@ -6024,10 +5997,8 @@ mod spline_corner {
     #[test]
     fn a_surface_the_lane_does_not_root_passes_a_derived_section_over() {
         let cylinder = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         assert!(
             matches!(

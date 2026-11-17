@@ -1134,10 +1134,14 @@ fn classify<T: Decide>(
     };
     let parallel = |v: Vec3<T>| v.normalize().cross(frame.axis.dir).norm();
     Ok(match surface {
-        Surface::Plane { origin, normal, .. } => {
+        Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } => {
+            let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
             let n = normal.normalize();
             if sine(parallel(n), "offset_axial_alignment")? {
-                Constraint::Station(frame.station(*origin))
+                Constraint::Station(frame.station(origin))
             } else {
                 // A plane whose normal is PERPENDICULAR to the axis is
                 // parallel to it, through it or beside it. Anything
@@ -1151,64 +1155,60 @@ fn classify<T: Decide>(
                 }
                 Constraint::AxisParallel {
                     m: n,
-                    c: n.dot(vec_of(*origin)),
+                    c: n.dot(vec_of(origin)),
                 }
             }
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
-            if !sine(parallel(*axis), "offset_axial_alignment")? || !on_axis(*origin)? {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            if !sine(parallel(axis), "offset_axial_alignment")? || !on_axis(origin)? {
                 return Err(not_axial("a cylinder that is not coaxial with the body"));
             }
             Constraint::Wall(*radius)
         }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
             ..
         } => {
-            if !sine(parallel(*axis), "offset_axial_alignment")? || !on_axis(*apex)? {
+            let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            if !sine(parallel(axis), "offset_axial_alignment")? || !on_axis(apex)? {
                 return Err(not_axial("a cone that is not coaxial with the body"));
             }
             let (sin_a, cos_a) = half_angle.sin_cos();
             Constraint::Generator {
-                h_apex: frame.station(*apex),
+                h_apex: frame.station(apex),
                 sin_a,
                 cos_a,
             }
         }
         Surface::Sphere {
-            center,
-            axis,
+            frame: carrier_frame,
             radius,
             ..
         } => {
-            if !sine(parallel(*axis), "offset_axial_alignment")? || !on_axis(*center)? {
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            if !sine(parallel(axis), "offset_axial_alignment")? || !on_axis(center)? {
                 return Err(not_axial("a sphere whose centre is off the body's axis"));
             }
             Constraint::Ball {
-                h_c: frame.station(*center),
+                h_c: frame.station(center),
                 r: *radius,
             }
         }
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             ..
         } => {
-            if !sine(parallel(*axis), "offset_axial_alignment")? || !on_axis(*center)? {
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            if !sine(parallel(axis), "offset_axial_alignment")? || !on_axis(center)? {
                 return Err(not_axial("a torus whose centre is off the body's axis"));
             }
             Constraint::Torus {
                 major: *major_radius,
-                h_c: frame.station(*center),
+                h_c: frame.station(center),
                 minor: *minor_radius,
             }
         }
@@ -1283,8 +1283,10 @@ fn corner_arms<T: Decide>(
 /// being shifted by a vector that does not exist.
 fn rigid_shift<T: Real>(old: &Surface<T>, new: &Surface<T>) -> Option<Vec3<T>> {
     match (old, new) {
-        (Surface::Plane { origin: a, .. }, Surface::Plane { origin: b, .. })
-        | (Surface::Cone { apex: a, .. }, Surface::Cone { apex: b, .. }) => Some(*b - *a),
+        (Surface::Plane { frame: a, .. }, Surface::Plane { frame: b, .. })
+        | (Surface::Cone { frame: a, .. }, Surface::Cone { frame: b, .. }) => {
+            Some(b.origin() - a.origin())
+        }
         _ => None,
     }
 }
@@ -2159,12 +2161,13 @@ fn mint_carrier<T: Decide>(
     // certifies its own posture.
     if ca.old_key == cb.old_key {
         if let Curve3::Circle(geom::Circle {
-            frame: circle @ geom::Frame { axis, u_ref, .. },
+            frame: circle @ carrier_frame,
             ..
         }) = old
             && latitude_posture(frame, circle.axis_line(), band)?.is_none()
         {
-            return Ok(latitude_circle(frame, p_start, *axis, *u_ref));
+            let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
+            return Ok(latitude_circle(frame, p_start, axis, u_ref));
         }
         return match (&ca.old, old) {
             // A plane's and a cone's offsets are rigid translations, so
@@ -2198,20 +2201,22 @@ fn mint_carrier<T: Decide>(
             // plane, radius moved by the chart's distance. Not a
             // translation, and not pretended to be one.
             (
-                Surface::Sphere { center, .. },
+                Surface::Sphere {
+                    frame: sphere_frame,
+                    ..
+                },
                 Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: cc,
-                            axis,
-                            u_ref,
-                        },
+                    frame: seam_frame,
                     radius,
                 }),
             ) => {
-                let off = cc.distance(*center);
+                let (center, cc) = (sphere_frame.origin(), seam_frame.origin());
+                let off = cc.distance(center);
                 match decide("offset_axial_seam_concentric", Margin::of(off), band) {
-                    Ok(Sign::Zero) => Ok(Curve3::circle(*cc, *axis, *radius + ca.distance, *u_ref)),
+                    Ok(Sign::Zero) => Ok(Curve3::Circle(geom::Circle::new(
+                        *seam_frame,
+                        *radius + ca.distance,
+                    ))),
                     Ok(_) => Err(refuse(
                         "a sphere seam that is not a great circle about the sphere's own centre",
                     )),
@@ -2229,23 +2234,22 @@ fn mint_carrier<T: Decide>(
             // half-plane.
             (
                 Surface::Torus {
-                    center,
+                    frame: torus_frame,
                     major_radius,
                     ..
                 },
                 Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: cc,
-                            axis,
-                            u_ref,
-                        },
+                    frame: seam_frame,
                     radius,
                 }),
             ) => {
-                let off = tube_centre_offset(frame, *cc, *center, *major_radius);
+                let (center, cc) = (torus_frame.origin(), seam_frame.origin());
+                let off = tube_centre_offset(frame, cc, center, *major_radius);
                 match decide("offset_axial_seam_meridian", Margin::of(off), band) {
-                    Ok(Sign::Zero) => Ok(Curve3::circle(*cc, *axis, *radius + ca.distance, *u_ref)),
+                    Ok(Sign::Zero) => Ok(Curve3::Circle(geom::Circle::new(
+                        *seam_frame,
+                        *radius + ca.distance,
+                    ))),
                     Ok(_) => Err(refuse(
                         "a torus seam that is neither a latitude circle nor a meridian circle \
                          about the tube's own centre",
@@ -2421,9 +2425,19 @@ fn mint_carrier<T: Decide>(
         // on a meridian rim, and never less than `R − r` in size).
         let chosen = match (minus, &wall.new, &cap.new) {
             (None, ..) => plus,
-            (Some(minus), Surface::Torus { center, axis, .. }, Surface::Plane { normal, .. }) => {
+            (
+                Some(minus),
+                Surface::Torus {
+                    frame: torus_frame, ..
+                },
+                Surface::Plane {
+                    frame: plane_frame, ..
+                },
+            ) => {
+                let (center, axis) = (torus_frame.origin(), torus_frame.axis());
+                let normal = plane_frame.axis();
                 let q_mid = old.mid_point(old_span.0, old_span.1);
-                let side = axis.cross(*normal).dot(q_mid - *center);
+                let side = axis.cross(normal).dot(q_mid - center);
                 match decide("offset_axial_rim_side", Margin::of(side), band) {
                     Ok(Sign::Positive) => plus,
                     Ok(Sign::Negative) => minus,
@@ -2446,15 +2460,12 @@ fn mint_carrier<T: Decide>(
         // the two normals says whether the parameter runs the old way.
         // A cosine of unit vectors, levered at the body's extent.
         let normal_of = |c: &Curve3<T>| match c {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis, .. },
-                ..
-            })
-            | Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { axis, .. },
-                ..
-            }) => Some(axis.normalize()),
-            Curve3::Spiric { u_ref, .. } => Some(u_ref.normalize()),
+            Curve3::Circle(geom::Circle { frame, .. })
+            | Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(frame.axis().normalize()),
+            Curve3::Spiric { frame, .. } => {
+                let u_ref = frame.u_ref();
+                Some(u_ref.normalize())
+            }
             Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
         };
         let Some(old_normal) = normal_of(old) else {
@@ -2508,15 +2519,16 @@ fn mint_carrier<T: Decide>(
             Ok(Curve3::line(*origin + delta, *dir))
         }
         Curve3::Circle(geom::Circle {
-            frame: circle @ geom::Frame { axis, u_ref, .. },
+            frame: circle @ carrier_frame,
             ..
         }) => {
+            let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
             // A LATITUDE circle: coaxial with the body, so its centre
             // stays on the axis and its radius is the corner's own.
             if let Some(what) = latitude_posture(frame, circle.axis_line(), band)? {
                 return Err(refuse(what));
             }
-            Ok(latitude_circle(frame, p_start, *axis, *u_ref))
+            Ok(latitude_circle(frame, p_start, axis, u_ref))
         }
         _ => Err(refuse(
             "an edge between two different surfaces whose curve is neither a line nor a circle",
@@ -2797,18 +2809,11 @@ fn param_on<T: Decide>(
     let t = match carrier {
         // A circle's motion is the angle between the two points' rays
         // about its own centre, read off the points themselves.
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            ..
-        }) => {
+        Curve3::Circle(geom::Circle { frame, .. }) => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let n = axis.normalize();
             let axis_line = geom::Line {
-                origin: *center,
+                origin: center,
                 dir: n,
             };
             let ray = |x: Point3<T>| axis_line.offset(x);
@@ -2963,35 +2968,47 @@ fn keep_turn<T: Decide>(
 /// norm minus a radius.
 fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T>) -> T {
     match surface {
-        Surface::Plane { origin, normal, .. } => geom::plane_offset(*origin, *normal, p),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            geom::plane_offset(origin, normal, p)
+        }
         Surface::Cylinder { radius, .. } => frame.radial(p).norm() - *radius,
-        Surface::Sphere { center, radius, .. } => p.distance(*center) - *radius,
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            p.distance(center) - *radius
+        }
         // The double cone's elevation about the frame's own axis line
         // (`frame.axis.dir` is the cone's axis up to sign, and the
         // double-cone reading is symmetric in it).
         Surface::Cone {
-            apex, half_angle, ..
-        } => geom_brep::cone_elevation(
-            geom::Line {
-                origin: *apex,
-                dir: frame.axis.dir,
-            },
-            *half_angle,
-            None,
-            p,
-        ),
+            frame: carrier_frame,
+            half_angle,
+            ..
+        } => {
+            let apex = carrier_frame.origin();
+            geom_brep::cone_elevation(
+                geom::Line {
+                    origin: apex,
+                    dir: frame.axis.dir,
+                },
+                *half_angle,
+                None,
+                p,
+            )
+        }
         // The torus's own meridian distance, in the same `(ρ, h)`
         // half-plane the corner solve works in. Without it the
         // edge-on-surface meter would read `zero` on every torus chart
         // and certify an edge it never measured.
         Surface::Torus {
-            center,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let center = carrier_frame.origin();
             let rho = frame.radial(p).norm();
-            let h = frame.station(p) - frame.station(*center);
+            let h = frame.station(p) - frame.station(center);
             Vec3::new(rho - *major_radius, h, T::zero()).norm() - *minor_radius
         }
         // No edge is moved with a spindle sheet (the offset door mints
@@ -3052,16 +3069,13 @@ fn reauthor<T: Decide>(
                         geom_brep::SketchSegment::Line { a, b }
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
-                        let Curve3::Circle(geom::Circle {
-                            frame: geom::Frame { origin: center, .. },
-                            radius,
-                        }) = carrier
-                        else {
+                        let Curve3::Circle(geom::Circle { frame, radius }) = carrier else {
                             return Err(refuse(
                                 "a sketch arc with no moved circle to be redrawn about",
                             ));
                         };
-                        let centre = flat(*center);
+                        let center = frame.origin();
+                        let centre = flat(center);
                         let (u, v) = (a - centre, b - centre);
                         let covered = range.span().map_or(was.sweep, |span| was.sweep * span);
                         geom_brep::SketchSegment::Arc {
@@ -3249,7 +3263,10 @@ fn vec_of<T: Real>(p: Point3<T>) -> Vec3<T> {
 /// A plane surface's stored normal and origin.
 fn plane_of<T: Real>(s: &Surface<T>) -> Option<(Vec3<T>, Point3<T>)> {
     match s {
-        Surface::Plane { origin, normal, .. } => Some((*normal, *origin)),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Some((normal, origin))
+        }
         _ => None,
     }
 }
@@ -3293,10 +3310,12 @@ mod tests {
         let cube = geometric_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let wall = body.add_surface(Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         });
         for side in [cube.mefs[2].face, cube.mefs[3].face] {
             body.get_face_mut(side).expect("a cube wall").surface = wall;
@@ -3407,9 +3426,11 @@ mod tests {
             .map(|(k, f)| (k, f.surface))
             .expect("a wall on the cylinder");
         let dead = body.add_surface(Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         });
         body.surfaces.remove(dead);
         body.get_face_mut(face).unwrap().surface = dead;
@@ -3985,9 +4006,11 @@ mod keep_turn_rows {
         use geom_core::Vec3;
         let band = Band::linear(Tol::witness()).unwrap();
         let carrier = Curve3::Spiric {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 2.0,
             minor_radius: 1.0,
             offset: 0.5,
