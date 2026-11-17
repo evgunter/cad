@@ -518,9 +518,9 @@ impl<T: Decide> Curve3<T> {
     /// in closed form, whose place against the interval says whether the
     /// interval's nearest point is it or an end; on any other kind
     /// polished from `near` clamped into the interval, each iterate held
-    /// to it, or from an end nearer than that polish reached (the least
-    /// distance over the interval lies inside it or at an end). No sample
-    /// is read: a poor foot costs an escalation, never a
+    /// to it. The foot is no farther from `q` than the interval's own
+    /// ends: an end nearer than the polish reached is polished in turn.
+    /// No sample is read: a poor foot costs an escalation, never a
     /// verdict, since `On` rests on its gap and `Off` on a lower bound on
     /// the distance from the whole carrier.
     pub fn foot_within(&self, q: Point3<T>, (t0, t1): (T, T), near: T) -> Foot<'_, T> {
@@ -565,14 +565,14 @@ impl<T: Decide> Curve3<T> {
         self.held(q, into(seed, hold), hold)
     }
 
-    /// **The foot held to `(lo, hi)`**, polished from `seed`, or from an
-    /// end whose gap is decided smaller than the polished foot's: the
-    /// least distance over a closed interval lies at a stationary point
-    /// inside it or at an end, and a seed clamped onto an end where the
-    /// distance grows into the interval does not move, though the other
-    /// end be nearer (`rows::a_foot_over_an_interval_is_no_farther_than_its_ends`).
-    /// An end that wins is polished in turn, held, so a nearer stationary
-    /// point by it is found.
+    /// **The foot held to `(lo, hi)`**, no farther from `q` than the
+    /// interval's own ends: polished from `seed`, and from an end whose
+    /// gap is decided smaller than the polished foot's. A seed clamped
+    /// onto an end where the distance grows into the interval does not
+    /// move, though the other end be nearer
+    /// (`rows::a_foot_over_an_interval_is_no_farther_than_its_ends`); an
+    /// end that wins is polished, held, so a nearer stationary point by it
+    /// is found.
     fn held<'c>(&'c self, q: Point3<T>, seed: T, (lo, hi): (T, T)) -> Foot<'c, T> {
         let mut best = self.polish(q, self.foot_at(q, seed), Some((lo, hi)));
         for end in [lo, hi] {

@@ -63,7 +63,7 @@
 //! foot is inside it, the whole carrier's.
 //!
 //! **The composition** ([`Span::read`]): a point the carrier reads off is
-//! off the span ([`Reading::Off`]) wherever its foot sits, so its place
+//! off the span by the carrier ([`Reading::Off`], [`OffBy::Carrier`]) wherever its foot sits, so its place
 //! is not read. No end can be within the band of a point the whole
 //! carrier is past the band from: the chord to an end is at least the
 //! distance to the carrier. That holds exactly, and certified at an
@@ -80,11 +80,12 @@
 //! ellipse, a spiric oval, a spline) an undecided carrier is read against
 //! the span itself first, since the point may lie on the carrier past
 //! the span: off the span where the piece walk over the span clears it;
-//! past, the point is off the span ([`Reading::Off`]), whatever the
-//! carrier read, since no answer to it puts the point on the span.
-//! Whether a point past the span lies on the carrier is the whole
-//! carrier's question ([`geom::Curve3::on_carrier`]), asked by a reader
-//! that needs it. A place
+//! past, the point is off the span by the span ([`OffBy::Span`]),
+//! whatever the carrier read, since no answer to it puts the point on
+//! the span. Whether a point past the span lies on the carrier is the
+//! whole carrier's question ([`geom::Curve3::on_carrier`]), asked by a
+//! reader that needs it, and only there: off by the carrier, that
+//! question is already decided. A place
 //! the band cannot read is a refusal, the place's, with the carrier's
 //! beside it where that refused too ([`SpanRefusal`]).
 
@@ -194,10 +195,25 @@ pub enum Reading<T> {
     },
     /// Within the band of this end's point.
     End(SpanEnd),
-    /// Off the span: off the carrier, or past the span. Whether a point
-    /// past the span lies on the carrier is the whole carrier's own
-    /// question ([`Curve3::on_carrier`]), not the span's.
-    Off,
+    /// Off the span, with the certificate the reading rested on
+    /// ([`OffBy`]). Whether a point past the span lies on the carrier is
+    /// the whole carrier's own question ([`Curve3::on_carrier`]), not the
+    /// span's.
+    Off(OffBy),
+}
+
+/// **Which certificate a [`Reading::Off`] rested on**: the reading says
+/// which reading decided, and nothing of the carrier past the span.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OffBy {
+    /// The carrier's reading at the foot decided the point off the whole
+    /// carrier ([`geom::Foot::on_carrier`], a lower bound on its distance
+    /// from the whole carrier).
+    Carrier,
+    /// The span's own readings decided the point past the span: its place
+    /// against the ends, or its clearance over the span. Whether the point
+    /// lies on the carrier is not read.
+    Span,
 }
 
 /// **Why [`Span::read`] refused**: which of its two readings refused,
@@ -245,7 +261,7 @@ impl<T> Reading<T> {
         match self {
             Self::On { t, margin } => Some(Hit::On { t, margin }),
             Self::End(which) => Some(Hit::End(which)),
-            Self::Off => None,
+            Self::Off(_) => None,
         }
     }
 }
@@ -812,7 +828,7 @@ impl<'a, T: Decide> Span<'a, T> {
         let on = match on {
             Ok(OnCarrier::Off) => {
                 k_stats::splice(carrier);
-                return Ok(Reading::Off);
+                return Ok(Reading::Off(OffBy::Carrier));
             }
             Ok(OnCarrier::On { t, margin }) => Ok((t, margin)),
             Err(refused) => Err(refused),
@@ -824,7 +840,7 @@ impl<'a, T: Decide> Span<'a, T> {
             if clear {
                 k_stats::splice(record);
                 k_stats::splice_superseded(carrier);
-                return Ok(Reading::Off);
+                return Ok(Reading::Off(OffBy::Span));
             }
             k_stats::splice_superseded(record);
         }
@@ -845,7 +861,7 @@ impl<'a, T: Decide> Span<'a, T> {
                     margin,
                 }
             }
-            Ok(Place::Past) => Reading::Off,
+            Ok(Place::Past) => Reading::Off(OffBy::Span),
             Err(place) => {
                 return Err(match on {
                     Ok(_) => SpanRefusal::Place(place),

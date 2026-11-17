@@ -387,7 +387,7 @@ fn passes<T: Decide>(
         // Off the carrier, or past the span clear of both ends, whatever
         // the carrier read there: no reading of the carrier puts the point
         // on the edge.
-        Ok(Reading::Off) => Passes::Clear,
+        Ok(Reading::Off(_)) => Passes::Clear,
         // In band of an end, or undecided against one, whatever the
         // carrier read: the ray passes within reach of its vertex, a
         // graze, which refuses the ray rather than answering it.

@@ -83,7 +83,8 @@ depth 1e-2, 24 at 1e-3, 44 at 1e-4, 64 at 1e-5, 76 at 1e-6, all between
 (the edge met) and the faces' own crossings (the edge read clear) agree,
 so each is a lost read, never a wrong one. The reader's own aims and
 6400 containment queries about those points answer the same either way.
-The pin is `sweep` `a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside`.
+The pin was `sweep` `a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside`
+(since 2026-11-17 `a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk`, below).
 No row of the `topo`, `sweep` or `editor-core` suites reached a straddle
 at ε 1e-9 but `curved_edges`' own pin, as measured on 2026-11-15 by a
 log line at the arm that is not in the tree (the unit's review took the
@@ -96,3 +97,20 @@ then arises a few bands out), or the straddle read as an edge nothing
 decided, each face reading its own crossing by its own trim (the
 measurement above says those trims decide on every such ray).
 
+## The spiric straddle is read by the walk over the span (2026-11-17, ONEHOME fork 275 step 3b)
+
+`geom_brep::curve_pair::Span::read` now reads a point whose carrier
+reading neither decides on nor off against the span itself: off the
+span where the piece walk over the span clears it (`Span::clear`, a
+non-nearest carrier only). Beside a shallow spiric edge that walk
+certifies the rays' points clear, so the straddle no longer sets them
+aside. On the pin's body at ε 1e-9, the 192 aimed rays read 88 `Out`
+and 104 grazes, where with the clearance step off they read 82 `Out`,
+106 grazes and 4 set aside on the straddle. The pin is renamed
+`a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk` and
+asserts none set aside on a crossing.
+
+This answers the straddle section above only. The uniform rays' crossings
+in band of a face's own boundary (the first sections), the cone frustum's
+aims at `Kε`, and a spiric lower bound that is the distance from the
+curve are not touched, so the issue stays open.

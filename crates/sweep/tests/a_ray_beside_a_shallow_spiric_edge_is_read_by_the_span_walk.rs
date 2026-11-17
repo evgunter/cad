@@ -1,7 +1,8 @@
-//! **A ray in the straddle of a shallow spiric edge is set aside: a
-//! read lost at `f64`, with the reader's side and point containment as
-//! they were** (`topo`'s curved edge reading,
-//! `boolean::solid_contain::curved_edges`).
+//! **A ray beside a shallow spiric edge is read by the walk over the
+//! edge's span: no ray is set aside on the carrier's straddle, with the
+//! reader's side and point containment as they were** (`topo`'s curved
+//! edge reading, `boolean::solid_contain::curved_edges`, through
+//! `geom_brep::curve_pair::Span::read`).
 //!
 //! A torus about `y` (major 2, minor 0.5) cut by the plane
 //! `x = 1.5 − 10⁻³`, a millimetre inside its inner equator, through the
@@ -13,7 +14,9 @@
 //! few bands from the edge there stands within the zero band of both
 //! carriers and past the band from the curve's foot: the carrier's two
 //! bounds straddle the band (`curve_carrier_straddle`), at `f64`, on a
-//! body a door builds.
+//! body a door builds. The span reads such a point against the span
+//! itself, and the piece walk over the span clears it (`Span::clear`):
+//! off the span, certified, so the ray reads `Out`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -37,38 +40,29 @@ fn flat_torus(tol: Tol) -> Body<f64> {
         .into_body()
 }
 
-/// **Rays a few bands from a shallow spiric edge read no side there,
-/// and the reader and point containment answer as before.** At each
-/// sampled point of a spiric edge where the faces' dihedral sine is
-/// under a fifth, rays are aimed 12 and 15 bands either way from the
-/// edge along each face, at the aimed incidence about the face's normal
-/// and about it tilted toward and away from the edge. Each reads `Out`
-/// or is set aside, and those set aside on the carrier's straddle are counted: the straddle
-/// brackets the ray's distance from the edge across the band's edge, so
-/// it says neither that the ray meets the edge nor that it passes it.
-/// The side reader's own aims stand clear of every edge and still read
-/// `Out`; and points about those edge points, from a tenth of a
-/// millimetre to a tenth away and clear of both carriers, are each
-/// contained or not as the torus's and the plane's own equations say.
+/// **Rays a few bands from a shallow spiric edge are read, none set
+/// aside on a crossing, and the reader and point containment answer as
+/// before.** At each sampled point of a spiric edge where the faces'
+/// dihedral sine is under a fifth, rays are aimed 12 and 15 bands either
+/// way from the edge along each face, at the aimed incidence about the
+/// face's normal and about it tilted toward and away from the edge. Each
+/// reads `Out` or is set aside as a graze (`SetAside(Graze)`: in band of
+/// an end of the edge, or undecided against one, which refuses the ray
+/// rather than answering it). None is set aside on a crossing: where
+/// the carrier's bounds straddle the band, the walk over the edge's span
+/// certifies the ray's point clear of the span. The side reader's own
+/// aims stand clear of every edge and still read `Out`; and points about
+/// those edge points, from a tenth of a millimetre to a tenth away and
+/// clear of both carriers, are each contained or not as the torus's and
+/// the plane's own equations say.
 ///
-/// **Red under a carrier's escalation read as the edge met**
-/// (`curved_edges::passes` handing the door a forged
-/// `Ok(MarginDiag::value(0.0))` for a carrier that refused, or
-/// `edge_gap::Reach::escalated` sorting every escalation within the
-/// band): no ray is set aside on a straddle, each reading `Out` through
-/// a rim no reading placed. At `f64` that reading and the faces' own
-/// crossings agree on every such ray; what the straddle lacks is a
-/// reading, not a right answer.
-///
-/// **This pins a loss, and is the next reader's to move.** The count of
-/// rays set aside on a straddle is asserted above zero, so the row goes
-/// red the day those reads come back: by a spiric lower bound that is
-/// the distance from the curve, or by a straddle left to each face's
-/// own trim
-/// (`work/flushtail/a-uniform-ray-about-a-curved-edge-is-still-set-aside-on-a-faces-own-boundary.md`).
-/// Whoever lands either turns that assertion round.
+/// **Red where the span's clearance is not read** (`Span::read` with its
+/// clearance step off): four rays are set aside on the carrier's
+/// straddle (`SetAside(Crossing(Escalated(..)))`, `curve_carrier_straddle`)
+/// at ε 1e-9. Before the span read its own clearance, this row pinned
+/// that loss, by a count of rays set aside on a straddle above zero.
 #[test]
-fn a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside() {
+fn a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk() {
     let tol = Tol::witness();
     let band = Band::linear(tol).expect("the witness band");
     let eps = tol.eps();
@@ -94,7 +88,7 @@ fn a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside() {
         !shallow.is_empty(),
         "at ε {eps:e}: no sampled point of a spiric edge is shallow"
     );
-    let (mut straddled, mut read) = (0, 0);
+    let mut read = 0;
     for f in &shallow {
         for bands in [-15.0, -12.0, 12.0, 15.0] {
             let aim = f.point + f.into * (bands * eps);
@@ -105,23 +99,17 @@ fn a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside() {
             ] {
                 let got = topo::test_support::ray_at(&body, f.face, aim, normal, band);
                 assert!(
-                    got == "Ok(Side(Out))" || got.starts_with("Ok(SetAside("),
+                    got == "Ok(Side(Out))" || got == "Ok(SetAside(Graze))",
                     "at ε {eps:e}, {} {bands} bands from the edge: {got}",
                     f.label
                 );
-                if got.contains("curve_carrier_straddle") {
-                    straddled += 1;
-                }
                 if got == "Ok(Side(Out))" {
                     read += 1;
                 }
             }
         }
     }
-    assert!(
-        straddled > 0,
-        "at ε {eps:e}: no ray was set aside on a straddle ({read} read `Out`)"
-    );
+    assert!(read > 0, "at ε {eps:e}: no ray read `Out`");
     assert_eq!(
         topo::test_support::aimed_rays(&body, band),
         ["Ok(Side(Out))"],
@@ -165,5 +153,5 @@ fn a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside() {
         asked > 0,
         "at ε {eps:e}: no point stands clear of both carriers"
     );
-    println!("ε {eps:e}: {straddled} rays set aside on a straddle, {read} read, {asked} points");
+    println!("ε {eps:e}: {read} rays read, {asked} points");
 }

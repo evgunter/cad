@@ -985,19 +985,26 @@ impl<T: Decide> ConicArc<T> {
     /// only on a lower bound on its distance from the whole conic, the
     /// ellipse's Hessian-bounded root) with the span's reading of its ends
     /// ([`geom_brep::curve_pair::Span::place`]). A point off the arc is
-    /// off the edge; whether it lies on the arc's carrier is the whole
-    /// conic's own question ([`geom::Curve3::on_carrier`]), asked here
-    /// since the ray count reads it: on it, [`ConicHit::Carrier`], and
-    /// otherwise, an undecided carrier included, [`ConicHit::Off`], as no
-    /// answer to it puts the point on the edge (its escalation is
-    /// superseded, and a decided reading spliced). The ellipse's straddle stays a straddle, and a span
-    /// walk that cannot certify its `Past` is [`ConicHit::Unsettled`].
+    /// off the edge. Off the carrier ([`OffBy::Carrier`]) it is
+    /// [`ConicHit::Off`], read once. Past the arc ([`OffBy::Span`]),
+    /// whether it lies on the arc's carrier is the whole conic's own
+    /// question ([`geom::Curve3::on_carrier`]), asked here since the ray
+    /// count reads it: on it, [`ConicHit::Carrier`], and otherwise, an
+    /// undecided carrier included, [`ConicHit::Off`], as no answer to it
+    /// puts the point on the edge (its escalation is superseded, and a
+    /// decided reading spliced). The ellipse's straddle stays a straddle,
+    /// and a span walk that cannot certify its `Past` is
+    /// [`ConicHit::Unsettled`].
+    ///
+    /// [`OffBy::Carrier`]: geom_brep::curve_pair::OffBy::Carrier
+    /// [`OffBy::Span`]: geom_brep::curve_pair::OffBy::Span
     pub(crate) fn hit(&self, q: Point3<T>, band: Band) -> Result<ConicHit, ReadEscalation> {
-        use geom_brep::curve_pair::{Reading, Span};
+        use geom_brep::curve_pair::{OffBy, Reading, Span};
         let span = Span::new(&self.carrier, self.span);
         let near = geom::mid_param(self.span.0, self.span.1);
         Ok(match span.read(q, near, band).map_err(|r| r.refused()) {
-            Ok(Reading::Off) => {
+            Ok(Reading::Off(OffBy::Carrier)) => ConicHit::Off,
+            Ok(Reading::Off(OffBy::Span)) => {
                 let (on, record) =
                     geom_core::k_stats::detached(|| self.carrier.on_carrier(q, near, band));
                 if on.is_ok() {
@@ -2130,6 +2137,46 @@ mod tests {
                 ConicHit::End,
                 "w = {t1}: within the band of the start"
             );
+        }
+    }
+
+    /// **A point the span reads off its carrier is read once**
+    /// ([`ConicArc::hit`]): off the carrier ([`OffBy::Carrier`]), the
+    /// whole conic's question is already decided, so `hit` does not ask it
+    /// again. A point off a circle arc's carrier, inside and outside it,
+    /// is `Off` on one `curve_carrier_gap` verdict; a point on the
+    /// carrier past the arc is `Carrier`. Red where `hit` asks the whole
+    /// carrier on every `Off`: the off-carrier points read two.
+    ///
+    /// [`OffBy::Carrier`]: geom_brep::curve_pair::OffBy::Carrier
+    #[test]
+    fn a_point_off_an_arcs_carrier_is_read_once() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let carrier = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let Ok(Some(k)) = conic_of(&carrier, (0.0, 1.0), WALK_ROWS.conic(), band) else {
+            panic!("a circle arc under a period");
+        };
+        for (q, want) in [
+            (Point3::new(0.2, 0.1, 0.0), ConicHit::Off),
+            (Point3::new(1.5, 0.3, 0.0), ConicHit::Off),
+            (Point3::new(-1.0, 0.0, 0.0), ConicHit::Carrier),
+        ] {
+            let bracket = geom_core::k_stats::Bracket::open();
+            let got = k.hit(q, band).expect("decided");
+            let recorded = bracket.finish();
+            assert_eq!(got, want, "{q:?}");
+            let read = recorded
+                .verdicts
+                .iter()
+                .filter(|v| v.predicate == "curve_carrier_gap")
+                .count();
+            let reads = if want == ConicHit::Off { 1 } else { 2 };
+            assert_eq!(read, reads, "{q:?}: the carrier read once per question");
         }
     }
 
