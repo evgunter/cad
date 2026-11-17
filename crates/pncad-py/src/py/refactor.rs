@@ -197,6 +197,11 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         E::RemainderReadUncarried { reader, why: _ } => {
             (none(), id(reader), none(), none(), none(), none())
         }
+        // The product slot is no node: the cut node it reads is the
+        // input, and why no copy carries it is in the message.
+        E::ProductReadSevered { input: i, why: _ } => {
+            (none(), none(), id(i), none(), none(), none())
+        }
         E::UncutVarReference {
             var,
             cut_node,
