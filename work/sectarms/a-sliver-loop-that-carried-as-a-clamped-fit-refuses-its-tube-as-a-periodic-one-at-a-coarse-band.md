@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-17
 priority: P1
 cost: M
-design: true
 ---
 
 
@@ -170,6 +169,32 @@ their reports). They agree:
 
 C2's limb-3 and pad sentences, its node-end clause and C3's tube-rounds
 paragraph change.
+
+## Decided (Ev, PR 7056, 2026-11-17; fork-log row 281)
+
+Ev approved the designers' agreed plan ("ok this plan sounds good!"):
+
+- **One point on quadric pairs.** On plane, sphere and cylinder pairs,
+  limb 3 reads its graph quantity at one point (the midpoint identity).
+  A torus keeps the two-point reading.
+- **Limb 3 halves its own cover.** Where a box wider than its rung is no
+  graph, limb 3 halves that span of its certification net, under the
+  crate's stop rule. The carrier is not touched. `refine_for_tube`
+  retires.
+- **Tube and pad are two claims.** The tube stays the widest rung that
+  proves. The pad is the reach of the narrowest rung that still proves
+  one arc, read box by box.
+- **Measure first.** Before the build is dispatched, the pads near a
+  node are measured on the as-marched carrier.
+- **Storing the cover is the build's choice.** Whether the certificate
+  records the halved cover or readers re-derive it by one function is
+  left to the build, under the rule that the region banked is the
+  region proved.
+
+C2's "Refusal is typed, never a retry loop" stands unchanged. Ev reads
+it as not contradicting this plan: halving the cover re-proposes no
+carrier. C2's limb-3, mean-value, slack and pad sentences, its node-end
+clause and C3's tube-rounds paragraph are rewritten.
 
 ## Also red on main at 1e-6 with this cause
 
