@@ -40,3 +40,4 @@ refused `RadiusHeadroom` first.
 Measure which neighbour edge's resolve fails at that vertex and why. Then
 either classify the corner, so the partial revolve rolls as the full one
 does and wall 2 retires, or name the refusal the corner actually owes.
+- 2026-11-17 — bracket step 3, cut 3 (`band/bracket-end-vocabulary`): the witness moved. The open rim arc's neighbour at its end does not resolve, and `battery::corner_at` now refuses such a curved link in the open-chain door's own words (`UnsupportedChain`, "an open chain link is not plane–plane, ruled, or a band of revolution between two junctions") rather than folding it to an indeterminate end. `klein::wall_probes` wall 2 pins that. The question of whether this end should classify as a transverse cap stands.
