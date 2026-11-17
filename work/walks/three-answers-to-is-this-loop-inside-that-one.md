@@ -38,8 +38,8 @@ the boundary case:
    `OnBoundary` settles nothing and the walk moves on, because check
    9's contact half owns that question. **2026-09-24 (ATREST-5, PR
    #3179): two instruments now, dispatched on the outer loop's
-   `boolean::contain::loop_shape` class** — `point_in_loop` for
-   `Polygon`, `boolean::contain::disc_side` for `Disc` (made
+   `contain::loop_shape` class** — `point_in_loop` for
+   `Polygon`, `contain::disc_side` for `Disc` (made
    `pub(crate)` for it); `ArcParity` and `NoWalk` are silent. That
    widens the divergence this row tracks: `ring_nesting` and
    `boolean::contfp` now dispatch on the loop's shape, `rehome_rings`

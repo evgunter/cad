@@ -14,7 +14,7 @@
 
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use super::solid_contain::line_torus_roots;
+use crate::solid_contain::line_torus_roots;
 use geom_brep::quartic::QuarticRoots;
 use geom_brep::roots::{RootRefusal, Unsettled};
 

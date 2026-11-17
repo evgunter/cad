@@ -33,7 +33,7 @@ Filed from `onecopy/carrier-period` (PR 6754), the unit that made a curve carrie
 - topo:
   - `chart_region.rs:1747`, `:3017`, `:3030`;
   - `chart_window.rs:381`, `:455`, `:559`;
-  - `boolean/solid_contain.rs:1260`;
+  - `solid_contain.rs:1260`;
   - `offset_axial.rs:2929`;
   - `shell.rs:5314`.
 - mesh: `walk.rs:1125`, `:1154`, `:1175`, `:1187`, `:1289`, `:1306`, `:1343` (`loop_polygon`'s chart unwraps).

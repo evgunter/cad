@@ -38,7 +38,7 @@ and `a-planar-face-with-a-conic-trim-has-no-region-door` are the two hard
 ones. CHART's two region-door rows,
 `a-landings-edge-parameter-is-spelled-three-times-in-the-region-doors`
 and `the-region-legs-spell-a-circle-and-a-line-beside-curve3`, are both
-copies inside `boolean/region.rs` and its doors, filed off the
+copies inside `region.rs` and its doors, filed off the
 skeleton's last review; they run as one unit, and touch nothing INTENT
 owns. `azimuth-inf-arm-has-two-homes` (P3 E) rides with them if its
 lane is on `chart_region.rs`'s `certified_arms` anyway.

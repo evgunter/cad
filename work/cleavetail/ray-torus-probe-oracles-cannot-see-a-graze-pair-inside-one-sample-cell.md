@@ -17,7 +17,7 @@ cruder: they count sign changes of a dense sampling and refine no
 extremum at all, so a graze pair inside ANY one cell reads as no
 crossing.
 
-- `crates/topo/src/boolean/r1_probes.rs`, `oracle_roots` (400,000
+- `crates/topo/src/r1_probes.rs`, `oracle_roots` (400,000
   samples over the ray's reach): read by the `Tally::compare` rows. A
   door that certifies a true graze pair reads as a `COUNT` failure (a
   false red); a door that answers `Miss` on such a graze passes, the

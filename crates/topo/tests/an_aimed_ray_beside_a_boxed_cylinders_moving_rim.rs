@@ -1,7 +1,7 @@
 //! **An aimed ray beside a cylinder's rim that moves with a box is set
 //! aside at the rim, and reads no side a member lacks** (`topo`'s side
 //! reader, `side_reader::aimed_ray`; the curved edge's reading,
-//! `boolean::solid_contain::curved_edges`).
+//! `solid_contain::curved_edges`).
 //!
 //! A cylinder about `z` built through the public Euler doors at the
 //! symbolic box scalar: two caps and one wall on one seam, its height or

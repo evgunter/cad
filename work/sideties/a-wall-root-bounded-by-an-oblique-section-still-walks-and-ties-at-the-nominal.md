@@ -13,7 +13,7 @@ refs: [the-side-readers-aims-decide-exact-ties-at-a-documents-nominal]
 `revalue_corpus::reader_ties_at_the_nominal` reads 22 exact ties in
 `cut_cylinder`, all `bool_ruled_region_roots_coaxial`, after the side
 reader's turn readings landed. They come from the wall's region walk
-(`crates/topo/src/boolean/ruled_region.rs`, a parallel leg against a
+(`crates/topo/src/ruled_region.rs`, a parallel leg against a
 rim, coaxial by construction) at the wall's roots, on rays aimed at
 planar faces.
 

@@ -2,8 +2,11 @@
 id: pose-into-track-caller-panics-inside-closures
 kind: issue
 title: edit.rs's #[track_caller] pose_into panics inside unwrap_or_else and map_or_else closures, so the panic reports pose_into's line
-status: open
+status: closed
 opened: 2026-10-21
+closed: 2026-11-17
+priority: P4
+cost: C
 ---
 
 
@@ -19,3 +22,10 @@ says to check no longer stands. Dispatchable, and likely overtaken:
 `pose_into` (now `crates/editor-core/src/edit.rs:1896`) raises its
 `unreachable!` in a `let … else` and its `.expect` outside any
 closure, which is the repair above. Confirm and close.
+
+## Closed (2026-11-17, DOCTAIL triage)
+
+Confirmed overtaken. `pose_into` (`crates/editor-core/src/edit.rs`)
+raises its `unreachable!` in a `let … else` and its `.expect` on
+`.map(Var::kind)`, a function path rather than a closure, so both panics
+report the caller's line. The repair this row asked for is in the tree.

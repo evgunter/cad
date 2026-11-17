@@ -10,7 +10,7 @@
 //! (`census::sweep_cross_solid_backstop`), which reads vertices only and
 //! refuses where all of them touch
 //! (`work/inside/the-census-material-probe-reads-only-vertices-so-a-flush-nested-solid-is-undecided.md`).
-//! The reader of the side at infinity (`boolean::solid_contain`
+//! The reader of the side at infinity (`solid_contain`
 //! `side_at_infinity`) reads its third rung alone, [`planar_interior_point`],
 //! as points to aim at rather than witnesses to probe.
 //! The result sort, the uncut-shell verdict and the census ask it under
@@ -61,13 +61,13 @@ use geom_core::{Band, Decide, Point3, Tol, Vec3};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::boolean::PointInSolidError;
-use crate::boolean::SolidContainment;
-use crate::boolean::solid_contain::{SolidFaces, point_in_face, point_in_solid_faces};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::face_normal::face_plane;
 use crate::live::{Proven, proven};
 use crate::props::{QuadLane, ShellRole};
+use crate::solid_contain::PointInSolidError;
+use crate::solid_contain::SolidContainment;
+use crate::solid_contain::{SolidFaces, point_in_face, point_in_solid_faces};
 use geom_core::ladder::{Answering, Climb, Disagree, Ranked, Rung, climb_evidence};
 
 /// What one witness read against the probed surfaces, `K` the refusal a
