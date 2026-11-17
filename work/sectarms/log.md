@@ -1001,3 +1001,7 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **For the build:** a whole-net `refine_knots` ran out of memory, so covers must be built in chunks. `a_marched_loops_pad_holds_its_tube_and_its_limb_two_bound` needs rewriting by design.
   - The build stays sequenced after the rim pad (paused until the Fable reset). Merge 7085 on green.
 - **PR 7085 merged (`99d757ea0c`):** the near-node pad measurement is in the sliver item on main.
+- 2026-11-17 — **PR 7083 merged** (orchestrator's read; I read the diff). `NodeFrame`'s `PartialEq` destructures exhaustively, and its census pin is struck.
+  - **The Krawczyk row was not buildable.** On the sweep path the containment mutant looks equivalent: where |∇φ| is smallest, the Hessian is singular, so the determinant check refuses before containment matters. Measurements are in the item, which stays open: either close it on that argument, or try a cap-free row calling `ssi::node::decide` directly.
+  - **Found:** `hand_written_impl_census` is red on main from PR 7052 (`PeriodicNurbs3`'s `Debug`, and `certify.rs`'s hand-written `EdgeCurve` `Debug`, not yet listed). It is slow-set, so the gate missed it.
+  - The same agent (Opus) continued to file the main-red item and fix it, keeping `EdgeCurve`'s `Debug` byte-identical for the editor-core digests. Orchestrator's read.
