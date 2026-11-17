@@ -685,12 +685,15 @@ pub enum SphereTrimCause {
     /// chart: a cone face on both nappes, through its apex. The lane
     /// triangulates a cone face in its development, which is one nappe's.
     BothNappes,
-    /// Two points of a cone face's loop at two chart locations develop to
-    /// one point, and are no run along one ruling: a point so near the
-    /// apex, points of two sides, or a ruling side so short that the
-    /// development the lane triangulates the face in (`trimmed`, "The
-    /// development") rounds it to a point. Consecutive points along one
-    /// ruling that it rounds together the lane meshes (`trimmed::Run`).
+    /// Points of a cone face's loop at two chart locations develop to one
+    /// point, and the lane cannot tell them apart again: the development
+    /// it triangulates the face in (`trimmed`, "The development") rounds
+    /// them together, and it re-splits only a run (`trimmed::Run`):
+    /// consecutive points along one ruling, beside a neighbour further
+    /// along it and a triangle with a corner off the ruling. So: a point
+    /// so near the apex, points of two sides, a ruling side so short that
+    /// all of it is one point, or two runs and their neighbour as the
+    /// three corners of one triangle.
     DevelopedMerge,
     /// A vertex of the loop lies within the run's band of a singular
     /// point, undecided: the lane cannot say whether the loop turns the
@@ -1034,10 +1037,11 @@ impl TessellateError {
                          the trimmed lane meshes a cone face on one nappe"
                     }
                     SphereTrimCause::DevelopedMerge => {
-                        "two points of its loop that are not neighbours along one ruling \
-                         lie so near each other, or one so near the cone's apex, that the \
-                         cone's development rounds them to one point, and the trimmed lane \
-                         does not merge two vertices"
+                        "points of its loop lie so near each other, or one so near the \
+                         cone's apex, that the cone's development rounds them to one point, \
+                         and the trimmed lane cannot tell them apart again: it re-splits \
+                         only consecutive points along one ruling, beside a neighbour \
+                         further along it and a triangle with a corner off the ruling"
                     }
                     SphereTrimCause::SingularUndecided => {
                         "a vertex of its loop lies so near a chart pole or apex that this \

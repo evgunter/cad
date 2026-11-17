@@ -132,8 +132,13 @@
 //! surface, so a triangle of zero area. In the development every copy is
 //! one point and every column a ray from it, cut so each point of a
 //! column is an exact multiple of one direction ([`developed`]): the
-//! exact predicates read any three points of one ruling as collinear,
-//! and no triangle lies along one. Three points of a cone on one line
+//! exact predicates read any three points of one column (one `u`, bit
+//! for bit), or two and the apex, as collinear, and no triangle lies
+//! along one. A ruling is one column but for an end vertex the walk reads
+//! through its rim's image, which can sit a rounding off it
+//! (`work/tesslane/a-rulings-end-vertex-read-through-its-rims-image-is-off-the-rulings-exact-line.md`);
+//! a triangle that made of a ruling would have no area, and the winding
+//! rule refuses it. Three points of a cone on one line
 //! lie on a ruling (a line meets the quadric in two points or lies in
 //! it), so no other triangle of zero area exists to make. A THIN triangle
 //! is another matter, and nothing bounds it: beside a ruling a triangle's
@@ -1196,14 +1201,13 @@ impl TrimmedFace<'_> {
                     .map(|(_, &(u, v))| (u, v, false)),
             )
             .collect();
-        let key = |x: f64| if x == 0.0 { 0u64 } else { x.to_bits() };
         let mut unique: Vec<SpadePoint<f64>> = Vec::with_capacity(inputs.len());
         let mut index_of: HashMap<(u64, u64), usize> = HashMap::with_capacity(inputs.len());
         let mut handle_of: Vec<FixedVertexHandle> = Vec::with_capacity(inputs.len());
         for &(u, v, singular) in &inputs {
             let p = cdt_point(plane, u, v, singular);
             let next = unique.len();
-            let i = *index_of.entry((key(p.x), key(p.y))).or_insert(next);
+            let i = *index_of.entry(cdt_key(p)).or_insert(next);
             if i == next {
                 unique.push(p);
             }
@@ -1218,18 +1222,12 @@ impl TrimmedFace<'_> {
         let mut handles = Vec::with_capacity(self.polygon.points.len());
         let mut on_crease = Vec::new();
         let mut walk = Walk::new();
-        // A run enters at its lowest polygon index: handles are numbered
-        // as their points first appear, and `meta` holds a row per handle
-        // in that order.
         let later_in_a_run: HashSet<usize> = self
             .runs
             .iter()
             .flat_map(|run| {
-                let entry = run.members.iter().copied().min();
-                run.members
-                    .iter()
-                    .copied()
-                    .filter(move |&i| Some(i) != entry)
+                let entry = run.entry();
+                run.members.iter().copied().filter(move |&i| i != entry)
             })
             .collect();
         for (i, (&(u, v, id), &h)) in self.polygon.points.iter().zip(&handle_of).enumerate() {
@@ -1438,7 +1436,7 @@ impl TrimmedFace<'_> {
         let run_at: HashMap<usize, &Run> = self
             .runs
             .iter()
-            .map(|run| (at.handles[run.members[0]].index(), run))
+            .map(|run| (at.handles[run.entry()].index(), run))
             .collect();
         for f in cdt.inner_faces() {
             if !inside[f.fix().index()] {
@@ -1473,79 +1471,29 @@ impl TrimmedFace<'_> {
                     }
                 }
             }
-            // THE RUNS, RE-SPLIT ([`Run`]). A corner at a run's vertex is
-            // the run's point this triangle stands on: in the triangle on
-            // the run's anchored side the point next to the anchoring
-            // neighbour, in every other the run's far end. That triangle
-            // is then one of a fan about its third corner, which the
-            // triangles between the run's points complete: each on two
-            // consecutive points of the run and that corner, wound as the
-            // triangle they are cut from. The run's fan about its vertex
-            // becomes a fan about each of its points, and the side between
-            // two of them is a side of one triangle, as a boundary side is.
-            //
-            // TWO RUNS ANCHORED BY ONE NEIGHBOUR are each the other's
-            // third corner: both beside the apex, the one point on two
-            // rulings. The triangle is then cut along both: the first run's
-            // triangles fan about the other run's far end, which leaves the
-            // other's points and the first's point next to the apex, and
-            // the other's fan about that point.
-            let mut between: Vec<[Corner; 3]> = Vec::new();
-            if !run_at.is_empty() {
+            let between = if run_at.is_empty() {
+                Vec::new()
+            } else {
                 let hs = vs.map(|vtx| vtx.fix().index());
-                // The run at corner `k`, and the corner anchoring it when
-                // this is the triangle on its anchored side.
-                let run_at_corner = |k: usize| {
-                    let run = *run_at.get(&hs[k])?;
-                    let by = at.handles[run.neighbour(self.polygon)].index();
-                    Some((run, (0..3).find(|&j| j != k && hs[j] == by)))
-                };
-                for (k, corner) in corners.iter_mut().enumerate() {
-                    if let Some((run, by)) = run_at_corner(k) {
-                        *corner = run.point(self.polygon, run.corner(by.is_some()));
-                    }
-                }
-                for k in 0..3 {
-                    let Some((run, Some(by))) = run_at_corner(k) else {
-                        continue;
-                    };
-                    let third = 3 - k - by;
-                    let mut fan = corners;
-                    match run_at_corner(third) {
-                        Some((other, Some(common))) if common == by => {
-                            if k < third {
-                                fan[third] = other.point(self.polygon, other.corner(false));
-                            }
-                        }
-                        // Anchored here by this run's own vertex: three
-                        // points of one ruling, which the CDT joins in no
-                        // triangle.
-                        Some((_, Some(_))) => {
-                            return Err(TessellateError::SphereTrimShape {
-                                face: self.fk,
-                                edge: self.polygon.edges[run.members[0]],
-                                cause: SphereTrimCause::DevelopedMerge,
-                            });
-                        }
-                        Some((_, None)) | None => {}
-                    }
-                    let (first, second) = match run.anchor {
-                        Anchor::Before => (by, k),
-                        Anchor::After => (k, by),
-                    };
-                    for m in 0..run.members.len() - 1 {
-                        let mut t = fan;
-                        t[first] = run.point(self.polygon, m);
-                        t[second] = run.point(self.polygon, m + 1);
-                        between.push(t);
-                    }
-                }
-            }
+                cut_along_runs(self.polygon, &at.handles, &run_at, hs, &mut corners).map_err(
+                    |i| TessellateError::SphereTrimShape {
+                        face: self.fk,
+                        edge: self.polygon.edges[i],
+                        cause: SphereTrimCause::DevelopedMerge,
+                    },
+                )?
+            };
             let developed = vs.map(|vtx| vtx.position());
             // The point the shared-side cure inserts for this CDT
             // triangle, whichever of the triangles cut from it asks: a
             // triangle between two points of a run has no inside where
-            // the CDT runs, and the one it is cut from has.
+            // the CDT runs, and the one it is cut from has. It is queued
+            // once however many of them ask, since a location queued twice
+            // enters the next attempt at an existing vertex, which
+            // `insert_points` refuses `Triangulation`. No row has two of
+            // one CDT triangle's asking: it takes a run whose anchored
+            // triangle has, for its third corner, a polygon point that a
+            // face across two of the run's points holds too.
             let inside_point = {
                 let uv = corners.map(|c| c.uv);
                 let apex = corners.map(|c| c.is_singular(self.singular));
@@ -1773,6 +1721,88 @@ impl TrimmedFace<'_> {
     }
 }
 
+/// **One CDT triangle with a run's vertex for a corner, cut into the
+/// triangles the patch holds** ([`Run`]): `corners` are the triangle's, at
+/// the CDT vertices `hs`, and `run_at` is each run by its vertex. A corner
+/// at a run's vertex becomes the run's point this triangle stands on: in
+/// the triangle on the run's anchored side the point next to the
+/// anchoring neighbour, in every other the run's far end. Answered are
+/// the triangles added between the run's points, which only the triangle
+/// on the anchored side has: each on two consecutive points of the run
+/// and that triangle's third corner, wound as the triangle they are cut
+/// from. The run's fan about its vertex becomes a fan about each of its
+/// points, and the side between two of them is a side of one triangle,
+/// as a boundary side is.
+///
+/// **Two runs anchored by one neighbour** are each the other's third
+/// corner: both beside the apex, the one point on two rulings. The
+/// triangle is then cut along both. One run's triangles fan about the
+/// other run's far end, which leaves the other's points and the first
+/// run's point next to the apex, and the other's fan about that point.
+/// Which run cuts first is free, and the triangle's corner order (the
+/// CDT's, which replays) fixes it.
+///
+/// # Errors
+///
+/// The first polygon index of a run whose anchored triangle has for its
+/// third corner a run anchored there by the first run's own vertex: a
+/// neighbour, a run and the next run of one ruling in one triangle, where
+/// the face refuses `SphereTrimShape { DevelopedMerge }`. Three points of
+/// one chart column are exactly collinear where the CDT runs and make no
+/// triangle, so no body measured reaches this; a neighbour that sits a
+/// rounding off the column could make one
+/// (`work/tesslane/a-rulings-end-vertex-read-through-its-rims-image-is-off-the-rulings-exact-line.md`),
+/// and the two fans have no one reading of it.
+fn cut_along_runs<'c>(
+    polygon: &TrimPolygon,
+    handles: &[FixedVertexHandle],
+    run_at: &HashMap<usize, &'c Run>,
+    hs: [usize; 3],
+    corners: &mut [Corner<'c>; 3],
+) -> Result<Vec<[Corner<'c>; 3]>, usize> {
+    // The run at each corner, and the corner anchoring it when this is
+    // the triangle on its anchored side.
+    let runs: [Option<(&'c Run, Option<usize>)>; 3] = core::array::from_fn(|k| {
+        let run = *run_at.get(&hs[k])?;
+        let by = handles[run.neighbour(polygon)].index();
+        Some((run, (0..3).find(|&j| j != k && hs[j] == by)))
+    });
+    for (corner, at) in corners.iter_mut().zip(runs) {
+        if let Some((run, by)) = at {
+            *corner = run.point(polygon, run.corner(by.is_some()));
+        }
+    }
+    let mut between = Vec::new();
+    for k in 0..3 {
+        let Some((run, Some(by))) = runs[k] else {
+            continue;
+        };
+        let third = 3 - k - by;
+        let mut fan = *corners;
+        match runs[third] {
+            Some((other, Some(common))) if common == by => {
+                let cuts_first = k < third;
+                if cuts_first {
+                    fan[third] = other.point(polygon, other.corner(false));
+                }
+            }
+            Some((_, Some(_))) => return Err(run.members[0]),
+            Some((_, None)) | None => {}
+        }
+        let (first, second) = match run.anchor {
+            Anchor::Before => (by, k),
+            Anchor::After => (k, by),
+        };
+        for m in 0..run.members.len() - 1 {
+            let mut t = fan;
+            t[first] = run.point(polygon, m);
+            t[second] = run.point(polygon, m + 1);
+            between.push(t);
+        }
+    }
+    Ok(between)
+}
+
 /// One corner of a triangle the emit pass makes.
 #[derive(Clone, Copy)]
 struct Corner<'a> {
@@ -1880,6 +1910,15 @@ fn cdt_point(plane: CdtPlane, u: f64, v: f64, singular: bool) -> SpadePoint<f64>
             crate::cdt::spade_point(x, y)
         }
     }
+}
+
+/// **Which CDT vertex a point is**: two points are one vertex exactly
+/// when their keys are equal, spade's own equality (`-0.0 == 0.0`).
+/// [`TrimmedFace::insert_points`] builds the triangulation's vertices by
+/// it and [`developed_runs`] finds the points that share one.
+fn cdt_key(p: SpadePoint<f64>) -> (u64, u64) {
+    let key = |x: f64| if x == 0.0 { 0u64 } else { x.to_bits() };
+    (key(p.x), key(p.y))
 }
 
 /// **The lattice the face lays**: the nodes of `nodes` (row-major,
@@ -2188,19 +2227,21 @@ struct Run {
     anchor: Anchor,
 }
 
-/// **Which neighbour of a [`Run`] on its loop lies on the run's ruling**:
-/// the one the polygon's side to it is carried by a line, as the sides
-/// between the run's points are. That side is the one the run's triangles
-/// are added along: the CDT triangle on it has two corners on the ruling,
-/// so its third is off it, and a triangle from two of the run's points to
-/// that corner has area. A run at a corner of the polygon has one such
-/// neighbour; a run inside a ruling side has two, and takes the first.
+/// **Which neighbour of a [`Run`] on its loop the run's triangles are
+/// added beside**: the one the polygon's side to it is carried by a line,
+/// as the sides between the run's points are, so the one on the run's
+/// ruling. A run at a corner of the polygon has one such neighbour; a run
+/// inside a ruling side has two and takes the first, a choice between two
+/// valid triangulations.
 ///
-/// "Off it" is exact where the neighbour's chart column is the run's bit
-/// for bit ([`developed`]). A ruling's end vertex that the walk reads
-/// through its rim's image can sit a rounding off the column, and there,
-/// as for every triangle, the certificate and the winding rule read the
-/// triangle made and are what stands behind it.
+/// **What stands behind the triangles added**, as behind every triangle,
+/// is the certificate and the winding rule, read on the triangle made.
+/// The anchor is what makes them have area: the CDT triangle on the side
+/// to it has two corners on the ruling, so its third, which the added
+/// triangles fan about, is off it. That is exact where the neighbour's
+/// chart column is the run's bit for bit ([`developed`]), and to a
+/// rounding where the neighbour is an end vertex read through its rim's
+/// image.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Anchor {
     /// The point before the run's first.
@@ -2210,6 +2251,19 @@ enum Anchor {
 }
 
 impl Run {
+    /// **The run's point that stands for it**, as a polygon index: the
+    /// one that enters the boundary walk, whose handle is the run's CDT
+    /// vertex. It is the run's lowest index, since handles are numbered as
+    /// their points first appear and `Cdt::meta` holds a row per handle in
+    /// that order.
+    fn entry(&self) -> usize {
+        self.members
+            .iter()
+            .copied()
+            .min()
+            .unwrap_or_else(|| unreachable!("a run holds two points at least"))
+    }
+
     /// The polygon point the run is anchored by ([`Anchor`]).
     fn neighbour(&self, polygon: &TrimPolygon) -> usize {
         match self.anchor {
@@ -2278,13 +2332,9 @@ fn developed_runs(
         return Ok(Vec::new());
     }
     let polygon = &trim.points;
-    let key = |x: f64| if x == 0.0 { 0u64 } else { x.to_bits() };
     let keys: Vec<(u64, u64)> = polygon
         .iter()
-        .map(|&(u, v, id)| {
-            let p = cdt_point(plane, u, v, singular.contains(&id));
-            (key(p.x), key(p.y))
-        })
+        .map(|&(u, v, id)| cdt_key(cdt_point(plane, u, v, singular.contains(&id))))
         .collect();
     let mut first: HashMap<(u64, u64), usize> = HashMap::new();
     let mut merged: Vec<usize> = Vec::new();
@@ -2377,8 +2427,11 @@ fn run_of(
 /// exact multiple of one direction, on one line through the origin, and
 /// spade's exact orientation predicate reads any three of them, or two
 /// and the apex, as collinear. A CDT has no triangle on three collinear
-/// points, so no triangle of the face lies along a ruling. The cut moves
-/// a point by under `2⁻²⁵` of its radius, which the CDT alone sees.
+/// points, so no triangle of the face lies along a column. That is a
+/// ruling wherever its points share their `u` bit for bit, which an end
+/// vertex read through its rim's image need not (module docs, "The
+/// development"). The cut moves a point by under `2⁻²⁵` of its radius,
+/// which the CDT alone sees.
 ///
 /// `sin` and `cos` are [`geom_core::Real`]'s, the pure-Rust `libm`
 /// every platform shares (D9), so the triangulation they decide replays
@@ -5939,6 +5992,90 @@ pub(super) mod tests {
                 runs(&pinched, &[], &[0, 1, 2]).err(),
                 Some(2),
                 "a run whose two neighbours are one point"
+            );
+        }
+
+        /// **A CDT triangle at a run's vertex is cut by the run's anchor**
+        /// ([`super::super::cut_along_runs`]). Two runs of one ruling side
+        /// in a row, `R` then `T`, each anchored by the point before it, at
+        /// CDT vertices 1 and 2 beside their neighbour at 0:
+        ///
+        /// - the triangle on `R`'s anchored side stands on `R`'s first
+        ///   point, and the triangle added is `R`'s two points and the third
+        ///   corner, in the slots of the neighbour and the run;
+        /// - any other triangle at `R`'s vertex stands on its last point and
+        ///   adds nothing;
+        /// - the triangle of the neighbour, `R` and `T` (three vertices of
+        ///   one ruling, which the CDT makes of no three points of one
+        ///   column) has `T` anchored by `R`'s own vertex for `R`'s third
+        ///   corner, and refuses at `R`'s first point.
+        #[test]
+        fn a_triangle_at_a_runs_vertex_is_cut_by_its_anchor() {
+            use std::collections::HashMap;
+
+            use spade::handles::FixedVertexHandle;
+
+            use super::super::{Corner, Run, TrimPolygon, cut_along_runs, developed_runs};
+            use crate::tessellate::PatchVertex;
+
+            let plane = CdtPlane::Development {
+                sin_alpha: 0.3f64.sin(),
+                nappe: 1.0,
+            };
+            let e = (0.5f64).powi(40);
+            let polygon = TrimPolygon::of_loops(
+                &[
+                    (0.2, 0.5, 1),
+                    (0.2, 1.0, 2),
+                    (0.2, 1.0 + e, 3),
+                    (0.2, 1.25, 4),
+                    (0.2, 1.25 + e, 5),
+                    (0.2, 1.5, 6),
+                    (0.9, 1.5, 7),
+                    (0.9, 0.5, 8),
+                ],
+                &[],
+            );
+            let runs = developed_runs(plane, &polygon, &HashSet::new(), &|i| i < 5).unwrap();
+            let [r, t] = runs.as_slice() else {
+                panic!("two runs, got {runs:?}");
+            };
+            assert_eq!((&r.members[..], &t.members[..]), (&[1, 2][..], &[3, 4][..]));
+            let handles: Vec<FixedVertexHandle> = [0, 1, 1, 2, 2, 3, 4, 5]
+                .map(FixedVertexHandle::from_index)
+                .to_vec();
+            let run_at: HashMap<usize, &Run> = [(1, r), (2, t)].into_iter().collect();
+            let cut = |hs: [usize; 3]| {
+                let mut corners = hs.map(|h| Corner {
+                    #[allow(clippy::cast_possible_truncation)]
+                    id: PatchVertex::Shared(100 + h as u32),
+                    uv: [0.0; 2],
+                    grid: None,
+                    places: None,
+                });
+                let ids = |t: [Corner<'_>; 3]| t.map(|c| c.id);
+                cut_along_runs(&polygon, &handles, &run_at, hs, &mut corners).map(|between| {
+                    (
+                        ids(corners),
+                        between.into_iter().map(ids).collect::<Vec<_>>(),
+                    )
+                })
+            };
+            let s = PatchVertex::Shared;
+            assert_eq!(
+                cut([0, 1, 5]),
+                Ok(([s(100), s(2), s(105)], vec![[s(2), s(3), s(105)]])),
+                "on the anchored side: the run's first point, and one triangle added"
+            );
+            assert_eq!(
+                cut([1, 5, 4]),
+                Ok(([s(3), s(105), s(104)], vec![])),
+                "any other triangle: the run's last point, nothing added"
+            );
+            assert_eq!(
+                cut([0, 1, 2]),
+                Err(1),
+                "the neighbour and two runs of its ruling in one triangle"
             );
         }
 
