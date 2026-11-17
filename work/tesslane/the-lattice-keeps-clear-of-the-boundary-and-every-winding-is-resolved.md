@@ -2,11 +2,13 @@
 id: the-lattice-keeps-clear-of-the-boundary-and-every-winding-is-resolved
 kind: unit
 title: the trimmed lattice keeps a clearance from the boundary, and tessellate refuses a face whose triangle f64 cannot wind
-status: dispatched
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: H
 branch: tesslane/lattice-clearance
+closed: 2026-11-17
+pr: 7043
 ---
 
 
@@ -49,3 +51,16 @@ Branch `tesslane/lattice-clearance`, cut from `tesslane/ev-flat-triangles` (PR 6
 - **Done when** `a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area`'s bodies (the torus ring at δ 10⁻³, the tilted sphere pair at δ 0.04) mesh with no unresolved triangle and their `Got::NoArea` pins are gone; the public check passes over every mesh the mesh suite builds; `reach_probes`' `MIN_SHAPE` is replaced by it; the whole frustum refuses typed in its window and meshes outside it; `FacePatch`'s doc and the STL writer's cite the promise.
 - **Closes** `a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area` and `the-stl-writers-doc-names-a-contract-nothing-states`.
 - **Run what CI runs before every push:** `bash scripts/run-gates.sh`; `scripts/doc-gate.sh --workspace-pass --skip-viewer-toolkit`; fmt; clippy for mesh, geom-brep, topo, stl, `demos/tour` and the viewer job (`cargo clippy -p viewer --features app --all-targets -- -D warnings`); `cargo nextest run -p mesh` whole, and the viewer's tests; the `mesh budget meter + certificate falsifier` job's steps and the `tools` job's steps from `.github/workflows/ci.yml` (excluded roots whose tests mesh bodies); the rows you add or change at `CAD_TOLERANCE_EPS` 1e-6 and 1e-12 as well, each stating what it expects at each; sweep's rows over the bodies you touch. A test costing 0.5 s or more goes in the slow set with its measured time.
+
+## Closed (2026-11-17, PR 7043)
+
+Both rules of the page are built. `trimmed::lay` lays a lattice node only where the box `BOUNDARY_CLEARANCE` of its own step each way meets no side of any loop and no crease line but its own; nothing is merged or moved. `validate::resolved_normal` is the one definition of a resolved winding, read where faces join the mesh (`tessellate`), by the chart lane's own emit pass and by the public `validate::check_winding`; a face with an unresolved triangle refuses `UnresolvedWinding`, naming the triangle, its height and the allowance.
+
+What the sections above did not foresee:
+
+- **The value is 1/16, not the 1/4 this file's unit section names.** The unit's measure-first pass found that 1/4 refuses plain cylinders cut by a steep plane, which main meshes: the designers' table had read 1.06 cell bounds with no clearance over their 486 faces, and the suite's own faces reach 1.81 on main. Put to Ev on PR 6966: the temporary value does not matter. 1/16 landed, with the plan to 1/2 on `the-boundary-clearance-goes-to-half-a-step-with-the-boundary-run-bound`.
+- **The winding rule refuses more than the page's PR said.** Nine cells of one cone-and-box pose mesh on main and refuse here, and behind them a class: every cone face through its apex with a split straight side, which the rectangle lane meshed with triangles of no area. That went to three designers (`docs/DESIGN-FORK-LOG.md` row 279); the interim cure is PR 7049 and the final state is on `[ev]` PR 7046. On the chart lane, which is what this unit changes, no face that meshes on main refuses.
+- **Two pinned viewer rows moved with the clearance and nobody ran them.** `display_budget` and `review_pick_r2` are in the slow set, which the per-PR gate skips; the implementer's viewer run, both first reviews and the orchestrator's pre-push list all left the slow set out. A lane stacked on this branch found them red; both delta reviews then showed them green on main and red since this unit's first head. Re-pinned here with the counts.
+- **What review settled:** the chart lane refuses at once on an attempt that holds an unresolved triangle (no retry can resolve one); a location two bands lay is laid only where both clear; a side with an end at a cone's apex is searched at every azimuth; the clearance reaches the lane as a value, with no test switch in the production path; a crease's own node is known by provenance.
+
+Left for others, each filed: a point the cone arm places inside a very thin developed triangle can land on its side, where the lane now refuses and main retried, with no body known to reach it (`a-point-placed-inside-a-developed-needle-triangle-can-land-on-its-side`); the page's sentence about evaluation rounding against a scale that reads corner norms (`the-winding-verdicts-scale-reads-corner-norms-not-what-an-evaluation-rounds-at`); the two cone choices no measured body distinguishes, said at their sites.
