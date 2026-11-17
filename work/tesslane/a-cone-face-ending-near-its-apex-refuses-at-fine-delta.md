@@ -2,10 +2,11 @@
 id: a-cone-face-ending-near-its-apex-refuses-at-fine-delta
 kind: issue
 title: A cone face ending near its apex refuses CertificateExceeded at fine δ: the development triangulates, the chart certifies
-status: parked
+status: closed
 opened: 2026-11-14
 priority: P1
-blocked_on: [the-cone-arm-certifies-the-triangle-its-development-makes]
+closed: 2026-11-16
+pr: 6965
 ---
 
 ## Finding
@@ -73,3 +74,9 @@ at `s = 0.01` at all three. The ringless ops of `s = 0.1` mesh at every
 δ. At `s = 10⁻³` the door answers `Undecided` (the ring within the band
 of the outer loop). Pinned by
 `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.
+
+- 2026-11-16 — **A cell that meshes refuses once its lattice keeps clear of the boundary** (the clearance unit, `the-lattice-keeps-clear-of-the-boundary-and-every-winding-is-resolved`, measured on its base before PR 6965). The funnel cut at `h = 2·10⁻²`, the half above, δ `5·10⁻⁵`: both cone faces mesh with main's lattice at 1.31 of the face's cell bound (the headroom allows 2) and refuse `CertificateExceeded` under the clearance at every value tried, at 2.33 with 15 of 15,252 nodes not laid (1/16), 5.53 with 33 (1/8) and 11.28 with 58 (1/4). Which triangles carry the excess is unmeasured; that the certificate's charge and not the mesh's deviation is what grows is this row's finding (above), not re-taken here. On the certificate and the graded rows that close this row (below) the cell meshes under the clearance: `reach_probes::the_unit_funnel_cut_near_its_apex_meshes_at_every_delta` passes with it.
+
+## Closed (2026-11-16, PR 6965)
+
+The cone arm certifies the flat triangle it emits (`cert::cert_cone`, closed form) and lays its rows a certified chord apart. Every row of the table above meshes at the default eps, 10⁻⁶ and 10⁻¹² where the body builds, and passes `reach_probes::geometry` (`the_unit_funnel_cut_near_its_apex_meshes_at_every_delta`). The two cases that were truly over δ on the old mesh (sampled 1.63δ and 1.23δ) are within it. The ringed poses unit 3 added here mesh too. What still refuses is a needle funnel cut 10⁻⁵ above its apex, on its own row: `a-needle-funnel-cut-at-its-apex-refuses-folded`.

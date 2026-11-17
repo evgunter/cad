@@ -48,7 +48,17 @@ pub struct FacePatch {
     /// The source face (picking back-reference).
     pub face: FaceKey,
     /// Triangles with **outward** winding (counterclockwise viewed
-    /// from outside the material, per the D1 loop conventions).
+    /// from outside the material, per the D1 loop conventions), each
+    /// **resolved above the rounding of its own positions**
+    /// (`crates/mesh/README.md` `[mesh.winding]`): a normal computed from
+    /// a triangle's stored corners points the way its face does, and
+    /// would not flip if each coordinate moved by its evaluation
+    /// rounding. [`fn@crate::tessellate`] refuses a face with a triangle
+    /// that fails this
+    /// ([`TessellateError::UnresolvedWinding`]), and
+    /// [`crate::validate::check_winding`] re-derives it from a mesh.
+    /// Shape is not otherwise promised: a triangle may be thin, and
+    /// small beside ε.
     ///
     /// "Outward" means the *material* side, not the chart-normal side.
     /// A face's outward normal is its chart normal with
@@ -230,8 +240,15 @@ pub enum TessellateError {
         /// The rounding allowance the verdict would have had to absorb.
         allowance: f64,
     },
-    /// The CDT rejected a point insertion (non-finite or out-of-range
-    /// UV coordinate — corrupt geometry surfaced as a typed error).
+    /// A face's constrained triangulation could not be built. Either
+    /// the CDT rejected a point or a boundary constraint (a non-finite or
+    /// out-of-range chart coordinate, a side crossing another: corrupt
+    /// geometry surfaced as a typed error), or, on the trimmed lane, a
+    /// point the mesher placed entered at an existing vertex or sat on a
+    /// boundary side or a crease link. The lane merges and moves no
+    /// point (`crates/mesh/README.md` `[mesh.sizing]`): its lattice
+    /// keeps clear of the boundary, and a point that reaches the
+    /// triangulation on it all the same refuses the face.
     Triangulation {
         /// The face being triangulated.
         face: FaceKey,
@@ -573,11 +590,43 @@ pub enum TessellateError {
         /// The face whose patch folds.
         face: FaceKey,
     },
-    /// A trimmed face on an analytic chart keeps an ear of its boundary
-    /// polygon (a triangle on three consecutive chord points) after the
-    /// retry budget: the neighbour across that chain may cut the same
-    /// ear, which would make one triangle twice and their diagonal an
-    /// edge of four triangles, so it refuses.
+    /// A face's patch holds a triangle whose winding is inside the
+    /// rounding of its own corner positions: its height over its longest
+    /// side does not exceed the certificate's rounding allowance at its
+    /// coordinate scale (`crates/mesh/README.md` `[mesh.winding]`;
+    /// `validate::check_winding` states the measure). A normal computed
+    /// from its stored corners is rounding noise, so the face is refused,
+    /// not returned.
+    ///
+    /// Raised in two places, by the one definition
+    /// (`validate::resolved_normal`): where a face's patch joins the
+    /// mesh, for every lane (the planar lane's, the rectangle lane's, a
+    /// patch the memo answers), and by the trimmed lane itself as soon as
+    /// an attempt holds such a triangle, since none of its retries is
+    /// built to resolve one.
+    ///
+    /// It says what the triangle is, not why. Bodies that reach it: the
+    /// plane cap of a frustum whose small rim inherits its cone's columns,
+    /// on three boundary chord points, at a δ near `10⁻⁸` of the body;
+    /// and, on the rectangle lane, a cone face through its apex with a
+    /// split straight side, on the apex and two lattice nodes of one
+    /// column
+    /// (`work/tesslane/a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it.md`).
+    UnresolvedWinding {
+        /// The face whose patch holds the triangle.
+        face: FaceKey,
+        /// The triangle's corners, its height and the allowance that
+        /// height does not exceed. Boxed: it is nine coordinates wide,
+        /// and the refusal rides in every caller's `Result`.
+        unresolved: Box<crate::validate::Unresolved>,
+    },
+    /// A trimmed face on an analytic chart keeps, after the retry budget,
+    /// a triangle a neighbouring face may make a side of too: an ear of
+    /// its boundary polygon (a triangle on three consecutive chord
+    /// points), or on a cone a side joining two boundary points that are
+    /// not neighbours and that one neighbour holds both of. The neighbour
+    /// may join the same two points, which would make that side an edge
+    /// of four triangles, so it refuses.
     BoundaryEar {
         /// The face whose patch keeps the ear.
         face: FaceKey,
@@ -811,9 +860,12 @@ impl TessellateError {
                  not absorbed; model the body nearer the origin or ask for a coarser δ",
             ),
             Self::Triangulation { .. } => f.write_str(
-                "tessellate: the CDT rejected a point insertion on a face — a \
-                 non-finite or out-of-range chart coordinate, i.e. corrupt \
-                 geometry",
+                "tessellate: a face's constrained triangulation could not be built — \
+                 the CDT rejected a point or a boundary constraint (a non-finite or \
+                 out-of-range chart coordinate, or a side crossing another, i.e. \
+                 corrupt geometry), or a point the mesher placed landed on an \
+                 existing vertex, a boundary side or a crease line, which it neither \
+                 merges nor moves",
             ),
             Self::SelfTouchingTrimLoop { .. } => f.write_str(
                 "tessellate: a trimmed face's boundary passes exactly through \
@@ -929,6 +981,27 @@ impl TessellateError {
                  it and is wound against the face in 3-D — the mesh would be \
                  closed and wrong, so it is refused; a finer δ may clear it",
             ),
+            Self::UnresolvedWinding { unresolved, .. } => {
+                let crate::validate::Unresolved {
+                    corners: [a, b, c],
+                    height,
+                    allowance,
+                } = &**unresolved;
+                let at = |p: &[f64; 3]| format!("({:e}, {:e}, {:e})", p[0], p[1], p[2]);
+                write!(
+                    f,
+                    "tessellate: a face's patch holds a triangle whose winding is inside \
+                     the f64 rounding of its own corner positions, so its normal would be \
+                     rounding noise and the face is refused: its height over its longest \
+                     side is {height:e} m, and the rounding allowance at its coordinate \
+                     scale ({ulps} f64 epsilons of its farthest corner's distance from the \
+                     origin) is {allowance:e} m; its corners are {}, {} and {}",
+                    at(a),
+                    at(b),
+                    at(c),
+                    ulps = crate::cert::ROUNDING_ULPS,
+                )
+            }
             Self::BoundaryEar { .. } => f.write_str(
                 "tessellate: a trimmed face's patch keeps a triangle on three \
                  consecutive boundary chord points after its retries — the face \

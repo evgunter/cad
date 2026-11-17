@@ -17,7 +17,7 @@ use geom_brep::intersect::{
 };
 use geom_brep::recourse::Refused;
 use geom_brep::{ClassCarrier, PairSection, SectionRead};
-use geom_brep::{TorusConvention, TorusRefusal, TorusVerdict};
+use geom_brep::{TorusConvention, TorusStanding};
 use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Real, Vec3};
 
@@ -2370,19 +2370,15 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
 /// The half of the ring convention `err` refused at, and whether it
 /// refused in band (`None`) or decided (`Some(negative)`).
 fn torus_refusal(err: &SectionError) -> (TorusConvention, Option<bool>) {
-    let SectionError::DegenerateTorus(TorusRefusal {
-        convention,
-        verdict,
-    }) = err
-    else {
+    let SectionError::DegenerateTorus(refusal) = err else {
         panic!("expected the ring-convention refusal, got {err:?}");
     };
-    let decided = match verdict {
-        TorusVerdict::Undecided(_) => None,
-        TorusVerdict::Refused(Refused::Zero(_)) => Some(false),
-        TorusVerdict::Refused(Refused::Negative { .. }) => Some(true),
+    let decided = match refusal.standing() {
+        TorusStanding::Ranked(_) => None,
+        TorusStanding::InvalidInput(Refused::Zero(_)) => Some(false),
+        TorusStanding::InvalidInput(Refused::Negative { .. }) => Some(true),
     };
-    (*convention, decided)
+    (refusal.convention, decided)
 }
 
 /// The ring guard: a spindle torus (`r > R`) and a horn (`r = R`)
@@ -2413,12 +2409,11 @@ fn plane_torus_ring_guard_and_wrong_lane() {
     let near_horn = torus_y(0.3 + 3.0 * eps(), 0.3);
     let err =
         plane_torus_section(&plane, &near_horn, fixture_lever(1.0), band()).expect_err("near horn");
-    let SectionError::DegenerateTorus(TorusRefusal {
-        verdict: TorusVerdict::Undecided(diag),
-        ..
-    }) = err
-    else {
+    let SectionError::DegenerateTorus(refusal) = err else {
         panic!("expected the ring half undecided, got {err:?}");
+    };
+    let TorusStanding::Ranked(diag) = refusal.standing() else {
+        panic!("expected the ring half undecided, got {refusal:?}");
     };
     assert_eq!(diag.predicate, Some("ring_torus_convention"));
     // Wrong-lane kinds refuse typed, both sides.
@@ -2474,12 +2469,13 @@ fn plane_torus_tube_guard_refuses_nonpositive_minor_radius() {
         band(),
     )
     .expect_err("in-band tube radius must escalate");
-    let SectionError::DegenerateTorus(TorusRefusal {
-        convention: TorusConvention::Tube,
-        verdict: TorusVerdict::Undecided(diag),
-    }) = err
-    else {
+    let SectionError::DegenerateTorus(refusal) = err else {
         panic!("expected the tube half undecided, got {err:?}");
+    };
+    let (TorusConvention::Tube, TorusStanding::Ranked(diag)) =
+        (refusal.convention, refusal.standing())
+    else {
+        panic!("expected the tube half undecided, got {refusal:?}");
     };
     assert_eq!(diag.predicate, Some("torus_tube_positive"));
 }
@@ -2761,7 +2757,7 @@ fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
         ("1e-20 off the axis", axis + u_ref * 1e-20),
     ] {
         let cone = cone_43(apex, axis, seam);
-        let refused = |r: Result<(), SectionError>| matches!(r, Err(SectionError::DegenerateOperand { what }) if what.contains("seam"));
+        let refused = |r: Result<(), SectionError>| matches!(r, Err(SectionError::ConeAtTheBand { what }) if what.contains("seam"));
         let coc = cone_cylinder_section(&cone, &cyl, fixture_lever(1.0), band()).map(|_| ());
         let pn = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).map(|_| ());
         assert!(refused(coc.clone()), "{which}: cone×cylinder {coc:?}");
@@ -2961,19 +2957,33 @@ fn cone_cylinder_convention_guards_and_wrong_lane() {
         half_angle,
         u_ref,
     };
-    for (what, cone, cyl) in [
-        ("zero radius", &cone, cyl_r(0.0)),
-        ("negative radius", &cone, cyl_r(-0.5)),
-        ("closed half-angle", &cone_at(0.0), cyl_r(0.5)),
+    // A radius decided zero or negative is degenerate; a half-angle
+    // decided `Zero` at its convention's edge stands at the band.
+    for (what, cone, cyl, at_the_band) in [
+        ("zero radius", &cone, cyl_r(0.0), false),
+        ("negative radius", &cone, cyl_r(-0.5), false),
+        ("closed half-angle", &cone_at(0.0), cyl_r(0.5), true),
         (
             "right half-angle",
             &cone_at(core::f64::consts::FRAC_PI_2),
             cyl_r(0.5),
+            true,
+        ),
+        // Decided negative: outside the convention, never at its edge.
+        (
+            "half-angle past a right angle",
+            &cone_at(2.0),
+            cyl_r(0.5),
+            false,
         ),
     ] {
         let err = cone_cylinder_section(cone, &cyl, fixture_lever(1.0), band()).expect_err(what);
         assert!(
-            matches!(err, SectionError::DegenerateOperand { .. }),
+            if at_the_band {
+                matches!(err, SectionError::ConeAtTheBand { .. })
+            } else {
+                matches!(err, SectionError::DegenerateOperand { .. })
+            },
             "{what}: got {err:?}"
         );
     }

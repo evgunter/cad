@@ -49,8 +49,8 @@ use std::cell::{OnceCell, RefCell};
 use std::collections::BTreeMap;
 
 use geom_brep::{
-    CarriedComponent, CarriedSection, CarryError, ExtentBall, PairSection, Seated, SectionError,
-    SiteFoot, SiteRefusal, SsiLane,
+    CarriedComponent, CarriedSection, CarryError, ExtentBall, PairSection, SectionError, SiteFoot,
+    SiteRefusal, SsiLane,
 };
 use geom_core::{Band, Indeterminate, Real};
 
@@ -59,6 +59,9 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
 use crate::geometry::SurfaceKey;
 use crate::live::proven;
+
+/// One component's seating ([`PairSection::seat`]).
+type Seated<T> = Result<CarriedComponent<T>, CarryError>;
 
 /// One surface pair's section, and the band its reader classified it at
 /// (the table's one band), which it is carried at.
@@ -440,7 +443,7 @@ impl<T: geom_core::Decide> SectionTable<T> {
         });
         Some(
             slots[k]
-                .get_or_init(|| section.seat(self.lane, component, at, held.band))
+                .get_or_init(|| section.seat(component, at))
                 .as_ref()
                 .map_err(Uncarried::Carry),
         )

@@ -366,7 +366,9 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
             geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
                 OutlineEdge::Conic(curve.carrier().clone())
             }
-            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => OutlineEdge::Undecided,
+            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
+                OutlineEdge::Undecided
+            }
         });
     }
     Ok(out)
@@ -432,6 +434,30 @@ fn conics_clear<T: Decide>(e: &dyn Conic<T>, h: &dyn Conic<T>, band: geom_core::
     let outside = (centre - reach - T::one()) * lever;
     positive("split_nest_conic_conic", inside, band)
         || positive("split_nest_conic_conic", outside, band)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_loop_row {
+    use geom_core::{Band, Tol, Vec3};
+
+    /// **A loop with a spline edge has a role, by its bulge**: the
+    /// crescent whose chord triangle is clockwise about `+z`, and which
+    /// its rational arc's bulge makes counter-clockwise, is an outline
+    /// about `+z` and a hole about `−z`.
+    #[test]
+    fn a_loop_wound_by_its_spline_edge_reads_its_role() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (body, l, _) = crate::merge_faces::winding_arm_tests::spline_crescent(tol);
+        for (normal, outline) in [(Vec3::unit_z(), true), (-Vec3::unit_z(), false)] {
+            let read = super::loop_sense(&body, l, normal, band);
+            assert!(
+                matches!(read, Ok(role) if role == outline),
+                "about {normal:?}: {read:?}"
+            );
+        }
+    }
 }
 
 /// **A torn ring curve panics before the outlines are answered**: on a

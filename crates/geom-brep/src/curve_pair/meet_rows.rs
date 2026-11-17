@@ -83,7 +83,7 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
             let rho = (w - axis * h).norm();
             ((rho - radius.abs()).powi(2) + h.powi(2)).sqrt()
         }
-        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
             panic!("no independent distance to a {:?}", c.kind())
         }
     }
@@ -91,11 +91,17 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
 
 /// **The table is total, and its closed arms are the line, circle and
 /// ellipse pairs.** Every pair of kinds has a method; a pair is the
-/// walk's exactly when a side is a spiric or a spline; and the mirrored
+/// walk's exactly when a side is a spiric or a spline, clamped or
+/// periodic; and the mirrored
 /// pair has the mirrored arm.
 #[test]
 fn the_table_reads_every_kind_pair_once() {
-    let walked = |k: CurveKind| matches!(k, CurveKind::Spiric | CurveKind::Nurbs);
+    let walked = |k: CurveKind| {
+        matches!(
+            k,
+            CurveKind::Spiric | CurveKind::Nurbs | CurveKind::Periodic
+        )
+    };
     let mirror = |arm: Arm| match arm {
         Arm::LineConic => Arm::ConicLine,
         Arm::ConicLine => Arm::LineConic,
@@ -2278,7 +2284,12 @@ fn the_gap_is_charged_with_the_rounding_of_far_coordinates() {
 /// middle, then straight down through `y = 0` to `y = −0.008`; the line
 /// `y = 0` crosses that second span at `(0.012, 0, 0)`. Each span is
 /// straight, so a bound read span by span is zero, though the tangent
-/// turns a right angle at the knot: the crease bounds no `|C″|`.
+/// turns a right angle at the knot: the crease bounds no `|C″|` over the
+/// whole carrier. The walk's window reads the curvature over its own
+/// arcs (`walk::Read::curvature_near`), which lie inside the second span
+/// far from the crease, so every window the walk asks proves its basin
+/// (`curve_pair_walk_basin`). Read over the whole carrier, the basin
+/// proves nowhere on it.
 #[test]
 fn a_spline_with_a_corner_meets_a_line_past_it() {
     use geom::NurbsCurve3;
@@ -2297,17 +2308,102 @@ fn a_spline_with_a_corner_meets_a_line_past_it() {
         .unwrap(),
     ));
     let b = line([-0.3, 0.0, 0.0], [1.0, 0.0, 0.0]);
-    let got = super::walk::meet(
-        &Span::new(&a, (0.0, 1.0)),
-        &Span::new(&b, (0.0, 0.6)),
-        band(),
-    );
+    let (got, rec) = geom_core::k_stats::detached(|| {
+        super::walk::meet(
+            &Span::new(&a, (0.0, 1.0)),
+            &Span::new(&b, (0.0, 0.6)),
+            band(),
+        )
+    });
     let Ok(m) = got else {
         panic!("the walk reads the crossing: {got:?}")
     };
     assert!(
         m.points.len() == 1 && interiors_meet(&m),
         "one meeting, on both interiors: {m:?}"
+    );
+    let basin = |p: &str| p == "curve_pair_walk_basin";
+    let signs: Vec<geom_core::Sign> = rec
+        .recorded()
+        .verdicts
+        .iter()
+        .filter(|v| basin(v.predicate))
+        .map(|v| v.sign)
+        .collect();
+    assert!(
+        !signs.is_empty() && signs.iter().all(|&s| s == geom_core::Sign::Positive),
+        "every window the walk asks proves its basin: {signs:?}"
+    );
+    assert!(
+        !rec.recorded()
+            .escalations
+            .iter()
+            .any(|e| basin(e.predicate())),
+        "no basin is left undecided: {:?}",
+        rec.recorded().escalations
+    );
+}
+
+/// The verdicts `rec` holds on `predicate`, in order.
+fn verdicts_on(rec: &geom_core::k_stats::Detached, predicate: &str) -> Vec<geom_core::Sign> {
+    rec.recorded()
+        .verdicts
+        .iter()
+        .filter(|v| v.predicate == predicate)
+        .map(|v| v.sign)
+        .collect()
+}
+
+/// **Two splines joined end to end read their joint's window one-sided.**
+/// Two straight degree-2 splines run along `y = 0`, the first from
+/// `(−0.3, 0, 0)` to the joint at the origin and the second on from there
+/// to `(0.3, 0, 0)`, each with its middle control point off the chord's
+/// middle so that its parameter is not arc length. At the joint the
+/// tangents are parallel, so the two-sided sine is zero and the basin
+/// (`curve_pair_walk_basin`) cannot prove. The polished pair is held at
+/// the first span's last end and the second's first, and the
+/// half-tangents pointing into the spans part by `180°`: the one-sided
+/// window's sine is `1`, and its basin (`curve_pair_walk_basin_held`)
+/// proves at every pair held so.
+#[test]
+fn two_splines_joined_end_to_end_read_their_joint_one_sided() {
+    use geom::NurbsCurve3;
+    use geom_core::spline::{KnotVector, Knots};
+    let straight = |from: f64, to: f64| {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        Curve3::Nurbs(std::sync::Arc::new(
+            NurbsCurve3::new(
+                Knots::from(knots),
+                vec![
+                    Point3::new(from, 0.0, 0.0),
+                    Point3::new(from + (to - from) * 0.3, 0.0, 0.0),
+                    Point3::new(to, 0.0, 0.0),
+                ],
+                vec![1.0; 3],
+            )
+            .unwrap(),
+        ))
+    };
+    let (a, b) = (straight(-0.3, 0.0), straight(0.0, 0.3));
+    let (got, rec) = geom_core::k_stats::detached(|| {
+        super::walk::meet(
+            &Span::new(&a, (0.0, 1.0)),
+            &Span::new(&b, (0.0, 1.0)),
+            band(),
+        )
+    });
+    let Ok(m) = got else {
+        panic!("the walk reads the joint: {got:?}")
+    };
+    assert!(m.points.len() == 1, "one meeting, the joint: {m:?}");
+    let held = verdicts_on(&rec, "curve_pair_walk_basin_held");
+    assert!(
+        !held.is_empty() && held.iter().all(|&s| s == geom_core::Sign::Positive),
+        "every pair held at the joint proves its one-sided basin: {held:?}"
+    );
+    assert!(
+        !verdicts_on(&rec, "curve_pair_walk_basin").contains(&geom_core::Sign::Positive),
+        "the two-sided basin proves nowhere at the joint"
     );
 }
 
@@ -2436,8 +2532,10 @@ fn a_window_read_off_short_of_its_reach_escalates() {
     let (p, q) = (Point3::new(1e-6, 0.0, 0.0), Point3::origin());
     let Some(bound) = super::polish::bound(
         ("test_basin", None),
-        (p, Vec3::new(1.0, 0.0, 0.0)),
-        (q, Vec3::new(0.0, 1.0, 0.0)),
+        super::polish::Along::two_sided(
+            (p, Vec3::new(1.0, 0.0, 0.0)),
+            (q, Vec3::new(0.0, 1.0, 0.0)),
+        ),
         0.0,
         (band().escalate(), 0.1),
     ) else {
@@ -2610,8 +2708,7 @@ fn the_run_arm_needs_the_span_end_decidedly_off_the_other_carrier() {
         let (a, b) = (Span::new(&x, (0.0, 1.0)), Span::new(&other, (-1.0, 1.0)));
         let Some(bound) = super::polish::bound(
             ("test_basin", None),
-            (at, Vec3::new(1.0, 0.0, 0.0)),
-            (at, dir),
+            super::polish::Along::two_sided((at, Vec3::new(1.0, 0.0, 0.0)), (at, dir)),
             0.0,
             (band().escalate(), 0.1),
         ) else {

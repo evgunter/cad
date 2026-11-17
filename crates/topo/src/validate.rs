@@ -3634,6 +3634,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             refused: geom_brep::StatedSpan::Winding(_),
         }
         | CertifyError::WindingExceeded => "its arc spans more than one full turn",
+        CertifyError::PeriodicView(_) => {
+            "its parameter interval is not a span of its closed spline the kernel can read"
+        }
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
             "its faces are tangent where its description says they cross"
         }
@@ -3717,6 +3720,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         None => Cow::Borrowed(match e {
             CertifyError::UnresolvedSurface { .. }
             | CertifyError::IntersectionSameSurface { .. }
+            | CertifyError::PeriodicView(_)
             | CertifyError::WrapOnNonPeriodic => DEFECT,
             CertifyError::Unimplemented
             | CertifyError::Row {
@@ -4453,6 +4457,11 @@ fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'stati
         ChartRegionError::DegenerateLoop { .. } => (
             "a face's boundary encloses no definite area at this tolerance (a sliver)",
             "Recourse: widen the face well past the tolerance",
+        ),
+        ChartRegionError::ShortLoop { .. } => (
+            "a face's boundary images to fewer than three straight segments on its \
+             surface's chart, too few for the check to read as a region",
+            "Recourse: split the boundary's edges so it has three or more",
         ),
         ChartRegionError::EdgeScale => (
             crate::chart_region::EDGE_SCALE_REASON,
@@ -6253,9 +6262,10 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   The **planar** case is now covered between vertices by check 5
 ///   (sample containment against adjacent planar faces), and its
 ///   orientation half by check 6 (loop-role winding against the
-///   outward normal, on loops of line, circle and ellipse carriers — a
-///   planar loop riding a spiric or NURBS carrier is not examined,
-///   so such a face's sense bit is falsified by nothing at rest;
+///   outward normal, on loops of every carrier — a planar loop with a
+///   spiric edge, a rational spline edge or a non-rational one past
+///   the exact rule's degrees is not examined at a scalar that does
+///   not certify, where that edge's area has no enclosure;
 ///   `work/restfront/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
 ///   A planar face's NESTING half — a ring lying inside the outer
 ///   loop of its own face — is check 9's nesting arm, on every planar
@@ -7552,6 +7562,15 @@ pub(crate) fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geo
                 vec![geom::CurveDatum::Control]
             };
         }
+        // The base opening's net is an affine image of the cyclic one,
+        // so one is finite exactly where the other is.
+        geom::CurveData::Periodic(p) => {
+            return if net_is_finite(p.whole_loop().control()) {
+                Vec::new()
+            } else {
+                vec![geom::CurveDatum::Control]
+            };
+        }
     };
     data.into_iter()
         .filter_map(|(datum, value)| (!datum_is_number(value)).then_some(datum))
@@ -8176,7 +8195,7 @@ pub(crate) fn tier3_local_checks_marked<
     // role-invariant) but silently corrupts tessellation/export;
     // this closes that class structurally.
     //
-    // **Scope: loops of `Line`, `Circle` and `Ellipse` carriers.** A
+    // **Scope: loops of every carrier.** A
     // bare vertex-chord Newell sum is the enclosed area only for
     // straight boundaries — a 270° sector's chord quad self-crosses — so
     // an arc enters exactly: `2A` is the chord Newell plus, per arc, its
@@ -8201,11 +8220,18 @@ pub(crate) fn tier3_local_checks_marked<
     // or mis-scaled arc term. A LINE-only loop is decided by the chord
     // sum alone, the correction block structurally skipped.
     //
-    // **The residue this arm does not examine**: a loop riding a NURBS
-    // or spiric carrier, whose region has no closed-form area
-    // (`work/restfront/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
-    // A planar face bounded so carries a stored sense no at-rest check
-    // falsifies.
+    // A spline edge and a spiric one enter the same way, by their own
+    // bulge and length bound (`crate::loop_winding`'s module docs: a
+    // non-rational spline's is exact through the exact rule's degrees; a
+    // rational spline's, a higher-degree one's and a spiric's a certified
+    // enclosure refined to a sign).
+    //
+    // **The residue this arm does not examine**: a loop with an edge
+    // read by its enclosure alone (a spiric, a rational spline, a
+    // non-rational one past the exact rule's degrees), at a scalar that
+    // does not certify, or where the enclosure reads nothing
+    // (`crate::loop_winding::Unwound`). A planar face bounded so carries
+    // a stored sense this arm does not falsify.
     //
     // **The S10 sense gate.** A face's outward normal is the chart
     // normal with `sense` folded in, so the winding is compared against
@@ -8243,10 +8269,9 @@ pub(crate) fn tier3_local_checks_marked<
             } else {
                 Sign::Positive
             };
-            // Line, Circle, Ellipse and Spiric carriers (banner); an
-            // empty ring and a loop the sum does not wind (a NURBS edge,
-            // or a spiric at a scalar that does not certify) are not
-            // asked. Tier 3 runs on a body tier 1 cleared.
+            // An empty ring and a loop the sum does not wind (banner:
+            // an enclosure-only edge with no certified enclosure) are
+            // not asked. Tier 3 runs on a body tier 1 cleared.
             let Some(winding) = body.planar_loop_winding(l, outward, band) else {
                 continue;
             };
@@ -9375,7 +9400,7 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
                 lever,
             ))
         }
-        geom::Curve3::Nurbs(_) => None,
+        geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => None,
     };
     Some((he, h.edge, departure))
 }
@@ -18722,6 +18747,14 @@ mod certify_escalation_rows {
                 says(CertifyError::WindingExceeded),
                 "its arc spans more than one full turn. There is no way through: this is a \
                  kernel defect or a damaged file; report it",
+            ),
+            (
+                says(CertifyError::PeriodicView(geom::PeriodicViewError::Span {
+                    asked: (0.5, 2.75),
+                    window: (0.0, 2.0),
+                })),
+                "its parameter interval is not a span of its closed spline the kernel can read. \
+                 There is no way through: this is a kernel defect or a damaged file; report it",
             ),
             // The tangent tube's margin is a lower bound: a Negative is
             // the certificate's limit, which the lever reaches.

@@ -590,7 +590,8 @@ pub(crate) fn loop_circle<T: Decide>(
                 geom::Curve3::Line(_)
                 | geom::Curve3::Ellipse(..)
                 | geom::Curve3::Spiric { .. }
-                | geom::Curve3::Nurbs(_),
+                | geom::Curve3::Nurbs(_)
+                | geom::Curve3::Periodic(_),
             )
             | None => Rung::Answers(()),
         },

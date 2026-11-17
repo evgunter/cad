@@ -55,14 +55,18 @@ pub fn speed_range<T: SpanLocate>(carrier: &crate::Curve3<T>) -> (InfSpeed<T>, S
 /// ([`crate::Conic::speed_lo`], either stored order; a non-positive
 /// semi-axis keeps the floor non-positive, so no span is forward at it),
 /// a spiric's minor radius
-/// (`|C′|² = r²(1 + (d/f)²·sin²v)`). `None` on a line or a spline, which
-/// have no period.
-pub fn speed_floor<T: Real>(carrier: &crate::Curve3<T>) -> Option<InfSpeed<T>> {
-    match *carrier {
+/// (`|C′|² = r²(1 + (d/f)²·sin²v)`), a periodic cubic's bound over its
+/// whole loop ([`crate::PeriodicNurbs3::speed_lower_bound`]). `None` on
+/// a line or a clamped spline, which have no period.
+pub fn speed_floor<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<InfSpeed<T>> {
+    match carrier {
         crate::Curve3::Circle(c) => Some(InfSpeed::new(c.radius)),
-        crate::Curve3::Ellipse(e) => Some(InfSpeed::new(crate::Conic::speed_lo(&e))),
-        crate::Curve3::Spiric { minor_radius, .. } => Some(InfSpeed::new(minor_radius)),
-        crate::Curve3::Line(_) | crate::Curve3::Nurbs(_) => None,
+        crate::Curve3::Ellipse(e) => Some(InfSpeed::new(crate::Conic::speed_lo(e))),
+        crate::Curve3::Spiric { minor_radius, .. } => Some(InfSpeed::new(*minor_radius)),
+        // Of the carriers with no closed form, the one with a period.
+        crate::Curve3::Line(_) | crate::Curve3::Nurbs(_) | crate::Curve3::Periodic(_) => carrier
+            .as_periodic()
+            .map(crate::PeriodicNurbs3::speed_lower_bound),
     }
 }
 
@@ -154,6 +158,33 @@ pub fn speed_between<T: SpanLocate>(
     window_speed(carrier, m, reach)
 }
 
+/// How many equal pieces [`length_hi`] sums a line's, a conic's or a
+/// spiric's window speeds over. A power of two, so a constant speed sums
+/// to itself times the span exactly.
+const LENGTH_PIECES: usize = 32;
+
+/// **An upper bound on the carrier's length between `a` and `b`** (either
+/// order), in metres: the speed's sup summed piece by piece over the
+/// stretch itself, so it is not charged for a faster stretch elsewhere on
+/// the carrier. A line's and a circle's are their length. A conic's and a
+/// spiric's are [`speed_between`]'s sup on each of [`LENGTH_PIECES`] equal
+/// pieces: an ellipse arc at its slow end reads its own speed plus
+/// `max(a, b)` times half a piece, not the larger semi-axis. A spline's
+/// is [`crate::NurbsCurve3::length_upper_bound`], over the knot spans'
+/// pieces the stretch covers. As [`speed_range`], a spline's is certified
+/// at `Interval` and the same expression in round-to-nearest at `f64`.
+pub fn length_hi<T: SpanLocate>(carrier: &crate::Curve3<T>, a: T, b: T) -> T {
+    if let Kind::Nurbs(n) = Kind::of(carrier) {
+        return n.length_upper_bound(a, b);
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let at = |i: usize| a + (b - a) * T::from_f64(i as f64 / LENGTH_PIECES as f64);
+    let width = (b - a).abs() * T::from_f64(1.0 / LENGTH_PIECES as f64);
+    (0..LENGTH_PIECES)
+        .map(|i| speed_between(carrier, at(i), at(i + 1)).1.to_meters(width))
+        .fold(T::zero(), |acc, x| acc + x)
+}
+
 /// A sup on `|C′|` over the turn defect of the window that starts at `t0`
 /// and spans `extent` ([`turn_defect`]): [`window_speed`]'s sup about the
 /// defect's middle, over its reach. Never less than the speed anywhere on
@@ -224,6 +255,27 @@ pub fn curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
     Kind::of(carrier).curvature_hi()
 }
 
+/// A bound on the carrier's curvature over the parameters `[t0, t1]`:
+/// [`curvature_hi`]'s, except on a spline, whose `|C″|` is read over the
+/// run alone ([`crate::NurbsCurve3::accel_upper_bound_over`]) against
+/// [`speed_range`]'s floor. A crease costs only the runs not proved clear
+/// of it, so a spline with a crease bounds a finite curvature on a run
+/// inside a smooth stretch of it. On every other carrier the bound does
+/// not depend on the run.
+pub fn curvature_hi_over<T: SpanLocate>(carrier: &crate::Curve3<T>, run: (T, T)) -> T {
+    // A periodic cubic has no crease to be clear of: its whole loop's
+    // bound.
+    if matches!(carrier, crate::Curve3::Periodic(_)) {
+        return Kind::of(carrier).curvature_hi();
+    }
+    match Kind::of(carrier) {
+        Kind::Nurbs(n) => {
+            n.accel_upper_bound_over(run) / n.speed_lower_bound().get().max(T::zero()).powi(2)
+        }
+        kind => kind.curvature_hi(),
+    }
+}
+
 /// A carrier read by what bounds its rates: a conic by its semi-axes.
 enum Kind<'a, T: Real> {
     Line(Vec3<T>),
@@ -249,6 +301,8 @@ impl<'a, T: SpanLocate> Kind<'a, T> {
                 offset: *offset,
             },
             crate::Curve3::Nurbs(n) => Self::Nurbs(n),
+            // Its rates over every parameter are the whole loop's.
+            crate::Curve3::Periodic(p) => Self::Nurbs(p.whole_loop()),
         }
     }
 

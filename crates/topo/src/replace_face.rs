@@ -798,7 +798,7 @@ pub enum ReplaceFaceError<T: Real> {
     /// neighbour's torus is whatever the body carries.
     ///
     /// Standing: as the convention states it
-    /// ([`geom_brep::TorusRefusal::refusal`]): ranked by its margin in
+    /// ([`geom_brep::TorusRefusal::standing`]): ranked by its margin in
     /// band, an abort where decided outside the convention.
     DegenerateTorus {
         /// The edge whose section read the torus.
@@ -1256,7 +1256,7 @@ fn transport_curve<T: Decide>(
             Some((translate_curve(curve, delta), Some(delta)))
         }
         Surface::Cylinder { origin, axis, .. } => match curve {
-            Curve3::Line(_) | Curve3::Nurbs(_) => {
+            Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
                 let radial = (mid - *origin).reject_from(*axis).normalize();
                 let delta = radial * d;
                 Some((translate_curve(curve, delta), Some(delta)))
@@ -1297,7 +1297,7 @@ fn transport_curve<T: Decide>(
                 // A chart line is a generator, and the action's
                 // displacement is constant along one (the azimuth does
                 // not vary), so the transport is rigid.
-                Curve3::Line(_) | Curve3::Nurbs(_) => {
+                Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
                     let delta = action.displacement(nappe, mid);
                     Some((translate_curve(curve, delta), Some(delta)))
                 }
@@ -1453,6 +1453,7 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
         // A translation is affine: the net's image, knots and weights
         // as they are held.
         Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.map_points(|p| p + delta))),
+        Curve3::Periodic(n) => Curve3::Periodic(Arc::new(n.map_points(|p| p + delta))),
     }
 }
 
@@ -1473,6 +1474,7 @@ fn homothety<T: Real>(curve: &Curve3<T>, c: Point3<T>, k: T) -> Option<Curve3<T>
         // A homothety is affine: the net's image, knots and weights as
         // they are held.
         Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.map_points(map))),
+        Curve3::Periodic(n) => Curve3::Periodic(Arc::new(n.map_points(map))),
         // A line, an ellipse or a spiric does not lie on a sphere, so
         // a carrier of any of those kinds is not a curve this map was
         // derived for.
@@ -2568,10 +2570,13 @@ fn cone_v_range<T: Decide>(
         // The convex-hull property: the image lies in the hull of the
         // control polygon, and an affine functional's range over a hull
         // is its range over the vertices.
-        Curve3::Nurbs(n) => {
+        Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+            let Some(net) = carrier.whole_net() else {
+                unreachable!("a spline has a net");
+            };
             let mut lo: Option<T> = None;
             let mut hi: Option<T> = None;
-            for p in n.control() {
+            for p in net.control() {
                 let v = v_of(*p);
                 lo = Some(lo.map_or(v, |x: T| x.min(v)));
                 hi = Some(hi.map_or(v, |x: T| x.max(v)));
@@ -2960,6 +2965,7 @@ fn plan_edge<'s, T: Decide>(
                 other @ (geom_brep::SectionError::WrongLane { .. }
                 | geom_brep::SectionError::NoRegion { .. }
                 | geom_brep::SectionError::DegenerateOperand { .. }
+                | geom_brep::SectionError::ConeAtTheBand { .. }
                 | geom_brep::SectionError::BeyondOperandExtent { .. }
                 | geom_brep::SectionError::CoincidentSurfaces
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
@@ -3437,6 +3443,7 @@ fn derive_edge<'w, 's, T: Decide>(
         other @ (geom_brep::SectionError::WrongLane { .. }
         | geom_brep::SectionError::NoRegion { .. }
         | geom_brep::SectionError::DegenerateOperand { .. }
+        | geom_brep::SectionError::ConeAtTheBand { .. }
         | geom_brep::SectionError::BeyondOperandExtent { .. }
         | geom_brep::SectionError::CoincidentSurfaces
         | geom_brep::SectionError::RoutesToGeneralRung { .. }
@@ -4020,6 +4027,13 @@ fn plan_reanchors<T: Decide>(
                             let (lo, hi) = spline.domain();
                             let clamped = at == lo || at == hi;
                             (t, clamped.then_some(at))
+                        }
+                        // An edge is read on its clamped view, a spline.
+                        Curve3::Periodic(_) => {
+                            return Err(ReplaceFaceError::NurbsLaneUnsupported {
+                                edge,
+                                scalar: T::NAME,
+                            });
                         }
                         Curve3::Line(_)
                         | Curve3::Circle(..)
@@ -4609,7 +4623,7 @@ fn solve_corners<T: Decide>(
                         unreachable!("a root is sought only where a surface or the edge moves")
                     };
                     let surface = surface_of(k);
-                    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                    if !geom_brep::is_analytic(surface) {
                         continue;
                     }
                     for &(is_start, seed) in &inc.ends {

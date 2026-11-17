@@ -521,7 +521,9 @@ pub enum JoinError {
     /// the wall's certified sections, and a ring re-homed on one where
     /// the new face's every edge is, on a net whose weights are constant
     /// along one parameter); on a
-    /// plane, a run on spiric ovals at a scalar that does not certify
+    /// plane, a run with an edge read by its enclosure alone (a spiric,
+    /// a rational spline, a non-rational one past the exact rule's
+    /// degrees) at a scalar that does not certify
     /// (`crate::loop_winding::Unwound::Uncertified`). Valid input
     /// whose lane is not yet built (D2 addendum row 2), refused typed.
     RingIslandUnread {
@@ -623,10 +625,9 @@ impl JoinError {
     /// must never read past what may be a fault or an in-band coincidence:
     /// [`Self::UnpairedLooseEnds`], [`Self::RingHomingAmbiguous`],
     /// [`Self::SectionLoopUndecided`],
-    /// [`Self::SectionInvariant`], [`Self::RunImageIncidence`] (its ending is
-    /// rendered, not typed) and [`Self::Section`] (the table's refusal, which
-    /// states no standing of its own:
-    /// `work/onecopy/the-section-tables-refusal-states-no-standing.md`).
+    /// [`Self::SectionInvariant`] and [`Self::RunImageIncidence`] (its ending
+    /// is rendered, not typed). [`Self::Section`] stands as the table's
+    /// refusal does ([`geom_brep::SectionError::refusal`]).
     ///
     /// A ladder reads a join refusal in two places, both over the
     /// Boolean's pierce germs ([`crate::BooleanError::refusal`]'s readers):
@@ -687,8 +688,9 @@ impl JoinError {
             | Self::RingHomingAmbiguous { .. }
             | Self::SectionLoopUndecided { .. }
             | Self::SectionInvariant { .. }
-            | Self::RunImageIncidence { .. }
-            | Self::Section { .. } => Err(Aborts),
+            | Self::RunImageIncidence { .. } => Err(Aborts),
+            // The table's own standing, per its cause.
+            Self::Section { source, .. } => source.refusal(),
         }
     }
 }
@@ -3108,9 +3110,17 @@ fn carried_chord_spec<T: Decide>(
         .surface;
     let component = &ctx.component;
     let carrier = &component.carrier;
+    // An open fitted component's chord is cut from its net; every other
+    // carrier's is the carrier and a span. Of those a periodic cubic, a
+    // closed fitted loop, is no closed form: its chord carries the
+    // component's evidence, as a cut one does.
+    let fitted_loop = matches!(carrier, geom::Curve3::Periodic(_));
     let spline = match carrier {
         geom::Curve3::Nurbs(net) => Some(net),
-        geom::Curve3::Line(_) | geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => None,
+        geom::Curve3::Line(_)
+        | geom::Curve3::Circle(_)
+        | geom::Curve3::Ellipse(_)
+        | geom::Curve3::Periodic(_) => None,
         geom::Curve3::Spiric { .. } => {
             return Err(invariant("a carried component's carrier is a spiric"));
         }
@@ -3236,10 +3246,20 @@ fn carried_chord_spec<T: Decide>(
             };
             ((forward_arc, if up { None } else { back() }), Some(arc))
         }
-        None => (
-            (carrier.clone(), if up { None } else { carrier.reversed() }),
-            None,
-        ),
+        None => {
+            let arc = fitted_loop
+                .then(|| {
+                    SplineArc::of_section(component, carrier, (lo_cut, hi_cut)).ok_or(invariant(
+                        "a carried chord's loop holds no certificate of lying on its surfaces, \
+                         or has no clamped view over the chord's span",
+                    ))
+                })
+                .transpose()?;
+            (
+                (carrier.clone(), if up { None } else { carrier.reversed() }),
+                arc,
+            )
+        }
     };
     let (carrier, t_start, t_end) = if up {
         (forward, t1, t2)
@@ -3584,7 +3604,7 @@ fn between_edge_is_section<T: Decide>(
     };
     match curve.carrier() {
         geom::Curve3::Line(_) => Ok(Some(true)),
-        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
             Err(JoinError::RunEdgeCarrierUnsupported {
                 face: body
                     .get_loop(he_data.parent_loop)
@@ -4190,7 +4210,9 @@ impl<T: Decide> IslandReading<T> {
                 let chord = match (&spec.carrier, &carrier) {
                     // The chord's locus, read in either sense: the arc
                     // its evidence was taken on.
-                    (geom::Curve3::Nurbs(_), _) => arc.cloned().map(LoopArc::Spline),
+                    (geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_), _) => {
+                        arc.cloned().map(LoopArc::Spline)
+                    }
                     (_, Carrier::Quadric(quadric)) => {
                         quadric_loop_arc(quadric, &spec.carrier, (t0, t1), band)
                             .map_err(|diag| JoinError::Escalated { face, diag })?
@@ -5896,6 +5918,31 @@ pub(crate) fn ring_representative<T: Decide>(
         LoopBoundary::Empty { vertex } => vertex,
     };
     Ok(body.resolve_vertex_point(v, Proven))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_loop_row {
+    use geom_core::{Band, Tol};
+
+    /// **A loop with a spline edge winds for the rim side's reading, by
+    /// its bulge**: a crescent that is counter-clockwise only by its
+    /// rational arc's bulge winds with a counter-clockwise triangle of
+    /// lines on the same plane, so its face does not hold the triangle's
+    /// loop as its outer, and the triangle's face does not hold the
+    /// crescent's. With the arc read as its chord, or its bulge negated,
+    /// the crescent winds against the triangle and both answers turn.
+    #[test]
+    fn a_loop_wound_by_its_spline_edge_reads_its_side() {
+        let tol = Tol::witness();
+        let (body, crescent, lines) = crate::merge_faces::winding_arm_tests::spline_crescent(tol);
+        let face = |l| body.get_loop(l).unwrap().face;
+        let band = Band::linear(tol).unwrap();
+        for (old, new) in [(lines, crescent), (crescent, lines)] {
+            let held = super::RimSide::Plane.holds_outer(&body, face(old), old, face(new), band);
+            assert!(matches!(held, Ok(false)), "{held:?}");
+        }
+    }
 }
 
 /// The side ladders' ranking ([`Rung::of_reading`]): where no reading
@@ -8049,5 +8096,48 @@ mod apex_section_standing_rows {
         let mixed =
             ApexSectionReading::Refused(Box::new(JoinError::UnpairedLooseEnds { count: 2 }));
         assert_eq!(mixed.refusal(), Err(Aborts), "a mixed cause");
+    }
+
+    /// **The plane-cone table's refusals stand by their own cause through
+    /// the apex section** ([`geom_brep::SectionError::refusal`]): a carrier
+    /// left undecided by its margin, a cone on its convention's edge in
+    /// band, and a cone outside it an abort. Red where the table's refusal
+    /// stands as one abort for all.
+    #[test]
+    fn the_cone_tables_refusals_stand_by_their_cause_through_the_apex() {
+        let diag = geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: geom_core::Band::new(1e-9, 1e-8).unwrap_or_else(|_| unreachable!("a band")),
+            predicate: Some("ellipse_minor_positive"),
+            terminal_sliver: false,
+        };
+        let table = |source| {
+            ApexSectionReading::Refused(Box::new(JoinError::Section {
+                face: FaceKey::default(),
+                source,
+            }))
+            .refusal()
+        };
+        assert_eq!(
+            table(geom_brep::SectionError::Carrier(
+                geom::EllipseInvalid::Escalated(diag)
+            )),
+            Ok(Refusal::Margin(diag)),
+            "a carrier in band, by its margin"
+        );
+        assert_eq!(
+            table(geom_brep::SectionError::ConeAtTheBand {
+                what: "pn_aperture_sin"
+            }),
+            Ok(Refusal::InBand),
+            "a cone on its convention's edge"
+        );
+        assert_eq!(
+            table(geom_brep::SectionError::DegenerateOperand {
+                what: "pn_aperture_cos"
+            }),
+            Err(Aborts),
+            "a cone outside its convention"
+        );
     }
 }

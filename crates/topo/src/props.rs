@@ -4985,7 +4985,11 @@ fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     match carrier {
         geom::Curve3::Spiric { .. } => true,
         geom::Curve3::Nurbs(c) => geom_brep::props::is_rational(c),
-        geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => false,
+        // A periodic cubic is polynomial.
+        geom::Curve3::Line(_)
+        | geom::Curve3::Circle(..)
+        | geom::Curve3::Ellipse(..)
+        | geom::Curve3::Periodic(_) => false,
     }
 }
 
@@ -4994,7 +4998,10 @@ fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
 fn trims<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     match carrier {
         geom::Curve3::Line(_) | geom::Curve3::Circle(..) => false,
-        geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => true,
+        geom::Curve3::Ellipse(..)
+        | geom::Curve3::Spiric { .. }
+        | geom::Curve3::Nurbs(_)
+        | geom::Curve3::Periodic(_) => true,
     }
 }
 
