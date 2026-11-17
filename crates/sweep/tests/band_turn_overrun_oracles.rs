@@ -118,8 +118,10 @@ pub(crate) fn a_clearance(e: &BlendError) -> bool {
 /// Whether a refusal is a cut-off's foot landing inside a face
 /// (`end_face.rs`'s `FOOT_INSIDE_A_FACE`).
 pub(crate) fn foot_inside_a_face(e: &BlendError) -> bool {
-    matches!(e, BlendError::UnsupportedRunOut { detail, .. }
-        if detail.contains("trimline meets the end face's plane past its rim"))
+    matches!(
+        e,
+        BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::FootInsideAFace { .. })
+    )
 }
 
 // ------------------------------------------------------------------
@@ -862,8 +864,7 @@ fn two_turns_on_one_l_match_the_slab_oracle() {
                         }
                     }
                     Err(e) => {
-                        let typed =
-                            a_clearance(&e) || matches!(e, BlendError::UnsupportedRunOut { .. });
+                        let typed = a_clearance(&e) || matches!(e, BlendError::UnbuiltEnd(_));
                         if !typed {
                             failures.push(format!(
                                 "{what}: refused untyped, {e_at}",
@@ -1183,7 +1184,7 @@ fn a_short_near_edge_refuses_foot_inside_a_face_where_the_overrun_fits() {
         match chamfered(&p.body, &p.edges(&TURN), D, &what) {
             Err(e) => assert!(
                 foot_inside_a_face(&e),
-                "{what}: refuses FOOT_INSIDE_A_FACE, got {e_at}",
+                "{what}: refuses FootInsideAFace, got {e_at}",
                 e_at = e.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(_) => panic!(
@@ -1226,7 +1227,7 @@ fn a_short_near_edge_refuses_foot_inside_a_face_where_the_overrun_fits() {
             match turn {
                 Err(e) => assert!(
                     foot_inside_a_face(&e),
-                    "{what}: refuses FOOT_INSIDE_A_FACE, got {e_at}",
+                    "{what}: refuses FootInsideAFace, got {e_at}",
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 ),
                 Ok(_) => panic!(
