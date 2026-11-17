@@ -119,7 +119,7 @@
 //! 3. **The lid is solid, and its rims roll whole.** A full revolve
 //!    of a profile that touches the axis mints half-walls, and each
 //!    latitude rim is two open arcs meeting at two seam vertices. One
-//!    arc alone refuses `UnsupportedCorner` at a seam vertex; the pair
+//!    arc alone refuses `UnbuiltEnd::Seam` at a seam vertex; the pair
 //!    carves as ONE torus band
 //!    (`verbs_arms1_r1_probes::the_unbored_hemisphere_equator_carves_as_one_band`).
 //!    So the lid is what a potter turns — a solid knob and no vent —
@@ -892,7 +892,7 @@ fn vertex_at(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, v: u32, tol: Tol) -
 /// profile that touches the axis, a rim is two half-arcs meeting at
 /// two seam vertices, named `BandRim` (`[0, π)`) and `BandRimPi`
 /// (`[π, 2π)`). The fillet takes the pair; either arc alone ends at a
-/// seam vertex and refuses `UnsupportedCorner`.
+/// seam vertex and refuses `UnbuiltEnd::Seam`.
 fn rim_arcs(node: RecipeNodeId, vertex: ProfileVertexRef) -> [StableName; 2] {
     [band_rim(node, vertex), band_rim_pi(node, vertex)]
 }

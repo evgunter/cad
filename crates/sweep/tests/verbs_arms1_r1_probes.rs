@@ -448,7 +448,7 @@ fn the_partial_zone_refuses_through_its_own_gates() {
     )
     .map_err(|r| r.error)
     {
-        Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
+        Err(BlendError::UnsupportedChain { .. } | BlendError::UnbuiltEnd(_)) => {}
         other => panic!("the open arc refuses through its own gates, got {other:?}"),
     }
 }
