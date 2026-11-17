@@ -2,7 +2,7 @@
 id: embed
 kind: program
 title: EMBED — the body-level injectivity certificate, its readings, and the at-rest gate that asks it
-status: ready
+status: active
 opened: 2026-11-14
 group: api/assembly
 prefix: embed/

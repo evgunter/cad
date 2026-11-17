@@ -2,7 +2,8 @@
 id: a-carried-plane-spline-chords-at-rest-certificate-costs-half-a-second
 kind: issue
 title: A carried plane x spline chord's at-rest certificate costs about half a second, and the spline census tripled
-status: open
+status: parked
+blocked_on: [a-node-arcs-chord-misses-its-at-rest-chart-image]
 opened: 2026-11-12
 priority: P2
 cost: M
@@ -61,3 +62,11 @@ from the nightly legs' junit reports:
 So on the runner it doubled at the default eps and grew elevenfold at
 1e-12 between those two heads. That made it the second-longest test of
 the 1e-12 leg on 11-13.
+
+## Parked (2026-11-17, SECTARMS orchestrator)
+
+The at-rest image this cost is spent on is replaced by Ev's decision on
+PR 7032: one image function on the carrier's own knots, with the
+uniform 33-to-257-sample climb gone. Its build is briefed to measure
+at-rest cost against main. Re-measure this row when
+`a-node-arcs-chord-misses-its-at-rest-chart-image` closes.

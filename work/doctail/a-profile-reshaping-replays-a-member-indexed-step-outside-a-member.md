@@ -4,6 +4,9 @@ kind: issue
 title: a profile whose step reads a member index is refused by the edit door, which replays it outside any member
 status: open
 opened: 2026-11-01
+priority: P1
+cost: M
+design: true
 ---
 
 ## Finding
@@ -34,3 +37,12 @@ present refusal names neither.
 The viewer's profile editor has the same shape at `held_program`
 (`crates/viewer/src/sketch.rs`, `resolve_loops` over `doc.var_env`),
 reachable only once this door admits such a profile.
+
+## Banded (2026-11-17, DOCTAIL triage)
+
+P1, M, design. A profile that varies per member of a family cannot be
+authored at all (the door refuses it in words that name neither
+answer), while the same index on an extrude's distance is admitted.
+That is verb breadth beyond the everyday shapes. Which answer applies
+(replay per member, or refuse it as a profile family in its own words)
+is the open design question.
