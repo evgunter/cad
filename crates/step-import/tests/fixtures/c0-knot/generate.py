@@ -253,7 +253,9 @@ def build_plan_prism(name, plan):
     through one plan edge."""
     s = Step()
     n = len(plan)
-    z = lambda x, y: 1 + x * x / 8 + y * y / 4
+    def z(x, y):
+        return 1 + x * x / 8 + y * y / 4
+
     bot = [s.add("VERTEX_POINT('',#%d)" % s.pt((x, y, 0))) for x, y in plan]
     top = [s.add("VERTEX_POINT('',#%d)" % s.pt((x, y, z(x, y)))) for x, y in plan]
 
@@ -273,7 +275,9 @@ def build_plan_prism(name, plan):
         c = s.add("B_SPLINE_CURVE_WITH_KNOTS('',2,(%s),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.)" % pts)
         return s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (top[k], top[(k + 1) % n], c))
 
-    lifted = lambda k, h: (plan[k][0], plan[k][1], h)
+    def lifted(k, h):
+        return (plan[k][0], plan[k][1], h)
+
     bottom = [line(bot[k], lifted(k, 0), bot[(k + 1) % n], lifted((k + 1) % n, 0)) for k in range(n)]
     upright = [line(bot[k], lifted(k, 0), top[k], (plan[k][0], plan[k][1], z(*plan[k]))) for k in range(n)]
     rim = [on_top(k) for k in range(n)]
