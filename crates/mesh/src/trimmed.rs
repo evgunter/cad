@@ -2313,7 +2313,7 @@ fn carried_by_a_line(body: &Body<f64>, ek: EdgeKey) -> bool {
     body.get_edge(ek)
         .and_then(|edge| body.get_curve_geom(edge.curve))
         .and_then(|geom| geom.certified())
-        .is_some_and(|curve| matches!(curve.carrier(), Curve3::Line(..)))
+        .is_some_and(|curve| matches!(curve.carrier(), geom::Curve3::Line(..)))
 }
 
 /// The [`Run`] that `group`, every polygon point at one CDT point, is;
@@ -6079,9 +6079,11 @@ pub(super) mod tests {
                     positions.push(p);
                 }
                 let mut bounds = crate::nurbs_cert::FaceBounds::new();
+                let routes = crate::tessellate::Routes::witness(&body);
                 let chords = crate::chords::compute_chords(
                     &body,
-                    &crate::sizing::tests::witness_tols(1e-2),
+                    1e-2,
+                    &routes,
                     &vids,
                     &mut positions,
                     &mut bounds,
