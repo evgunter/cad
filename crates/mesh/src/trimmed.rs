@@ -672,6 +672,22 @@ pub(crate) fn tessellate_trimmed(
     // after the loop: an attempt asks for a rebuild only below
     // `MAX_GRID_RETRIES`, so the last attempt accepts or refuses.
     let mut outcome: Option<Result<Patch, TessellateError>> = None;
+    let plane = CdtPlane::of(&row, metric, &polygon, &singular);
+    // Whether the polygon's side from point `i` to its successor is
+    // carried by a line, which on a cone is a ruling.
+    let straight = |i: usize| {
+        body.get_edge(polygon.edges[i])
+            .and_then(|edge| body.get_curve_geom(edge.curve))
+            .and_then(|geom| geom.certified())
+            .is_some_and(|curve| matches!(curve.carrier(), Curve3::Line(..)))
+    };
+    let runs = developed_runs(plane, &polygon, &singular, &straight).map_err(|i| {
+        TessellateError::SphereTrimShape {
+            face: fk,
+            edge: polygon.edges[i],
+            cause: SphereTrimCause::DevelopedMerge,
+        }
+    })?;
     let trimmed = TrimmedFace {
         fk,
         sense: face.sense,
@@ -685,15 +701,9 @@ pub(crate) fn tessellate_trimmed(
         shared,
         tol,
         across: across.as_ref(),
+        runs: &runs,
         clearance,
     };
-    if let Some(i) = developed_merge(trimmed.plane(), &polygon.points, &singular) {
-        return Err(TessellateError::SphereTrimShape {
-            face: fk,
-            edge: polygon.edges[i],
-            cause: SphereTrimCause::DevelopedMerge,
-        });
-    }
     // The lattice the face lays: every node clear of the boundary
     // (`TrimmedFace::lay`), decided once, here. The retry loop appends
     // ear and refinement points, each strictly inside a kept triangle.
@@ -873,6 +883,9 @@ struct TrimmedFace<'a> {
     /// reads ([`Self::attempt`]); `None` on every other arm, which reads
     /// the ear.
     across: Option<&'a HashMap<u32, Vec<FaceKey>>>,
+    /// The runs of the polygon the development holds as one CDT vertex
+    /// each ([`developed_runs`]); none in the chart.
+    runs: &'a [Run],
 }
 
 /// One attempt's triangulation, between inserting its points and
@@ -914,20 +927,7 @@ impl TrimmedFace<'_> {
     /// face's nappe ([`nappe`]; `singular_row_shape` has refused a face
     /// on both), or the chart in the lattice metric.
     fn plane(&self) -> CdtPlane {
-        match self.row {
-            ChartRow::Analytic(a) => match a.development() {
-                Some(sin_alpha) => CdtPlane::Development {
-                    sin_alpha,
-                    nappe: nappe(&self.polygon.points, self.singular),
-                },
-                None => CdtPlane::Lattice {
-                    metric: self.metric,
-                },
-            },
-            ChartRow::Spline { .. } => CdtPlane::Lattice {
-                metric: self.metric,
-            },
-        }
+        CdtPlane::of(self.row, self.metric, self.polygon, self.singular)
     }
 
     /// `(u, v)` as the CDT sees it, off the chart's singular vertex
@@ -1175,10 +1175,12 @@ impl TrimmedFace<'_> {
         // a pinch's vertices, or a vertex the walk meets again. The
         // development rounds, and puts every copy of the apex at one
         // point on purpose: there the copies of the singular vertex share
-        // one, and a face whose polygon points would share one apart from
-        // those has refused before its first attempt ([`developed_merge`]),
-        // so no two mesh vertices merge that the chart keeps apart. A
-        // point of the mesher's landing on an earlier point refuses below.
+        // one, and so do the points of a run ([`Run`]), which enters the
+        // walk once, so its vertex is no pinch, and
+        // which the emit pass tells apart again. A face whose polygon
+        // points would share one any other way has refused before its
+        // first attempt ([`developed_runs`]). A point of the mesher's
+        // landing on an earlier point refuses below.
         let plane = self.plane();
         let inputs: Vec<(f64, f64, bool)> = self
             .polygon
@@ -1215,8 +1217,26 @@ impl TrimmedFace<'_> {
         let mut handles = Vec::with_capacity(self.polygon.points.len());
         let mut on_crease = Vec::new();
         let mut walk = Walk::new();
-        for (&(u, v, id), &h) in self.polygon.points.iter().zip(&handle_of) {
-            walk.enter(&mut meta, h, (u, v, Slot::Boundary(id)), id);
+        // A run enters at its lowest polygon index: handles are numbered
+        // as their points first appear, and `meta` holds a row per handle
+        // in that order.
+        let later_in_a_run: HashSet<usize> = self
+            .runs
+            .iter()
+            .flat_map(|run| {
+                let entry = run.members.iter().copied().min();
+                run.members
+                    .iter()
+                    .copied()
+                    .filter(move |&i| Some(i) != entry)
+            })
+            .collect();
+        for (i, (&(u, v, id), &h)) in self.polygon.points.iter().zip(&handle_of).enumerate() {
+            if later_in_a_run.contains(&i) {
+                walk.skip();
+            } else {
+                walk.enter(&mut meta, h, (u, v, Slot::Boundary(id)), id);
+            }
             handles.push(h);
             if let Some(c) = self.creases {
                 c.note(&mut on_crease, (u, v), h);
@@ -1413,238 +1433,318 @@ impl TrimmedFace<'_> {
             places.entry(h.index()).or_default().push(i);
         }
         let mut ears = Vec::new();
+        // Each run's CDT vertex ([`Run`]).
+        let run_at: HashMap<usize, &Run> = self
+            .runs
+            .iter()
+            .map(|run| (at.handles[run.members[0]].index(), run))
+            .collect();
         for f in cdt.inner_faces() {
             if !inside[f.fix().index()] {
                 continue;
             }
             let vs = f.vertices();
-            let mut ids = [PatchVertex::Shared(0); 3];
-            let mut uv = [[0.0f64; 2]; 3];
+            let mut corners = [Corner {
+                id: PatchVertex::Shared(0),
+                uv: [0.0; 2],
+                grid: None,
+                places: None,
+            }; 3];
             for (k, vtx) in vs.iter().enumerate() {
                 let (u, v, slot) = meta[vtx.fix().index()];
-                uv[k] = [u, v];
-                ids[k] = match slot {
-                    Slot::Boundary(id) => PatchVertex::Shared(id),
-                    Slot::Grid(c) => grid_ids[&c],
+                corners[k] = Corner {
+                    id: match slot {
+                        Slot::Boundary(id) => PatchVertex::Shared(id),
+                        Slot::Grid(c) => grid_ids[&c],
+                    },
+                    uv: [u, v],
+                    grid: match slot {
+                        Slot::Grid(c) => Some(c),
+                        Slot::Boundary(_) => None,
+                    },
+                    places: places.get(&vtx.fix().index()).map(Vec::as_slice),
                 };
                 match pinches.id_in(f, vtx.fix(), flip) {
-                    Ok(Some(id)) => ids[k] = PatchVertex::Shared(id),
+                    Ok(Some(id)) => corners[k].id = PatchVertex::Shared(id),
                     Ok(None) => {}
                     Err(e) => {
                         return Err(e);
                     }
                 }
             }
-            // A triangle with two corners on one mesh vertex is
-            // degenerate in 3-D. Dropping it is `curved`'s idiom, and
-            // there it collapses a pole fan (#678). On the sphere's and
-            // the spindle's arms it does the same at a pole side; the
-            // cone's apex is one CDT vertex in its development, so no
-            // triangle there has two corners on it; elsewhere the drop is
-            // all it is, because neither ingredient of that fan reaches
-            // the face — no singular point, and no repeated id at two UV
-            // locations with a single interior column between them.
+            // THE RUNS, RE-SPLIT ([`Run`]). A corner at a run's vertex is
+            // the run's point this triangle stands on: in the triangle on
+            // the run's anchored side the point next to the anchoring
+            // neighbour, in every other the run's far end. That triangle
+            // is then one of a fan about its third corner, which the
+            // triangles between the run's points complete: each on two
+            // consecutive points of the run and that corner, wound as the
+            // triangle they are cut from. The run's fan about its vertex
+            // becomes a fan about each of its points, and the side between
+            // two of them is a side of one triangle, as a boundary side is.
             //
-            // WHAT IS ASSERTED, AND WHERE THE COVER STOPS. The singular
-            // half is the row's: a chart with singular points holds its
-            // polygon to `singular_row_shape`'s shapes. The INGREDIENT
-            // half — a repeated id with a single interior column between
-            // the entries — is checked at the cylinder arm's `nu`, kept
-            // off at a singular point by `pole_side_columns`, and this
-            // emit pass also runs for
-            // NURBS, where there is no `nu`: the candidates come from
-            // the cell grid rather than a uniform division, so the
-            // "single interior column" has no analogue to test. That
-            // arm's ingredient check is therefore still an ARGUMENT
-            // and not a check.
-            //
-            // ITS EMISSION IS NOT (issue 897). The census after this
-            // loop re-derives the CONCLUSION over the emitted patch,
-            // and it needs no `nu` — it counts uses of the edges
-            // incident to a repeated id, which every arm has. So the
-            // NURBS arm, which had neither half, now has the half that
-            // actually observes the defect.
-            if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
-                continue; // boundary-degenerate sliver
-            }
-            // A corner on a singular row has no azimuth
-            // (`crate::chart_table`, the singular-row rule).
-            let singular =
-                ids.map(|id| matches!(id, PatchVertex::Shared(id) if self.singular.contains(&id)));
-            let developed = vs.map(|vtx| vtx.position());
-            let tri = [
-                ids[0].position(shared, &interior),
-                ids[1].position(shared, &interior),
-                ids[2].position(shared, &interior),
-            ];
-            // Wound as emitted below: reversed under `flip`.
-            let wound = if flip { [tri[0], tri[2], tri[1]] } else { tri };
-            let centroid = Point3::new(
-                (tri[0].x + tri[1].x + tri[2].x) / 3.0,
-                (tri[0].y + tri[1].y + tri[2].y) / 3.0,
-                (tri[0].z + tri[1].z + tri[2].z) / 3.0,
-            );
-            // A triangle a neighbouring face may make a side of too (the
-            // cure is `attempt`'s): on the cone arm a side joining two
-            // polygon points that are not neighbours on their loop and
-            // that one other face holds both of; on the other analytic
-            // arms an ear, three corners at consecutive places of one
-            // loop of the polygon (cyclically).
-            if !refine_lane && n_poly >= 3 {
-                let on = vs.map(|vtx| places.get(&vtx.fix().index()));
-                let next = |i| self.polygon.next(i);
-                let shared_side = |across: &HashMap<u32, Vec<FaceKey>>| {
-                    [(0, 1), (1, 2), (2, 0)].into_iter().any(|(a, b)| {
-                        let (Some(pa), Some(pb)) = (on[a], on[b]) else {
-                            return false;
-                        };
-                        let (PatchVertex::Shared(ia), PatchVertex::Shared(ib)) = (ids[a], ids[b])
-                        else {
-                            return false;
-                        };
-                        let neighbours = pa
-                            .iter()
-                            .any(|&i| pb.iter().any(|&j| next(i) == j || next(j) == i));
-                        !neighbours
-                            && across.get(&ia).is_some_and(|fa| {
-                                across
-                                    .get(&ib)
-                                    .is_some_and(|fb| fa.iter().any(|f| fb.contains(f)))
-                            })
-                    })
+            // A triangle two runs are anchored in by its two other
+            // corners has no one third corner to fan about, and the face
+            // refuses: it takes both runs beside the apex, the one point
+            // on two rulings.
+            let mut between: Vec<[Corner; 3]> = Vec::new();
+            if !run_at.is_empty() {
+                let hs = vs.map(|vtx| vtx.fix().index());
+                // The run at corner `k`, and the corner anchoring it when
+                // this is the triangle on its anchored side.
+                let run_at_corner = |k: usize| {
+                    let run = *run_at.get(&hs[k])?;
+                    let by = at.handles[run.neighbour(self.polygon)].index();
+                    Some((run, (0..3).find(|&j| j != k && hs[j] == by)))
                 };
-                let ear = || {
-                    let consecutive = |a: usize, b: usize, c: usize| {
-                        let set = [a, b, c];
-                        set.iter()
-                            .any(|&i| set.contains(&next(i)) && set.contains(&next(next(i))))
+                for k in 0..3 {
+                    if let Some((run, by)) = run_at_corner(k) {
+                        corners[k] = run.point(self.polygon, run.corner(by.is_some()));
+                    }
+                }
+                for k in 0..3 {
+                    let Some((run, Some(by))) = run_at_corner(k) else {
+                        continue;
                     };
-                    let [Some(pa), Some(pb), Some(pc)] = on else {
-                        return false;
+                    if matches!(run_at_corner(3 - k - by), Some((_, Some(_)))) {
+                        return Err(TessellateError::SphereTrimShape {
+                            face: self.fk,
+                            edge: self.polygon.edges[run.members[0]],
+                            cause: SphereTrimCause::DevelopedMerge,
+                        });
+                    }
+                    let (first, second) = match run.anchor {
+                        Anchor::Before => (by, k),
+                        Anchor::After => (k, by),
                     };
-                    pa.iter()
-                        .any(|&a| pb.iter().any(|&b| pc.iter().any(|&c| consecutive(a, b, c))))
-                };
-                if self.across.map_or_else(ear, shared_side) {
-                    ears.push(Self::inside_point(plane, &uv, developed, singular));
-                }
-            }
-            // A triangle f64 cannot wind refuses the face at once
-            // (`validate::resolved_normal`, `[mesh.winding]`): its normal
-            // is noise, so it is neither outward nor a fold, and no retry
-            // of this lane is built to resolve it (a fold's drop and an
-            // ear's split answer other causes). The join reads the same
-            // definition for every lane; reading it here is what keeps
-            // the sign below a resolved normal's.
-            let normal = crate::validate::resolved_normal(wound).map_err(|unresolved| {
-                TessellateError::UnresolvedWinding {
-                    face: self.fk,
-                    unresolved: Box::new(unresolved),
-                }
-            })?;
-            // Folded unless wound outward: a zero dot, or NaN where
-            // `outward` is poison, is a fold.
-            if self.outward(centroid).is_some_and(|n| {
-                let wound_outward = normal.dot(n.vec()) > 0.0;
-                !wound_outward
-            }) {
-                let grid: Vec<usize> = vs
-                    .iter()
-                    .filter_map(|vtx| match meta[vtx.fix().index()].2 {
-                        Slot::Grid(k) => Some(k),
-                        Slot::Boundary(_) => None,
-                    })
-                    .collect();
-                folded_boundary |= grid.is_empty();
-                folded_grid.extend(grid);
-            }
-            let (bound, scale) = self.row.cert(tri, uv, singular);
-            let verdict = cert::verdict(bound, tol.delta, scale, tol.eps);
-            match verdict {
-                cert::Verdict::Certified => {}
-                cert::Verdict::Exceeded => measure.exceeded = true,
-                cert::Verdict::Unresolved { allowance } => {
-                    measure.unresolved = Some(
-                        measure
-                            .unresolved
-                            .map_or(allowance, |a: f64| a.max(allowance)),
-                    );
-                }
-            }
-            // THE DEVIATION PASS (`crate::budget`, issue #320):
-            // barycentric samples of |S(w) − Π(w)| on this triangle,
-            // reduced to the largest ratio against the triangle's OWN
-            // certificate.
-            //
-            // INVARIANT: that maximum is the per-TRIANGLE claim, not a
-            // per-face average — `worst_ratio ≤ 1` holds exactly when
-            // every sample on every triangle was dominated by the
-            // certificate of the triangle it was taken on. The suite
-            // that drives the meter asserts it, and this lane does
-            // not: no build of this crate may turn `tessellate`'s
-            // typed-error contract into a panic.
-            //
-            // INVARIANT: this whole block is ABSENT from a default
-            // build, and there is deliberately no `#[cfg]` here saying
-            // so. `dev_samples_per_edge` comes from a module-gated
-            // `deviation_samples()`; with the feature off that is a
-            // `const fn` answering `None` in the module's inert half,
-            // so the block is deleted outright. Do not convert this to
-            // a `#[cfg]`: one lane in one version, shared by every
-            // configuration, is the whole point.
-            if let Some(m) = dev_samples_per_edge {
-                for a in 0..=m {
-                    for b in 0..=(m - a) {
-                        #[allow(clippy::cast_precision_loss)]
-                        let (b0, b1) = (a as f64 / m as f64, b as f64 / m as f64);
-                        let b2 = 1.0 - b0 - b1;
-                        let (u, v) = (
-                            b0 * uv[0][0] + b1 * uv[1][0] + b2 * uv[2][0],
-                            b0 * uv[0][1] + b1 * uv[1][1] + b2 * uv[2][1],
-                        );
-                        let s = surface.eval(u, v);
-                        let pi = Point3::new(
-                            b0 * tri[0].x + b1 * tri[1].x + b2 * tri[2].x,
-                            b0 * tri[0].y + b1 * tri[1].y + b2 * tri[2].y,
-                            b0 * tri[0].z + b1 * tri[1].z + b2 * tri[2].z,
-                        );
-                        let d =
-                            ((s.x - pi.x).powi(2) + (s.y - pi.y).powi(2) + (s.z - pi.z).powi(2))
-                                .sqrt();
-                        // ε is the crate's documented promise: f64
-                        // EVALUATION rounding sits outside the bound,
-                        // and on a flat wall certifying at ~5e-17 a
-                        // bare `d / cert` would read pure rounding
-                        // dust as a violation.
-                        let r = d / tol.eps.pad(bound);
-                        // A first sample replaces the NaN seed; after
-                        // that, max — sticky-NaN, the same rule the
-                        // certificate accumulation below follows,
-                        // because a `>` comparison silently DROPS a
-                        // NaN and a NaN here is the loudest reading
-                        // there is.
-                        if measure.dev_samples == 0 || d.is_nan() || d > measure.worst_dev {
-                            measure.worst_dev = d;
-                            measure.worst_dev_cert = bound;
-                        }
-                        if falsification.ratio_samples == 0
-                            || r.is_nan()
-                            || r > falsification.worst_ratio
-                        {
-                            falsification.worst_ratio = r;
-                        }
-                        falsification.ratio_samples += 1;
-                        measure.dev_samples += 1;
+                    for m in 0..run.members.len() - 1 {
+                        let mut t = corners;
+                        t[first] = run.point(self.polygon, m);
+                        t[second] = run.point(self.polygon, m + 1);
+                        between.push(t);
                     }
                 }
             }
-            // The attempt's worst bound, a NaN kept once met
-            // (`cert::worse`): what a refusal reports is what refused.
-            measure.worst = cert::worse(measure.worst, bound);
-            if refine_lane && verdict == cert::Verdict::Exceeded {
-                refine.push(Self::inside_point(plane, &uv, developed, singular));
+            let developed = vs.map(|vtx| vtx.position());
+            // The point the shared-side cure inserts for this CDT
+            // triangle, whichever of the triangles cut from it asks: a
+            // triangle between two points of a run has no inside where
+            // the CDT runs, and the one it is cut from has.
+            let inside_point = {
+                let uv = corners.map(|c| c.uv);
+                let apex = corners.map(|c| c.is_singular(self.singular));
+                move || Self::inside_point(plane, &uv, developed, apex)
+            };
+            let mut a_shared_side = false;
+            for corners in core::iter::once(corners).chain(between) {
+                let ids = corners.map(|c| c.id);
+                let uv = corners.map(|c| c.uv);
+                // A triangle with two corners on one mesh vertex is
+                // degenerate in 3-D. Dropping it is `curved`'s idiom, and
+                // there it collapses a pole fan (#678). On the sphere's and
+                // the spindle's arms it does the same at a pole side; the
+                // cone's apex is one CDT vertex in its development, so no
+                // triangle there has two corners on it; elsewhere the drop is
+                // all it is, because neither ingredient of that fan reaches
+                // the face — no singular point, and no repeated id at two UV
+                // locations with a single interior column between them.
+                //
+                // WHAT IS ASSERTED, AND WHERE THE COVER STOPS. The singular
+                // half is the row's: a chart with singular points holds its
+                // polygon to `singular_row_shape`'s shapes. The INGREDIENT
+                // half — a repeated id with a single interior column between
+                // the entries — is checked at the cylinder arm's `nu`, kept
+                // off at a singular point by `pole_side_columns`, and this
+                // emit pass also runs for
+                // NURBS, where there is no `nu`: the candidates come from
+                // the cell grid rather than a uniform division, so the
+                // "single interior column" has no analogue to test. That
+                // arm's ingredient check is therefore still an ARGUMENT
+                // and not a check.
+                //
+                // ITS EMISSION IS NOT (issue 897). The census after this
+                // loop re-derives the CONCLUSION over the emitted patch,
+                // and it needs no `nu` — it counts uses of the edges
+                // incident to a repeated id, which every arm has. So the
+                // NURBS arm, which had neither half, now has the half that
+                // actually observes the defect.
+                if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
+                    continue; // boundary-degenerate sliver
+                }
+                // A corner on a singular row has no azimuth
+                // (`crate::chart_table`, the singular-row rule).
+                let singular = corners.map(|c| c.is_singular(self.singular));
+                let tri = [
+                    ids[0].position(shared, &interior),
+                    ids[1].position(shared, &interior),
+                    ids[2].position(shared, &interior),
+                ];
+                // Wound as emitted below: reversed under `flip`.
+                let wound = if flip { [tri[0], tri[2], tri[1]] } else { tri };
+                let centroid = Point3::new(
+                    (tri[0].x + tri[1].x + tri[2].x) / 3.0,
+                    (tri[0].y + tri[1].y + tri[2].y) / 3.0,
+                    (tri[0].z + tri[1].z + tri[2].z) / 3.0,
+                );
+                // A triangle a neighbouring face may make a side of too (the
+                // cure is `attempt`'s): on the cone arm a side joining two
+                // polygon points that are not neighbours on their loop and
+                // that one other face holds both of; on the other analytic
+                // arms an ear, three corners at consecutive places of one
+                // loop of the polygon (cyclically).
+                if !refine_lane && n_poly >= 3 {
+                    let on = corners.map(|c| c.places);
+                    let next = |i| self.polygon.next(i);
+                    let shared_side = |across: &HashMap<u32, Vec<FaceKey>>| {
+                        [(0, 1), (1, 2), (2, 0)].into_iter().any(|(a, b)| {
+                            let (Some(pa), Some(pb)) = (on[a], on[b]) else {
+                                return false;
+                            };
+                            let (PatchVertex::Shared(ia), PatchVertex::Shared(ib)) =
+                                (ids[a], ids[b])
+                            else {
+                                return false;
+                            };
+                            let neighbours = pa
+                                .iter()
+                                .any(|&i| pb.iter().any(|&j| next(i) == j || next(j) == i));
+                            !neighbours
+                                && across.get(&ia).is_some_and(|fa| {
+                                    across
+                                        .get(&ib)
+                                        .is_some_and(|fb| fa.iter().any(|f| fb.contains(f)))
+                                })
+                        })
+                    };
+                    let ear = || {
+                        let consecutive = |a: usize, b: usize, c: usize| {
+                            let set = [a, b, c];
+                            set.iter()
+                                .any(|&i| set.contains(&next(i)) && set.contains(&next(next(i))))
+                        };
+                        let [Some(pa), Some(pb), Some(pc)] = on else {
+                            return false;
+                        };
+                        pa.iter()
+                            .any(|&a| pb.iter().any(|&b| pc.iter().any(|&c| consecutive(a, b, c))))
+                    };
+                    a_shared_side |= self.across.map_or_else(ear, shared_side);
+                }
+                // A triangle f64 cannot wind refuses the face at once
+                // (`validate::resolved_normal`, `[mesh.winding]`): its normal
+                // is noise, so it is neither outward nor a fold, and no retry
+                // of this lane is built to resolve it (a fold's drop and an
+                // ear's split answer other causes). The join reads the same
+                // definition for every lane; reading it here is what keeps
+                // the sign below a resolved normal's.
+                let normal = crate::validate::resolved_normal(wound).map_err(|unresolved| {
+                    TessellateError::UnresolvedWinding {
+                        face: self.fk,
+                        unresolved: Box::new(unresolved),
+                    }
+                })?;
+                // Folded unless wound outward: a zero dot, or NaN where
+                // `outward` is poison, is a fold.
+                if self.outward(centroid).is_some_and(|n| {
+                    let wound_outward = normal.dot(n.vec()) > 0.0;
+                    !wound_outward
+                }) {
+                    let grid: Vec<usize> = corners.iter().filter_map(|c| c.grid).collect();
+                    folded_boundary |= grid.is_empty();
+                    folded_grid.extend(grid);
+                }
+                let (bound, scale) = self.row.cert(tri, uv, singular);
+                let verdict = cert::verdict(bound, tol.delta, scale, tol.eps);
+                match verdict {
+                    cert::Verdict::Certified => {}
+                    cert::Verdict::Exceeded => measure.exceeded = true,
+                    cert::Verdict::Unresolved { allowance } => {
+                        measure.unresolved = Some(
+                            measure
+                                .unresolved
+                                .map_or(allowance, |a: f64| a.max(allowance)),
+                        );
+                    }
+                }
+                // THE DEVIATION PASS (`crate::budget`, issue #320):
+                // barycentric samples of |S(w) − Π(w)| on this triangle,
+                // reduced to the largest ratio against the triangle's OWN
+                // certificate.
+                //
+                // INVARIANT: that maximum is the per-TRIANGLE claim, not a
+                // per-face average — `worst_ratio ≤ 1` holds exactly when
+                // every sample on every triangle was dominated by the
+                // certificate of the triangle it was taken on. The suite
+                // that drives the meter asserts it, and this lane does
+                // not: no build of this crate may turn `tessellate`'s
+                // typed-error contract into a panic.
+                //
+                // INVARIANT: this whole block is ABSENT from a default
+                // build, and there is deliberately no `#[cfg]` here saying
+                // so. `dev_samples_per_edge` comes from a module-gated
+                // `deviation_samples()`; with the feature off that is a
+                // `const fn` answering `None` in the module's inert half,
+                // so the block is deleted outright. Do not convert this to
+                // a `#[cfg]`: one lane in one version, shared by every
+                // configuration, is the whole point.
+                if let Some(m) = dev_samples_per_edge {
+                    for a in 0..=m {
+                        for b in 0..=(m - a) {
+                            #[allow(clippy::cast_precision_loss)]
+                            let (b0, b1) = (a as f64 / m as f64, b as f64 / m as f64);
+                            let b2 = 1.0 - b0 - b1;
+                            let (u, v) = (
+                                b0 * uv[0][0] + b1 * uv[1][0] + b2 * uv[2][0],
+                                b0 * uv[0][1] + b1 * uv[1][1] + b2 * uv[2][1],
+                            );
+                            let s = surface.eval(u, v);
+                            let pi = Point3::new(
+                                b0 * tri[0].x + b1 * tri[1].x + b2 * tri[2].x,
+                                b0 * tri[0].y + b1 * tri[1].y + b2 * tri[2].y,
+                                b0 * tri[0].z + b1 * tri[1].z + b2 * tri[2].z,
+                            );
+                            let d = ((s.x - pi.x).powi(2)
+                                + (s.y - pi.y).powi(2)
+                                + (s.z - pi.z).powi(2))
+                            .sqrt();
+                            // ε is the crate's documented promise: f64
+                            // EVALUATION rounding sits outside the bound,
+                            // and on a flat wall certifying at ~5e-17 a
+                            // bare `d / cert` would read pure rounding
+                            // dust as a violation.
+                            let r = d / tol.eps.pad(bound);
+                            // A first sample replaces the NaN seed; after
+                            // that, max — sticky-NaN, the same rule the
+                            // certificate accumulation below follows,
+                            // because a `>` comparison silently DROPS a
+                            // NaN and a NaN here is the loudest reading
+                            // there is.
+                            if measure.dev_samples == 0 || d.is_nan() || d > measure.worst_dev {
+                                measure.worst_dev = d;
+                                measure.worst_dev_cert = bound;
+                            }
+                            if falsification.ratio_samples == 0
+                                || r.is_nan()
+                                || r > falsification.worst_ratio
+                            {
+                                falsification.worst_ratio = r;
+                            }
+                            falsification.ratio_samples += 1;
+                            measure.dev_samples += 1;
+                        }
+                    }
+                }
+                // The attempt's worst bound, a NaN kept once met
+                // (`cert::worse`): what a refusal reports is what refused.
+                measure.worst = cert::worse(measure.worst, bound);
+                if refine_lane && verdict == cert::Verdict::Exceeded {
+                    refine.push(inside_point());
+                }
+                triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
             }
-            triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
+            if a_shared_side {
+                ears.push(inside_point());
+            }
         }
 
         Ok(Emitted {
@@ -1654,6 +1754,26 @@ impl TrimmedFace<'_> {
             folded: (folded_grid, folded_boundary),
             ears,
         })
+    }
+}
+
+/// One corner of a triangle the emit pass makes.
+#[derive(Clone, Copy)]
+struct Corner<'a> {
+    id: PatchVertex,
+    /// Its chart point.
+    uv: [f64; 2],
+    /// The grid candidate it is, if one.
+    grid: Option<usize>,
+    /// Its places in the trim polygon, if a boundary point: a pinch
+    /// handle's several, a run's point's own.
+    places: Option<&'a [usize]>,
+}
+
+impl Corner<'_> {
+    /// Whether the corner is a copy of the chart's singular vertex.
+    fn is_singular(&self, singular: &HashSet<u32>) -> bool {
+        matches!(self.id, PatchVertex::Shared(id) if singular.contains(&id))
     }
 }
 
@@ -2012,6 +2132,23 @@ enum CdtPlane {
     Development { sin_alpha: f64, nappe: f64 },
 }
 
+impl CdtPlane {
+    /// The plane of a face on chart `row` with lattice metric `metric`
+    /// and trim polygon `polygon` ([`TrimmedFace::plane`]).
+    fn of(row: &ChartRow<'_>, metric: f64, polygon: &TrimPolygon, singular: &HashSet<u32>) -> Self {
+        match row {
+            ChartRow::Analytic(a) => match a.development() {
+                Some(sin_alpha) => Self::Development {
+                    sin_alpha,
+                    nappe: nappe(&polygon.points, singular),
+                },
+                None => Self::Lattice { metric },
+            },
+            ChartRow::Spline { .. } => Self::Lattice { metric },
+        }
+    }
+}
+
 /// The nappe a cone face lies on, `+1` or `−1`: the sign of `v` at its
 /// points off the apex (`singular_row_shape` has refused a face with
 /// points on both).
@@ -2022,32 +2159,184 @@ fn nappe(polygon: &[(f64, f64, u32)], singular: &HashSet<u32>) -> f64 {
     if below { -1.0 } else { 1.0 }
 }
 
-/// **The first polygon point the development would merge with one at
-/// another UV location** (module docs, "The development", which points are
-/// one CDT vertex), as its index; `None` in the chart, whose map is
-/// injective on floored points. The copies of the singular vertex share
-/// the origin, and points at one UV location (a pinch's vertices, or a
-/// vertex the walk meets again) share a point as in the chart; any other
-/// two polygon points that the development's rounding or spade's floor
-/// put at one point are two mesh vertices the CDT would hold as one, and
-/// the face refuses `SphereTrimShape { DevelopedMerge }` at the second.
-fn developed_merge(
+/// **A run of the trim polygon the development holds as one CDT
+/// vertex**: consecutive points of one loop along one ruling that
+/// [`developed`]'s cut puts at one point. The CDT
+/// triangulates with the one vertex, and the emit pass gives each of its
+/// triangles the run's point it stands on and adds the triangles between
+/// the run's points ([`TrimmedFace::emit`]).
+#[derive(Debug, PartialEq, Eq)]
+struct Run {
+    /// The run's points, as indices into the polygon, in walk order.
+    members: Vec<usize>,
+    anchor: Anchor,
+}
+
+/// **Which neighbour of a [`Run`] on its loop lies on the run's ruling**:
+/// the one the polygon's side to it is carried by a line, as the sides
+/// between the run's points are. That side is the one the run's triangles
+/// are added along: the CDT triangle on it has two corners on the ruling,
+/// so its third is off it, and a triangle from two of the run's points to
+/// that corner has area. A run at a corner of the polygon has one such
+/// neighbour; a run inside a ruling side has two, and takes the first.
+///
+/// "Off it" is exact where the neighbour's chart column is the run's bit
+/// for bit ([`developed`]). A ruling's end vertex that the walk reads
+/// through its rim's image can sit a rounding off the column, and there,
+/// as for every triangle, the certificate and the winding rule read the
+/// triangle made and are what stands behind it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Anchor {
+    /// The point before the run's first.
+    Before,
+    /// The point after the run's last.
+    After,
+}
+
+impl Run {
+    /// The polygon point the run is anchored by ([`Anchor`]).
+    fn neighbour(&self, polygon: &TrimPolygon) -> usize {
+        match self.anchor {
+            Anchor::Before => polygon.prev(self.members[0]),
+            Anchor::After => polygon.next(self.members[self.members.len() - 1]),
+        }
+    }
+
+    /// The run's point `m`, as a triangle's corner.
+    fn point(&self, polygon: &TrimPolygon, m: usize) -> Corner<'_> {
+        let (u, v, id) = polygon.points[self.members[m]];
+        Corner {
+            id: PatchVertex::Shared(id),
+            uv: [u, v],
+            grid: None,
+            places: Some(&self.members[m..=m]),
+        }
+    }
+
+    /// The run's point a triangle at its vertex stands on, as an index
+    /// into `members`: the one next to the anchoring neighbour in the
+    /// triangle on the anchored side, and the run's other end in every
+    /// other triangle.
+    fn corner(&self, anchored: bool) -> usize {
+        match (self.anchor, anchored) {
+            (Anchor::Before, true) | (Anchor::After, false) => 0,
+            (Anchor::Before, false) | (Anchor::After, true) => self.members.len() - 1,
+        }
+    }
+}
+
+/// **The runs of the polygon the development holds as one CDT vertex
+/// each** (module docs, "The development", which points are one CDT
+/// vertex); none in the chart, whose map is injective on floored points.
+/// The copies of the singular vertex share the origin, and points at one
+/// UV location (a pinch's vertices, or a vertex the walk meets again)
+/// share a point as in the chart. Any other polygon points that the
+/// development's rounding or spade's floor put at one point are mesh
+/// vertices the CDT holds as one, and they are a [`Run`] when, read from
+/// the polygon's own order and never from a distance:
+///
+/// - they are every polygon point at that CDT point, consecutive on one
+///   loop, and not the whole of it but two points at least, which lie at
+///   two CDT points;
+/// - none is the singular vertex, and no two are one mesh vertex;
+/// - the polygon's side from each to the next is carried by a line
+///   (`straight`, by the side's first point), which on a cone is a
+///   ruling, and they run along it one way (`v` strictly monotone);
+/// - the side to a neighbour of the run on its loop is carried by a line
+///   too ([`Anchor`]).
+///
+/// # Errors
+///
+/// The index of the first polygon point merged with one at another UV
+/// location in a group that is no run, where the face refuses
+/// `SphereTrimShape { DevelopedMerge }`: a point merged with the apex,
+/// points of two sides or of two loops, a ruling side wholly within the
+/// cut.
+fn developed_runs(
     plane: CdtPlane,
-    polygon: &[(f64, f64, u32)],
+    trim: &TrimPolygon,
     singular: &HashSet<u32>,
-) -> Option<usize> {
+    straight: &dyn Fn(usize) -> bool,
+) -> Result<Vec<Run>, usize> {
     if let CdtPlane::Lattice { .. } = plane {
+        return Ok(Vec::new());
+    }
+    let polygon = &trim.points;
+    let key = |x: f64| if x == 0.0 { 0u64 } else { x.to_bits() };
+    let keys: Vec<(u64, u64)> = polygon
+        .iter()
+        .map(|&(u, v, id)| {
+            let p = cdt_point(plane, u, v, singular.contains(&id));
+            (key(p.x), key(p.y))
+        })
+        .collect();
+    let mut first: HashMap<(u64, u64), usize> = HashMap::new();
+    let mut merged: Vec<usize> = Vec::new();
+    for (i, &(u, v, id)) in polygon.iter().enumerate() {
+        let was = *first.entry(keys[i]).or_insert(i);
+        let (wu, wv, wid) = polygon[was];
+        let one_location = crate::cdt::spade_point(wu, wv) == crate::cdt::spade_point(u, v);
+        if !(one_location || singular.contains(&id) && singular.contains(&wid)) {
+            merged.push(i);
+        }
+    }
+    let mut runs: Vec<Run> = Vec::new();
+    let mut seen: HashSet<(u64, u64)> = HashSet::new();
+    for i in merged {
+        if !seen.insert(keys[i]) {
+            continue;
+        }
+        let group: Vec<usize> = (0..polygon.len()).filter(|&j| keys[j] == keys[i]).collect();
+        runs.push(run_of(trim, &keys, &group, singular, straight).ok_or(i)?);
+    }
+    Ok(runs)
+}
+
+/// The [`Run`] that `group`, every polygon point at one CDT point, is;
+/// `None` where it is not one ([`developed_runs`] states the conditions).
+fn run_of(
+    trim: &TrimPolygon,
+    keys: &[(u64, u64)],
+    group: &[usize],
+    singular: &HashSet<u32>,
+    straight: &dyn Fn(usize) -> bool,
+) -> Option<Run> {
+    let polygon = &trim.points;
+    let inside: HashSet<usize> = group.iter().copied().collect();
+    let mut starts = group.iter().filter(|&&i| !inside.contains(&trim.prev(i)));
+    let (Some(&start), None) = (starts.next(), starts.next()) else {
+        return None;
+    };
+    let mut members = vec![start];
+    while members.len() < group.len() {
+        let next = trim.next(members[members.len() - 1]);
+        if !inside.contains(&next) {
+            return None;
+        }
+        members.push(next);
+    }
+    let ids: HashSet<u32> = members.iter().map(|&i| polygon[i].2).collect();
+    if ids.len() != members.len() || ids.iter().any(|id| singular.contains(id)) {
         return None;
     }
-    let key = |x: f64| if x == 0.0 { 0u64 } else { x.to_bits() };
-    let mut first: HashMap<(u64, u64), (SpadePoint<f64>, bool)> = HashMap::new();
-    polygon.iter().position(|&(u, v, id)| {
-        let apex = singular.contains(&id);
-        let p = cdt_point(plane, u, v, apex);
-        let at = crate::cdt::spade_point(u, v);
-        let (was, was_apex) = *first.entry((key(p.x), key(p.y))).or_insert((at, apex));
-        !(was == at || apex && was_apex)
-    })
+    let last = members[members.len() - 1];
+    let up = polygon[members[1]].1 > polygon[start].1;
+    let along = members.windows(2).all(|w| {
+        let (va, vb) = (polygon[w[0]].1, polygon[w[1]].1);
+        straight(w[0]) && if up { vb > va } else { vb < va }
+    });
+    let (before, after) = (trim.prev(start), trim.next(last));
+    if !along || keys[before] == keys[after] {
+        return None;
+    }
+    let anchor = if straight(before) {
+        Anchor::Before
+    } else if straight(last) {
+        Anchor::After
+    } else {
+        return None;
+    };
+    Some(Run { members, anchor })
 }
 
 /// **The developed point of chart point `(u, v)` on the cone of
@@ -2849,6 +3138,13 @@ impl TrimPolygon {
         let k = self.ends.partition_point(|&e| e <= i);
         let start = if k == 0 { 0 } else { self.ends[k - 1] };
         if i + 1 == self.ends[k] { start } else { i + 1 }
+    }
+
+    /// Point `i`'s predecessor along its own loop.
+    fn prev(&self, i: usize) -> usize {
+        let k = self.ends.partition_point(|&e| e <= i);
+        let start = if k == 0 { 0 } else { self.ends[k - 1] };
+        if i == start { self.ends[k] - 1 } else { i - 1 }
     }
 
     /// The outer loop's points.
@@ -5342,6 +5638,7 @@ pub(super) mod tests {
                 shared: &[],
                 tol: &tol,
                 across: None,
+                runs: &[],
                 clearance: super::super::BOUNDARY_CLEARANCE,
             };
             let wedge = super::super::TrimPolygon::of_loops(
