@@ -32,18 +32,24 @@ use crate::descent::{Descent, Work};
 use crate::ssi::enclose::{Box3, NurbsBoxes, UvWindow};
 use crate::ssi::{SsiBranch, SsiTube};
 
+#[cfg(test)]
+mod rows;
+
 /// A chart rectangle `[u0, u1] × [v0, v1]`, as `(u0, u1, v0, v1)`.
 type Rect = (f64, f64, f64, f64);
 
-/// How many rungs wide a cell's image is read at first, at most: a
-/// window is padded by the rung's chart width on each side, so its image
-/// is about two rungs across the carrier however short its span.
-const FIRST_CELL_RUNGS: f64 = 2.0;
+/// How many rungs wide a cell's image is read at first, at most. A
+/// cell that is not cleared holds a point within the band of the
+/// partner, up to its enclosure's slack, so its farthest point stands
+/// within its diagonal of the section: at one rung wide, within two
+/// rungs.
+const FIRST_CELL_RUNGS: f64 = 1.0;
 
 /// How many times the first reading halves a window, at most, toward
-/// cells no wider than [`FIRST_CELL_RUNGS`] rungs: up to `2⁸` cells a
-/// window.
-const FIRST_CUTS: u32 = 8;
+/// cells no wider than [`FIRST_CELL_RUNGS`] rungs. The cleared halves
+/// are dropped as they are cut, so the cells kept lie along the arc: a
+/// window `2¹²` rungs long is read to the rung.
+const FIRST_CUTS: u32 = 12;
 
 /// The carrier points a cell is read against, evenly over the arc's
 /// whole span, its ends among them.
@@ -60,7 +66,7 @@ const SETTLE_STEPS: u32 = 12;
 /// **The work bound of [`apart`]'s refinement** (`crate::descent`'s
 /// cumulative budget): the cells it halves, over every round and every
 /// arc of one section.
-const REFINE_CELLS: usize = 1 << 13;
+const REFINE_CELLS: usize = 1 << 11;
 
 /// One cell of an arc: a chart rectangle inside a cut window of its
 /// tube, an enclosure of its image on the wall, the farthest that stands
@@ -652,6 +658,27 @@ pub(super) fn apart(arcs: &mut [Arc<'_>], band: Band) -> Vec<Option<CarryRefusal
                 .map(|w| w.map(|(gap, pads)| CarryRefusal::PadsMeet { pads, gap }))
                 .collect()
         };
+        if std::env::var_os("RIMPAD_TRACE").is_some() && worst.iter().all(Option::is_none) {
+            eprintln!(
+                "RIMPAD apart: spent {} cells {:?} pads {:?}",
+                work.spent(),
+                arcs.iter()
+                    .map(|a| a
+                        .as_ref()
+                        .and_then(|a| a.as_ref().ok())
+                        .map_or(0, |e| e.cells.len()))
+                    .collect::<Vec<_>>(),
+                arcs.iter()
+                    .map(
+                        |a| a.as_ref().and_then(|a| a.as_ref().ok()).map_or(0.0, |e| e
+                            .cells
+                            .iter()
+                            .map(|c| c.pad)
+                            .fold(0.0, f64::max))
+                    )
+                    .collect::<Vec<_>>()
+            );
+        }
         if worst.iter().all(Option::is_none) {
             return refusals(&worst);
         }
@@ -664,6 +691,19 @@ pub(super) fn apart(arcs: &mut [Arc<'_>], band: Band) -> Vec<Option<CarryRefusal
                 bound = bound.max(c.pad);
                 cost += usize::from(c.node.is_none());
             }
+        }
+        if std::env::var_os("RIMPAD_TRACE").is_some() {
+            eprintln!(
+                "RIMPAD round: meeting {cost} bound {bound:e} spent {} cells {:?} worst {:?}",
+                work.spent(),
+                arcs.iter()
+                    .map(|a| a
+                        .as_ref()
+                        .and_then(|a| a.as_ref().ok())
+                        .map_or(0, |e| e.cells.len()))
+                    .collect::<Vec<_>>(),
+                worst
+            );
         }
         let round = Descent::after(descent.take(), bound, ());
         let wall = (!work.admits(cost)).then_some(());

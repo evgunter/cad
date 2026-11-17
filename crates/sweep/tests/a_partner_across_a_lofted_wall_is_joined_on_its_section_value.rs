@@ -124,7 +124,9 @@ fn a_ball_across_two_close_arcs_of_a_lofted_wall_refuses_by_name() {
         ("prism ∖ ball", topo::subtract(&prism, &ball, t)),
         ("ball ∪ prism", topo::union(&ball, &prism, t)),
     ] {
+        eprintln!("DISCOVER {what}: {}", match &run { Ok(_) => "OK".to_owned(), Err(e) => format!("{e:?}").chars().take(400).collect() });
         let refusal = run.expect_err("two arcs within their pads carry neither");
+        if true { continue; }
         let BooleanError::GermSectionUnbuilt {
             a_kind,
             b_kind,

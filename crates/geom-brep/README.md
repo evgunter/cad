@@ -253,8 +253,11 @@ spans the carrier (chart edges walked in runs of one sign or monotone,
 rung whose chain is a graph but not one arc gives way to a narrower one. A
 chain may end at a node of the section (C5). Its radius is then read
 box by box, narrowing in proportion to the box's distance from the
-node, and the pad a site reads is the widest of the boxes it lies in,
-each the farthest that box's image stands from the carrier. Its
+node, and the pad a site reads is the widest of the cells it lies in
+(the carry's, C5: the boxes' windows cut to the knot rectangle, less
+the cells the partner's form clears of the band, the node's own box
+kept whole), each the farthest that cell's image stands from the
+carrier. Its
 last box holds the node, and the claim over that box is the node's own
 reading: `∇φ`'s one zero there by the Krawczyk operator, within the
 band of the carrier's end, its Hessian indefinite and its value decided
@@ -1084,8 +1087,16 @@ closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,
 its one reading. A spline wall against a plane, cylinder, sphere or
 ring torus is carried from its whole reading: each branch between two
-rim ends as the reading fitted and certified it, its pad the chart
-tube's windows imaged on the wall by its chart speeds. A pair traced
+rim ends as the reading fitted and certified it, its pad the farthest
+its carrier stands from the cells of its chart tube's windows, cut to
+the knot rectangle, that the partner's form does not clear of the band,
+imaged on the wall, refined until the section's arcs read apart. A site
+is read on the arc whose cells hold it, each cell read against the
+whole carrier. The cells of two arcs that stand within the band of each
+other are halved, the cleared halves dropped, until none do; where
+halving stops narrowing them, or at a work bound, the two arcs carry
+neither (`CarryRefusal::PadsMeet`). An arc with no close neighbour
+keeps its first reading. A pair traced
 in ℝ³ is read over its own ball where its pose proves one, cut by one
 region per operation, as at one band:
 the ball about the overlap of the two operands' boxes, padded, which

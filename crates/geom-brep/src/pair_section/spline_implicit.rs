@@ -1161,6 +1161,7 @@ fn listed(
     }
     // Each arc's cells, the section's arcs held apart on them, then each
     // arc carried on the cells it was held apart by.
+    let rimpad_t0 = std::time::Instant::now();
     let mut arcs: Vec<cells::Arc<'_>> = read
         .iter()
         .map(|(b, _, minted)| {
@@ -1168,7 +1169,15 @@ fn listed(
             Some(cells::Enclosure::first(b, pose.net(), partner, ends, band))
         })
         .collect();
+    let rimpad_t1 = std::time::Instant::now();
     let meets = cells::apart(&mut arcs, band);
+    if std::env::var_os("RIMPAD_TRACE").is_some() {
+        eprintln!(
+            "RIMPAD time first {:?} apart {:?}",
+            rimpad_t1 - rimpad_t0,
+            rimpad_t1.elapsed()
+        );
+    }
     let mut components = Vec::with_capacity(read.len() + out.boundary.len());
     for (((b, shape, minted), arc), meet) in read.iter().zip(arcs).zip(meets) {
         let witness = witness(b, pose.net(), partner);

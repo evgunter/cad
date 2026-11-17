@@ -301,7 +301,7 @@ fn a_rim_arc_is_carried_as_its_reading_fitted_it_with_its_pad_in_metres() {
 /// The cylinder along `x` about the wall's middle line
 /// `(y, z) = (1.15·s, s)`, of radius `r·s`: it cuts the wall in two arcs
 /// from side to side, about `2·r·s` apart.
-fn rod(s: f64, r: f64) -> Surface<f64> {
+pub(super) fn rod(s: f64, r: f64) -> Surface<f64> {
     Surface::Cylinder {
         origin: pt(0.0, 1.15 * s, s),
         axis: Vec3::unit_x(),
@@ -312,7 +312,7 @@ fn rod(s: f64, r: f64) -> Surface<f64> {
 
 /// The two arcs [`rod`] cuts on the wall, below the middle line then
 /// above it: each the wall's point on 21 iso-lines `u`, bisected.
-fn rod_arcs(w: &Surface<f64>, s: f64, r: f64) -> [Vec<Point3<f64>>; 2] {
+pub(super) fn rod_arcs(w: &Surface<f64>, s: f64, r: f64) -> [Vec<Point3<f64>>; 2] {
     let f = |u: f64| {
         move |v: f64| {
             let p = on_wall(w, u, v);
@@ -443,4 +443,115 @@ fn a_reaching_classification_is_carried_from_its_whole_reading() {
         "a reaching classification carries nothing"
     );
     assert_eq!(one(&listed(&level(1.0), &wall(1.0))).winds, [false, false]);
+}
+
+#[test]
+fn zz_scan() {
+    let report = |what: String, w: &Surface<f64>, p: &Surface<f64>| {
+        let t = std::time::Instant::now();
+        let lane = Some(SsiLane::marched());
+        let l = match pair_section(w, p, None, lane, band()) {
+            Ok(SectionRead::Built(s)) => s.read_whole(lane, band()),
+            other => {
+                eprintln!("SCAN {what} unclassified {:?}", other.err());
+                return;
+            }
+        };
+        let l = match l {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("SCAN {what} unread {e:?}");
+                return;
+            }
+        };
+        let tl = t.elapsed();
+        match l.carry(lane, band()) {
+            Ok(c) => {
+                for c in c.components() {
+                    let (rung, pv) = match c.certificate.unwrap().tube {
+                        crate::ssi::SsiTube::Chart { rung, pad_v, .. } => (rung, pad_v),
+                        _ => (0.0, 0.0),
+                    };
+                    let spans = match &c.carrier {
+                        geom::Curve3::Nurbs(n) => n.control().len(),
+                        _ => 0,
+                    };
+                    eprintln!(
+                        "SCAN {what} carried rung {rung:.5} pad_v {pv:.5} pad/rung {:.3} boxes {} ctrl {spans} witness {:?} listed {tl:?}",
+                        c.pad / rung,
+                        c.boxes.len(),
+                        c.witness
+                    );
+                }
+            }
+            Err(e) => eprintln!(
+                "SCAN {what} refused {:.300} listed {tl:?}",
+                format!("{e:?}")
+            ),
+        }
+    };
+    let which = std::env::var("SCAN").unwrap_or_default();
+    if which == "tilt" {
+        for (th, r) in [
+            (0.1f64, 0.09),
+            (0.2, 0.09),
+            (0.3, 0.09),
+            (0.2, 0.05),
+            (0.4, 0.12),
+        ] {
+            let p = Surface::Cylinder {
+                origin: pt(0.0, 1.15, 1.0),
+                axis: Vec3::new(th.cos(), 0.0, th.sin()),
+                radius: r,
+                u_ref: Vec3::unit_y(),
+            };
+            report(format!("tilt {th} r {r}"), &wall(1.0), &p);
+        }
+    }
+    if which == "stretch" {
+        for (a, z0, r) in [
+            (0.3, 0.15, 0.05),
+            (0.3, 0.1, 0.04),
+            (0.15, 0.08, 0.03),
+            (0.3, 0.2, 0.05),
+        ] {
+            let p = Surface::Cylinder {
+                origin: pt(0.0, 1.0, z0),
+                axis: Vec3::unit_x(),
+                radius: r,
+                u_ref: Vec3::unit_z(),
+            };
+            report(
+                format!("stretch a {a} z0 {z0} r {r}"),
+                &stretched(1.0, a),
+                &p,
+            );
+        }
+    }
+    if which == "rod" {
+        for r in [0.005, 0.045, 0.09] {
+            report(format!("rod r {r}"), &wall(1.0), &rod(1.0, r));
+        }
+    }
+    if which == "bend" {
+        for (cz, r) in [(-3.0, 3.5), (-1.0, 1.6), (-0.5, 1.2)] {
+            report(
+                format!("bend cz {cz} r {r}"),
+                &wall(1.0),
+                &ball(1.0, (0.0, 1.1, cz), r),
+            );
+        }
+    }
+}
+
+fn stretched(s: f64, a: f64) -> Surface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let control = [-1.0, 1.0]
+        .into_iter()
+        .flat_map(|x| [(1.0, 0.0), (1.02, a), (1.0, 2.0)].map(|(y, z)| pt(s * x, s * y, s * z)))
+        .collect();
+    Surface::Nurbs(std::sync::Arc::new(
+        NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+    ))
 }
