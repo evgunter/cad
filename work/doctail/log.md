@@ -76,3 +76,9 @@ body has the reasons):
   - `[topology]` has a garbled sentence on main ("The join never removes a cut either / exception requires.");
   - the swept-order asymmetry is reachable from raw loop tables.
 - 2026-11-17 — **Friction: disk.** This cloud session's writable allowance is about 38 GB, and one editor-core lane's target reaches 14–20 GB once it builds both a debug and a release tree (the tour's `die-corpus` regeneration builds release). Two building lanes therefore filled the disk to 0 MB once, during a workspace clippy run, around 20:30 UTC. Rule of thumb for this box: at most two building lanes, one cargo profile each, and delete a target the moment the lane's local loop ends. A third building lane goes to its own cloud session.
+- 2026-11-17 — PR 7087 (split, product seat): the Opus FULL review says APPROVE WITH FIXES, with three MAJORs:
+  - a product written as a source never gathers;
+  - `inline` reaches `unreachable!` for a part whose product is a pick;
+  - `same_up_to_ids` never compares the product, so every product round-trip row held vacuously.
+
+  Ruled: everything is fixed in a fix pass except MINOR 5 (an older saved document with a shared anonymous product variable fails at load: pre-release, so the corpus regenerates). The refactor doors move onto `read_sites`, so the PR's "no product-specific branch" becomes true. A delta review follows. **Class finding:** a comparator that ignores a slot makes every round-trip claim about that slot vacuous. This lands as M3's row in the fixture.
