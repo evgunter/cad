@@ -40,17 +40,18 @@
 //! every pair of the pieces within the pieces' reach and the polish's
 //! run of it, and the curvature at most the carriers' bounds. An Off at
 //! the polished pair prunes only where that bound says the pieces hold
-//! no meeting of the spans. Where the two-sided premise is not proved
-//! (`curve_pair_walk_basin`), a pair held at an end of each span reads
-//! the one-sided window (`curve_pair_walk_basin_held`, [`window`]);
-//! where neither is proved the window is undecided and the Off
-//! escalates. Every piece the walk does not clear ends at such a pair,
-//! so no meeting is left unread; an escalated clearing keeps its piece. Every point read is read under the reader's stretch rule
-//! (the parent module's docs). A walk past
-//! [`geom_core::bisect::PIECE_BUDGET`] refuses typed
+//! no meeting of the spans. Where the two-sided reading bounds no reach
+//! (its basin, `curve_pair_walk_basin`, or its move not proved), a pair
+//! held at an end of each span reads the one-sided window
+//! (`curve_pair_walk_basin_held`, [`window`]); where neither bounds a
+//! reach the window is undecided and the Off escalates. Every piece the
+//! walk does not clear ends at such a pair, so no meeting is left
+//! unread; an escalated clearing keeps its piece. Every point read is
+//! read under the reader's stretch rule (the parent module's docs). A
+//! walk past [`geom_core::bisect::PIECE_BUDGET`] refuses typed
 //! ([`Unsettled::Exhausted`]).
 
-use geom::{Curve3, PieceStep};
+use geom::{Curve3, ParamSide, PieceStep};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::{Pick, choose, decide};
 use geom_core::{Band, Decide, Margin, Point3, Sign, SupSpeed, Vec3};
@@ -85,40 +86,43 @@ impl<'r, 's, T: Decide> Read<'r, 's, T> {
     }
 
     /// A bound on the curvature over every arc within `reach` metres of
-    /// `u` along the carrier: over the parameters `reach` at the
-    /// carrier's least speed covers ([`geom::carrier_speed::speed_range`],
-    /// the whole carrier's, since `u` need not lie on the span), read by
+    /// `u` along the carrier, on both sides of it ([`Arcs::Around`]) or on
+    /// one ([`Arcs::Toward`]): over the
+    /// parameters `reach` at the carrier's least speed covers
+    /// ([`geom::carrier_speed::speed_range`], the whole carrier's, since
+    /// `u` need not lie on the span), read by
     /// [`geom::carrier_speed::curvature_hi_over`], so a spline's crease
-    /// costs only the windows that may hold it. A least speed not above
-    /// zero covers every parameter, and reads the whole carrier's bound.
-    fn curvature_near(&self, u: T, reach: T) -> T {
+    /// costs only the windows that may hold it. One side is the arcs of a
+    /// window held at a span end, which all lie on the span's side of the
+    /// end; a crease exactly at `u` is clear of that run
+    /// ([`geom::NurbsCurve3::accel_upper_bound_over`]), so a window held at
+    /// a creased end reads the curvature of its own side. A least speed
+    /// not above zero covers every parameter, and reads the whole
+    /// carrier's bound.
+    fn curvature_near(&self, u: T, reach: T, arcs: Arcs) -> T {
         let lo = geom::carrier_speed::speed_range(self.curve()).0.get();
         let width = reach / lo.max(T::zero());
         if !geom_core::is_finite_length(width) {
             return self.curvature;
         }
-        geom::carrier_speed::curvature_hi_over(self.curve(), (u - width, u + width))
-    }
-
-    /// [`Self::curvature_near`] on one side of `u` only, the parameters
-    /// above it (`above`) or below it: the arcs of a window held at a
-    /// span end, which all lie on the span's side of the end. A crease
-    /// exactly at `u` is clear of such a run
-    /// ([`geom::NurbsCurve3::accel_upper_bound_over`]), so a window held
-    /// at a creased end reads the curvature of its own side.
-    fn curvature_into(&self, u: T, reach: T, above: bool) -> T {
-        let lo = geom::carrier_speed::speed_range(self.curve()).0.get();
-        let width = reach / lo.max(T::zero());
-        if !geom_core::is_finite_length(width) {
-            return self.curvature;
-        }
-        let run = if above {
-            (u, u + width)
-        } else {
-            (u - width, u)
+        let run = match arcs {
+            Arcs::Around => (u - width, u + width),
+            Arcs::Toward(ParamSide::Above) => (u, u + width),
+            Arcs::Toward(ParamSide::Below) => (u - width, u),
         };
         geom::carrier_speed::curvature_hi_over(self.curve(), run)
     }
+}
+
+/// **Which arcs about a parameter a curvature bound reads**
+/// (`Read::curvature_near`).
+#[derive(Clone, Copy)]
+enum Arcs {
+    /// Both sides of it: a two-sided window.
+    Around,
+    /// One side only: a window held at a span's end, whose arcs all lie
+    /// on its span's side.
+    Toward(ParamSide),
 }
 
 /// A run `(a, b)` of a span, cut `depth` times.
@@ -320,7 +324,7 @@ fn same<T: Decide>(s: T, t: T) -> bool {
 /// to. Each end reads its own span's half-tangent, the one-sided
 /// derivative from inside the span ([`geom::Curve3::ders1_from`]), so a
 /// crease at the end turns no tangent, and the curvature over that side
-/// alone (`Read::curvature_into`), whose run a crease at the end is clear
+/// alone (`Read::curvature_near` on that side), whose run a crease at the end is clear
 /// of (`curve_pair_walk_basin_held`). Otherwise the window is undecided.
 fn window<T: Decide>(
     (ra, pa, s): (&Read<'_, '_, T>, Piece<T>, T),
@@ -332,7 +336,8 @@ fn window<T: Decide>(
     };
     let span = run(ra, pa, s).max(run(rb, pb, t));
     let e = T::from_f64(band.escalate());
-    let curvature = ra.curvature_near(s, span) + rb.curvature_near(t, span);
+    let curvature =
+        ra.curvature_near(s, span, Arcs::Around) + rb.curvature_near(t, span, Arcs::Around);
     let two = super::polish::bound(
         ("curve_pair_walk_basin", None),
         super::polish::Along::two_sided(ra.curve().ders1(s), rb.curve().ders1(t)),
@@ -342,26 +347,30 @@ fn window<T: Decide>(
     // A two-sided reading that bounds its reach stands; one whose basin
     // or move is not proved gives way to the one-sided reading where the
     // pair is held at an end of each span.
-    if two.is_some_and(|b| geom_core::is_finite_length(b.reach)) {
-        return two.unwrap_or_else(super::polish::undecided);
+    if let Some(bound) = two.filter(|b| geom_core::is_finite_length(b.reach)) {
+        return bound;
     }
     let one = || {
-        let (above_a, above_b) = (held(ra.span, s)?, held(rb.span, t)?);
-        // Each end's half-tangent is its own span's one-sided
-        // derivative, turned to point into the span, and the curvature
-        // is read over the span's side of the end alone.
-        let into = |r: &Read<'_, '_, T>, u: T, above: bool| {
-            let (p, d) = r.curve().ders1_from(u, !above);
-            (p, if above { d } else { -d })
+        let (side_a, side_b) = (held(ra.span, s)?, held(rb.span, t)?);
+        // Each end reads its span's side: its half-tangent is the
+        // one-sided derivative from that side, turned to point into the
+        // span, and the curvature is read over that side alone.
+        let into = |r: &Read<'_, '_, T>, u: T, side: ParamSide| {
+            let (p, d) = r.curve().ders1_from(u, side);
+            (p, if side == ParamSide::Above { d } else { -d })
         };
-        let curvature = ra.curvature_into(s, span, above_a) + rb.curvature_into(t, span, above_b);
+        let curvature = ra.curvature_near(s, span, Arcs::Toward(side_a))
+            + rb.curvature_near(t, span, Arcs::Toward(side_b));
         super::polish::bound(
             ("curve_pair_walk_basin_held", None),
-            super::polish::Along::one_sided(into(ra, s, above_a), into(rb, t, above_b)),
+            super::polish::Along::one_sided(into(ra, s, side_a), into(rb, t, side_b)),
             curvature,
             (e, span),
         )
     };
+    // Where the one-sided reading bounds no reach either, the two-sided
+    // result stands as it is: a basin proved but its move not, whose
+    // bound is undecided (`polish::undecided`, the reach `+∞`), or none.
     one()
         .filter(|b| geom_core::is_finite_length(b.reach))
         .or(two)
@@ -399,11 +408,11 @@ fn at_end<T: Decide>(span: &Span<'_, T>, u: T, band: Band) -> T {
 
 /// **Whether `u` is held at an end of `span`**: `u` is exactly one of
 /// the span's end parameters (`curve_pair_walk_held_end`), and the span
-/// has ends. Read as which side of `u` the span lies on, `true` for the
-/// parameters above it, from the order of the span's two ends
+/// has ends. Read as which side of `u` the span lies on, from the order
+/// of the span's two ends
 /// (`curve_pair_walk_span_order`, asked only at an end); `None` at no
 /// end, on an endless span, and where the order is not decided.
-fn held<T: Decide>(span: &Span<'_, T>, u: T) -> Option<bool> {
+fn held<T: Decide>(span: &Span<'_, T>, u: T) -> Option<ParamSide> {
     if !span.ended() {
         return None;
     }
@@ -421,7 +430,11 @@ fn held<T: Decide>(span: &Span<'_, T>, u: T) -> Option<bool> {
         Sign::Positive => false,
         Sign::Zero => return None,
     };
-    Some(first == rising)
+    Some(if first == rising {
+        ParamSide::Above
+    } else {
+        ParamSide::Below
+    })
 }
 
 /// Whether the pieces `pa` of `a` and `pb` of `b` are definitely apart
@@ -587,9 +600,10 @@ mod tests {
     /// window of the pieces `pa` of `a` and `pb` of `b`, held at `s` and
     /// `t` (each an end of its span and of its piece), and every sampled
     /// pair of the pieces within the band's escalation of each other, by
-    /// arc length from the held ends (cumulative chords over `n` samples
-    /// of each piece). Every such pair lies within the reach where the
-    /// window bounds one: the bound's consequence, not its verdict log.
+    /// its arc length from the held ends (summed chords over `n` samples
+    /// of each piece, widened past a chord's shortfall). Every such pair
+    /// lies within the reach where the window bounds one: the bound's
+    /// consequence, not its verdict log.
     /// The reach is returned, `+∞` where unbounded.
     fn reach_covers_its_pairs(
         (a, pa, s): (&Span<'_, f64>, (f64, f64), f64),
@@ -605,19 +619,31 @@ mod tests {
         };
         let bound = window((&ra, piece(pa), s), (&rb, piece(pb), t), band);
         // Samples of a piece from its held end outward, each with its arc
-        // length from that end.
+        // length from that end: the summed chords, widened by `10⁻⁶`. A
+        // chord under-reads its arc by a relative `(κh)²/24` at most, `κ`
+        // the curvature over the step and `h` its arc, so the widened sum
+        // is never less than the arc wherever `κh ≤ 4.8·10⁻³`; each piece
+        // asserts that premise, from its curvature bound
+        // (`curvature_hi_over`) and its longest step.
         let walk = |c: &Curve3<f64>, (x, y): (f64, f64), from: f64| {
             let to = if from == x { y } else { x };
             let mut out = Vec::with_capacity(n + 1);
-            let mut arc = 0.0;
+            let (mut arc, mut step) = (0.0, 0.0f64);
             let mut last = c.eval(from);
             #[allow(clippy::cast_precision_loss)]
             for i in 0..=n {
                 let p = c.eval(from + (to - from) * i as f64 / n as f64);
-                arc += (p - last).norm();
+                let chord = (p - last).norm();
+                arc += chord;
+                step = step.max(chord * (1.0 + 1e-6));
                 last = p;
-                out.push((p, arc));
+                out.push((p, arc * (1.0 + 1e-6)));
             }
+            let kappa = geom::carrier_speed::curvature_hi_over(c, (x.min(y), x.max(y)));
+            assert!(
+                kappa * step <= 4.8e-3,
+                "the chords' margin holds only for κh ≤ 4.8e-3: κ {kappa:e}, h {step:e}"
+            );
             out
         };
         let (sa, sb) = (walk(a.carrier(), pa, s), walk(b.carrier(), pb, t));
@@ -673,6 +699,110 @@ mod tests {
         assert_eq!(at_end(&span, 1e-12, band).to_bits(), 0.0f64.to_bits());
     }
 
+    /// A degree-2 spline creased at `0.5` whose own leg below the crease
+    /// curves strongly (`y = 5x²` from the crease at the origin, leaving
+    /// along `+x`) and whose other leg runs straight down `−y`, square to
+    /// it; and a line from the crease at `20°` above `+x`. Read held at
+    /// the spline's last end (its span `(0, 0.5)` falls into the crease)
+    /// and the line's first (it rises), the two ends' sides differ, the
+    /// two sides of the crease differ in direction and in curvature, and
+    /// only the span's own side is the window's.
+    fn crease_and_line() -> (Curve3<f64>, Curve3<f64>) {
+        use geom_core::spline::{KnotVector, Knots};
+        let crease = Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                Knots::from(
+                    KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+                ),
+                vec![
+                    Point3::new(0.2, 0.2, 0.0),
+                    Point3::new(0.1, 0.0, 0.0),
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(0.0, -0.1, 0.0),
+                    Point3::new(0.0, -0.2, 0.0),
+                ],
+                vec![1.0; 5],
+            )
+            .unwrap(),
+        ));
+        let (s, c) = 20f64.to_radians().sin_cos();
+        (crease, Curve3::line(Point3::origin(), Vec3::new(c, s, 0.0)))
+    }
+
+    /// **A held window reads each end on its own span's side.** The
+    /// spline of [`crease_and_line`], held falling at its crease, against
+    /// the line held rising at the same point, over short pieces of each
+    /// (about `4·10⁻³` m), at `e = 10⁻⁴`. The legs part from the line by
+    /// `20°` on the span's own side and `110°` on the other, so the
+    /// half-tangents read from the wrong side, or turned the wrong way,
+    /// give `g ≈ 0.94` where the window's is `sin 20°`, and its reach
+    /// falls short of the pairs within the band, which reach about
+    /// `e/sin 20°` and further as the own leg bends toward the line. The
+    /// window bounds a reach covering them. Red where `ders1_from` reads
+    /// the other side, where `held` names the other side, and where the
+    /// curvature is read over the other side (straight, so `K = 0`).
+    #[test]
+    fn a_held_window_reads_each_end_on_its_own_spans_side() {
+        let band = Band::new(1e-5, 1e-4).unwrap();
+        let (crease, line) = crease_and_line();
+        let (a, b) = (Span::new(&crease, (0.0, 0.5)), Span::new(&line, (0.0, 1.0)));
+        let reach =
+            reach_covers_its_pairs((&a, (0.49, 0.5), 0.5), (&b, (0.0, 4e-3), 0.0), band, 4000);
+        assert!(reach.is_finite(), "the one-sided window bounds its reach");
+    }
+
+    /// **A held window reads the curvature of its own side.** The pair of
+    /// [`a_held_window_reads_each_end_on_its_own_spans_side`] over the
+    /// spline's whole own leg and `0.4` m of the line: the own leg bends
+    /// back across the line at `x ≈ 0.073`, about `0.08` m from the held
+    /// ends. Its curvature (about `10` at the crease) over the window
+    /// takes the basin past proving, so no reach is bounded, and none is
+    /// claimed short of the far crossing. Read over the other, straight
+    /// side, `K` is zero, the basin proves, and the reach claimed is
+    /// about `e/sin 20°`, short of the crossing: the row is red there.
+    #[test]
+    fn a_held_window_reads_the_curvature_of_its_own_side() {
+        let band = Band::new(1e-5, 1e-4).unwrap();
+        let (crease, line) = crease_and_line();
+        let (a, b) = (Span::new(&crease, (0.0, 0.5)), Span::new(&line, (0.0, 1.0)));
+        let reach =
+            reach_covers_its_pairs((&a, (0.0, 0.5), 0.5), (&b, (0.0, 0.4), 0.0), band, 4000);
+        assert!(!reach.is_finite(), "no reach is bounded: {reach:e}");
+    }
+
+    /// **A two-sided basin whose move fails gives way to the one-sided
+    /// window.** Two unit circles in one plane, the first's arc ending at
+    /// its angle `0` and the second's starting `0.1` m along `+x` from that
+    /// end at its angle `30°`: their half-tangents into the arcs part by
+    /// `150°`, so the two-sided sine is `½` and the one-sided `g` is `1`.
+    /// Over arcs `0.05` m long (`K·span ≈ 0.1`), the two-sided basin
+    /// proves (`½ − 2·0.1 > 0`) but its move does not
+    /// (`0.4² < 2·2·0.1`); the one-sided move does (`0.9² > 0.4`), and
+    /// the window bounds a reach. Red where a proved two-sided basin
+    /// stands whatever its move.
+    #[test]
+    fn a_two_sided_basin_whose_move_fails_gives_way_to_the_one_sided_window() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let first = super::super::meet_rows::circle([-1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+        let (s30, c30) = 30f64.to_radians().sin_cos();
+        let second = super::super::meet_rows::circle([0.1 - c30, -s30, 0.0], [0.0, 0.0, 1.0], 1.0);
+        let start = 30f64.to_radians();
+        let (a, b) = (
+            Span::new(&first, (-0.05, 0.0)),
+            Span::new(&second, (start, start + 0.05)),
+        );
+        let reach = reach_covers_its_pairs(
+            (&a, (-0.05, 0.0), 0.0),
+            (&b, (start, start + 0.05), start),
+            band,
+            1000,
+        );
+        assert!(
+            reach.is_finite(),
+            "the one-sided window bounds its reach: {reach:e}"
+        );
+    }
+
     /// **A held window with a gap reads the gap as its slack.** Two arcs of
     /// the unit circle, the first ending at angle `0` and the second
     /// starting at `−δ`, `δ = 10⁻⁴`, before it: each held at its span's
@@ -708,7 +838,11 @@ mod tests {
     /// part by `180°` (`g = 1`), but the curvature over the window,
     /// `K = 2` over a span of `3.3`, takes it past the basin: no reach is
     /// bounded, and none is claimed short of the far pairs. Red where the
-    /// basin drops its turn over the span (`K·span`).
+    /// basin drops both of its turns over the span (`sine = g`,
+    /// `basin = sine`). It does not pin either turn alone: dropping one
+    /// leaves `g − K·span`, and two arcs that leave a held pair `180°`
+    /// apart and come within the band again turn by more than `g` over
+    /// the window, which that reading refuses too.
     #[test]
     fn a_held_window_that_comes_round_again_bounds_no_reach() {
         // A band wide enough that the samples' spacing (about `10⁻³` rad)
@@ -719,7 +853,9 @@ mod tests {
             Span::new(&circle, (-3.3, 0.0)),
             Span::new(&circle, (0.0, 3.3)),
         );
-        reach_covers_its_pairs((&a, (-3.3, 0.0), 0.0), (&b, (0.0, 3.3), 0.0), band, 3000);
+        let reach =
+            reach_covers_its_pairs((&a, (-3.3, 0.0), 0.0), (&b, (0.0, 3.3), 0.0), band, 3000);
+        assert!(!reach.is_finite(), "no reach is bounded: {reach:e}");
     }
 
     /// **A held window at a crease reads each span's own half-tangent.** A
