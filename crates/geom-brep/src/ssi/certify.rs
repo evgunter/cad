@@ -4531,18 +4531,20 @@ mod node_end_rows {
     use super::{Lane, Limbs, NODE_BOX_REACH, SsiTube, certify_located};
     use crate::ssi::{ChartedNurbs, SsiError};
 
-    /// The saddle `S(u, v) = (u, v, (u − ½)(v − ½))`: against `z = 0` it
-    /// crosses at the node `(½, ½)` along `u = ½` and `v = ½`.
-    fn saddle() -> NurbsSurface<f64> {
+    /// The saddle `S(u, v) = (u, v, s·(u − ½)(v − ½))`: against `z = 0`
+    /// it crosses at the node `(½, ½)` along `u = ½` and `v = ½`, and its
+    /// Hessian's least singular value there is `s`.
+    fn saddle(s: f64) -> NurbsSurface<f64> {
         let k1 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let z = 0.25 * s;
         NurbsSurface::new(
             k1.clone(),
             k1,
             vec![
-                Point3::new(0.0, 0.0, 0.25),
-                Point3::new(0.0, 1.0, -0.25),
-                Point3::new(1.0, 0.0, -0.25),
-                Point3::new(1.0, 1.0, 0.25),
+                Point3::new(0.0, 0.0, z),
+                Point3::new(0.0, 1.0, -z),
+                Point3::new(1.0, 0.0, -z),
+                Point3::new(1.0, 1.0, z),
             ],
             vec![1.0; 4],
         )
@@ -4563,8 +4565,13 @@ mod node_end_rows {
 
     /// The degree-1 chain through the chart points `pts` (its carrier
     /// their images on the plane), on their chord-length parameters, at
-    /// the certificate door.
+    /// the certificate door, on the unit saddle.
     fn certified(pts: &[(f64, f64)]) -> Result<SsiTube<f64>, SsiError> {
+        certified_on(1.0, pts)
+    }
+
+    /// [`certified`] on the saddle of least singular value `s`.
+    fn certified_on(s: f64, pts: &[(f64, f64)]) -> Result<SsiTube<f64>, SsiError> {
         let mut t = vec![0.0];
         for w in pts.windows(2) {
             let last = *t.last().unwrap();
@@ -4587,7 +4594,7 @@ mod node_end_rows {
             vec![1.0; pts.len()],
         )
         .unwrap();
-        let (wall, plane) = (saddle(), level());
+        let (wall, plane) = (saddle(s), level());
         let lane = Lane::Chart {
             partner: &plane,
             wall: ChartedNurbs::mint(&wall).unwrap(),
@@ -4608,15 +4615,17 @@ mod node_end_rows {
 
     /// **A chain is read as ending at a node only where its end is at
     /// the node** (C2's node end): the node's own reading places the node
-    /// within the band of the end, and its box is the node's settle reach,
-    /// not the end span's. A chain along `v = ½` halving toward the node
+    /// within the band of the end, and its box is twice the end span's
+    /// reach, which may be no more than `NODE_BOX_REACH` of the node's
+    /// settle reaches. A chain along `v = ½` halving toward the node
     /// and ending on it certifies, its end the node's. The same chain
     /// carried on past the node by twenty band escalations or a
-    /// centimetre, turning onto `u = ½` within its last span, or ending on
-    /// the node with one span reaching twice as far as a node's end span
-    /// may at the band, refuses: limb 3's transverse
-    /// enclosure straddles at the node, which no node box waives. Ending
-    /// short of it by a centimetre, it is an arc's end and no node's.
+    /// centimetre, or turning onto `u = ½` within its last span, refuses:
+    /// limb 3's transverse enclosure straddles at the node, which no node
+    /// box waives. Ending short of it by 1.56 cm, it is an arc's end and
+    /// no node's. One span onto the node is the node's just inside that
+    /// cap and refuses just past it, on the saddles of least singular
+    /// value 1 and 4, at every band.
     ///
     /// Red against: the node box read over the end span's reach with no
     /// bound by the node, and the end left unbound to the node.
@@ -4639,11 +4648,6 @@ mod node_end_rows {
         };
         let mut turn = halving(14);
         turn.extend([(0.5, 0.5), (0.5, 0.5 + 5e-5)]);
-        // Twice the farthest an end span may reach from a node: the
-        // settle reach `√(NODE_SETTLE_FLOOR·ε′/σ)` times NODE_BOX_REACH,
-        // with σ = 1 on this saddle in its own chart and metres.
-        let coarse =
-            2.0 * NODE_BOX_REACH * (crate::ssi::ends::NODE_SETTLE_FLOOR * band().escalate()).sqrt();
         let refusals = [
             (
                 "past by twenty band escalations",
@@ -4651,10 +4655,6 @@ mod node_end_rows {
             ),
             ("past by a centimetre", past(1e-2)),
             ("turning onto the other line", turn),
-            (
-                "one coarse span onto the node",
-                vec![(0.0, 0.5), (0.5 - coarse, 0.5), (0.5, 0.5)],
-            ),
         ];
         let short = certified(&halving(5));
         assert!(
@@ -4665,13 +4665,39 @@ mod node_end_rows {
                     ..
                 })
             ),
-            "short by a centimetre: an arc's end, not a node's: {short:?}"
+            "short by 1.56 cm: an arc's end, not a node's: {short:?}"
         );
         for (what, pts) in refusals {
             let got = certified(&pts);
             assert!(
                 matches!(got, Err(SsiError::TubeStraddles { .. })),
                 "{what}: refuses at the node, not {got:?}"
+            );
+        }
+        // The farthest an end span may reach from the node, in chart
+        // units: `NODE_BOX_REACH` settle reaches `√(NODE_SETTLE_FLOOR·ε′/σ)`,
+        // the chart speeds cancelling (equal along `u` and `v`, and
+        // `|∇φ| = 1` against `z = 0`).
+        for sigma in [1.0, 4.0] {
+            let cap = NODE_BOX_REACH
+                * (crate::ssi::ends::NODE_SETTLE_FLOOR * band().escalate() / sigma).sqrt();
+            let onto =
+                |reach: f64| certified_on(sigma, &[(0.0, 0.5), (0.5 - reach, 0.5), (0.5, 0.5)]);
+            let inside = onto(0.99 * cap);
+            assert!(
+                matches!(
+                    inside,
+                    Ok(SsiTube::Chart {
+                        nodes: [None, Some(_)],
+                        ..
+                    })
+                ),
+                "σ {sigma}: one span reaching 0.99 of the cap {cap:e} ends at the node: {inside:?}"
+            );
+            let past = onto(1.01 * cap);
+            assert!(
+                matches!(past, Err(SsiError::TubeStraddles { .. })),
+                "σ {sigma}: one span reaching 1.01 of the cap {cap:e} refuses at the node: {past:?}"
             );
         }
     }
