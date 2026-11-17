@@ -994,3 +994,9 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
     Then idle until the reset.
 - **Interim unit, orchestrator's read (outside the comparison, no draw):** `nodeframe-eq-reads-its-fields-by-name` (mechanical) plus `no-row-guards-the-krawczyk-existence-test-on-a-spline-critical-point` (a test-only row), one Opus lane on `sectarms/two-smalls`, brief `impl-smalls.md`. Board triage sent as [PR 7065](https://github.com/evgunter/cad/pull/7065): three rows parked on the image-function build, and a note on SSIARITH's tube row.
 - **PR 7065 merged (`e322b9abb3`):** the triage is on main.
+- 2026-11-17 — **Near-node pad measurement back ([PR 7085](https://github.com/evgunter/cad/pull/7085), item only).** Harness: 4,832,160 ms, 219,815 tokens.
+  - **Pads shrink everywhere:** the narrow-rung pad on the as-marched carrier is 0.25–0.76 of today's at 1e-6, 0.05–0.53 at the default, and 0.01–0.17 at 1e-12. The ladder's narrowest rung proves on its first probe, one extra `one_arc` per component.
+  - `refine_for_tube` acts only at 1e-6, and the narrow pad does not move with it.
+  - Row verdicts are as today. A rough cover-halving prototype proves all three 1e-6 refusals, the sliver included.
+  - **For the build:** a whole-net `refine_knots` ran out of memory, so covers must be built in chunks. `a_marched_loops_pad_holds_its_tube_and_its_limb_two_bound` needs rewriting by design.
+  - The build stays sequenced after the rim pad (paused until the Fable reset). Merge 7085 on green.
