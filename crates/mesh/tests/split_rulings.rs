@@ -84,12 +84,13 @@ fn split_and_placed(body: &Body<f64>, edges: &[topo::EdgeKey], fracs: &[f64]) ->
 ///
 /// But one, pinned as today's answer: the slender wall's outer seam split
 /// anywhere, at δ 0.1, where its planar top annulus (width 0.05) refuses
-/// `Triangulation`: at δ 0.1 a rim chord's sagitta exceeds the annulus's
-/// width, so its two loops' chords cross
+/// `Triangulation`. A planar neighbour narrower than δ, beside any routed
+/// face, refuses where the base meshed it: its rims' chords have a
+/// sagitta past its width, so whether its loops cross depends on the
+/// rims' chord counts, and the routed face chords the rim it shares for
+/// the chart lane. The base refuses the same faces the same way with a
+/// rim split, and none refuses at δ at most its width
 /// (`work/tesslane/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).
-/// The base reaches the same refusal on the same body with a rim split;
-/// the seam split reaches it here because the routed cone face chords
-/// the rim it shares with the annulus for the chart lane.
 ///
 /// **By ε.** The same at the default, `10⁻⁶` and `10⁻¹²`.
 #[test]
@@ -285,19 +286,26 @@ fn a_ruling_split_a_hair_from_its_end_folds_a_triangle() {
     );
 }
 
-/// **A ruling split within the development's resolution refuses: this
-/// row pins a gap**
-/// (`work/tesslane/a-ruling-split-within-the-developments-resolution-merges-two-points.md`).
+/// **Two points of one ruling closer than the development resolves
+/// refuse: this row pins a gap, at ε `10⁻¹²`**
+/// (`work/tesslane/a-ruling-split-within-the-developments-resolution-merges-two-points.md`;
+/// its default-ε form is
+/// [`a_draft_cone_ruling_split_within_the_developments_resolution_refuses`]).
 /// The frustum wall's outer cone face with its seam split `10⁻⁹` of its
 /// range from its start, placed obliquely. The face is the chart lane's,
 /// which triangulates a cone face in its development, whose slant radii
-/// are cut to 27 significant bits; the split vertex and the seam's end
-/// lie closer than `2⁻²⁷` of their radius, develop to one point, and the
-/// face refuses `SphereTrimShape { DevelopedMerge }` at every δ.
+/// are cut to 27 significant bits: the split vertex and the seam's end
+/// lie closer than `2⁻²⁷` of their slant radius, develop to one point,
+/// and the face refuses
+/// `SphereTrimShape { DevelopedMerge }` at every δ.
 ///
 /// **By ε.** At `10⁻¹²` as above. At the default ε and `10⁻⁶`
-/// `split_edge` reads a split that near the end as no split, so the
-/// body cannot be built, and the row asserts that instead.
+/// `split_edge` reads a split `10⁻⁹` from this body's seam end as no
+/// split, so this body cannot be built, and the row asserts that instead.
+/// That is this body's answer and not the class's: on a slender cone the
+/// development resolves a coarser length, which a split reaches at the
+/// default ε
+/// ([`a_draft_cone_ruling_split_within_the_developments_resolution_refuses`]).
 #[test]
 fn a_ruling_split_within_the_developments_resolution_refuses() {
     use mesh::TessellateError as E;
@@ -318,7 +326,8 @@ fn a_ruling_split_within_the_developments_resolution_refuses() {
     if tol().eps() > 1e-12 {
         assert!(
             built.is_err(),
-            "at ε {:e} the split is no split",
+            "this body at ε {:e}: a split 1e-9 from its seam end is no split (a slender \
+             cone reaches the merge at this ε: the draft-cone pin)",
             tol().eps()
         );
         return;
@@ -336,5 +345,62 @@ fn a_ruling_split_within_the_developments_resolution_refuses() {
             ),
             "δ {delta}"
         );
+    }
+}
+
+/// **On a draft-angle cone the development's resolution is a length a
+/// split reaches at the default ε: this row pins a gap**
+/// (`work/tesslane/a-ruling-split-within-the-developments-resolution-merges-two-points.md`).
+/// A wall whose outer face is a cone of half-angle 0.1° (profile
+/// `(1, 0), (2 + tan 0.1°, 0), (2, 1), (1, 1)`, a full turn), its seam
+/// ruling split `10⁻⁵` of its length from its start, and split twice
+/// `10⁻⁵` apart at its middle, placed obliquely. The development cuts a
+/// slant radius (`r / sin α`, about 1150 here) to 27 significant bits,
+/// which resolves no finer than `2⁻²⁷·r / sin α` ≈ `8.5·10⁻⁶`
+/// along the ruling: the two points develop to one, and the face refuses
+/// `SphereTrimShape { DevelopedMerge }` at every δ.
+///
+/// **By ε.** The same at the default, `10⁻⁶` and `10⁻¹²`: `split_edge`
+/// admits a split `10⁻⁵` from an end at each.
+#[test]
+fn a_draft_cone_ruling_split_within_the_developments_resolution_refuses() {
+    use mesh::TessellateError as E;
+    use mesh::types::SphereTrimCause;
+    let t = 0.1f64.to_radians().tan();
+    let body = turned(
+        &[(1.0, 0.0), (2.0 + t, 0.0), (2.0, 1.0), (1.0, 1.0)],
+        Revolution::Full,
+    );
+    // The cone face's seam: the line edge whose ends differ in radius.
+    let ruling = rulings(&body)
+        .into_iter()
+        .find(|&ek| {
+            let c = body
+                .get_curve_geom(body.get_edge(ek).unwrap().curve)
+                .unwrap()
+                .certified()
+                .unwrap();
+            let (t0, t1) = c.params();
+            let (a, b) = (c.carrier().eval(t0), c.carrier().eval(t1));
+            ((a.x * a.x + a.z * a.z).sqrt() - (b.x * b.x + b.z * b.z).sqrt()).abs() > 1e-12
+        })
+        .expect("the cone face's seam");
+    for (what, fracs) in [
+        ("an end split", &[1e-5][..]),
+        ("two splits mid-ruling", &[0.5 + 1e-5, 0.5][..]),
+    ] {
+        let split = split_and_placed(&body, &[ruling], fracs);
+        for delta in [0.1, 0.01, 0.001] {
+            assert!(
+                matches!(
+                    mesh::tessellate(&split, delta, tol()),
+                    Err(E::SphereTrimShape {
+                        cause: SphereTrimCause::DevelopedMerge,
+                        ..
+                    })
+                ),
+                "{what}, δ {delta}"
+            );
+        }
     }
 }
