@@ -2246,8 +2246,9 @@ class Node:
         set FREEZES at authoring time. `distance` is the SETBACK along
         each support, not a radius. An empty selection refuses at the
         insert (`EditError` `selection_shape`, `name_count`); an
-        unresolvable name or an edge whose supports are not both planes
-        refuses typed at `evaluate`. `distance` mints a literal in the node's
+        unresolvable name, or an edge whose supports are neither both
+        planes nor a whole rim of a cylinder on a plane square to its
+        axis, refuses typed at `evaluate`. `distance` mints a literal in the node's
         `chamfer_distance` slot, moved by `DocEdit.set_param`; the
         selection is repaired by `DocEdit.rebind`.
         """

@@ -1273,6 +1273,49 @@ macro_rules! nurbs_curve {
                 })
             }
 
+            /// An **upper** bound on the curve's length between `a` and
+            /// `b` (either order), in metres: over the meter's pieces
+            /// ([`Self::speed_upper_bound`]'s), each piece's
+            /// [`geom_core::spline::QuotientPiece::sup_norm`] times the
+            /// part of its parameter range the interval covers. A piece
+            /// the interval does not reach contributes zero, so a fast
+            /// stretch elsewhere on the carrier is not charged.
+            /// Certified at `Interval`, the same expression in
+            /// round-to-nearest at `f64`, and poison where the
+            /// statement refuses, as [`Self::speed_upper_bound`].
+            pub fn length_upper_bound(&self, a: T, b: T) -> T {
+                let poison = T::from_f64(f64::NAN);
+                let Some(pieces) = self.speed_pieces(self.is_rational()) else {
+                    return poison;
+                };
+                let kv = self.knots.structure();
+                let spans: Vec<usize> = (kv.first_span()..=kv.last_span())
+                    .filter(|&i| self.knots.span(i).is_some())
+                    .collect();
+                if spans.is_empty() || pieces.len() % spans.len() != 0 {
+                    return poison;
+                }
+                let per = pieces.len() / spans.len();
+                let held = self.knots.values();
+                let (lo, hi) = (a.min(b), a.max(b));
+                #[allow(clippy::cast_precision_loss)]
+                let at = |start: T, width: T, j: usize| {
+                    start + width * T::from_f64(j as f64 / per as f64)
+                };
+                spans
+                    .iter()
+                    .zip(pieces.chunks(per))
+                    .flat_map(|(&i, chunk)| {
+                        let (start, width) = (held[i], held[i + 1] - held[i]);
+                        chunk.iter().enumerate().map(move |(j, piece)| {
+                            let covered = hi.min(at(start, width, j + 1))
+                                - lo.max(at(start, width, j));
+                            piece.sup_norm() * covered.max(T::zero())
+                        })
+                    })
+                    .fold(T::zero(), |acc, x| acc + x)
+            }
+
             /// A certified **upper** bound on `‖C″(t)‖` over the whole
             /// domain, in m/param², read as a Lipschitz constant of `C′`
             /// across it: the max over the second-order pieces

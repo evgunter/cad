@@ -798,7 +798,7 @@ pub enum ReplaceFaceError<T: Real> {
     /// neighbour's torus is whatever the body carries.
     ///
     /// Standing: as the convention states it
-    /// ([`geom_brep::TorusRefusal::refusal`]): ranked by its margin in
+    /// ([`geom_brep::TorusRefusal::standing`]): ranked by its margin in
     /// band, an abort where decided outside the convention.
     DegenerateTorus {
         /// The edge whose section read the torus.
@@ -2960,6 +2960,7 @@ fn plan_edge<'s, T: Decide>(
                 other @ (geom_brep::SectionError::WrongLane { .. }
                 | geom_brep::SectionError::NoRegion { .. }
                 | geom_brep::SectionError::DegenerateOperand { .. }
+                | geom_brep::SectionError::ConeAtTheBand { .. }
                 | geom_brep::SectionError::BeyondOperandExtent { .. }
                 | geom_brep::SectionError::CoincidentSurfaces
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
@@ -3437,6 +3438,7 @@ fn derive_edge<'w, 's, T: Decide>(
         other @ (geom_brep::SectionError::WrongLane { .. }
         | geom_brep::SectionError::NoRegion { .. }
         | geom_brep::SectionError::DegenerateOperand { .. }
+        | geom_brep::SectionError::ConeAtTheBand { .. }
         | geom_brep::SectionError::BeyondOperandExtent { .. }
         | geom_brep::SectionError::CoincidentSurfaces
         | geom_brep::SectionError::RoutesToGeneralRung { .. }

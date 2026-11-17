@@ -2,9 +2,12 @@
 id: a-torus-verdicts-standing-is-matched-outside-its-one-home
 kind: issue
 title: A torus verdict's standing is matched at four topo sites rather than read through TorusRefusal::refusal; of_door_refusal's Torus arm is unreachable by convention; ring_floor_of is crate-wide where only tests read it
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
+branch: onecopy/torus-verdict-standing
+closed: 2026-11-16
+pr: 7033
 ---
 
 Filed from PR 6777's delta review (the torus floor's ring gate). Line numbers are at 6777's head (`a019d0d8`).
