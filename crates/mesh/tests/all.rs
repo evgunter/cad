@@ -242,8 +242,9 @@ test_utils::every_suite_file_is_aggregated!();
 ///   `gap_is_noise`'s, counted in `walk.rs`: this file hands the band
 ///   to a predicate rather than comparing against it, which is why it
 ///   carries six carriers and no operation.
-/// - **`trimmed.rs` — 1 carrier, 1 `pad`.** `d / tol.eps.pad(bound)`
-///   in the deviation probe. **Not a bar**: ε is a continuous addend
+/// - **`trimmed.rs` — 3 carriers, 1 `pad`.** Two hand-offs to
+///   `cert::verdict` (the emit pass's and `walk_face`'s), and
+///   `d / tol.eps.pad(bound)` in the deviation probe. **Not a bar**: ε is a continuous addend
 ///   in a denominator, so it scales `worst_ratio` — a `pub`
 ///   measurement field — at every call, monotonically. The block is
 ///   absent from a default build (`budget` feature). The one token and
@@ -419,15 +420,16 @@ fn the_eps_inventory_is_pinned() {
     // (file, ε CARRIER tokens, one READ count per op above).
     // `cert.rs`'s one read is the certificate verdict's
     // (`cert::verdict`): whether the rounding allowance is small beside
-    // ε, so that it may be applied; `curved.rs` and `trimmed.rs` each
-    // carry the band one more step, to hand it to that verdict.
+    // ε, so that it may be applied; `curved.rs` carries the band one more
+    // step to hand it to that verdict, and `trimmed.rs` two (its emit
+    // pass's and its walk's, `walk_face`).
     const PINNED: [(&str, usize, [usize; 4]); 7] = [
         ("cert.rs", 2, [0, 0, 1, 0]),
         ("curved.rs", 7, [0, 0, 0, 0]),
         ("memo.rs", 4, [0, 0, 0, 0]),
         ("sizing.rs", 2, [0, 0, 0, 0]),
         ("tessellate.rs", 2, [0, 0, 0, 0]),
-        ("trimmed.rs", 2, [0, 0, 0, 1]),
+        ("trimmed.rs", 3, [0, 0, 0, 1]),
         ("walk.rs", 9, [1, 3, 1, 0]),
     ];
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
