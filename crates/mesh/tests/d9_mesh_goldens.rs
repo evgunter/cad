@@ -282,11 +282,11 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("washer", [0x965c_cafc_821b_7545, 0x569e_8f0f_f9a7_3ad5]),
     (
         "tilted_above",
-        [0x1fd6_c8d6_2e75_9cbd, 0xda7f_6147_8130_19b5],
+        [0xaaf9_faf2_d0ec_0e1d, 0xba02_b78e_8918_a902],
     ),
     (
         "tilted_below",
-        [0xaacf_ddca_2204_4c35, 0x894d_8ffa_544f_68c4],
+        [0x9406_eeca_b61e_b3d7, 0xadd5_1c61_1c66_25d6],
     ),
     ("keyway", [0xa110_eb9f_658b_9246, 0xa110_eb9f_658b_9246]),
     ("slit", [0xaed6_09ed_f923_833b, 0xaed6_09ed_f923_833b]),

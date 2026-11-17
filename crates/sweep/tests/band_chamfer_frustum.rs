@@ -399,13 +399,17 @@ fn a_neighbour_hole_clears_the_mouths_trim_until_its_margin_turns() {
     }
 }
 
-/// **An arc inside a chain of lines and arcs keeps its refusal.** A
-/// rounded outline's top edges — two lines, an arc, two lines — make one
-/// chain whose arc is a plane–cylinder link beside plane–plane ones; the
-/// strip and the frustum would meet at a junction, which is not built,
-/// so the chain refuses at its arc.
+/// **An arc inside a chain of lines and arcs chamfers as one band.** A
+/// rounded outline's top edges — two lines, a quarter arc of radius 1
+/// about `(1, 1)`, two lines — turn square at three corners, so the chain
+/// breaks there into the run line, arc, line (its strip and frustum
+/// meeting along the generator at each junction) and two single lines,
+/// the strips mitred at each turn. Each strip removes the triangle `s²/2`
+/// along its centroid line, `s/3` shorter at each mitred end (a square
+/// turn's mitre at `cot 45° = 1`), and the arc the triangle about its
+/// centroid at `1 − s/3` from the axis over a quarter turn.
 #[test]
-fn an_arc_between_lines_refuses_at_the_arc() {
+fn an_arc_between_lines_chamfers_with_its_lines() {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     let body = prism_at(
         vec![
@@ -427,22 +431,20 @@ fn an_arc_between_lines_refuses_at_the_arc() {
             z(a) > 0.5 && z(b) > 0.5
         })
         .collect();
-    let arc: Vec<EdgeKey> = top
-        .iter()
-        .copied()
-        .filter(|&e| {
-            let c = body.get_edge(e).and_then(|d| body.get_curve_geom(d.curve));
-            matches!(
-                c.and_then(|g| g.certified()).map(|c| c.carrier()),
-                Some(geom::Curve3::Circle(_))
-            )
-        })
-        .collect();
-    assert_eq!(arc.len(), 1, "the outline's one top arc");
-    let got = chamfer(&body, &top, 0.1);
+    assert_eq!(top.len(), 5, "the outline's four top lines and its arc");
+    let s = 0.1;
+    let lines = 2.0 * (2.0 - 2.0 * s / 3.0) + 2.0 * (1.0 - s / 3.0);
+    let want = 0.5 * s * s * (lines + core::f64::consts::FRAC_PI_2 * (1.0 - s / 3.0));
+    let out = chamfer(&body, &top, s).unwrap_or_else(|e| panic!("the top chamfers, got {e:?}"));
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3, {e:?}"));
+    assert_naming_totality(&body, &out, &top, "the rounded outline's top");
+    let rec = out.naming.as_ref().expect("the carve's birth records");
+    assert_eq!(rec.sections.len(), 2, "a section at each junction");
+    let (v0, v1) = (volume(&body), volume(&out.body));
     assert!(
-        matches!(got, Err(BlendError::ChamferArmUnsupported { edge, .. }) if edge == arc[0]),
-        "the chain refuses at its arc, got {got:?}"
+        (v0 - v1 - want).abs() < 1e-12,
+        "ΔV = {} against {want}",
+        v0 - v1
     );
 }
 

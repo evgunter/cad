@@ -42,7 +42,7 @@ pub(super) fn tol() -> Tol {
 
 /// One `tessellate` answer, by the function that produced it.
 #[derive(Debug, PartialEq, Eq, Clone)]
-enum Got {
+pub(super) enum Got {
     /// `Ok`, `validate::check_mesh` passes, and the mesh is the body's
     /// ([`geometry`]).
     Meshed,
@@ -62,12 +62,9 @@ enum Got {
     Unread(SurfaceKind, &'static str),
     /// `Triangulation` on a face of this chart.
     Triangulation(SurfaceKind),
-    /// `Ok`, `check_mesh` passes and [`geometry`] holds but for this many
-    /// triangles of no area, the first on a face of this chart: a lattice
-    /// point the trimmed lane lays within rounding of a boundary chord
-    /// point
-    /// (`work/tesslane/a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area.md`).
-    NoArea(SurfaceKind, usize),
+    /// `UnresolvedWinding` on a face of this chart, from `tessellate`'s
+    /// read of each face's patch where it joins the mesh.
+    Unresolved(SurfaceKind),
     /// `Ok`, and `check_mesh` refuses `NonManifoldEdge` with this count.
     NonManifold(u32),
     /// `CertificateExceeded` on a face of this chart, from the trimmed
@@ -127,14 +124,13 @@ fn carrier_of(body: &Body<f64>, ek: topo::EdgeKey) -> CurveKind {
         .kind()
 }
 
-fn got(body: &Body<f64>, delta: f64) -> Got {
+pub(super) fn got(body: &Body<f64>, delta: f64) -> Got {
     use mesh::TessellateError as E;
     match mesh::tessellate(body, delta, tol()) {
         Ok(m) => match mesh::validate::check_mesh(&m) {
             Ok(()) => match geometry(body, &m, delta) {
                 Ok(()) => Got::Meshed,
-                Err(Miss::NoArea(kind, n)) => Got::NoArea(kind, n),
-                Err(Miss::Other(e)) => Got::Other(format!("meshed, and {e}")),
+                Err(e) => Got::Other(format!("meshed, and {e}")),
             },
             Err(mesh::validate::MeshError::NonManifoldEdge { count, .. }) => {
                 Got::NonManifold(count)
@@ -158,12 +154,18 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
         Err(E::Triangulation { face }) => Got::Triangulation(kind_of(body, face)),
         Err(E::CertificateExceeded { face, .. }) => Got::CertificateExceeded(kind_of(body, face)),
         Err(E::FoldedTriangle { face }) => Got::Folded(kind_of(body, face)),
+        Err(E::UnresolvedWinding { face, .. }) => Got::Unresolved(kind_of(body, face)),
         Err(e) => Got::Other(format!("{e:?}")),
     }
 }
 
 /// **The mesh is the body's**, which `check_mesh` cannot see:
 ///
+/// - every triangle's winding is resolved above the rounding of its own
+///   positions (`validate::check_winding`, `crates/mesh/README.md`
+///   `[mesh.winding]`): a triangle along one straight line of the surface
+///   (a cone's ruling, a lattice point within rounding of a boundary
+///   point) reds here; a thin triangle does not;
 /// - it encloses the body's own volume to within its chordal deficit,
 ///   `δ` times the body's area, both read off the B-rep
 ///   (`validate::check_volume`). The volume is not read on a body with a
@@ -183,13 +185,17 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
 ///     lattice sized at its own steps stays within δ whatever the
 ///     certificate says, so a certificate is held to the truth in its own
 ///     row (`mesh`'s `chart_table` tests,
-///     `the_cone_and_torus_certificates_hold_the_true_deviation`);
-///   - **is not on one line**: `2·area/L²`, `L` its longest side, is at
-///     least [`MIN_SHAPE`], so a triangle along one straight line of the
-///     surface (a cone's ruling) reds here; a thin triangle does not. One
-///     that is on one line is read after every other check holds, as
-///     [`Miss::NoArea`].
-fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Miss> {
+///     `the_cone_and_torus_certificates_hold_the_true_deviation`).
+///
+/// Answers the first miss found, spelled out.
+pub(super) fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), String> {
+    mesh::validate::check_winding(mesh).map_err(|e| {
+        format!(
+            "a {:?} face's triangle {:?} has no winding f64 resolves",
+            kind_of(body, e.face),
+            e.triangle
+        )
+    })?;
     if !body
         .faces()
         .any(|(fk, _)| matches!(kind_of(body, fk), SurfaceKind::Nurbs | SurfaceKind::Approx))
@@ -197,9 +203,8 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Miss>
         let at_rest = sweep::test_support::at_rest(body, tol());
         let props = topo::test_support::pinned_volume("the meshed body", &at_rest, tol());
         mesh::validate::check_volume(mesh, props.volume, props.surface_area, delta)
-            .map_err(|e| Miss::Other(format!("its volume misses the body's: {e:?}")))?;
+            .map_err(|e| format!("its volume misses the body's: {e:?}"))?;
     }
-    let mut no_area = None;
     for patch in &mesh.patches {
         let surface = body.face_surface(patch.face).expect("a live face");
         let sense = body.get_face(patch.face).expect("a live face").sense;
@@ -223,17 +228,9 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Miss>
             // A zero dot, or NaN where the foot is not one point, is not
             // outward.
             if normal.dot(outward).partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
-                return Err(Miss::Other(format!(
+                return Err(format!(
                     "a {kind:?} face's triangle {t:?} winds against the face"
-                )));
-            }
-            let longest = (b - a).norm().max((c - b).norm()).max((a - c).norm());
-            let shape = normal.norm() / (longest * longest);
-            if shape
-                .partial_cmp(&MIN_SHAPE)
-                .is_none_or(core::cmp::Ordering::is_lt)
-            {
-                no_area = Some(no_area.map_or((kind, 1), |(k, n)| (k, n + 1)));
+                ));
             }
             const N: usize = 6;
             #[allow(clippy::cast_precision_loss)]
@@ -245,36 +242,14 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Miss>
                 .partial_cmp(&(delta * (1.0 + 1e-9)))
                 .is_none_or(core::cmp::Ordering::is_gt)
             {
-                return Err(Miss::Other(format!(
+                return Err(format!(
                     "a {kind:?} face's triangle {t:?} lies {worst:e} off its surface, past δ {delta:e}"
-                )));
+                ));
             }
         }
     }
-    no_area.map_or(Ok(()), |(kind, n)| Err(Miss::NoArea(kind, n)))
+    Ok(())
 }
-
-/// What [`geometry`] finds wrong with a mesh.
-enum Miss {
-    /// Every other check holds, and this many triangles have no area, the
-    /// first on a face of this chart.
-    NoArea(SurfaceKind, usize),
-    /// Anything else, spelled out: the first miss found.
-    Other(String),
-}
-
-/// **The least `2·area/L²` [`geometry`] admits on an analytic curved
-/// face: a triangle that is not on one line.** Three points of one cone
-/// ruling are exactly collinear in the cone's development
-/// (`mesh::trimmed`, "The development"), so the lane cannot build that
-/// triangle, and one built in the chart reads about `1e-17` (rounding).
-/// It is not a bound on thin triangles: nothing bounds those. Beside a
-/// ruling a triangle's ratio goes as `(h/L)²`, and valid accepted meshes
-/// read `3·10⁻⁸` (a whole frustum whose small rim has radius `2·10⁻⁷`,
-/// δ `5·10⁻³`) and `2.5·10⁻¹⁰` (a needle funnel of radius `0.002`
-/// through its apex at δ `10⁻⁶`)
-/// (`work/tesslane/a-needle-cone-face-meshes-thin-triangles-beside-its-rulings.md`).
-const MIN_SHAPE: f64 = 1e-12;
 
 /// **The outward normal of an analytic curved surface at the foot of
 /// `p`**, from the surface's closed form (`geom::Surface`'s variant
@@ -1010,10 +985,11 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
 /// the trimmed lane, and the lane triangulates each face's outer loop
 /// less its ring. The other three ops put the spirics on an outer loop.
 /// The bar's face `y = 0.25` is the tube's latitude `π/6`, so at
-/// `δ = 10⁻³` the extreme chord point of the ring's spiric falls within
-/// rounding of a lattice point, and the face keeps two triangles of no
-/// area beside it, as the tilted sphere pair's faces do on an outer loop
-/// at `δ = 0.04` (`Got::NoArea`).
+/// `δ = 10⁻³` the extreme chord point of the ring's spiric is within
+/// rounding of where a lattice row and column cross: the lattice lays no
+/// node within its clearance of the ring (`mesh::trimmed`'s
+/// `BOUNDARY_CLEARANCE`), and the face meshes with every winding
+/// resolved ([`geometry`]).
 #[test]
 fn a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row() {
     let bar = brick::<f64>((-0.05, 0.05), (0.25, 0.35), (1.0, 3.0), tol());
@@ -1023,23 +999,8 @@ fn a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row() {
         what,
         &donut,
         &bar,
-        &[2e-2, 5e-3],
+        &[2e-2, 5e-3, 1e-3],
         &core::array::from_fn(|_| Got::Meshed),
-    );
-    let ring = Got::NoArea(SurfaceKind::Torus, 2);
-    assert_six(
-        what,
-        &donut,
-        &bar,
-        &[1e-3],
-        &[
-            ring.clone(),
-            ring.clone(),
-            Got::Meshed,
-            Got::Meshed,
-            ring,
-            Got::Meshed,
-        ],
     );
 }
 
@@ -2014,4 +1975,57 @@ fn a_ringless_cone_face_near_its_apex_meshes_sound() {
         refused_at(&[(1e-12, "CurvedPierceUnsupported")]),
         &[("A ∩ B", 5e-3, Got::Meshed), ("B ∩ A", 5e-3, Got::Meshed)],
     );
+}
+
+/// **A cone face met on its axis refuses `UnresolvedWinding` at fine δ**
+/// (`work/tesslane/a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it.md`).
+/// T1's cone and its box with the box's edge at `(0, h − 1.5·s, 0)`, so
+/// the edge crosses the cone's axis: in the ops that keep the cone's
+/// wall about that edge (both unions, cone ∖ box) the cone face holds a
+/// triangle whose winding is inside the rounding of its own positions,
+/// and `tessellate` refuses the face where its patch joins the mesh
+/// (`crates/mesh/README.md` `[mesh.winding]`). Before that rule the same
+/// nine cells meshed and [`geometry`] read one cone triangle as wound
+/// against its face: a normal that is rounding noise reads either way.
+/// The coarser cells mesh, and the mesh is the body's. Which triangle it
+/// is, and what in the lane lays it, is that row's to find.
+///
+/// **By ε.** The same nine cells refuse at the default, `10⁻⁶` and
+/// `10⁻¹²`.
+#[test]
+fn a_cone_face_met_on_its_axis_refuses_unresolved_at_fine_delta() {
+    let height = 1.2 / FRAC_PI_6.tan();
+    for (s, refuses_from) in [(0.6, 5e-3), (0.3, 1e-3)] {
+        let cone = posed(
+            "the cone",
+            revolved(&[(0.0, 0.0), (1.2, 0.0), (0.0, height)]),
+            Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2),
+        );
+        let turn = Affine3::rotation_about_axis(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            -50f64.to_radians(),
+        );
+        let edge = Point3::new(0.0, height - 1.5 * s, 0.0);
+        let wedge = posed(
+            "the box",
+            brick((0.0, 6.0), (0.0, 6.0), (-3.0, 3.0), tol()),
+            Affine3::translation(edge - Point3::origin()) * turn,
+        );
+        for op in ["A ∪ B", "B ∪ A", "A ∖ B"] {
+            let body = op_of(&cone, &wedge, op);
+            for delta in [2e-2, 5e-3, 1e-3] {
+                let want = if delta <= refuses_from {
+                    Got::Unresolved(SurfaceKind::Cone)
+                } else {
+                    Got::Meshed
+                };
+                assert_eq!(
+                    got(&body, delta),
+                    want,
+                    "the box's edge on the cone's axis, s = {s}, {op}, δ = {delta:e}"
+                );
+            }
+        }
+    }
 }

@@ -8,11 +8,12 @@
 //! kinds alone.
 //!
 //! **Where the constants come from.** Each `MAIN` digest below was read on
-//! the merge base this route replaced (`origin/main` at `a56edec9d6`),
-//! by this file run there, and is equal on this tree: the bytes and the
-//! K stream of every body here that meshed then are unmoved. Each was read
-//! at ε 1e-9, 1e-6 and 1e-12 on both trees and is the same at all three,
-//! so one table holds at every row of the suite.
+//! the kind route this route replaced (`origin/main` at `326c40c3f0`,
+//! after the trimmed lane's boundary clearance), by this file run there,
+//! and is equal on this tree: the bytes and the K stream of every body
+//! here that meshed then are unmoved. Each was read at ε 1e-9, 1e-6 and
+//! 1e-12 on both trees and is the same at all three, so one table holds
+//! at every row of the suite.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -199,14 +200,14 @@ fn no_non_iso_form(body: &Body<f64>, fk: topo::FaceKey) -> bool {
 #[test]
 fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
     const MAIN: [(f64, f64, u64); 8] = [
-        (0.3, 2e-9, 0x6111_7153_4849_f20f),
-        (0.3, 3e-9, 0x74de_ad4e_f00a_af5b),
-        (0.3, 5e-9, 0x8ecd_def2_bd65_7168),
-        (0.3, 8e-9, 0xbfa0_f2c5_2a19_7a2a),
-        (0.6, 2e-9, 0xe9f2_7fcd_c00d_4eca),
-        (0.6, 3e-9, 0x8e5c_03c2_c520_6252),
-        (0.6, 5e-9, 0x0127_71cf_258d_a68a),
-        (0.6, 8e-9, 0xf8ce_2b87_7809_4824),
+        (0.3, 2e-9, 0x0bdb_95bd_c65c_bb63),
+        (0.3, 3e-9, 0x4456_183e_d2b3_23c3),
+        (0.3, 5e-9, 0xf66a_af34_e45a_96bc),
+        (0.3, 8e-9, 0xad72_9e9f_97e5_2bde),
+        (0.6, 2e-9, 0x5f5b_7e07_e15f_1436),
+        (0.6, 3e-9, 0x33aa_c942_b3f8_59c6),
+        (0.6, 5e-9, 0x02eb_fa12_532b_212e),
+        (0.6, 8e-9, 0xbb9a_30df_a7b3_36b0),
     ];
     for (x0, theta, want) in MAIN {
         let body = ball_less_a_tilted_slab(x0, theta);
@@ -270,7 +271,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "ball less a slab turned 0.3",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0x7fbe_fdb6_9442_bb87,
+            0xf469_5056_90db_252a,
         ),
         (
             "pipe cut on a tilt",
@@ -282,13 +283,13 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "ball less a slab at 0.3 turned 2e-9",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0x6111_7153_4849_f20f,
+            0x0bdb_95bd_c65c_bb63,
         ),
         (
             "ball less a slab at 0.6 turned 8e-9",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0xf8ce_2b87_7809_4824,
+            0xbb9a_30df_a7b3_36b0,
         ),
     ];
     let corpus = k_corpus();

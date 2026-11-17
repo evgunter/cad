@@ -135,26 +135,26 @@ fn no_inner_error_opens_with_a_verb_word_on_either_door() {
     );
 }
 
-/// **PROBE 2 — the closed-chamfer arm speaks as the chamfer.**
+/// **PROBE 2 — a chamfer's mixed chain speaks as the chamfer.**
 ///
-/// The surgery's closed-chamfer arm (`surgery.rs`, the `Chamfer` arm
-/// of the closure match) mints `UnsupportedChain`, whose `Display`
-/// appends the assembly recourse. The chamfer's closed rims are
-/// reachable, and so are that recourse's other `UnsupportedChain`
-/// sites under a chamfer (a frustum rim sharing its host), so its
-/// closed clause names no verb ("where the verb's arms cover it"). This
-/// row holds the rendered text to the purity property
-/// `assert_speaks_as_the_chamfer` states: a chamfer refusal never says
-/// "fillet".
+/// A chamfer's chain of lines and arcs reaches the junction's
+/// `UnsupportedChain` sites (`junction::shape`, here two consecutive
+/// links on one support pair), whose `Display` appends the assembly
+/// recourse, and so do its closed rims (a frustum rim sharing its host),
+/// so that recourse's closed clause names no verb ("where the verb's
+/// arms cover it"). This row holds the rendered text to the purity
+/// property `assert_speaks_as_the_chamfer` states: a chamfer refusal
+/// never says "fillet".
 #[test]
-fn the_closed_chamfer_arm_speaks_as_the_chamfer() {
+fn a_chamfer_junction_refusal_speaks_as_the_chamfer() {
     let body = cube::<f64>(L, Tol::witness());
     let edge = query::all_edges(&body)[0];
     let refusal = BlendRefusal {
         verb: BlendKind::Chamfer,
         error: BlendError::UnsupportedChain {
             edge,
-            detail: "a closed chamfer chain spans several support pairs",
+            detail: "a chain of links on different supports has two consecutive links on one \
+                     support pair",
         },
     };
     let text = refusal.render(geom_brep::recourse::Reading::Build);

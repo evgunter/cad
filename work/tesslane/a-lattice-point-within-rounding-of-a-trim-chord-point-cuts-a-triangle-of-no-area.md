@@ -2,12 +2,13 @@
 id: a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area
 kind: issue
 title: a trimmed face's lattice point within rounding of a boundary chord point cuts triangles of no area, on faces that mesh on main
-status: parked
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: M
 design: true
-blocked_on: [the-lattice-keeps-clear-of-the-boundary-and-every-winding-is-resolved]
+closed: 2026-11-17
+pr: 7043
 ---
 
 
@@ -79,3 +80,7 @@ its ends is the same class, unmeasured.
 - 2026-11-16 — **weighed and before Ev.** Three designers weighed it (`docs/DESIGN-FORK-LOG.md`, the row PR 6966 adds) and agreed after four rounds on two rules: the lattice keeps clear of the boundary, and every triangle's winding is resolved above the rounding of its own positions, checked where faces join the mesh. Both are text of `crates/mesh/README.md`, so they are PR 6966, which also carries the unit that builds them.
 
 - 2026-11-16 — **PR 6966 merged with Ev's answer.** Both rules are on the design page (`crates/mesh/README.md`: `[mesh.winding]`, and the clearance bullet of `[mesh.sizing]` with a temporary constant of 1/16 that goes to 1/2). The unit that builds them is dispatched (`the-lattice-keeps-clear-of-the-boundary-and-every-winding-is-resolved`) and closes this row.
+
+## Closed (2026-11-17, PR 7043)
+
+A lattice node is not laid within `BOUNDARY_CLEARANCE` (1/16) of its own step of the boundary, so no node stands within rounding of a chord point, and a face that would still emit a triangle f64 cannot wind refuses `UnresolvedWinding` where faces join the mesh. The torus ring that found this (the donut and B2 at δ 10⁻³) meshes in all six ops with every winding resolved (`reach_probes::a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row`), and the tilted pair meshes with the body's own mesh (`winding_rows::a_node_within_rounding_of_a_loop_vertex_is_not_laid`). What the rule refuses that main meshed is on the unit's row.

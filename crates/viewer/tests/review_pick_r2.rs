@@ -83,7 +83,7 @@ struct Tally {
 /// its first edit, `tube_arc` and `hollow_tube_elbow`, open and after
 /// their first edits, moved: grazes 147,955 → 147,952, refused
 /// candidates 17,532 → 16,824, rays with a refusal 8,358 → 8,244.
-const PINNED: (usize, usize, usize, usize) = (451_800, 147_952, 16_824, 8_244);
+const PINNED: (usize, usize, usize, usize) = (451_512, 147_856, 16_596, 8_142);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

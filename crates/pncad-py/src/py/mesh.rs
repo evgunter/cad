@@ -113,6 +113,12 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
                 float(*allowance).map(|a| fields[1] = ("value", a))
             })
         }),
+        // The triangle's height rides as the value and the allowance it
+        // does not exceed as the bound; its corners are in the message.
+        T::UnresolvedWinding { unresolved, .. } => float(unresolved.height).and_then(|h| {
+            fields[1] = ("value", h);
+            float(unresolved.allowance).map(|a| fields[2] = ("bound", a))
+        }),
         T::UnsupportedNurbsFace { note, .. } | T::UnsupportedCurve { note, .. } => {
             fields[4] = ("note", PyString::new(py, note).unbind().into_any());
             Ok(())

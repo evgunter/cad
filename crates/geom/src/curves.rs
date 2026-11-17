@@ -1736,6 +1736,18 @@ impl Curve3<geom_core::Interval> {
     }
 }
 
+/// **Which side of a parameter a reading stands on**: the parameters
+/// below it or those above it. A one-sided reading at a knot
+/// ([`Curve3::ders1_from`]) reads the span on that side, and a window
+/// held at a span's end reads the side its span runs to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParamSide {
+    /// The parameters below.
+    Below,
+    /// The parameters above.
+    Above,
+}
+
 impl<T: SpanLocate> Curve3<T> {
     /// The point at parameter `t` (see the variant docs for each
     /// parameterization; the crate docs for units and periodicity).
@@ -1880,13 +1892,12 @@ impl<T: SpanLocate> Curve3<T> {
         }
     }
 
-    /// **[`Self::ders1`] from one side of `t`** (`below`, from the
-    /// parameters under `t`; otherwise from those above it): a spline's
+    /// **[`Self::ders1`] from one side of `t`** (`side`): a spline's
     /// [`NurbsCurve3::ders1_from`], the one-sided derivative at a crease.
     /// Every other kind is smooth, and reads [`Self::ders1`].
-    pub fn ders1_from(&self, t: T, below: bool) -> (Point3<T>, Vec3<T>) {
+    pub fn ders1_from(&self, t: T, side: ParamSide) -> (Point3<T>, Vec3<T>) {
         match self {
-            Curve3::Nurbs(n) => n.ders1_from(t, below),
+            Curve3::Nurbs(n) => n.ders1_from(t, side),
             _ => self.ders1(t),
         }
     }

@@ -845,10 +845,10 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     // several other `UnsupportedChain` arms also satisfy.
     assert!(
         matches!(&err, BlendError::UnsupportedChain { detail, .. }
-            if *detail == "an open chain link is not plane–plane, ruled, or a torus between \
-                 two junctions"),
-        "an open chain whose link is neither plane–plane, nor ruled, nor a torus between two \
-         junctions has no built termination: {err:?}"
+            if *detail == "an open chain link is not plane–plane, ruled, or a band of revolution \
+                 between two junctions"),
+        "an open chain whose link is neither plane–plane, nor ruled, nor a band of revolution \
+         between two junctions has no built termination: {err:?}"
     );
     carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");
     // The corner clause's two conditions, each true of every corner the
@@ -998,11 +998,12 @@ fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
 }
 
 /// **`CHAMFER_ARM_RECOURSE` — "chamfer edges whose two supports are
-/// both planes".**
+/// both planes, or where a cylinder meets a plane square to its axis,
+/// round a whole rim or between the lines of a rounded outline".**
 ///
 /// The dome's equator is plane–sphere: the ruled strip has no arm over
-/// it. The both-planes request the sentence names is the cube, and it
-/// chamfers.
+/// it. The requests the sentence names are the cube, a post's top rim
+/// and a rounded outline's top, and each chamfers.
 #[test]
 fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
     let d = dome(1.0, tol());
@@ -1026,6 +1027,39 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
         0.1,
         "a both-planes chamfer request",
     );
+    let post =
+        sweep::test_support::cylinder_of_arcs_at(2, 0.5, Point2::new(0.0, 0.0), 0.0, 1.0, tol());
+    chamfers(&post, &circle_arcs_at_z(&post, 1.0), 0.1, "a whole rim");
+    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+    let rounded = prism(
+        vec![
+            (Point2::new(0.3, 0.0), 0.0),
+            (Point2::new(1.7, 0.0), q),
+            (Point2::new(2.0, 0.3), 0.0),
+            (Point2::new(2.0, 0.9), q),
+            (Point2::new(1.7, 1.2), 0.0),
+            (Point2::new(0.3, 1.2), q),
+            (Point2::new(0.0, 0.9), 0.0),
+            (Point2::new(0.0, 0.3), q),
+        ],
+        0.5,
+        tol(),
+    );
+    let top: Vec<EdgeKey> = query::all_edges(&rounded)
+        .into_iter()
+        .filter(|&e| {
+            let (a, b) = rounded.edge_vertices(e).unwrap();
+            let z = |v| {
+                rounded
+                    .get_point(rounded.get_vertex(v).unwrap().point)
+                    .unwrap()
+                    .z
+            };
+            z(a) > 0.25 && z(b) > 0.25
+        })
+        .collect();
+    assert_eq!(top.len(), 8, "the rounded outline's top");
+    chamfers(&rounded, &top, 0.1, "a rounded outline's top");
 }
 
 // ------------------------------------------------------------------
