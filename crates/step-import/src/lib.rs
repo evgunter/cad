@@ -96,15 +96,17 @@
 //! ε_in — the per-import *input* tolerance — defaults from the file's
 //! `UNCERTAINTY_MEASURE_WITH_UNIT` and is overridable per call
 //! ([`ImportOptions::eps_in`]); it is carried on the result
-//! ([`StepImport::eps_in`]). It governs interpretation: every question
+//! ([`StepImport::eps_in`]). It governs interpretation: a question
 //! asked of the file's statements is a distance in metres read through
 //! the kernel's one classification funnel at the file's band, `(e, K·e)`
 //! for `e` the larger of ε_in and the run's ε ([`interpret::file_band`]),
 //! with `[verdicts]`' three arms. A lane choice (which kind a carrier
 //! is) takes its closed form at Zero; a structural act (one record, a
 //! vertex at the seam) acts at Zero, keeps apart past the band, and
-//! refuses in it, naming the ε_in that would decide it. What
-//! interpretation moves is on the result's move ledger
+//! refuses in it, naming what would decide it. One pass still reads ε_in
+//! as a raw distance, the C⁰-knot split
+//! (`work/importgate/the-c0-knot-split-reads-eps-in-raw-not-at-the-file-band.md`).
+//! What interpretation moves is on the result's move ledger
 //! ([`StepImport::normalizations`]), never in the body. Certification
 //! of everything built runs at the run's ε like native geometry.
 //!
@@ -203,8 +205,9 @@
 //!   magnitude and a `DIRECTION` need not be normalized (both are
 //!   ratios per ISO 10303-42); an `AXIS2_PLACEMENT_3D` may leave its
 //!   axis or reference direction unset, and the schema's own
-//!   `build_axes` defaults are read rather than guessed. Fields that
-//!   ARE stated unit and perpendicular are still adopted bit for bit.
+//!   `build_axes` defaults are read rather than guessed. A frame whose
+//!   stated fields are rigid within their rounding is adopted bit for
+//!   bit; any other is built by `build_axes`.
 //! - **Assemblies**: one rigid `ITEM_DEFINED_TRANSFORMATION` covering
 //!   all of a file's content places the body through
 //!   [`topo::transform_rigid`]. Per-component placement, and any
@@ -453,33 +456,30 @@ pub enum NormalizationKind {
     /// own splits) and the faces it became with every edge and vertex
     /// they use.
     FaceSplitAtC0Knot,
-    /// **An assembly placement whose stated fields `build_axes` moved**
-    /// (`[import]`, `[tolerance.boundary]`): every placement frame is
-    /// minted from its fields by ISO 10303-42's `build_axes` (the axis
-    /// normalized, the reference direction projected perpendicular and
-    /// normalized), and a frame of this `ITEM_DEFINED_TRANSFORMATION`
-    /// whose fields as stated are no rigid frame within their own
-    /// rounding was moved by that construction. A STEP `direction` is a
-    /// ratio vector, so the normalization is the file's own semantics,
-    /// not a heal; it is reported so the move is on record. `moved_by` is
-    /// measured against the frame as the reader adopted its fields,
-    /// unnormalized: its columns the reference direction, the axis
-    /// crossed with it and the axis. The reader adopts a `direction`
-    /// within ε_in of unit verbatim and normalizes any other, and adopts
-    /// a reference within ε_in of perpendicular verbatim and projects any
-    /// other, so the matrix is the file's own fields wherever they lie
-    /// within ε_in and the reader's correction of them elsewhere. Over the
-    /// session box `moved_by` is the farthest a point moves between that
-    /// matrix and the built frame, summed over the pair. A file's ε_in bounds no such move
+    /// **A placement whose stated fields `build_axes` moved** (`[import]`,
+    /// `[tolerance.boundary]`): a placement frame whose fields as stated
+    /// are no rigid frame within their own rounding is built from its
+    /// ratio vectors by ISO 10303-42's `build_axes` (the axis normalized,
+    /// the reference direction projected perpendicular and normalized).
+    /// A STEP `direction` is a ratio vector, so normalizing one is its
+    /// meaning and moves nothing: `moved_by` is measured from the frame
+    /// of the two directions normalized (its columns the reference, the
+    /// axis crossed with it and the axis) to the built frame, as the
+    /// farthest a point of the session box moves. Keyed by the
+    /// `AXIS2_PLACEMENT_3D` of a surface's or curve's placement, or by an
+    /// assembly's `ITEM_DEFINED_TRANSFORMATION`, whose one entry sums its
+    /// two frames' moves and, where the pair reads as the identity at the
+    /// file's band, the snap to it. A file's ε_in bounds no such move
     /// (`work/onehome/a-step-files-input-tolerance-has-no-bound-the-ratified-text-states.md`).
-    /// Keyed by the transformation's instance id, not a face; its census
+    /// Keyed by that record's instance id, not a face; its census
     /// pair is empty, since no face, edge or vertex changes.
     PlacementReMinted {
-        /// The `ITEM_DEFINED_TRANSFORMATION` whose frames were moved.
+        /// The `AXIS2_PLACEMENT_3D` or `ITEM_DEFINED_TRANSFORMATION` whose
+        /// frames were moved.
         transform: u64,
         /// The move (metres): over the session box, the farthest a point
-        /// moves between a frame's matrix as adopted and its built one,
-        /// summed over the pair.
+        /// moves between a frame normalized and built, summed over a
+        /// pair's frames and its snap to the identity.
         moved_by: f64,
     },
     /// **Two surface records of one locus, made one** (`[import]`,
@@ -555,9 +555,12 @@ pub enum SingularityFound {
 /// with the imported body's.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StructureNormalization {
-    /// The `ADVANCED_FACE` entity instance the file states; on
-    /// [`NormalizationKind::PlacementReMinted`], which names no face, the
-    /// `ITEM_DEFINED_TRANSFORMATION`'s.
+    /// The `ADVANCED_FACE` entity instance the file states; where the
+    /// kind names no face, the entity it does: an `AXIS2_PLACEMENT_3D` or
+    /// `ITEM_DEFINED_TRANSFORMATION` ([`NormalizationKind::PlacementReMinted`]),
+    /// a curve ([`NormalizationKind::CurvePromoted`]). The ledger's own row
+    /// type is filed
+    /// (`work/importgate/the-move-ledger-wants-its-own-row-type.md`).
     pub face: u64,
     /// What was re-minted.
     pub kind: NormalizationKind,
@@ -823,7 +826,8 @@ impl StepImport {
 
     /// **The move ledger**: one record per file entity interpretation
     /// moved beyond rounding or re-minted, naming the entity, what moved
-    /// and a bound in metres, in the order the import made them.
+    /// and a bound in metres: every curve promotion first, by ascending
+    /// curve entity id, then the rest in the order the import made them.
     pub fn normalizations(&self) -> &[StructureNormalization] {
         match self {
             Self::Solid { normalizations, .. } | Self::Wireframe { normalizations, .. } => {

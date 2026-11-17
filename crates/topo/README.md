@@ -1889,8 +1889,12 @@ already and reads no extent.
   only that reading constructs, and the act consumes it and records the
   row (`Body::one_record_across`). No door re-points faces between
   records from an edge and a face alone.
-  The split's flush section, the chord join and import adoption keep two
-  records of one carrier and are filed.
+  The split's flush section and the chord join keep two records of one
+  carrier and are filed. Import makes two plane records whose faces read
+  as one locus facing one way one record before anything is built
+  (`step_import`'s `one_record`); two records of one non-planar locus
+  stay two, filed
+  (`work/importgate/two-records-of-one-non-planar-surface-stay-two-at-import.md`).
 - **`[topo.one-record.rest]` At rest no edge's locus reads values.**
   Where an edge rests is read off its sides by key (`rest_locus`): one
   record is its chart, two records are their pair. Two distinct records at rest

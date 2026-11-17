@@ -143,9 +143,10 @@ fn a_vertex_loop_point_off_its_sphere_is_an_evidence_miss() {
     }
 }
 
-/// A boolean union's re-tiled sides are two `PLANE` records of one
-/// locus: read at the faces, each pair becomes one record, the earlier
-/// kept, and the body wears one surface per side.
+/// A boolean union's top and bottom are each tiled into three `PLANE`
+/// records of one locus: read at the faces, the two later records of
+/// each become one with the earliest, kept, and the body wears one
+/// surface per flat side.
 #[test]
 fn two_records_of_one_plane_become_one() {
     let imported = import(&freecad_fixture("fuse_boxes")).unwrap();
@@ -161,7 +162,11 @@ fn two_records_of_one_plane_become_one() {
             _ => None,
         })
         .collect();
-    assert_eq!(joins.len(), 4, "the union's four re-tiled sides: {joins:?}");
+    assert_eq!(
+        joins.len(),
+        4,
+        "the top's and the bottom's two later records each: {joins:?}"
+    );
     for &(kept, joined, moved_by) in &joins {
         assert!(kept < joined, "the earlier record stays: {kept} {joined}");
         assert!(

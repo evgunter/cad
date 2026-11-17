@@ -2,15 +2,16 @@
 //! records to kernel-typed geometry and a shell/face/loop/edge
 //! description ready for assembly.
 //!
-//! The mapping is the **inverse of the writer's identity mapping**
-//! (`step-export`'s crate docs): every `axis2_placement_3d` becomes a
-//! kernel frame field for field, every elementary surface and conic
-//! its kernel twin, control points / knots / weights exact. Nothing
-//! is renormalized or re-derived — the one recognized convention is
-//! the cone's apex placement (`radius = 0.0`), where the placement
-//! location IS the kernel apex. Units and uncertainty are *read*
-//! (parsed, not assumed), refusing typed on anything the subset does
-//! not cover.
+//! The mapping reads each record as the kernel description it is
+//! evidence of, at the file's band ([`crate::interpret`]): every
+//! `axis2_placement_3d` becomes a kernel frame, kept bit for bit where
+//! the file states it rigid within its rounding and built by
+//! `build_axes` from its ratio vectors otherwise (the move reported);
+//! every elementary surface and conic becomes its kernel twin, a length
+//! a construction takes only positive read as one; control points,
+//! knots and weights are exact. A cone placed at its base circle is
+//! moved to its apex. Units and uncertainty are *read* (parsed, not
+//! assumed), refusing typed on anything the subset does not cover.
 
 use std::collections::BTreeMap;
 
@@ -142,7 +143,9 @@ pub(crate) struct FaceSpec {
     /// normalization's minted faces keep the id of the face they
     /// replace, so a reported census mapping names a real record).
     pub(crate) id: u64,
-    /// The mapped kernel surface, field for field.
+    /// The interpreted kernel surface: its placement built by
+    /// `build_axes`, its record one with another of its locus where
+    /// interpretation made them one.
     pub(crate) surface: Surface<f64>,
     /// `same_sense`, honored verbatim as [`topo::Face::sense`].
     pub(crate) sense: bool,
@@ -427,8 +430,8 @@ impl<'a> Resolver<'a> {
         ))
     }
 
-    /// `DIRECTION('', (x, y, z))` → kernel vector, exact (emitted as
-    /// stored — never renormalized here either).
+    /// `DIRECTION('', (x, y, z))` → the ratio triple as the file states
+    /// it, which its consumer normalizes by its own construction.
     fn direction(&self, from: u64, id: u64) -> Result<Vec3<f64>, StepImportError> {
         let args = self.simple(from, id, "DIRECTION")?;
         let [_, ratios] = args else {
@@ -565,8 +568,9 @@ impl<'a> Resolver<'a> {
         });
     }
 
-    /// An `ADVANCED_FACE`'s surface reference → the kernel surface,
-    /// field for field (the writer's printer table, inverted). Covers
+    /// An `ADVANCED_FACE`'s surface reference → the kernel surface, its
+    /// placement built ([`Self::placement`]) and its lengths read as
+    /// positive ([`Self::root_length`]). Covers
     /// the five elementary kinds plus the writer's two NURBS arms
     /// (M7-3): the non-rational simple `B_SPLINE_SURFACE_WITH_KNOTS`
     /// and the `RATIONAL_B_SPLINE_SURFACE` complex instance — the
@@ -2791,8 +2795,9 @@ impl<'a> Resolver<'a> {
 /// - a component representation named by three occurrences therefore
 ///   materializes three times, each copy mapped by its own frame
 ///   ([`SolidInstance`]);
-/// - the identity (at ε_in) is carried as `None` — nothing moves, the
-///   M7-2 behavior bit for bit — and an identity-placed component is
+/// - a pair that reads as the identity at the file's band is carried as
+///   `None` — nothing moves, and the snap is on the ledger where it
+///   moves any point — and an identity-placed component is
 ///   still RECORDED as covered (the coverage bug M8 fixed: the old
 ///   pass `continue`d past its own bookkeeping, so an identity
 ///   component read as never placed at all);
@@ -3268,9 +3273,8 @@ fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
 ///
 /// `eps_override` is [`crate::ImportOptions::eps_in`], plumbed to the
 /// resolver so the per-call override governs INTERPRETATION — D7's
-/// contract for ε_in (stage-1 surface recognition decides promotion at
-/// it; the direction/frame verbatim-adoption windows and the placement
-/// rigidity check spend the same budget). The model still carries the
+/// contract for ε_in (every reading of the file's statements is taken at
+/// its band, [`crate::interpret::FileBand`]). The model still carries the
 /// file's own declared uncertainty, which is what
 /// [`crate::StepImport::eps_in`] reports when no override was given.
 pub(crate) fn resolve(
