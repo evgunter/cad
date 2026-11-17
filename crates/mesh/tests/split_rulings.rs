@@ -513,16 +513,17 @@ fn a_run_at_a_corner_is_anchored_along_its_ruling() {
     assert_eq!(got_enclosing(&split, &whole, 0.01), Got::Meshed);
 }
 
-/// **A run on an ordinary frustum.** The frustum wall's outer cone face
-/// (half-angle 45°) with its seam split beside its start, placed
-/// obliquely: the split vertex and the seam's end lie within `2⁻²⁷` of
-/// their slant radius, and the face meshes at every δ as
-/// [`a_run_of_ruling_points_the_development_merges_meshes`] says.
+/// **A run on an ordinary frustum, at ε `10⁻¹²`.** The frustum wall's
+/// outer cone face (half-angle 45°) with its seam split beside its start,
+/// placed obliquely, at δ 0.1, 0.01 and 0.001.
 ///
-/// **By ε.** The gap is `10⁻⁸` of the seam at the default ε and `10⁻⁹`
-/// at `10⁻¹²`. At `10⁻⁶` a split is a split from `10⁻⁵`, which this
-/// cone's development does not merge: the row holds that the face meshes
-/// with its two points apart.
+/// **By ε.** At `10⁻¹²` the gap is `10⁻⁹` of the seam: the split vertex
+/// and the seam's end lie within `2⁻²⁷` of their slant radius, a run, and
+/// the face meshes as
+/// [`a_run_of_ruling_points_the_development_merges_meshes`] says. At the
+/// default ε and `10⁻⁶` the smallest split of this seam (`10⁻⁸` and
+/// `10⁻⁵` of it) is wider than this cone's development merges: the row
+/// holds that the face meshes with its two points apart.
 #[test]
 fn a_frustum_seam_split_within_the_developments_resolution_meshes() {
     let gap = match eps_row() {
