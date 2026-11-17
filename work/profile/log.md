@@ -19,3 +19,4 @@ escalation, which `editor-core`'s driver charges even on an Ok node.
 That question, and the range-width cost, are on
 `work/cpair/a-line-pairs-gap-reading-is-a-range-boundary-where-no-contact-changes.md`.
 - 2026-11-06 — (ROUND orchestrator) Re-banded `a-real-junction-on-a-short-leg-refuses-as-tangent` P2 → P1 on PR 6544's review evidence (reached on legs ≥ ε).
+- 2026-11-17 — **From DOCTAIL:** `the-prefix-replay-reports-each-drawn-pieces-start-centre-and-ray` (U2 of the profile self-reference build) moved to the new program SELFREF (`work/selfref/`) by `git mv`, id unchanged, so the build's dependency chain sits on one slate. The prefix door is still on `crates/profile` ground, and SELFREF announces a change to `walk`'s contract here. (DOCTAIL orchestrator)
