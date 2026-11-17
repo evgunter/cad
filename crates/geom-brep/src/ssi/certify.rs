@@ -4642,9 +4642,8 @@ mod node_end_rows {
         // Twice the farthest an end span may reach from a node: the
         // settle reach `√(NODE_SETTLE_FLOOR·ε′/σ)` times NODE_BOX_REACH,
         // with σ = 1 on this saddle in its own chart and metres.
-        let coarse = 2.0
-            * NODE_BOX_REACH
-            * (crate::ssi::ends::NODE_SETTLE_FLOOR * band().escalate()).sqrt();
+        let coarse =
+            2.0 * NODE_BOX_REACH * (crate::ssi::ends::NODE_SETTLE_FLOOR * band().escalate()).sqrt();
         let refusals = [
             (
                 "past by twenty band escalations",
