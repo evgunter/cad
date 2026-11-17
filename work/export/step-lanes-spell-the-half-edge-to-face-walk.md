@@ -2,10 +2,13 @@
 id: step-lanes-spell-the-half-edge-to-face-walk
 kind: issue
 title: step-import/src and step-export's example spell the half-edge to face walk
-status: open
+status: closed
 opened: 2026-09-19
 priority: P1
 cost: E
+branch: export/walks-and-zeros
+pr: 7067
+closed: 2026-11-17
 ---
 
 
@@ -39,3 +42,7 @@ and are `work/helper/the-half-edge-to-face-walk-is-spelled-per-test-file.md`.
 `git grep parent_loop` over the two crates, plus a type-directed probe
 bucket for the example. The probe counts field writes and 2-hop reads
 alongside 3-hop read walks, so the bucket is an upper bound.
+
+## Closed (2026-11-17)
+
+PR 7067 (`export/walks-and-zeros`). It had a single style review and a fix pass. The signed-zero fold has one home, `geom_core::fold_signed_zero`, and the importer's half-edge walks go through `topo::Body::face_of_half_edge` or the local `body_loop`/`loop_face` helpers. The PR body lists each site and what was done.

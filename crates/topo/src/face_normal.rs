@@ -1410,7 +1410,10 @@ mod tests {
 
     /// The hand folds of a face's bit in one source file's CODE view:
     /// for every `if … <ident containing "sense"> … { A } else { -A }`
-    /// (and the reversed `{ -A } else { A }`), the negated `A`. The
+    /// (and the reversed `{ -A } else { A }`), the negated `A`; and the
+    /// same under `interior_is_left`, the bit read through
+    /// [`geom_brep::PolygonOrientation`], whose own `to_interior` and
+    /// `interior_is_on` are the folded forms. The
     /// view has comments and string literals blanked and its whitespace
     /// collapsed, so a comment cannot hit and a rustfmt line break
     /// cannot hide an arm.
@@ -1444,7 +1447,7 @@ mod tests {
             let cond = &view[if_at + 3..open];
             let conditioned_on_sense = cond
                 .split(|c: char| !is_ident(c))
-                .any(|word| word.contains("sense"));
+                .any(|word| word.contains("sense") || word == "interior_is_left");
             if conditioned_on_sense {
                 out.push(a.trim_start_matches('-').to_string());
             }
@@ -1474,7 +1477,8 @@ mod tests {
     /// is folded (`side`, `inside`, `reversed` — the blend arms' `sided`
     /// is keyed on `side`); a fold spelled as a `copysign`, a multiply
     /// by a `±1` local minted elsewhere, a `match` on the bool, or an
-    /// arm whose expression contains a `;` or a brace; a fold in
+    /// arm whose expression contains a `;` or a brace; a side compared
+    /// with `interior_is_left` and not folded under an `if`; a fold in
     /// `crates/*/tests`, `demos/`, `tools/` or `benches/`, which the
     /// walk does not enter; a macro body. The walk is over the source
     /// tree at test time, so a crate outside `crates/` is not seen.
@@ -1495,20 +1499,11 @@ mod tests {
             ("crates/geom-brep/src/props/curved.rs", "enclosed"),
             ("crates/geom-brep/src/props/curved.rs", "radial"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
-            // The quarter-turn that rotates a line edge's chart direction
-            // toward its face, in the plane's chart frame: once each in
-            // `present_plane`, `present_plane_corner` and
-            // `present_plane_vertex`.
-            ("crates/topo/src/injective.rs", "1.0"),
-            ("crates/topo/src/injective.rs", "1.0"),
-            ("crates/topo/src/injective.rs", "1.0"),
-            // A face's side of an iso edge's line, as the sign of the held
-            // chart coordinate.
-            ("crates/topo/src/injective.rs", "side"),
-            // The whole turn a face takes round a singular point of its
-            // chart, in periods: the side the azimuth advances on, as an
-            // integer (`pcurves::singular_turn`), a chart count, no normal.
-            ("crates/topo/src/pcurves/decision.rs", "1"),
+            // The wrap strip's period, a whole turn signed by the face's
+            // side, folded under `interior_is_left` rather than through
+            // `PolygonOrientation::to_interior`
+            // (`work/onecopy/polygon-orientation-callers-fold-the-interior-side-by-hand.md`).
+            ("crates/mesh/src/walk.rs", "turn"),
             ("crates/topo/src/shell.rs", "thickness"),
             // The loop rule's start: a test sheet's loop is walked from
             // the mirrored chart coordinate at sense `false`
