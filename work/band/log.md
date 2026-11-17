@@ -1416,3 +1416,10 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - stale test prose, and the `UnbuiltEnd` texts spread over four homes.
 
   The fix pass resumed the implementer with the union (`fix-cut3.md`). The reach lane was told about the reach-site text.
+- 2026-11-17 — The reach lane opened PR 7078 (head 2960690d8a, CI green):
+  - the mixed corner's own reach, sharing anchors with the plan through `mixed_corner_geometry`;
+  - `PatchEnd` link windows;
+  - the odd-plus-one turn's `MixedCut`;
+  - `|n·τ|` turned into an invariant deferring to predicate 6.
+
+  All seven witnesses build. It found and corrected the bracket's real limit, which is 1/4, not 1/6. The lane commits are clean of trailers. Two concurrent Opus reviews are running on the frozen head, with no experiment arm.
