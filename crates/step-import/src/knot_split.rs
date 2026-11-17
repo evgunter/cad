@@ -1011,6 +1011,13 @@ fn split_face_once(
                 "a boundary edge shares a run with the knot's iso line",
             ));
         }
+        // A spline edge holds a vertex at each of its crease knots, so a
+        // meeting within the band of one is that knot's point, and the
+        // edge splits there by partition.
+        let creases = match spec.carrier {
+            Curve3::Nurbs(ref c) => c.knot_values().crease_values(),
+            _ => Vec::new(),
+        };
         let mut inner = Vec::new();
         for m in &met.points {
             let w = line.at(m.on_a);
@@ -1021,7 +1028,13 @@ fn split_face_once(
                 Hit::End(SpanEnd::Stop) => {
                     on_line.insert(spec.end, w);
                 }
-                Hit::On { t, .. } => inner.push((t, m.point, w)),
+                Hit::On { t, .. } => inner.push(
+                    creases
+                        .iter()
+                        .map(|&k| (k, spec.carrier.eval(k)))
+                        .find(|&(_, q)| (q - m.point).norm() <= band.escalate())
+                        .map_or((t, m.point, w), |(k, q)| (k, q, w)),
+                ),
             }
         }
         inner.sort_by(|a, b| a.0.total_cmp(&b.0));

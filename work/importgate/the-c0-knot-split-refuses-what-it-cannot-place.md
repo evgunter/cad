@@ -27,3 +27,21 @@ What still refuses `StepImportError::C0KnotUnsplit`, naming the face and the kno
 Placing either needs the line's crossings with the trim: a curve-surface inversion (`chart::uv_of` has no NURBS arm) and the loop surgery that follows it. This is a capability gap, not a design question. Until it lands, such a file refuses typed. On the merge base it imported with the crease inside a cell, and the mesher refused it.
 
 - 2026-11-02 — moved from FOREIGN to IMPORTGATE by `git mv` when FOREIGN merged into IMPORTGATE, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and FOREIGN had fallen far under it).
+
+## Placed (`importgate/knot-place`)
+
+`split_face_once` now reads where the knot's iso line meets the trim through the kernel's curve-pair reader (`geom_brep::curve_pair::meet`, at the file's chart band). It reads an edge along the line by its iso pcurve (`PcurveCache::certify` with `Pcurve::iso_column` / `iso_row`). It splits an edge only where its side changes, and traces each side's pieces. So the three classes above import:
+
+- **(a)** a trim crossing the line any even number of times, anywhere along it: one face per piece, each with its own outer loop (`a_trim_crossing_the_knot_line_four_times_imports_in_three_pieces`, `c_prism.step`);
+- **(b)** a crossed face with rings: a crossed ring joins its pieces' outer loops, and an uncrossed ring joins the one piece on its side (unit rows in `knot_split`). No import reaches it yet: a NURBS face with rings refuses earlier, at the curved-face ring gate in `entities::Resolver::face`;
+- **(c)** a face the selection cannot certify clear: the split itself finds no crossing, and the face stays whole, its chart narrowed to the sub-patch on its side (`a_face_bounded_by_a_curved_knot_line_imports_whole`, `half_ridge.step`).
+
+What still refuses `C0KnotUnsplit`, each naming the face and the knot:
+
+- **a pair the curve-pair reader does not settle at the file's band.** One case is a crossing within a few ε_in of tangency (`a_trim_crossing_by_twice_eps_in_is_kept_and_refuses_typed`). Another is a curved iso meeting a circle at a span's end at a coarse band, where the walk exhausts (`work/cpair/the-curve-pair-walk-exhausts-on-an-end-meeting-at-a-coarse-band.md`). A straight iso is read as a line in closed form, which settles that case.
+- **an edge along the line its iso pcurve does not certify**: one whose parameter is not affine in the line's, or a line beside a rational column. It goes to the walk, which reads no shared run.
+- **a touch of the line, or an edge along it, inside a run of the line in the face**: the piece would be pinched at a vertex.
+- **crossings that do not alternate into and out of the face** along the line, or a loop that changes side away from it.
+- **a crossed line that closes on itself** (a chart closed in the other direction).
+- **a ring on a side the line parts into several pieces**: telling which piece holds it needs containment on a chart with no inverse (`chart::infer_outer` has no NURBS arm).
+- **a boundary piece whose middle has no chart foot within the band** (the incidence premise, `import-splits-knot-lines-on-an-unchecked-incidence-premise`).
