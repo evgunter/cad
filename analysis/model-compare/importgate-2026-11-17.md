@@ -9,3 +9,5 @@ Protocol: e1c428efbb (corrected 2026-11-17; first written as d327ffb52, a shallo
 | importgate/interp-layer: import-interpretation-layer-reads-the-file-at-its-band (letter H, tier dual) | implementer | 246 | Opus | 2026-11-17T18:12:15Z | 526d3d477 |
 | importgate/parse-depth: PR 7069 head 4602a0e7d7 (letter S, tier single FULL) | reviewer | 34 | Opus | 2026-11-17T18:34:00Z | protocol 083ca253dc |
 | importgate/knot-place: PR 7084 head 69933c8708 (letter M, tier single FULL) | reviewer | 95 | Fable | 2026-11-17T20:12:30Z | protocol 083ca253dc |
+| importgate/interp-layer: PR 7091 frozen head 91b46ffaca (letter H, tier dual, concurrent) | slot order | 95 | R1 = Fable, R2 = Opus | 2026-11-17T21:58:32Z | protocol 083ca253dc |
+| importgate/interp-layer: PR 7091 | blind-coding map | 192 | even → A = R1, B = R2 | 2026-11-17T21:58:32Z | |
