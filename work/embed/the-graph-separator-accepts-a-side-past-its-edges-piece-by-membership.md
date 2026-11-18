@@ -2,10 +2,13 @@
 id: the-graph-separator-accepts-a-side-past-its-edges-piece-by-membership
 kind: issue
 title: Under the graph separator, a corner presentation's side along a cylinder's parallel may run past the edge's piece, where the graph does not vanish by construction, and membership accepts it
-status: open
+status: closed
 opened: 2026-11-13
 priority: P0
 cost: M
+closed: 2026-11-18
+pr: 7080
+branch: embed/graph-piece
 ---
 
 
