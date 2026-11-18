@@ -376,3 +376,49 @@ fn a_profile_on_a_member_traces_that_member() {
         "its wall at member 2's radius",
     );
 }
+
+/// **A face's chart reads a trace before anything is drawn on it**
+/// ([`editor_core::face_chart`], [`editor_core::nearest_to_face`]): a
+/// probe profile on the bottom cap's chart, lowered into a scratch copy
+/// of the document, reads the wall against the document's own
+/// evaluation, its spin and slides bound as the run binds them. The
+/// wall is the cylinder of the radius, its axis the sketch's `z`.
+#[test]
+fn a_faces_chart_reads_a_trace_before_anything_is_drawn_there() {
+    let (doc, cylinder) = cylinder_at(0.0);
+    let ev = eval(&doc);
+    let wall = face(&ev, cylinder, SurfaceKind::Cylinder);
+    let body = BodyRead::plain(Operand::output(cylinder, 0));
+    let bottom = cap(cylinder, CapEnd::Start);
+    let orient = editor_core::nearest_to_face(&doc, &ev, &body, &bottom);
+    let zero = OnFace::nearest();
+    let frame = editor_core::face_chart(body, bottom, (orient, zero.spin, zero.slides));
+    let mut scratch = doc.clone();
+    let probe = Node::Profile(ProfileProgram {
+        loops: Vec::new(),
+        ids: Vec::new(),
+        on: Some(editor_core::DrawnOn {
+            frame,
+            faces: vec![pick(Operand::output(cylinder, 0), wall)],
+        }),
+    });
+    let Node::Profile(program) =
+        editor_core::edit::lower_node_into(&mut scratch, &probe).expect("the probe lowers")
+    else {
+        unreachable!("a profile lowers to a profile")
+    };
+    let faces = editor_core::traced_faces(&scratch, &ev, &program, Tol::witness())
+        .unwrap_or_else(|e| panic!("the chart and the wall read: {e}"));
+    let [traced] = faces.as_slice() else {
+        panic!("one traced face: {}", faces.len())
+    };
+    let Ok(geom::Surface::Cylinder { axis, radius, .. }) = &traced.surface else {
+        panic!("the wall is a cylinder: {:?}", traced.surface)
+    };
+    near(*radius, RADIUS, "the wall's radius");
+    let z = traced.body_to_sketch.transform_vec(*axis);
+    assert!(
+        z.x.abs() < 1e-12 && z.y.abs() < 1e-12,
+        "the wall's axis is the sketch's z: {z:?}"
+    );
+}

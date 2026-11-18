@@ -10301,7 +10301,11 @@ mod properties_pane_tests {
                 matches!(
                     &shown.read,
                     Err(SketchTraceFault::Trace(fault))
-                        if matches!(**fault, pncad::trace::SketchTraceError::Read(_))
+                        if matches!(
+                            &**fault,
+                            pncad::trace::SketchTraceError::Read(kind)
+                                if matches!(**kind, pncad::document::NodeErrorKind::PoseRead { .. })
+                        )
                 ),
                 "{:?}",
                 shown.read
