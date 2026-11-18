@@ -7576,12 +7576,7 @@ impl Recording<'_, crate::ProfileProgram> {
             traced,
         } = on;
         let orient = orient.unwrap_or_else(|| self.nearest_to_face(&body, &face, opts, cancel));
-        let frame = crate::Operand::Pose(Box::new(crate::pose::PoseDef::FaceChart {
-            face: crate::Operand::select(body, vec![face]),
-            orient,
-            spin,
-            slides,
-        }));
+        let frame = face_chart(body, face, (orient, spin, slides));
         self.insert(Node::Profile(crate::ProfileProgram {
             loops,
             ids: Vec::new(),
@@ -7709,11 +7704,8 @@ impl Recording<'_, crate::ProfileProgram> {
         Ok(minted)
     }
 
-    /// **The orientation nearest where a profile on `face` of `body`
-    /// stands**: the profile's `z` along the face's outward normal, read
-    /// off the face as it stands now under `opts`; the identity where
-    /// the face does not read. The one home of a drawn-on-face gesture's
-    /// orientation ([`Self::draw_on_face`]).
+    /// [`nearest_to_face`] read off the face as it stands now under
+    /// `opts`.
     fn nearest_to_face(
         &self,
         body: &crate::BodyRead<Formula>,
@@ -7721,40 +7713,73 @@ impl Recording<'_, crate::ProfileProgram> {
         opts: &crate::EvalOptions,
         cancel: &crate::CancelToken,
     ) -> crate::Orientation {
-        let doc = self.doc();
-        let at = match &body.read {
-            crate::Operand::Output { node, port } => doc
-                .output(*node, *port)
-                .map_or(crate::At::Node(*node), crate::At::Read),
-            crate::Operand::Node(node) => crate::At::Node(*node),
-            crate::Operand::Var(var) => crate::At::Read(*var),
-            _ => return crate::Orientation::IDENTITY,
-        };
-        let ev: crate::Evaluation<f64> = crate::evaluate(doc, None, cancel, opts, self.tol);
-        // A member's face is named by the member's own name: the family's
-        // table names it otherwise.
-        let family_name;
-        let face = if body.is_indexed() {
-            let Some(name) = body
-                .written_member(doc)
-                .and_then(|member| crate::names::family_entity(&ev, at, &member, face))
-            else {
-                return crate::Orientation::IDENTITY;
-            };
-            family_name = name;
-            &family_name
-        } else {
-            face
-        };
-        crate::names::interrogate::face_frame(&ev, at, face).map_or(
-            crate::Orientation::IDENTITY,
-            |pose| {
-                let outward = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
-                crate::Orientation::IDENTITY
-                    .toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), outward)
-            },
-        )
+        let ev: crate::Evaluation<f64> = crate::evaluate(self.doc(), None, cancel, opts, self.tol);
+        nearest_to_face(self.doc(), &ev, body, face)
     }
+}
+
+/// **The face's chart a profile drawn on `face` of `body` stands on**
+/// ([`crate::pose::PoseDef::FaceChart`]), under an orientation, a spin
+/// and two slides, as an operand: the frame [`Recording::draw_on_face`]
+/// draws on, for a reader that reads it before anything is drawn there
+/// (a trace shown before the gesture commits).
+#[must_use]
+pub fn face_chart(
+    body: crate::BodyRead<Formula>,
+    face: crate::StableName,
+    (orient, spin, slides): (crate::Orientation, Formula, [Formula; 2]),
+) -> crate::Operand {
+    crate::Operand::Pose(Box::new(crate::pose::PoseDef::FaceChart {
+        face: crate::Operand::select(body, vec![face]),
+        orient,
+        spin,
+        slides,
+    }))
+}
+
+/// **The orientation nearest where a profile on `face` of `body`
+/// stands**: the profile's `z` along the face's outward normal, read off
+/// the face in `ev`, an evaluation of `doc`; the identity where the face
+/// does not read. The one home of a drawn-on-face gesture's orientation
+/// ([`Recording::draw_on_face`]).
+#[must_use]
+pub fn nearest_to_face(
+    doc: &Doc<crate::ProfileProgram>,
+    ev: &crate::Evaluation<f64>,
+    body: &crate::BodyRead<Formula>,
+    face: &crate::StableName,
+) -> crate::Orientation {
+    let at = match &body.read {
+        crate::Operand::Output { node, port } => doc
+            .output(*node, *port)
+            .map_or(crate::At::Node(*node), crate::At::Read),
+        crate::Operand::Node(node) => crate::At::Node(*node),
+        crate::Operand::Var(var) => crate::At::Read(*var),
+        _ => return crate::Orientation::IDENTITY,
+    };
+    // A member's face is named by the member's own name: the family's
+    // table names it otherwise.
+    let family_name;
+    let face = if body.is_indexed() {
+        let Some(name) = body
+            .written_member(doc)
+            .and_then(|member| crate::names::family_entity(ev, at, &member, face))
+        else {
+            return crate::Orientation::IDENTITY;
+        };
+        family_name = name;
+        &family_name
+    } else {
+        face
+    };
+    crate::names::interrogate::face_frame(ev, at, face).map_or(
+        crate::Orientation::IDENTITY,
+        |pose| {
+            let outward = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
+            crate::Orientation::IDENTITY
+                .toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), outward)
+        },
+    )
 }
 
 /// [`fn@sketch_on_face`]'s outcome: the action applied, and what it

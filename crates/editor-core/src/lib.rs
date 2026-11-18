@@ -138,8 +138,8 @@ pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, DrawnOnFace, EditError, EditRecord,
     IndexFault, LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured, OnFace,
     ProductReadFault, Recorded, Recording, SketchOutcome, SketchedOnFace, SlotValue, SourceFault,
-    Took, apply, apply_replayed, cascade_delete_order, draw_on_face, measure, sketch_on_face,
-    slot_admits,
+    Took, apply, apply_replayed, cascade_delete_order, draw_on_face, face_chart, measure,
+    nearest_to_face, sketch_on_face, slot_admits,
 };
 pub use eval::measure::ObservedRefusal;
 pub use eval::{
@@ -255,8 +255,7 @@ pub use step_handle::{
 };
 pub use take_over::{Answered, Moved, TakeOverOutcome, Taken, TakenOver, take_over};
 pub use trace::{
-    TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, TracedFrameFault, Traces,
-    trace_marks, traced_frame,
+    TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, Traces, trace_marks,
 };
 pub use var::{
     FreshEntry, Index, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId,

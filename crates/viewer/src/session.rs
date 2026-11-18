@@ -2339,7 +2339,7 @@ impl DocSession {
             } => self.edit_profile(node, &base, loops, ids),
             op @ (SessionOp::AddProfile { .. }
             | SessionOp::SketchOnFace { .. }
-            | SessionOp::AddDrawnProfile { .. }
+            | SessionOp::DrawOnFace { .. }
             | SessionOp::AddExtrude { .. }
             | SessionOp::AddRevolve { .. }
             | SessionOp::AddBoolean { .. }
@@ -2402,11 +2402,11 @@ impl DocSession {
                 distance,
                 spin,
             } => self.sketch_on_face(&face, loops, distance, spin),
-            SessionOp::AddDrawnProfile {
-                plane,
+            SessionOp::DrawOnFace {
+                face,
                 traced,
                 chains,
-            } => self.add_drawn_profile(&plane, &traced, chains),
+            } => self.draw_on_face(&face, &traced, chains),
             SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
             SessionOp::AddRevolve {
                 profile,
@@ -3495,77 +3495,71 @@ impl DocSession {
         }))
     }
 
-    /// **A profile drawn on the frame of `plane` and the first traced
-    /// face, tracing `traced`** ([`SessionOp::AddDrawnProfile`]): the
-    /// frame read against an evaluation of the committed document
-    /// ([`drawn_frame`]), the program built by the façade's door
-    /// ([`pncad::trace::drawn_profile`], which checks each argument's
-    /// dimension), and one `InsertNode`.
-    fn add_drawn_profile(
+    /// **A profile drawn on `face`, tracing `traced`**
+    /// ([`SessionOp::DrawOnFace`]): `chains` as the façade checks them
+    /// ([`pncad::trace::chain_loops`]), drawn on the face's chart at its
+    /// nearest orientation by the kernel's one door
+    /// (`Recording::draw_on_face`), each pick read on the body it
+    /// landed on ([`picked_body`]), against an evaluation of the
+    /// committed document.
+    fn draw_on_face(
         &self,
-        plane: &FaceSelection,
+        face: &FaceSelection,
         traced: &[FaceSelection],
         chains: Vec<pncad::trace::Chain>,
     ) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
-        let Some(first) = traced.first() else {
-            return Err(Refusal::Frame(Box::new(GestureFrameFault::Traced(
-                Arc::new(pncad::trace::TracedFrameFault::NotAFace),
-            ))));
+        let picked = |face: &FaceSelection| Refusal::PickedMember {
+            node: doc.spoken(face.node),
         };
-        let ev: Evaluation<f64> = pncad::document::evaluate(
-            doc,
-            None,
-            &pncad::document::CancelToken::new(),
-            &self.eval_options(),
-            self.tol,
-        );
-        let read = |face: &FaceSelection| {
-            pick_read(doc, Some(&ev), face).ok_or_else(|| Refusal::PickedMember {
-                node: doc.spoken(face.node),
-            })
-        };
-        let frame = match drawn_frame(doc, &ev, (&read(plane)?, &read(first)?), self.tol) {
-            Ok(frame) => frame,
-            Err(fault) => {
-                return Err(Refusal::Frame(Box::new(GestureFrameFault::Traced(
-                    Arc::new(fault),
-                ))));
-            }
-        };
-        let faces = traced.iter().map(read).collect::<Result<Vec<_>, _>>()?;
-        match pncad::trace::drawn_profile(frame, faces, chains) {
-            Ok(node) => Ok(creating(move |run| run.insert(node))),
-            Err(error) => Err(Refusal::Edit(Box::new(error))),
-        }
+        let (body, name) = picked_body(doc, self.evaluation(), face).ok_or_else(|| picked(face))?;
+        self.require_read(&body.read, NodeKindWanted::Body)?;
+        let faces = traced
+            .iter()
+            .map(|face| pick_read(doc, self.evaluation(), face).ok_or_else(|| picked(face)))
+            .collect::<Result<Vec<_>, _>>()?;
+        let loops = pncad::trace::chain_loops(chains).map_err(|e| Refusal::Edit(Box::new(e)))?;
+        let opts = self.eval_options();
+        Ok(creating(move |run| {
+            run.draw_on_face(
+                body,
+                name,
+                loops,
+                pncad::document::OnFace {
+                    traced: faces,
+                    ..pncad::document::OnFace::nearest()
+                },
+                (&opts, &pncad::document::CancelToken::new()),
+            )
+        }))
     }
 
-    /// **`face`'s trace in the plane of `plane`, for display**
+    /// **`face`'s trace on `on`, for display**
     /// ([`pncad::trace::sketch_trace`]), against the landed evaluation:
-    /// on the frame a profile drawn there tracing `face` stands on
-    /// ([`drawn_frame`]), read as that profile would read it, and
-    /// sampled across a square the traced body spans. Nothing is
-    /// written.
+    /// on the chart a profile drawn on `on` stands on, at its nearest
+    /// orientation ([`pncad::document::face_chart`]), read as that
+    /// profile would read it, and sampled across a square the traced
+    /// body spans. Nothing is written.
     ///
     /// # Errors
     ///
     /// [`SketchTraceFault`].
     pub fn sketch_trace(
         &self,
-        plane: &FaceSelection,
+        on: &FaceSelection,
         face: &FaceSelection,
     ) -> Result<pncad::trace::TraceMarks, SketchTraceFault> {
         let (doc, ev) = self.name_run().ok_or(SketchTraceFault::Unevaluated)?;
-        let read = |face: &FaceSelection| {
-            pick_read(doc, Some(ev), face).ok_or_else(|| {
-                SketchTraceFault::Picked(Arc::new(Refusal::PickedMember {
-                    node: doc.spoken(face.node),
-                }))
-            })
+        let picked = |face: &FaceSelection| {
+            SketchTraceFault::Picked(Arc::new(Refusal::PickedMember {
+                node: doc.spoken(face.node),
+            }))
         };
-        let traced = read(face)?;
-        let frame = drawn_frame(doc, ev, (&read(plane)?, &traced), self.tol)
-            .map_err(|fault| SketchTraceFault::Frame(Arc::new(fault)))?;
+        let traced = pick_read(doc, Some(ev), face).ok_or_else(|| picked(face))?;
+        let (body, name) = picked_body(doc, Some(ev), on).ok_or_else(|| picked(on))?;
+        let orient = pncad::document::nearest_to_face(doc, ev, &body, &name);
+        let at_zero = pncad::document::OnFace::nearest();
+        let frame = pncad::document::face_chart(body, name, (orient, at_zero.spin, at_zero.slides));
         let half = TRACE_WINDOW_MARGIN * body_reach(ev, face.node).unwrap_or(1.0);
         pncad::trace::sketch_trace(
             doc,
@@ -6174,11 +6168,9 @@ const TRACE_WINDOW_MARGIN: f64 = 1.25;
 pub enum SketchTraceFault {
     /// Nothing has landed to read the trace against.
     Unevaluated,
-    /// No frame reads off the picks ([`drawn_frame`]): the traced face
-    /// has no axis, or the picked face is no plane square to it.
-    Frame(Arc<pncad::trace::TracedFrameFault>),
     /// The trace's own refusal: the plane misses the face, the carrier
-    /// has no closed form, or a read refused.
+    /// has no closed form, or a read refused (the face drawn on is no
+    /// plane, so it has no chart).
     Trace(Arc<pncad::trace::SketchTraceError>),
     /// A pick is read in no one body ([`Refusal::PickedMember`]).
     Picked(Arc<Refusal>),
@@ -6188,7 +6180,6 @@ impl core::fmt::Display for SketchTraceFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Unevaluated => f.write_str("the document has not been evaluated yet"),
-            Self::Frame(e) => write!(f, "{e}"),
             Self::Trace(e) => write!(f, "{e}"),
             Self::Picked(refusal) => write!(f, "{refusal}"),
         }
@@ -6275,21 +6266,6 @@ pub(crate) fn pick_read(
 ) -> Option<Operand> {
     let (body, name) = picked_body(doc, ev, pick)?;
     Some(Operand::select(body, vec![name]))
-}
-
-/// **The frame a sketch tracing `traced` stands on, in the plane of
-/// `plane`** ([`pncad::trace::traced_frame`]): `Through` the traced
-/// face's own axis and a vertex of the picked plane face. A boss swept
-/// up that axis from a piece leaving the trace along its tangent is
-/// tangent to the traced wall by construction: the coincidence door
-/// proves the union's tangency row `SameConstruction`.
-fn drawn_frame(
-    doc: &Doc<ProfileProgram>,
-    ev: &Evaluation<f64>,
-    (plane, traced): (&Operand, &Operand),
-    tol: Tol,
-) -> Result<Operand, pncad::trace::TracedFrameFault> {
-    pncad::trace::traced_frame(doc, ev, plane, traced, tol)
 }
 
 /// How far `node`'s body reaches from its own origin across its `xy`:

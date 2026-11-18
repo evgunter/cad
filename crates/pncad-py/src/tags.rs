@@ -1993,8 +1993,6 @@ pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
         PinRefusal::NotABody { .. } => "pin_not_a_body",
         PinRefusal::AlreadyPlaced { .. } => "pin_already_placed",
         PinRefusal::NoFrame { .. } => "pin_no_frame",
-        PinRefusal::UnwrittenIndex => "pin_unwritten_index",
-        PinRefusal::NoMember { .. } => "pin_no_member",
     }
 }
 
