@@ -1460,7 +1460,12 @@ onto the face by the least turn, then turned by the written spin and
 moved by the two written slides ([placement.values]). Within the band
 about that orientation's pole it refuses, naming the orientation to
 write, as a placement does. Nothing about the face's cells chooses it:
-a sketch that should sit at a corner says so in its slides. Only a placement relates
+a sketch that should sit at a corner says so in its slides. The sketch
+may trace faces of that space ("Constructing a coincidence"): a profile
+on a face is one act whether or not it traces, and a sweep of it is
+tangent to a traced face by construction where the face's plane and the
+traced face's sweep are one construction (an extrude's cap and its
+wall, or a face mated flat onto that cap). Only a placement relates
 two spaces (FORK-S3P), so a feature at several positions is one body placed
 several times, each placement a copy.
 

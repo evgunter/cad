@@ -71,7 +71,9 @@ reads it in its own way:
   placement's own chart (`[placement]`): its `z` is the face's outward
   normal, and its `x` and origin are the space's under the written
   orientation, carried by the least turn, then the written spin and slides
-  (each the constant `0` unless named). The profile and every sweep of it are in
+  (each the constant `0` unless named). It may trace faces of that body
+  (`DrawnOn.faces`, empty for a sketch that traces none); there is no
+  second frame rule for a traced sketch. The profile and every sweep of it are in
   that body's space, and nothing is placed. Extrude and Combine are the
   ordinary acts after it: a signed depth sweeps above the face (a boss) or
   into it (a pocket's tool).
