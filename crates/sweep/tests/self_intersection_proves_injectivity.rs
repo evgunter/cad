@@ -895,6 +895,62 @@ fn a_quarter_balls_lens_caps_hold_read_at_each_pole() {
     holds_at_both("the quarter ball", lune(), lune());
 }
 
+/// **A two-arc lune's hollow holds, its cavity's sphere read in its
+/// caps' poses**: a half disc whose arc is split at the equator,
+/// revolved a quarter turn about its diameter, its equator seam cut by
+/// hand (`torax_axial`'s two-arc lune), then hollowed by 0.05. The
+/// cavity's caps stand 0.05 off the axis, in the planes `x = 0.05` and
+/// `z = −0.05`, so each meets the cavity's sphere in a circle off the
+/// sphere's axis, which its stored chart has no coordinate line for.
+/// Each sphere face is read beside a cap's circle in the chart about
+/// that cap's normal, where the circle is a parallel and the equator a
+/// meridian. Red if no pose reads them: the cavity's sphere halves then
+/// refuse `Uncertified` across the equator, and each cap against each
+/// sphere half beside its circle.
+#[test]
+fn a_two_arc_lunes_hollow_holds_its_cavity_read_in_its_caps_poses() {
+    use crate::common::latitude_seam::latitude_on_partial_wall;
+    use profile::test_support::bulge_loop;
+    let r = 0.3_f64;
+    let quarter_arc = -(core::f64::consts::PI / 8.0).tan();
+    let profile = Profile::new(
+        SketchPlane::xy(),
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, -r), 0.0),
+            (Point2::new(0.0, r), quarter_arc),
+            (Point2::new(r, 0.0), quarter_arc),
+        ])],
+    )
+    .validate(tol())
+    .expect("the two-arc lune's cross-section validates");
+    let mut body = revolve(
+        &profile,
+        axis_y(),
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol(),
+    )
+    .expect("the two-arc lune revolves")
+    .body
+    .into_body();
+    let sphere = body
+        .faces()
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .expect("the sphere wall")
+        .1
+        .surface;
+    latitude_on_partial_wall(&mut body, sphere, Point2::new(r, 0.0), core::f64::consts::FRAC_PI_2);
+    let hollow = topo::shell(&sweep::test_support::finished("the lune", body, tol()), 0.05, tol())
+        .expect("the lune hollows")
+        .body;
+    let spheres = hollow
+        .faces()
+        .filter(|(k, _)| matches!(hollow.face_surface(*k), Some(Surface::Sphere { .. })))
+        .count();
+    assert_eq!(spheres, 4, "two sphere halves outside, two in the cavity");
+    let report = injective(&hollow, None, BUDGET);
+    assert_holds("the two-arc lune's hollow", &report, &hollow);
+}
+
 /// **A filleted cube corner's ball holds against the faces it touches
 /// at its pole**: the unit cube with the three edges at `(1, 1, 1)`
 /// filleted. The corner's sphere is charted with a pole at the vertex

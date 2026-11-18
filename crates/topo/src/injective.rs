@@ -1841,8 +1841,8 @@ fn present_chart<'a>(
 
 /// [`present_chart`], in the stored chart or, `posed`, in a pose of a
 /// sphere ([`present_posed`]): there the cell is narrower than half a
-/// turn, so it holds one sheet of the face, and a side carries no
-/// parameters and no corner zero.
+/// turn, so it holds one sheet of the face, a side carries no parameters
+/// and no corner zero, and no rectangle is read as a sliver.
 fn present_chart_in<'a>(
     piece: &Piece<'a>,
     near_edges: &[usize],
@@ -2151,7 +2151,7 @@ fn present_chart_in<'a>(
     // the finger and leaves the face's points beside the finger out —
     // and reading it vacuous drops them. The order is required for
     // soundness.
-    for c in &merged {
+    for c in merged.iter().filter(|_| !posed) {
         let on_shared = c.edges.iter().all(|e| near_edges.contains(e)) && !c.edges.is_empty();
         if !on_shared {
             continue;
@@ -2452,9 +2452,10 @@ fn posed_boundary(frame: &PoseFrame, b: &Boundary) -> Boundary {
 /// point of the sphere in the box `image`, which holds the face's part of
 /// the cell. On the sphere `Z/r` is the sine of the latitude, so the
 /// latitude lies in the arcsine of the box's `Z/r` clamped to `[−1, 1]`;
-/// the azimuth is the box's [`angle`]. `None` where the box holds the
-/// pose's axis (its azimuth is every azimuth), or where the azimuth spans
-/// a half turn or more: a smaller cell may not.
+/// the azimuth is the box's [`angle`], within a quarter turn either side
+/// of its middle, so the rectangle is narrower than half a turn. `None`
+/// where the box is not decided off the pose's axis, about which every
+/// azimuth meets: a smaller cell may be.
 fn posed_cell(
     frame: &PoseFrame,
     radius: Interval,
@@ -2471,8 +2472,8 @@ fn posed_cell(
     }
     let lat = Interval::from_bounds(lo, hi).asin();
     let lon = angle(q.dot(frame.x), q.dot(frame.y))?;
-    let (x, y) = ((lon.lo(), lon.hi()), (lat.lo(), lat.hi()));
-    (lat.is_certified() && x.1 - x.0 < TURN / 2.0).then_some((x, y))
+    lat.is_certified()
+        .then_some(((lon.lo(), lon.hi()), (lat.lo(), lat.hi())))
 }
 
 /// One pose a sphere face's cell is read in: the chart, the boundary
@@ -12996,6 +12997,494 @@ mod presentation_rows {
             sign_on(&graph((0.0, 0.4)), Some(&on), &q, None, band()),
             None,
             "the shared edge's far end"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod posed_rows {
+    //! A sphere face beside circles off its stored axis, read in the
+    //! chart about each circle's own axis ([`present_posed`]).
+    use super::*;
+    use geom_core::Tol;
+
+    /// The caps' planes `x = A` and `y = A`.
+    const A: f64 = 0.25;
+    /// Where the cone strip crosses the sphere, `x = B`.
+    const B: f64 = 0.3;
+
+    fn iv0(x: f64) -> Interval {
+        Interval::from_bounds(x, x)
+    }
+
+    fn v3(x: f64, y: f64, z: f64) -> Vec3<Interval> {
+        Vec3::new(iv0(x), iv0(y), iv0(z))
+    }
+
+    fn pt(x: f64, y: f64, z: f64) -> Point3<Interval> {
+        Point3::new(iv0(x), iv0(y), iv0(z))
+    }
+
+    fn p2((u, v): (f64, f64)) -> Point2<Interval> {
+        Point2::new(iv0(u), iv0(v))
+    }
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn vertex(n: u64) -> VertexKey {
+        VertexKey::from(slotmap::KeyData::from_ffi(n | (1 << 32)))
+    }
+
+    fn edge(n: u64) -> EdgeKey {
+        EdgeKey::from(slotmap::KeyData::from_ffi(n | (1 << 32)))
+    }
+
+    fn face(n: u64) -> FaceKey {
+        FaceKey::from(slotmap::KeyData::from_ffi(n | (1 << 32)))
+    }
+
+    /// `√(1 − x²)`: the radius of the unit sphere's circle `x` off its
+    /// centre.
+    fn across(x: f64) -> f64 {
+        (1.0 - x * x).sqrt()
+    }
+
+    /// A use whose chart image is no coordinate line, from `a` to `b`.
+    fn curve_use(plus: bool, a: (f64, f64), b: (f64, f64)) -> Use {
+        Use {
+            plus,
+            image: Some([p2(a), p2(b)]),
+            iso: None,
+            harmonic: None,
+            wall: None,
+        }
+    }
+
+    /// An edge of one use on the circle about `centre` along `axis`,
+    /// seam `u_ref`, of `radius`, over `span`.
+    fn circle_rim(
+        n: u64,
+        ends: [u64; 2],
+        (centre, axis, u_ref, radius): (Point3<Interval>, Vec3<Interval>, Vec3<Interval>, f64),
+        span: (f64, f64),
+        u: Use,
+    ) -> Rim {
+        Rim {
+            key: edge(n),
+            arc: Some((
+                Curve3::circle(centre, axis, iv0(radius), u_ref),
+                (iv0(span.0), iv0(span.1)),
+            )),
+            ends: ends.map(vertex),
+            uses: vec![u],
+        }
+    }
+
+    /// The unit sphere about the origin, charted about `z` from `x`.
+    fn sphere() -> Surface<Interval> {
+        Surface::Sphere {
+            center: pt(0.0, 0.0, 0.0),
+            radius: iv0(1.0),
+            axis: v3(0.0, 0.0, 1.0),
+            u_ref: v3(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// The circle `x = A`, about `x` from `y`: `(A, s·cos t, s·sin t)`.
+    fn x_circle() -> (Point3<Interval>, Vec3<Interval>, Vec3<Interval>, f64) {
+        (
+            pt(A, 0.0, 0.0),
+            v3(1.0, 0.0, 0.0),
+            v3(0.0, 1.0, 0.0),
+            across(A),
+        )
+    }
+
+    /// **The spherical triangle `x ≥ A`, `y ≥ A`, `z ≥ 0`**, the
+    /// two-arc lune's cavity face in miniature: from `E1 = (A, s, 0)` up
+    /// the circle `x = A` (edge 1) to `T = (A, A, h)`, down the circle
+    /// `y = A` (edge 2) to `E2 = (s, A, 0)`, and back along the equator
+    /// (edge 3), counter-clockwise about the outward normal. The stored
+    /// chart reads the equator as `v = 0` and neither circle as any
+    /// coordinate line.
+    fn triangle() -> Boundary {
+        let (s, h) = (across(A), (1.0 - 2.0 * A * A).sqrt());
+        let lon = |x: f64, y: f64| y.atan2(x);
+        let (e1, e2, top) = (lon(A, s), lon(s, A), (h.asin(), lon(A, A)));
+        let t_top = h.atan2(A);
+        Boundary {
+            sense: true,
+            edges: vec![
+                circle_rim(
+                    1,
+                    [1, 3],
+                    x_circle(),
+                    (0.0, t_top),
+                    curve_use(true, (e1, 0.0), (top.1, top.0)),
+                ),
+                circle_rim(
+                    2,
+                    [3, 2],
+                    (pt(0.0, A, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0), s),
+                    (A.atan2(h), core::f64::consts::FRAC_PI_2),
+                    curve_use(true, (top.1, top.0), (e2, 0.0)),
+                ),
+                circle_rim(
+                    3,
+                    [2, 1],
+                    (pt(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0), 1.0),
+                    (e2, e1),
+                    Use {
+                        iso: Some(Iso {
+                            held: Axis::V,
+                            at: iv0(0.0),
+                            full: false,
+                        }),
+                        ..curve_use(true, (e2, 0.0), (e1, 0.0))
+                    },
+                ),
+            ],
+            vertices: BTreeMap::from([
+                (vertex(1), pt(A, s, 0.0)),
+                (vertex(2), pt(s, A, 0.0)),
+                (vertex(3), pt(A, A, h)),
+            ]),
+            extent: Some([(e2, e1), (0.0, top.0)]),
+        }
+    }
+
+    /// The local boundary of `b` on `surface`'s cell `u × v`, and its ball.
+    fn reach(
+        surface: &Surface<Interval>,
+        b: &Boundary,
+        (u, v): ((f64, f64), (f64, f64)),
+    ) -> (Local, Ball) {
+        let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
+        let ball = Ball::holding(surface.point_eval(m(u), m(v)), surface.rect_enclosure(u, v));
+        (Local::of(b, ball, band()), ball)
+    }
+
+    /// A presentation without its borrow: the zero, the rectangle, and
+    /// the pole axis of the sphere it is read on.
+    type Posed = (Zero, (f64, f64), (f64, f64), Vec3<f64>);
+
+    /// What presenting `b` in the cell came to, the shared cell `near`,
+    /// read through [`present`].
+    fn posed(
+        surface: &Surface<Interval>,
+        b: &Boundary,
+        cell: ((f64, f64), (f64, f64)),
+        near: (&[usize], &[VertexKey]),
+    ) -> Result<Posed, Unpresented> {
+        let (local, ball) = reach(surface, b, cell);
+        let piece = Piece {
+            face: face(1),
+            surface,
+            whole: false,
+            boundary: b,
+            u: cell.0,
+            v: cell.1,
+            local: &local,
+            ball,
+        };
+        let poses = Poses::default();
+        match present(&piece, near.0, near.1, band(), &poses)? {
+            Presentation::Vacuous => panic!("the cell holds the face"),
+            Presentation::Of(q) => {
+                let Surface::Sphere { axis, .. } = *q.surface else {
+                    panic!("a sphere is presented on a sphere")
+                };
+                Ok((q.zero.clone(), q.x, q.y, vmid(axis)))
+            }
+        }
+    }
+
+    /// **A sphere face beside an off-axis circle reads it as a parallel
+    /// of the circle's own pose** ([`present_posed`]). At `E1`, beside
+    /// the circle `x = A`, the stored chart has no coordinate line for the
+    /// circle and reads `Structural`; the pose about `x` reads the circle
+    /// as the parallel `asin A`, the face above it, and the equator as
+    /// the meridian `0`, the face past it. Across either, that side is
+    /// the zero. Red if a pose reads a line on the wrong side of its face,
+    /// misplaces the parallel, reads the equator as no line, or is not
+    /// tried.
+    #[test]
+    fn a_sphere_face_beside_an_off_axis_circle_reads_it_as_a_parallel_of_its_pose() {
+        let (s, b) = (sphere(), triangle());
+        let at_e1 = ((1.29, 1.34), (-0.03, 0.03));
+        let parallel = A.asin();
+        match posed(&s, &b, at_e1, (&[0], &[vertex(1)])) {
+            Ok((Zero::Side(Side::YLo, along), x, y, axis)) => {
+                assert_eq!(along.edges, vec![edge(1)], "the circle is the zero");
+                assert!(
+                    along.params.is_none(),
+                    "a pose's side carries no parameters"
+                );
+                assert_eq!(axis.to_array(), [1.0, 0.0, 0.0], "the pose about x");
+                assert!(
+                    y.0 <= parallel && parallel - y.0 < 1e-12,
+                    "the side is the parallel asin A: {y:?}"
+                );
+                assert!(
+                    x.0 < 0.0 && 0.0 < x.1,
+                    "the rectangle reaches E1's meridian: {x:?}"
+                );
+            }
+            other => panic!("across the circle at E1: {other:?}"),
+        }
+        match posed(&s, &b, at_e1, (&[2], &[vertex(1)])) {
+            Ok((Zero::Side(Side::XLo, along), x, y, _)) => {
+                assert_eq!(along.edges, vec![edge(3)], "the equator is the zero");
+                assert!(
+                    x.0 <= 0.0 && x.0 > -1e-12,
+                    "the side is the meridian 0: {x:?}"
+                );
+                assert!(y.0 <= parallel, "the rectangle reaches the parallel: {y:?}");
+            }
+            other => panic!("across the equator at E1: {other:?}"),
+        }
+    }
+
+    /// **Where no pose reads both circles, a cell is `Local`, never
+    /// `Structural`** ([`present_posed`]). At `T` the two circles meet,
+    /// each a parallel only of its own pose; and a cell holding the whole
+    /// triangle reaches both and both equator vertices. A smaller cell
+    /// away from `T` is read, so neither may refuse the pair at once.
+    /// Red if a pose's `Structural` is reported.
+    #[test]
+    fn a_cell_reaching_two_circles_of_different_poses_is_local() {
+        let (s, b) = (sphere(), triangle());
+        assert_eq!(
+            posed(&s, &b, ((0.76, 0.81), (1.19, 1.23)), (&[0], &[vertex(3)])).err(),
+            Some(Unpresented::Local),
+            "at T"
+        );
+        assert_eq!(
+            posed(
+                &s,
+                &b,
+                ((0.2, 1.4), (-0.05, 1.25)),
+                (&[2], &[vertex(1), vertex(2)])
+            )
+            .err(),
+            Some(Unpresented::Local),
+            "the whole triangle"
+        );
+    }
+
+    /// **The cap `x ≥ A`**: the one closed circle `x = A`, its vertex at
+    /// `E1`, about the pole `(1, 0, 0)` of its own pose.
+    fn cap() -> Boundary {
+        let e1 = across(A).atan2(A);
+        Boundary {
+            sense: true,
+            edges: vec![circle_rim(
+                1,
+                [1, 1],
+                x_circle(),
+                (0.0, TURN),
+                curve_use(true, (e1, 0.0), (e1, 0.0)),
+            )],
+            vertices: BTreeMap::from([(vertex(1), pt(A, across(A), 0.0))]),
+            extent: None,
+        }
+    }
+
+    /// **A cell holding its pose's pole is not placed in the pose**
+    /// ([`posed_cell`]): the cap `x ≥ A` holds the pose's pole `(1, 0,
+    /// 0)`, where every azimuth of the pose meets. A cell holding the
+    /// pole and reaching the circle is `Local`; one beside the circle,
+    /// clear of the pole, reads the circle — closed, a whole turn — as
+    /// the parallel. Red if a rectangle is placed about the pole.
+    #[test]
+    fn a_cell_holding_its_poses_pole_is_not_placed() {
+        let (s, b) = (sphere(), cap());
+        assert_eq!(
+            posed(&s, &b, ((-1.35, 1.35), (-0.1, 0.1)), (&[0], &[])).err(),
+            Some(Unpresented::Local),
+            "the cell holds the pole"
+        );
+        let top = across(A).asin();
+        match posed(
+            &s,
+            &b,
+            ((-0.05, 0.05), (top - 0.03, top + 0.03)),
+            (&[0], &[]),
+        ) {
+            Ok((Zero::Side(Side::YLo, along), _, y, axis)) => {
+                assert_eq!(along.edges, vec![edge(1)]);
+                assert_eq!(axis.to_array(), [1.0, 0.0, 0.0], "the pose about x");
+                assert!(
+                    y.0 <= A.asin() && A.asin() - y.0 < 1e-12,
+                    "the parallel: {y:?}"
+                );
+            }
+            other => panic!("beside the circle: {other:?}"),
+        }
+    }
+
+    /// **The cone through the circles `x = A` and `x = B`**: its apex on
+    /// the `x` axis at `c`, opening toward `−x` at `α`; `(c, α)`.
+    fn cone_apex() -> (f64, f64) {
+        let slope = (across(B) - across(A)) / (B - A);
+        (A - across(A) / slope, (-slope).atan())
+    }
+
+    /// **A cone strip on the triangle's edge 1**: the cone through the
+    /// circles `x = A` and `x = B`, over the azimuths of edge 1 and from
+    /// `x = A` to `x = 0.5`, so it leaves the sphere at the circle and
+    /// crosses it again at `x = B`. Its chart is the cone's about `−x`
+    /// from `y`, the azimuth `u = −t` of edge 1's parameter `t`, the
+    /// slant `v` from the apex.
+    fn strip() -> (Surface<Interval>, Boundary) {
+        let (c, alpha) = cone_apex();
+        let slant = |x: f64| (c - x) / alpha.cos();
+        let (near, far) = (slant(A), slant(0.5));
+        let t_top = (1.0 - 2.0 * A * A).sqrt().atan2(A);
+        let s = Surface::Cone {
+            apex: pt(c, 0.0, 0.0),
+            axis: v3(-1.0, 0.0, 0.0),
+            half_angle: iv0(alpha),
+            u_ref: v3(0.0, 1.0, 0.0),
+        };
+        let on = |u: f64, v: f64| {
+            let r = v * alpha.sin();
+            pt(c - v * alpha.cos(), r * u.cos(), -r * u.sin())
+        };
+        let line = |n: u64, ends: [u64; 2], u: f64, (v0, v1): (f64, f64)| {
+            let (p, q) = (vmid_point(on(u, v0)), vmid_point(on(u, v1)));
+            Rim {
+                key: edge(n),
+                arc: Some((Curve3::line(lift3(p), lift(q - p)), (iv0(0.0), iv0(1.0)))),
+                ends: ends.map(vertex),
+                uses: vec![Use {
+                    iso: Some(Iso {
+                        held: Axis::U,
+                        at: iv0(u),
+                        full: false,
+                    }),
+                    ..curve_use(true, (u, v0), (u, v1))
+                }],
+            }
+        };
+        let iso_v = |u: Use, at: f64| Use {
+            iso: Some(Iso {
+                held: Axis::V,
+                at: iv0(at),
+                full: false,
+            }),
+            ..u
+        };
+        let shared = circle_rim(
+            1,
+            [1, 3],
+            x_circle(),
+            (0.0, t_top),
+            iso_v(curve_use(true, (0.0, near), (-t_top, near)), near),
+        );
+        let rim = far * alpha.sin();
+        let outer = circle_rim(
+            4,
+            [5, 6],
+            (
+                pt(0.5, 0.0, 0.0),
+                v3(-1.0, 0.0, 0.0),
+                v3(0.0, 1.0, 0.0),
+                rim,
+            ),
+            (-t_top, 0.0),
+            iso_v(curve_use(true, (-t_top, far), (0.0, far)), far),
+        );
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                outer,
+                line(5, [6, 1], 0.0, (far, near)),
+                shared,
+                line(6, [3, 5], -t_top, (near, far)),
+            ],
+            vertices: BTreeMap::from([
+                (vertex(1), on(0.0, near)),
+                (vertex(3), on(-t_top, near)),
+                (vertex(5), on(-t_top, far)),
+                (vertex(6), on(0.0, far)),
+            ]),
+            extent: Some([(-t_top, 0.0), (far, near)]),
+        };
+        (s, b)
+    }
+
+    fn vmid_point(p: Point3<Interval>) -> Point3<f64> {
+        pmid(p)
+    }
+
+    fn lift3(p: Point3<f64>) -> Point3<Interval> {
+        Point3::new(iv0(p.x), iv0(p.y), iv0(p.z))
+    }
+
+    /// **A pair crossing past a posed circle is not certified**: the
+    /// triangle against the cone strip on its edge 1, which crosses the
+    /// sphere at `x = B`, 0.05 past the circle. The triangle is presented
+    /// in its pose about `x`; cells reaching the crossing are not
+    /// certified, while cells short of it are. Red if a pose reads the
+    /// face on the wrong side of its circle, or presents a rectangle that
+    /// misses part of the face's cell.
+    #[test]
+    fn a_cone_crossing_a_posed_sphere_face_past_its_circle_is_not_certified() {
+        let (sf, bf) = (sphere(), triangle());
+        let (sg, bg) = strip();
+        let shared = Shared::of(&bf, &bg, false);
+        let (c, alpha) = cone_apex();
+        let slant = |x: f64| (c - x) / alpha.cos();
+        let outcome = |fu: (f64, f64), fv: (f64, f64), gu: (f64, f64), gv: (f64, f64)| {
+            let (lf, ballf) = reach(&sf, &bf, (fu, fv));
+            let (lg, ballg) = reach(&sg, &bg, (gu, gv));
+            let piece = |surface, boundary, u, v, local, ball| Piece {
+                face: face(1),
+                surface,
+                whole: false,
+                boundary,
+                u,
+                v,
+                local,
+                ball,
+            };
+            let (x, y) = (
+                piece(&sf, &bf, fu, fv, &lf, ballf),
+                Piece {
+                    face: face(2),
+                    ..piece(&sg, &bg, gu, gv, &lg, ballg)
+                },
+            );
+            let near = Near::of(&shared, &lf, &lg);
+            assert!(!near.is_empty(), "the cells touch across edge 1");
+            certify_pair(&x, &y, &near, band())
+        };
+        // About edge 1's point at t = 0.6548: the triangle's cell reaches
+        // x = B at its azimuth's low end, the strip's its slant's low end.
+        let (fu, fv) = ((1.15, 1.28), (0.6, 0.66));
+        let gu = (-0.70, -0.61);
+        assert!(
+            posed(&sf, &bf, (fu, fv), (&[0], &[])).is_ok(),
+            "the triangle is presented in its pose there"
+        );
+        let crossing = outcome(fu, fv, gu, (slant(B) - 0.02, slant(A) + 0.02));
+        assert!(
+            !matches!(crossing, Outcome::Certified { .. }),
+            "cells reaching the crossing: {crossing:?}"
+        );
+        let short = outcome(
+            (1.24, 1.27),
+            (0.625, 0.637),
+            (-0.66, -0.65),
+            (slant(A) - 0.005, slant(A) + 0.005),
+        );
+        assert!(
+            matches!(short, Outcome::Certified { .. }),
+            "cells short of the crossing: {short:?}"
         );
     }
 }
