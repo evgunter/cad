@@ -778,12 +778,13 @@ sphere is not needed there. The sphere pair refuses at the root, both
   (`present_chart_in(.., posed)`), on the cell placed in the pose
   (`posed_cell`: a rectangle holding every point of the sphere in the
   cell's box, under half a turn wide) and the boundary lifted into it
-  (`posed_use`: each conic's radial projection, read as a parallel or a
-  meridian only where its enclosure is one, at any width of the
-  parameter).
-- **What a pose does not read:** a corner or point zero (`Local`), the
-  graph separator (its sides carry no parameters), and the sliver, which
-  is frozen.
+  (`posed_use`; corrected in the fix pass below: each circle's image is
+  the mint's own, `geom_brep::chart_pcurve_over`, read as a stored row
+  is, `clearance::chart_use`, not a radial projection of the lane's).
+- **What a pose does not read:** the graph separator (its sides carry
+  no parameters) and the sliver, which is frozen. (Corrected in the fix
+  pass below: a corner or point zero is read in a pose, as a stored
+  chart's is.)
 - **What a pose decides:** a presentation, or `Local`. Two exceptions
   keep the stored `Structural`: a pose in which a shared edge is no
   coordinate line is not tried (`poses_of`), and a cell reaching a
@@ -814,8 +815,11 @@ against the sphere's side; the sphere pair under the equator's plane.
 snowman refuses at its waist vertices, where each ball's half-band
 meridian (a coordinate line of the stored chart) meets the waist circle
 (a parallel only of its own pose). No chart reads both as lines, so the
-refusal is the row's next remainder, `stuck` at once; pinned by
+refusal is the row's next remainder; pinned by
 `a_snowman_with_its_head_off_the_axis_refuses_at_its_waist`.
+(Corrected in the fix pass below: with the mint's lift the walk reads
+the waist's cells in the pose and refuses after about 2,000 splits, not
+at once; the row pins a bound of 4,096.)
 The leftovers of the gate's 47 sphere/sphere refusals were not re-run
 here (the gate is not on main); its named bodies on the tour
 (`budfillet`, `lily`) do not move.
