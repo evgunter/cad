@@ -18,8 +18,7 @@
 //! and every lane over a box decide in one frame. A reading within an
 //! operand that asks it about another's point
 //! ([`topo::Seat::into_own`]) does send that point through the inverse.
-//! Every
-//! operation over two or more operands of one space takes it — the
+//! Every operation over two or more operands of one space takes it — the
 //! booleans' fold, subtract and distribute, measure, the product gather,
 //! clearance and its witness rebuild, the coincidence replay's carrier
 //! verdict — and reads every other operand through
@@ -39,6 +38,20 @@
 //! one-input construction over a body — blend, shell, split, mirror —
 //! computes in that body's frame, there being no second operand to
 //! condition against.
+//!
+//! **Where a body stands is asked by the door that puts it there**
+//! ([`Framed::asked_where_it_stands`]). A copy's placement and a
+//! profile's sketch frame are such doors, and so is every one-input
+//! operation whose result can stand past its operand: the mirror, whose
+//! reflection can carry the image past the box while its source stands
+//! inside it. The other one-input operations stay inside their
+//! operand's reach. Blend and chamfer round or cut at its edges, a split
+//! keeps sides of it, and a shell is the operand less its inward offset.
+//! The twist moves its body whole and asks as a move does, and a tube is
+//! built in the world and finished there. A sweep of a profile stands
+//! in the profile's sketch frame, which asks. A gather builds one body
+//! out of its operands, read into its computing frame
+//! ([`Framed::read_in`]), and its finish asks of that.
 //!
 //! Nothing here composes a body into its space's coordinates for a
 //! reader outside the model: that is `crate::mate::in_space`'s, and only
@@ -360,9 +373,13 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     /// ([`topo::session_box_at`], the question a move asks of its image,
     /// read off the same data). A copy's placement is asked by the door
     /// that places it, not by the readers that read it: a placement
-    /// ([`super::wire`]'s `place`) and a profile's sketch frame
-    /// ([`super::ProfileValue::framed`]) each call this; a value in its
-    /// space's own coordinates was asked by its own finish.
+    /// ([`super::wire`]'s `place`), a profile's sketch frame
+    /// ([`super::ProfileValue::framed`]) and a mirror of a placed copy
+    /// (`wire_mirror`: its image stands, under the copy's frame, where
+    /// the reflection carried it) each call this; a value in its space's own
+    /// coordinates was asked by its own finish. Which one-input
+    /// operations need it, and why the rest stand inside their operand,
+    /// is the module's account.
     ///
     /// # Errors
     ///

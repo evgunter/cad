@@ -783,6 +783,54 @@ fn a_copy_placed_past_the_box_refuses_at_its_placement() {
     }
 }
 
+/// **A mirror of a placed copy that stands past the box refuses at the
+/// mirror** (`[placement.frame]`; the one-input operations whose result
+/// can stand past their operand ask where it stands, as a placement
+/// does). A block's copy at 998.5 m along `x` stands inside the box;
+/// mirrored across its own `+x` wall it reaches 1000.5 m. The mirror
+/// refuses with the session box's finding alone, and a measure from a
+/// block at the origin to the image reads nothing.
+///
+/// *Breaks if* the mirror keeps the copy's frame without asking: the
+/// image then builds, and the measure reads it about 999 m off.
+#[test]
+fn a_mirror_past_the_box_refuses_at_the_mirror() {
+    use editor_core::{MeasurePrimitive, Operand, SitedRef};
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("e-mirror-past-the-box"), tol);
+    let (doc, source) = block(doc);
+    let (doc, near) = in_world(doc, source, &editor_core::Frame::translation([0.0; 3]));
+    let (doc, copy) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([998.5, 0.0, 0.0]),
+    );
+    let plane = fixture::plane_on(&doc, copy, [1.0, 0.5, 0.5], [1.0, 0.0, 0.0]);
+    let (doc, mirror) = fixture::insert(
+        doc,
+        Node::Mirror {
+            body: Operand::output(copy, 0).into(),
+            plane,
+        },
+    );
+    let wall = fixture::fname(source, fixture::wall(&doc, source, 1));
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            SitedRef::new(near, wall.clone()),
+            SitedRef::new(mirror, wall),
+        ],
+    );
+    let ev = run(&doc, None);
+    assert!(ev.value(copy).is_some(), "the copy stands inside the box");
+    assert_eq!(the_one_box_refusal(&doc, &ev), mirror, "the mirror refuses");
+    assert!(
+        ev.value(measure).is_none(),
+        "the measure reads nothing past a refused mirror"
+    );
+}
+
 /// **Each copy is asked where it stands in its space, not relative to
 /// another**: two copies of one block at 1999 m and 2002 m along `x`,
 /// under a `⊔`. A gather computes in its first operand's frame, where the

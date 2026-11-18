@@ -2937,7 +2937,12 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     names::check_total(&table, &image, 0).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::held(image, body.frame().clone())),
+        // The image stands where the copy's frame puts it, which the
+        // reflection can carry past its source's reach: the result asks
+        // where it stands.
+        ValuePayload::Body(
+            super::Framed::held(image, body.frame().clone()).asked_where_it_stands(tol)?,
+        ),
         Arc::new(table),
     )
     .carrying(value.carry.copied(
