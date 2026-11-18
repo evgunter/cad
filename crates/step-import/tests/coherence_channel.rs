@@ -39,6 +39,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use crate::tier_gate::{NEARPOLAR_SPLIT, TAIL_TURBINE, refuses_at_run_eps};
 use crate::wild::{WILD_IMPORTS, wild};
 use topo::construction::Construct;
 
@@ -336,7 +337,7 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
         }
     };
 
-    for name in SOLID_FIXTURES {
+    for &name in SOLID_FIXTURES {
         let text = fixture(name, "step");
         visit(
             format!("own/{name}"),
@@ -501,16 +502,34 @@ fn asking_for_the_examination_changes_nothing_about_acceptance() {
 
 /// A file the adoption ladder refuses refuses identically with the
 /// examination asked for: the flag is read after the gate, on a body
-/// that exists, so a refusing file never reaches it.
+/// that exists, so a refusing file never reaches it. The file is the
+/// first of two that refuse at adoption by their `tier_gate` pins at the
+/// run's ε: `TAIL_TURBINE`'s spline edge where it misses, else the
+/// near-polar twin's rim, whose wedge escalates at a coarse ε.
 #[test]
 fn a_refusing_file_refuses_identically_with_the_examination_asked_for() {
     let tol = Tol::witness();
-    let text = wild("stepcode/TAIL_TURBINE.stp");
+    let Some(rel) = [TAIL_TURBINE, NEARPOLAR_SPLIT]
+        .into_iter()
+        .find(|rel| refuses_at_run_eps(rel) == Some(true))
+    else {
+        test_utils::vacuity::stood_down(
+            "no pinned refusal at this ε",
+            "that a refusing file refuses identically with the examination asked for",
+        );
+        return;
+    };
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel);
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {rel}: {e}"));
     let off = import_step(&text, &ImportOptions::default(), tol);
     let on = import_step(&text, &examining(), tol);
     let (Err(off), Err(on)) = (off, on) else {
-        panic!("TAIL_TURBINE's spline-carried edge must refuse in both calls");
+        panic!("{rel} must refuse in both calls");
     };
+    assert!(
+        matches!(off, StepImportError::Adoption { .. }),
+        "{rel} refuses at adoption: {off:?}"
+    );
     assert_eq!(
         off.render(),
         on.render(),

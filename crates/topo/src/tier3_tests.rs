@@ -2245,8 +2245,8 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
     scan(
         "src/rim_wedge.rs",
         &[
-            ("edge_wedge_over(", 1),
-            ("edge_wedge_over_as(", 0),
+            ("edge_wedge_over(", 0),
+            ("edge_wedge_over_as(", 1),
             ("WedgeWalk::around_circle(", 1),
             ("WedgeWalk::along_edge(", 0),
         ],
@@ -4100,5 +4100,38 @@ fn the_wedge_door_signs_an_l_prisms_corners() {
             (q.x - 1.0).abs() < 1e-12 && (q.y - 1.0).abs() < 1e-12,
             "the concave edge is the inner corner's: {a:?} {b:?}"
         );
+    }
+}
+
+/// **Tier 3 and tier 2 record every decision as a check**
+/// (`geom_core::k_stats::Role`): each reads a body already built, so
+/// another sign can only refuse it. A decision either recorded as a
+/// choice would be read by the first-turn reading as a turn that built
+/// something.
+#[test]
+fn tier_three_and_tier_two_record_every_decision_as_a_check() {
+    use geom_core::k_stats::{Bracket, Role};
+    let tol = Tol::witness();
+    let body = crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 2.0), (0.0, 3.0), tol);
+    let bracket = Bracket::open();
+    assert!(
+        crate::AtRestBody::validate(body.clone(), tol).is_ok(),
+        "tier 3 passes the brick"
+    );
+    let tier3 = bracket.finish();
+    let bracket = Bracket::open();
+    assert!(crate::Replay::of(body).is_ok(), "tier 2 passes the brick");
+    let tier2 = bracket.finish();
+    // Tier 2 is combinatorial and decides nothing on a brick; its scope
+    // is held for what it reads on a body that has curves to replay.
+    assert!(!tier3.verdicts.is_empty(), "tier 3 decides something");
+    for (what, log) in [("tier 3", tier3), ("tier 2", tier2)] {
+        let choices: Vec<_> = log
+            .verdicts
+            .iter()
+            .filter(|v| v.role == Role::Choice)
+            .map(|v| v.predicate)
+            .collect();
+        assert!(choices.is_empty(), "{what} recorded choices: {choices:?}");
     }
 }

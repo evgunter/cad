@@ -361,10 +361,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pair_section/ruling.rs", 3, 3, ""),
     (
         "crates/geom-brep/src/pair_section/spline_implicit.rs",
-        6,
-        4,
-        "the 4 that ask are `box_gap`'s per-axis gap, read only where both boxes' coordinates \
-         certify and NaN otherwise, which holds nothing apart (`PadsMeet`). The other 2 read \
+        9,
+        7,
+        "the 7 that ask are PR 6897's three node-carry reads and `box_gap`'s per-axis gap, \
+         read only where both boxes' coordinates certify and NaN otherwise, which holds nothing apart (`PadsMeet`). The other 2 read \
          the pivot's lift, the foot's height over the stored plane divided by the stored \
          normal's length: `Pivot::shift`'s upper end, which pads the reading's band, and a \
          quotient by a length not proven away from zero has an end that is not finite, which \
@@ -381,17 +381,16 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs",
-        37,
-        28,
-        "the 28 that ask are `krawczyk`'s (12), the critical-value door's (`decide`, 14) and \
-         `node_frame`'s width (2), read only where all three of `S(b)`'s coordinates certify and \
-         NaN otherwise, which the listing refuses (`NODE_BOX`). Of the other 9, `grown`'s 4 are \
-         its doubling's seed half-widths, every box it keeps proved again by `krawczyk`; \
-         `read`'s 2 are the value's ceiling in metres, which that door decides only \
-         after it asks `at.value.is_certified()`; `mid`'s 2 are the Krawczyk box's centre, a \
-         seed; and `along_line`'s 1, its norm, is minted a fresh point, but the slope's \
-         numerator carries the gradient's and the direction's decoration, which its caller asks \
-         (`slope.is_certified()`)",
+        11,
+        2,
+        "the 2 that ask are `node_frame`'s width, read only where all three of `S(b)`'s \
+         coordinates certify and NaN otherwise, which the listing refuses (`NODE_BOX`). Of the \
+         other 9, `grown`'s 4 are its doubling's seed half-widths, every box it keeps proved \
+         again by `krawczyk`; and `along_line`'s 1, its norm, is minted a fresh point, but the \
+         slope's numerator carries the gradient's and the direction's decoration, which its \
+         caller asks (`slope.is_certified()`). UNARGUED: `decide`'s 4, the box's spans handed \
+         on as `u` and `v`, in a fn that stopped asking when PR 6897 moved the asking reads to \
+         `ssi/node.rs` (pinned, below)",
     ),
     ("crates/geom-brep/src/pair_section/winds.rs", 12, 12, ""),
     (
@@ -599,6 +598,19 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          nothing compares them or takes a branch on them, and a pass carries only between \
          sections whose keys are equal",
     ),
+    // pinned red: work/sectarms/six-endpoint-reads-6897-moved-into-node-and-critical-are-unargued.md
+    // (six reads here and in `sweep/critical.rs` stand at main's counts
+    // without an argument).
+    (
+        "crates/geom-brep/src/ssi/node.rs",
+        28,
+        22,
+        "the 22 that ask are `krawczyk_split`'s 12 and `decide_split`'s 10, the node's Krawczyk \
+         test and its critical-value door, moved here from `sweep/critical.rs` by PR 6897. Of \
+         the other 6, `read`'s 2 are the value's ceiling in metres, which that door decides only \
+         after it asks `at.value.is_certified()`; `mid`'s 2 are the Krawczyk box's centre, a \
+         seed. UNARGUED: `hessian_over`'s 2, the ends of `x`'s parts its grid reads",
+    ),
     (
         "crates/geom-brep/src/ssi/one_arc.rs",
         47,
@@ -706,33 +718,47 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        154,
-        59,
-        "the 59 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (26), \
-         `present_plane` (8), `present_plane_corner` (7), `present_plane_vertex` (7) and \
-         `Trig::psi` (3). `present_chart` asks each clip line where it is placed, so 16 of its \
+        177,
+        79,
+        "the 79 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `present_chart` (26), \
+         `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
+         `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
+         `segment_params` each read the side's parameter enclosure (4) only behind their own \
+         `is_certified()` and finiteness ask; `present_plane`'s 3 beyond its `y` are a side's \
+         chart range handed to `segment_params` (2) and a corner's far coordinate (1), read \
+         behind the same SPAN and CORNER funnels as its rectangle. `present_chart` asks each clip line where it is placed, so 16 of its \
          reads, the touch, reach, merge, rectangle-side and apex reads, see only certified \
          lines; its other 10 read a sphere pole's clip line at `±π/2`, a constant never handed \
          to the ask, so they count as asking only because the census reads a whole function, \
          and they are sound because the line is exact. `present_plane` asks its one-edge `y`, \
          and its other reads are behind the SPAN and CORNER funnels. `present_plane_corner` \
-         and `present_plane_vertex` each read the cell's 4 ends behind their `cell` ask; \
+         and `present_vertex_corner` each read the cell's 4 ends behind their `cell` ask; \
          each also reads its arc's parameter span (2), and an upper bound on the chart's speed \
-         (1), neither of which the ask covers: the span is a parameter read like those below, \
-         and the speed is the jet bound `speeds` reads. `Trig::psi`'s 3 are its `over` \
-         closure, read behind `is_certified()`. Of the other 95, the seeds and selections \
+         (1, and 2 in `present_vertex_corner`, one per axis), neither of which the ask covers: \
+         the span is a parameter read like those below, and the speed is the jet bound \
+         `speeds` reads. `present_vertex_corner` also reads its rectangle's chart footprint \
+         (4), behind its own `is_certified()` ask. `Trig::psi`'s 3 are its `over` \
+         closure, read behind `is_certified()`. `face_extent`'s 4 read each line of the face \
+         against its extent, a line it takes only where its value `is_certified()` and places \
+         by whole turns, which keeps it certified. Of the other 95, the seeds and selections \
          (`mid`, `graph_read`'s `inside` and lever, `planes_through`'s point of a line edge, \
-         any point of which is exact), `Curved::nearest`'s hull of the parameters shifted by \
-         whole turns, read outward so `within`'s containment is conservative, the read behind \
+         any point of which is exact), `Params::nearest`'s hull of the parameters shifted by \
+         whole turns, read outward so `Along::under_graph`'s containment is conservative, \
+         `present_wall`'s wall curve's parameter enclosure stored as its `Params` (2), the \
+         same parameters its curve already carries, the read behind \
          `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, `narrowed`, \
-         `leaves_graph`, `leaves_line`) and `run_on`'s, behind `along`'s and the placement \
-         asks, are sound. The rest read the window's carrier and the face's boundary, which \
+         `leaves_graph`, `leaves_line`, `copy_misses`) and `run_on`'s, behind `along`'s and \
+         the placement asks, are sound. The rest read the window's carrier and the face's boundary, which \
          `clearance`'s `window_of` admits only where every lifted value certifies; \
          `present_wall`'s wall-image reads, `speeds`' jet bound and the two corner \
          presentations' speed bounds also read an enclosure computed from them that may clamp, \
          which is `work/embed/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`. \
-         `one_plane`'s 10 compare a stored frame's bracket ends to decide one value, never \
-         asking, which is `work/embed/one-plane-reads-a-brackets-ends-as-a-point-without-asking`",
+         `one_value`'s 5 compare a stored frame's bracket ends to decide one value, never \
+         asking, which is `work/embed/one-plane-reads-a-brackets-ends-as-a-point-without-asking`. \
+         `continues` reads its arcs' parameter spans outward (2), a parameter read, and its \
+         directions' product at its lower end (1), which no ask covers: \
+         `work/embed/continues-reads-its-directions-product-at-its-lower-end-without-asking`",
     ),
     (
         "crates/topo/src/props.rs",
@@ -745,7 +771,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          2, its ends, are a refusal's payload (`outward_volume`, the bracket `Undecided` \
          reports) and certify nothing",
     ),
-    ("crates/topo/src/props/quad_lane.rs", 25, 25, ""),
+    ("crates/topo/src/props/quad_lane.rs", 27, 27, ""),
     ("crates/topo/src/test_support_fixtures.rs", 2, 2, ""),
 ];
 

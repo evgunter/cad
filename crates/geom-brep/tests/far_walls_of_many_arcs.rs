@@ -512,20 +512,25 @@ fn a_hand_built_far_wall_whose_rim_disagrees_refuses_before_its_turns() {
             r * span * height,
             &format!("a rim on the opposite normal, walked the right way, at {scalar}"),
         );
-        let early = |what: &str, got: Result<f64, PropsError>, names: &[&str]| {
-            let named = match &got {
-                Err(PropsError::OffSurface { what } | PropsError::NotIsoRectangle { what }) => {
-                    names.contains(what)
-                }
+        // Each refusal by its class AND its name: a tilt is off the
+        // cylinder where the band reads its tilt, outside the inventory
+        // where it reads the rim's axis parallel and its incidence then
+        // misses no rim, and undecided between; which one a tilt lands
+        // on is the ε's, the class each name answers is not.
+        let early = |what: &str, got: Result<f64, PropsError>, wants: &[(&str, &str)]| {
+            let class_name = match &got {
+                Err(PropsError::OffSurface { what }) => Some(("OffSurface", *what)),
+                Err(PropsError::NotIsoRectangle { what }) => Some(("NotIsoRectangle", *what)),
+                Err(PropsError::SpanUncertified { what }) => Some(("SpanUncertified", *what)),
                 Err(PropsError::Escalated { cause, .. }) => {
-                    cause.predicate.is_some_and(|p| names.contains(&p))
+                    cause.predicate.map(|p| ("Escalated", p))
                 }
-                Err(PropsError::ChartLoopOpen) => names.contains(&"ChartLoopOpen"),
-                _ => false,
+                Err(PropsError::ChartLoopOpen) => Some(("ChartLoopOpen", "")),
+                _ => None,
             };
             assert!(
-                named,
-                "a rim {what} at {scalar}, refused as one of {names:?}: {got:?}"
+                class_name.is_some_and(|got| wants.contains(&got)),
+                "a rim {what} at {scalar}, refused as one of {wants:?}: {got:?}"
             );
         };
         for tilt in [1e-3_f64, 1e-5, 3e-7] {
@@ -545,23 +550,27 @@ fn a_hand_built_far_wall_whose_rim_disagrees_refuses_before_its_turns() {
             early(
                 &format!("tilted {tilt}"),
                 with_bottom(tilted),
-                &["props_cylinder_circle_tilt", "props_rim_axis_parallel"],
+                &[
+                    ("OffSurface", "props_cylinder_circle_tilt"),
+                    ("Escalated", "props_cylinder_circle_tilt"),
+                    ("NotIsoRectangle", "props_rim_axis_parallel"),
+                ],
             );
         }
         early(
             "a whole turn past its ends",
             with_bottom(rim::<T>(r, 0.0, 0.0, span + TAU)),
-            &["props_rim_span_winding"],
+            &[("SpanUncertified", "props_rim_span_winding")],
         );
         early(
             "on the opposite normal, walked the wrong way",
             with_bottom(flipped(0.0, span)),
-            &["ChartLoopOpen"],
+            &[("ChartLoopOpen", "")],
         );
         early(
             "short of its ruling",
             with_bottom(rim::<T>(r, 0.0, 0.0, span - 1e-3)),
-            &["ChartLoopOpen"],
+            &[("ChartLoopOpen", "")],
         );
     }
     rows::<f64>("f64");

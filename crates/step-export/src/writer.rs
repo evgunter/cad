@@ -3,7 +3,8 @@
 //!
 //! # Emission order (D9: one fixed traversal, ids by first encounter)
 //!
-//! Solids in arena order → shells in `Solid::shells` order → faces in
+//! Solids in arena order → the solid's `Outer` shell, then its voids in
+//! `Solid::shells` order → faces in
 //! `Shell::faces` order → the outer loop then rings in stored order →
 //! half-edges in loop-cycle (`next`) order. Vertex and edge entities
 //! are minted at first encounter and cached (lookup-only maps — no
@@ -666,13 +667,15 @@ impl<'a> Writer<'a> {
     }
 
     /// `EDGE_LOOP` of `ORIENTED_EDGE`s for one loop, wrapped as
-    /// `FACE_OUTER_BOUND` (outer) or `FACE_BOUND` (ring), both with
+    /// `FACE_OUTER_BOUND` (outer) or `FACE_BOUND` (ring), with
     /// orientation `.T.`: the stored traversal direction is already
     /// STEP's (interior-left ⇒ outer CCW / rings CW about the outward
-    /// normal — crate docs).
+    /// normal — crate docs). On a `reversed` face (a void's shell,
+    /// [`Self::closed_shell`]) the flag is `.F.`: the loop is the same
+    /// loop walked the other way, CCW about the reversed normal.
     ///
-    /// **The bound orientation stays `.T.` under M5 S10, for either
-    /// face sense.** ISO 10303-42 *composes* the bound's orientation
+    /// **The bound orientation does not follow the face sense.**
+    /// ISO 10303-42 *composes* the bound's orientation
     /// flag with the owning `face_surface.same_sense`: the bound is
     /// stated CCW about the face's outward normal, and `same_sense`
     /// says how that outward normal relates to the surface's own. Our
@@ -685,7 +688,12 @@ impl<'a> Writer<'a> {
     /// flag is likewise untouched: it says which half of the edge the
     /// loop traverses, a fact about the half-edge, not about the
     /// face's material side.
-    fn face_bound(&mut self, loop_key: LoopKey, outer: bool) -> Result<u64, StepExportError> {
+    fn face_bound(
+        &mut self,
+        loop_key: LoopKey,
+        outer: bool,
+        reversed: bool,
+    ) -> Result<u64, StepExportError> {
         let loop_ = self
             .body
             .get_loop(loop_key)
@@ -737,7 +745,8 @@ impl<'a> Writer<'a> {
         } else {
             "FACE_BOUND"
         };
-        Ok(self.emit(&format!("{kind}('', #{el}, .T.)")))
+        let orientation = if reversed { ".F." } else { ".T." };
+        Ok(self.emit(&format!("{kind}('', #{el}, {orientation})")))
     }
 
     /// `ADVANCED_FACE` for a kernel face: the surface printer first
@@ -750,13 +759,8 @@ impl<'a> Writer<'a> {
     /// `face_surface.same_sense` and the kernel's orientation bit are
     /// the same predicate ("does the face's material side agree with
     /// its surface's own normal?"), which is why S10 ratified the bit
-    /// in that shape. It emits `.T.`/`.F.` directly; before S10 the
-    /// answer was hardcoded `.T.` because the stored normal simply WAS
-    /// the outward normal (M1 ratification). Since M5 S11 constructors
-    /// mint `sense: false` on material-against-chart walls — all
-    /// curved in this build, hence outside the planar subset — so
-    /// planar output stays byte-identical and the `.F.` arm is pinned
-    /// through the hand-flip door (`m5_s11_same_sense`).
+    /// in that shape. It emits `.T.`/`.F.` directly, negated only on a
+    /// `reversed` face (below).
     ///
     /// Consequently the surface's own `AXIS2_PLACEMENT_3D` keeps
     /// emitting the **chart** normal unchanged (see the `direction`
@@ -765,8 +769,14 @@ impl<'a> Writer<'a> {
     /// surface, with the reversal stated once, in the one field STEP
     /// provides for it; negating the axis instead would export a
     /// different plane and (with `.F.`) double-count. Likewise the
-    /// bounds stay `.T.` — see [`Self::face_bound`].
-    fn advanced_face(&mut self, face_key: FaceKey) -> Result<u64, StepExportError> {
+    /// bounds do not follow the sense — see [`Self::face_bound`].
+    ///
+    /// A `reversed` face is the face with its material side turned
+    /// over, as a void's shell is written ([`Self::closed_shell`]):
+    /// `same_sense` negated and every bound walked backwards, the one
+    /// reversal ISO 10303-42 states for a face — the surface and the
+    /// edges are the face's own.
+    fn advanced_face(&mut self, face_key: FaceKey, reversed: bool) -> Result<u64, StepExportError> {
         let face = self
             .body
             .get_face(face_key)
@@ -775,9 +785,9 @@ impl<'a> Writer<'a> {
             })?;
         let outer = face.outer;
         let rings = face.rings.clone();
-        // The S10 orientation bit, emitted verbatim as `same_sense`
-        // (fn docs: the two are the same predicate, not a conversion).
-        let same_sense = if face.sense { ".T." } else { ".F." };
+        // The S10 orientation bit, emitted as `same_sense` (fn docs:
+        // the two are the same predicate), turned over on a void's face.
+        let same_sense = if face.sense != reversed { ".T." } else { ".F." };
         let surface = self
             .body
             .face_surface(face_key)
@@ -911,9 +921,9 @@ impl<'a> Writer<'a> {
             }
         };
         let mut bounds = Vec::with_capacity(1 + rings.len());
-        bounds.push(self.face_bound(outer, true)?);
+        bounds.push(self.face_bound(outer, true, reversed)?);
         for ring in rings {
-            bounds.push(self.face_bound(ring, false)?);
+            bounds.push(self.face_bound(ring, false, reversed)?);
         }
         Ok(self.emit(&format!(
             "ADVANCED_FACE('', ({}), #{surface_id}, {same_sense})",
@@ -921,8 +931,13 @@ impl<'a> Writer<'a> {
         )))
     }
 
-    /// `CLOSED_SHELL` over the shell's faces (stored order).
-    fn closed_shell(&mut self, shell_key: ShellKey) -> Result<u64, StepExportError> {
+    /// `CLOSED_SHELL` over the shell's faces (stored order), each face
+    /// `reversed` or as stored ([`Self::advanced_face`]).
+    fn closed_shell(
+        &mut self,
+        shell_key: ShellKey,
+        reversed: bool,
+    ) -> Result<u64, StepExportError> {
         let shell = self
             .body
             .get_shell(shell_key)
@@ -942,50 +957,65 @@ impl<'a> Writer<'a> {
         }
         let mut faces = Vec::with_capacity(face_keys.len());
         for face_key in face_keys {
-            faces.push(self.advanced_face(face_key)?);
+            faces.push(self.advanced_face(face_key, reversed)?);
         }
         Ok(self.emit(&format!("CLOSED_SHELL('', ({}))", refs(&faces))))
     }
 
-    /// One `MANIFOLD_SOLID_BREP` per solid. A solid at rest holds one
-    /// `Outer` shell and any `Void`s (tier 3, check 10), so a solid with
-    /// more than one shell holds a cavity, and the first such solid in
-    /// walk order refuses ([`void_refusal`]) before anything is emitted.
-    fn manifold_solids(
+    /// One solid per kernel solid (crate docs, "Solids, shells, and
+    /// voids"): a one-shell solid is a `MANIFOLD_SOLID_BREP`, and a
+    /// solid with cavities a `BREP_WITH_VOIDS` over its `Outer` shell
+    /// and, per `Void`, an `ORIENTED_CLOSED_SHELL(.F.)` over the void's
+    /// shell written reversed. Every multi-shell solid's roles are read
+    /// ([`shell_roles`]) before anything is emitted.
+    fn solid_breps(
         &mut self,
         at_rest: &AtRestBody<f64>,
         name: &str,
         tol: Tol,
     ) -> Result<Vec<u64>, StepExportError> {
-        let solid_shells: Vec<Vec<ShellKey>> = self
+        let solids = self
             .body
             .solids()
-            .map(|(_, solid)| solid.shells.clone())
-            .collect();
-        if let Some(shells) = solid_shells.iter().find(|shells| shells.len() > 1) {
-            return Err(void_refusal(at_rest, shells, tol));
+            .map(|(_, solid)| match solid.shells[..] {
+                [outer] => Ok((outer, Vec::new())),
+                _ => shell_roles(at_rest, &solid.shells, tol),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut breps = Vec::with_capacity(solids.len());
+        for (outer, voids) in solids {
+            let cs = self.closed_shell(outer, false)?;
+            if voids.is_empty() {
+                breps.push(self.emit(&format!("MANIFOLD_SOLID_BREP({name}, #{cs})")));
+                continue;
+            }
+            let mut oriented = Vec::with_capacity(voids.len());
+            for void in voids {
+                let void_cs = self.closed_shell(void, true)?;
+                oriented.push(self.emit(&format!("ORIENTED_CLOSED_SHELL('', *, #{void_cs}, .F.)")));
+            }
+            breps.push(self.emit(&format!(
+                "BREP_WITH_VOIDS({name}, #{cs}, ({}))",
+                refs(&oriented)
+            )));
         }
-        let mut msbs = Vec::new();
-        for shell_key in solid_shells.into_iter().flatten() {
-            let cs = self.closed_shell(shell_key)?;
-            msbs.push(self.emit(&format!("MANIFOLD_SOLID_BREP({name}, #{cs})")));
-        }
-        Ok(msbs)
+        Ok(breps)
     }
 }
 
-/// The refusal of a multi-shell solid's `shells`, read through
-/// `topo::classify_shells_of`: its first void in stored order, or the
-/// door's own refusal.
-fn void_refusal(at_rest: &AtRestBody<f64>, shells: &[ShellKey], tol: Tol) -> StepExportError {
-    let rows = match classify_shells_of(at_rest, shells, tol) {
-        Ok(rows) => rows,
-        Err(source) => {
-            return StepExportError::ShellUnclassified {
-                source: Box::new(source),
-            };
+/// A multi-shell solid's `shells` by role, read through
+/// `topo::classify_shells_of`: its one `Outer` and its `Void`s in stored
+/// order, or the door's own refusal.
+fn shell_roles(
+    at_rest: &AtRestBody<f64>,
+    shells: &[ShellKey],
+    tol: Tol,
+) -> Result<(ShellKey, Vec<ShellKey>), StepExportError> {
+    let rows = classify_shells_of(at_rest, shells, tol).map_err(|source| {
+        StepExportError::ShellUnclassified {
+            source: Box::new(source),
         }
-    };
+    })?;
     let role = |shell: ShellKey| {
         rows.iter()
             .find(|row| row.shell == shell)
@@ -995,22 +1025,20 @@ fn void_refusal(at_rest: &AtRestBody<f64>, shells: &[ShellKey], tol: Tol) -> Ste
                      own solid: the door classifies every named shell the body holds"
                 )
             })
+            .role
     };
-    let void = shells
+    let (outers, voids): (Vec<ShellKey>, Vec<ShellKey>) = shells
         .iter()
-        .map(|&shell| role(shell))
-        .find(|row| row.role == ShellRole::Void)
-        .unwrap_or_else(|| {
-            unreachable!(
-                "a multi-shell solid at rest classified no void: check 10 admits one \
-                 outer shell per solid"
-            )
-        });
-    StepExportError::VoidShellUnsupported {
-        shell: void.shell,
-        volume_lo: void.enclosure.volume - void.enclosure.volume_pad,
-        volume_hi: void.enclosure.volume + void.enclosure.volume_pad,
-    }
+        .partition(|&&shell| role(shell) == ShellRole::Outer);
+    let [outer] = outers[..] else {
+        unreachable!(
+            "a multi-shell solid at rest classified {} outer shells: check 10 admits \
+             exactly one (two refuse as SolidOuterShells, and with none every void \
+             stands at the wrong winding)",
+            outers.len()
+        )
+    };
+    Ok((outer, voids))
 }
 
 /// Serializes the whole document (the public entry point's engine).
@@ -1039,8 +1067,8 @@ pub(crate) fn write_document(
     let mut w = Writer::new(body, eps);
 
     // Geometry + topology.
-    let msbs = w.manifold_solids(body, &name, tol)?;
-    if msbs.is_empty() {
+    let breps = w.solid_breps(body, &name, tol)?;
+    if breps.is_empty() {
         return Err(StepExportError::NothingToExport);
     }
 
@@ -1076,7 +1104,7 @@ pub(crate) fn write_document(
 
     // The advanced-B-rep representation and the AP214 product chain.
     let mut items = vec![world_axis];
-    items.extend_from_slice(&msbs);
+    items.extend_from_slice(&breps);
     let absr = w.emit(&format!(
         "ADVANCED_BREP_SHAPE_REPRESENTATION('', ({}), #{ctx})",
         refs(&items)

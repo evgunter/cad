@@ -4,7 +4,7 @@
 //! blend's own identity: a ball resting on both faces touches them
 //! along the edge itself, so the blend there has no effect: a silent
 //! no-op. Both verbs read it through the kernel's one edge-wedge door
-//! (`topo::edge_wedge_as`) and leave it out of every chain,
+//! (`topo::edge_wedge`) and leave it out of every chain,
 //! so a request gives exactly what it gives with its smooth edges left
 //! out, and a request whose every edge is smooth returns the body as it
 //! is, key for key. A cusp or slit
@@ -176,7 +176,7 @@ fn a_smooth_strut_requested_beside_a_line_reads_as_the_line_alone() {
     let beside =
         fillet_edges(&operand, &[line, struts[0], struts[1]], 0.05, tol()).map_err(|r| r.error);
     assert!(
-        matches!(alone, Err(BlendError::UnsupportedRunOut { .. })),
+        matches!(alone, Err(BlendError::UnbuiltEnd(_))),
         "the line alone runs out at its ends, got {alone:?}"
     );
     assert_eq!(

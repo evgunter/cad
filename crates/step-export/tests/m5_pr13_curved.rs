@@ -38,7 +38,10 @@
 //!    S10 review's rule (bound orientation composes with `same_sense`;
 //!    never double-compose) now that `.F.` faces really reach the
 //!    emitter, with two pins aimed directly at the double-composition
-//!    bug. The S12 revert row keeps its own test.
+//!    bug, and the one place a face is written reversed on purpose: a
+//!    void's shell under `ORIENTED_CLOSED_SHELL(.F.)`, every one of its
+//!    faces with `same_sense` negated and every bound `.F.`, once. The
+//!    S12 revert row keeps its own test.
 //! 3. **The NURBS containment pin** (`CENSUS`) — spline geometry
 //!    appears exactly where the kernel put it (loft_prism's 4 walls +
 //!    4 seams, and the #210 fold's two skinned documents), and nowhere
@@ -66,7 +69,7 @@ use std::collections::HashMap;
 use geom::Curve3;
 use geom::Surface;
 use geom_core::Tol;
-use step_export::{StepExportError, StepOptions, step_string};
+use step_export::{StepOptions, step_string};
 
 /// The fixture options (matching `tests/export.rs` and the fixture
 /// generator: an EXPLICIT uncertainty, so nothing here reads ambient ε
@@ -344,6 +347,19 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 "LINE",
             ],
         ),
+        // The hollow box: planes and lines in an outer shell and a
+        // cavity, the cavity's shell written reversed under one
+        // ORIENTED_CLOSED_SHELL of one BREP_WITH_VOIDS.
+        (
+            "voided",
+            &[
+                "PLANE",
+                "LINE",
+                "CLOSED_SHELL",
+                "ORIENTED_CLOSED_SHELL",
+                "BREP_WITH_VOIDS",
+            ],
+        ),
     ];
 
     // THE one corpus build. INVARIANT: everything below reads THIS
@@ -351,9 +367,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     // again, which is the whole point of the merge.
     let corpus = common::fixture_corpus();
     let corpus_names: Vec<&'static str> = corpus.iter().map(|(n, _)| *n).collect();
-    // Pin A and pin B count reversed faces over DIFFERENT sets (the
-    // whole corpus vs the curved half), and both must reach 89 — the
-    // planar fixtures contribute none. Two counters, deliberately.
+    // Pin A and pin B count faces written `.F.` over DIFFERENT sets (the
+    // whole corpus vs the rows past the planar third): 98 and 95, the
+    // kiss assembly's 3 the difference. Two counters, deliberately.
     let mut reversed_seen = 0usize;
     let mut chart_axis_checked = 0usize;
     // The corpus's cone text, kept for the apex-placement row: the
@@ -369,20 +385,46 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             cone_text = Some(text.clone());
         }
 
-        // ---- BOUND (pin A): every bound orientation stays `.T.`, on
-        // EVERY fixture including the planar ones, and the corpus
-        // really does contain `.F.` faces so the pin is not vacuous.
+        // ---- BOUND (pin A), on EVERY fixture including the planar
+        // ones: a bound's orientation never follows its face's sense,
+        // so every bound of a shell written as stored is `.T.`, and
+        // every bound of a void's shell — the shell an
+        // ORIENTED_CLOSED_SHELL(.F.) reverses, written reversed once —
+        // is `.F.`. Faces and bounds are emitted shell by shell, each
+        // shell's records before its CLOSED_SHELL, so a bound belongs
+        // to the next CLOSED_SHELL in the text.
+        let void_shells: Vec<String> = text
+            .lines()
+            .filter(|l| l.contains("= ORIENTED_CLOSED_SHELL("))
+            .map(|l| {
+                let element = l.split(", ").nth(2).expect("the shell element");
+                format!("{element} = CLOSED_SHELL(")
+            })
+            .collect();
+        let mut pending: Vec<bool> = Vec::new();
         for line in text.lines() {
             if line.contains("= FACE_OUTER_BOUND(") || line.contains("= FACE_BOUND(") {
+                pending.push(line.ends_with(".T.);"));
+            }
+            if line.contains("= CLOSED_SHELL(") {
+                let void = void_shells.iter().any(|v| line.starts_with(v.as_str()));
                 assert!(
-                    line.ends_with(".T.);"),
-                    "BOUND: {name}: a bound orientation was flipped — double composition"
+                    pending.iter().all(|&forward| forward != void),
+                    "BOUND: {name}: a bound of a {} shell is not {} — double composition, \
+                     or a void written as stored",
+                    if void { "void" } else { "stored" },
+                    if void { ".F." } else { ".T." }
                 );
+                pending.clear();
             }
             if line.contains("= ADVANCED_FACE(") && line.contains(".F.") {
                 reversed_seen += 1;
             }
         }
+        assert!(
+            pending.is_empty(),
+            "BOUND: {name}: a bound outside any shell"
+        );
 
         // ---- CENSUS: NURBS geometry appears exactly where the kernel
         // put it, kernel-side and text-side, on EVERY fixture.
@@ -484,6 +526,11 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             .collect();
         faces.sort_unstable();
         let (kernel_faces, _) = common::walk_order(body);
+        let void_faces: Vec<topo::FaceKey> = body
+            .solids()
+            .flat_map(|(_, solid)| common::outer_first(body, &solid.shells).into_iter().skip(1))
+            .flat_map(|shell| body.get_shell(shell).expect("shell").faces.clone())
+            .collect();
         assert_eq!(
             faces.len(),
             kernel_faces.len(),
@@ -596,14 +643,15 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             }
 
             // ---- CHART-AXIS (pin B): `same_sense` IS `Face::sense`,
-            // and a `.F.` face keeps its CHART axis rather than
-            // negating it.
+            // negated once on a void's face, and a `.F.` face keeps its
+            // CHART axis rather than negating it.
             let same_sense = face_args.ends_with(".T.");
             assert_eq!(
-                same_sense, face.sense,
-                "CHART-AXIS: {name}: same_sense IS Face::sense"
+                same_sense,
+                face.sense != void_faces.contains(face_key),
+                "CHART-AXIS: {name}: same_sense IS Face::sense, negated on a void's face"
             );
-            if face.sense {
+            if same_sense {
                 continue;
             }
             chart_axis_checked += 1;
@@ -646,11 +694,12 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
         // ---- SINGLE-SHELL: the curved single-shell bodies never reach
         // the multi-shell classifier, on the DEFAULT options (a second
         // writer configuration, deliberately — this row is about the
-        // classifier door, not about the fixture uncertainty).
+        // classifier door, not about the fixture uncertainty). The
+        // hollow box is the corpus's one solid with a void.
         assert_eq!(
             body.shells().count(),
-            1,
-            "SINGLE-SHELL: {name} is single-shell"
+            if name == "voided" { 2 } else { 1 },
+            "SINGLE-SHELL: {name}'s shells"
         );
         assert!(
             step_string(
@@ -664,7 +713,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     }
 
     // The corpus really does contain reversed faces, so pin A above is
-    // not vacuous: 92 = notched 1 + washer 2 + cone 1 (the
+    // not vacuous: 98 = notched 1 + washer 2 + cone 1 (the
     // original four) + die_pips 21·2 (each pip's two sense:false
     // half-band walls, S11 discipline) + the M6 composed die's 21·2
     // (the same half-caps, carried through the surgery) + the globe
@@ -680,14 +729,18 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     // "Orientation") — so all six faces keep sense = true. The kiss
     // assembly adds 3, all planar: the union leaves each of the three
     // coplanar face pairs at the kissing corner on the first die's
-    // plane record, whose chart faces out of the second die.
-    assert_eq!(reversed_seen, 92, "BOUND: the corpus's reversed faces");
+    // plane record, whose chart faces out of the second die. The hollow
+    // box adds 6: its cavity's six faces are sense-true in the kernel
+    // (each plane's chart faces into the cavity, which is the material's
+    // outside) and written reversed, `.F.`, under the void's
+    // ORIENTED_CLOSED_SHELL.
+    assert_eq!(reversed_seen, 98, "BOUND: the corpus's reversed faces");
     assert_eq!(
-        chart_axis_checked, 89,
-        "CHART-AXIS: all 89 reversed faces checked (4 original + die_pips' 42 + the \
-         composed die's 42 + the lily lantern's 1; loft_prism contributes 0 — every \
-         face sense-true, see pin A's derivation). The kiss assembly's 3 are planar, \
-         and the rest of the corpus's reversed faces are on CURVED fixtures."
+        chart_axis_checked, 95,
+        "CHART-AXIS: all 95 faces written `.F.` checked (4 original + die_pips' 42 + \
+         the composed die's 42 + the lily lantern's 1 + the hollow box's 6 cavity \
+         planes; loft_prism contributes 0 — every face sense-true, see pin A's \
+         derivation). The kiss assembly's 3 are planar, outside the curved rows."
     );
 
     // ---- APEX: the fifth surface kind, CONICAL_SURFACE, uses the apex
@@ -908,13 +961,14 @@ fn two_curved_stubs_are_two_solids_and_export_at_both_tolerances() {
     }
 }
 
-/// **A curved void classifies** (VERBS-RING): the one-call hollow ring
-/// — a full revolve of an annulus, outer torus + toroidal cavity — is a
+/// **A curved void exports** (VERBS-RING): the one-call hollow ring —
+/// a full revolve of an annulus, outer torus + toroidal cavity — is a
 /// solid of two curved shells, and the writer reads the cavity's role
-/// off the kernel's shell-role door: it refuses as the void it is, its
-/// volume the cavity's `−2π²Rr²`, and never for the torus surfaces.
+/// off the kernel's shell-role door and writes it as the solid's void:
+/// one `BREP_WITH_VOIDS`, its cavity an `ORIENTED_CLOSED_SHELL(.F.)`
+/// whose toroidal faces state the kernel faces' senses negated.
 #[test]
-fn hollow_ring_refuses_as_a_void() {
+fn hollow_ring_exports_its_cavity_as_a_void() {
     use geom_core::{Point2, Vec2};
     let tol = Tol::witness();
     let outer = profile::circle(Point2::new(5.0, 0.0), 0.5, tol).unwrap();
@@ -933,29 +987,49 @@ fn hollow_ring_refuses_as_a_void() {
     )
     .unwrap();
     assert_eq!(ring.body.shells().count(), 2, "the ring is two-shell");
-    let cavity = ring.body.shells().nth(1).expect("two shells").0;
-    let ring = ring.body;
-    match step_string(&ring, &StepOptions::default(), tol) {
-        Err(StepExportError::VoidShellUnsupported {
-            shell,
-            volume_lo,
-            volume_hi,
-        }) => {
-            assert_eq!(shell, cavity, "the cavity is the void");
-            let expected = -2.0 * std::f64::consts::PI.powi(2) * 5.0 * 0.35_f64.powi(2);
-            assert!(
-                volume_lo <= volume_hi && volume_hi < 0.0,
-                "the cavity's enclosure is negative: [{volume_lo}, {volume_hi}]"
-            );
-            for end in [volume_lo, volume_hi] {
-                assert!(
-                    (end - expected).abs() <= 1e-6 * expected.abs(),
-                    "the cavity's signed volume: {end} vs {expected}"
-                );
-            }
-        }
-        other => panic!("expected VoidShellUnsupported, got {other:?}"),
-    }
+    let roles = topo::classify_shells(&ring.body, tol).expect("the ring classifies");
+    let senses = |role| -> Vec<bool> {
+        roles
+            .iter()
+            .filter(|row| row.role == role)
+            .flat_map(|row| ring.body.get_shell(row.shell).expect("shell").faces.clone())
+            .map(|face| ring.body.get_face(face).expect("face").sense)
+            .collect()
+    };
+    let (outer_senses, cavity_senses) = (
+        senses(topo::ShellRole::Outer),
+        senses(topo::ShellRole::Void),
+    );
+    let text = step_string(&ring.body, &StepOptions::default(), tol)
+        .unwrap_or_else(|e| panic!("the hollow ring exports: {e:?}"));
+    assert_eq!(
+        text.matches("MANIFOLD_SOLID_BREP(").count(),
+        0,
+        "not voidless"
+    );
+    assert_eq!(text.matches("= BREP_WITH_VOIDS(").count(), 1, "one solid");
+    let voids: Vec<&str> = text
+        .lines()
+        .filter(|line| line.contains("= ORIENTED_CLOSED_SHELL("))
+        .collect();
+    assert!(
+        matches!(voids[..], [void] if void.ends_with(", .F.);")),
+        "one void, reversed: {voids:?}"
+    );
+    let face_senses: Vec<bool> = text
+        .lines()
+        .filter(|line| line.contains("= ADVANCED_FACE("))
+        .map(|line| line.ends_with(".T.);"))
+        .collect();
+    assert_eq!(
+        face_senses,
+        outer_senses
+            .iter()
+            .copied()
+            .chain(cavity_senses.iter().map(|sense| !sense))
+            .collect::<Vec<_>>(),
+        "the outer torus's faces as stored, the cavity's reversed"
+    );
 }
 
 /// **Regression guard for `common::walk_order` (review probe).** The

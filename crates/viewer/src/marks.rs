@@ -174,7 +174,7 @@ pub const HELD_FACES: usize = 3;
 /// **The picks a form or a tool HOLDS**: the second source of marks
 /// beside the live selection.
 ///
-/// A held pick outlives the selection that made it. The traced-profile
+/// A held pick outlives the selection that made it. The profile-on-a-face
 /// form latches the faces it reads so that an author can click the feature tree
 /// without losing it, and a modal tool keeps its picks until it
 /// commits. Nothing in the selection says so, so a picture that marked
@@ -460,7 +460,7 @@ pub struct EdgeOverlay {
     /// editor's preview is of an edit of a COMMITTED profile, and names
     /// that node to `crate::sketch::committed`'s `except`, which leaves
     /// it out of this lane; nothing checks that it does. (The
-    /// traced-profile form's preview is a trace, never a profile's
+    /// profile-on-a-face form's preview is a trace, never a profile's
     /// loops.)
     pub profiles: Vec<[f32; 3]>,
 }

@@ -23,7 +23,7 @@
 //!   sharp chain (G1 refusal), and the whole component walks up the
 //!   struts into the rim's MIXED corners, which build.
 //! - P4: the L-bracket's mixed corner, its odd edge requested with a
-//!   rim edge, refuses the fillet with the MixedConvexity tag.
+//!   rim edge, refuses the fillet's run-out, naming the inner edge odd.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -34,7 +34,7 @@ use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig};
+use sweep::blend::{BlendError, Convexity, UnbuiltEnd};
 use sweep::chamfer::chamfer_edges;
 use sweep::{Extrusion, extrude};
 use topo::{Body, validate_closed};
@@ -229,8 +229,9 @@ fn p3_a_pockets_floor_mitres_alone_and_the_whole_pocket_builds_through_its_rims_
 /// **P4 — the fillet's mixed-corner refusal reads its count.** The
 /// L-bracket's inner edge (the fixture #919 pinned the OPENING state
 /// on), requested with a convex rim edge of its top corner, refuses
-/// the fillet at the corner door with `MixedConvexity { convex: 2 }`:
-/// the inner edge is that corner's odd edge.
+/// the fillet at the corner door with the run-out
+/// (`UnbuiltEnd::RunOut`): the inner edge is that corner's odd edge,
+/// concave beside two convex ones.
 #[test]
 fn p4_the_l_bracket_inner_edge_with_a_rim_edge_refuses_the_fillet_as_mixed() {
     let lp = ProfileLoop::polygon([
@@ -270,12 +271,10 @@ fn p4_the_l_bracket_inner_edge_with_a_rim_edge_refuses_the_fillet_as_mixed() {
     )
     .expect_err("the mixed corner refuses");
     match err.error {
-        BlendError::UnsupportedCorner {
-            corner: CornerConfig::MixedConvexity { convex },
-            ..
-        } => assert_eq!(
-            convex, 2,
-            "two of the three edges at the strut end are convex"
+        BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { odd: Some(odd), .. }) => assert_eq!(
+            (odd.edge, odd.convexity),
+            (inner[0], Convexity::Concave),
+            "the reflex edge is the odd one, two of the three at its end convex"
         ),
         ref other => panic!("expected the mixed-corner refusal, got {other:?}"),
     }

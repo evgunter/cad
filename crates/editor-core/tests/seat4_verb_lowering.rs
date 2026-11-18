@@ -63,11 +63,6 @@ const D: f64 = 0.125;
 /// spellings and both lowering paths.
 fn both_blends() -> BothBlends {
     let mut r = corpus::Recorder::new();
-    // The saved SNAPSHOT is the empty document and the log is
-    // everything (the recorder's convention), so a load replays the
-    // whole recipe through `apply`'s doors — which is what makes the
-    // round-trip a test of the wire spelling of every node.
-    let snapshot = r.doc.clone();
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![square],
@@ -82,19 +77,14 @@ fn both_blends() -> BothBlends {
     let filleted = r.insert(Node::fillet(cube, len(R), edges.clone()));
     let chamfered = r.insert(Node::chamfer(cube, len(D), edges));
     BothBlends {
-        snapshot,
         doc: r.doc,
-        edits: r.edits,
         blends: [filleted, chamfered],
     }
 }
 
-/// The two-blend fixture: what to save, what to evaluate, and the two
-/// blend nodes' ids.
+/// The two-blend fixture: the document and the two blend nodes' ids.
 struct BothBlends {
-    snapshot: ProfileDoc,
     doc: ProfileDoc,
-    edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     blends: [RecipeNodeId; 2],
 }
 
@@ -107,16 +97,13 @@ struct BothBlends {
 #[test]
 fn a_fillet_and_chamfer_document_round_trips_byte_identical() {
     let fixture = both_blends();
-    let first =
-        persist::save(&fixture.snapshot, &fixture.edits, tol()).expect("the document saves");
+    let first = persist::save(&fixture.doc, tol()).expect("the document saves");
     let loaded = persist::load(&first, tol()).expect("its own bytes load back");
-    assert_eq!(loaded.edits, fixture.edits, "the edit log did not survive");
     assert!(
-        loaded.doc.bit_eq(&fixture.doc),
-        "the replayed document is not bit-identical to the authored one"
+        loaded.bit_eq(&fixture.doc),
+        "the loaded document is not bit-identical to the authored one"
     );
-    let second = persist::save(&loaded.snapshot, &loaded.edits, tol())
-        .expect("the loaded document re-saves");
+    let second = persist::save(&loaded, tol()).expect("the loaded document re-saves");
     assert_eq!(
         first, second,
         "a fillet+chamfer document does not round-trip byte-identically"
@@ -238,12 +225,13 @@ fn a_boolean_document_round_trips_byte_identical() {
         .into_iter()
         .find(|d| d.name == "crossing_slots")
         .expect("the document is registered");
-    let snapshot = ProfileDoc::empty_derived("seat5_boolean_roundtrip", tol());
-    let first = persist::save(&snapshot, &doc.edits, tol()).expect("the document saves");
+    let first = persist::save(&doc.doc, tol()).expect("the document saves");
     let loaded = persist::load(&first, tol()).expect("its own bytes load back");
-    assert_eq!(loaded.edits, doc.edits, "the edit log did not survive");
-    let second = persist::save(&loaded.snapshot, &loaded.edits, tol())
-        .expect("the loaded document re-saves");
+    assert!(
+        loaded.bit_eq(&doc.doc),
+        "the loaded document is not bit-identical to the registered one"
+    );
+    let second = persist::save(&loaded, tol()).expect("the loaded document re-saves");
     assert_eq!(
         first, second,
         "a boolean document does not round-trip byte-identically"

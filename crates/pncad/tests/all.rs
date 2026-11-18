@@ -303,7 +303,7 @@ fn mesh_validate_and_surface_projection_are_nameable() {
 // reached by a bare name out of `use pncad::prelude::*`, with no
 // module path spelled anywhere in the function — so dropping one from
 // the prelude stops this file compiling even though
-// `pncad::sweep::blend::CornerConfig` still resolves perfectly well.
+// `pncad::sweep::blend::UnbuiltEnd` still resolves perfectly well.
 // That is the failure mode a nameability pin cannot see.
 //
 // The matches are EXHAUSTIVE for the reason CUR3's tag map is: an arm
@@ -311,46 +311,55 @@ fn mesh_validate_and_surface_projection_are_nameable() {
 // becoming unmatchable at the curated surface.
 // ---------------------------------------------------------------
 
-/// `BlendError::UnsupportedCorner`'s payload — the OQ6 corner
-/// vocabulary (#85) — and the run-out policy the tag's own map
-/// assigns it. The two travel together in the arm, so they are pinned
-/// together here.
-fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
-    // `policy` is the ONE place the tag → policy map lives, so a
-    // refusal cannot disagree with its own tag. Matching its result
-    // exhaustively is what makes `RunOutPolicy`'s carriage
-    // load-bearing rather than decorative.
-    match corner.policy() {
-        Some(
-            RunOutPolicy::RunOutStopAtVertex
-            | RunOutPolicy::RunOutFeather
-            | RunOutPolicy::CutOffAtEndFace
-            | RunOutPolicy::Mitre,
-        )
-        | None => {}
-    }
-    match corner {
-        CornerConfig::ThreeConvexEdges => "three_convex_edges",
-        CornerConfig::NEdgeVertex { valence } => {
+/// `BlendError::UnbuiltEnd`'s payload — why a band's end is not built,
+/// each tag with its own site — and the run-out's odd edge.
+fn unbuilt_end_is_matchable(end: UnbuiltEnd) -> &'static str {
+    match end {
+        UnbuiltEnd::Valence { vertex, valence } => {
+            named::<VertexKey>(vertex);
             named::<usize>(valence);
-            "n_edge_vertex"
+            "valence"
         }
-        CornerConfig::MixedConvexity { convex } => {
-            named::<usize>(convex);
-            "mixed_convexity"
+        UnbuiltEnd::DependentNormals { vertex } => {
+            named::<VertexKey>(vertex);
+            "dependent_normals"
         }
-        CornerConfig::DependentNormals => "dependent_normals",
-        // Not a corner at all, and the one arm whose recourse names a
+        // Not a corner at all, and the one tag whose recourse names a
         // door that EXISTS — the distinction a caller who could not
         // name this type had to read out of the prose.
-        CornerConfig::SeamVertex => "seam_vertex",
-        // A straight band's cut-off — a configuration that CARVES,
-        // whose policy is the cut-off the tag's map assigns.
-        CornerConfig::EndFace => "end_face",
-        // Two of three edges requested: the mitre, built where the
-        // two bands' feet on the third edge meet.
-        CornerConfig::Turn => "turn",
-        CornerConfig::Indeterminate => "indeterminate",
+        UnbuiltEnd::Seam { vertex } => {
+            named::<VertexKey>(vertex);
+            "seam"
+        }
+        UnbuiltEnd::Indeterminate { vertex } => {
+            named::<VertexKey>(vertex);
+            "indeterminate"
+        }
+        UnbuiltEnd::CurvedEndFace { vertex } => {
+            named::<VertexKey>(vertex);
+            "curved_end_face"
+        }
+        UnbuiltEnd::FootInsideAFace { vertex } => {
+            named::<VertexKey>(vertex);
+            "foot_inside_a_face"
+        }
+        UnbuiltEnd::FeetCross { edge } => {
+            named::<EdgeKey>(edge);
+            "feet_cross"
+        }
+        UnbuiltEnd::RunOut {
+            vertex,
+            unrequested,
+            odd,
+        } => {
+            named::<VertexKey>(vertex);
+            named::<EdgeKey>(unrequested);
+            if let Some(OddEdge { edge, convexity }) = odd {
+                named::<EdgeKey>(edge);
+                named::<Convexity>(convexity);
+            }
+            "run_out"
+        }
     }
 }
 
@@ -614,7 +623,7 @@ fn profile_payloads_are_matchable(
 ///
 /// WHAT THIS DOES NOT PIN, stated rather than implied: none of these
 /// refusals is CONSTRUCTED from a façade door here. Reaching a real
-/// `UnsupportedCorner` needs a body with an out-of-scope trihedron,
+/// `UnbuiltEnd` needs a body with an out-of-scope trihedron,
 /// and reaching a real `UnrecordedContact` needs a census finding;
 /// both belong to the kernel suites that already own them. What is
 /// pinned is the CURATION property and only that — the values are
@@ -623,19 +632,22 @@ fn profile_payloads_are_matchable(
 #[test]
 fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     assert_eq!(
-        corner_config_is_matchable(CornerConfig::SeamVertex),
-        "seam_vertex"
+        unbuilt_end_is_matchable(UnbuiltEnd::Seam {
+            vertex: VertexKey::default()
+        }),
+        "seam"
     );
-    // The seam vertex is the arm whose policy is `None`: it is not a
-    // corner, so no run-out would help it. A caller that could not
-    // name `CornerConfig` could not tell that from a valence-4 vertex,
-    // whose policy is a real one.
-    assert!(CornerConfig::SeamVertex.policy().is_none());
     assert_eq!(
-        CornerConfig::NEdgeVertex { valence: 4 }.policy(),
-        Some(RunOutPolicy::RunOutStopAtVertex)
+        unbuilt_end_is_matchable(UnbuiltEnd::RunOut {
+            vertex: VertexKey::default(),
+            unrequested: EdgeKey::default(),
+            odd: Some(OddEdge {
+                edge: EdgeKey::default(),
+                convexity: Convexity::Concave,
+            }),
+        }),
+        "run_out"
     );
-    assert_eq!(CornerConfig::MixedConvexity { convex: 2 }.policy(), None);
 
     assert_eq!(
         blend_site_and_convexity_are_matchable(BlendSite::Chain, Convexity::Convex),
@@ -1415,12 +1427,12 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     let imported: StepImport = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect("the export re-imports");
 
+    let curve_promotions = imported.curve_promotions();
     // Every field of the arm, bound by name and typed from this list.
     let StepImport::Solid {
         body,
         eps_in,
         normalizations,
-        curve_promotions,
         instances,
         coherence,
         contacts,
@@ -1550,6 +1562,23 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             match to {
                 PromotedKind::Plane => "surface_promotion_plane",
                 PromotedKind::Cylinder => "surface_promotion_cylinder",
+            }
+        }
+        NormalizationKind::OneRecord {
+            kept,
+            joined,
+            moved_by,
+        } => {
+            named::<&u64>(kept);
+            named::<&u64>(joined);
+            named::<&f64>(moved_by);
+            "one_record"
+        }
+        NormalizationKind::CurvePromoted { kind, residual } => {
+            named::<&f64>(residual);
+            match kind {
+                PromotedCurveKind::Circle => "curve_promoted_circle",
+                PromotedCurveKind::Line => "curve_promoted_line",
             }
         }
     }
@@ -2138,10 +2167,8 @@ fn lib_doors_vocabulary_is_nameable() {
     named::<Option<pncad::document::NodeValue<f64>>>(None);
     named::<Option<pncad::document::NodeResult<f64>>>(None);
     named::<Option<pncad::document::EvalOutcome>>(None);
-    named::<Option<pncad::document::Loaded>>(None);
     named::<Option<pncad::document::PersistError>>(None);
     named::<Option<pncad::document::NonFiniteSite>>(None);
-    named::<Option<pncad::document::ProgramFault>>(None);
     named::<Option<pncad::document::SnapshotError>>(None);
     named::<Option<pncad::document::DimensionError>>(None);
     named::<Option<pncad::export::ExportError>>(None);
@@ -2524,21 +2551,16 @@ fn the_persist_doors_round_trip_through_the_facade() {
     // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(volume, 6.0);
 
-    let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = pncad::document::save(&doc, Tol::witness()).expect("the document saves");
     assert!(
         text.starts_with(&format!("id: {}\n", doc.id())),
         "the file's header names the document"
     );
 
     let loaded = pncad::document::load(&text, Tol::witness()).expect("the file loads");
-    assert!(loaded.edits.is_empty(), "no edit log was saved");
-    assert!(loaded.records.is_empty());
-    assert!(
-        loaded.doc.bit_eq(&doc),
-        "load replays to the SAME document (D9)"
-    );
+    assert!(loaded.bit_eq(&doc), "load answers the SAME document (D9)");
 
-    let after = doors_evaluate(&loaded.doc);
+    let after = doors_evaluate(&loaded);
     let replayed = mass_properties(
         &pncad::topo::finish(
             pncad::topo::Body::clone(
@@ -3023,7 +3045,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         "volume {volume} vs the plate_param oracle {oracle}"
     );
 
-    let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = pncad::document::save(&doc, Tol::witness()).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
@@ -3106,7 +3128,7 @@ fn ws_doc_and_body(label: &str) -> (pncad::document::ProfileDoc, String, PartBod
     );
     let (doc, copy) = place(doc, body);
     let doc = product_is(doc, &[copy]);
-    let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = pncad::document::save(&doc, Tol::witness()).expect("the document saves");
     (doc, text, PartBody { body })
 }
 
@@ -3206,7 +3228,7 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
     .expect("the edit applies")
     .doc;
     let new_text =
-        pncad::document::save(&edited, &[], Tol::witness()).expect("the edited document saves");
+        pncad::document::save(&edited, Tol::witness()).expect("the edited document saves");
     dir.write("part.pncad", &new_text);
     drop(text);
 
@@ -3367,66 +3389,6 @@ fn random_document_ids_are_distinct() {
     let a = pncad::workspace::random_document_id().expect("OS randomness");
     let b = pncad::workspace::random_document_id().expect("OS randomness");
     assert_ne!(a, b, "128 random bits collide never in practice");
-}
-
-/// D-5's pin-the-REPLAYED-document discipline, falsified (R2
-/// MINOR-2): a workspace file saved WITH a non-empty edit log. The
-/// replayed state's pin resolves; the RAW snapshot's pin refuses
-/// PinMismatch — so a resolve that pinned `loaded.snapshot` instead
-/// of `loaded.doc` fails this row in both directions.
-#[test]
-fn workspace_resolve_pins_replayed_state_not_snapshot() {
-    use pncad::document::{Dimension, DocEdit, FreeVar, VarName};
-    let dir = WsDir::new("log");
-    let (origin, _) = ws_doc("ws-logged");
-    let edit = DocEdit::DeclareVar {
-        name: VarName::from_static("depth"),
-        def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
-    };
-    // Save snapshot + ONE-edit log; the file's current state is the
-    // replayed result, and that is what a resolve must pin.
-    let text = pncad::document::save(&origin, std::slice::from_ref(&edit), Tol::witness())
-        .expect("the logged document saves");
-    dir.write("logged.pncad", &text);
-    let replayed = pncad::document::apply(&origin, &edit, Tol::witness())
-        .expect("the edit applies")
-        .doc;
-    let replayed_pin =
-        pncad::document::content_pin(&replayed, Tol::witness()).expect("the pin computes");
-    let snapshot_pin =
-        pncad::document::content_pin(&origin, Tol::witness()).expect("the pin computes");
-    assert_ne!(
-        replayed_pin, snapshot_pin,
-        "the log is semantic here, so the two pins must differ for this row to bite"
-    );
-
-    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let resolved = ws
-        .resolve(
-            &pncad::document::DocRef {
-                id: origin.id(),
-                pin: replayed_pin,
-            },
-            Tol::witness(),
-        )
-        .expect("the replayed state's pin is the one that resolves");
-    assert!(
-        resolved.bit_eq(&replayed),
-        "resolve hands back the replayed state"
-    );
-    match ws.resolve(
-        &pncad::document::DocRef {
-            id: origin.id(),
-            pin: snapshot_pin,
-        },
-        Tol::witness(),
-    ) {
-        Err(pncad::workspace::WorkspaceError::PinMismatch { wanted, found, .. }) => {
-            assert_eq!(wanted, snapshot_pin);
-            assert_eq!(found, replayed_pin);
-        }
-        other => panic!("the raw snapshot's pin must refuse PinMismatch, got {other:?}"),
-    }
 }
 
 // ---- A4: a save is two acts (the save door and the fork) ----
@@ -3950,7 +3912,7 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
                 distance: len(1.5),
             },
         );
-        pncad::document::save(&doc, &[], Tol::witness()).expect("saves")
+        pncad::document::save(&doc, Tol::witness()).expect("saves")
     };
     dir.write("part.pncad", &edited);
 
@@ -4174,7 +4136,7 @@ fn asm_r2a_child_mated_probe() {
     .expect("mass properties")
     .enclosure
     .volume;
-    let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = pncad::document::save(&doc, Tol::witness()).expect("the document saves");
     std::fs::write(
         &out,
         format!(
@@ -4266,10 +4228,10 @@ fn asm_r2b_child_crossing_probe() {
     )
     .expect("a whole-group cut splits");
     let text =
-        pncad::document::save(&split.remainder, &[], Tol::witness()).expect("the remainder saves");
+        pncad::document::save(&split.remainder, Tol::witness()).expect("the remainder saves");
     dir.write(
         "split.pncad",
-        &pncad::document::save(&split.part, &[], Tol::witness()).expect("the part saves"),
+        &pncad::document::save(&split.part, Tol::witness()).expect("the part saves"),
     );
 
     let ev = asm2a_eval(&doc, &ws);
@@ -4337,7 +4299,7 @@ fn asm_r2b_crossing_bearing_bits_agree_across_two_fresh_processes() {
 fn asm2b_workspace(dir: &WsDir) -> (pncad::document::DocRef, pncad::document::DocRef) {
     let p = asm2a_part(dir, "part.pncad", "asm2b-part");
     let (b_doc, _) = asm2a_assembly("asm2b-sub", p, 2);
-    let text = pncad::document::save(&b_doc, &[], Tol::witness()).expect("the sub-assembly saves");
+    let text = pncad::document::save(&b_doc, Tol::witness()).expect("the sub-assembly saves");
     dir.write("sub.pncad", &text);
     let b = pncad::document::DocRef {
         id: b_doc.id(),
@@ -4690,8 +4652,8 @@ fn asm4_child_split_probe() {
     .expect("legal");
     let text = format!(
         "{}\u{1e}{}",
-        d::save(&split_out.part, &[], Tol::witness()).expect("part saves"),
-        d::save(&split_out.remainder, &[], Tol::witness()).expect("remainder saves"),
+        d::save(&split_out.part, Tol::witness()).expect("part saves"),
+        d::save(&split_out.remainder, Tol::witness()).expect("remainder saves"),
     );
     std::fs::write(&out, text).expect("probe output writable");
 }
@@ -4907,7 +4869,7 @@ fn asm_upd_child_update_probe() {
     .volume;
     let text = format!(
         "{}\u{1e}{}",
-        d::save(&updated, &[], Tol::witness()).expect("the updated document saves"),
+        d::save(&updated, Tol::witness()).expect("the updated document saves"),
         volume.to_bits(),
     );
     std::fs::write(&out, text).expect("probe output writable");
@@ -4962,7 +4924,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
 ///   `Diagnosis`, `UpstreamCause`, `GroupCutters`, `Implicated`,
-///   `PredicateDivergence`, `DocDiff`, `NodeChange`, `diff_*`,
+///   `DocDiff`, `NodeChange`, `diff_*`, `first_turn`,
 ///   `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
@@ -5208,7 +5170,6 @@ const NOT_CARRIED: [&str; 101] = [
     "NodeVerdictDelta",
     "NodeVerdicts",
     "ParamValue",
-    "PredicateDivergence",
     "ProfileLane",
     "ProfilePayload",
     "Qualifier",
@@ -5224,9 +5185,9 @@ const NOT_CARRIED: [&str; 101] = [
     "SlotPayload",
     "StructureFlip",
     "SummaryDelta",
+    "SummaryDiff",
     "SummaryDivergence",
-    "SummaryFlip",
-    "SummaryFlipSet",
+    "SummaryShift",
     "TieWitness",
     "Tombstone",
     "UpstreamCause",
@@ -5249,6 +5210,7 @@ const NOT_CARRIED: [&str; 101] = [
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
+    "first_turn",
     "from_value",
     "var_env_over",
     // The analysis's axis rule (VR8), which `analyzed_box` and the
@@ -6789,8 +6751,8 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
         ),
     );
 
-    let text = save(&doc, &[], Tol::witness()).expect("the annotated document saves");
-    let back = load(&text, Tol::witness()).expect("and loads").doc;
+    let text = save(&doc, Tol::witness()).expect("the annotated document saves");
+    let back = load(&text, Tol::witness()).expect("and loads");
     assert!(back.bit_eq(&doc), "the annotation round-trips bit for bit");
 
     let policy = AnalysisPolicy::default();

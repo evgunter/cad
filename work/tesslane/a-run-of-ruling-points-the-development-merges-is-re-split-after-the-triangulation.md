@@ -2,11 +2,13 @@
 id: a-run-of-ruling-points-the-development-merges-is-re-split-after-the-triangulation
 kind: unit
 title: The chart lane's cone arm gives a run of ruling points its development merges one CDT vertex and re-splits it after the triangulation
-status: dispatched
+status: closed
 opened: 2026-11-17
 priority: P1
 cost: M
 branch: tesslane/merged-run
+closed: 2026-11-17
+pr: 7054
 ---
 
 ## Finding
@@ -55,3 +57,19 @@ The analysis this rests on, by PR 7049's implementer from a reading of `trimmed.
 
 **Done when** every cell above meshes within δ with resolved outward winding at the three ε, no patch that meshes today has moved, and the refusals that remain are named and pinned.
 
+## Closed (2026-11-17, PR 7054)
+
+Built as specified in outline and corrected in detail. A run (consecutive polygon points of one ruling that the development puts at one point) is one CDT vertex, and `trimmed::cut_along_runs` re-splits it in the emit pass; every triangle, the added ones included, goes through the certificate and the winding rule. All 1,296 default-ε cells of the spec's bodies and all 1,479 at ε 10⁻¹² that refused `DevelopedMerge` mesh; the review's independent probe passed about 18,100 such cells and found 51,319 others byte-identical.
+
+What the analysis quoted above had wrong, each measured by the unit:
+
+- **"a, P, b are collinear in the development" is false for the commonest cell.** A split near a ruling's END merges with the ruling's end vertex, a corner of the polygon. The run is anchored by its neighbour ALONG the ruling, not always the one before. With the literal rule back, 203 default-ε cells of the review's grid refuse.
+- **"One chart column" does not recognise a run.** A ruling's far end is read through its rim's image, a rounding off the ruling's column (`u = 0.0` against `−1.2·10⁻¹⁶`), and 153 of the 1,296 cells kept refusing until the run was read from the polygon sides' carriers. Filed: `a-rulings-end-vertex-read-through-its-rims-image-is-off-the-rulings-exact-line`.
+- The run's vertex would have been read as a pinch; a thin triangle has no inside for the shared-side cure; two runs anchored by the apex in one triangle needed a rule of their own.
+
+What still refuses, each pinned in `crates/mesh/tests/split_rulings.rs`:
+
+- **A run anchored on a needle triangle near an apex**, `UnresolvedWinding`, at the DEFAULT ε on large slender parts (the added triangle's height `g·d/L` falls under the winding allowance): `a-run-anchored-on-a-needle-triangle-makes-triangles-f64-cannot-wind`, P2, with two cures seen and neither built. The unit first reported it as existing at ε 10⁻¹² only; its review found the default-ε bodies.
+- A merge that is no run (a band shorter than the development resolves; a point merged with the apex; two sides or two loops): `DevelopedMerge`, as before.
+
+After unit 4c (`a-ruled-face-with-a-split-side-meshes-at-the-density-of-the-face-without-it`) a split-ruling rectangle is no longer triangulated in the development, so this cure's live callers are the chart lane's other cone faces; two rows on a cone face cut by an oblique plane hold it there.

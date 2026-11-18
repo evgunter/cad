@@ -1096,7 +1096,10 @@ fn singular_turn<T: Decide>(
             arrived
         }
     };
-    let step = if above == sides.sense { 1 } else { -1 };
+    // The step of a face on the loop's left: it advances along a
+    // latitude it lies above.
+    let left = if above { 1 } else { -1 };
+    let step = geom_brep::PolygonOrientation::of_face(sides.sense).to_interior(left);
     if sides.mates {
         return Ok((step, false));
     }

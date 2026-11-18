@@ -373,8 +373,8 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             target: viewer::session::PlaceTarget::space(VarId::WORLD),
             constraints: pncad::document::stand().bundle(),
         },
-        SessionOp::AddDrawnProfile {
-            plane: FaceSelection {
+        SessionOp::DrawOnFace {
+            face: FaceSelection {
                 name: face(node),
                 node,
                 body: 0,
@@ -516,7 +516,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // other one.
         SessionOp::SetProduct { .. } => (56, false),
         // An insert door, fenced with every other one.
-        SessionOp::AddDrawnProfile { .. } => (57, false),
+        SessionOp::DrawOnFace { .. } => (57, false),
         // The fork re-identifies every state of the history the drag
         // previews against.
         SessionOp::SaveAsNewDocument(_) => (58, false),
@@ -1030,7 +1030,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddMate { .. }
         | SessionOp::NewDocument { .. }
         | SessionOp::SketchOnFace { .. }
-        | SessionOp::AddDrawnProfile { .. }
+        | SessionOp::DrawOnFace { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }

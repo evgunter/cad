@@ -22,11 +22,11 @@
 //!
 //! - **the sealed vessel** — `shell`, a wall and a cavity in one solid.
 //!   Drawn see-through, because a cavity cannot be read from an opaque
-//!   render at any camera (the hollow ring's founding reason). Its
-//!   remaining wall is STEP, declared at the body.
+//!   render at any camera (the hollow ring's founding reason). It
+//!   leaves as STEP — one `BREP_WITH_VOIDS` — and comes back
+//!   ([`crate::step_round_trip`]) as one solid with its cavity.
 //! - **the opened cup** — `shell_open` at the mouth chart. One shell,
-//!   one annular rim, genus 0, and it leaves as STEP, which the sealed
-//!   body cannot.
+//!   one annular rim, genus 0, and it leaves as STEP too.
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
@@ -524,6 +524,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         voids[0].enclosure.volume
     );
     let litres = v_cav * 1000.0;
+    let trip = crate::step_round_trip("torusvessel", &sealed, tol);
 
     // ---- THE SENSE TWIN: the same stations, the other centre ----
     let twin = pncad::topo::finish(waisted(tol), tol).expect("the twin is a finished body");
@@ -734,12 +735,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                  the moved caps' off-centre sections, circles tilted against the \
                  sphere's chart — measures by Gauss–Bonnet over its arcs \
                  (`torax_the_sphere_lune_hollows_to_its_closed_form`). THE \
-                 SEALED BODY'S OWN WALL IS STEP: the writer reads the cavity as a void \
-                 and refuses it (VoidShellUnsupported: no BREP_WITH_VOIDS yet) — \
-                 declared at the body and \
-                 probed on every pass, the same standing gate klein's wall 6, the ring \
-                 scene and `hollowtorus` name. The cup panel next door is ONE shell and \
-                 exports",
+                 SEALED BODY LEAVES AS STEP — one BREP_WITH_VOIDS, the cavity its void — \
+                 and imports back as one solid with {} cavity and V = {:.9} m³",
                 props_s.enclosure.volume,
                 props_s.enclosure.surface_area,
                 voids[0].enclosure.volume,
@@ -747,6 +744,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 R_TUBE + WALL,
                 Y_FOOT + WALL,
                 Y_SHOULDER - WALL,
+                trip.voids,
+                trip.volume,
             )),
             // The vessel's axis is +y, and 24 degrees up is where the
             // TRANSPARENT read is best: the cavity's own neck and foot
@@ -768,20 +767,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             },
             bodies: vec![
                 SceneBody::plain("torusvessel", [0.76, 0.48, 0.36], sealed.into_body())
-                    .transparent(45)
-                    .step_at_frontier(
-                        |e| {
-                            matches!(
-                                e,
-                                pncad::step_export::StepExportError::VoidShellUnsupported { .. }
-                            )
-                        },
-                        "the writer writes BREP_WITH_VOIDS now. Say \
-                         so in klein's findings entry 7 and in docs/KERNEL-VERBS.md's \
-                         hollow-ring STEP row, and retire ALL FOUR probes of this one \
-                         gate together: klein's WALL 6, the `ring` scene's \
-                         `step_at_frontier`, `tubewall`'s `hollowtorus`, and this one",
-                    ),
+                    .transparent(45),
             ],
         },
         TourStop {
@@ -807,8 +793,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                  six PeriodClosure skips, the curved runs it declines by design. \
                  V = {:.9} m³ against the sealed wall's closed form less the plug the \
                  lift opens (a cylinder of the cavity's neck radius, one wall tall). \
-                 A = {:.9} m². THE CUP LEAVES AS STEP, which the sealed panel next door \
-                 cannot: the writer refuses a void shell, and a cup is ONE shell",
+                 A = {:.9} m². The cup leaves as STEP like the sealed panel next door, as \
+                 one shell rather than a solid with a void",
                 props_c.enclosure.volume, props_c.enclosure.surface_area,
             )),
             // Ten degrees higher than the sealed panel and swung round

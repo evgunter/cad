@@ -36,11 +36,10 @@
 //!   has a chart image that depends on where the seam was cut. No
 //!   containment answer read there is a fact about the surface, so it
 //!   refuses.
-//! - **Undecidability at ε**: a test point closer to a candidate
-//!   polygon's boundary than the interpretation budget allows —
-//!   ε_in_eff carried into the chart through the local metric
-//!   (`|∂S/∂u|`, `|∂S/∂v|`), so the budget is compared against a
-//!   parametric distance in the units the chart actually has.
+//! - **Undecidability at the file's band**: a test point whose distance
+//!   from a candidate polygon's boundary, carried out of the chart into
+//!   metres by the local metric (`|∂S/∂u|`, `|∂S/∂v|`), does not read
+//!   apart at the file's band.
 //! - **No unique answer**: zero, or more than one, ring containing all
 //!   the others.
 //!
@@ -50,11 +49,13 @@
 
 use geom::Surface;
 use geom_core::predicate::Band;
-use geom_core::{Point2, Point3, Tol};
+
+use crate::interpret::{FileBand, Read, STEP_RING_CONTAINMENT};
+use geom_core::{Point2, Point3};
 
 /// Why an outerness inference could not answer (module docs). Carries
 /// no entity ids — the caller names the face.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum OuternessRefusal {
     /// A ring point does not invert into the face surface's chart (off
     /// the surface, or at a chart singularity where the inverse is not
@@ -62,8 +63,13 @@ pub(crate) enum OuternessRefusal {
     NotOnChart,
     /// A ring's chart image is seam-dependent (module docs).
     SeamDependent,
-    /// A containment test landed inside the interpretation budget.
-    UndecidableAtEps,
+    /// A containment test read in the file's band: the probe's distance
+    /// from the candidate's boundary, in metres.
+    UndecidableAtEps(f64),
+    /// A containment test read Zero: one bound touches another at the
+    /// file's band, the probe's distance from the candidate's boundary in
+    /// metres.
+    RingsTouch(f64),
     /// No ring, or more than one, contains all the others.
     NoUniqueOuter,
     /// Containment and orientation disagree: a ring contained in
@@ -79,9 +85,20 @@ pub(crate) enum OuternessRefusal {
 }
 
 impl OuternessRefusal {
-    /// The static description the typed import error carries.
-    pub(crate) fn what(self) -> &'static str {
-        match self {
+    /// **The import door's error for this refusal at face `id`**: a
+    /// containment distance that does not read apart is an interpretation
+    /// refusal at the file band `file` (touching where it reads Zero, in
+    /// band where it does not decide; either way only the levers that
+    /// read the rings apart are offered, since this act needs them
+    /// apart), and every other refusal a typed topology defect.
+    pub(crate) fn refused(self, id: u64, file: FileBand) -> crate::StepImportError {
+        let what = match self {
+            Self::RingsTouch(gap) => {
+                return file.refused(id, file.touching(STEP_RING_CONTAINMENT, gap));
+            }
+            Self::UndecidableAtEps(gap) => {
+                return file.refused(id, file.apart_in_band(STEP_RING_CONTAINMENT, gap));
+            }
             Self::NotOnChart => {
                 "a face bound whose ring does not lie on the face's own surface chart \
                  — outerness cannot be inferred from a ring that is not there"
@@ -90,11 +107,6 @@ impl OuternessRefusal {
                 "a face bound whose chart image depends on where the periodic seam was \
                  cut (a ring wrapping the surface's period): the containment answer \
                  would be an artifact of the seam, not a fact about the surface"
-            }
-            Self::UndecidableAtEps => {
-                "a face whose ring containment is undecidable at the file's own \
-                 interpretation budget (a ring passing within ε_in of another): \
-                 refusing rather than guessing which bound is outer"
             }
             Self::NoUniqueOuter => {
                 "a face with no single bound containing all the others — the STEP \
@@ -109,26 +121,13 @@ impl OuternessRefusal {
                 "a face on a surface whose chart has no closed-form inverse, so \
                  outerness cannot be inferred (state FACE_OUTER_BOUND instead)"
             }
-        }
+        };
+        crate::StepImportError::Topology { id, what }
     }
-}
-
-/// **The band a chart is read at on import** (D3: import reads the
-/// kernel's readings with the file's own coincidence distance as the
-/// band): `(ε_in, K·ε_in)`, the run's K. A file with no budget (`ε_in`
-/// of `0`, refused later as `MissingUncertainty`) reads at
-/// [`Band::least`], as an exact comparison would. `None` where `ε_in`
-/// and K make no band (`K·ε_in` overflowing, or rounding back onto
-/// `ε_in`): then no point has chart coordinates ([`uv_of`]).
-pub(crate) fn file_band(eps_in: f64, tol: Tol) -> Option<Band> {
-    if eps_in == 0.0 {
-        return Some(Band::least());
-    }
-    Band::new(eps_in, tol.k() * eps_in).ok()
 }
 
 /// The chart preimage of `p` on `surface`: geom's reading
-/// ([`Surface::chart_point`]) at the file's band ([`file_band`]), kept
+/// ([`Surface::chart_point`]) at the file's band ([`crate::interpret::file_band`]), kept
 /// only where it names one point. `None` for a chart with no closed
 /// form (NURBS), a point whose preimage is not a point (a pole or the
 /// apex, where every azimuth maps to one place, decided at the band),
@@ -181,9 +180,8 @@ struct Ring {
 }
 
 /// Which of `rings` is the outer bound (module docs' rule). `rings`
-/// holds each bound's 3-D samples in traversal order; `eps_in_eff` is
-/// the interpretation budget in meters, and `band` the file's band its
-/// samples are read into the chart at ([`file_band`]).
+/// holds each bound's 3-D samples in traversal order, read into the
+/// chart at the file's band, where each containment is decided.
 ///
 /// # Errors
 ///
@@ -191,9 +189,9 @@ struct Ring {
 pub(crate) fn infer_outer(
     surface: &Surface<f64>,
     rings: &[Vec<Point3<f64>>],
-    eps_in_eff: f64,
-    band: Option<Band>,
+    file: FileBand,
 ) -> Result<usize, OuternessRefusal> {
+    let band = Some(file.band());
     // Outerness is inferred in the chart, and neither spline kind has
     // the closed-form inverse this needs.
     if !geom_brep::is_analytic(surface) {
@@ -237,8 +235,6 @@ pub(crate) fn infer_outer(
     if !(floor.is_finite() && floor > 0.0) {
         return Err(OuternessRefusal::NotOnChart);
     }
-    // The budget, carried into chart units by the local metric.
-    let tol = eps_in_eff / floor;
 
     let mut outer = None;
     for (i, candidate) in charted.iter().enumerate() {
@@ -252,8 +248,15 @@ pub(crate) fn infer_outer(
                 .first()
                 .copied()
                 .ok_or(OuternessRefusal::NotOnChart)?;
-            if boundary_distance(&candidate.poly, probe) <= tol {
-                return Err(OuternessRefusal::UndecidableAtEps);
+            // The probe's chart distance from the candidate's boundary,
+            // carried into metres by the chart's least local metric: a
+            // ring that reads Zero touches the other, and one in band
+            // leaves containment undecided.
+            let gap = boundary_distance(&candidate.poly, probe) * floor;
+            match file.read(STEP_RING_CONTAINMENT, gap) {
+                Read::Apart => {}
+                Read::Zero => return Err(OuternessRefusal::RingsTouch(gap)),
+                Read::InBand => return Err(OuternessRefusal::UndecidableAtEps(gap)),
             }
             if !contains(&candidate.poly, probe) {
                 contains_all = false;
@@ -339,7 +342,8 @@ fn boundary_distance(poly: &[Point2<f64>], p: Point2<f64>) -> f64 {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
-    use super::{file_band, infer_outer, uv_of};
+    use super::{infer_outer, uv_of};
+    use crate::interpret::file_band;
 
     use geom::Surface;
     use geom_core::{Point3, Tol, Vec3};
@@ -423,8 +427,7 @@ mod tests {
             infer_outer(
                 &plane(),
                 &[outer.clone(), hole.clone()],
-                1e-9,
-                file_band(1e-9, Tol::witness())
+                crate::interpret::FileBand::new(1e-9, Tol::witness()).unwrap()
             ),
             Ok(0)
         );
@@ -432,8 +435,7 @@ mod tests {
             infer_outer(
                 &plane(),
                 &[hole, outer],
-                1e-9,
-                file_band(1e-9, Tol::witness())
+                crate::interpret::FileBand::new(1e-9, Tol::witness()).unwrap()
             ),
             Ok(1)
         );
@@ -448,7 +450,11 @@ mod tests {
             .collect();
         let b: Vec<Point3<f64>> = a.iter().map(|p| Point3::new(p.x + 5.0, p.y, 0.0)).collect();
         assert_eq!(
-            infer_outer(&plane(), &[a, b], 1e-9, file_band(1e-9, Tol::witness())),
+            infer_outer(
+                &plane(),
+                &[a, b],
+                crate::interpret::FileBand::new(1e-9, Tol::witness()).unwrap()
+            ),
             Err(super::OuternessRefusal::NoUniqueOuter)
         );
     }
@@ -457,7 +463,7 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod review_outerness {
-    use super::{OuternessRefusal, file_band, infer_outer};
+    use super::{OuternessRefusal, infer_outer};
     use geom::Surface;
     use geom_core::{Point3, Tol, Vec3};
 
@@ -507,6 +513,41 @@ mod review_outerness {
             .collect()
     }
 
+    /// **A ring in band is offered only what reads it apart** (item 3 of
+    /// the third review): containment passes only apart, and the ε_in an
+    /// ambiguity would offer to read the two as one reads them touching,
+    /// which refuses too. So the ending names no `ε_in ≥`, and re-reading
+    /// at the gap does touch.
+    #[test]
+    fn a_ring_in_band_is_offered_only_what_reads_it_apart() {
+        use crate::interpret::FileBand;
+        let file = FileBand::new(1e-9, Tol::witness()).unwrap();
+        let rings = [
+            ring_on_cyl(0.0, 2.0, 0.0, 1.0, 8),
+            ring_on_cyl(3.0 * file.band().zero(), 1.0, 0.3, 0.6, 8),
+        ];
+        let got = infer_outer(&cyl(), &rings, file);
+        let Err(refusal @ OuternessRefusal::UndecidableAtEps(gap)) = got else {
+            panic!("a ring three band-zeros off reads in band: {got:?}");
+        };
+        let text = refusal.refused(7, file).render();
+        assert!(text.contains("must stand apart"), "{text}");
+        assert!(
+            !text.contains('≥'),
+            "nothing that reads the two as one: {text}"
+        );
+        assert!(
+            text.contains("import with ε_in below") || text.contains("tighten the tolerance"),
+            "a lever that reads them apart: {text}"
+        );
+        let at = FileBand::new(gap * 1.01, Tol::witness()).unwrap();
+        let reread = infer_outer(&cyl(), &rings, at);
+        assert!(
+            matches!(reread, Err(OuternessRefusal::RingsTouch(_))),
+            "at the ε_in an ambiguity would offer, the rings touch: {reread:?}"
+        );
+    }
+
     #[test]
     fn review_six_refusals_fire() {
         // 1. UnsupportedChart is nurbs-only: skipped (no nurbs ctor here);
@@ -523,26 +564,32 @@ mod review_outerness {
             infer_outer(
                 &cyl(),
                 &[wrap, inner.clone()],
-                1e-10,
-                file_band(1e-10, Tol::witness())
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
             ),
             Err(OuternessRefusal::SeamDependent),
             "wrap ring"
         );
-        // 3. UndecidableAtEps: probe ring's first sample within eps of the
-        //    candidate's boundary.
+        // 3. A ring whose first sample lies on the candidate's boundary
+        //    (gap 0) or within its band's zero touches it; one in the band
+        //    leaves containment undecided.
+        let file = crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap();
+        let zero = file.band().zero();
         let outer = ring_on_cyl(0.0, 2.0, 0.0, 1.0, 8);
-        let touching = ring_on_cyl(0.0 + 1e-12, 1.0, 0.3, 0.6, 8);
-        assert_eq!(
-            infer_outer(
+        for (u0, want) in [(0.0, "touch"), (1e-12, "touch"), (3.0 * zero, "band")] {
+            let got = infer_outer(
                 &cyl(),
-                &[outer.clone(), touching],
-                1e-10,
-                file_band(1e-10, Tol::witness())
-            ),
-            Err(OuternessRefusal::UndecidableAtEps),
-            "touching ring"
-        );
+                &[outer.clone(), ring_on_cyl(u0, 1.0, 0.3, 0.6, 8)],
+                file,
+            );
+            let read = match got {
+                Err(OuternessRefusal::RingsTouch(gap)) if gap <= zero => "touch",
+                Err(OuternessRefusal::UndecidableAtEps(gap)) if gap > zero && gap < 10.0 * zero => {
+                    "band"
+                }
+                _ => "other",
+            };
+            assert_eq!(read, want, "a ring {u0:e} off the outer bound: {got:?}");
+        }
         // 4. OrientationContradicts: inner ring wound the SAME way.
         let mut inner_same = ring_on_cyl(0.5, 1.0, 0.2, 0.4, 8);
         let outer2 = ring_on_cyl(0.0, 2.0, 0.0, 1.0, 8);
@@ -551,8 +598,7 @@ mod review_outerness {
             infer_outer(
                 &cyl(),
                 &[outer2.clone(), inner_same.clone()],
-                1e-10,
-                file_band(1e-10, Tol::witness())
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
             ),
             Err(OuternessRefusal::OrientationContradicts),
             "same-wound inner"
@@ -563,8 +609,7 @@ mod review_outerness {
             infer_outer(
                 &cyl(),
                 &[outer2, inner_same],
-                1e-10,
-                file_band(1e-10, Tol::witness())
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
             ),
             Ok(0)
         );
@@ -572,7 +617,11 @@ mod review_outerness {
         let a = ring_on_cyl(0.0, 0.5, 0.0, 0.5, 8);
         let b = ring_on_cyl(1.0, 1.5, 0.0, 0.5, 8);
         assert_eq!(
-            infer_outer(&cyl(), &[a, b], 1e-10, file_band(1e-10, Tol::witness())),
+            infer_outer(
+                &cyl(),
+                &[a, b],
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
+            ),
             Err(OuternessRefusal::NoUniqueOuter),
             "disjoint"
         );
@@ -592,8 +641,7 @@ mod review_outerness {
             infer_outer(
                 &sph,
                 &[polar, low.clone()],
-                1e-10,
-                file_band(1e-10, Tol::witness())
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
             ),
             Err(OuternessRefusal::NotOnChart),
             "pole sample"
@@ -602,7 +650,11 @@ mod review_outerness {
         //    SeamDependent, refused not guessed.
         let cap = lat_ring(1.0, 1.4, 64, true);
         assert_eq!(
-            infer_outer(&sph, &[cap, low], 1e-10, file_band(1e-10, Tol::witness())),
+            infer_outer(
+                &sph,
+                &[cap, low],
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
+            ),
             Err(OuternessRefusal::SeamDependent),
             "pole-enclosing ring"
         );

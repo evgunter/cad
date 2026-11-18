@@ -110,12 +110,9 @@ fn turn(axis: [f64; 3], angle: f64) -> Frame {
 // 1. Nothing observable moved
 // ------------------------------------------------------------------
 
-/// The two-sweep fixture: what to save, what to evaluate, and the two
-/// sweep nodes' ids.
+/// The two-sweep fixture: the document and the two sweep nodes' ids.
 struct BothSweeps {
-    snapshot: ProfileDoc,
     doc: ProfileDoc,
-    edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     sweeps: [RecipeNodeId; 2],
 }
 
@@ -124,7 +121,6 @@ struct BothSweeps {
 /// file exercises both wire spellings and both lowering paths.
 fn both_sweeps() -> BothSweeps {
     let mut r = corpus::Recorder::new();
-    let snapshot = r.doc.clone();
     let square_loop = LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap();
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![square_loop],
@@ -149,9 +145,7 @@ fn both_sweeps() -> BothSweeps {
         ang(PI / 2.0),
     ));
     BothSweeps {
-        snapshot,
         doc: r.doc,
-        edits: r.edits,
         sweeps: [extruded, revolved],
     }
 }
@@ -165,16 +159,13 @@ fn both_sweeps() -> BothSweeps {
 #[test]
 fn an_extrude_and_revolve_document_round_trips_byte_identical() {
     let fixture = both_sweeps();
-    let first =
-        persist::save(&fixture.snapshot, &fixture.edits, tol()).expect("the document saves");
+    let first = persist::save(&fixture.doc, tol()).expect("the document saves");
     let loaded = persist::load(&first, tol()).expect("its own bytes load back");
-    assert_eq!(loaded.edits, fixture.edits, "the edit log did not survive");
     assert!(
-        loaded.doc.bit_eq(&fixture.doc),
-        "the replayed document is not bit-identical to the authored one"
+        loaded.bit_eq(&fixture.doc),
+        "the loaded document is not bit-identical to the authored one"
     );
-    let second = persist::save(&loaded.snapshot, &loaded.edits, tol())
-        .expect("the loaded document re-saves");
+    let second = persist::save(&loaded, tol()).expect("the loaded document re-saves");
     assert_eq!(
         first, second,
         "an extrude+revolve document does not round-trip byte-identically"

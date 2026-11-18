@@ -156,7 +156,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "die_pips",
         about: "M5 shape (v) stage 2: a spherical pip cut into a cube face (the corpus's first sphere)",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(pipped),
         // π-valued spherical caps are not dyadic — see the module docs.

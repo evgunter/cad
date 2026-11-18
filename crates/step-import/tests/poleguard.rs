@@ -122,14 +122,14 @@ fn the_span_route_argument_assumes_k_above_two_pi() {
 }
 
 /// The import door cannot admit a body carrying a junction inside the
-/// pole band — every fixture refuses at every ambient band. The
-/// default-band ParamSpan shape is additionally pinned by name when
-/// the live K covers both twins' margins (2ρ = 1.8ε and 2πρ = 5.65ε
-/// need K > 5.7 to land in the band rather than clear it).
+/// pole band — every fixture refuses at every ambient band. At the
+/// default band and finer, the twins' circle of radius 0.9ε (the 1e-9
+/// twins' declared 1e-10, read at the run's floor) refuses at
+/// interpretation, its radius no length at the file's band.
 #[test]
 fn a_junction_inside_the_pole_band_cannot_enter_through_the_import_door() {
     let tol = Tol::witness().get();
-    let (eps, k) = (tol.eps, tol.k);
+    let eps = tol.eps;
     for name in ["polefrustum.step", "poleband.step", "poleband_eps12.step"] {
         let out = import_step(&fixture(name), &ImportOptions::default(), Tol::witness());
         let Err(e) = out else {
@@ -141,11 +141,14 @@ fn a_junction_inside_the_pole_band_cannot_enter_through_the_import_door() {
         };
         let shape = format!("{e:?}");
         #[allow(clippy::float_cmp)]
-        if eps == 1e-9 && k >= 6.0 && name != "poleband_eps12.step" {
+        // Each twin's sub-band feature is a circle of radius 0.9ε whose
+        // radius the band the file is read at cannot tell from zero:
+        // refused where it is read, before any span is certified.
+        if name != "poleband_eps12.step" && eps <= 1e-9 {
             assert!(
-                shape.contains("ParamSpan"),
-                "{name}: at the default band the sub-band feature's span certification \
-                 refuses (interval_span_forward indeterminate); got {shape}"
+                shape.contains("LengthUnread"),
+                "{name}: the sub-band circle's radius is no length at the file's band; got \
+                 {shape}"
             );
         }
     }
@@ -278,4 +281,60 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     }
     // Other ambient bands: the import and the no-panic assertions
     // above still ran; the walk outcome is unpinned there.
+}
+
+/// **The singularity's ambiguity read at the FILE's band names the ε_in
+/// that decides it.** halfcap_eps7's undeclared pole lies 1.0000000012e-9
+/// m from its boundary. Read with ε_in = 1e-9 (at least the run's ε, so
+/// the band is the file's), the distance is in band: the refusal ends in
+/// the decision's own move, the ε_in below the distance over K that reads
+/// it apart, and the run's tolerance below it too only where the run's ε
+/// is not already below it. A run whose ε exceeds the distance reads it
+/// Zero and has nothing to refuse.
+#[test]
+fn the_singularitys_file_band_ending_names_the_eps_in_that_decides_it() {
+    let eps = Tol::witness().get().eps;
+    if eps >= 1e-9 * 1.0000000012 {
+        test_utils::vacuity::stood_down(
+            "the run's ε reads the pole's distance as zero",
+            "the singularity's file-band ending",
+        );
+        return;
+    }
+    let p = format!(
+        "{}/tests/fixtures/halfcap/halfcap_eps7.step",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let text = std::fs::read_to_string(&p).unwrap();
+    let options = ImportOptions {
+        eps_in: Some(1e-9),
+        ..ImportOptions::default()
+    };
+    let imported = import_step(&text, &options, Tol::witness());
+    let Err(
+        e @ step_import::StepImportError::SingularityUndecided {
+            band: step_import::SingularityBand::File,
+            ..
+        },
+    ) = imported
+    else {
+        panic!("the pole's reading lands in the file's band and refuses: {imported:?}");
+    };
+    let text = e.render();
+    assert!(
+        text.contains(
+            "Recourse: move the face's boundary, or its vertex, onto that point or clear of it, \
+             or, if this distance is intended, import with ε_in below 1.0000000011961913e-10 m"
+        ),
+        "the ending names the move and the ε_in that decides it: {text}"
+    );
+    assert_eq!(
+        text.contains("tighten the tolerance below 1.0000000011961913e-10 m"),
+        eps >= 1.0000000011961913e-10,
+        "the run's tolerance is named exactly where it does not already decide: {text}"
+    );
+    assert!(
+        text.contains("with ε_in ≥ 1.0000000011961913e-9 m"),
+        "and the ε_in that reads it as one: {text}"
+    );
 }

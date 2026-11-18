@@ -9,7 +9,7 @@
 //! as `props_meridian_span_winding` — the same margin, the same band,
 //! the same lever as certification — and refuses typed, on every
 //! consumer. The doors (the shape and branch doors) refuse under that
-//! name as `NotIsoRectangle`; the flux lane and the material sign, which
+//! name as `SpanUncertified`; the flux lane and the material sign, which
 //! read the sphere's loops and ask the bound of every arc at the arc's
 //! own radius, refuse under `props_sphere_arc_span_winding` as
 //! `SphereLoop` — a meridian's radius is the sphere's, so the margin is
@@ -102,11 +102,11 @@ fn saturated<T: Real>(delta: f64) -> Vec<LoopEdge<T>> {
     pair(PI / 2.0 - delta, TAU + 2.0 * delta)
 }
 fn is_winding_refusal<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> bool {
-    matches!(r, Err(PropsError::NotIsoRectangle { what }) if *what == NAME)
+    matches!(r, Err(PropsError::SpanUncertified { what }) if *what == NAME)
         || matches!(r, Err(PropsError::SphereLoop { what }) if *what == ARC_NAME)
 }
 fn is_forward_refusal<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> bool {
-    matches!(r, Err(PropsError::NotIsoRectangle { what }) if *what == FORWARD)
+    matches!(r, Err(PropsError::SpanUncertified { what }) if *what == FORWARD)
         || matches!(r, Err(PropsError::SphereLoop { what }) if *what == ARC_FORWARD)
 }
 fn is_winding_escalation<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> bool {
@@ -349,7 +349,7 @@ fn disp<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> Disp {
         {
             Disp::Escalate
         }
-        Err(PropsError::NotIsoRectangle { what }) if *what == NAME => Disp::Refuse,
+        Err(PropsError::SpanUncertified { what }) if *what == NAME => Disp::Refuse,
         Err(PropsError::SphereLoop { what }) if *what == ARC_NAME => Disp::Refuse,
         Err(e) => Disp::Other(format!("{e:?}")),
     }

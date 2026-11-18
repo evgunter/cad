@@ -277,9 +277,9 @@ fn classify(
     // The classification is `topo::chart_iso::classify_kind`'s; what
     // is here is THIS crate's disposition of its `None`.
     //
-    // RETIRED refusal (M5 PR 11): a conic/B-spline trim carrier routes
-    // the whole face to the pcurve-driven trimmed lane BEFORE this
-    // walk runs (`crate::trimmed::has_trim_carrier`), so an
+    // A carrier of no iso kind routes the whole face to the trimmed
+    // lane BEFORE this walk runs (the shape door decides it is no
+    // rectangle, `crate::curved::iso_rectangle_shape`), so an
     // unclassifiable carrier here is the router's backstop, not a
     // frontier — reaching one is a dispatch defect, surfaced typed.
     topo::chart_iso::classify_kind(chart, curve).ok_or(TessellateError::MissingEntity {
@@ -517,7 +517,8 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// props: the two halves of it by
 /// `geom_brep::props::require_iso_rectangle` (the CARRIER, per edge,
 /// on every kind) and `require_one_chart_branch` (the traversed ARC),
-/// both cited by [`crate::curved`]'s door before this walk runs. What
+/// both asked by the route ([`crate::curved::iso_rectangle_shape`])
+/// before this walk runs. What
 /// each kind would leak without them, which is what the door has to
 /// cover and the reason the second half needed its own predicate:
 ///
@@ -529,10 +530,10 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 ///   `0.0` for every one of them and merging a pair lands on the value
 ///   they already shared.
 /// - **sphere** — the real leak. EVERY plane section of a sphere is a
-///   [`geom::Curve3::Circle`], and `trimmed::has_trim_carrier` diverts only
-///   `Ellipse` and `Nurbs`, so an obliquely-cut sphere face would
-///   arrive here carrying two non-iso circles. Two consecutive such
-///   arcs meeting off-axis get collapsed onto ONE coordinate.
+///   [`geom::Curve3::Circle`], so a test on carrier kinds would let an
+///   obliquely-cut sphere face arrive here carrying two non-iso
+///   circles. Two consecutive such arcs meeting off-axis get collapsed
+///   onto ONE coordinate.
 ///
 /// That last one is a severity FLIP, not a wash, and it is worth being
 /// explicit: per-edge, the two sub-arcs took two different wrong
@@ -552,8 +553,8 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// **CLOSED, by the two doors in front of this walk.** The case this
 /// qualification instanced is two consecutive same-kind traversals
 /// whose CARRIERS are not iso curves, and that is what
-/// `geom_brep::props::require_iso_rectangle` refuses per edge, on
-/// every kind, before `curved::tessellate_curved` walks a face: the
+/// `geom_brep::props::require_iso_rectangle` decides per edge, on
+/// every kind, before the route hands a face to this walk: the
 /// oblique section on `props_rim_axis_parallel`, a torus Villarceau
 /// circle on `props_rim_fit`. That door closed the instance and not
 /// the premise — a certified meridian CARRIER can still carry an arc
@@ -683,15 +684,16 @@ fn iso_side_starts(
 ///
 /// The rectangle lane's theorem for a ruled face holds every triangle
 /// between two neighbouring rulings, and such a point is a boundary
-/// point off its grid, so the dispatch sends such a face to the chart
-/// lane (`tessellate::lane_of`). A face whose loop is no iso-rectangle is
-/// not sent (`curved`'s shape door): it is the rectangle lane's to
-/// refuse with the door's cause.
+/// point off its grid, so the route sends such a face to the chart lane
+/// (`tessellate::route_of`'s fourth fact). The route asks this only of a
+/// face the doors certified a rectangle (`curved::iso_rectangle_shape`),
+/// so it decides nothing about shape and reads no band: a face that is
+/// no rectangle has been routed, or refused with the doors' cause,
+/// before it is asked.
 pub(crate) fn splits_a_straight_side(
     body: &Body<f64>,
     fk: FaceKey,
     surface: &geom::Surface<f64>,
-    band: Band,
 ) -> Result<bool, TessellateError> {
     if !crate::chart_table::ruled(surface) {
         return Ok(false);
@@ -738,7 +740,7 @@ pub(crate) fn splits_a_straight_side(
         let (a, b) = (walk[before].0, walk[after].0);
         line && walk[before].1 && ((a < v && v < b) || (b < v && v < a))
     });
-    Ok(held && crate::curved::require_iso_rectangle_face(body, fk, outer, surface, band).is_ok())
+    Ok(held)
 }
 
 /// Which iso kinds a loop's traversals carry — the one structural
@@ -2262,7 +2264,8 @@ mod tests {
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
         let chords = crate::chords::compute_chords(
             &body,
-            &crate::sizing::tests::witness_tols(0.05),
+            0.05,
+            &crate::tessellate::Routes::witness(&body),
             &vids,
             &mut positions,
             &mut bounds,

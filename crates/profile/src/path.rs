@@ -399,7 +399,9 @@ use crate::{BuiltArc, ProfileLoop, Segment};
 pub(crate) mod arc_fillet;
 mod family;
 mod onto;
+pub mod order;
 pub mod program;
+pub mod shape;
 pub(crate) mod verbs;
 
 pub use arc_fillet::ArcCarrierScalar;
@@ -413,8 +415,13 @@ pub use family::{
 /// are `Entry → Closed` transitions), so they are defined in
 /// [`program`]; this module is their public home.
 pub use onto::{ArcOnto, ArcOntoStart, OntoTarget};
+pub use order::OrderFault;
 #[doc(inline)]
 pub use program::{circle, circle_split, rectangle};
+pub use shape::{
+    ArcForm, ChainShape, FormLowered, FormTarget, ShapeFault, ShapeFaultKind, StepForm,
+    chain_shape, chain_states,
+};
 pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
 #[doc(hidden)]
 pub use verbs::{DirectedPoint, TangentArcLeg};
@@ -3391,15 +3398,14 @@ impl<T: Real> Core<T> {
 
     /// The first leg's arm: the departing leg at the seam junction.
     fn first_leg_arm(&self) -> Result<T, PathError<T>> {
-        match self.verts.as_slice() {
-            [a, b, ..] => Ok(leg_arm(
-                carrier_of(a.arc),
-                (b.at - a.at).norm_squared().sqrt(),
-            )),
-            _ => Err(PathError::UnderdeterminedLeg {
-                site: "a seam junction on a chain with no first leg",
-            }),
-        }
+        order::seam_reads_a_first_leg(self.verts.len() >= 2)?;
+        let [a, b, ..] = self.verts.as_slice() else {
+            unreachable!("two vertices, checked above")
+        };
+        Ok(leg_arm(
+            carrier_of(a.arc),
+            (b.at - a.at).norm_squared().sqrt(),
+        ))
     }
 }
 
@@ -4718,8 +4724,8 @@ impl<T: Decide> Core<T> {
         // The seam gate runs BEFORE resolution, exactly as the straight
         // path's does: retrimming an arc first side is refused whatever
         // the corner would have been.
-        if kind == ArrivalKind::Seam && self.first_seg != FirstSeg::Line {
-            return Err(PathError::SeamRetrimsArcFirstSide);
+        if kind == ArrivalKind::Seam {
+            order::seam_fillet_retrims_a_straight_side(self.first_seg == FirstSeg::Line)?;
         }
         let incoming = arc_fillet::FilletSide {
             anchor: arc.anchor,
@@ -4796,6 +4802,17 @@ impl<T: Decide> Core<T> {
         kind: ArrivalKind,
         tol: Tol,
     ) -> Result<(ArcData<T>, Sign), PathError<T>> {
+        // A `.to(Start)` seam RETRIMS the entry vertex, so the segment
+        // leaving it must be the straight side 1 — retrimming the start
+        // of an arc would slide that arc off its own carrier (LB5: a
+        // mid-arc seam vertex is authored topology). Closing onto a
+        // carrier and KEEPING the vertex is the arc-arrival close,
+        // `fillet_arc(r, Center { c, winding, p: Start })`. Asked before
+        // any geometry, as the arc-carrier path asks it: it is the step
+        // order's, at every value.
+        if kind == ArrivalKind::Seam {
+            order::seam_fillet_retrims_a_straight_side(self.first_seg == FirstSeg::Line)?;
+        }
         self.bound_arrival(arc_fillet::FilletSide {
             anchor: arr_pos,
             carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
@@ -4884,15 +4901,7 @@ impl<T: Decide> Core<T> {
             }
             Err(source) => return Err(PathError::escalated(source)),
         }
-        // (3) a `.to(Start)` seam RETRIMS the entry vertex, so the
-        // segment leaving it must be the straight side 1 — retrimming
-        // the start of an arc would slide that arc off its own carrier
-        // (LB5: a mid-arc seam vertex is authored topology). Closing
-        // onto a carrier and KEEPING the vertex is the arc-arrival
-        // close, `fillet_arc(r, Center { c, winding, p: Start })`.
-        if kind == ArrivalKind::Seam && self.first_seg != FirstSeg::Line {
-            return Err(PathError::SeamRetrimsArcFirstSide);
-        }
+        // (3) the `.to(Start)` seam gate ran first.
         // (4) the shared line×line closed form, anchored: head = the
         // ray's origin, next = the arrival's anchor.
         let mut trims =
@@ -5351,9 +5360,7 @@ fn circle_split_kernel<T: Decide>(
         Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
         Err(source) => return Err(PathError::escalated(source)),
     }
-    if n < 2 || u32::try_from(n).is_err() {
-        return Err(PathError::CircleSplitCount { n });
-    }
+    order::circle_split_count(n)?;
     let n_t = T::from_f64(n as f64);
     let four = T::from_f64(4.0);
     let sweep = four * (T::pi() / (T::from_f64(2.0) * n_t)).tan().atan();
@@ -6164,7 +6171,23 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
 
     /// The target point a closing verb resolves to (the entry pose's
     /// position — [`Start`] by reference, never re-typed).
+    /// **An arc leg from the tip, asked before its spec reads a value**:
+    /// it may not leave a fillet's open arrival, which is authored with
+    /// the fillet ([`order::arc_leg_leaves_no_open_fillet`]), so the
+    /// order refusal stands ahead of any the spec's geometry raises.
+    pub(super) fn arc_leg_from_the_tip(&self, site: &'static str) -> Result<(), PathError<T>> {
+        Ok(order::arc_leg_leaves_no_open_fillet(
+            self.core.pending.is_some(),
+            site,
+        )?)
+    }
+
+    /// The entry, as an arc leg closing there targets it: refused
+    /// first where no leg was drawn, whose chord is the zero one at
+    /// every value ([`order::a_closing_arc_leaves_its_entry`]; the
+    /// first leg binds the start direction).
     fn start_target(&self) -> Result<Point2<T>, PathError<T>> {
+        order::a_closing_arc_leaves_its_entry(self.core.start_ang.is_some())?;
         self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })
@@ -6203,13 +6226,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         leg: Option<BuiltArc<T>>,
         tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        if self.core.pending.is_some() {
-            return Err(PathError::ArcLegOnOpenFillet {
-                site: "an arc arrival is authored WITH the fillet that trims it — \
-                       fillet_arc(r, spec) / arc_fillet_arc(spec, r, spec2) — not by an arc \
-                       LEG from an already-positioned arrival point",
-            });
-        }
+        order::arc_leg_leaves_no_open_fillet(self.core.pending.is_some(), order::site::ARC_TO)?;
         let pos = self.tip_pos()?;
         let at = pos.at;
         let (start_t, end_t, chord) = Self::arc_angles(at, p, leg);
@@ -6235,13 +6252,10 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         seam: SeamArrival,
         tol: Tol,
     ) -> Result<ClosedLoop<T>, PathError<T>> {
-        if self.core.pending.is_some() {
-            return Err(PathError::ArcLegOnOpenFillet {
-                site: "an arc arrival that CLOSES is authored with the fillet that trims it — \
-                       fillet_arc(r, Center { c, winding, p: Start }) — not by an arc LEG from \
-                       an already-positioned arrival point",
-            });
-        }
+        order::arc_leg_leaves_no_open_fillet(
+            self.core.pending.is_some(),
+            order::site::ARC_TO_START,
+        )?;
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })?;
@@ -6281,9 +6295,7 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
                 site: "far-end anchor on a tip without a bound direction",
             })?
             .dir;
-        if self.core.pending.is_none() {
-            return Err(PathError::FarEndAnchorWithoutFillet);
-        }
+        order::far_end_ends_an_open_fillet(self.core.pending.is_some())?;
         let (arc, fit_out) =
             self.core
                 .resolve_fillet(anchor, dir, ArrivalKind::EndsAtAnchor, tol)?;

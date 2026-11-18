@@ -25,8 +25,8 @@
 //! - **Both material configurations** put the ball centre where the
 //!   symmetric closed form `s = √((R ∓ r)² − c²)` says, at every
 //!   combination of the two stored sense bits.
-//! - **A chain stopping at a seam vertex refuses `SeamVertex`**, with no
-//!   run-out policy named, and its recourse is the seam one rather than
+//! - **A chain stopping at a seam vertex refuses `UnbuiltEnd::Seam`**,
+//!   naming no end rule, and its recourse is the seam one rather than
 //!   the corner one. The vertex's own structure is asserted beside it:
 //!   valence four, two co-surface seam meridians (one surface on both
 //!   sides — dihedral zero by construction, and each refuses
@@ -49,7 +49,7 @@ use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendArm, BlendError, CornerConfig};
+use sweep::blend::{BlendArm, BlendError};
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, SurfaceKey, VertexKey, validate_geometric};
 
@@ -337,7 +337,7 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
 }
 
 /// **The refusal, and what it now says.** A chain that stops at a seam
-/// vertex is refused as a `SeamVertex` — with NO run-out policy named,
+/// vertex is refused as `UnbuiltEnd::Seam` — naming NO end rule,
 /// because none would help — and its recourse is the one that names the
 /// request that describes what the caller wants.
 #[test]
@@ -352,13 +352,7 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
     )
     .map_err(|r| r.error)
     {
-        Err(
-            e @ BlendError::UnsupportedCorner {
-                corner: CornerConfig::SeamVertex,
-                policy: None,
-                ..
-            },
-        ) => {
+        Err(e @ BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::Seam { .. })) => {
             let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains(sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE),
@@ -370,22 +364,18 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
             );
             assert!(
                 !text.contains("run-out"),
-                "no run-out policy is named at a vertex no run-out addresses: {text}"
+                "no run-out is named at a vertex no run-out addresses: {text}"
             );
         }
-        other => panic!("a chain stopping at a seam vertex refuses SeamVertex, got {other:?}"),
+        other => panic!("a chain stopping at a seam vertex refuses its seam tag, got {other:?}"),
     }
-    // The tag's own map: a seam vertex names no policy, every other tag
-    // does.
-    assert_eq!(CornerConfig::SeamVertex.policy(), None);
-    assert!(CornerConfig::NEdgeVertex { valence: 4 }.policy().is_some());
 }
 
 /// **The recourse's own content, checked.** Asking for the rim WHOLE
 /// gets past the seam entirely — no corner refusal of any kind — and
 /// the closed-rim door CARVES it.
 ///
-/// That is what makes the `SeamVertex` recourse true rather than a
+/// That is what makes the `UnbuiltEnd::Seam` recourse true rather than a
 /// pointer at a door that is not there. The band is ONE annulus over
 /// both arcs: the walk carries THROUGH the seam vertices, and the row
 /// above is the licence for it — the surface is smooth there, the two

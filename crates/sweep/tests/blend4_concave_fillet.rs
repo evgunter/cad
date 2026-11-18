@@ -26,7 +26,7 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, Convexity, CornerConfig, FILLET3_MIXED_CORNER_RECOURSE};
+use sweep::blend::{BlendError, Convexity, FILLET3_MIXED_CORNER_RECOURSE, UnbuiltEnd};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::readback::euler_counts;
@@ -447,10 +447,7 @@ fn the_mixed_corner_recourse_is_followable_as_written() {
     assert!(
         matches!(
             refused.error,
-            BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { .. },
-                ..
-            }
+            BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { odd: Some(_), .. })
         ),
         "the reflex edge's ends are mixed corners, got {text}"
     );

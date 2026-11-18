@@ -149,7 +149,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "reshaped_rod",
         about: "a rod's section on a block, one crease filleted, the block reshaped under it",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(fillet),
         // π-valued (a cylinder blend) — see the module docs.

@@ -2134,7 +2134,14 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     let mut out = Vec::new();
     for fa in a_rows {
         for &fb in &b_rows {
-            if !fa.bbox.overlaps(&fb.bbox) || !admit(fa, fb) {
+            // The box test prunes which face pairs the section
+            // certificate reads, and decides nothing: its outcome is
+            // marked, so two runs whose pruning differs part there.
+            if !geom_core::k_stats::mark_outcome(
+                "bool_walk_pairs_boxes",
+                fa.bbox.overlaps(&fb.bbox),
+            ) || !admit(fa, fb)
+            {
                 continue;
             }
             // The overlap is a world-axis one; a pair apart along a

@@ -8,11 +8,9 @@ use geom_core::k_stats::{self, Detached};
 use geom_core::{Band, Point3, Tol};
 use topo::{Body, FaceKey};
 
-use rayon::prelude::*;
-
 use crate::budget;
 use crate::chords::{compute_chords, edge_ends};
-use crate::curved::tessellate_curved;
+use crate::curved::{Shape, tessellate_curved};
 use crate::memo::{FaceInputs, FaceMemo, PatchKeys, PatchMemo, Placement};
 use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
@@ -179,14 +177,22 @@ pub struct Tessellation {
 /// otherwise — the incremental re-tessellation door the crate's
 /// memo-key contract exists for.
 ///
-/// The chord pass runs as in [`tessellate`] (it is per edge and
-/// cheap); per face the lane is skipped on a memo hit and the stored
-/// patch is placed by the same fold. The mesh is byte-identical to
+/// Every face's route and the chord pass run as in [`tessellate`] (the
+/// key folds the face's lane, and the chord pass is per edge and cheap);
+/// per face the lane is skipped on a memo hit and the stored patch is
+/// placed by the same fold. The mesh is byte-identical to
 /// [`tessellate`]'s: a hit is by the full key bytes, and the key is
 /// every input the lane reads (`crate::memo`'s module docs state it
-/// per lane). What a hit does NOT run is the lane's own per-patch
-/// census and, with the `budget` feature, its recording; the
-/// cross-face census at the end runs either way.
+/// per lane). What a hit does NOT run is the lane itself, its per-patch
+/// census and, with the `budget` feature, its recording; the cross-face
+/// census at the end runs either way. On a hit the route's doors and its
+/// split-side fact record nothing for the face (they are spliced only
+/// where the lane runs); a trimmed face's domain read, the route's or
+/// the face's own before its key is formed (`Route::ready`), is recorded
+/// on a hit as on a miss, since the read keys the patch as the lane's
+/// own read did.
+/// So a hit's stream is the chord pass's and each trimmed face's domain
+/// read.
 ///
 /// The memo's lifetime is the caller's: [`PatchMemo::end_picture`]
 /// after every picture is what keeps it one picture's size.
@@ -213,10 +219,9 @@ pub(crate) enum Lane {
     /// `curved::tessellate_curved`: the iso-rectangle walk plus UV
     /// grid on a swept analytic chart.
     Curved,
-    /// `trimmed::tessellate_trimmed`: the pcurve-driven lane, on a
-    /// face that is no iso-rectangle of its analytic chart (a ring, a
-    /// trim carrier, a tilted circle on a sphere, a straight side holding
-    /// a point) or on any NURBS chart.
+    /// `trimmed::tessellate_trimmed`: the chart lane, on every face
+    /// that is no iso-rectangle of its chart, on a ruled rectangle whose
+    /// straight side holds a point, and on any NURBS chart.
     Trimmed,
 }
 
@@ -237,69 +242,309 @@ pub(crate) enum Lane {
 /// certifies against the DESCRIPTION is a separate statement, and this
 /// pass makes the plain one.
 ///
-/// Structural routing: a curved face with a ring is no iso-rectangle,
-/// and the trimmed lane, which reads every loop of a face's domain, takes
-/// it. So does a face whose outer loop has a conic/B-spline trim carrier
-/// (M5 PR 11). The converse does NOT follow: this is a test on carrier
-/// KINDS, and iso carriers (`Line`, `Circle`) can bound a
-/// NON-rectangular domain — a keyway or milled flat on a cylinder is
-/// exactly that shape, and nothing on this path screens loop SHAPE. So
-/// an iso boundary reaching `tessellate_curved` is a routing decision,
-/// not a guarantee about the domain; the domain itself is checked
-/// there, by the numbered list of questions `curved`'s module header
-/// carries — which is the one home of what they are and in what order.
-/// Two of them are the WALK's rather than a door's
-/// (`walk::require_a_meridian` and `walk::require_two_columns`), which
-/// is why this dispatch can hand an iso boundary over without deciding
-/// anything about its shape.
+/// **An analytic curved face is routed on its domain**, by the first of
+/// four facts that answers:
 ///
-/// One shape is decided here: a cylinder or cone face whose straight
-/// side holds a point between its ends, which the rectangle lane's ruled
-/// arms cannot take (`walk::splits_a_straight_side`, the one reader of
-/// `band` here). Such a face is the trimmed lane's.
-pub(crate) fn lane_of(
+/// 1. A face holding a ring is no rectangle: the trimmed lane's, which
+///    reads every loop of its domain.
+/// 2. A face whose outer loop stores a chart image of a form no iso line
+///    takes ([`geom_brep::Pcurve::is_non_iso_form`]: a projected circle,
+///    a focal section, a spiric, a fitted or general spline) is no iso
+///    rectangle either, and is the trimmed lane's. The form is what the
+///    mint chose when its class reading showed none of the chart's iso
+///    classes, so the route reads that stored fact and asks no door.
+/// 3. Every other face is routed by the curved lane's two doors
+///    ([`crate::curved::iso_rectangle_shape`]). A face they certify an
+///    iso-parameter rectangle on one chart branch is the curved lane's,
+///    and carries their answer as a value
+///    ([`crate::curved::Rectangle`]), which is the only way into that
+///    lane. A face they decide is none — a notch, an arc through a pole —
+///    is the trimmed lane's only where that lane can read its domain
+///    (`topo::Body::face_lift`); where it cannot, the doors' own verdict
+///    is the refusal, with its recourse. A face the doors cannot decide,
+///    or whose stored data contradicts itself, refuses
+///    [`TessellateError::UnsupportedCurvedShape`] with their cause: no
+///    lane is taken because a door could not answer.
+/// 4. A rectangle the doors certify on a ruled chart (a cylinder or a
+///    cone) whose straight side holds a point between its ends — a ruling
+///    split into several edges, or a cone side run through its apex —
+///    is the trimmed lane's ([`crate::walk::splits_a_straight_side`]): the
+///    curved lane's theorem for a ruled face holds every triangle between
+///    two neighbouring rulings, and that point is a boundary point off its
+///    grid. The doors' [`crate::curved::Rectangle`] is dropped here
+///    unspent, so the token still means what it says (the doors certified
+///    a rectangle) and the curved lane is still reached through it alone;
+///    what the route adds is that the lane is handed only a ruled
+///    rectangle with bare sides, and the lane's own guard
+///    (`curved::SIDE_CHORD_POINT`) refuses one that reaches it otherwise.
+///
+/// Read once per face per run, by [`Routes::of`], and handed to the
+/// chord pass, the sizing and the lanes, so no two of them can answer
+/// it differently.
+///
+/// The route reads a face's domain ([`read_domain`]) where the doors
+/// decided it no rectangle, since a domain the chart lane cannot read
+/// makes that face no lane's; every other trimmed face's is read at its
+/// turn ([`Route::ready`]). Answers the route and, where it read the
+/// domain, the K-funnel recording of that read apart from the doors': a
+/// memo hit records the domain read, which keys the patch as the lane's
+/// own read does, and not the doors', which ran in place of the lane's.
+pub(crate) fn route_of(
     body: &Body<f64>,
     fk: FaceKey,
     surface: &Surface<f64>,
     band: Band,
-) -> Result<Lane, TessellateError> {
+) -> Result<(Route, Option<Detached>), TessellateError> {
     Ok(match *surface {
-        Surface::Nurbs(_) | Surface::Approx(_) => Lane::Trimmed,
-        Surface::Plane { .. } => Lane::Planar,
-        _ if has_ring(body, fk)? => Lane::Trimmed,
-        _ if crate::trimmed::has_trim_carrier(body, fk)? => Lane::Trimmed,
-        Surface::Sphere { .. } if crate::trimmed::has_tilted_circle(body, fk)? => Lane::Trimmed,
-        _ if crate::walk::splits_a_straight_side(body, fk, surface, band)? => Lane::Trimmed,
-        _ => Lane::Curved,
+        Surface::Nurbs(_) | Surface::Approx(_) => (Route::Trimmed(Trim::Structural), None),
+        Surface::Plane { .. } => (Route::Planar, None),
+        _ => {
+            let face = body
+                .get_face(fk)
+                .ok_or(TessellateError::MissingEntity { what: "face" })?;
+            if !face.rings.is_empty() {
+                return Ok((Route::Trimmed(Trim::Structural), None));
+            }
+            let off_iso = crate::walk::loop_half_edges(body, face.outer, fk)?
+                .into_iter()
+                .any(|(hek, _, _)| {
+                    body.pcurve(hek)
+                        .is_some_and(|c| c.pcurve().is_non_iso_form())
+                });
+            if off_iso {
+                return Ok((Route::Trimmed(Trim::Structural), None));
+            }
+            match crate::curved::iso_rectangle_shape(body, fk, face.outer, surface, band)? {
+                Shape::Rectangle(rectangle) => {
+                    if crate::walk::splits_a_straight_side(body, fk, surface)? {
+                        // Fact 4: the token goes unspent.
+                        (Route::Trimmed(Trim::Structural), None)
+                    } else {
+                        (Route::Curved(rectangle), None)
+                    }
+                }
+                Shape::NoRectangle(verdict) => {
+                    let (lift, read) =
+                        k_stats::detached(|| read_domain(body, fk, band, Some(verdict)));
+                    match lift {
+                        Ok(lift) => (Route::Trimmed(Trim::Read(lift)), Some(read)),
+                        Err(refusal) => {
+                            k_stats::splice(read);
+                            return Err(refusal);
+                        }
+                    }
+                }
+            }
+        }
     })
 }
 
-/// Whether face `fk` holds a ring. A curved face with one is no swept
-/// rectangle, whatever its carriers, so the dispatch sends it to the
-/// trimmed lane, which reads its every loop.
-fn has_ring(body: &Body<f64>, fk: FaceKey) -> Result<bool, TessellateError> {
-    body.get_face(fk)
-        .map(|face| !face.rings.is_empty())
-        .ok_or(TessellateError::MissingEntity { what: "face" })
+/// **A face's route**: its lane, with what the route knows of it. The
+/// curved lane runs on the doors' "rectangle" answer; the trimmed lane on
+/// the face's domain, which [`Route::ready`] reads at the face's turn.
+pub(crate) enum Route {
+    Planar,
+    Curved(crate::curved::Rectangle),
+    Trimmed(Trim),
 }
 
-/// A face's lane with what it runs on: the trimmed lane carries the
-/// face's domain, read once (`trimmed::face_domain`), which the memo key
-/// folds and the lane triangulates.
-enum Route {
-    Planar,
-    Curved,
-    Trimmed(topo::pcurves::FaceLift<f64>),
+/// A trimmed face's domain, as far as the route has it.
+pub(crate) enum Trim {
+    /// A fact of the face sends it to the trimmed lane before or past
+    /// the doors (a ring, a stored image of a non-iso form, a ruled
+    /// rectangle whose straight side holds a point, a spline chart); its
+    /// domain is read at its turn ([`Route::ready`]).
+    Structural,
+    /// The doors decided the face no rectangle, and the route read its
+    /// domain ([`route_of`]).
+    Read(topo::pcurves::FaceLift<f64>),
+}
+
+/// **The one read of a trimmed face's domain** (`trimmed::face_domain`),
+/// which the memo key folds and the lane triangulates, with what its
+/// miss answers. Where the doors decided the face no rectangle (their
+/// `verdict`), a domain stored with no image is the lane's refusal, and
+/// one whose loops have no reading in one sheet of the chart (an arc
+/// through a pole, a loop that winds it) is a face no lane takes: the
+/// doors' verdict, with its recourse, is the answer. Every other miss is
+/// the lane's refusal.
+fn read_domain(
+    body: &Body<f64>,
+    fk: FaceKey,
+    band: Band,
+    verdict: Option<geom_brep::props::PropsError>,
+) -> Result<topo::pcurves::FaceLift<f64>, TessellateError> {
+    crate::trimmed::face_domain(body, fk, band).map_err(|unread| match verdict {
+        Some(verdict)
+            if !matches!(
+                &unread,
+                TessellateError::DomainUnread { cause, .. }
+                    if matches!(**cause, topo::pcurves::RingPlacementError::Gap(_))
+            ) =>
+        {
+            TessellateError::UnsupportedCurvedShape {
+                face: fk,
+                source: verdict,
+            }
+        }
+        _ => unread,
+    })
 }
 
 impl Route {
+    /// The lane this route runs.
+    pub(crate) fn lane(&self) -> Lane {
+        match self {
+            Self::Planar => Lane::Planar,
+            Self::Curved(_) => Lane::Curved,
+            Self::Trimmed(_) => Lane::Trimmed,
+        }
+    }
+
+    /// **The route, ready to run**: a trimmed face's domain, read here
+    /// where the route did not read it ([`read_domain`]).
+    ///
+    /// # Errors
+    ///
+    /// The read's miss.
+    pub(crate) fn ready(
+        self,
+        body: &Body<f64>,
+        fk: FaceKey,
+        band: Band,
+    ) -> Result<Ready, TessellateError> {
+        Ok(match self {
+            Self::Planar => Ready::Planar,
+            Self::Curved(rectangle) => Ready::Curved(rectangle),
+            Self::Trimmed(Trim::Read(lift)) => Ready::Trimmed(lift),
+            Self::Trimmed(Trim::Structural) => Ready::Trimmed(read_domain(body, fk, band, None)?),
+        })
+    }
+}
+
+/// A route with what its lane runs on: [`Route::ready`]'s answer.
+pub(crate) enum Ready {
+    Planar,
+    Curved(crate::curved::Rectangle),
+    Trimmed(topo::pcurves::FaceLift<f64>),
+}
+
+impl Ready {
+    /// The lane this runs.
+    fn lane(&self) -> Lane {
+        match self {
+            Self::Planar => Lane::Planar,
+            Self::Curved(_) => Lane::Curved,
+            Self::Trimmed(_) => Lane::Trimmed,
+        }
+    }
+
     /// The trimmed lane's domain; `None` on the other lanes, which read
     /// none.
     fn domain(&self) -> Option<&topo::pcurves::FaceLift<f64>> {
         match self {
             Self::Trimmed(lift) => Some(lift),
-            Self::Planar | Self::Curved => None,
+            Self::Planar | Self::Curved(_) => None,
         }
+    }
+}
+
+/// One face's entry in [`Routes`]: the lane it was routed to, or the
+/// route's refusal, which the run reports at that face's turn.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Routed {
+    To(Lane),
+    Refused,
+}
+
+/// One face as [`Routes::of`] routed it: the face, its route or the
+/// route's refusal, and the K-funnel recordings the route made: the
+/// doors' and the split-side fact's (spliced where the lane runs), and
+/// the domain read's where the route read the domain (spliced on every
+/// run).
+pub(crate) struct FaceRoute {
+    pub(crate) face: FaceKey,
+    pub(crate) route: Result<Route, TessellateError>,
+    pub(crate) asked: Detached,
+    pub(crate) read: Option<Detached>,
+}
+
+/// **Every face's lane, read once per run** ([`route_of`]), in face-arena
+/// order, with the K-funnel recording each face's read made. The fold
+/// splices it in at that face's turn, before the face's own work: the
+/// doors' and the split-side fact's where the lane runs, the domain
+/// read's on a memo hit as well ([`FaceRoute`]).
+pub(crate) struct Routes {
+    lanes: HashMap<FaceKey, Routed>,
+}
+
+impl Routes {
+    /// Routes every face of `body` at `band`: the table, and each face's
+    /// route with its recording, in arena order.
+    pub(crate) fn of(body: &Body<f64>, band: Band) -> (Self, Vec<FaceRoute>) {
+        let routed: Vec<_> = body
+            .faces()
+            .map(|(face, _)| {
+                let (route, asked) = k_stats::detached(|| {
+                    face_surface(body, face).and_then(|surface| route_of(body, face, surface, band))
+                });
+                let (route, read) = match route {
+                    Ok((route, read)) => (Ok(route), read),
+                    Err(error) => (Err(error), None),
+                };
+                FaceRoute {
+                    face,
+                    route,
+                    asked,
+                    read,
+                }
+            })
+            .collect();
+        let lanes = routed
+            .iter()
+            .map(|r| {
+                let entry = match &r.route {
+                    Ok(route) => Routed::To(route.lane()),
+                    Err(_) => Routed::Refused,
+                };
+                (r.face, entry)
+            })
+            .collect();
+        (Self { lanes }, routed)
+    }
+
+    /// Face `fk`'s entry.
+    ///
+    /// # Errors
+    ///
+    /// [`TessellateError::MissingEntity`] for a face the table did not
+    /// route: a key no live face of the body holds.
+    pub(crate) fn lane(&self, fk: FaceKey) -> Result<Routed, TessellateError> {
+        self.lanes
+            .get(&fk)
+            .copied()
+            .ok_or(TessellateError::MissingEntity { what: "face" })
+    }
+
+    /// The table alone, at the witness tolerance's band: what a unit
+    /// test of one pass reads in place of a run's.
+    #[cfg(test)]
+    #[allow(clippy::expect_used)]
+    pub(crate) fn witness(body: &Body<f64>) -> Self {
+        Self::of(
+            body,
+            Band::linear(Tol::witness()).expect("the witness band"),
+        )
+        .0
+    }
+
+    /// This table with face `fk` routed to `lane`, for a row whose
+    /// subject is what a lane does with a face the route would not hand
+    /// it.
+    #[cfg(test)]
+    pub(crate) fn with(mut self, fk: FaceKey, lane: Lane) -> Self {
+        self.lanes.insert(fk, Routed::To(lane));
+        self
     }
 }
 
@@ -356,9 +601,9 @@ fn tessellate_impl(
     let ambient = tol;
     let eps = Eps::at(tol);
     // Props' decision band, built once at operation entry as
-    // `Band::linear` prescribes, for props' predicates
-    // (`SizingTols::band` names the sites; the dispatch and the chord
-    // pass ask the shape door through `lane_of`). Eager on purpose: a run whose
+    // `Band::linear` prescribes, and read by the route's doors and domain
+    // read, the walk's wrap strip and the trimmed lane's singular
+    // vertices (`SizingTols::band`). Eager on purpose: a run whose
     // ε cannot form a band refuses every body alike, the all-planar
     // ones included, rather than meshing until the first curved face
     // (`TessellateError::Band` says why).
@@ -377,15 +622,12 @@ fn tessellate_impl(
     // shared by both passes that need them (`chords::FaceBounds`).
     let mut bounds = FaceBounds::new();
 
+    // Every face's route, read once, before anything sizes a face.
+    let (routes, routed) = Routes::of(body, band);
     // Chord pass: per-edge polylines, computed once (crate docs);
     // `chord_ts` is the matching parameter schedule (the trimmed lane
     // evaluates pcurves on it — one derivation, both consumers).
-    let tol = SizingTols {
-        delta: chordal,
-        eps,
-        band,
-    };
-    let chords = compute_chords(body, &tol, &vids, &mut positions, &mut bounds)?;
+    let chords = compute_chords(body, chordal, &routes, &vids, &mut positions, &mut bounds)?;
     // Every id a face can SHARE with another face is now minted:
     // topology vertices, then chord points, then (per face, below) that
     // face's own interior grid. So a shared id is exactly an id below
@@ -443,126 +685,128 @@ fn tessellate_impl(
     // 54.1 MB — +18 % where it shows, on a figure the mesh value itself
     // dominates. A body with MANY faces pays less, not more: the
     // patches are smaller.
-    let faces: Vec<FaceKey> = body.faces().map(|(fk, _)| fk).collect();
+    let tol = SizingTols {
+        delta: chordal,
+        eps,
+        band,
+    };
+    let (faces, recorded): (Vec<_>, Vec<_>) = routed
+        .into_iter()
+        .map(|r| ((r.face, r.route), (r.asked, r.read)))
+        .unzip();
     // The meter's arming as a value: a lane runs on a worker thread,
     // which nobody armed (`budget`'s module docs).
     let arming = budget::arming();
     let reader = memo.as_deref();
     let work: Vec<FaceWork<'_>> = {
         let shared = &positions[..shared_below];
-        faces
-            .par_iter()
-            .map(|&fk| {
-                // ONE wrapper for both of the tessellation's
-                // thread-local channels, because they are one problem:
-                // a channel the CALLER owns and the worker does not.
-                // The budget meter's per-face rows
-                // (`budget::record`) and the K-funnel's verdicts,
-                // escalations and `probe` samples
-                // (`k_stats::detached`) are both recorded into
-                // thread-locals by the lane, both travel back in this
-                // face's slot, and the fold hands both on in arena
-                // order — so an armed meter and a `Bracket` around
-                // `tessellate` see what a serial walk would have
-                // written, element for element, at any thread count.
-                //
-                // NO PORTABILITY GATE (`geom_core::sym::
-                // decisions_are_thread_portable`, which the evaluator's
-                // node map and `topo::props`' face walks read), and the
-                // reason is this crate's scalar policy: `mesh` takes
-                // `&Body<f64>` and instantiates nothing else, so a
-                // lane's decisions never reach `Sym::sign_within`. Both
-                // halves of that test are writes from there — the
-                // session (the decision itself and its receipt) and the
-                // shape report (a row per decision, session or not) —
-                // so neither can arise here.
-                let (((memo_work, place), meter), decided) = k_stats::detached(|| {
-                    budget::record(arming, || {
-                        let surface = match face_surface(body, fk) {
-                            Ok(surface) => surface,
-                            Err(error) => return (None, Err(error)),
-                        };
-                        let lane = match lane_of(body, fk, surface, tol.band) {
-                            Ok(lane) => lane,
-                            Err(error) => return (None, Err(error)),
-                        };
-                        // The trimmed lane's domain, read from the door once,
-                        // here, and handed to the memo key and the lane
-                        // alike (`trimmed::face_domain`); its miss is the
-                        // lane's refusal.
-                        let route = match lane {
-                            Lane::Trimmed => match crate::trimmed::face_domain(body, fk, &tol) {
-                                Ok(lift) => Route::Trimmed(lift),
-                                Err(error) => return (None, Err(error)),
-                            },
-                            Lane::Planar => Route::Planar,
-                            Lane::Curved => Route::Curved,
-                        };
-                        // The lanes, each over `shared` — the whole of what
-                        // a face reads from outside itself.
-                        //
-                        // The planar lane derives its chart frame from the
-                        // face's own boundary (planar.rs module docs, #284)
-                        // — the stored plane axes are deliberately not
-                        // passed: imported axes carry translator noise that
-                        // projects valid boundaries below spade's
-                        // coordinate domain.
-                        let run = || match &route {
-                            Route::Trimmed(lift) => crate::trimmed::tessellate_trimmed(
-                                body,
-                                fk,
-                                surface,
-                                &chords,
-                                shared,
-                                &tol,
-                                &bounds,
-                                lift,
-                                crate::trimmed::BOUNDARY_CLEARANCE,
-                            ),
-                            Route::Planar => tessellate_planar(body, fk, &chords.ids, shared),
-                            Route::Curved => {
-                                tessellate_curved(body, fk, surface, &chords.ids, shared, &tol)
-                            }
-                        };
-                        let Some(memo) = reader else {
-                            return (None, run().map(Placement::Lane));
-                        };
-                        let inputs = match FaceInputs::gather(
+        k_stats::par_map(faces, |(fk, route)| {
+            // ONE wrapper for both of the tessellation's
+            // thread-local channels, because they are one problem:
+            // a channel the CALLER owns and the worker does not.
+            // The budget meter's per-face rows
+            // (`budget::record`) and the K-funnel's verdicts,
+            // escalations and `probe` samples
+            // (`k_stats::detached`) are both recorded into
+            // thread-locals by the lane, both travel back in this
+            // face's slot, and the fold hands both on in arena
+            // order — so an armed meter and a `Bracket` around
+            // `tessellate` see what a serial walk would have
+            // written, element for element, at any thread count.
+            //
+            // NO PORTABILITY GATE (`geom_core::sym::
+            // decisions_are_thread_portable`, which the evaluator's
+            // node map and `topo::props`' face walks read), and the
+            // reason is this crate's scalar policy: `mesh` takes
+            // `&Body<f64>` and instantiates nothing else, so a
+            // lane's decisions never reach `Sym::sign_within`. Both
+            // halves of that test are writes from there — the
+            // session (the decision itself and its receipt) and the
+            // shape report (a row per decision, session or not) —
+            // so neither can arise here.
+            let (((memo_work, place), meter), decided) = k_stats::detached(|| {
+                budget::record(arming, || {
+                    let surface = match face_surface(body, fk) {
+                        Ok(surface) => surface,
+                        Err(error) => return (None, Err(error)),
+                    };
+                    // The trimmed lane's domain, read once and handed to
+                    // the memo key and the lane alike (`Route::ready`).
+                    let route = match route.and_then(|route| route.ready(body, fk, tol.band)) {
+                        Ok(route) => route,
+                        Err(error) => return (None, Err(error)),
+                    };
+                    let lane = route.lane();
+                    // The lanes, each over `shared` — the whole of what
+                    // a face reads from outside itself.
+                    //
+                    // The planar lane derives its chart frame from the
+                    // face's own boundary (planar.rs module docs, #284)
+                    // — the stored plane axes are deliberately not
+                    // passed: imported axes carry translator noise that
+                    // projects valid boundaries below spade's
+                    // coordinate domain.
+                    let run = || match &route {
+                        Ready::Trimmed(lift) => crate::trimmed::tessellate_trimmed(
                             body,
                             fk,
-                            lane,
                             surface,
                             &chords,
                             shared,
-                            chordal,
-                            ambient,
-                            route.domain(),
-                        ) {
-                            Ok(inputs) => inputs,
-                            Err(error) => return (None, Err(error)),
-                        };
-                        let lookup = match memo.lookup(&inputs).answered() {
-                            Ok((placement, work)) => return (Some(work), Ok(placement)),
-                            Err(lookup) => lookup,
-                        };
-                        match run() {
-                            Ok(patch) => {
-                                let (placement, work) = lookup.ran(patch);
-                                (Some(work), Ok(placement))
-                            }
-                            Err(error) => (Some(lookup.refused()), Err(error)),
+                            &tol,
+                            &bounds,
+                            lift,
+                            crate::trimmed::BOUNDARY_CLEARANCE,
+                        ),
+                        Ready::Planar => tessellate_planar(body, fk, &chords.ids, shared),
+                        Ready::Curved(rectangle) => tessellate_curved(
+                            body,
+                            fk,
+                            surface,
+                            *rectangle,
+                            &chords.ids,
+                            shared,
+                            &tol,
+                        ),
+                    };
+                    let Some(memo) = reader else {
+                        return (None, run().map(Placement::Lane));
+                    };
+                    let inputs = match FaceInputs::gather(
+                        body,
+                        fk,
+                        lane,
+                        surface,
+                        &chords,
+                        shared,
+                        chordal,
+                        ambient,
+                        route.domain(),
+                    ) {
+                        Ok(inputs) => inputs,
+                        Err(error) => return (None, Err(error)),
+                    };
+                    let lookup = match memo.lookup(&inputs).answered() {
+                        Ok((placement, work)) => return (Some(work), Ok(placement)),
+                        Err(lookup) => lookup,
+                    };
+                    match run() {
+                        Ok(patch) => {
+                            let (placement, work) = lookup.ran(patch);
+                            (Some(work), Ok(placement))
                         }
-                    })
-                });
-                FaceWork {
-                    face: fk,
-                    meter,
-                    decided,
-                    memo: memo_work,
-                    place,
-                }
-            })
-            .collect()
+                        Err(error) => (Some(lookup.refused()), Err(error)),
+                    }
+                })
+            });
+            FaceWork {
+                face: fk,
+                meter,
+                decided,
+                memo: memo_work,
+                place,
+            }
+        })
     };
 
     // The fold (idiom 2), in face-arena order, and in TWO passes over
@@ -579,10 +823,19 @@ fn tessellate_impl(
     let mut patches = Vec::with_capacity(work.len());
     let mut pending: Vec<Option<FaceMemo>> = Vec::with_capacity(work.len());
     let mut refusal = None;
-    for face in work {
+    for (face, (asked, read)) in work.into_iter().zip(recorded) {
         // Both channels, in arena order, up to AND INCLUDING the face
         // that refuses: the serial walk recorded whatever the refusing
-        // face decided before it refused, and nothing after it.
+        // face decided before it refused, and nothing after it. A face's
+        // route is read before its lane runs, so it is spliced first:
+        // its doors where the lane runs (a memo hit runs no lane), its
+        // domain read on every run (`tessellate_with`).
+        if !matches!(face.place, Ok(Placement::Memo { .. })) {
+            k_stats::splice(asked);
+        }
+        if let Some(read) = read {
+            k_stats::splice(read);
+        }
         k_stats::splice(face.decided);
         budget::absorb(face.meter);
         pending.push(face.memo);

@@ -429,16 +429,19 @@ END-ISO-10303-21;
     (text, PI * a * b * (h / q) / 3.0 * 1e-9)
 }
 
-/// The oblique cone's rim is an ellipse, a carrier the pass reads no
-/// crossing of: it refuses typed, naming that (a spec-listed refusal;
-/// main refuses the same files at its LINE-edge gate). Read at a
-/// coaxial cut (slope 0, an ellipse with equal axes) and an oblique one.
+/// The oblique cone's rim is an ellipse, a carrier the pass does not
+/// yet cut a face along (the meeting reader reads it; the pass takes
+/// lines and circles): it refuses typed, naming that. Read at a coaxial
+/// cut (slope 0, an ellipse with equal axes) and an oblique one.
 #[test]
 fn an_obliquely_cut_open_cascade_cone_refuses_typed() {
     for slope in [0.0, 0.2] {
         let (text, _) = oblique_cone(slope);
         match outcome("oblique cone", &text) {
-            Err(e) => assert!(e.contains("reads no crossing of"), "slope {slope}: {e}"),
+            Err(e) => assert!(
+                e.contains("does not yet cut this one"),
+                "slope {slope}: {e}"
+            ),
             Ok(got) => panic!("slope {slope}: imported {got:?}"),
         }
     }

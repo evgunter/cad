@@ -280,9 +280,9 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
 /// the tour's `spacer` scene, whose K-row registration names it as one
 /// of the four the scene delivers. Nor `fillet3_chain_arm`: it gates the
 /// chain's junction readings, and an edge's wedge is read through the
-/// whole-edge fold under `fillet3_convexity_sign` with no arm gate of
-/// its own. The three that reach the funnel from such a scene are
-/// convexity-sign, face-clearance and corner-independence.
+/// whole-edge fold, its sign under the fold's own `dihedral_sign`, with
+/// no arm gate of its own. The two battery rows that reach the funnel
+/// from such a scene are face-clearance and corner-independence.
 #[cfg(feature = "probe")]
 #[test]
 fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
@@ -329,11 +329,7 @@ fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
     names.dedup();
     assert_eq!(
         names,
-        vec![
-            "fillet3_convexity_sign",
-            "fillet3_corner_independence",
-            "fillet3_face_clearance",
-        ],
+        vec!["fillet3_corner_independence", "fillet3_face_clearance",],
         "the chamfer's battery rows: ball facts absent, nothing new minted, \
          and no junction ever asks chain G1 or its arm on an all-corners request"
     );

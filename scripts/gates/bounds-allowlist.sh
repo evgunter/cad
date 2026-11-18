@@ -805,7 +805,11 @@ BOUNDS_ALLOWLIST=(
   # 25 -> 23: the link's wedge is read by the edge's wedge fold
   # (`topo::edge_wedge`), so `wedge_at` and `knife_end` and their bounds
   # are gone; no bound was added.
-  'crates/sweep/src/blend/battery.rs 23 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 23 -> 22: `corner_config` is gone. Its valence check was dead behind
+  # `corner_at`'s own mint, and its body only delegated to
+  # `corner_independence`, which takes `Decide` alone, so it read no
+  # bracket of its own; no bound was added.
+  'crates/sweep/src/blend/battery.rs 22 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # build.rs 5 -> 3 (ONEHOME, finished-body doors): `fillet_edges` and
   # `chamfer_edges` take the scalar's finished body (`F: FinishedBody`),
   # so their `T: Decide + Bounds` is now `F::Scalar: Bounds` in a
@@ -920,7 +924,10 @@ BOUNDS_ALLOWLIST=(
   # 13 -> 14: `misses` reads a sheet rectangle's widths against
   # `escalate` (`sure`), the meter's own question as `Least::read`
   # reads a cell's, and grants nothing but "nothing here to meter".
-  'crates/sweep/src/blend/reach.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 14 -> 15: `mixed_corner_reach` builds a mixed corner's bounds with
+  # the same constructors (`half_space`, `canonical_axis`) and reads no
+  # bracket of its own.
+  'crates/sweep/src/blend/reach.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # planar.rs 3 -> 4, ruled.rs 3 -> 2, end_face.rs new at 5: the
   # cut-off both open bands end in left `ruled.rs` for its own file when
   # the plane–plane band took it too — the sliver meter's two

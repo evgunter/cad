@@ -4038,7 +4038,7 @@ mod tests {
         let diag = Indeterminate {
             margin: geom_core::MarginDiag::value(5e-10),
             band: band(),
-            predicate: Some("pcurve_incidence"),
+            predicate: Some("pcurve_plane_chart_incident"),
             terminal_sliver: false,
         };
         let trim = |read| ChartRegionError::TrimOffFace {

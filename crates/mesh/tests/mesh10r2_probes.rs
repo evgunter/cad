@@ -318,7 +318,7 @@ fn m10r2_set_edge_curve_on_a_split_child() {
             "M10R2 split={split} phi={phi:e}: V = {v:?} (donut {v_donut}), tessellate = {m:?}"
         );
         if split {
-            let meet = geom_brep::props::PropsError::NotIsoRectangle {
+            let meet = geom_brep::props::PropsError::SpanUncertified {
                 what: "props_meridian_pieces_meet",
             };
             let v = v.unwrap_or_else(|e| panic!("split={split} phi={phi:e}: measures: {e:?}"));

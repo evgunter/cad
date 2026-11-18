@@ -2,10 +2,11 @@
 id: a-reshaping-that-joins-a-kept-piece-into-a-run-reports-nothing
 kind: issue
 title: A SetProgram that joins a kept piece's wall into a run (a station inserted after it) strands the single-piece wall name without reporting it
-status: open
+status: parked
 opened: 2026-11-09
 priority: P0
 cost: M
+blocked_on: [7082, 7075]
 ---
 
 
@@ -51,8 +52,15 @@ The rows of that test that reach it are split out and pinned red on
 this row:
 `edit_set_program::a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported`
 (insert, one pinned row per sub-case: four radii and scales on one
-loop, and either loop of two) and
-`edit_set_program::a_fillet_moved_off_a_corner_reports_a_run_piece_that_never_resolved`.
+loop, and either loop of two).
+
+**The moved-fillet row is lifted (#7075's value-free door).** The strand
+report compares what each program's structure can draw, so the moved
+fillet, whose structure still draws a run in, no longer reports
+`Lateral([run in])`; and the broken run's name rests on the dropped
+leg, so it is reported. The row passes at a rise where the moved run
+in fits `Zero` and at one where it fits `Positive`:
+`edit_set_program::a_fillet_moved_off_a_corner_reports_exactly_what_it_takes`.
 
 ## Done when
 
@@ -60,6 +68,11 @@ A reshaping reports a held wall name whose run it changed (joined or
 broken) exactly as it reports one whose piece it stopped drawing, or a
 ruling says the run's offer is the whole answer and the contract in
 `report_matches_resolution` changes; the pinned row is lifted either way.
-The door would need the sweep's run grouping (the cosurface verdicts in
-`crates/sweep/src/swept.rs`, `cosurface_pairs`/`wall_runs`) or a
-profile-side reading that agrees with it.
+Where the door reads a run's grouping from is #7082's ruling (an
+`[ev]` PR, unruled), not this row's. The sweep's own grouping
+(`crates/sweep/src/swept.rs` `cosurface_pairs`/`wall_runs`) is not
+it: it is crate-private, and it decides a join from values within a
+band, which would bring ε back into DM7's structural comparison
+against `[recipe.doors]`. #7082 proposes validation's per-joint carrier
+verdict as the one home, read at generic values for the structural
+strand report.

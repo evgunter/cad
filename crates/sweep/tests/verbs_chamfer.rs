@@ -11,9 +11,9 @@ use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
+use sweep::blend::BlendError;
 use sweep::blend::arms::chamfer_strip;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
@@ -333,7 +333,7 @@ fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
 /// in the top face and that edge's strip in its plane, adding `(2/3)d³`
 /// (`band_mixed_corner_odd_plus_one`). Where the face the two convex
 /// edges share leans off square to the odd edge, the request refuses
-/// with the corner's configuration tag, naming no run-out policy.
+/// `ObliqueMixedCorner`, naming the odd edge.
 #[test]
 fn an_l_brackets_inner_edge_is_cut_off_and_chamfers_with_a_convex_neighbour() {
     let tol = Tol::witness();
@@ -401,15 +401,12 @@ fn an_l_brackets_inner_edge_is_cut_off_and_chamfers_with_a_convex_neighbour() {
     )
     .expect_err("the odd edge with another of an oblique corner refuses");
     match err.error {
-        BlendError::UnsupportedCorner {
-            corner: CornerConfig::MixedConvexity { convex },
-            policy,
-            ..
-        } => {
-            assert_eq!(convex, 2, "two of the three incident edges are convex");
-            assert_eq!(policy, None);
-        }
-        other => panic!("expected a mixed-convexity corner refusal, got {other:?}"),
+        BlendError::ObliqueMixedCorner { odd, .. } => assert_eq!(
+            odd,
+            crate::band_mixed_corner::leaning_odd_and_one(&leaning)[0],
+            "the refusal names the odd edge"
+        ),
+        other => panic!("expected the oblique mixed corner refusal, got {other:?}"),
     }
 }
 

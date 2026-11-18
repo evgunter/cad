@@ -541,6 +541,23 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
     }
 }
 
+/// **A revolved ball holds**: a half disc revolved a full turn about
+/// its diameter, two half-bands of one sphere sharing their two
+/// meridians and both poles. Each half-band is read in its own half
+/// turn and the pair splits there, so the body holds only after it
+/// splits. Red if it holds without a split: one half-band was then read
+/// as holding nothing in its own window, on an extent off its sheet.
+#[test]
+fn a_revolved_ball_holds_only_after_it_splits() {
+    fn ball<T: Scalar>() -> Body<T> {
+        let p = |y: f64, b: f64| (Point2::new(0.0, y).map(T::from_f64), T::from_f64(b));
+        revolved_about_y_at(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol())
+    }
+    for report in holds_at_both("the ball", ball(), ball()) {
+        assert!(report.receipt.splits > 0, "{:?}", report.receipt);
+    }
+}
+
 /// **A cone holds**: the triangle `(0,0) (1,0) (0,1)` revolved a full
 /// turn about `y` — two half-cones sharing their two meridians and the
 /// apex, each sharing a half rim with the base disc.
@@ -1757,8 +1774,48 @@ fn shell_4s_vessel_holds() {
     }
 }
 
+/// **A drum's cavity whose cap is one plane in three faces holds**: the
+/// drum's cap ring is cut at half its radius
+/// (`common::latitude_seam::collinear_cap_drum`), and the axial door's
+/// cavity keeps it, a disc bounded by two half-circles of one circle,
+/// stored on opposite axes, between two half-annuli. No carrier
+/// separates the coplanar faces, and the circle's own plane is theirs;
+/// each half-annulus against the disc is certified by the graph
+/// separator, the disc read on through each vertex along its other
+/// half-circle. Red, `Uncertified` on the disc across a half-circle, if
+/// that corner is not read.
+#[test]
+fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
+    use crate::common::latitude_seam::{collinear_cap_drum, door_cavity};
+    let cavity = door_cavity(&collinear_cap_drum(), 0.05);
+    let report = injective(&cavity, None, BUDGET);
+    assert_holds("the drum's cavity", &report, &cavity);
+    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+}
+
+/// **The drum the cavity above is cut from refuses, out of depth**: its
+/// half-annulus cells a rounding off the disc's half-circle are read by no
+/// presentation (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
+/// Red when the drum holds, and that row's reading has landed.
+#[test]
+fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
+    use crate::common::latitude_seam::collinear_cap_drum;
+    let drum = collinear_cap_drum();
+    let report = injective(&drum, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Budget(_))
+        ),
+        "the drum runs out of depth: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+    assert_eq!(report.receipt.refused, 282, "{:?}", report.receipt);
+}
+
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity
-/// refuses typed at the vertices its walls share alone.** At `Interval`
+/// holds where two arcs of its ellipse meet.** At `Interval`
 /// the union builds at every ε, as the `f64` body: as many faces, edges
 /// and vertices, and a volume enclosure that brackets the `f64` volume.
 /// Two radius-1 rods on crossing axes, one mitred by
@@ -1766,19 +1823,24 @@ fn shell_4s_vessel_holds() {
 /// `B` from `x = 0.2`), united. Rod `B` starts at `x = 0.2`, so the
 /// junction never reaches the node plane `x = 0`: it ends where `B`'s
 /// cap circle meets the mitre plane, at `(0.2, ±0.98, 0.2)`, and `A`'s
-/// seam line meets it at `(1, 0, 1)`. The junction's ellipse runs on
-/// through each of those vertices as the next face's edge, so a face
-/// and the face across the vertex from it lean on one line there, which
-/// no plane through the vertex separates them across. A plane's corner
-/// of a line and an arc at such a vertex is read as its quadrant, and a
-/// wall's is not, so those four pairs split to the floor and refuse
-/// there; the walls against each other at `(1, 0, 1)`, and `A`'s wall
-/// halves against the mitre across its ellipse, refuse at the root. The
-/// verdict is `Uncertified { Departure }` naming a vertex — never
-/// certified, never measured by distance.
+/// seam line meets it at `(1, 0, 1)`. A plane's or a wall's corner of a
+/// straight edge and the ellipse at a vertex its pair shares alone is
+/// read as its quadrant, so `B`'s wall against the mitre at
+/// `(0.2, ±0.98, 0.2)` and the walls' diagonal halves at `(1, 0, 1)`
+/// certify, their quadrants strictly apart across a plane through the
+/// vertex. `A`'s wall halves against the mitre across its ellipse
+/// certify too: each face's corner of two arcs of that one ellipse is
+/// read on through the vertex. So are `A`'s wall halves against `B`'s cap
+/// at `(0.2, ±0.98, 0.2)`, a vertex they share alone, where `A`'s wall's
+/// corner is the ellipse's two arcs, a straight angle no quadrant holds,
+/// and no plane through the vertex parts the wall from the cap: they are
+/// parted by the graph separator over the ellipse through the vertex, the
+/// cap read as its quadrant. Every touching pair holds, asked alone. The
+/// report names no arm per pair, so which arm parts them is not asserted
+/// here: the graph separator's listing of the vertex is the one change
+/// that lets them certify, and without it this row is red.
 #[test]
-fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone()
- {
+fn a_cylinder_cylinder_tee_builds_and_its_injectivity_holds_where_two_arcs_of_its_ellipse_meet() {
     fn tee_at<T: Scalar>() -> Result<topo::BooleanResult<T>, topo::BooleanError> {
         use core::f64::consts::{FRAC_PI_2, PI};
         use geom_core::{Affine3, Vec3};
@@ -1841,36 +1903,30 @@ fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_
         "[corner] tee: cornered = {} {:?} {:?}",
         report.cornered, report.verdict, report.receipt
     );
-    match report.verdict {
-        BoundVerdict::Refused(EngineRefusal::Uncertified {
-            a,
-            b,
-            shared: SharedCell::Vertex(v),
-            arm: CertificateArm::Departure,
-        }) => {
-            let mut kinds = [kind(tee, a), kind(tee, b)];
-            kinds.sort_unstable();
-            assert_eq!(kinds, ["cylinder", "cylinder"], "the two walls");
-            let p = *tee.get_point(tee.get_vertex(v).unwrap().point).unwrap();
-            assert!(
-                (p.x - 1.0).abs() < 1e-9 && p.y.abs() < 1e-9 && (p.z - 1.0).abs() < 1e-9,
-                "where A's seam line meets the junction: {p:?}"
-            );
-        }
-        other => panic!("the tee refuses at the vertex: {other:?}"),
-    }
     assert!(
-        report.receipt.splits < 1024,
-        "the floor refusals are the vertices' own cells, a few per level: {:?}",
+        matches!(report.verdict, BoundVerdict::Holds),
+        "the tee holds: {:?}",
+        report.verdict
+    );
+    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+    assert!(
+        report.receipt.splits < 640,
+        "the tee splits a few hundred cells, 465 when pinned: {:?}",
         report.receipt
     );
-    assert_eq!(
-        report.receipt.refused, 12,
-        "four root pairs refuse: the walls against each other at a vertex alone, and two across \
-         the mitre's ellipse; four plane–wall pairs at a vertex alone, the plane read and the \
-         wall not, refuse eight cells at the floor ({:?})",
-        report.receipt
-    );
+    // Every touching pair holds asked alone: A's wall halves against B's
+    // cap at a vertex alone, the wall halves against the mitre across its
+    // ellipse, and every other pair at a vertex alone or across an edge.
+    for (a, b) in touching_pairs(tee) {
+        let alone = injective(tee, Some(vec![a, b]), BUDGET);
+        assert!(
+            matches!(alone.verdict, BoundVerdict::Holds),
+            "{a:?} ({}) against {b:?} ({}) holds alone: {:?}",
+            kind(tee, a),
+            kind(tee, b),
+            alone.verdict
+        );
+    }
     assert!(
         report
             .across

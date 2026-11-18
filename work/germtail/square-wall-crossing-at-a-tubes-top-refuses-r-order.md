@@ -59,3 +59,9 @@ PR 7052's reviewers):
     tilt 0.00000000000644107827255586: R-tan at
     Degeneracy { tangent: 0.00024737568798874343, top: 1.4351601400341973e-9 }:
     Tangent("section_torus_square_wall_fold_half")
+
+A second seed, `CAD_FUZZ_SEED=0xf833f1903ca13458` (`CAD_FUZZ_EFFORT=1`),
+reds with three mismatches of the same shape (`R 4.528…, r 0.5539…`;
+`R 0.04898…, r 0.007838…`; `R 37.93…, r 8.648…`), each `R-tan at
+Degeneracy { … top: ~1e-9 }`, on embed/graph-piece's local run of topo
+(2026-11-17); that branch does not touch the section code.

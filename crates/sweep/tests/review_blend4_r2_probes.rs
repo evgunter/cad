@@ -26,7 +26,7 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, Convexity, CornerConfig};
+use sweep::blend::{BlendError, Convexity, UnbuiltEnd};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary};
@@ -299,14 +299,14 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
 /// _it_did_before`) asserted its payload's `convex` count rather than
 /// the variant, and said in its own prose why: the variant alone
 /// stays green under a relabelling. Its replacement at the L-bracket
-/// matches `MixedConvexity { .. }` and drops the count, so the
-/// discipline the retired row articulated left the tree with it.
-/// This restores it at the surviving fixture: the bracket's reflex
-/// edge ends at corners where exactly two of three edges are convex,
-/// requested with one floor edge of its corner (all three build, the
-/// mixed corner).
+/// matched the mixed tag and dropped the count, so the discipline the
+/// retired row articulated left the tree with it. This restores it at
+/// the surviving fixture: the bracket's reflex edge ends at corners
+/// where exactly two of three edges are convex, requested with one floor
+/// edge of its corner (all three build, the mixed corner), and the
+/// run-out names the reflex edge as the odd one, concave.
 #[test]
-fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
+fn r2_the_mixed_corner_refusal_names_the_concave_odd_edge() {
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(2.0, 0.0),
@@ -337,11 +337,9 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
     )
     .expect_err("a mixed corner refuses");
     match refused.error {
-        BlendError::UnsupportedCorner {
-            corner: CornerConfig::MixedConvexity { convex },
-            ..
-        } => assert_eq!(
-            convex, 2,
+        BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { odd: Some(odd), .. }) => assert_eq!(
+            (odd.edge, odd.convexity),
+            (odd_and_one[0], Convexity::Concave),
             "the reflex edge's ends have two convex edges of three"
         ),
         ref other => panic!("expected the corner-configuration refusal, got {other:?}"),

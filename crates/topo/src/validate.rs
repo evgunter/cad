@@ -3995,6 +3995,18 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 "a stored boundary edge does not lie on its own face's surface",
                 DEFECT.into(),
             ),
+            // A state of the parse no correct kernel reaches from stored
+            // data: the kernel's own fault, whatever the body.
+            P::Defect { .. } => reading(
+                "a face's boundary reached a state no correct parse of a stored body reaches",
+                DEFECT.into(),
+            ),
+            // A span certification admits on no edge: the stored data
+            // contradicts the certification it was stored under.
+            P::SpanUncertified { .. } => reading(
+                "a stored boundary edge's span is one no certified edge has",
+                DEFECT.into(),
+            ),
             // A sphere face whose loops do not bound a region of its
             // sphere, or whose bit its boundary contradicts (an inverted
             // bit, or a chart pole inside the face): stored data that is
@@ -10792,7 +10804,9 @@ pub struct AtRestBody<T: geom_core::Decide> {
 
 impl<T: geom_core::Decide> AtRestBody<T> {
     /// **[`validate_geometric`] over `body`, keeping the verdict** — the
-    /// certifying scalars' [`crate::AtRestPolicy::finish`].
+    /// certifying scalars' [`crate::AtRestPolicy::finish`]. Every decision
+    /// it takes is a check ([`geom_core::k_stats::checking`]): it reads a
+    /// body already built, so another sign can only refuse it.
     ///
     /// # Errors
     ///
@@ -10803,7 +10817,10 @@ impl<T: geom_core::Decide> AtRestBody<T> {
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
         crate::finish::count_finish();
-        let sign = std::sync::Arc::new(validate_geometric_certificate(&body, tol)?.into_parts());
+        let sign = std::sync::Arc::new(
+            geom_core::k_stats::checking(|| validate_geometric_certificate(&body, tol))?
+                .into_parts(),
+        );
         Ok(Self {
             body,
             sign,

@@ -146,7 +146,7 @@ fn the_load_refuses_a_direct_read() {
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, copy) = insert(doc, placed(Operand::Node(b)));
     let source = doc.copied_read(copy).expect("a source");
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("saves");
     let spell = |var: VarId| serde_json::to_string(&var).expect("an id spells");
     let needle = format!("\"source\": {}", spell(source));
     assert!(text.contains(&needle), "the file spells the source read");
@@ -349,7 +349,7 @@ fn a_source_cycle_is_a_definition_cycle() {
 fn the_load_refuses_a_source_cycle() {
     let (doc, b) = chained();
     let bb = doc.var_named("b").expect("b");
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("saves");
     let spell = |var: VarId| serde_json::to_string(&var).expect("an id spells");
     let needle = format!("\"Source\": {}", spell(out(&doc, b)));
     assert_eq!(text.matches(&needle).count(), 1, "a's definition, once");
@@ -506,7 +506,7 @@ fn a_body_source_redefined_onto_a_family_writes_what_loads() {
     // A shell reads a family as a family of shells, so the door admits the
     // redefinition, and what it writes saves and loads.
     let doc = redefine(&doc, bracket, VarDecl::source(Operand::Node(row))).expect("admitted");
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("saves");
     editor_core::load(&text, Tol::witness()).expect("what the door writes loads");
 }
 
@@ -582,7 +582,7 @@ fn the_load_refuses_a_shared_anonymous_source_and_a_cycle_through_nodes() {
         },
     );
     let [s1, s2] = [c1, c2].map(|c| doc.copied_read(c).expect("a source"));
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("saves");
     let spell = |var: VarId| serde_json::to_string(&var).expect("an id spells");
     let needle = format!("\"source\": {}", spell(s2));
     assert!(text.contains(&needle));
@@ -654,4 +654,63 @@ fn the_takeover_refuses_what_is_no_source() {
         "{:?}",
         refused.map(|_| ())
     );
+}
+
+/// **The product slot refuses one member of a family** (`Member`): a member
+/// is a body (D10 `[repetition]`), and a placement reads `Source(row[1])`,
+/// but the product's gather does not read one member. Written in place,
+/// declared and read by name, or reached by redefining a source the slot
+/// already reads (held to the load's rule), the doors refuse it alike, so
+/// no door leaves a slot the gather's own member arm answers.
+#[test]
+fn the_product_slot_refuses_one_member_of_a_family() {
+    let doc = ProfileDoc::empty_derived("named-source-member-product", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, _, row) = crate::fixture::row(doc, b, ("k", 3), editor_core::TargetAxis::X, 2.0);
+    let member =
+        || editor_core::BodyRead::indexed(Operand::Node(row), vec![editor_core::Formula::count(1)]);
+    let set = |d: &ProfileDoc, read: Operand| {
+        d.apply(
+            &DocEdit::SetProduct {
+                product: Some(read),
+            },
+            Tol::witness(),
+        )
+        .map(|applied| applied.doc)
+    };
+    let is_member = |got: &Result<ProfileDoc, EditError>| {
+        matches!(
+            got,
+            Err(EditError::ProductRead {
+                fault: editor_core::ProductReadFault::Member,
+                ..
+            })
+        )
+    };
+    assert!(
+        insert_placed(&doc, placed(Operand::Source(Box::new(member())))).is_ok(),
+        "a placement reads one member"
+    );
+    let got = set(&doc, Operand::Source(Box::new(member())));
+    assert!(is_member(&got), "in place: {:?}", got.map(|_| ()));
+    let named = declared(doc.clone(), "s", VarDecl::source(member()));
+    let got = set(&named, Operand::Name(VarName::from_static("s")));
+    assert!(is_member(&got), "by name: {:?}", got.map(|_| ()));
+    let (doc, copy) = insert(doc, placed(Operand::Node(b)));
+    let whole = declared(doc, "t", VarDecl::source(Operand::Node(copy)));
+    let t = whole.var_named("t").expect("t");
+    let whole = set(&whole, Operand::Var(t)).expect("a body in the world");
+    // A source's redefinition holds each reader to the load's rule.
+    let got = redefine(&whole, t, VarDecl::source(member()));
+    let held = match &got {
+        Err(EditError::SourceReaderRefused { reader, .. }) => matches!(
+            **reader,
+            PersistError::Snapshot(SnapshotError::ProductRead {
+                fault: editor_core::ProductReadFault::Member,
+                ..
+            })
+        ),
+        _ => false,
+    };
+    assert!(held, "redefined under the slot: {:?}", got.map(|_| ()));
 }

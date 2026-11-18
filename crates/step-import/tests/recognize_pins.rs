@@ -71,7 +71,7 @@ fn solid(text: &str, who: &str) -> (topo::Body<f64>, Vec<(u64, PromotedKind, f64
 /// (loft_prism), ≤ 1e-15 for the walls that carry rounding.
 #[test]
 fn own_corpus_promotions_are_exactly_the_enumerated_planar_walls() {
-    for name in SOLID_FIXTURES {
+    for &name in SOLID_FIXTURES {
         let (_, promos) = solid(&fixture(name, "step"), name);
         let want: &[(u64, PromotedKind)] = match name {
             "loft_prism" | "nonuniform_loft" => {
@@ -432,11 +432,11 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
         // carriers additionally promote to LINE (#388 — their Greville
         // map fold is ~1.3e-7 at unit scale, between the two bands);
         // the seams chart the same way either side of it.
-        Ok(StepImport::Solid {
-            body,
-            curve_promotions,
-            ..
-        }) => {
+        Ok(imported @ StepImport::Solid { .. }) => {
+            let curve_promotions = imported.curve_promotions();
+            let StepImport::Solid { body, .. } = imported else {
+                unreachable!("matched as a solid")
+            };
             topo::validate_geometric(&*body, Tol::witness())
                 .expect("first-class at rest: the rational wall's flux reaches its target");
             let taken = plane_nurbs_intersections(&body);

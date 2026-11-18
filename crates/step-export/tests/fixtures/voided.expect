@@ -1,0 +1,22 @@
+# KERNEL_* pin the NATIVE body's census and certified volume, full
+# precision (the literal is the export writer's round-tripping float
+# printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
+# these lines against the live kernel). scripts/check_step.sh consumes
+# EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
+#
+# [0,3]^3 minus [1,2]^3: one solid of an outer shell and a cavity,
+# written as one BREP_WITH_VOIDS. EXPECT_* measured with Open CASCADE
+# 7.8's STEP reader: one valid solid of 2 shells, volume 27 - 1.
+KERNEL_SOLIDS=1
+KERNEL_SHELLS=2
+KERNEL_FACES=12
+KERNEL_EDGES=24
+KERNEL_VERTICES=16
+KERNEL_VOLUME_MM3=26000000000.0
+KERNEL_VOLUME_PAD_MM3=0.0
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=2
+EXPECT_FACES=12
+EXPECT_EDGES=24
+EXPECT_VERTICES=16
+EXPECT_VOLUME_MM3=26e9

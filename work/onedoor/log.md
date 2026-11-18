@@ -536,3 +536,42 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - Filed: `chart-facts-are-a-sixth-concern-inside-pcurves-mint` (P4).
   - Model-compare row `docs/model-compare-log/rows/PR-6939.md`.
   - (ONEDOOR orchestrator)
+
+## 2026-11-17 — set `ready`; one row re-homed
+
+- Track set `ready` (Ev, in chat): no orchestrator holds it. Nothing was
+  in flight: no lane, open PR or `onedoor/` branch since the 11-14
+  sitting's four PRs merged.
+- `face-geo-restates-carrier-desc-curved-arms` (P1, H, design) moved to
+  ONECOPY by `git mv`, parked on its
+  `analytic-surfaces-spell-their-frame-field-by-field`: the per-kind
+  `CarrierDesc` fold is the geom-brep side of that row's ratified
+  kind-struct stage, and would be reshaped by it if done first.
+- Kept here: `main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6`
+  (P0). It is a regression in this track's own `[coincidence.door]`
+  code (PR 6505, the one surface record), beside this track's
+  `split-and-chord-coincidences-leave-two-records`; no live program's
+  charter covers the coincidence decision better, and ONECOPY, the
+  obvious candidate, is over budget and owns carrier readings, not the
+  coincidence verdict. The pins hold the tests green meanwhile. The
+  unbanded `collapsed-locus-refusal-has-no-reachable-fixture` stays too.
+- (GREEN, at Ev's request)
+
+## 2026-11-18 — seam note from DOCTAIL: the wedge sign can be read under its shared name
+
+- DOCTAIL's `verdict-log-tells-no-validation-reading-from-a-building-decision`
+  lands the verdict log's roles: every decision is a choice or a check,
+  stamped from the caller's scope (`geom_core::k_stats::checking`), and
+  the resolver reads only choices. `first_cause`'s pass-over list is
+  gone, so `dihedral_sign` is no longer hidden from the flip lane.
+- Touched on ONEDOOR's ground: the fold now takes the role its reader
+  gives the side (`geom_brep::edge_wedge_over_as`'s `side: Role`,
+  replacing `FoldNames`); the constructors' and the rim's readings
+  record the sign and end as checks, the constructors reading back a
+  sign-erased `geom_brep::WedgeClass`; the
+  blend's `fillet3_convexity_sign` / `fillet3_knife_end` pool back into
+  `dihedral_sign` / `material_cusp_side`; `topo::edge_wedge_as` is gone.
+- Now possible, not done: `rules::edge_wedge`'s sign can move off
+  `enters_material` onto the fold under `dihedral_sign`. Filed here as
+  `the-split-rules-wedge-sign-can-read-the-fold-as-a-choice`.
+- (DOCTAIL first-turn lane)

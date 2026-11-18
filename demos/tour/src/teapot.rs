@@ -114,12 +114,12 @@
 //!    tier 3, the shell count, the volume — never the rings, the genus
 //!    or the mesh. That is the transferable lesson, and that probe now
 //!    checks all three. **The pot ships OPENED**, one annular rim,
-//!    genus 0, meshing — and it also LEAVES AS STEP, which the sealed
-//!    two-shell body could not.
+//!    genus 0, meshing, and leaves as STEP as one shell; the sealed
+//!    two-shell body leaves as one `BREP_WITH_VOIDS` and comes back.
 //! 3. **The lid is solid, and its rims roll whole.** A full revolve
 //!    of a profile that touches the axis mints half-walls, and each
 //!    latitude rim is two open arcs meeting at two seam vertices. One
-//!    arc alone refuses `UnsupportedCorner` at a seam vertex; the pair
+//!    arc alone refuses `UnbuiltEnd::Seam` at a seam vertex; the pair
 //!    carves as ONE torus band
 //!    (`verbs_arms1_r1_probes::the_unbored_hemisphere_equator_carves_as_one_band`).
 //!    So the lid is what a potter turns — a solid knob and no vent —
@@ -892,7 +892,7 @@ fn vertex_at(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, v: u32, tol: Tol) -
 /// profile that touches the axis, a rim is two half-arcs meeting at
 /// two seam vertices, named `BandRim` (`[0, π)`) and `BandRimPi`
 /// (`[π, 2π)`). The fillet takes the pair; either arc alone ends at a
-/// seam vertex and refuses `UnsupportedCorner`.
+/// seam vertex and refuses `UnbuiltEnd::Seam`.
 fn rim_arcs(node: RecipeNodeId, vertex: ProfileVertexRef) -> [StableName; 2] {
     [band_rim(node, vertex), band_rim_pi(node, vertex)]
 }
@@ -1098,7 +1098,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
         placed.doc
     });
     // What the pot is: its four copies.
-    crate::world::set_product(&placed, &copies, tol).doc
+    crate::world::set_product(&placed, &copies, tol)
 }
 
 /// **The pair wall 3 meets on, as evaluated**: the belly's sphere
@@ -1823,6 +1823,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
 
     // ---- the sealed hollow: the document's own value ----
     let pot = body_at(&ev, r.pot, tol);
+    let crate::StepRoundTrip {
+        voids: sealed_voids,
+        volume: sealed_volume,
+    } = crate::step_round_trip("teapot_sealed", &pot, tol);
     let (pv, pe, pf) = (
         pot.vertices().count(),
         pot.edges().count(),
@@ -2625,12 +2629,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
              closed form less the lifted mouth disc, {cup_triangles} triangles at δ = \
              {DELTA}. On an ANNULAR mouth the same class needs two disjoint annuli — a \
              face SPLIT — and that is built too; `tests/verbs_teapot.rs` carries both \
-             shapes. THE OPENED POT NOW LEAVES AS STEP, which the sealed one could not: \
-             the writer refuses a void shell (VoidShellUnsupported: no \
-             BREP_WITH_VOIDS yet) — and a cup is ONE shell. That gate keeps three \
-             live probes (klein's wall 6, the `ring` scene's and `hollowtorus`'s); this \
-             scene is no longer one of them, because the body it ships no longer \
-             reaches it. THE LID, which is where the CURVED-SUPPORT fillet family \
+             shapes. THE OPENED POT LEAVES AS STEP as one shell; the sealed one \
+             leaves as one BREP_WITH_VOIDS and imports back as one solid with \
+             {sealed_voids} cavity, V = {sealed_volume:.6} m³. THE LID, which is where the CURVED-SUPPORT fillet family \
              lives on this tour. It is what a potter turns: a SOLID knob, no vent — \
              the profile closes down the axis, so the revolve mints half-walls like \
              the pot's: 8/14/8 sharp (two whole discs, the cone, sphere and cylinder \

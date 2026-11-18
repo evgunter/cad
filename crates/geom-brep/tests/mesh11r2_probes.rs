@@ -220,7 +220,7 @@ fn r2_a_saturated_span_with_the_pole_antipodal_to_its_midpoint() {
         let door = require_one_chart_branch(&sphere(), &pair, bd);
         let fc = curved_face(&sphere(), &pair, true, bd).map(|f| f.area);
         let refused = |what: &&'static str| *what == "props_meridian_span_winding";
-        if !matches!(&door, Err(PropsError::NotIsoRectangle { what }) if refused(what)) {
+        if !matches!(&door, Err(PropsError::SpanUncertified { what }) if refused(what)) {
             door_wrong.push((delta, verdict(&door)));
         }
         if !matches!(

@@ -308,6 +308,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        crate::side_reader::SIDE => "which side of a selection of faces lies outside every face",
         "bool_overlap_cut_order" => "where along an edge its meetings with a face's boundary lie",
         "bool_overlap_senses" => "whether two faces on one carrier face one way",
         "bool_point_in_solid_sphere" => "how far a point lies off a sphere face's carrier",
@@ -8736,7 +8737,7 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
 
 /// **Where `face`'s boundary meets `locus` over `span`**: the parameter
 /// of every meeting the located boundary pass reads
-/// ([`carrier_cross::FaceBoundary::located`], each boundary vertex and
+/// ([`crate::face_boundary::FaceBoundary::located`], each boundary vertex and
 /// edge read against the span through the curve-pair table), and the
 /// two ends of the window each member it could not read is undecided
 /// over ([`geom_brep::curve_pair::Span::window_near`]). A run the locus
@@ -8752,8 +8753,8 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
 ///
 /// # Panics
 ///
-/// As [`carrier_cross::face_boundary`]'s, where a record past `face` does
-/// not resolve.
+/// As [`crate::face_boundary::face_boundary`]'s, where a record past
+/// `face` does not resolve.
 fn boundary_cuts<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -8762,16 +8763,12 @@ fn boundary_cuts<T: Decide>(
     band: Band,
 ) -> Result<geom_brep::curve_face::Located<T>, FaceUnread> {
     use geom_brep::curve_face::BoundaryRefusal;
-    let boundary = carrier_cross::face_boundary(body, face)
+    let boundary = crate::face_boundary::face_boundary(body, face)
         .map_err(|e| {
             // A face the caller read its placement on that the walk
             // cannot resolve: a kernel fault, as the walk names it.
-            let what = match e {
-                BooleanError::ClassificationInvariant { what } => what,
-                _ => "boundary pass: face lost",
-            };
             FaceUnread::Boundary(BoundaryRefusal::Met(
-                geom_brep::curve_pair::MeetKind::Fault { what },
+                geom_brep::curve_pair::MeetKind::Fault { what: e.what() },
             ))
         })?
         .ok_or(FaceUnread::Fault(UNCERTIFIED_BOUNDARY))?;

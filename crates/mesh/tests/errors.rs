@@ -282,11 +282,15 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::UnsupportedCurvedShape {
                 face,
-                source: geom_brep::props::PropsError::NotIsoRectangle {
-                    what: "props_rim_level",
+                source: geom_brep::props::PropsError::SpanUncertified {
+                    what: "props_rim_span_winding",
                 },
             },
-            vec!["props_rim_level", "iso-parameter rectangle", "quadrature"],
+            vec![
+                "props_rim_span_winding",
+                "iso-parameter rectangle",
+                "no certified edge",
+            ],
         ),
         (
             TessellateError::MeridianFreeCurvedFace {

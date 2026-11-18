@@ -148,6 +148,17 @@ pub fn circle_at(centre: [f64; 2], radius: f64) -> LoopProgram<Formula> {
     }])
 }
 
+/// A chain that never closes, as [`shape`] lowers it: the lattice
+/// refuses it at every value, so it is the edit door's to refuse.
+pub fn unclosed_loop() -> LoopProgram<Formula> {
+    shape(&[
+        pncad::profile::Step::At(pncad::geom_core::Point2::origin()),
+        pncad::profile::Step::LineTo(pncad::profile::Target::Point(
+            pncad::geom_core::Point2::new(0.01, 0.0),
+        )),
+    ])
+}
+
 /// A `width` by `height` rectangle on `centre`, as [`shape`] lowers it.
 pub fn rectangle_at(centre: [f64; 2], width: f64, height: f64) -> LoopProgram<Formula> {
     shape(&[pncad::profile::Step::Rectangle {
@@ -314,10 +325,10 @@ pub const GALLERY_RING: &str = include_str!("../gallery_ring.pncad");
 /// committed document fixture is loadable at exactly one of its
 /// points and refuses at the others.
 ///
-/// So the fixture is re-stamped with THIS run's ε before it is opened.
-/// The new ε line comes from `save` itself, via a throwaway document
-/// at the process tolerance: spelling a float the way the serializer
-/// spells it is the serializer's job, not this file's.
+/// So the fixture is re-stamped with THIS run's ε before it is opened,
+/// by the one re-stamp every suite shares
+/// (`editor_core::test_support::restamped_at`), whose new ε line comes
+/// from `save` itself.
 ///
 /// **What this function does NOT do is check its own work.** The real
 /// claim (a re-stamped fixture is byte-for-byte what the exporter
@@ -326,25 +337,7 @@ pub const GALLERY_RING: &str = include_str!("../gallery_ring.pncad");
 /// which puts the bytes back through `save` rather than through this
 /// function's own arithmetic.
 pub fn gallery_ring_at(tol: Tol) -> String {
-    let probe: Doc<ProfileProgram> = Doc::empty_derived("gui3-epsilon-probe", tol);
-    let probe_text = pncad::document::save(&probe, &[], tol).expect("an empty document saves");
-    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
-    let wanted = probe_text
-        .lines()
-        .find(|line| is_epsilon(line))
-        .expect("a saved document records its ε");
-    assert_eq!(
-        GALLERY_RING.lines().filter(|l| is_epsilon(l)).count(),
-        1,
-        "the fixture must carry exactly one ε line"
-    );
-    let mut text: String = GALLERY_RING
-        .lines()
-        .map(|line| if is_epsilon(line) { wanted } else { line })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    text.push('\n');
-    text
+    editor_core::test_support::restamped_at(GALLERY_RING, tol)
 }
 
 // --- session helpers for the op-vocabulary suites -------------------

@@ -200,8 +200,8 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
 
 /// **THE DIFFERENTIAL, retired by issue 644's widening: both verbs
 /// now carve this fixture.** This suite once pinned the fillet's
-/// refusal here — `MixedConvexity { convex: 0 }`, the vocabulary's
-/// poor-fit name for the uniform concave trihedron — as the boundary
+/// refusal here — a mixed-convexity tag with no convex edge, the
+/// vocabulary's poor-fit name for the uniform concave trihedron — as the boundary
 /// the chamfer's widening did not move. The convexity-parametric
 /// fillet corner then moved it deliberately: the concave rolling
 /// ball's own carve, census, volume and orientation rows live in the

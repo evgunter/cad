@@ -247,7 +247,7 @@ fn first_face_on(body: &Body<f64>, kind: SurfaceKind) -> topo::FaceKey {
         .expect("the body carries a face of that kind")
 }
 
-/// Both doors `curved::require_iso_rectangle_face` cites, on the first
+/// Both doors `curved::iso_rectangle_shape` routes by, on the first
 /// face of `kind` — the measurement that says the refusal below is this
 /// lane's to make and not a door's.
 fn doors(body: &Body<f64>, kind: SurfaceKind) -> (bool, bool) {

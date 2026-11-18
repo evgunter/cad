@@ -458,7 +458,7 @@ fn lantern<S: Scalar>(
 /// A full revolve leaves each circle as TWO edges, its halves either
 /// side of the seam, and the roll takes both: one half alone ends its
 /// chain at the seam vertex, which the battery refuses
-/// (`UnsupportedCorner { SeamVertex }`), as a chain that stops partway
+/// (`UnbuiltEnd::Seam`), as a chain that stops partway
 /// round a circle should.
 fn roll_the_mouth<S: Scalar>(
     sharp: Body<S>,

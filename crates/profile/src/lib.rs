@@ -180,15 +180,17 @@ pub use fillet_recourse::{
 pub use gate::{Gate, decision_subject};
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
-    ArcData, ArcMode, ClosedLoop, ConstructedLoop, Pen, Refused, ReplayError, ReplayErrorKind,
-    SpecForms, Step, Takes, Target, TargetKind, TipState, Verb, Vocabulary, arc_specs_at, pen,
-    replay, replay_guided, replay_recording,
+    ArcData, ArcMode, ClosedLoop, ConstructedLoop, Pen, PenAt, Refused, ReplayError,
+    ReplayErrorKind, SpecForms, Step, Takes, Target, TargetKind, TipState, Verb, Vocabulary,
+    arc_specs_at, pen, replay, replay_guided, replay_recording,
 };
 pub use path::{
-    ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
-    CornerRefusal, CornerWindow, EscalatedAt, LegFit, LeverValue, LineTarget, OntoTarget, Open,
-    PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Recourse, Start,
-    Sweep, TangentArcTarget, TurnLever, Via, circle, circle_split, rectangle,
+    ArcCarrierScalar, ArcForm, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ChainShape,
+    ContinueTarget, CornerReason, CornerRefusal, CornerWindow, EscalatedAt, FormLowered,
+    FormTarget, LegFit, LeverValue, LineTarget, OntoTarget, Open, OrderFault, PartialPath,
+    PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Recourse, ShapeFault,
+    ShapeFaultKind, Start, StepForm, Sweep, TangentArcTarget, TurnLever, Via, chain_shape,
+    chain_states, circle, circle_split, rectangle,
 };
 pub use seg::ArcRead;
 /// The path door's read-back rounding bounds and its magnitude

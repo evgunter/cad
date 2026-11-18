@@ -172,9 +172,9 @@ impl<T: topo::AtRestPolicy> Blended<T> {
 /// [`BlendError::NonpositiveSize`] when `radius` is not definitely
 /// positive; any refusal the battery produces;
 /// [`BlendError::RepeatedEdge`] when the request names one edge
-/// twice; [`BlendError::UnsupportedChain`], [`BlendError::UnsupportedRunOut`],
-/// [`BlendError::UnsupportedGeometry`] or
-/// [`BlendError::UnsupportedCorner`] when the request is outside
+/// twice; [`BlendError::UnsupportedChain`], [`BlendError::UnbuiltEnd`],
+/// [`BlendError::ObliqueMixedCorner`] or
+/// [`BlendError::UnsupportedGeometry`] when the request is outside
 /// the assembly's front door ([`super::surgery`] names each case);
 /// [`BlendError::BodyNotIntact`] when the body does not hold together
 /// where the plan reads it, among them a requested chain or corner
@@ -455,9 +455,9 @@ pub type Chamfered<T> = Blended<T>;
 /// chain with links over other supports; any predicate refusal the
 /// battery raises, or [`BlendError::Escalated`] carrying the margin;
 /// [`BlendError::UnsupportedChain`],
-/// [`BlendError::UnsupportedRunOut`],
-/// [`BlendError::UnsupportedGeometry`] or
-/// [`BlendError::UnsupportedCorner`] when the request is outside
+/// [`BlendError::UnbuiltEnd`],
+/// [`BlendError::ObliqueMixedCorner`] or
+/// [`BlendError::UnsupportedGeometry`] when the request is outside
 /// the assembly's front door; [`BlendError::BodyNotIntact`] when the
 /// body does not hold together where the plan reads it, among them a
 /// requested chain or corner bounded by faces of two shells;

@@ -40,8 +40,7 @@ use crate::fixture;
 
 use corpus::{Recorder, eval, failures};
 use editor_core::{
-    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide, ValuePayload,
-    persist,
+    Node, NodeErrorKind, NodeResult, RecipeNodeId, SplitHalf, SplitSide, ValuePayload, persist,
 };
 use fixture::digest::digest;
 use fixture::{len, square, tol};
@@ -115,12 +114,13 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
         .into_iter()
         .find(|d| d.name == "part_select")
         .expect("the document is registered");
-    let snapshot = ProfileDoc::empty_derived("seat8_split_roundtrip", tol());
-    let first = persist::save(&snapshot, &doc.edits, tol()).expect("the document saves");
+    let first = persist::save(&doc.doc, tol()).expect("the document saves");
     let loaded = persist::load(&first, tol()).expect("its own bytes load back");
-    assert_eq!(loaded.edits, doc.edits, "the edit log did not survive");
-    let second = persist::save(&loaded.snapshot, &loaded.edits, tol())
-        .expect("the loaded document re-saves");
+    assert!(
+        loaded.bit_eq(&doc.doc),
+        "the loaded document is not bit-identical to the registered one"
+    );
+    let second = persist::save(&loaded, tol()).expect("the loaded document re-saves");
     assert_eq!(
         first, second,
         "a split document does not round-trip byte-identically"

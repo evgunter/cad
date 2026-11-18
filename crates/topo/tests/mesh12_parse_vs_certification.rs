@@ -4,7 +4,7 @@
 //! the parse's verdict on the hand-built loop agree — admit, escalate
 //! (`ParamSpan` / `props_meridian_span_winding` at the branch door,
 //! `props_sphere_arc_span_winding` on the flux lane) and refuse
-//! (`StatedInterval` / `NotIsoRectangle` or `SphereLoop`) land on the
+//! (`StatedInterval` / `SpanUncertified` or `SphereLoop`) land on the
 //! same rungs, save that a headroom wholly negative in band, which the
 //! parse escalates, the door refuses as its caller's interval past a
 //! full turn (`StatedInterval` carrying the in-band verdict); so
@@ -120,7 +120,7 @@ fn parse_disp<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> Disp {
         {
             Disp::Escalate
         }
-        Err(PropsError::NotIsoRectangle { what }) if *what == NAME => Disp::Refuse,
+        Err(PropsError::SpanUncertified { what }) if *what == NAME => Disp::Refuse,
         Err(PropsError::SphereLoop { what }) if *what == ARC_NAME => Disp::Refuse,
         Err(e) => Disp::Other(format!("{e:?}")),
     }

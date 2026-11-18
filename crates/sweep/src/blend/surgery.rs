@@ -174,10 +174,8 @@
 //! [`refresh_annulus_seams`]) — each
 //! refuses through the frontier vocabulary
 //! ([`BlendError::UnsupportedChain`],
-//! [`BlendError::UnsupportedRunOut`],
 //! [`BlendError::UnsupportedGeometry`], and
-//! [`BlendError::UnsupportedCorner`] for a corner's own
-//! configuration), naming itself and carrying the offending entity. The refusals are the honest boundary of the unit,
+//! [`BlendError::UnbuiltEnd`] for a band's end), naming itself and carrying the offending entity. The refusals are the honest boundary of the unit,
 //! not gates hiding reachable geometry.
 //!
 //! # The three refusal classes, and what is NOT one
@@ -243,7 +241,7 @@ use super::open::planar::{
 };
 use super::open::ruled::{RuledPlan, ruled_phase};
 use super::reach::{RingOn, TakenRing, Unclear, sure};
-use super::{BlendDecision, BlendError, BlendKind, BlendSite, Breach, CornerConfig, classify};
+use super::{BlendDecision, BlendError, BlendKind, BlendSite, Breach, UnbuiltEnd, classify};
 use geom_core::Tol;
 
 // ------------------------------------------------------------------
@@ -303,25 +301,10 @@ pub(super) fn unbuilt_chain(edge: EdgeKey, detail: &'static str) -> BlendError {
     BlendError::UnsupportedChain { edge, detail }
 }
 
-/// **Row 2** — the corner's own CONFIGURATION is not one the running
-/// band fills (the OQ6 vocabulary, shared with the battery's
-/// classifier).
-///
-/// The one mint of this refusal, so the policy it advertises is always
-/// the tag's own ([`CornerConfig::policy`]) and can never be a second,
-/// drifting opinion about the same configuration.
-pub(super) fn unbuilt_corner_config(vertex: VertexKey, corner: CornerConfig) -> BlendError {
-    BlendError::UnsupportedCorner {
-        vertex,
-        corner,
-        policy: corner.policy(),
-    }
-}
-
-/// **Row 2** — the REQUEST does not cover a termination the corner
-/// assembly needs. A run-out, not a corner configuration.
-pub(super) fn unbuilt_run_out(at: EntityId, detail: &'static str) -> BlendError {
-    BlendError::UnsupportedRunOut { at, detail }
+/// **Row 2** — a band's end is not one the blend builds, for the reason
+/// the tag names.
+pub(super) fn unbuilt_end(end: UnbuiltEnd) -> BlendError {
+    BlendError::UnbuiltEnd(end)
 }
 
 /// The one sentence for "a support of a corner is not a plane". Four
@@ -631,9 +614,10 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     }
     let is_junction = |v: VertexKey| junctions.iter().any(|j| j.junction.vertex() == v);
 
-    // ---- Ends: every planar open-link end that is not a joint is a
-    // CUT-OFF where the verdict classified an end face, and otherwise a
-    // fully-requested trivalent corner. Each corner's incidence list is
+    // ---- Ends: every planar open-link end that is not a joint or a
+    // junction is a CUT-OFF where the verdict classified an end face, a
+    // TURN where it decided one, and otherwise a fully-requested
+    // trivalent corner. Each corner's incidence list is
     // seeded by the link that discovered it, so it is non-empty by
     // shape rather than by a check three functions deep. ----
     let mut ends: Vec<CornerLinks<'_, T>> = Vec::new();
@@ -696,17 +680,14 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         // supports in one shell and check 6 gives the vertex one orbit,
         // so every chain meeting at it was found in the same shell.
         corner_shell(v, &here, &link_shells)?;
-        // The valence is the corner's own configuration (the OQ6
-        // vocabulary the battery's classifier already speaks); a
-        // trivalent end the verdict did not tag as an end face is one
-        // predicate 6 admitted with all three edges requested, so any
-        // other count is a verdict the body disagrees with.
+        // Predicate 6 refused every other valence, and admitted this end
+        // with all three edges requested, so any other count is a
+        // verdict the body disagrees with.
         if incident.len() != 3 {
-            return Err(unbuilt_corner_config(
-                v,
-                CornerConfig::NEdgeVertex {
-                    valence: incident.len(),
-                },
+            return Err(disagrees(
+                EntityId::Vertex(v),
+                "a chain ends at a corner the verdict admitted as trivalent, whose vertex \
+                 carries another count of edges",
             ));
         }
         if here != incident {
@@ -805,7 +786,14 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // exact meters above, which judge a support's own rings and edges
     // where both would refuse; the end-face meter's three-way readings
     // and the reach's make one verdict (`reach::Unclear`).
-    let consumed = super::reach::band_reach(source, &verdict.chains, radius, kind, band, unclear)?;
+    let consumed = super::reach::band_reach(
+        source,
+        (&verdict.chains, &verdict.mixed, &verdict.turns),
+        radius,
+        kind,
+        band,
+        unclear,
+    )?;
     // ---- A request whose verdict is inside takes each feature wholly
     // inside a straight band's material, whole, or refuses
     // (`consume::plan`). ----
@@ -1753,10 +1741,7 @@ fn resolve_mixed_rim<'a, T: Decide>(
             "a closed chain of links on different supports shares no one support face",
         ));
     }
-    let mates: Vec<FaceKey> = links
-        .iter()
-        .map(|l| if l.face_a == host { l.face_b } else { l.face_a })
-        .collect();
+    let mates: Vec<FaceKey> = links.iter().map(|l| l.across(host)).collect();
     let chain_edges: Vec<EdgeKey> = links.iter().map(|l| l.edge).collect();
 
     // The host's rim cycle is exactly the chain: a trim chord runs

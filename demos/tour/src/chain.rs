@@ -401,7 +401,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         .chain([&target])
         .map(|&copy| pncad::document::Operand::Node(copy))
         .collect();
-    doc = crate::world::set_product(&placed.doc, &made, tol).doc;
+    doc = crate::world::set_product(&placed.doc, &made, tol);
 
     // The wall names come from the SELECTION door, the way a user gets
     // them: evaluate what is built so far, then ask each pin for its

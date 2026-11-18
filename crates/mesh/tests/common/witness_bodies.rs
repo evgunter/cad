@@ -21,6 +21,16 @@ fn arc(circle: Curve3<f64>, t0: f64, t1: f64) -> EdgeCurveSpec<f64> {
     EdgeCurveSpec::arc_of_circle(circle, t0, t1).expect("a circle carrier has an arc spec")
 }
 
+/// `body` with its chart images minted and certified
+/// (`topo::mint_pcurves`), as every door that finishes a body stores
+/// them: the Euler doors that assemble these witnesses store none, and
+/// the trimmed lane reads a face's domain from them.
+#[allow(clippy::expect_used)]
+pub fn minted(mut body: Body<f64>) -> Body<f64> {
+    topo::mint_pcurves(&mut body, Tol::witness()).expect("the witness's images mint");
+    body
+}
+
 /// **The keyway**: the unit cylinder about +Z carrying ONE face whose
 /// loop is the U-shaped iso domain below, and a second face (the
 /// complement, on the same surface) closing the two-manifold. Vertices

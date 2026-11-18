@@ -3,7 +3,7 @@
 //! A full revolve of a POLE-TOUCHING profile splits every curved wall
 //! into two half-bands, so every latitude rim beside one arrives as two
 //! arcs meeting at two chart-seam vertices. A chain that STOPS at such a vertex is refused
-//! `SeamVertex`, whose recourse names the request that describes what
+//! `UnbuiltEnd::Seam`, whose recourse names the request that describes what
 //! the caller wants: ask for the rim WHOLE. These rows are what makes
 //! that recourse true.
 //!

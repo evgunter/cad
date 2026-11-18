@@ -170,7 +170,7 @@ fn exact_area(kind: Kind, du: f64, (lo, hi): (f64, f64)) -> f64 {
 }
 
 fn refuses_as<V: core::fmt::Debug>(r: &Result<V, PropsError>, name: &str) -> bool {
-    matches!(r, Err(PropsError::NotIsoRectangle { what }) if *what == name)
+    matches!(r, Err(PropsError::SpanUncertified { what }) if *what == name)
 }
 
 /// The refusal a rim span outside the bound draws from `consumer` on

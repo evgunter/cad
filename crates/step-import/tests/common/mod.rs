@@ -35,7 +35,9 @@ pub fn at_rest(body: &Body<f64>) -> AtRestBody<f64> {
 /// curved-path `sweep_body`. Both are non-rational NURBS-walled, so
 /// they put M7-3's surface arm, its IsoCurve seam rung and its rim
 /// pcurve re-mint on bodies the writer could not produce until #210.
-pub const SOLID_FIXTURES: [&str; 17] = [
+///
+/// `voided` is the first hollow body: one `BREP_WITH_VOIDS`.
+pub const SOLID_FIXTURES: &[&str] = &[
     "cube",
     "die",
     "kiss_assembly",
@@ -53,6 +55,7 @@ pub const SOLID_FIXTURES: [&str; 17] = [
     "loft_prism",
     "nonuniform_loft",
     "swept_elbow",
+    "voided",
 ];
 
 /// A fixture file's text.

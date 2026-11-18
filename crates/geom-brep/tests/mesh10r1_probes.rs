@@ -105,7 +105,7 @@ fn a_gap_between_the_pieces_of_a_chain_refuses_typed() {
         require_iso_rectangle(&torus(), &gapped(0.7, 0.7), band()),
         Ok(())
     );
-    let meet = PropsError::NotIsoRectangle {
+    let meet = PropsError::SpanUncertified {
         what: "props_meridian_pieces_meet",
     };
     // The flux lane is the torus's chart Green form, which reads the
@@ -150,7 +150,7 @@ fn a_chain_that_closes_on_itself_refuses_by_one_name_at_every_rotation() {
         v.extend_from_slice(&pieces[..k]);
         v
     };
-    let closed = PropsError::NotIsoRectangle {
+    let closed = PropsError::Defect {
         what: "torus meridian pieces close a loop with no rim",
     };
     let rimless = PropsError::LoopsWindChart;

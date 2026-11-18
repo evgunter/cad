@@ -518,7 +518,7 @@ fn every_saved_document_in_the_tree_loads_or_refuses_typed() {
         }
         match r {
             Ok(_) => {}
-            // D4's seam, before any replay: a document authored at
+            // D4's seam, the load door's last check: a document authored at
             // another ε refuses at this process's ε, typed — the load
             // door's answer on the other ε rows, not this row's subject.
             Err(editor_core::PersistError::ToleranceConflict { document, process }) => {

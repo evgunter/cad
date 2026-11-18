@@ -896,10 +896,11 @@ fn r2_annular_mouth_anatomy() {
     );
 }
 
-/// **R2-11: the STEP frontier the scene declares.** A sealed hollow
-/// CYLINDER-and-PLANE pot refuses as the void its cavity is.
+/// **R2-11: a sealed hollow pot round-trips through STEP.** A
+/// CYLINDER-and-PLANE pot hollowed by `shell` leaves as one
+/// `BREP_WITH_VOIDS` and imports back as one solid with its cavity.
 #[test]
-fn r2_step_frontier_kind() {
+fn r2_a_sealed_hollow_pot_round_trips_through_step() {
     let tol = Tol::witness();
     let pot = revolved(
         poly!(
@@ -918,23 +919,7 @@ fn r2_step_frontier_kind() {
     )
     .expect("hollows")
     .body;
-    let e = pncad::step_export::step_string(
-        &hollow,
-        &pncad::step_export::StepOptions {
-            product_name: "r2pot".to_string(),
-            ..Default::default()
-        },
-        tol,
-    )
-    .err();
-    println!("[r2-11] STEP on a sealed hollow revolve: {e:?}");
-    assert!(
-        matches!(
-            e,
-            Some(pncad::step_export::StepExportError::VoidShellUnsupported { .. })
-        ),
-        "[r2-11] the cavity refuses as a void: {e:?}"
-    );
+    demo_tour::step_round_trip("r2pot", &hollow, tol);
 }
 
 /// **R2-12: the scene's own vessel, rebuilt from its stations**, to
