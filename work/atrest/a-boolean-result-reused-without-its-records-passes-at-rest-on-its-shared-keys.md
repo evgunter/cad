@@ -108,3 +108,15 @@ its operand type (an operand that holds them, or a door that takes a
 evidence; R1's and R2's measurements above add that it also loses the
 join's freeing, so a dropped record leaves a non-maximal edge at the
 lump's corner.
+
+## Answered by `embed/records` (2026-11-18)
+
+Ev ruled the question on PR 7068 (decision 2): the finished body holds
+its records. `AtRestBody` holds them, and `topo::union` / `subtract` /
+`intersect` carry each operand's own in (`BooleanInputs::of`), so
+`acc = bb.body` keeps them. Pin:
+`crates/topo/tests/one_record_carry.rs`,
+`a_boolean_result_reused_as_an_operand_keeps_its_records`, red where
+the plain door carries none. `boolean_op_with` still takes
+`BooleanInputs` beside the operands; a caller that hands it fewer
+records than the operand holds drops them there.
