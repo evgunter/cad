@@ -1287,17 +1287,61 @@ fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
     holds_at_both("the thin shell", shell::<f64>(), shell::<Interval>());
 }
 
+/// **Two nested tori a thin gap apart hold at their roots.** The hollow
+/// torus `R = 2`, tube radius `0.45`, wall `0.025`, as a shelled torus's
+/// cavity is: four faces, each of the inner torus's two sharing nothing
+/// with each of the outer's. Each of those four pairs is read apart
+/// off the outer torus's whole carrier, so what is split is the two
+/// pairs of halves that touch. Red where a pair that shares nothing is
+/// separated by the cells' boxes and supports alone: the four spend the
+/// default budget between them, and the body refuses for pairs.
+#[test]
+fn two_nested_tori_a_thin_gap_apart_hold_at_their_roots() {
+    fn hollow<T: Scalar>() -> Body<T> {
+        let at = T::from_f64;
+        sweep::tube_along_arc_hollow(
+            sweep::test_support::tube_frame(
+                Point3::new(at(0.0), at(0.0), at(0.0)),
+                geom_core::Vec3::new(at(0.0), at(1.0), at(0.0)),
+                geom_core::Vec3::new(at(1.0), at(0.0), at(0.0)),
+                tol(),
+            ),
+            at(2.0),
+            sweep::TubeWindow::Full,
+            at(0.45),
+            at(0.025),
+            tol(),
+        )
+        .expect("the hollow torus builds")
+        .body
+        .into_body()
+    }
+    let float = hollow::<f64>();
+    assert_eq!(float.faces().count(), 4, "two tori, each in two halves");
+    for report in holds_at_both("the nested tori", float, hollow::<Interval>()) {
+        assert!(
+            report.receipt.splits < BUDGET / 16,
+            "the nested tori split under a sixteenth of the default budget: {:?}",
+            report.receipt
+        );
+    }
+}
+
 /// **A conical wall and a toroidal wall `0.05` thick**, each revolved a
 /// full turn: the meridian band between two lines `30°` off the axis
 /// and `0.05` apart, capped by two annuli, as the klein bulb's flare;
 /// and the band between two arcs about a centre off the axis, radii
 /// `0.8 ∓ 0.025`, closed by two radial lines, as its rim. Each wall's
-/// two faces share nothing, so only the distance test decides them.
-/// Both hold at both scalars, each splitting under a quarter of the
-/// default budget (about 3,100 and 6,600 splits). Red where the support
-/// test reads an analytic cell by its box: two slanted patches' boxes
+/// two faces share nothing. Both hold at both scalars, each splitting
+/// under a quarter of the default budget. The conical wall's faces
+/// have no depth that parts them, so the supports along a direction
+/// decide them, in about 3,100 splits: red where the support test reads
+/// an analytic cell by its box, since two slanted patches' boxes
 /// overlap until the cells are about as small as the gap, which costs
-/// about 39,000 and 32,000 splits.
+/// about 39,000. The toroidal wall's faces are apart in their core's
+/// depth and discharge at their root; it splits about 200 times, on
+/// the pairs that touch, and under 512: red where that root is split
+/// (6,647 splits).
 #[test]
 fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
     fn conical<T: Scalar>() -> Body<T> {
@@ -1340,13 +1384,15 @@ fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
             tol(),
         )
     }
-    for (what, reports) in [
+    for (what, ceiling, reports) in [
         (
             "the conical wall",
+            BUDGET / 4,
             holds_at_both("the conical wall", conical::<f64>(), conical::<Interval>()),
         ),
         (
             "the toroidal wall",
+            512,
             holds_at_both(
                 "the toroidal wall",
                 toroidal::<f64>(),
@@ -1356,8 +1402,8 @@ fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
     ] {
         for report in &reports {
             assert!(
-                report.receipt.splits < BUDGET / 4,
-                "{what} splits under a quarter of the default budget: {:?}",
+                report.receipt.splits < ceiling,
+                "{what} splits under {ceiling}: {:?}",
                 report.receipt
             );
         }
