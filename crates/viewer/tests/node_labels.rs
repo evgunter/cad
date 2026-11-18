@@ -307,7 +307,7 @@ fn a_refused_creation_applies_no_label() {
             distance: common::len(0.01),
         },
         SessionOp::AddProfile {
-            loops: vec![common::circle_at([0.0, 0.0], 0.0)],
+            loops: vec![common::unclosed_loop()],
         },
     ];
     for op in refused {
@@ -510,8 +510,8 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     };
     run(
         &mut session,
-        SessionOp::AddDrawnProfile {
-            plane: pick(pncad::prelude::StableName {
+        SessionOp::DrawOnFace {
+            face: pick(pncad::prelude::StableName {
                 kind: pncad::prelude::EntityKind::Face,
                 node: cylinder,
                 path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::Start)],

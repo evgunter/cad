@@ -148,6 +148,17 @@ pub fn circle_at(centre: [f64; 2], radius: f64) -> LoopProgram<Formula> {
     }])
 }
 
+/// A chain that never closes, as [`shape`] lowers it: the lattice
+/// refuses it at every value, so it is the edit door's to refuse.
+pub fn unclosed_loop() -> LoopProgram<Formula> {
+    shape(&[
+        pncad::profile::Step::At(pncad::geom_core::Point2::origin()),
+        pncad::profile::Step::LineTo(pncad::profile::Target::Point(
+            pncad::geom_core::Point2::new(0.01, 0.0),
+        )),
+    ])
+}
+
 /// A `width` by `height` rectangle on `centre`, as [`shape`] lowers it.
 pub fn rectangle_at(centre: [f64; 2], width: f64, height: f64) -> LoopProgram<Formula> {
     shape(&[pncad::profile::Step::Rectangle {
