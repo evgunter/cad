@@ -14,7 +14,7 @@ Found by lane `embed/nested-tori` (2026-11-18), measuring
 
 ## Evidence
 
-`topo::clearance` asks the census's depth gap
+`topo::clearance`'s injectivity question asks the census's depth gap
 (`census::depth_gap::gaps_in_depth`) of a face pair's root
 (`apart_in_depth`). A gap needs a site about which one face's
 greatest depth lies below the other's least. A cone face proposes its

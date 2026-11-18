@@ -77,10 +77,13 @@ Main `ff2319654`, f64, the cavity asked through the local
 a cross-solid pair no direction separates by its depth gap
 (`census::depth_gap`: where one face's greatest distance from an axis,
 a centre or a torus's core circle lies below the other's least, read
-off the two faces' covers). `topo::clearance` now asks that reading of
-a face pair's root (`apart_in_depth`), at the support arm's site
-(`CLEARANCE_SUPPORT_GAP`), against the bound asked: a gap bounds the
-two faces' separation from below, so the root discharges whole. It is
+off the two faces' covers). `topo::clearance`'s injectivity question
+now asks that reading of a face pair's root (`apart_in_depth`), at the
+support arm's site (`CLEARANCE_SUPPORT_GAP`): a gap bounds the two
+faces' separation from below, so the root discharges whole. A metric
+bound is not asked it
+(`work/clear/the-clearance-assertion-does-not-ask-the-depth-gap.md`).
+It is
 one reading (`[one-way.readings]`), not a second: a first draft of
 this lane read a carrier's distance function over a cell in
 `clearance.rs`, and the cover gate refused it.
@@ -128,6 +131,10 @@ to 305,017. 22 bodies split less and none more. The ten largest:
 | `fivewallcup` | 16,806 | 7,290 |
 | `teapotvessel` | 8,452 | 1,305 |
 | `fivewall` | 15,022 | 7,935 |
+
+**What the reading costs**: over the module's 50 rows it is asked 97
+times, parts 24 roots, and takes 0.38 s of 138 s (4 ms a root, 39 ms
+the dearest).
 
 **The lofts and the helix do not move**: the Klein loop 51,302 splits,
 `lily_leaf_a` 3,410, `lily_sepal_a` 1,102, and the module's loft and

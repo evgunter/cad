@@ -14,9 +14,9 @@ Found by lane `embed/nested-tori` (2026-11-18), measuring
 
 ## Evidence
 
-`topo::clearance` asks the census's depth gap of a face pair's root
-only (`apart_in_depth`, read off `topo::face_cover` of each face). Two
-shapes it does not part:
+`topo::clearance`'s injectivity question asks the census's depth gap
+of a face pair's root only (`apart_in_depth`, read off
+`topo::face_cover` of each face). Two shapes it does not part:
 
 - **A face that lies partly past the other's carrier.** The two
   faces' depth ranges about every proposed site then overlap, so the

@@ -85,10 +85,11 @@
 //! [`SELF_INTERSECTION_GAP`] (`d`, the separation a cell pair that does
 //! not touch in M must classify strictly positive) on the cells' boxes,
 //! and, where the box margin is indeterminate, [`CLEARANCE_SUPPORT_GAP`]
-//! on a lower bound of the separation, which only discharges: at a face
-//! pair's root the gap between the two faces' depths about an axis, a
-//! centre or a core circle (`apart_in_depth`), and at every pair the
-//! gap between the cells' supports along one direction. Under the injectivity question a TOUCHING pair is
+//! on a lower bound of the separation, which only discharges: the gap
+//! between the cells' supports along one direction and, for the
+//! injectivity question at a face pair's root, the gap between the two
+//! faces' depths about an axis, a centre or a core circle
+//! (`apart_in_depth`). Under the injectivity question a TOUCHING pair is
 //! decided instead by a local certificate ([`crate::injective`]), at
 //! that module's own sites. The
 //! cell and station verdicts the sweep asks for decide on
@@ -156,9 +157,10 @@ pub const SELF_INTERSECTION_GAP: &str = "self_intersection_gap";
 
 /// The funnel site name of the support comparison — a lower bound on
 /// the separation between two domain cells, read off their supports
-/// along one direction or, at a face pair's root, off the two faces'
-/// depths about one site, minus the requested clearance (`0` for the
-/// strict question), in metres against the linear band. Only a
+/// along one direction or, for the injectivity question at a face
+/// pair's root, off the two faces' depths about one site, minus the
+/// requested clearance (`0` for the strict question), in metres against
+/// the linear band. Only a
 /// [`Sign::Positive`] is read here, and it discharges the pair under
 /// either bound: the comparand bounds the separation from below only,
 /// so a `Zero` here is no coincidence and no violation.
@@ -2209,13 +2211,15 @@ where
         }
         let mut r = self.read(pending, separation(&pair.a.enc, &pair.b.enc));
         // **Apart in depth, or along a direction.** Where the boxes
-        // leave a reading indeterminate, the two faces' depths, read
-        // once at the pair's root, or the cells' supports may still put
-        // the pair clear of that bound.
+        // leave a reading indeterminate, the cells' supports may still
+        // put the pair clear of that bound, and so may the two faces'
+        // depths: a fact of the faces, the same at every cell, so read
+        // once, at the pair's root, and by the injectivity question
+        // alone.
+        let at_root = self.injective && pair.depth == 0;
         let support = |c: Interval| {
             let in_depth = || certified_lift(|lift| apart_in_depth(x, y, c, band, lift));
-            (pair.depth == 0 && in_depth() == Some(true))
-                || separated_by_support(pair, x, y, c, band)
+            (at_root && in_depth() == Some(true)) || separated_by_support(pair, x, y, c, band)
         };
         if let (Some(Reading::Undecided(source)), Some(lo)) = (&r.below, bound.lower())
             && !source.margin.is_invalid()
@@ -4212,9 +4216,10 @@ fn separated_by_support<T: Real>(
 /// census's reading of a pair no direction separates: nested walls, a
 /// tube inside a tube), minus `c`, decided [`Sign::Positive`] at
 /// [`CLEARANCE_SUPPORT_GAP`]. Such a gap bounds the separation of the
-/// faces from below, whatever the cells, so it is asked of a face
-/// pair's root and discharges it whole; like the supports' gap it bounds
-/// nothing from above, and no other sign is read.
+/// faces from below, whatever the cells, so the injectivity question
+/// asks it of a face pair's root and discharges the root whole; like the
+/// supports' gap it bounds nothing from above, and no other sign is
+/// read.
 ///
 /// The depths are read off the faces' covers at the lane scalar, as
 /// the cells' regions are, and the gap is less the census's pad for
