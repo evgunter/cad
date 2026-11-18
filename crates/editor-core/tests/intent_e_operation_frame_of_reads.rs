@@ -714,14 +714,16 @@ fn an_angle_to_a_turned_copys_edge_reads_the_turn() {
     );
 }
 
-/// The one node of `doc` that refuses, and its refusal: the session
-/// box's finding alone.
+/// The one node of `doc` whose refusal every refusal reports (a node
+/// reading a refused one reports that node's refusal), and its refusal:
+/// the session box's finding alone.
 fn the_one_box_refusal(doc: &ProfileDoc, ev: &Evaluation<f64>) -> RecipeNodeId {
-    let refusals: Vec<_> = doc
+    let mut refusals: Vec<_> = doc
         .ids()
         .into_iter()
         .filter_map(|id| ev.node_error(id))
         .collect();
+    refusals.dedup_by(|a, b| a.node == b.node);
     let [refused] = &refusals[..] else {
         panic!("one node refuses: {refusals:?}")
     };

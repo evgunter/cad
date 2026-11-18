@@ -278,13 +278,13 @@ fn a_moved_leaf_runs_one_finish() {
     );
 }
 
-/// **A copy moved past the session box refuses at the box, typed**: the
-/// move asks the box of the image (`Held::moved`). A block placed 2 km off
-/// evaluates as its placement, in its own frame; the `Assemble` that reads
-/// it into the first copy's frame moves it, and refuses with the session
-/// box's finding alone. The refusal names that `Assemble`, the operation
-/// whose read moved the copy, not the far copy's placement: no
-/// `NodeErrorKind` arm names a member.
+/// **A copy placed past the session box refuses at its placement, typed,
+/// before any gather moves it**: the door that places a copy asks the box
+/// of where it stands (`Framed::asked_where_it_stands`,
+/// `topo::session_box_at`). A block placed 2 km off, beside one at the
+/// origin, under the `⊔` the product reads: the far placement refuses
+/// with the session box's finding alone, and every node that reads it
+/// reports that one refusal, named at the placement.
 #[test]
 fn a_copy_moved_past_the_box_refuses_at_the_box() {
     let tol = Tol::witness();
@@ -310,30 +310,23 @@ fn a_copy_moved_past_the_box_refuses_at_the_box() {
         &EvalOptions::default(),
         tol,
     );
-    assert!(
-        ev.node_error(far).is_none(),
-        "the far copy's placement evaluates in its own frame"
-    );
     let refusals: Vec<_> = doc
         .ids()
         .into_iter()
         .filter_map(|id| ev.node_error(id))
         .collect();
-    let [refused] = &refusals[..] else {
-        panic!("one node refuses: {refusals:?}")
-    };
     assert!(
-        matches!(doc.node(refused.node), Some(Node::Assemble { .. })),
-        "the Assemble reading the copy refuses"
+        !refusals.is_empty() && refusals.iter().all(|r| r.node == far),
+        "every refusal is the far placement's: {refusals:?}"
     );
-    match &refused.kind {
+    match &refusals[0].kind {
         editor_core::NodeErrorKind::NotFinished { findings } => assert!(
             matches!(
                 &findings[..],
                 [topo::ValidationError::OutsideSessionBox { .. }]
             ),
-            "the session box is the move's one refusal: {findings:?}"
+            "the session box is the placement's one refusal: {findings:?}"
         ),
-        other => panic!("the Assemble refuses at the box: {other:?}"),
+        other => panic!("the placement refuses at the box: {other:?}"),
     }
 }
