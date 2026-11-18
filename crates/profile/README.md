@@ -126,10 +126,11 @@ driver's walk over the prefix, reading the tip it stops at):
 The first pass reads the traces off the nominal f64 evaluation, and
 every lane re-reads them at its own scalar.
 
-`ProfileProgram::check` runs resolve + replay + validate under the
-current parameter environment at the edit door
-(`ProgramRefusal::{Resolve, Transition, Geometry, Validate}`);
-evaluation re-runs the same ladder per binding.
+The edit door and the load door ask a program only its lattice of
+verbs (`ProgramRefusal::Transition`), which no binding moves.
+`ProfileProgram::check`'s resolve + replay + validate
+(`ProgramRefusal::{Resolve, Geometry, Validate}`) run at evaluation, per
+binding: each member of a family, each analysis sample, the nominal.
 
 **V3 — Caches and provenance.** Replayed segments, the structure record
 and the naming anchor are derived values: memoized per node under a
@@ -259,8 +260,10 @@ independent closed-form oracles.
   segment; the program form carries them the day the segment layer does.
 - **VQ8 — Plane placement is not an expression slot.** It is a frame
   node reference (V4), stored apart from the loop programs.
-- **VQ9 — Checks bind twice.** At the edit door under the current
-  environment (fail-loud early) and at every evaluation (V2).
+- **VQ9 — Values bind once, at evaluation.** A program whose geometry
+  refuses at some values is legal at rest (V1), so the doors judge only
+  what no binding moves, and every value is judged at every binding
+  evaluation runs (V2).
 
 **V8 — Acceptance shape.** The record → replay differential pin (V1),
 plus a corpus scene with a real parameter driven from geometry into a
