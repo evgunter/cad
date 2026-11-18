@@ -1287,3 +1287,235 @@ fn a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge() {
         "the cells whose volume is not read: none"
     );
 }
+
+/// **A run of three on a cone face that is no rectangle meshes.** The
+/// cut wall of [`cut_cone_cells`] (the 1° wall, a half turn, under the
+/// tilted slab), every cone ruling split twice beside its end, `g` and
+/// `2g` of its range from it, placed obliquely, δ 0.01: each split pair
+/// and the ruling's end are one run of three points the development holds
+/// as one (`trimmed::Run`), cut apart again along the ruling, and the face
+/// meshes and is the body's. Giving every triangle added between the run's
+/// points the run's second point reds it: a run of two cannot tell.
+///
+/// **By ε.** `g` is `10⁻⁷` at the default ε and `10⁻¹²`, where the three
+/// points are one in the development; `10⁻⁴` at `10⁻⁶`, the smallest split
+/// there, which the development does not merge: the row holds that the
+/// face meshes with its points apart.
+#[test]
+fn a_run_of_three_on_a_cut_cone_face_meshes() {
+    use crate::reach_probes::{op_of, posed};
+    use sweep::test_support::{brick, finished};
+    let gap = match eps_row() {
+        EpsRow::Coarse => 1e-4,
+        EpsRow::Default | EpsRow::Fine => 1e-7,
+    };
+    let tilt = Affine3::translation(Vec3::new(0.0, 0.5, 0.0))
+        * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.6, 0.0, 0.8), 0.1);
+    let cone = finished(
+        "the wall",
+        turned(&wall(1.0), Revolution::Partial(core::f64::consts::PI)),
+        tol(),
+    );
+    let slab = posed(
+        "the slab",
+        brick((-6.0, 6.0), (-6.0, 0.0), (-6.0, 6.0), tol()),
+        tilt,
+    );
+    let cut = op_of(&cone, &slab, "A ∩ B");
+    let lines = cone_rulings(&cut);
+    let split = split_and_placed(&cut, &lines, &[1.0 - gap, 1.0 - 2.0 * gap]);
+    assert_eq!(
+        got_enclosing(&split, &split_and_placed(&cut, &[], &[]), 0.01),
+        Got::Meshed
+    );
+}
+
+/// A cone through its apex of half-angle `alpha` and height 100, revolved
+/// `turn`, cut near its rim by a plane tilted 0.1 about an oblique axis,
+/// the part above it kept (`A ∩ B`): the cone face runs from that
+/// section, a conic, up to the apex, so it is the chart lane's by its trim
+/// carrier and is triangulated in its development.
+fn cut_apex_cone(alpha: f64, turn: Revolution<f64>) -> Body<f64> {
+    use crate::reach_probes::{op_of, posed};
+    use sweep::test_support::{brick, finished};
+    let tilt = Affine3::translation(Vec3::new(0.0, 10.0, 0.0))
+        * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.6, 0.0, 0.8), 0.1);
+    let slab = posed(
+        "the slab",
+        brick((-150.0, 150.0), (0.0, 150.0), (-150.0, 150.0), tol()),
+        tilt,
+    );
+    let cone = finished("the cone", turned(&apex_cone(100.0, alpha), turn), tol());
+    op_of(&cone, &slab, "A ∩ B")
+}
+
+/// `body` with each of `edges` split `gap` (a length) from its end
+/// farther from the axis (`outer`) or nearer it, placed obliquely; `None`
+/// where `split_edge` refuses.
+fn split_beside(
+    body: &Body<f64>,
+    edges: &[topo::EdgeKey],
+    gap: f64,
+    outer: bool,
+) -> Option<Body<f64>> {
+    let mut s = body.clone();
+    for &ek in edges {
+        let (a, b) = ends(body, ek);
+        let len = (b - a).norm();
+        let f = if (radius(b) > radius(a)) == outer {
+            1.0 - gap / len
+        } else {
+            gap / len
+        };
+        s.split_edge(ek, at(&s, ek, f), tol()).ok()?;
+    }
+    Some(split_and_placed(&s, &[], &[]))
+}
+
+/// **Two runs anchored by the apex in one triangle mesh, on a cone face
+/// that is no rectangle.** A cone of half-angle 10°, a wedge of 0.05, cut
+/// near its rim with its apex kept ([`cut_apex_cone`]): the face is the
+/// apex, two rulings and one section chord. Every cone ruling split
+/// `10⁻⁷` beside its outer end, placed obliquely: each split vertex and its
+/// ruling's end are a run whose neighbour along the ruling is the apex,
+/// and the development's one triangle at the apex has both for corners;
+/// the lane cuts it along both (`trimmed::cut_along_runs`), and every cell
+/// meshes and is the body's at δ 10, 1 and 0.1. Leaving the fan's corner
+/// on the second run's point unmoved reds it.
+///
+/// **By ε.** The gap is `10⁻⁷` at the default ε and `10⁻¹²`, `10⁻⁴` at
+/// `10⁻⁶`, which the development does not merge: the row holds that the
+/// face meshes with its points apart.
+#[test]
+fn two_runs_anchored_by_the_apex_on_a_cut_cone_face_mesh() {
+    let gap = match eps_row() {
+        EpsRow::Coarse => 1e-4,
+        EpsRow::Default | EpsRow::Fine => 1e-7,
+    };
+    let cut = cut_apex_cone(10.0, Revolution::Partial(0.05));
+    let lines = cone_rulings(&cut);
+
+    let split = split_beside(&cut, &lines, gap, true).expect("the splits build");
+    let whole = split_and_placed(&cut, &[], &[]);
+    for delta in [10.0, 1.0, 0.1] {
+        assert_eq!(
+            got_enclosing(&split, &whole, delta),
+            Got::Meshed,
+            "δ {delta}"
+        );
+    }
+}
+
+/// **A run anchored by the apex on a needle triangle refuses: this row
+/// pins a gap**
+/// (`work/tesslane/a-run-anchored-on-a-needle-triangle-makes-triangles-f64-cannot-wind.md`),
+/// on a cone face the chart lane still triangulates in its development. A
+/// cone of half-angle 2°, a full turn, cut near its rim with its apex kept
+/// ([`cut_apex_cone`]), its first ruling split a hair beside its section
+/// end, placed obliquely: the split vertex and the ruling's end are a run
+/// whose neighbour along the ruling is the apex, a whole ruling away, and
+/// the triangles added between them are under the winding allowance: the
+/// face refuses `UnresolvedWinding`.
+///
+/// **By ε.** The default: a gap of `10⁻⁸`, δ 10, 1 and 0.1 mesh and δ 0.01
+/// refuses. `10⁻¹²`: a gap of `10⁻¹⁰` refuses at δ 10, 1, 0.1 and 0.01.
+/// `10⁻⁶`: the smallest split `split_edge` admits, `10⁻⁵`, meshes at every
+/// δ, and the row holds that.
+#[test]
+fn a_run_anchored_by_the_apex_on_a_needle_refuses_unresolved() {
+    let refused = Got::Unresolved(geom::SurfaceKind::Cone);
+    let (gap, cells): (f64, &[(f64, Got)]) = match eps_row() {
+        EpsRow::Default => (
+            1e-8,
+            &[
+                (10.0, Got::Meshed),
+                (1.0, Got::Meshed),
+                (0.1, Got::Meshed),
+                (0.01, refused.clone()),
+            ],
+        ),
+        EpsRow::Fine => (
+            1e-10,
+            &[
+                (10.0, refused.clone()),
+                (1.0, refused.clone()),
+                (0.1, refused.clone()),
+                (0.01, refused.clone()),
+            ],
+        ),
+        EpsRow::Coarse => (
+            1e-5,
+            &[
+                (10.0, Got::Meshed),
+                (1.0, Got::Meshed),
+                (0.1, Got::Meshed),
+                (0.01, Got::Meshed),
+            ],
+        ),
+    };
+    let cut = cut_apex_cone(2.0, Revolution::Full);
+    let ruling = cone_rulings(&cut)[0];
+    let split = split_beside(&cut, &[ruling], gap, true).expect("the split builds");
+    let whole = split_and_placed(&cut, &[], &[]);
+    for (delta, want) in cells {
+        assert_eq!(&got_enclosing(&split, &whole, *delta), want, "δ {delta}");
+    }
+}
+
+/// **A split beside the apex of a needle cone the band cannot place
+/// refuses: this row pins the walk's fallback.** A cone of half-angle
+/// 0.001° and height 1 through its apex, a full turn, its line edge 0 split
+/// `10⁻⁸` from its apex end, placed obliquely. The route asks whether the
+/// face's vertices are the apex (`trimmed::walkable`); the split vertex is
+/// within the band of it and the band does not decide, so the route does
+/// not walk the face, and the lattice and CDT refuse it
+/// `SphereTrimShape { SingularUndecided }` at δ 0.1 and 0.01.
+///
+/// **By ε.** At the default as above. At `10⁻¹²` the band decides the
+/// vertex off the apex, the face is walked, and it meshes. At `10⁻⁶` the
+/// cone's profile does not validate (its loop's orientation escalates),
+/// and the row holds that.
+#[test]
+fn a_split_beside_the_apex_of_a_needle_cone_refuses_undecided() {
+    use mesh::TessellateError as E;
+    use mesh::types::SphereTrimCause;
+    let lp = ProfileLoop::polygon(
+        apex_cone(1.0, 0.001)
+            .iter()
+            .map(|&(x, y)| Point2::new(x, y)),
+    );
+    let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![lp]).validate(tol());
+    let Ok(profile) = profile else {
+        assert_eq!(
+            eps_row(),
+            EpsRow::Coarse,
+            "the needle cone's profile validates at ε {:e}",
+            tol().eps()
+        );
+        return;
+    };
+    let body = revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body();
+    let ruling = rulings(&body)[0];
+    let split = split_beside(&body, &[ruling], 1e-8, false).expect("the split builds");
+    for delta in [0.1, 0.01] {
+        let got = mesh::tessellate(&split, delta, tol());
+        if eps_row() == EpsRow::Fine {
+            let m = got.unwrap_or_else(|e| panic!("δ {delta}: {e:?}"));
+            mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("δ {delta}: {e:?}"));
+        } else {
+            assert!(
+                matches!(
+                    got,
+                    Err(E::SphereTrimShape {
+                        cause: SphereTrimCause::SingularUndecided,
+                        ..
+                    })
+                ),
+                "δ {delta}: {got:?}"
+            );
+        }
+    }
+}
