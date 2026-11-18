@@ -162,3 +162,12 @@ body has the reasons):
 
   Fix pass sent to the cloud lane: one value-erased form (the existing `StepShape`), one source for structural refusals and for the trace verb map, a randomized differential, fail-loud `drawable_pieces`, and rows for the family's bad member and the Ev caveat. A delta review follows. **Class, second instance today:** CI's slow-set step never runs slow rows whose bodies a PR changes. The row is to be filed by the 7114 fix pass.
 - 2026-11-18 — PR 7114 fix pass (head 318c5586), green. The role leak was REAL: a unit row went red under max semantics (44 of 512 outer choices recorded as checks) and is green under the fix (`checking` sets and restores; `SpawnRole` carries the spawner's role into each job; `Role` drops `Ord`). Marks were added at `reach::sure`, `nary::judged_pairs` and `ops::walk_pairs`. The strip-cup row now parts at the blend, renamed so the slow-set step selects it. 516 slow rows ran locally. `first_turn` returns `FirstTurn::{Agree, Turned, Parted}`, ready for the parting-site diagnosis if Ev wants it. Delta review dispatched.
+- 2026-11-18 — PR 7114 delta review: APPROVE WITH FIXES, no MAJOR. Both MAJORs are confirmed closed. Final pass ruled:
+  - one marked home for reach.rs's escalate thresholds (`sure`'s inline twins still steered);
+  - a red-capable nary row;
+  - `sure`'s doc, plus a cost measurement of the marks (24k per strip-cup blend node);
+  - drive-under-Interval for blends filed;
+  - one spawn-role parallel-map helper with a guard (it was hand-copied 4× and missing at tessellate.rs);
+  - the NITs.
+
+  The orchestrator reads it and merges.
