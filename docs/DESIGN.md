@@ -856,18 +856,34 @@ tiers".
      census, and certification of contact records in both directions,
      never scanning to bless.
 
-  A **finished body** (`AtRestBody`) passes tier 3′ against its own
-  contact records, none for a body that touches nothing, and its
-  boundary is **embedded** off those records (it meets itself only
-  along its own edges and its recorded contacts), certified by the
-  clearance engine's body-level injectivity question at every scalar
-  with certification rights (`f64`, `Probe`, `Interval` and `Sym`;
-  a scalar without them, such as a dual, cannot reach the gate). The
+  A **finished body** (`AtRestBody`) holds its contact records, none
+  for a body that touches nothing, and passes tier 3′ against them
+  inside the gate, which confirms each record it reads. Each solid's
+  boundary is **embedded** off the records between its own cells (it
+  meets itself only along its own edges and those recorded contacts),
+  certified by the clearance engine's injectivity question, asked of
+  each solid against itself and never of two solids' faces, at every
+  scalar with certification rights (`f64`, `Probe`, `Interval` and
+  `Sym`; a scalar without them, such as a dual, cannot reach the
+  gate). A solid that holds a recorded contact between two of its
+  own cells refuses typed at the gate: how the question reads such a
+  place is open ([open.self-contact]). Between two solids that descend from
+  different pieces of one operand, the cells a door carried unchanged
+  keep the meeting they arrived with, a record carried through the
+  door's lineage or an overlap a `⊔` reported, and the door's gate
+  does not read them again ([operations.operators]). The cells a door
+  made are read against the other pieces once, at that door: a touch
+  there is the door's own record ([topology.records]), and a wall cut
+  where the pieces already overlapped is that overlap, told from a new
+  one by reading the operand. Where material a door added to one
+  piece overlaps another, that is a new interference finding at that
+  door, never a refusal. A `⊔`'s own census records or reports,
+  and nothing it finds refuses ([assertions]). The
   question is asked inside the gate once tier 3 has passed, and reads
   tier 3's facts from its verdict, never re-deciding one over a cell. At every
   scalar the question decides with the band every verdict decides
-  with, K·ε ([tolerance.recourse]). Pieces of the boundary that do not
-  meet in the body (no shared edge, vertex or recorded contact) are
+  with, K·ε ([tolerance.recourse]). Pieces of a solid's boundary that
+  do not meet (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
   itself, the local reading (how the faces leave their shared edge or
   vertex, or a face's own turning) passes by more than the band. A
@@ -889,10 +905,10 @@ tiers".
   At a scalar without certification rights the finished type is a
   replay's: tier 2 alone, carrying no verdict, and nothing that reads
   a verdict accepts it. The finished type bundles the body with its
-  verdict, the gate its one constructor; the verdict keeps tier 3's
+  records and its verdict, the gate its one constructor; the verdict keeps tier 3's
   per-entity facts beside its certificate, and a reading of such a
-  fact takes the bundle, never the bare body. The validity class rides the result wrapper
-  (`BooleanBody`, body and contacts), never a mutable `Body` field.
+  fact takes the bundle, never the bare body. The validity class rides the finished
+  type, never a mutable `Body` field.
 - **The census reads one number per cell pair.** `[topology.census]`
   A census finding decides one number per pair of cells (two edges,
   an edge and a face, a vertex and a face, two faces), read between
@@ -926,7 +942,10 @@ tiers".
   leaves on the result a contact record citing it, which every reader
   and every placement of that body carries, so the touch is never
   decided again. Inside one op's
-  result it is that op's defect, refused typed. Every op, the boolean
+  result it is that op's defect, refused typed. An overlap between two
+  pieces of an assembly an op was handed is never the op's refusal:
+  carried, it stays the `⊔`'s finding, and made by material the op
+  added, it is a new finding at that op ([operations.operators]). Every op, the boolean
   and every surgery verb alike, carries records through one lineage
   stating what it made of each cell (kept, substituted by a cell
   holding its interior, divided, or removed), and records are written
@@ -1357,7 +1376,11 @@ as separate pieces. They differ only in what they do where two
 operands' material meets: `∪` and `∩` glue there and merge an overlap,
 `−` removes, and `⊔` records a touch and reports an overlap as an
 interference finding ([assertions]). `−` and `∩` distribute over `⊔`,
-so `(p ⊔ q) − t` cuts both and keeps two pieces. `∪` does not absorb
+so `(p ⊔ q) − t` cuts both and keeps two pieces. A one-input operation
+over an assembly (a shell, a split, a blend) acts on its pieces the
+same way and keeps them pieces, so `fillet(p ⊔ q)` is `fillet(p) ⊔ q`:
+where material it adds to one piece overlaps another, that is a new
+interference finding at the operation, never a refusal. `∪` does not absorb
 `⊔`: a meeting inside an operand is never changed by an operator above
 it ([coincidence.booleans]), so `(bolt ⊔ plate) ∪ bead` fuses the bead
 to each part and leaves the bolt–plate meeting a record.
@@ -2450,6 +2473,24 @@ some (a merge's glue, a split's ON verdict) back no record, and the
 `unproven-coincidence` lint is their only reader. Whether that record is
 part of the model's output, or lint evidence the pipeline should not be
 producing, is the question.
+
+### How does the embedding question read a contact recorded inside one solid? `[open.self-contact]`
+
+A solid may touch itself where an op decided it does: a pinch at a
+point, a slit or a keel along a line. The op records the contact
+([topology.records]), and both cells of the record belong to the one
+solid. The embedding question ([topology.tiers]) reads a solid's faces
+against each other, and at such a place two of them meet off any shared
+edge or vertex, so asked as it stands it reads a crossing. Two readings
+were weighed. The recorded cells could be read as a place the solid
+meets itself, as a shared edge or vertex is, with the rest of both
+faces still examined; the gate would first confirm the record. Or the
+recorded face pair could be left out of the question, which examines
+nothing of those two faces anywhere. Neither is built, and which is
+right in the long run is not decided. Until it is, such a solid refuses
+typed at the gate, so the gate never reads Ok on something unread (Ev,
+PR 7068). An area contact inside one shell refuses already
+(`TouchesItself`).
 
 ### The sketch constraint solver: build or bind `[open.sketch-solver]`
 
