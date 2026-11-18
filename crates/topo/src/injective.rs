@@ -1281,13 +1281,16 @@ enum Extent {
 /// off its vertices) holds the extent's `v`. A contradiction is the
 /// face's fact, the same in every cell, so it refuses `Structural`.
 ///
-/// Every edge is read, a seam's two uses too: a seam lies on the outer
-/// loop's chain at both of its values, a turn apart, so a face with one
-/// has an extent that wraps and is not read here.
+/// Every edge is read, a seam's two uses too. On a periodic axis a seam
+/// lies on the outer loop's chain at both of its values, a turn apart, so
+/// a face with one has an extent that wraps and is not read here. On an
+/// axis that is not periodic the face lies on both sides of a seam, so
+/// each use has room on its face side.
 ///
 /// **What this does not read**: a line whose face side or value does not
-/// certify, every row that is not a coordinate line, and a cone face
-/// whose nappe is not decided. On an axis where the face's boundary holds
+/// certify, every row that is not a coordinate line, and a cone face's
+/// nappe where it is not decided or where the extent wraps or is unknown
+/// (this returns before it). On an axis where the face's boundary holds
 /// no line read here, the extent is taken from the stored lift unchecked.
 fn face_extent(
     surface: &Surface<Interval>,
@@ -1836,13 +1839,16 @@ fn present_chart<'a>(
             ) {
                 continue;
             }
-            // A face with no one nappe has none in any cell.
+            // A face with an apex vertex in reach and no one nappe is not
+            // presented in any cell that holds that vertex; a cell away
+            // from the apex reads it as any face.
             let Some(lo) = nappe(b, *apex, *axis, band) else {
                 return Err(Unpresented::Structural);
             };
             // The cell on the other nappe holds only the apex of the
-            // face. Its extent is on its nappe ([`face_extent`]), so its
-            // clips leave no cell reaching this nappe on the other.
+            // face. This is read only where the face's extent wraps or is
+            // unknown: a known one is on the face's nappe ([`face_extent`]),
+            // and a cell on the other misses it in [`sheets`] first.
             let (cv0, cv1) = piece.v;
             if (lo && cv1 <= 0.0) || (!lo && cv0 >= 0.0) {
                 return Ok(Presentation::Vacuous);
@@ -1856,6 +1862,11 @@ fn present_chart<'a>(
                 (y.0, y.1.min(0.0))
             };
             let side = Side::of(Axis::V, lo);
+            // A line on the face's low side that does not hold `0`, in a
+            // rectangle that still reaches `0`, lies within the slack of
+            // `0` (every line meets the extent, which is on the nappe): the
+            // collapse and the line are two readings of one side that do
+            // not agree, which a smaller cell does not hold both of.
             match merged.iter_mut().find(|m| m.side == side) {
                 Some(m) if m.at.lo() <= 0.0 && 0.0 <= m.at.hi() => m.collapsed = Some(v),
                 Some(_) => return Err(Unpresented::Local),
@@ -1924,15 +1935,16 @@ fn present_chart<'a>(
             }
         }
     }
-    // A low line above a high one: the face leaves the cell and comes
-    // back into it, which no one rectangle presents. No width on an axis:
-    // the face's clips contradict one another, as it has interior wherever
-    // a line has it on the cell's side; no sliver either. A smaller cell
-    // holds one of the parts, or neither line. The width is read at the
-    // touch's scale, never wider, as `a_filleted_drum_certifies_across_its_fillet`
-    // pins.
+    // No width on an axis, a negative one included: a low line above a
+    // high one is a face that leaves the cell and comes back into it,
+    // which no one rectangle presents, and a zero one is the face's clips
+    // contradicting one another, as it has interior wherever a line has
+    // it on the cell's side; neither is a sliver. A smaller cell holds
+    // one of the parts, or neither line. A whole patch keeps its cell.
+    // The width is read at the touch's scale, never wider, as
+    // `a_filleted_drum_certifies_across_its_fillet` pins.
     let no_width = |(lo, hi): (f64, f64)| hi - lo <= few_ulps(lo).max(few_ulps(hi));
-    if x.0 > x.1 || y.0 > y.1 || (!piece.whole && (no_width(x) || no_width(y))) {
+    if !piece.whole && (no_width(x) || no_width(y)) {
         return Err(Unpresented::Local);
     }
     // Every clip's side must be the edges' own, run on past its corners,
@@ -3876,8 +3888,7 @@ fn present_line_corner<'a>(
     let cell = (piece.u, piece.v);
     let (held, moving) = (iso.held, iso.held.other());
     let line = placed(surface, iso, sheet, held.of(cell)).ok_or(Unpresented::Structural)?;
-    // The read edge is shared ([`corner_of`]): [`unread`]'s rule.
-    let sigma = face_side(ue, iso, b.orientation()).ok_or(Unpresented::Structural)?;
+    let sigma = face_side(ue, iso, b.orientation()).ok_or(Unpresented::Local)?;
     let [i0, i1] = ue.image.ok_or(Unpresented::Local)?;
     let (mlo, mhi) = moving.of(cell);
     let vm = iso.moving(if e.ends[0] == c.vertex { i0 } else { i1 });
@@ -6693,6 +6704,104 @@ mod presentation_rows {
             matches!(at(&sector, (0.2, 0.8)), Read::Of(..)),
             "an extent an ulp below the apex: {:?}",
             at(&sector, (0.2, 0.8))
+        );
+    }
+
+    /// **A cone face across its apex is not presented at its apex
+    /// vertex**: a face wrapping the cone (so [`face_extent`] reads no
+    /// nappe of it), with vertices on both nappes, so it has no one nappe
+    /// ([`nappe`]). That is the face's, so the cell at its apex vertex
+    /// refuses `Structural`. Red if it refuses as though a smaller cell
+    /// holding the vertex could read it.
+    #[test]
+    fn a_cone_face_with_no_one_nappe_refuses_at_its_apex() {
+        let s = Surface::Cone {
+            apex: origin(),
+            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        let b = Boundary {
+            sense: true,
+            edges: vec![rim(1, [3, 3], Axis::V, 1.0, (TURN, 1.0), (0.0, 1.0))],
+            vertices: BTreeMap::from([
+                (vertex(3), Point3::new(iv0(1.0), iv0(0.0), iv0(1.0))),
+                (vertex(4), Point3::new(iv0(1.0), iv0(0.0), iv0(-1.0))),
+                (vertex(9), origin()),
+            ]),
+            extent: Some([(0.0, TURN), (-1.0, 1.0)]),
+        };
+        let local = Local {
+            edges: all(1),
+            vertices: vec![vertex(9)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (1.2, 1.8),
+            v: (-0.5, 0.5),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        assert_eq!(
+            read(present_chart(&piece, &[], &[], band())),
+            Read::Structural
+        );
+    }
+
+    /// **A cone face's extent with no height on its nappe contradicts it**:
+    /// vertices standing on one nappe while the extent's `v` is the apex
+    /// alone. Read against the nappe it holds no point of it past the
+    /// apex, so [`face_extent`] refuses it on either nappe. Red if the
+    /// extent is only asked to stand on the nappe's side of the apex, not
+    /// to reach past it: the cell across the apex then misses the extent
+    /// and reads the face as holding nothing.
+    #[test]
+    fn a_cone_face_whose_extent_has_no_height_on_its_nappe_refuses() {
+        let s = Surface::Cone {
+            apex: origin(),
+            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        for z in [1.0, -1.0] {
+            let b = Boundary {
+                sense: true,
+                edges: Vec::new(),
+                vertices: BTreeMap::from([(vertex(3), Point3::new(iv0(1.0), iv0(0.0), iv0(z)))]),
+                extent: Some([(1.0, 2.0), (0.0, 0.0)]),
+            };
+            assert_eq!(
+                chart(&s, &b, &[], (1.2, 1.8), (-0.5, 0.5)),
+                Read::Structural,
+                "the nappe at z = {z}"
+            );
+        }
+    }
+
+    /// **A wrapping outer loop leaves every axis free, a periodic one its
+    /// lines are on included**: a torus band wrapping `u`, bounded by the
+    /// parallels `v = 1/2` and `v = 1` (`v` periodic too). Its lines are
+    /// placed toward the cell, and the band presents between them. Red if
+    /// a wrapping extent is read as an unknown one: the parallels then
+    /// have no placement.
+    #[test]
+    fn a_wrapping_band_places_its_lines_on_a_periodic_axis() {
+        let s = ring(2.0);
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 1], Axis::V, 0.5, (0.0, 0.5), (TURN, 0.5)),
+                rim(2, [2, 2], Axis::V, 1.0, (TURN, 1.0), (0.0, 1.0)),
+            ],
+            vertices: BTreeMap::new(),
+            extent: Some([(0.0, TURN), (0.5, 1.0)]),
+        };
+        assert_eq!(
+            chart(&s, &b, &all(2), (1.0, 2.0), (0.4, 1.1)),
+            Read::Of((1.0, 2.0), (0.5, 1.0))
         );
     }
 
