@@ -1444,3 +1444,4 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - the stale prose is swept, the tag texts have one home, and `corner_config` is deleted;
   - it filed `band/a-chamfers-clearance-refusal-names-a-fillet3-predicate` (P3);
   - it filed `topo/a-torn-body-fuzz-seed-panics-in-wedge-reach-naming-no-row-four-premise` (P1): a corrupt-input fuzz seed that panics on main, not caused by this PR.
+- 2026-11-18 — A container restart stopped the reach lane's agent. Its fix pass was already committed and pushed (9eaebfea72), but it was cut off midway through merging main, with a conflict in `.config/nextest.toml`. A fresh Opus agent is finishing the merge, adapting the branch to 7072's names, checking the fix-brief items and confirming CI.
