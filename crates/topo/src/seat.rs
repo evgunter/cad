@@ -20,8 +20,8 @@ use crate::body::Body;
 #[derive(Debug, Clone, Copy)]
 pub struct Seat<'b, T: geom_core::Real> {
     body: &'b Body<T>,
-    /// The motion into the reader's frame and its inverse.
-    at: Option<(RigidMotion<T>, RigidMotion<T>)>,
+    /// The motion into the reader's frame.
+    at: Option<RigidMotion<T>>,
 }
 
 impl<'b, T: geom_core::Real> Seat<'b, T> {
@@ -32,15 +32,12 @@ impl<'b, T: geom_core::Real> Seat<'b, T> {
     }
 
     /// `body` read through `motion` into its reader's frame.
-    ///
-    /// # Errors
-    ///
-    /// The inverse's overflow.
-    pub fn at(body: &'b Body<T>, motion: RigidMotion<T>) -> Result<Self, RigidMotionError> {
-        Ok(Self {
+    #[must_use]
+    pub fn at(body: &'b Body<T>, motion: RigidMotion<T>) -> Self {
+        Self {
             body,
-            at: Some((motion, motion.inverse()?)),
-        })
+            at: Some(motion),
+        }
     }
 
     /// The body, in its own coordinates.
@@ -52,19 +49,19 @@ impl<'b, T: geom_core::Real> Seat<'b, T> {
     /// The motion into the reader's frame, `None` for the identity.
     #[must_use]
     pub fn motion(&self) -> Option<&RigidMotion<T>> {
-        self.at.as_ref().map(|(m, _)| m)
+        self.at.as_ref()
     }
 
     /// A point of the body, in the reader's frame.
     #[must_use]
     pub fn point(&self, p: geom_core::Point3<T>) -> geom_core::Point3<T> {
-        self.at.map_or(p, |(m, _)| m.transform_point(p))
+        self.at.map_or(p, |m| m.transform_point(p))
     }
 
     /// A direction of the body, in the reader's frame.
     #[must_use]
     pub fn vec(&self, v: geom_core::Vec3<T>) -> geom_core::Vec3<T> {
-        self.at.map_or(v, |(m, _)| m.transform_vec(v))
+        self.at.map_or(v, |m| m.transform_vec(v))
     }
 
     /// A surface of the body, in the reader's frame
@@ -73,7 +70,7 @@ impl<'b, T: geom_core::Real> Seat<'b, T> {
     pub fn surface(&self, s: &geom::Surface<T>) -> Option<geom::Surface<T>> {
         match &self.at {
             None => Some(s.clone()),
-            Some((m, _)) => crate::transform::surface_at(m, s).ok(),
+            Some(m) => crate::transform::surface_at(m, s).ok(),
         }
     }
 
@@ -83,15 +80,25 @@ impl<'b, T: geom_core::Real> Seat<'b, T> {
     pub fn curve(&self, c: &geom::Curve3<T>) -> Option<geom::Curve3<T>> {
         match &self.at {
             None => Some(c.clone()),
-            Some((m, _)) => crate::transform::carrier_at(m, c).ok(),
+            Some(m) => crate::transform::carrier_at(m, c).ok(),
         }
     }
 
     /// **A point of the reader's frame, in the body's own coordinates**:
     /// where a reading within the body (a vertex's link) is asked about
-    /// another operand's point.
-    #[must_use]
-    pub fn into_own(&self, p: geom_core::Point3<T>) -> geom_core::Point3<T> {
-        self.at.map_or(p, |(_, back)| back.transform_point(p))
+    /// another operand's point. The inverse is taken here, so a reader
+    /// that asks no such point cannot refuse on it.
+    ///
+    /// # Errors
+    ///
+    /// The inverse's overflow.
+    pub fn into_own(
+        &self,
+        p: geom_core::Point3<T>,
+    ) -> Result<geom_core::Point3<T>, RigidMotionError> {
+        Ok(match &self.at {
+            None => p,
+            Some(m) => m.inverse()?.transform_point(p),
+        })
     }
 }

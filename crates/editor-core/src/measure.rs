@@ -306,12 +306,10 @@ pub struct ClearanceSeat<'b, T: geom_core::Real> {
     pub at: crate::node::RecipeNodeId,
     /// Which of that node's output bodies.
     pub index: u32,
-    /// The body itself, at this lane's scalar, in its own coordinates.
-    pub body: &'b topo::Body<T>,
-    /// The rigid motion from the body's coordinates into the frame the
-    /// question is read in, `None` where they are one
-    /// ([`topo::clearance::Side::windows_at`]).
-    pub at_motion: Option<geom_core::RigidMotion<T>>,
+    /// The body, at this lane's scalar, as the question reads it: in its
+    /// own coordinates, and the motion into the frame the question is
+    /// read in ([`topo::clearance::Side::windows_at`]).
+    pub read: topo::Seat<'b, T>,
     /// The faces in scope: every face of the body for a body-kind
     /// reference, the one face for a face-kind reference.
     pub faces: Vec<topo::entity::FaceKey>,
@@ -322,7 +320,7 @@ impl<'b, T: geom_core::Real> ClearanceSeat<'b, T> {
     /// the address.
     pub fn side(&self) -> topo::clearance::Side<'b, T> {
         topo::clearance::Side {
-            body: self.body,
+            body: self.read.body(),
             faces: self.faces.clone(),
         }
     }

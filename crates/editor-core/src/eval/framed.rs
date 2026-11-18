@@ -11,9 +11,11 @@
 //! "chosen so its arithmetic is well conditioned", the first operand's
 //! "where conditioning does not decide". The choice here is
 //! [`Framed::computing_among`]: the first operand in its space's
-//! coordinates ([`Frame::Own`], read through no map, so no widened
-//! rotation's inverse reaches the others on an enclosure lane), else the
-//! first operand. It reads the frames' structure and no value, so the
+//! coordinates ([`Frame::Own`], read through no map, so the others are
+//! read through their own placements and not through a widened
+//! rotation's inverse on an enclosure lane), else the first operand. A
+//! reading within an operand that asks it about another's point
+//! ([`topo::Seat::into_own`]) does send that point through the inverse. It reads the frames' structure and no value, so the
 //! `f64` witness and every lane over a box decide in one frame. Every
 //! operation over two or more operands of one space takes it — the
 //! booleans' fold, subtract and distribute, measure, the product gather,
@@ -396,11 +398,11 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     ///
     /// # Errors
     ///
-    /// The relative map's overflow, or its inverse's.
+    /// The relative map's overflow.
     pub(crate) fn seat<'b>(&self, other: &'b Self) -> Result<topo::Seat<'b, T>, RigidMotionError> {
         Ok(match self.relative(other)? {
             None => topo::Seat::own(other.body()),
-            Some(motion) => topo::Seat::at(other.body(), motion)?,
+            Some(motion) => topo::Seat::at(other.body(), motion),
         })
     }
 }

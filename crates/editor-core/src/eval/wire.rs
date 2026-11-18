@@ -2495,6 +2495,7 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
         super::measure::PrimitiveRefusal::Escalated(source) => {
             NodeErrorKind::MeasureEscalated { source }
         }
+        super::measure::PrimitiveRefusal::Motion(e) => NodeErrorKind::Motion(e),
         super::measure::PrimitiveRefusal::NonFinite(source) => {
             NodeErrorKind::MeasureNonFinite { source }
         }
@@ -2517,7 +2518,8 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
 }
 
 /// **A clearance assertion's verdict** (E3's clearance amendment, E7):
-/// read the two seats' bodies into one frame, and run the sweep at the
+/// read the two seats in one frame, each body as it stands and its
+/// carriers through their relative motion, and run the sweep at the
 /// bounds — both bounds in one subdivision. The minimum is never
 /// computed.
 ///
@@ -2602,13 +2604,12 @@ where
         .iter()
         .map(|(.., framed)| computing.seat(framed).map_err(NodeErrorKind::Motion))
         .collect::<Result<Vec<_>, _>>()?;
-    let seat = |i: usize| {
+    let side = |i: usize| {
         let (at, ent, _) = read[i];
         crate::measure::ClearanceSeat {
             at,
             index: ent.body,
-            body: bodies[i].body(),
-            at_motion: bodies[i].motion().copied(),
+            read: bodies[i],
             faces: match ent.key {
                 names::EntityKey::Body => bodies[i].body().faces().map(|(k, _)| k).collect(),
                 names::EntityKey::Face(k) => vec![k],
@@ -2618,20 +2619,12 @@ where
             },
         }
     };
-    let (sa, sb) = (seat(0), seat(1));
+    let (sa, sb) = (side(0), side(1));
     let sides = [(sa.at, sa.index), (sb.at, sb.index)];
     let refused = |refusal| ClearanceRefusal::Engine { refusal, sides };
     let (wa, wb) = match (
-        lane.windows_at(
-            &sa.side(),
-            topo::clearance::Which::First,
-            sa.at_motion.as_ref(),
-        ),
-        lane.windows_at(
-            &sb.side(),
-            topo::clearance::Which::Second,
-            sb.at_motion.as_ref(),
-        ),
+        lane.windows_at(&sa.side(), topo::clearance::Which::First, sa.read.motion()),
+        lane.windows_at(&sb.side(), topo::clearance::Which::Second, sb.read.motion()),
     ) {
         (Ok(wa), Ok(wb)) => (wa, wb),
         (Err(r), _) | (_, Err(r)) => return answer(ClearanceReport::refused(refused(r))),

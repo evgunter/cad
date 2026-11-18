@@ -1476,6 +1476,12 @@ impl Sweep {
         T: Decide + CertifiedBounds,
         F: FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
     {
+        // Two sides of one body are in one frame: the same-body arms read
+        // each window's boundary beside its carrier, both in that frame.
+        debug_assert!(
+            !same_body || wa.of.iter().chain(&wb.of).all(|w| w.own.is_none()),
+            "two sides of one body are read through no motion"
+        );
         k_stats::unlogged("F41", move || {
             let (wa, wb) = (&wa.of[..], &wb.of[..]);
             let injective = same_body && matches!(self.bound, ClearanceBound::StrictlyPositive);
@@ -3498,12 +3504,6 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     if !(u.0.is_finite() && u.1.is_finite() && v.0.is_finite() && v.1.is_finite()) {
         return unsupported("a face whose carrier window is not a finite rectangle");
     }
-    if !refines(&charted, u, v) {
-        return unsupported(
-            "a face whose interval chart does not refine — on one axis of its window, \
-             neither half narrows the enclosure at one halving",
-        );
-    }
     // Read through a motion, the window's carrier is the stored one
     // mapped into the question's frame, then lifted; its rectangle is the
     // stored one's, a rigid motion keeping every chart parameter.
@@ -3521,6 +3521,14 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             (placed, Some(charted))
         }
     };
+    // The gate reads the carrier the window admits, the placed one where
+    // the side is read through a motion.
+    if !refines(&surface, u, v) {
+        return unsupported(
+            "a face whose interval chart does not refine — on one axis of its window, \
+             neither half narrows the enclosure at one halving",
+        );
+    }
     Ok(Window {
         face,
         region,
@@ -5964,6 +5972,105 @@ mod support_rows {
         for (c, separated) in [(1.0 - in_band, false), (0.5, true)] {
             let read = separated_by_support(pair, &wa, &wb, Interval::from_f64(c), band);
             assert_eq!(read, separated, "separated against {c}");
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod seated_windows {
+    use geom_core::{Band, Point3, RigidMotion, Tol, UnitVec3, Vec3};
+
+    use super::{Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which};
+
+    /// **A trimmed face read across a turn sweeps as the placed face does**
+    /// (`[placement.frame]`; [`Side::windows_at`]). A torus patch, its
+    /// window the whole torus and its face a quarter of it, against a
+    /// brick that cuts the torus away from the patch, so the only cells
+    /// of the window near the brick hold none of the face, and the sweep
+    /// holds only by reading them off it.
+    /// Read with the patch built where a skew motion puts it, and with the
+    /// patch held in its own coordinates and its window read through that
+    /// motion,
+    /// the sweep holds alike, and its receipt and its count of region
+    /// readings are one.
+    ///
+    /// *Breaks if* a cell's region is read against the placed carrier and
+    /// the face's own boundary together (the window's own lift dropped):
+    /// the two frames disagree and the cells near the trimmed edge read
+    /// otherwise.
+    #[test]
+    fn a_trimmed_face_read_across_a_turn_sweeps_as_the_placed_face() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let axis = UnitVec3::new(Vec3::new(1.0, -2.0, 0.5), "a skew axis", band).unwrap();
+        let m = RigidMotion::translation(Vec3::new(7.0, -3.0, 4.0))
+            .unwrap()
+            .compose(RigidMotion::rotation(axis, 0.9).unwrap())
+            .unwrap();
+        let (patch, face) = crate::boxes::tests::torus_wall(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            2.0,
+            0.5,
+            (0.3, 1.9),
+            (-0.7, 0.8),
+        );
+        let (moved, moved_face) = crate::boxes::tests::torus_wall(
+            m.transform_point(Point3::origin()),
+            m.transform_vec(Vec3::unit_z()),
+            m.transform_vec(Vec3::unit_x()),
+            2.0,
+            0.5,
+            (0.3, 1.9),
+            (-0.7, 0.8),
+        );
+        let brick: crate::Body<f64> = crate::transform_rigid(
+            &crate::test_support_fixtures::brick((2.0, 2.6), (-1.5, -0.9), (-0.3, 0.3), tol),
+            &m,
+        )
+        .unwrap();
+        let brick_side = Side {
+            body: &brick,
+            faces: brick.faces().map(|(k, _)| k).collect(),
+        };
+        let wb = brick_side.windows(Which::Second).unwrap();
+        let sweep = Sweep {
+            bound: ClearanceBound::at_least(0.3),
+            band,
+            budgets: Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: 200_000,
+            },
+        };
+        let run = |(body, face): (&crate::Body<f64>, crate::FaceKey),
+                   at: Option<&RigidMotion<f64>>| {
+            let wa = Side {
+                body,
+                faces: vec![face],
+            }
+            .windows_at(Which::First, at)
+            .unwrap();
+            sweep.run(&wa, &wb, false, |_| Err::<(), _>("no witness".to_owned()))
+        };
+        let (held, seated) = (
+            run((&moved, moved_face), None),
+            run((&patch, face), Some(&m)),
+        );
+        for (what, report) in [("placed", &held), ("read through its motion", &seated)] {
+            assert_eq!(
+                report.verdict,
+                super::BoundVerdict::Holds,
+                "{what}: the brick cuts the torus off the patch, so only cells off the face \
+                 come near it: {:?}",
+                report.receipt
+            );
+            assert!(
+                report.receipt.outside > 0 && report.decided > 0,
+                "{what}: the sweep reads cells off the face as off it: {:?}",
+                report.receipt
+            );
         }
     }
 }

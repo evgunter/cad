@@ -668,3 +668,48 @@ fn a_measure_between_two_copies_maps_no_body() {
         "the premise: both references are the block's own Arc"
     );
 }
+
+/// **A direction read off a turned copy is turned** (`[placement.frame]`,
+/// a reading between two operands through their relative motion). One
+/// block, placed twice: slid up, and turned a quarter turn about `z`. The
+/// angle between the two copies' end-cap rims over the profile's first
+/// segment is a right angle: the second rim's direction is read off the
+/// block as it stands and turned through the relative motion.
+///
+/// *Breaks if* a line edge's direction is read in its own coordinates
+/// and not mapped into the reader's frame (`topo::Seat::vec` as the
+/// identity: the two rims read parallel, an angle of 0).
+#[test]
+fn an_angle_to_a_turned_copys_edge_reads_the_turn() {
+    use editor_core::{MeasurePrimitive, SitedRef};
+    let doc = ProfileDoc::empty(DocumentId::derive("e-angle-seats"), Tol::witness());
+    let (doc, source) = block(doc);
+    let (doc, up) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([0.0, 0.0, 0.25]),
+    );
+    let turned = editor_core::Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        std::f64::consts::FRAC_PI_2,
+        [3.0, 0.0, 0.0],
+        geom_core::Band::linear(Tol::witness()).unwrap(),
+    )
+    .unwrap();
+    let (doc, over) = in_world(doc, source, &turned);
+    let rim = fixture::end_rim(&doc, source, 0);
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Angle { a: 0, b: 1 },
+        vec![SitedRef::new(up, rim.clone()), SitedRef::new(over, rim)],
+    );
+    let ev = run(&doc, None);
+    let value = match ev.value(measure).map(|v| &v.payload) {
+        Some(ValuePayload::Measure { value, .. }) => *value,
+        other => panic!("the angle reads: {other:?}, {:?}", ev.node_error(measure)),
+    };
+    assert!(
+        (value - std::f64::consts::FRAC_PI_2).abs() < 1e-12,
+        "the turned copy's rim reads a quarter turn off the first's: {value}"
+    );
+}
