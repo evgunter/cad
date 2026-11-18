@@ -2,11 +2,12 @@
 id: step-import-singularity-pass-reads-curve-meetings-by-hand
 kind: issue
 title: the import's singularity pass carries its own curve and line meeting reader beside the kernel's curve_pair::meet
-status: dispatched
+status: closed
 opened: 2026-11-17
 priority: P1
 cost: M
 branch: importgate/singularity-meet
+closed: 2026-11-18
 ---
 
 (Found by the review of PR 7084, `importgate/knot-place`, whose C⁰-knot split reads its line against the trim through `geom_brep::curve_pair::meet`; filed by its implementer.)
