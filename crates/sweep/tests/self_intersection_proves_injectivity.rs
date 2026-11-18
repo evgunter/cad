@@ -3238,3 +3238,424 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
 }
+
+// ---------------------------------------------------------------- review probes (PR 7113)
+//
+// Review probes for `embed/lune` at f35afe01. Ignored: each runs seconds to a
+// minute at opt-level 0. What they found, at f64:
+// - a small ball grafted through the hollow's posed cavity sphere near its cap
+//   circle reads `Violated` at depth 5e-2, 1e-3, 1e-6 and straddling the circle;
+//   gaps of 5e-3 and 1e-4 read `Holds`;
+// - the hollow holds at every thickness 0.03..0.07 and turned about `y`, and
+//   refuses `Uncertified` (the cavity's sphere halves across its equator) turned
+//   about `x` by 0.3, about `(1, 1, 1)` by 1.0 and about `z` by 1.2; the lune
+//   without its cavity holds turned the same ways;
+// - claim 8's variant: `angle` reading its output `Azimuth::of(y, x).about(q)`,
+//   `q` the quarter nearest the box's middle (the positive-side check kept about
+//   the middle), refuses the hollow 5v1 x 7v1 across 9v1, where
+//   `sides_are_the_faces` fails cover on the cap parallel: the cell's rectangle
+//   starts within the touch's `few_ulps` of the equator meridian's bracket.
+
+fn review_lune_hollow() -> Body<f64> {
+    review_lune_hollow_by(0.05)
+}
+
+fn review_lune_hollow_by(thick: f64) -> Body<f64> {
+    use crate::common::latitude_seam::latitude_on_partial_wall;
+    use profile::test_support::bulge_loop;
+    let r = 0.3_f64;
+    let quarter_arc = -(core::f64::consts::PI / 8.0).tan();
+    let profile = Profile::new(
+        SketchPlane::xy(),
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, -r), 0.0),
+            (Point2::new(0.0, r), quarter_arc),
+            (Point2::new(r, 0.0), quarter_arc),
+        ])],
+    )
+    .validate(tol())
+    .unwrap();
+    let mut body = revolve(
+        &profile,
+        axis_y(),
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol(),
+    )
+    .unwrap()
+    .body
+    .into_body();
+    let sphere = body
+        .faces()
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .unwrap()
+        .1
+        .surface;
+    latitude_on_partial_wall(
+        &mut body,
+        sphere,
+        Point2::new(r, 0.0),
+        core::f64::consts::FRAC_PI_2,
+    );
+    let hollow = topo::shell(
+        &sweep::test_support::finished("the lune", body, tol()),
+        thick,
+        tol(),
+    )
+    .unwrap()
+    .body;
+    Body::clone(&hollow)
+}
+
+fn review_ball_at(c: [f64; 3], rho: f64) -> Body<f64> {
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+    let ball = revolved_about_y_at::<f64>(vec![p(-rho, 1.0), p(rho, 0.0)], Revolution::Full, tol());
+    topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(c[0], c[1], c[2])).unwrap(),
+    )
+    .unwrap()
+}
+
+/// A small ball grafted into the hollow's wall, its sphere `depth` past
+/// the cavity's sphere (radius 0.25) along `dir`; negative is a gap.
+fn review_ball_through_cavity(dir: [f64; 3], depth: f64) -> (Body<f64>, BoundReport<Witness>, f64) {
+    let mut body = review_lune_hollow();
+    let n = (dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]).sqrt();
+    let rho = 0.02;
+    let k = (0.25 + rho - depth) / n;
+    let ball = review_ball_at([dir[0] * k, dir[1] * k, dir[2] * k], rho);
+    topo::graft_disjoint_all_keyed(&mut body, &ball).unwrap();
+    let t = std::time::Instant::now();
+    let report = injective(&body, None, BUDGET);
+    let s = t.elapsed().as_secs_f64();
+    println!(
+        "[probe] dir {dir:?} depth {depth:e}: {:?} {:?} {s:.2}s",
+        report.verdict, report.receipt
+    );
+    (body, report, s)
+}
+
+fn review_dir_near_cap() -> [f64; 3] {
+    // On the cavity sphere just past the cap x = 0.05, off the equator.
+    let (x, y) = (0.06, 0.1);
+    [x, y, -(0.0625_f64 - x * x - y * y).sqrt()]
+}
+
+#[test]
+#[ignore = "review probe (PR 7113): slow at opt-level 0; run with --run-ignored only"]
+fn review_probe_lune_hollow_alone() {
+    let body = review_lune_hollow();
+    let t = std::time::Instant::now();
+    let report = injective(&body, None, BUDGET);
+    println!(
+        "[probe] hollow alone: {:?} {:?} {:.2}s",
+        report.verdict,
+        report.receipt,
+        t.elapsed().as_secs_f64()
+    );
+}
+
+#[test]
+#[ignore = "review probe (PR 7113): slow at opt-level 0; run with --run-ignored only"]
+fn review_probe_ball_crossing_posed_sphere() {
+    for depth in [0.05, 1e-3, 1e-6] {
+        let (_, r, _) = review_ball_through_cavity(review_dir_near_cap(), depth);
+        assert!(
+            !matches!(r.verdict, BoundVerdict::Holds),
+            "crossing by {depth:e} read embedded"
+        );
+    }
+}
+
+#[test]
+#[ignore = "review probe (PR 7113): slow at opt-level 0; run with --run-ignored only"]
+fn review_probe_ball_clear_of_posed_sphere() {
+    for gap in [0.005, 1e-4] {
+        let _ = review_ball_through_cavity(review_dir_near_cap(), -gap);
+    }
+}
+
+#[test]
+#[ignore = "review probe (PR 7113): slow at opt-level 0; run with --run-ignored only"]
+fn review_probe_ball_crossing_at_cap_circle() {
+    // Straddles the cap's circle: direction onto the circle x = 0.05 itself.
+    let (x, y) = (0.05, 0.1);
+    let d = [x, y, -(0.0625_f64 - x * x - y * y).sqrt()];
+    for depth in [0.01, 1e-4] {
+        let (_, r, _) = review_ball_through_cavity(d, depth);
+        assert!(
+            !matches!(r.verdict, BoundVerdict::Holds),
+            "crossing by {depth:e} read embedded"
+        );
+    }
+}
+
+fn review_turned(body: &Body<f64>, axis: [f64; 3], angle: f64) -> Body<f64> {
+    let band = band();
+    let a = geom_core::UnitVec3::new(
+        geom_core::Vec3::new(axis[0], axis[1], axis[2]),
+        "probe turn",
+        band,
+    )
+    .unwrap();
+    topo::transform_rigid(body, &geom_core::RigidMotion::rotation(a, angle).unwrap()).unwrap()
+}
+
+fn review_unit_ball() -> Body<f64> {
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+    revolved_about_y_at::<f64>(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol())
+}
+
+fn review_cut(ball: Body<f64>, tools: Vec<Body<f64>>) -> Option<Body<f64>> {
+    let fin = |b| sweep::test_support::finished("probe", b, tol());
+    let mut cur = ball;
+    for t in tools {
+        match topo::boolean::subtract(&fin(cur), &fin(t), tol()) {
+            Ok(r) => match r.body() {
+                Some(b) => cur = Body::clone(&b.body),
+                None => {
+                    println!("[probe7] no body");
+                    return None;
+                }
+            },
+            Err(e) => {
+                println!("[probe7] subtract refused: {e:?}");
+                return None;
+            }
+        }
+    }
+    Some(cur)
+}
+
+fn review_run(what: &str, body: &Body<f64>) {
+    let t = std::time::Instant::now();
+    let report = injective(body, None, BUDGET);
+    println!(
+        "[probe7] {what}: faces {} {:?} {:?} {:.2}s",
+        body.faces().count(),
+        report.verdict,
+        report.receipt,
+        t.elapsed().as_secs_f64()
+    );
+}
+
+/// A slab above `z = h` turned about `axis` by `angle`.
+fn review_slab(h: f64, axis: [f64; 3], angle: f64) -> Body<f64> {
+    review_turned(
+        &sweep::test_support::brick((-3.0, 3.0), (-3.0, 3.0), (h, 3.0), tol()),
+        axis,
+        angle,
+    )
+}
+
+#[test]
+#[ignore = "review probe (PR 7113): slow at opt-level 0; run with --run-ignored only"]
+fn review_probe7_ball_cut_by_one_tilted_plane() {
+    if let Some(b) = review_cut(
+        review_unit_ball(),
+        vec![review_slab(0.5, [1.0, 0.0, 0.0], 0.4)],
+    ) {
+        review_run("one tilted plane", &b);
+    }
+}
+
+#[test]
+#[ignore = "review probe (PR 7113): slow at opt-level 0; run with --run-ignored only"]
+fn review_probe7_ball_cut_by_three_tilted_planes() {
+    let tools = vec![
+        review_slab(0.5, [1.0, 0.0, 0.0], 0.4),
+        review_slab(0.6, [0.0, 1.0, 0.0], 2.0),
+        review_slab(0.55, [1.0, 1.0, 0.0], -2.3),
+    ];
+    if let Some(b) = review_cut(review_unit_ball(), tools) {
+        review_run("three tilted planes", &b);
+    }
+}
+
+#[test]
+#[ignore = "review probe (PR 7113): slow at opt-level 0; run with --run-ignored only"]
+fn review_probe7_ball_cut_by_two_meeting_tilted_planes() {
+    // Two tilted cuts whose circles meet on the sphere: a corner of two circles off every axis.
+    let tools = vec![
+        review_slab(0.3, [1.0, 0.0, 0.0], 0.5),
+        review_slab(0.3, [1.0, 0.0, 0.0], -0.9),
+    ];
+    if let Some(b) = review_cut(review_unit_ball(), tools) {
+        review_run("two meeting tilted planes", &b);
+    }
+}
+
+#[test]
+#[ignore = "review probe (PR 7113): slow at opt-level 0; run with --run-ignored only"]
+fn review_probe7_ball_cut_by_off_axis_cylinder() {
+    let cyl =
+        sweep::test_support::cylinder_of_arcs_at(4, 0.3, Point2::new(0.4, 0.1), -2.0, 4.0, tol());
+    if let Some(b) = review_cut(review_unit_ball(), vec![cyl]) {
+        review_run("off-axis cylinder", &b);
+    }
+}
+
+#[test]
+#[ignore = "review probe (PR 7113): slow at opt-level 0; run with --run-ignored only"]
+fn review_probe8_lune_hollow_rounding_sweep() {
+    for thick in [0.03, 0.04, 0.045, 0.05, 0.055, 0.06, 0.07] {
+        let b = review_lune_hollow_by(thick);
+        review_run(&format!("hollow {thick}"), &b);
+    }
+    for (axis, angle) in [
+        ([0.0, 1.0, 0.0], 0.1),
+        ([0.0, 1.0, 0.0], 0.7),
+        ([0.0, 1.0, 0.0], 2.0),
+        ([1.0, 0.0, 0.0], 0.3),
+        ([1.0, 1.0, 1.0], 1.0),
+        ([0.0, 0.0, 1.0], 1.2),
+    ] {
+        let b = review_turned(&review_lune_hollow(), axis, angle);
+        review_run(&format!("hollow turned {axis:?} {angle}"), &b);
+    }
+}
+
+#[test]
+#[ignore = "review probe (PR 7113): slow at opt-level 0; run with --run-ignored only"]
+fn review_probe9_turned_hollow_traced() {
+    let b = review_turned(&review_lune_hollow(), [1.0, 0.0, 0.0], 0.3);
+    for (k, _) in b.faces() {
+        println!(
+            "[probe9] face {k:?} {:?}",
+            b.face_surface(k).map(|s| s.kind())
+        );
+    }
+    // The lune itself, no cavity: no off-axis circle, so no pose.
+    use crate::common::latitude_seam::latitude_on_partial_wall;
+    use profile::test_support::bulge_loop;
+    let r = 0.3_f64;
+    let q = -(core::f64::consts::PI / 8.0).tan();
+    let profile = Profile::new(
+        SketchPlane::xy(),
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, -r), 0.0),
+            (Point2::new(0.0, r), q),
+            (Point2::new(r, 0.0), q),
+        ])],
+    )
+    .validate(tol())
+    .unwrap();
+    let mut lune = revolve(
+        &profile,
+        axis_y(),
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol(),
+    )
+    .unwrap()
+    .body
+    .into_body();
+    let sphere = lune
+        .faces()
+        .find(|(fk, _)| matches!(lune.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .unwrap()
+        .1
+        .surface;
+    latitude_on_partial_wall(
+        &mut lune,
+        sphere,
+        Point2::new(r, 0.0),
+        core::f64::consts::FRAC_PI_2,
+    );
+    review_run("lune alone", &lune);
+    for (axis, angle) in [([1.0, 0.0, 0.0], 0.3), ([0.0, 0.0, 1.0], 1.2)] {
+        review_run(
+            &format!("lune turned {axis:?} {angle}"),
+            &review_turned(&lune, axis, angle),
+        );
+    }
+}
+
+fn review_cut_generic<T: Scalar>(crossing: Option<f64>) -> Option<Body<T>> {
+    let band = band();
+    let lift = |x: f64| T::from_f64(x);
+    let p = |y: f64, bulge: f64| (Point2::new(lift(0.0), lift(y)), lift(bulge));
+    let ball = revolved_about_y_at::<T>(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol());
+    let slab = sweep::test_support::brick::<T>((-3.0, 3.0), (-3.0, 3.0), (0.5, 3.0), tol());
+    let a = geom_core::UnitVec3::new(
+        geom_core::Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        "probe",
+        band,
+    )
+    .unwrap();
+    let slab = topo::transform_rigid(
+        &slab,
+        &geom_core::RigidMotion::rotation(a, lift(0.4)).unwrap(),
+    )
+    .unwrap();
+    let fin = |b| sweep::test_support::finished("probe", b, tol());
+    let cut = match topo::boolean::subtract(&fin(ball), &fin(slab), tol()) {
+        Ok(r) => Body::clone(&r.body()?.body),
+        Err(e) => {
+            println!("[probe10] subtract refused: {e:?}");
+            return None;
+        }
+    };
+    let mut cut = cut;
+    if let Some(depth) = crossing {
+        // A small ball poking `depth` out through the sphere just below the cut's circle.
+        // The plane: normal n = R_x(0.4)·z, at distance 0.5. A sphere point at height 0.45 along n.
+        let (s, c) = 0.4_f64.sin_cos();
+        let n = [0.0, -s, c];
+        let m = [0.0, c, s];
+        let h: f64 = 0.45;
+        let w = (1.0 - h * h).sqrt();
+        let d = [
+            n[0] * h + m[0] * w,
+            n[1] * h + m[1] * w,
+            n[2] * h + m[2] * w,
+        ];
+        let rho = 0.02;
+        let k = 1.0 - rho + depth;
+        let pb = |y: f64, bulge: f64| (Point2::new(lift(0.0), lift(y)), lift(bulge));
+        let small =
+            revolved_about_y_at::<T>(vec![pb(-rho, 1.0), pb(rho, 0.0)], Revolution::Full, tol());
+        let small = topo::transform_rigid(
+            &small,
+            &geom_core::RigidMotion::translation(geom_core::Vec3::new(
+                lift(d[0] * k),
+                lift(d[1] * k),
+                lift(d[2] * k),
+            ))
+            .unwrap(),
+        )
+        .unwrap();
+        topo::graft_disjoint_all_keyed(&mut cut, &small).unwrap();
+    }
+    Some(cut)
+}
+
+fn review_run_generic<T: Scalar>(what: &str, body: &Body<T>) -> BoundVerdict<Witness> {
+    let t = std::time::Instant::now();
+    let report = injective(body, None, BUDGET);
+    println!(
+        "[probe10] {what}: {:?} {:?} {:.2}s",
+        report.verdict,
+        report.receipt,
+        t.elapsed().as_secs_f64()
+    );
+    report.verdict
+}
+
+#[test]
+#[ignore = "review probe (PR 7113): slow at opt-level 0; run with --run-ignored only"]
+fn review_probe10_tilted_cut_at_both_scalars() {
+    for crossing in [None, Some(1e-3), Some(-1e-3)] {
+        if let Some(b) = review_cut_generic::<f64>(crossing) {
+            review_run_generic(&format!("f64 {crossing:?}"), &b);
+        }
+        if let Some(b) = review_cut_generic::<Interval>(crossing) {
+            let v = review_run_generic(&format!("Interval {crossing:?}"), &b);
+            if crossing == Some(1e-3) {
+                assert!(
+                    !matches!(v, BoundVerdict::Holds),
+                    "a crossing read embedded at Interval"
+                );
+            }
+        }
+    }
+}
