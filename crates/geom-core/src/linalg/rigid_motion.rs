@@ -1292,7 +1292,12 @@ impl<T: Real> RigidMotion<T> {
     ///   images of these verbatim.
     ///
     /// The kind is a property of the two types, so which branch runs is
-    /// fixed at compile time and reads no value.
+    /// fixed at compile time and reads no value. So is which door the
+    /// cross-kind branch takes: the box kinds' lift is the polar
+    /// enclosure at `Interval` and Gram–Schmidt at the kinds that carry
+    /// derivatives or forms, and a computation runs at one scalar, so the
+    /// two never meet over one frame
+    /// (`each_box_kind_lifts_a_frame_through_its_own_door`).
     #[must_use]
     pub fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> RigidMotion<U> {
         let origin = self.origin.map(&f);
@@ -2006,6 +2011,31 @@ mod tests {
     use crate::tolerance::Tol;
 
     pub(super) const SITE: &str = "rigid_motion_test_axis";
+
+    /// **The box kinds' lift, one door per kind**: a plain enclosure
+    /// (`Interval`) encloses the stated frame's rotation
+    /// ([`Real::enclose_rotation`] answers), and a kind that also carries
+    /// derivatives or forms (`Dual`, `Sym` over an enclosure) declines it,
+    /// so [`RigidMotion::map_scalar`] squares there. A computation runs at
+    /// one scalar, so the two never meet over one frame; this row is the
+    /// pin that each kind keeps its door.
+    #[test]
+    fn each_box_kind_lifts_a_frame_through_its_own_door() {
+        use crate::dual::Dual;
+        use crate::sym::Sym;
+        let at = |k: usize| core::array::from_fn::<f64, 3, _>(|i| f64::from(u8::from(i == k)));
+        let columns = [at(0), at(1), at(2)];
+        let lift = |f: fn(f64) -> Interval| columns.map(|c| c.map(f));
+        assert!(Interval::enclose_rotation(lift(Interval::from_f64)).is_some());
+        assert!(Interval::enclose_unit(lift(Interval::from_f64)[0]).is_some());
+        let dual = columns.map(|c| c.map(|x| Dual::<Interval>::constant(Interval::from_f64(x))));
+        assert!(Dual::<Interval>::enclose_rotation(dual).is_none());
+        assert!(Dual::<Interval>::enclose_unit(dual[0]).is_none());
+        let sym = columns.map(|c| c.map(<Sym<Interval> as Real>::from_f64));
+        assert!(Sym::<Interval>::enclose_rotation(sym).is_none());
+        assert!(Sym::<Interval>::enclose_unit(sym[0]).is_none());
+        assert!(f64::enclose_rotation(columns).is_none());
+    }
 
     /// **A reflected `f64` frame names no rotation, and its lift to
     /// `Interval` is poison**: `w` reversed, so the stated columns are

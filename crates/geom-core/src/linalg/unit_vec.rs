@@ -434,8 +434,10 @@ impl<T: Real> UnitVec3<T> {
     /// [`Witness`](crate::Witness) kind, and across kinds, for the reason
     /// [`RigidMotion::map_scalar`](super::RigidMotion::map_scalar) gives,
     /// enclosed at the target ([`Real::enclose_unit`]) where its value is
-    /// a plain enclosure, and otherwise re-minted there
-    /// ([`UnitVec3::squared`]).
+    /// a plain enclosure (`Interval`), and otherwise re-minted there
+    /// ([`UnitVec3::squared`]) at the kinds that carry derivatives or forms:
+    /// a computation runs at one scalar, so the two never meet over one
+    /// direction.
     #[must_use]
     pub fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> UnitVec3<U> {
         let v = self.0.map(f);
