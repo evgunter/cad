@@ -106,19 +106,19 @@ fn a_chain_of_unions_names_past_every_stack_through_every_door_on_the_smallest_s
         }
         // Through the edit door, at the top union's body.
         let (doc, _) = insert(doc, Node::fillet(top, len(0.1), vec![deep.clone()]));
-        let text = save(&doc, &[], tol).expect("the document saves");
+        let text = save(&doc, tol).expect("the document saves");
         let loaded = load(&text, tol).expect("and loads back");
-        assert_eq!(loaded.doc, doc, "the loaded document is the saved one");
+        assert_eq!(loaded, doc, "the loaded document is the saved one");
         assert_eq!(
-            canonical_bytes(&loaded.doc, tol).unwrap(),
+            canonical_bytes(&loaded, tol).unwrap(),
             canonical_bytes(&doc, tol).unwrap(),
             "and pins the same bytes"
         );
         assert_eq!(
-            content_pin(&loaded.doc, tol).unwrap(),
+            content_pin(&loaded, tol).unwrap(),
             content_pin(&doc, tol).unwrap()
         );
-        let resaved = save(&loaded.doc, &[], tol).expect("the loaded document saves");
+        let resaved = save(&loaded, tol).expect("the loaded document saves");
         assert_eq!(resaved, text, "and saves the same text");
         drop((doc, loaded, deep));
     });
@@ -225,7 +225,7 @@ fn names_in_parts(levels: usize) -> (ProfileDoc, String) {
                 .expect("a shallow value"),
         },
     );
-    let text = save(&doc, &[], tol).expect("the document saves");
+    let text = save(&doc, tol).expect("the document saves");
     (doc, text)
 }
 
@@ -241,14 +241,14 @@ fn names_a_thousand_member_qualifiers_deep_save_and_load_on_the_smallest_stack()
         let tol = Tol::witness();
         let (doc, text) = names_in_parts(1_024);
         let loaded = load(&text, tol).expect("the document loads back");
-        assert!(loaded.doc == doc, "the loaded document is the saved one");
+        assert!(loaded == doc, "the loaded document is the saved one");
         assert_eq!(
-            save(&loaded.doc, &[], tol).expect("the loaded document saves"),
+            save(&loaded, tol).expect("the loaded document saves"),
             text,
             "and saves the same text"
         );
         assert_eq!(
-            content_pin(&loaded.doc, tol).unwrap(),
+            content_pin(&loaded, tol).unwrap(),
             content_pin(&doc, tol).unwrap(),
             "and pins the same"
         );
@@ -323,7 +323,7 @@ fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_
             .expect("a shallow value"),
         },
     );
-    let text = save(&doc, &[], tol).expect("the document saves");
+    let text = save(&doc, tol).expect("the document saves");
     let (header, body) = text.split_once('\n').expect("a header line");
     let past = editor_core::test_support::BODY_NESTING + 10;
     let edited = |edit: &dyn Fn(&mut serde_json::Value)| {

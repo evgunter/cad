@@ -290,7 +290,7 @@ fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
                     r.0, r.1, r.2, r.3
                 );
             }
-            let meet = geom_brep::props::PropsError::NotIsoRectangle {
+            let meet = geom_brep::props::PropsError::SpanUncertified {
                 what: "props_meridian_pieces_meet",
             };
             let v = mp

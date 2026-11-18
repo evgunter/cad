@@ -65,7 +65,7 @@ of the pin did not move.
 `curved_edges::passes` read a carrier's escalation as the edge met in
 band whatever it bracketed. It now reads one that reaches past the
 band's edge as unplaced, no reading, and sets the ray aside
-(`boolean/solid_contain/edge_gap.rs`). At `f64` the only such
+(`solid_contain/edge_gap.rs`). At `f64` the only such
 escalation is the carrier's straddle (`curve_carrier_straddle`), and the
 only place it was found is beside a spiric edge where the plane meets
 the torus at a dihedral sine under about 0.12: a spiric's lower bound on

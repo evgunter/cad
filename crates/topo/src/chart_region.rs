@@ -1543,7 +1543,7 @@ fn cyl_frame<T: Decide>(
 /// of that reaches this arm, and the reason is worth naming exactly,
 /// because it is no longer the schedule. The schedule's completion is
 /// a decomposition of the CHART plus a certificate from
-/// [`crate::boolean::contfp`], and the decomposition transfers to
+/// [`crate::contain::contfp`], and the decomposition transfers to
 /// `(θ·r, z)` unchanged — the blocker is the certificate: `contfp`
 /// requires the query point already on the PLANE of the face, and a
 /// cylinder pair has no plane to put it on. What this arm needs is
@@ -2136,12 +2136,12 @@ fn interior_witness<T: Decide + Bounds>(
     let Ok((_, normal_b)) = plane_frame(body_b, face_b) else {
         return WitnessOutcome::Declined;
     };
-    let inside = |body: &Body<T>, face: FaceKey, n, q| match crate::boolean::contfp(
+    let inside = |body: &Body<T>, face: FaceKey, n, q| match crate::contain::contfp(
         body, face, n, q, band,
     ) {
-        Ok(at) => at == crate::boolean::FaceContainment::In,
-        Err(crate::boolean::ContainError::StaleFace(face)) => {
-            crate::boolean::driver_face_stale(face)
+        Ok(at) => at == crate::contain::FaceContainment::In,
+        Err(crate::contain::ContainError::StaleFace(face)) => {
+            crate::contain::driver_face_stale(face)
         }
         Err(_) => false,
     };
@@ -4039,7 +4039,7 @@ mod tests {
         let diag = Indeterminate {
             margin: geom_core::MarginDiag::value(5e-10),
             band: band(),
-            predicate: Some("pcurve_incidence"),
+            predicate: Some("pcurve_plane_chart_incident"),
             terminal_sliver: false,
         };
         let trim = |read| ChartRegionError::TrimOffFace {

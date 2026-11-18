@@ -49,7 +49,7 @@ its rectangle's side, is boxed by that rectangle's own support
 (`FaceBoxRule::SphereWindow`, `boxes::sphere_reach`), in both box lanes.
 The ball is left for faces outside the class: a boundary circle tilted
 against the chart (a plane's or another sphere's section that is no
-rim), which `topo::boolean::sphere_region` reads for containment but no
+rim), which `topo::sphere_region` reads for containment but no
 box reads yet, and a ringed face.
 
 

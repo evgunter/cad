@@ -62,11 +62,10 @@
 //! corner's own rule, not the convexity one.
 //!
 //! Everything else refuses typed and names itself: another curved
-//! support ([`crate::blend::BlendError::ChamferArmUnsupported`]), a corner whose
-//! CONFIGURATION is out of scope
-//! ([`crate::blend::BlendError::UnsupportedCorner`] with the OQ6 corner
-//! tags), a request that does not cover a supported corner's other edges
-//! ([`crate::blend::BlendError::UnsupportedRunOut`]), and a chain on
+//! support ([`crate::blend::BlendError::ChamferArmUnsupported`]), a band
+//! end the blend does not build ([`crate::blend::BlendError::UnbuiltEnd`],
+//! one tag per reason), a mixed corner whose shared face leans
+//! ([`crate::blend::BlendError::ObliqueMixedCorner`]), and a chain on
 //! several support pairs that is no rounded outline's
 //! ([`crate::blend::BlendError::UnsupportedChain`]).
 //!

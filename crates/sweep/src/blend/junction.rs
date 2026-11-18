@@ -16,7 +16,9 @@
 //! - what both carves record of it ([`record`], over [`record_feet`]);
 //! - each link's trims ([`mixed_trims`], over the rim arc's own frame,
 //!   [`rim_carrier`]) and band chart ([`band_chart`]);
-//! - a straight link's feet in order beside one ([`feet_clear`]).
+//! - a straight link's feet in order beside one, and beside a mixed
+//!   corner or a turn's foot, which stand off their vertex as a
+//!   junction's do ([`feet_clear`]).
 //!
 //! The closed rims' other walks make the same moves at their crossings
 //! and call these: the annulus splits a mate seam with [`split_at`],
@@ -41,7 +43,6 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Tol, Vec3};
 use topo::construction::{Construct, MevSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-use super::BlendError;
 use super::admit::{RequestedBoundary, StationKind};
 use super::arms::{BallSection, EdgeBlend, radial_about};
 use super::battery::{Link, same_supports};
@@ -51,8 +52,9 @@ use super::open::end_face::feet_in_order;
 use super::surgery::{
     ContactCarrier, Described, ExpectedSource, SplitFragments, certified_curve, disagrees,
     halves_of, host_side_half, op, point_of, seam_split_param, split_fragment, stored_piece,
-    unbuilt_chain, unbuilt_geometry, unbuilt_run_out, unresolved, unwalked,
+    unbuilt_chain, unbuilt_end, unbuilt_geometry, unresolved, unwalked,
 };
+use super::{BlendError, UnbuiltEnd};
 
 /// **What a junction is, read once for every admission**: the face its
 /// two links share (the HOST), each link's other support (its MATE,
@@ -120,7 +122,7 @@ pub(super) fn shape<T: Decide>(
     if outward_of(body, host).is_none() {
         return Err(unbuilt_chain(named, JUNCTION_HOST_CURVED));
     }
-    let mate = |l: &Link<T>| if l.face_a == host { l.face_b } else { l.face_a };
+    let mate = |l: &Link<T>| l.across(host);
     let mates = [mate(arriving), mate(leaving)];
     let incident = fan_at(body.edges_of_vertex(vertex))
         .ok_or_else(|| unwalked(EntityId::Vertex(vertex), "a junction's edge orbit"))?;
@@ -511,12 +513,8 @@ pub(super) fn record<T: Real>(
     rec.dead.vertices.push(vertex);
 }
 
-/// The refusal when a straight link is too short for its two ends.
-pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link beside a junction is shorter than \
-     its two ends' feet need, which cross or coincide on its trimline; reduce the radius or setback";
-
 /// **A straight link's feet in order, on each support, where one of its
-/// ends is a junction or a mixed corner** (`fillet3_cut_off_feet`,
+/// ends is a junction, a mixed corner or a turn's foot** (`fillet3_cut_off_feet`,
 /// decided by [`feet_in_order`], as two cut-offs' feet on a shared rim
 /// are). The trimline chord the carve `mef`s runs from the foot at one
 /// station to the foot at the other; the junction's foot sits square to
@@ -525,9 +523,19 @@ pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link beside a junction 
 /// short link the two would cross. A mixed corner's feet stand off its
 /// vertex too: a fillet's `r·cot(φ/2)` along a pair edge at the plan
 /// angle `φ` its pair makes in `E`, and `r` up the odd edge; a chamfer's
-/// host feet `(2 − √2)s` along a square corner's pair edges. So they are
-/// read the same way. A torus or frustum link's chords run between two
-/// junctions' feet, its own trim's window ends, so it is not read here.
+/// host feet `(2 − √2)s` along a square corner's pair edges. A turn's
+/// foot on a face of its third edge is, at an overrun on the near
+/// band's face, the mitre's end, which at a mixed corner's odd edge
+/// with one other stands `s(1 + tan(φ/2))` along the pair edge, past
+/// the trimlines' crossing on the shared face. So they are read the same
+/// way. A torus or frustum link's chords run between two junctions' feet, its own
+/// trim's window ends, so it is not read here. Nor is a turn's `Mitre`
+/// station, the trimlines' crossing on the shared face: a link too short
+/// for it lands that foot past its far end, which the cut-off's foot
+/// door refuses (`UnbuiltEnd::FootInsideAFace`), and a mitre chord that
+/// crosses a far foot on a long link is the strip screen's, which reads
+/// the face first (`blend_band_reach_chain_ends`'s trapezoid row refuses
+/// `FaceClearanceUncertified` there, and would refuse here instead).
 ///
 /// **It is what refuses a link too short for its ends.** Feet that
 /// cross put the far end's foot behind the junction's, so the end face's
@@ -544,7 +552,7 @@ pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link beside a junction 
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] ([`JUNCTION_FEET_CROSS`]);
+/// [`BlendError::UnbuiltEnd`] ([`UnbuiltEnd::FeetCross`] on the link);
 /// [`BlendError::Escalated`] in band.
 pub(super) fn feet_clear<T: Decide + Bounds>(
     body: &Body<T>,
@@ -552,7 +560,7 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
     straight: impl Fn(EdgeKey) -> bool,
     band: Band,
 ) -> Result<(), BlendError> {
-    let junction = |s: &RequestedBoundary<T>, v: VertexKey| {
+    let metered = |s: &RequestedBoundary<T>, v: VertexKey| {
         s.stations().iter().any(|st| {
             st.vertex == v
                 && matches!(
@@ -561,13 +569,15 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
                         | StationKind::JunctionMate
                         | StationKind::MixedFoot
                         | StationKind::MixedHost
+                        | StationKind::TurnFoot
                 )
+            // Not `Mitre`: see the doc above.
         })
     };
     for support in supports {
         for chord in support.chords() {
             if !straight(chord.edge)
-                || !(junction(support, chord.from) || junction(support, chord.to))
+                || !(metered(support, chord.from) || metered(support, chord.to))
             {
                 continue;
             }
@@ -577,10 +587,7 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
             let d = (at(chord.to)? - at(chord.from)?).normalize();
             let span = (chord.feet[1] - chord.feet[0]).dot(d);
             if !feet_in_order(chord.edge, Margin::of(span), band)? {
-                return Err(unbuilt_run_out(
-                    EntityId::Edge(chord.edge),
-                    JUNCTION_FEET_CROSS,
-                ));
+                return Err(unbuilt_end(UnbuiltEnd::FeetCross { edge: chord.edge }));
             }
         }
     }
@@ -787,12 +794,13 @@ mod tests {
     use profile::{SketchPlane, test_support::bulge_loop};
 
     use super::super::BlendError;
+    use super::super::UnbuiltEnd;
     use super::super::admit::{
         AdmittedOpen, Foot, OpenBand, PlannedStation, RequestedBoundary, StationKind,
     };
     use super::super::battery::{BlendRequest, run_battery};
     use super::super::open::planar::{cut_off_plan, junction_plan};
-    use super::{JUNCTION_FEET_CROSS, feet_clear};
+    use super::feet_clear;
 
     /// **[`feet_clear`] reads a straight link's two feet in order.** The
     /// L-plate's run (a line along `y = 0` cut off square at `x = 0`, a
@@ -913,7 +921,7 @@ mod tests {
         assert!(
             matches!(
                 &got,
-                Err(BlendError::UnsupportedRunOut { detail, .. }) if *detail == JUNCTION_FEET_CROSS
+                Err(BlendError::UnbuiltEnd(UnbuiltEnd::FeetCross { .. }))
             ),
             "a junction's foot past the cut-off's refuses, got {got:?}"
         );

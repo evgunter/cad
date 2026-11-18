@@ -156,8 +156,7 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
     // could drift from both (the module header carries the strength
     // argument).
     let fixture = pncad::document::load(&common::gallery_ring_at(tol), tol)
-        .expect("the gallery fixture loads at this run's ε")
-        .snapshot;
+        .expect("the gallery fixture loads at this run's ε");
     // The demo places the ring into the world and makes it the product;
     // a new body lands unplaced, so the ops stream's document gets the
     // same two edits by hand.

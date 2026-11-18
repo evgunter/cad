@@ -1,7 +1,7 @@
 //! **A ray beside a shallow spiric edge is read by the walk over the
 //! edge's span: no ray is set aside on the carrier's straddle, with the
 //! reader's side and point containment as they were** (`topo`'s curved
-//! edge reading, `boolean::solid_contain::curved_edges`, through
+//! edge reading, `solid_contain::curved_edges`, through
 //! `geom_brep::curve_pair::Span::read`).
 //!
 //! A torus about `y` (major 2, minor 0.5) cut by the plane

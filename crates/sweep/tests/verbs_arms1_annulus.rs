@@ -360,7 +360,7 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
     )
     .map_err(|r| r.error)
     {
-        Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
+        Err(BlendError::UnsupportedChain { .. } | BlendError::UnbuiltEnd(_)) => {}
         other => panic!("expected the open plane–sphere arc's own refusal, got {other:?}"),
     }
 }

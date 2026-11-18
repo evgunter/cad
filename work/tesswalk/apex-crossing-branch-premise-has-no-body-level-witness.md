@@ -48,3 +48,10 @@ sentence claiming a reach no fixture has.
 ## Moved to TESSWALK (what the walk and the lanes decide: structural premises, and readings taken off undecided numbers) (2026-10-28)
 
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
+
+- 2026-11-16 (TESSLANE, `tesslane/route-by-domain`): the shape door's
+  `props_rim_side` is now a route, not a refusal — the bow tie is decided
+  no rectangle and sent to the trimmed lane, which refuses the Euler-built
+  body for want of stored chart images. The row is
+  `mesh11_arc_branch::the_apex_crossing_bowtie_is_decided_no_rectangle_at_the_shape_door`;
+  the body still never reaches the branch door through `tessellate`.

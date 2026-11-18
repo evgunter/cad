@@ -8,9 +8,8 @@
 //! - the evaluation is green with the exact dyadic volume (8);
 //! - re-evaluating is BIT-identical (name tables, arenas, content
 //!   keys — the naming-key stability row);
-//! - the persisted document (snapshot AND edit-log shapes) loads and
-//!   replays to the same bit-identical evaluation (persistence
-//!   round-trip of a glued body).
+//! - the saved document loads back to the same document and the same
+//!   bit-identical evaluation (persistence round-trip of a glued body).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -100,23 +99,22 @@ fn rest_union_rerun_is_bit_identical() {
     assert_eq!(fingerprint(&doc), fingerprint(&doc));
 }
 
-/// Persistence round-trip of the glued body's document: both persisted
-/// shapes (bare snapshot; the canonical save of the current state)
-/// reload through `load`'s replay doors and evaluate bit-identically
-/// to the original.
+/// Persistence round-trip of the glued body's document: its save (the
+/// document's state) loads back to the document and evaluates
+/// bit-identically to the original.
 #[test]
 fn rest_union_persistence_round_trip() {
     let (doc, _) = rest_doc();
     let expected = fingerprint(&doc);
-    let text = save(&doc, &[], Tol::witness()).expect("save");
+    let text = save(&doc, Tol::witness()).expect("save");
     let loaded = load(&text, Tol::witness()).expect("load");
-    assert_eq!(loaded.doc, doc, "replayed document equals the original");
+    assert_eq!(loaded, doc, "the loaded document equals the original");
     assert_eq!(
-        fingerprint(&loaded.doc),
+        fingerprint(&loaded),
         expected,
-        "persisted → replayed evaluation is bit-identical"
+        "persisted → loaded evaluation is bit-identical"
     );
     // Save AGAIN from the loaded state: canonical bytes are stable.
-    let text2 = save(&loaded.doc, &[], Tol::witness()).expect("re-save");
+    let text2 = save(&loaded, Tol::witness()).expect("re-save");
     assert_eq!(text, text2, "canonical persisted bytes are stable");
 }

@@ -882,14 +882,14 @@ fn row5_interface_record_exists_and_round_trips() {
         }
         other => panic!("expected the instance, got {other:?}"),
     }
-    let text = save(&out.remainder, &[], Tol::witness()).expect("saves");
+    let text = save(&out.remainder, Tol::witness()).expect("saves");
     assert!(
         !text.contains("\"interface\""),
         "the empty record is absent from the wire (pin stability)"
     );
     let loaded = load(&text, Tol::witness()).expect("loads");
-    assert!(loaded.doc.bit_eq(&out.remainder), "the round trip is exact");
-    match loaded.doc.node(out.instance) {
+    assert!(loaded.bit_eq(&out.remainder), "the round trip is exact");
+    match loaded.node(out.instance) {
         Some(Node::InstantiatePart { interface, .. }) => {
             assert!(interface.is_empty(), "absent-on-wire IS the empty record");
         }
@@ -917,28 +917,28 @@ fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
     )
     .expect("legal");
     let part_loaded = load(
-        &save(&out.part, &[], Tol::witness()).expect("part saves"),
+        &save(&out.part, Tol::witness()).expect("part saves"),
         Tol::witness(),
     )
     .expect("part loads");
     let rem_loaded = load(
-        &save(&out.remainder, &[], Tol::witness()).expect("remainder saves"),
+        &save(&out.remainder, Tol::witness()).expect("remainder saves"),
         Tol::witness(),
     )
     .expect("remainder loads");
-    assert!(part_loaded.doc.bit_eq(&out.part));
-    assert!(rem_loaded.doc.bit_eq(&out.remainder));
+    assert!(part_loaded.bit_eq(&out.part));
+    assert!(rem_loaded.bit_eq(&out.remainder));
     assert_eq!(
-        content_pin(&part_loaded.doc, Tol::witness()).expect("pins"),
+        content_pin(&part_loaded, Tol::witness()).expect("pins"),
         content_pin(&out.part, Tol::witness()).expect("pins"),
         "the pin is stable across the wire"
     );
 
     let mut store2 = PartStore::default();
     store2.insert(part("asm4-per-part", 0.0, 1.0), Tol::witness());
-    store2.insert(part_loaded.doc, Tol::witness());
-    let ev2 = run(&rem_loaded.doc, &with_resolver(store2));
-    let (body2, _) = product_named(&rem_loaded.doc, &ev2, Tol::witness()).expect("gathers");
+    store2.insert(part_loaded, Tol::witness());
+    let ev2 = run(&rem_loaded, &with_resolver(store2));
+    let (body2, _) = product_named(&rem_loaded, &ev2, Tol::witness()).expect("gathers");
     assert_eq!(census(&body1), census(&body2));
     same_volume(&body1, &body2, "the loaded pair keeps the volume");
 }
@@ -1431,15 +1431,13 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     // key into a saved snapshot and load it back).
     let mut store = PartStore::default();
     let part_doc = part("asm4-min2-meta-part", 0.0, 1.0);
-    let text = save(&part_doc, &[], Tol::witness()).expect("saves");
+    let text = save(&part_doc, Tol::witness()).expect("saves");
     let injected = text.replace(
         "\"metadata\": {}",
         "\"metadata\": {\n    \"note\": \"x\"\n  }",
     );
     assert_ne!(text, injected, "the fixture's metadata key was found");
-    let carrying = load(&injected, Tol::witness())
-        .expect("the carrying document loads")
-        .doc;
+    let carrying = load(&injected, Tol::witness()).expect("the carrying document loads");
     assert_eq!(carrying.metadata().len(), 1);
     let carrying = crate::fixture::assemble_world_copies(carrying);
     let doc_ref = store.insert(carrying, Tol::witness());

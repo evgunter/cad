@@ -148,12 +148,14 @@ pub mod coherence;
 pub mod coincidence;
 pub mod construction;
 pub mod contact;
+mod contain;
 mod contain_loop;
 pub mod cover;
 pub mod entity;
 pub mod euler;
 pub mod euler_kill;
 pub mod euler_ring;
+pub(crate) mod face_boundary;
 pub mod face_boxes;
 pub mod face_normal;
 pub(crate) mod face_reach;
@@ -163,6 +165,10 @@ pub(crate) mod fixtures;
 pub(crate) mod fuse;
 pub mod geometry;
 pub(crate) mod injective;
+pub(crate) mod region;
+mod rim_wedge;
+pub(crate) mod ruled_region;
+pub mod solid_contain;
 #[cfg(test)]
 pub(crate) mod source_walk;
 
@@ -238,6 +244,8 @@ pub(crate) mod seqgen;
 pub(crate) mod session_box;
 pub mod shell;
 pub(crate) mod side_reader;
+pub(crate) mod sphere_region;
+pub(crate) mod spline_region;
 pub(crate) mod spline_trim;
 pub mod split;
 pub mod splitting;
@@ -245,6 +253,7 @@ pub(crate) mod stands;
 pub(crate) mod star;
 pub(crate) mod strut;
 pub mod surface_boundary;
+mod surface_group;
 pub mod surgery;
 pub(crate) mod sweep_trace;
 // Existence and visibility are two questions, gated separately; the
@@ -572,7 +581,7 @@ pub mod test_support {
     }
 
     /// How far each solid's aimed rays start from `aim`, over two
-    /// (`boolean::solid_contain`'s `selection_reach`): the reach's pins
+    /// (`solid_contain`'s `selection_reach`): the reach's pins
     /// read its scale.
     pub fn aim_reach(
         body: &Body<f64>,
@@ -1373,7 +1382,7 @@ pub mod test_support {
     /// **Where `face` holds `p`, as the census confirms it**: the read
     /// that places a `(vertex, face)` record at rest, and that the
     /// boolean's carry asks of a divided face's pieces
-    /// ([`crate::boolean::face_placement`]), which decides `p` against the
+    /// ([`crate::contain::face_placement`]), which decides `p` against the
     /// face's carrier rather than holding it there. `Ok(Some(_))` placed (a
     /// point decided off a planar face's plane is `Out`), `Ok(None)` a
     /// curved trim's unread remainder, `Err` the escalations or refusal
@@ -1417,7 +1426,7 @@ pub mod test_support {
                 kind: f.surface().kind(),
             });
         };
-        crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
+        crate::solid_contain::point_in_face(body, face, normal, p, band)
     }
 }
 mod edge_wedge;
@@ -1425,6 +1434,7 @@ mod edge_wedge;
 mod r2_probes;
 #[cfg(test)]
 mod tier3_tests;
+pub(crate) mod torus_region;
 pub mod transform;
 #[cfg(test)]
 mod turn_rows;
@@ -1437,26 +1447,27 @@ pub(crate) mod vertex_section;
 
 pub use body::Body;
 pub use boolean::{
-    AimedPair, AlongFace, Apart, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
-    BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
-    BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarryRefusal,
-    Cell, Coincide, CompletedPolygonPair, Contact, ContactKind, ContactPairError, ContactRecords,
-    ContainDecision, ContainError, DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand,
-    EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FaceDescent,
-    FfContact, Fusions, GlueVerdict, Held, HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT,
-    JoinReading, JoinRefusal, JoinUndecided, JudgedRow, LeverArm, LineUnread, LineWedgeFault,
-    MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun,
-    NaryStep, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, OverlapRefusal,
-    PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PointInSolidError, ReductionContacts,
-    RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
-    SharedStarts, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment,
-    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, ToolFuseRefusal,
-    TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, contfp,
-    curved_face_containment, decision_words, flush_pair_relation, insert_void, insert_voids,
-    intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
-    nary_boolean, nary_boolean_apart, overlap, point_in_solid, point_in_solid_faces,
-    point_in_solid_of, subtract, tangent_pair_relation, union,
+    AimedPair, AlongFace, Apart, BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanError,
+    BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming, BooleanOp,
+    BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarryRefusal, Cell,
+    Coincide, CompletedPolygonPair, Contact, ContactKind, ContactPairError, ContactRecords,
+    DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin,
+    EdgePieceClass, EeContact, EfContact, FaceDescent, FfContact, Fusions, GlueVerdict, Held,
+    HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
+    JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs, NaryEnd,
+    NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy, NullEdgePairRecord,
+    Operand, OperandKeys, OperandRecords, OverlapRefusal, PairRefusalSite, PairSite, PairUnread,
+    PierceRingRecord, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
+    SelfCheck, SettleError, Settler, Settling, SharedStarts, ShellOrientation, SideCode,
+    SlitFaceGap, SlitLineGap, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy,
+    ToolFuseRefusal, TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact,
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    boolean_op_with, boolean_reduce, decision_words, flush_pair_relation, insert_void,
+    insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
+    joined_edge, nary_boolean, nary_boolean_apart, overlap, subtract, tangent_pair_relation, union,
+};
+pub use contain::{
+    ArcEndGaps, ContainDecision, ContainError, FaceContainment, contfp, curved_face_containment,
 };
 pub use cover::{
     BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
@@ -1469,6 +1480,10 @@ pub use lineage::{
     Minted, Remainder, RowDefect, RowRefusal, SourceGeometry, SplitEdgeDivisions, Substitutions,
 };
 pub use side_reader::{FAMILY as SIDE_READER_FAMILY, SetAside, SetAsideWhy};
+pub use solid_contain::{
+    PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
+    point_in_solid_of,
+};
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]

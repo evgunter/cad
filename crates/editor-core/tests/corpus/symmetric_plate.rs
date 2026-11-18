@@ -53,7 +53,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "symmetric_plate",
         about: "a mirror is a construction: an L plate and its mirror across its own face, unioned",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(whole),
         pin: Some(MassPin {

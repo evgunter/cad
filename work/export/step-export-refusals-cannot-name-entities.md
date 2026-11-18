@@ -18,7 +18,7 @@ the real asymmetry with step-import, which names ids read from a
 file. `topo::EntityId::Display` is the ratified spelling they inline.
 The only genuine fix is a walk-position ordinal (or equivalent
 caller-meaningful coordinate) threaded through
-`advanced_face`/`closed_shell`/`manifold_solids`/`void_refusal` — a
+`advanced_face`/`closed_shell`/`solid_breps`/`shell_roles` — a
 design change to the emitter's error plumbing, not a Class-B spelling
 fix. Related datum received by that lane (uv-j): step-import names a
 key typed (`VertexWithoutPoint`) while step-export uses

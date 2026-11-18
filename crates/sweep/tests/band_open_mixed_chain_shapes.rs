@@ -788,9 +788,8 @@ fn a_short_link_leaning_back_refuses_as_its_feet_cross() {
     ] {
         let got = got.map_err(|r| r.error);
         assert!(
-            matches!(&got, Err(BlendError::UnsupportedRunOut { detail, .. })
-                if detail.contains("beside a junction is shorter")
-                    && detail.ends_with("reduce the radius or setback")),
+            matches!(&got, Err(BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::FeetCross { edge }))
+                if run.contains(edge)),
             "{verb}: the short arm's feet cross, got {got:?}"
         );
     }

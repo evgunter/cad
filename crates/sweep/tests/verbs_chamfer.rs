@@ -11,9 +11,9 @@ use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
+use sweep::blend::BlendError;
 use sweep::blend::arms::chamfer_strip;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
@@ -329,10 +329,13 @@ fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
 /// trivalent vertices whose other two edges are convex — a
 /// mixed-convexity corner, whose odd edge the inner one is. Requested
 /// alone it is cut off at both end faces, filling `d²/2` along its
-/// length 1; requested with a convex edge of that corner it refuses
-/// with the corner's configuration tag, naming no run-out policy.
+/// length 1; requested with a convex edge of that corner it is cut off
+/// in the top face and that edge's strip in its plane, adding `(2/3)d³`
+/// (`band_mixed_corner_odd_plus_one`). Where the face the two convex
+/// edges share leans off square to the odd edge, the request refuses
+/// `ObliqueMixedCorner`, naming the odd edge.
 #[test]
-fn an_l_brackets_inner_edge_is_cut_off_and_refuses_with_a_convex_neighbour() {
+fn an_l_brackets_inner_edge_is_cut_off_and_chamfers_with_a_convex_neighbour() {
     let tol = Tol::witness();
     let bracket = l_bracket();
     let inner = concave_edge(&bracket);
@@ -375,18 +378,35 @@ fn an_l_brackets_inner_edge_is_cut_off_and_refuses_with_a_convex_neighbour() {
             (at(ps[0], 1.0) && at(ps[1], 2.0)) || (at(ps[0], 2.0) && at(ps[1], 1.0))
         })
         .expect("the top edge from the reflex corner");
-    let err = chamfer_edges(&at_rest, &[inner, top], D, tol)
-        .expect_err("the odd edge with another of its corner refuses");
+    let out = chamfer_edges(&at_rest, &[inner, top], D, tol)
+        .expect("the odd edge with another of its corner chamfers");
+    let out_body = topo::test_support::finished("out_body", out.body, tol);
+    assert_eq!(
+        topo::validate_geometric(&out_body, tol),
+        Ok(()),
+        "the bracket chamfered at its mixed corner is tier-3 valid"
+    );
+    let added = volume(&out_body) - volume(&at_rest);
+    assert!(
+        (added - 2.0 / 3.0 * D.powi(3)).abs() < 1e-12,
+        "the odd edge and the top edge, each 1 long, add (2/3)d³: {added}"
+    );
+
+    let leaning = crate::band_mixed_corner::leaning();
+    let err = chamfer_edges(
+        &sweep::test_support::at_rest(&leaning, tol),
+        &crate::band_mixed_corner::leaning_odd_and_one(&leaning),
+        D,
+        tol,
+    )
+    .expect_err("the odd edge with another of an oblique corner refuses");
     match err.error {
-        BlendError::UnsupportedCorner {
-            corner: CornerConfig::MixedConvexity { convex },
-            policy,
-            ..
-        } => {
-            assert_eq!(convex, 2, "two of the three incident edges are convex");
-            assert_eq!(policy, None);
-        }
-        other => panic!("expected a mixed-convexity corner refusal, got {other:?}"),
+        BlendError::ObliqueMixedCorner { odd, .. } => assert_eq!(
+            odd,
+            crate::band_mixed_corner::leaning_odd_and_one(&leaning)[0],
+            "the refusal names the odd edge"
+        ),
+        other => panic!("expected the oblique mixed corner refusal, got {other:?}"),
     }
 }
 

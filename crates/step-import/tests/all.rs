@@ -59,6 +59,8 @@ mod a_conic_quarter_torus_measures_a_bracket_at_the_wall;
 mod a_foreign_carrier_splits_at_each_c0_knot;
 #[path = "a_line_beside_a_straight_spline_joins.rs"]
 mod a_line_beside_a_straight_spline_joins;
+#[path = "a_smooth_join_imports_by_the_must_carry_rule.rs"]
+mod a_smooth_join_imports_by_the_must_carry_rule;
 #[path = "a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported.rs"]
 mod a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported;
 #[path = "an_off_iso_line_on_a_spline_wall_imports_its_general_row.rs"]
@@ -81,6 +83,8 @@ mod cusp_round_trip;
 mod freecad;
 #[path = "halfcap_pole.rs"]
 mod halfcap_pole;
+#[path = "hollow_bodies_round_trip.rs"]
+mod hollow_bodies_round_trip;
 #[path = "imported_loft_rim_offset.rs"]
 mod imported_loft_rim_offset;
 #[path = "inst_review_probes.rs"]

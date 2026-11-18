@@ -4488,7 +4488,7 @@ mod wiring {
             &[1e-6],
             "the close rings",
             &[
-                "δ 3e-4, counted: Refused(March(TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(0.0, None, ZeroWord(0))), band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 } }), boxes: 206 }))",
+                "δ 3e-4, counted: Refused(March(TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(0.0, None, ZeroWord(0))), band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 } }), boxes: 208 }))",
             ],
             close_rings_carry_counted_row,
         );

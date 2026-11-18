@@ -868,7 +868,7 @@ fn every_node_kinds_expr_mut_writes_the_field_expr_reads() {
 /// shape draws from an empty document's mint. `mint.rs`'s pin freezes
 /// one profile's bytes; a node shape whose serde form moves — a field
 /// renamed, reordered or re-typed, a variant renamed, display units
-/// reaching the bytes — re-mints every id a saved log replays to, and
+/// reaching the bytes — re-mints every id a replayed edit mints, and
 /// goes red here on the shape that moved. The shapes are
 /// `one_of_every_node_shape`'s, which
 /// `every_node_kinds_slots_are_all_readable` welds to the roster.
@@ -890,7 +890,7 @@ fn every_node_shapes_mint_is_pinned() {
     assert_eq!(
         text,
         include_str!("golden/mint_node_ids.txt"),
-        "a node shape's mint preimage moved, and with it every id a saved log replays to. \
+        "a node shape's mint preimage moved, and with it every id a replayed edit mints. \
          Read the diff and say in the PR body which shape moved and why (regenerate: \
          PNCAD_BLESS=1 cargo test -p editor-core --test all every_node_shapes_mint_is_pinned)"
     );

@@ -17,7 +17,7 @@ use topo::{AtRestBody, BooleanBody, BooleanResult, BooleanResultKind, FaceKey, O
 
 fn r3(x: f64) -> String {
     let r = (x * 1000.0).round() / 1000.0;
-    format!("{}", if r == 0.0 { 0.0 } else { r })
+    format!("{}", geom_core::fold_signed_zero(r))
 }
 
 fn rounded(s: &str) -> String {

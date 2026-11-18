@@ -36,7 +36,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "die",
         about: "M3 exact-oracle die: 21 declared pip subtracts (63 nodes), placed",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(d.final_node),
         pin: Some(MassPin {

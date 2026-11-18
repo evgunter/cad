@@ -20,9 +20,9 @@ use geom::{Curve3, Surface};
 use geom_core::RigidMotion;
 use geom_core::{Bounds, CertifiedBounds, Decide, Point2, Point3, Real, Tol};
 use profile::SketchPlane;
-use sweep::blend::battery::END_FACE_CURVED;
+use sweep::blend::END_FACE_CURVED;
 use sweep::blend::build::{Blended, fillet_edges};
-use sweep::blend::{BlendError, CornerConfig};
+use sweep::blend::{BlendError, UnbuiltEnd};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
     assert_naming_totality, block, cube, pocket_die, prism, prism_on, realized,
@@ -527,8 +527,8 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
     let e = edge(&d_prism, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     for verb in [Verb::Chamfer, Verb::Fillet] {
         match verb.run(&d_prism, &[e]) {
-            Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-                assert_eq!(detail, END_FACE_CURVED, "{verb:?}");
+            Err(e @ BlendError::UnbuiltEnd(UnbuiltEnd::CurvedEndFace { .. })) => {
+                assert!(e.to_string().contains(END_FACE_CURVED), "{verb:?}");
             }
             other => panic!("{verb:?}: a curved end face refuses, got {other:?}"),
         }
@@ -548,10 +548,8 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
     );
     let e = edge(&wedge, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     match Verb::Chamfer.run(&wedge, &[e]) {
-        Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-            assert!(detail.contains("foot lands inside a face"), "{detail}");
-        }
-        other => panic!("a foot inside a face refuses as a run-out, got {other:?}"),
+        Err(BlendError::UnbuiltEnd(UnbuiltEnd::FootInsideAFace { .. })) => {}
+        other => panic!("a foot inside a face refuses its tag, got {other:?}"),
     }
 
     // Valence four: a chamfered cube's patch vertex, which a trimline of
@@ -574,15 +572,15 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
         })
         .expect("a valence-four vertex");
     match Verb::Chamfer.run(&chamfered, &[rec_edge]) {
-        Err(BlendError::UnsupportedCorner {
-            corner: CornerConfig::NEdgeVertex { valence: 4 },
-            ..
-        }) => {}
+        Err(BlendError::UnbuiltEnd(UnbuiltEnd::Valence { valence: 4, .. })) => {}
         other => panic!("a valence-four end refuses its configuration, got {other:?}"),
     }
 
     // Mixed convexity: an L prism's concave inner edge ends where two
-    // convex outline edges meet it.
+    // convex outline edges meet it. With one of them it chamfers
+    // (`band_mixed_corner_odd_plus_one`) and refuses the fillet; the
+    // chamfer refuses where the face the two share leans off square to
+    // the odd edge.
     let l_prism = prism(
         vec![
             (Point2::new(0.0, 0.0), 0.0),
@@ -597,12 +595,29 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
     );
     let inner = edge(&l_prism, [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]);
     let top = edge(&l_prism, [1.0, 1.0, 1.0], [2.0, 1.0, 1.0]);
-    for verb in [Verb::Chamfer, Verb::Fillet] {
-        match verb.run(&l_prism, &[inner, top]) {
-            Err(BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { .. },
-                ..
-            }) => {}
+    // Its top corner is a flush one at a right angle, the odd edge and
+    // the pair edge each 1 long: `ΔV = (s²/2)(1 − 1) + (2/3)s³`; the
+    // odd edge's foot and the pair edge's far end are cut off square.
+    let out = Verb::Chamfer
+        .run(&l_prism, &[inner, top])
+        .unwrap_or_else(|e| panic!("a square mixed end chamfers, got {e:?}"));
+    validate_geometric(&out.body, tol())
+        .unwrap_or_else(|e| panic!("a square mixed end's chamfer is tier 3, got {e:?}"));
+    let dv = volume(&out.body) - volume(&l_prism);
+    assert!(
+        (dv - 2.0 / 3.0 * D.powi(3)).abs() < 1e-12,
+        "a square mixed end's chamfer adds (2/3)s³, got {dv}"
+    );
+    let leaning = crate::band_mixed_corner::leaning();
+    let oblique = crate::band_mixed_corner::leaning_odd_and_one(&leaning);
+    for (verb, body, edges) in [
+        (Verb::Fillet, &l_prism, [inner, top]),
+        (Verb::Chamfer, &leaning, oblique),
+    ] {
+        match verb.run(body, &edges) {
+            Err(BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { odd: Some(_), .. }))
+                if matches!(verb, Verb::Fillet) => {}
+            Err(BlendError::ObliqueMixedCorner { .. }) if matches!(verb, Verb::Chamfer) => {}
             other => panic!("{verb:?}: a mixed end refuses, got {other:?}"),
         }
     }

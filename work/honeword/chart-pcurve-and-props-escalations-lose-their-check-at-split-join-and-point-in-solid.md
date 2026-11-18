@@ -15,8 +15,8 @@ cost: E
 `PcurveCertifyError::Escalated { check, .. }` ends by its `PcurveCheck` (`PcurveCertifyError::ending`): `AzimuthPeriod` and `TubePeriod` by `CertCheck::ParamWinding` (sized), the chart winding checks by `Unsized::Defect`, the residual checks by `Unsized::Fit`. `PropsError::Escalated` ends by its own check likewise. Three topo sites drop the check:
 
 - `topo::chord_join`, the run-edge `chart_pcurve(..).map_err` (about chord_join.rs:2399): becomes `SplitJoinError::Escalated { face, diag }`.
-- `topo::boolean::solid_contain`, the torus-chart walk (about solid_contain.rs:2434): becomes `PointInSolidError::Escalated { face, diag }`.
-- `topo::boolean::solid_contain` `refused`, over `MassPropsError::Face { source: PropsError::Escalated { cause, .. } }` (about solid_contain.rs:5905): becomes `PointInSolidError::Escalated { face, diag }`.
+- `topo::solid_contain`, the torus-chart walk (about solid_contain.rs:2434): becomes `PointInSolidError::Escalated { face, diag }`.
+- `topo::solid_contain` `refused`, over `MassPropsError::Face { source: PropsError::Escalated { cause, .. } }` (about solid_contain.rs:5905): becomes `PointInSolidError::Escalated { face, diag }`.
 
 `PointInSolidError::Escalated`'s `Display` "names no decision": it ends in the unnamed placement lever, which is to move the query point. So a stored boundary's map-residual escalation is told to move the witness.
 

@@ -207,11 +207,10 @@ pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
-    Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
-    load, save,
+    NonFiniteSite, OutputFault, ProgramFault, SectionIdBreak, SelectionBodyFault, SnapshotError,
 };
 pub use persist::{
-    NonFiniteSite, OutputFault, ProgramFault, SectionIdBreak, SelectionBodyFault, SnapshotError,
+    PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id, load, save,
 };
 pub use placement::{AxisRefusal, Frame, FrameFault};
 #[cfg(debug_assertions)]
@@ -230,8 +229,9 @@ pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{
-    FlattenError, FlattenOutcome, InlineError, InlineOutcome, NodeMap, RemapError, SectionMap,
-    SplitError, SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline, remap_name, split,
+    FlattenError, FlattenOutcome, InlineError, InlineOutcome, NamedUncarried, NodeMap, RemapError,
+    SectionMap, SplitError, SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline,
+    remap_name, split,
 };
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,

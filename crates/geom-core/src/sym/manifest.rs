@@ -73,7 +73,11 @@
 //! `sweep/src/blend/arms.rs`'s cone nappe and the knife-edge rim's two
 //! root sides (the line-and-circle pair's `−b ± √(b² − D)` and the two
 //! circles' half-chord, each signed by the common tangent `toward`,
-//! which is `±1` at a knife and never near zero there);
+//! which is `±1` at a knife and never near zero there), the coaxial
+//! blend's `ring_radius`, a signed radial coordinate stored as its
+//! distance from the axis and the seam turned to its side (PR 6789),
+//! and the plane–cylinder chamfer's frustum axis, `k` turned to point
+//! from the apex toward the first foot (PR 6904);
 //! `geom-core/src/linalg/vec.rs`'s `Vec3::turned_toward`, the one home
 //! of turning a direction to agree with another (`topo`'s cone apex
 //! reads its nappe axis and its rulings through it, and the cone-pair

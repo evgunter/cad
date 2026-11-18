@@ -20,14 +20,15 @@
 //! traversed ARC leaves the branch — is not this door's and is not
 //! pinned in this file: it is `props::require_one_chart_branch`'s, and
 //! its rows are `mesh/tests/mesh11_arc_branch.rs` (issue 1571). Both
-//! doors are cited by `curved::require_iso_rectangle_face`, so a face
+//! doors route the face (`curved::iso_rectangle_shape`), so a face
 //! reaching the walk has passed both; this file is about the first.
 //!
-//! Per direction: a notched iso domain refuses at the SHAPE door with
-//! props' predicate name; the spatial check, asked directly about the
-//! same walk, also refuses it (the two derivations agree on a real
-//! notch, by a feature-sized distance); the lens refuses at the shape
-//! door; behind it the walk refuses the same loop for having no
+//! Per direction: a notched iso domain is decided no rectangle at the
+//! SHAPE door with props' predicate name, and goes to the trimmed lane;
+//! the spatial check, asked directly about the same walk, also refuses
+//! it (the two derivations agree on a real notch, by a feature-sized
+//! distance); the lens is decided no rectangle at the shape door;
+//! behind it the walk refuses the same loop for having no
 //! meridian, where it would otherwise merge both arcs onto one rim
 //! level — a polygon that IS its own bounding box, which the spatial
 //! check cannot tell from a rectangle. A rimless lune (the partial
@@ -39,51 +40,74 @@
 use crate::common;
 use topo::construction::Construct;
 
-use common::witness_bodies::{keyway, oblique_lens, slit};
+use common::witness_bodies::{keyway, minted, oblique_lens, slit};
 use common::*;
 use geom::Surface;
 use geom_brep::props::PropsError;
 use geom_core::Tol;
 use mesh::TessellateError;
 
-/// Direction 1 — **a notched iso domain refuses at the SHAPE door, with
-/// props' own predicate name**, before any walk runs.
+/// The shape door's verdict on `face`'s outer loop.
+fn door(body: &topo::Body<f64>, face: topo::FaceKey) -> Result<(), PropsError> {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let (outer, _) = topo::props::loop_edges(body, body.get_face(face).unwrap().outer).unwrap();
+    geom_brep::props::require_iso_rectangle(body.face_surface(face).unwrap(), &outer, band)
+}
+
+/// Direction 1 — **a notched iso domain is decided no rectangle at the
+/// SHAPE door, with props' own predicate name**, before any walk runs,
+/// so the route sends it to the trimmed lane, which reads its domain
+/// from the stored chart images: with them minted the keyway face meshes
+/// there, and the first refusal in arena order is the sheet's other face
+/// (`r2_mesh7_probes::the_keyway_is_routed_before_the_spatial_check`).
 #[test]
-fn the_keyway_refuses_at_the_shape_door_by_props_rim_level() {
+fn the_keyway_is_decided_no_rectangle_by_props_rim_level() {
     let (body, face) = keyway();
-    let got = mesh::tessellate(&body, 0.05, Tol::witness()).map(|_| ());
     assert_eq!(
-        got,
-        Err(TessellateError::UnsupportedCurvedShape {
-            face,
-            source: PropsError::NotIsoRectangle {
-                what: "props_rim_level"
-            },
+        door(&body, face),
+        Err(PropsError::NotIsoRectangle {
+            what: "props_rim_level"
         }),
-        "a U-shaped iso domain is refused by the ONE named predicate"
+        "a U-shaped iso domain is decided by the ONE named predicate"
+    );
+    let got = mesh::tessellate(&minted(body), 0.05, Tol::witness()).map(|_| ());
+    assert!(
+        matches!(got, Err(TessellateError::TrimLoopOrientation { face: other }) if other != face),
+        "the keyway face meshes on the trimmed lane: {got:?}"
     );
 }
 
-/// Direction 2 — **the oblique lens refuses at the SHAPE door**: props'
-/// sphere classification admits a circle only as a coaxial rim or a
-/// great circle, and a tilted section is neither. This is the face the
-/// `walk::iso_side_starts` qualification named as the one that could
-/// collapse past the spatial check; it never reaches the walk now.
-/// (The qualification's ARC half is the branch door's, and refuses
-/// elsewhere — `mesh/tests/mesh11_arc_branch.rs`.)
+/// Direction 2 — **the oblique lens is no iso rectangle, by the shape
+/// door and by its stored images**: props' sphere classification admits
+/// a circle only as a coaxial rim or a great circle, and a tilted section
+/// is neither, so the door decides `props_rim_axis_parallel`; the mint
+/// stores each arc's projected image, which is no iso line of the chart,
+/// so the route sends the face to the trimmed lane without asking the
+/// door. This is the face the `walk::iso_side_starts` qualification named
+/// as the one that could collapse past the spatial check; it never
+/// reaches the walk. (The qualification's ARC half is the branch door's —
+/// `mesh/tests/mesh11_arc_branch.rs`.) The trimmed lane's domain read
+/// finds the lens's outer loop open in the chart, as it did before the
+/// route read a door.
 #[test]
-fn the_oblique_lens_refuses_at_the_shape_door() {
+fn the_oblique_lens_is_decided_no_rectangle_at_the_shape_door() {
     let (body, face) = oblique_lens();
-    let got = mesh::tessellate(&body, 0.05, Tol::witness()).map(|_| ());
     assert_eq!(
-        got,
-        Err(TessellateError::UnsupportedCurvedShape {
-            face,
-            source: PropsError::NotIsoRectangle {
-                what: "props_rim_axis_parallel"
-            },
+        door(&body, face),
+        Err(PropsError::NotIsoRectangle {
+            what: "props_rim_axis_parallel"
         }),
-        "a tilted plane section of a sphere is not an iso curve; the door refuses it typed"
+        "a tilted plane section of a sphere is not an iso curve"
+    );
+    let got = mesh::tessellate(&minted(body), 0.05, Tol::witness()).map(|_| ());
+    assert!(
+        matches!(
+            &got,
+            Err(TessellateError::DomainUnread { face: f, cause })
+                if *f == face
+                    && matches!(**cause, topo::pcurves::RingPlacementError::OuterOpen { .. })
+        ),
+        "{got:?}"
     );
 }
 
@@ -412,7 +436,7 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
         shifted
             .set_edge_curve(child, spec, tol)
             .expect("the identical arc, one period along its own carrier, certifies");
-        let meet = PropsError::NotIsoRectangle {
+        let meet = PropsError::SpanUncertified {
             what: "props_meridian_pieces_meet",
         };
         let got = topo::test_support::pinned_volume(
