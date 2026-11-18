@@ -49,7 +49,8 @@
 //! keeps sides of it, and a shell is the operand less its inward offset.
 //! The twist moves its body whole and asks as a move does, and a tube is
 //! built in the world and finished there. A sweep of a profile stands
-//! in the profile's sketch frame, which asks. A gather builds one body
+//! in the profile's sketch frame, which asks, and a sweep lifted along
+//! its profile's `z` asks where the lift stands it. A gather builds one body
 //! out of its operands, read into its computing frame
 //! ([`Framed::read_in`]), and its finish asks of that.
 //!

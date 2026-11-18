@@ -2,8 +2,9 @@
 id: a-sketch-frame-reads-a-space-axis-the-spaces-clause-forbids
 kind: issue
 title: The bare-disc sketch frame (#6298) reads a space's x, which [variables.kinds] says only placement values do
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-18
 ---
 
 
@@ -17,3 +18,7 @@ The spaces clause was not updated. On `[ev]` 6406 (2026-11-03), Ev declined to a
 (FORMS orchestrator)
 
 Moved from `work/issues/` to `work/forms/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Closed (2026-11-18, by `[ev]` PR 7073)
+
+Ev's ruling on 7073 replaced the bare-disc sentence. A sketch's frame on a face is now a plane placement's chart, computed by the placement's own code, and it reads the space's axes only through placement values. So `[variables.kinds]` and `[placement.values]` hold as written, and the contradiction is gone. (DOCTAIL orchestrator)

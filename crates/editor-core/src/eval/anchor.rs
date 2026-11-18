@@ -412,6 +412,30 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> ProfileValue<T> {
             None => Ok(super::Framed::own_leaf(body)),
         }
     }
+
+    /// **A body swept from this profile, lifted `by` along its `z`**:
+    /// built in the profile's own coordinates, and standing `by` along
+    /// the profile's `z` in the frame it is drawn on, or its own.
+    ///
+    /// # Errors
+    ///
+    /// The lift's or the composition's overflow.
+    pub(crate) fn lifted(
+        &self,
+        body: std::sync::Arc<T::Leaf>,
+        by: T,
+    ) -> Result<super::Framed<T>, geom_core::RigidMotionError> {
+        let lift =
+            geom_core::RigidMotion::translation(geom_core::Vec3::new(T::zero(), T::zero(), by))?;
+        let map = match self.frame.as_ref().and_then(super::Frame::map) {
+            Some(on) => on.compose(lift)?,
+            None => lift,
+        };
+        Ok(super::Framed::in_frame_leaf(
+            body,
+            super::Frame::Map(std::sync::Arc::new(map)),
+        ))
+    }
 }
 
 /// The profile node's f64 PRECOMPUTE (LIB-SWITCH §4b): the replayed

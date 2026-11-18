@@ -1,7 +1,7 @@
 //! **The side reader's exact ties on trimmed-sphere bodies**
 //! (`work/flush/the-side-readers-aims-decide-exact-ties-at-a-documents-nominal.md`):
 //! recorded `Sym<f64>` builds of trimmed-sphere bodies at symmetric and
-//! generic poses, and every decision under `topo::SIDE_READER_FAMILY`
+//! generic poses, and every check (the side reader's rays are checks)
 //! whose margin is exactly 0. No corpus document casts a sphere aim, so
 //! `revalue_corpus::reader_ties_at_the_nominal` cannot see these.
 //! Evidence, not a gate: run with
@@ -94,21 +94,21 @@ fn sphere_aims_reader_ties() {
             },
             || record(&f),
         );
-        let family: Vec<_> = decisions
+        let checks: Vec<_> = decisions
             .iter()
             .enumerate()
-            .filter(|(_, d)| d.family == Some(topo::SIDE_READER_FAMILY))
+            .filter(|(_, d)| d.role == geom_core::k_stats::Role::Check)
             .collect();
-        let ties: Vec<_> = family
+        let ties: Vec<_> = checks
             .iter()
             .filter(|(_, d)| d.value == Some(0.0))
             .map(|(k, d)| (k + 1, d.predicate))
             .collect();
         println!(
-            "SPHERE-TIES eps={:e} {what}: shells {shells}, {} decisions, {} the reader's, {} exact ties {ties:?}",
+            "SPHERE-TIES eps={:e} {what}: shells {shells}, {} decisions, {} checks, {} exact ties {ties:?}",
             tol.eps(),
             decisions.len(),
-            family.len(),
+            checks.len(),
             ties.len()
         );
     }

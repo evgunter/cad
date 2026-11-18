@@ -2,8 +2,9 @@
 id: step-import-mints-an-ellipse-past-its-deciding-door
 kind: issue
 title: step-import mints ELLIPSE through Ellipse::new, past Curve3::ellipse's refusal of a non-positive semi-axis
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-18
 ---
 
 

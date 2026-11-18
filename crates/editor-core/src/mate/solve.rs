@@ -1069,26 +1069,43 @@ pub(crate) fn fold_bundle<T: SolveScalar>(
     placement: RecipeNodeId,
     mates: &[ReadMate<T>],
 ) -> Result<Coset<T>, crate::NodeErrorKind> {
+    fold_cosets(mates.iter().map(|m| (&m.on, &m.to)))
+        .map_err(crate::NodeErrorKind::Motion)?
+        .ok_or_else(|| {
+            let met = mates
+                .iter()
+                .fold(SubgroupFamily::Se3, |held, m| {
+                    held.meet(m.to.symmetry().family())
+                })
+                .codimension();
+            crate::NodeErrorKind::Mate(Box::new(MateFault::Overconstrained {
+                placement,
+                constraints: mates.iter().map(|m| m.mate.id).collect(),
+                free: 6 - met,
+            }))
+        })
+}
+
+/// **Mates' cosets, met** ([`fold_bundle`]), each mate read as its two
+/// poses: `None` where two do not meet transversally. What a
+/// placement's fold and a face's chart ([`super::value::face_chart`])
+/// both meet.
+///
+/// # Errors
+///
+/// A coset's or a meeting's overflow.
+pub(crate) fn fold_cosets<'a, T: SolveScalar>(
+    mates: impl IntoIterator<Item = (&'a PoseValue<T>, &'a PoseValue<T>)>,
+) -> Result<Option<Coset<T>>, geom_core::RigidMotionError> {
     let mut held = Coset::unconstrained();
-    for m in mates {
-        let added = mate_coset(&m.on, &m.to).map_err(crate::NodeErrorKind::Motion)?;
-        held = super::coset::intersect(held, added)
-            .map_err(crate::NodeErrorKind::Motion)?
-            .ok_or_else(|| {
-                let met = mates
-                    .iter()
-                    .fold(SubgroupFamily::Se3, |held, m| {
-                        held.meet(m.to.symmetry().family())
-                    })
-                    .codimension();
-                crate::NodeErrorKind::Mate(Box::new(MateFault::Overconstrained {
-                    placement,
-                    constraints: mates.iter().map(|m| m.mate.id).collect(),
-                    free: 6 - met,
-                }))
-            })?;
+    for (on, to) in mates {
+        let added = mate_coset(on, to)?;
+        match super::coset::intersect(held, added)? {
+            Some(met) => held = met,
+            None => return Ok(None),
+        }
     }
-    Ok(held)
+    Ok(Some(held))
 }
 
 /// What one bundle's fold placed its copy at, in its target space.
@@ -1191,6 +1208,29 @@ pub(crate) fn bundle_arm<T: SolveScalar>(
     mates: &[ReadMate<T>],
     values: &[super::value::ReadValue<T>],
 ) -> Result<Arm, Box<MateFault>> {
+    arm_of(reach, mates.iter().map(|m| (&m.on, &m.to)), values).map_err(|refusal| {
+        Box::new(MateFault::Unleverable {
+            mate: mates.first().map_or_else(
+                || unreachable!("an arm is formed for a bundle with a mate"),
+                |m| m.mate,
+            ),
+            refusal: Box::new(refusal),
+        })
+    })
+}
+
+/// **[`bundle_arm`] over mates read as their two poses**, its refusal
+/// naming no mate: what a placement's fold and a face's chart
+/// ([`super::value::face_chart`]) both lever their chart over.
+///
+/// # Errors
+///
+/// [`super::LeverRefusal::OutOfRange`].
+pub(crate) fn arm_of<'a, T: SolveScalar, A>(
+    reach: f64,
+    mates: impl IntoIterator<Item = (&'a PoseValue<T>, &'a PoseValue<T>)>,
+    values: &[super::value::ReadValue<T, A>],
+) -> Result<Arm, super::LeverRefusal> {
     let slid = values
         .iter()
         .filter(|v| {
@@ -1206,18 +1246,10 @@ pub(crate) fn bundle_arm<T: SolveScalar>(
         (o.x.powi(2) + o.y.powi(2) + o.z.powi(2)).sqrt().upper()
     };
     let datum = mates
-        .iter()
-        .map(|m| from_origin(&m.on) + from_origin(&m.to))
+        .into_iter()
+        .map(|(on, to)| from_origin(on) + from_origin(to))
         .fold(0.0_f64, f64::max);
-    Arm::of(reach + slid, datum).map_err(|refusal| {
-        Box::new(MateFault::Unleverable {
-            mate: mates.first().map_or_else(
-                || unreachable!("an arm is formed for a bundle with a mate"),
-                |m| m.mate,
-            ),
-            refusal: Box::new(refusal),
-        })
-    })
+    Arm::of(reach + slid, datum)
 }
 
 // ---- The door's questions of one constraint ----

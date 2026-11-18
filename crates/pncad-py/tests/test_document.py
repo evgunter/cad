@@ -247,9 +247,10 @@ class TestEvaluation(unittest.TestCase):
             evaluate(doc).value(profile_node).body()
         self.assertEqual(caught.exception.reason, "wrong_kind")
 
-    def test_an_extrude_goes_up_its_own_z_and_a_depth_is_a_size(self):
-        # An extrude lies in its own coordinates, from its profile's xy
-        # up its own +z; a depth is a size, so no sign turns it over.
+    def test_an_extrude_goes_along_its_own_z_by_a_signed_depth(self):
+        # An extrude lies in its own coordinates, between its profile's
+        # xy and the depth along its own z: a + depth above the plane, a
+        # - depth below it, and a zero depth refuses.
         doc = Doc()
         profile = doc.insert(
             Node.polygon(
@@ -266,11 +267,14 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual({p[2].meters for p in body.tessellate(1 * m).positions}, {0.0, 2.0})
 
         doc.apply(DocEdit.set_param(block, "distance", Formula.literal(-2 * m)))
+        body = evaluate(doc).value(block).body()
+        self.assertEqual({p[2].meters for p in body.tessellate(1 * m).positions}, {-2.0, 0.0})
+
+        doc.apply(DocEdit.set_param(block, "distance", Formula.literal(0 * m)))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(block)
         self.assertEqual(caught.exception.kind, "extrude")
-        self.assertEqual(caught.exception.inner_kind, "negative_depth")
-        self.assertIn("a depth is a size", str(caught.exception))
+        self.assertEqual(caught.exception.inner_kind, "degenerate_extrusion")
 
     def test_boolean_union_through_the_document(self):
         # The post is strictly interior in x and y and pokes out of the

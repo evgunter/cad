@@ -308,6 +308,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        crate::side_reader::SIDE => "which side of a selection of faces lies outside every face",
         "bool_overlap_cut_order" => "where along an edge its meetings with a face's boundary lie",
         "bool_overlap_senses" => "whether two faces on one carrier face one way",
         "bool_point_in_solid_sphere" => "how far a point lies off a sphere face's carrier",

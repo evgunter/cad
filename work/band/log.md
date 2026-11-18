@@ -1461,3 +1461,5 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - the kiss issue is its parent.
 
   The P2/P3 tail is the next sitting's, including the two OCCT follow-ups and the rows filed this sitting. Since Fable usage ran out (Ev, 2026-11-17), work has run Opus-only, outside the experiments; a successor should check with Ev whether the draws resume.
+
+- 2026-11-18 — **Crossing from DOCTAIL (first-turn lane), on BAND's ground.** The blend's fold reads take the fold's shared names again: `BlendDecision::ConvexitySign` is `dihedral_sign` and `BlendDecision::KnifeEnd` is `material_cusp_side` (`geom_brep::FoldNames` retired; the blend reads `topo::edge_wedge`, which records the side as a choice). The verdict log records them as choices, so the resolver still names a blend convexity or knife turn. Two vanish rows now name `fillet3_ring_clearance`, the first choice that turns in decision order, where the old population reading named `fillet3_face_clearance` by name order (`edit_concave_bar`, `edit_ruled_carve`). K census note in `docs/K-REPORT.md` (2026-11-18).

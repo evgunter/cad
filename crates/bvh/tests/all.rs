@@ -37,6 +37,8 @@
 mod aggregator_headers;
 #[path = "determinism.rs"]
 mod determinism;
+#[path = "marks.rs"]
+mod marks;
 #[path = "proximity.rs"]
 mod proximity;
 #[path = "proximity_r2.rs"]

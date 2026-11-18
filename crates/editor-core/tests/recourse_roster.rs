@@ -54,7 +54,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("ONE_CYLINDER_AXIS"),
     NameCarrier::Const("ON_MEMBER_EDGE"),
     NameCarrier::Const("SEL_PLANE_DISTANCE"),
-    NameCarrier::Const("TRACED_FRAME_SQUARE"),
+    NameCarrier::Const("SWEPT_ALONG"),
     NameCarrier::Const("TRACE_REACHES"),
     // The funnels that hand on their callers' names.
     NameCarrier::Call("zero_as"),
@@ -138,11 +138,6 @@ const INDIRECT: &[(&str, &str)] = &[
     ("names/emit_topo.rs: span_as: arc.p1", NOT_FIRST),
     ("names/emit_topo.rs: span_as: d1 - dm", NOT_FIRST),
     ("names/emit_topo.rs: stretches_as: arc", NOT_FIRST),
-    ("trace.rs: square: Margin::levered(", NOT_A_NAME),
-    (
-        "trace.rs: square: Margin::of((origin - at).dot(z))",
-        NOT_A_NAME,
-    ),
 ];
 
 /// **The census meets the harness every roster shares**, and reads

@@ -325,23 +325,24 @@ pub(crate) const REVOLVE: &str = "Revolve";
 /// The depth an extrude is inserted at, metres.
 const DEFAULT_EXTRUDE_DISTANCE: f64 = 0.01;
 
-/// The traced-profile form's commit.
-pub(crate) const NEW_TRACED_PROFILE: &str = "New traced profile";
+/// The profile-on-a-face form's commit.
+pub(crate) const NEW_PROFILE_ON_FACE: &str = "New profile on a face";
 
-/// What the door that opens the traced-profile form says.
-pub(crate) const NEW_TRACED_PROFILE_DOOR: &str = "New traced profile…";
+/// What the door that opens the profile-on-a-face form says.
+pub(crate) const NEW_PROFILE_ON_FACE_DOOR: &str = "New profile on a face…";
 
-/// The traced path's latch for the plane face the sketch is drawn in:
-/// square to the traced face's axis.
-pub(crate) const TRACE_PLANE: &str = "sketch plane on";
+/// The form's latch for the face the profile is drawn on, on its chart.
+pub(crate) const ON_THE_FACE: &str = "on";
 
-/// The traced path's latch for the face it traces.
+/// The form's optional latch for a face the profile traces.
 pub(crate) const TRACE_FACE: &str = "trace";
 
-/// What the traced-profile form says while no frame reads off the traced
-/// path's picks.
-pub(crate) const NO_TRACED_FRAME: &str =
-    "pick a traced face with an axis and a plane face square to it";
+/// What the button that lets the form's face to trace go says.
+pub(crate) const TRACE_NOTHING: &str = "trace nothing";
+
+/// What the profile-on-a-face form waits for while no face is latched to
+/// draw on.
+const PICK_THE_FACE_DRAWN_ON: &str = "pick the face the profile is drawn on";
 
 /// The highest crossing the traced path's row offers: a line meets a
 /// quadric's trace twice and a torus's four times, so a count past this
@@ -438,53 +439,11 @@ fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Opti
     chosen
 }
 
-/// **Why the traced-profile button is withheld**, when it is — and how loud
-/// that is, which depends on which of two things it is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Withheld {
-    /// The form is waiting for its next input: a face to latch. The
-    /// form asking, [`Tone::Advisory`].
-    Waiting(&'static str),
-    /// An input the reader gave is refused, and the button stays shut
-    /// until they change it: [`Tone::Actionable`].
-    Refused(&'static str),
-}
-
-impl Withheld {
-    fn words(self) -> &'static str {
-        match self {
-            Self::Waiting(words) | Self::Refused(words) => words,
-        }
-    }
-
-    fn tone(self) -> Tone {
-        match self {
-            Self::Waiting(_) => Tone::Advisory,
-            Self::Refused(_) => Tone::Actionable,
-        }
-    }
-}
-
-/// **The one reason the traced-profile button is withheld for**, out of every
-/// reason the form found, handed over in the form's own top-to-bottom
-/// order.
-///
-/// A refused input outranks the form waiting for one: a missing face
-/// shows in the form itself (its latch says nothing is held), while a
-/// refused pair of faces has no other voice. Between two of
-/// one kind the earlier in the form is said, so the first thing a
-/// person is asked for is the first thing the form lacks.
-fn withheld_for(holds: impl IntoIterator<Item = Withheld>) -> Option<Withheld> {
-    holds.into_iter().reduce(|said, next| match (said, next) {
-        (Withheld::Waiting(_), Withheld::Refused(_)) => next,
-        _ => said,
-    })
-}
-
-/// The withheld button's reason, drawn in its own voice. A free function
-/// over the `Ui` so a headless drive can reach it.
-fn withheld_line(ui: &mut egui::Ui, theme: &Theme, withheld: Withheld) {
-    crate::widgets::message_toned(ui, withheld.words(), theme, withheld.tone());
+/// **Why the profile-on-a-face button is withheld**: the form waiting for
+/// its face, drawn as the form asking ([`Tone::Advisory`]). A free
+/// function over the `Ui` so a headless drive can reach it.
+fn withheld_line(ui: &mut egui::Ui, theme: &Theme, words: &'static str) {
+    crate::widgets::message_toned(ui, words, theme, Tone::Advisory);
 }
 
 /// **Why the revolve button cannot work out a default axis** for the
@@ -593,7 +552,7 @@ impl ViewerBehavior<'_> {
     pub(crate) fn create_ui(&mut self, ui: &mut egui::Ui) {
         ui.collapsing(ADD_FEATURE, |ui| {
             self.new_profile_ui(ui);
-            self.traced_profile_ui(ui);
+            self.profile_on_face_ui(ui);
         });
         // The combining tools sit in their own section:
         // everything above makes a body out of nothing, everything
@@ -1183,66 +1142,66 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// **The traced-profile form** ([`SessionOp::AddDrawnProfile`]):
-    /// the picks a profile continuing tangent to a face's trace reads —
-    /// the face whose plane it is drawn on and the face it traces — and
-    /// which branch of the trace it takes. Its commit inserts the
-    /// profile with the traced template's chain
-    /// ([`crate::drafts::traced_template`]), selected, and its numbers
-    /// are the profile editor's from there. Behind its door, as every
-    /// tool is behind its button: it closes with its commit
-    /// ([`crate::drafts::Drafts::accepted`]) or its Cancel.
-    pub(crate) fn traced_profile_ui(&mut self, ui: &mut egui::Ui) {
-        if !form_door(ui, NEW_TRACED_PROFILE_DOOR, &mut self.drafts.traced_open) {
+    /// **The profile-on-a-face form** ([`SessionOp::DrawOnFace`]): the
+    /// face the profile is drawn on, on its chart, and optionally a face
+    /// it traces, with the branch of the trace it takes. Its commit
+    /// inserts the profile, selected: with the traced template's chain
+    /// ([`crate::drafts::traced_template`]) where it traces, else with
+    /// no loop, and its numbers are the profile editor's from there.
+    /// Behind its door, as every tool is behind its button: it closes
+    /// with its commit ([`crate::drafts::Drafts::accepted`]) or its
+    /// Cancel.
+    pub(crate) fn profile_on_face_ui(&mut self, ui: &mut egui::Ui) {
+        if !form_door(ui, NEW_PROFILE_ON_FACE_DOOR, &mut self.drafts.on_face_open) {
             return;
         }
         self.profile_drawn.create = true;
-        let blocked = withheld_for(self.trace_rows(ui));
-        if let Some(withheld) = blocked {
-            withheld_line(ui, &self.theme, withheld);
+        let blocked = self.trace_rows(ui);
+        if let Some(words) = blocked {
+            withheld_line(ui, &self.theme, words);
         }
-        let closing = commit_row(ui, NEW_TRACED_PROFILE, blocked.map(Withheld::words), |_| {});
+        let closing = commit_row(ui, NEW_PROFILE_ON_FACE, blocked, |_| {});
         if closing.cancel {
-            self.drafts.traced_open = false;
+            self.drafts.close_on_face();
         }
         if closing.commit {
-            match self.drafts.traced_op(*self.notation) {
+            match self.drafts.on_face_op(*self.notation) {
                 Ok(Some(op)) => self.push_labelled(PROFILE_NOUN, op),
                 // Unreachable while the button is gated on `blocked`,
                 // and typed rather than unwrapped: a form's enabling
                 // condition and its commit are two pieces of code.
                 Ok(None) => {
                     self.notices.push(frame::tool_news(
-                        &FormKind::TracedProfile.refuses(&NO_TRACED_FRAME),
+                        &FormKind::ProfileOnFace.refuses(&PICK_THE_FACE_DRAWN_ON),
                     ));
                 }
                 Err(error) => {
                     self.notices
-                        .push(frame::tool_news(&FormKind::TracedProfile.refuses(&error)));
+                        .push(frame::tool_news(&FormKind::ProfileOnFace.refuses(&error)));
                 }
             }
         }
     }
 
-    /// **The traced path's rows** ([`SessionOp::AddDrawnProfile`]): the
-    /// two latches — the face whose body's plane the sketch is drawn on,
-    /// and the face it traces — each taking the viewport's face pick on
-    /// its button; the trace the two show, or the trace's own refusal;
-    /// and the trace's branches. Answers what the commit still waits
-    /// for.
-    fn trace_rows(&mut self, ui: &mut egui::Ui) -> Vec<Withheld> {
+    /// **The profile-on-a-face form's rows** ([`SessionOp::DrawOnFace`]):
+    /// the two latches — the face the profile is drawn on, and the face
+    /// it traces, if any — each taking the viewport's face pick on its
+    /// button, the face to trace let go on its own ([`TRACE_NOTHING`]);
+    /// and, while a face to trace is latched, the trace the two show or
+    /// its own refusal, and the trace's branches. Answers what the commit
+    /// still waits for.
+    fn trace_rows(&mut self, ui: &mut egui::Ui) -> Option<&'static str> {
         let picked = match self.session.selection() {
             Selection::Face(face) => Some(face.clone()),
             _ => None,
         };
         let speaker = frame::landed_speaker(self.session.landed_pair());
         let doc = self.session.doc();
-        let mut withholds = Vec::new();
-        for (label, plane) in [(TRACE_PLANE, true), (TRACE_FACE, false)] {
+        for (label, plane) in [(ON_THE_FACE, true), (TRACE_FACE, false)] {
             ui.horizontal(|ui| {
                 ui.label(label);
                 let held = if plane {
-                    &mut self.drafts.trace_plane
+                    &mut self.drafts.on_face
                 } else {
                     &mut self.drafts.trace_face
                 };
@@ -1257,13 +1216,18 @@ impl ViewerBehavior<'_> {
                 }
             });
         }
-        if self.drafts.trace_plane.is_none() {
-            withholds.push(Withheld::Waiting(
-                "pick the face whose plane the sketch is on",
-            ));
-        }
+        let waiting = self
+            .drafts
+            .on_face
+            .is_none()
+            .then_some(PICK_THE_FACE_DRAWN_ON);
         if self.drafts.trace_face.is_none() {
-            withholds.push(Withheld::Waiting("pick the face to trace"));
+            return waiting;
+        }
+        // On a row of its own: the latch's row is as wide as the face it says.
+        if ui.button(TRACE_NOTHING).clicked() {
+            self.drafts.trace_face = None;
+            return waiting;
         }
         match self.drafts.trace_shown.as_ref().map(|shown| &shown.read) {
             Some(Ok(marks)) => {
@@ -1283,11 +1247,6 @@ impl ViewerBehavior<'_> {
                     &self.theme,
                     Tone::Actionable,
                 );
-                // A frame that does not read is refused before Add: the
-                // insert would refuse it in the same words.
-                if matches!(fault, crate::session::SketchTraceFault::Frame(_)) {
-                    withholds.push(Withheld::Refused(NO_TRACED_FRAME));
-                }
             }
             None => {}
         }
@@ -1314,7 +1273,7 @@ impl ViewerBehavior<'_> {
              chain heads along the trace there: both are read off the traced face at every \
              evaluation, and a crossing the piece does not make refuses on the profile",
         );
-        withholds
+        waiting
     }
 
     /// **The sweeps of the selected profile**: an extrude button and a
@@ -2405,7 +2364,7 @@ mod tone_tests {
 
     use pncad::document::DocumentId;
 
-    use super::{Withheld, part_listing, withheld_for, withheld_line};
+    use super::part_listing;
     use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
     use crate::parts::{PartCensus, PartChooser, PartEntry};
     use crate::session::Refusal;
@@ -2465,45 +2424,6 @@ mod tone_tests {
         );
         assert_eq!(find(&painted, "parts in /parts").ink, Some(voices.weak));
         assert_eq!(find(&painted, &id.to_string()).ink, Some(voices.weak));
-    }
-
-    /// **Which withholding reason is said**: a refused input over the form
-    /// waiting for one, wherever it came in the form; between two of
-    /// one kind, the earlier.
-    #[test]
-    fn a_refused_input_outranks_a_missing_one_and_the_form_order_breaks_ties() {
-        let frame = Withheld::Waiting("pick the face whose plane the sketch is on");
-        let chain = Withheld::Waiting("pick the face to trace");
-        let refused = Withheld::Refused("the traced frame does not read");
-        let later = Withheld::Refused("a later refusal");
-        assert_eq!(withheld_for([frame, chain]), Some(frame));
-        assert_eq!(withheld_for([frame, refused]), Some(refused));
-        assert_eq!(withheld_for([refused, frame]), Some(refused));
-        assert_eq!(withheld_for([frame, refused, chain]), Some(refused));
-        assert_eq!(withheld_for([refused, later]), Some(refused));
-        assert_eq!(withheld_for([]), None);
-    }
-
-    /// **The traced-profile form's withholding reason**: a refused input is loud,
-    /// the form waiting for one is quiet.
-    #[test]
-    fn a_withheld_profile_button_says_why_in_the_reasons_own_voice() {
-        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            withheld_line(
-                ui,
-                theme,
-                Withheld::Refused("the traced frame does not read"),
-            );
-            withheld_line(ui, theme, Withheld::Waiting("pick the face to trace"));
-        });
-        assert_eq!(
-            find(&painted, "the traced frame does not read").ink,
-            Some(voices.actionable)
-        );
-        assert_eq!(
-            find(&painted, "pick the face to trace").ink,
-            Some(voices.weak)
-        );
     }
 }
 
@@ -2644,8 +2564,8 @@ mod creation_nouns {
     }
 }
 
-/// **The traced-profile form's held faces across a selection that
-/// moved on** (its two latches, `Drafts::trace_plane` and
+/// **The profile-on-a-face form's held faces across a selection that
+/// moved on** (its two latches, `Drafts::on_face` and
 /// `Drafts::trace_face`, and `Drafts::respeak` after each op).
 #[cfg(test)]
 mod sketch_face_said {
@@ -2658,7 +2578,7 @@ mod sketch_face_said {
     use crate::drafts::Drafts;
     use crate::session::{DocSession, FaceSelection, Selection, SessionOp};
 
-    /// **The traced-profile form keeps its latches' nodes past the
+    /// **The profile-on-a-face form keeps its latches' nodes past the
     /// selection**: once the selection moves on, both trace latches
     /// still say their face's minting node by the
     /// last label it had, after a rename and a delete, where the
@@ -2699,7 +2619,7 @@ mod sketch_face_said {
             &mut drafts,
             SessionOp::Select(Selection::Face(face.clone())),
         );
-        crate::drafts::latch(&mut drafts.trace_plane, session.doc(), &face);
+        crate::drafts::latch(&mut drafts.on_face, session.doc(), &face);
         crate::drafts::latch(&mut drafts.trace_face, session.doc(), &face);
         perform(
             &mut session,
@@ -2724,7 +2644,7 @@ mod sketch_face_said {
         let by = crate::frame::landed_speaker(session.landed_pair());
         let last = format!("the end cap of Extrude \"plinth\" ({t})");
         assert_eq!(
-            [&drafts.trace_plane, &drafts.trace_face]
+            [&drafts.on_face, &drafts.trace_face]
                 .map(|held| crate::drafts::latch_said(held.as_ref(), by)),
             [last.clone(), last],
             "each latch says its face's node by its last label"

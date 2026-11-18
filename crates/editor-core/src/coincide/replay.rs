@@ -12,7 +12,8 @@
 //!   no reduction of its own.
 //! - **The deciding margin's identity** ([`Rung::MarginIdentity`]): the
 //!   same decision, read in the replay, zero as a polynomial in the
-//!   symbols.
+//!   symbols; for a traced sweep the first rung left at its heading,
+//!   first that heading along the traced face's axis ([`swept_along`]).
 //!
 //! The replay is a deferring session ([`deferred`]): it takes every
 //! decision as the numeric channel takes it, so its branches are the
@@ -48,7 +49,9 @@ use geom_core::sym::deferred;
 use geom_core::{Band, BandError, Sym, SymBudget, SymRules, Tol};
 use topo::FaceKey;
 
-use super::{Canceled, Component, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
+use super::{
+    Canceled, Component, Heading, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed,
+};
 use crate::eval::{EvalOptions, EvalOutcome, Evaluation};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
@@ -103,6 +106,9 @@ type Lane = Sym<f64>;
 /// Why a row is left unproven, and what would prove it.
 type Left = (Unreplayed, Recourse);
 
+/// One value per row, in the shape of the nodes handed to [`rungs`].
+type PerRow<T> = [Vec<T>];
+
 /// A rung that proved a row, or why the replay could not and, for two
 /// cells with an axis, the first component of one axis, one radius and
 /// one sense it did not establish.
@@ -110,7 +116,8 @@ type Proved = Result<Rung, (Left, Option<Component>)>;
 
 /// **The symbolic rungs for each row the first rung left**
 /// (`left`, in the shape of `nodes`), each row's two axes read as the
-/// mates state them where `axes_one` holds: in the order given, a rung that
+/// mates state them where `axes_one` holds, and a traced sweep's heading
+/// read where `headings` names one ([`swept_along`]): in the order given, a rung that
 /// proved the row or why the replay could not, and `None` for a row
 /// the first rung proved. `nodes` holds each deciding node with its
 /// rows in decision order, which is what a row's ordinal is counted in.
@@ -125,7 +132,7 @@ type Proved = Result<Rung, (Left, Option<Component>)>;
 pub(super) fn rungs(
     doc: &crate::doc::Doc<ProfileProgram>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
-    (left, axes_one): (&[Vec<bool>], &[Vec<bool>]),
+    (left, axes_one, headings): (&PerRow<bool>, &PerRow<bool>, &PerRow<Option<Heading>>),
     resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     stop: &crate::Stop,
@@ -182,10 +189,14 @@ pub(super) fn rungs(
         let mut ev: Option<Evaluation<Lane>> = None;
         let band = Band::linear(tol);
         let mut out = Vec::with_capacity(nodes.len());
-        for ((&(node, rows), asks), axes_one) in nodes.iter().zip(asks).zip(axes_one) {
+        for (((&(node, rows), asks), axes_one), headings) in
+            nodes.iter().zip(asks).zip(axes_one).zip(headings)
+        {
             let mut ordinals = BTreeMap::new();
             let mut answers = Vec::with_capacity(rows.len());
-            for ((row, ask), &stated) in rows.iter().zip(asks).zip(axes_one) {
+            for (((row, ask), &stated), &heading) in
+                rows.iter().zip(asks).zip(axes_one).zip(headings)
+            {
                 let ordinal = ordinals.entry(row.site).or_insert(0usize);
                 let at = core::mem::replace(ordinal, *ordinal + 1);
                 answers.push(match ask {
@@ -203,7 +214,13 @@ pub(super) fn rungs(
                                 &*ev.insert(replayed)
                             }
                         };
-                        Some(prove_row(ev, (node, row, at), stated, band, cancel)?)
+                        Some(prove_row(
+                            (doc, ev),
+                            (node, row, at),
+                            (stated, heading),
+                            (band, tol),
+                            cancel,
+                        )?)
                     }
                 });
             }
@@ -249,14 +266,15 @@ fn stands_on_a_part(doc: &crate::doc::Doc<ProfileProgram>, node: RecipeNodeId) -
 
 /// The two symbolic rungs for one row, `at` its ordinal among its
 /// node's rows at its site, its two axes read as the mates state them
-/// where `stated` ([`carrier_verdict`]); an at-rest row is read off the
-/// copies by the carrier verdict alone (the census is not re-run).
-/// Canceled before it discharges a margin.
+/// where `stated` ([`carrier_verdict`]); a traced sweep's row whose
+/// heading is `heading` is first read for that heading ([`swept_along`]);
+/// an at-rest row is read off the copies by the carrier verdict alone
+/// (the census is not re-run). Canceled before it discharges a margin.
 fn prove_row(
-    ev: &Evaluation<Lane>,
+    (doc, ev): (&crate::doc::Doc<ProfileProgram>, &Evaluation<Lane>),
     (node, row, at): (RecipeNodeId, &NamedCoincidence, usize),
-    stated: bool,
-    band: Result<Band, BandError>,
+    (stated, heading): (bool, Option<Heading>),
+    (band, tol): (Result<Band, BandError>, Tol),
     cancel: &crate::CancelToken,
 ) -> Result<Proved, Canceled> {
     if cancel.is_canceled() {
@@ -302,6 +320,12 @@ fn prove_row(
     else {
         return left(Unreplayed::OtherDecisions);
     };
+    if let (Some(heading), Ok(band)) = (heading, band)
+        && let Some(arm) = pair_arm(ev, row, band, tol)
+        && swept_along(doc, ev, heading, arm, band, tol)
+    {
+        return Ok(Ok(Rung::MarginIdentity));
+    }
     let mut component = None;
     if let Ok(band) = band {
         match carrier_verdict(ev, row, band, stated) {
@@ -317,6 +341,94 @@ fn prove_row(
     Ok(deferred::discharge_or_why(replayed.margin)
         .map(|()| Rung::MarginIdentity)
         .map_err(|why| (numeric(why), component)))
+}
+
+/// The name a traced sweep's heading off its traced face's axis is
+/// decided Zero under ([`swept_along`]).
+const SWEPT_ALONG: &str = "replay_swept_along_the_traced_axis";
+
+/// **Whether a traced sweep runs along the face its piece leaves**, the
+/// heading the trace statement leaves to the replay
+/// ([`super::Traced::HeadingUnread`]): the face, read as the profile
+/// reads it ([`crate::eval::traced_faces`]), on a cylinder whose axis,
+/// carried into the sketch's coordinates, has no component across the
+/// sketch's `z`, the heading every extrude of the profile sweeps along.
+/// Each component is decided Zero and discharged by the tier, so the
+/// heading is the axis as a polynomial identity in the symbols: a
+/// profile on a cap of the face's own extrude, whose normal and whose
+/// wall's generator are both that extrude's heading. Each component is
+/// a sine levered at `arm`, the reach of the two faces the row decided
+/// ([`pair_arm`]), which a tilt of the sweep turns its wall across. A
+/// face on any other carrier, or one the replay does not read, is not
+/// shown so.
+fn swept_along(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    ev: &Evaluation<Lane>,
+    heading: Heading,
+    arm: geom_core::Lever<Lane>,
+    band: Band,
+    tol: Tol,
+) -> bool {
+    let Some(crate::Node::Profile(program)) = doc.node(heading.profile) else {
+        return false;
+    };
+    let Ok(faces) = crate::eval::traced_faces(doc, ev, program, tol) else {
+        return false;
+    };
+    let Some(across) = faces.get(heading.face).and_then(axis_in_sketch) else {
+        return false;
+    };
+    // Unsourced lever: the pair's reach (`carrier_pair_arm`), entered as the
+    // power of two at or above it. A positive constant factor leaves a
+    // margin zero as a polynomial exactly where its sine is, so the tier
+    // proves the sine's identity: the reach's own form outgrows the door's
+    // budget, an opaque unknown keeps the product from discharging, and the
+    // reach's own `f64` swells every coefficient it multiplies.
+    let arm = geom_core::Lever::unsourced(<Lane as geom_core::Real>::from_f64(
+        geom_core::Bounds::hi(arm.length()).log2().ceil().exp2(),
+    ));
+    let zero = |component: Lane| {
+        geom_core::k_stats::decide_reported(
+            SWEPT_ALONG,
+            geom_core::Margin::levered(component, arm),
+            band,
+        )
+        .is_ok_and(|d| deferred::discharge(d.margin))
+    };
+    zero(across.x) && zero(across.y)
+}
+
+/// **The arm a row's angular datum is levered at**: the reach of the
+/// ball enclosing its two faces as the replay built them, read in the
+/// frame the row's verdict is decided in, the arm the kernel's ladder
+/// levers the pair's tilt at ([`topo::boolean::carrier_pair_arm`]).
+/// `None` where a cell is no face the replay built, or the pair's
+/// extent does not read.
+fn pair_arm(
+    ev: &Evaluation<Lane>,
+    row: &NamedCoincidence,
+    band: Band,
+    tol: Tol,
+) -> Option<geom_core::Lever<Lane>> {
+    let [a, b] = row.cells.as_slice() else {
+        return None;
+    };
+    let ((a, fa), (b, fb)) = (face_of(ev, a)?, face_of(ev, b)?);
+    let computing = crate::eval::Framed::computing_among([a, b])?;
+    let (a_in, b_in) = (
+        computing.read_in(a, tol).ok()?,
+        computing.read_in(b, tol).ok()?,
+    );
+    topo::boolean::carrier_pair_arm(&a_in, fa, &b_in, fb, band).ok()
+}
+
+/// A traced face's axis, where it is on a cylinder, carried into the
+/// sketch's coordinates; `None` on any other carrier.
+fn axis_in_sketch(face: &crate::TracedFace<Lane>) -> Option<geom_core::Vec3<Lane>> {
+    match &face.surface {
+        Ok(geom::Surface::Cylinder { axis, .. }) => Some(face.body_to_sketch.transform_vec(*axis)),
+        _ => None,
+    }
 }
 
 /// A form the tier read and did not discharge: a coincidence of values

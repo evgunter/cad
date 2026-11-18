@@ -845,6 +845,11 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// leaves the vector. Deciding the pole at the identity again puts back
 /// the keys main holds.
 ///
+/// All four keys moved, and not the filter (`dropped=1` held on both),
+/// when each verdict came to carry its role, a choice or a check, and
+/// the key to hash it: the vector compares every row with its role, so
+/// the key that stands for it does too.
+///
 /// `min_clearance_neck`'s two keys moved, and not the filter
 /// (`dropped=1` held, `plain_distance` unmoved), when the session box
 /// came to be asked at the door that places a copy (`session_box_reach`

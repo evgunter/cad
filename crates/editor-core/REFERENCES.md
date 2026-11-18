@@ -66,11 +66,14 @@ reads it in its own way:
 
 - **A sketch on a face is drawn on a frame read off the face.** Its
   profile's `on` is a frame in the space of the face's body
-  (`ProfileProgram.on`, `DrawnOn`): `Spin { pose: Through { axis, point
-  }, about: z, by: spin }`, whose `z` is the face's outward normal, whose
-  `x` points toward a cell of the body the gesture names (along an edge at
-  a vertex, where the face has one), and whose `spin` turns it (the
-  constant `0` unless named). The profile and every sweep of it are in
+  (`ProfileProgram.on`, `DrawnOn`): the chart a plane placement onto the
+  face with the same orientation, spin and slides gives, computed by that
+  placement's own chart (`[placement]`): its `z` is the face's outward
+  normal, and its `x` and origin are the space's under the written
+  orientation, carried by the least turn, then the written spin and slides
+  (each the constant `0` unless named). It may trace faces of that body
+  (`DrawnOn.faces`, empty for a sketch that traces none); there is no
+  second frame rule for a traced sketch. The profile and every sweep of it are in
   that body's space, and nothing is placed. Extrude and Combine are the
   ordinary acts after it: a signed depth sweeps above the face (a boss) or
   into it (a pocket's tool).
@@ -445,11 +448,12 @@ id (`names/README.md`, "N1, the profile pieces"), so:
   segment, as a fillet inserted or moved before a leg takes the leg's
   (`names/README.md`, "Undrawn pieces vanish rather than alias") — is the
   reshaping's removal too, and its names are reported the same way. The door
-  compares which pieces the old and the new program draw under the current
-  parameters, as the program's own piece door answers, and reports a name
-  whose piece the new program does not draw and the old one drew — or every
-  such name, where the old program does not replay under the current
-  parameters and so cannot say what it drew.
+  compares which pieces the old and the new program's structure can draw,
+  with values erased (the verbs' roles, a written `circle_split` count, a
+  piece another takes by construction), and reports a name whose piece the
+  new structure cannot draw and the old one could. A piece a value leaves
+  undrawn (a `Zero` fit) is no removal: its names resolve `Vanished` until the
+  values draw it again, whichever door wrote the value.
 - A value edit reports nothing: it can move which loop is outer, which way a
   loop runs or how many segments a step draws, and none of those moves a
   name.
