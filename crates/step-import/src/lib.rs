@@ -14,9 +14,12 @@
 //! (`GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION`). The
 //! result of a solid import is a first-class [`topo::Body`]: topology
 //! rebuilt through the public Euler-operator vocabulary, geometry
-//! adopted per D7 (intensional descriptions reconstructed and
-//! certified by the kernel's own gates — never trusted extensional
-//! data), caches re-minted by the kernel's own machinery.
+//! adopted per D7: the file's statements are interpreted at its declared
+//! coincidence distance, and every edge's intensional description is
+//! certified by the kernel's own gates at the run's ε. Edges still carry
+//! the file's parsed carrier as their cache into that certification (the
+//! build that re-makes every cache by the kernel's own constructions is
+//! the next stage of D7's pipeline).
 //!
 //! # Adoption, not admission (D7, the shape of the pipeline)
 //!
@@ -24,15 +27,17 @@
 //!    resolution. Reals parse with `str::parse::<f64>` — the writer's
 //!    printer round-trips to identical bits, so downstream exact `==`
 //!    comparisons are legitimate on own-corpus files.
-//! 2. **Entity mapping** ([`entities`], [`geometry`]): each AP214
-//!    record maps to its kernel twin **field for field** (the export
-//!    direction is an identity, so import is too — no re-derivation,
-//!    no normalization that moves bits). The one non-identity is the
-//!    cone: STEP's `v` is axial, the kernel's is slant arc length; the
-//!    writer's apex placement (`radius = 0.0`) is recognized and the
-//!    surface fields adopted verbatim (no trim parameters cross the
-//!    wire in this subset, so the fixed cos α factor has nothing to
-//!    act on yet).
+//! 2. **Interpretation** ([`entities`], [`interpret`], [`geometry`]):
+//!    each AP214 record is read as the kernel description it is evidence
+//!    of, at the file's band ([`interpret::file_band`]). A placement is
+//!    built from its ratio vectors by `build_axes`, kept bit for bit
+//!    where the file states it rigid within its rounding, and its move
+//!    reported beyond that ([`NormalizationKind::PlacementReMinted`]); a
+//!    cone placed at its base circle is moved to its apex; a NURBS
+//!    surface or carrier whose residual reads Zero is promoted; two
+//!    surface records of one locus become one
+//!    ([`NormalizationKind::OneRecord`]); a value no construction takes
+//!    refuses ([`InterpretationRefusal`]).
 //! 3. **Topology assembly** ([`assemble`]): the shell's half-edge
 //!    structure is realized through `topo`'s public Euler operators
 //!    (`mvfs`/`mev`/`mef`, the ring vocabulary, scaffold struts killed
@@ -92,10 +97,19 @@
 //! ε_in — the per-import *input* tolerance — defaults from the file's
 //! `UNCERTAINTY_MEASURE_WITH_UNIT` and is overridable per call
 //! ([`ImportOptions::eps_in`]); it is carried on the result
-//! ([`StepImport::eps_in`]). This unit *records* it: own-corpus files
-//! declare the kernel's own ε and adopt exactly, so the healing ladder
-//! that consumes ε_in is M7-2+. Certification of everything built
-//! runs at the kernel's ambient ε like native geometry.
+//! ([`StepImport::eps_in`]). It governs interpretation: a question
+//! asked of the file's statements is a distance in metres read through
+//! the kernel's one classification funnel at the file's band, `(e, K·e)`
+//! for `e` the larger of ε_in and the run's ε ([`interpret::file_band`]),
+//! with `[verdicts]`' three arms. A lane choice (which kind a carrier
+//! is) takes its closed form at Zero; a structural act (one record, a
+//! vertex at the seam) acts at Zero, keeps apart past the band, and
+//! refuses in it, naming what would decide it. One pass still reads ε_in
+//! as a raw distance, the C⁰-knot split
+//! (`work/importgate/the-c0-knot-split-reads-eps-in-raw-not-at-the-file-band.md`).
+//! What interpretation moves is on the result's move ledger
+//! ([`StepImport::normalizations`]), never in the body. Certification
+//! of everything built runs at the run's ε like native geometry.
 //!
 //! # Chart coherence: a measurement, not a gate
 //!
@@ -192,8 +206,9 @@
 //!   magnitude and a `DIRECTION` need not be normalized (both are
 //!   ratios per ISO 10303-42); an `AXIS2_PLACEMENT_3D` may leave its
 //!   axis or reference direction unset, and the schema's own
-//!   `build_axes` defaults are read rather than guessed. Fields that
-//!   ARE stated unit and perpendicular are still adopted bit for bit.
+//!   `build_axes` defaults are read rather than guessed. A frame whose
+//!   stated fields are rigid within their rounding is adopted bit for
+//!   bit; any other is built by `build_axes`.
 //! - **Assemblies**: one rigid `ITEM_DEFINED_TRANSFORMATION` covering
 //!   all of a file's content places the body through
 //!   [`topo::transform_rigid`]. Per-component placement, and any
@@ -226,8 +241,10 @@ mod cr_r1_probes;
 mod entities;
 mod error;
 mod geometry;
+mod interpret;
 mod knot_split;
 mod normalize;
+mod one_record;
 mod parse;
 mod recognize;
 mod recognize_curve;
@@ -235,6 +252,7 @@ mod signed_zero;
 mod units;
 
 pub use error::{AdoptionAttempt, AdoptionCandidate, SingularityBand, StepImportError};
+pub use interpret::Refusal as InterpretationRefusal;
 
 use geom_core::Tol;
 
@@ -247,6 +265,16 @@ pub struct FaceCensus {
     pub edges: usize,
     /// Vertices.
     pub vertices: usize,
+}
+
+impl FaceCensus {
+    /// The census of no region: a ledger entry that re-mints no face,
+    /// edge or vertex.
+    pub const EMPTY: Self = Self {
+        faces: 0,
+        edges: 0,
+        vertices: 0,
+    };
 }
 
 /// **One materialized assembly instance** — the A7 record shape
@@ -429,40 +457,74 @@ pub enum NormalizationKind {
     /// own splits) and the faces it became with every edge and vertex
     /// they use.
     FaceSplitAtC0Knot,
-    /// **An assembly placement whose stated fields `build_axes` moved**
-    /// (`[import]`, `[tolerance.boundary]`): every placement frame is
-    /// minted from its fields by ISO 10303-42's `build_axes` (the axis
-    /// normalized, the reference direction projected perpendicular and
-    /// normalized), and a frame of this `ITEM_DEFINED_TRANSFORMATION`
-    /// whose fields as stated are no rigid frame within their own
-    /// rounding was moved by that construction. A STEP `direction` is a
-    /// ratio vector, so the normalization is the file's own semantics,
-    /// not a heal; it is reported so the move is on record. `moved_by` is
-    /// measured against the frame as the reader adopted its fields,
-    /// unnormalized: its columns the reference direction, the axis
-    /// crossed with it and the axis. The reader adopts a `direction`
-    /// within ε_in of unit verbatim and normalizes any other, and adopts
-    /// a reference within ε_in of perpendicular verbatim and projects any
-    /// other, so the matrix is the file's own fields wherever they lie
-    /// within ε_in and the reader's correction of them elsewhere. Over the
-    /// session box `moved_by` is the farthest a point moves between that
-    /// matrix and the built frame, summed over the pair. A file's ε_in bounds no such move
+    /// **A placement whose stated fields `build_axes` moved** (`[import]`,
+    /// `[tolerance.boundary]`): a placement frame whose fields as stated
+    /// are no rigid frame within their own rounding is built from its
+    /// ratio vectors by ISO 10303-42's `build_axes` (the axis normalized,
+    /// the reference direction projected perpendicular and normalized).
+    /// A STEP `direction` is a ratio vector, so normalizing one is its
+    /// meaning and moves nothing: `moved_by` is measured from the frame
+    /// of the two directions normalized (its columns the reference, the
+    /// axis crossed with it and the axis) to the built frame, as the
+    /// farthest a point of the session box moves. Keyed by the
+    /// `AXIS2_PLACEMENT_3D` of a surface's or curve's placement, or by an
+    /// assembly's `ITEM_DEFINED_TRANSFORMATION`, whose one entry sums its
+    /// two frames' moves and, where the pair reads as the identity at the
+    /// file's band, the snap to it. A file's ε_in bounds no such move
     /// (`work/onehome/a-step-files-input-tolerance-has-no-bound-the-ratified-text-states.md`).
-    /// Keyed by the transformation's instance id, not a face; its census
+    /// Keyed by that record's instance id, not a face; its census
     /// pair is empty, since no face, edge or vertex changes.
     PlacementReMinted {
-        /// The `ITEM_DEFINED_TRANSFORMATION` whose frames were moved.
+        /// The `AXIS2_PLACEMENT_3D` or `ITEM_DEFINED_TRANSFORMATION` whose
+        /// frames were moved.
         transform: u64,
         /// The move (metres): over the session box, the farthest a point
-        /// moves between a frame's matrix as adopted and its built one,
-        /// summed over the pair.
+        /// moves between a frame normalized and built, summed over a
+        /// pair's frames and its snap to the identity.
         moved_by: f64,
+    },
+    /// **Two surface records of one locus, made one** (`[import]`,
+    /// `crates/topo/README.md` `[topo.one-record]`): on one solid, the
+    /// faces on `joined` read as lying on `kept`'s surface at the file's
+    /// band, decided at the faces, and the two face one way, so they take
+    /// `kept`, the earlier record in the file. Keyed by the first face on `joined`; its
+    /// census pair is empty, since no face, edge or vertex changes.
+    OneRecord {
+        /// The surface record kept (the earlier in the file).
+        kept: u64,
+        /// The surface record its faces left.
+        joined: u64,
+        /// The move (metres): a bound on the farthest a face on either
+        /// record lies from the other's surface.
+        moved_by: f64,
+    },
+    /// **A NURBS carrier promoted to an analytic kind** (D7 stage 1,
+    /// #327): the carrier's residual against the analytic curve read
+    /// Zero at the file's band, so every edge on it adopts the analytic
+    /// carrier ([`CurvePromotion`] is this record read off the ledger).
+    /// Keyed by the curve entity, not a face; its census pair is empty,
+    /// since nothing is re-tessellated.
+    CurvePromoted {
+        /// The kind that certified.
+        kind: PromotedCurveKind,
+        /// The certified residual sup (metres): the carrier's worst
+        /// deviation from the promoted curve over its whole domain.
+        residual: f64,
     },
 }
 
 /// The K row a placement frame's two directions are decided under where
 /// `build_axes` mints it ([`NormalizationKind::PlacementReMinted`]).
 pub const STEP_PLACEMENT_AXES: &str = "step_placement_axes";
+
+/// The decision whether an assembly placement pair places anything: the
+/// farthest a point of the session box moves under its motion, read at
+/// the file's band (Zero takes the identity).
+pub const STEP_PLACEMENT_IDENTITY: &str = "step_placement_identity";
+
+/// The K row a line's frame is built under where its direction triple is
+/// read for unit length within its rounding.
+pub const STEP_LINE_DIRECTION_UNIT: &str = "step_line_direction_unit";
 
 /// Where a file put a chart singularity that is not yet a vertex in
 /// the pole form ([`NormalizationKind::ChartSingularityVertex`]).
@@ -483,20 +545,32 @@ pub enum SingularityFound {
     ValenceOneVertex,
 }
 
-/// A **reported structure normalization** (D7 stage-3 repair, in its
-/// letter): the file's locus is fully explained and adopted, but its
-/// boundary-graph tessellation is not representable, so the kernel
-/// re-minted the tessellation and says so — as data, never silently.
+/// A **reported normalization**, one row of the move ledger
+/// ([`StepImport::normalizations`]): something interpretation re-minted
+/// or moved beyond rounding, said as data, never silently.
 ///
-/// Volume and validity are exact as always; what changed is only how
-/// the same surface is cut into faces, edges, and vertices. The census
-/// pair is the mapping a reader needs to reconcile the file's counts
-/// with the imported body's.
+/// Two families share the row. A **structure normalization** (D7
+/// stage-3 repair, in its letter: the face kinds) re-mints a
+/// tessellation the file's locus fully explains but whose boundary
+/// graph is not representable; volume and validity are exact, and what
+/// changes is only how the same surface is cut into faces, edges and
+/// vertices, the census pair being the mapping a reader needs to
+/// reconcile the file's counts with the body's. An **interpretation
+/// move** ([`NormalizationKind::OneRecord`],
+/// [`NormalizationKind::PlacementReMinted`],
+/// [`NormalizationKind::CurvePromoted`]) changes what the file's
+/// statements are read as, by at most the distance it reports (a face
+/// carried onto another record, a frame built, a carrier promoted
+/// within its certified residual), so the body differs from the stated
+/// geometry by that bound; its census pair is [`FaceCensus::EMPTY`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StructureNormalization {
-    /// The `ADVANCED_FACE` entity instance the file states; on
-    /// [`NormalizationKind::PlacementReMinted`], which names no face, the
-    /// `ITEM_DEFINED_TRANSFORMATION`'s.
+    /// The `ADVANCED_FACE` entity instance the file states; where the
+    /// kind names no face, the entity it does: an `AXIS2_PLACEMENT_3D` or
+    /// `ITEM_DEFINED_TRANSFORMATION` ([`NormalizationKind::PlacementReMinted`]),
+    /// a curve ([`NormalizationKind::CurvePromoted`]). The ledger's own row
+    /// type is filed
+    /// (`work/importgate/the-move-ledger-wants-its-own-row-type.md`).
     pub face: u64,
     /// What was re-minted.
     pub kind: NormalizationKind,
@@ -654,10 +728,6 @@ pub enum StepImport {
         /// resolution order — empty for a file whose boundary graph the
         /// kernel represents as stated (every own-corpus file).
         normalizations: Vec<StructureNormalization>,
-        /// The **curve promotions** this import applied (#327), by
-        /// ascending curve entity id — empty for a file whose carriers
-        /// are all stated analytically or all stay NURBS.
-        curve_promotions: Vec<CurvePromotion>,
         /// **The assembly record** ([`PlacedInstance`], A7): one entry
         /// per solid of `body`, in `body.solids()` order, saying what
         /// the file said about it — which component representation it
@@ -741,16 +811,18 @@ pub enum StepImport {
         /// stays as stated — and D7 stage-1 CURVE recognition runs on
         /// this lane too, so a carrier that CERTIFIES is handed back
         /// as its analytic kind, with the promotion recorded in
-        /// `curve_promotions` below. Recognition is a property of the
+        /// `normalizations` below
+        /// ([`NormalizationKind::CurvePromoted`]). Recognition is a property of the
         /// carrier, not of what a body later does with it; a wireframe
         /// whose promotions were silent would be the one place in this
         /// crate where a description changed without being reported.
         curves: Vec<geom::Curve3<f64>>,
         /// As [`StepImport::Solid::eps_in`].
         eps_in: f64,
-        /// The curve promotions applied to `curves` (#327), by
-        /// ascending curve entity id.
-        curve_promotions: Vec<CurvePromotion>,
+        /// The move ledger: the curve promotions applied to `curves`
+        /// (#327), by ascending curve entity id, and the placements
+        /// their frames were built from where the build moved them.
+        normalizations: Vec<StructureNormalization>,
     },
 }
 
@@ -763,28 +835,35 @@ impl StepImport {
         }
     }
 
-    /// The structure normalizations this import applied (empty for a
-    /// wireframe, which has no boundary graph to re-mint).
+    /// **The move ledger**: one record per file entity interpretation
+    /// moved beyond rounding or re-minted, naming the entity, what moved
+    /// and a bound in metres: every curve promotion first, by ascending
+    /// curve entity id, then the rest in the order the import made them.
     pub fn normalizations(&self) -> &[StructureNormalization] {
         match self {
-            Self::Solid { normalizations, .. } => normalizations,
-            Self::Wireframe { .. } => &[],
+            Self::Solid { normalizations, .. } | Self::Wireframe { normalizations, .. } => {
+                normalizations
+            }
         }
     }
 
-    /// The curve promotions this import applied (#327). Both lanes
-    /// report: recognition fires at the sole `NurbsCurve3`
-    /// construction site, which the `GEOMETRIC_CURVE_SET` lane reaches
-    /// as well as the solid lane.
-    pub fn curve_promotions(&self) -> &[CurvePromotion] {
-        match self {
-            Self::Solid {
-                curve_promotions, ..
-            }
-            | Self::Wireframe {
-                curve_promotions, ..
-            } => curve_promotions,
-        }
+    /// The curve promotions this import applied (#327), read off the
+    /// ledger ([`NormalizationKind::CurvePromoted`]). Both lanes report:
+    /// recognition fires at the sole `NurbsCurve3` construction site,
+    /// which the `GEOMETRIC_CURVE_SET` lane reaches as well as the solid
+    /// lane.
+    pub fn curve_promotions(&self) -> Vec<CurvePromotion> {
+        self.normalizations()
+            .iter()
+            .filter_map(|n| match n.kind {
+                NormalizationKind::CurvePromoted { kind, residual } => Some(CurvePromotion {
+                    curve: n.face,
+                    kind,
+                    residual,
+                }),
+                _ => None,
+            })
+            .collect()
     }
 
     /// The assembly record ([`PlacedInstance`], A7) — empty for a
@@ -852,7 +931,7 @@ pub fn import_step(
             let mut record = Vec::with_capacity(model.instances.len());
             // The joins each solid's build ended with, reported once per
             // solid: each is built once.
-            let mut normalizations = model.normalizations.clone();
+            let mut normalizations = ledger(&model);
             // Each distinct solid is built once. Where the per-solid
             // subject is owed, it is finished once, on its first placed
             // instance (so it is asked in the box where it stands), and
@@ -1016,7 +1095,6 @@ pub fn import_step(
                 body,
                 eps_in,
                 normalizations,
-                curve_promotions: model.curve_promotions.clone(),
                 instances: record,
                 coherence,
                 contacts,
@@ -1026,9 +1104,29 @@ pub fn import_step(
         entities::Shape::Wireframe(ref curves) => Ok(StepImport::Wireframe {
             curves: curves.clone(),
             eps_in,
-            curve_promotions: model.curve_promotions.clone(),
+            normalizations: ledger(&model),
         }),
     }
+}
+
+/// The move ledger as the model's resolution left it: each curve
+/// promotion ([`NormalizationKind::CurvePromoted`], keyed by the carrier),
+/// then the normalizations in resolution order.
+fn ledger(model: &entities::Model) -> Vec<StructureNormalization> {
+    model
+        .curve_promotions
+        .iter()
+        .map(|p| StructureNormalization {
+            face: p.curve,
+            kind: NormalizationKind::CurvePromoted {
+                kind: p.kind,
+                residual: p.residual,
+            },
+            file_census: FaceCensus::EMPTY,
+            kernel_census: FaceCensus::EMPTY,
+        })
+        .chain(model.normalizations.iter().copied())
+        .collect()
 }
 
 /// The reader's per-solid contact with the kernel's at-rest gate: the

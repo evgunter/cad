@@ -448,11 +448,12 @@ id (`names/README.md`, "N1, the profile pieces"), so:
   segment, as a fillet inserted or moved before a leg takes the leg's
   (`names/README.md`, "Undrawn pieces vanish rather than alias") — is the
   reshaping's removal too, and its names are reported the same way. The door
-  compares which pieces the old and the new program draw under the current
-  parameters, as the program's own piece door answers, and reports a name
-  whose piece the new program does not draw and the old one drew — or every
-  such name, where the old program does not replay under the current
-  parameters and so cannot say what it drew.
+  compares which pieces the old and the new program's structure can draw,
+  with values erased (the verbs' roles, a written `circle_split` count, a
+  piece another takes by construction), and reports a name whose piece the
+  new structure cannot draw and the old one could. A piece a value leaves
+  undrawn (a `Zero` fit) is no removal: its names resolve `Vanished` until the
+  values draw it again, whichever door wrote the value.
 - A value edit reports nothing: it can move which loop is outer, which way a
   loop runs or how many segments a step draws, and none of those moves a
   name.
