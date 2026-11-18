@@ -1278,13 +1278,15 @@ fn gather_pick<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 ix,
                 body: body.clone(),
                 table: Arc::clone(&piece.table),
-                contacts: kept.unwrap_or_else(|| Arc::clone(&member.contacts)),
+                contacts: kept.unwrap_or_else(|| {
+                    Arc::new(member.contacts(body.holding().records()).into_owned())
+                }),
                 rows: Arc::clone(&member.findings),
                 censused: member.censused,
             }
         })
         .collect();
-    let mut product = gather_sources(doc, tol, sources)?;
+    let mut product = gather_sources(doc, tol, sources, None)?;
     product.pieces = carry.pieces.clone();
     product.parts = carry.parts;
     product.document = doc.id();

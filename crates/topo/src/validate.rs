@@ -19517,8 +19517,12 @@ mod door_gates_read_carried_records {
         };
         let mut records = kiss.body.records().clone();
         records.extend([Cited::new(
-            Contact::new(&kiss.body, Cell::Face(face_at_x(0.0)), Cell::Face(face_at_x(2.0)))
-                .unwrap(),
+            Contact::new(
+                &kiss.body,
+                Cell::Face(face_at_x(0.0)),
+                Cell::Face(face_at_x(2.0)),
+            )
+            .unwrap(),
             Cites::decided(7),
         )]);
         AtRestBody {
