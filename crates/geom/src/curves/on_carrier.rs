@@ -122,8 +122,9 @@ use super::Curve3;
 /// The Gauss–Newton steps a foot is polished by.
 const POLISH_STEPS: usize = 6;
 
-/// A point's foot on a carrier, made only by [`Curve3::foot`], holding
-/// the point and the carrier it was found for (module docs).
+/// A point's foot on a carrier, made only by [`Curve3::foot`] and
+/// [`Curve3::foot_within`], holding the point and the carrier it was
+/// found for (module docs).
 #[derive(Clone, Copy, Debug)]
 pub struct Foot<'c, T: Real> {
     carrier: &'c Curve3<T>,

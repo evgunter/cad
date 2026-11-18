@@ -2837,8 +2837,9 @@ pub struct CarriedComponent<T: Real> {
     pub boxes: Vec<PadBox>,
     /// **The tube's pieces with the carrier's run over each** (C2 limb
     /// 3), in the tube's order; empty for a closed form, whose foot is
-    /// found in closed form. A site's foot is read over the run of the
-    /// first piece it lies in ([`Self::reads`]), so its parameter is the
+    /// found in closed form. A site's foot is read over the run of every
+    /// piece it lies in, the least gap kept, and a site in none is not on
+    /// the component ([`Self::reads`]), so its parameter is the
     /// certificate's place for it and the sites' order along the
     /// component follows from the pieces'.
     pub runs: Vec<TubeRun>,
@@ -2943,13 +2944,15 @@ impl<T: Decide> CarriedComponent<T> {
     /// component**: its foot on the carrier where `p` is within the band
     /// padded by [`Self::pad`] ([`Curve3::on_carrier`], [`Band::padded`]),
     /// `None` where it is past it. The foot is read over the carrier's run
-    /// of the first tube piece `p` lies in, each widened by the band's
-    /// escalation ([`Self::runs`], [`Curve3::foot_within`]): the piece is
-    /// the certificate's place for a point of the component, so the foot's
+    /// of every tube piece `p` lies in, each widened by the band's
+    /// escalation, and the least gap kept ([`Self::runs`],
+    /// [`Curve3::foot_within`], [`geom::Foot::least`]): the pieces are the
+    /// certificate's place for a point of the component, so the foot's
     /// parameter is the site's place along it, and the sites' order
     /// follows from the pieces', not from which stationary point a search
-    /// lands on. A component with no runs (a closed form) reads its foot
-    /// on the whole carrier. Where the pad is read box by box
+    /// lands on. A point in no piece is not on the component: every point
+    /// of it lies in its tube's pieces. A component with no runs (a closed
+    /// form) reads its foot on the whole carrier. Where the pad is read box by box
     /// ([`Self::boxes`]) it is the widest of the boxes `p` lies in,
     /// each widened by the band's escalation, and `None` where it lies in
     /// none: every point of the component lies in its tube's windows. The one reading of "a point on this
@@ -2991,7 +2994,15 @@ impl<T: Decide> CarriedComponent<T> {
                 .foot_within(p, (r0, r1), geom::mid_param(r0, r1));
             foot = Some(foot.map_or(at, |f| f.least(at)));
         }
-        let foot = foot.unwrap_or_else(|| self.carrier.foot(p, self.span.0));
+        // Every point of the component lies in its tube's pieces: a point
+        // in none is not on it, as a point in none of its boxes is not.
+        // A closed form has no pieces, and reads its foot on the whole
+        // carrier, in closed form.
+        let foot = match foot {
+            Some(foot) => foot,
+            None if !self.runs.is_empty() => return Ok(None),
+            None => self.carrier.foot(p, self.span.0),
+        };
         match foot.on_carrier(padded) {
             Ok(OnCarrier::On { t, .. }) => self.within_span(t, band),
             Ok(OnCarrier::Off) => Ok(None),
@@ -3782,17 +3793,11 @@ mod wiring {
         assert_eq!(at(0.601, 0.0), Ok(None), "past the box by a millimetre");
     }
 
-    /// **A site's parameter is its tube piece's place** (O1 of fork 275's
-    /// step 3b): a cubic hairpin whose two branches lie 0.2 apart, carried
-    /// with a pad of 0.3, wider than the branches' gap, and two tube pieces
-    /// with the carrier's run over each, one per branch. A site on the far
-    /// branch at `t = 0.92`, inside the far piece only, reads on the
-    /// component at `0.92`: its foot is read over its piece's run. Red
-    /// against the foot seeded at the span's start and held to the whole
-    /// carrier: it polishes onto the near branch, whose gap (0.2) reads
-    /// within the padded zero, and the site reads `t ≈ 0.08`.
-    #[test]
-    fn a_sites_parameter_is_its_tube_pieces_place() {
+    /// **The hairpin with two tube pieces**: a cubic hairpin whose two
+    /// branches lie 0.2 apart, carried with a pad of 0.3, and two tube
+    /// pieces with the carrier's run over each, `(0, 0.3)` on the near
+    /// branch and `(0.7, 1)` on the far; the pieces and the component.
+    fn hairpin_with_two_pieces() -> (super::TubeRun, super::TubeRun, super::CarriedComponent<f64>) {
         use geom_core::{Point3, spline::KnotVector};
         let net = geom::NurbsCurve3::new(
             KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap(),
@@ -3837,6 +3842,22 @@ mod wiring {
             pad: 0.3,
             reach: 0.0,
         };
+        (near, far, component)
+    }
+
+    /// **A site's parameter is its tube piece's place** (O1 of fork 275's
+    /// step 3b): a cubic hairpin whose two branches lie 0.2 apart, carried
+    /// with a pad of 0.3, wider than the branches' gap, and two tube pieces
+    /// with the carrier's run over each, one per branch. A site on the far
+    /// branch at `t = 0.92`, inside the far piece only, reads on the
+    /// component at `0.92`: its foot is read over its piece's run. Red
+    /// against the foot seeded at the span's start and held to the whole
+    /// carrier: it polishes onto the near branch, whose gap (0.2) reads
+    /// within the padded zero, and the site reads `t ≈ 0.08`.
+    #[test]
+    fn a_sites_parameter_is_its_tube_pieces_place() {
+        let (near, far, component) = hairpin_with_two_pieces();
+        let carrier = component.carrier.clone();
         let p = carrier.eval(0.92);
         let lies_in = |r: &super::TubeRun| r.holds(p, band().escalate()).unwrap();
         assert!(
@@ -3848,6 +3869,25 @@ mod wiring {
             matches!(got, Ok(Some(t)) if (t - 0.92).abs() < 1e-6),
             "the site's parameter is its piece's place: {got:?}"
         );
+    }
+
+    /// **A point in no tube piece is off the component**: on the hairpin
+    /// whose pieces run over `(0, 0.3)` and `(0.7, 1)`, the carrier's
+    /// point at `t = 0.5` lies in neither, so it is not on the component,
+    /// though it is on the carrier: every point of the component lies in
+    /// its tube's pieces. Red where a point in no piece falls back to the
+    /// foot on the whole carrier, seeded at the span's start: the walk's
+    /// restart reads it on, at `0.5`.
+    #[test]
+    fn a_point_in_no_tube_piece_is_off_the_component() {
+        let (near, far, component) = hairpin_with_two_pieces();
+        let p = component.carrier.eval(0.5);
+        let lies_in = |r: &super::TubeRun| r.holds(p, band().escalate()).unwrap();
+        assert!(
+            !lies_in(&near) && !lies_in(&far),
+            "the point lies in no piece"
+        );
+        assert_eq!(component.reads(p, band()), Ok(None));
     }
 
     fn band() -> geom_core::Band {

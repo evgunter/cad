@@ -618,7 +618,11 @@ impl<'a, T: Decide> Span<'a, T> {
     /// nothing of `q`. A point off the carrier keeps its foot's place, as
     /// a point beside the span does. The two readings are asked only
     /// where the gap is past the band, and each record is spliced where
-    /// the answer rests on it and superseded otherwise.
+    /// the answer rests on it and superseded otherwise. In [`Self::read`]
+    /// it all but never fires: a point the carrier does not read on has
+    /// met the span's early clearance first, and one it reads on at a far
+    /// foot is rare. It matters through [`Self::place`], where no
+    /// clearance comes first, and so for [`Self::past_by`]'s windows.
     fn far_inside(&self, foot: &Foot<'_, T>, near: T, band: Band, walk: &mut Walk) -> bool {
         if !self.ended || foot.nearest().is_some() {
             return false;
