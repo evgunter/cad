@@ -10940,7 +10940,10 @@ impl<T: geom_core::Decide> AtRestBody<T> {
             faces,
             excluded: FacePairs::none(),
         };
-        let crossing = match embedded(&side, band, GATE_BUDGETS).verdict {
+        let measure_clock = std::time::Instant::now();
+        let measure_report = embedded(&side, band, GATE_BUDGETS);
+        crate::gate_measure::log(body, &side.faces, &measure_report, measure_clock.elapsed());
+        let crossing = match measure_report.verdict {
             Embedding::Embedded => return None,
             Embedding::Refused(refusal) => {
                 return Some(ValidationError::EmbeddingUncertified {

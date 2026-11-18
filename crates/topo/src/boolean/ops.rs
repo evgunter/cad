@@ -5803,7 +5803,9 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     let from = std::time::Instant::now();
     #[cfg(any(test, feature = "test-support"))]
     let kinds = refused_faces::kinds(&body);
+    crate::gate_measure::holding("boolean-gate", held.contacts);
     let finished = T::finish(body, tol);
+    crate::gate_measure::clear();
     #[cfg(any(test, feature = "test-support"))]
     if let Err(findings) = &finished {
         refused_faces::note(&kinds, findings.as_slice());

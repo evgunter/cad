@@ -275,6 +275,8 @@ mod test_support_impl;
 // gated on the test arms alone and its file-level `#![allow]` stays
 // exactly as wide as the code that earns it. Its own docs state what
 // separates it from `fixtures`.
+#[doc(hidden)]
+pub mod gate_measure;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 mod test_support_fixtures;
