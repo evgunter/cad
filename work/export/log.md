@@ -33,3 +33,11 @@ dispatched.
   - the S7 label row was filed (P4).
 
   Closed: `step-import-adopts-a-smooth-join-without-the-must-carry-rule`.
+- 2026-11-18 — **`void-shells` merged (PR 7077).** Single FULL review by Opus 5.5, no draw under rule 12, so no model-compare row. The fix pass covered:
+  - the census goldens re-blessed at every ε;
+  - the bound law restated for voids;
+  - OCCT-written hollow fixtures;
+  - unreversed-void mutant rows;
+  - stale narration and docs, the exhaustive solid keyword, and the S5 helper row filed.
+
+  The class it exposed (a shared-fixture-list diff skips the slow rows that iterate the list) is filed on GREEN as `a-diff-to-a-shared-fixture-list-skips-the-slow-rows-that-iterate-it`. Closed: `step-export-refuses-every-hollow-body`.

@@ -2,13 +2,14 @@
 id: step-export-refuses-every-hollow-body
 kind: issue
 title: STEP export refuses every hollow body - a void shell is refused VoidShellUnsupported because the writer has no BREP_WITH_VOIDS
-status: review
+status: closed
 opened: 2026-09-28
 priority: P1
 cost: M
 refs: [step-export-reclassifies-shell-roles-with-its-own-planar-flux]
 branch: export/void-shells
 pr: 7077
+closed: 2026-11-18
 ---
 
 Found while reviewing S-DUP's `step-export-reclassifies-shell-roles-with-its-own-planar-flux`
@@ -63,3 +64,7 @@ the writer change; it is this row's whole remaining content.
 ## Re-banded to P1 (on request in chat, 2026-10-25)
 
 Every hollow body the kernel builds is refused at export: klein wall 6 and the `ring`, `tubewall::hollowtorus`, `torusvessel` and `fivewall` scenes' `step_at_frontier` pins all stop here.
+
+## Closed (2026-11-18)
+
+PR 7077 (`export/void-shells`). A multi-shell solid is written as `BREP_WITH_VOIDS`, each void an `ORIENTED_CLOSED_SHELL(.F.)` over the void shell written reversed (ISO 10303-42; it matches OCCT's own writer). The importer reads it back through the same at-rest gate. `VoidShellUnsupported` is gone. Every hollow tour scene round-trips through STEP, and OCCT-written hollow fixtures import with the right roles and volumes.
