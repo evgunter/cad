@@ -4648,6 +4648,7 @@ impl CavityGate {
     fn at<T: Decide + crate::props::AtRestPolicy>() -> Self {
         match T::clearance_lane() {
             Some(_) => Self::Asks,
+            None if std::env::var_os("CV_CAVITY_F64").is_some() => Self::Asks,
             None => Self::WaitsOnTheEngineRows,
         }
     }
