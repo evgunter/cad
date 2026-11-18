@@ -1364,7 +1364,10 @@ fn present<'a: 'h, 'h>(
     match piece.surface {
         Surface::Plane { .. } => present_plane(piece, near_edges, near_vertices, band),
         Surface::Nurbs(_) => present_chart(piece, near_edges, near_vertices, band),
-        Surface::Sphere { .. } => match present_chart(piece, near_edges, near_vertices, band) {
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => match present_chart(piece, near_edges, near_vertices, band) {
             Err(stored @ (Unpresented::Structural | Unpresented::Local)) => {
                 match present_posed(piece, near_edges, near_vertices, band, poses) {
                     Some(Ok(read)) => Ok(read),
@@ -1374,9 +1377,6 @@ fn present<'a: 'h, 'h>(
             }
             read => read,
         },
-        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Torus { .. } => {
-            present_chart(piece, near_edges, near_vertices, band)
-        }
         Surface::Spindle { .. } | Surface::Approx(_) => Err(Unpresented::Structural),
     }
 }
@@ -2262,16 +2262,18 @@ impl PoseFrame {
 /// `x` and `y`'s four-quadrant angle, enclosed, read by turning the
 /// pair to the angle of its middle so the enclosure stays off the branch
 /// cut: `atan2(y, x)` up to whole turns, within a quarter turn of that
-/// middle. `None` where the turned pair is not decided on the positive
+/// middle. Both reads are [`geom::Azimuth::about`] the zero centre, the
+/// angle door's plain `atan2`, each of a pair on the positive side. `None` where the turned pair is not decided on the positive
 /// side, which an enclosure holding the origin never is.
 fn angle(x: Interval, y: Interval) -> Option<Interval> {
-    let theta = at(mid(y).atan2(mid(x)));
+    let east = geom::Quarter(0);
+    let theta = at(geom::Azimuth::of(mid(y), mid(x)).about(east));
     let (s, c) = theta.sin_cos();
     let (along, across) = (x * c + y * s, y * c - x * s);
     if !(along.is_certified() && along.lo() > 0.0) {
         return None;
     }
-    let out = theta + across.atan2(along);
+    let out = theta + geom::Azimuth::of(across, along).about(east);
     out.is_certified().then_some(out)
 }
 
@@ -2370,14 +2372,15 @@ fn posed_use(frame: &PoseFrame, rim: &Rim, u: &Use) -> Use {
     let (x, y, z) = (coord(frame.x), coord(frame.y), coord(frame.a));
     let (sx, sy) = (square(x[0], x[1], x[2]), square(y[0], y[1], y[2]));
     let p: [Interval; 5] = core::array::from_fn(|i| sx[i] + sy[i]);
-    let lat = |t: Interval| trig3(z, t).atan2(trig(p, t).sqrt());
+    let lat =
+        |t: Interval| geom::Azimuth::of(trig3(z, t), trig(p, t).sqrt()).about(geom::Quarter(0));
     let lon_at = |t: Interval| angle(trig3(x, t), trig3(y, t));
     let (px, py) = (product(x, derivative(y)), product(y, derivative(x)));
     let n: [Interval; 5] = core::array::from_fn(|i| px[i] - py[i]);
     let rate = |t: Interval| trig(n, t) / trig(p, t);
     let span = Interval::from_bounds(t0, t1);
     let full = rim.ends[0] == rim.ends[1] && whole_turn(t0, t1);
-    let lifted = |held: Axis, line: Interval, ends: [Interval; 2], moving: [Interval; 2]| {
+    let as_line = |held: Axis, line: Interval, ends: [Interval; 2], moving: [Interval; 2]| {
         let point = |i: usize| match held {
             Axis::U => Point2::new(ends[i], moving[i]),
             Axis::V => Point2::new(moving[i], ends[i]),
@@ -2404,7 +2407,7 @@ fn posed_use(frame: &PoseFrame, rim: &Rim, u: &Use) -> Use {
     if narrow(height) && one_sign((t0, t1), rate).is_some() {
         let lon1 = lon0 + at(t1 - t0) * rate(span);
         if lon1.is_certified() {
-            return lifted(Axis::V, height, [height, height], [lon0, lon1]);
+            return as_line(Axis::V, height, [height, height], [lon0, lon1]);
         }
     }
     // A meridian. A circle whose azimuth is one value lies in a plane
@@ -2429,7 +2432,7 @@ fn posed_use(frame: &PoseFrame, rim: &Rim, u: &Use) -> Use {
     if one_sign((t0, t1), rises).is_none() || !(l0.is_certified() && l1.is_certified()) {
         return none;
     }
-    lifted(Axis::U, azimuth, [azimuth, azimuth], [l0, l1])
+    as_line(Axis::U, azimuth, [azimuth, azimuth], [l0, l1])
 }
 
 /// **A face's boundary lifted into a pose**: each edge as
@@ -2521,7 +2524,7 @@ fn poses_of(
     near_vertices: &[VertexKey],
     band: Band,
 ) -> PoseSet {
-    let &Surface::Sphere { center, radius, .. } = piece.surface else {
+    let Some((center, radius)) = sphere_of(piece.surface) else {
         return PoseSet::default();
     };
     let b = piece.boundary;
@@ -2541,15 +2544,15 @@ fn poses_of(
         axes.push(c.frame.axis);
         frames.extend(PoseFrame::of(center, c.frame.axis, c.frame.u_ref));
     }
-    let lifted: Vec<(PoseFrame, Boundary)> = frames
+    let charted: Vec<(PoseFrame, Boundary)> = frames
         .into_iter()
         .map(|f| (f, posed_boundary(&f, b)))
         .collect();
-    let unread_corner = unread_corner(piece, &lifted, near_edges, near_vertices);
+    let unread_corner = unread_corner(piece, &charted, near_edges, near_vertices);
     let image = piece.surface.rect_enclosure(piece.u, piece.v);
     let mut unplaced = false;
     let mut out = Vec::new();
-    for (frame, boundary) in lifted {
+    for (frame, boundary) in charted {
         let reads = |i: &usize| {
             boundary
                 .edges
@@ -2583,6 +2586,15 @@ fn poses_of(
     }
 }
 
+/// A sphere's centre and radius; `None` for any other surface, which has
+/// no pose.
+fn sphere_of(surface: &Surface<Interval>) -> Option<(Point3<Interval>, Interval)> {
+    match *surface {
+        Surface::Sphere { center, radius, .. } => Some((center, radius)),
+        _ => None,
+    }
+}
+
 /// **A corner no chart reads, at a vertex of the shared cell the cell
 /// reaches**: two or more edges of the face meet at it, one is no
 /// coordinate line of the stored chart, and in every pose one is no
@@ -2592,12 +2604,12 @@ fn poses_of(
 /// wider rectangle.
 fn unread_corner(
     piece: &Piece<'_>,
-    lifted: &[(PoseFrame, Boundary)],
+    charted: &[(PoseFrame, Boundary)],
     near_edges: &[usize],
     near_vertices: &[VertexKey],
 ) -> bool {
     let b = piece.boundary;
-    let shared = |v: &VertexKey| {
+    let on_shared = |v: &VertexKey| {
         near_vertices.contains(v)
             || near_edges
                 .iter()
@@ -2610,20 +2622,25 @@ fn unread_corner(
                 .is_some_and(|e| e.uses.iter().all(|u| u.iso.is_some()))
         })
     };
-    piece.local.vertices.iter().filter(|v| shared(v)).any(|v| {
-        let at: Vec<usize> = piece
-            .local
-            .edges
-            .iter()
-            .copied()
-            .filter(|&i| {
-                b.edges
-                    .get(i)
-                    .is_some_and(|e| e.arc.is_some() && !seam(e) && e.ends.contains(v))
-            })
-            .collect();
-        at.len() > 1 && !lines(b, &at) && lifted.iter().all(|(_, bd)| !lines(bd, &at))
-    })
+    piece
+        .local
+        .vertices
+        .iter()
+        .filter(|v| on_shared(v))
+        .any(|v| {
+            let at: Vec<usize> = piece
+                .local
+                .edges
+                .iter()
+                .copied()
+                .filter(|&i| {
+                    b.edges
+                        .get(i)
+                        .is_some_and(|e| e.arc.is_some() && !seam(e) && e.ends.contains(v))
+                })
+                .collect();
+            at.len() > 1 && !lines(b, &at) && charted.iter().all(|(_, bd)| !lines(bd, &at))
+        })
 }
 
 /// **Present a sphere face in a pose** where its stored chart does not:
