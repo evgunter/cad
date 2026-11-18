@@ -617,4 +617,67 @@ The drum's own body, not its cavity, runs out of depth at f64 on a
 half-annulus cell a rounding off its half-circle, on main as on this
 branch.
 
+## Read: two arcs of one conic at a vertex alone (EMBED, lane conic-vertex, 2026-11-18)
+
+**Measured first** (main `763d6fe0`, f64, `departure` instrumented,
+uncommitted). The tee refuses `4v1 × 6v5` at `1v3` with six cells at
+the floor, the other half `6v5 × 7v1` at `9v1` the same. In every one of
+those pair cells `A`'s wall reads `Err(Structural)`: its corner at the
+vertex is the ellipse's two arcs, neither shared, and no reading reads
+it. `B`'s cap reads its quadrant (`present_vertex_corner`, a line on the
+mitre plane and the cap's rim), `Zero::Point`.
+
+**What the pair is.** `A`'s wall is the cylinder `x² + y² = 1` on the
+side `z ≥ x` of the ellipse, both arcs through `V = (0.2, 0.98, 0.2)`;
+the cap is the plane `x = 0.2` on `z ≤ 0.2`, `y² + z² ≤ 1`. They meet
+at `V` alone. The wall's first-order cone at `V` is a half-plane holding
+the ellipse's tangent `±T`, so a plane through `V` parting the two must
+contain `T`; to second order the ellipse then leaves it to the cap's
+side unless the plane is the mitre plane, which holds the cap's line
+edge. So **no plane through `V` parts the pair**: a sampled search over
+plane normals gave a best margin of −1.4e−3, at the mitre plane. A
+surface holding the ellipse does: `ψ = (z − x) + β(x² + y² − 1)` is
+zero on the wall exactly on the ellipse and negative on the cap off `V`
+for `0 < β < 2.5`. The trace above was right that this pair is second
+order to a plane, and wrong that no first-order arm decides it.
+
+**What landed** (`crates/topo/src/injective.rs`): `Reading::Conic` at
+a vertex the pair shares alone, and the graph separator built there.
+- `corner_of` returns an `alone` corner where neither wall is on the
+  shared cell and their common end is the shared cell alone;
+  `reading` gives it `Reading::Conic` only (`continues`, and the curve
+  one `present_curved` reads), so a straight angle of two conics that
+  are not one stays `Structural`.
+- `present_curved` presents it by the run of the conic through the
+  vertex, as through a shared edge's end, its zero the run `past` the
+  vertex. The region argument at `present_corner` does not use the
+  shared edge; only its zero's reading does.
+- `past_read`'s argument gains the vertex-alone case: a common zero is
+  on the partner's zero set, so at `V`, and the run read, less than a
+  turn and a little more centred on `V`, meets `V` once.
+- `graph_of` at a vertex alone takes the edge a past curve lies on, and
+  lists it and `V`; `V`'s parameter is among the curve's, which the
+  piece holds.
+
+**Measured after** (the same commit with this change):
+
+| measure | main | here |
+|---|---|---|
+| the tee (`crossing_equal_rods`) | `Uncertified { 4v1, 6v5, Vertex(1v3) }`, 6 refused, 601 splits, 622 discharged | holds: 0 refused, 465 splits, 492 discharged; every touching pair holds asked alone |
+| `self_intersection_proves_injectivity`, default ε / 1e−6 / 1e−12 | 48 pass each | 48 pass each |
+| the f64 cavity rows (local switch) | 14 fail: the 2 crossing pins and 12 valid rows | the same 14; the two-arc lune still `Uncertified { 3v1, 4v1, Edge(6v1) }` |
+| the tour walk, 85 stops | 82 hold | 82 hold; no body's candidates, discharged, refused or splits moved |
+
+On the tee both `A`-wall halves against `B`'s cap certify under the
+graph separator at the vertex, the cap as its quadrant.
+
+**Filed:** `a-vertex-alone-pair-both-read-on-through-the-vertex-refuses`
+(what the reading leaves out), and two main reds found running the
+censuses: `the-endpoint-census-reads-injective-rs-past-its-pinned-count-on-main`
+and BAND's `blend-reach-crossing-is-a-sole-bracket-door-missing-from-the-bounds-roster`.
+
+**What remains of this row:** the two-arc lune (no presentation of the
+sphere beside an off-axis circle), a corner of two different conics,
+and a spiric continued onto its next arc, as the previous section says.
+
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
