@@ -1661,6 +1661,8 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 /// # What it writes
 ///
 /// The body and the name table (profile refs in canonical numbering).
+/// The body stands in the profile's frame, `lift` along the profile's
+/// `z` where it is lifted ([`super::ProfileValue::lifted`]).
 fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     verb: &crate::verbs::sweep::ProfileVerb<T, A>,
     args: A,
@@ -1668,6 +1670,7 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     profile: RecipeNodeId,
     results: &Results<T>,
     tol: Tol,
+    lift: Option<T>,
 ) -> OpResult<T> {
     let vp = operand(results, profile, super::family::PROFILE, |v| {
         match &v.payload {
@@ -1680,14 +1683,21 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
         .map_err(verb_refused)?;
     // Eager N4 emission, BEFORE the structural handoff is taken apart.
     let out = (verb.read)(id, record, &vp.pieces, verb.foreign_record)?;
-    Ok(OpOut::plain(
-        ValuePayload::Body(vp.framed(Arc::new(out.body))),
-        out.table,
-    ))
+    let body = Arc::new(out.body);
+    let framed = match lift {
+        None => vp.framed(body),
+        Some(by) => vp.lifted(body, by).map_err(NodeErrorKind::Motion)?,
+    };
+    Ok(OpOut::plain(ValuePayload::Body(framed), out.table))
 }
 
-/// **Extrudes a profile along its own normal** — the distance slot
-/// read, and the generic lowering from there.
+/// **Extrudes a profile along its own normal by a signed depth**
+/// (`Node::Extrude`) — the distance slot read, and the generic lowering
+/// from there. The sweep takes a size and refuses one that is not
+/// definitely positive; on its verdict that the depth `d` is definitely
+/// negative, the extrude is the sweep of `|d|` whose start cap sits `d`
+/// along the profile's `z`. Its zero and its band are the sweep's to
+/// refuse.
 fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
@@ -1696,14 +1706,23 @@ fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let distance = slot_scalar(vals, SlotId::Distance);
-    wire_swept(
-        &crate::verbs::sweep::extrude(),
-        (distance, sweep::ExtrudeSide::Along),
-        id,
-        profile,
-        results,
-        tol,
-    )
+    let verb = crate::verbs::sweep::extrude();
+    let along = sweep::ExtrudeSide::Along;
+    match wire_swept(&verb, (distance, along), id, profile, results, tol, None) {
+        Err(NodeErrorKind::Extrude(sweep::ExtrudeError::NegativeDepth { .. })) => {
+            let size = T::zero() - distance;
+            wire_swept(
+                &verb,
+                (size, along),
+                id,
+                profile,
+                results,
+                tol,
+                Some(distance),
+            )
+        }
+        swept => swept,
+    }
 }
 
 /// **Revolves a profile about an axis line written in its own plane**
@@ -1741,6 +1760,7 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         profile,
         results,
         tol,
+        None,
     )
 }
 

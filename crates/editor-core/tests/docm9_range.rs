@@ -78,8 +78,9 @@ fn unit_square() -> LoopProgram<Formula> {
 }
 
 /// **The slab**: a unit square extruded by a document parameter. A
-/// depth is a size, so below zero the extrude refuses: the slab's
-/// field has one boundary, a half-line floor at depth zero.
+/// depth is signed, and refuses at zero and in the band about it: the
+/// slab's field has one boundary, a point floor at depth zero, which a
+/// seed about `1.0` does not reach.
 fn slab(depth: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     declare(&mut r, "depth", depth);

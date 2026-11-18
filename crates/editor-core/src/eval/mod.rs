@@ -5682,7 +5682,9 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v23: a slide beside a mate whose direction is oblique in
+            /// v24: an extrude's depth is signed, so a negative depth's
+            /// stream is a pocket's tool where it was a refusal. v23: a
+            /// slide beside a mate whose direction is oblique in
             /// the source's own coordinates runs along its carried axis's
             /// part in what the mate leaves, and a value may slide along
             /// the mated direction or a read direction, or spin about a
@@ -5724,7 +5726,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 23,
+            VERSION = 24,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -5748,8 +5750,9 @@ mod tag {
         /// role it reads through ([`pose_role`]), then the read's tree
         /// — `OUTPUT` for an operation's output (whose key and port the
         /// upstream list carries), `SELECTION` and its names, or
-        /// `DEFINITION`, the arm ([`pose_arm`]), each read's role and
-        /// tree in field order, then each scalar's value and its
+        /// `DEFINITION`, the arm ([`pose_arm`]), a face's chart's
+        /// orientation as two [`signed_axis`] words (where its `x` and
+        /// `z` lie), each read's role and tree in field order, then each scalar's value and its
         /// nominal under [`slot`]'s `NOMINAL`; `SOURCE` for a source of a
         /// member ([`crate::VarDef::Source`]), its number of indices and
         /// each index's value.
@@ -5771,6 +5774,7 @@ mod tag {
             CARRIED = 10,
             SLIDE = 11,
             SPIN = 12,
+            FACE_CHART = 13,
         }
         /// The role a pose read reads through
         /// ([`crate::pose::PoseRole`]), a plain read's included.
@@ -7227,9 +7231,8 @@ fn feed_bundle(
         match &c.kind {
             crate::mate::ConstraintKind::Mate(mate) => {
                 h.write_tag(tag::constraint_kind::MATE);
-                // The orientation, by where the copy's x and z lie.
-                for axis in [mate.orient.x(), mate.orient.z()] {
-                    h.write_tag(axis_word(axis));
+                for word in orientation_words(mate.orient) {
+                    h.write_tag(word);
                 }
             }
             crate::mate::ConstraintKind::Value(value) => {
@@ -7255,6 +7258,13 @@ fn feed_bundle(
             }
         }
     }
+}
+
+/// **An orientation as a content key's two words**: where the frame's
+/// `x` and `z` lie, which fix it. A mate's and a face's chart's
+/// orientation are keyed by it.
+fn orientation_words(orient: crate::Orientation) -> [u8; 2] {
+    [axis_word(orient.x()), axis_word(orient.z())]
 }
 
 /// A signed axis as a content key's word.

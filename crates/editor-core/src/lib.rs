@@ -135,10 +135,11 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, IndexFault,
-    LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured, ProductReadFault, Recorded,
-    Recording, SketchOutcome, SketchedOnFace, SlotValue, SourceFault, Took, apply, apply_replayed,
-    cascade_delete_order, measure, sketch_on_face, slot_admits,
+    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, DrawnOnFace, EditError, EditRecord,
+    IndexFault, LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured, OnFace,
+    ProductReadFault, Recorded, Recording, SketchOutcome, SketchedOnFace, SlotValue, SourceFault,
+    Took, apply, apply_replayed, cascade_delete_order, draw_on_face, measure, sketch_on_face,
+    slot_admits,
 };
 pub use eval::measure::ObservedRefusal;
 pub use eval::{
