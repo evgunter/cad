@@ -599,10 +599,11 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
+    `unbanded_uncertainty`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
-    `join`, `singularity_undecided`, `placement`,
+    `join`, `singularity_undecided`, `interpretation`, `placement`,
     `instance`, `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
 
@@ -2147,13 +2148,13 @@ class Node:
     def profile(outline: list[ClosedLoop]) -> Node: ...
     @staticmethod
     def extrude(profile: _Operand, distance: _LengthArg) -> Node:
-        """Extrude a profile up its own +z.
+        """Extrude a profile along its own z by a signed depth.
 
-        `distance` mints a LITERAL in the node's `distance` slot. It is
-        a depth: a size, refused at `evaluate` unless definitely
-        positive. The body lies in its own coordinates, between its
-        profile's xy and `distance` up; a body that stands below a
-        plane is placed so.
+        `distance` mints a LITERAL in the node's `distance` slot, a
+        signed depth. The body lies in the profile's coordinates,
+        between its xy and `distance` along z: a `+` depth is a boss up
+        z, a `-` depth a pocket's tool down it. A depth that is zero,
+        or that the band cannot sign, is refused at `evaluate`.
         `DocEdit.set_param(node, "distance", expr)` moves the depth,
         and makes it a named, editable number: a literal is a new
         document per value, a parameter reference is one
@@ -4976,11 +4977,15 @@ class StructureNormalization:
     cut, and the two censuses are that change counted.
 
     `promoted_to` and `residual` are `surface_promotion`'s payload and
-    `singularity` is `chart_singularity_vertex`'s (`interior`,
-    `inside_edge` or `valence_one_vertex`), and `transform` and
-    `moved_by` are `placement_re_minted`'s (the assembly placement whose
+    `curve_promoted`'s (whose `face` is the curve's entity id), `kept`
+    and `joined` are `one_record`'s (the surface record kept and the one
+    its faces left), `singularity` is `chart_singularity_vertex`'s
+    (`interior`, `inside_edge` or `valence_one_vertex`), and `transform`
+    and `moved_by` are `placement_re_minted`'s (the placement whose
     frames the import built by their axes, and the farthest a point of
-    the session box moved, in metres), each `None` on the other arms —
+    the session box moved, in metres; `moved_by` also `one_record`'s,
+    the farthest a face on either of two records of one surface lies
+    from the other's), each `None` on the other arms —
     present on every row, so a read never raises and a caller never has
     to branch on `kind` first. On `placement_re_minted`, `face` is the
     transformation's entity id, the row naming no face."""
@@ -4993,6 +4998,10 @@ class StructureNormalization:
     def promoted_to(self) -> Optional[str]: ...
     @property
     def residual(self) -> Optional[float]: ...
+    @property
+    def kept(self) -> Optional[int]: ...
+    @property
+    def joined(self) -> Optional[int]: ...
     @property
     def singularity(self) -> Optional[str]: ...
     @property

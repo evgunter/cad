@@ -16,7 +16,8 @@ test_utils::gated_to![
     "crates/geom/src/azimuth.rs",
 ];
 
-use crate::chart::{file_band, uv_of};
+use crate::chart::uv_of;
+use crate::interpret::file_band;
 use geom::Surface;
 use geom_core::{Point3, Tol, Vec3};
 use test_utils::fuzz;
