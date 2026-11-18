@@ -128,3 +128,4 @@ body has the reasons):
   - P3: SPACES' viewer product readers.
 
   The two P2 rows turn on one VR4 question; a designer pair should weigh it next.
+- 2026-11-18 — PR 7087 merged (f2f663dc9). Two new rows sat on the 0.5 s new-test bar on CI (0.504 s and 0.54 s); both went to the slow set. Main moved twice under the PR, each time conflicting on logs that GitHub cannot union-merge. **State:** every P0/P1 row on DOCTAIL is now parked on an Ev PR: the P0 runwall on 7082+7075; the face frame on 7073; valenv ×2 on 7075; verdict on 7076. The P2 tail is open: the VR4 pair, the pose-chain overflow, and the two certified-pick rows.
