@@ -86,7 +86,7 @@ fn rv_a_retyped_member_index_is_refused_at_both_doors() {
         other => panic!("the edit door must refuse a length index, got {other:?}"),
     }
 
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     // The index slot reads a Count variable; the surgery swaps it for
     // a well-formed LENGTH variable, so the only rule left to refuse it
@@ -135,7 +135,7 @@ fn rv_a_retyped_member_index_is_refused_at_both_doors() {
 #[test]
 fn rv_the_slot_walk_shadows_a_structural_refusal_it_did_not_shadow_before() {
     let (doc, extrude, _) = patterned();
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     let corrupt = doctored(&text, |wire| {
         // (a) a non-profile slot retyped: distance Length -> Angle.
         crate::wire::retype_slot_var(

@@ -377,7 +377,6 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
         &[pncad::document::Operand::Node(placed.placement)],
         tol,
     )
-    .doc
 }
 
 /// Flush fins, measured live — the module docs' first section: the

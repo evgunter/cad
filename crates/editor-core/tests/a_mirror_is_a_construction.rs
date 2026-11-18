@@ -310,10 +310,8 @@ fn a_re_target_strands_a_mirror_and_it_refuses_at_evaluation() {
     )
     .expect("a re-target is admitted")
     .doc;
-    let text = editor_core::save(&moved, &[], Tol::witness()).expect("the stranded document saves");
-    let loaded = editor_core::load(&text, Tol::witness())
-        .expect("and loads")
-        .doc;
+    let text = editor_core::save(&moved, Tol::witness()).expect("the stranded document saves");
+    let loaded = editor_core::load(&text, Tol::witness()).expect("and loads");
     match eval(&loaded).nodes.get(&mirror) {
         Some(NodeResult::Failed(refusal)) => assert!(
             matches!(refusal.kind, NodeErrorKind::SpaceMismatch { .. }),

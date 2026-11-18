@@ -95,12 +95,12 @@ fn doc_with_a_crossing() -> ProfileDoc {
 #[test]
 fn an_inhabited_interface_record_round_trips() {
     let doc = doc_with_a_crossing();
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     assert!(
         text.contains("crossings"),
         "the record is on the wire: {text}"
     );
-    let back = load(&text, Tol::witness()).expect("loads").doc;
+    let back = load(&text, Tol::witness()).expect("loads");
     assert!(back.bit_eq(&doc), "the record round-trips bit for bit");
 }
 
@@ -123,7 +123,7 @@ fn an_empty_record_stays_absent_from_the_wire() {
     )
     .expect("an instance inserts")
     .doc;
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     assert!(
         !text.contains("crossings"),
         "an authored instance crosses nothing, and says nothing: {text}"
@@ -146,7 +146,7 @@ fn crossing_of(wire: &mut serde_json::Value, instance: RecipeNodeId) -> &mut ser
 fn saved_crossing() -> (String, RecipeNodeId) {
     let doc = doc_with_a_crossing();
     let instance = *doc.ids().last().expect("the fixture has nodes");
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     (text, instance)
 }
 

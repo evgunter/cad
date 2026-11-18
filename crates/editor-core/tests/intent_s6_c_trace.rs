@@ -1163,10 +1163,10 @@ fn a_crossing_at_a_cones_apex_has_no_tangent() {
 #[test]
 fn a_traced_profile_round_trips() {
     let scene = traced_boss(RADIUS, None, boss_steps());
-    let text = editor_core::persist::save(&scene.doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::persist::save(&scene.doc, Tol::witness()).expect("saves");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("loads");
-    assert_eq!(loaded.doc, scene.doc, "the same document");
-    let ev = eval(&loaded.doc);
+    assert_eq!(loaded, scene.doc, "the same document");
+    let ev = eval(&loaded);
     near(max_at(&ev, scene.boss, 1), RADIUS, "the same boss");
 }
 

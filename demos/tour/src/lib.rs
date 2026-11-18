@@ -1024,22 +1024,18 @@ pub fn cli() {
         gallery::run(std::env::args().nth(2), tol);
         return;
     }
-    // The composed die's own document and nothing else — what
-    // `crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` is
-    // regenerated from, and the reason the kernel's model corpus can
-    // register this scene's die without a second transcription of it
-    // (`diefillet::corpus_text`). The DOCUMENT is `gallery`'s with the
-    // blank kept — the composed die placed and the blank left unplaced,
-    // which holds for a corpus too — and the FILE differs: the gallery saves a snapshot, which
-    // records its ε and refuses to load at any other, while the corpus
-    // replays at every CI ε row, so this door writes the empty
-    // document plus the whole model as an edit log (the derivation and
-    // its exactness assert live at `corpus_text`).
     // The certified cells ([`certified_cells`]) and nothing else.
     if outdir == "certified" {
         certified_cells(tol);
         return;
     }
+    // The composed die's own document and nothing else — what
+    // `crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` is
+    // regenerated from, and the reason the kernel's model corpus can
+    // register this scene's die without a second transcription of it
+    // (`diefillet::corpus_text`). The document is `gallery`'s with the
+    // blank kept: the composed die placed and the blank left unplaced,
+    // which holds for a corpus too.
     if outdir == "die-corpus" {
         let path = std::env::args()
             .nth(2)
