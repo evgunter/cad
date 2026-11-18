@@ -427,7 +427,7 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
         ),
         &[(Coord::SPIN, ang(0.25))],
     );
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     (doc, text)
 }
 
@@ -546,7 +546,7 @@ fn a4_every_checked_in_document_loads_and_its_bundles_reach_the_attribute() {
             Err(e) => panic!("{path}: loads under the attribute: {e}"),
         };
         loaded_here += 1;
-        bundles += fixture::constrained(&loaded.doc).len();
+        bundles += fixture::constrained(&loaded).len();
     }
     if loaded_here == 0 {
         println!(
@@ -570,7 +570,7 @@ fn a4_every_checked_in_document_loads_and_its_bundles_reach_the_attribute() {
 #[test]
 fn a4_the_same_bundle_without_the_key_loads() {
     let (doc, text) = saved_with_a_bundle("msolve7-a4-clean");
-    let back = load(&text, Tol::witness()).expect("loads").doc;
+    let back = load(&text, Tol::witness()).expect("loads");
     assert!(back.bit_eq(&doc), "the bundle round-trips bit for bit");
     let coords: Vec<Coord> = fixture::constrained(&back)
         .into_iter()

@@ -73,14 +73,13 @@
 //!
 //! A save is TEXT: an `id: <32 lowercase hex>` header line naming the
 //! document's identity (ASM-1 D-6 — the workspace scan reads it
-//! without parsing the body), then a JSON body
-//! `{ "snapshot": <Doc>, "edits": [<DocEdit>…] }` — the full document
-//! snapshot plus the edit log since that snapshot. (One known hatch,
-//! pinned rather than closed: serde's derived struct visitor also
-//! accepts the two fields POSITIONALLY, so a body spelled
-//! `[<snapshot>, <edits>]` loads. No writer produces it, the loaded
-//! document still walks every validator, and closing it would mean a
-//! hand-written visitor for a struct that exists only to be derived —
+//! without parsing the body), then a JSON body `{ "snapshot": <Doc> }`
+//! — the document's current state. (One known hatch, pinned rather
+//! than closed: serde's derived struct visitor also accepts the field
+//! POSITIONALLY, so a body spelled `[<snapshot>]` loads. No writer
+//! produces it, the loaded document still walks every validator, and
+//! closing it would mean a hand-written visitor for a struct that
+//! exists only to be derived —
 //! `tests/bool13_r1_probes.rs::a_positional_array_body_loads` is the
 //! pin.) JSON via
 //! `serde_json` is the ratified shape's PR-spec aesthetic choice
@@ -93,15 +92,16 @@
 //!
 //! # What persists (spec D3)
 //!
-//! The recipe IS the save: the document id, nodes, parameters,
+//! A save file holds the document's STATE (GQ3,
+//! `crates/viewer/GUI-DESIGN.md`): the document id, nodes, parameters,
 //! expressions, witness bytes (hex, bit-exact), the appearance store
-//! (records incl. D7 metadata), node labels, recorded ε, and the edit
-//! log.
+//! (records incl. D7 metadata), node labels and recorded ε. Undo is
+//! session state, and no edit history is written.
 //! Deliberately NOT persisted: evaluations, name tables,
 //! memo/content/naming keys, arena anything — and the profile
 //! programs' REPLAYED SEGMENTS (vertices/bulges/joints are replay
 //! products of the stored programs; V3: caches live in the evaluation
-//! memo, never on disk) — all of it re-derives on replay, and the
+//! memo, never on disk) — all of it re-derives on evaluation, and the
 //! save/load/replay-identity CI row pins that the re-derivation is
 //! bit-identical.
 //!
@@ -115,15 +115,14 @@
 //! would refuse to load cannot be saved, by construction rather than
 //! by mirrored sweeps.
 //!
-//! - Save runs the shared validator on the in-memory document, then
-//!   verifies the log replays — everything the LOAD side would
-//!   refuse, refused before a byte is written (never an unloadable
-//!   file); `-0.0` is data and round-trips.
+//! - Save runs the shared validator on the in-memory document —
+//!   everything the LOAD side would refuse, refused before a byte is
+//!   written (never an unloadable file); `-0.0` is data and
+//!   round-trips.
 //! - Load walks the header → typed deserialize (expression REBUILD
 //!   through the dimension-checking constructors and the wire-only
-//!   canonical-set rule, [`wire`]) → the shared validator → edit
-//!   replay through [`crate::edit::apply`]'s doors → ε reconciliation
-//!   (D4). No silent best-effort loads, ever. A rebuild refusal keeps
+//!   canonical-set rule, [`wire`]) → the shared validator → ε
+//!   reconciliation (D4). No silent best-effort loads, ever. A rebuild refusal keeps
 //!   its STRUCTURE across the deserializer, which gives it nowhere to
 //!   put one ([`refusal`]), and refuses as
 //!   [`PersistError::Dimension`] carrying the document layer's own
@@ -157,7 +156,6 @@ use std::collections::BTreeMap;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
-use crate::edit::{DocEdit, EditError, EditRecord, apply_replayed};
 use crate::ident::DocumentId;
 use crate::node::{Node, RecipeNodeId};
 use crate::program::{ProfileDoc, ProfileProgram};
@@ -170,15 +168,13 @@ pub use check::{
     NonFiniteSite, OutputFault, ProgramFault, SectionIdBreak, SelectionBodyFault, SnapshotError,
 };
 
-/// The serialized body under the header: snapshot + edit log (D1).
+/// The serialized body under the header (D1).
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileBody {
     /// The document snapshot, as parsed: a [`ProfileDoc`] only once
     /// [`load`] has run the shared validator over it.
     snapshot: SnapshotWire,
-    /// The recorded edits since the snapshot, replayed on load.
-    edits: Vec<DocEdit<ProfileProgram>>,
 }
 
 /// **The reading half of [`crate::Doc`]'s wire**, and the one
@@ -248,35 +244,11 @@ impl SnapshotWire {
     }
 }
 
-/// A loaded document: the parsed snapshot, the parsed edit log, and
-/// the REPLAYED result (snapshot + edits through [`crate::edit::apply`]'s doors —
-/// the document's current state).
-///
-/// There is no column for the maintenance the replayed edits
-/// performed, by the load boundary: the loaded document IS the state,
-/// and each edit's [`crate::Applied::maintenance`] was that edit's
-/// report to the caller who applied it, its effect already in the
-/// document (a cleared offset; a stranded name the next evaluation
-/// reports typed). [`Doc::replay`](crate::Doc::replay) draws the same
-/// line, and DM7's round-trip row is the evidence the discard loses
-/// nothing.
-#[derive(Debug)]
-pub struct Loaded {
-    /// The snapshot as saved.
-    pub snapshot: ProfileDoc,
-    /// The edit log as saved.
-    pub edits: Vec<DocEdit<ProfileProgram>>,
-    /// The current document: snapshot with every edit replayed.
-    pub doc: ProfileDoc,
-    /// The replay's edit records (minted ids etc.), one per edit.
-    pub records: Vec<EditRecord>,
-}
-
 /// Typed persistence refusal (spec D2 — never a silent best-effort
 /// load, never a stringly error at the API).
 #[derive(Debug, Clone, PartialEq)]
 pub enum PersistError {
-    /// A non-finite float in the document or edit log, naming the
+    /// A non-finite float in the document, naming the
     /// site (D2: the kernel never legitimately produces NaN/inf —
     /// this is a surfaced bug, not data). Shared-validator check; in
     /// practice a save-door refusal, since JSON's lack of non-finite
@@ -441,21 +413,6 @@ pub enum PersistError {
     /// load, or an in-memory one at save (which would have written an
     /// unloadable file; shared-validator check).
     Snapshot(SnapshotError),
-    /// An edit in the log refused through the [`crate::edit::apply`] door — on
-    /// LOAD replay, or at SAVE by the symmetric log-verification pass
-    /// (a log that cannot replay would make an unloadable file; save
-    /// refuses first). A logged constraint the edit door refuses on the
-    /// recipe alone refuses here as [`EditError::MateRefused`], naming
-    /// the entry. The SNAPSHOT is a state, not an edit: its walk asks
-    /// each constraint the door's own admission, and a bundle the fold
-    /// refuses is the placement's refusal at evaluation.
-    EditReplay {
-        /// The refusing edit's index in the log.
-        index: usize,
-        /// The typed refusal, boxed so the load door's refusal stays a
-        /// small `Err`.
-        error: Box<EditError>,
-    },
     /// The document's recorded ε conflicts with the ε this process
     /// already committed (D4: one process = one ε; refuse loudly).
     ToleranceConflict {
@@ -547,21 +504,6 @@ impl Staged for PersistError {
                  layer's dimension checker: {error}"
             ),
             Self::Snapshot(e) => write!(f, "invalid snapshot: {e}"),
-            // A log no current door wrote: its recourse is the file's,
-            // not the edit door's "name it".
-            Self::EditReplay { index, error }
-                if matches!(**error, EditError::SharedVarNeedsName { .. }) =>
-            {
-                write!(
-                    f,
-                    "edit {index} refused on replay: {}. {}",
-                    error.problem(),
-                    crate::sentence::Recourse(REGENERATE_RECOURSE)
-                )
-            }
-            Self::EditReplay { index, error } => {
-                write!(f, "edit {index} refused on replay: {error}")
-            }
             Self::ToleranceConflict { process, document } => write!(
                 f,
                 "document ε {document:e} conflicts with the process ε {process:e} \
@@ -580,41 +522,20 @@ impl Staged for PersistError {
 
 impl core::error::Error for PersistError {}
 
-/// Serializes `snapshot` + `edits` into the current text format.
+/// Serializes `doc` into the current text format.
 ///
 /// # Errors
 ///
 /// Every arm of the shared validator (module docs — the same checks
 /// load runs): [`PersistError::NonFinite`] naming the site of any
-/// NaN/inf in the document or edit log (D2),
-/// [`PersistError::ProfileProgram`], and
+/// NaN/inf in the document (D2), [`PersistError::ProfileProgram`], and
 /// [`PersistError::Snapshot`] for a document whose structural
 /// invariants are broken (an unloadable file, refused before it
-/// exists). Plus [`PersistError::EditReplay`] for a log that cannot
-/// replay, and [`PersistError::Serialize`] if the JSON writer itself
+/// exists). Plus [`PersistError::Serialize`] if the JSON writer itself
 /// fails.
-pub fn save(
-    snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileProgram>],
-    tol: Tol,
-) -> Result<String, PersistError> {
-    check::validate_document(snapshot, edits, tol)?;
-    // Save/load symmetry for the LOG: load replays the edits through
-    // apply's doors, so a log that refuses there must refuse HERE —
-    // never a file that saves clean and cannot load. (Pure and
-    // document-scale cheap; the replayed value is discarded.) The
-    // replay is load's — no reach, no solve — so a log that would need
-    // a store to load refuses at save too.
-    let mut replay = snapshot.clone();
-    for (index, edit) in edits.iter().enumerate() {
-        replay = apply_replayed(&replay, edit, tol)
-            .map_err(|error| PersistError::EditReplay {
-                index,
-                error: Box::new(error),
-            })?
-            .doc;
-    }
-    let body = SerBody { snapshot, edits };
+pub fn save(doc: &ProfileDoc, tol: Tol) -> Result<String, PersistError> {
+    check::validate_document(doc, tol)?;
+    let body = SerBody { snapshot: doc };
     // Written compact inside the writing door, so a stable name of any
     // depth writes one level at a time (`names::nest`), then laid out
     // as `to_string_pretty` lays it out, compact past the load door's
@@ -628,7 +549,7 @@ pub fn save(
     // The `id:` header line duplicates the snapshot's id (ASM-1 D-6)
     // so a workspace scan reads identity without parsing the body;
     // load verifies the two agree.
-    Ok(format!("id: {}\n{json}\n", snapshot.id()))
+    Ok(format!("id: {}\n{json}\n", doc.id()))
 }
 
 /// The body as save writes it, borrowing; [`FileBody`] is the body as
@@ -636,11 +557,10 @@ pub fn save(
 #[derive(serde::Serialize)]
 struct SerBody<'a> {
     snapshot: &'a ProfileDoc,
-    edits: &'a [DocEdit<ProfileProgram>],
 }
 
-/// Parses, validates, replays, and ε-reconciles a saved document. See
-/// the module docs for the door sequence; every failure is a typed
+/// Parses, validates and ε-reconciles a saved document. See the module
+/// docs for the door sequence; every failure is a typed
 /// [`PersistError`].
 ///
 /// # Errors
@@ -648,45 +568,26 @@ struct SerBody<'a> {
 /// Every arm of [`PersistError`] except `Serialize` (`NonFinite` is
 /// guarded by the shared validator but unreachable post-parse — JSON
 /// carries no non-finite tokens, so those bytes refuse as `Parse`).
-pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
+pub fn load(text: &str, tol: Tol) -> Result<ProfileDoc, PersistError> {
     // The header carries the document's id (ASM-1 D-6); it is parsed
     // before the body so a malformed header refuses in header terms,
     // then verified against the snapshot below.
     let (header_id, body_text) = parse_id_line(text)?;
-    let FileBody { snapshot, edits } = parse_body(body_text)?;
-    let snapshot = snapshot.into_unchecked();
+    let doc = parse_body(body_text)?.snapshot.into_unchecked();
     // Header/snapshot id agreement (ASM-1 D-6): the save door writes
     // the snapshot's own id, so disagreement is tampering, refused.
-    if header_id != snapshot.id() {
+    if header_id != doc.id() {
         return Err(PersistError::IdMismatch {
             header: header_id,
-            snapshot: snapshot.id(),
+            snapshot: doc.id(),
         });
     }
     // The ONE shared validator — the same call the save door makes
     // (convention 2): a parsed document passes exactly the checks an
     // in-memory document must pass to be saved.
-    check::validate_document(&snapshot, &edits, tol)?;
-    // Replay through apply's doors: the loaded current state is the
-    // replayed state, never trusted bytes.
-    let mut doc = snapshot.clone();
-    let mut records = Vec::with_capacity(edits.len());
-    for (index, edit) in edits.iter().enumerate() {
-        let applied =
-            apply_replayed(&doc, edit, tol).map_err(|error| PersistError::EditReplay {
-                index,
-                error: Box::new(error),
-            })?;
-        doc = applied.doc;
-        records.push(applied.record);
-    }
+    check::validate_document(&doc, tol)?;
     reconcile_epsilon(doc.epsilon())?;
-    Ok(Loaded {
-        snapshot,
-        edits,
-        doc,
-        records,
-    })
+    Ok(doc)
 }
 
 /// The snapshot `text` spells, parsed and NOT validated — the test

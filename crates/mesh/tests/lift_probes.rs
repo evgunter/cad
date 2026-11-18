@@ -1491,7 +1491,7 @@ fn verdict(body: &Body<f64>) -> (Vec<String>, [bool; 3], Vec<String>) {
 /// (`topo::finish`); the torus band mints, and `validate_geometric`
 /// refuses its volume. `mesh::tessellate` refuses all three
 /// `DomainUnread` with the door's `OuterOpen`: the face holds a ring, so
-/// `tessellate::lane_of` sends it to the trimmed lane, which reads the
+/// `tessellate::route_of` sends it to the trimmed lane, which reads the
 /// face's domain through `Body::face_lift`, and the outer loop does not
 /// close. The frustum's ring holds the cone's apex in its hole, and its
 /// loops wind about the apex, so the door refuses before any polygon is

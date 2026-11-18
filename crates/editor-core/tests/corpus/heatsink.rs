@@ -97,7 +97,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "heat_sink",
         about: "parametric fin strip: one placement over an index, unioned with its base and placed beside it",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(acc),
         pin: Some(MassPin {

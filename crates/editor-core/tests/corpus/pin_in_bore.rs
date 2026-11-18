@@ -213,7 +213,7 @@ fn scene((name, about): (&'static str, &'static str), shank: &'static str) -> Co
     CorpusDoc {
         name,
         about,
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: None, // the head is the world's four copies
         pin: None,    // revolved: π-valued
