@@ -337,6 +337,9 @@ pub(crate) const ON_THE_FACE: &str = "on";
 /// The form's optional latch for a face the profile traces.
 pub(crate) const TRACE_FACE: &str = "trace";
 
+/// What the button that lets the form's face to trace go says.
+pub(crate) const TRACE_NOTHING: &str = "trace nothing";
+
 /// What the profile-on-a-face form waits for while no face is latched to
 /// draw on.
 const PICK_THE_FACE_DRAWN_ON: &str = "pick the face the profile is drawn on";
@@ -1159,7 +1162,7 @@ impl ViewerBehavior<'_> {
         }
         let closing = commit_row(ui, NEW_PROFILE_ON_FACE, blocked, |_| {});
         if closing.cancel {
-            self.drafts.on_face_open = false;
+            self.drafts.close_on_face();
         }
         if closing.commit {
             match self.drafts.on_face_op(*self.notation) {
@@ -1183,8 +1186,10 @@ impl ViewerBehavior<'_> {
     /// **The profile-on-a-face form's rows** ([`SessionOp::DrawOnFace`]):
     /// the two latches — the face the profile is drawn on, and the face
     /// it traces, if any — each taking the viewport's face pick on its
-    /// button; the trace the two show, or the trace's own refusal; and
-    /// the trace's branches. Answers what the commit still waits for.
+    /// button, the face to trace let go on its own ([`TRACE_NOTHING`]);
+    /// and, while a face to trace is latched, the trace the two show or
+    /// its own refusal, and the trace's branches. Answers what the commit
+    /// still waits for.
     fn trace_rows(&mut self, ui: &mut egui::Ui) -> Option<&'static str> {
         let picked = match self.session.selection() {
             Selection::Face(face) => Some(face.clone()),
@@ -1209,6 +1214,9 @@ impl ViewerBehavior<'_> {
                 {
                     crate::drafts::latch(held, doc, face);
                 }
+                if !plane && held.is_some() && ui.button(TRACE_NOTHING).clicked() {
+                    *held = None;
+                }
             });
         }
         let waiting = self
@@ -1216,6 +1224,9 @@ impl ViewerBehavior<'_> {
             .on_face
             .is_none()
             .then_some(PICK_THE_FACE_DRAWN_ON);
+        if self.drafts.trace_face.is_none() {
+            return waiting;
+        }
         match self.drafts.trace_shown.as_ref().map(|shown| &shown.read) {
             Some(Ok(marks)) => {
                 crate::widgets::message(

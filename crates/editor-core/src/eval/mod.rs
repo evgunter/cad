@@ -3832,11 +3832,11 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
     tol: Tol,
 ) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
     // `doc` may be `ev`'s document with a probe lowered into it, whose
-    // values (a face's chart's spin and slides) are definitions `ev`
-    // never bound, and whose member reads mint their indices as counts
-    // it never bound: the definitions are bound as the run binds them
-    // (`Doc::bind_definitions`), and each count as the document holds it
-    // (`edit::written_count`).
+    // member reads mint their indices as counts `ev` never bound, and
+    // whose values (a face's chart's spin and slides) are definitions it
+    // never bound. They are bound in the run's order: each count as the
+    // document holds it (`edit::written_count`), then the definitions
+    // over them (`Doc::bind_definitions`).
     let unbound: Vec<crate::VarId> = doc
         .var_ids()
         .into_iter()
@@ -3856,14 +3856,14 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
         (false, true) => std::borrow::Cow::Borrowed(&ev.env),
         _ => {
             let mut env = ev.env.clone();
-            if defined {
-                doc.bind_definitions(&mut env);
-            }
             env.bindings.extend(
                 counts
                     .into_iter()
                     .map(|(var, value)| (var, crate::expr::ParamValue::Count(value))),
             );
+            if defined {
+                doc.bind_definitions(&mut env);
+            }
             std::borrow::Cow::Owned(env)
         }
     };

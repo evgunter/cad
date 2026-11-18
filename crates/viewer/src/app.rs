@@ -9603,7 +9603,7 @@ mod properties_pane_tests {
         use pncad::select::{all_faces, all_vertices, vertex_position};
 
         use super::Driven;
-        use crate::pane::create::{NEW_PROFILE_ON_FACE, USE_THE_PICKED_FACE};
+        use crate::pane::create::{NEW_PROFILE_ON_FACE, TRACE_NOTHING, USE_THE_PICKED_FACE};
         use crate::session::{DocSession, FaceSelection, Selection, SessionOp, SketchTraceFault};
         use crate::test_support::{inserted, len, placed};
 
@@ -10269,6 +10269,43 @@ mod properties_pane_tests {
             crate::docio::save(&path, pane.app.session.committed_doc(), tol).expect("saves");
             let reopened = crate::docio::open(&path, tol).expect("reopens");
             assert!(*reopened.doc() == after, "a save reopens as written");
+        }
+
+        /// **The face to trace is kept for one profile**: latched and
+        /// committed, the form closes and lets it go, so the reopened
+        /// form traces nothing and offers no branch rows; latched again,
+        /// it offers them, and its own button lets it go.
+        #[test]
+        fn a_committed_trace_is_let_go_and_the_reopened_form_traces_nothing() {
+            let (session, _, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let mut pane = drive(session, bottom, wall.clone());
+            pane.click(NEW_PROFILE_ON_FACE);
+            pane.quiet();
+            assert!(!pane.app.drafts.on_face_open, "the commit closes the form");
+            assert!(
+                pane.app.drafts.trace_face.is_none(),
+                "and lets the face to trace go"
+            );
+            pane.app.drafts.on_face_open = true;
+            let painted = pane.quiet();
+            assert!(
+                !painted.iter().any(|(run, _)| run == "to crossing"),
+                "no branch rows without a face to trace: {painted:?}"
+            );
+            let doc = pane.app.session.doc().clone();
+            crate::drafts::latch(&mut pane.app.drafts.trace_face, &doc, &wall);
+            let painted = pane.quiet();
+            assert!(
+                painted.iter().any(|(run, _)| run == "to crossing"),
+                "a latched face to trace offers its branches: {painted:?}"
+            );
+            pane.click(TRACE_NOTHING);
+            pane.quiet();
+            assert!(
+                pane.app.drafts.trace_face.is_none(),
+                "its own button lets it go"
+            );
         }
 
         /// **A folded form reads no trace**: the trace is read for the

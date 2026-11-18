@@ -1130,9 +1130,11 @@ impl Drafts {
     /// once per op a batch performed without a refusal.
     ///
     /// The profile-on-a-face form closes with its one committed edit, as
-    /// a tool does; its latches stay, so a second traced profile starts
-    /// from the faces the first one read. The add-variable form closes
-    /// on its own declaration.
+    /// a tool does, and lets its face to trace go ([`Self::close_on_face`]):
+    /// tracing is the form's option, so the next profile traces only what
+    /// it is given. The face it was drawn on stays latched, so a second
+    /// profile starts on the same face. The add-variable form closes on
+    /// its own declaration.
     ///
     /// A REFUSED add leaves the drafts alone, so correcting what was
     /// refused does not cost what was typed.
@@ -1150,7 +1152,7 @@ impl Drafts {
             op => op,
         };
         if matches!(op, SessionOp::DrawOnFace { .. }) {
-            self.on_face_open = false;
+            self.close_on_face();
         }
         // A reshaped program renumbers its slots, so text held for a
         // profile slot would show on whichever argument takes that
@@ -1590,6 +1592,14 @@ impl Drafts {
             against: landed.map_or_else(Weak::new, Arc::downgrade),
             read,
         });
+    }
+
+    /// **The profile-on-a-face form closes**, by its commit or its
+    /// Cancel, and lets its face to trace go, with the trace it showed.
+    pub(crate) fn close_on_face(&mut self) {
+        self.on_face_open = false;
+        self.trace_face = None;
+        self.trace_shown = None;
     }
 
     /// **Whether the profile-on-a-face form is open**, and so reads a

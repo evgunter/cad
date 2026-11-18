@@ -7476,7 +7476,10 @@ impl Recording<'_, crate::ProfileProgram> {
         cancel: &crate::CancelToken,
     ) -> Result<SketchedOnFace, EditError> {
         use crate::pose::{PoseDef, RoleRead};
-        let orient = orient.unwrap_or_else(|| self.nearest_to_face(&body, &face, opts, cancel));
+        let orient = orient.unwrap_or_else(|| {
+            nearest_to_face(self.doc(), &self.evaluated(opts, cancel), &body, &face)
+                .unwrap_or(crate::Orientation::IDENTITY)
+        });
         let whole = body.read.clone();
         let profile = self.insert(Node::Profile(profile))?;
         let extrude = self.insert(Node::Extrude {
@@ -7549,12 +7552,10 @@ impl Recording<'_, crate::ProfileProgram> {
     /// `REFERENCES.md` DM1): `loops` drawn on the face's chart, the frame
     /// a plane placement onto `face` of `body` gives under `on`'s
     /// orientation, spin and slides
-    /// ([`crate::pose::PoseDef::FaceChart`]), tracing `on`'s faces of
-    /// that body's space, as one profile node in that space. Nothing is
-    /// placed. An orientation `None` is the one nearest the face, the
-    /// frame's `z` along its outward normal, read off the face as it
-    /// stands under `opts` and written into the recipe; a face that does
-    /// not read takes the identity, which the chart then judges. A sweep
+    /// ([`chart_on_face`]), tracing `on`'s faces of that body's space, as
+    /// one profile node in that space. Nothing is placed. An orientation
+    /// `None` is the one nearest the face, read off the face as it stands
+    /// under `opts` and written into the recipe. A sweep
     /// of the profile by a signed depth is a boss above the face or a
     /// pocket's tool into it.
     ///
@@ -7569,20 +7570,14 @@ impl Recording<'_, crate::ProfileProgram> {
         on: OnFace,
         (opts, cancel): (&crate::EvalOptions, &crate::CancelToken),
     ) -> Result<RecipeNodeId, EditError> {
-        let OnFace {
-            orient,
-            spin,
-            slides,
-            traced,
-        } = on;
-        let orient = orient.unwrap_or_else(|| self.nearest_to_face(&body, &face, opts, cancel));
-        let frame = face_chart(body, face, (orient, spin, slides));
+        let ev = on.orient.is_none().then(|| self.evaluated(opts, cancel));
+        let frame = chart_on_face(self.doc(), ev.as_ref(), body, face, &on);
         self.insert(Node::Profile(crate::ProfileProgram {
             loops,
             ids: Vec::new(),
             on: Some(crate::DrawnOn {
                 frame,
-                faces: traced,
+                faces: on.traced,
             }),
         }))
     }
@@ -7704,82 +7699,106 @@ impl Recording<'_, crate::ProfileProgram> {
         Ok(minted)
     }
 
-    /// [`nearest_to_face`] read off the face as it stands now under
-    /// `opts`.
-    fn nearest_to_face(
+    /// The document as it stands now, evaluated under `opts`.
+    fn evaluated(
         &self,
-        body: &crate::BodyRead<Formula>,
-        face: &crate::StableName,
         opts: &crate::EvalOptions,
         cancel: &crate::CancelToken,
-    ) -> crate::Orientation {
-        let ev: crate::Evaluation<f64> = crate::evaluate(self.doc(), None, cancel, opts, self.tol);
-        nearest_to_face(self.doc(), &ev, body, face)
+    ) -> crate::Evaluation<f64> {
+        crate::evaluate(self.doc(), None, cancel, opts, self.tol)
     }
 }
 
-/// **The face's chart a profile drawn on `face` of `body` stands on**
-/// ([`crate::pose::PoseDef::FaceChart`]), under an orientation, a spin
-/// and two slides, as an operand: the frame [`Recording::draw_on_face`]
-/// draws on, for a reader that reads it before anything is drawn there
-/// (a trace shown before the gesture commits).
+/// **The face's chart a profile drawn on `face` of `body` under `on`
+/// stands on** ([`crate::pose::PoseDef::FaceChart`]), as an operand: the
+/// frame [`Recording::draw_on_face`] draws on, and the one a reader that
+/// reads it before anything is drawn there reads (a trace shown before
+/// the gesture commits), so the two cannot differ. Its orientation is
+/// `on`'s, or where `on` writes none the one nearest the face read off
+/// `ev` ([`nearest_to_face`]); where the face does not read there (or no
+/// evaluation is given), the identity, which the chart's own read then
+/// refuses typed at evaluation, in that read's words.
 #[must_use]
-pub fn face_chart(
+pub fn chart_on_face(
+    doc: &Doc<crate::ProfileProgram>,
+    ev: Option<&crate::Evaluation<f64>>,
     body: crate::BodyRead<Formula>,
     face: crate::StableName,
-    (orient, spin, slides): (crate::Orientation, Formula, [Formula; 2]),
+    on: &OnFace,
 ) -> crate::Operand {
+    let orient = on.orient.unwrap_or_else(|| {
+        ev.and_then(|ev| nearest_to_face(doc, ev, &body, &face).ok())
+            .unwrap_or(crate::Orientation::IDENTITY)
+    });
     crate::Operand::Pose(Box::new(crate::pose::PoseDef::FaceChart {
         face: crate::Operand::select(body, vec![face]),
         orient,
-        spin,
-        slides,
+        spin: on.spin.clone(),
+        slides: on.slides.clone(),
     }))
 }
 
+/// **Why no orientation reads off a face** ([`nearest_to_face`]).
+#[derive(Debug)]
+pub enum FaceUnread {
+    /// The body is read through no node or variable.
+    NoBody,
+    /// The body is one member of a family, and the evaluation holds no
+    /// face of that member under the name.
+    NoMember,
+    /// The face's own read refused.
+    Face(crate::InterrogateError),
+}
+
+impl core::fmt::Display for FaceUnread {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoBody => f.write_str("the face is read through no node of the document"),
+            Self::NoMember => f.write_str("the family has no such face at the member read"),
+            Self::Face(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl core::error::Error for FaceUnread {}
+
 /// **The orientation nearest where a profile on `face` of `body`
 /// stands**: the profile's `z` along the face's outward normal, read off
-/// the face in `ev`, an evaluation of `doc`; the identity where the face
-/// does not read. The one home of a drawn-on-face gesture's orientation
-/// ([`Recording::draw_on_face`]).
-#[must_use]
+/// the face in `ev`, an evaluation of `doc`. The one home of a
+/// drawn-on-face gesture's orientation ([`chart_on_face`]).
+///
+/// # Errors
+///
+/// [`FaceUnread`] where the face does not read in `ev`.
 pub fn nearest_to_face(
     doc: &Doc<crate::ProfileProgram>,
     ev: &crate::Evaluation<f64>,
     body: &crate::BodyRead<Formula>,
     face: &crate::StableName,
-) -> crate::Orientation {
+) -> Result<crate::Orientation, FaceUnread> {
     let at = match &body.read {
         crate::Operand::Output { node, port } => doc
             .output(*node, *port)
             .map_or(crate::At::Node(*node), crate::At::Read),
         crate::Operand::Node(node) => crate::At::Node(*node),
         crate::Operand::Var(var) => crate::At::Read(*var),
-        _ => return crate::Orientation::IDENTITY,
+        _ => return Err(FaceUnread::NoBody),
     };
     // A member's face is named by the member's own name: the family's
     // table names it otherwise.
     let family_name;
     let face = if body.is_indexed() {
-        let Some(name) = body
+        family_name = body
             .written_member(doc)
             .and_then(|member| crate::names::family_entity(ev, at, &member, face))
-        else {
-            return crate::Orientation::IDENTITY;
-        };
-        family_name = name;
+            .ok_or(FaceUnread::NoMember)?;
         &family_name
     } else {
         face
     };
-    crate::names::interrogate::face_frame(ev, at, face).map_or(
-        crate::Orientation::IDENTITY,
-        |pose| {
-            let outward = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
-            crate::Orientation::IDENTITY
-                .toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), outward)
-        },
-    )
+    let pose = crate::names::interrogate::face_frame(ev, at, face).map_err(FaceUnread::Face)?;
+    let outward = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
+    Ok(crate::Orientation::IDENTITY.toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), outward))
 }
 
 /// [`fn@sketch_on_face`]'s outcome: the action applied, and what it

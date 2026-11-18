@@ -3525,10 +3525,7 @@ impl DocSession {
                 body,
                 name,
                 loops,
-                pncad::document::OnFace {
-                    traced: faces,
-                    ..pncad::document::OnFace::nearest()
-                },
+                the_forms_chart(faces),
                 (&opts, &pncad::document::CancelToken::new()),
             )
         }))
@@ -3536,8 +3533,9 @@ impl DocSession {
 
     /// **`face`'s trace on `on`, for display**
     /// ([`pncad::trace::sketch_trace`]), against the landed evaluation:
-    /// on the chart a profile drawn on `on` stands on, at its nearest
-    /// orientation ([`pncad::document::face_chart`]), read as that
+    /// on the chart the form's profile on `on` stands on, read by the
+    /// door the commit draws through ([`pncad::document::chart_on_face`],
+    /// [`the_forms_chart`]), read as that
     /// profile would read it, and sampled across a square the traced
     /// body spans. Nothing is written.
     ///
@@ -3557,9 +3555,13 @@ impl DocSession {
         };
         let traced = pick_read(doc, Some(ev), face).ok_or_else(|| picked(face))?;
         let (body, name) = picked_body(doc, Some(ev), on).ok_or_else(|| picked(on))?;
-        let orient = pncad::document::nearest_to_face(doc, ev, &body, &name);
-        let at_zero = pncad::document::OnFace::nearest();
-        let frame = pncad::document::face_chart(body, name, (orient, at_zero.spin, at_zero.slides));
+        let frame = pncad::document::chart_on_face(
+            doc,
+            Some(ev),
+            body,
+            name,
+            &the_forms_chart(vec![traced.clone()]),
+        );
         let half = TRACE_WINDOW_MARGIN * body_reach(ev, face.node).unwrap_or(1.0);
         pncad::trace::sketch_trace(
             doc,
@@ -6266,6 +6268,17 @@ pub(crate) fn pick_read(
 ) -> Option<Operand> {
     let (body, name) = picked_body(doc, ev, pick)?;
     Some(Operand::select(body, vec![name]))
+}
+
+/// **Where the profile-on-a-face form's profile stands on its face**: the
+/// chart's nearest orientation, no spin and no slide, tracing `traced`.
+/// The one spelling both the commit ([`DocSession::draw_on_face`]) and
+/// the trace shown before it ([`DocSession::sketch_trace`]) read.
+fn the_forms_chart(traced: Vec<Operand>) -> pncad::document::OnFace {
+    pncad::document::OnFace {
+        traced,
+        ..pncad::document::OnFace::nearest()
+    }
 }
 
 /// How far `node`'s body reaches from its own origin across its `xy`:

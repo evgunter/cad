@@ -14,6 +14,7 @@
 use crate::fixture::{self, len};
 use crate::intent_s6_c_trace::{BOSS_H, RADIUS, Scene, boss_steps, eval, face, max_at};
 use crate::intent_s6_d_tangency::{by_its_heading, tangency};
+use editor_core::coincide::{Proof, Recourse};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BodyRead, CancelToken, CapEnd, Dimension, DocEdit, EvalOptions, Formula, FreeValue, FreeVar,
@@ -269,49 +270,375 @@ fn an_offset_cylinder_keeps_its_boss_through_a_centre_edit() {
 /// (`work/doctail/a-face-charts-turn-is-levered-over-none-of-what-it-carries.md`).
 #[test]
 fn a_tilted_cylinders_boss_is_tangent_for_every_tilt() {
-    let doc = ProfileDoc::empty_derived("s6e_tilted", Tol::witness());
-    let a = VarName::new("a").expect("a name");
+    let (doc, a) = with_angle("a", 0.2);
+    let (doc, base) = slab(doc, [-3.0, -2.0], [-0.5, 0.5], 0.5);
+    let (doc, cylinder) = turned_cylinder(doc, (base, 0.5), a, ([0.0, 0.0], 0.0));
+    let scene = boss(doc, cylinder, CapEnd::End, unslid(), BOSS_H);
+    assert_proven(&scene, "tilted by a");
+}
+
+/// A document holding the free angle `name` at `value`, and its read.
+fn with_angle(name: &str, value: f64) -> (ProfileDoc, Formula) {
+    let doc = ProfileDoc::empty_derived("s6e_turned", Tol::witness());
+    let name = VarName::new(name).expect("a name");
     let (doc, _) = fixture::step(
         doc,
         DocEdit::DeclareVar {
-            name: a.clone(),
-            def: VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.2)),
+            name: name.clone(),
+            def: VarDecl::Free(FreeVar::continuous(Dimension::Angle, value)),
         },
     );
-    let (doc, base) = fixture::insert(
+    (doc, Formula::named(name, Dimension::Angle))
+}
+
+/// A box over `x` by `y` in its own `xy`, extruded `h` up its `z`.
+fn slab(doc: ProfileDoc, x: [f64; 2], y: [f64; 2], h: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, outline) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            loops: vec![disc_at(len(-2.0))],
+            loops: vec![LoopProgram::polygon_expr([
+                [len(x[0]), len(y[0])],
+                [len(x[1]), len(y[0])],
+                [len(x[1]), len(y[1])],
+                [len(x[0]), len(y[1])],
+            ])],
             ids: Vec::new(),
             on: None,
         }),
     );
-    let (doc, base) = extruded(doc, base);
-    let at_origin = editor_core::test_support::frame_on(
-        &doc,
-        &Operand::output(base, 0),
-        &editor_core::Frame::IDENTITY,
-        Tol::witness(),
-    );
-    let tilted = Operand::Pose(Box::new(PoseDef::Spin {
+    extruded_by(doc, outline, h)
+}
+
+/// `outline` extruded `h`.
+fn extruded_by(doc: ProfileDoc, outline: RecipeNodeId, h: f64) -> (ProfileDoc, RecipeNodeId) {
+    fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: outline.into(),
+            distance: len(h),
+        },
+    )
+}
+
+/// **A cylinder of radius `RADIUS` and height `HEIGHT` in the space of
+/// `base`, a box whose top stands `h` up its space's `z`: its disc
+/// centred at `centre` on the frame at `(0, 0, lift)` spun about its `x`
+/// by `by`**: the document and the cylinder. The frame is the box top's
+/// chart at its identity orientation, slid down its `z`, so it turns by
+/// nothing but `by`.
+fn turned_cylinder(
+    doc: ProfileDoc,
+    (base, h): (RecipeNodeId, f64),
+    by: Formula,
+    (centre, lift): ([f64; 2], f64),
+) -> (ProfileDoc, RecipeNodeId) {
+    let chart = Operand::Pose(Box::new(PoseDef::FaceChart {
+        face: pick(Operand::output(base, 0), cap(base, CapEnd::End)),
+        orient: editor_core::Orientation::IDENTITY,
+        spin: fixture::ang(0.0),
+        slides: [len(0.0), len(0.0)],
+    }));
+    let at_origin = Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(chart.clone()),
+        along: RoleRead::through(chart, PoseRole::Z),
+        by: len(lift - h),
+    }));
+    let turned = Operand::Pose(Box::new(PoseDef::Spin {
         pose: RoleRead::plain(at_origin.clone()),
         about: RoleRead::through(at_origin, PoseRole::X),
-        by: Formula::named(a, Dimension::Angle),
+        by,
     }));
     let (doc, disc) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            loops: vec![disc_at(len(0.0))],
+            loops: vec![LoopProgram::Circle {
+                centre: [len(centre[0]), len(centre[1])],
+                radius: len(RADIUS),
+            }],
             ids: Vec::new(),
             on: Some(editor_core::DrawnOn {
-                frame: tilted,
+                frame: turned,
                 faces: Vec::new(),
             }),
         }),
     );
-    let (doc, cylinder) = extruded(doc, disc);
-    let scene = boss(doc, cylinder, CapEnd::End, unslid(), BOSS_H);
-    assert_proven(&scene, "tilted by a");
+    extruded(doc, disc)
+}
+
+/// The union of `a` and `b`'s one tangency, as the door proves it.
+fn tangency_of(doc: ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> Proof {
+    tangency(doc, vec![Operand::output(a, 0), Operand::output(b, 0)])
+}
+
+/// Unproven, naming where to draw.
+fn asks_for_the_axis(proof: &Proof) -> bool {
+    matches!(
+        proof,
+        Proof::Unproven {
+            recourse: Recourse::ReadTheAxis,
+            ..
+        }
+    )
+}
+
+/// The boss the traced chain draws on `face` of `body`, tracing the
+/// wall of `cylinder`, slid by `slides` and extruded `depth`.
+fn boss_tracing(
+    doc: ProfileDoc,
+    (body, face): (RecipeNodeId, StableName),
+    cylinder: RecipeNodeId,
+    slides: [Formula; 2],
+    depth: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let wall = face_of_kind(&doc, cylinder, SurfaceKind::Cylinder);
+    let (doc, _, boss) = boss_on_face(
+        doc,
+        (BodyRead::plain(Operand::output(body, 0)), face),
+        pick(Operand::output(cylinder, 0), wall),
+        slides,
+        depth,
+    );
+    (doc, boss)
+}
+
+/// `node`'s face on a carrier of `kind`, in `doc`'s evaluation.
+fn face_of_kind(doc: &ProfileDoc, node: RecipeNodeId, kind: SurfaceKind) -> StableName {
+    face(&eval(doc), node, kind)
+}
+
+/// **A wall parallel to the face it is traced from by value alone asks
+/// for the axis**: a cylinder spun about `x` by a free angle `a` at `0`,
+/// traced from the chart of a box's top beside it. At `a = 0` the wall
+/// stands square to the box's top, so the boss is tangent, but the wall's
+/// axis leaves the sketch's `z` by `sin a`: no identity, and the finding
+/// names where to draw.
+#[test]
+fn a_hole_parallel_to_the_face_by_value_only_asks_for_the_axis() {
+    let (doc, a) = with_angle("a", 0.0);
+    let (doc, block) = slab(doc, [-3.0, -2.0], [-0.5, 0.5], 0.5);
+    let (doc, cylinder) = turned_cylinder(doc, (block, 0.5), a, ([0.0, 0.0], 0.0));
+    let (doc, boss) = boss_tracing(
+        doc,
+        (block, cap(block, CapEnd::End)),
+        cylinder,
+        unslid(),
+        BOSS_H,
+    );
+    let proof = tangency_of(doc, cylinder, boss);
+    assert!(asks_for_the_axis(&proof), "{proof:?}");
+}
+
+/// **A turn written in radians tilts the wall by its rounding; a frame
+/// read off the wall's axis does not.** A horizontal cylinder, its
+/// disc's frame turned by the float `π/2` about `x`, traced from the chart
+/// of a box's side square to it: its axis leaves the box's normal by the
+/// rounding of `cos(π/2)`, so the boss is tangent within the band but not
+/// as an identity, and the finding names where to draw. Drawn on a frame
+/// whose `z` is read off the wall's axis, the same boss proves by the
+/// first rung, whatever the turn's rounding.
+#[test]
+fn a_frame_turned_in_radians_asks_for_the_axis_read_off_the_face() {
+    let doc = ProfileDoc::empty_derived("s6e_radians", Tol::witness());
+    let (doc, block) = slab(doc, [-3.0, -2.0], [-0.5, 0.0], 2.0);
+    let (doc, cylinder) = turned_cylinder(
+        doc,
+        (block, 2.0),
+        fixture::ang(core::f64::consts::FRAC_PI_2),
+        ([0.0, 0.0], 1.0),
+    );
+    let ev = eval(&doc);
+    let side = editor_core::all_faces(&ev, block)
+        .into_iter()
+        .find(|name| {
+            editor_core::face_frame(&ev, block, name)
+                .is_ok_and(|pose| (pose.origin.y + 0.5).abs() < 1e-12 && pose.axis.y.abs() > 0.5)
+        })
+        .expect("the box's side at y = -1/2");
+    // The chart's origin, the space's projected onto the side, slid up its
+    // `z` onto the cylinder's axis.
+    let (on_the_side, boss) = boss_tracing(
+        doc.clone(),
+        (block, side),
+        cylinder,
+        [len(0.0), len(1.0)],
+        BOSS_H,
+    );
+    let radians = tangency_of(on_the_side, cylinder, boss);
+    assert!(
+        asks_for_the_axis(&radians),
+        "on the box's side: {radians:?}"
+    );
+    let wall = face_of_kind(&doc, cylinder, SurfaceKind::Cylinder);
+    let vertex = editor_core::all_vertices(&ev, cylinder)
+        .into_iter()
+        .next()
+        .expect("a vertex");
+    let read = |def| RoleRead::plain(Operand::Pose(Box::new(def)));
+    let off_the_axis = Operand::Pose(Box::new(PoseDef::Through {
+        axis: read(PoseDef::Axis {
+            of: pick(Operand::output(cylinder, 0), wall),
+        }),
+        point: read(PoseDef::Point {
+            of: pick(Operand::output(cylinder, 0), vertex),
+        }),
+    }));
+    let scene = crate::intent_s6_c_trace::boss_on(doc, cylinder, off_the_axis, boss_steps());
+    let read_off = tangency_of(scene.doc, cylinder, scene.boss);
+    assert!(
+        crate::intent_s6_d_tangency::proven(&read_off),
+        "on a frame read off the wall's axis: {read_off:?}"
+    );
+}
+
+/// **A boss on a box mated flat onto the cylinder's top cap is tangent
+/// for every tilt** (DESIGN `[placement]`: "or a face mated flat onto
+/// that cap"): the cylinder tilted by a free `a` at `0.2`, a thin box
+/// placed on its top cap by the plane mate a sketch on a face writes, and
+/// a boss drawn on the box's top tracing the wall, run down past the box
+/// along the wall.
+#[test]
+fn a_boss_on_a_box_mated_flat_onto_the_cap_is_tangent_for_every_tilt() {
+    let (doc, a) = with_angle("a", 0.2);
+    let (doc, block) = slab(doc, [-3.0, -2.0], [-0.5, 0.5], 0.5);
+    let (doc, cylinder) = turned_cylinder(doc, (block, 0.5), a, ([0.0, 0.0], 0.0));
+    let placed = editor_core::sketch_on_face(
+        &doc,
+        BodyRead::plain(Operand::output(cylinder, 0)),
+        cap(cylinder, CapEnd::End),
+        ProfileProgram {
+            loops: vec![LoopProgram::polygon_expr([
+                [len(-1.5), len(-1.5)],
+                [len(1.5), len(-1.5)],
+                [len(1.5), len(1.5)],
+                [len(-1.5), len(1.5)],
+            ])],
+            ids: Vec::new(),
+            on: None,
+        },
+        len(0.2),
+        fixture::ang(0.0),
+        None,
+        &EvalOptions::default(),
+        &CancelToken::new(),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the box is placed on the cap: {e}"));
+    let box_top = cap(placed.sketched.extrude, CapEnd::End);
+    let (doc, boss) = boss_tracing(
+        placed.doc,
+        (placed.sketched.placement, box_top),
+        cylinder,
+        unslid(),
+        -0.8,
+    );
+    let proof = tangency_of(doc, cylinder, boss);
+    assert!(by_its_heading(&proof), "{proof:?}");
+}
+
+/// **A boss traced on a hole drilled through the same chart proves**:
+/// the hole a disc drawn on a box's top cap's chart, slid along `x` by
+/// the free `cx`, and pocketed through; the boss drawn on the same chart
+/// with the same slide, tracing the hole's wall (whose material is
+/// outside its circle, so the chain enters it and runs with it) and run
+/// down into the box.
+#[test]
+fn a_boss_traced_on_a_hole_drilled_through_the_same_chart_proves() {
+    let doc = ProfileDoc::empty_derived("s6e_hole", Tol::witness());
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: VarName::new("cx").expect("a name"),
+            def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.1)),
+        },
+    );
+    let (doc, block) = slab(doc, [-2.0, 2.0], [-2.0, 2.0], 1.0);
+    let top = || {
+        (
+            BodyRead::plain(Operand::output(block, 0)),
+            cap(block, CapEnd::End),
+        )
+    };
+    let on = |traced: Vec<Operand>| OnFace {
+        slides: [cx(), len(0.0)],
+        traced,
+        ..OnFace::nearest()
+    };
+    let drill = editor_core::draw_on_face(
+        &doc,
+        top().0,
+        top().1,
+        vec![disc_at(len(0.0))],
+        on(Vec::new()),
+        &EvalOptions::default(),
+        &CancelToken::new(),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the hole's disc is drawn: {e}"));
+    let (doc, tool) = extruded_by(drill.doc, drill.profile, -1.0);
+    let (doc, drilled) = fixture::insert(
+        doc,
+        Node::Subtract {
+            from: Operand::from(block).into(),
+            tool: Operand::from(tool).into(),
+        },
+    );
+    let hole = face_of_kind(&doc, drilled, SurfaceKind::Cylinder);
+    let steps = boss_steps()
+        .into_iter()
+        .map(|step| match step {
+            editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::OnTrace {
+                face, ..
+            }) => editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::OnTrace {
+                face,
+                crossing: editor_core::TraceCrossing::first(editor_core::TracePassage::Enter),
+            }),
+            editor_core::ProgramStep::AlongTrace { .. } => editor_core::ProgramStep::AlongTrace {
+                sense: editor_core::TraceSense::With,
+            },
+            step => step,
+        })
+        .collect();
+    let drawn = editor_core::draw_on_face(
+        &doc,
+        top().0,
+        top().1,
+        vec![LoopProgram::Chain(steps)],
+        on(vec![pick(Operand::output(drilled, 0), hole)]),
+        &EvalOptions::default(),
+        &CancelToken::new(),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the boss is drawn: {e}"));
+    let (doc, boss) = extruded_by(drawn.doc, drawn.profile, BOSS_H);
+    let proof = tangency_of(doc, drilled, boss);
+    assert!(by_its_heading(&proof), "{proof:?}");
+}
+
+/// **A chart on a member the family does not have refuses typed**: the
+/// cylinder patterned three times, a profile drawn on `xs[3]`'s bottom
+/// cap.
+#[test]
+fn a_chart_on_a_missing_member_refuses_typed() {
+    let (doc, cylinder) = cylinder_at(0.0);
+    let (doc, _k, xs) = fixture::linear(doc, cylinder, [1.0, 0.0, 0.0], 2.0, 3);
+    let missing = BodyRead::indexed(Operand::output(xs, 0), vec![Formula::count(3)]);
+    let drawn = editor_core::draw_on_face(
+        &doc,
+        missing,
+        cap(cylinder, CapEnd::Start),
+        vec![disc_at(len(0.0))],
+        OnFace::nearest(),
+        &EvalOptions::default(),
+        &CancelToken::new(),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the door draws: {e}"));
+    let ev = eval(&drawn.doc);
+    let refusal = ev.node_error(drawn.profile).map(|e| &e.kind);
+    assert!(
+        matches!(refusal, Some(editor_core::NodeErrorKind::MemberOutOfRange { input, at }) if *input == xs && at.as_slice() == [3]),
+        "no member 3: {refusal:?}"
+    );
 }
 
 /// **A face that is no plane has no chart**: a profile drawn on the
@@ -378,11 +705,11 @@ fn a_profile_on_a_member_traces_that_member() {
 }
 
 /// **A face's chart reads a trace before anything is drawn on it**
-/// ([`editor_core::face_chart`], [`editor_core::nearest_to_face`]): a
-/// probe profile on the bottom cap's chart, lowered into a scratch copy
-/// of the document, reads the wall against the document's own
-/// evaluation, its spin and slides bound as the run binds them. The
-/// wall is the cylinder of the radius, its axis the sketch's `z`.
+/// ([`editor_core::chart_on_face`]): a probe profile on the bottom cap's
+/// chart, lowered into a scratch copy of the document, reads the wall
+/// against the document's own evaluation, its spin and slides bound as
+/// the run binds them. The wall is the cylinder of the radius, its axis
+/// the sketch's `z`, and the chart is the one the door writes.
 #[test]
 fn a_faces_chart_reads_a_trace_before_anything_is_drawn_there() {
     let (doc, cylinder) = cylinder_at(0.0);
@@ -390,9 +717,15 @@ fn a_faces_chart_reads_a_trace_before_anything_is_drawn_there() {
     let wall = face(&ev, cylinder, SurfaceKind::Cylinder);
     let body = BodyRead::plain(Operand::output(cylinder, 0));
     let bottom = cap(cylinder, CapEnd::Start);
-    let orient = editor_core::nearest_to_face(&doc, &ev, &body, &bottom);
-    let zero = OnFace::nearest();
-    let frame = editor_core::face_chart(body, bottom, (orient, zero.spin, zero.slides));
+    assert_eq!(
+        editor_core::nearest_to_face(&doc, &ev, &body, &bottom).ok(),
+        editor_core::Orientation::new(
+            editor_core::SignedAxis::PlusX,
+            editor_core::SignedAxis::MinusZ
+        ),
+        "the nearest orientation puts z down the cap's normal"
+    );
+    let frame = editor_core::chart_on_face(&doc, Some(&ev), body, bottom, &OnFace::nearest());
     let mut scratch = doc.clone();
     let probe = Node::Profile(ProfileProgram {
         loops: Vec::new(),

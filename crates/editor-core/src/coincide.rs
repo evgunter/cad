@@ -596,9 +596,10 @@ pub enum Recourse {
     /// the wall leaves that face's trace along its tangent and a slide
     /// along that face's axis would keep the tangency, but the door
     /// shows the extrude's heading that axis neither by a statement it
-    /// reads nor, with every variable a symbol, as an identity (a frame
-    /// spun about an axis off its `z` turns the heading by a variable)
-    /// ([`traced`]).
+    /// reads nor, with every variable a symbol, as an identity: a frame
+    /// spun about an axis off its `z` turns the heading by a variable,
+    /// and a turn written in radians (a float `π/2`) by its rounding,
+    /// which a frame read off the face's axis does not carry ([`traced`]).
     ReadTheAxis,
     /// Raise the evaluation's member budget, or lower a count: the
     /// replay ran out of it before the row ([`Unreplayed::Exhausted`]).
@@ -647,9 +648,10 @@ impl Recourse {
                 "what decided it, read as a function of the variables, outgrew the door's budget"
             ),
             Self::ReadTheAxis => {
-                "Recourse: draw the profile on a cap of the traced face's own sweep, or on a frame \
-                 whose z is that face's axis, so the sweep runs along the face and keeps the \
-                 tangency the profile draws whatever the values"
+                "Recourse: draw the profile on the face the traced face's sweep was drawn on or a \
+                 face mated flat onto its cap, or on a frame whose z is read off the traced face's \
+                 axis, which no turn's rounding tilts, so the sweep runs along the face and keeps \
+                 the tangency the profile draws whatever the values"
             }
             Self::MemberBudget => {
                 "Recourse: raise the evaluation's member budget, or lower a count, so the replay \

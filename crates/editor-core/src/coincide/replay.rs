@@ -321,7 +321,8 @@ fn prove_row(
         return left(Unreplayed::OtherDecisions);
     };
     if let (Some(heading), Ok(band)) = (heading, band)
-        && swept_along(doc, ev, heading, band, tol)
+        && let Some(arm) = pair_arm(ev, row, band, tol)
+        && swept_along(doc, ev, heading, arm, band, tol)
     {
         return Ok(Ok(Rung::MarginIdentity));
     }
@@ -356,14 +357,15 @@ const SWEPT_ALONG: &str = "replay_swept_along_the_traced_axis";
 /// heading is the axis as a polynomial identity in the symbols: a
 /// profile on a cap of the face's own extrude, whose normal and whose
 /// wall's generator are both that extrude's heading. Each component is
-/// a sine levered at the session box, the arm no reading of the sweep's
-/// reach exceeds; the lever only picks which Zeros the tier is asked
-/// about. A face on any other carrier, or one the replay does not read,
-/// is not shown so.
+/// a sine levered at `arm`, the reach of the two faces the row decided
+/// ([`pair_arm`]), which a tilt of the sweep turns its wall across. A
+/// face on any other carrier, or one the replay does not read, is not
+/// shown so.
 fn swept_along(
     doc: &crate::doc::Doc<ProfileProgram>,
     ev: &Evaluation<Lane>,
     heading: Heading,
+    arm: geom_core::Lever<Lane>,
     band: Band,
     tol: Tol,
 ) -> bool {
@@ -376,15 +378,48 @@ fn swept_along(
     let Some(across) = faces.get(heading.face).and_then(axis_in_sketch) else {
         return false;
     };
+    // Unsourced lever: the pair's reach (`carrier_pair_arm`), entered as the
+    // power of two at or above it. A positive constant factor leaves a
+    // margin zero as a polynomial exactly where its sine is, so the tier
+    // proves the sine's identity: the reach's own form outgrows the door's
+    // budget, an opaque unknown keeps the product from discharging, and the
+    // reach's own `f64` swells every coefficient it multiplies.
+    let arm = geom_core::Lever::unsourced(<Lane as geom_core::Real>::from_f64(
+        geom_core::Bounds::hi(arm.length()).log2().ceil().exp2(),
+    ));
     let zero = |component: Lane| {
         geom_core::k_stats::decide_reported(
             SWEPT_ALONG,
-            geom_core::Margin::levered(component, geom_core::Lever::session_box()),
+            geom_core::Margin::levered(component, arm),
             band,
         )
         .is_ok_and(|d| deferred::discharge(d.margin))
     };
     zero(across.x) && zero(across.y)
+}
+
+/// **The arm a row's angular datum is levered at**: the reach of the
+/// ball enclosing its two faces as the replay built them, read in the
+/// frame the row's verdict is decided in, the arm the kernel's ladder
+/// levers the pair's tilt at ([`topo::boolean::carrier_pair_arm`]).
+/// `None` where a cell is no face the replay built, or the pair's
+/// extent does not read.
+fn pair_arm(
+    ev: &Evaluation<Lane>,
+    row: &NamedCoincidence,
+    band: Band,
+    tol: Tol,
+) -> Option<geom_core::Lever<Lane>> {
+    let [a, b] = row.cells.as_slice() else {
+        return None;
+    };
+    let ((a, fa), (b, fb)) = (face_of(ev, a)?, face_of(ev, b)?);
+    let computing = crate::eval::Framed::computing_among([a, b])?;
+    let (a_in, b_in) = (
+        computing.read_in(a, tol).ok()?,
+        computing.read_in(b, tol).ok()?,
+    );
+    topo::boolean::carrier_pair_arm(&a_in, fa, &b_in, fb, band).ok()
 }
 
 /// A traced face's axis, where it is on a cylinder, carried into the

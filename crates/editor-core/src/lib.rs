@@ -136,10 +136,10 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, DrawnOnFace, EditError, EditRecord,
-    IndexFault, LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured, OnFace,
-    ProductReadFault, Recorded, Recording, SketchOutcome, SketchedOnFace, SlotValue, SourceFault,
-    Took, apply, apply_replayed, cascade_delete_order, draw_on_face, face_chart, measure,
-    nearest_to_face, sketch_on_face, slot_admits,
+    FaceUnread, IndexFault, LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured,
+    OnFace, ProductReadFault, Recorded, Recording, SketchOutcome, SketchedOnFace, SlotValue,
+    SourceFault, Took, apply, apply_replayed, cascade_delete_order, chart_on_face, draw_on_face,
+    measure, nearest_to_face, sketch_on_face, slot_admits,
 };
 pub use eval::measure::ObservedRefusal;
 pub use eval::{
