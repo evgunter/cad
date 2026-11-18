@@ -11127,15 +11127,19 @@ fn census_verdict<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core:
     }
 }
 
-/// **Tier 3′ as a deciding door's gate runs it** (`[topology.tiers]`):
-/// the census over `body` against the records the door decided, each
-/// record confirmed, and every meeting inside one solid that no record
-/// backs refused. A meeting the census finds between two of the
-/// result's solids that no record backs is not asked here: the census
-/// has no lane for two curved solids within reach of each other
-/// (`work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
-/// so asking would refuse valid results. A record between two solids
-/// is confirmed like any other.
+/// **Tier 3′'s record certification, as a deciding door's gate runs
+/// it** (`[topology.tiers]`): the census over `body` against the
+/// records the door decided, each record confirmed where it lies, and
+/// one the census does not confirm, or reads otherwise, refused. No
+/// record, no census: there is nothing to confirm.
+///
+/// A meeting the census finds that no record backs is not raised here.
+/// The census has no lane yet for several shapes valid doors build (two
+/// curved solids within reach of each other, a curved edge pair whose
+/// count it cannot settle, a reading in the band), and it reads the
+/// split's own unrecorded touches, so raising them would refuse those
+/// results (`work/heldrecords/the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime.md`,
+/// `work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
 fn deciding_door_census<
     T: geom_core::Decide + crate::props::AtRestPolicy + geom_core::Bounds,
 >(
@@ -11145,20 +11149,18 @@ fn deciding_door_census<
     tol: Tol,
     region: crate::chart_region::RegionLane<T>,
 ) -> Result<(), Vec<ValidationError>> {
-    let about_a_record = |finding: &ValidationError| {
-        matches!(
-            finding,
-            ValidationError::StaleContactDeclaration { .. }
-                | ValidationError::ContactContradicted { .. }
-        )
-    };
+    if records.is_empty() {
+        return Ok(());
+    }
     let findings: Vec<ValidationError> =
         crate::census::census_and_certify(body, records, band, tol, Some(region))
             .into_iter()
             .filter(|finding| {
-                about_a_record(finding)
-                    || crate::census::census_finding_solids(body, finding)
-                        .is_none_or(|(x, y)| x == y)
+                matches!(
+                    finding,
+                    ValidationError::StaleContactDeclaration { .. }
+                        | ValidationError::ContactContradicted { .. }
+                )
             })
             .collect();
     if findings.is_empty() {
