@@ -2,11 +2,13 @@
 id: a-curved-face-is-routed-by-its-domain-not-its-carriers
 kind: unit
 title: lane_of routes a curved face on its domain's shape, so a notch or a ring reaches the lane that meshes it
-status: dispatched
+status: closed
 opened: 2026-11-14
 priority: P0
 cost: M
 branch: tesslane/route-by-domain
+closed: 2026-11-17
+pr: 7041
 ---
 
 
@@ -47,3 +49,20 @@ Branch `tesslane/route-by-domain`, cut from `tesslane/domain-loops` (unit 3, rev
 - **Nothing that meshes on main moves.** D9 goldens, `docs/tess-budget-data` and the tour pins pass unedited. A byte that moves there is a stop: report it, do not re-baseline it.
 - **Closes** `a-notched-or-ringed-cylinder-wall-does-not-tessellate`.
 - **Run what CI runs before every push:** `bash scripts/run-gates.sh`; `scripts/doc-gate.sh --workspace-pass --skip-viewer-toolkit`; fmt; clippy for mesh, geom-brep, topo, `demos/tour` and the viewer job (`cargo clippy -p viewer --features app --all-targets -- -D warnings`); `cargo nextest run -p mesh` and `-p geom-brep` whole; the tests of the excluded roots that mesh (`tools/tess-meter`, `tools/tess-lint`, `tools/k-lint`: read the `tools` job in `.github/workflows/ci.yml` and run its steps); the rows you add or change at `CAD_TOLERANCE_EPS` 1e-6 and 1e-12 as well, each stating what it expects at each; sweep's rows over the bodies you touch. A test costing 0.5 s or more goes in the slow set with its measured time.
+
+## Closed (2026-11-17, PR 7041)
+
+Built: `tessellate::route_of` makes one route value per curved face, once per run (`Routes::of`), from the first of four facts: a ring; an outer loop that stores an image of a form no iso line takes; the two doors' answer; and, of a rectangle the doors certify on a ruled chart, a straight side that holds a point (PR 7049's interim route, merged into main while this unit was in review and folded in here as the fourth fact). The rectangle lane takes a `curved::Rectangle` that only the doors' answer mints. The carrier-kind predicates are gone. The notched pipe walls and the notched sphere faces mesh at every δ the probes use; no door builds a notch on a cone or a torus.
+
+What the sections above had wrong, each measured by the unit or its reviews:
+
+- **"One value from one door" is not enough.** A sphere face bounded by a section tilted within the band meshes on main through its stored projected image, and a route that asks the door first refuses it `Escalated` (the first review's MAJOR, eight cells). The route reads a stored image's form, a decided fact, ahead of any banded question.
+- **`NotIsoRectangle` mixed three classes at more sites than the spec listed.** It is now only the decided verdict; data that lies on no such surface answers `OffSurface`, a kernel state `Defect`, a span outside certification `SpanUncertified`, and an incidence the band cannot decide escalates. The branch door's `Ok` now means decided too.
+- **"D9 passes unedited" did not hold, and the unit did not stop.** Four hand-built witnesses (`keyway`, `oblique_lens`, `pole_crossing_half_cap`, `apex_crossing_bowtie`) store no chart image, so the chart lane's domain read refuses them `DomainUnread` where main gave the doors' verdict. The unit re-baselined them and reported it; its first fix pass then swapped them for minted bodies in place, which hid the move, and the second review found that. Ruled by the orchestrator: the unminted witnesses stay in D9 with their constants moved and the move stated in the PR body, and their minted forms are rows of their own. Two of the moved rows (the lens and the half cap) now digest alike.
+- `takes_sphere_arm` does not exist; `face_target` was no kind test; the doors read no ring.
+
+**The K stream** (the doors' recorded decisions): on a ruled body with no split side it is main's before PR 7049 plus one split read per face; on a body with a split side it is main's less main's repeated reads, reordered; a memo hit records what it recorded before. A memo hit is 1.0 to 1.6 times slower than main's, since the route now asks the doors where the lane used to skip them: `a-memo-hit-pays-for-the-route-the-lane-used-to-skip`, P3.
+
+**What the lattice-line paragraph above asked for is not built** and is unit 4b's (`a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line`): a notched face meshes on the chart lane's uniform lattice at the lane's target, each triangle held by its certificate.
+
+Filed by the unit and its reviews: `a-seam-cornered-cylinder-notchs-rectangle-neighbour-exceeds-its-certificate`; `a-rectangle-the-walk-refuses-has-no-witness-the-chart-lane-can-read`; `a-memo-hit-pays-for-the-route-the-lane-used-to-skip`; `three-readings-of-a-non-iso-boundary-disagree-on-a-line-on-a-sphere`; `work/ciw/a-chart-branch-guard-row-is-red-locally-and-green-on-the-hosted-kernel-job`; a note on `work/tesswalk/apex-crossing-branch-premise-has-no-body-level-witness`. `work/conearm/the-branch-door-reads-an-escalated-apex-or-pole-decision-as-one-branch` was filed by the first fix pass and closed by the second.

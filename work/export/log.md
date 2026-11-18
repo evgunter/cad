@@ -25,3 +25,19 @@ dispatched.
   - `export/walks-and-zeros` — `step-lanes-spell-the-half-edge-to-face-walk`, `three-crates-fold-signed-zero-with-one-body-and-three-unlinked-arguments` (re-priced `E` from legacy `D`: its filer's reading, disclosure not one home, is the fix and no fork stands open on it), with `signed-zero-module-hand-counts-the-bitwise-readers-it-exists-for` (P4, E) riding along on the same module. Letter S, **single STYLE review**.
   - `step-import-discards-the-entity-ids-that-are-its-identity-channel` (P1, legacy D, re-priced `M` with `design: true`): **a design fork** (how an import's source partitions from a recipe's, and what the per-evaluation scope claim means for an imported body). Designers first, per `docs/DESIGN-FORK-PROTOCOL.md`.
 - 2026-11-17 — **`walks-and-zeros` merged (PR 7067)**: single STYLE review (Opus 5.5, no draw under rule 12, so no model-compare row) and a fix pass that took one home over disclosure. `geom_core::fold_signed_zero` now replaces six production copies and six test copies; `adopt.rs`'s walks go through `first_he`/`body_loop`/`loop_face`/the topo door; `face_of_half_edge`'s doc states the rule callers follow. Closed: `step-lanes-spell-the-half-edge-to-face-walk`, `three-crates-fold-signed-zero-…`, `signed-zero-module-hand-counts-…`, and bind's `pncad-py-spells-the-hash-signed-zero-fold-twice`.
+- 2026-11-17 — **`smooth-join` merged (PR 7081).** It had a dual tier with letter M, and one review, since the first raised no MAJOR. That review was by Opus 5.5, with no draw under rule 12, so no model-compare row is recorded. A fix pass followed:
+  - the M7-2 coincidence rung was removed, since the rule rung subsumes it;
+  - `geom_brep::must_carry_reads` is now one predicate;
+  - the band is built once;
+  - TAIL_TURBINE is pinned once, with its probe kept as a slow row;
+  - the S7 label row was filed (P4).
+
+  Closed: `step-import-adopts-a-smooth-join-without-the-must-carry-rule`.
+- 2026-11-18 — **`void-shells` merged (PR 7077).** Single FULL review by Opus 5.5, no draw under rule 12, so no model-compare row. The fix pass covered:
+  - the census goldens re-blessed at every ε;
+  - the bound law restated for voids;
+  - OCCT-written hollow fixtures;
+  - unreversed-void mutant rows;
+  - stale narration and docs, the exhaustive solid keyword, and the S5 helper row filed.
+
+  The class it exposed (a shared-fixture-list diff skips the slow rows that iterate the list) is filed on GREEN as `a-diff-to-a-shared-fixture-list-skips-the-slow-rows-that-iterate-it`. Closed: `step-export-refuses-every-hollow-body`.

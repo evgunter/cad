@@ -1099,6 +1099,46 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         self.assertEqual(angle.kind, across.kind)
         self.assertNotEqual(angle.inner_kind, across.inner_kind)
 
+    def test_a_blend_refusal_names_why_its_end_is_not_built(self):
+        # An L prism filleted on every edge but one: leaving out a top
+        # edge at the reflex corner asks that corner's odd edge with one
+        # other, whose fillet stops where its edge runs into the cut-off
+        # arc, and the inner word says so rather than a bare
+        # `unbuilt_end`.
+        doc = Doc()
+        chain = (
+            Open.at((0 * m, 0 * m))
+            .line_to((2 * m, 0 * m))
+            .line_to((2 * m, 1 * m))
+            .line_to((1 * m, 1 * m))
+            .line_to((1 * m, 2 * m))
+            .line_to((0 * m, 2 * m))
+            .line_to(Start)
+        )
+        prism = doc.insert(
+            Node.extrude(doc.insert(Node.profile(chain)), Formula.length_in(1, m))
+        )
+        edges = evaluate(doc).all_edges(prism)
+        self.assertEqual(len(edges), 18)
+        fillets = [
+            doc.insert(
+                Node.fillet(
+                    prism,
+                    Formula.length_in(0.1, m),
+                    [e for e in edges if e != left_out],
+                )
+            )
+            for left_out in edges
+        ]
+        ev = evaluate(doc)
+        words = set()
+        for node in fillets:
+            try:
+                ev.value(node)
+            except EvaluationError as refused:
+                words.add((refused.kind, refused.inner_kind))
+        self.assertIn(("fillet", "unbuilt_end_run_out"), words)
+
     def test_a_second_op_speaks_its_own_arms(self):
         doc = Doc()
         flat = doc.insert(Node.extrude(self.square(doc), Formula.length_in(0, m)))

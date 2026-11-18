@@ -71,7 +71,7 @@ fn solid(text: &str, who: &str) -> (topo::Body<f64>, Vec<(u64, PromotedKind, f64
 /// (loft_prism), ≤ 1e-15 for the walls that carry rounding.
 #[test]
 fn own_corpus_promotions_are_exactly_the_enumerated_planar_walls() {
-    for name in SOLID_FIXTURES {
+    for &name in SOLID_FIXTURES {
         let (_, promos) = solid(&fixture(name, "step"), name);
         let want: &[(u64, PromotedKind)] = match name {
             "loft_prism" | "nonuniform_loft" => {
