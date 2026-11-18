@@ -5252,7 +5252,7 @@ mod cone_window {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod rational_window {
     use std::sync::Arc;
 
