@@ -3420,6 +3420,9 @@ NOT_BOUND = {
     "draw_on_face": f"{GAP}: B-DRAW-ON-FACE the drawn-on-face door",
     "DrawnOnFace": f"{GAP}: B-DRAW-ON-FACE the door's outcome",
     "OnFace": f"{GAP}: B-DRAW-ON-FACE where the profile stands on the face",
+    "chart_on_face": f"{GAP}: B-DRAW-ON-FACE the chart the door draws on, read before drawing",
+    "FaceUnread": f"{GAP}: B-DRAW-ON-FACE why no orientation reads off a face",
+    "nearest_to_face": f"{GAP}: B-DRAW-ON-FACE the orientation the door writes",
     # --- gap: assorted single doors -------------------------------
     # B-CANCEL IS GONE FROM THIS ROSTER, closed at LIB-B-CANCEL, and
     # the id is gone from `FAMILIES` with it. `CancelToken` is a

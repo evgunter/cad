@@ -597,12 +597,13 @@ fn a_lofts_first_section_stands_in_its_frame_and_a_later_one_refuses() {
 
 /// **The union glues the constructed tangency**: the boss's wall and
 /// the cylinder's meet in one `SurfaceTangent` row at `TangentWitness`.
-/// This frame's `z` is read off a rim, the wall's axis only at today's
-/// values, so the door leaves it unproven and asks for the axis read off
-/// the face (`intent_s6_d_tangency` proves the boss so drawn).
+/// This frame's `z` is read off a rim, which no statement the door reads
+/// makes the wall's axis; the replay reads the wall's axis along the
+/// sketch's `z` for every value, so the door proves it by the symbolic
+/// tier (`intent_s6_d_tangency` walks the heading's cases).
 #[test]
-fn the_union_records_the_constructed_tangency_unproven() {
-    use editor_core::coincide::{self, Proof};
+fn the_union_records_the_constructed_tangency_proven_by_its_heading() {
+    use editor_core::coincide::{self, Proof, Rung};
     let scene = traced_boss(RADIUS, None, boss_steps());
     let (doc, union) = fixture::insert(
         scene.doc,
@@ -633,15 +634,10 @@ fn the_union_records_the_constructed_tangency_unproven() {
     assert_eq!(tangent.len(), 1, "one tangency: {rows:?}");
     let (row, proof) = tangent[0];
     assert_eq!(row.site, topo::DecisionSite::TangentWitness);
-    assert!(
-        matches!(
-            proof,
-            Proof::Unproven {
-                recourse: coincide::Recourse::ReadTheAxis,
-                ..
-            }
-        ),
-        "the frame is read off a rim: {proof:?}"
+    assert_eq!(
+        *proof,
+        Proof::Structural(Rung::MarginIdentity),
+        "the frame is read off a rim"
     );
 }
 

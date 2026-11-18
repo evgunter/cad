@@ -5483,11 +5483,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "pin_already_placed",
             "pin_no_frame",
-            "pin_no_member",
             "pin_no_node",
             "pin_not_a_body",
             "pin_unevaluated",
-            "pin_unwritten_index",
         ],
         delegates: &[],
     },
