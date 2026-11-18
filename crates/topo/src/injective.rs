@@ -258,6 +258,13 @@ pub(crate) struct Rim {
     /// The carrier and its parameter span; `None` for null scaffolding,
     /// whose locus is its vertex.
     pub(crate) arc: Option<(Curve3<Interval>, (Interval, Interval))>,
+    /// The carrier as the body stores it, where the body's scalar is a
+    /// point scalar (`f64`): the claim its lift encloses. Two edges whose
+    /// stored carriers are one conic bit for bit name one exact conic,
+    /// which their lifts, enclosures of it a rounding wide, cannot show
+    /// as one value ([`one_conic`]). `None` on a body held as enclosures,
+    /// and for null scaffolding.
+    pub(crate) stated: Option<Curve3<f64>>,
     /// The vertices at the curve's start and end.
     pub(crate) ends: [VertexKey; 2],
     /// The face's half-edges on it: two on a seam.
@@ -3812,6 +3819,9 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
 /// only carriers stored as points. The two parametrizations may differ;
 /// the reading never maps one onto the other ([`continues`]).
 fn one_conic(e: &Rim, o: &Rim) -> bool {
+    if let (Some(se), Some(so)) = (e.stated.as_ref(), o.stated.as_ref()) {
+        return one_stated_conic(se, so);
+    }
     let (Some((ce, _)), Some((co, _))) = (e.arc.as_ref(), o.arc.as_ref()) else {
         return false;
     };
@@ -3827,6 +3837,38 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
                 && one_line(a.frame.u_ref(), b.frame.u_ref())
                 && one_value(a.semi_u, b.semi_u, false)
                 && one_value(a.semi_v, b.semi_v, false)
+        }
+        _ => false,
+    }
+}
+
+/// [`one_conic`] on two carriers as a point-scalar body stores them:
+/// the same comparisons, of stored values (a stored value is its one
+/// value), so one plane through one centre, the same radius, and
+/// on an ellipse the same semi-axes along `u_ref` equal or opposed. It is
+/// what [`one_conic`] read of their lifts when a lift carried the stored
+/// entries as points; a frame lifted to an enclosure of the rotation it
+/// states is a rounding wide wherever its entries are not exactly rigid,
+/// and the claim two such carriers make is still the stored one.
+fn one_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
+    // Equal as numbers, as [`one_value`] compares a point's ends (a
+    // signed zero is its own negation's value).
+    let same = |a: Vec3<f64>, b: Vec3<f64>| a.x == b.x && a.y == b.y && a.z == b.z;
+    let line = |a: Vec3<f64>, b: Vec3<f64>| same(a, b) || same(a, -b);
+    let plane = |f: &geom::Frame<f64>, g: &geom::Frame<f64>| {
+        same(f.origin() - Point3::origin(), g.origin() - Point3::origin())
+            && line(f.axis(), g.axis())
+    };
+    let one = |a: f64, b: f64| a == b;
+    match (e, o) {
+        (Curve3::Circle(a), Curve3::Circle(b)) => {
+            plane(&a.frame, &b.frame) && one(a.radius, b.radius)
+        }
+        (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
+            plane(&a.frame, &b.frame)
+                && line(a.frame.u_ref(), b.frame.u_ref())
+                && one(a.semi_u, b.semi_u)
+                && one(a.semi_v, b.semi_v)
         }
         _ => false,
     }
@@ -6466,6 +6508,7 @@ mod presentation_rows {
     /// holds `held` at `at`.
     fn rim(n: u64, ends: [u64; 2], held: Axis, at: f64, a: (f64, f64), b: (f64, f64)) -> Rim {
         Rim {
+            stated: None,
             key: edge(n),
             arc: Some((
                 Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
@@ -7595,6 +7638,7 @@ mod presentation_rows {
         let b = Boundary {
             sense: true,
             edges: vec![Rim {
+                stated: None,
                 key: edge(1),
                 arc: Some((
                     Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
@@ -7657,6 +7701,7 @@ mod presentation_rows {
             ),
         };
         let line = |d: Vec3<Interval>, far: u64, plus: bool| Rim {
+            stated: None,
             key: edge(far),
             arc: Some((Curve3::line(origin(), d), (iv0(0.0), iv0(4.0)))),
             ends: [vertex(1), vertex(far)],
@@ -7753,6 +7798,7 @@ mod presentation_rows {
         Boundary {
             sense,
             edges: vec![Rim {
+                stated: None,
                 key: edge(1),
                 arc: Some((
                     Curve3::circle(
@@ -7918,6 +7964,7 @@ mod presentation_rows {
     fn segment(n: u64, ends: [u64; 2], from: (f64, f64), to: (f64, f64)) -> Rim {
         let p = |(x, y): (f64, f64)| Point3::new(iv0(x), iv0(y), iv0(0.0));
         Rim {
+            stated: None,
             key: edge(n),
             arc: Some((
                 Curve3::line(
@@ -7945,6 +7992,7 @@ mod presentation_rows {
     fn quarter(other: Rim, extra: Vec<Rim>) -> Boundary {
         let z = Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0));
         let arc = Rim {
+            stated: None,
             key: edge(10),
             arc: Some((
                 Curve3::circle(
@@ -8170,6 +8218,7 @@ mod presentation_rows {
         let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
         let half = (iv0(0.0), iv0(core::f64::consts::PI));
         let rim = |key: u64, carrier: Curve3<Interval>, span, plus: bool| Rim {
+            stated: None,
             key: edge(key),
             arc: Some((carrier, span)),
             ends: [vertex(1), vertex(2)],
@@ -8723,6 +8772,7 @@ mod presentation_rows {
         let p = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(y), iv0(z));
         let v = |x: f64, y: f64, z: f64| Vec3::new(iv0(x), iv0(y), iv0(z));
         let rim = |c: Curve3<Interval>| Rim {
+            stated: None,
             key: edge(1),
             arc: Some((c, (iv0(0.0), iv0(1.0)))),
             ends: [vertex(1), vertex(2)],
@@ -9011,6 +9061,7 @@ mod presentation_rows {
     /// harmonic `h` over `t`, from vertex `ends[0]` to `ends[1]`.
     fn harmonic_rim(n: u64, ends: [u64; 2], h: Harmonic, t: (f64, f64)) -> Rim {
         Rim {
+            stated: None,
             key: edge(n),
             arc: Some((
                 Curve3::line(
@@ -9050,6 +9101,7 @@ mod presentation_rows {
     /// the harmonic `other` (edge 1) reaching it; `extra` edges after.
     fn ruling_corner(other: Rim, extra: Vec<Rim>, far: (f64, f64)) -> Boundary {
         let ruling = Rim {
+            stated: None,
             key: edge(10),
             arc: Some((
                 Curve3::line(on_cyl(1.0, 0.5), Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0))),
@@ -9182,6 +9234,7 @@ mod presentation_rows {
         let dv = if up { 1.0 } else { -1.0 };
         let du = if left { 1.0 } else { -1.0 };
         let ruling = Rim {
+            stated: None,
             key: edge(n),
             arc: Some((
                 Curve3::line(on_cyl(1.0, 0.5), Vec3::new(iv0(0.0), iv0(0.0), iv0(dv))),
@@ -9389,6 +9442,7 @@ mod presentation_rows {
     /// parallel's its circle: `only` reads the curves where they are.
     fn parallel_quadrant(s: f64) -> Boundary {
         let parallel = Rim {
+            stated: None,
             key: edge(10),
             arc: Some((
                 Curve3::circle(
@@ -9423,6 +9477,7 @@ mod presentation_rows {
         )
         .expect("the section's ellipse");
         let curve = Rim {
+            stated: None,
             key: edge(11),
             arc: Some((section, (iv0(0.3), iv0(1.0)))),
             ends: [vertex(3), vertex(1)],
@@ -9537,6 +9592,7 @@ mod presentation_rows {
     /// vertex, its far end (vertex 3) at the chart point `far`.
     fn rim_corner(curve: Rim, far: (f64, f64)) -> Boundary {
         let rim_line = Rim {
+            stated: None,
             key: edge(10),
             arc: Some((
                 Curve3::circle(
@@ -9622,6 +9678,7 @@ mod presentation_rows {
         );
         curve.uses[0].plus = false;
         let rim_line = Rim {
+            stated: None,
             key: edge(11),
             arc: Some((
                 Curve3::line(
@@ -9781,6 +9838,7 @@ mod presentation_rows {
     /// circle `v = 0` past the vertex, at `u < 0`.
     fn wall_past_the_corner() -> Boundary {
         let arc = Rim {
+            stated: None,
             key: edge(30),
             arc: Some((
                 Curve3::line(
@@ -9803,6 +9861,7 @@ mod presentation_rows {
             }],
         };
         let ruling = Rim {
+            stated: None,
             key: edge(31),
             arc: Some((
                 Curve3::line(
@@ -9989,6 +10048,7 @@ mod presentation_rows {
         let crowded = ruling_corner(
             other(),
             vec![Rim {
+                stated: None,
                 key: edge(12),
                 arc: Some((
                     Curve3::line(on_cyl(1.015, -0.5), Vec3::new(iv0(0.0), iv0(0.0), iv0(2.0))),
@@ -10097,6 +10157,7 @@ mod presentation_rows {
         Boundary {
             sense: true,
             edges: vec![Rim {
+                stated: None,
                 key: edge(1),
                 arc: Some((
                     Curve3::Ellipse(geom::Ellipse::new(
@@ -10167,6 +10228,7 @@ mod presentation_rows {
         let b = Boundary {
             sense: true,
             edges: vec![Rim {
+                stated: None,
                 key: edge(1),
                 arc: Some((
                     Curve3::Ellipse(geom::Ellipse::new(
@@ -10219,6 +10281,7 @@ mod presentation_rows {
         let mut b = disk(0.7, x, true, true);
         let lip = |u: f64| Point3::new(iv0(u), iv0(0.6985), iv0(0.0));
         b.edges.push(Rim {
+            stated: None,
             key: edge(2),
             arc: Some((
                 Curve3::line(lip(0.0502), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
@@ -10509,6 +10572,7 @@ mod presentation_rows {
         let face = |sense: bool| Boundary {
             sense,
             edges: vec![Rim {
+                stated: None,
                 key: edge(1),
                 arc: Some((line.clone(), (iv0(0.0), iv0(4.0)))),
                 ends: [vertex(1), vertex(2)],
@@ -10956,6 +11020,7 @@ mod presentation_rows {
     /// or backward, from vertex `ends[0]` at `t.0`.
     fn wall_rim(n: u64, ends: [u64; 2], t: (f64, f64), plus: bool) -> Rim {
         Rim {
+            stated: None,
             key: edge(n),
             arc: Some((spiric(), (iv0(t.0), iv0(t.1)))),
             ends: ends.map(vertex),
@@ -10979,6 +11044,7 @@ mod presentation_rows {
             ex(),
         );
         Rim {
+            stated: None,
             key: edge(n),
             arc: Some((circle, (iv0(u.0), iv0(u.1)))),
             ends: ends.map(vertex),
@@ -11006,6 +11072,7 @@ mod presentation_rows {
             Vec3::new(iv0(u.cos()), iv0(u.sin()), iv0(0.0)),
         );
         Rim {
+            stated: None,
             key: edge(n),
             arc: Some((circle, (iv0(v.0.min(v.1)), iv0(v.0.max(v.1))))),
             ends: ends.map(vertex),
@@ -11628,6 +11695,7 @@ mod presentation_rows {
             Boundary {
                 sense: true,
                 edges: vec![Rim {
+                    stated: None,
                     key: edge(1),
                     arc: Some((self.carrier(), (iv0(0.0), iv0(TURN)))),
                     ends: [vertex(1), vertex(1)],
@@ -11964,6 +12032,7 @@ mod presentation_rows {
         let along = |end: Interval| Boundary {
             sense: true,
             edges: vec![Rim {
+                stated: None,
                 key: edge(1),
                 arc: Some((
                     Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
@@ -12226,6 +12295,7 @@ mod presentation_rows {
         }];
         let (s1, c1) = 1.0f64.sin_cos();
         let meridian = Rim {
+            stated: None,
             key: edge(12),
             arc: Some((
                 Curve3::circle(

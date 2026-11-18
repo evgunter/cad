@@ -3841,6 +3841,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 .collect();
             out.edges.push(Rim {
                 key: ek,
+                stated: (T::WITNESS == geom_core::Witness::Inexact)
+                    .then(|| curve.carrier().map_scalar(|x| Bounds::lo(x))),
                 arc: Some((carrier, span)),
                 ends,
                 uses,
