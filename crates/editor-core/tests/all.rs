@@ -239,6 +239,8 @@ mod eval9_nominal_in_the_key;
 mod every_predicate_name_is_minted_once;
 #[path = "f64_lane_validates_once.rs"]
 mod f64_lane_validates_once;
+#[path = "face_chart_and_signed_depth.rs"]
+mod face_chart_and_signed_depth;
 #[path = "face_face_touch_carry.rs"]
 mod face_face_touch_carry;
 #[path = "fillet_step_walk.rs"]

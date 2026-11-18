@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-04
 priority: P1
 cost: M
-design: true
 ---
 
 
@@ -35,3 +34,5 @@ Found by the EXCH-H1 fix pass (PR #1798), from the adjudicated review
 union.
 
 - 2026-11-02 — moved from INTERP to IMPORTGATE by `git mv` when INTERP merged into IMPORTGATE, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and INTERP had fallen far under it).
+
+- 2026-11-18 — Decided by Ev on PR 7074 (D7 reworded): interpretation at the file's band produces descriptions that hold no value the file printed; the kernel builds every cache (carrier, vertex point, parameter) by its own constructions and certifies at ε; an edge with no kernel construction refuses not-yet-supported, naming the lane — the "keeps the file's curve as the cache" fallback in the repair shape above is withdrawn; Zero relations between surfaces snap exact by a closed catalogue, the earlier record staying. Promotion and candidate selection both become interpretation at the file band, so no second dial remains. The build lands as the unit after `step-import-evidence-and-interpretation-are-one-type`.

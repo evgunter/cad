@@ -256,15 +256,17 @@ fn rotation_plus_translation_re_certifies() {
     assert_cloud_eq(&clouds[3], &mapped(&base_clouds[1], rot), "rotated sphere");
 }
 
-/// (2): the ε_in identity boundary. The file's uncertainty is 1e-7 mm;
-/// a 5e-8 mm displacement must classify identity (nothing moves) and a
-/// 2e-7 mm displacement must classify as a placement (the body moves by
-/// exactly that much).
+/// (2): the identity boundary at the file's band. The file's
+/// uncertainty is 1e-7 mm, and the band it is read at is `(e, K·e)` for
+/// `e` the larger of that and the run's ε. A displacement well within
+/// ε_in classifies identity (nothing moves); one past the band's
+/// escalation is a placement, applied exactly.
 #[test]
 fn identity_boundary_at_eps_in() {
+    let tol = Tol::witness();
     let base = import(&base_text());
     let base_clouds = solid_clouds(&base);
-    // Below ε_in: identity.
+    // Within ε_in: identity.
     let below = base_text().replace(
         "#16 = CARTESIAN_POINT('',(0.,0.,0.));",
         "#16 = CARTESIAN_POINT('',(5.E-08,0.,0.));",
@@ -275,18 +277,60 @@ fn identity_boundary_at_eps_in() {
         &base_clouds[0],
         "sub-eps displacement is identity",
     );
-    // Above ε_in: a real placement, applied exactly.
+    // Past the band's escalation, in mm: a real placement.
+    let past_mm = 2.0 * tol.k() * 1e-10_f64.max(tol.eps()) * 1e3;
     let above = base_text().replace(
         "#16 = CARTESIAN_POINT('',(0.,0.,0.));",
-        "#16 = CARTESIAN_POINT('',(2.E-07,0.,0.));",
+        &format!("#16 = CARTESIAN_POINT('',({past_mm:e},0.,0.));"),
     );
     let clouds = solid_clouds(&import(&above));
     assert_cloud_eq(
         &clouds[0],
-        &mapped(&base_clouds[0], |[x, y, z]| [x + 2e-7, y, z]),
+        &mapped(&base_clouds[0], |[x, y, z]| [x + past_mm, y, z]),
         "supra-eps displacement is a placement",
     );
     assert_cloud_eq(&clouds[1], &base_clouds[1], "the other solid does not move");
+}
+
+/// The identity's in-band arm (`[verdicts.consumers]`, a lane choice):
+/// a pair whose box displacement lies in the file's band is no identity,
+/// so it is carried as the motion it states, and nothing is snapped or
+/// reported for it. Only Zero snaps.
+#[test]
+fn an_in_band_displacement_is_carried_not_snapped() {
+    let tol = Tol::witness();
+    let zero = 1e-10_f64.max(tol.eps());
+    let d = 3.0 * zero;
+    assert!(d < tol.k() * zero, "three zeros lie in the band");
+    let text = base_text().replace(
+        "#16 = CARTESIAN_POINT('',(0.,0.,0.));",
+        &format!("#16 = CARTESIAN_POINT('',({:e},0.,0.));", d * 1e3),
+    );
+    let imported = import_step(&text, &ImportOptions::default(), tol).expect("import");
+    let snapped: Vec<_> = imported
+        .normalizations()
+        .iter()
+        .filter(|n| {
+            matches!(
+                n.kind,
+                step_import::NormalizationKind::PlacementReMinted { transform: 194, .. }
+            )
+        })
+        .collect();
+    assert!(snapped.is_empty(), "no snap reported: {snapped:?}");
+    let base = solid_clouds(&import(&base_text()));
+    let moved = solid_clouds(&solid_body(imported));
+    let shift = moved[0]
+        .iter()
+        .zip(&base[0])
+        .map(|(m, b)| m[0] - b[0])
+        .fold(f64::NAN, f64::max);
+    // The clouds are in the file's millimetres.
+    assert!(
+        (shift - d * 1e3).abs() <= 1e-3 * d * 1e3,
+        "the motion is carried: shifted {shift:e} mm for {d:e} m"
+    );
+    assert_cloud_eq(&moved[1], &base[1], "the other solid does not move");
 }
 
 /// (1)(d) tier gate: with one component INVERTED (sense-flipped faces)
