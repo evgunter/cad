@@ -3810,7 +3810,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "ConvexitySignFlip",
             E::ConvexitySignFlip {
                 edge,
-                margin: decided("fillet3_convexity_sign", -1e-3, Sign::Negative),
+                margin: decided("dihedral_sign", -1e-3, Sign::Negative),
                 chain: sweep::blend::Convexity::Convex,
             },
         ),

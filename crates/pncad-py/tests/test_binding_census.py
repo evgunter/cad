@@ -1074,7 +1074,8 @@ BOUND_AS = {
     # `different-shape`, and that reading was true when written: the
     # persistence door carried one attribute, so there was no Python
     # shape to point at. There is one now. `SnapshotError`'s arms and
-    # `ProgramFault`'s two mint a word apiece from an exhaustive match,
+    # the profile door's `ProgramRefusal` (whose own mapping is the edit
+    # door's) mint a word apiece from an exhaustive match,
     # so a kernel arm added without one stops the bindings compiling,
     # and the word rides `inner_variant` beside
     # the stage's own. `NonFiniteSite` is the one that does NOT cross
@@ -1087,7 +1088,6 @@ BOUND_AS = {
     # snapshot refusal's node ids and counts are the snapshot door's
     # surface, not the persistence door's. A mapping here claims the
     # discriminant crosses, and nothing more.
-    "ProgramFault": "PersistError.inner_variant",
     "SnapshotError": "PersistError.inner_variant",
     "NonFiniteSite": "PersistError.site",
     # THE STL DOOR'S TWO OPTION REFUSALS. Both were `different-shape`
@@ -3011,6 +3011,16 @@ NOT_BOUND = {
     "ArcShape": INTERIOR,
     "StepShape": INTERIOR,
     "TargetShape": INTERIOR,
+    # The same shape's readings, and the value-free pen-order judgement
+    # the doors and the editor ask over it: a Python caller meets their
+    # answer as a door's refusal (`EditError`/`PersistError`'s `trace`
+    # word), never the shape itself.
+    "PenRun": INTERIOR,
+    "PenStep": INTERIOR,
+    "pen_fault": INTERIOR,
+    "pen_run": INTERIOR,
+    "shape_of_recorded": INTERIOR,
+    "step_kernel": INTERIOR,
     "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
     # The loop the lattice constructed, carrying that provenance into
@@ -3410,6 +3420,9 @@ NOT_BOUND = {
     "draw_on_face": f"{GAP}: B-DRAW-ON-FACE the drawn-on-face door",
     "DrawnOnFace": f"{GAP}: B-DRAW-ON-FACE the door's outcome",
     "OnFace": f"{GAP}: B-DRAW-ON-FACE where the profile stands on the face",
+    "chart_on_face": f"{GAP}: B-DRAW-ON-FACE the chart the door draws on, read before drawing",
+    "FaceUnread": f"{GAP}: B-DRAW-ON-FACE why no orientation reads off a face",
+    "nearest_to_face": f"{GAP}: B-DRAW-ON-FACE the orientation the door writes",
     # --- gap: assorted single doors -------------------------------
     # B-CANCEL IS GONE FROM THIS ROSTER, closed at LIB-B-CANCEL, and
     # the id is gone from `FAMILIES` with it. `CancelToken` is a
@@ -3975,7 +3988,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Topology": "StepImportError.variant",
     "StepImportError::Assembly": "StepImportError.variant",
     "StepImportError::Adoption": "StepImportError.variant",
-    "StepImportError::RimOffWallBoundary": "StepImportError.variant",
     "StepImportError::WallColumnStructure": "StepImportError.variant",
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
@@ -3987,6 +3999,8 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
     "StepImportError::C0KnotUnsplit": "StepImportError.variant",
+    "StepImportError::NotYetSupported": "StepImportError.variant",
+    "StepImportError::BuildEscalated": "StepImportError.variant",
     "StepImportError::TierInvalid": "StepImportError.variant",
     "StlError::DegenerateTriangle": "StlError.variant",
     "StlError::IndexOutOfRange": "StlError.variant",

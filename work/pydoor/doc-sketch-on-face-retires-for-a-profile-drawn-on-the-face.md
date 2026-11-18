@@ -35,3 +35,5 @@ depth.
   until `work/vseam/on-the-picked-face-draws-the-profile-there` lands.
 
 - 2026-11-03 — moved from LIB to PYDOOR by `git mv` when LIB closed, id and body unchanged (LIB had three P1 rows left behind 124 closed ones; its library-door rows went to PYDOOR, opened for them, and its tag, stub, census and projection rows to BIND; Ev, in chat).
+
+- 2026-11-18 (DOCTAIL `tracing-reads-the-faces-chart-and-traced-frame-retires`): `Evaluation.traced_frame` retired with its Rust door, and so did its row in `tests/test_traced_profile.py` (`test_the_traced_frame_stands_on_the_walls_axis_in_the_caps_plane`). A profile on a face now traces through the drawn-on-face door (`OnFace.traced`). When this unit exposes that door, port the row: a boss footprint traced off a cylinder's wall, drawn on its bottom cap's chart, stands outward with its wall at `y = −r`, and a face to trace with no axis is no refusal now.

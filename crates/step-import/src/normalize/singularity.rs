@@ -747,7 +747,7 @@ fn first_hit(
         let hit = match span.read(s, ray.from, read.band()) {
             Ok(curve_pair::Reading::On { t, .. }) => t,
             Ok(curve_pair::Reading::End(end)) => span.at(curve_pair::Hit::End(end)),
-            Ok(curve_pair::Reading::Carrier | curve_pair::Reading::Off) => continue,
+            Ok(curve_pair::Reading::Off(_)) => continue,
             Err(why) => return Err(span_refused(why, read, face.id)),
         };
         let delta = (hit - ray.from) * ray.sign;
@@ -793,7 +793,7 @@ fn landings(
             let at = match span.read(p, ray.from, read.band()) {
                 Ok(curve_pair::Reading::On { t, margin }) => curve_pair::Hit::On { t, margin },
                 Ok(curve_pair::Reading::End(end)) => curve_pair::Hit::End(end),
-                Ok(curve_pair::Reading::Carrier | curve_pair::Reading::Off) => continue,
+                Ok(curve_pair::Reading::Off(_)) => continue,
                 Err(why) => {
                     undecided = Some(span_refused(why, read, id));
                     continue;

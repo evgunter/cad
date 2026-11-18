@@ -132,3 +132,11 @@ and two exist only for the selector:
 The step runs them at the default ε only. Three of the six were red at
 1e-12 only or at every row, so the 1e-6 and 1e-12 readings in that PR
 are local runs.
+
+## Witness: PR 7114 (DOCTAIL first turn, 2026-11-18)
+
+A change to the behaviour the slow rows read, with none of their names on an added line. PR 7114 changes what the resolver names (the verdict log's roles, the first-turn reading). At head `25567153c8`, the kernel job's "the slow-set tests this diff adds or edits" step ran 0 tests, and `gate ok` was green. A review then found `edit_strip_mouth_cups::a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_verdict` red at that head. The row's file was untouched by the PR, so no file-level rule would have caught it either.
+
+The `revalue_corpus` floors and two recourse-roster rows the PR moved were caught only by a local run of a hand-picked filter. A rule that reads names or files cannot see a slow row that reads behaviour through a crate it depends on. What would catch it is running the slow set of every crate whose `src/` the diff changes, or at least of the rows that read the changed module's names.
+
+Signed (DOCTAIL first-turn lane).

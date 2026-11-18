@@ -10818,7 +10818,9 @@ pub struct AtRestBody<T: geom_core::Decide> {
 
 impl<T: geom_core::Decide> AtRestBody<T> {
     /// **[`validate_geometric`] over `body`, keeping the verdict** — the
-    /// certifying scalars' [`crate::AtRestPolicy::finish`].
+    /// certifying scalars' [`crate::AtRestPolicy::finish`]. Every decision
+    /// it takes is a check ([`geom_core::k_stats::checking`]): it reads a
+    /// body already built, so another sign can only refuse it.
     ///
     /// # Errors
     ///
@@ -10829,7 +10831,10 @@ impl<T: geom_core::Decide> AtRestBody<T> {
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
         crate::finish::count_finish();
-        let sign = std::sync::Arc::new(validate_geometric_certificate(&body, tol)?.into_parts());
+        let sign = std::sync::Arc::new(
+            geom_core::k_stats::checking(|| validate_geometric_certificate(&body, tol))?
+                .into_parts(),
+        );
         Ok(Self {
             body,
             sign,

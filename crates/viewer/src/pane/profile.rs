@@ -576,9 +576,8 @@ pub(crate) fn edit_door_ui(
             .edit_profile_report(node, base, loops, ids)
             .map(|_| ())
     };
-    let held_back = |edit: &ProfileEdit| {
-        edit.pen_order(landed, tol).is_some() || drivers_hold(edit, landed).is_some()
-    };
+    let held_back =
+        |edit: &ProfileEdit| edit.pen_order().is_some() || drivers_hold(edit, landed).is_some();
     let mut formed = edit.offer(dragging, held_back(edit), door);
     for change in clicks {
         // Waits on the op formed above, or is made now when none did.
@@ -604,7 +603,7 @@ pub(crate) fn edit_door_ui(
         crate::widgets::message_toned(ui, PEN_UNDRAWN, &theme, frame::Tone::Advisory);
     }
     preview_verdict(ui, theme, preview);
-    if let Some(refusal) = edit.pen_order(landed, tol) {
+    if let Some(refusal) = edit.pen_order() {
         let sentence = format!("{PENDING} the step order — {refusal}");
         crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
     }
@@ -3381,8 +3380,9 @@ mod tests {
     }
 
     /// review 6295: removing the outer loop of a plate with two holes
-    /// leaves two outers; the edit door's preview refuses, and the door
-    /// refuses the same way, so the draft is pending and nothing lands.
+    /// leaves two outers; the editor's preview refuses, and the removal
+    /// lands, the door reading no value (`[recipe.doors]`), so the
+    /// profile refuses at evaluation the way the preview did.
     #[test]
     fn review_6295_removing_the_outer_of_two_holes_refuses_in_the_preview() {
         let (mut session, profile, _driven) = three_loop_plate();
@@ -3402,10 +3402,24 @@ mod tests {
             matches!(&preview, Ok(p) if p.invalid.is_some()),
             "the preview refuses: {preview:?}"
         );
-        let held = remove_and_land(&mut session, &mut Drafts::default(), profile, 0)
-            .expect_err("two outers refuse at the door");
-        assert!(held.contains(super::PENDING), "{held}");
-        assert!(session.committed_doc().bit_eq(&before), "nothing landed");
+        let out = remove_and_land(&mut session, &mut Drafts::default(), profile, 0)
+            .expect("the door reads no value");
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert!(
+            !session.committed_doc().bit_eq(&before),
+            "the removal landed"
+        );
+        let ev = pncad::document::evaluate::<f64>(
+            session.committed_doc(),
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            Tol::witness(),
+        );
+        assert!(
+            ev.node_error(profile).is_some(),
+            "two outers refuse at evaluation"
+        );
     }
 
     #[test]
@@ -3421,14 +3435,15 @@ mod tests {
         );
     }
 
-    /// **A removal lands on its own, and an added loop the door refuses
-    /// lands once a later change makes it pass.** Loop 1 removed is one
-    /// step, stranding the shell's name. A circle added at the origin
-    /// crosses the remaining hole, so it is pending; moved clear, the
-    /// draft lands as one more step with fresh ids, loop 1 still reading
-    /// `w`. Each step undoes on its own.
+    /// **A removal lands on its own, and so does each later change.**
+    /// Loop 1 removed is one step, stranding the shell's name. A circle
+    /// added at the origin crosses the remaining hole; it lands as its
+    /// own step (the door reads no value, and the profile refuses at
+    /// evaluation). Moved clear, it lands as one more step, its loop
+    /// with fresh ids, loop 1 still reading `w`. Each step undoes on its
+    /// own.
     #[test]
-    fn review_6295_a_removal_lands_and_a_pending_added_loop_lands_once_moved() {
+    fn review_6295_a_removal_an_added_loop_and_its_move_land_one_step_each() {
         use crate::forms::ShapeKind;
         use pncad::document::SlotId;
         let (mut session, profile, driven) = three_loop_plate();
@@ -3442,8 +3457,10 @@ mod tests {
         drafts.sync_profile_edit(session.committed_doc(), Some(profile));
         let added = super::add_loop_label(ShapeKind::Circle);
         let (painted, formed) = click_door(&session, &mut drafts, profile, &added, 0);
-        assert!(formed.is_none(), "the circle crosses the hole: {painted}");
-        assert!(painted.contains(super::PENDING), "{painted}");
+        let out = session.perform(formed.unwrap_or_else(|| panic!("the circle lands: {painted}")));
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let crossing = session.committed_doc().clone();
+        drafts.sync_profile_edit(session.committed_doc(), Some(profile));
         let edit = drafts
             .profile_edit(session.committed_doc(), profile)
             .expect("open");
@@ -3486,6 +3503,11 @@ mod tests {
                     .is_none()
             );
         };
+        undo(&mut session);
+        assert!(
+            session.committed_doc().bit_eq(&crossing),
+            "undo takes the move"
+        );
         undo(&mut session);
         assert!(
             session.committed_doc().bit_eq(&removed),

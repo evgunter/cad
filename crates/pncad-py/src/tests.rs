@@ -1855,8 +1855,8 @@ fn persist_error_tags_are_stable() {
 /// Constructed rather than driven through `load`, and the reason is
 /// per arm:
 ///
-/// * `profile_program` — a `ProgramFault` is a profile-program
-///   structure fault. A file carrying one is reachable, but building
+/// * `profile_program` — the edit door's own `ProgramRefusal` for a
+///   profile-program structure fault. A file carrying one is reachable, but building
 ///   the tampered bytes means hand-assembling a lattice-violating
 ///   step order, which pins the WIRE shape rather than the tag.
 /// * `distribution` — the same fault the edit door refuses, so a
@@ -1871,18 +1871,18 @@ fn persist_error_tags_are_stable() {
 /// a compile error, not a missing test.
 #[test]
 fn the_persist_doors_nested_arms_carry_their_own_word() {
-    use crate::tags::{distribution_fault_tag, program_fault_tag, snapshot_error_tag};
+    use crate::tags::{distribution_fault_tag, program_refusal_tag, snapshot_error_tag};
     use pncad::document::{
-        DistributionFault, DistributionField, ProgramFault, RecipeNodeId, SnapshotError,
+        DistributionFault, DistributionField, ProgramRefusal, RecipeNodeId, SnapshotError,
     };
 
-    let program = ProgramFault::Lattice {
+    let program = ProgramRefusal::Transition {
         loop_: 0,
         step: 1,
         state: pncad::profile::TipState::Entry,
         verb: None,
     };
-    assert_eq!(program_fault_tag(&program), "lattice");
+    assert_eq!(program_refusal_tag(&program), "transition");
 
     let distribution = DistributionFault::NonFinite {
         field: DistributionField::Sigma,
@@ -2331,23 +2331,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             fault: pncad::document::LoftFault::EmptyStation { section: 1 },
         },
         &["node", "index"],
-    );
-    carries(
-        &E::LoftShape {
-            node: sp(1),
-            fault: pncad::document::LoftFault::StationInFirstPlane { section: 1 },
-        },
-        &["node", "index"],
-    );
-    carries(
-        &E::LoftShape {
-            node: sp(1),
-            fault: pncad::document::LoftFault::DegreeOutOfRange {
-                degree: 2,
-                sections: 2,
-            },
-        },
-        &["node", "count", "given"],
     );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
@@ -2997,6 +2980,14 @@ fn import_report_row_tags_are_stable() {
                 moved_by: 1e-12,
             },
             "one_record",
+        ),
+        (
+            NormalizationKind::VertexBuilt { moved_by: 2.4e-16 },
+            "vertex_built",
+        ),
+        (
+            NormalizationKind::CarrierBuilt { moved_by: 1.2e-16 },
+            "carrier_built",
         ),
         (
             NormalizationKind::CurvePromoted {
@@ -5100,12 +5091,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "loft_fault_tag",
-        values: &[
-            "degree_out_of_range",
-            "empty_station",
-            "station_in_first_plane",
-            "too_few_sections",
-        ],
+        values: &["empty_station", "too_few_sections"],
         delegates: &[],
     },
     TagEntry {
@@ -5366,6 +5352,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "normalization_kind_tag",
         values: &[
+            "carrier_built",
             "chart_singularity_vertex",
             "curve_promoted",
             "edge_free_sphere",
@@ -5376,6 +5363,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_re_minted",
             "seamless_periodic_band",
             "surface_promotion",
+            "vertex_built",
         ],
         delegates: &[],
     },
@@ -5505,11 +5493,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "pin_already_placed",
             "pin_no_frame",
-            "pin_no_member",
             "pin_no_node",
             "pin_not_a_body",
             "pin_unevaluated",
-            "pin_unwritten_index",
         ],
         delegates: &[],
     },
@@ -5587,14 +5573,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "program_fault_tag",
-        values: &["lattice"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "program_refusal_tag",
         values: &[
             "geometry",
+            "order",
             "resolve",
             "step_ids",
             "trace",
@@ -6034,6 +6016,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "adoption",
             "assembly",
+            "build_escalated",
             "c0_knot_unsplit",
             "dangling_reference",
             "instance",
@@ -6043,11 +6026,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "malformed_real",
             "malformed_record",
             "missing_uncertainty",
+            "not_yet_supported",
             "nothing_to_import",
             "pcurves",
             "placement",
             "recognition_ambiguous",
-            "rim_off_wall_boundary",
             "singularity_meet_unread",
             "singularity_side_undecided",
             "singularity_undecided",

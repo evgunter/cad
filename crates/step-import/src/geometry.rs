@@ -72,12 +72,13 @@ pub(crate) fn endpoint_params(
             }
             Ok((t0, t1))
         }
-        Curve3::Circle(_) | Curve3::Ellipse(_) => {
+        Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => {
             // The start angle in [0, τ), the end angle in (t0, t0 + τ]
-            // — the increasing-parameter arc, its angle the conic's
-            // principal one (an ellipse's eccentric anomaly).
-            let (Some(conic), Some(turn)) = (carrier.conic(), carrier.period()) else {
-                unreachable!("a circle or an ellipse is a conic, which repeats")
+            // — the increasing-parameter arc, its angle the carrier's
+            // own (an ellipse's eccentric anomaly, a spiric's tube
+            // angle).
+            let Some(turn) = carrier.period() else {
+                unreachable!("a circle, an ellipse or a spiric repeats")
             };
             // Each angle is refused where it is derived, so the
             // self-loop arm's early return cannot outrun the check:
@@ -89,7 +90,10 @@ pub(crate) fn endpoint_params(
             // placement data reached it, and both returned parameters
             // are finite.
             let angle = |p: Point3<f64>| -> Result<f64, StepImportError> {
-                let t = conic.azimuth(p).near(0.0);
+                let Some(azimuth) = carrier.azimuth(p) else {
+                    unreachable!("a circle, an ellipse or a spiric reads an azimuth")
+                };
+                let t = azimuth.near(0.0);
                 if t.is_finite() {
                     Ok(t)
                 } else {
@@ -101,21 +105,23 @@ pub(crate) fn endpoint_params(
                     })
                 }
             };
-            let t0 = turn.at_or_above(angle(p_start)?, 0.0);
+            // A spiric's tube angle is read within half a turn of zero,
+            // as its section constructs it; a conic's start angle in
+            // [0, τ).
+            let t0 = if matches!(carrier, Curve3::Spiric { .. }) {
+                angle(p_start)?
+            } else {
+                turn.at_or_above(angle(p_start)?, 0.0)
+            };
             if self_loop {
                 return Ok((t0, t0 + turn.length()));
             }
             Ok((t0, turn.above(angle(p_end)?, t0)))
         }
-        // No STEP entity is recognized as a spiric: the import mints
-        // `Line`, `Circle`, `Ellipse` and `Nurbs` carriers only
-        // (`entities.rs`), so this arm names a carrier this crate cannot
-        // have built. Written for exhaustiveness; reaching it is a
-        // kernel bug, not an input's.
-        Curve3::Spiric { .. } | Curve3::Periodic(_) => unreachable!(
-            "endpoint_params: the STEP import mints no spiric or periodic carrier (no entity \
-             maps to one)"
-        ),
+        // No construction the build reads makes a periodic carrier.
+        Curve3::Periodic(_) => {
+            unreachable!("endpoint_params: the STEP import builds no periodic carrier")
+        }
         Curve3::Nurbs(payload) => {
             // Clamped B-splines interpolate their end control points,
             // so the subset's B-spline edges span the whole knot
