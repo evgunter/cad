@@ -187,7 +187,21 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
     let delta = flips.nodes.get(&union).expect("union delta");
     assert!(delta.flips.is_empty(), "no fake flips: {delta:?}");
     assert!(!delta.diverged.is_empty(), "count change is divergence");
-    assert_eq!(flips.nodes.len(), 1, "localized to the union");
+    // The pattern's own delta is its placements' box asks, one a copy:
+    // one copy fewer is one ask fewer, a divergence and never a flip.
+    let pattern = flips.nodes.get(&row).expect("pattern delta");
+    assert!(pattern.flips.is_empty(), "no fake flips: {pattern:?}");
+    let asked: Vec<_> = pattern
+        .diverged
+        .iter()
+        .map(|d| (d.predicate, d.old_count, d.new_count))
+        .collect();
+    assert_eq!(asked, [("session_box_reach", 3, 2)], "{pattern:?}");
+    assert_eq!(
+        flips.nodes.len(),
+        2,
+        "localized to the union and its pattern"
+    );
 }
 
 #[test]
