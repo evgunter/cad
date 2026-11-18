@@ -7,6 +7,8 @@ closed: 2026-11-18
 opened: 2026-11-03
 priority: P1
 cost: M
+branch: doctail/verdict-log-tells-no-validation-reading-from-a-building-decision
+pr: 7114
 ---
 
 
