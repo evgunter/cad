@@ -2205,7 +2205,6 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",
         StepImportError::Adoption { .. } => "adoption",
-        StepImportError::RimOffWallBoundary { .. } => "rim_off_wall_boundary",
         StepImportError::WallColumnStructure { .. } => "wall_column_structure",
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
@@ -2216,6 +2215,8 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::C0KnotUnsplit { .. } => "c0_knot_unsplit",
+        StepImportError::NotYetSupported { .. } => "not_yet_supported",
+        StepImportError::BuildEscalated { .. } => "build_escalated",
         StepImportError::TierInvalid { .. } => "tier_invalid",
     }
 }

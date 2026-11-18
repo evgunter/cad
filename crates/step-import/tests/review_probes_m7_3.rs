@@ -266,10 +266,10 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
 /// reviewed NOTHING certified an ARC rim against its rational wall —
 /// this probe originally executed exactly that (the mutated file
 /// imported t1/t2-valid with the verbatim native t3 refusal,
-/// indistinguishable from correct). The fix is the import-side
-/// residual gate (`adopt::arc_rim_on_wall_boundary`): the wall's own
-/// boundary column, sampled at the certification schedule, must lie
-/// on the rim's circle within the ambient tolerance. The plant —
+/// indistinguishable from correct). The build reads it: a cap's rim
+/// must lie on its wall at the file's band (`build::STEP_RIM_ON_WALL`),
+/// and the vertices the rim's neighbours meet at are where the build
+/// puts them. The plant —
 /// the z=0 cap's quarter arc (center ~(0,0,0), r = √2) replaced by a
 /// DIFFERENT circle through the same two endpoints
 /// (center (1−√24, 0, 0), r = 5) — must now REFUSE, typed, naming
@@ -281,7 +281,7 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
 /// UNMUTATED file clears this same residual gate and imports (or, at
 /// a tight enough ε, stops only at the quadrature budget, with the
 /// verdict list pinned structurally). The discrimination this probe
-/// exists for — the plant refuses `RimOffWallBoundary`, the true arc
+/// exists for — the plant refuses at interpretation, the true arc
 /// does not — is therefore stated across the two rows, and the true
 /// arc's rational quadrature is paid once instead of twice.
 #[test]
@@ -346,16 +346,21 @@ fn probe_arm_b_rim_off_wall_arc() {
         .replace(&center_line, &new_center)
         .replace(&circle_line, &new_circle);
     match import(&mutated) {
-        Err(step_import::StepImportError::RimOffWallBoundary { id, residual }) => {
-            eprintln!("PROBE rim-off-wall arc refused typed: edge #{id}, residual {residual:e}");
+        Err(step_import::StepImportError::Interpretation {
+            id,
+            refusal: step_import::InterpretationRefusal::EvidenceMiss { reading, miss },
+            ..
+        }) => {
+            eprintln!("PROBE rim-off-wall arc refused typed: #{id}, {reading} misses by {miss:e}");
             assert!(
-                residual > 1e-3,
-                "the r=5 plant misses the wall boundary by a macroscopic margin, got {residual:e}"
+                miss > 1e-3,
+                "the r=5 plant misses the wall by a macroscopic margin, got {miss:e}"
             );
         }
         Err(other) => {
             panic!(
-                "the plant must refuse AT THE RESIDUAL GATE (RimOffWallBoundary), got: {other_at}",
+                "the plant must refuse at interpretation, its miss past the file's band, got: \
+                 {other_at}",
                 other_at = other.render()
             )
         }

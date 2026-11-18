@@ -71,8 +71,13 @@ fn expect(name: &str) -> Expect {
         // seam edge used twice) plus two caps; V = π r² h.
         "cylinder" => plain((1, 1, 3, 3, 2), PI * 0.25),
         // makeCone(1, 0.5, 1): frustum, V = (π h / 3)(R² + R r + r²).
+        // The half-angle prints to 12 digits, so the cone's own ruling
+        // (the seam the build makes) meets the top cap ~2.4e-16 m off
+        // the printed vertex: the build reports that move
+        // (`NormalizationKind::VertexBuilt`).
         "cone_trunc" => Expect {
             dialect_rel: 1.25e-12,
+            normalizations: 1,
             ..plain((1, 1, 3, 3, 2), PI * (1.0 + 0.5 + 0.25) / 3.0)
         },
         // makeCone(1, 0, 1): a full cone, V = π R² h / 3. Its lateral

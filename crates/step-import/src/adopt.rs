@@ -375,6 +375,7 @@ fn adopt_edges(
                                 .to_owned(),
                             lane: "the construction of an under-determined smooth join \
                                    (D2's conventional pair, C7)",
+                            file,
                         });
                     }
                     Some(Err(refusal)) => {

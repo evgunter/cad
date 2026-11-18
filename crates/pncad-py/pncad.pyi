@@ -601,7 +601,7 @@ class StepImportError(PncadError):
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
     `unbanded_uncertainty`,
     `malformed_real`, `topology`,
-    `assembly`, `adoption`, `rim_off_wall_boundary`,
+    `assembly`, `adoption`, `not_yet_supported`, `build_escalated`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
     `join`, `singularity_undecided`, `interpretation`, `placement`,
     `instance`, `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:

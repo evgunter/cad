@@ -248,23 +248,6 @@ pub enum StepImportError {
         /// ending (D4 ¶1).
         file: FileCoincidence,
     },
-    /// An ARC cap rim adjacent to a NURBS wall failed the import-side
-    /// residual gate (M7-3 fix pass, review F1): sampled against the
-    /// wall's own boundary column, the rim's circle does not carry it
-    /// at the ambient tolerance. On a RATIONAL wall this gate IS the
-    /// certification -- nothing else checks the rim there (no pcurve
-    /// mint, dihedral kind-exempt, the conventional description
-    /// certifies only against itself) -- so a rim that fails it is
-    /// refused rather than laundered into a t1/t2-valid body
-    /// indistinguishable from a correct one.
-    RimOffWallBoundary {
-        /// The `EDGE_CURVE` entity instance.
-        id: u64,
-        /// The worst sampled deviation (meters): boundary-sample
-        /// distance to the rim's circle locus, or arc-length excess
-        /// outside the rim's parameter range, whichever is larger.
-        residual: f64,
-    },
     /// A described NURBS wall's own boundary column would not re-wrap
     /// as a curve while an edge was being adopted against it: a weight
     /// on the extracted column is not a positive finite number, which
@@ -438,6 +421,8 @@ pub enum StepImportError {
         what: String,
         /// The lane that would construct it.
         lane: &'static str,
+        /// The file's ε_in, the import door the refusal is read at.
+        file: FileCoincidence,
     },
     /// A reading the build takes at the run's band escalated: the run's
     /// tolerance does not decide the construction of edge `id`.
@@ -446,6 +431,8 @@ pub enum StepImportError {
         id: u64,
         /// The escalated reading.
         source: Indeterminate,
+        /// The file's ε_in, the import door the refusal is read at.
+        file: FileCoincidence,
     },
     /// The adopted body failed the kernel's shared at-rest validation
     /// gate (M7-7, the #260 ruling (a)): `topo::validate_geometric` —
@@ -602,15 +589,6 @@ impl StepImportError {
                 }
                 Ok(())
             }
-            Self::RimOffWallBoundary { id, residual } => write!(
-                f,
-                "step import: edge #{id}: an ARC cap rim does not lie on its adjacent \
-                 NURBS wall's boundary — the wall's own boundary column, sampled at the \
-                 certification schedule, deviates from the rim's circle by up to \
-                 {residual:e} m (ambient tolerance exceeded). On a rational wall this \
-                 residual gate is the rim's only certification, so the file is refused \
-                 rather than adopted wrong"
-            ),
             Self::WallColumnStructure { id, source } => write!(
                 f,
                 "step import: edge #{id}: an adjacent NURBS wall's control net, or the \
@@ -646,13 +624,13 @@ impl StepImportError {
                  carries a crease, and the split cannot be placed: {what} \
                  (work/importgate/the-c0-knot-split-refuses-what-it-cannot-place.md)"
             ),
-            Self::NotYetSupported { id, what, lane } => write!(
+            Self::NotYetSupported { id, what, lane, .. } => write!(
                 f,
                 "step import: edge #{id}: {what}, which the kernel does not yet construct (no \
                  value the file printed stands in for a construction); the lane that would: \
                  {lane}"
             ),
-            Self::BuildEscalated { id, source } => {
+            Self::BuildEscalated { id, source, .. } => {
                 write!(f, "step import: edge #{id}: building its carrier: ")?;
                 if ended {
                     write!(f, "{source}")
