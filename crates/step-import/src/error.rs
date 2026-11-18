@@ -126,6 +126,18 @@ pub enum SingularityBand {
 /// **Which kind of entity a build refusal names** (`[import]`, D7 step
 /// 2): an edge whose carrier, or a vertex whose point, the build does not
 /// construct.
+///
+/// **Not carried by the `pncad` façade, argued.** It picks the word the
+/// rendered message names the entity by ("edge #id", "vertex #id"), and
+/// the message is the whole of what it changes for a caller: the id is
+/// carried, and the recourse (the lane, or the run's tolerance) does not
+/// depend on the kind. The façade carries the variants (and Python their
+/// words, `not_yet_supported`, `build_escalated`), which is what a caller
+/// routes on. The falsifier: a caller that must act on WHICH kind of
+/// entity refused without reading the message (a GUI highlighting the
+/// vertex rather than the edge) — then the carry is `pncad::prelude`'s
+/// export, the façade's matchability row, and a Python attribute beside
+/// `variant`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BuiltEntity {
     /// An `EDGE_CURVE`.
