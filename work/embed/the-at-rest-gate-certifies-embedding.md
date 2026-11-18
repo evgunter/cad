@@ -1247,3 +1247,115 @@ budget's unit (`docs/DESIGN-FORK-LOG.md`, row 286); the design is in
   lone verdict holds, 250 of 250. The pin above is that measurement
   made a test.
 
+
+## Census, second take: per solid, on main after the first engine wave (2026-11-18)
+
+Main `c2a0c41f40` (after PRs 7071, 7089, 7093, 7080, 7086 and 7105),
+`embed/gate-measure` at `30bfba1fe9`. The gate asks each solid against
+itself (Ev, PR 7068 decision 1); nothing else differs from the first take's
+method: the same CI build, the full suite with the slow set,
+`--no-fail-fast`, here in 22 resumable chunks at 2 test threads. The
+first take was the whole-body ask on `362cd72fd2`.
+
+### Workspace: 1,313 of 19,504 tests fail (first take: 1,846 of 19,376)
+
+| class | first take | this take |
+|---|---:|---:|
+| 1. not embedded (named for a refusal; untraced) | ~12 | 37 |
+| 2. a valid body the engine refuses | 1,056 | 1,076 |
+| 3. a crossing at a contact | ~752 | 179 |
+| — between two solids | 562 | 0 |
+| — inside one solid | ~190 | 179 |
+| 4. other | 26 | 21 |
+
+Class 1 is still read off test names (rows named for a refusal whose first
+finding is a crossing), not traced; it is wider than the first take's
+because more rows now reach the gate.
+
+**In-solid crossings, 216 tests (classes 1 and 3), by the records the
+Boolean door held at its `gate`:**
+
+| | class 3 | class 1 |
+|---|---:|---:|
+| a contact record of two cells of that solid covers the crossing's faces | 93 | 14 |
+| — point records only | 39 | 3 |
+| — edge records | 49 | 11 |
+| — an area record | 5 | 0 |
+| a Boolean result with no contact record and no declared operand record | 59 | 14 |
+| finished at a door the harness cannot see records at (split, fixtures) | 27 | 9 |
+
+No test with a Boolean result and no contact record held a declared
+operand record (`Held.records`) either.
+
+**Class 2 by refusal shape** (the first take's counts in brackets):
+
+| refusal | tests |
+|---|---:|
+| `Uncertified`, departure, at an edge | 564 (512) |
+| `Uncertified`, departure, at a vertex | 154 (179) |
+| `Budget(Pairs)` | 124 (136) |
+| `Budget(Depth)` | 84 (90) |
+| `Unsupported`: a carrier window not a finite rectangle | 66 (59) |
+| `Uncertified`, second order, at an edge | 54 (52) |
+| `Unsupported`: a spindle sheet's face | 20 (20) |
+| `Unsupported`: an approximated face | 7 (7) |
+| `Unsupported`: a free-form face with a boundary edge not an iso of its chart | 2 (new) |
+| `Sliver` | 1 (1) |
+
+**Class 2 by shape and faces' kinds, with the test cheapest to trace**
+(its test time):
+
+| tests | bucket | cheapest test |
+|---:|---|---|
+| 124 | `Budget(Pairs)` | `topo::all a_doubled_line_does_not_revert::bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds` (1.3 s) |
+| 116 | departure, edge, plane/plane | `editor-core::all m10_3_r1_probes_interval::a_one_leaf_budget_still_covers_the_box_exactly` (0.09 s) |
+| 108 | departure, edge, plane/cylinder | `sweep::all a_closed_conic_in_the_partners_face::short_arcs_at_a_crescents_tip` (0.13 s) |
+| 101 | departure, vertex, plane/plane | `topo::all review_m9_1_probes::probe_records_partialeq_bites_on_mutation` (0.11 s) |
+| 84 | `Budget(Depth)` | `sweep::all band_planar_mitre::an_acute_turn_symmetric_only_by_its_angles_escalates` (0.10 s) |
+| 77 | departure, edge, sphere/sphere | `step-import::all review_pole_vertex_probes::a_sphere_face_holding_both_poles_with_its_vertex_at_the_equator` (0.15 s) |
+| 67 | departure, edge, cylinder/plane | `editor-core names::emit_shell::tests::a_joined_ring_arc_is_named_as_the_set_of_its_halves` (0.21 s) |
+| 61 | departure, edge, cylinder/cylinder | `topo boolean::node_probe_rows::a_piece_of_the_subtraction_built_by_hand_is_a_finished_body` (0.09 s) |
+| 37 | window not a finite rectangle, cylinder | `mesh::all quadric_pair_sections::a_loops_edges_read_simple_knots_at_every_scale` (1.2 s) |
+| 35 | second order, edge, cylinder/cylinder | `editor-core::all m10_2_measure::a_split_half_of_a_cusp_extrude_gathers` (0.10 s) |
+| 33 | departure, edge, plane/torus | `sweep::all band_mixed_corner::an_inset_corner_with_all_three_edges_requested_builds_at_its_closed_form` (0.35 s) |
+| 29 | window not a finite rectangle, plane | `sweep::all sf2b_r2_probes::r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges` (0.16 s) |
+| 26 | departure, edge, plane/cone | `mesh::all review_m2_pr6_walk_shapes::survives_near_full_wedge_pole_junction_unwrap` (0.09 s) |
+| 24 | departure, edge, cone/cone | `sweep::all reach_cone_split::a_tilted_cone_cut_is_never_misread_by_containment` (0.21 s) |
+| 20 | spindle sheet | `sweep::all the_football_revolves::a_horn_reached_at_its_cusp_from_one_side_is_a_needle_tip` (0.09 s) |
+| 13 | departure, edge, cone/plane | `sweep::all a_cone_apex_meets_a_vertex::a_box_corner_at_the_apex_holds_the_cones_quadrant` (0.41 s) |
+| 13 | departure, edge, cylinder/torus | `sweep::all blend_value_decided_rows::a_disc_rim_records_its_joints_and_its_supports` (0.76 s) |
+| 12 | departure, vertex, cylinder/plane | `sweep::all face_face_touch::a_bridged_rod_standing_off_the_plate_discovers_nothing` (0.21 s) |
+| 11 | departure, vertex, cylinder/cylinder | `topo boolean::node_probe_rows::the_bicylinder_built_by_hand_is_a_finished_body` (0.08 s) |
+| 11 | departure, edge, torus/torus | `sweep::all self_intersection_proves_injectivity::a_one_face_torus_cut_certifies_its_caps_by_the_wall_alone` (0.18 s) |
+
+Smaller buckets (under 10 tests each, 61 tests) are in the run's
+`classified.json` beside the harness. Class 4: the same child-process
+and source-census rows as before, the `mass_props` goldens gone,
+`torus_doors_join` and `square_search` again, three `revalue_corpus`
+rows and two `coincidence_door` rows that ran out of memory, and four
+`topo` unit rows (`face_normal`, `link::cone_fuzz`, `live`) untraced.
+
+### Outside the workspace
+
+- **The tour walk:** 4 of 85 stops refuse, the same four as before
+  (`bracket`, departure at a plane/cylinder edge; `budfillet`,
+  sphere/sphere edge; `teapotvessel`, torus/plane edge; `projectbox`,
+  `Budget(Pairs)`). The benches and the Monte-Carlo chain now hold: no
+  pair between solids is asked.
+- **The tour suite:** 12 of 106 fail (15 before): the three
+  `eps_regression` rows and `bracket`'s stop, `projectbox`'s two rows and
+  `review_blend2_r1_probes::p5` (`Budget(Pairs)`), the two off-axis
+  `snowman` heads, `teapot`'s wall walk, and the two `lily` rows. The
+  `chaintol`, `certified`, `gallery` and `verbs_teapot_r2` rows pass now.
+- **`demos/wild`:** 2 of 8 cells refuse, as before (`805_slide_switch`,
+  departure at a plane/plane vertex; `nist_ftc_09_asme1_rd`, a
+  cylinder/cone vertex).
+- **`tools/tess-meter`:** 2 of 36, as before.
+
+### The price, and two questions for the refusal row
+
+341,880 asks, 29,187 s of gate: 17,754 s on asks that hold, 11,434 s on
+refusals. Crossings are cheap: an ask that ends in a verified crossing
+after it already kept a refusal happened 38 times, for 5 s in all. So
+nearly all of the refusal seconds are on valid bodies the engine refuses
+(class 2), not on the bodies that truly cross.
