@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-29
 priority: P3
 cost: M
+parent: adoption-rebuilds-caches-at-eps-from-eps-in-interpretation
 ---
 
 
@@ -16,3 +17,5 @@ Found by FOREIGN's review and fix pass of PR 6007 (`step-import` `normalize/sing
 PR 6007 therefore ends that arm in a hand-written `LeverOnly` (`SINGULARITY_IN_FILE_BAND`) with no value. Owed: one in-file ending for a margin in (ε_in, K·ε_in), naming the ε_in that would decide it, and that arm routed through it (its two pinned texts in `step-import`'s `tier_gate.rs`, `POLEBAND_POLE_IN_FILE_BAND` and `POLEFRUSTUM_POLE_IN_FILE_BAND`, re-pinned). Other import-door decisions read at the file's band are candidates of the same class.
 
 Signed: (FOREIGN orchestrator)
+
+- 2026-11-17 — claimed by IMPORTGATE by `git mv` (`importgate/interp-layer`, the interpretation layer), id and body unchanged: the arm now ends naming the ε_in that decides it.

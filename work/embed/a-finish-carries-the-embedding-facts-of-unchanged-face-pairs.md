@@ -75,9 +75,15 @@ face; two operands; an old shared edge with a face trimmed elsewhere).
 
 ## Not verified
 
-- That a Boolean copies its untouched faces bit-identically (both
-  designers assumed it; `out_a = a.clone()` suggests so).
 - That a shelled solid's outer faces carry.
+
+Verified since (the gate lane, 2026-11-18, interim over the first
+1,300 tests): a Boolean's untouched faces match their operand's bit
+for bit (carrier, sense, every rim's curve and start point), and at
+the Boolean's gate 69% of the holding seconds are such pairs; 14% have
+a face the door trimmed, 14% a new face, 4% come from two operands. A
+blend is 82% new faces and a split 69% trimmed, so the carry buys
+little there.
 
 ## Waits on
 
