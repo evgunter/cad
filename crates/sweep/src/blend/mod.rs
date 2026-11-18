@@ -2352,7 +2352,12 @@ impl BlendError {
             Self::NotFinished { findings } => {
                 write!(f, "the blended body is not a finished body: {findings}")
             }
-            Self::Carry { refusal } => write!(f, "{refusal}"),
+            Self::Carry { refusal } => write!(
+                f,
+                "a touch its operand records {}. Recourse: {}",
+                refusal.of_the_touch(),
+                topo::CarryRefusal::RECOURSE
+            ),
             Self::SurgeryInvariant { at, detail } => write!(
                 f,
                 "{detail} — at {at}: the blend surgery contradicted its own earlier \

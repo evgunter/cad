@@ -837,7 +837,7 @@ impl<T: Real> ShellError<T> {
             Self::Join { refusal } => {
                 write!(f, "the assembled thin solid: {}", read_at(refusal, at))
             }
-            Self::Carry { refusal } => write!(f, "{refusal}"),
+            Self::Carry { refusal } => refusal.write_at_a_door(f),
             Self::NotValid { findings } => write!(
                 f,
                 "the assembled thin solid is not a finished body, so it is discarded: {}",

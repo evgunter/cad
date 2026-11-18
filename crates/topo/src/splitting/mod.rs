@@ -1070,7 +1070,7 @@ impl SplitError {
                 "a side of the split could not be sorted into solids: {}",
                 read_at(e, at)
             ),
-            Self::Carry { refusal } => write!(f, "{refusal}"),
+            Self::Carry { refusal } => refusal.write_at_a_door(f),
         }
     }
 }

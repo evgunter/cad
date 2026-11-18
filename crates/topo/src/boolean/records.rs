@@ -104,6 +104,35 @@ pub enum CarryRefusal {
 }
 
 impl CarryRefusal {
+    /// **What the refused touch does**, as a door that carried it says
+    /// it of "a touch its operand records": the predicate of that
+    /// sentence, naming no key.
+    #[must_use]
+    pub const fn of_the_touch(&self) -> &'static str {
+        match self {
+            Self::Unmapped { .. } => "lies on geometry it lost without removing it",
+            Self::Pair { .. } => "lands only on cells that are one or adjacent",
+            Self::Parted { .. } => "lands on both sides of the cut away from the cut",
+            Self::Unread { .. } => "could not be read where it divided the touch",
+            Self::Stale { .. } => "no longer touches where it put the touch",
+            Self::MintedMeeting { .. } => "meets where it minted cells it cannot back",
+        }
+    }
+
+    /// The refusal as a door that carried the record states it, with
+    /// its recourse.
+    pub(crate) fn write_at_a_door(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "a touch its operand records {}. Recourse: {}",
+            self.of_the_touch(),
+            Self::RECOURSE
+        )
+    }
+
+    /// What follows a carried record's refusal at any door.
+    pub const RECOURSE: &'static str = "move the touch, or this operation's geometry off it";
+
     /// The refused record's index.
     pub(crate) fn record(self) -> u32 {
         match self {

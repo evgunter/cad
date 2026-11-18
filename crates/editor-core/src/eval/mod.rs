@@ -2245,21 +2245,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 e.render(geom_brep::recourse::Reading::Build)
             ),
             Self::ContactCarry { refusal } => {
-                use topo::CarryRefusal as R;
-                let what = match refusal {
-                    R::Unmapped { .. } => "lies on geometry it lost without removing it",
-                    R::Pair { .. } => "lands only on cells that are one or adjacent",
-                    R::Parted { .. } => "lands on both sides of the cut away from the cut",
-                    R::Unread { .. } => "could not be read where it divided the touch",
-                    R::Stale { .. } => "no longer touches where it put the touch",
-                    R::MintedMeeting { .. } => "meets where it minted cells it cannot back",
-                };
                 write!(
                     f,
-                    "a touch its operand records {what}. {}",
-                    crate::sentence::Recourse(
-                        "move the touch, or this operation's geometry off it"
-                    )
+                    "a touch its operand records {}. {}",
+                    refusal.of_the_touch(),
+                    crate::sentence::Recourse(topo::CarryRefusal::RECOURSE)
                 )
             }
             Self::Blend {
