@@ -696,15 +696,21 @@ in `docs/DESIGN.md` `[topology.tiers]`.
   blend take a bare body today. This closes into it
   `work/atrest/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md`
   and its two neighbours on the same gap.
-- **A point or edge record between two cells of one solid is a
-  confirmed meeting place.** The gate confirms it with the census's
-  self-touch reading for that solid, and the certificate reads around
-  the recorded cells as it reads around a shared vertex or edge. An
-  area self-touch inside one shell keeps its typed refusal
-  (`TouchesItself`). Until the engine reads a recorded cell so, a solid
-  with a record inside it refuses typed at the gate; it is
+- **A solid that holds a recorded contact between two of its own
+  cells refuses typed at the gate** (Ev, PR 7068, 2026-11-18:
+  "refusing for now sounds good"; the long run is open,
+  `[open.self-contact]`). The two candidates: the certificate reads
+  around the recorded cells as around a shared vertex or edge, the
+  gate first confirming the record with the census's self-touch
+  reading (both designers' recommendation, and
   `a-recorded-contact-refuses-the-injectivity-question-until-contact-design-hands-it-off`'s
-  third candidate, for records inside one solid.
+  third candidate for records inside one solid); or the recorded face
+  pair is left out. An area self-touch inside one shell keeps its
+  typed refusal (`TouchesItself`). **What it refuses meanwhile:**
+  nothing in the demos (tour 0 of 86 stops, `demos/wild` 0 of 8
+  cells); in the workspace, the rows that build a self-touching solid
+  on purpose and hold its record (the gate lane's count is on this
+  row's `## Census`).
 - **After an op over an assembly, its pieces stay pieces, and the op
   answers only for what it made** (the fork's third part, rewritten
   after Ev's questions on PR 7068; nothing about an overlap rides the

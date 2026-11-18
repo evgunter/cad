@@ -865,9 +865,9 @@ tiers".
   each solid against itself and never of two solids' faces, at every
   scalar with certification rights (`f64`, `Probe`, `Interval` and
   `Sym`; a scalar without them, such as a dual, cannot reach the
-  gate). A recorded contact inside a solid is a place where it meets
-  itself, read as a shared edge or vertex is: the question examines
-  the rest of both faces. Between two solids that descend from
+  gate). A solid that holds a recorded contact between two of its
+  own cells refuses typed at the gate: how the question reads such a
+  place is open ([open.self-contact]). Between two solids that descend from
   different pieces of one operand, the cells a door carried unchanged
   keep the meeting they arrived with, a record carried through the
   door's lineage or an overlap a `⊔` reported, and the door's gate
@@ -2462,6 +2462,24 @@ some (a merge's glue, a split's ON verdict) back no record, and the
 `unproven-coincidence` lint is their only reader. Whether that record is
 part of the model's output, or lint evidence the pipeline should not be
 producing, is the question.
+
+### How does the embedding question read a contact recorded inside one solid? `[open.self-contact]`
+
+A solid may touch itself where an op decided it does: a pinch at a
+point, a slit or a keel along a line. The op records the contact
+([topology.records]), and both cells of the record belong to the one
+solid. The embedding question ([topology.tiers]) reads a solid's faces
+against each other, and at such a place two of them meet off any shared
+edge or vertex, so asked as it stands it reads a crossing. Two readings
+were weighed. The recorded cells could be read as a place the solid
+meets itself, as a shared edge or vertex is, with the rest of both
+faces still examined; the gate would first confirm the record. Or the
+recorded face pair could be left out of the question, which examines
+nothing of those two faces anywhere. Neither is built, and which is
+right in the long run is not decided. Until it is, such a solid refuses
+typed at the gate, so the gate never reads Ok on something unread (Ev,
+PR 7068). An area contact inside one shell refuses already
+(`TouchesItself`).
 
 ### The sketch constraint solver: build or bind `[open.sketch-solver]`
 
