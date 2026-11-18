@@ -217,7 +217,7 @@ impl<T: Decide> Body<T> {
     /// an edge it wrote. Two planes at the π seam come back with the
     /// verdict that its two faces are one carrier ([`SmoothAcross`]), on
     /// the margin the fold decided the first station's class smooth on
-    /// (`geom_brep::WedgeVerdict::Seam`).
+    /// (`geom_brep::WedgeClass::Seam`).
     ///
     /// # Errors
     ///
@@ -263,7 +263,7 @@ impl<T: Decide> Body<T> {
             (geom::Surface::Plane { .. }, geom::Surface::Plane { .. })
         );
         let one_carrier = match verdict {
-            geom_brep::WedgeVerdict::Seam {
+            geom_brep::WedgeClass::Seam {
                 margin: Some(margin),
                 ..
             } if planes => Some(SmoothAcross {

@@ -491,7 +491,7 @@ fn plane_wedge(na: Vec3<f64>, nb: Vec3<f64>) -> geom_brep::WedgeVerdict {
 /// **Predicate 5's trio**: the fold reads a definite corner by its sign,
 /// coplanar faces by their material, and a wedge too small to call
 /// escalates. A cube's edge resolves a convex link whose margin is the
-/// blend's `fillet3_convexity_sign`; the in-band corner refuses as the unsettled
+/// fold's `dihedral_sign`, read as a choice; the in-band corner refuses as the unsettled
 /// wedge, with the tangential sentence.
 #[test]
 fn trio_convexity_sign() {
@@ -509,26 +509,26 @@ fn trio_convexity_sign() {
     let recorded = bracket.finish();
     let link = verdict.chains[0].first();
     assert_eq!(link.convexity, Convexity::Convex);
-    assert_eq!(link.convexity_margin.predicate, "fillet3_convexity_sign");
+    assert_eq!(link.convexity_margin.predicate, geom_brep::DIHEDRAL_SIGN);
     assert_eq!(link.convexity_margin.sign, Sign::Positive);
-    // The sign decides which body the blend builds, so the fold records
-    // it under the blend's own name, which the flip lane reads, and not
-    // under the shape reading's, which it passes over.
-    let named = |name| {
+    // The sign decides which body the blend builds, so the blend records
+    // it as a choice, which the flip lane reads, and none of it as a
+    // check, which the lane does not.
+    let named = |role| {
         recorded
             .verdicts
             .iter()
-            .filter(|v| v.predicate == name)
+            .filter(|v| v.predicate == geom_brep::DIHEDRAL_SIGN && v.role == role)
             .count()
     };
     assert!(
-        named("fillet3_convexity_sign") > 0,
-        "the blend's sign is on the verdict log under its own name"
+        named(geom_core::k_stats::Role::Choice) > 0,
+        "the blend's sign is on the verdict log as a choice"
     );
     assert_eq!(
-        named(geom_brep::DIHEDRAL_SIGN),
+        named(geom_core::k_stats::Role::Check),
         0,
-        "and not as a shape reading"
+        "and not as a check"
     );
     let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
     let sign = |v| match v {

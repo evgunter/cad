@@ -121,12 +121,55 @@ const CELL_BUDGET: usize = 4096;
 /// decides only how readily a crossing is told from a bound.
 pub(in crate::blend) const EDGE_SAMPLES: u32 = 9;
 
-/// Whether a reading is certainly positive, by `escalate`: what makes a
-/// point a witness of a three-way reading. A reading that is never
-/// reported is not classified.
+/// **Whether a reading is certainly positive, by `escalate`**: the one
+/// home of that threshold in the blend. Two kinds of reader take it:
+///
+/// - the reach's metering, where a cell surely clear is not subdivided
+///   and a face surely clear is not read again in the sheet
+///   ([`metered`]), so its clearance readings are never taken;
+/// - the three-way witness readings (the reach's and the surgery's
+///   value classifiers), where it makes a point a witness: certainly
+///   inside or outside, so which arm the reading takes and which
+///   decisions follow.
+///
+/// A reading that is never reported is not classified, so the threshold
+/// is no logged decision. Every outcome steers what is decided next, so
+/// each is marked ([`geom_core::k_stats::mark_outcome`]): two runs whose
+/// readings answered differently part there, and the first-turn reading
+/// names no flip read off other cells or other witnesses. Marking every
+/// call, the classifiers included, is the safe side of the trade: an
+/// unmarked outcome that steers is an unlogged branch the first turn
+/// cannot see, and a marked one that turned out not to steer costs only
+/// a step on the path.
 pub(in crate::blend) fn sure<T: Bounds>(x: T, band: Band) -> bool {
-    x.lo() >= band.escalate()
+    geom_core::k_stats::mark_outcome(SURE, x.lo() >= band.escalate())
 }
+
+/// **Whether a reading is certainly below `-escalate`**: [`sure`]'s other
+/// side, strict, for a depth certainly inside by the band (a face's
+/// boundary vertex inside a band's material, whose clearance is then
+/// read). Marked as [`sure`] is.
+fn sure_below<T: Bounds>(x: T, band: Band) -> bool {
+    geom_core::k_stats::mark_outcome(SURE_BELOW, x.hi() < -band.escalate())
+}
+
+/// **Whether a cell, a sheet rectangle or an edge piece is too fine to
+/// halve usefully**, by `escalate`: its size `width` (an upper bound)
+/// at most the band's threshold. It stops a subdivision, so which
+/// readings follow, and is marked as [`sure`] is.
+fn fine(width: f64, band: Band) -> bool {
+    geom_core::k_stats::mark_outcome(FINE, width <= band.escalate())
+}
+
+/// The names [`sure`]'s, [`sure_below`]'s and [`fine`]'s outcomes are
+/// marked under.
+const SURE: &str = "blend_reach_sure";
+/// [`sure_below`]'s.
+const SURE_BELOW: &str = "blend_reach_sure_below";
+/// [`fine`]'s.
+const FINE: &str = "blend_reach_fine";
+/// The edge refinement's settled-piece test's.
+const SETTLED: &str = "blend_reach_edge_settled";
 
 /// A rectangle of a meridian sheet: `[ρ_lo, ρ_hi, z_lo, z_hi]`.
 type Rect<T> = [T; 4];
@@ -898,7 +941,7 @@ fn screened<T: Decide + Bounds>(
             };
             vacant &= depth.lo() >= 0.0;
             let depth = across.map_or(depth, |b| depth.max(b.at(p)));
-            if depth.hi() < -band.escalate() {
+            if sure_below(depth, band) {
                 face_clearance_margin(face, depth, gap(p), false, band)?;
             }
         }
@@ -2007,7 +2050,7 @@ impl<T: Bounds> Least<T> {
     /// when the cell is to be halved.
     fn read(&mut self, inner: T, off: Option<T>, small: bool, band: Band) -> bool {
         let m = off.map_or(inner, |off| inner.max(off));
-        if m.lo() >= band.escalate() {
+        if sure(m, band) {
             self.fold(m);
             return false;
         }
@@ -2047,7 +2090,7 @@ fn face_bound<T: Decide + Bounds>(
             .map(|(_, b)| b.low(&cell))
             .reduce(|m, g| m.max(g))
             .unwrap_or_else(T::zero);
-        let small = cell.lever.hi() <= band.escalate();
+        let small = fine(cell.lever.hi(), band);
         let off = match (off_surface(surface, &cell), extra(&cell)) {
             (Some(a), Some(b)) => Some(a.max(b)),
             (a, b) => a.or(b),
@@ -2104,7 +2147,7 @@ fn inside_bound<T: Bounds>(
             continue;
         }
         spent += 1;
-        if spent >= CELL_BUDGET || cell.lever.hi() <= band.escalate() {
+        if spent >= CELL_BUDGET || fine(cell.lever.hi(), band) {
             return None;
         }
         queue.extend(halves(lo, hi));
@@ -2184,7 +2227,7 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
         let off = flo.max(-fhi) - slack;
         let off = extra(rect).map_or(off, |e| off.max(e));
         let diag = ((r1 - r0).powi(2) + (z1 - z0).powi(2)).sqrt();
-        let small = diag.hi() <= band.escalate();
+        let small = fine(diag.hi(), band);
         if least.read(inner.unwrap_or_else(T::zero), Some(off), small, band) {
             let two = T::from_f64(2.0);
             if (r1 - r0).hi() >= (z1 - z0).hi() {
@@ -2334,7 +2377,7 @@ fn curve_in_core<T: Bounds>(
             continue;
         }
         spent += 1;
-        if spent >= EDGE_PIECES || r <= band.escalate() {
+        if spent >= EDGE_PIECES || fine(r, band) {
             return None;
         }
         let mid = (a + b) * half;
@@ -2348,7 +2391,11 @@ fn curve_in_core<T: Bounds>(
         else {
             break;
         };
-        if r <= band.escalate() || 8.0 * r <= -Bounds::hi(inner) {
+        // A piece settles once it is fine or its reading is well clear
+        // of its size: either stops the refinement, so which readings
+        // follow, and both are marked.
+        if fine(r, band) || geom_core::k_stats::mark_outcome(SETTLED, 8.0 * r <= -Bounds::hi(inner))
+        {
             break;
         }
         spent += 1;
@@ -3216,7 +3263,7 @@ fn metered<T: Decide + Bounds>(
 ) -> T {
     let sheet = || face_bound_in_sheet(body, face, reach, surface, bounds, extra_in_sheet, band);
     let space = || face_bound(reach, surface, bounds, extra, band);
-    let certified = |m: T| m.lo() >= band.escalate();
+    let certified = |m: T| sure(m, band);
     let coaxial = reach
         .sheet
         .and_then(|axis| sheet_fn(surface, axis, (reach.lo, reach.hi)))

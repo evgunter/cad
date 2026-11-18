@@ -704,8 +704,7 @@ fn driver(
     // error arrives first in time, so the refusal would depend on the
     // schedule. The error reported is the first in parameter order.
     let results: Vec<Result<Sensitivity, SensitivityRefusal>> = if parallel {
-        use rayon::prelude::*;
-        names.par_iter().map(one).collect()
+        geom_core::k_stats::par_map(&names, one)
     } else {
         names.iter().map(one).collect()
     };
@@ -2057,8 +2056,7 @@ fn worst_case(
     // the refusal is the first in the verdict's leaf order whatever the
     // schedule (the driver's own collection says why).
     let results: Vec<Result<(f64, f64), StackupRefusal>> = if parallel {
-        use rayon::prelude::*;
-        leaves.par_iter().map(one).collect()
+        geom_core::k_stats::par_map(leaves, one)
     } else {
         leaves.iter().map(one).collect()
     };
