@@ -172,7 +172,7 @@ fn fold(
         let acc = steps.last().map_or(&bodies[order[0]], |s| &s.body);
         let mut decls = BooleanInputs::default();
         if carry && let Some(prev) = steps.last() {
-            decls.records_a = carried_rows(&prev.contacts);
+            decls.records_a = carried_rows(&prev.contacts());
         }
         match union_in(acc, &bodies[next], &decls, tol).map_err(|e| (step + 1, Box::new(e)))? {
             BooleanResult::Body(out) => {
@@ -238,7 +238,7 @@ fn carried_records_certify_every_order_of_the_fold() {
                 panic!("c over {span:?}, order {order:?}: step {step} refused: {e:?}")
             });
             for (i, s) in steps.iter().enumerate() {
-                let verdict = validate_pseudomanifold(&s.body, &s.contacts, tol);
+                let verdict = validate_pseudomanifold(&s.body, &s.contacts(), tol);
                 assert!(
                     verdict.is_ok(),
                     "c over {span:?}, order {order:?}, step {}: 3′ refused {:?}",
@@ -283,7 +283,7 @@ fn joined_folds_certify_and_build_one_body_in_every_order() {
                 let base = acc.as_ref().map_or(&bodies[order[0]], |s| &s.body);
                 let mut decls = BooleanInputs::default();
                 if let Some(prev) = &acc {
-                    decls.records_a = carried_rows(&prev.contacts);
+                    decls.records_a = carried_rows(&prev.contacts());
                 }
                 let out = match union_in(base, &bodies[next], &decls, tol) {
                     Ok(BooleanResult::Body(out)) => out,
@@ -298,7 +298,7 @@ fn joined_folds_certify_and_build_one_body_in_every_order() {
                     .is_empty(),
                     "c over {span:?}, order {order:?}, at {next}: a joinable vertex is left"
                 );
-                let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+                let verdict = validate_pseudomanifold(&out.body, &out.contacts(), tol);
                 assert!(
                     verdict.is_ok(),
                     "c over {span:?}, order {order:?}, at {next}: 3′ refused {:?}",
@@ -355,8 +355,8 @@ fn quarter_pinch(
     let BooleanResult::Body(pinch) = union(&p, &q, tol).expect("an edge contact builds") else {
         panic!("a union of two bricks came back empty");
     };
-    assert_pinch_records(&pinch.contacts);
-    let carried = carried_rows(&pinch.contacts);
+    assert_pinch_records(&pinch.contacts());
+    let carried = carried_rows(&pinch.contacts());
     (pinch, carried)
 }
 
@@ -397,16 +397,16 @@ fn assert_pinch_records(records: &topo::ContactRecords) {
 fn a_pinch_without_its_edge_edge_row_reads_its_shared_ends() {
     let tol = Tol::witness();
     let (pinch, _) = pinch(tol);
-    let verdict = validate_pseudomanifold(&pinch.body, &pinch.contacts, tol);
+    let verdict = validate_pseudomanifold(&pinch.body, &pinch.contacts(), tol);
     assert!(verdict.is_ok(), "with its records: {verdict:?}");
     let bounds: topo::ContactRecords = pinch
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .filter(|c| !matches!(c.record.kind(), topo::ContactKind::EdgeEdge(..)))
         .cloned()
         .collect();
-    for (x, y) in pinch.contacts.vertex_vertex() {
+    for (x, y) in pinch.contacts().vertex_vertex() {
         let key = |v| pinch.body.get_vertex(v).unwrap().point;
         assert_eq!(key(x), key(y), "an end's two vertices share one key");
     }
@@ -544,7 +544,7 @@ fn every_op_builds(
             (volume - want).abs() < 1e-9,
             "{op}: volume {volume}, want {want}"
         );
-        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts(), tol);
         assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
     }
 }
@@ -644,7 +644,7 @@ fn clip(subject: &[(f64, f64)], window: &[(f64, f64)]) -> Vec<(f64, f64)> {
 fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64, f64), tol: Tol) {
     let fold = |acc: &BooleanBody<f64>, next: &AtRestBody<f64>| {
         let decls = BooleanInputs {
-            records_a: carried_rows(&acc.contacts),
+            records_a: carried_rows(&acc.contacts()),
             ..BooleanInputs::default()
         };
         match union_in(&acc.body, next, &decls, tol).expect("a touching wedge folds in") {
@@ -664,12 +664,12 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64
     let pinch = wedges[2..].iter().fold(two, |acc, next| fold(&acc, next));
     let n = spans.len();
     assert_eq!(
-        pinch.contacts.vertex_vertex().count(),
+        pinch.contacts().vertex_vertex().count(),
         n * (n - 1),
         "{n} vertices at each end of the pinch line, a row per two"
     );
     assert_eq!(
-        pinch.contacts.edge_edge().count(),
+        pinch.contacts().edge_edge().count(),
         n * (n - 1) / 2,
         "{n} edges along the pinch line, an edge-edge row per two"
     );
@@ -687,7 +687,7 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64
     };
     every_op_builds(
         &pinch.body,
-        &carried_rows(&pinch.contacts),
+        &carried_rows(&pinch.contacts()),
         &cutter_body,
         [
             Some(pinch_volume + cutter_volume - common),
@@ -807,7 +807,7 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
             (volume - minuend).abs() < 1e-9,
             "{name} ∖: volume {volume}, want {minuend}"
         );
-        let verdict = validate_pseudomanifold(&less.body, &less.contacts, tol);
+        let verdict = validate_pseudomanifold(&less.body, &less.contacts(), tol);
         assert!(verdict.is_ok(), "{name} ∖: 3′ refused {:?}", verdict.err());
         let common = intersect_in(&a.body, &b.body, &decls, tol);
         assert!(
@@ -856,7 +856,7 @@ fn two_pinches_meeting_end_to_end_build_in_every_op() {
                 (volume - want).abs() < 1e-9,
                 "{name} {op}: volume {volume}, want {want}"
             );
-            let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+            let verdict = validate_pseudomanifold(&out.body, &out.contacts(), tol);
             assert!(
                 verdict.is_ok(),
                 "{name} {op}: 3′ refused {:?}",
@@ -1097,7 +1097,7 @@ fn a_pinch_line_through_a_face_keeps_its_records_at_the_new_end() {
             op,
             tol,
         );
-        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts(), tol);
         assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
         mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .expect("mass")
@@ -1234,7 +1234,7 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
             (volume - want).abs() < 1e-9,
             "{op}: volume {volume}, want {want}"
         );
-        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts(), tol);
         assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
     }
 }
@@ -1267,7 +1267,7 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
     };
     let decls = BooleanInputs {
         records_a: carried_a,
-        records_b: carried_rows(&pinch_b.contacts),
+        records_b: carried_rows(&pinch_b.contacts()),
     };
     let BooleanResult::Body(out) =
         subtract_in(&pinch_a.body, &pinch_b.body, &decls, tol).expect("the subtract builds")
@@ -1280,7 +1280,7 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
         .expect("the pinned resolution is met")
         .volume;
     assert!((volume - 2.0).abs() < 1e-9, "volume {volume}, want 2.0");
-    let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+    let verdict = validate_pseudomanifold(&out.body, &out.contacts(), tol);
     assert!(verdict.is_ok(), "3′ refused {:?}", verdict.err());
 }
 
@@ -1561,7 +1561,7 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), footing: Foo
             (volume - want).abs() < 1e-9,
             "{op}: volume {volume}, want {want}"
         );
-        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts(), tol);
         assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
     }
 }
@@ -1719,13 +1719,13 @@ fn pit_holding_spikes_built(
         let spike = corner_prism(rays, scale, tol);
         let got = if spike_first {
             let decls = BooleanInputs {
-                records_b: carried_rows(&y.contacts),
+                records_b: carried_rows(&y.contacts()),
                 ..BooleanInputs::default()
             };
             union_in(&spike, &y.body, &decls, tol)
         } else {
             let decls = BooleanInputs {
-                records_a: carried_rows(&y.contacts),
+                records_a: carried_rows(&y.contacts()),
                 ..BooleanInputs::default()
             };
             union_in(&y.body, &spike, &decls, tol)
@@ -1760,7 +1760,7 @@ fn pit_holding_spikes_built(
         1 + spikes.len(),
         "the pit's apex and each spike's corner"
     );
-    let ops = against_the_cube(&y.body, &carried_rows(&y.contacts), tol);
+    let ops = against_the_cube(&y.body, &carried_rows(&y.contacts()), tol);
     for ((op, got), records) in ops.into_iter().zip(records) {
         let want = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
@@ -1787,13 +1787,13 @@ fn pit_holding_spikes_built(
             (volume - want).abs() < 1e-9,
             "{op}: volume {volume}, want {want}"
         );
-        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts(), tol);
         assert!(verdict.is_ok(), "{op}: 3′ {:?}", verdict.err());
         assert_eq!(
-            out.contacts.len(),
+            out.contacts().len(),
             records,
             "{op}: records {:?}",
-            out.contacts
+            out.contacts()
         );
     }
 }
@@ -1894,11 +1894,11 @@ fn lens_ys(
     };
     let piece = lens(inner, scale, tol);
     let cut_first = BooleanInputs {
-        records_a: carried_rows(&cut.contacts),
+        records_a: carried_rows(&cut.contacts()),
         ..BooleanInputs::default()
     };
     let piece_first = BooleanInputs {
-        records_b: carried_rows(&cut.contacts),
+        records_b: carried_rows(&cut.contacts()),
         ..BooleanInputs::default()
     };
     [
@@ -2034,7 +2034,7 @@ fn lens_against_the_cube(
         (got - y_volume).abs() < 1e-9,
         "y = {order}: volume {got}, want {y_volume}"
     );
-    for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
+    for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts()), tol) {
         if overlapping && matches!(op, "cube ∖ y" | "y ∪ cube" | "cube ∪ y") {
             assert!(
                 matches!(
@@ -2075,7 +2075,7 @@ fn lens_against_the_cube(
             (got - volume).abs() < 1e-9,
             "{op}: volume {got}, want {volume}"
         );
-        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts(), tol);
         assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
     }
 }
@@ -2187,7 +2187,7 @@ fn two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face_build_in_ev
 fn notched(y: &BooleanBody<f64>, notch: Lens, fill: Option<Lens>, tol: Tol) -> BooleanBody<f64> {
     let notch = lens(notch.0, notch.1, tol);
     let decls = BooleanInputs {
-        records_a: carried_rows(&y.contacts),
+        records_a: carried_rows(&y.contacts()),
         ..BooleanInputs::default()
     };
     let BooleanResult::Body(mut y) =
@@ -2198,7 +2198,7 @@ fn notched(y: &BooleanBody<f64>, notch: Lens, fill: Option<Lens>, tol: Tol) -> B
     if let Some((rays, scale)) = fill {
         let fill = lens(rays, scale, tol);
         let decls = BooleanInputs {
-            records_a: carried_rows(&y.contacts),
+            records_a: carried_rows(&y.contacts()),
             ..BooleanInputs::default()
         };
         let BooleanResult::Body(next) =
@@ -2361,7 +2361,7 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
         );
         assert_eq!(topo::validate_closed(&out.body), Ok(()), "{op}: tier 2");
         assert_eq!(
-            validate_pseudomanifold(&out.body, &out.contacts, tol),
+            validate_pseudomanifold(&out.body, &out.contacts(), tol),
             Ok(()),
             "{op}: 3′"
         );
@@ -2427,7 +2427,7 @@ fn three_corners_alternating() {
         panic!("i ∪ j came back empty");
     };
     let decls = BooleanInputs {
-        records_a: carried_rows(&two.contacts),
+        records_a: carried_rows(&two.contacts()),
         ..BooleanInputs::default()
     };
     let BooleanResult::Body(y) = union_in(&two.body, &k, &decls, tol).expect("∪ k") else {
@@ -2442,13 +2442,13 @@ fn three_corners_alternating() {
     };
     let y_volume = volume_of(&y.body);
     let mut volumes = std::collections::BTreeMap::new();
-    for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
+    for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts()), tol) {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
         assert_eq!(topo::validate_closed(&out.body), Ok(()), "{op}: tier 2");
         assert_eq!(
-            validate_pseudomanifold(&out.body, &out.contacts, tol),
+            validate_pseudomanifold(&out.body, &out.contacts(), tol),
             Ok(()),
             "{op}: 3′"
         );
@@ -2580,7 +2580,7 @@ fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
                 Ok(()),
                 "{pose}: tier 3"
             );
-            let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+            let verdict = validate_pseudomanifold(&out.body, &out.contacts(), tol);
             assert!(verdict.is_ok(), "{pose}: 3′ refused {:?}", verdict.err());
             // The material about the pinch line, by angle in degrees in
             // the xy-plane: the bricks hold `[0, 90]` and `[180, 270]`,
@@ -2676,7 +2676,7 @@ fn a_pinch_lines_end_joins_where_the_next_union_straightens_it() {
     let step = |a: &AtRestBody<f64>, b: &AtRestBody<f64>, prev: Option<&BooleanBody<f64>>| {
         let mut decls = BooleanInputs::default();
         if let Some(prev) = prev {
-            decls.records_a = carried_rows(&prev.contacts);
+            decls.records_a = carried_rows(&prev.contacts());
         }
         match union_in(a, b, &decls, tol) {
             Ok(BooleanResult::Body(out)) => out,
@@ -2695,7 +2695,7 @@ fn a_pinch_lines_end_joins_where_the_next_union_straightens_it() {
         "no joinable vertex is left"
     );
     assert_eq!(
-        validate_pseudomanifold(&fold.body, &fold.contacts, tol),
+        validate_pseudomanifold(&fold.body, &fold.contacts(), tol),
         Ok(()),
         "3′ on its records"
     );

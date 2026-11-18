@@ -307,14 +307,14 @@ fn sound(
         "{what}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&r.body, &r.contacts, t()),
+        topo::validate_pseudomanifold(&r.body, &r.contacts(), t()),
         Ok(()),
         "{what}: tier 3′ under its records"
     );
     let v = volume(&r.body);
     assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
     assert_eq!(
-        r.contacts.face_face().count(),
+        r.contacts().face_face().count(),
         usize::from(carried),
         "{what}: the seat's record {}: {:?}",
         if carried {
@@ -322,10 +322,10 @@ fn sound(
         } else {
             "gone with a face"
         },
-        r.contacts
+        r.contacts()
     );
     let shell = |f| r.body.get_face(f).map(|d| d.shell);
-    for (x, y) in r.contacts.face_face() {
+    for (x, y) in r.contacts().face_face() {
         assert_ne!(
             shell(x),
             shell(y),
@@ -758,7 +758,7 @@ fn a_tool_of_three_stacked_solids_is_one_material() {
                 "{what}: tier 3"
             );
             assert_eq!(
-                topo::validate_pseudomanifold(&r.body, &r.contacts, t()),
+                topo::validate_pseudomanifold(&r.body, &r.contacts(), t()),
                 Ok(()),
                 "{what}: tier 3′"
             );
@@ -1026,17 +1026,17 @@ fn one_solid(
         "{what}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&r.body, &r.contacts, t()),
+        topo::validate_pseudomanifold(&r.body, &r.contacts(), t()),
         Ok(()),
         "{what}: tier 3′"
     );
     let v = volume(&r.body);
     assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
     assert_eq!(
-        r.contacts.len(),
+        r.contacts().len(),
         records,
         "{what}: its records {:?}",
-        r.contacts
+        r.contacts()
     );
 }
 

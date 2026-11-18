@@ -93,34 +93,34 @@ fn a_carried_citation_names_the_same_record_through_two_booleans() {
         &cube_on_corner(0.5, 0.5, 1.0),
         &BooleanInputs::default(),
     );
-    assert_eq!(kiss.contacts.len(), 1, "{:?}", kiss.contacts);
+    assert_eq!(kiss.contacts().len(), 1, "{:?}", kiss.contacts());
     let corner = box_of((1.0, 2.0), (1.0, 2.0), (-1.0, 0.0), "corner");
     let two = union(
         &kiss.body,
         &corner,
         &BooleanInputs {
-            records_a: kiss.contacts.carried(),
+            records_a: kiss.contacts().carried(),
             ..BooleanInputs::default()
         },
     );
-    assert_eq!(two.contacts.len(), 2, "{:?}", two.contacts);
+    assert_eq!(two.contacts().len(), 2, "{:?}", two.contacts());
     let far = box_of((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), "far");
     let three = union(
         &two.body,
         &far,
         &BooleanInputs {
-            records_a: two.contacts.carried(),
+            records_a: two.contacts().carried(),
             ..BooleanInputs::default()
         },
     );
-    assert_eq!(three.contacts.len(), 2, "{:?}", three.contacts);
+    assert_eq!(three.contacts().len(), 2, "{:?}", three.contacts());
     let mut seen = Vec::new();
-    for row in three.contacts.rows() {
+    for row in three.contacts().rows() {
         let cited: Vec<_> = row.cites.iter().collect();
         let [Backing::Carried { input: 0, record }] = cited[..] else {
             panic!("one carried citation of operand 0: {cited:?}")
         };
-        let source = &two.contacts.rows()[record as usize];
+        let source = &two.contacts().rows()[record as usize];
         assert_eq!(
             shape(&three.body, row.kind()),
             shape(&two.body, source.kind()),

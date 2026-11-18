@@ -61,7 +61,7 @@ fn every_order(label: &str, holes: &[Hole], counts: [usize; 3]) {
             match union(&body, &members[i], t()) {
                 Ok(BooleanResult::Body(r)) => {
                     body = r.body;
-                    contacts = Some(r.contacts);
+                    contacts = Some(r.contacts());
                 }
                 Ok(BooleanResult::Empty) => panic!("{what}: step {k} is empty"),
                 Err(e) => panic!("{what}: step {k} refused: {e:?}"),
@@ -146,7 +146,7 @@ fn sound(what: &str, r: &topo::BooleanBody<f64>, want: f64, pose: &Pose) {
     let b = &r.body;
     assert_eq!(validate_geometric(b, t()), Ok(()), "{what}: tier 3");
     assert!(
-        validate_pseudomanifold(b, &r.contacts, t()).is_ok(),
+        validate_pseudomanifold(b, &r.contacts(), t()).is_ok(),
         "{what}: tier 3′"
     );
     let v = volume(b);
@@ -298,7 +298,7 @@ fn grid(k: usize) {
                         "{label}: P − U, tier 3"
                     );
                     assert!(
-                        validate_pseudomanifold(&b, &r.contacts, t()).is_ok(),
+                        validate_pseudomanifold(&b, &r.contacts(), t()).is_ok(),
                         "{label}: P − U, tier 3′"
                     );
                     assert_eq!(corners_disjoint(&b, t()), Ok(()), "{label}: P − U, corners");

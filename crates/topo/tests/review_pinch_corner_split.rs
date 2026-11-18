@@ -279,7 +279,7 @@ fn review_sweep_normals_through_the_pinch() {
                 }
             };
             let carried = r.carry_contacts(
-                &case.union.contacts,
+                &case.union.contacts(),
                 band,
                 Some(topo::RegionLane::certified()),
             );
@@ -301,7 +301,7 @@ fn review_sweep_normals_through_the_pinch() {
                 Ok(_) => println!(
                     "CARRYOK {} n={n:?} cones {cones} kept {kept:?} records {}",
                     case.what,
-                    case.union.contacts.len()
+                    case.union.contacts().len()
                 ),
             }
             for (above, part) in [(true, &r.above), (false, &r.below)] {
@@ -415,7 +415,7 @@ fn a_fused_cones_vertex_has_a_live_image_in_the_splits_lineage() {
     assert_eq!(dead, vec![], "pinch vertices whose lineage images are dead");
     let band = geom_core::Band::linear(t()).unwrap();
     assert!(
-        r.carry_contacts(&three.contacts, band, Some(topo::RegionLane::certified()))
+        r.carry_contacts(&three.contacts(), band, Some(topo::RegionLane::certified()))
             .is_ok(),
         "the union's records carry through the split"
     );
@@ -476,7 +476,7 @@ fn every_operand_cells_split_images_are_live_through_chained_fusions() {
             };
             let band = geom_core::Band::linear(t()).unwrap();
             if let Err(e) = r.carry_contacts(
-                &case.union.contacts,
+                &case.union.contacts(),
                 band,
                 Some(topo::RegionLane::certified()),
             ) {
@@ -537,7 +537,7 @@ fn review_trace_a_four_cone_parted_cell() {
         );
         let r = split(&four.body, &plane, t()).expect("builds");
         println!("n={n:?} fusions {:?}", r.naming.vertex_fusions.rows());
-        let (x, y) = four.contacts.cell_pairs().nth(rec).unwrap();
+        let (x, y) = four.contacts().cell_pairs().nth(rec).unwrap();
         let lineage = r.lineage();
         for c in [x, y] {
             let at = |p: &SplitPart<f64>, c: topo::Cell| match (p, c) {

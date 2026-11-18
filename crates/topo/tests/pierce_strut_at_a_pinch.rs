@@ -60,7 +60,7 @@ fn keyed_pinch(r: BooleanResult<f64>) -> AtRestBody<f64> {
     let BooleanResult::Body(r) = r else {
         panic!("the pinch is two solids");
     };
-    for (x, y) in r.contacts.vertex_vertex() {
+    for (x, y) in r.contacts().vertex_vertex() {
         let key = |v| r.body.get_vertex(v).unwrap().point;
         assert_eq!(key(x), key(y), "the pinch line's ends share their keys");
     }
@@ -182,7 +182,7 @@ fn every_op(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, rows: &[Row])
             "{what}: volume {v}, closed form {volume}"
         );
         assert_eq!(
-            validate_pseudomanifold(&r.body, &r.contacts, t()).is_ok(),
+            validate_pseudomanifold(&r.body, &r.contacts(), t()).is_ok(),
             verdict,
             "{what}: tier 3′"
         );

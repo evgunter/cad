@@ -116,8 +116,8 @@ fn a_carried_vertex_pair_that_is_one_point_shares_a_key() {
     let Ok(BooleanResult::Body(r)) = carried_union(&base, a, b) else {
         panic!("the union builds");
     };
-    let [(x, y)] = r.contacts.vertex_vertex().collect::<Vec<_>>()[..] else {
-        panic!("the record survives: {:?}", r.contacts);
+    let [(x, y)] = r.contacts().vertex_vertex().collect::<Vec<_>>()[..] else {
+        panic!("the record survives: {:?}", r.contacts());
     };
     assert_eq!(
         key(&r.body, x),

@@ -232,7 +232,7 @@ fn check(s: &Scene, pose: &Pose) {
         };
         assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
         assert_eq!(
-            validate_pseudomanifold(&r.body, &r.contacts, t()),
+            validate_pseudomanifold(&r.body, &r.contacts(), t()),
             Ok(()),
             "{what}: tier 3′"
         );
@@ -379,7 +379,7 @@ fn a_partner_flush_with_the_rings_face_builds_where_one_copy_is_kept() {
                 };
                 assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
                 assert_eq!(
-                    validate_pseudomanifold(&r.body, &r.contacts, t()),
+                    validate_pseudomanifold(&r.body, &r.contacts(), t()),
                     Ok(()),
                     "{what}: tier 3′"
                 );
@@ -468,7 +468,7 @@ fn a_partner_grooved_along_the_ring_unites_in_either_order() {
             };
             assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
             assert_eq!(
-                validate_pseudomanifold(&r.body, &r.contacts, t()),
+                validate_pseudomanifold(&r.body, &r.contacts(), t()),
                 Ok(()),
                 "{what}: tier 3′"
             );
@@ -651,7 +651,7 @@ fn six_ops(
         };
         assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
         assert_eq!(
-            validate_pseudomanifold(&r.body, &r.contacts, t()),
+            validate_pseudomanifold(&r.body, &r.contacts(), t()),
             Ok(()),
             "{what}: tier 3′"
         );

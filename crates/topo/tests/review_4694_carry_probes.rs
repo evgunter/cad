@@ -130,7 +130,7 @@ fn a_split_through_a_corner_kiss_carries_it_onto_both_sides() {
     let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
     let sides = split
         .carry_contacts(
-            &base.contacts,
+            &base.contacts(),
             geom_core::Band::linear(tol()).unwrap(),
             Some(topo::RegionLane::certified()),
         )

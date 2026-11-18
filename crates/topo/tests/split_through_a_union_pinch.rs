@@ -285,7 +285,7 @@ fn a_split_through_a_union_pinch_fuses_its_cones_on_the_side_that_joins_them() {
             let r = split(&u.body, &plane, t())
                 .unwrap_or_else(|e| panic!("{union}, up {up}: refused: {e:?}"));
             let carried = r
-                .carry_contacts(&u.contacts, band, Some(topo::RegionLane::certified()))
+                .carry_contacts(&u.contacts(), band, Some(topo::RegionLane::certified()))
                 .unwrap_or_else(|e| panic!("{union}, up {up}: the records carry: {e:?}"));
             let parts = if up {
                 [(&r.above, &carried.above), (&r.below, &carried.below)]

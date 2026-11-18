@@ -323,7 +323,7 @@ fn assert_sound(op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>, volume:
     };
     assert_eq!(topo::validate_closed(&bb.body), Ok(()), "op {op:?}: tier 2");
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol),
         Ok(()),
         "op {op:?}: tier 3′"
     );

@@ -680,10 +680,10 @@ fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
         panic!("kiss union is a body");
     };
     assert_eq!(
-        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        validate_pseudomanifold(&r.body, &r.contacts(), Tol::witness()),
         Ok(())
     );
-    let rests: Vec<_> = r.contacts.vertex_face().collect();
+    let rests: Vec<_> = r.contacts().vertex_face().collect();
     assert_eq!(rests.len(), 1, "expected exactly one vf record");
     let (vertex, right) = rests[0];
     let wrong = r
@@ -746,7 +746,7 @@ fn r7_closure_reversed_rows_loud() {
                 .volume,
                 0.875
             );
-            match validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()) {
+            match validate_pseudomanifold(&r.body, &r.contacts(), Tol::witness()) {
                 Ok(()) => {}
                 Err(errors) => {
                     for e in &errors {
@@ -779,7 +779,7 @@ fn r7_closure_reversed_rows_loud() {
             .met()
             .expect("the pinned resolution is met")
             .volume;
-            match validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()) {
+            match validate_pseudomanifold(&r.body, &r.contacts(), Tol::witness()) {
                 Ok(()) => eprintln!("R7 intersect second-toucher closed: vol {v}"),
                 Err(errors) => {
                     for e in &errors {

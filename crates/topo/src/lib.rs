@@ -779,7 +779,7 @@ pub mod test_support {
         #[allow(clippy::panic)]
         #[track_caller]
         fn finished(self, what: &str, tol: geom_core::Tol) -> T::Finished {
-            match T::finish(self, tol) {
+            match T::finish(crate::Built::of(self), tol) {
                 Ok(body) => body,
                 Err(e) => panic!("{what} is not a finished body: {e:?}"),
             }

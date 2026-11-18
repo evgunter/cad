@@ -19188,7 +19188,7 @@ mod door_roster {
                 minor_radius: 0.5,
                 u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
             };
-            crate::AtRestBody::validate(body, tol)
+            crate::AtRestBody::validate(crate::Built::of(body), tol)
                 .err()
                 .unwrap_or_default()
                 .into_iter()
@@ -19249,7 +19249,7 @@ mod door_roster {
             minor_radius,
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
-        crate::AtRestBody::validate(body, tol)
+        crate::AtRestBody::validate(crate::Built::of(body), tol)
             .err()
             .unwrap_or_default()
             .into_iter()

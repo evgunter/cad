@@ -58,7 +58,7 @@ fn assert_result_sound<T: Decide + geom_core::CertifiedBounds + topo::AtRestPoli
     assert_eq!(validate(&out.body), Ok(()), "tier 1");
     assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
     assert_eq!(
-        validate_pseudomanifold(&out.body, &out.contacts, Tol::witness()),
+        validate_pseudomanifold(&out.body, &out.contacts(), Tol::witness()),
         Ok(()),
         "tier 3′"
     );

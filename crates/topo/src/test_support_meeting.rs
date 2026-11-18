@@ -901,7 +901,7 @@ pub(crate) fn posed_pyramid_kept<T: geom_core::Decide + crate::AtRestPolicy>(
     body.set_face_surface(seed.face, face(&[bot[n - 1], bot[0], top]))
         .unwrap();
     describe_as_intersections(&mut body, tol);
-    T::finish(body, tol)
+    T::finish(crate::Built::of(body), tol)
 }
 
 /// Three base corners relative to [`MEET`]: two at radius `r` 15° either

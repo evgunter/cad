@@ -8187,7 +8187,7 @@ mod at_rest_policy_tests {
         let door = crate::validate::validate_geometric(&b, tol);
         assert!(door.is_err(), "the seed body must refuse validation");
         assert_eq!(
-            T::finish(b, tol)
+            T::finish(crate::Built::of(b), tol)
                 .map(|_| ())
                 .map_err(crate::NotFinished::into_findings),
             door,
@@ -8207,7 +8207,7 @@ mod at_rest_policy_tests {
         );
         let door = crate::validate::validate_pseudomanifold(&overlap, &contacts, tol)
             .expect_err("the overlapping pair must refuse the census door");
-        let finished = T::finish(overlap, tol).expect("tier 3 alone passes the pair");
+        let finished = T::finish(crate::Built::of(overlap), tol).expect("tier 3 alone passes the pair");
         assert_eq!(
             T::census_at_rest(&finished, &contacts, tol),
             door,
@@ -8284,7 +8284,7 @@ mod at_rest_policy_tests {
             crate::validate::validate_geometric_structural(&b, tol).is_err(),
             "the `_structural` twin still runs, and still refuses, at a dual"
         );
-        let refused = <D as AtRestPolicy>::finish(b.clone(), tol)
+        let refused = <D as AtRestPolicy>::finish(crate::Built::of(b.clone()), tol)
             .expect_err("a dual's finish is tier 2, which the seed body's empty loop fails");
         assert_eq!(
             refused.into_findings(),
@@ -8297,7 +8297,7 @@ mod at_rest_policy_tests {
             |x, y, z| identity_map::<D>(x + 0.5, y + 0.5, z + 0.5),
             tol,
         );
-        let replay = <D as AtRestPolicy>::finish(overlap, tol).expect("tier 2 passes the pair");
+        let replay = <D as AtRestPolicy>::finish(crate::Built::of(overlap), tol).expect("tier 2 passes the pair");
         assert!(
             <D as AtRestPolicy>::census_at_rest(&replay, &ContactRecords::default(), tol)
                 .is_empty(),
@@ -9183,7 +9183,7 @@ mod shell_reference_rows {
             })
             .unwrap();
             let about_first = fold_runs(&runs);
-            let walked = match crate::AtRestBody::validate(body.clone(), tol) {
+            let walked = match crate::AtRestBody::validate(crate::Built::of(body.clone()), tol) {
                 Ok(finished) => {
                     mass_properties(&finished, tol, crate::test_support::pinned_resolution(tol))
                 }

@@ -45,7 +45,7 @@ fn a_rest_unions_and_replays_records_bit_identically() {
         panic!("an overlapping union cannot be Empty");
     };
     assert_eq!(
-        x.contacts, y.contacts,
+        x.contacts(), y.contacts(),
         "bit-identical replay must reproduce the RECORDS bit-identically (D9/C4)"
     );
     assert_eq!(

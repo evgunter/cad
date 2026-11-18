@@ -59,7 +59,7 @@ fn assert_green(bb: &BooleanBody<f64>, what: &str) {
     assert_eq!(validate_closed(&bb.body), Ok(()), "{what}: tier 2");
     assert_eq!(validate_geometric(&bb.body, tol), Ok(()), "{what}: tier 3");
     assert_eq!(
-        validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+        validate_pseudomanifold(&bb.body, &bb.contacts(), tol),
         Ok(()),
         "{what}: tier 3′"
     );
@@ -168,7 +168,7 @@ fn the_merged_union_takes_a_third_brick() {
 #[test]
 fn the_bent_seams_corner_is_deleted_and_no_record_survives() {
     let bb = a_union_f();
-    assert_eq!(bb.contacts, Default::default(), "{:?}", bb.contacts);
+    assert_eq!(bb.contacts(), Default::default(), "{:?}", bb.contacts());
     let at_corner = bb
         .body
         .vertex_points()

@@ -109,15 +109,15 @@ fn declared_crosslap_rest_union_builds() {
         "tier 3"
     );
     assert_eq!(
-        validate_pseudomanifold(&glued.body, &glued.contacts, Tol::witness()),
+        validate_pseudomanifold(&glued.body, &glued.contacts(), Tol::witness()),
         Ok(()),
         "3′ with the surviving records"
     );
     assert!(
-        glued.contacts.vertex_vertex().next().is_none()
-            && glued.contacts.vertex_face().next().is_none(),
+        glued.contacts().vertex_vertex().next().is_none()
+            && glued.contacts().vertex_face().next().is_none(),
         "every REST record is consumed into seam structure: {:?}",
-        glued.contacts
+        glued.contacts()
     );
     assert!(
         !glued.naming.seam_edges.is_empty(),

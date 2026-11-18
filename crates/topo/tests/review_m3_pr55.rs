@@ -408,7 +408,7 @@ fn a_multi_spike_shared_corner_vertex() {
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()));
             assert_eq!(
-                topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts(), Tol::witness()),
                 Ok(()),
                 "tier 3′"
             );

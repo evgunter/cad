@@ -61,7 +61,7 @@ fn assert_promoted<
     b: &BooleanBody<T>,
 ) {
     assert_eq!(
-        validate_pseudomanifold(&b.body, &b.contacts, Tol::witness()),
+        validate_pseudomanifold(&b.body, &b.contacts(), Tol::witness()),
         Ok(())
     );
     let withheld =
@@ -84,10 +84,10 @@ fn assert_keyed<
     b: &BooleanBody<T>,
 ) {
     assert_eq!(
-        validate_pseudomanifold(&b.body, &b.contacts, Tol::witness()),
+        validate_pseudomanifold(&b.body, &b.contacts(), Tol::witness()),
         Ok(())
     );
-    for (x, y) in b.contacts.vertex_vertex() {
+    for (x, y) in b.contacts().vertex_vertex() {
         let key = |v| b.body.get_vertex(v).unwrap().point;
         assert_eq!(key(x), key(y), "a recorded vertex pair shares its key");
     }
@@ -109,7 +109,7 @@ fn corner_kiss_scenario<
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
     let body = run_body(union as BoolOp<T>, &a, &b);
-    assert_eq!(body.contacts.vertex_vertex().count(), 1);
+    assert_eq!(body.contacts().vertex_vertex().count(), 1);
     assert_keyed(&body);
 }
 
@@ -129,7 +129,7 @@ fn tangent_edge_scenario<
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (0.0, 1.0), (1.0, 2.0));
     let body = run_body(union as BoolOp<T>, &a, &b);
-    assert_eq!(body.contacts.vertex_vertex().count(), 2);
+    assert_eq!(body.contacts().vertex_vertex().count(), 2);
     assert_keyed(&body);
 }
 
@@ -153,10 +153,10 @@ fn skew_edges_scenario<
     let a = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0));
     let body = run_body(union as BoolOp<T>, &a, &b);
-    assert!(body.contacts.vertex_vertex().next().is_none());
-    assert!(body.contacts.vertex_face().next().is_none());
+    assert!(body.contacts().vertex_vertex().next().is_none());
+    assert!(body.contacts().vertex_face().next().is_none());
     assert_eq!(
-        validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()),
+        validate_pseudomanifold(&body.body, &body.contacts(), Tol::witness()),
         Ok(())
     );
     assert_eq!(
@@ -169,9 +169,9 @@ fn skew_edges_scenario<
         BooleanResult::Empty
     ));
     let sub = run_body(subtract as BoolOp<T>, &a, &b);
-    assert!(sub.contacts.is_empty());
+    assert!(sub.contacts().is_empty());
     assert_eq!(
-        validate_pseudomanifold(&sub.body, &sub.contacts, Tol::witness()),
+        validate_pseudomanifold(&sub.body, &sub.contacts(), Tol::witness()),
         Ok(())
     );
 }
@@ -208,16 +208,16 @@ fn vertex_on_face_kiss_promoted() {
     let tilted = finished("the tilted cube", tilted, Tol::witness());
     let body = run_body(union as BoolOp<f64>, &tilted, &slab);
     assert_eq!(
-        body.contacts.kinds().count(),
-        body.contacts.vertex_face().count(),
+        body.contacts().kinds().count(),
+        body.contacts().vertex_face().count(),
         "{:?}",
-        body.contacts
+        body.contacts()
     );
     assert_eq!(
-        body.contacts.vertex_face().count(),
+        body.contacts().vertex_face().count(),
         1,
         "{:?}",
-        body.contacts
+        body.contacts()
     );
     assert_promoted(&body);
 }
@@ -239,15 +239,15 @@ fn edge_rest_scenario<
     // Two joined records: B's corner (1,0,2) on A's edge interior;
     // A's corner (2,0,2) on B's edge interior.
     assert_eq!(
-        body.contacts.vertex_edge().count(),
+        body.contacts().vertex_edge().count(),
         2,
         "{:?}",
-        body.contacts
+        body.contacts()
     );
     assert!(
-        body.contacts.vertex_vertex().next().is_none(),
+        body.contacts().vertex_vertex().next().is_none(),
         "{:?}",
-        body.contacts
+        body.contacts()
     );
     assert_promoted(&body);
 }
@@ -272,9 +272,9 @@ fn flush_rests_scenario<
     let slab = finished_brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let pillar = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0));
     let body = run_body(union as BoolOp<T>, &slab, &pillar);
-    assert!(body.contacts.is_empty());
+    assert!(body.contacts().is_empty());
     assert_eq!(
-        validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()),
+        validate_pseudomanifold(&body.body, &body.contacts(), Tol::witness()),
         Ok(())
     );
     assert_eq!(validate_geometric(&body.body, Tol::witness()), Ok(()));
@@ -285,18 +285,18 @@ fn flush_rests_scenario<
     // `m5_s1_rest_zip.rs` the exact-volume row for this shape).
     let glued = run_body(union as BoolOp<T>, &slab, &corner);
     assert!(
-        glued.contacts.vertex_vertex().next().is_none()
-            && glued.contacts.vertex_face().next().is_none(),
+        glued.contacts().vertex_vertex().next().is_none()
+            && glued.contacts().vertex_face().next().is_none(),
         "corner-flush REST records are consumed into seam structure"
     );
     assert_eq!(
-        validate_pseudomanifold(&glued.body, &glued.contacts, Tol::witness()),
+        validate_pseudomanifold(&glued.body, &glued.contacts(), Tol::witness()),
         Ok(())
     );
     assert_eq!(validate_geometric(&glued.body, Tol::witness()), Ok(()));
     let sub = run_body(subtract as BoolOp<T>, &slab, &corner);
     assert_eq!(
-        validate_pseudomanifold(&sub.body, &sub.contacts, Tol::witness()),
+        validate_pseudomanifold(&sub.body, &sub.contacts(), Tol::witness()),
         Ok(())
     );
 }
@@ -340,10 +340,10 @@ fn tier3_equivalence_scenario<
     let a = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
     let body = run_body(union as BoolOp<T>, &a, &b);
-    assert!(body.contacts.vertex_vertex().next().is_none());
+    assert!(body.contacts().vertex_vertex().next().is_none());
     assert_eq!(validate_geometric(&body.body, Tol::witness()), Ok(()));
     assert_eq!(
-        validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()),
+        validate_pseudomanifold(&body.body, &body.contacts(), Tol::witness()),
         Ok(())
     );
 }
@@ -365,7 +365,7 @@ fn tampered_declaration_is_stale() {
     let a = finished_brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
     let body = run_body(union as BoolOp<f64>, &a, &b);
-    let (real_a, real_b) = body.contacts.vertex_vertex().next().unwrap();
+    let (real_a, real_b) = body.contacts().vertex_vertex().next().unwrap();
     let wrong = body
         .body
         .vertices()
@@ -482,7 +482,7 @@ fn closure_kiss_vs_mover() {
         2.875
     );
     assert_eq!(
-        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        validate_pseudomanifold(&r.body, &r.contacts(), Tol::witness()),
         Ok(())
     );
 
@@ -501,7 +501,7 @@ fn closure_kiss_vs_mover() {
         1.875
     );
     assert_eq!(
-        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        validate_pseudomanifold(&r.body, &r.contacts(), Tol::witness()),
         Ok(())
     );
 
@@ -521,7 +521,7 @@ fn closure_kiss_vs_mover() {
         0.125
     );
     assert_eq!(
-        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        validate_pseudomanifold(&r.body, &r.contacts(), Tol::witness()),
         Ok(())
     );
 }
@@ -537,7 +537,7 @@ fn closure_kiss_vs_second_toucher() {
     let toucher = finished_brick::<f64>((0.0, 1.0), (1.0, 2.0), (1.0, 2.0));
     match union(&base.body, &toucher, Tol::witness()) {
         Ok(BooleanResult::Body(r)) => {
-            let verdict = validate_pseudomanifold(&r.body, &r.contacts, Tol::witness());
+            let verdict = validate_pseudomanifold(&r.body, &r.contacts(), Tol::witness());
             match verdict {
                 Ok(()) => {}
                 Err(errors) => {
@@ -594,7 +594,7 @@ fn closure_consumed_base_stays_certified() {
         18.0 - 0.125
     );
     assert_eq!(
-        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        validate_pseudomanifold(&r.body, &r.contacts(), Tol::witness()),
         Ok(())
     );
 }

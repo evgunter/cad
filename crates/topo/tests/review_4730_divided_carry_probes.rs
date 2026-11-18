@@ -42,7 +42,7 @@ fn a_corner_just_past_a_cut_lands_on_the_piece_refuses_unread_or_lands_on_the_mi
     let split = topo::split(&base.body, &plane, tol()).expect("splits");
     let region = || Some(topo::RegionLane::certified());
     let sides = split
-        .carry_contacts(&base.contacts, Band::linear(tol()).unwrap(), region())
+        .carry_contacts(&base.contacts(), Band::linear(tol()).unwrap(), region())
         .expect("the records land at the default band");
     for (side, body, records) in [
         ("above", split.above.body(), &sides.above),
@@ -55,11 +55,11 @@ fn a_corner_just_past_a_cut_lands_on_the_piece_refuses_unread_or_lands_on_the_mi
         );
     }
     assert_eq!((sides.above.len(), sides.below.len()), (3, 0), "{sides:?}");
-    let corner = base.contacts.rows()[1].cells()[0];
-    assert!(matches!(corner, Cell::Vertex(_)), "{:?}", base.contacts);
+    let corner = base.contacts().rows()[1].cells()[0];
+    assert!(matches!(corner, Cell::Vertex(_)), "{:?}", base.contacts());
     let at = |eps: f64| {
         split.carry_contacts(
-            &base.contacts,
+            &base.contacts(),
             Band::linear_at(tol(), eps).unwrap(),
             region(),
         )

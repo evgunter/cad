@@ -56,7 +56,7 @@ fn split_passes(
     let plane = common::split_plane(origin, normal, tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the body splits");
     let sides = split
-        .carry_contacts(&base.contacts, band(), Some(topo::RegionLane::certified()))
+        .carry_contacts(&base.contacts(), band(), Some(topo::RegionLane::certified()))
         .unwrap_or_else(|refusal| panic!("{what}: the records land: {refusal:?}"));
     for (side, body, records) in [
         ("above", split.above.body(), &sides.above),
@@ -95,7 +95,7 @@ fn a_split_across_an_edge_kiss_lands_the_minted_pair_on_the_kiss() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
     let base = union_of(&a, &b);
-    let ee = record_of(&base.contacts, |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let ee = record_of(&base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
     let sides = split_passes(
         "edge kiss",
         &base,
@@ -153,12 +153,12 @@ fn ridge_on_slab() -> BooleanBody<f64> {
 #[test]
 fn a_split_across_a_resting_ridge_lands_its_minted_vertex_on_the_minted_chord() {
     let base = ridge_on_slab();
-    let ef = record_of(&base.contacts, |k| matches!(k, ContactKind::EdgeFace(..)));
+    let ef = record_of(&base.contacts(), |k| matches!(k, ContactKind::EdgeFace(..)));
     assert_eq!(
-        base.contacts.vertex_face().count(),
+        base.contacts().vertex_face().count(),
         2,
         "{:?}",
-        base.contacts
+        base.contacts()
     );
     let sides = split_passes(
         "ridge",
@@ -221,7 +221,7 @@ fn a_record_lands_by_lineage_and_is_stale_only_on_a_divided_cell() {
         })
         .map(|(k, _)| k)
         .expect("the second cube's far face");
-    let mut records = base.contacts.clone();
+    let mut records = base.contacts().clone();
     records.extend([topo::Cited::new(
         topo::Contact::new(&base.body, Cell::Vertex(corner), Cell::Face(far)).unwrap(),
         topo::Cites::decided(0),
@@ -264,7 +264,7 @@ fn a_minted_pair_an_op_cannot_back_refuses() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
     let base = union_of(&a, &b);
-    let ee = record_of(&base.contacts, |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let ee = record_of(&base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
     let plane = common::split_plane(Point3::new(0.0, 0.0, 0.5), Vec3::new(0.0, 0.0, 1.0), tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the edge kiss splits");
     assert!(
@@ -273,10 +273,10 @@ fn a_minted_pair_an_op_cannot_back_refuses() {
     );
     let cut = split.lineage();
     let mut restated = topo::Lineage::new();
-    for c in base.contacts.cell_pairs().flat_map(|(x, y)| [x, y]) {
+    for c in base.contacts().cell_pairs().flat_map(|(x, y)| [x, y]) {
         restated = restated.with(c, cut.fate(c)).expect("one fate per cell");
     }
-    let one: ContactRecords = [base.contacts.rows()[ee as usize].clone()]
+    let one: ContactRecords = [base.contacts().rows()[ee as usize].clone()]
         .into_iter()
         .collect();
     let refused = one.carried_through(
@@ -305,7 +305,7 @@ fn carried_op(
     b: &AtRestBody<f64>,
 ) -> Result<BooleanResult<f64>, topo::BooleanError> {
     let inputs = topo::BooleanInputs {
-        records_a: a.contacts.carried(),
+        records_a: a.contacts().carried(),
         ..topo::BooleanInputs::default()
     };
     topo::boolean_op_with(
@@ -342,12 +342,12 @@ fn corner_on_slab() -> BooleanBody<f64> {
     );
     let slab = box_of((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), "slab");
     let base = union_of(&slab, &tilted);
-    assert_eq!(base.contacts.len(), 1, "{:?}", base.contacts);
+    assert_eq!(base.contacts().len(), 1, "{:?}", base.contacts());
     assert_eq!(
-        base.contacts.vertex_face().count(),
+        base.contacts().vertex_face().count(),
         1,
         "{:?}",
-        base.contacts
+        base.contacts()
     );
     base
 }
@@ -361,7 +361,7 @@ fn corner_on_slab() -> BooleanBody<f64> {
 #[test]
 fn a_carried_record_on_cells_the_boolean_keeps_lands_unread() {
     let mut base = corner_on_slab();
-    let [corner, _] = base.contacts.rows()[0].cells();
+    let [corner, _] = base.contacts().rows()[0].cells();
     let bottom = base
         .body
         .faces()
@@ -374,17 +374,17 @@ fn a_carried_record_on_cells_the_boolean_keeps_lands_unread() {
         })
         .map(|(k, _)| k)
         .expect("the slab's bottom");
-    base.contacts.extend([topo::Cited::new(
+    base.contacts().extend([topo::Cited::new(
         topo::Contact::new(&base.body, corner, Cell::Face(bottom)).unwrap(),
         topo::Cites::decided(0),
     )]);
     let far = box_of((10.0, 11.0), (10.0, 11.0), (0.0, 1.0), "far");
     match carried_op(topo::BooleanOp::Union, &base, &far) {
         Ok(BooleanResult::Body(out)) => assert_eq!(
-            out.contacts.vertex_face().count(),
+            out.contacts().vertex_face().count(),
             2,
             "both records land: {:?}",
-            out.contacts
+            out.contacts()
         ),
         other => panic!("the union builds: {:?}", other.map(|_| ())),
     }
@@ -401,9 +401,9 @@ fn a_lineage_gap_beside_a_removal_refuses_unmapped() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
     let base = union_of(&a, &b);
-    let ee = record_of(&base.contacts, |k| matches!(k, ContactKind::EdgeEdge(..)));
-    let [x, y] = base.contacts.rows()[ee as usize].cells();
-    let one: ContactRecords = [base.contacts.rows()[ee as usize].clone()]
+    let ee = record_of(&base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let [x, y] = base.contacts().rows()[ee as usize].cells();
+    let one: ContactRecords = [base.contacts().rows()[ee as usize].clone()]
         .into_iter()
         .collect();
     let gap = Cell::Edge(topo::EdgeKey::default());
@@ -447,12 +447,12 @@ fn a_pit_under_a_carried_rest_consumes_it() {
         other => panic!("the pit builds: {other:?}"),
     };
     assert!(
-        out.contacts.is_empty(),
+        out.contacts().is_empty(),
         "the rest is consumed: {:?}",
-        out.contacts
+        out.contacts()
     );
     assert_eq!(
-        validate_pseudomanifold(&out.body, &out.contacts, tol()),
+        validate_pseudomanifold(&out.body, &out.contacts(), tol()),
         Ok(()),
         "the corner hangs over the pit"
     );
@@ -465,7 +465,7 @@ fn edge_kiss() -> (BooleanBody<f64>, u32) {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
     let base = union_of(&a, &b);
-    let ee = record_of(&base.contacts, |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let ee = record_of(&base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
     (base, ee)
 }
 
@@ -479,7 +479,7 @@ fn vertex_pairs_at(out: &BooleanBody<f64>, p: Point3<f64>) -> Vec<Vec<Backing>> 
             .unwrap();
         (q - p).norm() < 1e-9
     };
-    out.contacts
+    out.contacts()
         .rows()
         .iter()
         .filter(|r| matches!(r.cells(), [Cell::Vertex(x), Cell::Vertex(y)] if at(x) && at(y)))
@@ -510,7 +510,7 @@ fn two_cutters_meeting_on_a_recorded_touch_cite_the_doors_decision() {
         other => panic!("the difference builds: {other:?}"),
     };
     let minted = vertex_pairs_at(&out, Point3::new(1.0, 1.0, 0.5));
-    assert_eq!(minted.len(), 1, "one minted pair: {:?}", out.contacts);
+    assert_eq!(minted.len(), 1, "one minted pair: {:?}", out.contacts());
     assert!(
         minted[0].contains(&Backing::Carried {
             input: 0,
@@ -537,7 +537,7 @@ fn two_cutters_meeting_on_a_recorded_touch_cite_the_doors_decision() {
         out.coincidences
     );
     assert_eq!(
-        validate_pseudomanifold(&out.body, &out.contacts, tol()),
+        validate_pseudomanifold(&out.body, &out.contacts(), tol()),
         Ok(()),
         "the difference passes at rest"
     );
@@ -558,7 +558,7 @@ fn one_cutter_on_a_recorded_touch_cites_the_record_and_a_decision() {
         other => panic!("the difference builds: {other:?}"),
     };
     let minted = vertex_pairs_at(&out, Point3::new(1.0, 1.0, 0.5));
-    assert_eq!(minted.len(), 1, "one minted pair: {:?}", out.contacts);
+    assert_eq!(minted.len(), 1, "one minted pair: {:?}", out.contacts());
     assert!(
         minted[0].contains(&Backing::Carried {
             input: 0,
@@ -567,7 +567,7 @@ fn one_cutter_on_a_recorded_touch_cites_the_record_and_a_decision() {
         "the pair cites the record and a decision: {minted:?}"
     );
     assert_eq!(
-        validate_pseudomanifold(&out.body, &out.contacts, tol()),
+        validate_pseudomanifold(&out.body, &out.contacts(), tol()),
         Ok(()),
         "the difference passes at rest"
     );
@@ -585,23 +585,23 @@ fn a_notch_that_removes_a_recorded_overlap_consumes_it() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 2.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 3.0), "b");
     let base = union_of(&a, &b);
-    let ee = record_of(&base.contacts, |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let ee = record_of(&base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
     let notch = box_of((0.5, 1.5), (0.5, 1.5), (0.9, 2.1), "notch");
     let out = match carried_op(topo::BooleanOp::Subtract, &base, &notch) {
         Ok(BooleanResult::Body(out)) => out,
         other => panic!("the notch builds: {other:?}"),
     };
     assert!(
-        out.contacts.cites().all(|c| !c.iter().any(|b| b
+        out.contacts().cites().all(|c| !c.iter().any(|b| b
             == Backing::Carried {
                 input: 0,
                 record: ee
             })),
         "the edge-edge record is consumed: {:?}",
-        out.contacts
+        out.contacts()
     );
     assert_eq!(
-        validate_pseudomanifold(&out.body, &out.contacts, tol()),
+        validate_pseudomanifold(&out.body, &out.contacts(), tol()),
         Ok(()),
         "nothing of the touch is left"
     );
@@ -639,7 +639,7 @@ fn face_on(body: &topo::Body<f64>, axis: usize, at: f64) -> topo::FaceKey {
 #[test]
 fn a_record_on_a_cell_an_offset_trims_is_re_read() {
     let base = corner_on_slab();
-    let [corner, top] = base.contacts.rows()[0].cells();
+    let [corner, top] = base.contacts().rows()[0].cells();
     let bottom = Cell::Face(face_on(&base.body, 2, 0.0));
     let side = face_on(&base.body, 0, 4.0);
     let mut moved = topo::Body::clone(&base.body);
@@ -647,7 +647,7 @@ fn a_record_on_a_cell_an_offset_trims_is_re_read() {
         topo::replace_face_offset(&mut moved, side, -0.5, tol()).expect("the side moves in");
     let rest = outcome
         .carry_contacts(
-            &base.contacts,
+            &base.contacts(),
             &moved,
             band(),
             Some(topo::RegionLane::certified()),
@@ -689,7 +689,7 @@ fn a_real_touch_on_a_substituted_face_lands_on_its_substitute() {
     let mut substituted = 0;
     for x in [1.0, 3.0] {
         let base = corner_on_slab();
-        let [corner, top] = base.contacts.rows()[0].cells();
+        let [corner, top] = base.contacts().rows()[0].cells();
         let Cell::Face(top) = top else {
             panic!("the rest is on a face")
         };
