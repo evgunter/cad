@@ -97,7 +97,7 @@ use super::battery::{
     Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward, same_supports,
 };
 use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
-use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
+use super::{BlendDecision, BlendError, BlendKind, BlendSite, UnbuiltEnd, classify};
 
 /// How many cells one face may be cut into against one reach before it
 /// is refused uncertified: the meter's cost ceiling per pair, which
@@ -1056,10 +1056,9 @@ fn straight_reach<T: Decide + Bounds>(
                 // ends no window: its plane runs along the band.
                 let along = n.dot(tau).abs();
                 if along.lo() <= band.escalate() {
-                    return Err(BlendError::UnsupportedRunOut {
-                        at: EntityId::Vertex(v),
-                        detail: "an end face tangent to the spine, whose plane bounds no window",
-                    });
+                    return Err(BlendError::UnbuiltEnd(UnbuiltEnd::DependentNormals {
+                        vertex: v,
+                    }));
                 }
                 // The face lies on its cap, the reach's boundary, only
                 // when it is the plane the cap is: that is the licence

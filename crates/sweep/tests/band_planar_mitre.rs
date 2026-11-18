@@ -23,7 +23,7 @@ use geom_core::{RigidMotion, Turns};
 use profile::SketchPlane;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
-    BlendDecision, BlendError, CornerConfig, FILLET3_CORNER_RECOURSE, run_battery_for,
+    BlendDecision, BlendError, FILLET3_CORNER_RECOURSE, UnbuiltEnd, run_battery_for,
 };
 use sweep::test_support::{
     assert_naming_totality, block, finished, pocket_die, prism, prism_on, realized,
@@ -261,10 +261,7 @@ fn a_turn_foot_refuses_a_later_blend_of_its_edge_and_names_the_same_call() {
         assert!(
             matches!(
                 err,
-                BlendError::UnsupportedCorner {
-                    corner: CornerConfig::NEdgeVertex { valence: 4 },
-                    ..
-                }
+                BlendError::UnbuiltEnd(UnbuiltEnd::Valence { valence: 4, .. })
             ),
             "{verb:?}: the turn foot refuses as a valence-4 vertex, got {err:?}"
         );
@@ -1054,10 +1051,7 @@ fn a_turn_foot_and_a_cut_off_foot_cross_where_the_screen_passes() {
         ];
         for verb in [Verb::Chamfer, Verb::Fillet] {
             match (verb.run(&body, &edges), crosses) {
-                (Err(BlendError::UnsupportedRunOut { detail, .. }), true) => assert!(
-                    detail.contains("feet cross or coincide on the rim they share"),
-                    "h = {h} ({verb:?}): the shared-rim meter refuses, got {detail}"
-                ),
+                (Err(BlendError::UnbuiltEnd(UnbuiltEnd::FeetCross { .. })), true) => {}
                 (Ok(out), false) => {
                     validate_geometric(&out.body, tol())
                         .unwrap_or_else(|e| panic!("h = {h} ({verb:?}): tier 3, {e:?}"));

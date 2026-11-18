@@ -65,6 +65,9 @@ profile = { path = "../profile", features = ["test-support"] }
 # edge runs import -> tessellate, the direction the pipeline already
 # has (`mesh` does not depend on this crate).
 mesh = { path = "../mesh" }
+# The must-carry rung's row mints the surface keys its pair names.
+# Dev-only.
+slotmap = { workspace = true }
 # The certified body's refusal rows state a resolution, a `quantity`
 # length, as every measurement does. Dev-only.
 quantity = { path = "../quantity" }
