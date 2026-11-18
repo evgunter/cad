@@ -25,22 +25,21 @@ use crate::validate::ValidationError;
 /// `|coordinate|` over its own span, every one a coordinate of a point
 /// of the body.
 pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
-    body_reach_by(body, |e| {
-        body.edge_cover(e)
-            .ok()
-            .map(|cover| cover.box_in(&BoxAxes::World))
-    })
+    match reach_of::<T, core::convert::Infallible>(body, |p| p, |_| Ok(None), Covers::Read) {
+        Ok(reach) => reach,
+        Err(never) => match never {},
+    }
 }
 
 /// **`body`'s largest `|coordinate|` where it stands under `motion`,
 /// bounded from below** ([`body_reach`] of its image, the body unmoved):
-/// each vertex's point and each certified edge's carrier sent through
-/// the motion as the image's are (`transform::map_isometry`: the
-/// motion's affine on a point, `map_carrier` on a carrier), each edge's
-/// world box its cover over its span hulled with its two mapped ends, as
-/// the image's cover is (`cover::edge_cover_over`). So it reads the
-/// image's own quantity, from the image's own data, which a placement
-/// holds without building the image.
+/// the one fold [`body_reach`] reads, over the data
+/// `transform::map_isometry` writes into the image. Each vertex's point
+/// goes through the motion's affine; each certified edge's stored
+/// carrier through `map_carrier`, its reading over its span re-taken on
+/// the image (`EdgeCurve::carried`); its two ends through the affine. So
+/// it reads the image's own quantity, from the image's own data, which a
+/// placement holds without building the image.
 ///
 /// # Errors
 ///
@@ -52,65 +51,72 @@ pub(crate) fn body_reach_at<T: Decide>(
 ) -> Result<T, crate::TransformError> {
     let iso = crate::Isometry::Proper(*motion);
     let map = iso.to_affine();
+    reach_of(
+        body,
+        |p| map.transform_point(p),
+        |curve| {
+            let carrier = crate::transform::map_carrier(&iso, curve.stored_carrier())?;
+            Ok(Some(curve.carried(
+                carrier,
+                curve.description().clone(),
+                curve.authority(),
+            )))
+        },
+        Covers::Read,
+    )
+}
+
+/// Whether [`reach_of`] reads each edge's cover, or withholds it so the
+/// edge reads its own sampled points (a row's lever on the fallback).
+#[derive(Clone, Copy)]
+enum Covers {
+    Read,
+    #[cfg(test)]
+    Withheld,
+}
+
+/// **The one reach fold**, over the body's data as `place` and
+/// `curve_of` carry it into the space it is read in: each vertex's
+/// placed point, and each certified edge's largest `|coordinate|` over
+/// its span, its world box its carrier's cover over the span hulled
+/// with its two placed ends (`cover::edge_cover_over`, the image's
+/// `Body::edge_cover`). `curve_of` gives the edge as it stands there, or
+/// `None` where it stands as stored. An edge whose cover refuses reads
+/// its own sampled points (`geom_brep::edge_coordinate_reach_below`), so
+/// one missing reading never silences the rest of the body.
+fn reach_of<T: Decide, E>(
+    body: &Body<T>,
+    place: impl Fn(Point3<T>) -> Point3<T>,
+    curve_of: impl Fn(&geom_brep::EdgeCurve<T>) -> Result<Option<geom_brep::EdgeCurve<T>>, E>,
+    covers: Covers,
+) -> Result<T, E> {
     let origin = Point3::origin();
-    let vertices = body
+    let mut reach = body
         .vertices()
-        .map(|(v, data)| (map.transform_point(body.point_of(v, data)) - origin).norm_inf());
-    let mut edges = Vec::new();
+        .map(|(v, data)| (place(body.point_of(v, data)) - origin).norm_inf())
+        .fold(T::zero(), T::max);
     for (e, data) in body.edges() {
-        let Some(curve) = body.edge_curve_linked(e, data).certified() else {
+        let Some(stored) = body.edge_curve_linked(e, data).certified() else {
             continue;
         };
-        let carrier = crate::transform::map_carrier(&iso, curve.carrier())?;
-        let ends = (
-            map.transform_point(crate::cover::edge_end_point(
-                body,
-                e,
-                data.he_plus,
-                "he_plus",
-            )),
-            map.transform_point(crate::cover::edge_end_point(
-                body,
-                e,
-                data.he_minus,
-                "he_minus",
-            )),
-        );
-        let world_box = crate::cover::edge_cover_over(&carrier, curve.params(), ends)
-            .ok()
-            .map(|cover| cover.box_in(&BoxAxes::World));
-        edges.push(geom_brep::edge_coordinate_reach_below(
-            &carrier,
+        let moved = curve_of(stored)?;
+        let curve = moved.as_ref().unwrap_or(stored);
+        let end = |he, which| place(crate::cover::edge_end_point(body, e, he, which));
+        let ends = (end(data.he_plus, "he_plus"), end(data.he_minus, "he_minus"));
+        let world_box = match covers {
+            Covers::Read => crate::cover::edge_cover_over(curve.carrier(), curve.params(), ends)
+                .ok()
+                .map(|cover| cover.box_in(&BoxAxes::World)),
+            #[cfg(test)]
+            Covers::Withheld => None,
+        };
+        reach = reach.max(geom_brep::edge_coordinate_reach_below(
+            curve.carrier(),
             curve.params(),
             world_box,
         ));
     }
-    Ok(vertices.chain(edges).fold(T::zero(), T::max))
-}
-
-/// [`body_reach`] with each edge's world box read by `world_box`; an
-/// edge it gives none reads its own sampled points instead
-/// (`geom_brep::edge_coordinate_reach_below`), so one missing reading
-/// never silences the rest of the body.
-fn body_reach_by<T: Decide>(
-    body: &Body<T>,
-    world_box: impl Fn(crate::entity::EdgeKey) -> Option<(Point3<T>, Point3<T>)>,
-) -> T {
-    let origin = Point3::origin();
-    let vertices = body
-        .vertices()
-        .map(|(v, data)| (body.point_of(v, data) - origin).norm_inf());
-    // The edge's one reading (`[one-way.places]`): its cover's box along
-    // the world axes, through the body's door (`Body::edge_cover`).
-    let edges = body.edges().filter_map(|(e, data)| {
-        let curve = body.edge_curve_linked(e, data).certified()?;
-        Some(geom_brep::edge_coordinate_reach_below(
-            curve.carrier(),
-            curve.params(),
-            world_box(e),
-        ))
-    });
-    vertices.chain(edges).fold(T::zero(), T::max)
+    Ok(reach)
 }
 
 /// The session box's decision: its margin the box's extent less the
@@ -255,7 +261,15 @@ mod tests {
     fn an_uncovered_edge_leaves_the_rest_of_the_reach() {
         let tol = Tol::witness();
         let far = brick::<f64>((1.1e3, 1.1e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-        let reach = body_reach_by(&far, |_| None);
+        let reach = match reach_of::<f64, core::convert::Infallible>(
+            &far,
+            |p| p,
+            |_| Ok(None),
+            Covers::Withheld,
+        ) {
+            Ok(reach) => reach,
+            Err(never) => match never {},
+        };
         assert!(reach >= 1.1e3 + 1.0, "{reach}");
     }
 
