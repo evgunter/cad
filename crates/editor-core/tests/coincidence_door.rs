@@ -4064,7 +4064,7 @@ fn a_refused_bundle_states_nothing() {
             vec![shaft_wall],
         )),
     );
-    let text = editor_core::save(&r.doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::save(&r.doc, Tol::witness()).expect("saves");
     let doctored = crate::wire::doctored(&text, |w| {
         let nodes = &mut w["snapshot"]["nodes"];
         let moved = nodes[second.0.to_string()]["Place"]["constraints"]
@@ -4077,8 +4077,7 @@ fn a_refused_bundle_states_nothing() {
             .insert(1, moved);
     });
     let doc = editor_core::load(&doctored, Tol::witness())
-        .expect("the load door admits each mate on its own")
-        .doc;
+        .expect("the load door admits each mate on its own");
     let ev = run(&doc);
     assert!(
         crate::corpus::failures(&ev)

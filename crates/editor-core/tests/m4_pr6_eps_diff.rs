@@ -227,27 +227,28 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
 }
 
 #[test]
-fn set_tolerance_round_trips_and_gates_replay() {
-    // The recorded-ε edit persists: a log ending in SetTolerance
+fn set_tolerance_round_trips_and_gates_load() {
+    // The recorded-ε edit persists: a document SetTolerance re-stamped
     // loads ONLY in a process whose ε matches the new value (D4's
     // one-process-one-ε refusal is pinned in m4_pr6_refusal.rs; here
     // the matching side: a fresh child at the NEW ε loads the file
     // and reports the recorded value).
-    let doc = thin_profile_doc();
-    let text = save(
-        &doc,
-        &[editor_core::DocEdit::SetTolerance { eps: 1e-4 }],
+    let doc = editor_core::apply(
+        &thin_profile_doc(),
+        &editor_core::DocEdit::SetTolerance { eps: 1e-4 },
         Tol::witness(),
     )
-    .expect("save");
-    // In THIS process the recorded ε (ambient) plus the edit's 1e-4
-    // conflicts unless ambient IS 1e-4 — assert the door's decision
-    // matches the committed ε, whichever matrix row we run under.
+    .expect("the edit records the new ε")
+    .doc;
+    let text = save(&doc, Tol::witness()).expect("save");
+    // In THIS process the recorded 1e-4 conflicts unless ambient IS
+    // 1e-4 — assert the door's decision matches the committed ε,
+    // whichever matrix row we run under.
     let ambient = geom_core::Tol::witness().get().eps;
     match load(&text, Tol::witness()) {
         Ok(loaded) => {
             assert_eq!(ambient.to_bits(), 1e-4f64.to_bits());
-            assert_eq!(loaded.doc.epsilon().to_bits(), 1e-4f64.to_bits());
+            assert_eq!(loaded.epsilon().to_bits(), 1e-4f64.to_bits());
         }
         Err(editor_core::PersistError::ToleranceConflict { process, document }) => {
             assert_eq!(process.to_bits(), ambient.to_bits());

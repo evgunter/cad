@@ -775,7 +775,7 @@ fn a_file_holding_the_retired_measure_refuses_naming_its_replacement() {
         editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![seat(&f.walls[0]), seat(&f.walls[1])],
     );
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("the document saves");
     let needle = "\"Distance\": {";
     assert_eq!(
         text.matches(needle).count(),
@@ -800,7 +800,7 @@ fn a_file_holding_the_retired_measure_refuses_naming_its_replacement() {
 #[test]
 fn a_saved_assertion_mixing_two_claims_refuses_by_name() {
     let f = facing(&[ClearanceBounds::AtLeast(0.3)]);
-    let text = editor_core::persist::save(&f.doc, &[], Tol::witness()).expect("the document saves");
+    let text = editor_core::persist::save(&f.doc, Tol::witness()).expect("the document saves");
     let needle = "\"Assertion\": {";
     assert_eq!(text.matches(needle).count(), 1, "one assertion: {text}");
     // The clearance alone loads.

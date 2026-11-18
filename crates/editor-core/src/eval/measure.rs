@@ -326,12 +326,28 @@ impl<T: Decide> CellOf<'_, T> {
     }
 
     /// The cell's link, read in its body's own coordinates: at the
-    /// vertex, or at `at` inside the edge, a point of the reader's frame
-    /// asked of the body where it stands ([`Seat::into_own`]).
+    /// vertex, or at the edge's middle (`at`, where the reader is in the
+    /// body's own frame).
     fn link(&self, at: Point3<T>, band: Band) -> Result<Link<T>, TouchUnread> {
         match self {
             Self::Vertex(seat, v) => Link::at_point(seat.body(), *v, band),
-            Self::Edge(seat, e) => Link::on_edge(seat.body(), *e, seat.into_own(at), band),
+            Self::Edge(seat, e) if seat.motion().is_none() => {
+                Link::on_edge(seat.body(), *e, at, band)
+            }
+            // Read in another frame, the middle is taken off the edge's own
+            // ends, a reading within its body, not mapped there and back.
+            Self::Edge(seat, e) => {
+                let body = seat.body();
+                let mid = body
+                    .get_edge(*e)
+                    .and_then(|edge| {
+                        body.half_edge_start_point(edge.he_plus)
+                            .zip(body.half_edge_start_point(edge.he_minus))
+                    })
+                    .map(|(start, end)| start.mid(end))
+                    .ok_or(TouchUnread::Corrupt)?;
+                Link::on_edge(body, *e, mid, band)
+            }
         }
     }
 }
@@ -518,6 +534,9 @@ pub(crate) enum PrimitiveRefusal {
     /// a number a reader believes, and an assertion over `inf` would
     /// report a verdict about nothing.
     NonFinite(crate::expr::EvalError),
+    /// The relative motion a cell is read through did not invert, so
+    /// another operand's point could not be asked of the cell's own body.
+    Motion(geom_core::RigidMotionError),
 }
 
 /// **The v1 primitive evaluator.** One closed form per row of the
@@ -1248,13 +1267,17 @@ fn link_reads<T: Decide>(
         Cell::Vertex(at, cell) => (at, cell),
         Cell::Edge([start, end], cell) => (start.mid(end), cell),
     };
-    let own = |p| cell.seat().into_own(p);
+    let own = |p| cell.seat().into_own(p).map_err(PrimitiveRefusal::Motion);
+    let read = match read {
+        Cell::Vertex(at, cell) => Cell::Vertex(own(at)?, cell),
+        Cell::Edge([start, end], cell) => Cell::Edge([own(start)?, own(end)?], cell),
+    };
     let got = cell
         .link(at, band)
         .map_err(LinkRefusal::from)
         .and_then(|link| match read {
-            Cell::Vertex(at, _) => link.offset(own(at), band),
-            Cell::Edge(ends, _) => link.lowest_on((own(ends[0]), own(ends[1])), band),
+            Cell::Vertex(at, _) => link.offset(at, band),
+            Cell::Edge(ends, _) => link.lowest_on((ends[0], ends[1]), band),
         });
     got.or_else(|why| {
         let class = match why {

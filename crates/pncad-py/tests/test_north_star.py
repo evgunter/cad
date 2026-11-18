@@ -367,7 +367,7 @@ class TestPlateParam(unittest.TestCase):
     ASSERTION = 8
 
     def plate(self):
-        doc = load(self.FIXTURE.read_text(encoding="utf-8")).doc
+        doc = load(self.FIXTURE.read_text(encoding="utf-8"))
         return doc, doc.order()[self.UNION]
 
     # Plate + tab − their overlap − two cylinders of radius r: the

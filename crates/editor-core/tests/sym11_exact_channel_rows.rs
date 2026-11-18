@@ -88,12 +88,25 @@ use crate::m10_9_pins_interval::measured_studies;
 /// them). (PR 6988's gate did not run this
 /// slow row:
 /// `work/onehome/main-red-sym11s-numeric-column-fell-on-five-documents-after-the-least-turn-mint.md`.)
+///
+/// **Then moved by a measure that moves no body** (PR 7088; the review
+/// ruling that a reading between two operands asks no session box of
+/// an image in its own frame, the image's coordinates being an artefact
+/// of the computing frame, while a copy placed past the box still
+/// refuses its document). Each document's measure reads its placed
+/// operand through their relative motion (`topo::Seat`), so its one
+/// `session_box_reach` on the moved image is gone. That is this finding.
+/// Numeric only, −1 each: the plate `1046 → 1045`, the annulus
+/// `548 → 547`, the link `943 → 942`, the bracket `1545 → 1544` and the
+/// pad `1709 → 1708`; no symbolic or frozen count moves, and no dispute
+/// fired. Measured by routing the seat back through the whole-body move,
+/// which puts back every receipt above.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [979, 1046, 54]),
-    ("r1_annulus", [511, 548, 54]),
-    ("r2_link", [786, 943, 2738]),
-    ("r2_filleted_bracket", [1367, 1545, 84]),
-    ("r2_rounded_pad", [1483, 1709, 2773]),
+    ("two_hole_plate", [979, 1045, 54]),
+    ("r1_annulus", [511, 547, 54]),
+    ("r2_link", [786, 942, 2738]),
+    ("r2_filleted_bracket", [1367, 1544, 84]),
+    ("r2_rounded_pad", [1483, 1708, 2773]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

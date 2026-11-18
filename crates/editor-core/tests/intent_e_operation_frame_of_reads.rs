@@ -668,3 +668,116 @@ fn a_measure_between_two_copies_maps_no_body() {
         "the premise: both references are the block's own Arc"
     );
 }
+
+/// **A direction read off a turned copy is turned** (`[placement.frame]`,
+/// a reading between two operands through their relative motion). One
+/// block, placed twice: slid up, and turned a quarter turn about `z`. The
+/// angle between the two copies' end-cap rims over the profile's first
+/// segment is a right angle: the second rim's direction is read off the
+/// block as it stands and turned through the relative motion.
+///
+/// *Breaks if* a line edge's direction is read in its own coordinates
+/// and not mapped into the reader's frame (`topo::Seat::vec` as the
+/// identity: the two rims read parallel, an angle of 0).
+#[test]
+fn an_angle_to_a_turned_copys_edge_reads_the_turn() {
+    use editor_core::{MeasurePrimitive, SitedRef};
+    let doc = ProfileDoc::empty(DocumentId::derive("e-angle-seats"), Tol::witness());
+    let (doc, source) = block(doc);
+    let (doc, up) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([0.0, 0.0, 0.25]),
+    );
+    let turned = editor_core::Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        std::f64::consts::FRAC_PI_2,
+        [3.0, 0.0, 0.0],
+        geom_core::Band::linear(Tol::witness()).unwrap(),
+    )
+    .unwrap();
+    let (doc, over) = in_world(doc, source, &turned);
+    let rim = fixture::end_rim(&doc, source, 0);
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Angle { a: 0, b: 1 },
+        vec![SitedRef::new(up, rim.clone()), SitedRef::new(over, rim)],
+    );
+    let ev = run(&doc, None);
+    let value = match ev.value(measure).map(|v| &v.payload) {
+        Some(ValuePayload::Measure { value, .. }) => *value,
+        other => panic!("the angle reads: {other:?}, {:?}", ev.node_error(measure)),
+    };
+    assert!(
+        (value - std::f64::consts::FRAC_PI_2).abs() < 1e-12,
+        "the turned copy's rim reads a quarter turn off the first's: {value}"
+    );
+}
+
+/// **A copy placed past the session box still refuses its document**
+/// (`[placement.frame]`; the review ruling on PR 7088). A reading
+/// between two copies takes the far one through their relative motion
+/// and asks no session box of an image in the reader's frame, an
+/// artefact of that frame. The far copy's own place in the world is
+/// asked where the document's product, the `⊔` over its copies, builds
+/// the aggregate in the world's frame: one block in the world, its copy
+/// 2 km along `x`, a measure between their `+x` walls, and the `⊔`. The
+/// measure reads 2 km, and the `⊔` alone refuses, with the session box's
+/// finding (as
+/// `product_finishes_once::a_copy_moved_past_the_box_refuses_at_the_box`
+/// pins it without the measure).
+///
+/// *Breaks if* a copy past the box is admitted into the product (the
+/// aggregate's finish not asking the box), or the measure refuses on an
+/// image's coordinates.
+#[test]
+fn a_copy_placed_past_the_box_refuses_its_document_not_its_measure() {
+    use editor_core::{MeasurePrimitive, SitedRef};
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("e-past-the-box"), tol);
+    let (doc, source) = block(doc);
+    let (doc, near) = in_world(doc, source, &editor_core::Frame::translation([0.0; 3]));
+    let (doc, far) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([2000.0, 0.0, 0.0]),
+    );
+    let wall = fixture::fname(source, fixture::wall(&doc, source, 1));
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![SitedRef::new(near, wall.clone()), SitedRef::new(far, wall)],
+    );
+    let doc = fixture::assemble_world_copies(doc);
+    let ev = run(&doc, None);
+    match ev.value(measure).map(|v| &v.payload) {
+        Some(ValuePayload::Measure { value, .. }) => assert!(
+            (value - 2000.0).abs() < 1e-9,
+            "the measure reads the walls 2 km apart: {value}"
+        ),
+        other => panic!(
+            "the measure reads across frames: {other:?}, {:?}",
+            ev.node_error(measure)
+        ),
+    }
+    let refusals: Vec<_> = doc
+        .ids()
+        .into_iter()
+        .filter_map(|id| ev.node_error(id))
+        .collect();
+    let [refused] = &refusals[..] else {
+        panic!("one node refuses: {refusals:?}")
+    };
+    assert!(
+        matches!(doc.node(refused.node), Some(Node::Assemble { .. })),
+        "the document's product, the `⊔` over the copies, refuses: {refused:?}"
+    );
+    assert!(
+        matches!(
+            &refused.kind,
+            editor_core::NodeErrorKind::NotFinished { findings }
+                if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+        ),
+        "with the session box's finding: {refused:?}"
+    );
+}

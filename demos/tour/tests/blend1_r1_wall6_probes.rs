@@ -235,8 +235,8 @@ fn t4_one_mouth_arc_gets_the_recourse_whose_request_carves() {
     match fillet_edges(&finished("lant", lant.clone(), tol), &arcs[..1], 0.02, tol)
         .map_err(|r| r.error)
     {
-        Err(BlendError::UnsupportedCorner { corner, .. }) => {
-            let shown = format!("{corner}");
+        Err(BlendError::UnbuiltEnd(end)) => {
+            let shown = format!("{end}");
             assert!(
                 shown.contains("seam"),
                 "one mouth arc stops at a seam vertex, got {shown}"

@@ -66,10 +66,8 @@ fn every_regenerated_document_is_the_base_one_under_the_total_map() {
         );
         // The regenerated document as this build replays it: its nodes
         // and variables by id, which an edit log's names cite.
-        let replayed = load(&new_text, Tol::witness())
-            .expect("the regenerated file loads")
-            .doc;
-        let table = crate::wire::wire_body(&save(&replayed, &[], Tol::witness()).expect("saves"));
+        let replayed = load(&new_text, Tol::witness()).expect("the regenerated file loads");
+        let table = crate::wire::wire_body(&save(&replayed, Tol::witness()).expect("saves"));
         let mut walk = Walk {
             seats: Seats::of(&table),
             map: Bijection::default(),

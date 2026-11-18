@@ -59,3 +59,11 @@ PR 7052's reviewers):
     tilt 0.00000000000644107827255586: R-tan at
     Degeneracy { tangent: 0.00024737568798874343, top: 1.4351601400341973e-9 }:
     Tangent("section_torus_square_wall_fold_half")
+
+A second seed, `CAD_FUZZ_SEED=0xf833f1903ca13458` (`CAD_FUZZ_EFFORT=1`),
+reds with three mismatches of the same shape (`R 4.528…, r 0.5539…`;
+`R 0.04898…, r 0.007838…`; `R 37.93…, r 8.648…`), each `R-tan at
+Degeneracy { … top: ~1e-9 }`, on embed/graph-piece's local run of topo
+(2026-11-17); that branch does not touch the section code.
+
+- 2026-11-18 — **another draw of the family, from the nightly slow set** (ONEHOME's PR 7088 lane, local run): `boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section` drew `CAD_FUZZ_SEED=0xe0950175e9cd5888` at `CAD_FUZZ_EFFORT=1` and found 1 mismatch, "a strip crossing at a tube circle's top": `R 24.455411074718242, r 14.679004457317978, (e, z0, rc) (25.867814796788632, 14.064956615358236, 1.5401100768027751)`, tilt `9.894e-17`, refused `R-tan at Degeneracy { tangent: 0.9968011759838724, top: 7.2513461901735354e-9 }`. It reproduces with main's `topo` and `geom-brep` (`1b8712e48`) with that seed and effort.

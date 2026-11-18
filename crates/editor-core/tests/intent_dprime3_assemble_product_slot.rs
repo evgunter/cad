@@ -1322,10 +1322,10 @@ fn a_retarget_of_the_products_copy_out_of_the_world_is_reported_and_refused() {
         ),
         "the gather refuses a slot outside the world"
     );
-    let text = editor_core::persist::save(&moved.doc, &[], Tol::witness()).unwrap();
+    let text = editor_core::persist::save(&moved.doc, Tol::witness()).unwrap();
     let loaded =
         editor_core::persist::load(&text, Tol::witness()).expect("what an edit leaves loads");
-    assert_eq!(loaded.doc.product(), moved.doc.product());
+    assert_eq!(loaded.product(), moved.doc.product());
     // `SetProduct` itself refuses a read outside the world.
     let refused = apply(
         &moved.doc,
@@ -1357,7 +1357,7 @@ fn the_load_door_holds_the_slot_as_the_edit_doors_do() {
     let (d, p) = block(d, [0.0; 2], 0.5, 0.5);
     let (d, copy) = in_world(d, p);
     let d = set_product(&d, Some(Operand::Node(copy)));
-    let text = editor_core::persist::save(&d, &[], Tol::witness()).unwrap();
+    let text = editor_core::persist::save(&d, Tol::witness()).unwrap();
     let ser = |v: VarId| serde_json::to_string(&v).unwrap();
     let product = ser(d.product().unwrap());
     let needles = [
@@ -1382,14 +1382,14 @@ fn the_load_door_holds_the_slot_as_the_edit_doors_do() {
             ))
         ),
         "a slot reading no variable loads: {:?}",
-        unminted.map(|l| l.doc.product())
+        unminted.map(|l| l.product())
     );
     let inner = editor_core::persist::load(&swapped(&ser(d.output(p, 0).unwrap())), Tol::witness())
         .expect("a slot reading a body outside the world loads");
-    let ev = run(&inner.doc, &EvalOptions::default());
+    let ev = run(&inner, &EvalOptions::default());
     assert!(
         matches!(
-            editor_core::product(&inner.doc, &ev, Tol::witness()),
+            editor_core::product(&inner, &ev, Tol::witness()),
             Err(editor_core::ProductError::ProductOutsideWorld { .. })
         ),
         "the gather refuses it"

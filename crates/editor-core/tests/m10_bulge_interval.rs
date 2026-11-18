@@ -318,9 +318,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("segment_direction_sign", [0, 1]),
     ("segment_gap", [0, 2]),
     ("segment_straightness", [6, 6]),
-    // ONEHOME stage 2: the d-tab's placement asks the session box of its
-    // image (`Replay::moved_by`), one numeric decision.
-    ("session_box_reach", [0, 1]),
+    // No `session_box_reach`: the measure reads the placed d-tab through
+    // its relative motion (`topo::Seat`) and asks no session box of an
+    // image in its own frame (PR 7088's review ruling): [0, 1] -> none.
     ("side_cylinders_cosurface", [2, 0]),
     ("side_planes_cosurface", [0, 2]),
     // Limb 2's distance bound (C2), owed by every Intersection carrier:
@@ -540,9 +540,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("segment_direction_axis", [1, 1]),
             ("segment_direction_sign", [0, 1]),
             ("segment_straightness", [2, 6]),
-            // ONEHOME stage 2: the boss's placement asks the session box
-            // of its image (`Replay::moved_by`), one numeric decision.
-            ("session_box_reach", [0, 1]),
+            // No `session_box_reach`: the measure reads the placed boss
+            // through its relative motion (`topo::Seat`) and asks no
+            // session box of an image in its own frame (PR 7088's review
+            // ruling): [0, 1] -> none.
             ("side_cylinders_cosurface", [2, 0]),
             // Limb 2's distance bound (C2), owed by every Intersection
             // carrier: 28 = the 14 Intersection edges (one witness each,
