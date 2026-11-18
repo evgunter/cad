@@ -114,8 +114,8 @@
 //!    tier 3, the shell count, the volume — never the rings, the genus
 //!    or the mesh. That is the transferable lesson, and that probe now
 //!    checks all three. **The pot ships OPENED**, one annular rim,
-//!    genus 0, meshing — and it also LEAVES AS STEP, which the sealed
-//!    two-shell body could not.
+//!    genus 0, meshing, and leaves as STEP as one shell; the sealed
+//!    two-shell body leaves as one `BREP_WITH_VOIDS` and comes back.
 //! 3. **The lid is solid, and its rims roll whole.** A full revolve
 //!    of a profile that touches the axis mints half-walls, and each
 //!    latitude rim is two open arcs meeting at two seam vertices. One
@@ -1821,6 +1821,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
 
     // ---- the sealed hollow: the document's own value ----
     let pot = body_at(&ev, r.pot, tol);
+    let crate::StepRoundTrip {
+        voids: sealed_voids,
+        volume: sealed_volume,
+    } = crate::step_round_trip("teapot_sealed", &pot, tol);
     let (pv, pe, pf) = (
         pot.vertices().count(),
         pot.edges().count(),
@@ -2622,12 +2626,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
              closed form less the lifted mouth disc, {cup_triangles} triangles at δ = \
              {DELTA}. On an ANNULAR mouth the same class needs two disjoint annuli — a \
              face SPLIT — and that is built too; `tests/verbs_teapot.rs` carries both \
-             shapes. THE OPENED POT NOW LEAVES AS STEP, which the sealed one could not: \
-             the writer refuses a void shell (VoidShellUnsupported: no \
-             BREP_WITH_VOIDS yet) — and a cup is ONE shell. That gate keeps three \
-             live probes (klein's wall 6, the `ring` scene's and `hollowtorus`'s); this \
-             scene is no longer one of them, because the body it ships no longer \
-             reaches it. THE LID, which is where the CURVED-SUPPORT fillet family \
+             shapes. THE OPENED POT LEAVES AS STEP as one shell; the sealed one \
+             leaves as one BREP_WITH_VOIDS and imports back as one solid with \
+             {sealed_voids} cavity, V = {sealed_volume:.6} m³. THE LID, which is where the CURVED-SUPPORT fillet family \
              lives on this tour. It is what a potter turns: a SOLID knob, no vent — \
              the profile closes down the axis, so the revolve mints half-walls like \
              the pot's: 8/14/8 sharp (two whole discs, the cone, sphere and cylinder \

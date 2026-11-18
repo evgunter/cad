@@ -499,16 +499,14 @@ sweep's result is finished where it is read), so a body the
 at-rest gate refuses never reaches the writer — the operation that made
 it refused instead. On the Rust side `step_export::step_string` takes a
 `topo::AtRestBody`, which only the scalar's finish constructs.
-Past the gate, STEP export has three refusals you should *expect*
-rather than fix — `UnsupportedSurface`, `UnsupportedCurve`,
-`VoidShellUnsupported` — meaning the AP214 writer has no
-representation for a surface or a cavity the modeller can legitimately
-build. A fourth, `ShellUnclassified`, is not a frontier: it is the
-shell-role door failing to measure a cavity's volume at the reporting
-target, and it carries that door's refusal whole. The tour tolerates
-exactly the three, per scene, and panics on anything else. That is the
-right posture to copy: enumerate the refusals you accept, and let
-every other one be loud.
+Past the gate, STEP export has two refusals you should *expect*
+rather than fix — `UnsupportedSurface`, `UnsupportedCurve` — meaning
+the AP214 writer has no representation for a surface or a curve the
+modeller can legitimately build. A third, `ShellUnclassified`, is not
+a frontier: it is the shell-role door failing to measure a cavity's
+volume at the reporting target, and it carries that door's refusal
+whole. The right posture to copy: enumerate the refusals you accept,
+and let every other one be loud.
 
 ## 8. The mesh door: budgets and files
 

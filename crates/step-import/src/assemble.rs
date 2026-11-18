@@ -69,7 +69,7 @@ use topo::{Body, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use topo::construction::{MefSite, MekrSite, MevSite};
 
 use crate::adopt;
-use crate::entities::SolidSpec;
+use crate::entities::{SolidRecord, SolidSpec};
 use crate::error::StepImportError;
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 use geom_core::{FileCoincidence, Tol};
@@ -900,17 +900,46 @@ fn assemble_solid(
         .collect())
 }
 
-/// The assembly proper: one `MANIFOLD_SOLID_BREP` into a body of its
-/// OWN (phase A + verification + adoption), then one pcurve mint over
-/// that body.
+/// The assembly proper: one solid record into a body of its OWN. Its
+/// outer shell and each void shell are assembled alike (phase A +
+/// verification + adoption, then one pcurve mint), each into a body of
+/// its own, and each void's solid is folded into the outer's, so the
+/// body holds one solid of every shell the record names; the join
+/// records of every shell are returned together.
 ///
 /// A body per solid is what lets the shared at-rest gate be asked
 /// about that solid alone: the whole-body invariants the gate checks
 /// include summed ones (the +V flux sum over every shell), which
 /// cannot see a single inside-out solid whose neighbours cancel it.
-/// Nothing assembles two specs into one arena — each instance is
+/// Nothing assembles two records into one arena — each instance is
 /// built into a body of its own and the copies are grafted (`lib.rs`).
 pub(crate) fn build_one_solid(
+    record: &SolidRecord,
+    tol: Tol,
+    file: FileCoincidence,
+) -> Result<(Body<f64>, Vec<StructureNormalization>), StepImportError> {
+    let (mut body, mut joins) = build_one_shell(&record.outer, tol, file)?;
+    let Some((keeper, _)) = body.solids().next() else {
+        unreachable!("an assembled shell stands under the solid its mvfs minted")
+    };
+    for void in &record.voids {
+        let (cavity, void_joins) = build_one_shell(void, tol, file)?;
+        joins.extend(void_joins);
+        let donor = topo::graft_disjoint(&mut body, &cavity).unwrap_or_else(|e| {
+            unreachable!(
+                "a one-solid source grafts: the disjoint graft refuses only a source \
+                 without exactly one solid ({e:?})"
+            )
+        });
+        body.fold_solid_into(donor, keeper).unwrap_or_else(|e| {
+            unreachable!("both solids were just minted in this body and resolve ({e:?})")
+        });
+    }
+    Ok((body, joins))
+}
+
+/// One shell into a body of its own.
+fn build_one_shell(
     solid: &SolidSpec,
     tol: Tol,
     file: FileCoincidence,

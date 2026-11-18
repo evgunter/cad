@@ -65,7 +65,7 @@ fn no_fixture_face_sits_on_the_frame_seam() {
         total.on_seam,
         total.three_way_tie
     );
-    // The floor is below the measured 81 planar faces over 17 fixture
+    // The floor is below the measured 90 planar faces over 18 fixture
     // bodies because which bodies build is ε-dependent; the zero above
     // is not.
     assert!(

@@ -20,7 +20,7 @@ use topo::CurveGeom;
 #[test]
 fn no_committed_fixture_imports_with_a_scaffold_at_rest() {
     let mut declared_fixtures = 0usize;
-    for name in SOLID_FIXTURES {
+    for &name in SOLID_FIXTURES {
         let (body, _eps) = import_body(name);
         let scaffolds: Vec<_> = body
             .edges()
