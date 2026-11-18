@@ -174,9 +174,6 @@ failure-output = "immediate-final"
 #   23.6 s   topo::all boxed_revolved_bodies_read_what_their_members_read::aims_about_a_boxed_frustum_and_sphere_cap_read_no_wrong_side
 #   25 s     topo::all boxed_revolved_bodies_read_what_their_members_read::aims_beside_a_boxed_seams_vertices_read_no_wrong_side
 #    0.49 s  sweep::all a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk::a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk
-# A wild file's half-cylinder rulings, its one-record control and a moved
-# axis, three imports at 1e-6 (a local debug run; it stands down below):
-#    1.41 s  step-import::all a_smooth_join_imports_by_the_must_carry_rule::tail_turbines_rulings_adopt_as_the_pair_where_the_rule_reads_them
 # Booleans of quadric pairs across a closed fitted section loop, each
 # built in several ops and meshed at up to three δ (a local debug run, 4
 # vCPUs, beside another lane's build):
@@ -472,8 +469,7 @@ not (
   (binary_id(editor-core::all) & test(=a_taken_slab_over_a_box_is_never_refused_as_a_flip::a_slab_under_a_taker_over_wider_boxes_is_never_refused_as_a_flip)) |
   (binary_id(topo::all) & test(=an_aimed_ray_beside_a_boxed_cylinders_moving_rim::no_ray_about_a_boxed_cylinder_reads_the_side_no_member_has)) |
   (binary_id(topo::all) & (test(=boxed_revolved_bodies_read_what_their_members_read::containment_about_a_boxed_rim_answers_as_its_members_do) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_about_a_boxed_frustum_and_sphere_cap_read_no_wrong_side) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_beside_a_boxed_seams_vertices_read_no_wrong_side))) |
-  (binary_id(sweep::all) & test(=a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk::a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk)) |
-  (binary_id(step-import::all) & test(=a_smooth_join_imports_by_the_must_carry_rule::tail_turbines_rulings_adopt_as_the_pair_where_the_rule_reads_them))
+  (binary_id(sweep::all) & test(=a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk::a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk))
 )
 """
 

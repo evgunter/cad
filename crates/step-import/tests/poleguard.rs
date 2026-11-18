@@ -206,6 +206,7 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     else {
         panic!("halfcap_eps7 must import at eps {eps:e}");
     };
+    let normalizations = crate::common::structural(normalizations);
     // The file's own geometry, asserted band-independently: its
     // sphere face's undeclared north pole.
     let (mut pole, mut radius) = (None, 0.0f64);

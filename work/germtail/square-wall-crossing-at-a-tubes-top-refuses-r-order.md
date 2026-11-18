@@ -65,3 +65,10 @@ reds with three mismatches of the same shape (`R 4.528…, r 0.5539…`;
 `R 0.04898…, r 0.007838…`; `R 37.93…, r 8.648…`), each `R-tan at
 Degeneracy { … top: ~1e-9 }`, on embed/graph-piece's local run of topo
 (2026-11-17); that branch does not touch the section code.
+
+A third seed, `CAD_FUZZ_SEED=0x838f6bb8bc006541` (`CAD_FUZZ_EFFORT=1`),
+reds with two mismatches of the same shape (`R 0.08967…, r 0.009745…`;
+`R 7.828…, r 5.006…`), each `R-tan at Degeneracy { … top: ~1e-9 }:
+Tangent("section_torus_square_wall_fold_half")`, at ε = 1e-9 on
+importgate/build's local run of topo (2026-11-18); that branch does not
+touch the section-certificate code.
