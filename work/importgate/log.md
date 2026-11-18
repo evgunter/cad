@@ -65,3 +65,5 @@
   - m5: filed;
   - N4: edge or vertex wording.
   Closed the unit and the six rows it claimed. `wild-nist-ftc-09-refuses-import-at-eps-1e-12` stays open for the snap unit. No model-compare row (Fable outage, rule 12). Next: file and dispatch the snap catalogue unit.
+
+- 2026-11-18 — Filed and dispatched the snap catalogue unit `import-snaps-each-zero-relation-by-a-closed-catalogue` (P1, H, dual; branch importgate/snap) on a cloud Opus session from main.
