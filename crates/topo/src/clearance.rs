@@ -3727,14 +3727,15 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
 
 /// The face's boundary enclosure, and the boundary itself lifted.
 ///
-/// The enclosure is the hull of every boundary edge's carrier evaluated
-/// over its OWN parameter interval — interval arithmetic does the
-/// bounding, so a circular edge's bulge is enclosed rather than chorded
-/// away — together with the boundary's vertex points, each lifted
-/// through [`Interval::from_certified`]. `None` for a face that does not
-/// resolve, one of whose edges carries no certified curve, or one any of
-/// whose lifted values does not certify: an unclaimable extent, never a
-/// silently smaller one. The walk past the face is
+/// The enclosure is the hull of every boundary edge's region — its
+/// lifted carrier's cover over its own span ([`crate::cover::arc_cover`],
+/// so a curved edge's bulge is enclosed rather than chorded away, and a
+/// spline edge's by its pieces' control nets) — together with the
+/// boundary's vertex points, each lifted through
+/// [`Interval::from_certified`]. `None` for a face that does not
+/// resolve, one of whose edges carries no certified curve or no cover,
+/// or one any of whose lifted values does not certify: an unclaimable
+/// extent, never a silently smaller one. The walk past the face is
 /// [`crate::live::FaceView::boundary_by_loop`]'s, every hop a link.
 ///
 /// The lifted boundary carries each edge's carrier and span, its two
@@ -3752,6 +3753,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         let f = body.face(face)?;
         let point = |p: &Point3<T>| p.map(|x| lift.of(x));
         let mut pts: Vec<Point3<Interval>> = Vec::new();
+        let mut arcs: Vec<Aabb> = Vec::new();
         let mut out = Boundary {
             sense: f.sense(),
             ..Boundary::default()
@@ -3815,10 +3817,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
             let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
-            // The whole parameter span as ONE interval: the carrier's
-            // interval evaluation over it encloses the entire arc, which is
-            // what makes a curved boundary bound its own face's window.
-            pts.push(carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi())));
+            arcs.push(crate::cover::arc_cover(&carrier, span).ok()?.aabb(0.0));
             let ends = <[_; 2]>::from(crate::query::edge_ends(body, ek));
             let uses = hes
                 .iter()
@@ -3846,7 +3845,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 uses,
             });
         }
-        Aabb::from_points(pts).map(|b| (b, out))
+        let bounds = Aabb::from_points(pts)?;
+        Some((arcs.iter().fold(bounds, |b, arc| b.hull(arc)), out))
     })
     .flatten()
 }
