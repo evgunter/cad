@@ -179,11 +179,11 @@ impl Path<'_> {
 pub fn first_turn(old: Path<'_>, new: Path<'_>) -> Option<VerdictFlip> {
     let (old, new) = (old.steps(), new.steps());
     match old.iter().zip(&new).find(|(a, b)| a != b)? {
-        (Step::Choice(predicate, from), Step::Choice(other, to)) if predicate == other => {
+        (&Step::Choice(predicate, from), &Step::Choice(other, to)) if predicate == other => {
             Some(VerdictFlip {
-                predicate: *predicate,
-                from: *from,
-                to: *to,
+                predicate,
+                from,
+                to,
             })
         }
         _ => None,

@@ -12022,39 +12022,32 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> FlushAtRest {
-    geom_core::k_stats::checking(|| flush_at_rest_checked(body, group, band, region))
-}
-
-/// [`flush_at_rest`]'s body. Every decision it takes is a check: a flush
-/// row changes no body and no name, it is a row the at-rest check
-/// reports, and an undecided pair is a finding.
-fn flush_at_rest_checked<T: Decide + Bounds>(
-    body: &Body<T>,
-    group: &dyn Fn(crate::SolidKey) -> Option<u32>,
-    band: Band,
-    region: Option<RegionLane<T>>,
-) -> FlushAtRest {
-    let geo = snapshot(body);
-    let pad = sweep_pad(band);
-    let faces: Vec<FaceKey> = geo
-        .faces
-        .iter()
-        .map(|f| f.key)
-        .chain(
-            geo.curved_faces
-                .iter()
-                .copied()
-                .filter(|&f| exact_curved_face(body, f)),
-        )
-        .collect();
-    let boxes = Class::build(
-        CensusStrategy::Realized,
-        faces
+    // Every decision here is a check: a flush row changes no body and no
+    // name, it is a row the at-rest check reports, and an undecided pair
+    // is a finding.
+    geom_core::k_stats::checking(|| {
+        let geo = snapshot(body);
+        let pad = sweep_pad(band);
+        let faces: Vec<FaceKey> = geo
+            .faces
             .iter()
-            .map(|&f| face_box(body, f, pad, band))
-            .collect(),
-    );
-    flush_pairs(body, &geo, (&faces, &boxes), group, band, region)
+            .map(|f| f.key)
+            .chain(
+                geo.curved_faces
+                    .iter()
+                    .copied()
+                    .filter(|&f| exact_curved_face(body, f)),
+            )
+            .collect();
+        let boxes = Class::build(
+            CensusStrategy::Realized,
+            faces
+                .iter()
+                .map(|&f| face_box(body, f, pad, band))
+                .collect(),
+        );
+        flush_pairs(body, &geo, (&faces, &boxes), group, band, region)
+    })
 }
 
 /// [`flush_at_rest`] over its candidates, `faces` and their box tree.
