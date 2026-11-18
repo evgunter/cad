@@ -544,9 +544,10 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
         ),
         (
             "geom-brep/src/curve_pair/span_rows.rs",
-            1,
+            9,
             "the held-end row reads that the foot over the span stopped exactly at an \
-             end, the premise of the place it pins",
+             end, and the far-foot rows that it stopped at a stationary point inside the \
+             span: each the premise of the place it pins",
         ),
         (
             "topo/src/boolean/edge_join.rs",
