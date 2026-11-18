@@ -2,11 +2,10 @@
 id: tracing-reads-the-faces-chart-and-traced-frame-retires
 kind: unit
 title: A traced profile draws on the face's chart like any sketch on a face; traced_frame and the New-traced-profile act retire, and the coincidence door proves the tangency by rung 3
-status: parked
+status: open
 opened: 2026-11-18
 priority: P1
 cost: H
-blocked_on: [a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face]
 refs: [the-coincidence-doors-construction-facts-have-no-one-source]
 ---
 
@@ -24,4 +23,4 @@ Ruled by Ev on `[ev]` PR 7073 (2026-11-18). Both designers converged on it (the 
   - **Only if rung 3 fails** (too slow or undecidable), add the stated fact, "an extrude's caps are normal to its heading and its walls slide along it", beside `axis_of`, pinned against the symbolic evaluation. Ev allowed this on 7073 ("this can be added to the side channel if the rung 3 test you're running fails, since we'll be revisiting it later"). The revisit is `work/coincide/the-coincidence-doors-construction-facts-have-no-one-source.md`.
   - Expect `a_frame_read_off_a_rim_asks_for_the_walls_axis` to flip, and every existing traced row to stay proven. `Recourse::ReadTheAxis`'s wording changes.
 - **Viewer and pncad** (crossings, announced): `NEW_TRACED_PROFILE` / `SessionOp::AddDrawnProfile` / `traced_op` fold into the profile-on-face gesture as an optional "trace" pick. The app's `trace_tool` test is re-spelled.
-- Parked on the face-frame unit, which builds the chart.
+- The chart is `PoseDef::FaceChart`, and `Recording::draw_on_face` already passes `DrawnOn.faces` through (closed `a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face`). The chart's `z` is read by `stated::frame_z` as no axis today: `FaceChart` falls to its `_` arm.
