@@ -179,3 +179,4 @@ body has the reasons):
   - a randomized differential, which found a REAL kernel bug: a fused step at a plain point silently overwrote an open fillet; it now refuses.
 
   Delta review dispatched to a cloud session (`session_013QoYWU…` was the first review; this one is new). Disk hit 92% (the firstturn target at 15 GB, the tracechart target at 8.3 GB), so both lanes were told to trim.
+- 2026-11-18 — **PR 7126** (tracing on the face chart) is up and green. **Rung 3 proves the traced tangency** (2–5 ms per row, DAGs of 107–613 nodes, none over budget), so the stated-fact fallback was NOT needed; the measurement is on COINCIDE's one-source row. `traced_frame` and its sole readers are retired, and the traced-profile form is now "New profile on a face". The arm-0 defect was confirmed by measurement (a bottom cap tilted 0.2 rad). FULL review dispatched to a cloud session (disk).
