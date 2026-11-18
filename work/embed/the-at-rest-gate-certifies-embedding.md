@@ -748,3 +748,163 @@ test-support fixture built by Euler operators and finished through
   other 8 tour bodies as evidence, since their refusals have its
   shape (not traced to the cell), and is re-banded P0.
 - On CLEAVETAIL's slate: `two-tour-wall-probes-moved-on-main`.
+
+## Census (lane C, embed/gate, 2026-11-18, main `362cd72fd2`)
+
+**The gate measured.** `AtRestBody::validate` asks `topo::clearance::embedded`
+of every face of the body after tier 3, at `DEFAULT_MAX_CELL_DEPTH` and
+65,536 pairs (`GATE_BUDGETS`), with **no exclusion**: `finish(body, tol)`
+holds no `ContactRecords` (they reach only `validate_pseudomanifold`, after
+the finish), so the exclusion has nothing to read there. That is a fork,
+sent to the orchestrator; the census measures what it costs (class 3).
+`validate_pseudomanifold` does not ask again: the finish already asked a
+superset of its pairs.
+
+**How.** An uncommitted log at the gate wrote one row per ask: the test,
+the scalar, the face count, the receipt, the seconds, the verdict, and the
+kind and solid of each face the verdict names. Workspace:
+`cargo nextest run --workspace --profile ci --ignore-default-filter
+--no-fail-fast` in CI's build configuration (libraries opt-1, test crates
+opt-0), 4 cores, 15 GB. Every failure was run once more with the
+solid-logging build (1,752 of 1,846; the other 94 keep the first run's
+reading, without solids). Outside the workspace: the tour walk
+(`demo-tour <dir>`, release) and `demos/wild` with the gate logging and
+passing, so every body is read; the tour suite (`cargo nextest run
+--release`); `tools/tess-meter`. `benches` holds no tests; `tools/k-lint`,
+`tools/tess-lint` and `interval-transcendentals` do not depend on `topo`.
+The engine lanes that landed after `362cd72fd2` (conic arcs, the cylinder's
+vertex corner) are not in this census.
+
+### Workspace: 1,846 of 19,376 tests fail
+
+| class | tests |
+|---|---:|
+| 1. not embedded: the gate is right, the test pinned a later refusal | ~12 |
+| 2. a valid body the engine refuses | 1,056 |
+| 3. a contact the exclusion should cover (no records at the finish) | ~752 |
+| 4. other | 26 |
+
+- **Class 1** (named, not traced): tests that expect tier 3′'s own wedge
+  or crossing refusal of an invalid body and now meet the gate's
+  `BoundaryMeetsItself` first: `a_face_inside_an_edges_wedge_refuses_at_tier_3_prime::the_keel_in_the_floor_refuses_at_tier_3_prime`,
+  the two `boolean_pinch_copies::pinches_along_an_operand_edge_refuse_their_overlapping_wedges`
+  rows, `review_4740_r1_probes`' two `refuses_its_overlapping_wedges` rows,
+  `ring_carry_through_by_piece::a_ring_pinched_to_a_rim_vertex_refuses_its_overlapping_wedges`,
+  `a_doubled_line_does_not_revert`'s four refusing rows,
+  `an_edge_on_a_ruling_lying_in_its_own_face::a_keel_on_a_cylinders_ruling_through_its_face_refuses_at_tier_3_prime`,
+  `review_6020_seam_probes::a_counterbore_half_with_two_faces_on_each_other_refuses_at_the_point`.
+  Undecided between 1 and 3: `the_fin_crown_winds_as_a_solid::the_fin_crown_is_a_solid_where_the_old_crown_crossed_itself`.
+- **Class 3**: every crossing on a valid body. 506 + 56 cross between
+  two solids of one body (assemblies, products of touching copies,
+  disjoint unions resting on each other: `bench` is this); about 190 cross
+  inside one solid at a slit, keel, pinch, edge lying in a face or ring
+  on a line (`a_keel_on_the_floor_subtracts_as_a_slit`,
+  `union_flush_onto_edge_contact`, `three_solids_on_one_line`,
+  `join_pierce_runs_sweep`, `split_pinch_keeps`). Every crossing is at
+  distance 0 to 3e-16 m. A further 208 of class 2's refusals are in tests
+  named for a pinch, slit, keel, touch, flush face, contact, mate or
+  tangency; their pairs may be ones records would exclude. Not traced;
+  they move with the fork's answer.
+- **Class 4**: 9 tests whose gate refusal is in a child process (the
+  offer rows in `topo` and `sweep`, `the_corners_offer_executes`,
+  `fillet_h6_cap_rim`'s and `review_blend_k_rk_probes`' three probes,
+  `stl`'s `eps_rows_export_identical_bytes`); 6 source censuses red on
+  files this diff does not touch (main's own); 2 of
+  `mass_props_are_thread_count_invariant`, whose verdict count moved:
+  the gate's windows (`Side::windows`) are read outside F41's scope, so
+  the gate's readings reach the log (change 3's "one logged row" is
+  where this goes); `torus_doors_join::a_rod_across_the_outer_equator_builds_at_its_volume`
+  (`JoinPairsTied`) and `square_search` (a seeded fuzz), untraced; and 7
+  that pass when run again (one OOM kill, one seeded fuzz, and five
+  rows of this branch's own that it then fixed).
+
+**Class 2 by refusal shape** (tests; the first refusal of each test):
+
+| refusal | tests | f64 / Interval |
+|---|---:|---|
+| `Uncertified`, Departure, at an edge | 512 | 485 / 27 |
+| `Uncertified`, Departure, at a vertex | 179 | 172 / 7 |
+| `Budget(Pairs)` | 136 | 135 / 1 |
+| `Budget(Depth)` | 90 | 86 / 4 |
+| `Unsupported`: "a face whose carrier window is not a finite rectangle" | 59 | f64 |
+| `Uncertified`, SecondOrder, at an edge | 52 | 51 / 1 |
+| `Unsupported`: a spindle sheet's face | 20 | f64 |
+| `Unsupported`: an approximated face | 7 | f64 |
+| `Sliver` | 1 | f64 |
+
+The departure arm at an edge, by its two faces' kinds: plane/plane 104,
+plane/cylinder 100 (and 63 cylinder/plane), sphere/sphere 47,
+plane/torus 37, cylinder/cylinder 30, plane/cone 27, cone/cone 22.
+Traced to its cell, one plane/plane row (`dsc_checks::a_thin_slab_counts_as_one_component`)
+is a slab `(1 + K)·ε` thick: the side's departure at a top edge reads
+the bottom face one ε past the band. The other plane/plane rows are not
+traced.
+
+**The ten largest groups** (class, shape, faces' kinds; one test):
+
+| tests | group | one test |
+|---:|---|---|
+| 506 | 3, crossing between solids, plane/plane | `editor-core` `names::emit_topo::a_pairs_flush_line::a_crossing_of_two_flush_edges_running_opposite_ways_reads_each` |
+| 163 | 3, crossing in one solid, plane/plane | `a_keel_on_the_floor_names_its_two_edges::a_keel_on_the_floor_names_its_two_edges_apart` |
+| 136 | 2, `Budget(Pairs)` | `names::emit_sweep::tests::a_full_revolves_axis_cavities_are_named` |
+| 104 | 2, departure at an edge, plane/plane | `dsc_checks::a_thin_slab_counts_as_one_component` |
+| 100 | 2, departure at an edge, plane/cylinder | `band_closed_mixed_chain_names::a_rounded_plate_filleted_by_name_names_each_section_once` |
+| 90 | 2, `Budget(Depth)` | `names::emit_topo::touch_reread_rows::a_corner_held_as_several_result_vertices_is_a_fragment_at_each` |
+| 79 | 2, departure at a vertex, plane/plane | `emit_crossing_sense::a_corner_resting_on_a_face_is_the_corner_in_either_order` |
+| 63 | 2, departure at an edge, cylinder/plane | `names::emit_shell::tests::a_joined_edge_over_an_upstream_set_is_one_flat_set` |
+| 47 | 2, departure at an edge, sphere/sphere | `mesh` `chords::tests::each_arm_of_the_rule_answers_its_lanes_lattice` |
+| 37 | 2, departure at an edge, plane/torus | `band_mixed_corner_names::the_brackets_mixed_corners_name_each_entity_once_and_keep_their_names` |
+
+Next: window not a finite rectangle on a cylinder (37,
+`mesh` `lift_probes::the_spline_section_bodies_read_lifts_that_close`),
+second order cylinder/cylinder (35,
+`a_blend_refusal_names_its_edge::a_knife_edge_refusal_names_the_edge_by_its_stable_name`).
+
+### Outside the workspace
+
+- **The tour walk**: 8 of its 86 stops refuse somewhere in their build
+  (against 26 of 85 bodies at the gate row's first measure): `bracket`
+  (departure, plane/cylinder edge), `budfillet` (departure, sphere/sphere
+  edge), `teapotvessel` (departure, torus/plane edge), `projectbox`
+  (`Budget(Pairs)`), and `bench`, `bench60`, `bench90` (crossings
+  between solids, class 3). The MC chain's 20,000 samples: 1,026 cross
+  between links (10-solid bodies, class 3). The lily, the heatsinks, the
+  snowman bodies, `klein_bulb` and `diepips` hold in the walk.
+- **The tour suite**: 15 of 106 fail: the three `eps_regression` tour
+  rows and `bracket`'s stop (the bracket's edge), `chaintol`'s three rows,
+  `certified_cells` and `gallery` (the chain, class 3), `projectbox`'s two
+  rows and `review_blend2_r1_probes::p5` (`Budget(Pairs)`), the two
+  `snowman` rows with a head moved off the axis (departure, sphere edges),
+  `teapot`'s wall walk (torus/plane edge), `verbs_teapot_r2_probes`' two
+  rows (window not a finite rectangle, cylinder), `lily::verbs_gate_r1_probes::wall7_…`
+  (departure, sphere edge), and `lily::review_probes::the_spine_curl_wall_re_measured`
+  (a wall crossing itself: class 1 or 2, not traced).
+- **`demos/wild`**: 2 of its 8 cells refuse, both departure at a vertex:
+  `805_slide_switch` (plane/plane) and `nist_ftc_09_asme1_rd`
+  (cylinder/cone).
+- **`tools/tess-meter`**: 2 of 36 fail
+  (`a_public_door_mints_the_removed_refusal`: departure, edge;
+  `r2_overflow_edge_needle_cone`: `Budget(Pairs)`).
+
+### The price
+
+Summed per ask, in the workspace run: 247,480 asks, 27,344 s of gate
+(15,171 s on the 233,719 that held; 12,173 s on the 13,761 that refused or
+crossed). The suite took 8,786 s wall on 4 cores. By binary (seconds of
+test time, of which the gate):
+
+| binary | tests | test time | gate | gate on refusals |
+|---|---:|---:|---:|---:|
+| `sweep::all` | 3,718 | 22,758 | 20,255 | 10,672 |
+| `editor-core::all` | 3,034 | 5,883 | 4,404 | 260 |
+| `viewer::all` | 1,027 | 1,154 | 1,025 | 108 |
+| `mesh::all` | 282 | 1,236 | 1,024 | 756 |
+| `step-import::all` | 236 | 357 | 276 | 177 |
+| `topo::all` | 1,256 | 350 | 126 | 70 |
+| `step-export::all` | 60 | 35 | 29 | 0 |
+
+So the gate is about 90% of `sweep::all`'s and 75% of `editor-core::all`'s
+test time: every intermediate finish asks, not only the doors' final
+bodies. Two `review_d2_adv_probes` rows run 50 minutes each, nearly all of
+it the gate (3,467 asks, 635 refusing, many at `Budget(Pairs)` after 10 s
+each). The tour walk: 24,258 asks, 706 s of gate in a 2,002 s release walk.
