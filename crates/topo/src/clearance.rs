@@ -6081,6 +6081,163 @@ mod depth_rows {
         }
     }
 
+    /// Reviewer probe (PR 7119): random pairs of trimmed cylinder wall
+    /// sheets, each in its own body. Where the depth gap reads the pair
+    /// apart by more than `c`, no sampled pair of points is nearer than
+    /// `c`; and the pair is never read apart by more than the sampled
+    /// least distance.
+    #[test]
+    fn review_probe_no_wall_pair_is_read_apart_past_its_sampled_distance() {
+        use geom_core::{Point3, Vec3};
+        struct Lcg(u64);
+        impl Lcg {
+            fn next(&mut self) -> f64 {
+                self.0 = self
+                    .0
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+            }
+            fn sym(&mut self) -> f64 {
+                2.0 * self.next() - 1.0
+            }
+            fn unit(&mut self) -> Vec3<f64> {
+                loop {
+                    let v = Vec3::new(self.sym(), self.sym(), self.sym());
+                    let n = v.norm();
+                    if n > 0.2 && n < 1.0 {
+                        return v * (1.0 / n);
+                    }
+                }
+            }
+        }
+        let band = band();
+        let at = Interval::from_f64;
+        let mut rng = Lcg(0x7119);
+        let (mut parted, mut crossing_near, mut draws) = (0usize, 0usize, 0usize);
+        let far = std::env::var("REVIEW_FAR")
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        for i in 0..600 {
+            let axis = rng.unit();
+            let u_ref = axis.cross(rng.unit()).normalize();
+            let origin = Point3::new(far * rng.sym(), far * rng.sym(), far * rng.sym());
+            let ra = 0.3 + 1.5 * rng.next();
+            let fa = CylFrame {
+                origin,
+                axis,
+                radius: ra,
+                u_ref,
+            };
+            // The second wall: coaxial a thin or wide gap away, the axis
+            // nudged off or tilted, or a wall in general position.
+            let kind = i % 4;
+            let gap = match i % 3 {
+                0 => 1e-3 * rng.next(),
+                1 => 0.2 * rng.next(),
+                _ => 1e-7 * rng.next(),
+            };
+            let fb = match kind {
+                0 => CylFrame {
+                    radius: ra + gap,
+                    ..fa
+                },
+                1 => CylFrame {
+                    origin: origin + u_ref * (gap * 1.5 * rng.sym()) + axis * rng.sym(),
+                    radius: ra + gap,
+                    u_ref: (u_ref + axis.cross(u_ref) * rng.sym()).normalize(),
+                    ..fa
+                },
+                2 => {
+                    let tilt = (axis + u_ref * (0.01 * rng.sym())).normalize();
+                    CylFrame {
+                        origin,
+                        axis: tilt,
+                        radius: ra + gap,
+                        u_ref: tilt.cross(axis.cross(u_ref)).normalize(),
+                    }
+                }
+                _ => {
+                    let ax = rng.unit();
+                    CylFrame {
+                        origin: origin + rng.unit() * (2.0 * rng.next()),
+                        axis: ax,
+                        radius: 0.3 + 1.5 * rng.next(),
+                        u_ref: ax.cross(rng.unit()).normalize(),
+                    }
+                }
+            };
+            let span = |rng: &mut Lcg| {
+                let u0 = 0.1 + 2.0 * rng.next();
+                let v0 = rng.sym();
+                (
+                    (u0, u0 + 0.3 + 3.0 * rng.next()),
+                    (v0, v0 + 0.2 + 1.5 * rng.next()),
+                )
+            };
+            let (sa, sb) = (span(&mut rng), span(&mut rng));
+            let build = |frame: CylFrame, (us, vs): ((f64, f64), (f64, f64))| {
+                std::panic::catch_unwind(|| {
+                    let mut body = Body::<f64>::new();
+                    let f = cyl_wall_sheet(&mut body, frame, us, vs, Tol::witness());
+                    (body, f)
+                })
+                .ok()
+            };
+            let (Some((ba, ka)), Some((bb, kb))) = (build(fa, sa), build(fb, sb)) else {
+                continue;
+            };
+            let (Ok(wa), Ok(wb)) = (
+                window_of(&ba, ka, Which::First),
+                window_of(&bb, kb, Which::Second),
+            ) else {
+                continue;
+            };
+            draws += 1;
+            let sample = |f: &CylFrame, (us, vs): ((f64, f64), (f64, f64))| -> Vec<Point3<f64>> {
+                let n = 48;
+                let m = 12;
+                (0..=n)
+                    .flat_map(|a| {
+                        (0..=m).map(move |b| {
+                            f.at::<f64>(
+                                us.0 + (us.1 - us.0) * (a as f64) / (n as f64),
+                                vs.0 + (vs.1 - vs.0) * (b as f64) / (m as f64),
+                            )
+                        })
+                    })
+                    .collect()
+            };
+            let (pa, pb) = (sample(&fa, sa), sample(&fb, sb));
+            let least = pa
+                .iter()
+                .flat_map(|p| pb.iter().map(move |q| (*p - *q).norm()))
+                .fold(f64::INFINITY, f64::min);
+            let apart = |c: f64| {
+                certified_lift(|lift| apart_in_depth(&wa, &wb, at(c), band, lift)) == Some(true)
+                    || certified_lift(|lift| apart_in_depth(&wb, &wa, at(c), band, lift))
+                        == Some(true)
+            };
+            let zero = apart(0.0);
+            parted += usize::from(zero);
+            crossing_near += usize::from(least < 1e-2);
+            assert!(
+                !apart(least),
+                "draw {i} kind {kind}: read apart by more than the sampled least distance {least:e}\n{fa:?} {sa:?}\n{fb:?} {sb:?}"
+            );
+            assert!(
+                !(zero && least < 2.0 * crate::boxes::sweep_pad(band)),
+                "draw {i} kind {kind}: read apart with a sampled pair {least:e} apart"
+            );
+        }
+        println!("draws {draws}, read apart {parted}, sampled within 1e-2: {crossing_near}");
+        assert!(
+            draws > 300 && parted > 50,
+            "the probe draws and parts pairs"
+        );
+    }
+
     /// **Each face's depths are read in its own body.** The two walls
     /// in two bodies, the second after a wall of its own body's that
     /// the first body has no face for: the pair is apart in depth,

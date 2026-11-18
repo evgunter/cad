@@ -66,6 +66,7 @@ mod curves {
     pub mod n1r2_fixtures;
 }
 mod exact_q;
+mod review_depth_rounding;
 
 // ---- curves ----
 #[path = "curves/arc_window_adversarial.rs"]
