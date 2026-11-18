@@ -22,7 +22,7 @@
 //! ([`crate::cell_region`]); a window that IS its face (an iso-bounded
 //! NURBS patch) asks neither door, since every cell and station of it
 //! is on the face. Two faces' depths are read at `T` too, off their
-//! covers (`apart_in_depth`).
+//! covers (`parted_in_depth`).
 //!
 //! # Two questions, one subdivision
 //!
@@ -85,11 +85,11 @@
 //! [`SELF_INTERSECTION_GAP`] (`d`, the separation a cell pair that does
 //! not touch in M must classify strictly positive) on the cells' boxes,
 //! and, where the box margin is indeterminate, [`CLEARANCE_SUPPORT_GAP`]
-//! on a lower bound of the separation, which only discharges: the gap
-//! between the cells' supports along one direction and, for the
-//! injectivity question at a face pair's root, the gap between the two
+//! on the gap between the cells' supports along one direction, and at a
+//! face pair's root [`CLEARANCE_DEPTH_GAP`] on the gap between the two
 //! faces' depths about an axis, a centre or a core circle
-//! (`apart_in_depth`). Under the injectivity question a TOUCHING pair is
+//! (`parted_in_depth`): two lower bounds of the separation, which only
+//! discharge. Under the injectivity question a TOUCHING pair is
 //! decided instead by a local certificate ([`crate::injective`]), at
 //! that module's own sites. The
 //! cell and station verdicts the sweep asks for decide on
@@ -132,6 +132,7 @@ use crate::injective::{
     self, Axis, Boundary, Iso, Local, Near, Outcome, Piece, Rim, Shared, Use, full_turn,
 };
 use crate::live::{BoundaryMember, FaceView, proven};
+use crate::validate::definitely_positive;
 use lift::{Lift, certified_lift};
 
 /// The funnel site name of the clearance comparison — the separation
@@ -157,14 +158,22 @@ pub const SELF_INTERSECTION_GAP: &str = "self_intersection_gap";
 
 /// The funnel site name of the support comparison — a lower bound on
 /// the separation between two domain cells, read off their supports
-/// along one direction or, for the injectivity question at a face
-/// pair's root, off the two faces' depths about one site, minus the
-/// requested clearance (`0` for the strict question), in metres against
-/// the linear band. Only a
+/// along one direction, minus the requested clearance (`0` for the
+/// strict question), in metres against the linear band. Only a
 /// [`Sign::Positive`] is read here, and it discharges the pair under
 /// either bound: the comparand bounds the separation from below only,
 /// so a `Zero` here is no coincidence and no violation.
 pub const CLEARANCE_SUPPORT_GAP: &str = "clearance_support_gap";
+
+/// The funnel site name of the depth comparison — a lower bound on the
+/// separation between two faces, read off their depths about one site
+/// (the gap of [`crate::census::depth_gap`], less its pads), minus the
+/// requested clearance (`0` for the strict question), in metres against
+/// the linear band. Read as [`CLEARANCE_SUPPORT_GAP`] is: only a
+/// [`Sign::Positive`], which discharges the pair's root under either
+/// bound. Its own name, so the faces' depth margins and the cells'
+/// support margins are two populations.
+pub const CLEARANCE_DEPTH_GAP: &str = "clearance_depth_gap";
 
 /// How deep ONE cell pair may be subdivided before the engine refuses
 /// the rest of its subtree rather than refining it further.
@@ -2210,16 +2219,17 @@ where
             return ControlFlow::Continue(());
         }
         let mut r = self.read(pending, separation(&pair.a.enc, &pair.b.enc));
-        // **Apart in depth, or along a direction.** Where the boxes
-        // leave a reading indeterminate, the cells' supports may still
-        // put the pair clear of that bound, and so may the two faces'
-        // depths: a fact of the faces, the same at every cell, so read
-        // once, at the pair's root, and by the injectivity question
-        // alone.
-        let at_root = self.injective && pair.depth == 0;
+        // **Parted in depth, or apart along a direction.** Where the
+        // boxes leave a reading indeterminate, the cells' supports may
+        // still put the pair clear of that bound, and so may the two
+        // faces' depths. Those are a fact of the faces, the same at
+        // every cell, so they are read once: at the pair's root, the
+        // two windows whole, which is the one pair of a candidate no
+        // split has made (`depth` counts the splits above a pair).
+        let root = pair.depth == 0;
         let support = |c: Interval| {
-            let in_depth = || certified_lift(|lift| apart_in_depth(x, y, c, band, lift));
-            (at_root && in_depth() == Some(true)) || separated_by_support(pair, x, y, c, band)
+            (root && parted_in_depth(x, y, c, band, Interval::from_certified))
+                || separated_by_support(pair, x, y, c, band)
         };
         if let (Some(Reading::Undecided(source)), Some(lo)) = (&r.below, bound.lower())
             && !source.margin.is_invalid()
@@ -4210,37 +4220,34 @@ fn separated_by_support<T: Real>(
     })
 }
 
-/// **Whether two faces are apart in depth by more than `c`**: a gap
+/// **Whether two faces' depths part them by more than `c`**: a gap
 /// between the two faces' depths about an axis, a centre or a core
-/// circle one of them proposes ([`depth_gap::gaps_in_depth`], the
-/// census's reading of a pair no direction separates: nested walls, a
-/// tube inside a tube), minus `c`, decided [`Sign::Positive`] at
-/// [`CLEARANCE_SUPPORT_GAP`]. Such a gap bounds the separation of the
-/// faces from below, whatever the cells, so the injectivity question
-/// asks it of a face pair's root and discharges the root whole; like the
-/// supports' gap it bounds nothing from above, and no other sign is
-/// read.
+/// circle one of them proposes ([`depth_gap::gaps_in_depth`]: nested
+/// walls, a tube inside a tube, a pair no direction separates), minus
+/// `c`, definitely positive at [`CLEARANCE_DEPTH_GAP`] (audit row F17).
+/// Such a gap bounds the separation of the two faces from below, so it
+/// clears a lower bound and an upper one alike; it bounds nothing from
+/// above, and no other sign is read.
 ///
 /// The depths are read off the faces' covers at the lane scalar, as
-/// the cells' regions are, and the gap is less the census's pad for
-/// what a cover does not charge. Each gap read is crossed by `lift`.
-fn apart_in_depth<T: Decide>(
+/// the cells' regions are, with no rounding charged
+/// (`[simple.conditioned]`), and each gap is less the pads
+/// [`depth_gap`] takes off it, as the census reads it. `lift` crosses a
+/// gap to the bracket it is compared in; a gap that does not certify
+/// clears nothing, since the funnel refuses its margin.
+fn parted_in_depth<T: Decide>(
     x: &Window<'_, T>,
     y: &Window<'_, T>,
     c: Interval,
     band: Band,
-    lift: Lift<'_, T>,
+    lift: impl Fn(T) -> Interval,
 ) -> bool {
     let read = |w: &Window<'_, T>| depth_gap::face_read(w.body, w.face, band);
     let (Some(rx), Some(ry)) = (read(x), read(y)) else {
         return false;
     };
-    depth_gap::gaps_in_depth((x.body, x.face, &rx), (y.body, y.face, &ry), band).any(|gap| {
-        matches!(
-            decide(CLEARANCE_SUPPORT_GAP, Margin::of(lift.of(gap) - c), band),
-            Ok(Sign::Positive)
-        )
-    })
+    depth_gap::gaps_in_depth((x.body, x.face, &rx), (y.body, y.face, &ry), band)
+        .any(|gap| definitely_positive(CLEARANCE_DEPTH_GAP, lift(gap) - c, band))
 }
 
 /// **What a cell's support along a direction is read off**: the
@@ -5951,7 +5958,7 @@ mod depth_rows {
 
     use super::{
         BoundVerdict, Budgets, Cell, CellPair, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep,
-        Which, Window, apart_in_depth, certified_lift, separated_by_support, window_of,
+        Which, Window, parted_in_depth, separated_by_support, window_of,
     };
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use crate::{Body, FaceKey};
@@ -6002,16 +6009,23 @@ mod depth_rows {
     /// mid-span. Of the first and the last the question does not hold.
     /// Red where the root's depth gap is not asked (the pair then spends
     /// the row's 128 pairs), where the gap is read by its sign rather
-    /// than against the band, or where the bound is not taken off it.
+    /// than against the band, where a margin of zero is read as parting,
+    /// where the bound is not taken off it, or where a gap that does not
+    /// certify parts the pair.
     #[test]
     fn walls_a_thin_gap_apart_are_apart_at_their_root_and_only_off_the_band() {
         let band = band();
         let in_band = 0.5 * (band.zero() + band.escalate());
         let at = Interval::from_f64;
         let apart = |wa: &Window<'_, f64>, wb: &Window<'_, f64>, c: f64| {
-            certified_lift(|lift| apart_in_depth(wa, wb, at(c), band, lift))
-                .expect("every gap certifies")
+            parted_in_depth(wa, wb, at(c), band, Interval::from_certified)
         };
+        // The gap the reading takes its bound off, as `depth_gap`
+        // computes it: the walls' radii apart, less both faces' pads.
+        // Written out here so that a change to the pad reds this row,
+        // which is the certificate's guard on a number it does not own.
+        let pads = 2.0 * crate::boxes::sweep_pad(band);
+        let padded_gap = 1.001 - 1.0 - pads;
         let read = |b: CylFrame| {
             let (body, fa, fb) = walls(CylFrame::canonical(1.0), b);
             let window = |f| window_of(&body, f, Which::First).expect("a wall has a window");
@@ -6023,17 +6037,23 @@ mod depth_rows {
                 fresh: false,
             };
             (
-                [0.0, 5e-4, 1e-3 - in_band].map(|c| apart(&wa, &wb, c)),
+                [0.0, 5e-4, 1e-3 - in_band, padded_gap].map(|c| apart(&wa, &wb, c)),
                 separated_by_support(pair, &wa, &wb, at(0.0), band),
                 injective(&body, [fa, fb]),
+                parted_in_depth(&wa, &wb, at(0.0), band, crate::test_support_fixtures::trv),
             )
         };
 
-        let (parted, along, report) = read(CylFrame::canonical(1.001));
+        let (parted, along, report, uncertified) = read(CylFrame::canonical(1.001));
         assert_eq!(
             parted,
-            [true, true, false],
-            "a gap of 0.001, against 0, 0.0005 and the gap"
+            [true, true, false, false],
+            "a gap of 0.001, against 0, 0.0005, the gap less half the band, and the padded gap \
+             itself, a margin of zero"
+        );
+        assert!(
+            !uncertified,
+            "a gap whose crossing does not certify parts nothing"
         );
         assert!(
             !along,
@@ -6050,7 +6070,7 @@ mod depth_rows {
             report.receipt
         );
 
-        let past_the_pads = 2.0 * crate::boxes::sweep_pad(band) + in_band;
+        let past_the_pads = pads + in_band;
         for (what, other, never_holds) in [
             (
                 "a gap in the band",
@@ -6071,8 +6091,8 @@ mod depth_rows {
                 true,
             ),
         ] {
-            let (parted, _, report) = read(other);
-            assert_eq!(parted, [false; 3], "{what}: not apart in depth");
+            let (parted, _, report, _) = read(other);
+            assert_eq!(parted, [false; 4], "{what}: not apart in depth");
             assert!(
                 !(never_holds && matches!(report.verdict, BoundVerdict::Holds)),
                 "{what}: the question does not hold: {:?}",
@@ -6081,13 +6101,17 @@ mod depth_rows {
         }
     }
 
-    /// Reviewer probe (PR 7119): random pairs of trimmed cylinder wall
-    /// sheets, each in its own body. Where the depth gap reads the pair
-    /// apart by more than `c`, no sampled pair of points is nearer than
-    /// `c`; and the pair is never read apart by more than the sampled
-    /// least distance.
+    /// **No wall pair is parted in depth past its sampled distance.**
+    /// 600 pairs of trimmed cylinder wall sheets, each in its own body:
+    /// coaxial a thin or a wide gap apart, the axis nudged off or
+    /// tilted, or in general position. No pair is parted by more than
+    /// the least distance between 49 × 13 points of each, and none is
+    /// parted at all with two of those points within the pads. The
+    /// draws are one fixed stream: the row is the review's probe of PR
+    /// 7119 kept as it was run, and its floor (over 300 pairs drawn,
+    /// over 50 parted) says the stream still reaches the reading.
     #[test]
-    fn review_probe_no_wall_pair_is_read_apart_past_its_sampled_distance() {
+    fn no_wall_pair_is_parted_in_depth_past_its_sampled_distance() {
         use geom_core::{Point3, Vec3};
         struct Lcg(u64);
         impl Lcg {
@@ -6115,14 +6139,10 @@ mod depth_rows {
         let at = Interval::from_f64;
         let mut rng = Lcg(0x7119);
         let (mut parted, mut crossing_near, mut draws) = (0usize, 0usize, 0usize);
-        let far = std::env::var("REVIEW_FAR")
-            .ok()
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(0.0);
         for i in 0..600 {
             let axis = rng.unit();
             let u_ref = axis.cross(rng.unit()).normalize();
-            let origin = Point3::new(far * rng.sym(), far * rng.sym(), far * rng.sym());
+            let origin = Point3::new(0.0, 0.0, 0.0);
             let ra = 0.3 + 1.5 * rng.next();
             let fa = CylFrame {
                 origin,
@@ -6215,9 +6235,8 @@ mod depth_rows {
                 .flat_map(|p| pb.iter().map(move |q| (*p - *q).norm()))
                 .fold(f64::INFINITY, f64::min);
             let apart = |c: f64| {
-                certified_lift(|lift| apart_in_depth(&wa, &wb, at(c), band, lift)) == Some(true)
-                    || certified_lift(|lift| apart_in_depth(&wb, &wa, at(c), band, lift))
-                        == Some(true)
+                parted_in_depth(&wa, &wb, at(c), band, Interval::from_certified)
+                    || parted_in_depth(&wb, &wa, at(c), band, Interval::from_certified)
             };
             let zero = apart(0.0);
             parted += usize::from(zero);
@@ -6238,14 +6257,18 @@ mod depth_rows {
         );
     }
 
-    /// **Each face's depths are read in its own body.** The two walls
-    /// in two bodies, the second after a wall of its own body's that
-    /// the first body has no face for: the pair is apart in depth,
-    /// either way round. Red where one body reads both faces.
+    /// **Each face's depths are read in its own body, under a metric
+    /// bound as under the strict one.** The two walls in two bodies,
+    /// the second after walls of its own body's that the first body has
+    /// no face for: the pair is parted in depth, either way round, and
+    /// the two-body sweep answers at the root, `≥ 0.0005` holding and
+    /// `≤ 0.0005` exceeded with no split. Red where one body reads both
+    /// faces, or where a metric bound is not asked the depth gap (each
+    /// then spends the row's 128 pairs).
     #[test]
-    fn walls_in_two_bodies_are_each_read_in_their_own() {
+    fn walls_in_two_bodies_are_each_read_in_their_own_under_either_bound() {
         let (inner, fa, _) = walls(CylFrame::canonical(1.0), CylFrame::canonical(3.0));
-        let (outer, _, fb) = {
+        let (outer, fb) = {
             let mut body = Body::<f64>::new();
             let mut wall = |r| {
                 cyl_wall_sheet(
@@ -6257,7 +6280,7 @@ mod depth_rows {
                 )
             };
             let faces = [wall(5.0), wall(7.0), wall(1.001)];
-            (body, faces[0], faces[2])
+            (body, faces[2])
         };
         assert!(
             inner.faces().all(|(k, _)| k != fb),
@@ -6265,11 +6288,44 @@ mod depth_rows {
         );
         let wa = window_of(&inner, fa, Which::First).expect("a wall has a window");
         let wb = window_of(&outer, fb, Which::Second).expect("a wall has a window");
+        let at = Interval::from_f64;
         for (x, y) in [(&wa, &wb), (&wb, &wa)] {
-            assert_eq!(
-                certified_lift(|lift| apart_in_depth(x, y, Interval::from_f64(0.0), band(), lift)),
-                Some(true),
+            assert!(
+                parted_in_depth(x, y, at(0.0), band(), Interval::from_certified),
                 "walls 0.001 apart, each in its own body"
+            );
+        }
+        let side = |body, face| Side {
+            body,
+            faces: vec![face],
+        };
+        let (a, b) = (side(&inner, fa), side(&outer, fb));
+        let xa = a.windows(Which::First).expect("a wall has a window");
+        let xb = b.windows(Which::Second).expect("a wall has a window");
+        for (bound, holds) in [
+            (ClearanceBound::AtLeast(at(5e-4)), true),
+            (ClearanceBound::AtMost(at(5e-4)), false),
+        ] {
+            let sweep = Sweep {
+                bound,
+                band: band(),
+                budgets: Budgets {
+                    max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                    max_cell_pairs: 128,
+                },
+            };
+            let report: super::BoundReport<()> =
+                sweep.run(&xa, &xb, false, |_| Err("no witness".to_owned()));
+            assert_eq!(
+                (
+                    matches!(report.verdict, BoundVerdict::Holds),
+                    matches!(report.verdict, BoundVerdict::Exceeded),
+                    report.receipt.splits
+                ),
+                (holds, !holds, 0),
+                "{bound:?} answers at the root: {:?} {:?}",
+                report.verdict,
+                report.receipt
             );
         }
     }

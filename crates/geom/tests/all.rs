@@ -65,8 +65,8 @@ mod curves {
     pub mod meter_fixture;
     pub mod n1r2_fixtures;
 }
+mod depth_gap_rounding;
 mod exact_q;
-mod review_depth_rounding;
 
 // ---- curves ----
 #[path = "curves/arc_window_adversarial.rs"]

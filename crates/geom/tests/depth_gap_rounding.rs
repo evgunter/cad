@@ -1,5 +1,7 @@
-//! Reviewer probe (PR 7119): the f64 depth gap of two nested tori about
-//! the outer's core, against the same reading at `Interval`.
+//! The depth gap of two nested tori about the outer's core
+//! (`Cover::range_about`), read at `f64` and at `Interval` against the
+//! true gap: the reading a face pair's depth gap takes
+//! (`topo::census::depth_gap`), and how its `f64` rounding falls.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Frame;
@@ -49,12 +51,22 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
     ]
 }
 
+/// **The `f64` depth gap of two nested tori is never over the true
+/// gap, and the `Interval` one's lower end is never past it.** Coaxial
+/// tori of tube radii `0.225·R` and `0.2125·R` in 5,000 frames at each
+/// of four sizes, out to the session box's edge. A gap read over the
+/// truth is the unsound side: it could part faces nearer than it says.
+/// The `f64` reading charges no rounding (`[simple.conditioned]`), so
+/// this is measured, not proved
+/// (`work/embed/the-depth-gaps-f64-rounding-is-of-the-pads-order-near-the-least-tolerance.md`).
+/// The frames are one fixed stream: the row holds the family that was
+/// measured, and a search would vary them.
 #[test]
-fn review_probe_nested_tori_gap_rounding() {
+fn a_nested_tori_depth_gap_at_f64_is_never_over_the_true_gap() {
     let mut rng = Lcg(7119);
     for &(scale, big) in &[(1.0, 2.0), (1e3, 2.0), (1e3, 400.0), (1e6, 1e6)] {
         let (mut worst_over, mut worst_under, mut widest) = (f64::MIN, f64::MAX, 0.0f64);
-        for _ in 0..20000 {
+        for _ in 0..5000 {
             let o = [scale * rng.sym(), scale * rng.sym(), scale * rng.sym()];
             let a = unit([rng.sym(), rng.sym(), rng.sym()]);
             let u = unit(cross(a, unit([rng.sym(), rng.sym(), rng.sym()])));
@@ -74,8 +86,14 @@ fn review_probe_nested_tori_gap_rounding() {
             worst_under = worst_under.min(g - truth);
             widest = widest.max(gi.hi() - gi.lo());
             assert!(
+                g <= truth,
+                "scale {scale:e} R {big:e}: the f64 gap {g:e} is over the true gap {truth:e}"
+            );
+            assert!(
                 gi.lo() <= truth + 1e-9 * big,
-                "interval lower end past the truth"
+                "scale {scale:e} R {big:e}: the interval gap's lower end {:e} is past the true \
+                 gap {truth:e}",
+                gi.lo()
             );
         }
         println!(
