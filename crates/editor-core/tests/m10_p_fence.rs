@@ -352,13 +352,13 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
 ///
 /// RE-TAKEN when the carriers held their frames as rigid motions
 /// (`work/onehome/carrier-frames-the-types-and-the-lift.md`). Against
-/// its merge base every node's outcome and kind held and 346 enclosure
-/// bounds moved, in 190 coordinates of `die_pips` (2), `die_tool` (12),
-/// `die_composed` (2), `die_composed_tour` (126), `tube_arc` (16) and
+/// its merge base every node's outcome and kind held and 96 enclosure
+/// bounds moved, in 48 coordinates of `tube_arc` (16) and
 /// `hollow_tube_elbow` (32), each by at most `2.67e-15`, every one of
-/// them wider and containing the base's: a frame squared at the scalar
-/// is an enclosure of the rotation it states, where the base read its
-/// three vectors as points. The `f64` fence above did not move.
+/// them wider and containing the base's: the tube's frames squared at
+/// the scalar are enclosures of the rotations they state, where the base
+/// read their three vectors as points. The `f64` fence above did not
+/// move.
 #[test]
 fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};
@@ -377,7 +377,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xbcc2_c88f_3f85_6897, 0x07b8_d7f4_28fd_508b),
+        (0xd079_10f9_3b56_2ffa, 0x6c4b_05bb_b430_84de),
         "the corpus's Interval evaluation moved"
     );
 }

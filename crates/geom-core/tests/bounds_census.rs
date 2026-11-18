@@ -203,10 +203,11 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/geom-brep/src/ssi/certify.rs",
-        subject: "frame_direction",
+        subject: "brackets",
         why: Payload(
-            "a composite form's frame direction read at its midpoint and its turn bound, both \
-             f64 payloads the hull charges",
+            "a frame direction's components read as brackets for `frame_direction`: its \
+             midpoint and its turn bound, f64 payloads the composite's hull charges and the \
+             chart tube's partner form reads its structure from",
         ),
     },
     Site {

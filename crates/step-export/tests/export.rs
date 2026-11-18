@@ -432,6 +432,19 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// a point fitted to the cap's corners; a bottom cap's normal is spelled
 /// `(-0.0, -0.0, -1.0)`, the station's normal negated; `swept_elbow`'s end
 /// cap frame is its turned station's. No vertex, edge or wall moved.
+///
+/// **Regenerated when the carriers held their frames as rigid motions**
+/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): 34 lines in
+/// two fixtures, every one a `DIRECTION`, and no point, vertex or edge.
+/// `composed_die`'s 33 are its blend faces' frames, squared from their
+/// two directions where they were stored as computed: a component a
+/// rounding short of one reads `1.0` (21) and a `-0.0` reads `0.0` (12).
+/// `lily_lantern`'s 1 is the axis of its angle-π meridian off the axis,
+/// now its turned placement's own frame, whose axis carries the half
+/// turn's `sin π` (`-1.2246467991473532E-16`) where it was the sketch
+/// normal negated, paired with that placement's direction (a pair a
+/// rounding off square). `swept_elbow` drifts from its file at the merge
+/// base too, unchanged here, and is not regenerated.
 #[test]
 fn committed_fixtures_are_byte_golden() {
     for (name, body) in common::fixture_corpus() {

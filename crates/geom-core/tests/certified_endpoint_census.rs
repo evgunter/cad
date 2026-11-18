@@ -545,11 +545,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        27,
+        28,
         4,
         "the 4 that ask are the chart tube's span-hull window (`chart_tube_windows` refuses \
          either window hull by name before padding it — a refused hull is NaI, and its NaN ends \
-         name no window). The other 21 are `T: Bounds` reads on the evaluation scalar and not \
+         name no window). The other 24 are `T: Bounds` reads on the evaluation scalar and not \
          certification endpoints at all — blind spot 1: `nurbs_limbs`' 5 are its projection \
          seeds, limb 1's at each sample and the image-miss tell's at a refusing break, a \
          parameter the foot search starts from (structure; the carried distance stays honest \
@@ -560,9 +560,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `probe_tube_pair`'s 8 are its reads of the two pcurves, their tangents (a direction the \
          probe refuses unless positive finite) and their end states (where an end's slice is \
          cut, structure), `exact`'s 2 and `analytic_limbs`' 1 are the same kind of \
-         evaluation read, and `frame_direction`'s 2 read a composite form's frame component, \
-         a NaN end or a width past rounding answering no direction (a refused bracket's NaN \
-         ends fail its width test, so it names none)",
+         evaluation read, `brackets`' 2 read a frame component for `frame_direction`, a NaN \
+         end or a width past rounding answering no direction (a refused bracket's NaN ends \
+         fail its width test, so it names none), and `FrameCharge::over`'s 1 is the upper end \
+         of its turn times reach read on the interval scalar from point brackets of `f64` \
+         payloads, finite or NaN, so it certifies or answers NaN, which no band admits",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
@@ -615,11 +617,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/section.rs", 5, 5, ""),
     (
         "crates/geom-core/src/interval.rs",
-        39,
-        8,
-        "the type's own body. The 8 that ask are the two refusal doors (`certified_bracket`, \
-         `sign_within`, 2 each) and the directed helpers `certified_hi`, `div_down`, `div_up` \
-         and `add_up` (1 each). The other 26 are not certification reads at all — blind spot 1: \
+        41,
+        10,
+        "the type's own body. The 10 that ask are the two refusal doors (`certified_bracket`, \
+         `sign_within`, 2 each), the directed helpers `certified_hi`, `div_down`, `div_up` \
+         and `add_up` (1 each), and `meet_readings`' intersection (2), which refuses an \
+         uncertified reading by name before reading the meet's ends. The other 26 are not certification reads at all — blind spot 1: \
          they are the evaluation scalar's own implementation reads of the `DInterval` it wraps \
          (the `Bounds` forwarders, `repr_bits`, `copysign`, the kink selectors, the two \
          `select_le_zero` arms, and `is_bounded`'s endpoint finiteness, which only refuses: a \
