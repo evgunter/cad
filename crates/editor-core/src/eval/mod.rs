@@ -5758,6 +5758,7 @@ mod tag {
             CARRIED = 10,
             SLIDE = 11,
             SPIN = 12,
+            FACE_CHART = 13,
         }
         /// The role a pose read reads through
         /// ([`crate::pose::PoseRole`]), a plain read's included.

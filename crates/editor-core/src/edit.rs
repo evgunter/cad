@@ -7548,6 +7548,53 @@ impl Recording<'_, crate::ProfileProgram> {
         })
     }
 
+    /// **A profile drawn on a face** (D10 `[placement]`;
+    /// `REFERENCES.md` DM1): `loops` drawn on the face's chart, the frame
+    /// a plane placement onto `face` of `body` gives under `on`'s
+    /// orientation, spin and slides
+    /// ([`crate::pose::PoseDef::FaceChart`]), tracing `on`'s faces of
+    /// that body's space, as one profile node in that space. Nothing is
+    /// placed. An orientation `None` is the one nearest the face, the
+    /// frame's `z` along its outward normal, read off the face as it
+    /// stands under `opts` and written into the recipe; a face that does
+    /// not read takes the identity, which the chart then judges. A sweep
+    /// of the profile by a signed depth is a boss above the face or a
+    /// pocket's tool into it.
+    ///
+    /// # Errors
+    ///
+    /// The insert door's refusal.
+    pub fn draw_on_face(
+        &mut self,
+        body: crate::BodyRead<Formula>,
+        face: crate::StableName,
+        loops: Vec<crate::LoopProgram<Formula>>,
+        on: OnFace,
+        (opts, cancel): (&crate::EvalOptions, &crate::CancelToken),
+    ) -> Result<RecipeNodeId, EditError> {
+        let OnFace {
+            orient,
+            spin,
+            slides,
+            traced,
+        } = on;
+        let orient = orient.unwrap_or_else(|| self.nearest_to_face(&body, &face, opts, cancel));
+        let frame = crate::Operand::Pose(Box::new(crate::pose::PoseDef::FaceChart {
+            face: crate::Operand::select(body, vec![face]),
+            orient,
+            spin,
+            slides,
+        }));
+        self.insert(Node::Profile(crate::ProfileProgram {
+            loops,
+            ids: Vec::new(),
+            on: Some(crate::DrawnOn {
+                frame,
+                faces: traced,
+            }),
+        }))
+    }
+
     /// **Add `mate` to `placement`'s bundle, as a gesture**: the edit
     /// [`DocEdit::AddConstraint`] writes, with the slides it leaves read
     /// off the copy's geometry rather than filled in axis order. The
@@ -7665,10 +7712,11 @@ impl Recording<'_, crate::ProfileProgram> {
         Ok(minted)
     }
 
-    /// **The orientation nearest where a sketch on `face` of `body`
+    /// **The orientation nearest where a profile on `face` of `body`
     /// stands**: the profile's `z` along the face's outward normal, read
     /// off the face as it stands now under `opts`; the identity where
-    /// the face does not read.
+    /// the face does not read. The one home of a drawn-on-face gesture's
+    /// orientation ([`Self::draw_on_face`]).
     fn nearest_to_face(
         &self,
         body: &crate::BodyRead<Formula>,
@@ -7758,6 +7806,89 @@ pub fn sketch_on_face(
         edits,
         maintenance,
         sketched,
+    })
+}
+
+/// **Where a profile drawn on a face stands on it**
+/// ([`Recording::draw_on_face`]): its chart's orientation (`None` the
+/// one nearest the face), its spin about the face's outward normal and
+/// its two slides ([`crate::pose::PoseDef::FaceChart`]), and the faces
+/// of the face's body's space it traces ([`crate::DrawnOn::faces`]).
+#[derive(Debug, Clone)]
+pub struct OnFace {
+    /// The orientation, `None` for the one nearest the face.
+    pub orient: Option<crate::Orientation>,
+    /// The spin (Angle).
+    pub spin: Formula,
+    /// The two slides (Length), along the target axes the orientation
+    /// leaves ([`crate::mate::face_chart_slides`]).
+    pub slides: [Formula; 2],
+    /// The traced faces: `Face` selections of the face's body's space.
+    pub traced: Vec<crate::Operand>,
+}
+
+impl OnFace {
+    /// **At the face's chart's zero**: the nearest orientation, every
+    /// value the constant `0`, tracing nothing.
+    #[must_use]
+    pub fn nearest() -> Self {
+        Self {
+            orient: None,
+            spin: Formula::zero(crate::expr::Dimension::Angle),
+            slides: [
+                Formula::zero(crate::expr::Dimension::Length),
+                Formula::zero(crate::expr::Dimension::Length),
+            ],
+            traced: Vec::new(),
+        }
+    }
+}
+
+/// [`fn@draw_on_face`]'s outcome: the action applied, and the profile
+/// it inserted.
+#[derive(Debug)]
+pub struct DrawnOnFace {
+    /// The document the action produced.
+    pub doc: Doc<crate::ProfileProgram>,
+    /// The edits that produce `doc` from the start.
+    pub edits: Vec<DocEdit<crate::ProfileProgram>>,
+    /// The maintenance they reported.
+    pub maintenance: Vec<Maintenance>,
+    /// The profile, drawn on the face's chart.
+    pub profile: RecipeNodeId,
+}
+
+/// **A profile drawn on a face, as one action**
+/// ([`Recording::draw_on_face`]): the door the library and the viewer
+/// both draw on a face through.
+///
+/// # Errors
+///
+/// The insert door's refusal; the document is untouched.
+#[allow(clippy::too_many_arguments)] // the gesture and its document
+pub fn draw_on_face(
+    doc: &Doc<crate::ProfileProgram>,
+    body: crate::BodyRead<Formula>,
+    face: crate::StableName,
+    loops: Vec<crate::LoopProgram<Formula>>,
+    on: OnFace,
+    opts: &crate::EvalOptions,
+    cancel: &crate::CancelToken,
+    tol: Tol,
+) -> Result<DrawnOnFace, EditError> {
+    let mut action = Recording::start(doc, tol);
+    let profile = action.draw_on_face(body, face, loops, on, (opts, cancel))?;
+    let Recorded {
+        doc,
+        edits,
+        maintenance,
+        ..
+    } = action.finish()?;
+    Ok(DrawnOnFace {
+        doc,
+        edits,
+        maintenance,
+        profile,
     })
 }
 

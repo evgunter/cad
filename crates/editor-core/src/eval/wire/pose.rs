@@ -408,6 +408,26 @@ fn definition<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             let first = pose(read)?;
             in_frame(first.frame, flip(first.value, b)?)
         }
+        // The chart a plane placement onto the face gives, in the face's
+        // space: the face's plane read as a placement's target reads it.
+        PoseDef::FaceChart {
+            face,
+            orient,
+            spin,
+            slides: [a, c],
+        } => {
+            let to = read_off(doc, (results, env), slot, *face, K::Plane, b)?.in_its_space(b)?;
+            let angle = (
+                scalar(*spin, crate::expr::Dimension::Angle)?,
+                env.turns.get(spin).copied(),
+            );
+            let slides = [
+                scalar(*a, crate::expr::Dimension::Length)?,
+                scalar(*c, crate::expr::Dimension::Length)?,
+            ];
+            let chart = crate::mate::value::face_chart(to, *orient, angle, slides, b, tol)?;
+            in_frame(Frame::Own, PoseValue::Frame(chart))
+        }
         // The pose as its copy carries it: its frame moved by the motion
         // the copy's placement solved to, the pose itself unchanged.
         PoseDef::Carried { copy, pose: read } => {
@@ -803,7 +823,15 @@ fn walk<T: Decide>(
                 PoseDef::Meet { .. } => arm::MEET,
                 PoseDef::Flip { .. } => arm::FLIP,
                 PoseDef::Carried { .. } => arm::CARRIED,
+                PoseDef::FaceChart { .. } => arm::FACE_CHART,
             }));
+            // A face's chart's orientation, by where the frame's x and z
+            // lie, as a mate's is keyed.
+            if let PoseDef::FaceChart { orient, .. } = def {
+                for axis in [orient.x(), orient.z()] {
+                    out.push(PoseWord::Tag(crate::eval::axis_word(axis)));
+                }
+            }
             for (_, &read, role, _) in def.reads() {
                 out.push(PoseWord::Tag(role_word(role)));
                 walk(doc, (seat, read), ports, env, nominal, out)?;
