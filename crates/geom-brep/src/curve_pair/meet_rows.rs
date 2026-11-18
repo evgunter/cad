@@ -2863,3 +2863,69 @@ fn a_candidate_with_a_window_read_at_its_point_is_a_desync() {
         "{got:?}"
     );
 }
+
+/// **A pose read with the spans swapped reads the pair at the first
+/// carrier's point.** A circle's arc and a line segment, the circle
+/// first (the meet oracle's draw 49 under seed `0x1738ccf5186d46b7`): the
+/// pose reads the line against the circle's plane, so its polished pair
+/// comes back flipped, its point the line's. Read as a pair, the gap is
+/// from the first carrier's point at its parameter to the second's, so
+/// the pair's point is the circle's: every meeting found lies on both
+/// carriers within the band's zero, in either order. Read at the line's
+/// point, the pair's gap reads zero from that point to itself, and a
+/// meeting lies `3.4·10⁻⁹` off the circle.
+#[test]
+fn a_pose_read_with_the_spans_swapped_reads_the_pair_at_the_first_carriers_point() {
+    let circle = Curve3::Circle(geom::Circle::new(
+        geom::Frame::new(
+            Point3::new(
+                0.133_145_488_046_633_8,
+                -2.074_020_603_639_783_5,
+                -3.302_042_264_002_020_4,
+            ),
+            Vec3::new(
+                -0.657_131_251_160_850_5,
+                0.592_632_918_800_665,
+                0.465_794_742_672_756_9,
+            ),
+            Vec3::new(
+                -0.715_945_656_916_274_5,
+                -0.297_411_903_979_507_73,
+                -0.631_639_118_258_209_2,
+            ),
+        ),
+        0.776_092_476_588_328_4,
+    ));
+    let line = Curve3::line(
+        Point3::new(
+            2.151_062_836_563_022,
+            -1.868_833_724_593_999_4,
+            -3.663_965_499_381_238_3,
+        ),
+        Vec3::new(
+            -0.876_296_707_642_925,
+            0.058_777_680_981_946_19,
+            0.478_172_839_455_101_75,
+        ),
+    );
+    let (a, b) = (
+        Span::new(&circle, (-3.411_413_515_132_779, -2.298_345_592_838_532)),
+        Span::new(&line, (0.460_055_357_913_058_6, 3.084_883_767_727_332_4)),
+    );
+    for (order, got) in [
+        ("circle first", meet(&a, &b, band())),
+        ("line first", meet(&b, &a, band())),
+    ] {
+        let found = match &got {
+            Ok(m) => &m.points,
+            Err(r) => &r.found,
+        };
+        for m in found {
+            let off = distance(&circle, m.point).max(distance(&line, m.point));
+            assert!(
+                off <= band().zero(),
+                "{order}: a meeting {off:e} off a carrier: {got:?}"
+            );
+        }
+    }
+}
