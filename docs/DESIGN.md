@@ -1508,9 +1508,11 @@ the placement's own code computes it, so the two cannot differ: its z
 is the face's outward normal, and its x and origin are the space's
 under the orientation the gesture writes nearest the face, carried
 onto the face by the least turn, then turned by the written spin and
-moved by the two written slides ([placement.values]). Within the band
-about that orientation's pole it refuses, naming the orientation to
-write, as a placement does. Nothing about the face's cells chooses it:
+moved by the two written slides ([placement.values]). The frame alone
+decides nothing: what stands in it, each sweep of the profile and the
+faces the profile traces, is carried by the placement's own fold over
+its own reach, as a placement's copy is, and within the band about
+the orientation's pole it refuses, naming the orientation to write. Nothing about the face's cells chooses it:
 a sketch that should sit at a corner says so in its slides. The sketch
 may trace faces of that space ("Constructing a coincidence"): a profile
 on a face is one act whether or not it traces, and a sweep of it is
@@ -1649,7 +1651,8 @@ turn has no answer, and within the band about that one pole the chart
 refuses, typed at evaluation and naming the orientation to write, as
 a construction refuses at its degenerate values. The band is where the
 least turn's answer is not determined at ε: its chord from the pole,
-levered by the bundle's arm (written slides included), is within the
+levered by the reach of what the turn carries (a copy, or what stands
+in a face's chart; written slides included), is within the
 run's band, or its lever on its own two directions, twice the arm over
 that chord, passes the run's rounding reach (`crates/geom-core/README.md`,
 "Float rounding"). So no edit that keeps the face outside that band
