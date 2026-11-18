@@ -640,6 +640,9 @@ impl<'a, T: Decide> Span<'a, T> {
                     k_stats::splice(record);
                     false
                 }
+                // Undecided apart from the end, the foot is held there:
+                // the held arm's answers rest on the chord or the walk,
+                // never on the order.
                 Err(_) => {
                     k_stats::splice_superseded(record);
                     true

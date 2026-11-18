@@ -357,11 +357,7 @@ fn a_foot_held_at_an_enclosing_end_reads_past_by_its_chord_and_walk() {
 /// ring missed its volumes on that).
 #[test]
 fn a_foot_far_inside_the_span_reads_past_by_the_walk() {
-    let c = Curve3::Ellipse(geom::Ellipse::new(
-        geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
-        10.0,
-        1.0,
-    ));
+    let c = steep_ellipse();
     let (t0, t1) = (PI / 2.0 - 0.5, PI / 2.0 + 0.6);
     let span = Span::new(&c, (t0, t1));
     let q = c.eval(-PI / 2.0);
@@ -373,6 +369,81 @@ fn a_foot_far_inside_the_span_reads_past_by_the_walk() {
         foot.gap()
     );
     assert_eq!(place(span.place(q, -PI / 2.0, band())), "past");
+}
+
+fn steep_ellipse() -> Curve3<f64> {
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+        10.0,
+        1.0,
+    ))
+}
+
+/// **A far foot inside the span keeps its place where the walk does not
+/// clear the point** (`Span::far_inside`): on a polyline U whose branches
+/// lie 0.5 m apart, over its whole span, the point at the top branch's
+/// middle, seeded at the bottom branch's middle, has its foot there, a
+/// stationary point inside the span 0.5 m away, both ends farther. The
+/// point is on the span, so the walk over the span does not clear it,
+/// and the foot's place stands: `Inside`. Red where a far foot reads past
+/// on its gap alone.
+#[test]
+fn a_far_foot_keeps_its_place_where_the_walk_does_not_clear_the_point() {
+    let points = vec![
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(2.0, 0.0, 0.0),
+        Point3::new(2.0, 0.5, 0.0),
+        Point3::new(0.0, 0.5, 0.0),
+    ];
+    let c = Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(
+                vec![0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0],
+                1,
+            )
+            .unwrap(),
+            points,
+            vec![1.0; 4],
+        )
+        .unwrap(),
+    ));
+    let span = Span::new(&c, (0.0, 1.0));
+    let q = Point3::new(1.0, 0.5, 0.0);
+    let foot = span.foot(q, 1.0 / 6.0);
+    assert!(
+        (foot.seed() - 1.0 / 6.0).abs() < 1e-9 && foot.gap() > 0.4,
+        "the foot is on the bottom branch: {} at {}",
+        foot.seed(),
+        foot.gap()
+    );
+    assert_eq!(place(span.place(q, 1.0 / 6.0, band())), "inside");
+}
+
+/// **A far foot inside the span keeps its place where the whole carrier
+/// does not read the point on** (`Span::far_inside`): the carrier's
+/// point at the bottom vertex, moved three zeros off the carrier, into
+/// the band's gap, read over the span about the top vertex. The walk
+/// clears it, 2 m from the span, but the whole carrier's reading
+/// escalates, so the foot's place stands: `Inside`. Red where an
+/// undecided carrier is read as on it.
+#[test]
+fn a_far_foot_keeps_its_place_where_the_carrier_is_undecided() {
+    let c = steep_ellipse();
+    let (t0, t1) = (PI / 2.0 - 0.5, PI / 2.0 + 0.6);
+    let span = Span::new(&c, (t0, t1));
+    let q = c.eval(-PI / 2.0) - Vec3::unit_y() * (3.0 * ZERO);
+    let foot = span.foot(q, -PI / 2.0);
+    assert!(
+        foot.seed() > t0 && foot.seed() < t1 && foot.gap() > 1.0,
+        "the foot is inside the span, far from the point: {} at {}",
+        foot.seed(),
+        foot.gap()
+    );
+    assert!(
+        c.on_carrier(q, -PI / 2.0, band()).is_err(),
+        "the whole carrier escalates"
+    );
+    assert_eq!(place(span.place(q, -PI / 2.0, band())), "inside");
 }
 
 /// **A circle's foot is its nearest point, so its `Past` stands**: a
