@@ -321,6 +321,20 @@ pub mod test_support {
 
     use crate::body::Body;
 
+    /// **Whether each pose of a sphere face holds `point` in the extent
+    /// it grants**: one entry per pose about an off-axis circle of the
+    /// face, `None` where that pose grants none. `None` overall where the
+    /// face does not lift. The containment pins of the posed extent read
+    /// it.
+    #[must_use]
+    pub fn posed_extents_holding<T: geom_core::Decide + geom_core::CertifiedBounds>(
+        body: &Body<T>,
+        face: crate::FaceKey,
+        point: [f64; 3],
+    ) -> Option<Vec<Option<bool>>> {
+        crate::clearance::posed_extents_holding(body, face, point)
+    }
+
     /// The at-rest window's reasons for an incidence refusal, one per
     /// read (`validate::incidence_reasons`): a test outside this crate
     /// reads them rather than copying their words.

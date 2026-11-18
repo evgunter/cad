@@ -815,7 +815,7 @@ snowman refuses at its waist vertices, where each ball's half-band
 meridian (a coordinate line of the stored chart) meets the waist circle
 (a parallel only of its own pose). No chart reads both as lines, so the
 refusal is the row's next remainder, `stuck` at once; pinned by
-`a_snowman_with_its_head_off_the_axis_refuses_at_once_at_its_waist`.
+`a_snowman_with_its_head_off_the_axis_refuses_at_its_waist`.
 The leftovers of the gate's 47 sphere/sphere refusals were not re-run
 here (the gate is not on main); its named bodies on the tour
 (`budfillet`, `lily`) do not move.

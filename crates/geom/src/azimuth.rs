@@ -283,6 +283,39 @@ impl Quarter {
     }
 }
 
+impl Azimuth<geom_core::Interval> {
+    /// **The angle of an enclosed direction, read about the direction of
+    /// its middle**: with `θ` the angle of the components' middles (a
+    /// point read, at `f64`), the pair turned back by `θ` — its component
+    /// along `θ` and across it, by `θ`'s enclosed sine and cosine — and
+    /// `θ` plus the turned pair's angle. The sector is decided here: the
+    /// turned pair's along component must be certified positive, so the
+    /// read is in the open half-plane `θ` faces, within a quarter turn of
+    /// `θ`, and so narrower than half a turn. `None` otherwise: a box
+    /// that reaches the origin, or one wider than that half-plane. The
+    /// ask is what keeps the read off `atan2`'s cut: an enclosure over the
+    /// cut reads a certified full-turn hull, which this never returns.
+    ///
+    /// [`Azimuth::about`] reads about a whole number of quarter turns,
+    /// exactly, with its branch decided by the caller; this reads about
+    /// the direction's own middle, deciding the branch itself, for an
+    /// enclosure whose spread a quarter-turn centre could leave straddling
+    /// its half-plane.
+    pub fn about_middle(self) -> Option<geom_core::Interval> {
+        use geom_core::{Bounds, Interval};
+        let mid = |x: Interval| geom_core::mid_param(x.lo(), x.hi());
+        let theta = Interval::from_f64(mid(self.y).atan2(mid(self.x)));
+        let (s, c) = theta.sin_cos();
+        let along = self.x * c + self.y * s;
+        let across = self.y * c - self.x * s;
+        if !(along.is_certified() && along.lo() > 0.0) {
+            return None;
+        }
+        let out = theta + across.atan2(along);
+        out.is_certified().then_some(out)
+    }
+}
+
 impl<T: Decide> Azimuth<T> {
     /// The principal angle in the angle window ([`Window::Angle`],
     /// `principal_in`): `atan2`'s, read on whichever side of the
