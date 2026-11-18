@@ -31,7 +31,7 @@ specified in `docs/PATHS-DESIGN.md` and is not restated here.
 | Structure record for guided replay (V2, V3) | `crates/profile/src/structure.rs` |
 | Validation ladder, canonical form (V6) | `crates/profile/src/validate.rs`, `seg.rs` |
 | The v1-form → program lift tool (V5) | `crates/profile/src/lift.rs` |
-| Expr-bearing program, slots, authoring-time check (V2, V4) | `crates/editor-core/src/program.rs`, `node.rs` |
+| Expr-bearing program, slots, the value-free door check (V2, V4) | `crates/editor-core/src/program.rs`, `node.rs` |
 | Persisted form (V4) | `crates/editor-core/src/program.rs` (serde derives), `crates/editor-core/src/persist/wire.rs` (`plane_ref`) |
 | Evaluation: resolve, replay, validate, naming anchor (V2, V3) | `crates/editor-core/src/eval/mod.rs`, `eval/wire.rs`, `eval/anchor.rs` |
 

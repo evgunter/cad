@@ -2207,20 +2207,34 @@ fn as_is(ids: &[StepId]) -> Vec<Option<StepId>> {
 /// A reshaping's keep map, built from the document it reshapes.
 type KeepMap = dyn Fn(&ProfileDoc, RecipeNodeId) -> Vec<Vec<Option<StepId>>>;
 
-/// A reshaping's report measured against resolution. `old`, extruded,
-/// sits beside a bystander profile; every candidate name of both
-/// ([`held_candidates`]) is hung; the profile is reshaped to `new`
-/// with the keep map `keep` builds. The report must be exactly:
-/// every held name on a step the edit drops, and every held name on a
-/// kept step that resolved before and does not after — and nothing on
-/// the bystander, nothing that still resolves, nothing on a kept step
-/// that did not resolve before. Answers how many names it reported.
+/// What [`report_matches_resolution`] counted: the names the
+/// reshaping reported, and the held names it left `Vanished` by a value
+/// alone and rightly did not report.
+#[derive(Debug, Clone, Copy)]
+struct Report {
+    reported: usize,
+    by_value: usize,
+}
+
+/// A reshaping's report measured against resolution, under DM7's rule
+/// that a report is what the programs' STRUCTURE takes, never what a
+/// value leaves undrawn. `old`, extruded, sits beside a bystander
+/// profile; every candidate name of both ([`held_candidates`]) is
+/// hung; the profile is reshaped to `new` with the keep map `keep`
+/// builds. Every reported name is on a step the edit drops, or resolved
+/// before and does not after, and none is on the bystander. Every held
+/// name that is gone (on a dropped step, or resolved before and not
+/// after) is reported, unless a value took it: one of its pieces the
+/// new structure can draw ([`ProfileProgram::structure`]) and the new
+/// program does not draw at the document's values
+/// ([`ProfileProgram::pieces`], the replay's own answer). Nothing that
+/// still resolves is reported.
 fn report_matches_resolution(
     label: &str,
     old: Vec<LoopProgram<Formula>>,
     new: Vec<LoopProgram<Formula>>,
     keep: &KeepMap,
-) -> usize {
+) -> Report {
     let (doc, profile, ext) = extruded(label, old);
     let (doc, _, bystander) = extrude_of(doc, vec![corner_at(false, (10.0, 10.0), 1.0, 0.5)]);
     let held = held_candidates(&doc, profile, ext);
@@ -2247,6 +2261,28 @@ fn report_matches_resolution(
     let applied = set_program(&doc, profile, new, ids)
         .unwrap_or_else(|e| panic!("{label}: the reshaping is accepted: {e:?}"));
     let after = resolves(&applied.doc);
+    let Some(Node::Profile(program)) = applied.doc.node(profile) else {
+        panic!("{label}: the profile is still a profile")
+    };
+    let drawn: std::collections::BTreeSet<ProfileEdgeRef> = program
+        .pieces(&applied.doc.var_env::<f64>(), tol())
+        .unwrap_or_else(|e| panic!("{label}: the new program replays at its values: {e}"))
+        .edges
+        .into_iter()
+        .flatten()
+        .collect();
+    let by_value: Vec<String> = program
+        .structure()
+        .unwrap_or_else(|e| panic!("{label}: the new program walks: {e}"))
+        .into_iter()
+        .flatten()
+        .filter(|p| !drawn.contains(p))
+        .map(|p| format!("{p:?}"))
+        .collect();
+    let undrawn_by_value = |n: &StableName| {
+        let spelled = format!("{n:?}");
+        by_value.iter().any(|p| spelled.contains(p.as_str()))
+    };
     // Beside its strands, a reshaping retires the anonymous variables
     // the arguments it rewrote were written in, which names nothing.
     let reported: std::collections::BTreeSet<StableName> = applied
@@ -2280,15 +2316,23 @@ fn report_matches_resolution(
             "{label}: a reported name on a kept step resolved before: {n:?}"
         );
     }
+    let mut left = 0;
     for n in &held {
         let gone = on_dropped(n) || (before.contains(n) && !after.contains(n));
+        if gone && !reported.contains(n) && !on_dropped(n) && undrawn_by_value(n) {
+            left += 1;
+            continue;
+        }
         assert_eq!(
             reported.contains(n),
             gone,
             "{label}: a held name is reported exactly when the edit took its referent: {n:?}"
         );
     }
-    reported.len()
+    Report {
+        reported: reported.len(),
+        by_value: left,
+    }
 }
 
 /// **Inserting a fillet after a kept leg joins the leg's wall into a
@@ -2356,17 +2400,11 @@ fn a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported() {
     }
 }
 
-/// **Moving a fillet off a corner reports exactly what resolution
-/// says it took**: before the move the bottom wall is the run of the
-/// leg and the fillet's run in; the moved fillet's run in fits `Zero`
-/// at these values, which is a value and no removal, so the door, which
-/// compares what each program's structure can draw, reports no name on
-/// it. Broken by a strand report that reads the values (it reports
-/// `Lateral([run in])`, a name that never resolved).
-#[test]
-fn a_fillet_moved_off_a_corner_reports_what_resolution_says_it_took() {
-    report_matches_resolution(
-        "fillet moved",
+/// The corner fillet moved to the top-right corner, its incoming leg a
+/// `line(rise)` up the right side; `rise = 1.5` puts the run in at a
+/// `Zero` fit.
+fn fillet_moved(rise: f64) -> (Vec<LoopProgram<Formula>>, Vec<LoopProgram<Formula>>) {
+    (
         vec![corner(true)],
         vec![LoopProgram::Chain(vec![
             ProgramStep::At(len2([0.0, 0.0])),
@@ -2375,7 +2413,7 @@ fn a_fillet_moved_off_a_corner_reports_what_resolution_says_it_took() {
                 dx: scl(0.0),
                 dy: scl(1.0),
             },
-            ProgramStep::Line(len(1.5)),
+            ProgramStep::Line(len(rise)),
             ProgramStep::Fillet(len(0.5)),
             ProgramStep::Toward {
                 dx: scl(-1.0),
@@ -2385,10 +2423,48 @@ fn a_fillet_moved_off_a_corner_reports_what_resolution_says_it_took() {
             ProgramStep::Line(len(1.5)),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
-        &|d, p| {
-            let o = &ids_of(d, p)[0];
-            let k = |i: usize| Some(o[i]);
-            vec![vec![k(0), None, k(4), None, k(3), None, k(5), k(6), k(8)]]
+    )
+}
+
+fn fillet_moved_keep(d: &ProfileDoc, p: RecipeNodeId) -> Vec<Vec<Option<StepId>>> {
+    let o = &ids_of(d, p)[0];
+    let k = |i: usize| Some(o[i]);
+    vec![vec![k(0), None, k(4), None, k(3), None, k(5), k(6), k(8)]]
+}
+
+/// **A fillet moved where its run in fits `Zero` reports nothing for
+/// that run**: the moved fillet's structure still draws its run in, and
+/// the value leaves it undrawn, so the bottom wall's name goes
+/// `Vanished` with no report. Broken by a strand report that reads the
+/// values (it reports `Lateral([run in])`, a name that never resolved).
+#[test]
+fn a_fillet_moved_to_a_zero_fit_leaves_its_run_in_to_the_value() {
+    let (old, new) = fillet_moved(1.5);
+    let n = report_matches_resolution("fillet moved, zero fit", old, new, &fillet_moved_keep);
+    assert!(
+        n.by_value > 0,
+        "the run in is left undrawn by its value: {n:?}"
+    );
+}
+
+/// **A fillet moved off a corner breaks the run its run in was part
+/// of, unreported.** Pinned red on
+/// `work/doctail/a-reshaping-that-joins-a-kept-piece-into-a-run-reports-nothing.md`:
+/// before the move the bottom wall is the run of the leg and the
+/// fillet's run in; moved where the run in fits `Positive`, the run in
+/// is drawn on the right side, so `Lateral([leg, run in])` names
+/// nothing, and the door, which compares pieces and not runs, does not
+/// report it.
+#[test]
+fn a_fillet_moved_off_a_corner_breaks_its_run_unreported() {
+    test_utils::pinned_red::row(
+        tol().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "a fillet moved to another corner",
+        &["a held name is reported exactly when the edit took its referent"],
+        || {
+            let (old, new) = fillet_moved(1.0);
+            report_matches_resolution("fillet moved", old, new, &fillet_moved_keep);
         },
     );
 }
@@ -2403,7 +2479,7 @@ fn a_fillet_moved_off_a_corner_reports_what_resolution_says_it_took() {
 /// hole's count up and down; a run's midpoint moved; and the identity.
 /// Inserting a fillet after a kept leg and moving one to another corner
 /// are their own pinned rows ([`a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported`],
-/// [`a_fillet_moved_off_a_corner_reports_what_resolution_says_it_took`]).
+/// [`a_fillet_moved_off_a_corner_breaks_its_run_unreported`]).
 /// The rows that leave a kept piece undrawn must report it, so a door
 /// that reported only dropped steps is red here.
 #[test]
@@ -2514,21 +2590,34 @@ fn a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes() {
             vec![vec![k(0), k(1), None, k(3), None, k(4), k(5), k(6)]]
         },
     );
-    // A kept piece left undrawn is reported on these rows, so a door
-    // blind to undrawn kept pieces cannot pass by reporting nothing.
-    for label in [
-        "insert off the director, the bottom leg dropped",
-        "value 0.3->2",
-        "value 1->2",
-        "split 4->3",
-    ] {
-        let (_, n) = counts
+    let counted = |label: &str| {
+        counts
             .iter()
             .find(|(l, _)| l == label)
-            .unwrap_or_else(|| panic!("row {label} ran"));
+            .map(|(_, n)| *n)
+            .unwrap_or_else(|| panic!("row {label} ran"))
+    };
+    // A kept piece the new structure cannot draw is reported on these
+    // rows, so a door blind to undrawn kept pieces cannot pass by
+    // reporting nothing.
+    for label in [
+        "insert off the director, the bottom leg dropped",
+        "split 4->3",
+    ] {
         assert!(
-            *n > 0,
-            "{label}: the reshaping reports a kept piece it stops drawing"
+            counted(label).reported > 0,
+            "{label}: the reshaping reports a kept piece its structure stops drawing"
+        );
+    }
+    // These rows' new values leave a run undrawn, a `Zero` fit: a held
+    // name goes `Vanished` and is not reported, so a door that read
+    // the values cannot pass here.
+    for label in ["value 0.3->2", "value 1->2"] {
+        let n = counted(label);
+        assert_eq!(n.reported, 0, "{label}: a value reports nothing");
+        assert!(
+            n.by_value > 0,
+            "{label}: a held name is left undrawn by the value: {n:?}"
         );
     }
 }

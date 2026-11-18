@@ -1523,6 +1523,13 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
         radius: T,
         tol: Tol,
     ) -> Result<(), PathError<T>> {
+        // A plain point is a fillet's open arrival anchor after
+        // `fillet(r).at(p)`: an incoming arc authored from it would
+        // claim that arrival a second time, as an `arc_to` leg would.
+        super::order::arc_leg_leaves_no_open_fillet(
+            self.core.pending.is_some(),
+            super::order::site::ARC_FILLET,
+        )?;
         let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
             site: "fused arc incoming on a tip without a position",
         })?;

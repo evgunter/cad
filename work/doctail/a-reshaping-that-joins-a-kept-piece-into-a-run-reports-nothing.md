@@ -53,16 +53,16 @@ this row:
 `edit_set_program::a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported`
 (insert, one pinned row per sub-case: four radii and scales on one
 loop, and either loop of two) and
-`edit_set_program::a_fillet_moved_off_a_corner_reports_a_run_piece_that_never_resolved`.
+`edit_set_program::a_fillet_moved_off_a_corner_breaks_its_run_unreported`.
 
-**The moved-fillet row is lifted (the value-free door, after #7075).**
-The strand report now compares what each program's structure can
-draw. In that row the moved fillet's run in fits `Zero` at the row's
-values, so the report no longer names it, and
-`report_matches_resolution` holds. The row is now an ordinary test,
-`a_fillet_moved_off_a_corner_reports_what_resolution_says_it_took`.
-A run that a moved fillet breaks at generic values is still this row's
-to report.
+**The moved-fillet row, after #7075's value-free door.** The strand
+report compares what each program's structure can draw, so the row's
+first form, whose moved run in fits `Zero` at its values, now reports
+nothing for that run: a value left it undrawn
+(`a_fillet_moved_to_a_zero_fit_leaves_its_run_in_to_the_value`). The
+run break is this row's at a radius where the run in fits `Positive`:
+`edit_set_program::a_fillet_moved_off_a_corner_breaks_its_run_unreported`,
+pinned red here.
 
 ## Done when
 

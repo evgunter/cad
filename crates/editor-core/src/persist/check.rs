@@ -2252,14 +2252,13 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
 /// than by a second spelling that reached profile nodes alone.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramFault {
-    /// The program is not a legal lattice walk (LIB-SWITCH §4h: the
-    /// replay PROBE under the document's params refused with the
-    /// Transition class — no authoring surface can record this).
-    /// Geometry refusals, resolve failures and validate refusals
-    /// ([`crate::ProgramRefusal::Validate`] — a bowtie loop, even one
-    /// drawn in literals the insert door refuses) deliberately PASS
-    /// this door: they are V1 class 2, legal at rest, surfaced as
-    /// typed node errors at evaluation (the validate class as
+    /// The program is not a legal lattice walk
+    /// ([`crate::ProgramRefusal::Transition`]): no authoring surface
+    /// records this. Geometry refusals, resolve failures and validate
+    /// refusals ([`crate::ProgramRefusal::Validate`] — a bowtie loop,
+    /// even one drawn in literals) deliberately PASS this door: they
+    /// are V1 class 2, legal at rest, surfaced as typed node errors at
+    /// evaluation (the validate class as
     /// [`crate::NodeErrorKind::Profile`]).
     Lattice {
         /// The offending loop.
@@ -2272,6 +2271,21 @@ pub enum ProgramFault {
         /// The ill-typed verb (`None` for end-of-program).
         verb: Option<profile::Verb>,
     },
+    /// The steps walk the lattice, and the replay refuses their order
+    /// at every value ([`crate::ProgramRefusal::Order`]).
+    Order {
+        /// The offending loop.
+        loop_: u32,
+        /// The offending step.
+        step: u32,
+        /// Which refusal.
+        kind: profile::PathErrorKind,
+        /// The replay's own sentence for it.
+        rendered: String,
+    },
+    /// A step found from the pen is no run where it stands
+    /// ([`crate::ProgramRefusal::Trace`]).
+    Pen(Box<crate::trace::TraceRefusal>),
 }
 
 // The lattice arm is the sentence [`crate::ProgramRefusal::Transition`]
@@ -2286,12 +2300,20 @@ impl core::fmt::Display for ProgramFault {
                 state,
                 verb,
             } => crate::program::write_lattice(f, *loop_, *step, *state, *verb),
+            Self::Order {
+                loop_,
+                step,
+                rendered,
+                ..
+            } => write!(f, "loop {loop_} step {step}: {rendered}"),
+            Self::Pen(refusal) => write!(f, "{refusal}"),
         }
     }
 }
 
 /// The first program fault in the document's profile nodes (module
-/// docs): a lattice violation, read off the program alone
+/// docs): a step order the program's shape refuses at every value,
+/// read off the program alone
 /// ([`ProfileProgram::lattice`](crate::ProfileProgram::lattice)).
 fn first_program_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, ProgramFault)> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
@@ -2313,7 +2335,23 @@ fn first_program_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, ProgramFa
                     verb,
                 },
             )),
-            _ => None,
+            Err(ProgramRefusal::Order {
+                loop_,
+                step,
+                kind,
+                rendered,
+            }) => Some((
+                id,
+                ProgramFault::Order {
+                    loop_,
+                    step,
+                    kind,
+                    rendered,
+                },
+            )),
+            Err(ProgramRefusal::Trace(refusal)) => Some((id, ProgramFault::Pen(Box::new(refusal)))),
+            Ok(()) => None,
+            Err(other) => unreachable!("the lattice refuses only a step order: {other:?}"),
         }
     })
 }

@@ -1871,6 +1871,7 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
     match err {
         ProgramRefusal::Resolve { .. } => "resolve",
         ProgramRefusal::Transition { .. } => "transition",
+        ProgramRefusal::Order { .. } => "order",
         ProgramRefusal::Geometry { .. } => "geometry",
         ProgramRefusal::Validate(_) => "validate",
         ProgramRefusal::Unminted => "unminted",
@@ -2045,6 +2046,8 @@ pub fn resolve_fault_tag(fault: &pncad::document::ResolveFault) -> &'static str 
 pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
     match fault {
         ProgramFault::Lattice { .. } => "lattice",
+        ProgramFault::Order { .. } => "order",
+        ProgramFault::Pen(_) => "pen",
     }
 }
 

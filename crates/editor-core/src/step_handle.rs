@@ -194,7 +194,7 @@ impl StepShape {
         }
     }
 
-    fn of_program<S>(step: &ProgramStep<S>) -> Self {
+    pub(crate) fn of_program<S>(step: &ProgramStep<S>) -> Self {
         match step {
             ProgramStep::At(_) => Self::At,
             ProgramStep::Angle(_) => Self::Angle,
@@ -217,6 +217,150 @@ impl StepShape {
             ProgramStep::FarEndTo(_) => Self::FarEndTo,
             ProgramStep::CloseTo => Self::CloseTo,
             ProgramStep::AlongTrace { .. } => Self::AlongTrace,
+        }
+    }
+}
+
+/// **How a step found from the pen lowers** ([`StepShape::pen_run`]):
+/// the one map from a pen step's shape to what `crate::trace` lowers it
+/// to, read by that lowering and by the door's lattice
+/// ([`ProfileProgram::lattice`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PenRun {
+    /// `along_trace`: a `toward` along the trace the step before ran
+    /// onto.
+    Heading,
+    /// `line_to` (`wants_director`) or `continue_to` to a trace or a
+    /// coordinate: a `line` along the pen's heading, ending on the
+    /// trace (`onto_trace`) or at the coordinate.
+    Leg {
+        /// Whether a director binds the heading (`line_to`), not the
+        /// incoming tangent (`continue_to`).
+        wants_director: bool,
+        /// Whether it ends on a trace's crossing.
+        onto_trace: bool,
+    },
+    /// `arc_to` about a centre onto a trace's crossing: the centre arc
+    /// to the point it crosses at.
+    Arc,
+    /// Any other step that reads a trace or a coordinate: not a run
+    /// (`TraceStepFault::NotARun`).
+    NotARun,
+}
+
+impl PenRun {
+    /// Whether the run ends on a trace, which an `along_trace` after it
+    /// reads.
+    pub(crate) fn reaches_a_trace(self) -> bool {
+        matches!(
+            self,
+            Self::Leg {
+                onto_trace: true,
+                ..
+            } | Self::Arc
+        )
+    }
+}
+
+impl TargetShape {
+    /// Whether the pen finds this target: a trace's crossing or a
+    /// written coordinate.
+    fn found_from_the_pen(self) -> bool {
+        matches!(self, Self::OnTrace | Self::AtX | Self::AtY)
+    }
+
+    /// The kernel's target form: a target found from the pen lowers to
+    /// the point it finds.
+    fn kernel(self) -> profile::TargetKind {
+        match self {
+            Self::Point | Self::OnTrace | Self::AtX | Self::AtY => profile::TargetKind::Point,
+            Self::Start => profile::TargetKind::Start,
+            Self::StartArriving => profile::TargetKind::StartArriving,
+        }
+    }
+}
+
+impl ArcShape {
+    fn target(self) -> Option<TargetShape> {
+        match self {
+            Self::Bulge(t) | Self::Via(t) | Self::Center(_, t) => Some(t),
+            Self::Radius(_) | Self::Sweep(_) | Self::ArcLen(_) => None,
+        }
+    }
+
+    fn kernel(self) -> profile::ArcForm {
+        let mode = match self {
+            Self::Radius(_) => profile::ArcMode::Radius,
+            Self::Bulge(_) => profile::ArcMode::Bulge,
+            Self::Via(_) => profile::ArcMode::Via,
+            Self::Center(..) => profile::ArcMode::Center,
+            Self::Sweep(_) => profile::ArcMode::Sweep,
+            Self::ArcLen(_) => profile::ArcMode::ArcLen,
+        };
+        profile::ArcForm {
+            mode,
+            target: self.target().map(TargetShape::kernel),
+        }
+    }
+}
+
+impl StepShape {
+    /// **How this step lowers from the pen**, where it reads a trace or
+    /// a written coordinate; `None` for every other step.
+    pub(crate) fn pen_run(self) -> Option<PenRun> {
+        let pen = |t: TargetShape| t.found_from_the_pen();
+        let arc_pen = |a: ArcShape| a.target().is_some_and(pen);
+        Some(match self {
+            Self::AlongTrace => PenRun::Heading,
+            Self::LineTo(t) if pen(t) => PenRun::Leg {
+                wants_director: true,
+                onto_trace: t == TargetShape::OnTrace,
+            },
+            Self::ContinueTo(t) if pen(t) => PenRun::Leg {
+                wants_director: false,
+                onto_trace: t == TargetShape::OnTrace,
+            },
+            Self::ArcTo(ArcShape::Center(_, TargetShape::OnTrace)) => PenRun::Arc,
+            Self::TangentArcTo(t) | Self::ArcOnto(t) if pen(t) => PenRun::NotARun,
+            Self::ArcTo(a) | Self::FilletArc(a) | Self::ArcFillet(a) if arc_pen(a) => {
+                PenRun::NotARun
+            }
+            Self::ArcFilletArc(a, b) if arc_pen(a) || arc_pen(b) => PenRun::NotARun,
+            _ => return None,
+        })
+    }
+
+    /// **This step as the kernel walks it**, values erased
+    /// ([`profile::chain_shape`]): a step found from the pen as the
+    /// verb its lowering gives it ([`StepShape::pen_run`]), every other
+    /// step as written.
+    #[must_use]
+    pub fn kernel(self) -> profile::StepForm {
+        use profile::StepForm as F;
+        match (self, self.pen_run()) {
+            (_, Some(PenRun::Heading)) => F::Toward,
+            (_, Some(PenRun::Leg { .. })) => F::Line,
+            (Self::At, _) => F::At,
+            (Self::Angle, _) => F::Angle,
+            (Self::Toward | Self::AlongTrace, _) => F::Toward,
+            (Self::Tangent, _) => F::Tangent,
+            (Self::Cusp, _) => F::Cusp,
+            (Self::Turn, _) => F::Turn,
+            (Self::Line, _) => F::Line,
+            (Self::LineTo(t), _) => F::LineTo(t.kernel()),
+            (Self::ContinueTo(t), _) => F::ContinueTo(t.kernel()),
+            (Self::ArcTo(a), _) => F::ArcTo(a.kernel()),
+            (Self::TangentArcTo(t), _) => F::TangentArcTo(t.kernel()),
+            (Self::ArcOnto(t), _) => F::ArcOnto(t.kernel()),
+            (Self::Fillet, _) => F::Fillet,
+            (Self::FilletArc(a), _) => F::FilletArc(a.kernel()),
+            (Self::ArcFillet(a), _) => F::ArcFillet(a.kernel()),
+            (Self::ArcFilletArc(a, b), _) => F::ArcFilletArc(a.kernel(), b.kernel()),
+            (Self::FarEndTo, _) => F::FarEndTo,
+            (Self::CloseTo, _) => F::CloseTo,
+            (Self::Circle, _) => F::Circle,
+            (Self::CircleSplit { n }, _) => F::CircleSplit { n },
+            (Self::Rectangle, _) => F::Rectangle,
         }
     }
 }

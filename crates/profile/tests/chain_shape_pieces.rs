@@ -1,5 +1,6 @@
 //! **A chain's shape draws what its replay draws.** For every chain of
-//! the census corpus and a set of fillet arrangements, the pieces
+//! the census corpus and a set of fillet arrangements (every fillet verb
+//! among the chains compared whole), the pieces
 //! `chain_shape` says the structure draws are the replay record's, in
 //! order, where every fillet's runs fit `Positive`; where one fits
 //! `Zero` the record draws a subset, and what it leaves out is that
@@ -146,9 +147,11 @@ fn a_chains_shape_draws_what_its_replay_draws() {
         .collect();
     chains.extend(arrangements().into_iter().map(|(n, s)| (n.to_owned(), s)));
     let (mut compared, mut subsets) = (0, 0);
+    let mut whole: Vec<profile::Verb> = Vec::new();
     for (name, steps) in &chains {
+        let forms: Vec<profile::StepForm> = steps.iter().map(Step::form).collect();
         let shape =
-            chain_shape(steps).unwrap_or_else(|f| panic!("{name}: the shape refuses {f:?}"));
+            chain_shape(&forms).unwrap_or_else(|f| panic!("{name}: the shape refuses {f:?}"));
         let (_, record) = replay_recording(steps, Tol::witness())
             .unwrap_or_else(|e| panic!("{name} does not replay: {e}"));
         let drawn: Vec<_> = record.pieces.clone();
@@ -158,6 +161,7 @@ fn a_chains_shape_draws_what_its_replay_draws() {
                 "{name}: the shape's pieces are the record's"
             );
             compared += 1;
+            whole.extend(steps.iter().map(Step::verb));
             continue;
         }
         subsets += 1;
@@ -181,4 +185,15 @@ fn a_chains_shape_draws_what_its_replay_draws() {
         compared >= 10 && subsets >= 1,
         "{compared} compared whole, {subsets} as subsets"
     );
+    for verb in [
+        profile::Verb::Fillet,
+        profile::Verb::FilletArc,
+        profile::Verb::ArcFillet,
+        profile::Verb::ArcFilletArc,
+    ] {
+        assert!(
+            whole.contains(&verb),
+            "a chain compared whole holds {verb:?}"
+        );
+    }
 }

@@ -2717,9 +2717,11 @@ test_utils::f6_variants! {
     /// door's own refusal over a persisted profile program. A step
     /// argument's KIND is not here: a program slot is a slot like any
     /// other, refused by the document-wide slot read walk
-    /// ([`SnapshotError::SlotVarKind`]), so what is left is the replay
-    /// probe's lattice coordinate.
-    const PROGRAM_FAULT: ProgramFault = [Lattice];
+    /// ([`SnapshotError::SlotVarKind`]), so what is left is the step
+    /// order the program's shape refuses: its lattice coordinate, an
+    /// order the replay refuses at every value, and a pen step that is
+    /// no run.
+    const PROGRAM_FAULT: ProgramFault = [Lattice, Order, Pen];
 }
 
 /// **A slot refusal addresses its slot in the slot vocabulary's own
@@ -2794,20 +2796,41 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
 /// those identifiers here would be this suite deciding a question
 /// settled the other way beside the code.
 #[test]
-fn a_program_fault_states_its_lattice_coordinate() {
-    let cases = [(
-        ProgramFault::Lattice {
-            loop_: 0,
-            step: 2,
-            state: profile::TipState::Entry,
-            verb: None,
-        },
-        vec![
-            "at loop 0 step 2",
-            "tip state Entry",
-            "without closing the loop",
-        ],
-    )];
+fn a_program_fault_states_where_its_step_order_fails() {
+    let order = profile::OrderFault::FarEndAnchorWithoutFillet;
+    let cases = [
+        (
+            ProgramFault::Lattice {
+                loop_: 0,
+                step: 2,
+                state: profile::TipState::Entry,
+                verb: None,
+            },
+            vec![
+                "at loop 0 step 2",
+                "tip state Entry",
+                "without closing the loop",
+            ],
+        ),
+        (
+            ProgramFault::Order {
+                loop_: 1,
+                step: 3,
+                kind: order.kind(),
+                rendered: order.to_string(),
+            },
+            vec!["loop 1 step 3", "no fillet is open here"],
+        ),
+        (
+            ProgramFault::Pen(Box::new(editor_core::TraceRefusal {
+                loop_: 0,
+                step: 4,
+                face: None,
+                fault: editor_core::TraceStepFault::NotARun,
+            })),
+            vec!["step 4"],
+        ),
+    ];
     assert_f6_every_variant(&cases, &PROGRAM_FAULT, &[]);
 }
 

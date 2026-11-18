@@ -1455,3 +1455,44 @@ fn a_traced_boss_rewritten_with_a_named_step_kept_is_admitted() {
         "a kept step's leg stays drawable, so nothing strands"
     );
 }
+
+/// **A traced boss that never closes refuses at the door**: its loop
+/// runs from the pen, and its step order is the door's to judge as any
+/// loop's is (`[recipe.doors]`), the pen steps as the verbs their trace
+/// lowering gives them. The `SetProgram` drops the closing
+/// `line_to(Start)`. Red if the door admits it, which evaluation would
+/// then refuse as a lattice violation no authoring surface records.
+#[test]
+fn a_traced_boss_that_never_closes_refuses_at_the_door() {
+    let scene = traced_boss(RADIUS, None, boss_steps());
+    let Some(Node::Profile(program)) = scene.doc.node(scene.footprint) else {
+        panic!("the footprint is a profile")
+    };
+    let mut steps = boss_steps();
+    steps.pop();
+    let mut keep = program.kept_in_place();
+    keep[0].pop();
+    match scene.doc.apply(
+        &DocEdit::SetProgram {
+            node: scene.footprint,
+            loops: vec![LoopProgram::Chain(steps)],
+            ids: keep,
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(editor_core::EditError::ProfileProgramRefused { refusal, .. }) => assert!(
+            matches!(
+                *refusal,
+                editor_core::ProgramRefusal::Transition {
+                    loop_: 0,
+                    step: 6,
+                    verb: None,
+                    ..
+                }
+            ),
+            "the chain ends unclosed after its six steps: {refusal:?}"
+        ),
+        other => panic!("the door refuses the unclosed traced loop, got {other:?}"),
+    }
+}

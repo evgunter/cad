@@ -398,14 +398,17 @@ fn a_loft_shape_refuses_at_the_doors_and_its_values_at_evaluation() {
         "the sentence: {err}"
     );
     // A section in the first one's plane stacks on nothing; after a
-    // section above it, it stacks backward.
-    let stacking = |kind: &editor_core::NodeErrorKind| {
+    // section above it, it stacks backward. Each names its slab.
+    let degenerate_at_slab_0 = |kind: &editor_core::NodeErrorKind| {
         matches!(
             kind,
-            editor_core::NodeErrorKind::Loft(
-                sweep::LoftError::DegenerateStacking { .. }
-                    | sweep::LoftError::ReversedStacking { .. }
-            )
+            editor_core::NodeErrorKind::Loft(sweep::LoftError::DegenerateStacking { slab: 0 })
+        )
+    };
+    let reversed_at_slab_1 = |kind: &editor_core::NodeErrorKind| {
+        matches!(
+            kind,
+            editor_core::NodeErrorKind::Loft(sweep::LoftError::ReversedStacking { slab: 1 })
         )
     };
     let degree = |kind: &editor_core::NodeErrorKind| {
@@ -420,7 +423,12 @@ fn a_loft_shape_refuses_at_the_doors_and_its_values_at_evaluation() {
     };
     type Refused<'a> = &'a dyn Fn(&editor_core::NodeErrorKind) -> bool;
     let valued: [(Sections, i64, Refused, &str); 4] = [
-        (vec![up(b, 0.0)], 1, &stacking, "a slide by nothing"),
+        (
+            vec![up(b, 0.0)],
+            1,
+            &degenerate_at_slab_0,
+            "a slide by nothing",
+        ),
         (
             vec![
                 up(c, 2.0),
@@ -433,13 +441,13 @@ fn a_loft_shape_refuses_at_the_doors_and_its_values_at_evaluation() {
                 ]),
             ],
             1,
-            &stacking,
+            &reversed_at_slab_1,
             "a slide and a spin within the plane",
         ),
         (
             vec![in_plane(vec![slide(Axis3::Z, 1.0), slide(Axis3::Z, -1.0)])],
             1,
-            &stacking,
+            &degenerate_at_slab_0,
             "a slide up and back",
         ),
         (

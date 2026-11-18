@@ -5543,13 +5543,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "program_fault_tag",
-        values: &["lattice"],
+        values: &["lattice", "order", "pen"],
         delegates: &[],
     },
     TagEntry {
         function: "program_refusal_tag",
         values: &[
             "geometry",
+            "order",
             "resolve",
             "step_ids",
             "trace",

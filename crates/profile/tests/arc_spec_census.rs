@@ -258,12 +258,13 @@ fn arc_specs_at_is_the_replays_spec_dispatch() {
 /// it, put after [`prefix`]: the shape refuses the last step exactly
 /// where the replay refuses it as a lattice violation, and where the
 /// replay lands the chain at a tip (or closes it) the shape lands it in
-/// the same state. A cell whose numbers refuse is the geometry's, and
+/// the same state; where the shape refuses the step's order, the
+/// replay refuses that step too. A cell whose numbers refuse is the geometry's, and
 /// says nothing about where the step lands; enough cells land for the
 /// comparison to cover every state the table can reach.
 #[test]
 fn chain_shape_lands_where_the_replay_lands() {
-    use profile::chain_shape;
+    use profile::{ShapeFault, ShapeFaultKind, StepForm, chain_shape};
     // Each prefix is a cell too: its last step is the way in.
     let mut cells: Vec<Vec<Step<f64>>> = every_state()
         .into_iter()
@@ -300,15 +301,32 @@ fn chain_shape_lands_where_the_replay_lands() {
     let mut landed = Vec::new();
     for steps in &cells {
         let at = steps.len() - 1;
-        let shape = chain_shape(steps);
-        let refused_here = matches!(shape, Err(f) if f.step == at && f.verb.is_some());
-        assert_eq!(
-            refused_here,
-            lattice_refuses(steps),
-            "{steps:?}: the shape {} the last step",
-            if refused_here { "refuses" } else { "admits" },
+        let forms: Vec<StepForm> = steps.iter().map(Step::form).collect();
+        let shape = chain_shape(&forms);
+        let lattice_here = matches!(
+            shape,
+            Err(ShapeFault { step, kind: ShapeFaultKind::Lattice { verb: Some(_) }, .. }) if step == at
         );
-        let replayed = match replay(steps, Tol::witness()) {
+        assert_eq!(
+            lattice_here,
+            lattice_refuses(steps),
+            "{steps:?}: the shape {} the last step on the lattice",
+            if lattice_here { "refuses" } else { "admits" },
+        );
+        let replayed = replay(steps, Tol::witness());
+        if let Err(ShapeFault {
+            step,
+            kind: ShapeFaultKind::Order(fault),
+            ..
+        }) = shape
+        {
+            assert!(
+                matches!(&replayed, Err(ReplayError { step: s, .. }) if *s == step),
+                "{steps:?}: the shape refuses {fault:?} at {step}, the replay {replayed:?}",
+            );
+            continue;
+        }
+        let replayed = match replayed {
             Ok(_) => TipState::Closed,
             Err(ReplayError {
                 step,
@@ -318,7 +336,11 @@ fn chain_shape_lands_where_the_replay_lands() {
         };
         let shaped = match shape {
             Ok(_) => TipState::Closed,
-            Err(f) if f.verb.is_none() && f.step == steps.len() => f.state,
+            Err(f)
+                if f.kind == (ShapeFaultKind::Lattice { verb: None }) && f.step == steps.len() =>
+            {
+                f.state
+            }
             Err(f) => {
                 panic!("{steps:?}: the replay lands at {replayed:?}, the shape refuses {f:?}")
             }
