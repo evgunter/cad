@@ -3169,7 +3169,6 @@ fn a_unit_cone_with_its_apex_off_the_origin_holds() {
     assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
     assert!(report.receipt.splits < 400, "{:?}", report.receipt);
 }
-
 /// **Review sweep (PR 7115): cone tips revolved off the origin, and their
 /// door cavities**, f64. The triangle with its apex on the axis at the
 /// top (`up`: `(0, y0) (r, y0) (0, y0 + h)`) or the bottom (`(0, y0 + h)
@@ -3246,4 +3245,255 @@ fn review_sweep_cone_tips_off_the_origin() {
         }
     }
     println!("SWEEP asked {n}");
+}
+
+/// **Review sweep, delta of PR 7115**: shapes the first sweep did not
+/// vary. It prints one line per case and asserts nothing.
+#[test]
+#[ignore = "review sweep: prints, asserts nothing"]
+fn review_sweep_delta_shapes() {
+    use crate::common::latitude_seam::door_cavity;
+    use geom_core::{Affine3, Mat3, Vec3};
+    let ask = |what: &str, body: Body<f64>, t: f64| {
+        let rep = injective(&body, None, BUDGET);
+        println!("DELTA {what} body: {:?} {:?}", rep.verdict, rep.receipt);
+        match std::panic::catch_unwind(|| door_cavity(&body, t)) {
+            Ok(c) => {
+                let rep = injective(&c, None, BUDGET);
+                println!("DELTA {what} cavity: {:?} {:?}", rep.verdict, rep.receipt);
+            }
+            Err(_) => println!("DELTA {what} cavity: door panicked"),
+        }
+    };
+    let build = |plane: SketchPlane<f64>, verts: Vec<(Point2<f64>, f64)>| {
+        let lp = profile::test_support::bulge_loop(verts);
+        let profile = Profile::new(plane, vec![lp])
+            .validate(tol())
+            .map_err(|e| format!("{e:?}"))?;
+        revolve(&profile, axis_y(), Revolution::Full, tol())
+            .map(|b| b.body.into_body())
+            .map_err(|e| format!("{e:?}"))
+    };
+    let poly = |pts: &[(f64, f64)]| {
+        pts.iter()
+            .map(|&(x, y)| (Point2::new(x, y), 0.0))
+            .collect::<Vec<_>>()
+    };
+    // Turned frames: a rotation about a generic axis and a translation.
+    let turned = |k: usize| -> SketchPlane<f64> {
+        if k == 0 {
+            return SketchPlane::xy();
+        }
+        let (ax, th, off) = [
+            ((1.0, 2.0, 3.0), 0.7, (0.3, -1.1, 2.9)),
+            ((-0.4, 0.1, 0.9), 2.3, (17.0, 4.2, -8.8)),
+            ((0.0, 1.0, 1.0), 1.1, (0.0, 0.0, 0.0)),
+        ][k - 1];
+        let a =
+            Vec3::new(ax.0, ax.1, ax.2) * (1.0 / (ax.0 * ax.0 + ax.1 * ax.1 + ax.2 * ax.2).sqrt());
+        let (c, s) = (f64::cos(th), f64::sin(th));
+        let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+        let m = Mat3::from_cols(
+            col(Vec3::new(1.0, 0.0, 0.0)),
+            col(Vec3::new(0.0, 1.0, 0.0)),
+            col(Vec3::new(0.0, 0.0, 1.0)),
+        );
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &Affine3::from_parts(m, Vec3::new(off.0, off.1, off.2)),
+            tol(),
+        ))
+    };
+    for k in 0..4 {
+        for &(y0, r, h, up) in &[
+            (0.0, 1.0, 1.0, true),
+            (1.7, 1.0, 1.0, false),
+            (0.3, 0.013, 0.9, false),
+            (0.0, 20.0, 50.0, true),
+            (101.3, 0.37, 2.3, true),
+        ] {
+            let pts = if up {
+                vec![(0.0, y0), (r, y0), (0.0, y0 + h)]
+            } else {
+                vec![(0.0, y0 + h), (0.0, y0), (r, y0 + h)]
+            };
+            match build(turned(k), poly(&pts)) {
+                Ok(b) => ask(
+                    &format!("turned{k} cone y0={y0} r={r} h={h} up={up}"),
+                    b,
+                    0.05 * r.min(h),
+                ),
+                Err(e) => {
+                    println!("DELTA turned{k} cone y0={y0} r={r} h={h} up={up}: build refused {e}")
+                }
+            }
+        }
+    }
+    // Truncated tips: the small end `d` off the axis.
+    for &y0 in &[0.0, 1.7] {
+        for &d in &[1e-3, 1e-6, 1e-8, 1e-9, 3e-10, 1e-10, 1e-11] {
+            let pts = [(0.0, y0), (1.0, y0), (d, y0 + 1.0 - d), (0.0, y0 + 1.0 - d)];
+            match build(SketchPlane::xy(), poly(&pts)) {
+                Ok(b) => ask(&format!("frustum y0={y0} d={d:e}"), b, 0.05),
+                Err(e) => println!(
+                    "DELTA frustum y0={y0} d={d:e}: build refused {}",
+                    &e[..e.len().min(160)]
+                ),
+            }
+        }
+    }
+    // A double cone, both nappes through one apex.
+    match build(
+        SketchPlane::xy(),
+        poly(&[(0.0, -1.0), (1.0, -1.0), (0.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
+    ) {
+        Ok(b) => ask("double cone", b, 0.05),
+        Err(e) => println!(
+            "DELTA double cone: build refused {}",
+            &e[..e.len().min(160)]
+        ),
+    }
+    // An ice-cream cone: apex at the bottom, a quarter circle cap whose
+    // pole is a vertex, in plain and turned frames, at off-origin heights.
+    for k in 0..3 {
+        for &(y0, r, h) in &[
+            (0.0, 1.0, 1.0),
+            (1.7, 1.0, 1.0),
+            (-2.9, 0.37, 2.3),
+            (13.1, 3.1, 0.21),
+        ] {
+            let (a, b, c) = (
+                Point2::new(r, y0 + h),
+                Point2::new(0.0, y0 + h + r),
+                Point2::new(0.0, y0 + h),
+            );
+            let verts = vec![(Point2::new(0.0, y0), 0.0), (a, bulge(a, b, c)), (b, 0.0)];
+            match build(turned(k), verts) {
+                Ok(body) => ask(
+                    &format!("icecream turned{k} y0={y0} r={r} h={h}"),
+                    body,
+                    0.05 * r.min(h),
+                ),
+                Err(e) => println!(
+                    "DELTA icecream turned{k} y0={y0}: build refused {}",
+                    &e[..e.len().min(160)]
+                ),
+            }
+        }
+    }
+    // A hemisphere whose arc ends `d` off the axis, closed by a tiny cap.
+    for &d in &[1e-6, 1e-8, 1e-9, 5e-10, 1e-10, 1e-11, 1e-12] {
+        let top = (1.0f64 - d * d).sqrt();
+        let (a, b, c) = (
+            Point2::new(1.0, 0.0),
+            Point2::new(d, top),
+            Point2::new(0.0, 0.0),
+        );
+        let verts = vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (a, bulge(a, b, c)),
+            (b, 0.0),
+            (Point2::new(0.0, top), 0.0),
+        ];
+        match build(SketchPlane::xy(), verts) {
+            Ok(body) => ask(&format!("near-pole dome d={d:e}"), body, 0.05),
+            Err(e) => println!(
+                "DELTA near-pole dome d={d:e}: build refused {}",
+                &e[..e.len().min(200)]
+            ),
+        }
+    }
+}
+
+/// Review probe: the refusers of the delta sweeps, one line each.
+#[test]
+#[ignore = "review probe"]
+fn review_probe_delta_refusers() {
+    use crate::common::latitude_seam::door_cavity;
+    use geom_core::{Affine3, Mat3, Vec3};
+    let turned = |k: usize| -> SketchPlane<f64> {
+        if k == 0 {
+            return SketchPlane::xy();
+        }
+        let (ax, th, off) = [
+            ((1.0, 2.0, 3.0), 0.7, (0.3, -1.1, 2.9)),
+            ((-0.4, 0.1, 0.9), 2.3, (17.0, 4.2, -8.8)),
+            ((0.0, 1.0, 1.0), 1.1, (0.0, 0.0, 0.0)),
+        ][k - 1];
+        let a =
+            Vec3::new(ax.0, ax.1, ax.2) * (1.0 / (ax.0 * ax.0 + ax.1 * ax.1 + ax.2 * ax.2).sqrt());
+        let (c, s) = (f64::cos(th), f64::sin(th));
+        let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+        let m = Mat3::from_cols(
+            col(Vec3::new(1.0, 0.0, 0.0)),
+            col(Vec3::new(0.0, 1.0, 0.0)),
+            col(Vec3::new(0.0, 0.0, 1.0)),
+        );
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &Affine3::from_parts(m, Vec3::new(off.0, off.1, off.2)),
+            tol(),
+        ))
+    };
+    for &(k, y0, r, h, up, cav) in &[
+        (0, 0.0, 20.0, 50.0, true, true),
+        (0, 101.3, 0.37, 2.3, true, true),
+        (0, 101.3, 20.0, 50.0, false, false),
+        (1, 0.3, 0.013, 0.9, false, true),
+        (1, 0.0, 20.0, 50.0, true, false),
+        (2, 0.3, 0.013, 0.9, false, true),
+        (2, 101.3, 0.37, 2.3, true, false),
+        (2, 101.3, 0.37, 2.3, true, true),
+        (3, 0.0, 20.0, 50.0, true, true),
+    ] {
+        if std::env::var("ONLY").is_ok_and(|o| o != format!("{k}/{y0}/{r}/{cav}")) {
+            continue;
+        }
+        let pts = if up {
+            [(0.0, y0), (r, y0), (0.0, y0 + h)]
+        } else {
+            [(0.0, y0 + h), (0.0, y0), (r, y0 + h)]
+        };
+        let lp = ProfileLoop::polygon(pts.map(|(x, y)| Point2::new(x, y)));
+        let profile = Profile::new(turned(k), vec![lp]).validate(tol()).unwrap();
+        let mut body = revolve(&profile, axis_y(), Revolution::Full, tol())
+            .unwrap()
+            .body
+            .into_body();
+        if cav {
+            body = door_cavity(&body, 0.05 * r.min(h));
+        }
+        let rep = injective(&body, None, BUDGET);
+        let rc = rep.receipt;
+        println!(
+            "REF k={k} y0={y0} r={r} h={h} up={up} cav={cav}: {:?} {}/{}/{}",
+            rep.verdict, rc.discharged, rc.refused, rc.splits
+        );
+    }
+}
+
+/// **A cone's cavity a hundred units off the origin holds**: the
+/// triangle `(0, 101.3) (0.37, 101.3) (0, 103.6)` revolved a full turn
+/// about `y`, apex at the top, and its axial door cavity at `t =
+/// 0.0185`. Each inner half-cone's stored extent ends at `v =
+/// -1.403e-14` under its apex: the rounding of `c + l·t` at coordinates
+/// near 100, past `chart_slack` of a 2.2-long extent. So
+/// `reaching_its_singular_points` reads the end as contradicting the
+/// apex vertex and the face refuses `Structural`. Red at `39f25fc2`
+/// (`Uncertified … Departure` at 167 / 17 / 178); with the slack
+/// loosened it runs on to a `Departure` refusal of its own, untraced.
+/// Found by the delta review of PR 7115.
+#[test]
+#[ignore = "red: an apex end rounded at the body's coordinates, past chart_slack of the extent"]
+fn a_cone_cavity_a_hundred_units_off_the_origin_holds() {
+    use crate::common::latitude_seam::door_cavity;
+    let profile = validated::<f64>(&[ProfileLoop::polygon(
+        [(0.0, 101.3), (0.37, 101.3), (0.0, 103.6)].map(|(x, y)| Point2::new(x, y)),
+    )]);
+    let body = revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body();
+    let cavity = door_cavity(&body, 0.0185);
+    let report = injective(&cavity, None, BUDGET);
+    assert_holds("the cone's cavity at y = 101.3", &report, &cavity);
+    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
 }
