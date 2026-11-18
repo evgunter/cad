@@ -1019,3 +1019,49 @@ bodies (`germ_torus_components`, `germ_sphere_torus_placements`,
 The most expensive holding ask: 40.9 s, 89 faces, 471 candidate pairs,
 45,271 splits (`coincidence_door::every_band_a_revolve_mints_is_about_its_axis_output_at_sym`,
 at `Sym`).
+
+### Item 4: is the certificate a conjunction of face-pair facts?
+
+Yes, exactly, on every holding ask measured. `embed/gate-measure`,
+per-solid gate, `demos/tour` release walk with `CAD_GATE_PASS=1
+CAD_GATE_DECOMPOSE=200`: each holding ask with at least 200 cell-pair
+leaves (discharged, violated, refused, within) had every face pair asked
+alone (`Side::faces = [a, b]`, the two self-pairs excluded; a self-pair as
+`[a]`), once per body signature. 250 asks, 2 to 111 faces, among them the
+Klein loop, the die chain, lofts, the teapot vessel, revolves and the
+impellers.
+
+- The whole ask's candidate pairs are exactly the pairs that are
+  candidates alone: 250 of 250.
+- The lone asks' leaves, splits and discharges sum to the whole ask's:
+  250 of 250 each.
+- Every lone verdict holds: 250 of 250.
+- So the memos `Sweep::run` shares across pairs (`RegionMemo`,
+  `LocalMemo`, `across`, `cornered`, `widths`) change time only: the lone
+  asks take 135.0 s against the whole asks' 112.2 s.
+- Refusing asks were not decomposed: `walk` refuses a whole level, so a
+  pair's spend there is not defined.
+
+**The budget's two numbers.** The largest spend of any single face pair
+on a holding body is 12,774 leaves, 19.5% of 65,536 (the Klein loop, a
+NURBS wall against a NURBS wall; the whole ask is 51,322, 78%). On the
+largest holding bodies the receipt grows linearly with faces: the die
+chain at 76 to 111 faces takes 4,092 to 6,283 leaves (about 57 a face,
+3.4 candidate pairs a face, largest pair 77 to 88); impeller-like bodies
+of 76 to 86 faces take 6,791 to 8,141 (largest pair 91). One 89-face tour
+body takes 45,742, spread over many pairs (largest 557).
+
+Repeat: `cd demos/tour && CAD_GATE_LOG=<dir> CAD_GATE_PASS=1
+CAD_GATE_DECOMPOSE=200 cargo run --release -- <out>` on
+`embed/gate-measure`; the `DECOMP` rows hold each ask's sums.
+
+### Item 2: per-ask price at CI's build against release
+
+The same tour walk at the dev profile with libraries at opt-1 (CI's
+`CARGO_PROFILE_DEV_OPT_LEVEL=1`), set ask by ask against the release
+walk: 1,542 asks matched by sequence and signature (faces, candidates,
+splits, discharges) before a worker restart stopped the dev walk at stop
+70 of 85. CI's build takes 601.0 s on them against release's 490.5 s,
+1.23×; on the 1,533 that hold, 271 ms against 229 ms an ask. So the build
+is not the gap between the tour's 29 ms and the workspace's 65 ms an ask:
+that gap is which bodies are asked.
