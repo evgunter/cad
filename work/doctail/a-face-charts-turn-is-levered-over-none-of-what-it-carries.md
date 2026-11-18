@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-18
 priority: P1
 cost: M
+refs: [a-face-chart-over-a-plane-through-its-origin-refuses-backwards-at-arm-zero]
 ---
 
 Found by the FULL review of `a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face` (PR 7111, MINOR 2), and left open by its fix pass because the fix has more than one home.
