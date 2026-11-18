@@ -321,6 +321,60 @@ fn a_foot_held_at_an_end_reads_past_by_its_chord_and_walk() {
     assert_eq!(read(&span, q, 0.5), "none");
 }
 
+/// **A foot held at an enclosing end is held there** (module docs, "The
+/// held end"): at `Interval`, over an ellipse's span whose ends are
+/// enclosures (`0.1 · 3` and `0.7 · 1.3`, a few ulps wide), the carrier's
+/// point at `2.5` is held at an end, whose order against the foot's
+/// parameter straddles zero, and reads past the span by its chord and
+/// walk. Red where only an order decided zero names the end held: the
+/// side is read at `m` within a few ulps of zero, and straddles
+/// (`curve_pair_span_end_straddle`; `sweep`'s cylinder tee refused its
+/// union on that).
+#[test]
+fn a_foot_held_at_an_enclosing_end_reads_past_by_its_chord_and_walk() {
+    use geom_core::{Interval, Real};
+    let c: Curve3<Interval> = ellipse().map_scalar(Interval::from_f64);
+    let t0 = Interval::from_f64(0.1) * Interval::from_f64(3.0);
+    let t1 = Interval::from_f64(0.7) * Interval::from_f64(1.3);
+    let span = Span::new(&c, (t0, t1));
+    let q = c.eval(Interval::from_f64(2.5));
+    let got = span.place(q, Interval::from_f64(0.6), band());
+    assert_eq!(got, Ok(Place::Past), "held at an enclosing end: {got:?}");
+}
+
+/// **A foot inside the span far from its point reads past by the walk**
+/// (`Span::place`, the composition): on a steep ellipse (semi-axes 10
+/// and 1), over the span about its minor vertex at `π/2`, the carrier's
+/// point at the other minor vertex, 2 m across, has its foot over the
+/// span at a stationary point inside it, 2 m away, past the band. The
+/// walk over the span clears the point and the whole carrier reads it
+/// on, so it is on the carrier past the span, as the whole carrier's
+/// foot on the point read it. A point beside the span and off the
+/// carrier keeps its foot's place (`a_point_reads_on_at_an_end_or_none`,
+/// "inside, off the carrier"). Red where a foot inside
+/// the span reads `Inside` whatever its gap: a window through that
+/// point is not pruned past the span (`sweep`'s steep-ellipse pocket
+/// ring missed its volumes on that).
+#[test]
+fn a_foot_far_inside_the_span_reads_past_by_the_walk() {
+    let c = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+        10.0,
+        1.0,
+    ));
+    let (t0, t1) = (PI / 2.0 - 0.5, PI / 2.0 + 0.6);
+    let span = Span::new(&c, (t0, t1));
+    let q = c.eval(-PI / 2.0);
+    let foot = span.foot(q, -PI / 2.0);
+    assert!(
+        foot.seed() > t0 && foot.seed() < t1 && foot.gap() > 1.0,
+        "the foot is inside the span, far from the point: {} at {}",
+        foot.seed(),
+        foot.gap()
+    );
+    assert_eq!(place(span.place(q, -PI / 2.0, band())), "past");
+}
+
 /// **A circle's foot is its nearest point, so its `Past` stands**: a
 /// point on the unit circle read on the span `(0, 1)` with its seed a
 /// half turn away is still read where it lies, never at another point's
