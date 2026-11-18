@@ -6621,6 +6621,81 @@ mod presentation_rows {
         );
     }
 
+    /// **A cone face at its apex is read on its own nappe alone**: a face
+    /// on the positive nappe over `v ∈ [0, 1]`, bounded by the parallel
+    /// `v = 1` and, where it does not wrap, by two meridians to the apex.
+    ///
+    /// Wrapping the cone, its extent says nothing ([`Extent::Wraps`]), so
+    /// the cell on the other nappe at its apex vertex holds none of it by
+    /// the apex's own reading, and the cell on its nappe presents. Red if
+    /// the other nappe is not read as holding nothing there.
+    ///
+    /// Not wrapping, with its extent's low end an ulp below the apex (a
+    /// row's end rounded), its extent is on its nappe within the slack
+    /// ([`face_extent`]) and the cell on its nappe presents. Red if the
+    /// nappe is read against the extent with no slack.
+    #[test]
+    fn a_cone_face_at_its_apex_is_read_on_its_own_nappe() {
+        let s = Surface::Cone {
+            apex: origin(),
+            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        let vertices = BTreeMap::from([
+            (vertex(3), Point3::new(iv0(1.0), iv0(0.0), iv0(1.0))),
+            (vertex(9), origin()),
+        ]);
+        let at = |b: &Boundary, v: (f64, f64)| {
+            let local = Local {
+                edges: all(b.edges.len()),
+                vertices: vec![vertex(9)],
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: b,
+                u: (1.2, 1.8),
+                v,
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            read(present_chart(&piece, &[], &[], band()))
+        };
+        let wrapping = Boundary {
+            sense: true,
+            edges: vec![rim(1, [3, 3], Axis::V, 1.0, (TURN, 1.0), (0.0, 1.0))],
+            vertices: vertices.clone(),
+            extent: Some([(0.0, TURN), (0.0, 1.0)]),
+        };
+        assert_eq!(
+            at(&wrapping, (-0.5, -0.1)),
+            Read::Vacuous,
+            "the other nappe"
+        );
+        assert!(
+            matches!(at(&wrapping, (0.2, 0.8)), Read::Of(..)),
+            "its own nappe: {:?}",
+            at(&wrapping, (0.2, 0.8))
+        );
+        let sector = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 3], Axis::U, 2.0, (2.0, 0.0), (2.0, 1.0)),
+                rim(2, [3, 4], Axis::V, 1.0, (2.0, 1.0), (1.0, 1.0)),
+                rim(3, [4, 1], Axis::U, 1.0, (1.0, 1.0), (1.0, 0.0)),
+            ],
+            vertices,
+            extent: Some([(1.0, 2.0), (-1e-15, 1.0)]),
+        };
+        assert!(
+            matches!(at(&sector, (0.2, 0.8)), Read::Of(..)),
+            "an extent an ulp below the apex: {:?}",
+            at(&sector, (0.2, 0.8))
+        );
+    }
+
     /// A face whose extent is unknown has no sheet: a line on its
     /// periodic axis is not placed, so the face is not presented there
     /// rather than read on a guessed sheet.
