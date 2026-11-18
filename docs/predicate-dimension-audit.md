@@ -1225,9 +1225,9 @@ Flagged, NOT fixed here (dispositions):
 
 - **F17** (added by M10-5, the clearance engine; the support compare
   by CLEAR's DIRSUPPORT unit) `topo/src/clearance.rs`
-  `clearance_margin`, `self_intersection_gap` and
-  `clearance_support_gap`: the compares the E7 inner subdivision
-  makes on a pair decided by DISTANCE. SELFX added the injectivity
+  `clearance_margin`, `self_intersection_gap`,
+  `clearance_support_gap` and `clearance_depth_gap`: the compares the
+  E7 inner subdivision makes on a pair decided by DISTANCE. SELFX added the injectivity
   question's local certificates beside them, each its own row in the
   `injective.rs` block above; this entry is about the distance test,
   which decides every pair that does not touch. Both comparands are `d − c`, the interval enclosure of the
@@ -1268,15 +1268,17 @@ Flagged, NOT fixed here (dispositions):
   `n` only chooses which bound is decided; it is a raw `f64` read of the
   cells' centre normals and centres, and the choice among three
   directions decides nothing.
-  At a face pair's root the injectivity question asks the site first
-  with a second lower bound (`apart_in_depth`): `G − c`, `c` its zero,
-  `G` a gap between the two faces'
-  depths about an axis, a centre or a core circle one of them proposes,
-  less both faces' pads, as the census's depth gap reads it
+  A fourth compare, `clearance_depth_gap` (`parted_in_depth`), is asked
+  at a face pair's root, before the supports, under either bound. Its
+  comparand is `G − c`: `G` a gap between the two faces' depths about an
+  axis, a centre or a core circle one of them proposes, less both
+  faces' pads, as the census's depth gap reads it
   (`census::depth_gap::gaps_in_depth`, the comparand of
   `census_backstop_depth_gap`). `G` is METRES and bounds the two faces'
-  separation from below, so it is read as `L` is: only `Sign::Positive`,
-  which discharges the root whole.
+  separation from below, so **the site is not flagged** and it is read
+  as `L` is: only `Sign::Positive`, which discharges the root whole. It
+  has its own name because its population is a face pair's depth
+  margins, not a cell pair's support margins.
 
 - **F18** (added by M10-8's fix pass, found by scoping the recorder's
   name) `editor-core/src/expr.rs` `refuse_non_finite`: the ruled

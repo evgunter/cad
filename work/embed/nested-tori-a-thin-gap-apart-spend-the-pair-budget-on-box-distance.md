@@ -77,13 +77,13 @@ Main `ff2319654`, f64, the cavity asked through the local
 a cross-solid pair no direction separates by its depth gap
 (`census::depth_gap`: where one face's greatest distance from an axis,
 a centre or a torus's core circle lies below the other's least, read
-off the two faces' covers). `topo::clearance`'s injectivity question
-now asks that reading of a face pair's root (`apart_in_depth`), at the
-support arm's site (`CLEARANCE_SUPPORT_GAP`): a gap bounds the two
-faces' separation from below, so the root discharges whole. A metric
-bound is not asked it
-(`work/clear/the-clearance-assertion-does-not-ask-the-depth-gap.md`).
-It is
+off the two faces' covers). `topo::clearance` now asks that reading of
+a face pair's root (`parted_in_depth`), under every bound, at its own
+site (`CLEARANCE_DEPTH_GAP`): a gap bounds the two faces' separation
+from below, so the root discharges whole. A first head asked it of
+the injectivity question alone; the review lifted that, and CLEAR's
+five `m10_5_clearance_interval` rows were re-seated
+(`work/clear/log.md`, 2026-11-18). It is
 one reading (`[one-way.readings]`), not a second: a first draft of
 this lane read a carrier's distance function over a cell in
 `clearance.rs`, and the cover gate refused it.

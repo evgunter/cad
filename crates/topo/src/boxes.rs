@@ -283,7 +283,11 @@ use crate::entity::{EdgeKey, FaceKey};
 /// pairs and never changes an answer (the differential suite pins
 /// that). At `separation`'s and at `boolean::ops`'s fallback it can
 /// only make a certificate harder to obtain, never wrongly grant one
-/// — the same direction, but a cost rather than a free one.
+/// — the same direction, but a cost rather than a free one. The depth
+/// gap (`census::depth_gap`) takes it off each face too, and through it
+/// the census's arm 1 and the clearance engine's root reading
+/// (`clearance`'s `parted_in_depth`, so the embedding certificate):
+/// there a smaller pad parts faces a larger one would not.
 pub(crate) fn sweep_pad(band: Band) -> f64 {
     band.escalate() + 2.0 * band.zero()
 }

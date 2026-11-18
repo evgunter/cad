@@ -4232,9 +4232,12 @@ fn separated_by_support<T: Real>(
 /// The depths are read off the faces' covers at the lane scalar, as
 /// the cells' regions are, with no rounding charged
 /// (`[simple.conditioned]`), and each gap is less the pads
-/// [`depth_gap`] takes off it, as the census reads it. `lift` crosses a
-/// gap to the bracket it is compared in; a gap that does not certify
-/// clears nothing, since the funnel refuses its margin.
+/// [`depth_gap`] takes off it: a tolerance for each face's placement
+/// misread within the band and its boundary's vertices within ε of it,
+/// taken as the census takes it and not derived again for this reader.
+/// `lift` crosses a gap to the bracket it is compared in; a gap that
+/// does not certify clears nothing, since the funnel refuses its
+/// margin.
 fn parted_in_depth<T: Decide>(
     x: &Window<'_, T>,
     y: &Window<'_, T>,

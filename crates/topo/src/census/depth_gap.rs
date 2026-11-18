@@ -1,16 +1,25 @@
 //! **Two faces apart in depth about an axis, a centre or a circle, and
 //! the directions those axes, centres and arcs aim across a pair** —
-//! arm 1's clear for a cross-solid pair no direction separates (nested
-//! walls, a cap inside a bore, a plug in a hole, a tube inside a tube),
-//! and the directions arm 1's turned-direction test reads besides its
-//! own.
+//! the gap that parts a pair no direction separates (nested walls, a
+//! cap inside a bore, a plug in a hole, a tube inside a tube), and the
+//! directions arm 1's turned-direction test reads besides its own.
+//!
+//! **Two readers.** The census's arm 1 clears a cross-solid pair on a
+//! gap ([`apart_in_depth`]). The clearance engine reads the same gaps
+//! ([`gaps_in_depth`]) at a face pair's root, against the bound it was
+//! asked, and discharges the root on one
+//! (`crate::clearance`'s `parted_in_depth`): the embedding certificate
+//! and every metric clearance bound rest on it. What a face proposes
+//! ([`face_read`]) and what is taken off a gap (the pads below) change
+//! both readers' answers.
 //!
 //! A reach box reads a face's extent in linear coordinates; this reads
 //! it in a radial one. A *depth* is the distance from an axis line, from
 //! a centre, or from a circle (a torus's core), and each is read for
 //! both faces of the pair. Where one face's greatest depth lies below
-//! the other's least, no point of one is a point of the other: the pair
-//! is apart. That is the verdict, and the only one.
+//! the other's least, no point of one is a point of the other, and the
+//! two are at least that gap apart. A gap is all that is read: no depth
+//! says two faces meet.
 //!
 //! **Which depths.** Each face of the pair proposes every site its cover
 //! is measured about ([`Cover::about`]: a cylinder wall's or a cone's
@@ -31,8 +40,9 @@
 //! reach boxes' gap takes, a tolerance: a placement misread within the
 //! band, and the boundary's vertices certified within ε of the face.
 //! Only a definite Positive clears; a Zero, a Negative, a bound that is
-//! not a number, an escalation or a face with no cover leaves the pair
-//! to arm 1's refusal. A pair that touches has no gap and is never
+//! not a number, an escalation or a face with no cover says nothing of
+//! the pair, which goes on to its reader's other arms (arm 1's refusal;
+//! the engine's cells). A pair that touches has no gap and is never
 //! cleared here.
 //!
 //! The same depths also aim directions ([`toward`]): the offset from an

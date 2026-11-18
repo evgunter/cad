@@ -1340,7 +1340,8 @@ fn two_nested_tori_a_thin_gap_apart_hold_at_their_roots() {
 /// overlap until the cells are about as small as the gap, which costs
 /// about 39,000. The toroidal wall's faces are apart in their core's
 /// depth and discharge at their root; it splits about 200 times, on
-/// the pairs that touch.
+/// the pairs that touch, and under 512: red where that root is split
+/// (6,647 splits).
 #[test]
 fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
     fn conical<T: Scalar>() -> Body<T> {
@@ -1383,13 +1384,15 @@ fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
             tol(),
         )
     }
-    for (what, reports) in [
+    for (what, ceiling, reports) in [
         (
             "the conical wall",
+            BUDGET / 4,
             holds_at_both("the conical wall", conical::<f64>(), conical::<Interval>()),
         ),
         (
             "the toroidal wall",
+            512,
             holds_at_both(
                 "the toroidal wall",
                 toroidal::<f64>(),
@@ -1399,8 +1402,8 @@ fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
     ] {
         for report in &reports {
             assert!(
-                report.receipt.splits < BUDGET / 4,
-                "{what} splits under a quarter of the default budget: {:?}",
+                report.receipt.splits < ceiling,
+                "{what} splits under {ceiling}: {:?}",
                 report.receipt
             );
         }
