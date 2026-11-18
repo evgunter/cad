@@ -453,7 +453,7 @@ fn read_polished<T: Decide>(
 /// of the span's two ends
 /// (`curve_pair_walk_span_order`, asked only at an end); `None` at no
 /// end, on an endless span, and where the order is not decided.
-fn held<T: Decide>(span: &Span<'_, T>, u: T) -> Option<ParamSide> {
+pub(super) fn held<T: Decide>(span: &Span<'_, T>, u: T) -> Option<ParamSide> {
     if !span.ended() {
         return None;
     }

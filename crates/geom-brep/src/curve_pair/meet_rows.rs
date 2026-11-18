@@ -89,6 +89,21 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
     }
 }
 
+/// A polished pair's places on its two spans, each read once with its
+/// record held apart, as the walk's stop hands them to
+/// [`super::Found::read_pair`].
+fn places(
+    a: &Span<'_, f64>,
+    b: &Span<'_, f64>,
+    c: super::Candidate<f64>,
+) -> (super::PlaceRead, super::PlaceRead) {
+    let place = |span: &Span<'_, f64>, u: f64| {
+        let (place, record) = geom_core::k_stats::detached(|| span.place_param(u, band()));
+        super::PlaceRead { place, record }
+    };
+    (place(a, c.ta), place(b, c.tb))
+}
+
 /// **The table is total, and its closed arms are the line, circle and
 /// ellipse pairs.** Every pair of kinds has a method; a pair is the
 /// walk's exactly when a side is a spiric or a spline, clamped or
@@ -2517,9 +2532,9 @@ fn the_walk_offers_an_endless_span_no_end_reads() {
 /// apart in their plane, `p = (10⁻⁶, 0, 0)` on the first and the origin
 /// on the second, states a window ([`super::polish::bound`]) whose floor
 /// is zero (the gap lies along the carriers) and whose reach is about
-/// `10⁻⁶`. Its point is on the first span and off the second by more
-/// than the band, so read as its point alone it is no meeting; read with
-/// its window it straddles the floor against the gap at the pair
+/// `10⁻⁶`. Read as its pair ([`super::Found::read_pair`]), its gap is
+/// past the band, so with no window it is no meeting; with its window it
+/// straddles the floor against the gap at the pair
 /// (`curve_pair_meet_window`) and escalates, never prunes. With the
 /// second span moved past the origin by far more than the reach, the
 /// window's whole run lies past that span and it prunes.
@@ -2554,14 +2569,15 @@ fn a_window_read_off_short_of_its_reach_escalates() {
     let read = |b: &Span<'_, f64>, bound| {
         let a = Span::new(&x, (-1.0, 1.0));
         let mut found = super::Found::default();
-        found.read(&a, b, candidate(bound), band());
+        let c = candidate(bound);
+        found.read_pair(&a, b, c, places(&a, b, c), band());
         found.finish(&a, b, None, band())
     };
     let across = Span::new(&y, (-1.0, 1.0));
     let got = read(&across, None);
     assert!(
         matches!(&got, Ok(m) if m.points.is_empty()),
-        "its point alone: {got:?}"
+        "its pair alone: {got:?}"
     );
     let got = read(&across, Some(bound));
     assert!(
@@ -2633,19 +2649,21 @@ fn a_candidate_with_no_window_reads_as_its_point_alone() {
     }
 }
 
-/// **The run arm reads a keel's wall past a bore's rim with main's
-/// answer.** A line down the keel's wall crosses the plane of the bore's
-/// rim at the rim's own end, `2.2143` rad, and just past it
-/// (`a_keel_on_a_bores_ruling`'s near-tangent pose, as `meet` met it).
-/// The polished pair lies on the line, past the rim's arc; the window's
-/// reach is far longer than its distance past the end, so the reach
-/// cannot clear it. The polished pair's gap is in the zero band and the
-/// rim's end is clear of the line past the escalation and twice the
-/// bend, so no pair of the run lies on the arc (`pose`'s module docs,
-/// "The run"): no meeting, as main read it on its convergence meter.
-/// With no bend bounded, the same candidate escalates.
+/// **A keel's wall past a bore's rim is cleared by its held end's
+/// floor, with main's answer.** A line down the keel's wall crosses the
+/// plane of the bore's rim at the rim's own end, `2.2143` rad, and just
+/// past it (`a_keel_on_a_bores_ruling`'s near-tangent pose, as `meet` met
+/// it). The polish is held to the spans, so the pair stops at the rim's
+/// end, `1.7·10⁻⁸` from the line, past the band's escalation. The gap
+/// there runs along the rim's tangent, so the two-sided floor across both
+/// tangents is nothing; but every pair of the window has the rim's side
+/// on the arc into its span, which runs away from the line, so the floor
+/// read across the line's tangent with the rim's arc a half-line is the
+/// whole gap less the bend (`pose`'s module docs, "A held end's floor"):
+/// no meeting, as main read it on its convergence meter and then by the
+/// run arm. With no floor, the same pair escalates.
 #[test]
-fn the_run_arm_reads_a_keel_wall_past_a_bores_rim_with_mains_answer() {
+fn a_keel_wall_past_a_bores_rim_is_cleared_by_its_held_ends_floor() {
     let wall = Curve3::line(
         Point3::new(1.0, -1.710_783_078_032_602_8e-8, 2.75),
         Vec3::new(0.0, 0.0, -1.0),
@@ -2671,19 +2689,23 @@ fn the_run_arm_reads_a_keel_wall_past_a_bores_rim_with_mains_answer() {
     let Some(c) = cs.into_iter().find(|c| c.bound.is_some()) else {
         panic!("a polished candidate")
     };
-    let no_bend = super::Candidate {
+    assert_eq!(
+        c.tb, 2.214_296_488_955_094_7,
+        "held at the rim's end: {c:?}"
+    );
+    let no_floor = super::Candidate {
         bound: c.bound.map(|w| super::WindowBound {
-            bend: f64::INFINITY,
+            floor: f64::NEG_INFINITY,
             ..w
         }),
         ..c
     };
     let mut found = super::Found::default();
-    found.read(&a, &b, no_bend, band());
+    super::posed(&mut found, &a, &b, no_floor, band());
     let got = found.finish(&a, &b, None, band());
     assert!(
         matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
-        "with no bend bounded: {got:?}"
+        "with no floor: {got:?}"
     );
 }
 
@@ -2723,17 +2745,13 @@ fn the_run_arm_needs_the_span_end_decidedly_off_the_other_carrier() {
             }
         };
         let mut found = super::Found::default();
-        found.read(
-            &a,
-            &b,
-            super::Candidate {
-                point: at,
-                ta: -2e-8,
-                tb: 0.0,
-                bound: Some(bound),
-            },
-            band(),
-        );
+        let c = super::Candidate {
+            point: at,
+            ta: -2e-8,
+            tb: 0.0,
+            bound: Some(bound),
+        };
+        found.read_pair(&a, &b, c, places(&a, &b, c), band());
         found.finish(&a, &b, None, band())
     };
     let escalated = |got: &Result<Meetings<f64>, super::MeetRefusal<f64>>| matches!(got, Err(r) if matches!(r.fault, MeetFault::Escalated(_)));
@@ -2746,4 +2764,102 @@ fn the_run_arm_needs_the_span_end_decidedly_off_the_other_carrier() {
     );
     let got = read(0.75_f64.sqrt(), false);
     assert!(escalated(&got), "with no bend bounded: {got:?}");
+}
+
+/// **A line leaving an arc's end nearly along its tangent meets it there
+/// by the one-sided window.** A unit circle's arc ending at `X = (1, 0,
+/// 0)`, and a segment from `X` at `10⁻⁴` rad above the arc's tangent,
+/// running on the other way from the arc. The line crosses the circle's
+/// plane at `X`, where the pose polishes it: the pair is `X` on both,
+/// held at both spans' ends. The tangents part by `10⁻⁴`, so the
+/// two-sided basin, `sin φ` less twice the turn over the window, is not
+/// proved; but every pair of the window lies along the half-tangents
+/// into the spans, which part by nearly `180°`, and the one-sided window
+/// bounds its reach (`pose`'s module docs, "The one-sided window"). The
+/// ends read first found the meeting at `X`, which rings the pair: one
+/// meeting, at both ends. Read two-sided alone, the pose refuses on its
+/// basin.
+#[test]
+fn a_line_leaving_an_arcs_end_along_its_tangent_meets_there_by_the_one_sided_window() {
+    let tilt: f64 = 1e-4;
+    let arc = circle([0.0; 3], [0.0, 0.0, 1.0], 1.0);
+    let end = arc.eval(0.0);
+    let leaving = line(end.to_array(), [0.0, tilt.cos(), tilt.sin()]);
+    let (a, b) = (
+        Span::new(&leaving, (0.0, 1.0)),
+        Span::new(&arc, (-1.0, 0.0)),
+    );
+    let m = meet(&a, &b, band()).unwrap();
+    assert!(
+        matches!(m.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+        "one meeting at both ends: {m:?}"
+    );
+}
+
+/// **A held end whose span comes round within the window reads it
+/// two-sided.** The keel's wall and the bore's rim of
+/// [`a_keel_wall_past_a_bores_rim_is_cleared_by_its_held_ends_floor`],
+/// the rim's arc now running round from its end at `2.2143` rad to
+/// within `10⁻⁶` rad of it, `3.75·10⁻⁸` m: the crossing lies in the gap,
+/// `1.7·10⁻⁸` m past the stop and `2·10⁻⁸` m short of the start, and the
+/// window about it holds arcs of the rim on both sides of the gap. The
+/// held end's floor reads one side of its end alone, so it is not read
+/// (`curve_pair_pose_held_one_piece`), and the two-sided floor, across a
+/// gap along the rim's tangent, reads nothing: the pair escalates, the
+/// safe direction, where the held floor would have cleared the window on
+/// one of its two pieces.
+#[test]
+fn a_held_end_whose_span_comes_round_within_the_window_reads_it_two_sided() {
+    let wall = Curve3::line(
+        Point3::new(1.0, -1.710_783_078_032_602_8e-8, 2.75),
+        Vec3::new(0.0, 0.0, -1.0),
+    );
+    let rim = Curve3::circle(
+        Point3::new(1.037_500_008_874_687_3, -1.774_937_458_641_49e-8, 2.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        0.037_500_008_874_691_515,
+        Vec3::new(0.599_999_621_346_698_8, 0.800_000_283_989_836, 0.0),
+    );
+    let stop = 2.214_296_488_955_094_7;
+    let (a, b) = (
+        Span::new(&wall, (-1.25, 0.75)),
+        Span::new(&rim, (stop + 1e-6 - TAU, stop)),
+    );
+    let got = meet(&a, &b, band());
+    assert!(
+        matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
+        "the window in two pieces escalates: {got:?}"
+    );
+}
+
+/// **A candidate with a window read at its point is a desync.** A
+/// polished pair states a window and is read as that pair
+/// ([`super::Found::read_pair`], [`super::Found::read_posed`]); the point
+/// read takes the ends, witnesses and exact roots, whose point speaks for
+/// itself. Handed one with a window, it holds a desync at its point, and
+/// the answer refuses on it.
+#[test]
+fn a_candidate_with_a_window_read_at_its_point_is_a_desync() {
+    let (x, y) = (
+        line([0.0; 3], [1.0, 0.0, 0.0]),
+        line([0.0; 3], [0.0, 1.0, 0.0]),
+    );
+    let (a, b) = (Span::new(&x, (-1.0, 1.0)), Span::new(&y, (-1.0, 1.0)));
+    let mut found = super::Found::default();
+    found.read(
+        &a,
+        &b,
+        super::Candidate {
+            point: Point3::new(0.5, 0.0, 0.0),
+            ta: 0.5,
+            tb: 0.0,
+            bound: Some(super::polish::undecided()),
+        },
+        band(),
+    );
+    let got = found.finish(&a, &b, None, band());
+    assert!(
+        matches!(&got, Err(r) if matches!(r.fault, MeetFault::Desync)),
+        "{got:?}"
+    );
 }

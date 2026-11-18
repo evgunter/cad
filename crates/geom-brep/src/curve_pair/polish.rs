@@ -4,8 +4,8 @@
 //! on the gap** the polished pair gives (`pose`'s module docs, "The gap's
 //! lower bound"). A polished parameter is a place to read, never a
 //! decision: every pair it yields is read by the reader that polished it
-//! (the walk's stop as a pair, `Found::read_pair`; the pose's closest pair
-//! through its point, `Found::read`), and what the window around it holds
+//! as a pair (the walk's stop, `Found::read_pair`; the pose's closest
+//! pair, `Found::read_posed`), and what the window around it holds
 //! is read off [`bound`], never off whether the polish converged.
 //!
 //! **At an enclosing scalar the search is `f64` structure**
@@ -41,41 +41,31 @@ const STEPS: usize = 4;
 /// The row the bound's move reads its premise on.
 const MOVE: &str = "curve_pair_pose_move";
 
-/// Gauss–Newton from `(s, t)` toward the closest pair of the carriers
-/// `a` and `b`, a step taken where `keep` accepts the metres it moves the
-/// pair (read at `T` at the iterate): the pair. A step whose value is a
-/// point is taken at `T`; one that is an enclosure moves the iterate by
-/// its middle, and the search is `f64` structure from there on (module
-/// docs). Where the normal system is singular (parallel tangents) the
-/// step is the least-norm one along the common tangent ([`least_norm`]);
-/// a step with no finite bracket even so, or one `keep` refuses, ends the
-/// search where it stands: the iterate has not moved, so the next step
-/// would be the same one. [`pair_held`] with nothing held, so the pose's
-/// closest pair (`Polish::closest`) takes the least-norm step too, where
-/// its system is singular. A closed-form pose reaches that only at an
-/// enclosing scalar, where `nn` straddles zero at rounding: its polish
-/// starts at a crossing of the other carrier's plane, where a line is
-/// never parallel to an in-plane tangent, and two conics' tangents are
-/// parallel only where their gap is across them, so the least-norm step
-/// (`û·w`) is zero.
-pub(super) fn pair<T: Decide>(
-    a: impl Fn(T) -> (Point3<T>, Vec3<T>),
-    b: impl Fn(T) -> (Point3<T>, Vec3<T>),
-    start: (T, T),
-    keep: impl Fn(T) -> bool,
-) -> (T, T) {
-    pair_held(a, b, start, keep, (None, None))
-}
-
 /// A parameter run a polish is held to, `None` for none.
 pub(super) type Hold<T> = Option<(T, T)>;
 
-/// [`pair`], **held** to the parameter runs `hold` names, one per
-/// carrier (`None` holds nothing): each iterate is clamped into its run,
-/// so a step that would leave it stops exactly at the run's end and the
-/// next step starts there. A held end is the run's own parameter,
-/// bit for bit, which the walk's one-sided window reads
-/// (`walk::held`).
+/// **Gauss–Newton from `(s, t)` toward the closest pair of the carriers
+/// `a` and `b`, held to the parameter runs `hold` names**, one per
+/// carrier (`None` holds nothing), a step taken where `keep` accepts the
+/// metres it moves the pair (read at `T` at the iterate): the pair. A
+/// step whose value is a point is taken at `T`; one that is an enclosure
+/// moves the iterate by its middle, and the search is `f64` structure
+/// from there on (module docs). Where the normal system is singular
+/// (parallel tangents) the step is the least-norm one along the common
+/// tangent ([`least_norm`]); a step with no finite bracket even so, or
+/// one `keep` refuses, ends the search where it stands: the iterate has
+/// not moved, so the next step would be the same one. A closed-form
+/// pose's polish (`Polish::closest`) reaches a singular system only at an
+/// enclosing scalar, where `nn` straddles zero at rounding: it starts at
+/// a crossing of the other carrier's plane, where a line is never
+/// parallel to an in-plane tangent, and two conics' tangents are parallel
+/// only where their gap is across them, so the least-norm step (`û·w`) is
+/// zero.
+///
+/// Each iterate is clamped into its run, so a step that would leave it
+/// stops exactly at the run's end and the next step starts there. A held
+/// end is the run's own parameter, bit for bit, which the walk's and the
+/// pose's one-sided windows read (`walk::held`).
 pub(super) fn pair_held<T: Decide>(
     a: impl Fn(T) -> (Point3<T>, Vec3<T>),
     b: impl Fn(T) -> (Point3<T>, Vec3<T>),
@@ -215,6 +205,30 @@ impl<T: Decide> Along<T> {
             g: (T::one() - cos.powi(2)).max(T::zero()).sqrt(),
             slack: (q - p).norm(),
             across: None,
+        }
+    }
+}
+
+impl<T: Decide> Along<T> {
+    /// **A floor across the free side, at an end the other is held at**
+    /// (`pose`'s module docs, "A held end's floor"): `w = q − p`, `u` the
+    /// free side's tangent, `v` the held side's half-tangent pointing
+    /// into its span, so every pair of the window has the held side at
+    /// arc `β ≥ 0` along `v`. With `P` the projection square to `u`,
+    /// `|−w + uα − vβ| ≥ |P(w + vβ)|`, least over `β ≥ 0` at `β = 0`
+    /// where `Pw·Pv ≥ 0`, and otherwise at the foot on the half-line,
+    /// `√(|Pw|² − (Pw·Pv)²/|Pv|²)`. The window's floor is the greater of
+    /// that and what it read across already.
+    pub(super) fn held_across(self, w: Vec3<T>, u: Vec3<T>, v: Vec3<T>) -> Self {
+        let u = u.normalize();
+        let square = |x: Vec3<T>| x - u * x.dot(u);
+        let (pw, pv) = (square(w), square(v));
+        let c = pw.dot(pv);
+        let off = (pw.dot(pw) - c.powi(2) / pv.dot(pv)).max(T::zero()).sqrt();
+        let h = (-c).select_le_zero(pw.norm(), off);
+        Self {
+            across: Some(self.across.map_or(h, |a| a.max(h))),
+            ..self
         }
     }
 }
