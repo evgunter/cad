@@ -710,10 +710,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        179,
-        77,
-        "the 77 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
-         `present_chart` (24), \
+        177,
+        75,
+        "the 75 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `present_chart` (22), \
          `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
@@ -721,7 +721,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          chart range handed to `segment_params` (2) and a corner's far coordinate (1), read \
          behind the same SPAN and CORNER funnels as its rectangle. `present_chart` asks each clip line where it is placed, so 14 of its \
          reads, the touch, reach, merge and rectangle-side reads, see only certified \
-         lines; its other 10 read a singular latitude's clip line, a sphere pole's `±π/2` or a \
+         lines; its other 8 read a singular latitude's clip line, a sphere pole's `±π/2` or a \
          cone apex's `0`, a constant never handed to the ask, so they count as asking only \
          because the census reads a whole function, and they are sound because the line is \
          exact. `present_plane` asks its one-edge `y`, \

@@ -2129,9 +2129,8 @@ fn present_chart<'a>(
             if (low && y.0 > line.hi()) || (!low && y.1 < line.lo()) {
                 continue;
             }
-            if (low && y.1 < line.lo()) || (!low && y.0 > line.hi()) {
-                return Err(Unpresented::Local);
-            }
+            // A rectangle wholly past the latitude is left with no width
+            // here, which is refused below.
             if low {
                 y.0 = line.lo();
             } else {
