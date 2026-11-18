@@ -1344,10 +1344,12 @@ pub fn drive(
             )
         };
         let verdicts: Result<Vec<(LeafVerdict, SymCounts)>, crate::Stopped> = if config.parallel {
-            use rayon::prelude::*;
-            // Each leaf runs in this map's role, whatever thread steals it.
-            let role = geom_core::k_stats::SpawnRole::here();
-            frontier.par_iter().map(|x| role.run(|| leaf(x))).collect()
+            // Every leaf is collected before a stop is chosen, so the one
+            // reported is the first in frontier order whatever the
+            // schedule, as the stackup's and the MC lane's maps do.
+            geom_core::k_stats::par_map(&frontier, leaf)
+                .into_iter()
+                .collect()
         } else {
             frontier.iter().map(leaf).collect()
         };

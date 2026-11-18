@@ -228,12 +228,16 @@ fn sign_exchange_within_one_node_names_its_first_turn() {
     assert_ne!(VerdictVector::of(&a).key(), VerdictVector::of(&b).key());
 }
 
-/// One candidate mark, before the verdict at `before`.
+/// One candidate mark, before the verdict at `before`: `None` for a
+/// query's end.
 fn mark(before: usize, item: Option<u32>) -> geom_core::k_stats::Mark {
     geom_core::k_stats::Mark {
         before,
         site: "bvh_overlapping",
-        item,
+        item: item.map_or(
+            geom_core::k_stats::MarkItem::End,
+            geom_core::k_stats::MarkItem::Candidate,
+        ),
         role: Role::Choice,
     }
 }

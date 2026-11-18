@@ -239,8 +239,10 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
     }
 
     /// **What the walked edge stores, by its wedge** (D2's
-    /// prefer-intrinsic), `verdict` being [`edge_wedge_over`]'s over this
-    /// walk: a crease is the pair's `Intersection` and a tangency the
+    /// prefer-intrinsic), `class` being [`edge_wedge_over`]'s verdict over
+    /// this walk, its side erased ([`WedgeClass`]): what an edge stores is
+    /// the same for a crease of either turn and an end of either side. A
+    /// crease is the pair's `Intersection` and a tangency the
     /// must-carry rule's description, intrinsic where the bend is
     /// jet-determinate and the pair inside the certificate's lane over
     /// the walk's carrier, conventional otherwise. `pair` names the
@@ -255,17 +257,17 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
     /// [`WedgeRefusal`] on an in-band or mixed verdict.
     pub fn description(
         &self,
-        verdict: WedgeVerdict,
+        class: WedgeClass,
         pair: crate::SurfacePair,
     ) -> Result<crate::MustCarryDescription<T>, WedgeRefusal> {
         use crate::dihedral::Settled;
-        let bend = match verdict {
-            WedgeVerdict::Crease { .. } => None,
-            WedgeVerdict::Seam { bend, .. } => Some(bend),
-            WedgeVerdict::End { .. } => Some(Bend::Determinate),
-            WedgeVerdict::Lamina => Some(Bend::UnderDetermined),
-            WedgeVerdict::Mixed(stations) => return Err(WedgeRefusal::Mixed(stations)),
-            WedgeVerdict::InBand(escalation) => return Err(WedgeRefusal::InBand(escalation)),
+        let bend = match class {
+            WedgeClass::Crease => None,
+            WedgeClass::Seam { bend, .. } => Some(bend),
+            WedgeClass::End => Some(Bend::Determinate),
+            WedgeClass::Lamina => Some(Bend::UnderDetermined),
+            WedgeClass::Mixed(stations) => return Err(WedgeRefusal::Mixed(stations)),
+            WedgeClass::InBand(escalation) => return Err(WedgeRefusal::InBand(escalation)),
         };
         let settled = bend.map_or(Settled::Corner, |bend| {
             Settled::tangency(bend, self.carrier, self.plus.surface, self.minus.surface)

@@ -29,6 +29,14 @@ Three are now marked, on the first-turn PR's review (PR 7114), each with `k_stat
 - `pieces.rs` `Screen::may_meet`'s `a.overlaps(b)`;
 - `separation.rs` `hulls[i].overlaps(&hulls[j])`, `x.hull.overlaps(&y.hull)`.
 
+**Unlogged thresholds, the second sweep** (`rg -n 'escalate\(\)' crates/sweep/src/`, on the delta review of PR 7114). Every branch on `band.escalate()` in the blend now goes through one marked home in `sweep::blend::reach`:
+- `sure` (`x.lo() >= escalate`), which `Least::read`'s cell test and `metered`'s `certified` used to re-spell inline. `certified` gates the sheet reading (`sheet()` → `sheet_clip` → `face_nearest` → `face_placement`), which records decisions;
+- `sure_below` (`x.hi() < -escalate`), the gate on a boundary vertex's `face_clearance_margin` in the face's vacancy reading;
+- `fine` (`width <= escalate`), the five small-cell, small-rectangle and small-piece stops;
+- the edge refinement's `8·r <= -hi(inner)` settled test, marked where it is read.
+
+The surgery's value classifiers call `reach::sure`. The remaining `escalate()` hits are values rather than branches (`Least::done`, the missed-box reading), `ClassifiedMargin`'s `Display`, and test code (`revolve/turn_rows.rs`, `swept.rs`'s `in_band`, `reach.rs`'s rows). Outside the blend, the same grep over `topo/src` and `geom-brep/src` (an `escalate()` threshold beside `lo() >=`, `hi() <` or `<=`) finds six hits. One is production and steers: `geom_brep::curve_face::spline_face`'s `norm(g).lo() <= band.escalate()`, an end off its rim reading no sector, unmarked. The rest are a `debug_assert!` (`pair_section/cylinders.rs`) and test code (`meet_rows.rs`, `spiric_arc/fuzz.rs`, `containment.rs`'s test module, `ellipse_rows.rs`). Thresholds on `Band::zero()` and thresholds spelled through a local binding were not swept.
+
 A review probe that marked all of these and the `choose` sites (PR 7114, reviewer A's `PROBE7114_MARK`) moved no gate row beyond the one `reach::sure` parts: none of them steers a named turn in today's resolver, drive and range rows. That is evidence for these rows, not a proof for every document.
 
 A heuristic's `k_stats::choose` is unlogged by design (its outcome may differ between the box lane and the point witness): `boolean/edge_join.rs` `edge_join_carried_far`, `geom_core::period` `period_run_behind` and `period_window_end`, `geom_brep::intersect::conic_arc`, `geom_brep::curve_pair::span` `curve_pair_window_halve`, `geom::curves::on_carrier` `curve_foot_polish`. One `unlogged` reading was seen turning before a logged choice under a probe that logged every unlogged reading (`geom::azimuth` `azimuth_near_cut_side`, ahead of the blend's `fillet3_ring_clearance` in `edit_concave_bar` and `edit_planar_carve`); it reads which side of a branch cut an angle lies on and maps it near its reference after, so it steers no enumeration, and is no instance.

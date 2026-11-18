@@ -173,5 +173,6 @@ pub(crate) fn edge_wedge_read<T: Decide>(
         geom_core::k_stats::Role::Check,
     );
     let pair = geom_brep::SurfacePair::new(read.sides.plus.surface, read.sides.minus.surface);
-    Some((verdict.into(), read.walk.description(verdict, pair)))
+    let class = geom_brep::WedgeClass::from(verdict);
+    Some((class, read.walk.description(class, pair)))
 }

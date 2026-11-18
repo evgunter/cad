@@ -293,11 +293,12 @@ pub enum Role {
 /// can only make the node refuse. A check scope is not reopened as a
 /// choice by anything inside it, since a decision taken inside a check
 /// only feeds that check: this sets the role to `Check` whatever it was,
-/// and nothing but a scope's own exit, or a job's own spawner
-/// ([`SpawnRole`]), sets it back. There is no door that opens a choice
-/// scope.
+/// and nothing but a scope's own exit, or a parallel job taking its own
+/// spawner's role ([`par_map`]), sets it back. There is no public door
+/// that sets a role: a job's role is captured inside [`par_map`] from
+/// the thread that maps, never handed in.
 ///
-/// The role is this thread's for the call, [`map_detached`] hands it to
+/// The role is this thread's for the call, [`par_map`] hands it to
 /// its workers, and a panic inside `work` restores the outer role on
 /// unwind. Only the verdict channel, the marks and the symbolic recorder
 /// read it: an escalation is a refusal whatever the role of its reading,
@@ -307,9 +308,9 @@ pub fn checking<R>(work: impl FnOnce() -> R) -> R {
 }
 
 /// `work` with `role` this thread's role exactly, the outer one restored
-/// on exit and on unwind. Private: [`checking`] and [`SpawnRole::run`]
-/// are its only doors, so a choice is set only where a job's spawner was
-/// in one.
+/// on exit and on unwind. Private: [`checking`] and [`par_map`]'s job
+/// wrapper are its only callers, so a choice is set only where a job's
+/// spawner was in one.
 fn with_role<R>(role: Role, work: impl FnOnce() -> R) -> R {
     struct Restore(Role);
     impl Drop for Restore {
@@ -333,28 +334,31 @@ pub fn recorded_as<R>(role: Role, work: impl FnOnce() -> R) -> R {
     }
 }
 
-/// **The role a parallel job's spawner was in**, captured where the job
-/// is made and set where it runs. A rayon worker blocked inside a
-/// check-scoped `collect` steals other work from the pool meanwhile, so
-/// the thread a job runs on can be in any role; the job's own decisions
-/// are its spawner's, so a job SETS this role, never combines it with
-/// the running thread's (`k_stats_roles::a_stolen_job_runs_in_its_spawners_role`).
-/// [`map_detached`] does this for its jobs; a caller that maps deciding
-/// work with rayon itself captures one per map.
-#[derive(Debug, Clone, Copy)]
-pub struct SpawnRole(Role);
-
-impl SpawnRole {
-    /// This thread's role now.
-    #[must_use]
-    pub fn here() -> Self {
-        Self(current_role())
-    }
-
-    /// `work` in the captured role, the running thread's restored after.
-    pub fn run<R>(self, work: impl FnOnce() -> R) -> R {
-        with_role(self.0, work)
-    }
+/// **A parallel map over work that records decisions, the one home of
+/// a recorded parallel map**: `run` over each item on rayon's workers,
+/// the results in the items' order, each job recorded in the role of the
+/// thread that maps. A rayon worker blocked inside a check-scoped
+/// `collect` steals other work from the pool meanwhile, so the thread a
+/// job runs on can be in any role; the job's own decisions are its
+/// spawner's, so the job SETS that role, never combines it with the
+/// running thread's (`k_stats_roles::a_stolen_job_runs_in_its_spawners_role`).
+///
+/// Frames are the caller's to keep, as for any map: a job that records
+/// wraps its work in [`detached`] ([`map_detached`]) or opens its own
+/// bracket. `scripts/gates/parallel-maps-carry-the-role.sh` refuses a
+/// rayon map anywhere else in the workspace's sources.
+pub fn par_map<P, R>(items: P, run: impl Fn(P::Item) -> R + Send + Sync) -> Vec<R>
+where
+    P: rayon::iter::IntoParallelIterator,
+    P::Iter: rayon::iter::IndexedParallelIterator,
+    R: Send,
+{
+    use rayon::prelude::*;
+    let role = current_role();
+    items
+        .into_par_iter()
+        .map(|item| with_role(role, || run(item)))
+        .collect()
 }
 
 /// **Records `sign` under `name` as a verdict of this thread's role**,
@@ -397,34 +401,34 @@ pub fn mark_candidates(name: &'static str, items: impl IntoIterator<Item = usize
             top.recorded.marks.extend(
                 items
                     .into_iter()
-                    .map(|i| mark(Some(u32::try_from(i).unwrap_or(u32::MAX)))),
+                    .map(|i| mark(MarkItem::Candidate(u32::try_from(i).unwrap_or(u32::MAX)))),
             );
-            top.recorded.marks.push(mark(None));
+            top.recorded.marks.push(mark(MarkItem::End));
         }
     });
 }
 
-/// **Marks which way one pruning test went**, and hands the outcome
-/// back: for a box test or a cell prune written at its call site, which
-/// decides what is decided next and decides nothing itself (a hull
-/// overlap that skips a pair, the blend reach's sure-clear cell). One
-/// [`Mark`] per test, its item `1` where the test kept the candidate and
-/// `0` where it pruned it, so two runs whose tests went differently part
-/// there ([`mark_candidates`] for a query that hands on a list). Nothing
-/// where no frame is open.
-pub fn mark_kept(name: &'static str, kept: bool) -> bool {
+/// **Marks the outcome of one unlogged test that steers what is decided
+/// next**, and hands it back: a box test written at its call site (a
+/// hull overlap that skips a pair) or an unlogged threshold (the blend
+/// reach's `sure`), which decides nothing a verdict states. One [`Mark`]
+/// per test, [`MarkItem::Outcome`] holding the test's own answer (what
+/// `true` means is the site's, as a predicate's sign is), so two runs
+/// whose tests answered differently part there ([`mark_candidates`] for
+/// a query that hands on a list). Nothing where no frame is open.
+pub fn mark_outcome(name: &'static str, outcome: bool) -> bool {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             let before = top.recorded.verdicts.len();
             top.recorded.marks.push(Mark {
                 before,
                 site: name,
-                item: Some(u32::from(kept)),
+                item: MarkItem::Outcome(outcome),
                 role: current_role(),
             });
         }
     });
-    kept
+    outcome
 }
 
 /// The role a decision taken now is recorded in ([`checking`]); the
@@ -1354,11 +1358,22 @@ pub struct Mark {
     pub before: usize,
     /// The enumeration that examined it (a static name, as a predicate's).
     pub site: &'static str,
-    /// The item it handed on, by the enumeration's own index; `None` for
-    /// the end of one query's candidates.
-    pub item: Option<u32>,
+    /// What it records ([`MarkItem`]).
+    pub item: MarkItem,
     /// The role of the decisions the candidate feeds ([`checking`]).
     pub role: Role,
+}
+
+/// **What one [`Mark`] records**, by the kind of door that wrote it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkItem {
+    /// A candidate a query handed on, by the query's own index
+    /// ([`mark_candidates`]).
+    Candidate(u32),
+    /// The end of one query's candidates ([`mark_candidates`]).
+    End,
+    /// One unlogged test's answer ([`mark_outcome`]).
+    Outcome(bool),
 }
 
 /// Everything one [`Bracket`] recorded: both channels of its frame, in
@@ -1703,17 +1718,12 @@ pub fn map_detached<I: Sync, R: Send>(
     items: &[I],
     run: impl Fn(&I) -> R + Send + Sync,
 ) -> Vec<(R, Detached)> {
-    use rayon::prelude::*;
     debug_assert!(
         crate::sym::decisions_are_thread_portable(),
         "map_detached reached with a symbolic session or shape report installed: the caller \
          owes the serial walk here (`sym::decisions_are_thread_portable`)"
     );
-    let role = SpawnRole::here();
-    items
-        .par_iter()
-        .map(|item| role.run(|| detached(|| run(item))))
-        .collect()
+    par_map(items, |item| detached(|| run(item)))
 }
 
 /// How many brackets are open on this thread — the tests' witness that

@@ -10,7 +10,7 @@ test_utils::gated_to!["crates/bvh/src/", "crates/geom-core/src/k_stats.rs"];
 
 use bvh::Bvh;
 use bvh::test_support::boxed;
-use geom_core::k_stats::Bracket;
+use geom_core::k_stats::{Bracket, MarkItem};
 
 #[test]
 fn a_query_marks_the_candidates_it_hands_on_then_its_end() {
@@ -32,10 +32,10 @@ fn a_query_marks_the_candidates_it_hands_on_then_its_end() {
             .map(|m| (m.site, m.item))
             .collect::<Vec<_>>(),
         [
-            ("bvh_overlapping", Some(0)),
-            ("bvh_overlapping", Some(2)),
-            ("bvh_overlapping", None),
-            ("bvh_overlapping", None),
+            ("bvh_overlapping", MarkItem::Candidate(0)),
+            ("bvh_overlapping", MarkItem::Candidate(2)),
+            ("bvh_overlapping", MarkItem::End),
+            ("bvh_overlapping", MarkItem::End),
         ],
         "each candidate handed on, then each query's end"
     );

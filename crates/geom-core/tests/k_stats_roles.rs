@@ -9,7 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::panic)]
 
 use geom_core::k_stats::{
-    Bracket, Mark, Recorded, Role, Verdict, answered, checking, decide, map_detached,
+    Bracket, Mark, MarkItem, Recorded, Role, Verdict, answered, checking, decide, map_detached,
     mark_candidates, splice,
 };
 use geom_core::{Band, Margin, Sign, Tol};
@@ -139,10 +139,10 @@ fn an_answer_and_a_mark_take_the_scopes_role() {
     assert_eq!(
         r.marks.iter().map(|m| (m.item, m.role)).collect::<Vec<_>>(),
         [
-            (Some(3), Role::Choice),
-            (None, Role::Choice),
-            (Some(4), Role::Check),
-            (None, Role::Check),
+            (MarkItem::Candidate(3), Role::Choice),
+            (MarkItem::End, Role::Choice),
+            (MarkItem::Candidate(4), Role::Check),
+            (MarkItem::End, Role::Check),
         ]
     );
 }
@@ -165,7 +165,7 @@ fn extend_places_marks_after_the_prefix() {
         marks: vec![Mark {
             before: 1,
             site: "s",
-            item: Some(0),
+            item: MarkItem::Candidate(0),
             role: Role::Choice,
         }],
         ..Recorded::default()

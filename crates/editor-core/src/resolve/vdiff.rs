@@ -46,11 +46,12 @@
 //! turn, and name no flip.
 //!
 //! Three pruning tests written at their call sites mark their outcome
-//! the same way ([`geom_core::k_stats::mark_kept`]): the section
+//! the same way ([`geom_core::k_stats::mark_outcome`]): the section
 //! certificate's face-pair box test (`topo::boolean::ops`' `walk_pairs`),
-//! the n-ary union's hull test (`judged_pairs`), and the blend reach's
-//! sure-clear cell prune (`sweep::blend::reach::sure`). The residue is
-//! the box-overlap tests still written unmarked at their call sites
+//! the n-ary union's hull test (`judged_pairs`), and every `escalate`
+//! threshold the blend branches on, each through one home in
+//! `sweep::blend::reach` (`sure`, `sure_below`, `fine`). The residue is
+//! the box-overlap tests and thresholds still written unmarked at their call sites
 //! (`work/doctail/hand-written-box-filters-steer-the-first-turn-unmarked.md`
 //! lists them), a heuristic's [`geom_core::k_stats::choose`], and an
 //! [`geom_core::k_stats::unlogged`] reading. Where one of those steers
@@ -84,7 +85,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom_core::k_stats::{Mark, Role, Verdict};
+use geom_core::k_stats::{Mark, MarkItem, Role, Verdict};
 use geom_core::{Decide, Sign};
 
 use crate::eval::{Evaluation, KeyHasher, NodeStanding};
@@ -146,7 +147,7 @@ pub struct Path<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Step {
     Choice(&'static str, Sign),
-    Candidate(&'static str, Option<u32>),
+    Candidate(&'static str, MarkItem),
 }
 
 impl Path<'_> {
@@ -329,6 +330,14 @@ fn sign_ix(s: Sign) -> usize {
 /// their choices alone would agree, and names no flip there
 /// ([`FirstTurn::Parted`]); a mixed diff that finds a flip found one on
 /// one path.
+///
+/// **It keeps only the turns.** A node whose paths part at a mark or at
+/// another predicate ([`FirstTurn::Parted`]) records no flip here, the
+/// same as one whose paths agree: the resolver's lanes and the drive's
+/// evidence read flips, and whether to name the parting site itself (the
+/// query and the candidate where two runs parted) as a diagnosis is a
+/// question raised to Ev on PR 7114 and not yet ruled. Until it is, a
+/// reader that needs the parting calls [`first_turn`].
 pub fn diff_verdicts<T: topo::AtRestPolicy + Decide, U: topo::AtRestPolicy + Decide>(
     old: &Evaluation<T>,
     new: &Evaluation<U>,

@@ -148,7 +148,10 @@ fn a_disjoining_edit_names_no_flip_read_off_other_pairs() {
     // a "flip" between decisions about two different pairs.
     let union = ev1.value(s.union).expect("the overlapping union builds");
     assert!(
-        union.marks.iter().any(|m| m.item.is_some()),
+        union
+            .marks
+            .iter()
+            .any(|m| matches!(m.item, geom_core::k_stats::MarkItem::Candidate(_))),
         "the union's box queries hand on candidates: {:?}",
         union.marks.len()
     );
@@ -166,7 +169,9 @@ fn a_disjoining_edit_names_no_flip_read_off_other_pairs() {
 /// whose decisions can read alike or differ by place, about two different
 /// pairs either way. The test's outcomes are marked, so the two runs
 /// part at the first pair the test judged differently, and no flip is
-/// named.
+/// named. Read with no mark, the choices alone name a fake turn here
+/// (`bool_vertex_face_side`, decided about the other pair), and the row
+/// holds that the hull test's marks alone remove it.
 #[test]
 fn an_nary_union_whose_hull_test_pairs_other_members_names_no_flip() {
     let doc = ProfileDoc::empty_derived("m4_pr4_diff", Tol::witness());
@@ -201,6 +206,51 @@ fn an_nary_union_whose_hull_test_pairs_other_members_names_no_flip() {
     let (m1, m2) = (marked(&ev1), marked(&ev2));
     assert!(!m1.is_empty(), "the hull test marks each pair it judges");
     assert_ne!(m1, m2, "the hull test pairs other members in the two runs");
+    // The union's two paths part, at the hull test's marks: read with
+    // those marks alone beside the verdicts, the paths still part.
+    let (v1, v2) = (
+        ev1.value(union).expect("the union builds"),
+        ev2.value(union).expect("the union builds"),
+    );
+    let hull_only = |v: &editor_core::NodeValue<f64>| -> Vec<geom_core::k_stats::Mark> {
+        v.marks
+            .iter()
+            .filter(|m| m.site == "nary_hulls_meet")
+            .copied()
+            .collect()
+    };
+    let (h1, h2) = (hull_only(v1), hull_only(v2));
+    let turn = |m1: &[geom_core::k_stats::Mark], m2: &[geom_core::k_stats::Mark]| {
+        editor_core::resolve::first_turn(
+            editor_core::resolve::Path {
+                verdicts: &v1.verdicts,
+                marks: m1,
+            },
+            editor_core::resolve::Path {
+                verdicts: &v2.verdicts,
+                marks: m2,
+            },
+        )
+    };
+    assert_eq!(
+        turn(&v1.marks, &v2.marks),
+        editor_core::resolve::FirstTurn::Parted,
+        "the union's runs part"
+    );
+    assert_eq!(
+        turn(&h1, &h2),
+        editor_core::resolve::FirstTurn::Parted,
+        "the hull test's marks alone part them"
+    );
+    // Read with no mark at all, the choices alone name a turn: the
+    // first pair each run judged decides one predicate with the other
+    // sign, about two different pairs. That fake turn is what the hull
+    // test's marks remove.
+    assert!(
+        matches!(turn(&[], &[]), editor_core::resolve::FirstTurn::Turned(_)),
+        "without marks the choices read a turn between two pairs: {:?}",
+        turn(&[], &[])
+    );
     let flips = diff_verdicts(&ev1, &ev2);
     assert!(
         flips.nodes.get(&union).is_none_or(|d| d.flip.is_none()),

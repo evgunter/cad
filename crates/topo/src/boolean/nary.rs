@@ -929,7 +929,7 @@ fn judged_pairs<'h>(
             // pruning differs part there rather than at a pair's
             // decisions about another pair.
             .filter(move |&q| {
-                geom_core::k_stats::mark_kept("nary_hulls_meet", hulls[p].overlaps(&hulls[q]))
+                geom_core::k_stats::mark_outcome("nary_hulls_meet", hulls[p].overlaps(&hulls[q]))
             })
             .map(move |q| if ranks[q] < ranks[p] { (q, p) } else { (p, q) })
     })
