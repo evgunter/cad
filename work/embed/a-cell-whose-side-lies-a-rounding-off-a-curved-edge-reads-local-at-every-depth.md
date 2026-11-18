@@ -50,9 +50,10 @@ cell the curve does not bound (its face's part of the cell is all on one
 side, or none of it), which is the sliver row's question for a curve.
 
 The at-rest gate asks every finished body, so it would refuse this
-drum at its door. Pinned by
-`the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle`
-(282 refused), which goes red when the drum holds.
+drum at its door. Pinned now by
+`a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle` (280
+refused), which goes red when that drum holds (the radius-1 drum's
+measurement since, below).
 
 The sliver fork's recommendation (PR 7095: a thin rectangle read rather
 than conceded, the departure margin metered at the faces' reach) would
@@ -68,3 +69,40 @@ takes the band of what waits on it. It is the curved twin of the
 question the sliver fork put to Ev (PR 7095), and by this row's own
 note that fork's reading does not reach the cell: `graph_read` refuses
 at its choice of run, before any rectangle or margin exists.
+
+## 2026-11-18 — the radius-1 drum holds once its windows are read off its edges' covers, and other radii still meet this row (EMBED, lane rational-window)
+
+Measured with `injective` at f64, the default depth and 65,536 pairs,
+main `c5bc653ae` against `embed/rational-window`, where `boundary_of`
+reads each edge's box corners off its cover over its span
+(`cover::arc_cover`, `Cover::box_in`) instead of one interval
+evaluation. Windows printed with an uncommitted print in `window_of`.
+
+- **What moved on the radius-1 drum.** One window: the half-annulus
+  `2v1`'s, whose low `u` and `v` ends were `−1.0000000000000004` (the
+  outer circle's interval evaluation over its span) and are
+  `−1.0000000000000002` (its arc's closed-form extremum, one ulp
+  tighter). Halving from that end lands the cells' sides on `−0.5`
+  exactly, the half-circle's own bound, where main's window landed them
+  on `−0.5000000000000001`, a rounding off it. The drum then holds:
+  `Holds`, 18 candidates, 1,030 discharged, 0 refused, 1,012 splits.
+  The holding is the engine's own discharge of every pair; nothing about
+  this row's cell was read differently.
+- **Other radii still meet it.** The same drum built at radius `r`,
+  height `h`, ring at `r/2`:
+
+  | `r`, `h` | main | branch |
+  |---|---|---|
+  | 1, 2 | `Budget(Depth)`, 282 refused | holds |
+  | 1, 1.3 | 282 | holds |
+  | 2, 3 | 282 | holds |
+  | 0.7, 2 | 282 | 280 |
+  | 0.3, 0.9 | 234 | 448 |
+  | 1.1, 2.3 | 152 | 436 |
+  | 0.9, 1.7 | 148 | 282 |
+  | 1.3, 2 | 140 | 284 |
+
+  So the drums whose windows halve onto the half-circle hold, and the
+  others refuse as before: the cell this row names is still read by no
+  presentation, and a window reaches it whenever its halvings miss the
+  curve's bound by a rounding.

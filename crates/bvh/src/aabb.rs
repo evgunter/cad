@@ -124,6 +124,9 @@ impl Aabb {
     /// so the padding arithmetic's own rounding can never shave the
     /// pad. Conservative-only: a negative or NaN `pad` yields the
     /// poison box (which never prunes) rather than ever shrinking.
+    /// **A zero pad is not the identity**: every bound still steps one
+    /// ulp out, so a box that must keep its own bounds is not passed
+    /// through here.
     pub fn padded(&self, pad: f64) -> Self {
         if pad.is_nan() || pad < 0.0 {
             return Self::poison();

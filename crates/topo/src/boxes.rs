@@ -455,7 +455,7 @@ pub(crate) mod tests {
     /// and the shape whose locus leaves its boundary-vertex hull.
     ///
     /// Returns the body and the sector face.
-    fn arc_sector(r: f64, span: f64) -> (Body<f64>, FaceKey) {
+    pub(crate) fn arc_sector(r: f64, span: f64) -> (Body<f64>, FaceKey) {
         arc_sector_from(r, span, 0.0)
     }
 
@@ -532,7 +532,7 @@ pub(crate) mod tests {
     /// one conic edge `a → b` described as the plane×cylinder
     /// intersection with the given carrier and parameter run, closed
     /// by the chords `b → c → a` on the plane.
-    fn conic_sector(
+    pub(crate) fn conic_sector(
         plane_surface: Surface<f64>,
         cyl_surface: Surface<f64>,
         carrier: Curve3<f64>,

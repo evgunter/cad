@@ -851,6 +851,15 @@ fn a_three_quarter_turn_cone_frustum_hollows() {
         })
         .body;
     assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()), "tier 3");
+    // The cavity's caps are bounded by hyperbolic arcs, rational
+    // quadratics, and each still has a window.
+    let side = topo::clearance::Side {
+        body: &hollow,
+        faces: hollow.faces().map(|(k, _)| k).collect(),
+    };
+    if let Err(e) = side.windows(topo::clearance::Which::First) {
+        panic!("the three-quarter frustum: every face has a window, got {e:?}");
+    }
     let frustum = core::f64::consts::PI * h * (r0 * r0 + r0 * r1 + r1 * r1) / 3.0;
     assert_hollow_volume(
         "the three-quarter frustum",

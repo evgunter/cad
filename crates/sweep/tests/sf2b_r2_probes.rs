@@ -243,6 +243,16 @@ fn r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges() {
             Ok(()),
             "conical wedge {what}: tier 3"
         );
+        // The cavity's caps are bounded by the hyperbolic arcs, rational
+        // quadratics: each face's window is read off its edges' covers,
+        // so every face of the hollow has one.
+        let side = topo::clearance::Side {
+            body: &hollow,
+            faces: hollow.faces().map(|(k, _)| k).collect(),
+        };
+        if let Err(e) = side.windows(topo::clearance::Which::First) {
+            panic!("conical wedge {what}: every face has a window, got {e:?}");
+        }
         let arcs = hollow
             .edges()
             .filter(|(_, edge)| {

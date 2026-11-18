@@ -1792,14 +1792,40 @@ fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
     assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
 }
 
-/// **The drum the cavity above is cut from refuses, out of depth**: its
-/// half-annulus cells a rounding off the disc's half-circle are read by no
-/// presentation (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
-/// Red when the drum holds, and that row's reading has landed.
+/// **The drum the cavity above is cut from holds**: its windows are read
+/// off its edges' covers, so the half-annulus's chart runs to the circle's
+/// own bound and its halvings land on the disc's half-circle, not a
+/// rounding off it. Red if the drum refuses again, or if its walk grows.
 #[test]
-fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
+fn the_collinear_cap_drum_holds_with_its_splits_on_its_half_circle() {
     use crate::common::latitude_seam::collinear_cap_drum;
     let drum = collinear_cap_drum();
+    let report = injective(&drum, None, BUDGET);
+    assert_holds("the drum", &report, &drum);
+    assert_eq!(
+        (report.receipt.refused, report.receipt.splits),
+        (0, 1012),
+        "{:?}",
+        report.receipt
+    );
+}
+
+/// **A drum whose splits fall a rounding off its half-circle runs out of
+/// depth**: the same drum at radius 0.7, whose half-annulus cells beside
+/// the disc's half-circle are read by no presentation
+/// (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
+/// Red when it holds, and that row's reading has landed.
+#[test]
+fn a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle() {
+    use crate::common::latitude_seam::ring_on_cap;
+    use sweep::test_support::{corners, revolved_about_y};
+    let (r, h) = (0.7, 2.0);
+    let mut drum = revolved_about_y(
+        corners(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h)]),
+        Revolution::Full,
+        Tol::witness(),
+    );
+    ring_on_cap(&mut drum, h, r, r / 2.0);
     let report = injective(&drum, None, BUDGET);
     assert!(
         matches!(
@@ -1810,7 +1836,7 @@ fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
         report.verdict,
         report.receipt
     );
-    assert_eq!(report.receipt.refused, 282, "{:?}", report.receipt);
+    assert!(report.receipt.refused > 0, "{:?}", report.receipt);
 }
 
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity

@@ -692,14 +692,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     (
         "crates/topo/src/clearance.rs",
-        56,
+        54,
         16,
         "the 16 that ask are `poisoned` (2), `iso_bounded_domain`'s knots and joins (12) and \
-         `extent_of` (2). Of the other 40, `split_axis`'s 4 and the `coincidence` and \
+         `extent_of` (2). Of the other 38, `split_axis`'s 4 and the `coincidence` and \
          `meeting_stations` seeds (2 and 4) are selections; `min_separation`'s admission (2), \
          `pair`'s (2), `witness`'s (2) and `overflow`'s (1) read a separation `poisoned` has \
-         passed; `window_of`'s windows (6), `boundary_of`'s span (2) and `row_of`'s parameters \
-         (2) read values `certified_lift` crossed, which refuses the face unless every crossing \
+         passed; `window_of`'s windows (6) and `row_of`'s parameters (2) read values `certified_lift` crossed, which refuses the face unless every crossing \
          certifies; `support_separation`'s 8 are the choice of direction (each cell's normal and \
          the line between the boxes' centres, read at their middles) and of orientation, and the \
          supports' gap it reads after `poisoned` has passed both, a lower bound along any \

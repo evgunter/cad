@@ -3727,14 +3727,15 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
 
 /// The face's boundary enclosure, and the boundary itself lifted.
 ///
-/// The enclosure is the hull of every boundary edge's carrier evaluated
-/// over its OWN parameter interval — interval arithmetic does the
-/// bounding, so a circular edge's bulge is enclosed rather than chorded
-/// away — together with the boundary's vertex points, each lifted
-/// through [`Interval::from_certified`]. `None` for a face that does not
-/// resolve, one of whose edges carries no certified curve, or one any of
-/// whose lifted values does not certify: an unclaimable extent, never a
-/// silently smaller one. The walk past the face is
+/// The enclosure is the hull of every boundary edge's region — its
+/// lifted carrier's cover over its own span ([`crate::cover::arc_cover`],
+/// so a curved edge's bulge is enclosed rather than chorded away, and a
+/// spline edge's by its pieces' control nets) — together with the
+/// boundary's vertex points, each lifted through
+/// [`Interval::from_certified`]. `None` for a face that does not
+/// resolve, one of whose edges carries no certified curve or no cover,
+/// or one any of whose lifted values does not certify: an unclaimable
+/// extent, never a silently smaller one. The walk past the face is
 /// [`crate::live::FaceView::boundary_by_loop`]'s, every hop a link.
 ///
 /// The lifted boundary carries each edge's carrier and span, its two
@@ -3815,10 +3816,17 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
             let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
-            // The whole parameter span as ONE interval: the carrier's
-            // interval evaluation over it encloses the entire arc, which is
-            // what makes a curved boundary bound its own face's window.
-            pts.push(carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi())));
+            // The edge's region over its span, as the low and high
+            // corners of its world box: bracket ends, read by
+            // `Aabb::from_points` as the vertices are. No pad is owed:
+            // each corner is the cover's own enclosure at this scalar, and
+            // `Cover::aabb`'s pad would step every side out by an ulp even
+            // at zero, which moves every window off the points its splits
+            // land on.
+            let (lo, hi) = crate::cover::arc_cover(&carrier, span)
+                .ok()?
+                .box_in(&geom::cover::BoxAxes::World);
+            pts.extend([lo, hi]);
             let ends = <[_; 2]>::from(crate::query::edge_ends(body, ek));
             let uses = hes
                 .iter()
@@ -5246,6 +5254,220 @@ mod cone_window {
                 w.v.0 <= 0.0,
                 "the cap missing its joint into {he:?} still reaches the apex: {:?}",
                 w.v
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod rational_window {
+    use std::sync::Arc;
+
+    use geom::{Curve3, NurbsCurve3, Surface};
+    use geom_core::spline::{KnotVector, SplineError};
+    use geom_core::{Point3, Vec3};
+
+    use super::{Which, window_of};
+    use crate::Body;
+    use crate::entity::FaceKey;
+
+    /// The cap's plane `x = D` and the cone's half-angle: the f64
+    /// conical wedge's cavity cap.
+    const D: f64 = 0.0078125;
+    const ALPHA: f64 = 0.245;
+
+    /// **A plane cap cut from a cone off its axis**: the cone of
+    /// half-angle [`ALPHA`] about `z` met by the plane `x = D` along the
+    /// hyperbola `(D, D·sinh s, (D/tan α)·cosh s)`, `s ∈ [−s0, s0]`,
+    /// stored as the rational quadratic whose middle weight is
+    /// `cosh s0`, then elevated `raise` times and refined at `insert`.
+    /// Two chords through a point above the arc close the cap. Returns
+    /// the cap, the stored arc and its control net.
+    fn hyperbola_cap(
+        s0: f64,
+        raise: usize,
+        insert: &[f64],
+    ) -> (Body<f64>, FaceKey, NurbsCurve3<f64>) {
+        let top = D / ALPHA.tan();
+        let at = |s: f64| Point3::new(D, D * s.sinh(), top * s.cosh());
+        let arc = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![at(-s0), Point3::new(D, 0.0, top / s0.cosh()), at(s0)],
+            vec![1.0, s0.cosh(), 1.0],
+        )
+        .unwrap()
+        .elevate_degree(raise)
+        .unwrap()
+        .refine_knots(insert)
+        .unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::new(D, 0.0, 0.0),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        };
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: ALPHA,
+            u_ref: Vec3::unit_x(),
+        };
+        let carrier = Curve3::Nurbs(Arc::new(arc.clone()));
+        let (body, face) = crate::boxes::tests::conic_sector(
+            plane,
+            cone,
+            carrier.clone(),
+            (0.0, 1.0),
+            carrier.eval(0.5),
+            (at(-s0), at(s0), Point3::new(D, 0.0, top * s0.cosh() + D)),
+        );
+        (body, face, arc)
+    }
+
+    /// **A face bounded by a rational edge has a finite window that
+    /// holds the edge and stays inside its net**: the cap's chart is
+    /// `(y, z)`, so its window's `u` holds every sampled `y` of the
+    /// arc and its `v` every sampled `z`, and neither reaches past the
+    /// hull of the arc's control points and the cap's apex. Rows: the
+    /// wedge's own weights `[1, 1.0722, 1]`; a wider arc (middle
+    /// weight `cosh 1.5 ≈ 2.35`) elevated to degree 4 and refined to
+    /// three spans, whose weights spread unevenly. Red if the edge is
+    /// enclosed by a reading that is unbounded over its whole span (the
+    /// window is refused), wider than the net, or narrower than the
+    /// arc.
+    #[test]
+    fn a_cap_bounded_by_a_rational_arc_has_a_window_inside_the_arcs_net() {
+        for (what, s0, raise, insert) in [
+            ("the wedge's quadratic", 1.0722f64.acosh(), 0, &[][..]),
+            ("a wide quartic over three spans", 1.5, 2, &[0.3, 0.7][..]),
+        ] {
+            let (body, face, arc) = hyperbola_cap(s0, raise, insert);
+            let w = window_of(&body, face, Which::First)
+                .unwrap_or_else(|e| panic!("{what}: the cap has a window, got {e:?}"));
+            let top = D / ALPHA.tan() * s0.cosh() + D;
+            let net = arc.control().iter().map(|p| (p.y, p.z));
+            let (lo, hi) = net.fold(((0.0f64, top), (0.0f64, top)), |(lo, hi), (y, z)| {
+                ((lo.0.min(y), lo.1.min(z)), (hi.0.max(y), hi.1.max(z)))
+            });
+            let slack = 1e-15;
+            assert!(
+                lo.0 - slack <= w.u.0 && w.u.1 <= hi.0 + slack,
+                "{what}: u = {:?} within the net's y [{}, {}]",
+                w.u,
+                lo.0,
+                hi.0
+            );
+            assert!(
+                lo.1 - slack <= w.v.0 && w.v.1 <= hi.1 + slack,
+                "{what}: v = {:?} within the net's z [{}, {}]",
+                w.v,
+                lo.1,
+                hi.1
+            );
+            for k in 0..=64 {
+                let p = arc.eval(f64::from(k) / 64.0);
+                assert!(
+                    w.u.0 <= p.y && p.y <= w.u.1 && w.v.0 <= p.z && p.z <= w.v.1,
+                    "{what}: the arc's point {p:?} at t = {k}/64 is in the window {:?} × {:?}",
+                    w.u,
+                    w.v
+                );
+            }
+        }
+    }
+
+    /// **A spline edge on part of its carrier bounds its face by that part
+    /// alone**: the cap's edge runs over `t ∈ [0, ½]` of the hyperbola
+    /// arc, from its end at `y < 0` to its vertex at `y = 0`, and the
+    /// chords close it on `y ≤ 0`. The window's `u` (the chart's `y`)
+    /// stops at the vertex, where the arc's whole net reaches
+    /// `D·sinh s0`. Red if an edge is read over its whole carrier rather
+    /// than its span.
+    #[test]
+    fn a_spline_edge_on_part_of_its_carrier_bounds_its_face_by_that_part() {
+        let s0 = 1.0722f64.acosh();
+        let (_, _, arc) = hyperbola_cap(s0, 0, &[]);
+        let top = D / ALPHA.tan();
+        let carrier = Curve3::Nurbs(Arc::new(arc.clone()));
+        let at = |s: f64| Point3::new(D, D * s.sinh(), top * s.cosh());
+        let (body, face) = crate::boxes::tests::conic_sector(
+            Surface::Plane {
+                origin: Point3::new(D, 0.0, 0.0),
+                normal: Vec3::unit_x(),
+                u_ref: Vec3::unit_y(),
+            },
+            Surface::Cone {
+                apex: Point3::origin(),
+                axis: Vec3::unit_z(),
+                half_angle: ALPHA,
+                u_ref: Vec3::unit_x(),
+            },
+            carrier.clone(),
+            (0.0, 0.5),
+            carrier.eval(0.25),
+            (
+                at(-s0),
+                carrier.eval(0.5),
+                Point3::new(D, 0.0, top * s0.cosh() + D),
+            ),
+        );
+        let w = window_of(&body, face, Which::First).unwrap();
+        let reach = D * s0.sinh();
+        assert!(
+            w.u.1 < 0.5 * reach,
+            "the window stops near the vertex at y = 0, short of the whole net's {reach}: {:?}",
+            w.u
+        );
+        for k in 0..=32 {
+            let p = arc.eval(0.5 * f64::from(k) / 32.0);
+            assert!(
+                w.u.0 <= p.y && p.y <= w.u.1 && w.v.0 <= p.z && p.z <= w.v.1,
+                "the edge's point {p:?} is in the window {:?} × {:?}",
+                w.u,
+                w.v
+            );
+        }
+    }
+
+    /// **A face bounded by closed forms has the window its bounds give,
+    /// bit for bit**: the half disc of radius ½ on `z = 0`, its rim the
+    /// half circle over `[0, π]` and its diameter two radii, reads
+    /// `u = (−½, ½)` and `v` up to `½`, the circle's own bounds, not a
+    /// step past them. Red if the edges' boxes are padded, even by zero.
+    #[test]
+    fn a_half_disc_reads_its_circles_own_bounds_as_its_window() {
+        let (body, face) = crate::boxes::tests::arc_sector(0.5, core::f64::consts::PI);
+        let w = window_of(&body, face, Which::First).unwrap();
+        assert_eq!(
+            [w.u.0, w.u.1, w.v.1].map(f64::to_bits),
+            [-0.5f64, 0.5, 0.5].map(f64::to_bits),
+            "the half disc's window: {:?} × {:?}",
+            w.u,
+            w.v
+        );
+        assert!(
+            w.v.0 <= 0.0 && w.v.0 > -1e-15,
+            "the diameter's side of the window is at y = 0: {:?}",
+            w.v
+        );
+    }
+
+    /// **A rational edge has no zero or negative weight to enclose**:
+    /// construction refuses one typed, so the net hull a cap's window
+    /// reads is a hull of points the arc is a convex combination of.
+    #[test]
+    fn a_non_positive_weight_is_refused_at_construction() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = vec![
+            Point3::new(D, -1.0, 1.0),
+            Point3::new(D, 0.0, 0.5),
+            Point3::new(D, 1.0, 1.0),
+        ];
+        for w in [0.0, -1.0, f64::NAN] {
+            let got = NurbsCurve3::new(knots.clone(), control.clone(), vec![1.0, w, 1.0]);
+            assert!(
+                matches!(got, Err(SplineError::NonPositiveWeight { index: 1, .. })),
+                "the weight {w} is refused typed at index 1, got {got:?}"
             );
         }
     }

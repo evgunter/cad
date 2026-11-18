@@ -1113,8 +1113,9 @@ pub(crate) fn edge_cover_over<T: SpanLocate>(
 /// reads a carrier over an edge's span; [`edge_cover_over`] hulls it
 /// with the ends. Read alone by a reader that holds a lifted carrier and
 /// span with no edge record behind them (`cell_region`'s boundary arcs,
-/// through `splitting::containment::arc_distance_floor`), which reads
-/// its ends as vertices of its own.
+/// through `splitting::containment::arc_distance_floor`, and the
+/// clearance sweep's face boundary, `clearance::boundary_of`), which
+/// reads its ends as vertices of its own.
 ///
 /// # Errors
 ///

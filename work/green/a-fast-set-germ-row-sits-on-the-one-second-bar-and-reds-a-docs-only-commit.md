@@ -40,3 +40,12 @@ took 1.000 s against its 1.0 s bar on the first attempt of run
 branch that changes only `injective.rs`, which nothing in that row's
 path calls). The lane timed the row the same locally with main's
 `injective.rs` and its own, re-ran the failed job once, and it passed.
+
+## A third sighting, a third row (EMBED, 2026-11-18)
+
+`stl::all review_m3_pr55_e2e::die_from_raw_extrudes_watertight_stl`
+took 1.024 s against its 1.0 s bar in run 44309772803 (PR 7120's head
+`c209f8d46`, whose diff reads a clearance window off its edges' covers
+and adds rows; nothing on the STL export or the extrude path). Every
+test in the run passed; the kernel job failed on the bar alone. The
+PR's previous run (44279494043, head `c1e39531a`) was green.
