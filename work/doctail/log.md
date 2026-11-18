@@ -116,3 +116,15 @@ body has the reasons):
 - 2026-11-18 — **Ev on 7073:** asked what concretely differs between (a) and (b), then: "has this question been asked before? it feels like (b) is much simpler". History: fork row 238 on 6298. Designer B's first report was (b), a placed sketch (profile, extrude, plane-mate placement, combine). B moved to (a) for corner anchoring (`[intrinsic]`) and because placement's projected origin has no visible datum; (b) never reached Ev. The corner reason is gone under Ev's new rule, and the origin reason now applies to (a) too. My lean on the PR is now (b), which reverses 6298's "a sketch on a face is not placed"; I offered designers if Ev prefers.
 - 2026-11-18 — **Ev on 7073:** "reading traces does seem like an important thing we want to be able to do". Answered with what the two acts are today: the "on the picked face" sketch, and "New traced profile", whose frame `traced_frame` takes z from the traced face's AXIS so tangency is structural. Under (a) the two could become ONE act; under (b) they cannot. I no longer lean (b). Dispatched a designer pair (`faceact`, two Opus) on one act or two, including whether tangency stays structural on a charted frame. Ev was told they may stop them.
 - 2026-11-18 — **`faceact` fork:** both designers recommend ONE act: a profile on a face is drawn on the face's placement chart in the body's space and may trace (`DrawnOn.faces`); `traced_frame` retires. That builder anchors by vertex enumeration order (`[intrinsic.contingent]`), checks squareness only at authoring, and its axis sense puts a bottom-cap "boss" inside the body (pinned by `intent_s6_e_traced_frame`). Tangency stays structural only if the coincidence door gains an extrude-heading statement, the twin of `axis_of`. That is the question for Ev on 7073, against Ev's 2026-10-06 "per-node theorems only as a possible cache". The diff and body are updated in place.
+- 2026-11-18 — **Merged: `split-widens-a-product-reading-one-of-several-cut-copies` (PR 7087).** The product slot is a read site in one enumeration (`Doc::read_sites`). Split, inline, flatten and `continuation::splice` re-point it by the rule they use for node seats, and the round-trip comparator now reads the product. Also:
+  - one walk of a source chain (`owned_chain`);
+  - one compose rule for picks of picks (`Doc::pick_path`, which the seat evaluator now uses too: a pick of a pick at a node seat failed to evaluate before);
+  - named sources and picks over the cut are carried, go with the cut, or refuse typed (`NamedReadUncarried { why }`).
+
+  Tier: a single FULL review (3 MAJORs), then delta reviews (1 MAJOR, then 2 MAJORs, then none) and four fix passes; the last pass got the orchestrator's read. Filed:
+  - P2: a named source whose heir is a piece (the VR4 fork);
+  - P2: inline and flatten redefine a seat's source where split rewrites it (the one kernel-defect path still reachable, on inline of a split remainder);
+  - P3: a part's product as the bodies no cut operation reads;
+  - P3: SPACES' viewer product readers.
+
+  The two P2 rows turn on one VR4 question; a designer pair should weigh it next.
