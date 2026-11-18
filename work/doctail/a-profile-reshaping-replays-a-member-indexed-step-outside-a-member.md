@@ -2,12 +2,10 @@
 id: a-profile-reshaping-replays-a-member-indexed-step-outside-a-member
 kind: issue
 title: a profile whose step reads a member index is refused by the edit door, which replays it outside any member
-status: parked
+status: dispatched
 opened: 2026-11-01
 priority: P1
 cost: M
-design: true
-blocked_on: [7075]
 ---
 
 ## Finding

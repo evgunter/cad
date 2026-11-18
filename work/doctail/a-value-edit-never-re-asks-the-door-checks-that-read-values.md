@@ -2,12 +2,10 @@
 id: a-value-edit-never-re-asks-the-door-checks-that-read-values
 kind: issue
 title: A value edit never re-asks the edit-door checks that read the current values
-status: parked
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: M
-design: true
-blocked_on: [7075]
 ---
 
 Raised by the STYLE review of PR 5926 (F2).
