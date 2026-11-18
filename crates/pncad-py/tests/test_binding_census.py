@@ -2998,6 +2998,16 @@ NOT_BOUND = {
     "ArcShape": INTERIOR,
     "StepShape": INTERIOR,
     "TargetShape": INTERIOR,
+    # The same shape's readings, and the value-free pen-order judgement
+    # the doors and the editor ask over it: a Python caller meets their
+    # answer as a door's refusal (`EditError`/`PersistError`'s `trace`
+    # word), never the shape itself.
+    "PenRun": INTERIOR,
+    "PenStep": INTERIOR,
+    "pen_fault": INTERIOR,
+    "pen_run": INTERIOR,
+    "shape_of_recorded": INTERIOR,
+    "step_kernel": INTERIOR,
     "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
     # The loop the lattice constructed, carrying that provenance into
