@@ -3145,3 +3145,27 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
 }
+
+/// **A unit cone whose apex is off the origin holds**: the triangle
+/// `(0, 2.7) (0, 1.7) (1, 2.7)` revolved a full turn about `y`, its apex
+/// at `y = 1.7`. Each half-cone's stored extent starts at `v =
+/// 2.2e-16`, a rounding above the apex, so `present_chart`'s apex
+/// reading (`y.0 > 0.0`) never places the apex and the shared apex
+/// cell reads `Local` at every depth
+/// (`work/embed/a-small-cone-tips-apex-end-may-round-past-the-nappe-slack.md`).
+/// Red today, out of pairs; the same triangle at `y = 0.3` stores `0`
+/// and holds at 157 discharged. Found by the review of PR 7115.
+#[test]
+#[ignore = "red: the apex end rounds above zero (a-small-cone-tips-apex-end-may-round-past-the-nappe-slack)"]
+fn a_unit_cone_with_its_apex_off_the_origin_holds() {
+    let profile = validated::<f64>(&[ProfileLoop::polygon(
+        [(0.0, 2.7), (0.0, 1.7), (1.0, 2.7)].map(|(x, y)| Point2::new(x, y)),
+    )]);
+    let body = revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body();
+    let report = injective(&body, None, BUDGET);
+    assert_holds("the cone with its apex at y = 1.7", &report, &body);
+    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+}
