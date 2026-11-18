@@ -2397,7 +2397,9 @@ fn posed_use(frame: &PoseFrame, rim: &Rim, u: &Use) -> Use {
     let Some(lon0) = lon_at(at(t0)) else {
         return none;
     };
-    // A parallel.
+    // A parallel. Every reader takes an iso row's moving coordinate as
+    // monotone; a parallel's azimuth runs at ±1, so its rate's sign
+    // fails only where `P` vanishes, at the pole, which no parallel holds.
     let height = lat(Interval::from_bounds(0.0, TURN));
     if narrow(height) && one_sign((t0, t1), rate).is_some() {
         let lon1 = lon0 + at(t1 - t0) * rate(span);
@@ -2405,7 +2407,10 @@ fn posed_use(frame: &PoseFrame, rim: &Rim, u: &Use) -> Use {
             return lifted(Axis::V, height, [height, height], [lon0, lon1]);
         }
     }
-    // A meridian.
+    // A meridian. A circle whose azimuth is one value lies in a plane
+    // through the axis, so a great circle, whose latitude is monotone
+    // off the poles `P > 0` keeps out; `rises` asks it of the
+    // enclosures, not of that plane.
     let positive = trig(p, span);
     let azimuth = lon0 + (span - at(t0)) * rate(span);
     if !(positive.is_certified() && positive.lo() > 0.0 && narrow(azimuth)) {
@@ -4313,8 +4318,9 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
         chart_curve(s, o, u).map(Reading::PlaneLine)
     } else {
         // The argument is made on a chart that never collapses: a
-        // cylinder's, or a ring torus's. A sphere's images are its
-        // parallels and meridians, coordinate lines, so none reaches this;
+        // cylinder's, or a ring torus's. On a sphere a circle is read in
+        // the pose that makes it a coordinate line ([`present_posed`]),
+        // and a curve no chart makes one is not argued here;
         // a cone's apex collapses a line of its chart, and is not read
         // past here, conservatively: an apex in reach is a vertex the
         // reading refuses. On a torus the line is a parallel, and the
@@ -13564,6 +13570,131 @@ mod posed_rows {
         assert!(
             matches!(short, Outcome::Certified { .. }),
             "cells short of the crossing: {short:?}"
+        );
+    }
+    /// **A pose is not tried where a shared edge is no conic**
+    /// ([`poses_of`]): the triangle with its edge 2 stored on a line, a
+    /// carrier no pose projects to a coordinate line, shared, beside the
+    /// circle `x = A`, which a pose would read. The shared edge is unread
+    /// in every pose and every smaller cell of the pair holds it, so the
+    /// stored chart's `Structural` stands. Red if a pose whose shared edge
+    /// is no line is tried: its failure reads `Local`.
+    #[test]
+    fn a_pose_is_not_tried_where_a_shared_edge_is_no_conic() {
+        let s = sphere();
+        let mut b = triangle();
+        let (p, q) = (b.vertices[&vertex(3)], b.vertices[&vertex(2)]);
+        b.edges[1].arc = Some((Curve3::line(p, q - p), (iv0(0.0), iv0(1.0))));
+        // The shared edge first: [`beside_curve`] types a cell by the
+        // first unread curved edge in its local boundary.
+        let local = Local {
+            edges: vec![1, 0],
+            vertices: Vec::new(),
+        };
+        let piece = Piece {
+            face: face(1),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (0.7, 0.9),
+            v: (0.9, 1.1),
+            local: &local,
+            ball: Ball::holding(pt(0.0, 0.0, 0.0), pt(0.0, 0.0, 0.0)),
+        };
+        let poses = Poses::default();
+        assert_eq!(
+            present(&piece, &[1], &[], band(), &poses).err(),
+            Some(Unpresented::Structural),
+            "the shared line is unread in every pose"
+        );
+    }
+
+    /// **A pose reads no corner zero** ([`present_chart_in`]): at `E1`
+    /// with both the circle and the equator shared, [`zero_of`] finds the
+    /// corner of the two sides, which the arms read as vanishing on both
+    /// sides' lines, while a pose's line is an enclosure of its edge.
+    /// Red if a pose presents it.
+    #[test]
+    fn a_pose_reads_no_corner_zero() {
+        let (s, b) = (sphere(), triangle());
+        assert_eq!(
+            posed(
+                &s,
+                &b,
+                ((1.29, 1.34), (-0.03, 0.03)),
+                (&[0, 2], &[vertex(1)])
+            )
+            .err(),
+            Some(Unpresented::Local),
+            "the corner of the circle and the equator, both shared"
+        );
+    }
+
+    /// **A pose reads no sliver** ([`present_chart_in`]): a cell 2e-11
+    /// across about a point of the circle `x = A`, whose pose rectangle,
+    /// clipped to the parallel, is within the band of it. The stored
+    /// chart's sliver would read it vacuous; the sliver is frozen, so a
+    /// pose presents it. Red if a pose reads the sliver.
+    #[test]
+    fn a_pose_reads_no_sliver() {
+        let (s, b) = (sphere(), triangle());
+        let t = 0.6548_f64;
+        let p = (A, across(A) * t.cos(), across(A) * t.sin());
+        let (lon, lat) = (p.1.atan2(p.0), p.2.asin());
+        let d = 1e-11;
+        let got = posed(
+            &s,
+            &b,
+            ((lon - d, lon + d), (lat - d, lat + d)),
+            (&[0], &[]),
+        );
+        assert!(
+            matches!(got, Ok((Zero::Side(Side::YLo, _), ..))),
+            "the strip beside the circle is presented: {got:?}"
+        );
+    }
+
+    /// **A pose's reach is its own rectangle's** ([`poses_of`]): a short
+    /// radial segment stands on the sphere at a corner of the pose's
+    /// rectangle for a cell beside the circle `x = A`, clear of the stored
+    /// cell's ball but in the rectangle. The
+    /// pose's presentation would hold it, so the cell is `Local`. Red if a
+    /// pose reads the stored cell's local boundary in its wider rectangle.
+    #[test]
+    fn a_poses_reach_is_its_own_rectangles() {
+        let (s, mut b) = (sphere(), triangle());
+        let cell = ((1.0, 1.34), (0.5, 0.6));
+        let (Ok((_, x, y, _)), (_, stored)) =
+            (posed(&s, &b, cell, (&[0], &[])), reach(&s, &b, cell))
+        else {
+            panic!("the cell beside the circle is presented");
+        };
+        let frame = PoseFrame::of(pt(0.0, 0.0, 0.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0))
+            .expect("the pose about x");
+        let pose = frame.sphere(iv0(1.0));
+        let corner = [(x.0, y.1), (x.1, y.1), (x.0, y.0), (x.1, y.0)]
+            .into_iter()
+            .map(|(u, v)| pmid(pose.point_eval(u, v)))
+            .find(|&c| stored.clear_of_point(lift3(c), band()))
+            .expect("a corner of the pose's rectangle off the stored cell's ball");
+        let tip = Point3::new(corner.x * 1.001, corner.y * 1.001, corner.z * 1.001);
+        b.edges.push(Rim {
+            key: edge(9),
+            arc: Some((
+                Curve3::line(lift3(corner), lift(tip - corner)),
+                (iv0(0.0), iv0(1.0)),
+            )),
+            ends: [vertex(7), vertex(8)],
+            uses: vec![curve_use(true, (0.0, 0.0), (0.0, 0.0))],
+        });
+        assert!(
+            !reach(&s, &b, cell).0.edges.contains(&3),
+            "the segment is clear of the stored cell"
+        );
+        assert_eq!(
+            posed(&s, &b, cell, (&[0], &[])).err(),
+            Some(Unpresented::Local),
+            "the segment in the pose's rectangle"
         );
     }
 }
