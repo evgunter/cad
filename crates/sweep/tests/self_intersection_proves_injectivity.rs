@@ -960,6 +960,52 @@ fn a_two_arc_lunes_hollow_holds_its_cavity_read_in_its_caps_poses() {
     assert_holds("the two-arc lune's hollow", &report, &hollow);
 }
 
+/// **A snowman whose head stands off the axis refuses at once, at a
+/// corner no chart reads**: the two balls of
+/// [`a_two_ball_union_holds_with_its_poles_read`], the head moved 0.3
+/// across the axis, so the waist is a circle off both spheres' axes.
+/// Each ball's half-bands meet the waist where their meridian does, a
+/// corner of a meridian of the stored chart and a parallel of the waist's
+/// pose, which no chart reads as two coordinate lines; and across the
+/// meridian the waist's pose reads the meridian as no line. Neither is
+/// read at any depth, so the pair refuses at its root, as it did before
+/// poses were read. Red if a pose's `Local` stands in for either: the
+/// walk then splits about 2,500 times over ten seconds before refusing.
+#[test]
+fn a_snowman_with_its_head_off_the_axis_refuses_at_once_at_its_waist() {
+    let ball = |r: f64, y: f64| {
+        let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+        revolved_about_y_at::<f64>(vec![p(y - r, 1.0), p(y + r, 0.0)], Revolution::Full, tol())
+    };
+    let head = topo::transform_rigid(
+        &ball(0.8, 0.0),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(0.3, 1.4, 0.0))
+            .expect("a translation"),
+    )
+    .expect("the head moves");
+    let finished = |b| sweep::test_support::finished("the ball", b, tol());
+    let union = topo::boolean::union(&finished(ball(1.0, 0.0)), &finished(head), tol())
+        .expect("the balls unite");
+    let body = Body::clone(&union.body().expect("a body").body);
+    let report = injective(&body, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Uncertified {
+                arm: CertificateArm::Departure,
+                ..
+            })
+        ),
+        "the waist refuses Departure: {:?}",
+        report.verdict
+    );
+    assert!(
+        report.receipt.splits < 64,
+        "at once, not after the depth: {:?}",
+        report.receipt
+    );
+}
+
 /// **A filleted cube corner's ball holds against the faces it touches
 /// at its pole**: the unit cube with the three edges at `(1, 1, 1)`
 /// filleted. The corner's sphere is charted with a pole at the vertex
