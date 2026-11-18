@@ -1214,9 +1214,6 @@ impl ViewerBehavior<'_> {
                 {
                     crate::drafts::latch(held, doc, face);
                 }
-                if !plane && held.is_some() && ui.button(TRACE_NOTHING).clicked() {
-                    *held = None;
-                }
             });
         }
         let waiting = self
@@ -1225,6 +1222,11 @@ impl ViewerBehavior<'_> {
             .is_none()
             .then_some(PICK_THE_FACE_DRAWN_ON);
         if self.drafts.trace_face.is_none() {
+            return waiting;
+        }
+        // On a row of its own: the latch's row is as wide as the face it says.
+        if ui.button(TRACE_NOTHING).clicked() {
+            self.drafts.trace_face = None;
             return waiting;
         }
         match self.drafts.trace_shown.as_ref().map(|shown| &shown.read) {
