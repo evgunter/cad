@@ -951,3 +951,71 @@ each). The tour walk: 24,258 asks, 706 s of gate in a 2,002 s release walk.
 - **Not pinned:** the `bench` finishes (they wait on the fork: the finish
   holds no records), and the box leaf at `w = 0.1` (the slab stands in as
   the engine-refusal row).
+
+## The gate's price, measured for the price fork (2026-11-18)
+
+The measuring harness is on `embed/gate-measure` (not for merge):
+`topo::gate_measure` writes one row per ask to `$CAD_GATE_LOG/<pid>.log`
+(test, scalar, faces, receipt, seconds, verdict, the kinds and solids of
+the faces a verdict names, and at a Boolean's `gate` the records its door
+holds); `CAD_GATE_OFF=1` skips the ask, `CAD_GATE_DECOMPOSE=<min leaves>`
+asks each face pair of a holding ask alone, `CAD_GATE_CENSUS=1` times the
+tier-3′ census at a Boolean's `gate` with its records. Each item below says
+how it was run.
+
+### In-solid crossings and their records (for PR 7068)
+
+Per-solid gate, `embed/gate-measure` at `674724090` (after PRs 7071 and
+7089): the 202 workspace tests the census found crossing inside one solid
+or with solids unlogged. 161 still fail on a gate finding; 140 of those on
+a crossing.
+
+| crossing inside one solid | tests |
+|---|---:|
+| a Boolean result whose door held a record of two cells of that solid, covering the crossing's face pair | 55 |
+| — point records only (vertex–vertex 14, vertex–face 4, vertex–edge 3) | 21 |
+| — edge records, with or without points | 32 |
+| — an area record (face–face) | 2 |
+| a Boolean result whose door held no contact record (11 named for a refusal) | 56 |
+| finished elsewhere (split, Euler-built fixtures, loft), records not visible to the harness | 36 |
+
+The harness reads `Held.contacts`, not `Held.records` (operand
+declarations), so some of the 56 may hold a declared record.
+
+### Item 5: the refusals' share (census log, whole-body ask, `362cd72fd2`)
+
+| verdict | asks | seconds | mean |
+|---|---:|---:|---:|
+| holds | 233,719 | 15,171 | 65 ms |
+| departure, at an edge | 1,839 | 5,126 | 2.8 s |
+| `Budget(Pairs)` | 834 | 5,095 | 6.1 s |
+| departure, at a vertex | 1,593 | 1,352 | 0.85 s |
+| `Budget(Depth)` | 484 | 468 | 0.97 s |
+| crossing | 8,727 | 61 | 7 ms |
+| second order | 65 | 59 | 0.9 s |
+| sliver | 1 | 12 | 12 s |
+| unsupported (window, spindle, approximated) | 218 | 1 | — |
+
+Every `Budget(Pairs)` ask runs to the full budget (65,493 splits on
+average). **A refusing ask does not stop at its first refusal.** `Bound`
+keeps the first refusal (`lower_refusal.get_or_insert`) and the walk goes
+on, looking for a verified crossing, until the frontier empties or the
+budget is spent (`walk`, `Walk::split`). The twelve most expensive asks
+are all departure refusals at an edge on four- to seven-face torus
+bodies (`germ_torus_components`, `germ_sphere_torus_placements`,
+`quadric_pair_sections`): 126–498 s each, at 27,000–65,500 splits.
+
+### The distribution (same log)
+
+| faces | asks | holding: asks, s | refusing: asks, s |
+|---|---:|---|---|
+| 1–6 | 175,019 | 173,422, 5,472 | 1,597, 5,101 |
+| 7–12 | 46,132 | 36,472, 3,671 | 9,660, 4,432 |
+| 13–24 | 17,626 | 15,679, 1,592 | 1,947, 1,565 |
+| 25–48 | 5,197 | 4,752, 2,708 | 445, 937 |
+| 49–96 | 2,826 | 2,719, 1,547 | 107, 63 |
+| 97+ | 680 | 675, 181 | 5, 75 |
+
+The most expensive holding ask: 40.9 s, 89 faces, 471 candidate pairs,
+45,271 splits (`coincidence_door::every_band_a_revolve_mints_is_about_its_axis_output_at_sym`,
+at `Sym`).
