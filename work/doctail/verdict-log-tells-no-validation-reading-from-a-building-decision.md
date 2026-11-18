@@ -2,11 +2,12 @@
 id: verdict-log-tells-no-validation-reading-from-a-building-decision
 kind: issue
 title: The resolver's flip lane cannot tell a reading taken off an already-built body (tier 3, the rim's validation) from a decision that built the body, so each validation predicate whose sign counts move under an edit pre-empts the true cause unless it is hand-added to first_cause's pass-over list
-status: open
+status: parked
 opened: 2026-11-03
 priority: P1
 cost: M
 design: true
+blocked_on: [7076]
 ---
 
 

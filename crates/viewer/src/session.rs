@@ -5336,7 +5336,7 @@ fn write_product(
         .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
         .filter(|&at| {
             doc.output(at, 0)
-                .is_some_and(|read| !doc.reader_counts().contains_key(&read))
+                .is_some_and(|read| doc.read_by_nothing_but_the_product(read))
         });
     if let Some(id) = held {
         run.apply(DocEdit::SetProduct { product: None })?;

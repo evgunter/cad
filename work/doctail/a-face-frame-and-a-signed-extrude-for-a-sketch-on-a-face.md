@@ -1,7 +1,7 @@
 ---
 id: a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face
 kind: unit
-title: A face's frame is built from the face and a cell off it, and an extrude's depth is signed
+title: A sketch on a face is drawn on the face's placement chart (one code with the plane mate's), and an extrude's depth is signed
 status: open
 opened: 2026-11-02
 priority: P1
@@ -50,3 +50,19 @@ and the viewer half is `work/vseam/on-the-picked-face-draws-the-profile-there`.
 Leave the old fused `sketch_on_face`, `Recording::sketch_on_face` and
 `SketchedOnFace` in place: their callers retire in the lib and vseam
 units, and the last of those deletes them.
+
+## 2026-11-18 — re-specced after Ev's ruling on `[ev]` PR 7073 (merged)
+
+**This section replaces step 1 above, and amends step 2.** Spec: `docs/DESIGN.md` `[placement]` and `crates/editor-core/REFERENCES.md` DM1, as merged by 7073.
+
+1. **The face's chart, a pose construction.** It reads a planar face, plus a written **orientation** (the 24-way kind `Mate.orient` holds, which the gesture writes nearest the face), a **spin** and **two slides**, each a variable that is the constant 0 unless named. Its value is the chart a plane placement onto that face with those values gives:
+   - z is the face's outward normal;
+   - x and the origin are the space's, under the orientation, carried onto the face by the least turn, then spun and slid.
+
+   **One code.** The construction calls the plane mate's chart function (`mate::value`, the `charted` path, through `RigidMotion::turned_onto` / `least_turn`). It never re-spells it, so the frame and a placement cannot drift (Ev: "how can we make it impossible for these two to drift? can they use the same code?").
+
+   Within the band about the orientation's pole it refuses typed, naming the orientation to write, as `MateFault::Backwards` does. There are no cell reads and no `Flag` builder: the "toward a cell" text above is retired. The GUI may prefill slides and spin from a clicked corner; the kernel does not.
+2. **The drawn-on-face door** takes the orientation (`None` means the nearest, written into the recipe; `nearest_to_face` moves into this door, so it has one home), spin and slides. It also takes the faces to trace (`DrawnOn.faces`, possibly empty: a profile on a face is one act whether or not it traces). Tracing on the chart frame is its own unit, `tracing-reads-the-faces-chart-and-traced-frame-retires`. This unit only lets the list through.
+3. **Signed depth:** unchanged from step 3 above.
+
+Check FRAME's 2026-11-03 note (the least turn's pole) against the orientation: a bottom cap writes `x: +x, z: −z`, and the least turn is the identity.

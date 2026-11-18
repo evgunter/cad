@@ -5529,7 +5529,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "product_read_fault_tag",
-        values: &["kind", "space", "unresolved"],
+        values: &[
+            "kind",
+            "member_at_product",
+            "pick_path",
+            "space",
+            "unresolved",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5944,10 +5950,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_on_dropped_step",
             "name_outside_part_world",
             "name_straddles_cut",
+            "named_read_uncarried",
             "no_material",
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
+            "product_read_severed",
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
@@ -6502,9 +6510,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_var_kind", 2),
     ("pcurve", 6),
     ("pcurves", 3),
-    // One fact at the edit and load doors: a pick whose path names no
-    // one piece of its copy (`editor_core::edit::pick_fault`).
-    ("pick_path", 2),
+    // One fact at the edit and load doors and the product slot: a pick
+    // whose path names no one piece of its copy
+    // (`editor_core::edit::pick_fault`).
+    ("pick_path", 3),
     // One fact for the boolean and the split: the result sort
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb.

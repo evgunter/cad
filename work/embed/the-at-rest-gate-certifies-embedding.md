@@ -30,9 +30,9 @@ What the unit carries, from the three designers' converged reports
    engine refusal refuses typed and never reads Ok. For a loft, the
    editor maps the faces through `Lofted`'s face roles to walls and
    section ranges.
-3. **Exclude recorded contact pairs.** This is a face-pair exclusion
-   on `topo::clearance::Side`, since a tier-3′ body is not injective at
-   its records.
+3. **Ask each solid against itself** (fork `embed-records`, below).
+   The gate never pairs faces of two solids: a meeting between solids
+   is the census's, and an assembly's is its `⊔`'s to record or report.
 4. **Keep the gate's verdict per node by content key**, which is
    PR 3870's "once, at the door that built it". Today
    `finished_operand` and the product gather re-gate on every
@@ -652,11 +652,11 @@ filed below. Rows touched: this one, and
     stations, made at the body's own scalar after the sweep returns.
     It is the one logged row, and at `Interval` its straddle is the
     drive's cue.
-- **Item 3:** `Side` (`clearance.rs` ~373) gains a face-pair
-  exclusion, built from the body's `ContactRecords` (`records.rs`
-  ~316: `face_face`, `edge_face`, `vertex_face` and the rest, each
-  cited cell reduced to its faces). The engine never offers an
-  excluded pair.
+- **Item 3:** the gate asks the verdict door once per solid, over that
+  solid's faces (`Side::faces` scopes the ask), and never offers the
+  engine a pair of faces of two solids. `finish` is handed no records
+  for this: none is in play between the faces of one solid, except a
+  record whose two cells lie in that solid (below).
 - **The loft:** `LoftError::SelfIntersecting` names the two faces by
   their `Lofted` roles (`loft.rs` ~131: `side_faces[l][j][s]`, `top`,
   `bottom`) and the section range each meets in.
@@ -664,15 +664,92 @@ filed below. Rows touched: this one, and
   - the 9 and 13 rad arc spines, the closed spine and CARVETAIL's
     loft refuse at their door at `f64` with `BoundaryMeetsItself` and
     the roles of table 2. Today they ship;
-  - `bench`, `bench60` and `bench90` finish: their contacts are
-    excluded. Today the question reads `Violated` at 0;
+  - `bench`, `bench60` and `bench90` finish: no pair between two
+    copies is asked. Asked of the whole body the question reads
+    `Violated` at 0;
+  - a product whose copies overlap finishes, with its interference
+    finding;
   - an engine refusal reads `EmbeddingUncertified`: the box leaf at
     `w = 0.1`, until lane B moves it.
 - **Mutants:** no gate call (the spine rows ship); a refusal mapped to
-  `Ok` (the uncertified row ships); no exclusion (the bench refuses).
+  `Ok` (the uncertified row ships); the gate pairs faces of two solids
+  (a bench and the overlapping product refuse).
 - **Gates:** every suite, the tour walk (85 bodies) and `demos/wild`.
   The price is table 1's: 4–25× tier 3 on planar bodies, and up to
   9.2 s on the Klein loop.
+
+### Fork `embed-records`: what the gate asks, and of what
+
+Raised by the gate lane on 2026-11-17: `AtRestBody::validate` is
+handed no `ContactRecords`, so an exclusion "built from the body's
+records" has nothing to read at `finish`. Two designers converged
+after three rounds (`docs/DESIGN-FORK-LOG.md`, row 287); the answer is
+in `docs/DESIGN.md` `[topology.tiers]`.
+
+- **The certificate is each solid's.** Lane C's gate asks per solid.
+- **The finished body holds its records**, and the gate confirms each
+  before anything relies on it. `BooleanBody::contacts`, the
+  evaluator's `Carry`, `Product`, the import's copy and the Python
+  `Body`'s become reads of the finished body. A door carries its
+  operands' records through its lineage before its finish, not after.
+  The Boolean's `gate` already holds them (`Held`); `shell`, split and
+  blend take a bare body today. This closes into it
+  `work/atrest/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md`
+  and its two neighbours on the same gap.
+- **A solid that holds a recorded contact between two of its own
+  cells refuses typed at the gate** (Ev, PR 7068, 2026-11-18:
+  "refusing for now sounds good"; the long run is open,
+  `[open.self-contact]`). The two candidates: the certificate reads
+  around the recorded cells as around a shared vertex or edge, the
+  gate first confirming the record with the census's self-touch
+  reading (both designers' recommendation, and
+  `a-recorded-contact-refuses-the-injectivity-question-until-contact-design-hands-it-off`'s
+  third candidate for records inside one solid); or the recorded face
+  pair is left out. An area self-touch inside one shell keeps its
+  typed refusal (`TouchesItself`). **What it refuses meanwhile:**
+  nothing in the demos (tour 0 of 86 stops, `demos/wild` 0 of 8
+  cells); in the workspace, the rows that build a self-touching solid
+  on purpose and hold its record (the gate lane's count is on this
+  row's `## Census`).
+- **After an op over an assembly, its pieces stay pieces, and the op
+  answers only for what it made** (the fork's third part, rewritten
+  after Ev's questions on PR 7068; nothing about an overlap rides the
+  finished body, and `[open.lint-output]` is untouched).
+  - Cells a door carried unchanged between two solids that descend
+    from different pieces of one operand keep the meeting they arrived
+    with: a recorded touch keeps its record, a reported overlap stays
+    the `⊔`'s finding, reported once. No gate reads that pair again.
+  - Cells a door made (minted or moved) are read once against the
+    other pieces. A removing door (`−`, `∩`, split, shell) cannot make
+    an overlap, but can leave a bare touch (two crossed bars, the
+    overlapping centre cut out: four stubs touching along edges the
+    cut made), and records it. A wall cut where the pieces already
+    overlapped is the old overlap. Old or new is read off the operand.
+  - A solid that crosses itself never passes: a `∪` whose added
+    material fuses two overlapping pieces refuses on the per-solid
+    certificate. (An overlapping assembly used as a cut's tool refuses
+    today for the same reason, which is a kernel limit and not a rule:
+    Ev, PR 7068, "the same as cutting by one of the interfering parts
+    and then the other";
+    `work/seal/a-cut-by-a-tool-whose-pieces-overlap-is-cut-as-it-stands.md`.)
+  - **A fillet whose added material reaches the neighbouring piece is
+    a new interference finding at the fillet, never a refusal** (Ev,
+    PR 7068, 2026-11-18). `[operations.operators]` and
+    `[topology.records]` say so.
+  - Confirming the records a door writes between solids it cuts out of
+    one piece is tier 3′, parked on
+    `work/reachhold/boolean-door-runs-the-census-over-its-result.md`.
+  - **Pins:** an overlapping assembly cut, met, split and shelled
+    finishes with one interference finding, at the assembly, and no
+    gate read between carried cells of different pieces (mutant: the
+    gate reads that pair); the crossed bars give four edge records,
+    each citing the cut; `(bolt ⊔ plate) − pin` reports one finding,
+    not six; a `∪` fusing both overlapping pieces refuses.
+
+**Order.** The per-solid ask lands with lane C. The records moving
+into the finished body, the confirmed meeting place and the census
+inside a deciding door's finish are units of their own, cut when lane
+C lands.
 
 ### Lane D — once per node; the viewer's preview (M)
 
@@ -951,3 +1028,222 @@ each). The tour walk: 24,258 asks, 706 s of gate in a 2,002 s release walk.
 - **Not pinned:** the `bench` finishes (they wait on the fork: the finish
   holds no records), and the box leaf at `w = 0.1` (the slab stands in as
   the engine-refusal row).
+
+## The gate's price, measured for the price fork (2026-11-18)
+
+The measuring harness is on `embed/gate-measure` (not for merge):
+`topo::gate_measure` writes one row per ask to `$CAD_GATE_LOG/<pid>.log`
+(test, scalar, faces, receipt, seconds, verdict, the kinds and solids of
+the faces a verdict names, and at a Boolean's `gate` the records its door
+holds); `CAD_GATE_OFF=1` skips the ask, `CAD_GATE_DECOMPOSE=<min leaves>`
+asks each face pair of a holding ask alone, `CAD_GATE_CENSUS=1` times the
+tier-3′ census at a Boolean's `gate` with its records. Each item below says
+how it was run.
+
+### In-solid crossings and their records (for PR 7068)
+
+Per-solid gate, `embed/gate-measure` at `674724090` (after PRs 7071 and
+7089): the 202 workspace tests the census found crossing inside one solid
+or with solids unlogged. 161 still fail on a gate finding: 147 on a
+crossing, 14 on an engine refusal (departure, before any crossing).
+
+| crossing inside one solid (147 tests) | tests |
+|---|---:|
+| a Boolean result whose door held a record of two cells of that solid, covering the crossing's face pair | 55 |
+| — point records only (vertex–vertex 14, vertex–face 4, vertex–edge 3) | 21 |
+| — edge records, with or without points | 32 |
+| — an area record (face–face) | 2 |
+| a Boolean result whose door held no contact record (11 named for a refusal) | 56 |
+| finished elsewhere (split, Euler-built fixtures, loft), records not visible to the harness | 36 |
+
+The harness reads `Held.contacts`, not `Held.records` (operand
+declarations), so some of the 56 may hold a declared record.
+
+### Item 5: the refusals' share (census log, whole-body ask, `362cd72fd2`)
+
+| verdict | asks | seconds | mean |
+|---|---:|---:|---:|
+| holds | 233,719 | 15,171 | 65 ms |
+| departure, at an edge | 1,839 | 5,126 | 2.8 s |
+| `Budget(Pairs)` | 834 | 5,095 | 6.1 s |
+| departure, at a vertex | 1,593 | 1,352 | 0.85 s |
+| `Budget(Depth)` | 484 | 468 | 0.97 s |
+| crossing | 8,727 | 61 | 7 ms |
+| second order | 65 | 59 | 0.9 s |
+| sliver | 1 | 12 | 12 s |
+| unsupported (window, spindle, approximated) | 218 | 1 | — |
+
+Every `Budget(Pairs)` ask runs to the full budget (65,493 splits on
+average). **A refusing ask does not stop at its first refusal.** `Bound`
+keeps the first refusal (`lower_refusal.get_or_insert`) and the walk goes
+on, looking for a verified crossing, until the frontier empties or the
+budget is spent (`walk`, `Walk::split`). The twelve most expensive asks
+are all departure refusals at an edge on four- to seven-face torus
+bodies (`germ_torus_components`, `germ_sphere_torus_placements`,
+`quadric_pair_sections`): 126–498 s each, at 27,000–65,500 splits.
+
+### The distribution (same log)
+
+| faces | asks | holding: asks, s | refusing: asks, s |
+|---|---:|---|---|
+| 1–6 | 175,019 | 173,422, 5,472 | 1,597, 5,101 |
+| 7–12 | 46,132 | 36,472, 3,671 | 9,660, 4,432 |
+| 13–24 | 17,626 | 15,679, 1,592 | 1,947, 1,565 |
+| 25–48 | 5,197 | 4,752, 2,708 | 445, 937 |
+| 49–96 | 2,826 | 2,719, 1,547 | 107, 63 |
+| 97+ | 680 | 675, 181 | 5, 75 |
+
+The most expensive holding ask: 40.9 s, 89 faces, 471 candidate pairs,
+45,271 splits (`coincidence_door::every_band_a_revolve_mints_is_about_its_axis_output_at_sym`,
+at `Sym`).
+
+### Item 4: is the certificate a conjunction of face-pair facts?
+
+Yes, exactly, on every holding ask measured. `embed/gate-measure`,
+per-solid gate, `demos/tour` release walk with `CAD_GATE_PASS=1
+CAD_GATE_DECOMPOSE=200`: each holding ask with at least 200 cell-pair
+leaves (discharged, violated, refused, within) had every face pair asked
+alone (`Side::faces = [a, b]`, the two self-pairs excluded; a self-pair as
+`[a]`), once per body signature. 250 asks, 2 to 111 faces, among them the
+Klein loop, the die chain, lofts, the teapot vessel, revolves and the
+impellers.
+
+- The whole ask's candidate pairs are exactly the pairs that are
+  candidates alone: 250 of 250.
+- The lone asks' leaves, splits and discharges sum to the whole ask's:
+  250 of 250 each.
+- Every lone verdict holds: 250 of 250.
+- So the memos `Sweep::run` shares across pairs (`RegionMemo`,
+  `LocalMemo`, `across`, `cornered`, `widths`) change time only: the lone
+  asks take 135.0 s against the whole asks' 112.2 s.
+- Refusing asks were not decomposed: `walk` refuses a whole level, so a
+  pair's spend there is not defined.
+
+**The budget's two numbers.** The largest spend of any single face pair
+on a holding body is 12,774 leaves, 19.5% of 65,536 (the Klein loop, a
+NURBS wall against a NURBS wall; the whole ask is 51,322, 78%). On the
+largest holding bodies the receipt grows linearly with faces: the die
+chain at 76 to 111 faces takes 4,092 to 6,283 leaves (about 57 a face,
+3.4 candidate pairs a face, largest pair 77 to 88); impeller-like bodies
+of 76 to 86 faces take 6,791 to 8,141 (largest pair 91). One 89-face tour
+body takes 45,742, spread over many pairs (largest 557).
+
+Repeat: `cd demos/tour && CAD_GATE_LOG=<dir> CAD_GATE_PASS=1
+CAD_GATE_DECOMPOSE=200 cargo run --release -- <out>` on
+`embed/gate-measure`; the `DECOMP` rows hold each ask's sums.
+
+### Item 2: per-ask price at CI's build against release
+
+The same tour walk at the dev profile with libraries at opt-1 (CI's
+`CARGO_PROFILE_DEV_OPT_LEVEL=1`), set ask by ask against the release
+walk: 1,542 asks matched by sequence and signature (faces, candidates,
+splits, discharges) before a worker restart stopped the dev walk at stop
+70 of 85. CI's build takes 601.0 s on them against release's 490.5 s,
+1.23×; on the 1,533 that hold, 271 ms against 229 ms an ask. So the build
+is not the gap between the tour's 29 ms and the workspace's 65 ms an ask:
+that gap is which bodies are asked.
+
+### Item 3, partial: where the asks come from and what a door carries (2026-11-18)
+
+**Partial, and stopped on purpose** (the interim answered what it was
+for). `embed/gate-measure`, full suite with `CAD_GATE_CARRY=1
+CAD_GATE_CENSUS=1`, stopped after 3,012 of 19,460 tests: 2,521 of
+`editor-core::all`, all 422 of `editor-core`'s unit tests, 57 of `bvh`
+and 12 of `sweep::all`. So the tables below are editor-core's; `sweep` is
+not measured. Five tests were killed for memory under the decomposition
+(two `coincidence_door` rows, `corpus_finish_count`, `docm5_subject`,
+`germ_torus_components::two_donuts_in_general_pose_pass_the_germ_mint`);
+their asks up to the kill are counted.
+
+Every finish site is tagged (`gate_measure::site`). Gate seconds by site:
+
+| site | asks | seconds | share | holding: seconds |
+|---|---:|---:|---:|---:|
+| Boolean `gate` | 46,696 | 3,147 | 57.0% | 2,085 |
+| blend | 708 | 1,448 | 26.2% | 1,337 |
+| revolve | 1,846 | 285 | 5.2% | 277 |
+| extrude | 40,898 | 179 | 3.2% | 179 |
+| a moved leaf (`LeafBody::moved_by`) | 18,468 | 177 | 3.2% | 177 |
+| the product's aggregate | 5,243 | 153 | 2.8% | 153 |
+| `topo::finish` called directly (fixtures) | 1,939 | 65 | 1.2% | 65 |
+| the `⊔` graft | 6,635 | 49 | 0.9% | 49 |
+| split | 1,355 | 15 | 0.3% | 15 |
+| shell | 45 | 6 | 0.1% | 6 |
+| loft and sweep | 139 | 2 | 0.0% | 2 |
+| `distribute`, `topo::take`, `carved` | 50 | 0 | — | 0 |
+
+The leaf doors (extrude, revolve, loft, a moved leaf) hold about 15% of
+the holding seconds; the deciding doors about 80%.
+
+**The carry fraction.** At the four deciding doors every holding ask's
+candidate face pairs were asked alone (exact, item 4) and classed by their
+faces against the door's operands, matched by a fingerprint of the
+`Debug` bits of carrier and sense and of every rim's curve and start
+point: *carried* (both faces bit-identical to faces of one operand),
+*trimmed* (both on one operand's carriers and senses, at least one with
+new loops), *two operands*, *new* (a face on no operand's carrier).
+Shares of the lone-ask seconds:
+
+| door | carried | trimmed | two operands | new |
+|---|---:|---:|---:|---:|
+| Boolean `gate` (1.70 M pairs) | 65% | 16% | 8% | 11% |
+| blend | 5% | 18% | — | 77% |
+| split | 1% | 73% | — | 27% |
+| shell | 8% | 4% | — | 89% |
+
+A Boolean's untouched faces do match their operand's bit for bit: that is
+where the 906,507 carried pairs come from.
+
+**Item 6, partial: the census at a Boolean's `gate`.** The tier-3′
+census (`AtRestPolicy::census_at_rest`) over each finished Boolean result
+with its door's records: 28,033 runs, 30 s in all (the gate there took
+3,147 s), 814 of them with records. It refused 17 bodies the gate had
+finished: 11 asks of `atrest_operation_rows_quiet::a_rod_on_a_plate_is_quiet_under_its_gap`
+(3 records, 7 findings), 5 of `face_face_touch_carry::a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records`
+(3 records, 3 findings), and 1 of `docm6_seam_declarations::a_boolean_over_a_product_keeps_its_parts`
+(no records, 1 finding). Not traced.
+
+Repeat: on `embed/gate-measure`, `CAD_GATE_LOG=<dir> CAD_GATE_CARRY=1
+CAD_GATE_CENSUS=1 cargo nextest run …`; the `CARRY` and `CENSUS` rows,
+summed by `site`, give these tables.
+
+### Fork `embed-price`: what a finish asks
+
+Raised by the gate lane's census on 2026-11-18: the gate as built is
+247,480 asks and 27,344 s over the workspace's suites, about 90% of
+`sweep`'s test time, because every finish proves its whole body again.
+Two designers hold one design after six rounds and split on the
+budget's unit (`docs/DESIGN-FORK-LOG.md`, row 286); the design is in
+`docs/DESIGN.md` `[topology.tiers]`.
+
+- **The certificate is one fact per pair of faces**, of the two faces
+  and the cells they share. `finish` takes the body with the finished
+  operands it was built from, compares faces exactly itself (surface,
+  sense, loops, edge geometry, which cells the two share), carries the
+  fact of every pair it finds unchanged in one operand, and asks the
+  engine about the rest. The door declares nothing.
+- **Asked, always:** a pair with a new face; a pair from two operands;
+  a pair sharing a cell the door made or changed; every pair with a
+  face the door trimmed. Trimmed pieces of operand faces are not
+  carried.
+- **Regrouping doors and moves ask nothing** (the `⊔` graft, a
+  product, `distribute`, `carved`, the graft in `boolean/material.rs`,
+  a moved leaf). A leaf door asks its whole body.
+- **The same body gets the same verdict by any route.**
+- **Pinned before anything reads a carried fact:** a pair asked alone
+  gives the verdict it has in the whole ask, and on asks that hold the
+  pairs' cell-pair counts sum to the whole receipt.
+- **The budget stays a fixed constant on one ask, and nothing is
+  stored with a fact** (Ev, PR 7101, 2026-11-18: "a 'don't make the
+  program hang forever' backstop rather than a sharp bound"). It
+  counts only what that finish asks; a carried fact costs nothing. A
+  recipe of n ops spends at most n times the constant. A budget
+  refusal therefore follows the route: a chain can hold where the same
+  shape built in one op, or imported, runs out. Item 2's "one fixed
+  pair budget" stands as written.
+- **Measured** (the gate lane, 250 holding asks of the tour, every
+  face pair asked alone): the lone candidates are the whole ask's, the
+  lone leaves, splits and discharges sum to the whole's, and every
+  lone verdict holds, 250 of 250. The pin above is that measurement
+  made a test.
+

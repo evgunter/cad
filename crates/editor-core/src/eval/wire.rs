@@ -3158,13 +3158,13 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
             None => doc.through_sources(row),
         };
         let var = sourced.read;
-        if let Some(pick) = doc.pick(var) {
+        if let Some((_, path)) = doc.pick_path(var) {
             let placement = super::read_at(doc, seat, var)?;
             let indexed = node
                 .body_read(seat)
                 .is_some_and(crate::BodyRead::is_indexed);
             replaced.push(pick_of(
-                (var, pick),
+                (var, &path),
                 placement,
                 indexed,
                 seat,
@@ -3261,7 +3261,7 @@ fn member_projected<T: topo::AtRestPolicy + Decide>(
 /// naming no piece, and a read at the other shape, refuse typed: which
 /// pieces a copy holds is this evaluation's to answer.
 fn pick_of<T: topo::AtRestPolicy + Decide>(
-    (var, pick): (crate::VarId, &crate::var::Pick),
+    (var, path): (crate::VarId, &[crate::VarId]),
     placement: RecipeNodeId,
     indexed: bool,
     seat: crate::OperandSlot,
@@ -3270,7 +3270,7 @@ fn pick_of<T: topo::AtRestPolicy + Decide>(
     let value = value_of(results, placement)?;
     let mut pieces = value.carry.pieces.as_ref();
     let mut reached: Option<&super::Piece<T>> = None;
-    for (at, &step) in pick.of.iter().enumerate() {
+    for (at, &step) in path.iter().enumerate() {
         let piece = pieces
             .and_then(|held| held.piece(step))
             .ok_or(NodeErrorKind::NoSuchPiece { pick: var, at })?;
