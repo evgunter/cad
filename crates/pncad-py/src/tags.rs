@@ -2212,6 +2212,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Join { .. } => "join",
         StepImportError::SingularityUndecided { .. } => "singularity_undecided",
         StepImportError::SingularitySideUndecided { .. } => "singularity_side_undecided",
+        StepImportError::SingularityMeetUnread { .. } => "singularity_meet_unread",
         StepImportError::Interpretation { .. } => "interpretation",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",

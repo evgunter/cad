@@ -44,3 +44,13 @@ its singular points through.
 Read each through `Span::read` (or `k_stats::decide` under a named
 reading) at the file band, refusing in band as the split's other
 placements do (`StepImportError::C0KnotUnsplit`).
+
+## Also
+
+`knot_split.rs`, `split_face_once` (about :1051): the edge's meeting
+with the knot line, `curve_pair::meet(...).map_err(|_| refuse(...))`,
+folds every `MeetRefusal` arm into one sentence. An escalation (a
+distance the file's band cannot call, whose recourse is an ε_in), a
+reading that did not run to an answer, and a kernel fault all end the
+same way. The singularity pass's `meet_refused` reads them arm by arm
+(`MeetFault::kind`); the split should too. (From the review of PR 7117.)

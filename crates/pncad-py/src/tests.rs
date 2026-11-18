@@ -6042,6 +6042,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement",
             "recognition_ambiguous",
             "rim_off_wall_boundary",
+            "singularity_meet_unread",
             "singularity_side_undecided",
             "singularity_undecided",
             "structure",

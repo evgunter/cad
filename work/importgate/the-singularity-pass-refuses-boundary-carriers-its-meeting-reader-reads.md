@@ -16,13 +16,13 @@ onto `geom_brep::curve_pair::meet`.
 
 `crates/step-import/src/normalize/singularity.rs`, `require_read_carriers`,
 refuses a sphere or cone face holding its pole or apex unless every
-boundary carrier is a line or a circle (`foreign_carrier`: "a carrier
-the chart-singularity normalization reads no crossing of (it reads lines
-and circles)"). That was the limit of the pass's own crossing reader.
+boundary carrier is a line or a circle (`foreign_carrier`: the
+normalization "cuts only faces bounded by lines and circles, and does
+not yet cut this one"). That limit was the pass's own crossing reader's.
 `first_hit` now reads each meridian against the boundary through
 `curve_pair::meet`, whose table reads ellipse pairs in closed form and
-spline and spiric pairs by the certified walk, so the reason the gate
-gives is no longer the pass's.
+spline and spiric pairs by the certified walk, so the gate is now only
+the pass's scope.
 
 Pinned on the refusal today:
 `crates/step-import/tests/review_pole_vertex_probes.rs`,
