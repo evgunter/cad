@@ -49,3 +49,7 @@ Each designer was shown the other's round-3 report and asked whether the two rul
 The `[ev]` PR is 7068 (`embed/ev-finished-body`); `docs/DESIGN-FORK-LOG.md` row 284 carries the recommendation half.
 
 Totals: A 340,716; B 195,736.
+
+## After the PR: Ev's questions on decision 3 (2026-11-18)
+
+Ev answered decisions 1 and 2 yes on PR 7068 (02:23Z), and questioned decision 3 three times (`ev-thread-2026-11-18.md`: Ev's comments verbatim, the orchestrator's replies summarised). The last, "how could − ever create a new overlap", shows the agreed text asks for more than a removing door needs: A's final report states that a door which only removes material cannot make a new meeting between two solids its operand held, and neither report weighed "store nothing on the body; only material-adding doors read between pieces" as an option of its own. Both designers (the same two sessions; A is the Fable designer, B the Opus designer, as drawn) were resumed at 02:50Z with the thread and the problem restated from Ev's side, each without the other's answer. They were also told that no round of this fork read `crates/topo/README.md` tier 3, which already ratifies decision 2 (PR 5967).
