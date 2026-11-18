@@ -734,8 +734,14 @@ never answers it.
 - `WitnessBifurcation` (SOLVER-DESIGN W3).
 
 Diagnosis is computable because every node evaluation records its verdict log
-(`k_stats`); `resolve/vdiff.rs` diffs two runs per predicate by sign population
-(permutation-invariant) and is shared with `SetTolerance`'s ε-audit.
+(`k_stats`), and each decision in it says, from where it is taken, whether it
+is a **choice** (another sign can change what the node builds or names) or a
+**check** (it can only make the node refuse). A flip is the first choice two
+runs of a node take differently along one recorded path: after an identical
+stretch of choices, the same predicate decided with the other sign. Checks are
+not read, so a check is never a cause, and a node whose choices part any other
+way (another predicate, or one log ending) names no flip. `resolve/vdiff.rs`
+holds the comparison.
 
 **Two scopes.** The with-history lanes (recorded flips, structural parameters,
 recipe edits) read two scopes, in order (`resolve::upstream_nodes` states the
