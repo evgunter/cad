@@ -2213,7 +2213,8 @@ where
         // once at the pair's root, or the cells' supports may still put
         // the pair clear of that bound.
         let support = |c: Interval| {
-            (pair.depth == 0 && apart_in_depth(x, y, c, band))
+            let in_depth = || certified_lift(|lift| apart_in_depth(x, y, c, band, lift));
+            (pair.depth == 0 && in_depth() == Some(true))
                 || separated_by_support(pair, x, y, c, band)
         };
         if let (Some(Reading::Undecided(source)), Some(lo)) = (&r.below, bound.lower())
@@ -4217,12 +4218,13 @@ fn separated_by_support<T: Real>(
 ///
 /// The depths are read off the faces' covers at the lane scalar, as
 /// the cells' regions are, and the gap is less the census's pad for
-/// what a cover does not charge.
-fn apart_in_depth<T: Decide + CertifiedBounds>(
+/// what a cover does not charge. Each gap read is crossed by `lift`.
+fn apart_in_depth<T: Decide>(
     x: &Window<'_, T>,
     y: &Window<'_, T>,
     c: Interval,
     band: Band,
+    lift: Lift<'_, T>,
 ) -> bool {
     let read = |w: &Window<'_, T>| depth_gap::face_read(w.body, w.face, band);
     let (Some(rx), Some(ry)) = (read(x), read(y)) else {
@@ -4230,11 +4232,7 @@ fn apart_in_depth<T: Decide + CertifiedBounds>(
     };
     depth_gap::gaps_in_depth((x.body, x.face, &rx), (y.body, y.face, &ry), band).any(|gap| {
         matches!(
-            decide(
-                CLEARANCE_SUPPORT_GAP,
-                Margin::of(Interval::from_certified(gap) - c),
-                band
-            ),
+            decide(CLEARANCE_SUPPORT_GAP, Margin::of(lift.of(gap) - c), band),
             Ok(Sign::Positive)
         )
     })
@@ -5947,7 +5945,7 @@ mod depth_rows {
 
     use super::{
         BoundVerdict, Budgets, Cell, CellPair, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep,
-        Which, apart_in_depth, separated_by_support, window_of,
+        Which, apart_in_depth, certified_lift, separated_by_support, window_of,
     };
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use crate::{Body, FaceKey};
@@ -6012,7 +6010,10 @@ mod depth_rows {
                 depth: 0,
                 fresh: false,
             };
-            let apart = |c: f64| apart_in_depth(&wa, &wb, at(c), band);
+            let apart = |c: f64| {
+                certified_lift(|lift| apart_in_depth(&wa, &wb, at(c), band, lift))
+                    .expect("every gap certifies")
+            };
             (
                 [apart(0.0), apart(5e-4), apart(1e-3 - in_band)],
                 separated_by_support(pair, &wa, &wb, at(0.0), band),
