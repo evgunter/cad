@@ -62,6 +62,21 @@
 //!    chart that mints natively mints here — cylinder, cone, sphere,
 //!    torus, described non-rational NURBS; plane faces stay
 //!    derive-on-demand, exactly what a natively built body carries).
+//!
+//!    **A vertex the description fixes, and one it leaves free.** Where
+//!    the description fixes a vertex — two or more built carriers that
+//!    cross a surface around it, a sphere's pole, a cone's apex — the
+//!    build constructs it, and an escalation there refuses. Where it
+//!    leaves the vertex free along one locus (a seam's end on a rim, an
+//!    edge split along one carrier, a whole torus's one vertex), every
+//!    point of that locus is an equally valid model of the file's
+//!    statements; the foot of the printed point on the kernel-built
+//!    carrier (or the one surface) is the printed value choosing among
+//!    them, read within the file's band, not a cache, and certification
+//!    reads it at ε on every incident carrier. Both are reported on the
+//!    ledger where they move ([`NormalizationKind::VertexBuilt`]), and a
+//!    carrier the kernel built off the printed one likewise
+//!    ([`NormalizationKind::CarrierBuilt`]).
 //! 5. **The shared at-rest gate** (M7-7, #260 ruling (a);
 //!    [`import_step`]): the body is handed to
 //!    the kernel's own at-rest gate — the scalar's finish
@@ -505,15 +520,25 @@ pub enum NormalizationKind {
         /// record lies from the other's surface.
         moved_by: f64,
     },
-    /// **A vertex the build put where its built carriers meet** (`[import]`,
-    /// D7 step 2): the root of a surface around it along a carrier through
-    /// it, or the foot of its printed point on its one carrier, past the
-    /// printed point's own rounding and within the file's band. Keyed by
+    /// **A vertex the build put off its printed point** (`[import]`, D7
+    /// step 2): where its description fixes it (a root of a surface around
+    /// it along a carrier through it, a pole, an apex), or, where the
+    /// description leaves it free along one built carrier, the foot of its
+    /// printed point there; any move, read within the file's band. Keyed by
     /// the `VERTEX_POINT`; its census pair is empty, since no face, edge or
     /// vertex is added or lost.
     VertexBuilt {
         /// The move (metres): the built point's distance from the printed
         /// one.
+        moved_by: f64,
+    },
+    /// **An edge whose built carrier is not the printed one** (`[import]`,
+    /// D7 step 2): the carrier the kernel constructed from the edge's
+    /// description; any move, read within the file's band. Keyed by the
+    /// `EDGE_CURVE`; its census pair is empty.
+    CarrierBuilt {
+        /// The move (metres): the farthest of the printed carrier's ends,
+        /// quarters and middle from the built carrier.
         moved_by: f64,
     },
     /// **A NURBS carrier promoted to an analytic kind** (D7 stage 1,

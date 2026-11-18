@@ -343,16 +343,18 @@ fn freecad_body(
             normalizations,
             ..
         } => {
-            // A vertex the build moved off its printed point is on the
-            // ledger as `VertexBuilt` (any move, rounding included); the
-            // structure normalizations this file's rows count are the
-            // rest. Each move is read at the file's band, so none is
-            // past ε_in's band.
-            let (moves, structure): (Vec<_>, Vec<_>) = normalizations.into_iter().partition(|n| {
-                matches!(n.kind, step_import::NormalizationKind::VertexBuilt { .. })
-            });
+            // A vertex the build moved off its printed point, and an edge
+            // whose built carrier is not the printed one, are on the
+            // ledger as `VertexBuilt` and `CarrierBuilt` (any move,
+            // rounding included); the structure normalizations this
+            // file's rows count are the rest. Each move is read at the
+            // file's band, so none is past ε_in's band.
+            use step_import::NormalizationKind::{CarrierBuilt, VertexBuilt};
+            let (moves, structure): (Vec<_>, Vec<_>) = normalizations
+                .into_iter()
+                .partition(|n| matches!(n.kind, VertexBuilt { .. } | CarrierBuilt { .. }));
             for m in &moves {
-                let step_import::NormalizationKind::VertexBuilt { moved_by } = m.kind else {
+                let (VertexBuilt { moved_by } | CarrierBuilt { moved_by }) = m.kind else {
                     unreachable!("partitioned on the kind")
                 };
                 assert!(

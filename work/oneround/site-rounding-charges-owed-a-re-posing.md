@@ -102,11 +102,6 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `topo::boolean::boxes::sphere_reach`, `topo::boolean::circle_roots`
   (`conic_off_plane`, `harmonic_crossing`),
   `topo::splitting::section_loops::conics_clear`.
-- `step_import::build::ROUNDING` (`pose`): a value the build reconstructs
-  is admitted as the one the file printed where the two differ by sixteen
-  units of its last place, so the writer's own output is a fixed point of
-  the import (`importgate/build`). Owed a reading of the reconstruction's
-  own arithmetic instead of a fixed count of units.
 - `topo::injective::few_ulps`, `topo::separation::image`'s slop,
   `topo::props::rounding_bound`, `topo::props::quad_lane::end_slack`.
 

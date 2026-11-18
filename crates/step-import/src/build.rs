@@ -218,7 +218,8 @@ enum Running {
 }
 
 /// **Builds one shell** (module docs). `moves` receives a record for each
-/// vertex the build moved off its printed point.
+/// vertex the build moved off its printed point, and for each edge whose
+/// built carrier is not the printed one.
 ///
 /// # Errors
 ///
@@ -282,6 +283,15 @@ pub(crate) fn build<'a>(
             },
             (other, _) => other,
         };
+        let moved = held_gap(&carrier, spec);
+        if moved.is_finite() && moved != 0.0 {
+            moves.push(StructureNormalization {
+                face: id,
+                kind: NormalizationKind::CarrierBuilt { moved_by: moved },
+                file_census: FaceCensus::EMPTY,
+                kernel_census: FaceCensus::EMPTY,
+            });
+        }
         edges.insert(
             id,
             Edge {
@@ -1822,7 +1832,9 @@ fn singular_point(
 
 /// The first root, in edge then face order, of a face's surface along a
 /// built intrinsic carrier ending at the vertex that the surface does not
-/// hold. `Err` where the run's band does not decide a root.
+/// hold. A reading the run's band does not decide is kept and the search
+/// goes on, as a climb keeps what it passes over: the first definite root
+/// answers, and the first escalation refuses only where none does.
 fn rooted(
     solid: &SolidSpec,
     sides: &BTreeMap<u64, (usize, usize)>,
@@ -1831,6 +1843,7 @@ fn rooted(
     printed: Point3<f64>,
     band: geom_core::Band,
 ) -> Result<Option<Point3<f64>>, geom_core::Indeterminate> {
+    let mut unsettled = None;
     for &e in edges {
         let c = &chosen[&e];
         let Some(carrier) = c.carrier.as_ref().filter(|_| c.intrinsic) else {
@@ -1841,9 +1854,6 @@ fn rooted(
             surface_sig(&solid.faces[plus].surface),
             surface_sig(&solid.faces[minus].surface),
         ];
-        let Some(seed) = param_at(carrier, printed) else {
-            continue;
-        };
         let spec = &solid.edges[&e];
         let extent = geom_brep::edge_extent_inf(
             &spec.carrier,
@@ -1856,22 +1866,38 @@ fn rooted(
             if held.contains(&surface_sig(surface)) {
                 continue;
             }
-            if topo::root_along(surface, carrier, seed, extent, band)?.is_err() {
-                continue;
+            match root_on(surface, carrier, printed, extent, band) {
+                Ok(Some(point)) => return Ok(Some(point)),
+                Ok(None) => {}
+                Err(source) => {
+                    unsettled.get_or_insert(source);
+                }
             }
-            // The root, settled: Newton seeded at its own root again.
-            let root = |p: Point3<f64>| -> Result<Option<Point3<f64>>, geom_core::Indeterminate> {
-                let Some(seed) = param_at(carrier, p) else {
-                    return Ok(None);
-                };
-                Ok(topo::root_along(surface, carrier, seed, extent, band)?
-                    .ok()
-                    .map(|t| carrier.eval(t)))
-            };
-            return settled(printed, root);
         }
     }
-    Ok(None)
+    unsettled.map_or(Ok(None), Err)
+}
+
+/// **The root of `surface` along `carrier` from `printed`, settled**
+/// ([`settled`]): Newton seeded at its own root again, so building the
+/// vertex from its own point gives it back. `None` where no root lies
+/// along the carrier there.
+fn root_on(
+    surface: &Surface<f64>,
+    carrier: &Curve3<f64>,
+    printed: Point3<f64>,
+    extent: geom_core::Lever<f64>,
+    band: geom_core::Band,
+) -> Result<Option<Point3<f64>>, geom_core::Indeterminate> {
+    let root = |p: Point3<f64>| -> Result<Option<Point3<f64>>, geom_core::Indeterminate> {
+        let Some(seed) = param_at(carrier, p) else {
+            return Ok(None);
+        };
+        Ok(topo::root_along(surface, carrier, seed, extent, band)?
+            .ok()
+            .map(|t| carrier.eval(t)))
+    };
+    settled(printed, root)
 }
 
 /// The printed point's foot on the first built carrier ending at the

@@ -372,7 +372,8 @@ fn adopt_edges(
                                    of its own)"
                                 .to_owned(),
                             lane: "the construction of an under-determined smooth join \
-                                   (D2's conventional pair, C7)",
+                                   (D2's conventional pair, C7; \
+                                   `work/importgate/an-imported-under-determined-smooth-join-refuses-not-yet-supported.md`)",
                             file,
                         });
                     }

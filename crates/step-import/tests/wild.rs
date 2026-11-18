@@ -695,7 +695,12 @@ fn the_band_re_mint_reports_its_normalizations() {
         // ledger's too, and not this row's subject.
         let got: Vec<_> = normalizations
             .iter()
-            .filter(|n| !matches!(n.kind, NormalizationKind::VertexBuilt { .. }))
+            .filter(|n| {
+                !matches!(
+                    n.kind,
+                    NormalizationKind::VertexBuilt { .. } | NormalizationKind::CarrierBuilt { .. }
+                )
+            })
             .map(|n| (n.face, n.kind, n.file_census, n.kernel_census))
             .collect();
         let want: Vec<_> = expected

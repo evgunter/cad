@@ -2289,6 +2289,7 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::OneRecord { .. } => "one_record",
         NormalizationKind::CurvePromoted { .. } => "curve_promoted",
         NormalizationKind::VertexBuilt { .. } => "vertex_built",
+        NormalizationKind::CarrierBuilt { .. } => "carrier_built",
     }
 }
 

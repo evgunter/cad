@@ -3003,6 +3003,10 @@ fn import_report_row_tags_are_stable() {
             "vertex_built",
         ),
         (
+            NormalizationKind::CarrierBuilt { moved_by: 1.2e-16 },
+            "carrier_built",
+        ),
+        (
             NormalizationKind::CurvePromoted {
                 kind: pncad::step_import::PromotedCurveKind::Circle,
                 residual: 1e-17,
@@ -5370,6 +5374,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "normalization_kind_tag",
         values: &[
+            "carrier_built",
             "chart_singularity_vertex",
             "curve_promoted",
             "edge_free_sphere",
