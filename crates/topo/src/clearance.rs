@@ -2193,6 +2193,7 @@ where
                 };
                 let outcome = match outcome {
                     Outcome::Cusp { shared } if pair.depth >= CUSP_DEPTH => {
+                        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVR cusp depth={}", pair.depth); }
                         Outcome::Refuse(EngineRefusal::Uncertified {
                             a: x.face,
                             b: y.face,
@@ -2249,6 +2250,7 @@ where
                             })
                         };
                         if let Err(stop) = split {
+                            if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVR stop {:?} arm={:?} shared={:?} depth={} a.u={:?} a.v={:?} b.u={:?} b.v={:?}", stop, arm, shared, pair.depth, pair.a.u, pair.a.v, pair.b.u, pair.b.v); }
                             self.lower_refusal.get_or_insert(match stop {
                                 CellBudget::Depth { .. } => EngineRefusal::Uncertified {
                                     a: x.face,
