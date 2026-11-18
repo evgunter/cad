@@ -79,8 +79,9 @@
 //! body is a cut copy crossing whole is defined afresh over the
 //! instance's copy, as inline and flatten define a source reading the
 //! copy they take away; an anonymous one the product slot reads is the
-//! slot's own, written afresh with it. A named source or pick the
-//! remainder keeps that reads the cut otherwise refuses
+//! slot's own, written afresh with it. A named source or pick that
+//! reads the cut and every reader of which is cut goes with them; one
+//! the remainder keeps otherwise refuses
 //! ([`SplitError::NamedReadUncarried`]): carried to a piece, it would
 //! read a pick written in a definition, which none writes. Inline carries every variable of the part
 //! under an id the host mints, and refuses a name the host already
@@ -995,10 +996,12 @@ pub enum SplitError {
         why: Option<Uncarried>,
     },
     /// **A named source or pick the remainder keeps reads the cut, and
-    /// cannot be carried** (A4, VR4): only a source whose read crosses to
-    /// the instance's copy whole is defined afresh over it; a pick, or a
-    /// source over a piece of it, would read a pick written in a
-    /// definition, which no definition authors.
+    /// cannot be carried** (A4, VR4): it stays (something the remainder
+    /// keeps reads it, or nothing does), and only a source whose read
+    /// crosses to the instance's copy whole, or reads through one that
+    /// does, is defined afresh over it; a pick, or a source of a piece,
+    /// would read a pick written in a definition, which no definition
+    /// authors. One every reader of which is cut goes with them.
     NamedReadUncarried {
         /// The variable.
         var: Box<SpokenVar>,
@@ -1251,11 +1254,10 @@ impl core::fmt::Display for SplitError {
             Self::NamedReadUncarried { var } => write!(
                 f,
                 "split: {var} stays and reads cut material, and only a source of a body the \
-                 instance's copy carries whole is defined afresh over it; a pick, or a \
-                 source of a piece, reads a pick no definition writes. {}",
+                 instance's copy carries whole is defined afresh over it: {var} is a pick, or \
+                 a source of anything else. {}",
                 Recourse(&format!(
-                    "cut what reads {var} too, or read the piece at a seat rather than \
-                     through {var}"
+                    "cut every node that reads {var}, so it goes with them, or delete it"
                 ))
             ),
             Self::UncutVarReference {
@@ -3118,7 +3120,17 @@ pub fn split(
             match doc.node(at) {
                 Some(Node::Place { .. } | Node::InstantiatePart { .. }) => {
                     let within = match doc.pick(var) {
-                        Some(pick) => pick.of.clone(),
+                        // A pick of a pick reads the inner piece's piece:
+                        // the inner path, then the outer.
+                        Some(_) => {
+                            let mut path = Vec::new();
+                            let mut at = var;
+                            while let Some(pick) = doc.pick(at) {
+                                path.splice(0..0, pick.of.iter().copied());
+                                at = pick.placement;
+                            }
+                            path
+                        }
                         None if !read.is_indexed()
                             && doc
                                 .var(var)
@@ -3284,16 +3296,14 @@ pub fn split(
                                     .is_some_and(|names| names.iter().all(|name| holds(name, at)))
                         }),
                     ),
-                    // A source is read through to what it reads, so a pick
-                    // under it is re-pointed to the same piece.
+                    // A seat's own sources are read through to what they
+                    // read, so a pick under them keeps its piece.
                     None => {
-                        let heir = match (doc.source(var), node.body_read(slot)) {
-                            (Some(_), Some(_)) => {
-                                let through = doc.through_sources(var);
-                                heir_of(&through, through.read)
-                            }
-                            (None, Some(read)) => heir_of(read, var),
-                            (_, None) => Ok(None),
+                        let through = seat_through(doc, var);
+                        let heir = match node.body_read(slot) {
+                            Some(read) if through.read == var => heir_of(read, var),
+                            Some(_) => heir_of(&through, through.read),
+                            None => Ok(None),
                         };
                         match heir {
                             Ok(Some(heir)) => {
@@ -3336,9 +3346,7 @@ pub fn split(
                     input: doc.spoken(input),
                     why,
                 };
-                // Read through any source to what it reads, so a pick
-                // under it is re-pointed to the same piece.
-                let through = doc.through_sources(var);
+                let through = seat_through(doc, var);
                 match heir_of(&through, through.read) {
                     Ok(Some(heir)) => {
                         heirs.insert(ReadAt::Product, heir);
@@ -3349,18 +3357,51 @@ pub fn split(
             }
         }
     }
-    // A named source or pick the remainder keeps that reads the cut is
-    // carried only where it is defined afresh over the instance's copy
-    // (`crossing_sources`): a pick, or a source whose read crosses to a
-    // piece, would need a pick written in a definition, which no
-    // definition authors (VR4). One the cut's own seats read goes with
-    // them.
-    if let Some(&var) = doc.var_names().keys().find(|&&var| {
-        (doc.source(var).is_some() || doc.pick(var).is_some())
-            && !crossing_sources.contains_key(&var)
-            && !cut_seated.contains(&var)
-            && doc.operation_of(var).is_some_and(|at| cut.contains(&at))
-    }) {
+    // A named source or pick that reads the cut: one every reader of
+    // which is cut, directly or through another such, goes with them
+    // (the part carries it with its first reader, and the remainder
+    // deletes it); one the remainder keeps is carried where it is defined
+    // afresh over the instance's copy (`crossing_sources`) or reads
+    // through one that is (`rides`). Any other refuses: a pick, or a
+    // source whose read crosses to a piece, would need a pick written in
+    // a definition, which no definition authors (VR4).
+    let named_over_cut: BTreeSet<VarId> = doc
+        .var_names()
+        .keys()
+        .copied()
+        .filter(|&var| {
+            (doc.source(var).is_some() || doc.pick(var).is_some())
+                && doc.operation_of(var).is_some_and(|at| cut.contains(&at))
+        })
+        .collect();
+    let mut going: BTreeSet<VarId> = BTreeSet::new();
+    loop {
+        let more: Vec<VarId> = named_over_cut
+            .iter()
+            .copied()
+            .filter(|var| !going.contains(var))
+            .filter(|&var| {
+                let mut readers = doc
+                    .read_sites()
+                    .filter(|site| site.read() == var)
+                    .peekable();
+                readers.peek().is_some()
+                    && readers.all(|site| match site {
+                        ReadSite::Node { node, .. } => cut.contains(&node),
+                        ReadSite::Definition { var: by, .. } => going.contains(&by),
+                        ReadSite::Product { .. } => false,
+                    })
+            })
+            .collect();
+        if more.is_empty() {
+            break;
+        }
+        going.extend(more);
+    }
+    if let Some(&var) = named_over_cut
+        .iter()
+        .find(|&&var| !going.contains(&var) && !crossing_sources.contains_key(&var) && !rides(var))
+    {
         return Err(SplitError::NamedReadUncarried {
             var: Box::new(doc.spoken_var(var)),
         });
@@ -3993,7 +4034,7 @@ pub fn split(
                 let Some(key) = heirs.get(&ReadAt::Operand(node, slot)) else {
                     unreachable!("a crossing whole read has its heir")
                 };
-                crate::SlotValue::Read(heir_read(key))
+                crate::SlotValue::Read(reread(doc, var, heir_read(key)))
             }
         };
         rem_apply(
@@ -4028,7 +4069,11 @@ pub fn split(
             },
         )?;
     }
-    for (&var, key) in &crossing_sources {
+    // One that goes with the cut readers it has is deleted below instead.
+    for (&var, key) in crossing_sources
+        .iter()
+        .filter(|(var, _)| !going.contains(*var))
+    {
         let Some(body) = doc.source(var) else {
             unreachable!("a crossing source is a source")
         };
@@ -4122,7 +4167,7 @@ pub fn split(
     // already left with its last. The door takes them in any order
     // (VR7 leaves a reader unresolved).
     for &var in doc.definition_order().iter().rev() {
-        if moving.contains(&var) && doc.var_name(var).is_some() {
+        if (moving.contains(&var) || going.contains(&var)) && doc.var_name(var).is_some() {
             rem_apply(&mut remainder, DocEdit::DeleteVar { var: var.into() })?;
         }
     }
@@ -4152,28 +4197,43 @@ pub fn split(
     })
 }
 
-/// The kind of the selection `var` holds in `doc`.
-///
-/// # Panics
-///
-/// If `doc` holds no variable `var`: every caller asks of a variable it
-/// just read as a selection.
-/// **The source the product slot reads as its own**: an anonymous one,
-/// which the slot alone reads (VR2) and wrote in place (VR4), so a
-/// refactoring re-points the slot through it, writing it afresh with the
-/// slot, as a seat's own source is the seat's.
-fn own_source<P>(doc: &Doc<P>, var: VarId) -> Option<&crate::BodyRead<VarId>> {
-    (doc.product() == Some(var) && doc.var_name(var).is_none())
-        .then(|| doc.source(var))
-        .flatten()
+/// **What a seat reading `var` reads through the sources it owns**: an
+/// anonymous source is its seat's own (VR4, VR2), so the walk goes down
+/// each to the body read under the last; a named variable, or any read
+/// that is no source, is read as itself. The one rule split, inline and
+/// flatten re-point a seat by, the product slot's among them.
+fn seat_through<P>(doc: &Doc<P>, var: VarId) -> crate::BodyRead<VarId> {
+    let mut at = crate::BodyRead::plain(var);
+    let mut seen = BTreeSet::new();
+    while doc.var_name(at.read).is_none() && seen.insert(at.read) {
+        let Some(body) = doc.source(at.read) else {
+            break;
+        };
+        at = body.clone();
+    }
+    at
 }
 
-/// **The product slot's read written afresh over `read`**: through its
-/// own source where it reads one ([`own_source`]), written as it was;
-/// `read` itself otherwise.
+/// **The sources a seat reading `var` owns** ([`seat_through`]): what a
+/// refactoring re-writes with the seat rather than defines afresh.
+fn owned_sources<P>(doc: &Doc<P>, var: VarId) -> BTreeSet<VarId> {
+    let mut owned = BTreeSet::new();
+    let mut at = var;
+    while doc.var_name(at).is_none()
+        && let Some(body) = doc.source(at)
+        && owned.insert(at)
+    {
+        at = body.read;
+    }
+    owned
+}
+
+/// **A seat's read written afresh over `read`**: through each source it
+/// owns ([`seat_through`]), each written as it was; `read` itself where it
+/// owns none.
 fn reread<P>(doc: &Doc<P>, var: VarId, read: crate::Operand) -> crate::Operand {
-    match own_source(doc, var) {
-        Some(body) => crate::Operand::source(doc.written_body(body, read)),
+    match doc.source(var).filter(|_| doc.var_name(var).is_none()) {
+        Some(body) => crate::Operand::source(doc.written_body(body, reread(doc, body.read, read))),
         None => read,
     }
 }
@@ -4251,6 +4311,12 @@ fn pose_def<P>(doc: &Doc<P>, var: VarId) -> Option<&crate::pose::PoseDef> {
     doc.var(var).and_then(|held| held.def().pose())
 }
 
+/// The kind of the selection `var` holds in `doc`.
+///
+/// # Panics
+///
+/// If `doc` holds no variable `var`: every caller asks of a variable it
+/// just read as a selection.
 fn selection_kind<P>(doc: &Doc<P>, var: VarId) -> crate::VarKind {
     let Some(held) = doc.var(var) else {
         unreachable!("a selection the document holds is a variable it holds")
@@ -4392,6 +4458,10 @@ pub fn inline(
     let mut pose_readers: Vec<(RecipeNodeId, crate::OperandSlot, VarId)> = Vec::new();
     let mut source_readers: Vec<VarId> = Vec::new();
     let mut product_reader: Option<VarId> = None;
+    let product_owns = doc
+        .product()
+        .map(|read| owned_sources(doc, read))
+        .unwrap_or_default();
     for site in doc.read_sites() {
         match site {
             ReadSite::Node {
@@ -4417,7 +4487,7 @@ pub fn inline(
             // body.
             ReadSite::Node { .. } => {}
             ReadSite::Definition { var, read } => {
-                if own_source(doc, var).is_none()
+                if !product_owns.contains(&var)
                     && doc.source(var).is_some_and(|body| body.read == read)
                     && reads_instance(read)
                 {
@@ -4425,8 +4495,7 @@ pub fn inline(
                 }
             }
             ReadSite::Product { read } => {
-                let body = own_source(doc, read).map_or(read, |body| body.read);
-                if reads_instance(body) {
+                if reads_instance(seat_through(doc, read).read) {
                     product_reader = Some(read);
                 }
             }
@@ -4863,7 +4932,7 @@ pub fn inline(
         )?;
     }
     if let Some(var) = product_reader {
-        let body = own_source(doc, var).map_or(var, |body| body.read);
+        let body = seat_through(doc, var).read;
         step(
             &mut current,
             DocEdit::SetProduct {
@@ -5277,6 +5346,10 @@ pub fn flatten(
     // defined afresh over what the copy copied (VARIABLES VR4: its
     // definition is a reader), and the product slot re-pointed as a seat
     // is.
+    let product_owns = doc
+        .product()
+        .map(|read| owned_sources(doc, read))
+        .unwrap_or_default();
     let mut reauthored: BTreeMap<VarId, VarId> = BTreeMap::new();
     for site in doc.read_sites() {
         let (id, slot, var) = match site {
@@ -5289,7 +5362,7 @@ pub fn flatten(
             // body.
             ReadSite::Node { .. } => continue,
             ReadSite::Definition { var, read } => {
-                if own_source(doc, var).is_none()
+                if !product_owns.contains(&var)
                     && let Some(body) = doc.source(var).filter(|body| body.read == read)
                     && reads_copy(read)
                 {
@@ -5305,7 +5378,7 @@ pub fn flatten(
                 continue;
             }
             ReadSite::Product { read } => {
-                let body = own_source(doc, read).map_or(read, |body| body.read);
+                let body = seat_through(doc, read).read;
                 if reads_copy(body) {
                     step(
                         &mut current,

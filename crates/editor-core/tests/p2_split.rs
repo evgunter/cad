@@ -1950,3 +1950,273 @@ fn a_named_source_of_a_named_pick_over_the_cut_refuses_typed() {
         );
     }
 }
+
+/// `editor_core::split` of exactly `ids`, no placement added: the cut a
+/// row about a kept placement of what the cut takes needs.
+fn split_exactly(
+    doc: &ProfileDoc,
+    ids: &[RecipeNodeId],
+    label: &str,
+    o: &EvalOptions,
+) -> Result<SplitOutcome, SplitError> {
+    editor_core::split(
+        doc,
+        &ids.iter().copied().collect(),
+        DocumentId::derive(&format!("{label}-part")),
+        Tol::witness(),
+        o.resolver.as_ref(),
+        &editor_core::Stop::default(),
+    )
+}
+
+/// Split-then-evaluate delivers what `doc` does.
+fn delivers_the_same(p: &Parts, doc: &ProfileDoc, out: &SplitOutcome, label: &str) {
+    let mut store = p.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    same_extent(
+        extent(&out.remainder, &with_resolver(store)),
+        extent(doc, &p.opts()),
+        &format!("{label}: split-then-evaluate"),
+    );
+}
+
+/// Every variable a remainder's definition reads, and its product's
+/// read, is one it holds.
+fn reads_only_what_it_holds(doc: &ProfileDoc, label: &str) {
+    for &var in doc.vars().keys() {
+        for read in doc.definition_reads(var) {
+            assert!(
+                doc.var(read).is_some(),
+                "{label}: {var:?} reads {read:?}, which the remainder does not hold"
+            );
+        }
+    }
+    if let Some(read) = doc.product() {
+        assert!(
+            doc.var(read).is_some(),
+            "{label}: the product reads nothing held"
+        );
+    }
+}
+
+/// **A named source reading through one split carries is carried with
+/// it, not refused**: `s1 = b`, `s2 = s1`, the cut `{b}`, `s2` read by
+/// the product slot, by a kept placement, or by nothing. `s1` is defined
+/// afresh over the instance's copy, `s2` keeps reading `s1`, and
+/// split-then-evaluate delivers what `d` does.
+///
+/// *Breaks if* split refuses `s2` (`NamedReadUncarried`) because its own
+/// read is a source, or leaves either reading the deleted copy.
+#[test]
+fn a_source_reading_through_a_carried_source_rides_with_it() {
+    let p = parts("source-rides");
+    let o = p.opts();
+    for reader in ["product", "placement", "nothing"] {
+        let label = format!("source-rides-{reader}");
+        let (doc, [_c, _a, b]) = three_pinned(&p, &label);
+        let (doc, _) = step(
+            doc,
+            DocEdit::DeclareVar {
+                name: editor_core::VarName::from_static("s1"),
+                def: source_of(b),
+            },
+        );
+        let (doc, _) = step(
+            doc,
+            DocEdit::DeclareVar {
+                name: editor_core::VarName::from_static("s2"),
+                def: editor_core::VarDecl::Source(editor_core::BodyRead::plain(
+                    editor_core::Operand::Name(editor_core::VarName::from_static("s1")),
+                )),
+            },
+        );
+        let s2 = doc.var_named("s2").expect("s2");
+        let doc = match reader {
+            "product" => step(doc, product(editor_core::Operand::Var(s2))).0,
+            "placement" => {
+                let (doc, kept) = insert(
+                    doc,
+                    crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::Var(
+                        s2,
+                    ))),
+                );
+                let copy = doc.output(kept, 0).expect("its copy");
+                step(doc, product(editor_core::Operand::Var(copy))).0
+            }
+            _ => doc,
+        };
+        let out = split_exactly(&doc, &[b], &label, &o).unwrap_or_else(|e| panic!("{label}: {e}"));
+        delivers_the_same(&p, &doc, &out, &label);
+        reads_only_what_it_holds(&out.remainder, &label);
+        let (s1, s2) = (
+            out.remainder.var_named("s1").expect("s1 stays"),
+            out.remainder.var_named("s2").expect("s2 stays"),
+        );
+        assert_eq!(
+            out.remainder.source(s1).map(|body| body.read),
+            out.remainder.output(out.instance, 0),
+            "{label}: `s1` reads the instance's copy"
+        );
+        assert_eq!(
+            out.remainder.source(s2).map(|body| body.read),
+            Some(s1),
+            "{label}: `s2` reads `s1`"
+        );
+    }
+}
+
+/// **A pick of a pick crosses as its composed path**: a copy of
+/// `(a ⊔ c) ⊔ b`, the product `a`'s piece of its piece `a ⊔ c`, written
+/// as a pick of a pick, bare and under a source, and as the one pick by
+/// the path. Each splits to a remainder whose product evaluates to `a`.
+///
+/// *Breaks if* split takes the outer pick's path alone (`[a]` inside the
+/// instance's copy, which names no piece): the remainder's product then
+/// refuses `StrandedProduct`.
+#[test]
+fn a_pick_of_a_pick_crosses_as_its_composed_path() {
+    let p = parts("pick-of-a-pick-split");
+    let o = p.opts();
+    for form in ["pick of a pick", "source of a pick of a pick", "path"] {
+        let (doc, [c, a, b]) = three_pinned(&p, &format!("pick-of-a-pick-split-{form}"));
+        let (cc, ac, bc) = (
+            doc.output(c, 0).expect("c"),
+            doc.output(a, 0).expect("a"),
+            doc.output(b, 0).expect("b"),
+        );
+        let (doc, g1) = insert(
+            doc,
+            Node::Assemble {
+                members: editor_core::Bodies::Spelled(vec![
+                    editor_core::BodyRead::plain(editor_core::Operand::Var(ac)),
+                    editor_core::BodyRead::plain(editor_core::Operand::Var(cc)),
+                ]),
+            },
+        );
+        let g1o = doc.output(g1, 0).expect("g1");
+        let (doc, g2) = insert(
+            doc,
+            Node::Assemble {
+                members: editor_core::Bodies::Spelled(vec![
+                    editor_core::BodyRead::plain(editor_core::Operand::Var(g1o)),
+                    editor_core::BodyRead::plain(editor_core::Operand::Var(bc)),
+                ]),
+            },
+        );
+        let (doc, placed) = insert(
+            doc,
+            crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::Node(g2))),
+        );
+        let whole = doc.output(placed, 0).expect("the copy");
+        let nested = editor_core::Operand::pick(
+            editor_core::Operand::pick(editor_core::Operand::Var(whole), vec![g1o]),
+            vec![ac],
+        );
+        let read = match form {
+            "pick of a pick" => nested,
+            "source of a pick of a pick" => {
+                editor_core::Operand::Source(Box::new(editor_core::BodyRead::plain(nested)))
+            }
+            _ => editor_core::Operand::pick(editor_core::Operand::Var(whole), vec![g1o, ac]),
+        };
+        let (doc, _) = step(doc, product(read));
+        let out = split(&doc, &[c, a, b, g1, g2, placed], "pick-of-a-pick-split", &o)
+            .unwrap_or_else(|e| panic!("{form}: {e}"));
+        delivers_the_same(&p, &doc, &out, form);
+    }
+}
+
+/// **A named source every reader of which is cut goes with them**:
+/// `s = b`, a placement of `s`, the cut `{b, that placement}`. The part
+/// carries `s` with its reader and the remainder deletes it, rather than
+/// keep a second `s` reading the copy it deleted.
+#[test]
+fn a_named_source_only_the_cut_reads_goes_with_the_cut() {
+    let p = parts("source-goes");
+    let (doc, [_c, _a, b]) = three_pinned(&p, "source-goes");
+    let (doc, _) = step(
+        doc,
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::from_static("s"),
+            def: source_of(b),
+        },
+    );
+    let s = doc.var_named("s").expect("s");
+    let (doc, reader) = insert(
+        doc,
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::Var(s))),
+    );
+    let out = split_exactly(&doc, &[b, reader], "source-goes", &p.opts())
+        .unwrap_or_else(|e| panic!("{e}"));
+    delivers_the_same(&p, &doc, &out, "source-goes");
+    reads_only_what_it_holds(&out.remainder, "source-goes");
+    assert!(
+        out.remainder.var_named("s").is_none(),
+        "the remainder keeps no `s`"
+    );
+    assert!(out.part.var_named("s").is_some(), "the part holds `s`");
+}
+
+/// **A kept placement of a piece of a cut copy splits**: a placement of
+/// `a`'s piece of a cut copy of `c ⊔ a ⊔ b`, written as a source of a
+/// pick and as a pick (which the door reads through a source it mints),
+/// kept beside the cut. Its source seat is rewritten through the source
+/// it owns, and split-then-evaluate delivers what `d` does.
+///
+/// *Breaks if* the rewrite writes a bare pick into a placement's source
+/// seat, which the door refuses as a kernel defect.
+#[test]
+fn a_kept_placement_of_a_piece_of_a_cut_copy_splits() {
+    let p = parts("kept-placement-piece");
+    for in_a_source in [true, false] {
+        let label = format!("kept-placement-piece-{in_a_source}");
+        let (doc, cut, whole, a_copy) = copy_of_the_union(&p, &label);
+        let pick = editor_core::Operand::pick(editor_core::Operand::Var(whole), vec![a_copy]);
+        let read = if in_a_source {
+            editor_core::Operand::Source(Box::new(editor_core::BodyRead::plain(pick)))
+        } else {
+            pick
+        };
+        let (doc, kept) = insert(
+            doc,
+            crate::fixture::stood(editor_core::BodyRead::plain(read)),
+        );
+        let copy = doc.output(kept, 0).expect("its copy");
+        let (doc, _) = step(doc, product(editor_core::Operand::Var(copy)));
+        let out =
+            split_exactly(&doc, &cut, &label, &p.opts()).unwrap_or_else(|e| panic!("{label}: {e}"));
+        delivers_the_same(&p, &doc, &out, &label);
+        reads_only_what_it_holds(&out.remainder, &label);
+    }
+}
+
+/// **A named source over one of several cut copies refuses, typed**
+/// (`s = a`, the cut `{a, b}`): read by the product slot or by nothing,
+/// `s` stays, and its read crosses to a piece, which no definition can
+/// read.
+#[test]
+fn a_named_source_over_one_of_several_cut_copies_refuses_typed() {
+    let p = parts("named-source-piece");
+    for read_by_product in [true, false] {
+        let (doc, [_c, a, b]) = three_pinned(&p, "named-source-piece");
+        let (doc, _) = step(
+            doc,
+            DocEdit::DeclareVar {
+                name: editor_core::VarName::from_static("s"),
+                def: source_of(a),
+            },
+        );
+        let s = doc.var_named("s").expect("s");
+        let doc = if read_by_product {
+            step(doc, product(editor_core::Operand::Var(s))).0
+        } else {
+            doc
+        };
+        let refused = split(&doc, &[a, b], "named-source-piece", &p.opts())
+            .expect_err("`s` cannot be carried");
+        assert!(
+            matches!(&refused, SplitError::NamedReadUncarried { var } if var.id() == s),
+            "read by the product: {read_by_product}: {refused}"
+        );
+    }
+}

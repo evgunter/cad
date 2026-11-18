@@ -67,3 +67,11 @@ The product slot is a read site. `Doc::read_sites` (`crates/editor-core/src/doc.
 At review: `SetProduct` lowers its read through the node seat's own `lower_read`, and the gather follows a source to its body. Split, inline, flatten and `continuation::splice` walk `Doc::read_sites` for their seats, sources and product. A named source over a cut copy that crosses whole is defined afresh over the instance's copy. Inline refuses a part whose product is no operation's output as `UnplaceablePart` rather than panicking. The round-trip comparator (`tests/fixture/round_trip.rs`) now compares the product. Filed: `inline-of-a-part-whose-product-is-a-pick-reaches-an-unreachable` (P3), `a-named-source-over-a-cut-copy-whose-heir-is-a-piece-is-stranded` (P2, design), and SPACES' `the-viewers-product-readers-know-only-a-direct-read-or-a-union`.
 
 At the delta review: a seat or the product slot reading through a source is now re-pointed by what the source reads, a pick under it included. A named source or pick the remainder keeps that cannot be carried is refused (`SplitError::NamedReadUncarried`). `continuation::splice` hands sources over in the read-site walk's `Definition` arm. The "picks no piece" sentence has one home (`edit::PicksNoPiece`). `ProductReadFault::Member` gives the true reason: the gather reads no single member. Filed: `inline-and-flatten-redefine-a-placements-source-where-split-rewrites-it-with-the-seat` (P2).
+
+At the second delta review, these changes landed:
+- One rule (`seat_through` / `reread`) re-points a seat through the sources it owns, in split's seats and product slot and in inline's and flatten's product slot.
+- A pick of a pick crosses by its composed path.
+- The `NamedReadUncarried` guard admits a source that rides one split carries.
+- A named source or pick every reader of which is cut goes with the cut.
+
+Filed: `a-named-pick-only-the-cut-reads-refuses-as-a-part-edit` (P3).
