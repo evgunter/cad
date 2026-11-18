@@ -437,7 +437,10 @@ fn an_obliquely_cut_open_cascade_cone_refuses_typed() {
     for slope in [0.0, 0.2] {
         let (text, _) = oblique_cone(slope);
         match outcome("oblique cone", &text) {
-            Err(e) => assert!(e.contains("does not yet cut this one"), "slope {slope}: {e}"),
+            Err(e) => assert!(
+                e.contains("does not yet cut this one"),
+                "slope {slope}: {e}"
+            ),
             Ok(got) => panic!("slope {slope}: imported {got:?}"),
         }
     }
