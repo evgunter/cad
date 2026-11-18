@@ -1458,6 +1458,7 @@ fn face_extent(
     }) {
         return Ok(Extent::Wraps);
     }
+    let extent = reaching_its_poles(surface, b, band, extent);
     let sheet = extent.map(|(lo, hi)| Sheet::Copy(lo, hi));
     let lines = b
         .edges
@@ -1507,6 +1508,62 @@ fn face_nappe(surface: &Surface<Interval>, b: &Boundary, band: Band) -> Option<b
         Surface::Cone { apex, axis, .. } => nappe(b, *apex, *axis, band),
         _ => None,
     }
+}
+
+/// **A sphere's polar latitude**, `v = π/2` at the north pole and
+/// `-π/2` at the south: a bound of its chart's canonical domain.
+fn pole_latitude(north: bool) -> Interval {
+    let half = Interval::pi() * at(0.5);
+    if north { half } else { -half }
+}
+
+/// **Which poles of a sphere the point `p` is at**, `[north, south]`,
+/// by the one reading of that incidence (`vertex_at_singular_point`);
+/// neither on any other surface.
+fn at_poles(surface: &Surface<Interval>, p: Point3<Interval>, band: Band) -> [bool; 2] {
+    use geom_brep::chart_singularity::{sphere_poles, vertex_at_singular_point};
+    let &Surface::Sphere {
+        center,
+        radius,
+        axis,
+        ..
+    } = surface
+    else {
+        return [false; 2];
+    };
+    let line = geom::Line {
+        origin: center,
+        dir: axis,
+    };
+    sphere_poles(line, radius)
+        .map(|(_, point)| matches!(vertex_at_singular_point(p, point, band), Ok(true)))
+}
+
+/// **A sphere face's extent, reaching each pole the face holds a vertex
+/// at.** A vertex at a pole is a point of the face at `v = ±π/2`, the
+/// largest and smallest `v` the chart has, so the face's extent ends on
+/// that latitude. The stored hull ends where the lift's rows do, and a
+/// meridian's end at the pole is its pcurve evaluated at the edge's
+/// parameter, which rounds to either side of the latitude. The hull
+/// with the latitude is a superset of the stored one, so it holds the
+/// face still.
+fn reaching_its_poles(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    band: Band,
+    mut extent: [(f64, f64); 2],
+) -> [(f64, f64); 2] {
+    let v = &mut extent[Axis::V.index()];
+    for &p in b.vertices.values() {
+        let [north, south] = at_poles(surface, p, band);
+        if north {
+            v.1 = v.1.max(pole_latitude(true).hi());
+        }
+        if south {
+            v.0 = v.0.min(pole_latitude(false).lo());
+        }
+    }
+    extent
 }
 
 /// What [`sheets`] reads of a cell.
@@ -2034,56 +2091,45 @@ fn present_chart<'a>(
     // A sphere's pole is a collapsed side of its chart, `v = ±π/2`, a
     // bound of its canonical domain. A vertex is at it by the one reading
     // of that incidence.
-    if let &Surface::Sphere {
-        center,
-        radius,
-        axis,
-        ..
-    } = piece.surface
-    {
-        use geom_brep::chart_singularity::{Singularity, sphere_poles, vertex_at_singular_point};
-        let half = Interval::pi() * at(0.5);
-        let poles = sphere_poles(
-            geom::Line {
-                origin: center,
-                dir: axis,
-            },
-            radius,
-        );
-        for &v in &piece.local.vertices {
-            let Some(&p) = b.vertices.get(&v) else {
+    // A sphere's pole is a collapsed side of its chart, `v = ±π/2`, a
+    // bound of its canonical domain.
+    for &v in &piece.local.vertices {
+        let Some(&p) = b.vertices.get(&v) else {
+            continue;
+        };
+        for (north, held) in [true, false]
+            .into_iter()
+            .zip(at_poles(piece.surface, p, band))
+        {
+            if !held {
                 continue;
-            };
-            for (pole, point) in poles {
-                if !matches!(vertex_at_singular_point(p, point, band), Ok(true)) {
-                    continue;
+            }
+            let line = pole_latitude(north);
+            // The face's extent reaches the pole ([`face_extent`]), so a
+            // rectangle short of its latitude is a cell that is.
+            if (north && y.1 < line.lo()) || (!north && y.0 > line.hi()) {
+                continue;
+            }
+            if (north && y.0 > line.hi()) || (!north && y.1 < line.lo()) {
+                return Err(Unpresented::Local);
+            }
+            if north {
+                y.1 = line.hi();
+            } else {
+                y.0 = line.lo();
+            }
+            let side = Side::of(Axis::V, !north);
+            match merged.iter_mut().find(|m| m.side == side) {
+                Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
+                    m.collapsed = Some(v);
                 }
-                let north = pole == Singularity::North;
-                let line = if north { half } else { -half };
-                if (north && y.1 < line.lo()) || (!north && y.0 > line.hi()) {
-                    continue;
-                }
-                if (north && y.0 > line.hi()) || (!north && y.1 < line.lo()) {
-                    return Err(Unpresented::Local);
-                }
-                if north {
-                    y.1 = line.hi();
-                } else {
-                    y.0 = line.lo();
-                }
-                let side = Side::of(Axis::V, !north);
-                match merged.iter_mut().find(|m| m.side == side) {
-                    Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
-                        m.collapsed = Some(v);
-                    }
-                    Some(_) => return Err(Unpresented::Local),
-                    None => merged.push(Clip {
-                        side,
-                        at: line,
-                        edges: Vec::new(),
-                        collapsed: Some(v),
-                    }),
-                }
+                Some(_) => return Err(Unpresented::Local),
+                None => merged.push(Clip {
+                    side,
+                    at: line,
+                    edges: Vec::new(),
+                    collapsed: Some(v),
+                }),
             }
         }
     }
@@ -8962,6 +9008,159 @@ mod presentation_rows {
         assert!(
             at_pole((0.7, 0.8), (1.4, 1.5)).is_none(),
             "a cell short of the pole"
+        );
+    }
+
+    /// The octant, its two meridians ending at `top` at the pole: the
+    /// lift's end there and the extent's `v` top.
+    fn octant_ending_at(top: f64) -> (Surface<Interval>, Boundary) {
+        let (s, mut b) = octant();
+        let q = core::f64::consts::FRAC_PI_2;
+        b.edges[1] = rim(2, [2, 3], Axis::U, q, (q, 0.0), (q, top));
+        b.edges[2] = rim(3, [3, 1], Axis::U, 0.0, (0.0, top), (0.0, 0.0));
+        b.extent = Some([(0.0, q), (0.0, top)]);
+        (s, b)
+    }
+
+    /// **A sphere face whose stored extent stops ulps short of its pole
+    /// places the pole, in every cell that reaches it.** The octant's
+    /// meridians end one ulp under `π/2`'s enclosure, as a meridian's
+    /// pcurve evaluated at its edge's parameter does, and one over it.
+    /// The face holds a vertex at the pole, so its extent reaches the
+    /// polar latitude ([`face_extent`]), and the window's top cell and
+    /// each cell under it down to a width of a few ulps is presented
+    /// with the pole's collapsed side its zero. Red, every cell
+    /// unpresented, where the rectangle is clipped to the stored extent.
+    #[test]
+    fn a_sphere_face_whose_extent_stops_ulps_short_of_its_pole_places_the_pole() {
+        let q = core::f64::consts::FRAC_PI_2;
+        let line = pole_latitude(true);
+        for (stored, what) in [(q.next_down(), "short"), (q, "on"), (q.next_up(), "past")] {
+            let (s, b) = octant_ending_at(stored);
+            assert!(
+                matches!(
+                    face_extent(&s, &b, band()),
+                    Ok(Extent::Known([_, (0.0, hi)])) if hi == line.hi()
+                ),
+                "{what}: the extent ends on the polar latitude"
+            );
+            let local = Local {
+                edges: vec![1, 2],
+                vertices: vec![vertex(3)],
+            };
+            let top = q.next_up();
+            let widths =
+                core::iter::successors(Some(0.07), |w| Some(w * 0.5)).take_while(|w| *w > 1e-14);
+            for w in widths {
+                let piece = Piece {
+                    face: FaceKey::default(),
+                    surface: &s,
+                    whole: false,
+                    boundary: &b,
+                    u: (0.7, 0.8),
+                    v: (top - w, top),
+                    local: &local,
+                    ball: Ball::holding(origin(), origin()),
+                };
+                let got = match present_chart(&piece, &[], &[vertex(3)], band()) {
+                    Ok(Presentation::Of(p)) => Some((p.zero, p.y)),
+                    _ => None,
+                };
+                assert!(
+                    matches!(&got, Some((Zero::Side(Side::YHi, a), (_, hi)))
+                        if *hi == line.hi() && a.vertex == Some(vertex(3))),
+                    "{what}, a cell {w} under the pole: the pole's side is the zero: {got:?}"
+                );
+            }
+        }
+    }
+
+    /// **A face that holds no vertex at a pole is given no pole**, and
+    /// its extent is the stored one: a vertex a millimetre of arc off
+    /// the pole, on a unit sphere, at either end; a face of another
+    /// surface with a vertex where a sphere's pole would be; and the
+    /// south pole's vertex moves the extent's low end alone. Red where
+    /// the extent is widened for a vertex off the pole, or at the wrong
+    /// end.
+    #[test]
+    fn a_face_short_of_its_pole_reads_no_pole() {
+        let q = core::f64::consts::FRAC_PI_2;
+        let sphere = octant().0;
+        let lone = |z: f64, v: (f64, f64)| Boundary {
+            sense: true,
+            vertices: BTreeMap::from([(
+                vertex(3),
+                Point3::new(iv0((1.0 - z * z).sqrt()), iv0(0.0), iv0(z)),
+            )]),
+            extent: Some([(0.0, 1.0), v]),
+            ..Boundary::default()
+        };
+        let v_of = |s: &Surface<Interval>, b: &Boundary| match face_extent(s, b, band()) {
+            Ok(Extent::Known([_, v])) => Some(v),
+            _ => None,
+        };
+        let short = q - 1e-3;
+        for (z, stored, want, what) in [
+            (
+                short.sin(),
+                (0.5, short),
+                (0.5, short),
+                "north, off the pole",
+            ),
+            (
+                -short.sin(),
+                (-short, -0.5),
+                (-short, -0.5),
+                "south, off the pole",
+            ),
+            (
+                -1.0,
+                (-q.next_down(), -0.5),
+                (pole_latitude(false).lo(), -0.5),
+                "at the south pole",
+            ),
+        ] {
+            assert_eq!(v_of(&sphere, &lone(z, stored)), Some(want), "{what}");
+        }
+        let cylinder = Surface::Cylinder {
+            origin: origin(),
+            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            radius: iv0(1.0),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        let stored = (0.5, q.next_down());
+        assert_eq!(
+            v_of(&cylinder, &lone(1.0, stored)),
+            Some(stored),
+            "a cylinder has no pole"
+        );
+        // The octant cut off at the latitude `v = 1.5`: no vertex at the
+        // pole, so a cell reaching past the latitude is bounded by it
+        // and holds no collapsed side.
+        let (s, mut b) = octant_ending_at(1.5);
+        b.vertices.insert(
+            vertex(3),
+            Point3::new(iv0(0.0), iv0(1.5_f64.cos()), iv0(1.5_f64.sin())),
+        );
+        assert_eq!(v_of(&s, &b), Some((0.0, 1.5)), "the cut octant's extent");
+        let local = Local {
+            edges: vec![1, 2],
+            vertices: vec![vertex(3)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (0.7, 0.8),
+            v: (1.4, q.next_up()),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let got = present_chart(&piece, &[], &[vertex(3)], band());
+        assert!(
+            !matches!(&got, Ok(Presentation::Of(p)) if matches!(p.zero, Zero::Side(Side::YHi, _))),
+            "the cut octant reads no pole"
         );
     }
 
