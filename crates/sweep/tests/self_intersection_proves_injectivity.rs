@@ -3169,3 +3169,81 @@ fn a_unit_cone_with_its_apex_off_the_origin_holds() {
     assert_holds("the cone with its apex at y = 1.7", &report, &body);
     assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
 }
+
+/// **Review sweep (PR 7115): cone tips revolved off the origin, and their
+/// door cavities**, f64. The triangle with its apex on the axis at the
+/// top (`up`: `(0, y0) (r, y0) (0, y0 + h)`) or the bottom (`(0, y0 + h)
+/// (0, y0) (r, y0 + h)`), revolved a full turn about `y`; each body, and
+/// its `door_cavity` at `t = 0.05·min(r, h)`, asked `injective`. It prints
+/// one line per body and asserts nothing.
+///
+/// At `1bf4de792` (PR 7115's head), 120 asked, every door took its cut.
+/// Twelve refuse `Budget(Pairs)` (discharged / refused / splits); the
+/// other 108 hold with `refused == 0`:
+/// - `y0 = 0`, `(20, 50)`, apex up, cavity: 41,452 / 24,084 / 65,530
+/// - `y0 = 0`, `(0.013, 0.9)`, apex down, body: 42,167 / 23,369 / 65,530
+/// - `y0 = 0.3`, `(0.013, 0.9)`, apex down, body: 42,167 / 23,369 / 65,530
+/// - `y0 = 1.7`, `(1, 1)`, apex down, body: 41,321 / 24,215 / 65,530
+/// - `y0 = 1.7`, `(0.37, 2.3)`, apex down, cavity: 41,472 / 24,064 / 65,530
+/// - `y0 = 1.7`, `(0.013, 0.9)`, apex down, body: 42,167 / 23,369 / 65,530
+/// - `y0 = -2.9`, `(1, 1)`, apex down, cavity: 41,436 / 24,100 / 65,530
+/// - `y0 = -2.9`, `(0.013, 0.9)`, apex down, body: 42,167 / 23,369 / 65,530
+/// - `y0 = 13.1`, `(0.013, 0.9)`, apex down, body: 42,167 / 23,369 / 65,530
+/// - `y0 = 101.3`, `(0.37, 2.3)`, apex up, cavity: 41,623 / 23,913 / 65,530
+/// - `y0 = 101.3`, `(20, 50)`, apex down, body: 41,612 / 23,924 / 65,530
+/// - `y0 = 101.3`, `(0.013, 0.9)`, apex down, body: 42,033 / 23,503 / 65,530
+///
+/// Only `y0 = 1.7`, `(1, 1)`, apex down was traced (its half-cones store
+/// `v` from `2.2e-16`; clamped to `0` it holds at 157 / 0 / 151:
+/// `a_unit_cone_with_its_apex_off_the_origin_holds`). The other eleven
+/// are untraced. Run with `--run-ignored only --no-capture`, about 8 min
+/// at the dev profile.
+#[test]
+#[ignore = "review sweep: prints, asserts nothing"]
+fn review_sweep_cone_tips_off_the_origin() {
+    use crate::common::latitude_seam::door_cavity;
+    let mut n = 0;
+    for &y0 in &[0.0, 0.3, 1.7, -2.9, 13.1, 101.3] {
+        for &(r, h) in &[
+            (1.0, 1.0),
+            (0.37, 2.3),
+            (3.1, 0.21),
+            (20.0, 50.0),
+            (0.013, 0.9),
+        ] {
+            for up in [true, false] {
+                let pts = if up {
+                    [(0.0, y0), (r, y0), (0.0, y0 + h)]
+                } else {
+                    [(0.0, y0 + h), (0.0, y0), (r, y0 + h)]
+                };
+                let profile =
+                    validated::<f64>(&[ProfileLoop::polygon(pts.map(|(x, y)| Point2::new(x, y)))]);
+                let Ok(built) = revolve(&profile, axis_y(), Revolution::Full, tol()) else {
+                    println!("SWEEP y0={y0} r={r} h={h} up={up}: revolve refused");
+                    continue;
+                };
+                let body = built.body.into_body();
+                let rep = injective(&body, None, BUDGET);
+                println!(
+                    "SWEEP y0={y0} r={r} h={h} up={up} body: {:?} {:?}",
+                    rep.verdict, rep.receipt
+                );
+                n += 1;
+                let t = 0.05 * r.min(h);
+                match std::panic::catch_unwind(|| door_cavity(&body, t)) {
+                    Ok(cavity) => {
+                        let rep = injective(&cavity, None, BUDGET);
+                        println!(
+                            "SWEEP y0={y0} r={r} h={h} up={up} cavity: {:?} {:?}",
+                            rep.verdict, rep.receipt
+                        );
+                        n += 1;
+                    }
+                    Err(_) => println!("SWEEP y0={y0} r={r} h={h} up={up} cavity: door panicked"),
+                }
+            }
+        }
+    }
+    println!("SWEEP asked {n}");
+}
