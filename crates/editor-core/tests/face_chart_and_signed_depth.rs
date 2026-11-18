@@ -98,22 +98,22 @@ fn drawn(
     face: StableName,
     on: OnFace,
 ) -> (ProfileDoc, RecipeNodeId) {
-    drawn_disc(doc, body, face, on, 0.25)
+    drawn_loop(doc, body, face, on, disc(0.25))
 }
 
-/// [`drawn`], a disc of radius `r`.
-fn drawn_disc(
+/// [`drawn`], the loop `drawn`.
+fn drawn_loop(
     doc: &ProfileDoc,
     body: RecipeNodeId,
     face: StableName,
     on: OnFace,
-    r: f64,
+    drawn: LoopProgram<Formula>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let out = draw_on_face(
         doc,
         BodyRead::plain(Operand::from(body)),
         face,
-        vec![disc(r)],
+        vec![drawn],
         on,
         &EvalOptions::default(),
         &CancelToken::new(),
@@ -532,22 +532,41 @@ fn the_chart_is_the_placements_for_a_spin_written_as_a_fraction_of_a_turn() {
 }
 
 /// **Near the pole the frame charts where a wide placement refuses.** A
-/// top cap tilted `1e-6` about `x`, under the orientation `x: +x, z: −z`,
-/// which puts the frame's `z` all but opposite the face's outward normal.
-/// The chart levers its least turn over its slides and the face's
-/// distance alone, so it charts, and a disc of radius 100 drawn on it
-/// sweeps to a boss. A cube of side 100 placed on the same face under the
-/// same orientation levers the turn over its own reach, and refuses
+/// top cap `100` from the origin, tilted about `x` off the pole of the
+/// orientation `x: +x, z: −z`, which puts the frame's `z` all but
+/// opposite the face's outward normal. The chart levers its least turn
+/// over its slides and the face's distance alone, an arm of `100`, so it
+/// charts, and a square of side 500 drawn on it sweeps to a boss. A cube
+/// on that square, placed on the same face under the same orientation, levers
+/// the turn over its own reach too, an arm of `500·√3 + 100`, and refuses
 /// backwards. The divergence is
 /// `work/doctail/a-face-charts-turn-is-levered-over-none-of-what-it-carries.md`'s.
+///
+/// The tilt sits between the two arms' verdicts at the run's ε: past the
+/// frame's pole band (`Kε` over its arm) and its conditioning edge, and
+/// short of the cube's conditioning edge
+/// ([`geom_core::test_support::least_turn_band_edge`]).
 #[test]
 fn near_the_pole_the_frame_charts_where_a_wide_placement_refuses() {
+    let tol = Tol::witness();
+    let (side, height) = (500.0, 100.0);
+    let (frame_arm, cube_arm) = (height, side * 3f64.sqrt() + height);
+    let edge = |arm| geom_core::test_support::least_turn_band_edge(tol, arm);
+    let charts = (tol.k() * tol.eps() / frame_arm).max(edge(frame_arm));
+    let refuses = edge(cube_arm);
+    assert!(
+        2.0 * charts < refuses,
+        "FIXTURE: the frame's verdict {charts} and the cube's {refuses} leave room between them"
+    );
+    let tilt = (charts * refuses).sqrt();
     let backwards = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
-    let (doc, body, copy) = tilted_by([1e-6, 0.0, 0.0], [0.0; 3]);
+    let (doc, body, copy) = tilted_by([tilt, 0.0, 0.0], [0.0, 0.0, height - 1.0]);
     let top = cap(body, CapEnd::End);
     let at = on(Some(backwards), 0.0, [0.0, 0.0]);
-    let (drawn_doc, profile) = drawn_disc(&doc, copy, top.clone(), at, 100.0);
-    chart(&drawn_doc, profile).expect("the frame charts");
+    let square = LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (side, side), (0.0, side)])
+        .expect("finite corners");
+    let (drawn_doc, profile) = drawn_loop(&doc, copy, top.clone(), at, square);
+    chart(&drawn_doc, profile).unwrap_or_else(|e| panic!("the frame charts at tilt {tilt}: {e:?}"));
     let (drawn_doc, boss) = fixture::insert(
         drawn_doc,
         Node::Extrude {
@@ -561,10 +580,10 @@ fn near_the_pole_the_frame_charts_where_a_wide_placement_refuses() {
         "the disc's boss builds: {:?}",
         built.nodes.get(&boss)
     );
-    let refused = placed_on(doc, (copy, top), backwards, (ang(0.0), [0.0, 0.0]), 100.0);
+    let refused = placed_on(doc, (copy, top), backwards, (ang(0.0), [0.0, 0.0]), side);
     assert!(
         matches!(refused, Err(MateFault::Backwards { orient, .. }) if orient == backwards),
-        "the wide placement refuses backwards: {refused:?}"
+        "the wide placement refuses backwards at tilt {tilt}: {refused:?}"
     );
 }
 
