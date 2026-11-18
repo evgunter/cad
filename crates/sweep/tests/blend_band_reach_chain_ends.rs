@@ -448,8 +448,9 @@ fn a_curved_end_face_fails_loud_at_the_meter() {
     assert!(
         matches!(
             door,
-            Err(BlendError::UnsupportedRunOut { detail, .. })
-                if detail == sweep::blend::battery::END_FACE_CURVED
+            Err(BlendError::UnbuiltEnd(
+                sweep::blend::UnbuiltEnd::CurvedEndFace { .. }
+            ))
         ),
         "the battery refuses the curved end face: {door:?}"
     );
