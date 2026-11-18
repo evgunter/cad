@@ -394,10 +394,10 @@ fn never_minted_node_reports_foreign_not_deleted() {
     }
 }
 
-// ---- Vanished: PredicateFlip diagnosis + tombstone + collapse offer ----
+// ---- Vanished: an honest diagnosis + tombstone + collapse offer ----
 
 #[test]
-fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
+fn a_vanished_join_diagnoses_honestly_with_tombstone() {
     let s = slide_union(0.5);
     let ev1 = run(&s.doc, None);
     let probe = joined_rim_name(&ev1, s.union);
@@ -426,18 +426,17 @@ fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
         panic!("expected Vanished, got {:?}", f.error);
     };
     assert_eq!(*name, probe);
-    // The pillar's promise: a recorded predicate flip on the
-    // derivation path, with real signs.
-    let Diagnosis::PredicateFlip {
-        predicate,
-        from,
-        to,
-    } = diagnosis
-    else {
-        panic!("expected PredicateFlip, got {diagnosis:?}");
-    };
-    assert!(!predicate.is_empty());
-    assert_ne!(from, to);
+    // The union's two runs part where its pruning queries hand on other
+    // candidates (the slid block leaves the other's boxes), before any
+    // choice turns: no flip is on the record, so the diagnosis is the
+    // evidence-free fallback at the minting node, and never a flip read
+    // off decisions about different pairs (N5's first turn).
+    assert_eq!(
+        *diagnosis,
+        Diagnosis::RecipeEdit {
+            edit: editor_core::RecipeEditRef::NodeChanged { node: s.union }
+        }
+    );
     // The tombstone: last-good entry at the union, edge kind, owning
     // body = the union's body name.
     let t = last_good.as_ref().expect("prior run resolved the name");
@@ -687,7 +686,8 @@ fn member_of_vanished_master_name_diagnoses_cascade() {
         },
         "the upstream vanish carries the root cause"
     );
-    // And the through-name's own resolution chains to the flip.
+    // And the through-name's own resolution is the union's honest
+    // fallback (`a_vanished_join_diagnoses_honestly_with_tombstone`).
     let res_master = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
@@ -705,7 +705,7 @@ fn member_of_vanished_master_name_diagnoses_cascade() {
     assert!(matches!(
         fm.error,
         ResolveError::Vanished {
-            diagnosis: Diagnosis::PredicateFlip { .. },
+            diagnosis: Diagnosis::RecipeEdit { .. },
             ..
         }
     ));

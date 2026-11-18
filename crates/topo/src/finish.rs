@@ -184,7 +184,8 @@ impl<T: Real> Replay<T> {
     ///
     /// Tier 2's findings.
     pub(crate) fn of(body: Body<T>) -> Result<Self, NotFinished> {
-        crate::validate::validate_closed(&body).map_err(NotFinished::new)?;
+        geom_core::k_stats::checking(|| crate::validate::validate_closed(&body))
+            .map_err(NotFinished::new)?;
         Ok(Self { body })
     }
 
@@ -257,7 +258,7 @@ pub(crate) fn asked_after_isometry<T: geom_core::Decide>(
         .map_err(|error| NotFinished::new(vec![ValidationError::Band { error }]))?;
     let findings: Vec<ValidationError> = FindingFamily::ALL
         .into_iter()
-        .filter_map(|family| family.asked_again(image, band).err())
+        .filter_map(|family| geom_core::k_stats::checking(|| family.asked_again(image, band)).err())
         .collect();
     if findings.is_empty() {
         Ok(())

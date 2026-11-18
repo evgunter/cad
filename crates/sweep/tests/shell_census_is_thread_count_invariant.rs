@@ -66,9 +66,11 @@ fn voided_rod() -> Body<f64> {
 /// per-junction and per-loop facts, whichever edge a walk starts at.
 ///
 /// Each shell's sums are measured once (`props_*`), and its role is read
-/// off rays aimed at its faces, every decision of which is recorded
-/// under the reader's family (`side_at_infinity_*`, the ray walk's rows
-/// among them); no volume sign is read.
+/// off rays aimed at its faces, every decision of which is recorded as a
+/// check (the aimed rows `side_at_infinity_*` and the ray walk's rows
+/// among them), and the side each shell reads once as a choice
+/// (`side_read`: the cavity's `Negative`, the outer's `Positive`);
+/// no volume sign is read.
 #[test]
 fn voided_rods_verdicts_as_a_sorted_multiset() {
     let body = topo::test_support::finished("body", voided_rod(), Tol::witness());
@@ -77,7 +79,7 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
     let log = bracket.finish();
     let mut got: Vec<(String, usize)> = Vec::new();
     for v in &log.verdicts {
-        let key = format!("{} {:?}", v.predicate, v.sign);
+        let key = format!("{} {:?} {:?}", v.predicate, v.sign, v.role);
         match got.iter_mut().find(|(k, _)| *k == key) {
             Some((_, n)) => *n += 1,
             None => got.push((key, 1)),
@@ -85,34 +87,36 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
     }
     got.sort();
     let want: Vec<(String, usize)> = [
-        ("props_chart_axis_inside Positive", 2),
-        ("props_chart_junction_closed Zero", 8),
-        ("props_chart_loop_turns Positive", 2),
-        ("props_chart_loop_whole Zero", 2),
-        ("props_circle_axis_class Positive", 4),
-        ("props_cylinder_circle_off_axis Zero", 4),
-        ("props_cylinder_circle_tilt Zero", 4),
-        ("props_face_extent Positive", 2),
-        ("props_meridian_axial Zero", 4),
-        ("props_meridian_on_surface Zero", 4),
-        ("props_rim_axis_parallel Zero", 4),
-        ("props_rim_center_on_axis Zero", 4),
-        ("props_rim_fit Zero", 4),
-        ("props_rim_span_forward Positive", 4),
-        ("props_rim_span_winding Positive", 4),
-        ("side_at_infinity_advance Positive", 4),
-        ("side_at_infinity_bool_point_in_solid_denom Positive", 2),
-        ("side_at_infinity_bool_ray_cylinder_disc Positive", 2),
-        ("side_at_infinity_bool_wall_turn_true Positive", 16),
-        ("side_at_infinity_curve_carrier_clear Positive", 20),
-        ("side_at_infinity_denom Negative", 4),
-        ("side_at_infinity_denom Positive", 4),
-        ("side_at_infinity_edge Positive", 12),
-        ("side_at_infinity_order Negative", 2),
-        ("side_at_infinity_order Positive", 1),
-        ("side_at_infinity_pm_census_curved_speed_floor Positive", 6),
-        ("side_at_infinity_pm_census_curved_speed_hi Positive", 6),
-        ("side_at_infinity_vertex Positive", 12),
+        ("bool_point_in_solid_denom Positive Check", 2),
+        ("bool_ray_cylinder_disc Positive Check", 2),
+        ("bool_wall_turn_true Positive Check", 16),
+        ("curve_carrier_clear Positive Check", 20),
+        ("pm_census_curved_speed_floor Positive Check", 6),
+        ("pm_census_curved_speed_hi Positive Check", 6),
+        ("props_chart_axis_inside Positive Choice", 2),
+        ("props_chart_junction_closed Zero Choice", 8),
+        ("props_chart_loop_turns Positive Choice", 2),
+        ("props_chart_loop_whole Zero Choice", 2),
+        ("props_circle_axis_class Positive Choice", 4),
+        ("props_cylinder_circle_off_axis Zero Choice", 4),
+        ("props_cylinder_circle_tilt Zero Choice", 4),
+        ("props_face_extent Positive Choice", 2),
+        ("props_meridian_axial Zero Choice", 4),
+        ("props_meridian_on_surface Zero Choice", 4),
+        ("props_rim_axis_parallel Zero Choice", 4),
+        ("props_rim_center_on_axis Zero Choice", 4),
+        ("props_rim_fit Zero Choice", 4),
+        ("props_rim_span_forward Positive Choice", 4),
+        ("props_rim_span_winding Positive Choice", 4),
+        ("side_at_infinity_advance Positive Check", 4),
+        ("side_at_infinity_denom Negative Check", 4),
+        ("side_at_infinity_denom Positive Check", 4),
+        ("side_at_infinity_edge Positive Check", 12),
+        ("side_at_infinity_order Negative Check", 2),
+        ("side_at_infinity_order Positive Check", 1),
+        ("side_at_infinity_vertex Positive Check", 12),
+        ("side_read Negative Choice", 1),
+        ("side_read Positive Choice", 1),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))

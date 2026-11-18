@@ -4929,7 +4929,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
 ///   `Diagnosis`, `UpstreamCause`, `GroupCutters`, `Implicated`,
-///   `PredicateDivergence`, `DocDiff`, `NodeChange`, `diff_*`,
+///   `DocDiff`, `NodeChange`, `diff_*`, `first_turn`,
 ///   `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
@@ -5175,7 +5175,6 @@ const NOT_CARRIED: [&str; 101] = [
     "NodeVerdictDelta",
     "NodeVerdicts",
     "ParamValue",
-    "PredicateDivergence",
     "ProfileLane",
     "ProfilePayload",
     "Qualifier",
@@ -5191,9 +5190,9 @@ const NOT_CARRIED: [&str; 101] = [
     "SlotPayload",
     "StructureFlip",
     "SummaryDelta",
+    "SummaryDiff",
     "SummaryDivergence",
-    "SummaryFlip",
-    "SummaryFlipSet",
+    "SummaryShift",
     "TieWitness",
     "Tombstone",
     "UpstreamCause",
@@ -5216,6 +5215,7 @@ const NOT_CARRIED: [&str; 101] = [
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
+    "first_turn",
     "from_value",
     "var_env_over",
     // The analysis's axis rule (VR8), which `analyzed_box` and the

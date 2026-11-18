@@ -357,6 +357,24 @@ pub enum StepImportError {
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
     },
+    /// Where a pole-form meridian minted from a sphere pole or cone apex
+    /// meets a face's boundary did not run to an answer: the kernel's
+    /// meeting reading ([`geom_brep::curve_pair::meet`]) of the meridian
+    /// and a boundary edge stopped at a limit with no margin to rank it
+    /// (a root finder or a walk that did not settle, or a pose with no
+    /// closed form). Where the meridian ends is unread, so the
+    /// normalization that makes the point a vertex
+    /// ([`crate::NormalizationKind::ChartSingularityVertex`]) refuses
+    /// rather than guess; the refusal ends as the reading's own standing
+    /// does ([`geom_brep::curve_pair::MeetUnread::recourse`]).
+    SingularityMeetUnread {
+        /// The `ADVANCED_FACE` the meridian is minted in.
+        id: u64,
+        /// The reading that did not run to an answer.
+        why: geom_brep::curve_pair::MeetUnread,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
+    },
     /// **An interpretation reading refused** (`[import]`, D7): what the
     /// file's statements at `id` are evidence of is no description at
     /// its band, or more than one, or a value no construction takes.
@@ -723,6 +741,18 @@ impl StepImportError {
                     ),
                 }
             }
+            Self::SingularityMeetUnread { id, why, file } => {
+                write!(
+                    f,
+                    "step import: face #{id}: where a meridian minted from a sphere pole or \
+                     cone apex meets the face's boundary is unread: {}",
+                    why.sentence()
+                )?;
+                if door(file).is_some() {
+                    write!(f, ". {}", why.recourse().render())?;
+                }
+                Ok(())
+            }
             Self::Interpretation { id, refusal, file } => {
                 write!(
                     f,
@@ -941,5 +971,45 @@ mod nested_at_the_door {
                 assert!(!text.contains(word), "{margin:?}: {word}: {text}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod meet_unread_text {
+    //! **A meridian's meeting that did not run to an answer ends as its
+    //! own standing does**: a pose with no closed form is no way through
+    //! yet, at the import door, and the bare text carries no ending.
+    #![allow(clippy::unwrap_used)]
+
+    use geom_brep::curve_pair::{MeetFault, MeetUnread};
+    use geom_core::FileCoincidence;
+
+    use super::StepImportError;
+
+    #[test]
+    fn an_unread_meeting_ends_as_its_standing() {
+        let why = MeetUnread::of(MeetFault::Unsupported {
+            pose: "a pose this row names",
+        })
+        .unwrap();
+        let error = StepImportError::SingularityMeetUnread {
+            id: 7,
+            why,
+            file: FileCoincidence::new(1e-6),
+        };
+        let ended = error.render();
+        assert!(
+            ended.contains("face #7") && ended.contains("a pose this row names"),
+            "the payload names the face and the pose: {ended}"
+        );
+        assert!(
+            ended.ends_with(&*why.recourse().render()),
+            "the door's ending is the reading's own: {ended}"
+        );
+        let bare = error.to_string();
+        assert!(
+            !bare.contains(&*why.recourse().render()),
+            "the bare text ends at its payload: {bare}"
+        );
     }
 }

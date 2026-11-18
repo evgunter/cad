@@ -317,7 +317,12 @@ fn the_census_reads_the_decision_tables_as_the_types_do() {
 /// The blend table's arms that spell a `geom_brep` const rather than a
 /// literal: geom-brep's roster reads those consts as declared carriers,
 /// so the name is in the census union through it, not through this table.
-const GEOM_BREP_ARMS: &[&str] = &[geom_brep::DIHEDRAL_WEDGE, geom_brep::TANGENT_SECOND_ORDER];
+const GEOM_BREP_ARMS: &[&str] = &[
+    geom_brep::DIHEDRAL_SIGN,
+    geom_brep::DIHEDRAL_WEDGE,
+    geom_brep::MATERIAL_CUSP_SIDE,
+    geom_brep::TANGENT_SECOND_ORDER,
+];
 
 /// **Decisions that word one question `geom_brep` decides**, under its
 /// one name: the second-order separation of two faces meeting smoothly,
