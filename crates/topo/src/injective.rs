@@ -276,7 +276,10 @@ pub(crate) struct Boundary {
     /// the chart, its rows meeting at every joint and, at a pole or an
     /// apex, joined by a run along the singular latitude that lies
     /// between their ends. So on a periodic axis the hull is on ONE
-    /// sheet, not wrapped. A row that is a coordinate line whose moving
+    /// sheet, not wrapped. It is the hull of the rows alone: a row's end
+    /// at a pole is its pcurve's value there, a rounding to either side
+    /// of the singular latitude, and [`face_extent`] puts the latitude
+    /// in. A row that is a coordinate line whose moving
     /// coordinate is monotone gives its ends, which bound it; a harmonic
     /// or spiric wall row its enclosure over its span, so the hull may be
     /// a superset, which holds the face. It is the FACE's extent only
@@ -1421,8 +1424,13 @@ enum Extent {
     Known([(f64, f64); 2]),
 }
 
-/// **The face's extent, read against the face's own lines and nappe**
-/// ([`Boundary::extent`]); the one reader of that field.
+/// **The face's extent, read against the face's own lines, nappe and
+/// poles** ([`Boundary::extent`]); the one reader of that field.
+///
+/// **A sphere face reaches each pole it holds a vertex at**
+/// ([`reaching_its_poles`]), in every cell, as the vertex is the face's:
+/// the extent returned ends on that pole's latitude wherever the stored
+/// rows' ends rounded to.
 ///
 /// **A face lies within the hull of its boundary**, so every line of a
 /// boundary edge, placed by [`placed`] on the extent's sheet, meets the
