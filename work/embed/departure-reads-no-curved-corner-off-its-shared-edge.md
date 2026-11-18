@@ -305,8 +305,12 @@ the vertex:
   no quadrant holds.
 - The walls against each other at `2v3`, `(1, 0, 1)`, are the junction
   meeting `A`'s seam.
-- These vertex-alone pairs are second order at the vertex. No
-  first-order arm decides them, whatever corner is read.
+- These vertex-alone pairs were called second order at the vertex,
+  decided by no first-order arm. Wrong on both counts: the walls'
+  halves and `B`'s wall against the mitre are first order to a plane
+  (lane `embed/cylinder-vertex`), and `A`'s wall against `B`'s cap,
+  second order to every plane, is first order to the graph separator
+  over the ellipse (lane `embed/conic-vertex`). All certify.
 - The two pairs across the mitre's ellipse (`4v1` and `7v1` against
   `5v9`) are two arcs of one ellipse: at `7v1`, `(−1, 0, −1)`, on the
   mitre, and at `1v3` and `9v1` on `A`'s wall.
@@ -372,9 +376,10 @@ f64 row counted it out of pairs; it now refuses on the departure arm.
 
   The two-arc lune has only the carrier arm, where that rule does not
   hold.
-- **A cylinder's corner at a vertex alone**: the torus belly re-posed.
-- **The tee's vertex-alone pairs**, which are second order at the
-  vertex.
+- **A cylinder's corner at a vertex alone**: the torus belly re-posed
+  (read since by lane `embed/cylinder-vertex`).
+- **The tee's vertex-alone pairs** (read since by lanes
+  `embed/cylinder-vertex` and `embed/conic-vertex`; the tee holds).
 
 ## Read: a cylinder's corner at a vertex alone (EMBED, lane embed/cylinder-vertex, 2026-11-17)
 
@@ -453,8 +458,8 @@ The torus, the cone and the sphere are not covered:
   brief counted 81.)
 
 **What remains:**
-- two arcs of one conic at a corner (`embed/conic-arcs`), which is now
-  every tee refusal;
+- two arcs of one conic at a corner (`embed/conic-arcs`), which was then
+  every tee refusal (read since; the tee holds);
 - the drums' disc;
 - the two-arc lune.
 
@@ -592,8 +597,8 @@ The pin is re-set to it.
 **What remains of this row:**
 - **A cylinder's corner at a vertex alone**: the torus belly re-posed
   (lane `embed/cylinder-vertex`).
-- **The tee's vertex-alone pairs**, which are second order at the
-  vertex.
+- **The tee's vertex-alone pairs** (read since: the tee holds, by the
+  conic corner at a vertex alone below).
 - **Two arcs of one conic where no partner is presented**, so only the
   carrier arm applies. This is the two-arc lune: its sphere halves read
   no image of an off-axis circle, so neither the cap pairs nor the
@@ -672,9 +677,10 @@ On the tee both `A`-wall halves against `B`'s cap certify under the
 graph separator at the vertex, the cap as its quadrant.
 
 **Filed:** `a-vertex-alone-pair-both-read-on-through-the-vertex-refuses`
-(what the reading leaves out), and two main reds found running the
-censuses: `the-endpoint-census-reads-injective-rs-past-its-pinned-count-on-main`
-and BAND's `blend-reach-crossing-is-a-sole-bracket-door-missing-from-the-bounds-roster`.
+(what the reading leaves out), and BAND's
+`blend-reach-crossing-is-a-sole-bracket-door-missing-from-the-bounds-roster`,
+a main red found running the censuses. (The endpoint census's drift on
+`injective.rs` was main's, and PR 7104 re-blessed it.)
 
 **What remains of this row:** the two-arc lune (no presentation of the
 sphere beside an off-axis circle), a corner of two different conics,

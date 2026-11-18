@@ -1817,7 +1817,10 @@ fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
 /// corner is the ellipse's two arcs, a straight angle no quadrant holds,
 /// and no plane through the vertex parts the wall from the cap: they are
 /// parted by the graph separator over the ellipse through the vertex, the
-/// cap read as its quadrant. Every touching pair holds, asked alone.
+/// cap read as its quadrant. Every touching pair holds, asked alone. The
+/// report names no arm per pair, so which arm parts them is not asserted
+/// here: the graph separator's listing of the vertex is the one change
+/// that lets them certify, and without it this row is red.
 #[test]
 fn a_cylinder_cylinder_tee_builds_and_its_injectivity_holds_where_two_arcs_of_its_ellipse_meet() {
     fn tee_at<T: Scalar>() -> Result<topo::BooleanResult<T>, topo::BooleanError> {
@@ -1888,6 +1891,11 @@ fn a_cylinder_cylinder_tee_builds_and_its_injectivity_holds_where_two_arcs_of_it
         report.verdict
     );
     assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+    assert!(
+        report.receipt.splits < 640,
+        "the tee splits a few hundred cells, 465 when pinned: {:?}",
+        report.receipt
+    );
     // Every touching pair holds asked alone: A's wall halves against B's
     // cap at a vertex alone, the wall halves against the mitre across its
     // ellipse, and every other pair at a vertex alone or across an edge.
