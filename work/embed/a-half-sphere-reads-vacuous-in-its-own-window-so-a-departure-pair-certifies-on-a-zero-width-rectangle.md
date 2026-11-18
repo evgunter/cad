@@ -2,11 +2,13 @@
 id: a-half-sphere-reads-vacuous-in-its-own-window-so-a-departure-pair-certifies-on-a-zero-width-rectangle
 kind: issue
 title: A revolved ball's half-band is presented in its own whole window as the zero-width rectangle u = π and read vacuous, so the departure arm certifies the two half-bands at the root without reading either
-status: open
+status: closed
 opened: 2026-11-13
 priority: P0
 cost: M
-blocked_on: [three-walks-of-a-loops-chart-images-each-claim-to-be-the-one]
+closed: 2026-11-18
+pr: 7086
+branch: embed/half-sphere
 ---
 
 
