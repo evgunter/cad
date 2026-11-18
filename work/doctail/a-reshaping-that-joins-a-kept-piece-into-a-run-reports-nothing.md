@@ -2,10 +2,11 @@
 id: a-reshaping-that-joins-a-kept-piece-into-a-run-reports-nothing
 kind: issue
 title: A SetProgram that joins a kept piece's wall into a run (a station inserted after it) strands the single-piece wall name without reporting it
-status: open
+status: parked
 opened: 2026-11-09
 priority: P0
 cost: M
+blocked_on: [7082, 7075]
 ---
 
 
