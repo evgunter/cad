@@ -499,7 +499,7 @@ fn row4_the_lint_reports_staged_multiplicity_and_nothing_else() {
     // Reports, never gates: the mixed-pin document is a first-class
     // value at every door.
     assert!(
-        save(&staged, &[], Tol::witness()).is_ok(),
+        save(&staged, Tol::witness()).is_ok(),
         "a mixed-pin document saves"
     );
     assert_eq!(
@@ -791,47 +791,23 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
 
 // ---- Row 7: persistence ----
 
-/// Row 7 — a document whose LOG carries an update round-trips: save
-/// writes the log, load replays it, and the loaded document names the
-/// new version. Undo across the load is dropping the last entry and
-/// replaying — which restores the prior pin exactly.
+/// Row 7 — a document holding an updated reference round-trips: the
+/// loaded document names the new version, bit for bit the saved one.
 #[test]
-fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
+fn row7_an_updated_reference_round_trips() {
     let id = DocumentId::derive("asm-upd-r7-part");
     let v1 = content_pin(&part_version(id, 1.0), Tol::witness()).expect("pin");
     let v2 = content_pin(&part_version(id, 2.0), Tol::witness()).expect("pin");
 
     let mut rec = fixture::Recorder::new();
-    let asm_id = rec.doc.id();
     let node = rec.insert(crate::fixture::mated_instance(DocRef { id, pin: v1 }));
     rec.push(DocEdit::UpdateReference { node, new_pin: v2 });
 
-    // Snapshot = the EMPTY document, log = everything: the load
-    // replays the update through `apply`'s own doors.
-    let text = save(
-        &ProfileDoc::empty(asm_id, Tol::witness()),
-        &rec.edits,
-        Tol::witness(),
-    )
-    .expect("the document saves");
+    let text = save(&rec.doc, Tol::witness()).expect("the document saves");
     let loaded = load(&text, Tol::witness()).expect("the document loads");
-    assert_eq!(loaded.edits.len(), rec.edits.len(), "the log persisted");
-    assert_eq!(pin_of(&loaded.doc, node).pin, v2, "the replay lands on v2");
+    assert_eq!(pin_of(&loaded, node).pin, v2, "the load names v2");
     assert!(
-        loaded.doc.bit_eq(&rec.doc),
-        "the loaded document is the recorded one, bit for bit"
-    );
-
-    // Undo across the load: replay every edit but the last.
-    let undone = ProfileDoc::replay(
-        asm_id,
-        &loaded.edits[..loaded.edits.len() - 1],
-        Tol::witness(),
-    )
-    .expect("the shortened log replays");
-    assert_eq!(
-        pin_of(&undone, node).pin,
-        v1,
-        "dropping the update restores the prior version"
+        loaded.bit_eq(&rec.doc),
+        "the loaded document is the saved one, bit for bit"
     );
 }

@@ -385,6 +385,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     ))
     .expect("a finite offset");
     let apart = pncad::topo::transform_rigid(&cup, &beside).expect("a translation is rigid");
+    let trip = crate::step_round_trip("fivewall", &sealed, tol);
 
     vec![TourStop {
         name: "fivewall",
@@ -407,27 +408,18 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
               and shell_open(the mouth's face) -> transform_rigid to set the two side \
               by side",
         delta: DELTA,
-        note: None,
+        note: Some(format!(
+            "The sealed sleeve leaves as STEP — one BREP_WITH_VOIDS, its cavity the void — \
+             and imports back as one solid with {} cavity and V = {:.9} m³",
+            trip.voids, trip.volume
+        )),
         view: View {
             elev: 14.0,
             azim: -62.0,
             up: 'y',
         },
         bodies: vec![
-            SceneBody::plain("fivewall", [0.55, 0.63, 0.78], sealed.into_body())
-                .transparent(55)
-                .step_at_frontier(
-                    |e| {
-                        matches!(
-                            e,
-                            pncad::step_export::StepExportError::VoidShellUnsupported { .. }
-                        )
-                    },
-                    "the writer writes BREP_WITH_VOIDS now. This \
-                     is the FIFTH probe of that one gate — retire it with klein's WALL \
-                     6, the `ring` scene's, `tubewall`'s `hollowtorus` and \
-                     `torusvessel`'s, which are all the same gate",
-                ),
+            SceneBody::plain("fivewall", [0.55, 0.63, 0.78], sealed.into_body()).transparent(55),
             SceneBody::plain("fivewallcup", [0.78, 0.66, 0.50], apart),
         ],
     }]

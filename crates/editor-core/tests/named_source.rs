@@ -146,7 +146,7 @@ fn the_load_refuses_a_direct_read() {
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, copy) = insert(doc, placed(Operand::Node(b)));
     let source = doc.copied_read(copy).expect("a source");
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("saves");
     let spell = |var: VarId| serde_json::to_string(&var).expect("an id spells");
     let needle = format!("\"source\": {}", spell(source));
     assert!(text.contains(&needle), "the file spells the source read");
@@ -349,7 +349,7 @@ fn a_source_cycle_is_a_definition_cycle() {
 fn the_load_refuses_a_source_cycle() {
     let (doc, b) = chained();
     let bb = doc.var_named("b").expect("b");
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("saves");
     let spell = |var: VarId| serde_json::to_string(&var).expect("an id spells");
     let needle = format!("\"Source\": {}", spell(out(&doc, b)));
     assert_eq!(text.matches(&needle).count(), 1, "a's definition, once");
@@ -506,7 +506,7 @@ fn a_body_source_redefined_onto_a_family_writes_what_loads() {
     // A shell reads a family as a family of shells, so the door admits the
     // redefinition, and what it writes saves and loads.
     let doc = redefine(&doc, bracket, VarDecl::source(Operand::Node(row))).expect("admitted");
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("saves");
     editor_core::load(&text, Tol::witness()).expect("what the door writes loads");
 }
 
@@ -582,7 +582,7 @@ fn the_load_refuses_a_shared_anonymous_source_and_a_cycle_through_nodes() {
         },
     );
     let [s1, s2] = [c1, c2].map(|c| doc.copied_read(c).expect("a source"));
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("saves");
     let spell = |var: VarId| serde_json::to_string(&var).expect("an id spells");
     let needle = format!("\"source\": {}", spell(s2));
     assert!(text.contains(&needle));

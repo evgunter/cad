@@ -391,8 +391,8 @@ pub enum SessionOp {
     /// [`OpOutcome::layout`], and refuses nothing.
     Open(PathBuf),
     /// Write the committed document at a path, identity kept (DI4):
-    /// through the store of the folder the file lands in, with no
-    /// edit log (GQ3). Save and Save As… both push this. The committed
+    /// through the store of the folder the file lands in, as the
+    /// document's state (GQ3). Save and Save As… both push this. The committed
     /// display frames are kept beside the file, in its layout
     /// ([`crate::layout`]), never in it; a layout not written is the
     /// outcome's [`OpOutcome::layout`], and the save stands.

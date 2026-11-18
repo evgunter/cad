@@ -2226,9 +2226,9 @@ pub fn square(cx: f64, cy: f64, h: f64) -> Vec<(f64, f64)> {
 }
 
 /// Applies-and-RECORDS: the edit-log author shared by the die
-/// fixture and the M4 PR 8a Band 4 corpus. The saved snapshot is the
-/// EMPTY document and the log is everything, so a load replays the
-/// whole document through `apply`'s doors.
+/// fixture and the M4 PR 8a Band 4 corpus. The log starts at the EMPTY
+/// document, so replaying it rebuilds the whole document through
+/// `apply`'s doors.
 pub struct Recorder {
     /// The document as edited so far.
     pub doc: ProfileDoc,

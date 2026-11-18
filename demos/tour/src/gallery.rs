@@ -91,9 +91,9 @@ pub fn run(dir: Option<String>, tol: Tol) {
 /// finding about that scene, not something to skip past, so this
 /// panics rather than logging and continuing.
 fn write_one(dir: &Path, name: &str, doc: &ProfileDoc, tol: Tol) {
-    // An empty edit log: the gallery ships the STATE, and a viewer
-    // that opens it starts its own history from this snapshot.
-    let text = save(doc, &[], tol)
+    // The gallery ships the STATE, and a viewer that opens it starts
+    // its own history from it.
+    let text = save(doc, tol)
         .unwrap_or_else(|error| panic!("the {name} document does not save: {error:?}"));
     let path = dir.join(format!("{name}.pncad"));
     std::fs::write(&path, &text)

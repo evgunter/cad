@@ -289,7 +289,7 @@ fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
 /// there is no estimate to condition — the chord IS the candidate,
 /// and a chord inside the budget is the closed class, which is the
 /// circle limb's.
-fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)> {
+pub(crate) fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)> {
     let control = curve.control();
     let (first, last) = (control.first()?, control.last()?);
     let chord = *last - *first;

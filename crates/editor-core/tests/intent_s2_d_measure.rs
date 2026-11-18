@@ -307,7 +307,7 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
 
     // The load door: the extrude's depth forged to read the output.
     let depth = doc.var_named("depth").expect("declared");
-    let text = save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = save(&doc, Tol::witness()).expect("the document saves");
     load(&text, Tol::witness()).expect("its own bytes load");
     let corrupt = doctored(&text, |wire| {
         let field = &mut wire["snapshot"]["nodes"][b.0.to_string()]["Extrude"]["distance"];
