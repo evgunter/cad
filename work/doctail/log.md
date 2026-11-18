@@ -144,3 +144,4 @@ body has the reasons):
   - the NITs.
 
   The orchestrator reads it and merges.
+- 2026-11-18 — **Friction (orchestrator's own):** I removed the face-chart implementer's worktree when its first report came in, which made the agent unresumable for the fix pass ("its worktree no longer exists"). The fix pass went to a fresh lane briefed from the PR body. Lesson: keep an implementer's worktree until its PR merges; reclaim only its target dir.
