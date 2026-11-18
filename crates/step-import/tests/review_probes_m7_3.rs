@@ -582,12 +582,9 @@ fn probe_reexport_promotion_divergence() {
     // `fixed_point` row carries the corpus-wide re-pin and the
     // spline-record retirement count); the byte fixed point then
     // starts one cycle later.
-    let StepImport::Solid {
-        body: body2,
-        curve_promotions,
-        ..
-    } = import(&out).expect("the first re-export re-imports")
-    else {
+    let reimported = import(&out).expect("the first re-export re-imports");
+    let curve_promotions = reimported.curve_promotions();
+    let StepImport::Solid { body: body2, .. } = reimported else {
         panic!("the first re-export must re-import as a solid");
     };
     let line_promos = curve_promotions
