@@ -306,19 +306,36 @@ pub(super) fn turn_about<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
 
 /// [`turn_about`]'s cosine and sine arms: the dot and cross products about
 /// the unit `axis` of the offsets `a` and `b` less their parts along it,
-/// `a_p·b_p` and `(a_p × b_p)·axis`. They are read without forming the
-/// parts: `(a_p × b_p)·axis = (a × b)·axis` for any axis, since every
-/// cross term the parts along it add is square to it; and
-/// `a_p·b_p = a·b − (a·axis)(b·axis)` where `|axis| = 1`, which holds of
-/// the true axis an enclosure of a unit axis contains, so the enclosure
-/// evaluation encloses it. At an enclosure scalar the
-/// axis's width then enters only through the product of the two parts
-/// along it, each near zero for arms about the axis, where subtracting
-/// them from the arms would widen every component by the arm's length
-/// times the axis's width before the products at the arm's length
-/// squared read it again.
+/// `a_p·b_p` and `(a_p × b_p)·axis`.
+///
+/// The cosine arm has two spellings of one real, each widening in its own
+/// regime at an enclosure, so an enclosure scalar meets them
+/// ([`Real::meet_readings`]) and a point scalar reads the first alone:
+///
+/// - **Projected**: the parts along the axis formed and subtracted, then
+///   the product. Subtracting them widens every component by the arm's
+///   length times the axis's width, which the product at the arm's length
+///   reads again: wide on arms far from the axis (a 990 m wall of 400
+///   arcs, `far_walls_of_many_arcs`).
+/// - **Product identity**: `a_p·b_p = a·b − (a·axis)(b·axis)` where
+///   `|axis| = 1`, which holds of the true axis an enclosure of a unit
+///   axis contains, so the enclosure evaluation encloses it. The axis's
+///   width enters only through the product of the two parts along it,
+///   but `a·b` and that product cancel: wide on arms whose parts along
+///   the axis dwarf their parts about it (a rim at height 1 about a
+///   cylinder narrower than `Kε`, `periodic_chart_closure`).
+///
+/// The sine arm is met the same way, its second spelling
+/// `(a_p × b_p)·axis = (a × b)·axis`, true for any axis since every cross
+/// term the parts along it add is square to it, so it reads no part.
+///
+/// A point scalar reads the projected spellings alone, so its bits are
+/// the ones it read before the meet.
 pub(super) fn turn_arms<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> (T, T) {
-    (a.dot(b) - a.dot(axis) * b.dot(axis), a.cross(b).dot(axis))
+    let (a_p, b_p) = (a - axis * a.dot(axis), b - axis * b.dot(axis));
+    let dot = T::meet_readings(a_p.dot(b_p), || a.dot(b) - a.dot(axis) * b.dot(axis));
+    let cross = T::meet_readings(a_p.cross(b_p).dot(axis), || a.cross(b).dot(axis));
+    (dot, cross)
 }
 
 /// One closed-form loop: its edges' turns and its joints, in loop order.

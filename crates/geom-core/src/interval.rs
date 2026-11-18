@@ -722,6 +722,10 @@ impl Real for Interval {
         }))
     }
 
+    fn meet_readings(first: Self, second: impl FnOnce() -> Self) -> Self {
+        certification::Certification::meet(first, second())
+    }
+
     fn is_bounded(self) -> bool {
         !Real::is_poison(self) && self.0.lo().is_finite() && self.0.hi().is_finite()
     }

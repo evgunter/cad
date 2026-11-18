@@ -437,6 +437,22 @@ pub trait Real:
         None
     }
 
+    /// **The meet of two readings of one real**, where `first` and the
+    /// value `second` builds enclose the same real by independent
+    /// spellings: at a scalar whose value is a plain enclosure, their
+    /// intersection (the tighter enclosure, sound because whatever lies
+    /// outside either is not the real); elsewhere `first` alone (the
+    /// default), and `second` is never built, so a point or symbolic
+    /// scalar reads exactly the one spelling and records no other. A
+    /// caller reaches for it where each spelling widens in its own regime
+    /// and neither bounds the other (`turn_arms`, geom-brep). Decides
+    /// nothing; a disjoint meet poisons.
+    #[must_use]
+    fn meet_readings(first: Self, second: impl FnOnce() -> Self) -> Self {
+        let _ = second;
+        first
+    }
+
     /// **Is this scalar an exact zero in every channel it carries?** At
     /// the point and interval scalars, [`is_exact_zero`] (the value
     /// channel is the scalar). A scalar that carries more than its value
