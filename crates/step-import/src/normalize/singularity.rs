@@ -37,6 +37,7 @@
 
 use geom::{ChartInverse, Curve3, Surface};
 use geom_brep::chart_singularity::{self as home, Lies, Unread};
+use geom_brep::curve_pair::{self, Span, SpanEnd};
 use geom_brep::props::LoopEdge;
 use geom_core::{Point3, Vec3};
 
@@ -45,12 +46,6 @@ use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
 use crate::interpret::FileBand;
 use crate::{FaceCensus, NormalizationKind, SingularityFound, StructureNormalization};
-
-/// **Two lines this close to parallel have no crossing** for the pass: a
-/// squared sine between their directions ([`geom::LinePair::sin2`]) at or
-/// below it is a pair whose closest approach is lost to cancellation in
-/// `f64`, a dozen digits below the operands' own scale.
-const NO_CROSSING_SIN2: f64 = 1e-12;
 
 /// The surface data the pass reads: the axis through the singular
 /// points, the reference azimuth, and the points themselves.
@@ -181,10 +176,6 @@ enum Action {
 /// A point the pass reads coincident with another (a singular point, a
 /// boundary vertex, a carrier's foot): Zero at the pass's band.
 const STEP_SINGULARITY_POINT: &str = "step_singularity_point";
-
-/// Where a pole-form meridian ray meets a boundary carrier: a candidate
-/// is kept unless it reads apart at the pass's band.
-const STEP_SINGULARITY_RAY_HIT: &str = "step_singularity_ray_hit";
 
 /// The pass (module docs).
 pub(super) fn singularity_vertices(
@@ -624,6 +615,54 @@ struct Ray {
     reach: f64,
 }
 
+impl Ray {
+    /// The span the ray walks to `delta` of parameter past its start.
+    fn span(&self, delta: f64) -> Span<'_, f64> {
+        let to = self.from + self.sign * delta;
+        Span::new(&self.carrier, (self.from.min(to), self.from.max(to)))
+    }
+
+    /// The end of [`Self::span`] the ray starts at.
+    fn start(&self) -> SpanEnd {
+        if self.sign > 0.0 {
+            SpanEnd::Start
+        } else {
+            SpanEnd::Stop
+        }
+    }
+
+    /// How far along the ray `hit` on its `span` lies.
+    fn walked(&self, span: &Span<'_, f64>, hit: curve_pair::Hit<f64>) -> f64 {
+        (span.at(hit) - self.from) * self.sign
+    }
+
+    /// The parameter the ray is read out to on face `fi`: its own reach,
+    /// or, unbounded (a cone's generator), past the farthest any boundary
+    /// edge of the face lies from its start by twice the band's
+    /// escalation, so its far end reads definitely off every edge.
+    fn reach_on(&self, solid: &SolidSpec, edges: &[u64], read: &Read) -> f64 {
+        if self.reach.is_finite() {
+            return self.reach;
+        }
+        let o = self.carrier.eval(self.from);
+        let far = edges
+            .iter()
+            .map(|e| {
+                let spec = &solid.edges[e];
+                let (_, hi) = geom::carrier_speed::speed_range(&spec.carrier);
+                (spec.carrier.eval(spec.t0) - o).norm() + hi.to_meters(spec.t1 - spec.t0)
+            })
+            .fold(0.0, f64::max);
+        let Some(speed) = geom::carrier_speed::speed_at(&self.carrier, self.from) else {
+            unreachable!(
+                "an unbounded ray runs on a cone's generator line (`meridian_rays`, \
+                 `strut_tip`), whose speed `speed_at` reads in closed form"
+            )
+        };
+        (far + 2.0 * read.escalate) / speed
+    }
+}
+
 /// Where a ray first meets the face's boundary.
 enum Hit {
     /// At an existing vertex.
@@ -632,14 +671,17 @@ enum Hit {
     Edge { edge: u64, t: f64 },
     /// At another singular point, off the boundary.
     Singular(Point3<f64>),
-    /// Where a landing beside a boundary vertex is undecided: the refusal,
-    /// raised only if the ray meets nothing sooner.
-    Refused(StepImportError),
 }
 
 /// The first point past its start at which `ray` meets the boundary of
 /// face `fi`, ignoring `skip`'s edge (a seam the ray leaves from), or
 /// reaches one of `singular` off the boundary.
+///
+/// Each edge is read against the ray by the kernel's one meeting reader
+/// ([`curve_pair::meet`]) at the pass's band. An edge whose meeting
+/// refuses is read again on the ray only as far as its nearest decided
+/// landing: a refusal there is the pass's, one past it no question the
+/// pass asks.
 fn first_hit(
     solid: &SolidSpec,
     fi: usize,
@@ -649,259 +691,161 @@ fn first_hit(
     read: &Read,
 ) -> Result<(Hit, Point3<f64>), StepImportError> {
     let face = &solid.faces[fi];
-    let Some(speed) = geom::carrier_speed::speed_at(&ray.carrier, ray.from) else {
-        unreachable!(
-            "a ray runs on a sphere's meridian circle or a cone's generator line \
-             (`meridian_rays`), whose speed `speed_at` reads in closed form"
-        )
-    };
-    let lead = read.escalate / speed;
-    let mut best: Option<(f64, Hit, Point3<f64>)> = None;
-    let offer =
-        |delta: f64, hit: Hit, p: Point3<f64>, best: &mut Option<(f64, Hit, Point3<f64>)>| {
-            if delta > lead
-                && delta <= ray.reach + lead
-                && best.as_ref().is_none_or(|(b, ..)| delta < *b)
-            {
-                *best = Some((delta, hit, p));
-            }
-        };
-    let delta_of = |t: f64| (t - ray.from) * ray.sign;
-    // How far along the ray its parameter `t` lies: on a circle, the
-    // representative in `(lead, lead + τ]`, past the start by at most a turn.
-    // That window is a turn from the start only while `lead`, the band's
-    // escalation over the circle's radius, is under a turn: a circle that
-    // small is inside its own band.
-    let turn = ray.carrier.period();
-    assert!(
-        turn.is_none_or(|turn| lead < turn.length()),
-        "a ray circle within its own band (lead {lead})"
-    );
-    let walked = |t: f64| {
-        let delta = delta_of(t);
-        turn.map_or(delta, |turn| turn.above(delta, lead))
-    };
     let mut edges: Vec<u64> = face
         .loops
         .iter()
         .flat_map(|lp| lp.uses.iter().map(|u| u.edge))
+        .filter(|&e| Some(e) != skip)
         .collect();
     edges.sort_unstable();
     edges.dedup();
-    for edge in edges {
-        if Some(edge) == skip {
-            continue;
+    let reach = ray.reach_on(solid, &edges, read);
+    let span = ray.span(reach);
+    let mut best: Option<(f64, Hit, Point3<f64>)> = None;
+    let offer = |landings: Vec<(f64, Hit, Point3<f64>)>,
+                 best: &mut Option<(f64, Hit, Point3<f64>)>| {
+        for (delta, hit, p) in landings {
+            if best.as_ref().is_none_or(|(b, ..)| delta < *b) {
+                *best = Some((delta, hit, p));
+            }
         }
+    };
+    let mut refused = Vec::new();
+    for &edge in &edges {
         let spec = &solid.edges[&edge];
-        // A boundary vertex on the ray is met there, whatever the
-        // carriers do between (a boundary arc running along the ray
-        // crosses it nowhere, and meets it at its ends).
-        for v in [spec.start, spec.end] {
-            let p = solid.vertices[&v];
-            if let Some(t) = param_on(&ray.carrier, p, read) {
-                offer(walked(t), Hit::Vertex(v), p, &mut best);
+        let other = Span::new(&spec.carrier, (spec.t0, spec.t1));
+        let met = curve_pair::meet(&span, &other, read.coarser).unwrap_or_else(|why| {
+            refused.push(edge);
+            curve_pair::Meetings {
+                shared: None,
+                points: why.found,
             }
-        }
-        for (t_ray, p) in
-            crossings(&ray.carrier, &spec.carrier, read).ok_or(foreign_carrier(face.id))?
-        {
-            let delta = walked(t_ray);
-            // On the edge's own turn, at or past its start, the convention
-            // `crate::geometry::endpoint_params` derives edge intervals in.
-            let te = home::foot(&spec.carrier, p, spec.t0).ok_or(foreign_carrier(face.id))?;
-            // At one of the edge's ends, decided at the pass's band as
-            // the singular point itself is: within it, the landing is
-            // that vertex; past it, the edge is split there; between,
-            // the landing is undecided and refuses if it is the one the
-            // ray meets first.
-            let ends = [spec.start, spec.end].map(|v| (v, solid.vertices[&v]));
-            let (v, pv) = if (p - ends[0].1).norm() <= (p - ends[1].1).norm() {
-                ends[0]
-            } else {
-                ends[1]
-            };
-            match on_boundary((p - pv).norm(), read, face.id) {
-                Ok(true) => offer(delta, Hit::Vertex(v), pv, &mut best),
-                Ok(false) if te > spec.t0 && te < spec.t1 => {
-                    offer(delta, Hit::Edge { edge, t: te }, p, &mut best);
-                }
-                Ok(false) => {}
-                Err(refused) => offer(delta, Hit::Refused(refused), p, &mut best),
-            }
+        });
+        offer(
+            landings(solid, ray, &span, edge, &met, read, face.id)?,
+            &mut best,
+        );
+    }
+    if !refused.is_empty() {
+        let near = ray.span(best.as_ref().map_or(reach, |b| b.0));
+        for edge in refused {
+            let spec = &solid.edges[&edge];
+            let other = Span::new(&spec.carrier, (spec.t0, spec.t1));
+            let met = curve_pair::meet(&near, &other, read.coarser)
+                .map_err(|why| meet_refused(why.fault, read, face.id))?;
+            offer(
+                landings(solid, ray, &near, edge, &met, read, face.id)?,
+                &mut best,
+            );
         }
     }
     for &s in singular {
-        if let Some(t) = param_on(&ray.carrier, s, read) {
-            let delta = walked(t);
-            if best.as_ref().is_none_or(|(b, ..)| delta < *b - lead) {
-                offer(delta, Hit::Singular(s), s, &mut best);
-            }
+        let hit = match span.read(s, ray.from, read.coarser) {
+            Ok(curve_pair::Reading::On { t, .. }) => t,
+            Ok(curve_pair::Reading::End(end)) => span.at(curve_pair::Hit::End(end)),
+            Ok(curve_pair::Reading::Carrier | curve_pair::Reading::Off) => continue,
+            Err(why) => return Err(span_refused(why, read, face.id)),
+        };
+        let delta = (hit - ray.from) * ray.sign;
+        // A boundary landing at the singular point is that landing.
+        let beyond = match &best {
+            None => true,
+            Some((b, _, p)) => !on_boundary((*p - s).norm(), read, face.id)? && delta < *b,
+        };
+        if beyond {
+            best = Some((delta, Hit::Singular(s), s));
         }
     }
-    match best {
-        Some((_, Hit::Refused(refused), _)) => Err(refused),
-        Some((_, hit, p)) => Ok((hit, p)),
-        None => Err(StepImportError::Topology {
+    best.map(|(_, hit, p)| (hit, p))
+        .ok_or(StepImportError::Topology {
             id: face.id,
             what: "internal: a pole-form meridian minted inside a face meets none of its \
-               boundary",
-        }),
+                   boundary",
+        })
+}
+
+/// What `met`, the meetings of the ray's `span` with `edge`, offer as
+/// landings: each meeting at the vertex or inside the edge, where it sits
+/// on the edge; where the edge runs along the ray, each of its ends the
+/// ray reads on itself, the run's first point being one of them. A
+/// meeting at the ray's start is where it leaves, no landing.
+fn landings(
+    solid: &SolidSpec,
+    ray: &Ray,
+    span: &Span<'_, f64>,
+    edge: u64,
+    met: &curve_pair::Meetings<f64>,
+    read: &Read,
+    id: u64,
+) -> Result<Vec<(f64, Hit, Point3<f64>)>, StepImportError> {
+    let spec = &solid.edges[&edge];
+    let mut out = Vec::new();
+    if met.shared.is_some() {
+        for v in [spec.start, spec.end] {
+            let p = solid.vertices[&v];
+            let at = match span.read(p, ray.from, read.coarser) {
+                Ok(curve_pair::Reading::On { t, margin }) => curve_pair::Hit::On { t, margin },
+                Ok(curve_pair::Reading::End(end)) => curve_pair::Hit::End(end),
+                Ok(curve_pair::Reading::Carrier | curve_pair::Reading::Off) => continue,
+                Err(why) => return Err(span_refused(why, read, id)),
+            };
+            if at != curve_pair::Hit::End(ray.start()) {
+                out.push((ray.walked(span, at), Hit::Vertex(v), p));
+            }
+        }
+        return Ok(out);
+    }
+    for m in &met.points {
+        if m.on_a == curve_pair::Hit::End(ray.start()) {
+            continue;
+        }
+        let (hit, p) = match m.on_b {
+            curve_pair::Hit::End(SpanEnd::Start) => {
+                (Hit::Vertex(spec.start), solid.vertices[&spec.start])
+            }
+            curve_pair::Hit::End(SpanEnd::Stop) => {
+                (Hit::Vertex(spec.end), solid.vertices[&spec.end])
+            }
+            curve_pair::Hit::On { t, .. } => (Hit::Edge { edge, t }, m.point),
+        };
+        out.push((ray.walked(span, m.on_a), hit, p));
+    }
+    Ok(out)
+}
+
+/// The pass's refusal of a meeting the kernel's reader did not decide:
+/// a decision in the band is the distance the pass could not call, named
+/// by whose band it was ([`Read::refuse`]); a reading that did not run to
+/// an answer, or faulted, is the pass's own.
+fn meet_refused(fault: curve_pair::MeetFault, read: &Read, id: u64) -> StepImportError {
+    match fault.kind() {
+        curve_pair::MeetKind::Escalated(cause) | curve_pair::MeetKind::Touch(cause) => {
+            read.refuse(cause, id)
+        }
+        curve_pair::MeetKind::Unread(_) => unsettled(id),
+        curve_pair::MeetKind::Fault { .. } => StepImportError::Topology {
+            id,
+            what: "internal: the curve-pair meeting reader faulted reading a pole-form \
+                   meridian against a boundary edge",
+        },
     }
 }
 
-/// The parameter of `carrier` at `x`, when `x` lies on it within ε_in:
-/// its [`home::foot`] on the turn at or past `0`.
-fn param_on(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
-    let t = home::foot(carrier, x, 0.0)?;
-    read.on(STEP_SINGULARITY_POINT, (carrier.eval(t) - x).norm())
-        .then_some(t)
+/// [`meet_refused`] for a point read on the ray's span.
+fn span_refused(why: curve_pair::SpanRefusal, read: &Read, id: u64) -> StepImportError {
+    match why.escalation() {
+        Ok(cause) => read.refuse(cause, id),
+        Err(_) => unsettled(id),
+    }
 }
 
-/// [`param_on`], `x` taken on `carrier` wherever it does not read apart
-/// from it at the pass's band.
-fn param_kept(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
-    let t = home::foot(carrier, x, 0.0)?;
-    read.not_apart(STEP_SINGULARITY_RAY_HIT, (carrier.eval(t) - x).norm())
-        .then_some(t)
-}
-
-/// Where the carriers `ray` and `other` cross: the ray's parameter and
-/// the point, for each crossing. `None` for a pair this pass reads no
-/// crossing of. Where `other` runs along the ray, its points ON the ray
-/// are its crossings' candidates — its vertices are found by the
-/// caller's end tests, so a coincident carrier offers the ray points
-/// at its own two ends.
-fn crossings(
-    ray: &Curve3<f64>,
-    other: &Curve3<f64>,
-    read: &Read,
-) -> Option<Vec<(f64, Point3<f64>)>> {
-    // `other` as a plane-and-distance test (a circle) or a line.
-    match (ray, other) {
-        (
-            &Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: c,
-                        axis: n,
-                        u_ref: u,
-                    },
-                radius: r,
-            }),
-            &Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: ce,
-                        axis: ne,
-                        ..
-                    },
-                radius: re,
-            }),
-        ) => {
-            let w = n.cross(u);
-            // ne · (C(t) − ce) = a cos t + b sin t + k.
-            let (a, b, k) = (r * ne.dot(u), r * ne.dot(w), ne.dot(c - ce));
-            let rho = a.hypot(b);
-            if read.on(STEP_SINGULARITY_RAY_HIT, rho) {
-                // Parallel planes: one circle (on one sphere) or none.
-                return Some(Vec::new());
-            }
-            let phase = b.atan2(a);
-            let cos = -k / rho;
-            if cos.abs() > 1.0 {
-                return Some(Vec::new());
-            }
-            let spread = cos.acos();
-            Some(
-                [phase + spread, phase - spread]
-                    .into_iter()
-                    .map(|t| (t, ray.eval(t)))
-                    .filter(|(_, p)| {
-                        read.not_apart(STEP_SINGULARITY_RAY_HIT, (*p - ce).norm() - re)
-                    })
-                    .collect(),
-            )
-        }
-        (
-            &Curve3::Line(geom::Line { origin: o, dir: g }),
-            &Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: ce,
-                        axis: ne,
-                        ..
-                    },
-                radius: re,
-            }),
-        ) => {
-            let den = ne.dot(g);
-            if den.abs() <= 1e-12 * g.norm() {
-                return Some(Vec::new());
-            }
-            let t = ne.dot(ce - o) / den;
-            let p = ray.eval(t);
-            Some(
-                if read.not_apart(STEP_SINGULARITY_RAY_HIT, (p - ce).norm() - re) {
-                    vec![(t, p)]
-                } else {
-                    Vec::new()
-                },
-            )
-        }
-        (
-            &Curve3::Line(geom::Line { origin: o, dir: g }),
-            &Curve3::Line(geom::Line {
-                origin: oe,
-                dir: ge,
-            }),
-        ) => {
-            // The closest approach of two lines; generators of one cone
-            // meet only at its apex, which the caller's lead skips.
-            let pair = geom::Line { origin: o, dir: g }.closest_params(&geom::Line {
-                origin: oe,
-                dir: ge,
-            });
-            // An import's policy: lines within NO_CROSSING_SIN2 of
-            // parallel (or with a zero direction, NaN) have no crossing.
-            let crossing = pair.sin2.abs() > NO_CROSSING_SIN2;
-            if !crossing {
-                return Some(Vec::new());
-            }
-            let (t, s) = (pair.s, pair.t);
-            let (p, q) = (ray.eval(t), other.eval(s));
-            Some(
-                if read.not_apart(STEP_SINGULARITY_RAY_HIT, (p - q).norm()) {
-                    vec![(t, p)]
-                } else {
-                    Vec::new()
-                },
-            )
-        }
-        (
-            &Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: c, axis: n, ..
-                },
-                radius: r,
-            }),
-            &Curve3::Line(geom::Line {
-                origin: oe,
-                dir: ge,
-            }),
-        ) => {
-            let den = n.dot(ge);
-            if den.abs() <= 1e-12 * ge.norm() {
-                return Some(Vec::new());
-            }
-            let s = n.dot(c - oe) / den;
-            let p = other.eval(s);
-            if !read.not_apart(STEP_SINGULARITY_RAY_HIT, (p - c).norm() - r) {
-                return Some(Vec::new());
-            }
-            let t = param_kept(ray, p, read)?;
-            Some(vec![(t, p)])
-        }
-        _ => None,
+fn unsettled(id: u64) -> StepImportError {
+    StepImportError::Topology {
+        id,
+        what: "a sphere or cone face holding its pole or apex, where a pole-form meridian's \
+               meeting with a boundary edge did not run to an answer at the band the import \
+               reads it at: where the meridian ends is unread, and the face is not cut on a \
+               guess",
     }
 }
 
@@ -944,8 +888,8 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
     })
 }
 
-/// Requires every boundary carrier of face `fi` to be one this pass
-/// reads a crossing of.
+/// Requires every boundary carrier of face `fi` to be a line or a
+/// circle, the boundaries the pass cuts.
 fn require_read_carriers(solid: &SolidSpec, fi: usize) -> Result<(), StepImportError> {
     let face = &solid.faces[fi];
     for lp in &face.loops {
@@ -977,7 +921,6 @@ fn land(
             solid.vertices.insert(v, s);
             Ok(v)
         }
-        Hit::Refused(refused) => Err(refused),
     }
 }
 
@@ -1592,5 +1535,211 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
                 shown(&got)
             );
         }
+    }
+}
+
+/// **Where a minted meridian ends is the kernel's meeting reading at the
+/// pass's band** ([`geom_brep::curve_pair::meet`]), not a reading of the
+/// pass's own: the landing beside a boundary vertex is decided at the
+/// file's band, and a crossing at a grazing angle is a crossing.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod meetings_are_the_kernels {
+    use geom::{Curve3, Surface};
+    use geom_core::{Point3, Vec3};
+
+    use super::{Chart, Hit, Read, first_hit, meridian_rays};
+    use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
+    use crate::error::{SingularityBand, StepImportError};
+
+    /// One face on `surface`, each of `edges` a loop of its own.
+    fn face(
+        surface: Surface<f64>,
+        edges: Vec<(u64, EdgeSpec)>,
+        vertices: Vec<(u64, Point3<f64>)>,
+    ) -> SolidSpec {
+        let loops = edges
+            .iter()
+            .map(|&(edge, _)| LoopSpec {
+                outer: false,
+                uses: vec![EdgeUse {
+                    edge,
+                    forward: true,
+                }],
+            })
+            .collect();
+        SolidSpec {
+            id: 100,
+            faces: vec![FaceSpec {
+                id: 101,
+                surface,
+                sense: true,
+                loops,
+                band: false,
+            }],
+            edges: edges.into_iter().collect(),
+            vertices: vertices.into_iter().collect(),
+            band_seams: Default::default(),
+        }
+    }
+
+    /// A closed circle edge `id` from and to the vertex `v` at its `t = 0`.
+    fn closed(id: u64, v: u64, carrier: Curve3<f64>) -> ((u64, EdgeSpec), (u64, Point3<f64>)) {
+        let at = carrier.eval(0.0);
+        let spec = EdgeSpec {
+            start: v,
+            end: v,
+            carrier,
+            t0: 0.0,
+            t1: core::f64::consts::TAU,
+            reversed: false,
+        };
+        ((id, spec), (v, at))
+    }
+
+    fn shown(got: &Result<(Hit, Point3<f64>), StepImportError>) -> String {
+        match got {
+            Ok((Hit::Vertex(v), p)) => format!("vertex {v} at {p:?}"),
+            Ok((Hit::Edge { edge, t }, p)) => format!("edge {edge} at t {t} ({p:?})"),
+            Ok((Hit::Singular(_), p)) => format!("the other singular point {p:?}"),
+            Err(e) => format!("{e:?}"),
+        }
+    }
+
+    /// The north pole's meridian at azimuth `x` meets the equator at
+    /// `(1, 0, 0)`, `phi` of arc from the equator edge's vertex: a vertex
+    /// landing at the band's zero, refused in the band, an edge split past
+    /// its escalation, all at the FILE's band where its ε_in is coarser
+    /// than the run's.
+    #[test]
+    fn a_landing_beside_a_vertex_is_decided_at_the_files_band() {
+        let (z, x) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let sphere = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            axis: z,
+            u_ref: x,
+        };
+        let Some(chart) = Chart::of(&sphere) else {
+            unreachable!("a sphere has a chart")
+        };
+        let [ray, _] = meridian_rays(chart, 0, x, 1.0);
+        let at = |phi: f64, eps_in: f64| {
+            let (edge, vertex) = closed(
+                11,
+                1,
+                Curve3::circle(
+                    Point3::new(0.0, 0.0, 0.0),
+                    z,
+                    1.0,
+                    Vec3::new(phi.cos(), phi.sin(), 0.0),
+                ),
+            );
+            let solid = face(sphere.clone(), vec![edge], vec![vertex]);
+            let read = Read::of(crate::interpret::FileBand::with_run(eps_in, 1e-9, 10.0).unwrap());
+            first_hit(&solid, 0, &ray, None, &[], &read)
+        };
+        // ε_in 1e-6 over a run of 1e-9: the band (1e-6, 1e-5).
+        let got = at(3e-7, 1e-6);
+        assert!(
+            matches!(got, Ok((Hit::Vertex(1), _))),
+            "phi 3e-7 at the file's zero: {}",
+            shown(&got)
+        );
+        let got = at(3e-6, 1e-6);
+        assert!(
+            matches!(
+                got,
+                Err(StepImportError::SingularityUndecided {
+                    id: 101,
+                    band: SingularityBand::File,
+                    ..
+                })
+            ),
+            "phi 3e-6 in the file's band: {}",
+            shown(&got)
+        );
+        let got = at(3e-5, 1e-6);
+        let Ok((Hit::Edge { edge: 11, t }, p)) = got else {
+            panic!("phi 3e-5 past the file's band: {}", shown(&got))
+        };
+        assert!(
+            (t - (core::f64::consts::TAU - 3e-5)).abs() < 1e-12
+                && (p - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-12,
+            "phi 3e-5: the split lands at the meridian's crossing, t {t}, p {p:?}"
+        );
+        // The same landing at the run's own band, the file declaring no
+        // coarser: past its escalation, so the edge splits.
+        let got = at(3e-6, 1e-9);
+        assert!(
+            matches!(got, Ok((Hit::Edge { edge: 11, .. }, _))),
+            "phi 3e-6 at the run's band: {}",
+            shown(&got)
+        );
+    }
+
+    /// A cone's generator ray from the apex crosses a boundary line at
+    /// slant `1` at a grazing angle (`sin² = 1e-14`), before a rim circle
+    /// at slant `2`: the line is where the ray first meets the boundary.
+    /// A reading that takes lines this near parallel for no crossing lands
+    /// on the rim.
+    #[test]
+    fn a_grazing_crossing_is_a_crossing() {
+        let (z, x, y) = (
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        );
+        let half_angle = core::f64::consts::FRAC_PI_4;
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: z,
+            half_angle,
+            u_ref: x,
+        };
+        let Some(chart) = Chart::of(&cone) else {
+            unreachable!("a cone has a chart")
+        };
+        let [ray, _] = meridian_rays(chart, 0, x, 1.0);
+        let crossing = ray.carrier.eval(1.0);
+        let beta: f64 = 1e-7;
+        let Curve3::Line(generator) = ray.carrier else {
+            unreachable!("a cone's ray is its generator line")
+        };
+        let g = generator.dir * beta.cos() + y * beta.sin();
+        let graze = Curve3::line(crossing - g * 0.5, g);
+        let (s, h) = half_angle.sin_cos();
+        let (rim, rim_vertex) = closed(
+            12,
+            3,
+            Curve3::circle(Point3::new(0.0, 0.0, 2.0 * h), z, 2.0 * s, -x),
+        );
+        let solid = face(
+            cone,
+            vec![
+                (
+                    11,
+                    EdgeSpec {
+                        start: 1,
+                        end: 2,
+                        carrier: graze.clone(),
+                        t0: 0.0,
+                        t1: 1.0,
+                        reversed: false,
+                    },
+                ),
+                rim,
+            ],
+            vec![(1, graze.eval(0.0)), (2, graze.eval(1.0)), rim_vertex],
+        );
+        let read = Read::of(crate::interpret::FileBand::with_run(1e-9, 1e-9, 10.0).unwrap());
+        let got = first_hit(&solid, 0, &ray, None, &[], &read);
+        let Ok((Hit::Edge { edge: 11, t }, p)) = got else {
+            panic!("the grazing line is met first: {}", shown(&got))
+        };
+        assert!(
+            (t - 0.5).abs() < 1e-6 && (p - crossing).norm() < 1e-9,
+            "the grazing line is met at the crossing: t {t}, p {p:?}"
+        );
     }
 }
