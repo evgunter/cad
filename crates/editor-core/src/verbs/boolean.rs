@@ -33,7 +33,7 @@
 
 use geom_core::{Decide, Tol};
 use topo::{
-    Body, BooleanInputs, BooleanNaming, BooleanOp, BooleanResultKind, ContactRecords, MemberInputs,
+    Body, BooleanInputs, BooleanNaming, BooleanOp, BooleanResultKind, MemberInputs,
     NaryOp,
 };
 use verbs::{Boolean, Members, VerbRecord};
@@ -80,15 +80,12 @@ pub(crate) struct PairVerb<T: topo::AtRestPolicy + Decide> {
     pub(crate) foreign_record: &'static str,
 }
 
-/// The boolean's record, out of its channel arm: its kind, contacts,
-/// naming and holdings, each the kernel's own type (the pair verb reads
+/// The boolean's record, out of its channel arm: its kind, naming and
+/// holdings, each the kernel's own type (the pair verb reads
 /// no other field of `BooleanBody`).
 pub(crate) struct BooleanRecord {
     /// How the result body came to be.
     pub(crate) kind: BooleanResultKind,
-    /// Contacts, declared or glued on a decided Zero, surviving into the
-    /// result, result keys.
-    pub(crate) contacts: ContactRecords,
     /// Mint-time naming facts the naming layer consumes.
     pub(crate) naming: BooleanNaming,
     /// The operand faces each face of the result, and each region it
@@ -121,13 +118,11 @@ fn boolean_record<T: topo::AtRestPolicy>(record: VerbRecord<T>) -> Option<Boolea
     match record {
         VerbRecord::Boolean {
             kind,
-            contacts,
             naming,
             verdicts: _,
             holdings,
         } => Some(BooleanRecord {
             kind,
-            contacts,
             naming,
             holdings: *holdings,
         }),

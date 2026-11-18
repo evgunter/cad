@@ -217,6 +217,11 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
     let mut pieces: Vec<Piece<T>> = Vec::new();
     let mut contacts = topo::ContactRecords::default();
+    // What the graft holds: each piece result's own records, re-keyed
+    // through its graft, and which arrival each solid came by.
+    let mut held = topo::ContactRecords::default();
+    let mut arrivals: std::collections::BTreeMap<topo::SolidKey, u32> =
+        std::collections::BTreeMap::new();
     let mut coincidences: Vec<crate::coincide::NamedCoincidence> = Vec::new();
     let mut citing: Vec<crate::coincide::CitedInput> = Vec::new();
     let mut kinds = Vec::new();
@@ -233,6 +238,16 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         let read_in = first.read_in(&body, tol)?;
         let keys =
             topo::graft_disjoint_all_keyed(&mut fused, &read_in).map_err(NodeErrorKind::Boolean)?;
+        let arrival = names::narrow(named.len(), names::Numbered::InputPosition)
+            .map_err(NodeErrorKind::Naming)?;
+        crate::product::carry_contacts(
+            &fused,
+            &mut held,
+            &read_in.records().carried_from(arrival),
+            &keys,
+        )
+        .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
+        arrivals.extend(keys.solids().iter().map(|&solid| (solid, arrival)));
         let base = coincidences.len();
         let inputs: Vec<u32> = out
             .carry
@@ -301,8 +316,16 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         _ => topo::BooleanResultKind::Assembly,
     };
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
-    let fused =
-        T::finish(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    let fused = T::finish_assembled(
+        topo::Assembled::new(
+            fused,
+            held,
+            Arc::new(move |solid| arrivals.get(&solid).copied()),
+        ),
+        tol,
+    )
+    .map_err(|findings| NodeErrorKind::NotFinished { findings })?
+    .body;
     let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let pieces = Arc::new(Pieces { by: id, pieces });
     // What it made is the `⊔` of what each piece's boolean made, so the

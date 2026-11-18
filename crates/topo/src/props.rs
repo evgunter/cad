@@ -7031,6 +7031,20 @@ pub trait AtRestPolicy: Decide {
     /// the box scalars.
     fn leaf(built: crate::Built<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished>;
 
+    /// **A `⊔` graft's leaf** ([`AtRestPolicy::leaf`] of
+    /// [`AtRestPolicy::finish_assembled`]): its finished body where the
+    /// switch finishes it, the census's report dropped, since the `⊔`'s
+    /// reader derives it where it reports; at the box scalars a replay
+    /// holding the arrivals for the taker's census.
+    ///
+    /// # Errors
+    ///
+    /// As [`AtRestPolicy::leaf`].
+    fn leaf_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished>;
+
     /// **The one taker door** ([`crate::take`]): `leaf` as the finished
     /// body a door that takes finished bodies takes. At `f64` and `Probe`
     /// the same `Arc`, its held finish record relogged
@@ -7195,6 +7209,22 @@ impl AtRestPolicy for f64 {
         let record = scope.finish();
         match finished {
             Ok(body) => Ok(body.holding(record)),
+            Err(refused) => {
+                geom_core::k_stats::relog(&record);
+                Err(refused)
+            }
+        }
+    }
+
+    fn leaf_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
+        let scope = geom_core::k_stats::Bracket::open();
+        let finished = Self::finish_assembled(assembled, tol);
+        let record = scope.finish();
+        match finished {
+            Ok(censused) => Ok(censused.body.holding(record)),
             Err(refused) => {
                 geom_core::k_stats::relog(&record);
                 Err(refused)
@@ -7370,6 +7400,22 @@ impl AtRestPolicy for geom_core::Probe {
         }
     }
 
+    fn leaf_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
+        let scope = geom_core::k_stats::Bracket::open();
+        let finished = Self::finish_assembled(assembled, tol);
+        let record = scope.finish();
+        match finished {
+            Ok(censused) => Ok(censused.body.holding(record)),
+            Err(refused) => {
+                geom_core::k_stats::relog(&record);
+                Err(refused)
+            }
+        }
+    }
+
     fn take(
         leaf: &std::sync::Arc<Self::Leaf>,
         _tol: Tol,
@@ -7520,11 +7566,22 @@ impl AtRestPolicy for geom_core::interval::Interval {
         crate::Replay::of(built)
     }
 
+    fn leaf_assembled(
+        assembled: crate::Assembled<Self>,
+        _tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
+        crate::Replay::of_assembled(assembled)
+    }
+
     fn take(
         leaf: &std::sync::Arc<Self::Leaf>,
         tol: Tol,
     ) -> Result<std::sync::Arc<Self::Finished>, crate::NotFinished> {
-        Self::finish(leaf.built(), tol).map(std::sync::Arc::new)
+        match leaf.assembled() {
+            Some(assembled) => Self::finish_assembled(assembled, tol).map(|censused| censused.body),
+            None => Self::finish(leaf.built(), tol),
+        }
+        .map(std::sync::Arc::new)
     }
 
     fn census_at_rest(
@@ -7686,11 +7743,22 @@ where
         crate::Replay::of(built)
     }
 
+    fn leaf_assembled(
+        assembled: crate::Assembled<Self>,
+        _tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
+        crate::Replay::of_assembled(assembled)
+    }
+
     fn take(
         leaf: &std::sync::Arc<Self::Leaf>,
         tol: Tol,
     ) -> Result<std::sync::Arc<Self::Finished>, crate::NotFinished> {
-        Self::finish(leaf.built(), tol).map(std::sync::Arc::new)
+        match leaf.assembled() {
+            Some(assembled) => Self::finish_assembled(assembled, tol).map(|censused| censused.body),
+            None => Self::finish(leaf.built(), tol),
+        }
+        .map(std::sync::Arc::new)
     }
 
     fn census_at_rest(
@@ -7870,6 +7938,13 @@ where
 
     fn leaf(built: crate::Built<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         Self::finish(built, tol)
+    }
+
+    fn leaf_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
+        Self::finish_assembled(assembled, tol).map(|censused| censused.body)
     }
 
     /// The leaf is the finished body: passed through as it is.

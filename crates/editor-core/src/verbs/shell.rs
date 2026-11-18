@@ -253,6 +253,7 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::Pcurve { source } => E::Pcurve { source },
         E::RimSeamMixed { edge, stations } => E::RimSeamMixed { edge, stations },
         E::Join { refusal } => E::Join { refusal },
+        E::Carry { refusal } => E::Carry { refusal },
         E::NotValid { findings: errors } => E::NotValid { findings: errors },
     }
 }

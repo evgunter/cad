@@ -1832,6 +1832,15 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
 /// refusal shape breaks here.
 fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
+        // An operand record a door's carry refuses is the node's, whichever
+        // door carried it.
+        verbs::VerbError::Blend(sweep::blend::BlendRefusal {
+            error: sweep::blend::BlendError::Carry { refusal },
+            ..
+        })
+        | verbs::VerbError::Split(topo::SplitError::Carry { refusal }) => {
+            NodeErrorKind::ContactCarry { refusal }
+        }
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
             NodeErrorKind::Blend {
                 verb,
@@ -1846,9 +1855,10 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
         // The kernel's error is generic over the lane scalar and this
         // enum is scalar-free, so it crosses as a TOTAL fold at the
         // lane's `f64` witness, never a rendering or a drop.
-        verbs::VerbError::Shell(error) => {
-            NodeErrorKind::Shell(Box::new(crate::verbs::shell::fold_shell_error_at(*error)))
-        }
+        verbs::VerbError::Shell(error) => match *error {
+            topo::ShellError::Carry { refusal } => NodeErrorKind::ContactCarry { refusal },
+            error => NodeErrorKind::Shell(Box::new(crate::verbs::shell::fold_shell_error_at(error))),
+        },
     }
 }
 
@@ -1930,19 +1940,9 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             verb.no_records
         )
     };
-    // The operand's records, as its door kept them, ride the blended
-    // body through the lineage its birth records state. Caller-side,
-    // until the blend's door carries them itself onto a finished body
-    // that holds its records (heldrecords' ratified unit
-    // `a-finished-body-holds-its-contact-records-at-every-door`).
-    let carried = rec
-        .carry_contacts(
-            &target_value.carry.kept(doc, tol).contacts,
-            &out.body,
-            band(tol)?,
-            T::region_lane(),
-        )
-        .map_err(|refusal| NodeErrorKind::ContactCarry { refusal })?;
+    // The blended body holds the operand's records, as its door carried
+    // them.
+    let carried = topo::FinishedBody::records(&out.body).clone();
     let table = (verb.emitter)(id, target, target_read, &target_table, &out.body, &rec)
         .map_err(NodeErrorKind::Naming)?;
     let inputs = crate::coincide::RowInputs {
@@ -2012,20 +2012,10 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .ok_or(NodeErrorKind::ShellLaneUnsupported { scalar: T::NAME })?;
     let out = built.run_shell(&body, tol, door).map_err(verb_refused)?;
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-    // The operand's records ride the thin solid through the shell's
-    // lineage, as the split's ride its sides ([`wire_split`]).
-    let shelled = topo::Shelled {
-        body: out.body,
-        naming,
-    };
-    let carried = shelled
-        .carry_contacts(
-            &value_of(results, target)?.carry.kept(doc, tol).contacts,
-            band(tol)?,
-            T::region_lane(),
-        )
-        .map_err(|refusal| NodeErrorKind::ContactCarry { refusal })?;
-    let topo::Shelled { body, naming } = shelled;
+    // The thin solid holds the operand's records, as the shell's door
+    // carried them.
+    let body = out.body;
+    let carried = topo::FinishedBody::records(&body).clone();
     let table = (verb.emitter)(id, target, target_read, &target_table, &body, &naming)
         .map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
@@ -2788,32 +2778,15 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let built = (verb.build)(plane);
     let out = built.run_split(&body, tol).map_err(verb_refused)?;
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-    // The operand's records, as its door kept them ([`super::Carry::kept`]),
-    // ride each side through the split's lineage, each citing the
-    // operand's record it is; a record the cut parts across the cut
-    // retires, a touch between the two sides. Caller-side, until the
-    // split's door carries them itself onto a finished body that holds
-    // its records (heldrecords' ratified unit
-    // `a-finished-body-holds-its-contact-records-at-every-door`).
-    let split = topo::SplitResult {
-        above: out.above,
-        below: out.below,
-        naming,
-        coincidences: out.coincidences,
+    // Each side holds the operand's records the split's door carried
+    // onto it, each citing the operand's record it is.
+    let records = |part: &SplitPart<T>| {
+        part.body()
+            .map(|body| topo::FinishedBody::records(body).clone())
+            .unwrap_or_default()
     };
-    let (carried, _) = split
-        .carry_contacts_across(
-            &value_of(results, target)?.carry.kept(doc, tol).contacts,
-            band(tol)?,
-            T::region_lane(),
-        )
-        .map_err(|refusal| NodeErrorKind::ContactCarry { refusal })?;
-    let topo::SplitResult {
-        above,
-        below,
-        naming,
-        coincidences,
-    } = split;
+    let (above, below, coincidences) = (out.above, out.below, out.coincidences);
+    let carried = (records(&above), records(&below));
     let side = |part: SplitPart<T>| match part {
         SplitPart::Body(b) => SplitSide::Body(super::Framed::in_frame(
             Arc::new(b),
@@ -2853,8 +2826,8 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // Each side's carry at its half's output body, its records citing
     // the operand's read.
     let mut sides = [
-        (SplitHalf::Above, carried.above),
-        (SplitHalf::Below, carried.below),
+        (SplitHalf::Above, carried.0),
+        (SplitHalf::Below, carried.1),
     ];
     sides.sort_by_key(|(half, _)| half.output_body());
     let sides = sides.map(|(_, records)| {
@@ -3615,10 +3588,10 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             // bug, refused typed.
             let crate::verbs::boolean::BooleanRecord {
                 kind,
-                contacts,
                 naming,
                 holdings,
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
+            let contacts = topo::FinishedBody::records(&out.body).clone();
             let emitted = (verb.emitter)(
                 id,
                 BooleanOp::Subtract,
@@ -4335,7 +4308,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         }
         let carried_in = steps[..step].last().map_or_else(
             || first.carry.contacts.carried(),
-            |s| s.body.contacts.carried(),
+            |s| s.body.contacts().carried(),
         );
         if acc_records.carried() != carried_in {
             unreachable!(
@@ -4350,7 +4323,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .collect::<Result<Vec<u32>, _>>()
             .map_err(NodeErrorKind::Naming)?;
         let contacts = out
-            .contacts
+            .contacts()
             .clone()
             .recited(|b| match b {
                 topo::Backing::Decided(k) if pairwise => {
@@ -4694,6 +4667,12 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         Vec::with_capacity(members.len());
     let mut pieces: Vec<super::Piece<T>> = Vec::with_capacity(members.len());
     let mut contacts = topo::ContactRecords::default();
+    let mut bridges_seen = 0usize;
+    // What the graft holds: each member body's own records, re-keyed
+    // through its graft, and which arrival each solid came by.
+    let mut held = topo::ContactRecords::default();
+    let mut arrivals: std::collections::BTreeMap<topo::SolidKey, u32> =
+        std::collections::BTreeMap::new();
     let mut citing: Vec<crate::coincide::CitedInput> = Vec::with_capacity(members.len());
     let mut parts = 0;
     for (read, value, bodies, family) in operands {
@@ -4704,6 +4683,17 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
             let read = first.read_in(body, tol)?;
             let keys = topo::graft_disjoint_all_keyed(&mut fused, &read)
                 .map_err(NodeErrorKind::Boolean)?;
+            let arrival = names::narrow(bridges_seen, names::Numbered::InputPosition)
+                .map_err(NodeErrorKind::Naming)?;
+            crate::product::carry_contacts(
+                &fused,
+                &mut held,
+                &read.records().carried_from(arrival),
+                &keys,
+            )
+            .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
+            arrivals.extend(keys.solids().iter().map(|&solid| (solid, arrival)));
+            bridges_seen += 1;
             bridges.push(keys);
         }
         // A member's own records ride the piece it is, re-keyed through
@@ -4733,9 +4723,18 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     }
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
     // The graft of its members is its scalar's leaf
-    // (`topo::AtRestPolicy::leaf`), as they are: finished at `f64`, tier
+    // (`topo::AtRestPolicy::leaf_assembled`), as they are: finished at
+    // `f64`, its census recording each touch between two members; tier
     // 2 at the box scalars, where a taker finishes it.
-    let fused = T::leaf(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    let fused = T::leaf_assembled(
+        topo::Assembled::new(
+            fused,
+            held,
+            Arc::new(move |solid| arrivals.get(&solid).copied()),
+        ),
+        tol,
+    )
+    .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
     let frame = computing.map_or(super::Frame::Own, |first| first.frame().clone());
     let pieces = Arc::new(super::Pieces { by: id, pieces });
     Ok(OpOut::plain(

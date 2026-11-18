@@ -1239,14 +1239,51 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // carried, so a product that is not a finished body refuses as that
     // before any naming collision is read. The census over this product
     // reads the finished body and pays the census alone.
-    let aggregate =
-        T::finish(aggregate, tol).map_err(|findings| ProductError::ProductInvalid { findings })?;
+    // Each source's records ride the aggregate across the key bridge its
+    // graft minted, each citing the source by its position among the
+    // product's inputs; and each graft is one arrival of the product's
+    // census, which runs inside the finish and records each touch
+    // between two of them (`topo::AtRestPolicy::finish_assembled`, D1
+    // (iii)), mated or not, which the `unproven-coincidence` check reads
+    // and the door proves by its mate where one rests the pair; the rest
+    // is what the at-rest check reports ([`Product::census`]).
+    let mut carried = ContactRecords::default();
+    let mut groups: std::collections::BTreeMap<topo::SolidKey, u32> =
+        std::collections::BTreeMap::new();
+    for (input, (source, keys, _)) in grafted.iter().enumerate() {
+        let input = crate::names::to_u32(input, GRAFTED_WITHIN_U32);
+        carry_contacts(
+            &aggregate,
+            &mut carried,
+            &source.contacts.carried_from(input),
+            keys,
+        )
+        .map_err(|what| ProductError::ContactLineage {
+            node: source.node,
+            what,
+        })?;
+        groups.extend(keys.solids().iter().map(|&solid| (solid, input)));
+    }
+    let groups = Arc::new(groups);
+    let arrivals = Arc::clone(&groups);
+    let topo::Censused {
+        body: aggregate,
+        rows: recorded_rows,
+        findings: recorded_findings,
+    } = T::finish_assembled(
+        topo::Assembled::new(
+            aggregate,
+            carried,
+            Arc::new(move |solid| arrivals.get(&solid).copied()),
+        ),
+        tol,
+    )
+    .map_err(|findings| ProductError::ProductInvalid { findings })?;
 
     // Pass 3: the carries, per grafted source, each across the key
     // bridge its graft minted: the source's name rows, its contact
     // records, and the findings below it.
     let mut names = NameTable::new();
-    let mut contacts = ContactRecords::default();
     let mut cited_inputs: Vec<crate::coincide::CitedInput> = Vec::new();
     let mut solid_copies: Vec<SolidOrigin> = Vec::new();
     let mut carried_interference: Vec<crate::checks::at_rest::CarriedInterference> = Vec::new();
@@ -1260,7 +1297,7 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             ix,
             body: _,
             table,
-            contacts: records,
+            contacts: _,
             rows,
             censused: _,
         },
@@ -1284,20 +1321,12 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         // Each source's records cite the source by its position among
         // the product's inputs, which names the read it entered through:
         // the copy's records are its body's, in their order.
-        let input = crate::names::to_u32(cited_inputs.len(), GRAFTED_WITHIN_U32);
         cited_inputs.push(match doc.node(*node) {
             Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => {
                 crate::coincide::CitedInput::Part(*doc_ref)
             }
             _ => crate::coincide::CitedInput::Read(*var),
         });
-        carry_contacts(
-            &aggregate,
-            &mut contacts,
-            &records.carried_from(input),
-            keys,
-        )
-        .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
         // A part's census findings carry verbatim too, spelled in its
         // own document, each reported once per part row, by the first
         // route in gather order (`once_per_part_row`).
@@ -1326,20 +1355,6 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     }
     // Each touch between copies names its cells as the census reads
     // them: in its copy, as that copy's placement output names it.
-    let groups = crate::checks::at_rest::copy_groups(&copies);
-    // The tier-3′ census over the product and its records, here and
-    // nowhere else: each touch it finds between two copies is a row of
-    // the product and a record citing it (`topo::record_at_rest`, D1
-    // (iii)), mated or not, which the `unproven-coincidence` check reads
-    // and the door proves by its mate where one rests the pair; the rest
-    // is what the at-rest check reports ([`Product::census`]).
-    let recorded = topo::record_at_rest(
-        &aggregate,
-        &contacts,
-        |records| T::census_at_rest(&aggregate, records, tol),
-        &|solid| groups.get(&solid).copied(),
-        0,
-    );
     // The flush pairs between copies are rows of their own, which no
     // record cites (`topo::AtRestPolicy::flush_at_rest`).
     let flush = match geom_core::Band::linear(tol) {
@@ -1349,14 +1364,14 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             ..topo::FlushAtRest::default()
         },
     };
-    contacts.extend(recorded.records.rows().iter().cloned());
+    let contacts = topo::FinishedBody::records(&aggregate).clone();
     let coincidences = crate::checks::at_rest::copy_rows(
         &aggregate,
         &names,
         &copies,
-        recorded.rows.into_iter().chain(flush.rows).collect(),
+        recorded_rows.into_iter().chain(flush.rows).collect(),
     );
-    let mut census = recorded.findings;
+    let mut census = recorded_findings;
     census.extend(flush.findings);
     // A meeting inside one arrival a door already decided is that
     // door's (D10 `[assertions]`): a `⊔`'s pieces were censused at its

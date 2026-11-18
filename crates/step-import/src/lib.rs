@@ -715,16 +715,11 @@ pub enum StepImport {
         /// finding is a measurement, and reading it as a verdict is
         /// reading intent into a number.
         coherence: Option<topo::CoherenceReport>,
-        /// **The contacts between the body's solids**: one record per
-        /// touch the at-rest census found between two of `body`'s
-        /// solids, each citing its row in `coincidences` and confirmed
-        /// by the census like any other record ([`topo::record_at_rest`]).
-        /// An imported assembly whose parts touch certifies (D7 step 4),
-        /// and these are what a later gate over `body` confirms rather
-        /// than finds again.
-        contacts: topo::ContactRecords,
-        /// **The census's decisions `contacts` cite**, in the order it
-        /// made them ([`topo::DecisionSite::CensusAtRest`]), each a Zero
+        /// **The census's decisions `body`'s contact records cite**
+        /// ([`topo::AtRestBody::records`]: one record per touch the at-rest
+        /// census found between two of `body`'s solids, minted inside
+        /// its finish and confirmed there like any other), in the order
+        /// it made them ([`topo::DecisionSite::CensusAtRest`]), each a Zero
         /// of the file's values: no imported cell is a construction of a
         /// document's variables, so each is an `unproven-coincidence`
         /// finding where a document reads it (D7, D10).
@@ -999,7 +994,7 @@ pub fn import_step(
             // two solids that overlap refuse. The per-solid gates above stay
             // tier 3: contact is an aggregate-body fact, and the
             // aggregate census sweeps every entity of every instance.
-            let (body, contacts, coincidences) = gate3(body, tol)?;
+            let (body, coincidences) = gate3(body, tol)?;
             // **The chart-coherence channel** — after the gate, on the
             // body that ships, and consuming nothing. The door is a
             // pure function of (body, ε) that refuses nothing and
@@ -1019,7 +1014,6 @@ pub fn import_step(
                 curve_promotions: model.curve_promotions.clone(),
                 instances: record,
                 coherence,
-                contacts,
                 coincidences,
             })
         }
@@ -1051,65 +1045,65 @@ fn gate(
     })
 }
 
-/// The aggregate subject's gate: the tier-3′ form, recording the
-/// contacts it finds between the body's solids
-/// ([`topo::record_at_rest`], each solid its own group) — the same
-/// function a caller runs over a native body's contact records, with the
+/// The aggregate subject's gate: the `⊔`'s finish
+/// ([`topo::finish_assembled`], each solid its own arrival), whose
+/// census records the contacts it finds between the body's solids on
+/// the finished body — the same gate a native `⊔` goes through, with the
 /// same no-opinion contract as [`gate`] — followed by the measurement
 /// the reader ships.
 ///
-/// The body is finished first ([`gate`], the scalar's one finish), so
-/// what ships is the finished body, holding the certificate its check 7
-/// decided on: each solid's SIGN, certified per solid and assembled over
-/// the whole face arena, one read of each face, for its reader to
-/// measure through ([`topo::AtRestBody::measure`]). The census then runs
-/// over the finished body alone ([`topo::AtRestPolicy::census_at_rest`]),
-/// as the product's does over its aggregate. The verdicts are the
-/// gate's, verbatim.
+/// What ships is the finished body, holding its records and the
+/// certificate its check 7 decided on: each solid's SIGN, certified per
+/// solid and assembled over the whole face arena, one read of each
+/// face, for its reader to measure through
+/// ([`topo::AtRestBody::measure`]). The verdicts are the gate's,
+/// verbatim.
 ///
 /// **What the import as a whole pays is more than this gate.** Where
 /// [`topo::per_part_gate_owed`] asks for it, each placed solid is gated
-/// on its own first ([`gate`], tier 3), so every face of an assembly is
+/// on its own first ([`gate`]), so every face of an assembly is
 /// read once there and once again here: a two-instance assembly of
 /// certifying solids records twice one measurement's quadrature
 /// verdicts through `import_step`. Where it does not, the import pays
 /// this gate only, once; the census runs twice where its solids touch:
 /// the second pass confirms the records the first one's touches minted.
-#[allow(clippy::type_complexity)] // the gate's three products, read once at its one caller
 fn gate3(
     body: topo::Body<f64>,
     tol: Tol,
-) -> Result<
-    (
-        topo::AtRestBody<f64>,
-        topo::ContactRecords,
-        Vec<topo::Coincidence>,
-    ),
-    StepImportError,
-> {
-    let finished = gate(body, None, tol)?;
+) -> Result<(topo::AtRestBody<f64>, Vec<topo::Coincidence>), StepImportError> {
     let instance: std::collections::BTreeMap<topo::SolidKey, u32> =
-        finished.solids().map(|(solid, _)| solid).zip(0..).collect();
-    let recorded = topo::record_at_rest(
-        &finished,
-        &topo::ContactRecords::default(),
-        |records| <f64 as topo::AtRestPolicy>::census_at_rest(&finished, records, tol),
-        &|solid| instance.get(&solid).copied(),
-        0,
-    );
-    let (records, rows) = gate3_findings(&finished, tol, &instance, recorded)?;
-    Ok((finished, records, rows))
+        body.solids().map(|(solid, _)| solid).zip(0..).collect();
+    let arrivals = instance.clone();
+    let topo::Censused {
+        body: finished,
+        rows,
+        findings,
+    } = topo::finish_assembled(
+        topo::Assembled::new(
+            body,
+            topo::ContactRecords::default(),
+            std::sync::Arc::new(move |solid| arrivals.get(&solid).copied()),
+        ),
+        tol,
+    )
+    .map_err(|findings| StepImportError::TierInvalid {
+        solid: None,
+        errors: findings.into_findings(),
+    })?;
+    let rows = gate3_findings(&finished, tol, &instance, rows, findings)?;
+    Ok((finished, rows))
 }
 
-/// The aggregate gate's findings over `recorded`, the flush pairs between
-/// instances included: its records and rows where there are none, else
-/// the gate's refusal.
+/// The aggregate gate's findings over what its census decided, the
+/// flush pairs between instances included: its rows where there are no
+/// findings, else the gate's refusal.
 fn gate3_findings(
     body: &topo::Body<f64>,
     tol: Tol,
     instance: &std::collections::BTreeMap<topo::SolidKey, u32>,
-    recorded: topo::RecordedAtRest,
-) -> Result<(topo::ContactRecords, Vec<topo::Coincidence>), StepImportError> {
+    mut rows: Vec<topo::Coincidence>,
+    mut findings: Vec<topo::ValidationError>,
+) -> Result<Vec<topo::Coincidence>, StepImportError> {
     // The flush pairs between instances are rows of their own, which no
     // record cites.
     let flush = match geom_core::Band::linear(tol) {
@@ -1123,12 +1117,10 @@ fn gate3_findings(
             ..topo::FlushAtRest::default()
         },
     };
-    let mut findings = recorded.findings;
     findings.extend(flush.findings);
     if findings.is_empty() {
-        let mut rows = recorded.rows;
         rows.extend(flush.rows);
-        Ok((recorded.records, rows))
+        Ok(rows)
     } else {
         Err(StepImportError::TierInvalid {
             solid: None,

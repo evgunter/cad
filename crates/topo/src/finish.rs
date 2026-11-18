@@ -307,10 +307,23 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
 /// finished body ([`AtRestPolicy::leaf`]): no door that takes a
 /// finished body accepts it, and the consumer that needs one finishes
 /// it ([`take`]).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Replay<T: Real> {
     body: Body<T>,
     records: ContactRecords,
+    /// A `⊔`'s leaf at a box scalar: the arrivals its taker's census
+    /// decides between ([`AtRestPolicy::take`]).
+    assembled: Option<(Arrivals, u32)>,
+}
+
+impl<T: Real> fmt::Debug for Replay<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Replay")
+            .field("body", &self.body)
+            .field("records", &self.records)
+            .field("assembled", &self.assembled.is_some())
+            .finish()
+    }
 }
 
 impl<T: Real> Replay<T> {
@@ -324,7 +337,33 @@ impl<T: Real> Replay<T> {
     pub(crate) fn of(built: Built<T>) -> Result<Self, NotFinished> {
         let Built { body, records } = built;
         crate::validate::validate_closed(&body).map_err(NotFinished::new)?;
-        Ok(Self { body, records })
+        Ok(Self {
+            body,
+            records,
+            assembled: None,
+        })
+    }
+
+    /// Tier 2 over a `⊔`'s graft, the replay holding the records its
+    /// arrivals carried and the arrivals themselves, for the taker
+    /// whose census decides between them.
+    ///
+    /// # Errors
+    ///
+    /// Tier 2's findings.
+    pub(crate) fn of_assembled(assembled: Assembled<T>) -> Result<Self, NotFinished> {
+        let Assembled {
+            body,
+            carried,
+            arrivals,
+            first_row,
+        } = assembled;
+        crate::validate::validate_closed(&body).map_err(NotFinished::new)?;
+        Ok(Self {
+            body,
+            records: carried,
+            assembled: Some((arrivals, first_row)),
+        })
     }
 
     /// The body, the replay given up.
@@ -346,6 +385,18 @@ impl<T: Real> Replay<T> {
             body: self.body.clone(),
             records: self.records.clone(),
         }
+    }
+
+    /// A `⊔`'s leaf as its door hands it to a gate; `None` for any
+    /// other leaf.
+    pub(crate) fn assembled(&self) -> Option<Assembled<T>> {
+        let (arrivals, first_row) = self.assembled.as_ref()?;
+        Some(Assembled {
+            body: self.body.clone(),
+            carried: self.records.clone(),
+            arrivals: Arc::clone(arrivals),
+            first_row: *first_row,
+        })
     }
 }
 
@@ -396,6 +447,7 @@ impl<T: AtRestPolicy> Replay<T> {
         Ok(Self {
             body,
             records: self.records.clone(),
+            assembled: self.assembled.clone(),
         })
     }
 }
