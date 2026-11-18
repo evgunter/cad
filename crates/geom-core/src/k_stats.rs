@@ -125,9 +125,9 @@
 //! gated on it.** The K-telemetry sink is `SINK`, which *is*
 //! feature-gated; the frame stack merely shares this funnel because
 //! this is where decisions pass. Its consumer is production editor-core
-//! code — `resolve::vdiff` reads `NodeValue::verdicts` to compare
-//! per-predicate sign populations and emit `NodeVerdictDelta`'s flips
-//! and divergences, and `drive::classify` reads a node's escalations
+//! code — `resolve::vdiff` reads `NodeValue::verdicts` to find the
+//! first choice two runs of a node take differently, and
+//! `drive::classify` reads a node's escalations
 //! to tell a terminal sliver from a refinable indeterminacy without
 //! matching on the op's error enum. Putting it behind `probe` would not
 //! reduce recording; it would hand both consumers empty logs in every
@@ -338,6 +338,34 @@ pub fn answered(name: &'static str, sign: Sign) {
     });
 }
 
+/// **Marks the candidates one pruning query handed on**, in the order
+/// it handed them, then the query's end ([`Mark`]): for an enumeration
+/// that steers which decisions are taken next and decides nothing
+/// itself (`bvh`'s box queries). Two runs whose decisions read alike
+/// after queries that handed on different candidates are not on one
+/// path, and the marks are what shows it (`editor_core::resolve`'s first
+/// turn reads them). Nothing where no frame is open.
+pub fn mark_candidates(name: &'static str, items: impl IntoIterator<Item = usize>) {
+    FRAMES.with(|f| {
+        if let Some(top) = f.borrow_mut().last_mut() {
+            let role = current_role();
+            let before = top.recorded.verdicts.len();
+            let mark = |item| Mark {
+                before,
+                site: name,
+                item,
+                role,
+            };
+            top.recorded.marks.extend(
+                items
+                    .into_iter()
+                    .map(|i| mark(Some(u32::try_from(i).unwrap_or(u32::MAX)))),
+            );
+            top.recorded.marks.push(mark(None));
+        }
+    });
+}
+
 /// The role a decision taken now is recorded in ([`checking`]); the
 /// symbolic recorder tags its decisions with it
 /// (`sym::revalue::Decision::role`).
@@ -511,8 +539,8 @@ fn record_escalation(source: Indeterminate) -> Indeterminate {
 /// Both outcomes of one gated decision reach the frame: the funnel's
 /// definite verdict, because the classifier really did decide, and the
 /// gate's escalation beside it. The verdict channel is therefore
-/// unchanged by gating, which is what keeps the verdict-diff engine's
-/// populations comparable across this seam.
+/// unchanged by gating, which is what keeps two runs' verdict logs
+/// comparable across this seam.
 fn classify_gated<T: Decide, R>(
     name: &'static str,
     margin: T,
@@ -1252,15 +1280,52 @@ impl Escalation {
     }
 }
 
+/// **One candidate an enumeration examined** ([`mark`]): a sign-less
+/// record of which item a pruning query handed on, so that a reader of
+/// the log can tell two runs that examined the same candidates from two
+/// whose pruning differed while their decisions read alike. It decides
+/// nothing, so it is no [`Verdict`]: it rides beside them, keyed to its
+/// place among them ([`Mark::before`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Mark {
+    /// How many verdicts its frame held when it was recorded: it stands
+    /// before the verdict at that index.
+    pub before: usize,
+    /// The enumeration that examined it (a static name, as a predicate's).
+    pub site: &'static str,
+    /// The item it handed on, by the enumeration's own index; `None` for
+    /// the end of one query's candidates.
+    pub item: Option<u32>,
+    /// The role of the decisions the candidate feeds ([`checking`]).
+    pub role: Role,
+}
+
 /// Everything one [`Bracket`] recorded: both channels of its frame, in
-/// decision order. Empty by default, which is also what an empty frame
-/// is.
+/// decision order, and the candidates its enumerations examined among
+/// them. Empty by default, which is also what an empty frame is.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Recorded {
     /// The definite decisions, in decision order.
     pub verdicts: Vec<Verdict>,
     /// The indeterminate outcomes, in decision order.
     pub escalations: Vec<Escalation>,
+    /// The candidates examined, each placed among the verdicts
+    /// ([`Mark::before`]).
+    pub marks: Vec<Mark>,
+}
+
+impl Recorded {
+    /// Appends `other`'s channels after this record's, its marks placed
+    /// after this record's verdicts.
+    pub fn extend(&mut self, other: &Self) {
+        let offset = self.verdicts.len();
+        self.marks.extend(other.marks.iter().map(|m| Mark {
+            before: m.before + offset,
+            ..*m
+        }));
+        self.verdicts.extend_from_slice(&other.verdicts);
+        self.escalations.extend_from_slice(&other.escalations);
+    }
 }
 
 /// The verdict-log bracket: a guard whose lifetime IS one frame on
@@ -1503,9 +1568,8 @@ pub fn splice(recording: Detached) {
 /// refusal already made — because refining the box cannot change an
 /// outcome the escalation never decided, and the sliver would name a
 /// cause the op did not refuse for. What stays is everything the run
-/// DECIDED: the verdicts, which the verdict-diff engine's populations
-/// are built from, and the samples, which are the K stream. Neither
-/// population moves across this door; only the escalation log does, and
+/// DECIDED: the verdicts, which the verdict-diff engine reads, and the
+/// samples, which are the K stream. Neither moves across this door; only the escalation log does, and
 /// it then carries the escalations the op's outcome rests on.
 ///
 /// The caller owes the argument that the outcome is superseded, at its
@@ -1516,10 +1580,10 @@ pub fn splice_superseded(recording: Detached) {
     splice_channels(recording, false);
 }
 
-/// **Appends a recording's verdicts and escalations to this thread's
-/// open frame**, for a pass the caller does not run because it knows
-/// what that pass decides: the frame then holds what running it would
-/// have recorded.
+/// **Appends a recording's channels to this thread's open frame**, for
+/// a pass the caller does not run because it knows what that pass
+/// decides: the frame then holds what running it would have recorded,
+/// every verdict with the role it was recorded in.
 ///
 /// The caller owes that knowledge at its own site, held by a row that
 /// runs the pass and compares the two logs. No margin is measured, so
@@ -1527,10 +1591,7 @@ pub fn splice_superseded(recording: Detached) {
 pub fn relog(recorded: &Recorded) {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
-            top.recorded.verdicts.extend_from_slice(&recorded.verdicts);
-            top.recorded
-                .escalations
-                .extend_from_slice(&recorded.escalations);
+            top.recorded.extend(recorded);
         }
     });
 }
@@ -1539,16 +1600,16 @@ pub fn relog(recorded: &Recorded) {
 /// only in whether the escalation channel travels.
 fn splice_channels(recording: Detached, escalations: bool) {
     let Detached {
-        recorded,
+        mut recorded,
         #[cfg(feature = "probe")]
         samples,
     } = recording;
+    if !escalations {
+        recorded.escalations.clear();
+    }
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
-            top.recorded.verdicts.extend(recorded.verdicts);
-            if escalations {
-                top.recorded.escalations.extend(recorded.escalations);
-            }
+            top.recorded.extend(&recorded);
         }
     });
     #[cfg(feature = "probe")]

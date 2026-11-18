@@ -556,3 +556,20 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   coincidence verdict. The pins hold the tests green meanwhile. The
   unbanded `collapsed-locus-refusal-has-no-reachable-fixture` stays too.
 - (GREEN, at Ev's request)
+
+## 2026-11-18 — seam note from DOCTAIL: the wedge sign can be read under its shared name
+
+- DOCTAIL's `verdict-log-tells-no-validation-reading-from-a-building-decision`
+  lands the verdict log's roles: every decision is a choice or a check,
+  stamped from the caller's scope (`geom_core::k_stats::checking`), and
+  the resolver reads only choices. `first_cause`'s pass-over list is
+  gone, so `dihedral_sign` is no longer hidden from the flip lane.
+- Touched on ONEDOOR's ground: the fold now takes the reader's roles
+  (`geom_brep::FoldRoles`, replacing `FoldNames`); the constructors' and
+  the rim's readings record the sign and end as checks (`CLASS`); the
+  blend's `fillet3_convexity_sign` / `fillet3_knife_end` pool back into
+  `dihedral_sign` / `material_cusp_side`; `topo::edge_wedge_as` is gone.
+- Now possible, not done: `rules::edge_wedge`'s sign can move off
+  `enters_material` onto the fold under `dihedral_sign`. Filed here as
+  `the-split-rules-wedge-sign-can-read-the-fold-as-a-choice`.
+- (DOCTAIL first-turn lane)

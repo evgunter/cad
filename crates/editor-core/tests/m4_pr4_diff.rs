@@ -1,10 +1,8 @@
 //! M4 PR 4 spec D2: the verdict-vector diff engine — one engine, one
 //! call signature, cause-agnostic. Identical runs diff empty; no-flip
-//! parameter motion diffs empty (memo transfer included); a
-//! flip-inducing edit reports exactly the flipped predicates,
-//! localized to the deciding node; structural edits surface as
-//! divergence/status rows; and the report is the `SetTolerance`
-//! audit surface (H4 — PR 6 reuses it untouched).
+//! parameter motion diffs empty (memo transfer included); an edit whose
+//! runs part at their pruning names no flip read off different pairs;
+//! structural edits name no fake flip and surface as status rows.
 //!
 //! SWEEP-STRATEGY NOTE (Ev's 2026-07-29 ruling): this file's pins
 //! are about diff/resolve engine behavior GIVEN verdicts, so its
@@ -137,29 +135,25 @@ fn no_flip_parameter_motion_diffs_empty() {
 }
 
 #[test]
-fn flip_edit_reports_flips_localized_to_the_deciding_node() {
+fn a_disjoining_edit_names_no_flip_read_off_other_pairs() {
     let s = slide_union(0.5);
     let ev1 = run(&s.doc, None);
     let doc2 = slide_to(&s, 2.5); // overlapping -> disjoint
     let ev2 = run(&doc2, Some(&ev1));
+    // Both runs' first choice is a parallelism reading of two face
+    // planes, which no slide can turn: the overlapping run's is a pair
+    // the union's box query handed on, the disjoint run's another pair,
+    // after a query that handed on none. The candidate marks show the
+    // two runs parting there, so the engine names no turn, rather than
+    // a "flip" between decisions about two different pairs.
+    let union = ev1.value(s.union).expect("the overlapping union builds");
+    assert!(
+        union.marks.iter().any(|m| m.item.is_some()),
+        "the union's box queries hand on candidates: {:?}",
+        union.marks.len()
+    );
     let flips = diff_verdicts(&ev1, &ev2);
-    assert!(!flips.is_empty(), "the flip edit must report");
-    // Every recorded delta lives at the boolean (the deciding node):
-    // the operands' derivations are untouched (N7 localization), and
-    // the placement's own decisions do not flip.
-    for (&node, delta) in &flips.nodes {
-        assert_eq!(node, s.union, "delta outside the boolean: {delta:?}");
-    }
-    // The report surface (the SetTolerance audit shape): exactly the
-    // flipped predicates, deterministically ordered, every entry a
-    // real k_stats name with from != to.
-    let report = flips.report();
-    assert!(!report.is_empty());
-    for (node, f) in &report {
-        assert_eq!(*node, s.union);
-        assert!(!f.predicate.is_empty());
-        assert_ne!(f.from, f.to, "a flip must change sign: {f:?}");
-    }
+    assert!(flips.is_empty(), "no turn on the record: {flips:?}");
     // Deterministic: diffing again yields the identical FlipSet.
     assert_eq!(flips, diff_verdicts(&ev1, &ev2));
 }

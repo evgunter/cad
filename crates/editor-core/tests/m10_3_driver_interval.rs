@@ -979,8 +979,8 @@ fn certification_reads_the_vector_and_nothing_else() {
         assert_ne!(leaf.verdict_vector_key, mutated.key());
     }
     // The strict comparison is what gates, and it is strictly stronger
-    // than the population engine that NAMES flips: a reordering the
-    // populations cannot see moves this key.
+    // than the first-turn reading that NAMES flips: a reordering that
+    // turns no sign moves this key.
     assert_eq!(v.witness_vector().key(), witness.key());
 }
 

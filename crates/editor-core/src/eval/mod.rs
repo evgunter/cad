@@ -902,6 +902,12 @@ pub struct NodeValue<T: topo::AtRestPolicy + Decide> {
     /// **Not persisted**, like the verdicts and unlike their summary:
     /// an escalation is a fact about one run at one box, read in hand.
     pub escalations: Arc<EscalationLog>,
+    /// The candidates the node's pruning queries handed on, placed among
+    /// its verdicts ([`geom_core::k_stats::Mark`]): what the first-turn
+    /// reading ([`crate::resolve::first_turn`]) reads to tell two runs on
+    /// one path from two whose pruning parted. No verdict, so no part of
+    /// the strict form or the summary. **Not persisted**.
+    pub marks: Arc<MarkLog>,
     /// RESERVED empty slot: the solved witness assignment, filled by
     /// the sketch solver `docs/DESIGN.md` `[open.sketch-solver]` adopts
     /// when constraint-driven sketches have a consumer.
@@ -947,6 +953,7 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
             family: None,
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
+            marks: Arc::default(),
             motion: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
@@ -975,6 +982,7 @@ impl NodeValue<f64> {
             coincidences: Arc::new([]),
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
+            marks: Arc::default(),
             motion: None,
             members: None,
             family: None,
@@ -1071,6 +1079,9 @@ impl Evaluation<f64> {
 /// One evaluation's per-node verdict vector (the [`NodeValue::verdicts`]
 /// payload): [`geom_core::k_stats::Verdict`]s in decision order.
 pub type VerdictLog = Vec<geom_core::k_stats::Verdict>;
+
+/// One node's candidate marks ([`NodeValue::marks`]).
+pub type MarkLog = Vec<geom_core::k_stats::Mark>;
 
 /// One node's escalations (the [`NodeValue::escalations`] and
 /// [`NodeError::escalations`] payload):
@@ -5525,7 +5536,8 @@ where
         let fresh = bracket.finish();
         assert!(
             v.verdicts.starts_with(&fresh.verdicts)
-                && v.escalations.starts_with(&fresh.escalations),
+                && v.escalations.starts_with(&fresh.escalations)
+                && v.marks.starts_with(&fresh.marks),
             "a memo hit's pre-key decisions differ from the reused log's prefix"
         );
         return NodeStep {
@@ -5552,6 +5564,7 @@ where
                 family: None,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
+                marks: Arc::new(recorded.marks),
                 witness: WitnessSlot {},
                 content_key,
                 naming_key,

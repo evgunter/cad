@@ -26,6 +26,9 @@
 //! 5. **One log ending** before the other names no flip.
 //! 6. **Sign exchange.** Two instances of one predicate trade signs:
 //!    the first of them turned, and it is named.
+//! 7. **Pruning parted.** Two runs decide one predicate with two signs
+//!    at one place, after a box query that handed on other candidates:
+//!    two different pairs, so no flip; the same candidates, a flip.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
@@ -223,4 +226,57 @@ fn sign_exchange_within_one_node_names_its_first_turn() {
         }
     );
     assert_ne!(VerdictVector::of(&a).key(), VerdictVector::of(&b).key());
+}
+
+/// One candidate mark, before the verdict at `before`.
+fn mark(before: usize, item: Option<u32>) -> geom_core::k_stats::Mark {
+    geom_core::k_stats::Mark {
+        before,
+        site: "bvh_overlapping",
+        item,
+        role: Role::Choice,
+    }
+}
+
+/// `pair`, each run's node carrying `marks` beside its log.
+fn marked(
+    (a_log, a_marks): (Vec<Verdict>, Vec<geom_core::k_stats::Mark>),
+    (b_log, b_marks): (Vec<Verdict>, Vec<geom_core::k_stats::Mark>),
+) -> (Evaluation<f64>, Evaluation<f64>) {
+    let (mut a, mut b) = pair(a_log, b_log);
+    for (ev, marks) in [(&mut a, a_marks), (&mut b, b_marks)] {
+        for result in ev.nodes.values_mut() {
+            if let NodeResult::Ok(value) = result
+                && !value.verdicts.is_empty()
+            {
+                value.marks = Arc::new(marks.clone());
+            }
+        }
+    }
+    (a, b)
+}
+
+/// Row 7: the same predicate at the same place with two signs is a turn
+/// only after the same candidates.
+#[test]
+fn a_turn_after_other_candidates_is_no_flip() {
+    let log = |sign| vec![v("plane_eq_parallel", sign)];
+    let (a, b) = marked(
+        (log(Sign::Zero), vec![mark(0, Some(0)), mark(0, None)]),
+        (log(Sign::Positive), vec![mark(0, None)]),
+    );
+    assert_silent_engine_moved_key(&a, &b);
+    let (a, b) = marked(
+        (log(Sign::Zero), vec![mark(0, Some(0)), mark(0, None)]),
+        (log(Sign::Positive), vec![mark(0, Some(0)), mark(0, None)]),
+    );
+    assert_eq!(
+        named(&a, &b),
+        VerdictFlip {
+            predicate: "plane_eq_parallel",
+            from: Sign::Zero,
+            to: Sign::Positive,
+        },
+        "after the same candidates the turn is named"
+    );
 }

@@ -2,7 +2,8 @@
 id: verdict-log-tells-no-validation-reading-from-a-building-decision
 kind: issue
 title: The resolver's flip lane cannot tell a reading taken off an already-built body (tier 3, the rim's validation) from a decision that built the body, so each validation predicate whose sign counts move under an edit pre-empts the true cause unless it is hand-added to first_cause's pass-over list
-status: dispatched
+status: closed
+closed: 2026-11-18
 opened: 2026-11-03
 priority: P1
 cost: M
@@ -39,3 +40,15 @@ Ev, on the PR:
 The orchestrator's merge note, on the same PR:
 
 > Thanks, merged. The README text is representation-neutral: it says what each decision *is*, not how it is stored. So the build picks the encoding (a tag, distinct enum arms, or separate storage), whichever makes the distinction hardest to blur. It argues the choice in its PR. It measures which resolver, drive and range rows move before it pins anything.
+
+## Closed
+
+The first-turn reading landed as the merged N5 text states it.
+
+- **The encoding.** Every `geom_core::k_stats::Verdict` carries a `Role` (`Choice` or `Check`), stamped in the same push as its sign from the scope the caller opened (`k_stats::checking`). There is no default and no way to reopen a check scope as a choice. `in_family`, its name prefixing, and `decision::words`' prefix stripping are gone. The symbolic recorder's `Decision::family` became `Decision::role`.
+- **Where the checks are declared.** At the at-rest doors' shared bodies: tier 3 (`AtRestBody::validate`), tier 2 (`Replay::of`), a move's re-ask (`finish::asked_after_isometry`), and `census::flush_at_rest`. `relog` keeps roles. `record_at_rest`'s census builds records and stays a choice. The side reader casts its rays and reads its volume fallback as checks, and records which side it read once, as its caller's choice (`k_stats::answered`, `topo::SIDE_AT_INFINITY`). The fold takes its reader's roles (`geom_brep::FoldRoles`): the constructors and the rim routing read only the class, so they record the sign and end as checks.
+- **The reading.** `resolve::vdiff::first_turn` walks the choices in decision order. It names the first choice the two runs take differently, if that is the same predicate with the other sign. `first_cause`'s pass-over list is gone, and the blend's `FoldNames` pool back into `dihedral_sign` and `material_cusp_side`. The drive's `FlipEvidence` and `range::DecisionFlip` read the same function. The ε audit's summary diff reports `SummaryShift`s, not flips.
+- **Candidate marks.** Measured, then built. Without them, `m4_pr4_resolve`'s slid union named `plane_eq_parallel` `Zero → Positive`, read off two different face pairs. Each `bvh` query now marks the candidates it hands on (`k_stats::mark_candidates`), and the walk reads them. What remains unmarked is filed as `hand-written-box-filters-steer-the-first-turn-unmarked`.
+- **Filed:** `work/doctail/hand-written-box-filters-steer-the-first-turn-unmarked.md`; on ONEDOOR, `the-split-rules-wedge-sign-can-read-the-fold-as-a-choice`.
+
+The rows that moved, and what each named before and after, are in the PR body.

@@ -145,12 +145,30 @@ fn diagnosis(
     diagnosis
 }
 
+/// `ev` with `node`'s log replaced by one choice of
+/// `bool_point_in_solid_plane` decided `sign`, and no candidate marks:
+/// a turn set by hand on a real run, where the real edit's runs part at
+/// their candidates and record none.
+fn with_turn(mut ev: Evaluation<f64>, node: RecipeNodeId, sign: Sign) -> Evaluation<f64> {
+    let Some(editor_core::NodeResult::Ok(value)) = ev.nodes.get_mut(&node) else {
+        panic!("{node:?} built");
+    };
+    value.verdicts = std::sync::Arc::new(vec![Verdict {
+        predicate: "bool_point_in_solid_plane",
+        sign,
+        role: Role::Choice,
+    }]);
+    value.marks = std::sync::Arc::default();
+    ev
+}
+
 #[test]
 fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     // Two independent plates-with-bars in one document. The first
     // bar slides along its cap in y (the cap's fragment group goes
     // from two to one, no flip); the second, unrelated one withdraws
-    // in x, which records a containment flip at the SECOND cut. That
+    // in x. Its cut's runs part at the candidates its box queries hand
+    // on, so it records no turn of its own; one is set on its log. That
     // flip is on no path and upstream of nothing in the first scene,
     // so the first scene's fragments are answered by their own
     // evidence: the group-size fact.
@@ -162,6 +180,10 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     assert!(!names.is_empty(), "the first cut mints fragments");
     let doc2 = slide(slide(doc.clone(), &tr1, 1, 2.5), &tr2, 0, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
+    let (ev1, ev2) = (
+        with_turn(ev1, cut2, Sign::Negative),
+        with_turn(ev2, cut2, Sign::Positive),
+    );
     let flips = editor_core::diff_verdicts(&ev1, &ev2).report();
     assert!(
         flips.iter().any(|(n, _)| *n == cut2),
@@ -239,11 +261,12 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
 #[test]
 fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     // The cutter is itself a union of two bars (`cutter`). Sliding the
-    // second bar clear of the first records a flip at the cutter's
-    // union and leaves the plate's far rim undivided. A piece of that
-    // rim is named by its ends, which are crossings of the cutter's
-    // faces, so the cutter is on ITS derivation path: the flip answers
-    // it on the path. A name of the cut that mentions no partner has
+    // second bar clear of the first leaves the plate's far rim
+    // undivided; the cutter's runs part at the candidates its box
+    // queries hand on, so a turn is set on its log. A piece of that rim
+    // is named by its ends, which are crossings of the cutter's faces,
+    // so the cutter is on ITS derivation path: the flip answers it on
+    // the path. A name of the cut that mentions no partner has
     // the cutter upstream of it and off its path, and the same flip is
     // a candidate cause there — it fed the cut — reported as that,
     // with its node, in the upstream scope (hand-built tables at the
@@ -270,6 +293,10 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     let ev1 = run(&doc, None);
     let doc2 = slide(doc.clone(), &tr, 1, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
+    let (ev1, ev2) = (
+        with_turn(ev1, cutter, Sign::Negative),
+        with_turn(ev2, cutter, Sign::Positive),
+    );
     let from_read = crate::fixture::out(&doc, a);
     let pieces: Vec<StableName> = fragments(&ev1, cut)
         .into_iter()

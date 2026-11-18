@@ -1483,14 +1483,28 @@ pub(crate) fn prepare_profile(
         Ok::<_, NodeErrorKind>((replay_records, validated_f64, canonical))
     });
     let pinned = |name: &str| profile::PINNED_UNDER_GUIDANCE.contains(&name);
+    let all = recording.recorded();
+    // Each mark keeps its place among the verdicts that stay.
+    let kept_before = |k: usize| {
+        all.verdicts[..k.min(all.verdicts.len())]
+            .iter()
+            .filter(|v| !pinned(v.predicate))
+            .count()
+    };
     let decided = geom_core::k_stats::Recorded {
-        verdicts: (recording.recorded().verdicts.iter())
+        verdicts: (all.verdicts.iter())
             .filter(|v| !pinned(v.predicate))
             .copied()
             .collect(),
-        escalations: (recording.recorded().escalations.iter())
+        escalations: (all.escalations.iter())
             .filter(|e| !pinned(e.predicate()))
             .copied()
+            .collect(),
+        marks: (all.marks.iter())
+            .map(|m| geom_core::k_stats::Mark {
+                before: kept_before(m.before),
+                ..*m
+            })
             .collect(),
     };
     geom_core::k_stats::splice(recording);

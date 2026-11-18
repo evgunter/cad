@@ -29,21 +29,32 @@
 //! at the first difference, or one log ending before the other) name
 //! no flip: their paths parted at something the log does not state.
 //!
-//! **One recorded path, and what can fake one.** The stretch before the
-//! turn is identical choice for choice, so both runs reached the turn
-//! by the same logged decisions. What the log cannot show is a branch
-//! taken with no logged decision: a candidate filter (the boolean's BVH
-//! sweep and the census prune pairs by box overlap and decide nothing),
-//! a heuristic's [`geom_core::k_stats::choose`] or an
-//! [`geom_core::k_stats::unlogged`] reading. Such a branch can steer
-//! what is enumerated later while the logged prefix stays identical, so
-//! a first difference past it may sit on a different candidate than
-//! the one its twin decided. The first difference is then read as a
-//! turn only where the same predicate meets the other sign there; where
-//! the pruning changed which predicate comes next, it names nothing.
-//! The residue is a pruned enumeration that brings the same predicate
-//! to the same position on another candidate with the other sign.
+//! **One recorded path, and what could fake one.** The stretch before
+//! the turn is identical choice for choice, so both runs reached the
+//! turn by the same logged decisions, provided no unlogged branch
+//! steered what was enumerated in between. A pruning query does exactly
+//! that: the boolean's sweep and the census prune pairs by box overlap
+//! and decide nothing, so two runs can decide one predicate at one place
+//! in their logs about two different pairs. A slid block's union decides
+//! a plane parallelism first in both runs, `Zero` overlapping and
+//! `Positive` disjoint: no slide turns a plane, so those are two pairs,
+//! and read as a turn they would name a flip no decision made. So each
+//! `bvh` query marks the candidates it hands on
+//! ([`geom_core::k_stats::mark_candidates`], [`crate::eval::NodeValue::marks`]),
+//! and the walk reads a choice's candidates beside the choices: two runs
+//! whose queries handed on other candidates part there, before any
+//! turn, and name no flip.
 //!
+//! The residue is pruning that does not go through `bvh`, and unlogged
+//! readings: a box-overlap test written at its call site (the
+//! idealized sweep's face-pair filter in `topo::boolean::ops`, and the
+//! others `work/doctail/hand-written-box-filters-steer-the-first-turn-unmarked.md`
+//! lists), a heuristic's [`geom_core::k_stats::choose`], and an
+//! [`geom_core::k_stats::unlogged`] reading. Where one of those steers
+//! what follows while every logged decision and mark agrees, a first
+//! difference past it can still sit on a different candidate than the
+//! one its twin decided.
+
 //! # The two derived forms, in one module
 //!
 //! A node's verdict log is the substrate, and this module holds BOTH
@@ -70,7 +81,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom_core::k_stats::{Role, Verdict};
+use geom_core::k_stats::{Mark, Role, Verdict};
 use geom_core::{Decide, Sign};
 
 use crate::eval::{Evaluation, KeyHasher, NodeStanding};
@@ -116,26 +127,67 @@ pub struct VerdictFlip {
     pub to: Sign,
 }
 
-/// **The first turn between two runs' verdict logs** (module docs): the
-/// first choice the two take differently, read along their choices in
-/// decision order, where it is the same predicate decided with the other
-/// sign. `None` where the choices agree throughout, or part on another
-/// predicate, or one log ends first. Checks are not read.
+/// **One run's log as the first-turn reading walks it**: a node's
+/// verdicts and the candidate marks placed among them
+/// ([`crate::eval::NodeValue::verdicts`], [`crate::eval::NodeValue::marks`]).
+#[derive(Debug, Clone, Copy)]
+pub struct Path<'a> {
+    /// The verdicts, in decision order.
+    pub verdicts: &'a [Verdict],
+    /// The candidates the run's pruning queries handed on.
+    pub marks: &'a [Mark],
+}
+
+/// One step along a [`Path`]'s choices: a choice, or a candidate a
+/// choice-feeding query handed on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Step {
+    Choice(&'static str, Sign),
+    Candidate(&'static str, Option<u32>),
+}
+
+impl Path<'_> {
+    /// The choices and the choices' candidates, in the order the run met
+    /// them. Checks, and the candidates checks examined, are not read.
+    fn steps(self) -> Vec<Step> {
+        let mut marks = self
+            .marks
+            .iter()
+            .filter(|m| m.role == Role::Choice)
+            .peekable();
+        let mut out = Vec::new();
+        for (k, v) in self.verdicts.iter().enumerate() {
+            while let Some(m) = marks.next_if(|m| m.before <= k) {
+                out.push(Step::Candidate(m.site, m.item));
+            }
+            if v.role == Role::Choice {
+                out.push(Step::Choice(v.predicate, v.sign));
+            }
+        }
+        out.extend(marks.map(|m| Step::Candidate(m.site, m.item)));
+        out
+    }
+}
+
+/// **The first turn between two runs' logs** (module docs): the first
+/// choice the two take differently, read along their choices and their
+/// choices' candidates in the order each run met them, where it is the
+/// same predicate decided with the other sign. `None` where they agree
+/// throughout, or part on another predicate or on a candidate, or one
+/// ends first. Checks are not read.
 #[must_use]
-pub fn first_turn(old: &[Verdict], new: &[Verdict]) -> Option<VerdictFlip> {
-    let choices = |log: &[Verdict]| {
-        log.iter()
-            .filter(|v| v.role == Role::Choice)
-            .copied()
-            .collect::<Vec<_>>()
-    };
-    let (old, new) = (choices(old), choices(new));
-    let (a, b) = old.iter().zip(&new).find(|(a, b)| a != b)?;
-    (a.predicate == b.predicate).then_some(VerdictFlip {
-        predicate: a.predicate,
-        from: a.sign,
-        to: b.sign,
-    })
+pub fn first_turn(old: Path<'_>, new: Path<'_>) -> Option<VerdictFlip> {
+    let (old, new) = (old.steps(), new.steps());
+    match old.iter().zip(&new).find(|(a, b)| a != b)? {
+        (Step::Choice(predicate, from), Step::Choice(other, to)) if predicate == other => {
+            Some(VerdictFlip {
+                predicate: *predicate,
+                from: *from,
+                to: *to,
+            })
+        }
+        _ => None,
+    }
 }
 
 /// One node's verdict delta between two runs.
@@ -199,6 +251,14 @@ impl FlipSet {
     }
 }
 
+/// A node value's [`Path`].
+fn path<T: topo::AtRestPolicy + Decide>(value: &crate::eval::NodeValue<T>) -> Path<'_> {
+    Path {
+        verdicts: &value.verdicts,
+        marks: &value.marks,
+    }
+}
+
 fn status<T: topo::AtRestPolicy + Decide>(run: &Evaluation<T>, id: RecipeNodeId) -> RunStatus {
     match run.usable(id) {
         Ok(_) => RunStatus::Ok,
@@ -244,7 +304,7 @@ pub fn diff_verdicts<T: topo::AtRestPolicy + Decide, U: topo::AtRestPolicy + Dec
     for id in ids {
         let (old_status, new_status) = (status(old, id), status(new, id));
         let flip = match (old.value(id), new.value(id)) {
-            (Some(a), Some(b)) => first_turn(&a.verdicts, &b.verdicts),
+            (Some(a), Some(b)) => first_turn(path(a), path(b)),
             _ => None,
         };
         if old_status != new_status || flip.is_some() {

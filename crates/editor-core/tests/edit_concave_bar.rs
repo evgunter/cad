@@ -111,9 +111,8 @@ fn named(
 /// clear of; at `0.1` it lies wholly inside the fill and the carve takes
 /// it, at `ΔV = +(A − π·a²)/2`. The wall's name at the blend node, which
 /// resolved before the edit, resolves `Vanished` after it, its cause a
-/// `Positive → Negative` flip of one of the two clearance verdicts the
-/// absorption is logged under (which one is the population diff's, as
-/// `edit_planar_carve` says).
+/// `Positive → Negative` turn of its ring clearance: the trimline meets
+/// the bar's ring, the first choice the two runs take differently.
 #[test]
 fn a_bar_a_size_edit_puts_inside_a_concave_fill_vanishes_on_the_blends_verdict() {
     let (doc, union) = barred_die();
@@ -219,23 +218,17 @@ fn a_bar_a_size_edit_puts_inside_a_concave_fill_vanishes_on_the_blends_verdict()
                 f.error
             );
         };
-        // The diagnosis names the node's first flip by predicate name.
-        // Under the chamfer the face clearance's readings only gain
-        // inside instances (none clear at 0.005 turns inside), which is
-        // a divergence, not a flip, so the ring clearance is the flip.
-        let predicate = if chamfer {
-            "fillet3_ring_clearance"
-        } else {
-            "fillet3_face_clearance"
-        };
+        // The diagnosis names the node's first turn in decision order:
+        // the trimline meeting the bar's ring, which the blend reads
+        // before any face clearance, under either verb.
         assert_eq!(
             diagnosis,
             editor_core::Diagnosis::PredicateFlip {
-                predicate,
+                predicate: "fillet3_ring_clearance",
                 from: geom_core::Sign::Positive,
                 to: geom_core::Sign::Negative,
             },
-            "{verb}: the wall vanishes on the blend's {predicate} flip"
+            "{verb}: the wall vanishes on the blend's ring-clearance turn"
         );
     }
 }
