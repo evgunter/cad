@@ -1033,10 +1033,13 @@ impl Along {
 /// an edge on it whose carrier is that line or circle (a whole side,
 /// [`Along::of`]) has a parameter affine in the moving coordinate: its
 /// pcurve is an iso line or arc, or a harmonic whose moving channel has
-/// no cosine or sine term, which is checked. The parameters may lie a
-/// whole turn off the span's sheet, which [`Params::nearest`] reads.
-/// `None` for anything else.
-fn iso_params(rim: &Rim, range: (f64, f64)) -> Option<(f64, f64)> {
+/// no cosine or sine term, which is checked. On a periodic axis the
+/// image is first moved by the whole turns that bring it nearest the
+/// range, which may lie any number of turns off the image's sheet; that
+/// puts the parameters on the span's sheet, and [`Params::nearest`] then
+/// meets a piece unwrapped past the span by a turn. `None` for anything
+/// else.
+fn iso_params(surface: &Surface<Interval>, rim: &Rim, range: (f64, f64)) -> Option<(f64, f64)> {
     let (_, (t0, t1)) = rim.arc.as_ref()?;
     let [u] = rim.uses.as_slice() else {
         return None;
@@ -1050,6 +1053,15 @@ fn iso_params(rim: &Rim, range: (f64, f64)) -> Option<(f64, f64)> {
     }
     let [p, q] = u.image?;
     let (i0, i1) = (iso.moving(p), iso.moving(q));
+    let (i0, i1) = if periodic(surface, iso.held.other()) {
+        let k = turns(turns_toward(
+            hull(i0, i1),
+            geom::mid_param(range.0, range.1),
+        ));
+        (i0 + k, i1 + k)
+    } else {
+        (i0, i1)
+    };
     let t = *t0 + (*t1 - *t0) * ((iv(range) - i0) / (i1 - i0));
     (t.is_certified() && t.lo().is_finite() && t.hi().is_finite()).then(|| (t.lo(), t.hi()))
 }
@@ -2007,7 +2019,7 @@ fn present_chart<'a>(
                 Some(&[e]) => Zero::Side(
                     side,
                     Along::over(piece.surface, b, e, on_edges, || {
-                        iso_params(b.edges.get(e)?, range)
+                        iso_params(piece.surface, b.edges.get(e)?, range)
                     }),
                 ),
                 _ => Zero::Side(side, Along { on_edges, ..a }),
@@ -3982,7 +3994,7 @@ fn present_line_corner<'a>(
         y,
         zero: Zero::Side(
             Side::of(held, sigma > 0.0),
-            Along::over(surface, b, c.read, false, || iso_params(e, along)),
+            Along::over(surface, b, c.read, false, || iso_params(surface, e, along)),
         ),
         corner: true,
         cache: Cache::default(),
@@ -10975,7 +10987,9 @@ mod presentation_rows {
     /// harmonic whose held channel is the constant `v = ½`. With no
     /// cosine or sine term on `u` the map is the rim's own, `t = u`; with
     /// one, the two-point fit would be wrong, and no parameters are read.
-    /// Red if the fit is taken without the check.
+    /// A side two turns off the image's sheet reads the span's own
+    /// parameters (the tour's `diecomposed` meets one). Red if the fit is
+    /// taken without the check, or the image is not moved to the side.
     #[test]
     fn a_sides_parameters_are_read_only_off_an_affine_moving_channel() {
         let b = rim_corner(
@@ -10987,12 +11001,25 @@ mod presentation_rows {
             let mut h = harmonic([1.5, 0.5], -1.0, (0.0, 0.0, 0.0));
             h.pa[0] = iv0(a);
             r.uses[0].harmonic = Some(h);
-            iso_params(&r, (0.8, 0.9))
+            iso_params(&cylinder(), &r, (0.8, 0.9))
         };
         let affine = with(0.0).expect("an affine channel");
         assert!(
             (affine.0 - 0.8).abs() < 1e-12 && (affine.1 - 0.9).abs() < 1e-12,
             "the rim's own parameters: {affine:?}"
+        );
+        // The side two turns off the image's sheet: the image is moved to
+        // it, so the parameters are the span's own, which no shift of one
+        // turn either way would reach from two off.
+        let far = iso_params(
+            &cylinder(),
+            &b.edges[0],
+            (0.8 + 2.0 * TURN, 0.9 + 2.0 * TURN),
+        )
+        .expect("read");
+        assert!(
+            (far.0 - 0.8).abs() < 1e-9 && (far.1 - 0.9).abs() < 1e-9,
+            "two turns off the image's sheet: {far:?}"
         );
         assert_eq!(with(0.1), None, "a cosine term on the moving channel");
     }
