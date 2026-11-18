@@ -10817,6 +10817,42 @@ pub enum Bar {
 ///
 /// [`AtRestPolicy::finish`]: crate::AtRestPolicy::finish
 ///
+/// **Nothing outside the gate pairs a body with records and calls the
+/// pair finished.** The fields are private, so no literal builds one:
+///
+/// ```compile_fail,E0451
+/// let body: topo::Body<f64> = topo::Body::new();
+/// let records = topo::ContactRecords::default();
+/// let _ = topo::AtRestBody { body, records };
+/// ```
+///
+/// and the constructors behind `finish` and `finish_assembled` are the
+/// crate's own:
+///
+/// ```compile_fail,E0624
+/// let body: topo::Body<f64> = topo::Body::new();
+/// let _ = topo::AtRestBody::validate(topo::Built::of(body), geom_core::Tol::witness());
+/// ```
+///
+/// ```compile_fail,E0624
+/// let assembled = topo::Assembled::<f64>::new(
+///     topo::Body::new(),
+///     topo::ContactRecords::default(),
+///     std::sync::Arc::new(|_| None),
+/// );
+/// let _ = topo::AtRestBody::validate_assembled(assembled, geom_core::Tol::witness());
+/// ```
+///
+/// A finished body's records change only in what they cite
+/// ([`crate::FinishedBody::try_recite`]); no door hands one a record its
+/// gate did not read:
+///
+/// ```compile_fail,E0599
+/// fn add(body: &mut topo::AtRestBody<f64>, record: topo::Cited<topo::Contact>) {
+///     body.records_mut().extend([record]);
+/// }
+/// ```
+///
 /// **A sweep leaf's finish record** (`AtRestPolicy::leaf`, the box
 /// scalars' switch): at `f64` and `Probe` a door behind the switch (the
 /// sweep doors, the twist, the mirror, the `⊔` graft) finishes its leaf

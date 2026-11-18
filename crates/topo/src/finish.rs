@@ -111,10 +111,16 @@ impl<T: Real> Assembled<T> {
 
 impl<T: Real> fmt::Debug for Assembled<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            body,
+            carried,
+            arrivals: _,
+            first_row,
+        } = self;
         f.debug_struct("Assembled")
-            .field("body", &self.body)
-            .field("carried", &self.carried)
-            .field("first_row", &self.first_row)
+            .field("body", body)
+            .field("carried", carried)
+            .field("first_row", first_row)
             .finish_non_exhaustive()
     }
 }
@@ -333,10 +339,15 @@ pub struct Replay<T: Real> {
 
 impl<T: Real> fmt::Debug for Replay<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            body,
+            records,
+            assembled,
+        } = self;
         f.debug_struct("Replay")
-            .field("body", &self.body)
-            .field("records", &self.records)
-            .field("assembled", &self.assembled.is_some())
+            .field("body", body)
+            .field("records", records)
+            .field("assembled", &assembled.is_some())
             .finish()
     }
 }
