@@ -5992,8 +5992,12 @@ mod seated_windows {
     /// Read with the patch built where a skew motion puts it, and with the
     /// patch held in its own coordinates and its window read through that
     /// motion,
-    /// the sweep holds alike, and its receipt and its count of region
-    /// readings are one.
+    /// the sweep holds in both, each reading cells off the face as off it
+    /// and deciding some; and a cell straddling the patch's edge reads its
+    /// region alike in both, undecided. The straddling cell's region carries
+    /// the pin against a window read without the placed face's own lift:
+    /// the Holds and Violated asserts pass under that mutant, the region
+    /// assert does not.
     ///
     /// A second brick stands 0.1 off the patch's middle, and `≥ 0.3` is
     /// violated in both frames: the cells there read on the face.

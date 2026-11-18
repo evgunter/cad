@@ -724,7 +724,9 @@ impl FindingFamily {
     ) -> Result<(), MoveError> {
         match self.under_isometry() {
             None => Ok(()),
-            Some(AskedAgain::SessionBox) => crate::session_box::in_session_box_at(own, motion, band),
+            Some(AskedAgain::SessionBox) => {
+                crate::session_box::in_session_box_at(own, motion, band)
+            }
         }
     }
 

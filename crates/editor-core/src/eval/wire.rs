@@ -579,7 +579,8 @@ where
                 env,
                 tol,
             )?;
-            wire_place(id, (of, source.read, values), placed.as_ref(), tol).map(|out| out.moved(placed))
+            wire_place(id, (of, source.read, values), placed.as_ref(), tol)
+                .map(|out| out.moved(placed))
         }
         Node::Assemble { members } => {
             // The graft finishes what it gathers, which reads geometry:

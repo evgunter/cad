@@ -370,7 +370,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // is a norm the tier does not reduce with the door shut, so two
             // `pcurve_chart_radial_moving` decisions it proved are numeric.
             // The shipped count, with the registry, does not move.
-            // +1 numeric: the placement asks the session box of its image.
+            // +2 numeric: each of its two placements asks the session box
+            // of where its copy stands (`topo::session_box_at`).
             // −2 numeric: its two identity charts owe no pole verdict.
             without_the_registry: Some(((1290, 1612), None)),
             // One is the fillet run out read against its arrival carrier
@@ -402,7 +403,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // first parent; the step from (1546, 1260) is not bisected.
             // Then (1660, 1250) -> (1684, 1262) -> (1704, 1368) with
             // PR 6594 and PR 6682 (`symbolic` below).
-            // +1 numeric: the placement asks the session box of its image.
+            // +1 numeric: its placement asks the session box of where its
+            // copy stands (`topo::session_box_at`).
             // −1 numeric: its identity chart owes no pole verdict.
             without_the_registry: Some(((1483, 1709), None)),
             // Three are the fillet run outs read against their arrival

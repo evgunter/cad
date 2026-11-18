@@ -771,10 +771,54 @@ fn a_copy_placed_past_the_box_refuses_at_its_placement() {
     );
     for doc in [doc.clone(), fixture::assemble_world_copies(doc)] {
         let ev = run(&doc, None);
-        assert_eq!(the_one_box_refusal(&doc, &ev), far, "the far placement refuses");
+        assert_eq!(
+            the_one_box_refusal(&doc, &ev),
+            far,
+            "the far placement refuses"
+        );
         assert!(
             ev.value(measure).is_none(),
             "the measure reads nothing past a refused copy"
+        );
+    }
+}
+
+/// **Each copy is asked where it stands in its space, not relative to
+/// another**: two copies of one block at 1999 m and 2002 m along `x`,
+/// under a `⊔`. A gather computes in its first operand's frame, where the
+/// second stands 3 m off, so a box asked of an image relative to that
+/// frame refuses neither; each placement asks the box of where its copy
+/// stands in the world (`Framed::asked_where_it_stands`, the copy's own
+/// frame into its space), and both refuse, each at its own placement.
+/// *Breaks if* the placement asks relative to an operand's frame, or no
+/// placement asks (then no node refuses, as on main before the door).
+#[test]
+fn two_far_copies_refuse_each_at_its_placement() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("e-two-far-copies"), tol);
+    let (doc, source) = block(doc);
+    let (doc, a) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([1999.0, 0.0, 0.0]),
+    );
+    let (doc, b) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([2002.0, 0.0, 0.0]),
+    );
+    let doc = fixture::assemble_world_copies(doc);
+    let ev = run(&doc, None);
+    for copy in [a, b] {
+        assert!(
+            matches!(
+                ev.node_error(copy).map(|e| (e.node, &e.kind)),
+                Some((node, editor_core::NodeErrorKind::NotFinished { findings }))
+                    if node == copy
+                        && matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+            ),
+            "the copy refuses at its own placement: {:?}",
+            ev.node_error(copy)
         );
     }
 }
@@ -833,5 +877,9 @@ fn a_copy_whose_rim_reaches_past_the_box_refuses_at_its_placement() {
     );
     let (past, far) = in_world(doc, disc, &at(995.0));
     let ev = run(&past, None);
-    assert_eq!(the_one_box_refusal(&past, &ev), far, "the placement refuses");
+    assert_eq!(
+        the_one_box_refusal(&past, &ev),
+        far,
+        "the placement refuses"
+    );
 }

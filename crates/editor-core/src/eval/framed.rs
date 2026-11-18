@@ -13,10 +13,12 @@
 //! [`Framed::computing_among`]: the first operand in its space's
 //! coordinates ([`Frame::Own`], read through no map, so the others are
 //! read through their own placements and not through a widened
-//! rotation's inverse on an enclosure lane), else the first operand. A
-//! reading within an operand that asks it about another's point
-//! ([`topo::Seat::into_own`]) does send that point through the inverse. It reads the frames' structure and no value, so the
-//! `f64` witness and every lane over a box decide in one frame. Every
+//! rotation's inverse on an enclosure lane), else the first operand. The
+//! choice reads the frames' structure and no value, so the `f64` witness
+//! and every lane over a box decide in one frame. A reading within an
+//! operand that asks it about another's point
+//! ([`topo::Seat::into_own`]) does send that point through the inverse.
+//! Every
 //! operation over two or more operands of one space takes it — the
 //! booleans' fold, subtract and distribute, measure, the product gather,
 //! clearance and its witness rebuild, the coincidence replay's carrier

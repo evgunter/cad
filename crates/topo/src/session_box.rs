@@ -63,8 +63,18 @@ pub(crate) fn body_reach_at<T: Decide>(
         };
         let carrier = crate::transform::map_carrier(&iso, curve.carrier())?;
         let ends = (
-            map.transform_point(crate::cover::edge_end_point(body, e, data.he_plus, "he_plus")),
-            map.transform_point(crate::cover::edge_end_point(body, e, data.he_minus, "he_minus")),
+            map.transform_point(crate::cover::edge_end_point(
+                body,
+                e,
+                data.he_plus,
+                "he_plus",
+            )),
+            map.transform_point(crate::cover::edge_end_point(
+                body,
+                e,
+                data.he_minus,
+                "he_minus",
+            )),
         );
         let world_box = crate::cover::edge_cover_over(&carrier, curve.params(), ends)
             .ok()
@@ -265,10 +275,11 @@ mod tests {
             band,
         )
         .unwrap();
-        let motion = geom_core::RigidMotion::translation(geom_core::Vec3::new(637.0, -251.25, 82.5))
-            .unwrap()
-            .compose(geom_core::RigidMotion::rotation(axis, 0.7).unwrap())
-            .unwrap();
+        let motion =
+            geom_core::RigidMotion::translation(geom_core::Vec3::new(637.0, -251.25, 82.5))
+                .unwrap()
+                .compose(geom_core::RigidMotion::rotation(axis, 0.7).unwrap())
+                .unwrap();
         let bodies = [
             brick::<f64>((0.0, 1.0), (0.0, 2.0), (0.0, 0.5), tol),
             crate::test_support_fixtures::sphere_cap(0.3, tol).0,

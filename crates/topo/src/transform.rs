@@ -382,7 +382,10 @@ fn map_approx<T: Real>(
 /// The carrier `map ∘ c` on `c`'s own parameter, under either hand: a
 /// carrier has no outward side, and keeping its parameter keeps every
 /// edge's range and its forward half-edge.
-pub(crate) fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, TransformError> {
+pub(crate) fn map_carrier<T: Real>(
+    iso: &Isometry<T>,
+    c: &Curve3<T>,
+) -> Result<Curve3<T>, TransformError> {
     let (map, hand) = (&iso.to_affine(), iso.hand());
     // A conic's frame: the frame's own image under a motion, and under a
     // reflection the axial axis, so the image keeps its parameter.

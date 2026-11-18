@@ -406,7 +406,9 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> ProfileValue<T> {
         tol: geom_core::Tol,
     ) -> Result<super::Framed<T>, super::NodeErrorKind> {
         match &self.frame {
-            Some(frame) => super::Framed::in_frame_leaf(body, frame.clone()).asked_where_it_stands(tol),
+            Some(frame) => {
+                super::Framed::in_frame_leaf(body, frame.clone()).asked_where_it_stands(tol)
+            }
             None => Ok(super::Framed::own_leaf(body)),
         }
     }
