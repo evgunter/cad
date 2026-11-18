@@ -245,7 +245,7 @@ fn a_set_holding_one_name_of_another_kind_refuses_at_its_place() {
 fn a_saved_selection_of_another_kind_refuses_at_load() {
     let (doc, body, _, edge, _) = solid();
     let (doc, _) = insert(doc, Node::fillet(body, len(0.1), vec![edge]));
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the uncorrupted fixture loads");
     let sel = text
         .find("\"Select\"")

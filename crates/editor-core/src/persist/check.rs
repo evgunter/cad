@@ -4,7 +4,7 @@
 //! [`validate_document`] holds every direction-independent document
 //! check and is invoked by BOTH doors — at save on the in-memory
 //! document before a byte is written, at load on the parsed document
-//! before replay. A document that would refuse to load is therefore
+//! before anything else sees it. A document that would refuse to load is therefore
 //! impossible to save by construction: not two mirrored door sets
 //! kept in sync by a sweep, but code that is literally the same and
 //! cannot drift.
@@ -17,34 +17,26 @@
 //! that walk's own variant; a second hand-written list here is exactly
 //! what undercounted twice.
 //!
-//! Two things no roster can carry stay in prose. **The ORDER** — which
+//! One thing no roster can carry stays in prose: **the ORDER** — which
 //! adjacencies are contracts and which are free — is on
-//! [`validate_document`]. **Why most walks read the SNAPSHOT only** is
-//! this, said once instead of at each: a `DeclareVar` in the log
-//! carries its payload through `apply` on replay, which is the same
-//! door and the same check, so a second walk over the log would ask a
-//! question `apply` has already answered. Every walk that says
-//! "snapshot only" holds for this reason and no other.
+//! [`validate_document`].
 //!
 //! The genuinely asymmetric residue stays at its door and is the
 //! symmetry sweep's whole remit now: header/parse/position errors and
 //! the wire-only canonical-set rule ([`super::wire`]) are load-only by
 //! nature; serializer failure is save-only; ε reconciliation is
-//! process state, not a document property. Log replayability is
-//! shared STRUCTURALLY instead — both doors replay through
-//! [`crate::edit::apply`].
+//! process state, not a document property.
 
 use crate::appearance::AppearanceRecord;
 use crate::distribution::DistributionFault;
 use crate::doc::{
     DocParamField, ExpansionFault, FreeVar, NameCarrier, VarName, VarReadFault, WitnessSiteFault,
 };
-use crate::edit::DocEdit;
 use crate::expr::Expr;
 use crate::meta::MetaVersionError;
 use crate::node::SlotId;
 use crate::node::{AssertionBoundFault, Node, RecipeNodeId};
-use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
+use crate::program::{ProfileDoc, ProgramRefusal};
 use crate::spoken::SpokenVar;
 use crate::spoken::{SpokenName, SpokenNode};
 use crate::var::{VarId, VarKind, VarRef};
@@ -55,9 +47,8 @@ use geom_core::Tol;
 pub enum NonFiniteSite {
     /// The recorded ε.
     Epsilon,
-    /// A continuous free variable: one the snapshot holds, by its name
-    /// where it has one, or one a logged edit addresses, as the edit
-    /// addresses it.
+    /// A continuous free variable the document holds, by its name where
+    /// it has one.
     DocParam {
         /// The variable.
         var: VarRef,
@@ -67,32 +58,20 @@ pub enum NonFiniteSite {
         /// rather than discarding the answer.
         field: DocParamField,
     },
-    /// A float inside an appearance record's metadata (snapshot, or a
-    /// logged `SetAppearanceMeta`).
+    /// A float inside an appearance record's metadata.
     Metadata {
         /// The attributed name, its minting node spoken from the
-        /// snapshot: a name a logged edit carries whose node only a
-        /// later edit inserts reads as a node the snapshot does not
-        /// hold.
+        /// document.
         name: SpokenName,
         /// The metadata key.
         key: String,
         /// Path within the value tree (dot/index notation).
         path: String,
     },
-    /// A float carried by an edit in the log; `index` is the edit's
-    /// position, `inner` the site within that edit's payload.
-    Edit {
-        /// The edit's index in the log.
-        index: usize,
-        /// The site within the edit.
-        inner: Box<NonFiniteSite>,
-    },
 }
 
 // The site prose. Each arm names WHERE the float sits, in the
-// vocabulary a document author reads — the recursive `Edit` arm
-// forwards the inner site rather than re-stating it.
+// vocabulary a document author reads.
 impl core::fmt::Display for NonFiniteSite {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -107,7 +86,6 @@ impl core::fmt::Display for NonFiniteSite {
             Self::Metadata { name, key, path } => {
                 write!(f, "metadata {key:?} on {name}, at {path}")
             }
-            Self::Edit { index, inner } => write!(f, "edit {index}, {inner}"),
         }
     }
 }
@@ -144,48 +122,46 @@ impl core::fmt::Display for SiteVar<'_> {
 /// record of the round that measured it, not a census kept current.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Walk {
-    /// [`first_non_finite`] over ε, the params, the appearance records
-    /// and the edit log — every float the format would write, checked
-    /// finite, with a typed site name.
+    /// [`first_non_finite`] over ε, the params and the appearance
+    /// records — every float the format would write, checked finite,
+    /// with a typed site name.
     ///
     /// Expression literals are finite BY CONSTRUCTION (`Formula::literal`
     /// refuses non-finite — ruled door 1; the load side re-runs the
     /// same constructors), so this walk covers the float carriers
     /// outside that door: profile PLANE PLACEMENTS (program args are
     /// Exprs, already doored), continuous doc params, the recorded ε,
-    /// and D7 metadata trees, in the snapshot AND in the edit log. A
-    /// NEW float-carrying field must join it — the D2 round-trip
+    /// and D7 metadata trees. A NEW float-carrying field must join it — the D2 round-trip
     /// property tests are the tripwire. Post-parse it cannot fire —
     /// JSON has no non-finite tokens — which is the asymmetry being
     /// BYTE-level, not a reason to fork the validator.
     NonFinite,
     /// [`first_distribution_fault`] over the variable table: the E2
     /// invariants of every doc param's distribution beyond finiteness,
-    /// by the same `Distribution::check` the edit door runs. Snapshot
-    /// only.
+    /// by the same `Distribution::check` the edit door runs.
     Distribution,
     /// [`first_display_unit_fault`] over the variable table: every
     /// document parameter's authored display unit measures the
     /// dimension it was declared with. A literal needs no twin walk
     /// (`Formula::literal_with_unit` makes the pairing at construction and
     /// the load side re-runs it); a `FreeVar` does, because its
-    /// payload is `pub` and its dimension is data. Snapshot only.
+    /// payload is `pub` and its dimension is data.
     DisplayUnit,
     /// [`first_var_fault`] over the variable table (VARIABLES-DESIGN
     /// VR1–VR3): the mint log it asks counts up from one, every
     /// variable's stored kind is its definition's,
     /// every id is logged in the mint as a variable's, every name sits
-    /// on a live variable, and no name is held twice. Snapshot only.
+    /// on a live variable, and no name is held twice.
     Vars,
     /// [`first_output_fault`] over the variable table and the node map
     /// (D10): every output row names a live node, a port of its
     /// signature and that port's kind, no port has two rows, and every
-    /// live node has a row for each of its ports. Snapshot only.
+    /// live node has a row for each of its ports.
     OutputSignature,
     /// [`first_selection_fault`] over the variable table (D10): every
     /// selection is of a selection kind, holds its names in that kind's
     /// stored form, and reads a body variable the mint holds, which, when
-    /// live, is a `Body` no world placement defines. Snapshot only.
+    /// live, is a `Body` no world placement defines.
     Selection,
     /// [`first_pose_fault`] over the variable table (D10): every pose
     /// definition reads minted variables, a live read at a kind it
@@ -193,33 +169,31 @@ pub(crate) enum Walk {
     /// a flip, no role is read off a pose that does not offer it or at
     /// a read that does not admit its kind, a move's, a flip's and a
     /// carried pose's stored kind is its read's, and no definition reaches itself through its reads — the
-    /// predicates the seat door asks of a pose it mints. Snapshot only.
+    /// predicates the seat door asks of a pose it mints.
     Pose,
     /// [`first_definition_read_fault`] over every defined variable's
     /// definition: it holds no name leaf, and every variable it reads
     /// is one the mint log holds, read at its kind when live — the
     /// predicate the edit doors ask (`Doc::var_read_faults`). A
     /// definition reading a deleted variable is legal, as a slot's
-    /// reader is (VR7). Snapshot only.
+    /// reader is (VR7).
     DefinitionRead,
     /// [`Doc::observed_read_fault`](crate::Doc) over every construction's
     /// slots (D10): none reads an observed variable — a measure's
     /// output, or a definition reading one, directly or through
     /// another — which only an assertion reads. The edit door's
-    /// `ConstructionReadsObserved`, asked of a file. Snapshot only.
+    /// `ConstructionReadsObserved`, asked of a file.
     ObservedRead,
     /// [`first_definition_cycle`] over the variable table (VR3): no
     /// definition reads its own variable back, and no variable's
     /// expansion outgrows [`crate::edit::DEFINITION_NODE_BOUND`].
     /// After the read walk, so a cycle is a cycle of live variables.
-    /// Snapshot only.
     DefinitionCycle,
     /// [`first_slot_read_fault`] over every slot expression's readers,
     /// by the same `Doc::var_read_faults` the edit doors ask: a reader
     /// names a minted variable, and a live one at its kind. A reader of
     /// a variable minted and since deleted is legal — it is that
     /// variable's unresolved reader (VR7), refused at evaluation.
-    /// Snapshot only.
     SlotRead,
     /// [`first_payload_read_fault`] over the readers of every
     /// expression no slot addresses, asking that same one predicate.
@@ -235,11 +209,10 @@ pub(crate) enum Walk {
     /// names a minted variable, and a live one of a kind its seat
     /// admits that is no world placement's copy. A read of an output
     /// deleted since is legal — its reader is
-    /// stranded, refused at evaluation. Snapshot only.
+    /// stranded, refused at evaluation.
     OperandRead,
     /// [`first_unnamed_reader_fault`] over the variable table: a
     /// variable with no name has exactly one reader (VR2, VR9).
-    /// Snapshot only.
     UnnamedReader,
     /// [`first_program_fault`] over the profile programs' replay: a
     /// REPLAY PROBE under the document's params whose LATTICE
@@ -298,15 +271,11 @@ impl Walk {
     /// missing from [`Walk::ORDER`] never executes — which
     /// `tests::every_snapshot_error_arm_names_the_walk_that_produces_it`
     /// reds on.
-    fn run(
-        self,
-        snapshot: &ProfileDoc,
-        edits: &[DocEdit<ProfileProgram>],
-        tol: Tol,
-    ) -> Option<super::PersistError> {
+    fn run(self, snapshot: &ProfileDoc, tol: Tol) -> Option<super::PersistError> {
         match self {
-            Walk::NonFinite => first_non_finite(snapshot, edits)
-                .map(|site| super::PersistError::NonFinite { site }),
+            Walk::NonFinite => {
+                first_non_finite(snapshot).map(|site| super::PersistError::NonFinite { site })
+            }
             Walk::Distribution => first_distribution_fault(snapshot)
                 .map(|(var, fault)| super::PersistError::Distribution { var, fault }),
             Walk::DisplayUnit => first_display_unit_fault(snapshot).map(|(var, unit, declared)| {
@@ -413,11 +382,10 @@ impl Walk {
 /// contract.
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileProgram>],
     tol: Tol,
 ) -> Result<(), super::PersistError> {
     for walk in Walk::ORDER {
-        if let Some(refusal) = walk.run(snapshot, edits, tol) {
+        if let Some(refusal) = walk.run(snapshot, tol) {
             return Err(refusal);
         }
     }
@@ -496,11 +464,6 @@ fn refused_read(snapshot: &ProfileDoc, expr: &Expr) -> Option<VarReadFault> {
 /// The first document parameter whose authored display unit does not
 /// MEASURE its declared dimension, as `(name, what the unit measures,
 /// what was declared)`, or `None`.
-///
-/// The SNAPSHOT only, for the reason `first_distribution_fault` walks
-/// it alone: a `DeclareVar` in the log carries its definition through
-/// `apply` on replay, and a replayed document is a snapshot this same
-/// validator sees.
 ///
 /// Expression literals need no twin walk — `Formula::literal_with_unit`
 /// checks the pairing at construction and the load side re-runs that
@@ -1072,17 +1035,14 @@ fn first_unnamed_reader_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 }
 
 /// The first non-finite float in ε, the document params, the profile
-/// nodes, the appearance records or the edit log, reported as a
-/// [`NonFiniteSite`], or `None`.
+/// nodes or the appearance records, reported as a [`NonFiniteSite`],
+/// or `None`.
 ///
 /// NOT every float the format writes: literal placement frames and mate
 /// alignments are checked by [`validate_snapshot`] and reported under
 /// [`SnapshotError`], because they are structural state rather than a
 /// value the writer is asked to round-trip.
-fn first_non_finite(
-    snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileProgram>],
-) -> Option<NonFiniteSite> {
+fn first_non_finite(snapshot: &ProfileDoc) -> Option<NonFiniteSite> {
     if !snapshot.epsilon.is_finite() {
         return Some(NonFiniteSite::Epsilon);
     }
@@ -1107,14 +1067,6 @@ fn first_non_finite(
                 name: snapshot.spoken_name(&at.name),
                 key,
                 path,
-            });
-        }
-    }
-    for (index, edit) in edits.iter().enumerate() {
-        if let Some(inner) = edit_non_finite(snapshot, edit) {
-            return Some(NonFiniteSite::Edit {
-                index,
-                inner: Box::new(inner),
             });
         }
     }
@@ -1153,137 +1105,6 @@ fn record_non_finite(rec: &AppearanceRecord) -> Option<(String, String)> {
     rec.metadata
         .iter()
         .find_map(|(key, value)| value.first_non_finite().map(|path| (key.clone(), path)))
-}
-
-/// The float carriers an edit can smuggle past `apply` (a saved log
-/// is DATA — it has not necessarily been applied by this process),
-/// a name among them spoken from `snapshot`, the document the log
-/// starts from.
-fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
-    match edit {
-        DocEdit::DeclareVar {
-            name,
-            def: crate::var::VarDecl::Free(value),
-        } => param_site(VarRef::Name(name.clone()), value),
-        DocEdit::DefineVar {
-            var,
-            def: crate::var::VarDecl::Free(value),
-            ..
-        } => param_site(var.clone(), value),
-        // The value door carries no distribution of its own — the
-        // declaration it writes into supplies that — but its
-        // continuous arm IS a raw float the format writes.
-        //
-        // It is the one float site here that cannot delegate to
-        // `FreeVar::first_non_finite`: the payload is a bare `f64`,
-        // not a `FreeVar`, so there is no parameter for the shared
-        // predicate to read. What it shares with the walk over the
-        // table is the SITE vocabulary, which is what a reader
-        // comparing the two refusals sees.
-        DocEdit::SetVarValue {
-            var,
-            value: crate::doc::FreeValue::Continuous(v),
-        } if !v.is_finite() => Some(NonFiniteSite::DocParam {
-            var: var.clone(),
-            field: DocParamField::Nominal,
-        }),
-        // The annotation door's whole payload is a distribution, so
-        // its offsets are floats the format writes and they belong to
-        // THIS walk — the same site vocabulary a definition goes
-        // through, offending field and all.
-        DocEdit::SetVarDistribution {
-            var,
-            distribution: Some(d),
-        } => Some(NonFiniteSite::DocParam {
-            var: var.clone(),
-            field: DocParamField::Offset(d.first_non_finite()?),
-        }),
-        DocEdit::SetAppearanceMeta {
-            body: _,
-            name,
-            key,
-            value,
-        } => {
-            value
-                .first_non_finite()
-                .map(|path| NonFiniteSite::Metadata {
-                    name: snapshot.spoken_name(name),
-                    key: key.clone(),
-                    path,
-                })
-        }
-        DocEdit::SetTolerance { eps } if !eps.is_finite() => Some(NonFiniteSite::Epsilon),
-        // EXHAUSTIVE on purpose: a new `DocEdit` variant carrying a raw
-        // float must be classified here or the compile breaks — a
-        // wildcard would let it past the load door unchecked. The
-        // guarded arms above are repeated without their guards because
-        // a guarded arm does not count towards exhaustiveness.
-        //
-        // Why the classified variants carry nothing for this door,
-        // stated per mechanism rather than in one sweeping clause:
-        //
-        // - Most `InsertNode` node kinds hold their floats in `Expr`
-        //   literals, finite by the construction door.
-        // - An inserted transform's literal placement steps are RAW
-        //   `f64`, not `Expr`s. They are refused on replay by `apply`
-        //   (`NonFinitePlacement`), which `persist::load` runs the log
-        //   through — so they are guarded, but by a door this function
-        //   deliberately does not rely on for the rest of its list.
-        // - The `Node` vocabulary is not closed here: this match is
-        //   exhaustive on `DocEdit`, not on `Node`.
-        DocEdit::SetVarValue { .. }
-        // A definition's floats are its expression's literals, finite
-        // by the construction door.
-        | DocEdit::DeclareVar {
-            def: crate::var::VarDecl::Defined(_)
-                | crate::var::VarDecl::Index { .. }
-                | crate::var::VarDecl::Source(_),
-            ..
-        }
-        | DocEdit::DefineVar {
-            def: crate::var::VarDecl::Defined(_)
-                | crate::var::VarDecl::Index { .. }
-                | crate::var::VarDecl::Source(_),
-            ..
-        }
-        // A notation is a table code, not a float.
-        | DocEdit::SetVarUnit { .. }
-        // The partial arm above, completed: a CLEARED annotation
-        // carries no float at all.
-        | DocEdit::SetVarDistribution { .. }
-        | DocEdit::RenameVar { .. }
-        | DocEdit::DeleteVar { .. }
-        | DocEdit::InsertNode { .. }
-        | DocEdit::SetLoftSections { .. }
-        // A list of node ids carries no float.
-        | DocEdit::SetMembers { .. }
-        // A program's continuous arguments are `Expr` literals, finite
-        // by the construction door like an inserted profile's; its
-        // step ids are integers.
-        | DocEdit::SetProgram { .. }
-        | DocEdit::SetTolerance { .. }
-        | DocEdit::DeleteNode { .. }
-        | DocEdit::SetParam { .. }
-        | DocEdit::SetStructuralParam { .. }
-        | DocEdit::SetExpression { .. }
-        | DocEdit::Rebind { .. }
-        | DocEdit::ReWitness { .. }
-        | DocEdit::ReWitnessBulk { .. }
-        | DocEdit::SetAppearance { .. }
-        | DocEdit::ClearAppearance { .. }
-        | DocEdit::ClearAppearanceMeta { .. }
-        // A constraint's numbers are slots, written as formulas the
-        // door lowers.
-        | DocEdit::AddConstraint { .. }
-        | DocEdit::SetConstraints { .. }
-        // A constraint's id is minted, not a float.
-        | DocEdit::RemoveConstraint { .. }
-        | DocEdit::RemoveConstraints { .. }
-        // A label is text.
-        | DocEdit::SetLabel { .. }
-        | DocEdit::SetProduct { .. }
-        | DocEdit::UpdateReference { .. } => None,
-    }
 }
 
 /// **How a file's variable table disagrees with an operation's output
@@ -2124,8 +1945,8 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             k: geom_core::tolerance::k_admitted(doc.epsilon),
         });
     }
-    // Every id in the document is one the document has minted — replay
-    // after load must never re-mint a referenced id.
+    // Every id in the document is one the document has minted — an
+    // edit after load must never re-mint a referenced id.
     let check_id = |id: RecipeNodeId| -> Result<(), SnapshotError> {
         if !doc.has_minted(id) {
             Err(SnapshotError::NodeNotMinted { id: doc.spoken(id) })
@@ -2222,10 +2043,9 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             }
         }
         // DM5's third caller: a saved file is DATA, and a SNAPSHOT is the one way
-        // a node reaches a document without passing `apply`. The edit
-        // log replays through the doors and is covered by them; the
-        // snapshot beside it is not, so the rule is asked here, of the
-        // same function, in this door's vocabulary.
+        // a node reaches a document without passing `apply`, so the
+        // rule is asked here, of the same function, in this door's
+        // vocabulary.
         if let Some(fault) = node.input_fault(doc) {
             return Err(SnapshotError::InputList {
                 node: doc.spoken(id),
@@ -2475,10 +2295,8 @@ impl core::fmt::Display for ProgramFault {
     }
 }
 
-/// The first program fault in the SNAPSHOT's profile nodes (module
-/// docs). The edit log needs no twin: logged edits replay through
-/// `apply`, whose own doors (the shared slot rule + the VQ9
-/// authoring-time check) refuse the same faults at the same load.
+/// The first program fault in the document's profile nodes (module
+/// docs).
 ///
 /// A program whose Exprs fail to RESOLVE under the document's params
 /// (dangling ref, dimension drift) cannot be probed here and PASSES
@@ -2979,7 +2797,7 @@ mod tests {
         // load door's EpsilonInvalid, now at save too.
         let mut doc = ProfileDoc::empty_derived("check", Tol::witness());
         doc.epsilon = 0.0;
-        match save(&doc, &[], Tol::witness()) {
+        match save(&doc, Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value, .. })) => {
                 assert_eq!(value, 0.0);
             }
@@ -3041,7 +2859,7 @@ mod tests {
             panic!("a polygon is a chain");
         };
         steps.pop();
-        match save(&doc, &[], tol) {
+        match save(&doc, tol) {
             Err(e @ PersistError::ProfileProgram { .. }) => {
                 let PersistError::ProfileProgram { node, .. } = &e else {
                     unreachable!("matched above")
@@ -3077,7 +2895,7 @@ mod tests {
             crate::appearance::AppearanceKey::new(crate::VarId::new(0, 1), name.clone()),
             record,
         );
-        match save(&doc, &[], tol) {
+        match save(&doc, tol) {
             Err(e @ PersistError::NonFinite { .. }) => {
                 let PersistError::NonFinite {
                     site:
@@ -3099,6 +2917,78 @@ mod tests {
                 );
             }
             other => panic!("a NaN in metadata refuses at save, got {other:?}"),
+        }
+    }
+
+    /// A non-finite parameter float names the parameter and WHICH float
+    /// (`FreeVar::first_non_finite`, the predicate the edit door's
+    /// `NonFiniteVar` asks). No public door hands this walk a NaN —
+    /// the edit door refuses one and JSON carries no such token — so
+    /// the document is bent in place.
+    #[test]
+    fn the_save_door_names_a_non_finite_parameters_field() {
+        use crate::distribution::{Distribution, DistributionField};
+        use crate::doc::{DocParamField, FreeVar};
+        let tol = Tol::witness();
+        let doc = crate::edit::apply(
+            &ProfileDoc::empty_derived("non-finite-param", tol),
+            &crate::DocEdit::DeclareVar {
+                name: VarName::from_static("wall"),
+                def: crate::var::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.003)),
+            },
+            tol,
+        )
+        .expect("a finite parameter declares")
+        .doc;
+        let wall = doc.var_named("wall").expect("declared");
+        let annotated = |distribution| FreeVar::Continuous {
+            dim: Dimension::Length,
+            value: 0.003,
+            display_unit: crate::expr::UnitSym::canonical_for(Dimension::Length),
+            distribution: Some(distribution),
+        };
+        let offset = |distribution, field| (annotated(distribution), DocParamField::Offset(field));
+        for (free, field) in [
+            (
+                FreeVar::continuous(Dimension::Length, f64::NAN),
+                DocParamField::Nominal,
+            ),
+            offset(
+                Distribution::Normal {
+                    sigma: f64::INFINITY,
+                },
+                DistributionField::Sigma,
+            ),
+            offset(
+                Distribution::TruncatedNormal {
+                    sigma: 0.5,
+                    lo: f64::NEG_INFINITY,
+                    hi: 2.0,
+                },
+                DistributionField::Lo,
+            ),
+            offset(
+                Distribution::Band {
+                    lo: -1.0,
+                    hi: f64::INFINITY,
+                },
+                DistributionField::Hi,
+            ),
+        ] {
+            let mut bent = doc.clone();
+            bent.vars.insert(
+                wall,
+                crate::var::Var::written(crate::var::WrittenDef::Free(free)),
+            );
+            match save(&bent, tol) {
+                Err(PersistError::NonFinite {
+                    site: super::NonFiniteSite::DocParam { var, field: said },
+                }) => {
+                    assert_eq!(var, crate::VarRef::Name(VarName::from_static("wall")));
+                    assert_eq!(said, field, "the save door names the offending float");
+                }
+                other => panic!("a non-finite parameter refuses at save, got {other:?}"),
+            }
         }
     }
 
@@ -3144,7 +3034,7 @@ mod tests {
             ),
             crate::appearance::AppearanceRecord::default(),
         );
-        match save(&doc, &[], Tol::witness()) {
+        match save(&doc, Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
                 assert_eq!(id, crate::SpokenNode::absent(RecipeNodeId::new(0, 7)));
             }

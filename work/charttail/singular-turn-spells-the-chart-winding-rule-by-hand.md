@@ -34,3 +34,21 @@ that is the larger repair and is not done.
 Read `step` through `PolygonOrientation::interior_is_left` and strike the census
 entry. Separately, decide whether `walk::wrap_strip` reads its period off the
 loop's stored lift.
+
+## The step reads the home (EMBED, lane embed/winding-rule, 2026-11-17)
+
+`singular_turn` now writes the step a face on the loop's left would take,
+`if above { 1 } else { -1 }`, and takes it to the face's side through
+`PolygonOrientation::of_face(sides.sense).to_interior(…)`. The census entry
+`("crates/topo/src/pcurves/decision.rs", "1")` is struck. This landed in the
+PR that routed `injective.rs`'s six spellings (PR 7071).
+
+That does not discharge the second half. `singular_turn`'s `step = ±1` and
+`walk::wrap_strip`'s `period = ∓turn` both say which way the azimuth runs round
+a pole, by the face's side. They use opposite sign conventions on different
+inputs: `above` from the singularity's kind here, `rising` from the poles'
+heights there. Reading `PolygonOrientation` makes both look routed, but they
+are still two derivations, and nothing proves they are one rule. Whether
+`wrap_strip` reads its period off the loop's stored lift is still open.
+`wrap_strip`'s hand fold under `interior_is_left` is ONECOPY's
+`polygon-orientation-callers-fold-the-interior-side-by-hand`.

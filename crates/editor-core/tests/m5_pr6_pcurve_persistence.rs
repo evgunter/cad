@@ -2,9 +2,8 @@
 //!
 //! Pcurve caches are **re-derived on load, never serialized**. That is
 //! not a compromise, it is what D6.1 persistence already is: a document
-//! is a RECIPE (its edit log / snapshot), and loading replays it
-//! through evaluation — so the C5 splitting lane re-runs and re-mints
-//! every cache from the same deterministic pipeline. No pcurve-shaped
+//! is a RECIPE (its state), and evaluating the loaded document re-runs
+//! the C5 splitting lane, which re-mints every cache from the same deterministic pipeline. No pcurve-shaped
 //! field enters the schema, no schema version moves, and there is no
 //! stale-cache class to invalidate (C4's content-keyed cache transfer
 //! stays banked, and nothing here needs it).
@@ -93,11 +92,9 @@ fn a_round_trip_re_derives_bit_identical_caches() {
     let doc = corpus::cut_cylinder::document();
     let before = cache_dump(&bodies(&evaluated(&doc.doc)));
 
-    // The SNAPSHOT shape (empty log): `load` replays the log ON TOP of
-    // the snapshot, so passing both would evaluate the document twice.
-    let bytes = save(&doc.doc, &[], Tol::witness()).unwrap();
+    let bytes = save(&doc.doc, Tol::witness()).unwrap();
     let loaded = load(&bytes, Tol::witness()).unwrap();
-    let after = cache_dump(&bodies(&evaluated(&loaded.doc)));
+    let after = cache_dump(&bodies(&evaluated(&loaded)));
 
     assert_eq!(before, after, "caches must replay bit-identically");
     assert!(!after.is_empty());
@@ -109,9 +106,7 @@ fn a_round_trip_re_derives_bit_identical_caches() {
 #[test]
 fn the_persisted_bytes_carry_nothing_pcurve_shaped() {
     let doc = corpus::cut_cylinder::document();
-    // The recorder's shape: the empty snapshot, the log everything.
-    let empty = editor_core::ProfileDoc::empty_derived("mod", Tol::witness());
-    let text = save(&empty, &doc.edits, Tol::witness()).unwrap();
+    let text = save(&doc.doc, Tol::witness()).unwrap();
     for needle in ["pcurve", "Pcurve", "Harmonic", "chart"] {
         assert!(
             !text.contains(needle),

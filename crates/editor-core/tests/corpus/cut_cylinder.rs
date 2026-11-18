@@ -84,7 +84,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "cut_cylinder",
         about: "M5 shape (i): tilted plane×cylinder cut — exact Ellipse section edges",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: None, // the head is the Split's two sides, not one body
         pin: None,    // not dyadic; props' curved lane is PR 11

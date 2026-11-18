@@ -132,7 +132,7 @@ fn committed_corpus_row(name: &str) {
 
 #[test]
 fn committed_corpus() {
-    for name in SOLID_FIXTURES {
+    for &name in SOLID_FIXTURES {
         committed_corpus_row(name);
     }
 }
@@ -145,7 +145,7 @@ fn committed_corpus() {
 /// not required — entity numbering/traversal may differ.
 #[test]
 fn fixed_point() {
-    for name in SOLID_FIXTURES {
+    for &name in SOLID_FIXTURES {
         // The committed fixtures were written with the fixture's name
         // as product name (writer defaults otherwise), so the
         // measured comparison below is whole-file fair.

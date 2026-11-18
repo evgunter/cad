@@ -2454,9 +2454,8 @@ NOT_BOUND = {
     "DocParamField": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
-    # Python's document keeps no edit log: `Doc.save` writes an empty
-    # log and `load` replays below the wrapper, so the replay door has
-    # no Python shape to bind.
+    # Python's document keeps no edit log and a save file holds none,
+    # so the replay door has no Python shape to bind.
     "apply_replayed": SHAPE,
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recording": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
@@ -2807,10 +2806,9 @@ NOT_BOUND = {
     # word), so its lever kind does not either.
     "TurnLever": INTERIOR,
     "ContentBits": INTERIOR,
-    # `BlendError::ConvexitySignFlip`'s payload and
-    # `UnsupportedCorner`'s, the other two of the blend four.
+    # `BlendError::ConvexitySignFlip`'s payload, and part of the
+    # run-out's odd edge (`OddEdge`).
     "Convexity": INTERIOR,
-    "CornerConfig": INTERIOR,
     "Curve3": INTERIOR,
     "ContactPair": INTERIOR,
     "GlueClass": INTERIOR,
@@ -3026,9 +3024,11 @@ NOT_BOUND = {
     # `Evaluation.select` rather than by key. A key bundle has nothing
     # to project to a surface that holds names and never keys.
     "RevolvedKind": INTERIOR,
-    # `BlendError::UnsupportedCorner`'s second field, the policy
-    # `CornerConfig::policy` assigns (LIB-CUR4).
-    "RunOutPolicy": INTERIOR,
+    # `BlendError::UnbuiltEnd`'s payload, whose tag the blend's own tag
+    # reads one level in (`unbuilt_end_seam`, …), and the run-out's odd
+    # edge inside it.
+    "UnbuiltEnd": INTERIOR,
+    "OddEdge": INTERIOR,
     # `BlendError::WedgeUnsettled`'s payload, which the blend's tag
     # (`wedge_unsettled`) already names at the Python seam.
     "UnsettledWedge": INTERIOR,
@@ -3883,7 +3883,6 @@ MEMBERS_BOUND_AS = {
     "PersistError::Parse": "PersistError.variant",
     "PersistError::Unreadable": "PersistError.variant",
     "PersistError::Dimension": "PersistError.variant",
-    "PersistError::EditReplay": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
@@ -4172,10 +4171,6 @@ MEMBERS_BOUND_AS = {
     # (`crates/pncad-py/src/py/refactor.rs`).
     "InlineOutcome::maintenance": "Doc.last_maintenance",
     "FlattenOutcome::maintenance": "Doc.last_maintenance",
-    # The replayed edit LIST crosses as its length; `Applied`/
-    # `EditRecord` are `different-shape` in `NOT_BOUND` and the records
-    # field is below with them.
-    "Loaded::edits": "Loaded.edit_count",
     # One patch at a time, by index, beside `patch_count`.
     "Mesh::patches": "Mesh.patch",
     # The entity-kind filter, named for what it does at the door.
@@ -4357,10 +4352,6 @@ MEMBERS_NOT_BOUND = {
     # `variant == "unplaced_below"`, its `parts` naming each.
     "Evaluation::epoch": INTERIOR,
     "Evaluation::appearance": SHAPE,
-    # `EditRecord` is `different-shape`: `Doc.apply` mutates in place and
-    # answers `Optional[NodeId]`, so there is no record list to hand
-    # back.
-    "Loaded::records": SHAPE,
     # The one recipe node kind with no Python constructor, and it is not
     # an omission: `wire_sweep` refuses unconditionally (U4/LQ3,
     # kernel-owned), so the door could not succeed. `sweep_body` carries

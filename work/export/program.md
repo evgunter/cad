@@ -2,7 +2,7 @@
 id: export
 kind: program
 title: EXPORT — the writing direction and the round trip: what the writers print, the kernel's own bodies read back, and the refusal plumbing both exchange crates share
-status: active
+status: ready
 opened: 2026-09-20
 group: kernel/exchange
 prefix: export/

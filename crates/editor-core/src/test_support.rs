@@ -1083,13 +1083,91 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
     })
 }
 
+// --- a saved document's ε line -------------------------------------
+
+/// Whether `line` of a saved document is its ε line.
+fn is_epsilon_line(line: &str) -> bool {
+    line.trim_start().starts_with("\"epsilon\":")
+}
+
+/// The one ε line of a saved `text`.
+///
+/// # Panics
+///
+/// Unless `text` holds exactly one: a missing or duplicated ε line is
+/// damage, not sweep variance.
+fn the_epsilon_line(text: &str) -> &str {
+    let mut lines = text.lines().filter(|l| is_epsilon_line(l));
+    let (Some(line), None) = (lines.next(), lines.next()) else {
+        panic!(
+            "a saved document carries exactly one \"epsilon\" line, and this one carries {}",
+            text.lines().filter(|l| is_epsilon_line(l)).count()
+        );
+    };
+    line
+}
+
+/// **A saved `text` re-stamped to `tol`**: its one ε line replaced by
+/// the line `save` writes at `tol`, every other byte as it was.
+///
+/// A save records the ε it was written at and the load door refuses a
+/// file whose ε is not the process's ("one process, one ε", D4), while
+/// CI sweeps ε; so a committed document a row loads at every ε row is
+/// re-stamped first. The ε line is the only ε-dependent byte of a save
+/// (`viewer/tests/doc_io.rs` measures that), and the new line comes
+/// from `save` itself, through an empty document at `tol`: spelling a
+/// float as the serializer spells it is the serializer's job.
+///
+/// # Panics
+///
+/// Unless `text` holds exactly one ε line.
+#[must_use]
+pub fn restamped_at(text: &str, tol: geom_core::Tol) -> String {
+    let probe = crate::persist::save(&ProfileDoc::empty_derived("epsilon-probe", tol), tol)
+        .unwrap_or_else(|err| panic!("an empty document saves: {err}"));
+    let wanted = the_epsilon_line(&probe).trim_start();
+    the_epsilon_line(text);
+    text.split_inclusive('\n')
+        .map(|line| {
+            let content = line.trim_end_matches(['\n', '\r']);
+            if !is_epsilon_line(content) {
+                return line.to_owned();
+            }
+            let indent = content.len() - content.trim_start().len();
+            format!("{}{wanted}{}", &content[..indent], &line[content.len()..])
+        })
+        .collect()
+}
+
+/// **A saved `text` without its one ε line**, its other lines joined by
+/// line breaks: what two saves of one document at two ε rows share, for
+/// a row that compares a save against a committed one.
+///
+/// # Panics
+///
+/// Unless `text` holds exactly one ε line.
+#[must_use]
+pub fn sans_epsilon(text: &str) -> String {
+    the_epsilon_line(text);
+    text.lines()
+        .filter(|l| !is_epsilon_line(l))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 // --- the load door's nesting limit ----------------------------------
 
 /// **The deepest a body the load door reads may nest**, in JSON
-/// brackets: `persist::nesting`'s limit, lifted out of the crate so a
-/// row can hold it against the deepest body a save writes
-/// (`tests/expr_nesting_bound.rs`).
+/// brackets: `persist::nesting`'s limit, one level of a bounded value
+/// past the deepest body a save writes, lifted out of the crate so a
+/// row can nest a file past it (`tests/name_depth.rs`).
 pub const BODY_NESTING: usize = crate::persist::nesting::BODY_NESTING;
+
+/// **The deepest a body nests around an expression at its bound**, in
+/// the deepest place a save writes one: lifted out of the crate so a row
+/// can hold it against the deepest body a save writes
+/// (`tests/expr_nesting_bound.rs`).
+pub const EXPR_BODY_NESTING: usize = crate::persist::nesting::EXPR_BODY_NESTING;
 
 /// **The deepest a body nests around a metadata value at its bound**,
 /// which [`BODY_NESTING`] covers (`tests/meta_nesting_bound.rs`).
@@ -1230,7 +1308,7 @@ pub fn beside_past_the_bundle_rule(
 /// **A save's snapshot, read past the load door's validator**: the
 /// state a doctored save leaves, which [`crate::persist::load`]
 /// refuses; for rows that hold the save door's half of the shared
-/// validator. The edit log is parsed and dropped.
+/// validator.
 ///
 /// # Panics
 ///

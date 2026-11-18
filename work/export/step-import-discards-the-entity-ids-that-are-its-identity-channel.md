@@ -112,3 +112,11 @@ write one of the four origins with real content rather than a bare tag.
 
 Nothing here claims EXCH's ground or reorders EXCH's slate — it is a
 cross-reference so the sequence survives WIRE's closure.
+
+## The design fork, in flight (2026-11-17, EXPORT)
+
+Weighed per `docs/DESIGN-FORK-PROTOCOL.md`. The draw gave three designers (A and C Opus, B Fable). A and C delivered first reports. B died on dispatch because the account's Fable limit was exhausted (it resets 2026-11-21 15:00 UTC), and the protocol forbids reconciliation until all first reports are in. The problem statement, both reports (transcribed) and the bytes are on `analysis/design-fork/an-imported-body-names-its-source`, which Ev does not read before deciding.
+
+- **Both reject this row's framing.** The stamp channel it extends was retired (INTENT stage 4 unit E, PR 4322), and `[import]` makes imported bodies indistinguishable from native ones by intent.
+- **They split on the remedy.** One says close as superseded, keeping the importer's bitwise surface dedup. The other says share surfaces by the file's entity references on import, write one surface entity per surface key on export, and add a sentence to `[import]`.
+- **Resuming it** (a successor, or this sitting once Ev answers): dispatch a fresh Fable designer on the saved problem statement after the reset, or proceed without one if Ev rules the outage covers forks. Then reconcile and open the `[ev]` PR. Since the reports were written, PR 7081 deleted the M7-2 coincidence rung that report C's feasibility note leans on; tell the reconciling designers.

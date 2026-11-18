@@ -6788,7 +6788,7 @@ pub(crate) fn check_source_readers<P: crate::ProfilePayload>(
         }
     }
     if let Some(doc) = P::evaluable(new)
-        && let Err(reader) = crate::persist::check::validate_document(doc, &[], tol)
+        && let Err(reader) = crate::persist::check::validate_document(doc, tol)
     {
         return Err(EditError::SourceReaderRefused {
             source: new.spoken_var(id),
@@ -9870,9 +9870,8 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// variable is gone, and a stranded
     /// name (DM7) resolves to nothing until rebound, which the next
     /// evaluation reports typed (N5). The replayed document is the
-    /// state, the same boundary the load door draws
-    /// ([`crate::persist::Loaded`]); the round trip is lossless
-    /// because the same delete against the replayed document reports
+    /// state, which is what a save file holds (GQ3); the round trip is
+    /// lossless because the same delete against the replayed document reports
     /// the same strands, which DM7's round-trip row pins.
     ///
     /// # Errors

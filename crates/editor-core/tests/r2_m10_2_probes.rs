@@ -1068,7 +1068,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
             fresh: Vec::new(),
         },
     );
-    let text = editor_core::save(&good, &[], Tol::witness()).expect("a well-formed document saves");
+    let text = editor_core::save(&good, Tol::witness()).expect("a well-formed document saves");
     assert!(
         editor_core::load(&text, Tol::witness()).is_ok(),
         "the uncorrupted file must load"
@@ -1197,7 +1197,7 @@ fn r2_e2e_nested_balls_authored_and_saved() {
                 other => panic!("expected Violated with both numbers, got {other:?}"),
             }
             // The violating document is the one Python reads.
-            let text = editor_core::save(&d4, &[], Tol::witness()).expect("the fit document saves");
+            let text = editor_core::save(&d4, Tol::witness()).expect("the fit document saves");
             let path =
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/r2_fit.pncad");
             // The DIRECTORY is created first, and that is not
@@ -1249,7 +1249,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
         },
     );
     let assertion = *doc.ids().last().expect("the assertion is the last node");
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("saves");
 
     // (a) the bound's DIMENSION retyped to Angle: the measure is a
     // Length, so `measured: Length` against `bound: Angle`. BOTH

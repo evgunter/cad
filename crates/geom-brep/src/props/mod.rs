@@ -313,15 +313,20 @@ pub enum PropsError {
     ///
     /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     Unimplemented,
-    /// The boundary shape is outside the M2 iso-rectangle inventory,
-    /// a stored-data consistency residual of an inventory premise is
-    /// definitely nonzero, or a
-    /// stored span is outside certification's per-edge bounds
-    /// `0 < Δt ≤ τ` (`props_meridian_span_forward` /
-    /// `props_meridian_span_winding` on a sphere meridian arc, the
-    /// `props_meridian_pieces_*` names on a reconstructed torus
-    /// meridian) — an arc no closed form here may fold. The payload
-    /// names the structural expectation that failed.
+    /// The boundary shape is outside the M2 iso-rectangle inventory:
+    /// a carrier that is no rim or meridian of the face's chart (an
+    /// ellipse, a tilted circle, a line off a ruling), a rim away from
+    /// the face's two extreme levels (a notch), rims that encode
+    /// different material sides, or a torus face with no meridian.
+    /// Every arm a face reaches is a decided verdict on a face as stored
+    /// — valid input this inventory has no closed form for, never a face
+    /// it could not read ([`Self::Escalated`]) or one whose stored data
+    /// contradicts itself ([`Self::OffSurface`],
+    /// [`Self::SpanUncertified`], [`Self::Defect`]). A curved door asked
+    /// of a plane is no verdict on a face either, and answers
+    /// [`Self::Defect`], the caller's misuse: this variant would rank it
+    /// row 2 and send it to a lane. The payload names the structural
+    /// expectation that failed.
     ///
     /// **Name-only**, like [`Self::NotOneChartBranch`] and for the
     /// same reason. Where a margin decided the refusal, `what` is that
@@ -331,7 +336,7 @@ pub enum PropsError {
     /// this `Decide`-generic lane does not read a margin back as
     /// `f64`.
     ///
-    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     NotIsoRectangle {
         /// Which structural expectation failed (static description).
         what: &'static str,
@@ -350,9 +355,13 @@ pub enum PropsError {
     /// residual checks ([`PropsCheck::Exact`]), not by a census of
     /// predicate names: the same name is one premise on one surface and
     /// the other on another — `props_rim_fit` places a circle on a
-    /// cylinder, cone or sphere, while on a torus it additionally asks
-    /// for an iso-v rim, which a Villarceau circle on the surface
-    /// fails.
+    /// cylinder, cone or sphere, while on a torus it reads the circle as
+    /// a coaxial one, so a miss is this variant only where the circle is
+    /// coaxial (a Villarceau circle misses it on the surface, and is no
+    /// rim). Where one decision cannot tell the two readings apart, the
+    /// incidence is decided on the refusing path alone
+    /// (`props_meridian_great` on the sphere), so a face the parse admits
+    /// records the same decisions it did.
     ///
     /// **Name-only**, like [`Self::NotIsoRectangle`] and for the same
     /// reason.
@@ -360,6 +369,49 @@ pub enum PropsError {
     /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
     OffSurface {
         /// Which incidence failed (static description).
+        what: &'static str,
+    },
+    /// **A stored edge span is outside certification's per-edge bounds**
+    /// `0 < Δt ≤ τ` (`props_rim_span_*` on a rim, `props_meridian_span_*`
+    /// on a sphere or torus meridian arc), or the pieces of one split
+    /// edge do not assemble one such span (`props_meridian_pieces_*` on
+    /// a reconstructed torus meridian). Certification admits no edge
+    /// with such a span, so the stored data contradicts the
+    /// certification it was stored under: a defect of the kernel or of
+    /// the file the body was read from.
+    ///
+    /// Split from [`Self::NotIsoRectangle`], at the raising sites, for
+    /// the reason [`Self::OffSurface`] was: a face outside the
+    /// inventory is valid input on an unbuilt lane, and a span no
+    /// certification admits is not, and no consumer could tell the two
+    /// apart from one variant.
+    ///
+    /// **Name-only**, like [`Self::NotIsoRectangle`] and for the same
+    /// reason.
+    ///
+    /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
+    SpanUncertified {
+        /// Which span bound failed (the deciding predicate's name).
+        what: &'static str,
+    },
+    /// **A state no correct parse reaches on a stored body**: a rim whose
+    /// level and the face's extremes carry two representations, a torus
+    /// piece the classification left uncircled, a torus frame whose axis
+    /// or meridian radial is zero or not a finite length, a meridian
+    /// orientation the frame leaves degenerate, a loop of meridian pieces
+    /// with no rim. Each follows only from a
+    /// defect of the kernel's own derivation or from stored data no valid
+    /// surface carries (a non-finite or zero-length axis).
+    ///
+    /// Split from [`Self::NotIsoRectangle`], at the raising sites: a face
+    /// outside the inventory is valid input, and these are not.
+    ///
+    /// **Name-only**, like [`Self::NotIsoRectangle`].
+    ///
+    /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
+    Defect {
+        /// Which state was met (the deciding predicate's name, or a
+        /// structural sentence where no margin decided it).
         what: &'static str,
     },
     /// A cone face's `v` range definitely spans both nappes — not a
@@ -675,6 +727,7 @@ impl PropsError {
         match self {
             Self::Escalated { cause, .. } => Ok(crate::ladder::Refusal::Margin(*cause)),
             Self::Unimplemented
+            | Self::NotIsoRectangle { .. }
             | Self::NotOneChartBranch { .. }
             | Self::QuadratureUnsupported { .. } => Ok(crate::ladder::Refusal::Limit),
             Self::NappeSpanning
@@ -688,7 +741,8 @@ impl PropsError {
             | Self::LoopsWindChart
             | Self::DegenerateFace
             | Self::OffSurface { .. }
-            | Self::NotIsoRectangle { .. }
+            | Self::SpanUncertified { .. }
+            | Self::Defect { .. }
             | Self::SphereLoop { .. }
             | Self::ConeLoop { .. }
             | Self::SeamRegionCoverUnresolved => Err(crate::ladder::Aborts),
@@ -720,6 +774,16 @@ impl PropsError {
                 f,
                 "a boundary edge does not lie on its own face's surface ({what}). \
                  {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::Defect { what } => write!(
+                f,
+                "a face's boundary reached a state no correct parse of a stored body \
+                 reaches ({what}). {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::SpanUncertified { what } => write!(
+                f,
+                "a boundary edge's stored parameter span is one no certified edge has \
+                 ({what}). {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::SphereLoop { what } => write!(
                 f,
@@ -1131,6 +1195,12 @@ mod tests {
             PropsError::OffSurface {
                 what: "props_rim_fit",
             },
+            PropsError::SpanUncertified {
+                what: "props_rim_span_winding",
+            },
+            PropsError::Defect {
+                what: "props_rim_level",
+            },
             PropsError::SphereLoop {
                 what: "props_sphere_loop_cusp",
             },
@@ -1162,7 +1232,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 16, "an arm was added without a row here");
+        assert_eq!(arms.len(), 18, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.render(crate::recourse::Reading::AtRest);
             assert_eq!(
