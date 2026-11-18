@@ -2490,16 +2490,34 @@ struct Posed {
 /// **The poses one face's cell is read in**, held for as long as a
 /// presentation in one of them is read ([`present`]).
 #[derive(Default)]
-pub(crate) struct Poses(std::cell::OnceCell<(Vec<Posed>, bool)>);
+pub(crate) struct Poses(std::cell::OnceCell<PoseSet>);
+
+/// What [`poses_of`] finds: the poses placed, whether a pose was left
+/// out for want of a placement, and whether the cell reaches a corner no
+/// chart reads ([`unread_corner`]).
+#[derive(Default)]
+struct PoseSet {
+    poses: Vec<Posed>,
+    unplaced: bool,
+    unread_corner: bool,
+}
 
 /// **The poses of a sphere face's cell**: one per circle in its local
 /// boundary that the stored chart does not read as a coordinate line,
 /// charted about that circle's axis from its seam (one per axis line),
-/// each with the cell placed in it ([`posed_cell`]). The flag says a pose
-/// was left out for want of a placement, which a smaller cell may have.
-fn poses_of(piece: &Piece<'_>, band: Band) -> (Vec<Posed>, bool) {
+/// each with the cell placed in it ([`posed_cell`]). A pose in which a
+/// shared edge (`near_edges`) is no coordinate line is left out: that
+/// edge is shared by every smaller cell of the pair, and unread there at
+/// any depth. The flag says a pose was left out for want of a placement,
+/// which a smaller cell may have.
+fn poses_of(
+    piece: &Piece<'_>,
+    near_edges: &[usize],
+    near_vertices: &[VertexKey],
+    band: Band,
+) -> PoseSet {
     let &Surface::Sphere { center, radius, .. } = piece.surface else {
-        return (Vec::new(), false);
+        return PoseSet::default();
     };
     let b = piece.boundary;
     let mut axes: Vec<Vec3<Interval>> = Vec::new();
@@ -2518,16 +2536,29 @@ fn poses_of(piece: &Piece<'_>, band: Band) -> (Vec<Posed>, bool) {
         axes.push(c.frame.axis);
         frames.extend(PoseFrame::of(center, c.frame.axis, c.frame.u_ref));
     }
+    let lifted: Vec<(PoseFrame, Boundary)> = frames
+        .into_iter()
+        .map(|f| (f, posed_boundary(&f, b)))
+        .collect();
+    let unread_corner = unread_corner(piece, &lifted, near_edges, near_vertices);
     let image = piece.surface.rect_enclosure(piece.u, piece.v);
     let mut unplaced = false;
     let mut out = Vec::new();
-    for frame in frames {
+    for (frame, boundary) in lifted {
+        let reads = |i: &usize| {
+            boundary
+                .edges
+                .get(*i)
+                .is_some_and(|e| e.uses.iter().all(|u| u.iso.is_some()))
+        };
+        if !near_edges.iter().all(reads) {
+            continue;
+        }
         let Some((x, y)) = posed_cell(&frame, radius, image) else {
             unplaced = true;
             continue;
         };
         let surface = frame.sphere(radius);
-        let boundary = posed_boundary(&frame, b);
         let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
         let ball = Ball::holding(surface.point_eval(m(x), m(y)), surface.rect_enclosure(x, y));
         let local = Local::of(&boundary, ball, band);
@@ -2540,7 +2571,54 @@ fn poses_of(piece: &Piece<'_>, band: Band) -> (Vec<Posed>, bool) {
             local,
         });
     }
-    (out, unplaced)
+    PoseSet {
+        poses: out,
+        unplaced,
+        unread_corner,
+    }
+}
+
+/// **A corner no chart reads, at a vertex of the shared cell the cell
+/// reaches**: two or more edges of the face meet at it, one is no
+/// coordinate line of the stored chart, and in every pose one is no
+/// coordinate line either. Every smaller cell holding the vertex holds
+/// that corner, so it is read at no depth, as [`beside_curve`] types an
+/// unread corner. Read off the cell's own local boundary, not a pose's
+/// wider rectangle.
+fn unread_corner(
+    piece: &Piece<'_>,
+    lifted: &[(PoseFrame, Boundary)],
+    near_edges: &[usize],
+    near_vertices: &[VertexKey],
+) -> bool {
+    let b = piece.boundary;
+    let shared = |v: &VertexKey| {
+        near_vertices.contains(v)
+            || near_edges
+                .iter()
+                .any(|&i| b.edges.get(i).is_some_and(|e| e.ends.contains(v)))
+    };
+    let lines = |bd: &Boundary, at: &[usize]| {
+        at.iter().all(|&i| {
+            bd.edges
+                .get(i)
+                .is_some_and(|e| e.uses.iter().all(|u| u.iso.is_some()))
+        })
+    };
+    piece.local.vertices.iter().filter(|v| shared(v)).any(|v| {
+        let at: Vec<usize> = piece
+            .local
+            .edges
+            .iter()
+            .copied()
+            .filter(|&i| {
+                b.edges
+                    .get(i)
+                    .is_some_and(|e| e.arc.is_some() && !seam(e) && e.ends.contains(v))
+            })
+            .collect();
+        at.len() > 1 && !lines(b, &at) && lifted.iter().all(|(_, bd)| !lines(bd, &at))
+    })
 }
 
 /// **Present a sphere face in a pose** where its stored chart does not:
@@ -2573,12 +2651,13 @@ fn poses_of(piece: &Piece<'_>, band: Band) -> (Vec<Posed>, bool) {
 /// carrier is in any chart ([`Along::of`]), but carries no parameters,
 /// so the graph separator does not read it ([`Along::under_graph`]).
 ///
-/// Every pose is tried in turn: `None` where the face has none, or where
-/// a shared edge is no circle (unread in every pose, at any depth);
-/// otherwise the first presentation, else `Local`. A pose's rectangle
-/// and ball are wider than the cell's, so what it finds unread in reach
-/// may lie outside the cell, and a smaller cell is placed tighter: no
-/// pose decides `Structural`.
+/// Every pose is tried in turn: `Structural` where the cell reaches a
+/// corner no chart reads ([`unread_corner`]); `None` where the face has
+/// no pose that reads its shared edges ([`poses_of`]); otherwise the
+/// first presentation, else `Local`. A pose's rectangle and ball are
+/// wider than the cell's, so what it finds unread in reach may lie
+/// outside the cell, and a smaller cell is placed tighter: no pose's own
+/// failure decides `Structural`.
 fn present_posed<'h>(
     piece: &Piece<'_>,
     near_edges: &[usize],
@@ -2586,20 +2665,16 @@ fn present_posed<'h>(
     band: Band,
     store: &'h Poses,
 ) -> Option<Result<Presentation<'h>, Unpresented>> {
-    let b = piece.boundary;
-    let circle = |i: &usize| {
-        b.edges.get(*i).is_some_and(|e| {
-            !is_curved(piece.surface, e) || matches!(e.arc, Some((Curve3::Circle(_), _)))
-        })
-    };
-    if !near_edges.iter().all(circle) {
+    let set = store
+        .0
+        .get_or_init(|| poses_of(piece, near_edges, near_vertices, band));
+    if set.unread_corner {
+        return Some(Err(Unpresented::Structural));
+    }
+    if set.poses.is_empty() && !set.unplaced {
         return None;
     }
-    let (poses, unplaced) = store.0.get_or_init(|| poses_of(piece, band));
-    if poses.is_empty() && !unplaced {
-        return None;
-    }
-    for p in poses {
+    for p in &set.poses {
         let posed = Piece {
             face: piece.face,
             surface: &p.surface,
@@ -13248,18 +13323,22 @@ mod posed_rows {
         }
     }
 
-    /// **Where no pose reads both circles, a cell is `Local`, never
-    /// `Structural`** ([`present_posed`]). At `T` the two circles meet,
-    /// each a parallel only of its own pose; and a cell holding the whole
-    /// triangle reaches both and both equator vertices. A smaller cell
-    /// away from `T` is read, so neither may refuse the pair at once.
-    /// Red if a pose's `Structural` is reported.
+    /// **A corner no chart reads is `Structural` only where the cell
+    /// reaches it** ([`unread_corner`]). At `T` the two circles meet,
+    /// each a parallel only of its own pose, and `T` ends the shared
+    /// edge: every smaller cell holding `T` holds that corner, so the
+    /// cell is `Structural`. A cell holding the whole triangle, across the
+    /// equator, reaches `E1` and `E2`, each a corner some pose reads (the
+    /// circle's own, where the equator is a meridian), and `T`, which the
+    /// shared cell does not hold; a smaller cell parts them, so it is
+    /// `Local`. Red if a pose's own failure is reported as `Structural`,
+    /// or a corner no chart reads is not.
     #[test]
-    fn a_cell_reaching_two_circles_of_different_poses_is_local() {
+    fn a_corner_no_chart_reads_is_structural_only_where_the_cell_reaches_it() {
         let (s, b) = (sphere(), triangle());
         assert_eq!(
             posed(&s, &b, ((0.76, 0.81), (1.19, 1.23)), (&[0], &[vertex(3)])).err(),
-            Some(Unpresented::Local),
+            Some(Unpresented::Structural),
             "at T"
         );
         assert_eq!(

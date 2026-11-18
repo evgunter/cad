@@ -710,10 +710,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        177,
-        79,
-        "the 79 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
-         `present_chart` (26), \
+        194,
+        96,
+        "the 96 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `present_chart` (26), the pose's six (17, below), \
          `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
@@ -750,7 +750,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          asking, which is `work/embed/one-plane-reads-a-brackets-ends-as-a-point-without-asking`. \
          `continues` reads its arcs' parameter spans outward (2), a parameter read, and its \
          directions' product at its lower end (1), which no ask covers: \
-         `work/embed/continues-reads-its-directions-product-at-its-lower-end-without-asking`",
+         `work/embed/continues-reads-its-directions-product-at-its-lower-end-without-asking`. \
+         The pose's six each read behind their own ask: `PoseFrame::of` a norm's low end (1), \
+         taken positive only where it certifies; `angle` the turned pair's low end along its \
+         middle (1), likewise; `narrow` an enclosure's width (4), only where it certifies; \
+         `one_sign` each piece's sign (2), only where it certifies; `posed_use` its span's \
+         ends outward (2), a parameter read, and `P`'s low end (1), behind its ask; and \
+         `posed_cell` the box's `Z/r` (2), behind its ask and clamped to `[-1, 1]`, where every \
+         point of the sphere has it, and the placed rectangle's latitude and azimuth (4), each \
+         certified",
     ),
     (
         "crates/topo/src/props.rs",

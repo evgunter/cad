@@ -938,10 +938,19 @@ fn a_two_arc_lunes_hollow_holds_its_cavity_read_in_its_caps_poses() {
         .expect("the sphere wall")
         .1
         .surface;
-    latitude_on_partial_wall(&mut body, sphere, Point2::new(r, 0.0), core::f64::consts::FRAC_PI_2);
-    let hollow = topo::shell(&sweep::test_support::finished("the lune", body, tol()), 0.05, tol())
-        .expect("the lune hollows")
-        .body;
+    latitude_on_partial_wall(
+        &mut body,
+        sphere,
+        Point2::new(r, 0.0),
+        core::f64::consts::FRAC_PI_2,
+    );
+    let hollow = topo::shell(
+        &sweep::test_support::finished("the lune", body, tol()),
+        0.05,
+        tol(),
+    )
+    .expect("the lune hollows")
+    .body;
     let spheres = hollow
         .faces()
         .filter(|(k, _)| matches!(hollow.face_surface(*k), Some(Surface::Sphere { .. })))
