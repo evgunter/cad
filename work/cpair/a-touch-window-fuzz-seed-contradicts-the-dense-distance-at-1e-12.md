@@ -82,3 +82,12 @@ The non-touch row `each_window_reading_holds_on_a_dense_distance`, run at the ne
 - **The contradiction may be oracle noise (unsure).** The oracle's own rounding is about `1e-13·scale` (`oracle.rs:243-247`), and `tol` is capped at `z/8`. At 1e-12 on circles of radius ~500 that is about `5e-11` of rounding against a `1.25e-13` tolerance. So the `Recedes` monotonicity check may be measuring the oracle, not the kernel. Check this first.
 - **The restart has no row that goes red without it.** Open a `k_stats::Bracket` around `w.chained(..)` on one of the 15 real windows, e.g. `curve_pair::plane_rows::two_circles_at_a_shallow_tilt_meet_twice_near_one_plane_root`. Assert that no verdict names `curve_pair_window_off_span` or `curve_pair_window_width` (locus.rs:1308 is the precedent).
 - **"A receding piece is off where its near end is" is spelled twice:** in `read`'s unringed arm (`window.rs:316-326`) and in `chained` (`window.rs:453`). One helper should map direction to near end for both. Alternatively, `read` could return `Off` for a ringed `Recedes` whose near end is off, leaving `chained` unchanged.
+
+The sibling row `curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance`
+(not `_at_a_touch`) reds the same way at ε = 1e-6 on
+`CAD_FUZZ_SEED=0x362191a627c797f4` (`CAD_FUZZ_EFFORT=1`): two `Recedes`
+readings contradicted on a circle of radius 569.93 m whose axis tilts
+~1.6e-9 off −z, against the point (152.48, 92.76), at windows
+(−2.509e-9, −2.367e-9) and (1.0218e-9, 1.0227e-9). Found on
+importgate/build's local run (2026-11-18), which does not touch the
+pose's window code.
