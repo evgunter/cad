@@ -9376,7 +9376,9 @@ mod presentation_rows {
             ]),
             extent: Some([(1.0, 2.0), (lo, 1.0)]),
         };
-        for lo in [0.0, f64::EPSILON, -f64::EPSILON] {
+        // The low end the revolved cone at `y = 1.7` stores, and its mirror.
+        let ulp = 2.220_446_049_250_313e-16;
+        for lo in [0.0, ulp, -ulp] {
             let b = sector(lo);
             assert_eq!(
                 v_of(&s, &b),
@@ -9412,7 +9414,7 @@ mod presentation_rows {
             Err(Unpresented::Structural),
             "a stored end no rounding puts at the apex"
         );
-        let mut below = lone(origin(), (-1.0, -f64::EPSILON));
+        let mut below = lone(origin(), (-1.0, -ulp));
         below
             .vertices
             .insert(vertex(4), Point3::new(iv0(1.0), iv0(0.0), iv0(-1.0)));
