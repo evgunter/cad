@@ -686,4 +686,68 @@ a main red found running the censuses. (The endpoint census's drift on
 sphere beside an off-axis circle), a corner of two different conics,
 and a spiric continued onto its next arc, as the previous section says.
 
+## Trace: the two-arc lune (EMBED, lane cavity-trace, 2026-11-18)
+
+**Setup.** Main `da49c63f`, f64:
+`torax_axial::torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows`,
+its cavity asked through the local `CavityGate` switch, `departure`
+instrumented (uncommitted).
+
+**The verdict** is `Uncertified { 3v1, 4v1, Edge(6v1), Departure }`,
+with receipt 120 discharged, 21 refused and 131 splits.
+
+**The cavity.**
+- Two plane caps: `1v1` on `x = 0.05` and `2v1` on `z = −0.05`.
+- Two sphere faces, `3v1` and `4v1`: radius 0.25, axis `y`, split at
+  the equator arc `6v1`.
+- Each cap's arc on a sphere face is a circle in the cap's plane, so its
+  axis is `x` or `z`, never the sphere's `y`.
+
+**What each face presents:**
+- **The sphere faces read `Err(Structural)` in every cell**, against
+  every partner.
+  - Beside a cap arc, `reads_curve` fails: the sphere's chart has no
+    harmonic image of a circle off its axis. That arc is the shared edge
+    against a cap, so it is `Structural` (`unread`).
+  - Beside the equator arc `6v1`, every cell also reaches a cap arc's
+    corner at the equator vertex, and is `Structural` there.
+- **The caps are presented.** Each reads its two arcs of one circle
+  through the equator vertex (`Reading::Conic`, `Curve(XHi, past)`), or
+  its lens's line (`Side`). `Err(Local)` where a cell holds both ends.
+
+**What refuses:**
+- **Each cap against each sphere face** refuses five cells across the
+  cap's arc (`1v1 × 3v1` across `3v1`, `1v1 × 4v1` across `5v1`,
+  `2v1 × 3v1` across `2v1`, `2v1 × 4v1` across `4v1`).
+  - The cap is read past the equator vertex and the sphere is
+    `Structural`, so the pair is `stuck`.
+  - Only the carrier arm could decide it, the sphere's carrier against
+    the cap, and a past curve is not read there.
+- **The sphere faces against each other** across `6v1` refuse at the
+  root, both `Structural`.
+
+**(a) What a presentation of the sphere beside an off-axis circle would
+have to read.** The face's part of a cell lies on one side of the
+circle: on the sphere, one side of the circle's plane. That region is a
+coordinate half of a sphere chart whose axis is the circle's plane
+normal, in which the circle is a parallel. Presenting the face in that
+re-posed chart (the sphere is symmetric about its centre, so any axis
+through it charts it) turns the arc into a coordinate side. It lies on
+its edge, so its zero is on the shared cell. Two consequences:
+- **The cap–sphere pairs should then close with readings that exist**
+  (predicted from the arms' rules, not measured). The cap's
+  past curve against the sphere's exact side is admitted by
+  `past_read`, under the graph separator over the arc or under the cap's
+  plane (both vanish on the whole circle). So nothing short of the
+  design question is needed for these four pairs, and the carrier arm
+  reading a past curve, resting on another pair's certificate, is not
+  needed either.
+- **The sphere pair across `6v1` needs one more reading:** each sphere
+  face's corner at the equator vertex is the equator (a parallel) meeting
+  a cap circle (a parallel only of the re-posed chart). That is a corner
+  of two different conics, which this row also names, unread in any
+  chart.
+
+**The cheapest evidence** is this row's lune at 0.34 s.
+
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
