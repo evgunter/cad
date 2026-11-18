@@ -12022,6 +12022,18 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> FlushAtRest {
+    geom_core::k_stats::checking(|| flush_at_rest_checked(body, group, band, region))
+}
+
+/// [`flush_at_rest`]'s body. Every decision it takes is a check: a flush
+/// row changes no body and no name, it is a row the at-rest check
+/// reports, and an undecided pair is a finding.
+fn flush_at_rest_checked<T: Decide + Bounds>(
+    body: &Body<T>,
+    group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+    band: Band,
+    region: Option<RegionLane<T>>,
+) -> FlushAtRest {
     let geo = snapshot(body);
     let pad = sweep_pad(band);
     let faces: Vec<FaceKey> = geo

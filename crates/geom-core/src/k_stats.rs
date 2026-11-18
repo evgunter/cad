@@ -228,7 +228,6 @@
 use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
-use std::collections::BTreeMap;
 
 use crate::predicate::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Sign, SizedPass};
 use crate::real::Real;
@@ -262,62 +261,88 @@ thread_local! {
     /// life of the thread, so a guard can tell its own frame from any
     /// frame that later occupies its depth.
     static NEXT_FRAME_ID: Cell<u64> = const { Cell::new(0) };
-    /// The family the verdicts decided now are recorded under, if any
-    /// ([`in_family`]).
-    static FAMILY: Cell<Option<&'static str>> = const { Cell::new(None) };
-    /// Each predicate's name under a family, minted once per thread
-    /// ([`family_name`]).
-    static FAMILY_NAMES: RefCell<BTreeMap<(&'static str, &'static str), &'static str>> =
-        const { RefCell::new(BTreeMap::new()) };
+    /// The role the verdicts decided now are recorded in ([`checking`]):
+    /// [`Role::Choice`] unless a caller that only checks has said so.
+    static ROLE: Cell<Role> = const { Cell::new(Role::Choice) };
 }
 
-/// **Runs `work` with every verdict it records named under `family`**:
-/// a predicate decided inside it reaches the verdict channel as
-/// `family` followed by its own name (a name already in the family is
-/// left as it is). For an instrument a flip among whose decisions can
-/// change whether it reads, never what it reads (`topo`'s ray caster), so
-/// that a reader of the verdict log can tell them apart from the
-/// decisions of the operation that ran it (`editor_core::resolve`'s N5
-/// passes over them). Only the verdict
-/// channel is renamed: an escalation keeps the name its refusal is
-/// typed by, and a K sample the name its population is counted under.
-/// The symbolic recorder tags the decisions taken inside it with the
-/// family (`sym::revalue::Decision::family`), for the same reader's sake.
+/// **What a decision does where it is taken**: whether another sign
+/// can change what the node builds or names, or can only make it refuse.
+/// Every verdict carries one ([`Verdict::role`]), stamped where it is
+/// recorded from the scope the caller opened ([`checking`]), so the
+/// distinction is stated by the code that uses the outcome and is never
+/// read off a predicate's name, its module, or a list kept elsewhere.
 ///
-/// The family is this thread's for the call, an inner one replacing it
-/// until it returns, and [`map_detached`] hands it to its workers. A
-/// panic inside `work` restores the outer family on unwind.
-pub fn in_family<R>(family: &'static str, work: impl FnOnce() -> R) -> R {
-    struct Restore(Option<&'static str>);
+/// The role is the caller's use of the outcome, not the predicate's:
+/// one predicate is a choice where a reader builds from its sign and a
+/// check where a validator reads it off a body already built
+/// (`geom_brep::DIHEDRAL_SIGN` is both).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Role {
+    /// Another sign can change what the node builds or names. The
+    /// default: a decision is a choice unless its caller says otherwise.
+    Choice,
+    /// Another sign can only make the node refuse: a reading taken off a
+    /// body already built (the at-rest doors), or an instrument whose
+    /// answer is the same from wherever it reads (the side reader's rays).
+    Check,
+}
+
+/// **Runs `work` with every decision it takes recorded as a
+/// [`Role::Check`]**: for a caller whose use of every outcome inside it
+/// can only make the node refuse. A check scope is not reopened as a
+/// choice by anything inside it, since a decision taken inside a check
+/// only feeds that check, so nesting changes nothing and there is no
+/// door that undoes it.
+///
+/// The role is this thread's for the call, [`map_detached`] hands it to
+/// its workers, and a panic inside `work` restores the outer role on
+/// unwind. Only the verdict channel and the symbolic recorder read it:
+/// an escalation is a refusal whatever the role of its reading, and a K
+/// sample is counted under its predicate's name alone.
+pub fn checking<R>(work: impl FnOnce() -> R) -> R {
+    in_role(Role::Check, work)
+}
+
+/// `work` with `role` this thread's role, unless the thread is already
+/// checking: a check scope is never reopened as a choice ([`checking`]).
+fn in_role<R>(role: Role, work: impl FnOnce() -> R) -> R {
+    struct Restore(Role);
     impl Drop for Restore {
         fn drop(&mut self) {
-            FAMILY.with(|f| f.set(self.0));
+            ROLE.with(|r| r.set(self.0));
         }
     }
-    let _restore = Restore(FAMILY.with(|f| f.replace(Some(family))));
+    let outer = ROLE.with(Cell::get);
+    let _restore = Restore(outer);
+    ROLE.with(|r| r.set(outer.max(role)));
     work()
 }
 
-/// The family verdicts are recorded under on this thread, if any
-/// ([`in_family`]); the symbolic recorder tags its decisions with it
-/// (`sym::revalue::Decision::family`).
-pub(crate) fn current_family() -> Option<&'static str> {
-    FAMILY.with(Cell::get)
+/// **Records `sign` under `name` as a verdict of this thread's role**,
+/// for an answer its caller builds from that is a function of decisions
+/// the funnel recorded as checks, so that no verdict states it
+/// (`topo`'s side reader: its rays are checks, which side they read is
+/// not). Inside a check scope it is a check like the rest.
+///
+/// Nothing is classified here and no margin is read, so no escalation
+/// and no K sample is recorded: the decisions the answer was read off
+/// carry those. The caller owes the argument that the answer is not
+/// stated by any verdict it recorded otherwise; a second record of a
+/// decided sign would read as two choices.
+pub fn answered(name: &'static str, sign: Sign) {
+    record_verdict(Verdict {
+        predicate: name,
+        sign,
+        role: current_role(),
+    });
 }
 
-/// `predicate`'s name under `family`: the family followed by the name,
-/// minted once per thread for each pair (the names a family can hold
-/// are the kernel's static predicate names, a bounded set).
-fn family_name(family: &'static str, predicate: &'static str) -> &'static str {
-    if predicate.starts_with(family) {
-        return predicate;
-    }
-    FAMILY_NAMES.with(|names| {
-        *names
-            .borrow_mut()
-            .entry((family, predicate))
-            .or_insert_with(|| Box::leak(format!("{family}{predicate}").into_boxed_str()))
-    })
+/// The role a decision taken now is recorded in ([`checking`]); the
+/// symbolic recorder tags its decisions with it
+/// (`sym::revalue::Decision::role`).
+pub(crate) fn current_role() -> Role {
+    ROLE.with(Cell::get)
 }
 
 /// One open bracket's frame: what it has recorded, and the id its guard
@@ -373,6 +398,7 @@ fn classify<T: Decide>(
         Ok(decided) => record_verdict(Verdict {
             predicate: name,
             sign: decided.sign,
+            role: current_role(),
         }),
         Err(source) => {
             record_escalation(*source);
@@ -438,10 +464,7 @@ fn identity_pass(name: &str) -> bool {
 /// Pushes one definite decision onto the innermost open frame — the
 /// only write to the verdict channel. With no frame open the verdict is
 /// recorded nowhere, which is what a decision outside every bracket is.
-fn record_verdict(mut verdict: Verdict) {
-    if let Some(family) = current_family() {
-        verdict.predicate = family_name(family, verdict.predicate);
-    }
+fn record_verdict(verdict: Verdict) {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             top.recorded.verdicts.push(verdict);
@@ -1184,16 +1207,20 @@ pub fn gate_measured<T: Real>(
     Ok(value)
 }
 
-/// One recorded predicate decision: the funnel's static name and the
-/// definite sign it classified to. Scalar-independent by construction
-/// (the N4 invariant's currency: same verdicts ⇒ same names at f64 AND
-/// Interval); float-free, so verdict vectors compare exactly.
+/// One recorded predicate decision: the funnel's static name, the
+/// definite sign it classified to, and what the decision does where it
+/// was taken. Scalar-independent by construction (the N4 invariant's
+/// currency: same verdicts ⇒ same names at f64 AND Interval);
+/// float-free, so verdict vectors compare exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Verdict {
     /// The predicate that decided (the funnel's static name).
     pub predicate: &'static str,
     /// The definite sign it returned.
     pub sign: Sign,
+    /// Whether its sign could change what the node builds or only
+    /// whether it refuses ([`Role`], stamped from [`checking`]).
+    pub role: Role,
 }
 
 /// One recorded indeterminate outcome: the funnel's static name and
@@ -1560,13 +1587,10 @@ pub fn map_detached<I: Sync, R: Send>(
         "map_detached reached with a symbolic session or shape report installed: the caller \
          owes the serial walk here (`sym::decisions_are_thread_portable`)"
     );
-    let family = current_family();
+    let role = current_role();
     items
         .par_iter()
-        .map(|item| match family {
-            Some(family) => in_family(family, || detached(|| run(item))),
-            None => detached(|| run(item)),
-        })
+        .map(|item| in_role(role, || detached(|| run(item))))
         .collect()
 }
 
@@ -2104,15 +2128,18 @@ mod tests {
             vec![
                 Verdict {
                     predicate: "vlog_a",
-                    sign: Sign::Positive
+                    sign: Sign::Positive,
+                    role: Role::Choice,
                 },
                 Verdict {
                     predicate: "vlog_b",
-                    sign: Sign::Negative
+                    sign: Sign::Negative,
+                    role: Role::Choice,
                 },
                 Verdict {
                     predicate: "vlog_c",
-                    sign: Sign::Zero
+                    sign: Sign::Zero,
+                    role: Role::Choice,
                 },
             ]
         );

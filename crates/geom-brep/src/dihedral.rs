@@ -500,30 +500,18 @@ fn signed_wedge<T: Real>(
     Margin::levered(n_plus.cross(n_minus).dot(tau.normalize()), arm)
 }
 
-/// The name a corner's sign is decided under when the reading is of the
-/// body's shape ([`crate::edge_wedge_over`]).
+/// The name a corner's sign is decided under ([`Corner::convexity`],
+/// read only through [`crate::edge_wedge_over`]).
 ///
-/// **What its verdicts are.** Each records which way one corner turns at
-/// one station, taken by tier 3's check 4, the boolean's shared-rim
-/// routing, and the extrude and revolve upgrades that describe an edge by
-/// its whole wedge (`topo::edge_wedge`, `topo::edge_wedge_description`).
-/// Its population is the body's mix of convex and concave stations, so
-/// an edit that trades corners of one turn for corners of the other (a
-/// through slot becoming a blind pocket) moves the population across
-/// signs although no corner turned, and a population diff cannot tell
-/// the two apart. A flip among them changes whether a body is accepted (a
-/// sign that turns along one edge, or reads in band), never which body
-/// was built, since a crease of either turn is described alike:
-/// `editor_core::resolve`'s flip lane passes over it, as it does over the
-/// side reader's family.
-///
-/// **A reader whose side builds records it under its own name.** The
-/// blend reads the same fold through [`crate::edge_wedge_over_as`] with
-/// its own [`crate::FoldNames`], `fillet3_convexity_sign` for a corner's
-/// sign and `fillet3_knife_end` for a tangency's end, since either picks
-/// the side its ball rolls on and so which body it builds; the split
-/// rule's sign stays on its own reading for the same reason. Neither is
-/// in this population, so the flip lane sees their flips.
+/// **One population, two roles.** Each verdict records which way one
+/// corner turns at one station. Tier 3's check 4 reads it off a body
+/// already built, under the at-rest doors' check scope; the boolean's
+/// shared-rim routing and the constructors that store an edge by its
+/// wedge (`topo::edge_wedge_description`) route a crease of either turn
+/// alike, so they record it as a check too ([`crate::FoldRoles`]). The
+/// blend builds from it, since the sign picks the side its ball rolls on,
+/// and records it as a choice. Which one a verdict is, the verdict says
+/// (`geom_core::k_stats::Role`); the name does not.
 pub const DIHEDRAL_SIGN: &str = "dihedral_sign";
 
 /// The name a dihedral's class is decided under ([`classify_dihedral`]):
@@ -539,9 +527,8 @@ pub const TANGENT_SECOND_ORDER: &str = "tangent_second_order";
 pub const MATERIAL_CUSP_SIDE: &str = "material_cusp_side";
 
 impl<T: Decide> Corner<T> {
-    /// **The corner's convexity** at `station`, decided as `name` (the
-    /// fold's reader's: [`DIHEDRAL_SIGN`] for a reading of the body's
-    /// shape, the blend's own name for its building decision): the signed wedge `((n₊ × n₋)·τ̂)·arm` over the
+    /// **The corner's convexity** at `station`, decided as
+    /// [`DIHEDRAL_SIGN`]: the signed wedge `((n₊ × n₋)·τ̂)·arm` over the
     /// token's normals, each turned outward by its face's `Face::sense`
     /// bit (`senses`, the plus face's first), with `τ̂` the station's
     /// direction, under [`Convexity`]'s convention: the plus face is the
@@ -569,14 +556,13 @@ impl<T: Decide> Corner<T> {
     /// [`WedgeRung::Sign`] in band, decided zero, or poisoned.
     pub(crate) fn convexity(
         &self,
-        name: &'static str,
         station: &Station<T>,
         senses: [bool; 2],
         band: Band,
     ) -> Result<(Convexity, geom_core::MarginDiag), WedgeEscalation> {
         let [n_plus, n_minus] = self.0.outward(senses);
         decide_nonzero_reported(
-            name,
+            DIHEDRAL_SIGN,
             signed_wedge(n_plus.vec(), n_minus.vec(), station.tau, self.0.arm),
             band,
         )

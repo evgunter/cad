@@ -12,8 +12,8 @@
 //! two-tolerance shape (D4 ¶1 addendum), on every arm, including the
 //! definite ones. Predicate 5, each requested edge's wedge, is the one
 //! read through another door: the edge's wedge fold
-//! (`topo::edge_wedge_as`), which decides each corner's sign under the
-//! blend's own `fillet3_convexity_sign`, and whose in-band or mixed
+//! (`topo::edge_wedge`), which decides each corner's sign as a choice
+//! (`dihedral_sign`), and whose in-band or mixed
 //! reading refuses as [`super::BlendError::WedgeUnsettled`].
 //!
 //! # The ordering claim, stated so it can be attacked
@@ -281,9 +281,9 @@ pub struct Link<T: Real> {
     pub convexity: Convexity,
     /// The margin that verdict was decided from, kept whole: the sign
     /// the edge's wedge fold decided at its first station
-    /// (`fillet3_convexity_sign`) on a crease, and on a knife link, whose
+    /// (`dihedral_sign`) on a crease, and on a knife link, whose
     /// faces meet smoothly, the end its convexity came from
-    /// (`fillet3_knife_end`).
+    /// (`material_cusp_side`).
     /// The chain's sign-consistency check refuses on a link whose
     /// verdict disagrees with the chain's, and the number that refusal
     /// owes its reader is THIS one — the reading the classifier
@@ -1141,13 +1141,9 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     // It is the edge's wedge read whole, as tier 3 reads it: every
     // station's class, every corner's sign, and on a tangency its
     // pairing and end, levered at the faces' extent. The sign and the
-    // end pick the side the ball rests on, so they are recorded under
-    // the blend's own names (`geom_brep::DIHEDRAL_SIGN`'s docs).
-    let names = geom_brep::FoldNames {
-        sign: BlendDecision::ConvexitySign.predicate(),
-        end: BlendDecision::KnifeEnd.predicate(),
-    };
-    let wedge = topo::edge_wedge_as(body, edge, band, names).ok_or_else(broken)?;
+    // end pick the side the ball rests on, so the blend reads them as
+    // choices (`geom_brep::FoldRoles::SIDE`).
+    let wedge = topo::edge_wedge(body, edge, band).ok_or_else(broken)?;
     let unsettled = |wedge| BlendError::WedgeUnsettled { edge, wedge };
     // A face's stored sense bit read STRUCTURALLY, never re-derived
     // from a normal: for a sphere the chart normal is the outward
@@ -1161,7 +1157,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (convexity, convexity_margin, branch) = match wedge {
         geom_brep::WedgeVerdict::Crease { convexity, margin } => (
             convexity,
-            decided_as(names.sign, convexity, margin, band),
+            decided_as(geom_brep::DIHEDRAL_SIGN, convexity, margin, band),
             Branch::Rim,
         ),
         geom_brep::WedgeVerdict::Seam { margin, .. } => {
@@ -1201,7 +1197,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
             let toward = inward_unit(n_a, tau.normalize());
             (
                 convexity,
-                decided_as(names.end, convexity, margin, band),
+                decided_as(geom_brep::MATERIAL_CUSP_SIDE, convexity, margin, band),
                 Branch::Knife(toward),
             )
         }

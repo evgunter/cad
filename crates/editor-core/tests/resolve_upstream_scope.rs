@@ -18,7 +18,7 @@ use editor_core::{
 use fixture::{insert, len, step};
 use geom_core::Sign;
 use geom_core::Tol;
-use geom_core::k_stats::Verdict;
+use geom_core::k_stats::{Role, Verdict};
 
 fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -307,6 +307,7 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     let verdict = |sign| Verdict {
         predicate: "bool_point_in_solid_plane",
         sign,
+        role: Role::Choice,
     };
     let (before, after, name) = collapsing_group(&doc, cut);
     let prior = two_node_eval(&doc, (cutter, vec![verdict(Sign::Negative)]), (cut, before));
@@ -426,6 +427,7 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     let verdict = |sign| Verdict {
         predicate: "bool_point_in_solid_plane",
         sign,
+        role: Role::Choice,
     };
     let (before, after, name) = collapsing_group(&doc, cut);
     let prior = hand_eval(
@@ -483,6 +485,7 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
     let verdict = |sign| Verdict {
         predicate: "bool_point_in_solid_plane",
         sign,
+        role: Role::Choice,
     };
     let prior = two_node_eval(&doc, (w, vec![verdict(Sign::Negative)]), (n, before));
     let now = two_node_eval(&doc2, (w, vec![verdict(Sign::Positive)]), (n, after));
@@ -646,6 +649,7 @@ fn the_border_delta_outranks_an_upstream_flip() {
     let verdict = |sign| Verdict {
         predicate: "bool_point_in_solid_plane",
         sign,
+        role: Role::Choice,
     };
     let prior = two_node_eval(&doc, (u, vec![verdict(Sign::Negative)]), (n, table(&old)));
     let now = two_node_eval(

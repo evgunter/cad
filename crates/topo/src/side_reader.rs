@@ -551,34 +551,51 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     band: Band,
     volume: impl FnOnce() -> Result<SolidContainment, V>,
 ) -> Result<Result<SolidContainment, SideUnread<V>>, PointInSolidError> {
-    match geom_core::k_stats::in_family(FAMILY, || cast_aims(body, sel, band))? {
-        Rays::Side(side) => Ok(Ok(side)),
-        Rays::InBand(pair) => Ok(Err(SideUnread::InBand(pair))),
-        Rays::Unread { aimed, set_aside } => Ok(volume().map_err(|volume| SideUnread::Fallback {
-            volume,
-            aimed,
-            set_aside,
-        })),
+    let read = match geom_core::k_stats::checking(|| cast_aims(body, sel, band))? {
+        Rays::Side(side) => Ok(side),
+        Rays::InBand(pair) => Err(SideUnread::InBand(pair)),
+        Rays::Unread { aimed, set_aside } => {
+            geom_core::k_stats::checking(volume).map_err(|volume| SideUnread::Fallback {
+                volume,
+                aimed,
+                set_aside,
+            })
+        }
+    };
+    if let Ok(side) = read {
+        geom_core::k_stats::answered(SIDE, side_sign(side));
     }
+    Ok(read)
 }
 
-/// **The family the ray caster's decisions are recorded under**
-/// ([`geom_core::k_stats::in_family`]): every verdict [`cast_aims`]
-/// decides — the aimed rays' crossings, their pair's gap
-/// (`side_at_infinity_order`) and the in-face and region walks it reads
-/// them through. The volume the reader falls back on lies outside it,
-/// under its own names: it is the document's measurement, not the rays'.
+/// **The name the reader's answer is recorded under**: which side it
+/// read, once per reading, as its caller's choice
+/// ([`geom_core::k_stats::answered`]).
 ///
-/// **What a flip among them can and cannot do.** The side a ray reads
-/// is the same for every ray from outside the body, so where one ray
-/// reads and another reads differently is a tie-break the band forbids
-/// the instrument to represent (`[verdicts]`). One verdict is no
-/// tie-break: `side_at_infinity_order` is a pair's gap, geometry, and its
-/// flip moves a ray between reading and refusing on that pair. Either
-/// way a flip in this family changes whether the side is read, never
-/// which side: it surfaces as a refusal, never as a piece that moved,
-/// so N5's flip lane passes over the family (`editor_core::resolve`).
-pub const FAMILY: &str = "side_at_infinity_";
+/// **Why its rays and its volume are checks, and its answer is not.**
+/// The side a ray reads is the same for every ray from outside the body,
+/// so where one ray reads and another reads differently is a tie-break
+/// the band forbids the instrument to represent (`[verdicts]`). One
+/// verdict is no tie-break: `side_at_infinity_order` is a pair's gap,
+/// geometry, and its other sign moves a ray between reading and refusing
+/// on that pair. Either way another sign among the rays changes whether
+/// the side is read, never which side, and the volume reads the same side
+/// where it reads: each can only make the reader refuse, so
+/// [`side_at_infinity`] records them in a check scope. Which side it
+/// read is what its caller builds from (a shell's role sorts the pieces;
+/// a point's side keeps or drops a piece), and that answer is a function
+/// of those checks no verdict states, so it is recorded once, here.
+pub const SIDE: &str = "side_at_infinity";
+
+/// The side as a sign: inside the material negative, outside positive,
+/// on the boundary zero.
+const fn side_sign(side: SolidContainment) -> geom_core::Sign {
+    match side {
+        SolidContainment::In => geom_core::Sign::Negative,
+        SolidContainment::OnBoundary => geom_core::Sign::Zero,
+        SolidContainment::Out => geom_core::Sign::Positive,
+    }
+}
 
 /// What one aimed ray's count reads in band: a pair, or a corner or a
 /// wedge it meets ([`cast_aims`]).

@@ -2,11 +2,10 @@
 id: verdict-log-tells-no-validation-reading-from-a-building-decision
 kind: issue
 title: The resolver's flip lane cannot tell a reading taken off an already-built body (tier 3, the rim's validation) from a decision that built the body, so each validation predicate whose sign counts move under an edit pre-empts the true cause unless it is hand-added to first_cause's pass-over list
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: M
-design: true
 ---
 
 
@@ -27,3 +26,16 @@ Both want weighing before a lane builds them, since this touches the resolver's 
 The wedge row owes moving `splitting::rules::edge_wedge`'s sign onto `geom_brep::Corner::convexity` (`work/onedoor/the-tier3-wedge-pass-and-the-census-compose-the-edge-wedge-door-again.md`). That sign is a building decision: it sends an in-plane edge's entry Above or Below, so it decides which body the split builds. `Corner::convexity` decides under `DIHEDRAL_SIGN`, which `editor_core::resolve::first_cause` passes over, so the move would hide a genuine flip of the split's decision from the flip lane. Stage 2 keeps the split rule's sign on `enters_material` for that reason. The constructors that do read `dihedral_sign` while building (`topo::edge_wedge_description`, read by the extrude and revolve upgrades) describe a crease of either turn alike, so the pass-over still holds for them. Marking the decision at its source, the first defect above, is what frees the split rule to move.
 
 The blend joins the split rule (ONEDOOR, wedge fold stage 3, 2026-11-13). Its convexity decides which side the ball rolls on and so which body it builds, so it reads the fold through `geom_brep::edge_wedge_over_as` with its own `FoldNames`: a corner's sign under `fillet3_convexity_sign` rather than `DIHEDRAL_SIGN`, a knife's end under `fillet3_knife_end` rather than `material_cusp_side`. Like the split rule, it keeps its own predicates until the decision is marked at its source. The fold's class (`dihedral_wedge`) and a tangency's pairing (`material_wedge_side`) also decide which body the blend builds (a crease or a knife gets a band, a seam is left as it is), and the blend reads them under tier 3's shared names: neither may join `first_cause`'s pass-over list while that holds.
+
+## Ruled (Ev, [ev] PR 7076, 2026-11-18)
+
+The merged N5 text in `crates/editor-core/src/names/README.md` ("Diagnosis is computable because …") is the spec: every logged decision says, from where it is taken, whether it is a choice or a check; a flip is the first choice two runs of a node take differently along one recorded path; checks are not read; `resolve/vdiff.rs` holds the comparison.
+
+Ev, on the PR:
+
+> nice, this sounds like a real improvement!
+> not sure if the logged decisions should have a tag (or be different enum values?) or if we should store checks and choices separately / otherwise make the distinction even stronger. whatever seems like it makes sense in context
+
+The orchestrator's merge note, on the same PR:
+
+> Thanks, merged. The README text is representation-neutral: it says what each decision *is*, not how it is stored. So the build picks the encoding (a tag, distinct enum arms, or separate storage), whichever makes the distinction hardest to blur. It argues the choice in its PR. It measures which resolver, drive and range rows move before it pins anything.

@@ -65,7 +65,7 @@
 //!
 //! A leaf that is fully definite on a DIFFERENT vector is not a
 //! failure of the analysis — it is the finding. It refuses
-//! [`RefusalReason::FlipCrossing`], and the flipped predicates are
+//! [`RefusalReason::FlipCrossing`], and the decision that turned is
 //! NAMED by `resolve::vdiff` — the verdict-diff engine this tree
 //! declares built once — rather than by a second diff of this
 //! module's own (no-flips v1: no branch enumeration, no analysis of
@@ -496,8 +496,8 @@ impl Default for DriveConfig {
 /// nodes that only report left out.
 ///
 /// A free function and not a method on the strict form: the form is
-/// `resolve::vdiff`'s, beside the population form it is the counterpart
-/// of, and WHICH ROWS A GATE EXCLUDES is this driver's policy. One node
+/// `resolve::vdiff`'s, beside the first-turn reading it is the
+/// counterpart of, and WHICH ROWS A GATE EXCLUDES is this driver's policy. One node
 /// kind qualifies and it is [`Node::Assertion`]: an assertion checks
 /// and never places (D10), so a leaf whose verdict differs from the
 /// witness's is not a different build. Its comparison's escalation is
@@ -531,28 +531,23 @@ pub fn certifying_vector<T: topo::AtRestPolicy + geom_core::Decide, P>(
 /// `Evaluation<U>`), which is exactly the f64-witness-against-
 /// interval-leaf comparison this driver makes. Nothing here re-diffs.
 ///
-/// **Why not a positional pairing**, which is what this driver first
-/// shipped: `vdiff`'s own module docs rule it out, and the argument
-/// applies here unchanged. Construction order inside an op is itself
-/// steered by recorded exact-order predicates, so a legitimate flip can
-/// permute the entire remaining decision sequence — and a positional
-/// pairing then reports pure permutation noise as flips and misses the
-/// real ones. The engine compares per-predicate sign POPULATIONS, which
-/// are permutation-invariant; the residual is the net verdict change.
-/// Its documented blind spot rides along with it: two instances of one
-/// predicate trading opposite signs inside one node cancel.
+/// **What it names**: per node, the first choice the witness and the
+/// leaf take differently, where it is one predicate's sign
+/// (`resolve::first_turn`). Up to that choice the two took one path, so
+/// whatever follows it, permuted or recounted, is not read; a check is
+/// never read, since another sign there could only refuse the leaf. A
+/// node whose choices part another way names nothing.
 ///
-/// **The blind spot cannot weaken a certificate**, because certification
+/// **What it reads cannot weaken a certificate**, because certification
 /// does not consult this at all. A leaf certifies on EXACT
-/// [`VerdictVector`] equality (that type's own docs say why the two
-/// questions want two shapes); this evidence only NAMES a divergence
-/// the strict comparison already found. The strict test gates; the
-/// permutation-invariant engine explains.
+/// [`VerdictVector`] equality, checks included (that type's own docs say
+/// why the two questions want two shapes); this evidence only NAMES a
+/// divergence the strict comparison already found. The strict test
+/// gates; the first turn explains.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlipEvidence {
-    /// The verdict-diff engine's answer: per node, the net sign flips
-    /// and the structurally-diverged predicates, plus each node's
-    /// standing in the two runs.
+    /// The verdict-diff engine's answer: per node, its first turn and
+    /// its standing in the two runs.
     pub verdicts: FlipSet,
     /// Guided structure decisions the lane classified DEFINITELY
     /// otherwise. Not verdict rows — a consumed elaboration decision is
@@ -566,8 +561,8 @@ impl FlipEvidence {
     ///
     /// An empty evidence set is possible and is honest rather than a
     /// bug: the leaf's verdict VECTOR differs from the witness's (that
-    /// is why it refused at all), and the population engine's blind
-    /// spot — a pure sign exchange within one node — nets to nothing.
+    /// is why it refused at all), but no node's choices turned on a
+    /// sign: they differ only in checks, or part on another predicate.
     /// The receipt prose says so rather than implying that a named
     /// cause always exists.
     pub fn is_empty(&self) -> bool {
@@ -1281,7 +1276,7 @@ pub fn drive(
     let witness_key = witness_vector.key();
     // The witness EVALUATION stays alive for the whole drive, not just
     // long enough to take its vector: `diff_verdicts` names a leaf's
-    // flips against it, and the engine takes the two evaluations rather
+    // turns against it, and the engine takes the two evaluations rather
     // than two digests of them. One build's worth of geometry, held
     // once per drive.
 
@@ -1973,8 +1968,7 @@ fn render_reason(r: &RefusalReason) -> String {
         RefusalReason::FlipCrossing { flipped } => {
             let mut s = String::from("flip_crossing");
             // Deterministic by construction: `FlipSet` is a `BTreeMap`
-            // by node id, and each node's flips and divergences are
-            // already sorted by the engine.
+            // by node id, with at most one turn per node.
             for (node, delta) in &flipped.verdicts.nodes {
                 if delta.old_status != delta.new_status {
                     let _ = write!(
@@ -1985,25 +1979,14 @@ fn render_reason(r: &RefusalReason) -> String {
                         delta.new_status
                     );
                 }
-                for f in &delta.flips {
+                if let Some(f) = delta.flip {
                     let _ = write!(
                         s,
-                        " {}:{}:{:?}->{:?}x{}",
+                        " {}:{}:{:?}->{:?}",
                         node.full(),
                         f.predicate,
                         f.from,
-                        f.to,
-                        f.count
-                    );
-                }
-                for d in &delta.diverged {
-                    let _ = write!(
-                        s,
-                        " {}:{}:count {}->{}",
-                        node.full(),
-                        d.predicate,
-                        d.old_count,
-                        d.new_count
+                        f.to
                     );
                 }
             }
@@ -2011,10 +1994,10 @@ fn render_reason(r: &RefusalReason) -> String {
                 let _ = write!(s, " {}:structure:{:?}", f.node.full(), f.refusal.decision);
             }
             if flipped.is_empty() {
-                // The population engine's blind spot netted to nothing.
-                // Said out loud in the goldening form, because a bare
-                // `flip_crossing` would read as "no evidence gathered"
-                // rather than "the evidence cancelled".
+                // No node's choices turned on a sign. Said out loud in
+                // the goldening form, because a bare `flip_crossing`
+                // would read as "no evidence gathered" rather than "no
+                // turn found".
                 s.push_str(" unnamed");
             }
             s

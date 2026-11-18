@@ -528,8 +528,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// records the new ε in the document — a pure value edit, and a
     /// STRUCTURAL one (ε parameterizes every content key: the full
     /// cone recomputes). The audit semantics — persist-grade replay
-    /// at the new ε plus the PR 4 diff engine's flipped-predicate
-    /// report — necessarily SPAN processes: one process hosts one ε
+    /// at the new ε plus a report of where each predicate's sign
+    /// counts moved — necessarily SPAN processes: one process hosts one ε
     /// (`geom_core::Tolerance` commits once), so the replay happens
     /// in a fresh process (save → load) and the two runs' serialized
     /// verdict summaries diff through

@@ -3,76 +3,74 @@
 //! One call signature: [`diff_verdicts`]`(old-run, new-run)` → the
 //! [`FlipSet`], localizable to derivation paths. The engine is
 //! deliberately cause-agnostic: the same diff runs whether the two
-//! runs differ by a parameter edit, an ε change ([`SetTolerance`]'s
-//! audit — PR 6 reuses this untouched), or a recipe edit. Its
-//! consumers in this PR are (a) `Diagnosis::PredicateFlip`
-//! attribution for `Vanished` names and (b) the `SetTolerance`
-//! apply/report semantics ([`FlipSet::report`]).
+//! runs differ by a parameter edit, an ε change, or a recipe edit. Its
+//! consumers are `Diagnosis::PredicateFlip` attribution for `Vanished`
+//! names, and the subdivision driver's and the range reading's
+//! `FlipCrossing` evidence.
 //!
 //! Why the diff is well-defined (N5): both evaluations carry their
-//! verdict logs ([`crate::eval::NodeValue::verdicts`] — k_stats names
-//! and definite signs), and D9 replay determinism makes each node's
-//! decision sequence a pure function of its inputs.
+//! verdict logs ([`crate::eval::NodeValue::verdicts`] — k_stats names,
+//! definite signs and roles), and D9 replay determinism makes each
+//! node's decision sequence a pure function of its inputs.
 //!
-//! # Alignment: per-predicate sign populations, not positions
+//! # The first turn
 //!
-//! Two runs of a node are compared PER PREDICATE by their sign
-//! POPULATIONS (how many Negative/Zero/Positive verdicts each run
-//! recorded), never by log position. Positional pairing — global or
-//! per-predicate — is unsound here by the kernel's own rules: the
-//! construction order inside an op is itself steered by recorded
-//! exact-order predicates, so a legitimate flip can permute the
-//! entire remaining decision sequence, and positional pairing then
-//! reports pure permutation noise as flips. Populations are
-//! permutation-invariant: matched signs cancel, and the residual —
-//! signs present in one run but not the other — is exactly the NET
-//! verdict change at that node. Residuals pair canonically
-//! (ascending sign order, old against new) into [`VerdictFlip`]s
-//! with multiplicity; an instance-count change is additionally
-//! recorded as a [`PredicateDivergence`] (the predicate ran a
-//! different number of times — a structural change, reported, never
-//! guessed about).
+//! Every verdict says, from where it was taken, whether it is a
+//! **choice** (another sign can change what the node builds or names)
+//! or a **check** (it can only make the node refuse):
+//! [`geom_core::k_stats::Role`]. Checks are not read. A node's two runs
+//! are read along their choices in decision order, and the flip is the
+//! FIRST choice they take differently: after an identical stretch of
+//! choices, the same predicate decided with the other sign
+//! ([`first_turn`]). Up to that choice the two runs took one path, so
+//! the turn is where they parted, and everything after it — however it
+//! is permuted, whatever it counts — is downstream of it and is not
+//! read. Two runs whose choices part any other way (another predicate
+//! at the first difference, or one log ending before the other) name
+//! no flip: their paths parted at something the log does not state.
 //!
-//! When the decision structure is stable (the ε-audit's common case:
-//! same recipe, same construction, a handful of margins re-classified)
-//! the residual IS the exact flip list. The documented blind spot:
-//! two instances of one predicate trading opposite signs in one node
-//! cancel — a pure exchange has no net population change, yet it CAN
-//! change names while this engine reports no flip (two
-//! `name_frag_on_member_edge` probes flipping in opposite directions
-//! cancel exactly, yet the names they decide change). A `Vanished` attribution
-//! then sees an empty [`FlipSet`] and rests on the later ladder rungs —
-//! the border delta for a face piece, which reads the names rather than
-//! the log (`super::border_delta`), the group-size rung
-//! (`super::group_resized`), or the cause-not-in-evidence fallback
-//! (`super` module docs, "Low-evidence diagnosis"). The PR 6 audit
-//! inherits the caveat with this paragraph as its record.
+//! **One recorded path, and what can fake one.** The stretch before the
+//! turn is identical choice for choice, so both runs reached the turn
+//! by the same logged decisions. What the log cannot show is a branch
+//! taken with no logged decision: a candidate filter (the boolean's BVH
+//! sweep and the census prune pairs by box overlap and decide nothing),
+//! a heuristic's [`geom_core::k_stats::choose`] or an
+//! [`geom_core::k_stats::unlogged`] reading. Such a branch can steer
+//! what is enumerated later while the logged prefix stays identical, so
+//! a first difference past it may sit on a different candidate than
+//! the one its twin decided. The first difference is then read as a
+//! turn only where the same predicate meets the other sign there; where
+//! the pruning changed which predicate comes next, it names nothing.
+//! The residue is a pruned enumeration that brings the same predicate
+//! to the same position on another candidate with the other sign.
 //!
 //! # The two derived forms, in one module
 //!
 //! A node's verdict log is the substrate, and this module holds BOTH
-//! shapes derived from it: the per-predicate sign POPULATIONS above
-//! ([`NodeVerdicts`], [`VerdictSummary`]) and the ordered STRICT form
-//! at the foot of this file ([`VerdictVector`], keyed by
-//! [`VerdictVectorKey`]). They answer different questions and neither
-//! subsumes the other — [`VerdictVector`]'s docs argue the split — but
-//! they share an outcome tag ([`RunStatus`]) and they are read off the
-//! same runs, so they are argued against each other here rather than
-//! drifting apart in two modules. A third shape over this substrate
-//! belongs in this file too, or not at all.
+//! shapes derived from it: the first-turn reading above ([`FlipSet`])
+//! and the ordered STRICT form at the foot of this file
+//! ([`VerdictVector`], keyed by [`VerdictVectorKey`]). They answer
+//! different questions and neither subsumes the other —
+//! [`VerdictVector`]'s docs argue the split — but they share an outcome
+//! tag ([`RunStatus`]) and they are read off the same runs, so they are
+//! argued against each other here rather than drifting apart in two
+//! modules.
 //!
-//! Only the population form is persisted ([`VerdictSummary`], the ε
-//! audit's cross-process seam); the strict form is derived at every
-//! use and stored nowhere (E10). A node's escalations
+//! The ε audit's cross-process seam is a third projection, the
+//! per-predicate sign POPULATIONS ([`VerdictSummary`]), persisted
+//! because one process hosts one ε. Its diff ([`diff_summaries`])
+//! reports where counts moved between signs ([`SummaryShift`]), which
+//! is not a flip: instances of one predicate can trade signs (a through
+//! slot becoming a blind pocket trades convex corners for concave ones)
+//! with no decision turning. A node's escalations
 //! ([`crate::eval::NodeValue::escalations`], the frame's other channel)
 //! are not persisted either and have no population form: an escalation
-//! is a fact about one run at one box, read in hand by the
-//! subdivision driver, never a population to compare across runs.
-//!
-//! [`SetTolerance`]: crate::edit::DocEdit
+//! is a fact about one run at one box, read in hand by the subdivision
+//! driver, never a population to compare across runs.
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use geom_core::k_stats::{Role, Verdict};
 use geom_core::{Decide, Sign};
 
 use crate::eval::{Evaluation, KeyHasher, NodeStanding};
@@ -81,13 +79,13 @@ use crate::node::RecipeNodeId;
 
 use super::derivation_nodes;
 
-/// A node's outcome in one run — the tag BOTH derived forms carry: the
-/// population form's [`NodeVerdicts::status`] and the strict form's
+/// A node's outcome in one run — the tag every derived form carries:
+/// [`NodeVerdictDelta`]'s, the population form's
+/// [`NodeVerdicts::status`] and the strict form's
 /// [`VerdictRow::outcome`]. `Ok`, or the kind of the node's
 /// [`NodeStanding`] (`Absent` is its `NotEvaluated` and its
-/// `NotInDocument`), read off
-/// [`Evaluation::usable`] by [`status`], so the two forms cannot
-/// disagree about a node's standing.
+/// `NotInDocument`), read off [`Evaluation::usable`] by [`status`], so
+/// the forms cannot disagree about a node's standing.
 ///
 /// Serializable: it rides in [`VerdictSummary`], the cross-process ε
 /// audit's persist-grade seam. Its key tag bytes are chosen at
@@ -105,34 +103,39 @@ pub enum RunStatus {
     Absent,
 }
 
-/// One net verdict flip at a node: `count` instances of `predicate`
-/// decided `from` in the old run where the new run decided `to`
-/// (population residuals, canonically paired — module docs). The
+/// **A node's flip**: the first choice its two runs take differently,
+/// where they part on one predicate's sign ([`first_turn`]). The
 /// pillar's recorded change site, N5's `PredicateFlip` payload.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VerdictFlip {
-    /// The predicate that flipped (k_stats static name).
+    /// The predicate that turned (k_stats static name).
     pub predicate: &'static str,
-    /// Its net old-run sign.
+    /// The sign the old run decided.
     pub from: Sign,
-    /// Its net new-run sign.
+    /// The sign the new run decided.
     pub to: Sign,
-    /// How many instances made this transition (net).
-    pub count: u32,
 }
 
-/// A predicate whose instance count differs between the two runs at
-/// one node: the decision structure changed there (the predicate ran
-/// a different number of times). Reported alongside any pairable
-/// net flips, never silently absorbed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PredicateDivergence {
-    /// The structurally-diverged predicate.
-    pub predicate: &'static str,
-    /// Its instance count in the old run.
-    pub old_count: u32,
-    /// Its instance count in the new run.
-    pub new_count: u32,
+/// **The first turn between two runs' verdict logs** (module docs): the
+/// first choice the two take differently, read along their choices in
+/// decision order, where it is the same predicate decided with the other
+/// sign. `None` where the choices agree throughout, or part on another
+/// predicate, or one log ends first. Checks are not read.
+#[must_use]
+pub fn first_turn(old: &[Verdict], new: &[Verdict]) -> Option<VerdictFlip> {
+    let choices = |log: &[Verdict]| {
+        log.iter()
+            .filter(|v| v.role == Role::Choice)
+            .copied()
+            .collect::<Vec<_>>()
+    };
+    let (old, new) = (choices(old), choices(new));
+    let (a, b) = old.iter().zip(&new).find(|(a, b)| a != b)?;
+    (a.predicate == b.predicate).then_some(VerdictFlip {
+        predicate: a.predicate,
+        from: a.sign,
+        to: b.sign,
+    })
 }
 
 /// One node's verdict delta between two runs.
@@ -142,24 +145,14 @@ pub struct NodeVerdictDelta {
     pub old_status: RunStatus,
     /// The node's standing in the new run.
     pub new_status: RunStatus,
-    /// Net sign changes, ordered by predicate name then (from, to)
-    /// (deterministic).
-    pub flips: Vec<VerdictFlip>,
-    /// Count-changed predicates, ordered by name.
-    pub diverged: Vec<PredicateDivergence>,
+    /// The node's flip, where both runs hold its log and their choices
+    /// part on a sign ([`first_turn`]).
+    pub flip: Option<VerdictFlip>,
 }
 
-impl NodeVerdictDelta {
-    /// Whether this delta records any difference at all.
-    pub fn is_empty(&self) -> bool {
-        self.old_status == self.new_status && self.flips.is_empty() && self.diverged.is_empty()
-    }
-}
-
-/// The diff engine's output: per-node verdict deltas, only for nodes
-/// where SOMETHING differs (statuses, flips, or divergence).
-/// Deterministic by construction (`BTreeMap`, canonical order within
-/// nodes).
+/// The diff engine's output: per-node deltas, only for nodes whose
+/// standing differs or that flipped. Deterministic by construction
+/// (`BTreeMap`).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlipSet {
     /// The differing nodes' deltas, ascending by node id.
@@ -167,25 +160,21 @@ pub struct FlipSet {
 }
 
 impl FlipSet {
-    /// True when the two runs' verdict populations (and node
-    /// standings) are identical — the no-flip certificate.
+    /// True when no node's standing differs and none flipped.
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
     }
 
-    /// The flips recorded at one node (empty when none).
-    pub fn flips_at(&self, node: RecipeNodeId) -> &[VerdictFlip] {
-        self.nodes.get(&node).map_or(&[], |d| d.flips.as_slice())
+    /// The flip at one node, if it flipped.
+    pub fn flip_at(&self, node: RecipeNodeId) -> Option<VerdictFlip> {
+        self.nodes.get(&node).and_then(|d| d.flip)
     }
 
-    /// Every flip, deterministically ordered (node id ascending, then
-    /// the per-node canonical order) — the `SetTolerance` audit's
-    /// "exactly the flipped predicates" report (PR 6 wires the
-    /// recorded-ε edit to this; the ambient-ε mechanism feeds it now).
+    /// Every flip, in node id order.
     pub fn report(&self) -> Vec<(RecipeNodeId, VerdictFlip)> {
         self.nodes
             .iter()
-            .flat_map(|(&id, d)| d.flips.iter().map(move |f| (id, *f)))
+            .filter_map(|(&id, d)| d.flip.map(|f| (id, f)))
             .collect()
     }
 
@@ -197,7 +186,7 @@ impl FlipSet {
         self.nodes
             .iter()
             .filter(|(id, _)| nodes.contains(id))
-            .flat_map(|(&id, d)| d.flips.iter().map(move |f| (id, *f)))
+            .filter_map(|(&id, d)| d.flip.map(|f| (id, f)))
             .collect()
     }
 
@@ -238,13 +227,14 @@ fn sign_ix(s: Sign) -> usize {
 }
 
 /// Diffs two evaluations' verdict logs (spec D2 — THE engine, built
-/// once). Scalar-generic on BOTH sides independently: verdict logs
-/// are scalar-independent data, and a node logs the same passes at
-/// every scalar (a profile's `f64` lane logs the second pass it skips,
-/// [`crate::ProfileLane`]), so f64 runs, Interval runs, and mixtures
-/// diff identically; the caller chooses what the two runs differ by
-/// (parameter edit, ε change, recipe edit) and this function does not
-/// care.
+/// once): each node's standing in the two runs and, where both hold its
+/// log, its [`first_turn`]. Scalar-generic on BOTH sides independently:
+/// verdict logs are scalar-independent data, and a node logs the same
+/// passes at every scalar (a profile's `f64` lane logs the second pass
+/// it skips, [`crate::ProfileLane`]), so f64 runs, Interval runs, and
+/// mixtures diff identically; the caller chooses what the two runs
+/// differ by (parameter edit, ε change, recipe edit) and this function
+/// does not care.
 pub fn diff_verdicts<T: topo::AtRestPolicy + Decide, U: topo::AtRestPolicy + Decide>(
     old: &Evaluation<T>,
     new: &Evaluation<U>,
@@ -253,47 +243,28 @@ pub fn diff_verdicts<T: topo::AtRestPolicy + Decide, U: topo::AtRestPolicy + Dec
     let mut out = BTreeMap::new();
     for id in ids {
         let (old_status, new_status) = (status(old, id), status(new, id));
-        let mut delta = NodeVerdictDelta {
-            old_status,
-            new_status,
-            flips: Vec::new(),
-            diverged: Vec::new(),
+        let flip = match (old.value(id), new.value(id)) {
+            (Some(a), Some(b)) => first_turn(&a.verdicts, &b.verdicts),
+            _ => None,
         };
-        if let (Some(a), Some(b)) = (old.value(id), new.value(id))
-            && a.verdicts != b.verdicts
-        {
-            let (pa, pb) = (populations(&a.verdicts), populations(&b.verdicts));
-            let (flips, diverged) = diff_populations(&pa, &pb);
-            delta.flips = flips
-                .into_iter()
-                .map(|(predicate, from, to, count)| VerdictFlip {
-                    predicate,
-                    from,
-                    to,
-                    count,
-                })
-                .collect();
-            delta.diverged = diverged
-                .into_iter()
-                .map(|(predicate, old_count, new_count)| PredicateDivergence {
-                    predicate,
-                    old_count,
-                    new_count,
-                })
-                .collect();
-        }
-        if !delta.is_empty() {
-            out.insert(id, delta);
+        if old_status != new_status || flip.is_some() {
+            out.insert(
+                id,
+                NodeVerdictDelta {
+                    old_status,
+                    new_status,
+                    flip,
+                },
+            );
         }
     }
     FlipSet { nodes: out }
 }
 
-/// A verdict log's per-predicate sign populations — the projection
-/// [`diff_populations`] consumes, written once so the in-process
-/// engine ([`diff_verdicts`]) and the persisted summary
-/// ([`verdict_summary`]) count the same way.
-fn populations(log: &[geom_core::k_stats::Verdict]) -> BTreeMap<&'static str, [u32; 3]> {
+/// A verdict log's per-predicate sign populations, checks and choices
+/// alike — the projection [`verdict_summary`] persists and
+/// [`diff_populations`] compares.
+fn populations(log: &[Verdict]) -> BTreeMap<&'static str, [u32; 3]> {
     let mut m: BTreeMap<&'static str, [u32; 3]> = BTreeMap::new();
     for v in log {
         m.entry(v.predicate).or_default()[sign_ix(v.sign)] += 1;
@@ -301,22 +272,19 @@ fn populations(log: &[geom_core::k_stats::Verdict]) -> BTreeMap<&'static str, [u
     m
 }
 
-/// THE population-diff core (module docs): per-predicate sign
+/// The population diff ([`diff_summaries`]): per-predicate sign
 /// populations cancel matched signs; residuals pair canonically
-/// (ascending sign order, old against new) into net flips with
-/// multiplicity; unbalanced totals report as divergence. Generic over
-/// the predicate-name type so the in-process engine (`&'static str`,
-/// [`diff_verdicts`]) and the persist-grade cross-process audit
-/// (`String`, [`diff_summaries`]) are the SAME math — built once,
-/// spec D2.
+/// (ascending sign order, old against new) into shifts with
+/// multiplicity; unbalanced totals report as divergence. A shift is
+/// where counts moved, not a decision that turned (module docs).
 #[allow(clippy::type_complexity)]
-fn diff_populations<N: Ord + Clone>(
-    pa: &BTreeMap<N, [u32; 3]>,
-    pb: &BTreeMap<N, [u32; 3]>,
-) -> (Vec<(N, Sign, Sign, u32)>, Vec<(N, u32, u32)>) {
-    let mut flips = Vec::new();
+fn diff_populations(
+    pa: &BTreeMap<String, [u32; 3]>,
+    pb: &BTreeMap<String, [u32; 3]>,
+) -> (Vec<(String, Sign, Sign, u32)>, Vec<(String, u32, u32)>) {
+    let mut shifts = Vec::new();
     let mut diverged = Vec::new();
-    let predicates: BTreeSet<&N> = pa.keys().chain(pb.keys()).collect();
+    let predicates: BTreeSet<&String> = pa.keys().chain(pb.keys()).collect();
     for predicate in predicates {
         let ca = pa.get(predicate).copied().unwrap_or_default();
         let cb = pb.get(predicate).copied().unwrap_or_default();
@@ -335,13 +303,13 @@ fn diff_populations<N: Ord + Clone>(
             }
         }
         // Canonical pairing: ascending sign order both sides; grouped
-        // runs zip into net flips with multiplicity.
+        // runs zip into shifts with multiplicity.
         let mut oi = old_surplus.into_iter();
         let mut ni = new_surplus.into_iter();
         let (mut o, mut n) = (oi.next(), ni.next());
         while let (Some((fs, fc)), Some((ts, tc))) = (o, n) {
             let take = fc.min(tc);
-            flips.push((predicate.clone(), fs, ts, take));
+            shifts.push((predicate.clone(), fs, ts, take));
             o = if fc > take {
                 Some((fs, fc - take))
             } else {
@@ -359,7 +327,7 @@ fn diff_populations<N: Ord + Clone>(
             diverged.push((predicate.clone(), ta, tb));
         }
     }
-    (flips, diverged)
+    (shifts, diverged)
 }
 
 /// One node's verdict POPULATIONS in one run — status plus, for each
@@ -380,9 +348,8 @@ pub struct NodeVerdicts {
 /// SERIALIZABLE run summary the SetTolerance audit ships between
 /// processes. One process hosts one ε, so the two runs of an ε audit
 /// can never share an address space; each run summarizes itself with
-/// [`verdict_summary`], and [`diff_summaries`] — the same population
-/// math as [`diff_verdicts`], via one shared core — reports exactly
-/// the flipped predicates.
+/// [`verdict_summary`], and [`diff_summaries`] reports where each
+/// predicate's sign counts moved.
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct VerdictSummary {
@@ -395,10 +362,6 @@ pub struct VerdictSummary {
 pub fn verdict_summary<T: topo::AtRestPolicy + Decide>(run: &Evaluation<T>) -> VerdictSummary {
     let mut nodes = BTreeMap::new();
     for &id in &run.order {
-        // The SAME projection the in-process engine counts with
-        // ([`populations`]), re-keyed to the owned names the persisted
-        // form carries. A second counting loop here is how the two
-        // forms would drift.
         let populations: BTreeMap<String, [u32; 3]> = run
             .value(id)
             .map(|v| {
@@ -419,22 +382,25 @@ pub fn verdict_summary<T: topo::AtRestPolicy + Decide>(run: &Evaluation<T>) -> V
     VerdictSummary { nodes }
 }
 
-/// One net verdict flip in a summary diff ([`VerdictFlip`]'s
-/// owned-name twin; the audit report's row).
+/// **Where one predicate's counts moved between signs** in a summary
+/// diff: `count` more instances decided `to` in the new run, and that
+/// many fewer `from`, net (the audit report's row). Not a flip: the
+/// instances may be different decisions, one gone and another of the
+/// other sign come (module docs).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SummaryFlip {
-    /// The predicate that flipped.
+pub struct SummaryShift {
+    /// The predicate whose counts moved.
     pub predicate: String,
-    /// Its net old-run sign.
+    /// The sign the old run decided more often.
     pub from: Sign,
-    /// Its net new-run sign.
+    /// The sign the new run decided more often.
     pub to: Sign,
-    /// How many instances made this transition (net).
+    /// How many instances moved (net).
     pub count: u32,
 }
 
-/// A count-diverged predicate in a summary diff
-/// ([`PredicateDivergence`]'s owned-name twin).
+/// A predicate whose instance count differs between two summarized
+/// runs at one node: it ran a different number of times.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SummaryDivergence {
     /// The structurally-diverged predicate.
@@ -453,41 +419,40 @@ pub struct SummaryDelta {
     pub old_status: RunStatus,
     /// The node's standing in the new run.
     pub new_status: RunStatus,
-    /// Net sign changes, canonical order.
-    pub flips: Vec<SummaryFlip>,
+    /// Net count moves between signs, canonical order.
+    pub shifts: Vec<SummaryShift>,
     /// Count-changed predicates, ordered by name.
     pub diverged: Vec<SummaryDivergence>,
 }
 
-/// The summary diff's output — [`FlipSet`]'s cross-process twin.
+/// The summary diff's output: per node, where its counts moved.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SummaryFlipSet {
+pub struct SummaryDiff {
     /// The differing nodes' deltas, ascending by node id.
     pub nodes: BTreeMap<RecipeNodeId, SummaryDelta>,
 }
 
-impl SummaryFlipSet {
-    /// True when nothing differs (the no-flip certificate).
+impl SummaryDiff {
+    /// True when nothing differs: no standing, no count.
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
     }
 
-    /// Every flip, deterministically ordered — "exactly the flipped
-    /// predicates", the SetTolerance audit's report (spec D4/D6.2).
-    pub fn report(&self) -> Vec<(RecipeNodeId, SummaryFlip)> {
+    /// Every shift, deterministically ordered — the SetTolerance audit's
+    /// report (spec D4/D6.2).
+    pub fn report(&self) -> Vec<(RecipeNodeId, SummaryShift)> {
         self.nodes
             .iter()
-            .flat_map(|(&id, d)| d.flips.iter().map(move |f| (id, f.clone())))
+            .flat_map(|(&id, d)| d.shifts.iter().map(move |f| (id, f.clone())))
             .collect()
     }
 }
 
 /// Diffs two runs' serialized verdict summaries — the SetTolerance
-/// audit's engine call (M4 PR 6 spec D4, discharging PR 4 review
-/// Finding 6's wait). Same population math as [`diff_verdicts`]
-/// (one shared core, [`diff_populations`]); the summaries typically
-/// come from two processes committed to different ε values.
-pub fn diff_summaries(old: &VerdictSummary, new: &VerdictSummary) -> SummaryFlipSet {
+/// audit's engine call (M4 PR 6 spec D4): where each node's counts
+/// moved ([`diff_populations`]). The summaries typically come from two
+/// processes committed to different ε values.
+pub fn diff_summaries(old: &VerdictSummary, new: &VerdictSummary) -> SummaryDiff {
     let ids: BTreeSet<RecipeNodeId> = old.nodes.keys().chain(new.nodes.keys()).copied().collect();
     let mut out = BTreeMap::new();
     let empty: BTreeMap<String, [u32; 3]> = BTreeMap::new();
@@ -500,7 +465,7 @@ pub fn diff_summaries(old: &VerdictSummary, new: &VerdictSummary) -> SummaryFlip
             .nodes
             .get(&id)
             .map_or((RunStatus::Absent, &empty), |n| (n.status, &n.populations));
-        let (flips, diverged) = if old_status == RunStatus::Ok && new_status == RunStatus::Ok {
+        let (shifts, diverged) = if old_status == RunStatus::Ok && new_status == RunStatus::Ok {
             diff_populations(pa, pb)
         } else {
             (Vec::new(), Vec::new())
@@ -508,9 +473,9 @@ pub fn diff_summaries(old: &VerdictSummary, new: &VerdictSummary) -> SummaryFlip
         let delta = SummaryDelta {
             old_status,
             new_status,
-            flips: flips
+            shifts: shifts
                 .into_iter()
-                .map(|(predicate, from, to, count)| SummaryFlip {
+                .map(|(predicate, from, to, count)| SummaryShift {
                     predicate,
                     from,
                     to,
@@ -527,13 +492,13 @@ pub fn diff_summaries(old: &VerdictSummary, new: &VerdictSummary) -> SummaryFlip
                 .collect(),
         };
         if delta.old_status != delta.new_status
-            || !delta.flips.is_empty()
+            || !delta.shifts.is_empty()
             || !delta.diverged.is_empty()
         {
             out.insert(id, delta);
         }
     }
-    SummaryFlipSet { nodes: out }
+    SummaryDiff { nodes: out }
 }
 
 // ---------------------------------------------------------------
@@ -547,8 +512,9 @@ pub struct VerdictRow {
     pub node: RecipeNodeId,
     /// Its standing in the run.
     pub outcome: RunStatus,
-    /// Every definite decision it made, in decision order.
-    pub verdicts: Vec<geom_core::k_stats::Verdict>,
+    /// Every definite decision it made, choices and checks, in decision
+    /// order.
+    pub verdicts: Vec<Verdict>,
 }
 
 /// An evaluation's verdict vector: one [`VerdictRow`] per node, in the
@@ -564,21 +530,21 @@ pub struct VerdictRow {
 ///
 /// - **"Is this leaf the witness build?"** wants the STRICTEST
 ///   available test, because a false yes is a false certificate. Order
-///   included, outcome tags included, no cancellation anywhere: that is
-///   this type, and it is what `drive` gates on.
-/// - **"What differs, and what should the report call it?"** wants a
-///   test that survives permutation, because construction order inside
-///   an op is itself predicate-steered (module docs above) — this
-///   module's populations, which `drive::FlipEvidence` carries
+///   included, roles included, checks included, outcome tags included,
+///   no cancellation anywhere: that is this type, and it is what `drive`
+///   gates on.
+/// - **"What differs, and what should the report call it?"** wants the
+///   first decision that steered the two runs apart — this module's
+///   first turn ([`first_turn`]), which `drive::FlipEvidence` carries
 ///   verbatim.
 ///
-/// The population form is deliberately WEAKER (a pure sign exchange in
-/// one node nets to nothing), so it can name but must not gate; this
-/// form cannot explain a difference it detects, so it gates but does
-/// not name. Neither subsumes the other, and neither is a rounding of
-/// the other: `crates/editor-core/tests/props_verdict_shapes.rs` is the
-/// asymmetry as two rows — logs the engine calls identical whose keys
-/// here differ.
+/// The first-turn reading is deliberately WEAKER (it reads no check, and
+/// nothing past the first difference), so it can name but must not
+/// gate; this form cannot explain a difference it detects, so it gates
+/// but does not name. Neither subsumes the other, and neither is a
+/// rounding of the other: `crates/editor-core/tests/props_verdict_shapes.rs`
+/// is the asymmetry as rows — logs the engine names no flip in whose
+/// keys here differ.
 ///
 /// **Not the persisted shape.** [`VerdictSummary`] is: it is the one
 /// form with a serde derive and the one the strict codecs in
@@ -641,6 +607,10 @@ impl VerdictVector {
             for v in &row.verdicts {
                 h.write_str(v.predicate);
                 h.write_tag(sign_tag(v.sign));
+                h.write_tag(match v.role {
+                    Role::Choice => 1,
+                    Role::Check => 2,
+                });
             }
         }
         VerdictVectorKey(h.finish().0)

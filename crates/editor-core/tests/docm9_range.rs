@@ -392,7 +392,7 @@ fn a_branch_change_is_a_decision_flip_and_names_the_predicate() {
         .verdicts
         .nodes
         .values()
-        .flat_map(|d| &d.flips)
+        .flat_map(|d| d.flip)
         .map(|f| (f.predicate, f.from, f.to))
         .collect();
     assert!(
@@ -477,7 +477,7 @@ fn a_gap_between_two_lines_is_a_decision_flip_below_the_crossing() {
         .verdicts
         .nodes
         .values()
-        .flat_map(|d| &d.flips)
+        .flat_map(|d| d.flip)
         .map(|f| (f.predicate, f.from, f.to))
         .collect();
     assert!(

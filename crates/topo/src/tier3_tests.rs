@@ -2450,8 +2450,8 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
     scan(
         "src/rim_wedge.rs",
         &[
-            ("edge_wedge_over(", 1),
-            ("edge_wedge_over_as(", 0),
+            ("edge_wedge_over(", 0),
+            ("edge_wedge_over_as(", 1),
             ("WedgeWalk::around_circle(", 1),
             ("WedgeWalk::along_edge(", 0),
         ],

@@ -880,7 +880,7 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
     let named: Vec<_> = flips
         .iter()
         .flat_map(|e| e.verdicts.nodes.values())
-        .flat_map(|d| &d.flips)
+        .flat_map(|d| d.flip)
         .map(|f| (f.predicate, f.from, f.to))
         .collect();
     assert!(

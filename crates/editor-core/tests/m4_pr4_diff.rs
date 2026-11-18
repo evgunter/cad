@@ -165,11 +165,12 @@ fn flip_edit_reports_flips_localized_to_the_deciding_node() {
 }
 
 #[test]
-fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
+fn structural_count_edit_names_no_fake_flip() {
     // A union over a row of overlapping blocks whose index's count is
     // the knob: the union's decision SEQUENCE changes length (one
-    // member fewer to judge), which must surface as divergence, never
-    // as sign flips of unrelated positions.
+    // member fewer to judge). Its choices part where one run judges a
+    // member the other does not, which is no turn of a sign, so no flip
+    // is named at all.
     let doc = ProfileDoc::empty_derived("m4_pr4_diff", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, k, row) = crate::fixture::linear(doc, body, [1.0, 0.0, 0.0], 0.5, 3);
@@ -184,10 +185,8 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
     let (doc2, _) = step(doc, edit);
     let ev2 = run(&doc2, Some(&ev1));
     let flips = diff_verdicts(&ev1, &ev2);
-    let delta = flips.nodes.get(&union).expect("union delta");
-    assert!(delta.flips.is_empty(), "no fake flips: {delta:?}");
-    assert!(!delta.diverged.is_empty(), "count change is divergence");
-    assert_eq!(flips.nodes.len(), 1, "localized to the union");
+    assert_eq!(flips.flip_at(union), None, "no fake flip: {flips:?}");
+    assert!(flips.is_empty(), "no node's standing moved: {flips:?}");
 }
 
 #[test]

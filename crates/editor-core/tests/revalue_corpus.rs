@@ -116,10 +116,10 @@ struct Found {
     /// decisions before it: (decisions in common, decisions at `p0`,
     /// the `p0` predicate at the first difference).
     parted: Option<(usize, usize, &'static str)>,
-    /// The side reader's decisions paired and re-valued
-    /// ([`compare_decisions`]): they align apart from the document's,
-    /// and their launderings count in `laundered` with the rest.
-    family: usize,
+    /// The checks paired and re-valued ([`compare_decisions`]): they
+    /// align apart from the choices, and their launderings count in
+    /// `laundered` with the rest.
+    checks: usize,
 }
 
 fn continuous_vars(doc: &ProfileDoc) -> Vec<(VarId, f64)> {
@@ -208,27 +208,26 @@ fn compare_prefix(doc: &ProfileDoc) -> Found {
     if a.compared >= b.compared { a } else { b }
 }
 
-/// `decisions` split into the document's own and the side reader's ray
-/// caster's (`topo::SIDE_READER_FAMILY`, the family `k_stats::in_family`
-/// tags; the reader's volume fallback is the document's): a flip among
-/// the caster's changes whether a side is read, never which
-/// (`[verdicts]`), so where it aims cannot part or flip a document's row.
+/// `decisions` split into the choices and the checks
+/// ([`geom_core::k_stats::Role`]): another sign of a check can only make
+/// the build refuse, and both builds built, so a check cannot part or
+/// flip a document's row.
 fn streams(decisions: &[Decision]) -> (Vec<Decision>, Vec<Decision>) {
     decisions
         .iter()
         .cloned()
-        .partition(|d| d.family != Some(topo::SIDE_READER_FAMILY))
+        .partition(|d| d.role == geom_core::k_stats::Role::Choice)
 }
 
-/// The two builds' decisions compared: the document's own aligned
+/// The two builds' decisions compared: the choices aligned
 /// ([`in_step`]) and read ([`tally`]); `None` where they part, unless
-/// `prefix`. The ray caster's are paired among themselves, up to their
-/// own first difference, and re-valued as the document's are: a
-/// laundering among them counts in `laundered`, while one of their flips,
-/// and what follows it, parts and flips nothing. Past that difference a
-/// build may have aimed a ray the other did not, and nothing on the
-/// record says which ray a decision belongs to, so no later pair is known
-/// to be one decision
+/// `prefix`. The checks are paired among themselves, up to their own
+/// first difference, and re-valued as the choices are: a laundering
+/// among them counts in `laundered`, while one of their flips, and what
+/// follows it, parts and flips nothing. Past that difference a build may
+/// have checked something the other did not (a ray aimed elsewhere),
+/// and nothing on the record says which reading a decision belongs to,
+/// so no later pair is known to be one decision
 /// (`work/flushtail/revalue-pairs-the-ray-casters-decisions-only-to-their-first-difference.md`).
 fn compare_decisions(
     p0: &[Decision],
@@ -253,7 +252,7 @@ fn compare_decisions(
     tally(&mut found, &d0, &d1, common, env0, env);
     let mut reader = Found::default();
     tally(&mut reader, &f0, &f1, in_step(&f0, &f1), env0, env);
-    found.family = reader.compared;
+    found.checks = reader.compared;
     found.drifted += reader.drifted;
     found.laundered.extend(reader.laundered);
     Some(found)
@@ -676,12 +675,12 @@ fn revalue_census() {
             mode,
             seen,
             parted,
-            family,
+            checks,
         } = &found;
         eprintln!(
             "{} ({:.1?}) {mode:?}: compared {compared}, moved {moved}, drifted {drifted}, opaque {opaque}, escalated {escalated}, \
              laundered {laundered:?}, after_flip {after_flip:?}, flips {flips:?}, parted {parted:?}, \
-             side reader {family}",
+             checks {checks}",
             cd.name,
             t.elapsed()
         );
@@ -743,15 +742,15 @@ fn a_planted_laundering_is_seen_and_from_computed_is_opaque() {
     );
 }
 
-/// **The side reader's decisions align apart, and a laundering among
-/// them is still caught.** Each build decides a document's predicate, then
-/// under the reader's family (`topo::SIDE_READER_FAMILY`) a margin
-/// laundered through `from_f64`, a tie exact at `p0` that `p1` answers
-/// `Positive`, and, at `p1` only, one more; then the document's next.
-/// The document's decisions align and nothing flips or parts, while the
-/// family's laundering, paired before its flip, is reported as any other.
+/// **The checks align apart, and a laundering among them is still
+/// caught.** Each build decides a document's predicate, then in a check
+/// scope (`k_stats::checking`, as the side reader casts its rays) a
+/// margin laundered through `from_f64`, a tie exact at `p0` that `p1`
+/// answers `Positive`, and, at `p1` only, one more; then the document's
+/// next. The choices align and nothing flips or parts, while the
+/// checks' laundering, paired before its flip, is reported as any other.
 #[test]
-fn a_side_reader_laundering_is_caught_and_its_flips_part_nothing() {
+fn a_check_laundering_is_caught_and_its_flips_part_nothing() {
     use geom_core::Real;
     use geom_core::predicate::{Band, Margin};
     let band = Band::new(1.0e-9, 1.0e-8).unwrap();
@@ -762,7 +761,7 @@ fn a_side_reader_laundering_is_caught_and_its_flips_part_nothing() {
         let x = Sym::<f64>::from_f64(2.0) + Sym::param(w, d);
         record(|| {
             let _ = decide("revalue_doc", x);
-            geom_core::k_stats::in_family(topo::SIDE_READER_FAMILY, || {
+            geom_core::k_stats::checking(|| {
                 let xx = x * x;
                 let _ = decide("revalue_reader_laundered", xx - Sym::from_f64(xx.value));
                 let _ = decide("revalue_reader_tie", Sym::param(w, d) - Sym::from_f64(0.25));
@@ -778,29 +777,28 @@ fn a_side_reader_laundering_is_caught_and_its_flips_part_nothing() {
     let found = session(|| {
         let p0 = build(0.25);
         assert!(
-            p0.iter()
-                .any(|d| d.family == Some(topo::SIDE_READER_FAMILY)),
-            "the recorder tags the family's decisions"
+            p0.iter().any(|d| d.role == geom_core::k_stats::Role::Check),
+            "the recorder tags the checks"
         );
         compare_decisions(&p0, &p1, false, &|s| (s == w).then_some(0.25), &|s| {
             (s == w).then_some(0.5)
         })
     })
-    .expect("the document's decisions align: the family's extra one parts nothing");
+    .expect("the choices align: the checks' extra one parts nothing");
     assert_eq!(found.compared, 2, "the document's two decisions");
     assert!(
         found.flips.is_empty(),
-        "the family's tie flips nothing: {found:?}"
+        "the checks' tie flips nothing: {found:?}"
     );
     assert_eq!(found.parted, None);
     assert_eq!(
-        found.family, 2,
-        "the family's two decisions both builds took; the third is p1's alone"
+        found.checks, 2,
+        "the two checks both builds took; the third is p1's alone"
     );
     assert_eq!(
         found.laundered,
         BTreeSet::from(["revalue_reader_laundered"]),
-        "the family's laundering is caught"
+        "the checks' laundering is caught"
     );
 }
 
@@ -1004,8 +1002,8 @@ fn the_instrument_and_the_door_replay_in_one_session() {
 
 /// **The side reader's exact ties at a document's nominal**
 /// (`work/flush/the-side-readers-aims-decide-exact-ties-at-a-documents-nominal.md`):
-/// every decision taken under the reader's family whose margin is
-/// exactly 0 in a build at the nominal, for every corpus document.
+/// every check whose margin is exactly 0 in a build at the nominal, for
+/// every corpus document (the reader's rays are checks, among others).
 /// Evidence, not a gate: run with
 /// `cargo nextest run -p editor-core --run-ignored only -E 'test(reader_ties_at_the_nominal)' --no-capture`.
 #[test]
@@ -1013,12 +1011,12 @@ fn the_instrument_and_the_door_replay_in_one_session() {
 fn reader_ties_at_the_nominal() {
     for cd in corpus::documents() {
         let (decisions, _) = replayed(&BTreeMap::new(), |opts| build(&cd.doc, opts));
-        let family: Vec<(usize, &Decision)> = decisions
+        let checks: Vec<(usize, &Decision)> = decisions
             .iter()
             .enumerate()
-            .filter(|(_, d)| d.family == Some(topo::SIDE_READER_FAMILY))
+            .filter(|(_, d)| d.role == geom_core::k_stats::Role::Check)
             .collect();
-        let ties: Vec<(usize, &'static str)> = family
+        let ties: Vec<(usize, &'static str)> = checks
             .iter()
             .filter(|(_, d)| d.value == Some(0.0))
             .map(|&(k, d)| (k + 1, d.predicate))
@@ -1028,10 +1026,10 @@ fn reader_ties_at_the_nominal() {
             *by_predicate.entry(p).or_default() += 1;
         }
         println!(
-            "TIES {}: {} decisions, {} the reader's, {} exact ties {by_predicate:?} {ties:?}",
+            "TIES {}: {} decisions, {} checks, {} exact ties {by_predicate:?} {ties:?}",
             cd.name,
             decisions.len(),
-            family.len(),
+            checks.len(),
             ties.len()
         );
     }
