@@ -579,7 +579,7 @@ where
                 env,
                 tol,
             )?;
-            wire_place(id, (of, source.read, values), placed.as_ref()).map(|out| out.moved(placed))
+            wire_place(id, (of, source.read, values), placed.as_ref(), tol).map(|out| out.moved(placed))
         }
         Node::Assemble { members } => {
             // The graft finishes what it gathers, which reads geometry:
@@ -978,6 +978,7 @@ where
         &part.carry_through(id),
         map.as_ref(),
         &crate::coincide::CitedInput::Part(*doc_ref),
+        tol,
     )
 }
 
@@ -992,27 +993,35 @@ fn copy_of<T: topo::AtRestPolicy + Decide>(
     carry: &super::Carry<T>,
     map: Option<&RigidMotion<T>>,
     cites: &crate::coincide::CitedInput,
+    tol: Tol,
 ) -> OpResult<T> {
-    let copy = place(source, map)?;
+    let copy = place(source, map, tol)?;
     let table = names::name_copy(id, table, &[copy.body()]).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(ValuePayload::Body(copy), table)
         .carrying(carry.copied(super::carry::Stands::placed(map), cites)?))
 }
 
 /// **A rigid placement of `body`**: its body shared, its frame moved by
-/// `map`. `None` is the identity bundle's placement by no map: the
-/// value itself.
+/// `map`, and the session box asked of where the copy stands
+/// ([`super::Framed::asked_where_it_stands`]): the door that places a
+/// copy asks its placement. `None` is the identity bundle's placement by
+/// no map: the value itself.
 ///
 /// # Errors
 ///
-/// [`NodeErrorKind::Motion`] where the composed frame overflows.
+/// [`NodeErrorKind::Motion`] where the composed frame overflows;
+/// [`NodeErrorKind::NotFinished`] where the copy stands past the box.
 fn place<T: topo::AtRestPolicy + Decide>(
     body: &super::Framed<T>,
     map: Option<&RigidMotion<T>>,
+    tol: Tol,
 ) -> Result<super::Framed<T>, NodeErrorKind> {
     match map {
         None => Ok(body.clone()),
-        Some(map) => body.moved(map).map_err(NodeErrorKind::Motion),
+        Some(map) => body
+            .moved(map)
+            .map_err(NodeErrorKind::Motion)?
+            .asked_where_it_stands(tol),
     }
 }
 
@@ -1667,7 +1676,7 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     // Eager N4 emission, BEFORE the structural handoff is taken apart.
     let out = (verb.read)(id, record, &vp.pieces, verb.foreign_record)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(vp.framed(Arc::new(out.body))),
+        ValuePayload::Body(vp.framed(Arc::new(out.body), tol)?),
         out.table,
     ))
 }
@@ -4631,6 +4640,7 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     (of, read, results): (RecipeNodeId, crate::VarId, &Results<T>),
     map: Option<&RigidMotion<T>>,
+    tol: Tol,
 ) -> OpResult<T> {
     let value = value_of(results, of)?;
     let cites = crate::coincide::CitedInput::Read(read);
@@ -4647,7 +4657,7 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     // A placement moves its source and re-mints no key, so the census
     // its source's door kept keys this copy too.
-    copy_of(id, (body, &table), &value.carry, map, &cites)
+    copy_of(id, (body, &table), &value.carry, map, &cites, tol)
 }
 
 /// **The assemble** (`⊔`, D10 `[operations.operators]`): each member
@@ -4891,7 +4901,7 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     // with that section's id.
     let table = names::name_loft(id, &built, &pieces, ids).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(values[0].framed(Arc::new(built.body))),
+        ValuePayload::Body(values[0].framed(Arc::new(built.body), tol)?),
         table,
     ))
 }

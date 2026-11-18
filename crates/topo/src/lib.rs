@@ -1580,7 +1580,7 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
 pub use finish::{
-    FindingFamily, FinishedBody, LeafBody, MoveError, NotFinished, Replay, finish, take,
+    FindingFamily, FinishedBody, LeafBody, session_box_at, MoveError, NotFinished, Replay, finish, take,
 };
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;

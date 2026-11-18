@@ -266,6 +266,42 @@ pub(crate) fn asked_after_isometry<T: geom_core::Decide>(
     }
 }
 
+/// **Every family not up to isometry, asked of `own` where it stands
+/// under `motion`** ([`FindingFamily::asked_at`]): what
+/// [`asked_after_isometry`] asks of the moved image, asked of the
+/// image's own data with no body moved. The door a copy is placed by
+/// asks it of the copy's placement (`[placement.frame]`: a copy's world
+/// placement is asked by the door that places it, not by the readers
+/// that read it).
+///
+/// # Errors
+///
+/// [`MoveError::Map`] where the motion does not map a carrier;
+/// [`MoveError::NotFinished`] holding each such family's finding, or the
+/// band's.
+pub fn session_box_at<T: geom_core::Decide>(
+    own: &Body<T>,
+    motion: &geom_core::RigidMotion<T>,
+    tol: Tol,
+) -> Result<(), MoveError> {
+    let band = geom_core::Band::linear(tol).map_err(|error| {
+        MoveError::NotFinished(NotFinished::new(vec![ValidationError::Band { error }]))
+    })?;
+    let mut findings = Vec::new();
+    for family in FindingFamily::ALL {
+        match family.asked_at(own, motion, band) {
+            Ok(()) => {}
+            Err(MoveError::NotFinished(found)) => findings.extend(found.into_findings()),
+            Err(map) => return Err(map),
+        }
+    }
+    if findings.is_empty() {
+        Ok(())
+    } else {
+        Err(MoveError::NotFinished(NotFinished::new(findings)))
+    }
+}
+
 /// **`body` under `iso`**, the reflection's reversal and re-minted rows
 /// included ([`crate::mirror`]): the data map behind every `moved` door.
 ///
@@ -673,6 +709,22 @@ impl FindingFamily {
         match self.under_isometry() {
             None => Ok(()),
             Some(AskedAgain::SessionBox) => crate::session_box::in_session_box(image, band),
+        }
+    }
+
+    /// **This family's question, asked of `own` where it stands under
+    /// `motion`**, the body unmoved: what [`Self::asked_again`] asks of
+    /// the image, read off the image's data as the placement holds it
+    /// ([`crate::session_box::in_session_box_at`]).
+    pub(crate) fn asked_at<T: geom_core::Decide>(
+        self,
+        own: &Body<T>,
+        motion: &geom_core::RigidMotion<T>,
+        band: geom_core::Band,
+    ) -> Result<(), MoveError> {
+        match self.under_isometry() {
+            None => Ok(()),
+            Some(AskedAgain::SessionBox) => crate::session_box::in_session_box_at(own, motion, band),
         }
     }
 

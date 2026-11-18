@@ -32,6 +32,52 @@ pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
     })
 }
 
+/// **`body`'s largest `|coordinate|` where it stands under `motion`,
+/// bounded from below** ([`body_reach`] of its image, the body unmoved):
+/// each vertex's point and each certified edge's carrier sent through
+/// the motion as the image's are (`transform::map_isometry`: the
+/// motion's affine on a point, `map_carrier` on a carrier), each edge's
+/// world box its cover over its span hulled with its two mapped ends, as
+/// the image's cover is (`cover::edge_cover_over`). So it reads the
+/// image's own quantity, from the image's own data, which a placement
+/// holds without building the image.
+///
+/// # Errors
+///
+/// A carrier the motion does not map ([`crate::TransformError`]), which
+/// the image's map refuses too.
+pub(crate) fn body_reach_at<T: Decide>(
+    body: &Body<T>,
+    motion: &geom_core::RigidMotion<T>,
+) -> Result<T, crate::TransformError> {
+    let iso = crate::Isometry::Proper(*motion);
+    let map = iso.to_affine();
+    let origin = Point3::origin();
+    let vertices = body
+        .vertices()
+        .map(|(v, data)| (map.transform_point(body.point_of(v, data)) - origin).norm_inf());
+    let mut edges = Vec::new();
+    for (e, data) in body.edges() {
+        let Some(curve) = body.edge_curve_linked(e, data).certified() else {
+            continue;
+        };
+        let carrier = crate::transform::map_carrier(&iso, curve.carrier())?;
+        let ends = (
+            map.transform_point(crate::cover::edge_end_point(body, e, data.he_plus, "he_plus")),
+            map.transform_point(crate::cover::edge_end_point(body, e, data.he_minus, "he_minus")),
+        );
+        let world_box = crate::cover::edge_cover_over(&carrier, curve.params(), ends)
+            .ok()
+            .map(|cover| cover.box_in(&BoxAxes::World));
+        edges.push(geom_brep::edge_coordinate_reach_below(
+            &carrier,
+            curve.params(),
+            world_box,
+        ));
+    }
+    Ok(vertices.chain(edges).fold(T::zero(), T::max))
+}
+
 /// [`body_reach`] with each edge's world box read by `world_box`; an
 /// edge it gives none reads its own sampled points instead
 /// (`geom_brep::edge_coordinate_reach_below`), so one missing reading
@@ -70,7 +116,31 @@ pub(crate) const SESSION_BOX_REACH: &str = "session_box_reach";
 ///
 /// [`ValidationError::OutsideSessionBox`], with the margin.
 pub(crate) fn in_session_box<T: Decide>(body: &Body<T>, band: Band) -> Result<(), ValidationError> {
-    let margin = Margin::of(Lever::<T>::session_box().length() - body_reach(body));
+    box_decided(body_reach(body), band)
+}
+
+/// **`session_box_reach` of `body` where it stands under `motion`**:
+/// [`in_session_box`] of its image, read off the body unmoved
+/// ([`body_reach_at`]).
+///
+/// # Errors
+///
+/// [`crate::MoveError::Map`] where the motion does not map a carrier;
+/// [`crate::MoveError::NotFinished`] holding
+/// [`ValidationError::OutsideSessionBox`], with the margin.
+pub(crate) fn in_session_box_at<T: Decide>(
+    body: &Body<T>,
+    motion: &geom_core::RigidMotion<T>,
+    band: Band,
+) -> Result<(), crate::MoveError> {
+    let reach = body_reach_at(body, motion).map_err(crate::MoveError::Map)?;
+    box_decided(reach, band)
+        .map_err(|finding| crate::MoveError::NotFinished(crate::NotFinished::new(vec![finding])))
+}
+
+/// The box's decision on a reach: its margin the box's extent less it.
+fn box_decided<T: Decide>(reach: T, band: Band) -> Result<(), ValidationError> {
+    let margin = Margin::of(Lever::<T>::session_box().length() - reach);
     match crate::validate::decide_reported(SESSION_BOX_REACH, margin, band) {
         Ok(geom_core::Decided {
             sign: Sign::Negative,
@@ -177,6 +247,41 @@ mod tests {
         let far = brick::<f64>((1.1e3, 1.1e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let reach = body_reach_by(&far, |_| None);
         assert!(reach >= 1.1e3 + 1.0, "{reach}");
+    }
+
+    /// **A placement's reach is its image's, to the bit**
+    /// ([`body_reach_at`] against [`body_reach`] of the moved body): a
+    /// brick and a sphere cap (its rim a circle arc, read off its cover)
+    /// under a motion off every axis. *Breaks if* the placed reading
+    /// reads other data than the image's ask (a vertex alone, an edge's
+    /// cover without its mapped ends, an unmapped carrier).
+    #[test]
+    fn a_placements_reach_is_its_images_to_the_bit() {
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let axis = geom_core::UnitVec3::new(
+            geom_core::Vec3::new(1.0, 2.0_f64.sqrt(), 3.0_f64.sqrt()),
+            "a turn off every axis",
+            band,
+        )
+        .unwrap();
+        let motion = geom_core::RigidMotion::translation(geom_core::Vec3::new(637.0, -251.25, 82.5))
+            .unwrap()
+            .compose(geom_core::RigidMotion::rotation(axis, 0.7).unwrap())
+            .unwrap();
+        let bodies = [
+            brick::<f64>((0.0, 1.0), (0.0, 2.0), (0.0, 0.5), tol),
+            crate::test_support_fixtures::sphere_cap(0.3, tol).0,
+        ];
+        for body in &bodies {
+            let image =
+                crate::transform::map_isometry(body, &crate::Isometry::Proper(motion)).unwrap();
+            assert_eq!(
+                body_reach_at(body, &motion).unwrap().to_bits(),
+                body_reach(&image).to_bits(),
+                "the placement reads its image's reach"
+            );
+        }
     }
 
     /// **The reach is never short of a vertex's coordinate**: a long thin

@@ -352,6 +352,35 @@ impl<T: topo::AtRestPolicy> Framed<T> {
         })
     }
 
+    /// **This value, its placement asked the session box** (D4 ¶4,
+    /// `[placement.frame]`): where it stands in its space under a map,
+    /// the box asked of it there with no body moved
+    /// ([`topo::session_box_at`], the question a move asks of its image,
+    /// read off the same data). A copy's placement is asked by the door
+    /// that places it, not by the readers that read it: a placement
+    /// ([`super::wire`]'s `place`) and a profile's sketch frame
+    /// ([`super::ProfileValue::framed`]) each call this; a value in its
+    /// space's own coordinates was asked by its own finish.
+    ///
+    /// # Errors
+    ///
+    /// [`super::NodeErrorKind::NotFinished`] holding the session box's
+    /// finding, or a carrier the map does not map
+    /// ([`topo::MoveError::under_a_motion`]).
+    pub(crate) fn asked_where_it_stands(self, tol: Tol) -> Result<Self, super::NodeErrorKind>
+    where
+        T: geom_core::Decide,
+    {
+        if let Some(map) = self.frame.map() {
+            topo::session_box_at(self.body(), map, tol).map_err(|e| {
+                super::NodeErrorKind::NotFinished {
+                    findings: e.under_a_motion(),
+                }
+            })?;
+        }
+        Ok(self)
+    }
+
     /// **Whether it is in its space's coordinates** ([`Frame::Own`]): a
     /// construction, or a copy under no map. Structural, so every scalar
     /// lane answers it alike.
