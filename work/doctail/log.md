@@ -105,3 +105,8 @@ body has the reasons):
   - a pick of a pick loses its inner path.
 
   A third fix pass is ruled. It also unifies the "what a read reads through sources" rule across split, inline and flatten, and leaves no kernel-defect text reachable from a Place seat. **Class note:** each pass on split's source and pick handling has turned up a new shape, because named body reads, sources and picks compose in more ways than the verbs enumerate. The VR4 fork (whether a source definition may read a pick) underlies two filed P2 rows, and a designer pair should weigh it once this PR lands.
+- 2026-11-18 — PR 7087, third delta review: APPROVE WITH FIXES, no MAJOR. Every earlier finding is fixed, and 13 new shapes hold. Ruled as a last, bounded pass with an orchestrator's read and no fourth review, since there is no MAJOR:
+  - `NamedReadUncarried` follows anonymous definitions when deciding "every reader is cut";
+  - ONE compose-the-pick-path rule shared by the seat evaluator (`eval/wire.rs` `pick_of`), the edit door, the product gather and split: the evaluator's was the wrong one, so a pick of a pick at a node seat failed to evaluate before this PR too;
+  - one source-chain walk;
+  - the cut-Place-over-a-pick path refuses typed or carries.
