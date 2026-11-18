@@ -74,7 +74,7 @@ pub(crate) const STEP_POSITIVE_LENGTH: &str = "step_positive_length";
 
 /// The file's ε_in and the band it is read at. The band is always a
 /// band: a file whose ε_in makes none refuses where it is read
-/// ([`FileBand::new`]).
+/// ([`FileBand::of_import`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct FileBand {
     eps_in: f64,
