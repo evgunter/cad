@@ -970,7 +970,8 @@ fn row7_the_recorded_set_is_deterministic() {
     );
     match (&ra, &rb) {
         (Ok(x), Ok(y)) => assert_eq!(
-            x.product.contacts(), y.product.contacts(),
+            x.product.contacts(),
+            y.product.contacts(),
             "and so does the recorded set"
         ),
         (Err(_), Err(_)) => {}

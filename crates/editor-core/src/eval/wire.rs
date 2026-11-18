@@ -1853,7 +1853,9 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
         // lane's `f64` witness, never a rendering or a drop.
         verbs::VerbError::Shell(error) => match *error {
             topo::ShellError::Carry { refusal } => NodeErrorKind::ContactCarry { refusal },
-            error => NodeErrorKind::Shell(Box::new(crate::verbs::shell::fold_shell_error_at(error))),
+            error => {
+                NodeErrorKind::Shell(Box::new(crate::verbs::shell::fold_shell_error_at(error)))
+            }
         },
     }
 }
@@ -4673,7 +4675,11 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
             bridges.push(keys);
         }
         // Each body it grafts is one arrival, cited by the member's read.
-        citing.extend(bridges.iter().map(|_| crate::coincide::CitedInput::Read(read)));
+        citing.extend(
+            bridges
+                .iter()
+                .map(|_| crate::coincide::CitedInput::Read(read)),
+        );
         parts += value.carry.parts;
         pieces.push(super::Piece {
             read,

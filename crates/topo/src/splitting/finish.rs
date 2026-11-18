@@ -291,10 +291,13 @@ impl<T: Decide> Sides<'_, T> {
 impl<'a, T: Real> Sides<'a, T> {
     /// The sides that hold material, each with its body.
     fn listed(&self) -> Vec<(PlaneSide, &'a Body<T>)> {
-        [(PlaneSide::Above, self.above), (PlaneSide::Below, self.below)]
-            .into_iter()
-            .filter_map(|(side, body)| body.map(|b| (side, b)))
-            .collect()
+        [
+            (PlaneSide::Above, self.above),
+            (PlaneSide::Below, self.below),
+        ]
+        .into_iter()
+        .filter_map(|(side, body)| body.map(|b| (side, b)))
+        .collect()
     }
 
     fn lineage(&self) -> crate::Lineage {

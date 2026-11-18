@@ -1499,8 +1499,9 @@ pub use chart_window::face_azimuth_window_traces;
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{
     CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, census_cell_solid,
-    census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
-    census_finding_solids, census_uncleared_solids, line_segments_meet, line_segments_overlap, record_at_rest,
+    census_contact_row, census_entity_solid, census_finding_solids, census_interference_solids,
+    census_rest_decision, census_uncleared_solids, line_segments_meet, line_segments_overlap,
+    record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
@@ -1578,8 +1579,8 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
 pub use finish::{
-    Arrivals, Assembled, Built, Censused, CensusedLeaf, FindingFamily, FinishedBody, LeafBody, MoveError,
-    NotFinished, Replay, finish, finish_assembled, take,
+    Arrivals, Assembled, Built, Censused, CensusedLeaf, FindingFamily, FinishedBody, LeafBody,
+    MoveError, NotFinished, Replay, finish, finish_assembled, take,
 };
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
@@ -1607,10 +1608,9 @@ pub use splitting::{
     BoundClass, Escalation, FinishDesync, KnifeEdge, KnifeEdgeSite, LoopContainment, LoopDecision,
     NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge,
     SectionError, SectionGermFault, SectionGermReading, SectionPolygon, SectionRegion,
-    SectorReading, SplitError, SplitFinishError, SplitPart, SplitPlane,
-    SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
-    UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
-    vertex_sides,
+    SectorReading, SplitError, SplitFinishError, SplitPart, SplitPlane, SplitReduceError,
+    SplitReduction, SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier,
+    classify_neighborhood, plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{Isometry, TransformError, transform_rigid};
 pub use unresolved::Unresolved;

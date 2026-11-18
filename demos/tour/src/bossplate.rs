@@ -189,10 +189,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         bodies: vec![if crate::declares_no_contacts(&bb.contacts()) {
             SceneBody::plain("bossplate", [0.85, 0.55, 0.25], bb.body.into_body())
         } else {
-            SceneBody::finished(
-                "bossplate",
-                [0.85, 0.55, 0.25],
-                bb.body)
+            SceneBody::finished("bossplate", [0.85, 0.55, 0.25], bb.body)
         }],
     }]
 }

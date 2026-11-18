@@ -48,9 +48,7 @@ fn row(label: &str, text: &str, options: &ImportOptions, out: &mut String) {
     out.push_str(&format!("## {label}\n"));
     match import_step(text, options, Tol::witness()) {
         Ok(StepImport::Solid {
-            body,
-            coincidences,
-            ..
+            body, coincidences, ..
         }) => {
             let contacts = body.records();
             let (solids, shells, faces, edges, vertices) = arena_census(&body);

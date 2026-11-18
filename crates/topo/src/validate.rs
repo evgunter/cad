@@ -11169,9 +11169,7 @@ fn census_verdict<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core:
 /// split's own unrecorded touches, so raising them would refuse those
 /// results (`work/heldrecords/the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime.md`,
 /// `work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-fn deciding_door_census<
-    T: geom_core::Decide + crate::props::AtRestPolicy + geom_core::Bounds,
->(
+fn deciding_door_census<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core::Bounds>(
     body: &Body<T>,
     records: &crate::boolean::ContactRecords,
     band: Band,

@@ -5803,10 +5803,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     let from = std::time::Instant::now();
     #[cfg(any(test, feature = "test-support"))]
     let kinds = refused_faces::kinds(&body);
-    let finished = T::finish(
-        crate::Built::of(body).recording(held.contacts.clone()),
-        tol,
-    );
+    let finished = T::finish(crate::Built::of(body).recording(held.contacts.clone()), tol);
     #[cfg(any(test, feature = "test-support"))]
     if let Err(findings) = &finished {
         refused_faces::note(&kinds, findings.as_slice());

@@ -446,10 +446,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             up: 'z',
         },
         bodies: vec![
-            SceneBody::finished(
-                "twopeg_mated",
-                [0.62, 0.66, 0.72],
-                mated.body),
+            SceneBody::finished("twopeg_mated", [0.62, 0.66, 0.72], mated.body),
             SceneBody::plain("twopeg_apart_p", [0.62, 0.66, 0.72], p_aside),
             SceneBody::plain("twopeg_apart_q", [0.78, 0.60, 0.42], q_aside),
         ],

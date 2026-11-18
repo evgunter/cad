@@ -1042,10 +1042,7 @@ fn bore_refusal(
 ) -> Vec<(SurfaceKind, SurfaceKind)> {
     let findings = match topo::subtract(plate, rod, tol()) {
         Err(topo::BooleanError::ResultInvalid { findings }) => findings,
-        other => panic!(
-            "{label}: refuses at its gate, got {:?}",
-            other.map(|_| ())
-        ),
+        other => panic!("{label}: refuses at its gate, got {:?}", other.map(|_| ())),
     };
     findings
         .iter()

@@ -248,8 +248,8 @@ pub use ops::{
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
 pub use overlap::{OverlapRefusal, OverlapUnread, overlap};
-pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
 pub(crate) use records::incident;
+pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
 pub use reduce::SweepStrategy;
@@ -1093,12 +1093,30 @@ impl OperandRecords {
             ff,
         } = self;
         let mut rows: Vec<(u32, [Cell; 2])> = Vec::new();
-        rows.extend(vv.iter().map(|c| (c.record, [Vertex(c.contact.a), Vertex(c.contact.b)])));
-        rows.extend(vf.iter().map(|c| (c.record, [Vertex(c.contact.vertex), Face(c.contact.face)])));
-        rows.extend(ve.iter().map(|c| (c.record, [Vertex(c.contact.vertex), Edge(c.contact.edge)])));
-        rows.extend(ee.iter().map(|c| (c.record, [Edge(c.contact.a), Edge(c.contact.b)])));
-        rows.extend(ef.iter().map(|c| (c.record, [Edge(c.contact.edge), Face(c.contact.face)])));
-        rows.extend(ff.iter().map(|c| (c.record, [Face(c.contact.a), Face(c.contact.b)])));
+        rows.extend(
+            vv.iter()
+                .map(|c| (c.record, [Vertex(c.contact.a), Vertex(c.contact.b)])),
+        );
+        rows.extend(
+            vf.iter()
+                .map(|c| (c.record, [Vertex(c.contact.vertex), Face(c.contact.face)])),
+        );
+        rows.extend(
+            ve.iter()
+                .map(|c| (c.record, [Vertex(c.contact.vertex), Edge(c.contact.edge)])),
+        );
+        rows.extend(
+            ee.iter()
+                .map(|c| (c.record, [Edge(c.contact.a), Edge(c.contact.b)])),
+        );
+        rows.extend(
+            ef.iter()
+                .map(|c| (c.record, [Edge(c.contact.edge), Face(c.contact.face)])),
+        );
+        rows.extend(
+            ff.iter()
+                .map(|c| (c.record, [Face(c.contact.a), Face(c.contact.b)])),
+        );
         rows.sort_by_key(|&(record, _)| record);
         let mut out = ContactRecords::default();
         for (record, [x, y]) in rows {

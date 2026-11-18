@@ -2434,7 +2434,13 @@ pub(crate) fn shell_open_at<T: Decide + geom_core::CertifiedBounds + crate::prop
     // The operand's records ride the thin solid through the shell's
     // lineage, and the gate confirms each where it lands.
     let carried = crate::FinishedBody::records(operand)
-        .carried_through(0, &lineage(&out_body, &naming), &out_body, band, T::region_lane())
+        .carried_through(
+            0,
+            &lineage(&out_body, &naming),
+            &out_body,
+            band,
+            T::region_lane(),
+        )
         .map_err(|refusal| ShellError::Carry { refusal })?;
     let body = T::finish(crate::Built::of(out_body).recording(carried), tol)
         .map_err(|findings| ShellError::NotValid { findings })?;

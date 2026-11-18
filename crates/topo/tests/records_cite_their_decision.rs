@@ -129,7 +129,11 @@ fn a_crossing_union_emits_no_vertex_fusion() {
     let a = box_of((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), "a");
     let b = box_of((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), "b");
     let r = united(&a, &b, &BooleanInputs::default());
-    assert!(r.contacts().cell_pairs().next().is_none(), "{:?}", r.contacts());
+    assert!(
+        r.contacts().cell_pairs().next().is_none(),
+        "{:?}",
+        r.contacts()
+    );
     assert!(
         !r.coincidences
             .iter()
@@ -155,7 +159,12 @@ fn a_carried_record_cites_its_operands_record() {
         ..BooleanInputs::default()
     };
     let r = united(&kiss.body, &far, &carried);
-    assert_eq!(r.contacts().vertex_vertex().count(), 1, "{:?}", r.contacts());
+    assert_eq!(
+        r.contacts().vertex_vertex().count(),
+        1,
+        "{:?}",
+        r.contacts()
+    );
     assert_eq!(
         r.contacts().rows()[0].cites,
         topo::Cites::one(Backing::Carried {

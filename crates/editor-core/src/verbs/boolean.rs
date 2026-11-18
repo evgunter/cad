@@ -33,8 +33,7 @@
 
 use geom_core::{Decide, Tol};
 use topo::{
-    Body, BooleanInputs, BooleanNaming, BooleanOp, BooleanResultKind, MemberInputs,
-    NaryOp,
+    Body, BooleanInputs, BooleanNaming, BooleanOp, BooleanResultKind, MemberInputs, NaryOp,
 };
 use verbs::{Boolean, Members, VerbRecord};
 

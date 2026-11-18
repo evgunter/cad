@@ -65,7 +65,12 @@ pub(super) fn assembled<T: geom_core::Decide + AtRestPolicy>(
     for (material, th) in folded {
         let fused: &Body<T> = &material.body().body;
         let keys = crate::graft_disjoint_all_keyed(&mut body, fused)?;
-        through.absorb(th, &keys, &material.body().contacts().carried(), &mut records)?;
+        through.absorb(
+            th,
+            &keys,
+            &material.body().contacts().carried(),
+            &mut records,
+        )?;
     }
     let records = through.onto_material(riding, records, &body)?;
     let held = records

@@ -255,7 +255,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             bodies: vec![SceneBody::finished(
                 "silhouette",
                 [0.85, 0.62, 0.28],
-                two.body)],
+                two.body,
+            )],
         },
         TourStop {
             name: "silhouette3",
@@ -277,7 +278,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             bodies: vec![SceneBody::finished(
                 "silhouette3",
                 [0.80, 0.44, 0.30],
-                three.body)],
+                three.body,
+            )],
         },
     ]
     .into_iter()

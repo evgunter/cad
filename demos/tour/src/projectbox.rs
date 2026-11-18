@@ -449,7 +449,8 @@ pub fn stop(tol: Tol) -> TourStop {
         bodies: core::iter::once(SceneBody::finished(
             "projectbox",
             [0.40, 0.60, 0.72],
-            acc.body))
+            acc.body,
+        ))
         .chain(core::iter::once(SceneBody::plain(
             "spring",
             SPRING_COLOR,

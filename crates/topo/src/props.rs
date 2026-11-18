@@ -8252,7 +8252,8 @@ mod at_rest_policy_tests {
         );
         let door = crate::validate::validate_pseudomanifold(&overlap, &contacts, tol)
             .expect_err("the overlapping pair must refuse the census door");
-        let finished = T::finish(crate::Built::of(overlap), tol).expect("tier 3 alone passes the pair");
+        let finished =
+            T::finish(crate::Built::of(overlap), tol).expect("tier 3 alone passes the pair");
         assert_eq!(
             T::census_at_rest(&finished, &contacts, tol),
             door,
@@ -8342,7 +8343,8 @@ mod at_rest_policy_tests {
             |x, y, z| identity_map::<D>(x + 0.5, y + 0.5, z + 0.5),
             tol,
         );
-        let replay = <D as AtRestPolicy>::finish(crate::Built::of(overlap), tol).expect("tier 2 passes the pair");
+        let replay = <D as AtRestPolicy>::finish(crate::Built::of(overlap), tol)
+            .expect("tier 2 passes the pair");
         assert!(
             <D as AtRestPolicy>::census_at_rest(&replay, &ContactRecords::default(), tol)
                 .is_empty(),

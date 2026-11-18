@@ -19,7 +19,6 @@
 use crate::fixture;
 use editor_core::Formula;
 
-
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, MateFault, MateRef,
@@ -267,7 +266,7 @@ fn assert_ok(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) {
 /// is the whole question here.
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
-        (Some(a), Some(b)) => same_body(a, b),
+        (Some(a), Some(b)) => same_carry(a, b),
         _ => false,
     }
 }
@@ -530,10 +529,8 @@ fn a_placement_in_another_space_is_untouched_by_a_refusal() {
     );
 }
 
-/// Whether two values of one body hold the same body, by allocation.
-fn same_body(a: &editor_core::NodeValue<f64>, b: &editor_core::NodeValue<f64>) -> bool {
-    match (a.payload.one_body(), b.payload.one_body()) {
-        (Some(Some(x)), Some(Some(y))) => x.holding().same(y.holding()),
-        _ => false,
-    }
+/// Whether two values hold one carry, by the allocation of the inputs
+/// it cites: every op that runs mints its own.
+fn same_carry(a: &editor_core::NodeValue<f64>, b: &editor_core::NodeValue<f64>) -> bool {
+    std::sync::Arc::ptr_eq(&a.carry.cited_inputs, &b.carry.cited_inputs)
 }

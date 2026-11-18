@@ -22,7 +22,6 @@ use crate::fixture;
 use crate::wire;
 use test_utils::refusal::tagged;
 
-
 use editor_core::mate::SurfaceKind;
 use editor_core::pose::{PoseDef, PoseReadFault};
 use editor_core::{
@@ -714,7 +713,7 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
         earlier.value(mate),
         later.value(mate),
     ) {
-        (Some(a), Some(b)) => same_body(a, b),
+        (Some(a), Some(b)) => same_carry(a, b),
         _ => false,
     };
     let placed = move |doc: &ProfileDoc, opts: &EvalOptions| {
@@ -939,10 +938,8 @@ fn every_mate(value: &serde_json::Value, f: &mut dyn FnMut(&serde_json::Value)) 
     }
 }
 
-/// Whether two values of one body hold the same body, by allocation.
-fn same_body(a: &editor_core::NodeValue<f64>, b: &editor_core::NodeValue<f64>) -> bool {
-    match (a.payload.one_body(), b.payload.one_body()) {
-        (Some(Some(x)), Some(Some(y))) => x.holding().same(y.holding()),
-        _ => false,
-    }
+/// Whether two values hold one carry, by the allocation of the inputs
+/// it cites: every op that runs mints its own.
+fn same_carry(a: &editor_core::NodeValue<f64>, b: &editor_core::NodeValue<f64>) -> bool {
+    std::sync::Arc::ptr_eq(&a.carry.cited_inputs, &b.carry.cited_inputs)
 }

@@ -693,9 +693,7 @@ fn r1_a_wedge_in_band_only_at_its_apex_edges_length_ships_as_a_corner() {
 fn r1_the_kiss_certifies_with_its_touch_recorded() {
     let text = fixture("../step-export/tests/fixtures/kiss_assembly.step");
     let StepImport::Solid {
-        body,
-        coincidences,
-        ..
+        body, coincidences, ..
     } = import_step(&text, &ImportOptions::default(), Tol::witness()).expect("the kiss imports")
     else {
         panic!("the kiss imports as a solid");

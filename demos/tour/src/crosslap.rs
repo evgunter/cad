@@ -123,7 +123,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             bodies: vec![SceneBody::finished(
                 "crosslap_glued",
                 [0.72, 0.53, 0.30],
-                glued.body)],
+                glued.body,
+            )],
         },
         TourStop {
             name: "crosslap_exploded",
@@ -143,10 +144,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 up: 'z',
             },
             bodies: vec![
-                SceneBody::finished(
-                    "crosslap_exp_a",
-                    [0.72, 0.53, 0.30],
-                    a.body),
+                SceneBody::finished("crosslap_exp_a", [0.72, 0.53, 0.30], a.body),
                 // The lifted copy is a TRANSFORM result, not a boolean
                 // result — its contacts don't survive the move; it
                 // validates through the plain tier-3 gate.

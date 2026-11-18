@@ -68,7 +68,8 @@ fn assert_glued<
         Ok(())
     );
     assert!(
-        g.contacts().vertex_vertex().next().is_none() && g.contacts().vertex_face().next().is_none(),
+        g.contacts().vertex_vertex().next().is_none()
+            && g.contacts().vertex_face().next().is_none(),
         "REST records are consumed into seam structure: {:?}",
         g.contacts()
     );
