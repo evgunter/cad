@@ -1802,8 +1802,10 @@ impl FileCoincidence {
     /// coincidence distance, and where the miss may only lie within ε_in,
     /// that a miss persisting at ε_in is the file's or the kernel's
     /// defect. Where the kernel approximated a side ([`MissSource::Fit`]),
-    /// the miss may be the kernel's own, so the sentence keeps the
-    /// kernel-bug note.
+    /// the miss may be the kernel's own: no re-export moves what the
+    /// kernel fits, so the sentence names the kernel approximation
+    /// limit's recourse, loosening the tolerance
+    /// ([`KERNEL_LIMIT_RECOURSE`](crate::KERNEL_LIMIT_RECOURSE)).
     ///
     /// A certified bound on the miss ([`MissReading::Bound`]) places the
     /// miss nowhere but below it, so only a bound wholly within ε_in has
@@ -1863,9 +1865,12 @@ impl FileCoincidence {
                 ),
                 head, recourse
             ),
+            // The kernel approximated a side, so the miss may be its own:
+            // a re-export moves nothing the kernel fits, and the recourse
+            // is the kernel approximation limit's (D4 ¶1 (i)).
             (MissSource::Fit, _) => format!(
-                "{head}, and may be the kernel's own approximation. {recourse}; this refusal may \
-                 indicate a kernel bug worth reporting"
+                "{head}, and may be the kernel's own approximation. {}",
+                crate::KERNEL_LIMIT_RECOURSE
             ),
         }
     }
@@ -4305,7 +4310,8 @@ mod tests {
             format!(
                 "This miss lies beyond the tolerance and {lies} the file's declared coincidence \
                  distance ε_in = 1e-6 m, and may be the kernel's own approximation. Recourse: \
-                 re-export the file more precisely; this refusal may indicate a kernel bug worth reporting"
+                 loosen the tolerance, as a last resort; this refusal may indicate a kernel bug \
+                 worth reporting"
             )
         };
         let persists = "; a miss that persists there means the file is damaged, worth reporting \

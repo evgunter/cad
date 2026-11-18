@@ -406,8 +406,8 @@ fn the_door_refuses_a_displaced_carrier_with_limb_1s_measured_miss() {
                 Some(format!(
                     "This miss lies beyond the tolerance and within the file's declared \
                      coincidence distance ε_in = {shown} m, and may be the kernel's own \
-                     approximation. Recourse: re-export the file more precisely; this refusal may \
-                     indicate a kernel bug worth reporting"
+                     approximation. Recourse: loosen the tolerance, as a last resort; this \
+                     refusal may indicate a kernel bug worth reporting"
                 )),
                 "{e:?}"
             );

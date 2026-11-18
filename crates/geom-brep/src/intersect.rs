@@ -323,14 +323,16 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
                    trace shape (the general-rung marcher), blocked on the cone's exact \
-                   meters conversion",
+                   meters conversion; the coaxial pose has a closed form \
+                   (cone_sphere_section), which this dispatch does not route to",
         },
         (Cone, Torus) | (Torus, Cone) => PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
                    trace shape (the general-rung marcher), blocked on the cone's exact \
-                   meters conversion",
+                   meters conversion; the coaxial pose has a closed form \
+                   (cone_torus_section), which this dispatch does not route to",
         },
         // ---- Rung 3, IMPLEMENTED: the ℝ³ implicit-pair march, each
         // torus read through its quartic. ----

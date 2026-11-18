@@ -9806,7 +9806,8 @@ mod tests {
             fit,
             "This miss lies beyond the tolerance and within the file's declared coincidence \
              distance ε_in = 1e-6 m, and may be the kernel's own approximation. Recourse: \
-             re-export the file more precisely; this refusal may indicate a kernel bug worth reporting",
+             loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth \
+             reporting",
             "a fit's miss keeps the kernel-bug note and vouches for no file data"
         );
         // An enclosure across ε_in may lie within it, so re-exporting is
@@ -9859,11 +9860,11 @@ mod tests {
             "This miss lies beyond the tolerance and within the file's declared coincidence \
              distance ε_in = 1e-6 m, to which alone the file's data claims to agree. {re_export}"
         );
-        let fit_within = format!(
-            "This miss lies beyond the tolerance and within the file's declared coincidence \
-             distance ε_in = 1e-6 m, and may be the kernel's own approximation. {re_export}; this \
-             refusal may indicate a kernel bug worth reporting"
-        );
+        let fit_within = "This miss lies beyond the tolerance and within the file's declared \
+                          coincidence distance ε_in = 1e-6 m, and may be the kernel's own \
+                          approximation. Recourse: loosen the tolerance, as a last resort; this \
+                          refusal may indicate a kernel bug worth reporting"
+            .to_owned();
         let bound_within = format!(
             "The certificate's bound on this miss lies within the file's declared coincidence \
              distance ε_in = 1e-6 m. {re_export}; this refusal may indicate a kernel bug worth \

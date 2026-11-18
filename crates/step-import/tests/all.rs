@@ -63,6 +63,8 @@ mod a_line_beside_a_straight_spline_joins;
 mod a_smooth_join_imports_by_the_must_carry_rule;
 #[path = "a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported.rs"]
 mod a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported;
+#[path = "a_vertex_its_description_fixes_is_built_where_its_surfaces_meet.rs"]
+mod a_vertex_its_description_fixes_is_built_where_its_surfaces_meet;
 #[path = "an_off_iso_line_on_a_spline_wall_imports_its_general_row.rs"]
 mod an_off_iso_line_on_a_spline_wall_imports_its_general_row;
 #[path = "cert1_r1_import_probes.rs"]

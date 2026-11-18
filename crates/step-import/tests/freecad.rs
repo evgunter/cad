@@ -73,11 +73,11 @@ fn expect(name: &str) -> Expect {
         // makeCone(1, 0.5, 1): frustum, V = (π h / 3)(R² + R r + r²).
         // The half-angle prints to 12 digits, so the cone's own ruling
         // (the seam the build makes) meets the top cap ~2.4e-16 m off
-        // the printed vertex: the build reports that move
-        // (`NormalizationKind::VertexBuilt`).
+        // the printed vertex: a vertex move, on the ledger as
+        // `NormalizationKind::VertexBuilt`, and no structure
+        // normalization.
         "cone_trunc" => Expect {
             dialect_rel: 1.25e-12,
-            normalizations: 1,
             ..plain((1, 1, 3, 3, 2), PI * (1.0 + 0.5 + 0.25) / 3.0)
         },
         // makeCone(1, 0, 1): a full cone, V = π R² h / 3. Its lateral
@@ -342,7 +342,26 @@ fn freecad_body(
             eps_in,
             normalizations,
             ..
-        } => (body.into_body(), eps_in, normalizations),
+        } => {
+            // A vertex the build moved off its printed point is on the
+            // ledger as `VertexBuilt` (any move, rounding included); the
+            // structure normalizations this file's rows count are the
+            // rest. Each move is read at the file's band, so none is
+            // past ε_in's band.
+            let (moves, structure): (Vec<_>, Vec<_>) = normalizations.into_iter().partition(|n| {
+                matches!(n.kind, step_import::NormalizationKind::VertexBuilt { .. })
+            });
+            for m in &moves {
+                let step_import::NormalizationKind::VertexBuilt { moved_by } = m.kind else {
+                    unreachable!("partitioned on the kind")
+                };
+                assert!(
+                    moved_by.is_finite() && moved_by >= 0.0,
+                    "{name}: a vertex move is a distance: {m:?}"
+                );
+            }
+            (body.into_body(), eps_in, structure)
+        }
         StepImport::Wireframe { .. } => panic!("{name} imported as a wireframe, expected a solid"),
     }
 }
@@ -480,9 +499,9 @@ fn structure_normalizations_are_reported_with_their_census_mapping() {
 }
 
 /// **Row 2 — the cross-dialect fixed point.** import(FreeCAD file) →
-/// `step_export::step_string` → import again: censuses and certified
-/// volumes bit-identical, and the SECOND export byte-identical to the
-/// first.
+/// `step_export::step_string` → import again → export → import: censuses
+/// and certified volumes bit-identical, and the second round trip's
+/// export byte-identical to the first round trip's.
 ///
 /// The fixed point is in OUR dialect after one hop, and only there:
 /// byte-identity with the FreeCAD source is impossible (different
@@ -532,9 +551,36 @@ fn cross_dialect_fixed_point() {
                         e_at = e.render(geom_brep::recourse::Reading::Build)
                     )
                 });
+        // **The fixed point is our own dialect's**: the build rebuilds
+        // every cache from the description, so the export of the
+        // FreeCAD file's import may differ from its re-import's by the
+        // rounding a construction seeded from FreeCAD's digits leaves;
+        // the second round trip reproduces the first's output byte for
+        // byte.
+        let StepImport::Solid { body: body3, .. } =
+            import_step(&export2, &ImportOptions::default(), Tol::witness()).unwrap_or_else(|e| {
+                panic!(
+                    "{name}: second re-import of our own dialect: {}",
+                    e.render()
+                )
+            })
+        else {
+            panic!("{name}: the second re-import lost the solid");
+        };
+        let export3 = step_export::step_string(
+            &crate::common::at_rest(&body3.into_body()),
+            &options,
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| {
+            panic!(
+                "{name}: re-export 3: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(
-            export1, export2,
-            "{name}: the second export must be byte-identical to the first"
+            export2, export3,
+            "{name}: the second round trip's export must be byte-identical to the first's"
         );
         let v1 = topo::test_support::pinned_volume(
             "the measured body",

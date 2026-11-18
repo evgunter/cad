@@ -140,9 +140,10 @@ const WILD_CELLS: [Cell; 7] = [
 /// [`WILD_CELLS`] AND the attribution block in `demos/README.md`,
 /// per the audit.
 ///
-/// `nist_ftc_09_asme1_rd` states edges whose faces the file band reads
-/// neither crossing nor tangent; the import refuses them naming the snap
-/// catalogue's lane, at every ε, until that lane makes them exact. Its
+/// `nist_ftc_09_asme1_rd` states plane × cylinder edges whose faces read
+/// tangent at the file's band and apart at the run's; the import refuses
+/// them naming the snap catalogue's lane, at every ε, until that lane
+/// makes them exact. Its
 /// cell and its attribution return with it.
 const WILD_REFUSALS: [(&str, &str); 2] = [
     ("occ-oss/b123d_nema17_bracket.step", "SURFACE_CURVE"),

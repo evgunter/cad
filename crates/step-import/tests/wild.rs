@@ -513,12 +513,29 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
             (v1 - v2).abs() <= 4.0 * f64::EPSILON * v1.abs(),
             "{name}: volume across the wire, to summation order: {v1} vs {v2}"
         );
+        // **The fixed point is our own output's**: the build rebuilds
+        // every cache from the description, so the export of the wild
+        // file's import may differ from its re-import's by the rounding a
+        // construction seeded from the wild file's digits leaves; the
+        // second round trip reproduces the first's output byte for byte.
         let second =
             step_export::step_string(&crate::common::at_rest(&again), &options, Tol::witness())
                 .unwrap();
+        let Ok(StepImport::Solid {
+            body: third_body, ..
+        }) = import_step(&second, &ImportOptions::default(), Tol::witness())
+        else {
+            panic!("{name}: the second re-import must be a solid");
+        };
+        let third = step_export::step_string(
+            &crate::common::at_rest(&third_body.into_body()),
+            &options,
+            Tol::witness(),
+        )
+        .unwrap();
         assert_eq!(
-            first, second,
-            "{name}: the second export must be byte-identical"
+            second, third,
+            "{name}: the second round trip's export must be byte-identical to the first's"
         );
     }
 }

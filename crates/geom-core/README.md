@@ -246,7 +246,7 @@ import door past ε_in it names the file: a bad file reaches every
 defect ending there, whether the reading compares a value the file
 stored or one adoption derives from it (an edge's carrier parameters,
 a carrier the import mints, the witness at the carrier's mid-parameter,
-a chart image, a fit, the adoption ladder's description candidate). A
+a chart image, a fit, the description the build chose). A
 sound file such an ending reaches is a kernel bug to fix, not a reason
 for the words to hedge. An unreadable margin's note follows the same
 chooser (`geom_brep::recourse::unreadable_margin_note`):

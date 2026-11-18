@@ -115,8 +115,12 @@ pub(crate) struct Edge {
 }
 
 /// **One shell of the interpreted model** (module docs): the faces as
-/// interpretation left them, every edge's description and built caches,
-/// and every built vertex point. No field holds a value the file printed.
+/// interpretation left them (each a kernel surface interpreted from its
+/// record, and its loops by entity id), every edge's description and
+/// built caches, and every built vertex point. No edge carrier, interval
+/// or vertex an edge ends at holds a value the file printed; a vertex no
+/// edge ends at (a vertex loop's) is its printed point, the one statement
+/// of a point on its face.
 #[derive(Debug)]
 pub(crate) struct Shell<'a> {
     /// The solid record's entity id; for a void, its shell's.
@@ -133,7 +137,12 @@ pub(crate) struct Shell<'a> {
 /// built.
 struct Chosen {
     description: Description,
-    carrier: Curve3<f64>,
+    /// The built carrier; `None` while it waits on its ends
+    /// ([`Deferred`]).
+    carrier: Option<Curve3<f64>>,
+    /// What builds the carrier from the edge's built ends, for an edge
+    /// whose description is fixed by them.
+    deferred: Option<Deferred>,
     /// Whether the carrier was built from both surfaces (a section, a
     /// tangency, a wall's iso, a seam): a vertex is rooted along such a
     /// carrier first.
@@ -146,6 +155,32 @@ struct Chosen {
     between_ends: bool,
 }
 
+impl Chosen {
+    /// An edge whose description builds its carrier now.
+    fn built(description: Description, carrier: Curve3<f64>) -> Self {
+        Self {
+            description,
+            carrier: Some(carrier),
+            deferred: None,
+            intrinsic: true,
+            iso: None,
+            between_ends: false,
+        }
+    }
+}
+
+/// **A carrier its built ends fix**: a curve one surface holds, built once
+/// the vertices it runs between are.
+#[derive(Clone, Copy, Debug)]
+enum Deferred {
+    /// The surface's own generator through a built end: a periodic face's
+    /// seam, or a meridian, parallel, ruling or tube circle between two
+    /// faces of one record.
+    Generator,
+    /// The segment between the built ends, inside one plane.
+    Segment,
+}
+
 /// A wall iso's image as a map of the carrier's parameter.
 #[derive(Clone, Copy, Debug)]
 struct IsoMap {
@@ -153,21 +188,45 @@ struct IsoMap {
     fixed: f64,
     /// Column (`u` fixed) or row (`v` fixed).
     column: bool,
-    /// `None` where the carrier is the iso on its own parameter; else
-    /// `(from, to, len)` for a straight carrier on its arc length: the
-    /// running coordinate is `from` at `t = 0` and `to` at `t = len`, each
-    /// end exactly.
-    affine: Option<(f64, f64, f64)>,
+    /// The running chart coordinate at carrier parameter `t`.
+    running: Running,
+}
+
+/// **The running chart coordinate of a wall iso at carrier parameter
+/// `t`.**
+#[derive(Clone, Copy, Debug)]
+enum Running {
+    /// The carrier is the iso on its own parameter: `t`.
+    Own,
+    /// A straight carrier on its arc length: `from` at `t = 0`, `to` at
+    /// `t = len`, each end exactly.
+    Chord {
+        /// The coordinate at `t = 0`.
+        from: f64,
+        /// The coordinate at `t = len`.
+        to: f64,
+        /// The chord's length.
+        len: f64,
+    },
+    /// The iso of the wall reversed along it, on `[lo, hi]`: `lo + hi − t`.
+    Mirror {
+        /// The domain's start.
+        lo: f64,
+        /// The domain's end.
+        hi: f64,
+    },
 }
 
 /// **Builds one shell** (module docs). `moves` receives a record for each
-/// vertex the build moved past rounding.
+/// vertex the build moved off its printed point.
 ///
 /// # Errors
 ///
 /// An interpretation refusal where the file's statements are no
-/// description at its band ([`StepImportError::Interpretation`]), and
-/// [`StepImportError::NotYetSupported`] where the kernel constructs none.
+/// description at its band ([`StepImportError::Interpretation`]),
+/// [`StepImportError::NotYetSupported`] where the kernel constructs none,
+/// and [`StepImportError::BuildEscalated`] where the run's band does not
+/// decide a construction.
 pub(crate) fn build<'a>(
     solid: &'a SolidSpec,
     tol: Tol,
@@ -178,11 +237,9 @@ pub(crate) fn build<'a>(
     let mut chosen = BTreeMap::new();
     for (&id, spec) in &solid.edges {
         let (plus, minus) = sides[&id];
-        let mut c = choose(solid, id, spec, (plus, minus), tol, file)?;
-        c.carrier = admitted(c.carrier, &spec.carrier);
-        chosen.insert(id, c);
+        chosen.insert(id, choose(solid, id, spec, (plus, minus), tol, file)?);
     }
-    let vertices = build_vertices(solid, &sides, &chosen, tol, file, moves)?;
+    let vertices = build_vertices(solid, &sides, &mut chosen, tol, file, moves)?;
     let mut edges = BTreeMap::new();
     for (
         id,
@@ -197,6 +254,12 @@ pub(crate) fn build<'a>(
     {
         let spec = &solid.edges[&id];
         let (p_start, p_end) = (vertices[&spec.start], vertices[&spec.end]);
+        let Some(carrier) = carrier else {
+            return Err(StepImportError::Topology {
+                id,
+                what: "internal: an edge whose carrier waits on ends the build did not reach",
+            });
+        };
         let carrier = crate::signed_zero::plus_zero_curve(rebuilt_in_surface(
             between_ends,
             carrier,
@@ -207,10 +270,10 @@ pub(crate) fn build<'a>(
         let (carrier, t0, t1) = params(
             id,
             carrier,
-            &spec.carrier,
             (p_start, p_end),
             spec.start == spec.end,
             whole,
+            tol,
         )?;
         let description = match (description, iso) {
             (Description::Iso { wall, .. }, Some(map)) => Description::Iso {
@@ -241,13 +304,25 @@ pub(crate) fn build<'a>(
 
 impl IsoMap {
     fn image(self, t0: f64, t1: f64) -> Pcurve<f64> {
-        let at = |t: f64| match self.affine {
-            None => t,
-            // Held to the iso's own ends: an end the projection reads a
-            // rounding past the chord's length is the iso's end.
-            Some((from, to, len)) => {
-                (from + (to - from) * (t / len)).clamp(from.min(to), from.max(to))
+        // Held to the iso's own ends where the map lands one unit of the
+        // last place past one: its arithmetic rounds once, so its image
+        // may step one place past the end, and that step is the end. A
+        // coordinate farther out is left as it lands, and certification
+        // reads it.
+        let held = |x: f64, a: f64, b: f64| {
+            let (lo, hi) = (a.min(b), a.max(b));
+            if x < lo && x >= lo.next_down() {
+                lo
+            } else if x > hi && x <= hi.next_up() {
+                hi
+            } else {
+                x
             }
+        };
+        let at = |t: f64| match self.running {
+            Running::Own => t,
+            Running::Chord { from, to, len } => held(from + (to - from) * (t / len), from, to),
+            Running::Mirror { lo, hi } => held(lo + hi - t, lo, hi),
         };
         if self.column {
             Pcurve::iso_column(self.fixed, (at(t0), at(t1)), (t0, t1))
@@ -311,16 +386,38 @@ fn unbuilt(file: FileBand, id: u64, what: String, lane: &'static str) -> StepImp
     }
 }
 
+/// The build's escalation at the run's band, for edge or vertex `id`.
+fn escalated(file: FileBand, id: u64, source: geom_core::Indeterminate) -> StepImportError {
+    StepImportError::BuildEscalated {
+        id,
+        source,
+        file: geom_core::FileCoincidence::new(file.eps_in()),
+    }
+}
+
+/// The pair `(a, b)` as the refusals name it: `its {a} and its {b}`.
+fn pair_names(a: &Surface<f64>, b: &Surface<f64>) -> String {
+    format!("its {} and its {}", a.kind().name(), b.kind().name())
+}
+
 /// The lane a relation the file band reads `Zero` and the run reads apart
 /// waits on.
 const SNAP_LANE: &str = "D7 step 3's snap catalogue, which makes a relation between surfaces \
-                         that reads Zero at the file's band exact";
+                         that reads Zero at the file's band exact \
+                         (`work/importgate/import-snaps-a-relation-the-file-band-reads-zero-and-the-run-reads-apart.md`)";
 
 /// The lane a pair with no section construction waits on.
-const SECTION_LANE: &str = "the C5 section table's arm for this pair (`geom_brep::intersect`)";
+const SECTION_LANE: &str = "a section construction for this pair \
+                            (`work/importgate/an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses.md`)";
+
+/// The lane a tangency with no closed-form locus waits on.
+const TANGENT_LANE: &str = "a C7 tangent-locus construction for this pose \
+                            (`work/importgate/an-imported-tangency-with-no-closed-form-locus-refuses.md`)";
 
 /// **Selection and the carrier's construction** for one edge (module
-/// docs, steps 1 and 2).
+/// docs, steps 1 and 2). Which description an edge is comes from its two
+/// faces' surfaces, read at the file's band; the printed carrier only
+/// picks the component.
 fn choose(
     solid: &SolidSpec,
     id: u64,
@@ -369,7 +466,15 @@ fn choose(
     });
     let spline = |s: &Surface<f64>| s.spline_chart().is_some();
     if spline(sa) || spline(sb) {
-        return spline_pair(id, spec, (sa, sb), &region, extent, (file, eps_band));
+        return spline_pair(
+            id,
+            spec,
+            (sa, sb),
+            (p_start, p_end),
+            &region,
+            extent,
+            (file, eps_band),
+        );
     }
     analytic_pair(id, spec, (sa, sb), &region, extent, (file, eps_band))
 }
@@ -403,108 +508,140 @@ fn faces_reach(solid: &SolidSpec, faces: [usize; 2]) -> geom_core::Lever<f64> {
     ])
 }
 
-/// A spline wall in the pair: the plane × wall section in the plane's
-/// chart (the native rim's description), or the two walls' section.
-fn spline_pair(
-    id: u64,
+/// [`topo::section_near`] of the pair at `band`, through the printed
+/// carrier: the section's component nearest it, or the verdict that
+/// builds none.
+fn read_section(
     spec: &EdgeSpec,
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     region: &geom_brep::Reach<f64>,
     extent: geom_core::Lever<f64>,
+    band: geom_core::Band,
+) -> Result<Result<Curve3<f64>, topo::SectionVerdict>, geom_core::Indeterminate> {
+    // Two planes meet in one line, which the section anchors at the plane
+    // across it through its seed's middle: seeded at the world origin
+    // along the printed direction, the anchor is the line's own point
+    // nearest the origin, which the two planes alone fix, so the line's
+    // construction reads no digit the file printed but its sense.
+    let canonical;
+    let seed = if plane_normals(sa, sb).is_some() {
+        let tangent = spec.carrier.deriv(geom::mid_param(spec.t0, spec.t1));
+        canonical = Curve3::line(Point3::origin(), tangent);
+        (&canonical, (0.0, 0.0))
+    } else {
+        (&spec.carrier, (spec.t0, spec.t1))
+    };
+    topo::section_near(
+        Some(topo::SectionLane::f64()),
+        (sa, sb),
+        seed,
+        region,
+        extent,
+        band,
+    )
+}
+
+/// A spline wall in the pair: the plane × wall or wall × wall section,
+/// selected at the file's band and built at the run's, as an analytic
+/// pair's is ([`analytic_pair`]). A cap's rim that is the wall's own
+/// boundary row is that row ([`iso_of_wall`], taken before this).
+fn spline_pair(
+    id: u64,
+    spec: &EdgeSpec,
+    (sa, sb): (&Surface<f64>, &Surface<f64>),
+    ends: (Point3<f64>, Point3<f64>),
+    region: &geom_brep::Reach<f64>,
+    extent: geom_core::Lever<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
-    let plane = match (sa, sb) {
-        (Surface::Plane { .. }, _) => Some(Side::Plus),
-        (_, Surface::Plane { .. }) => Some(Side::Minus),
-        _ => None,
-    };
+    use topo::SectionVerdict as V;
+    let plane = matches!(sa, Surface::Plane { .. }) || matches!(sb, Surface::Plane { .. });
     let both_spline = sa.spline_chart().is_some() && sb.spline_chart().is_some();
-    if plane.is_none() && !both_spline {
+    if !plane && !both_spline {
         return Err(unbuilt(
             file,
             id,
             format!(
-                "an edge between a {} and a {}, whose section the kernel builds only against a \
-                 plane or a second spline wall",
-                sa.kind().name(),
-                sb.kind().name()
+                "an edge between {}, whose section the kernel builds only against a plane or a \
+                 second spline wall",
+                pair_names(sa, sb)
             ),
             SECTION_LANE,
         ));
     }
-    // An arc on a cap plane is the cap's rim (below). Otherwise the
-    // pair's section, where the kernel builds it, and the edge is the
-    // pair's intersection; a straight section is the line it is, read by
-    // the recognition that promotes a printed spline
-    // ([`crate::recognize_curve::try_line`], at the file's band).
-    let arc = matches!(spec.carrier, Curve3::Circle(_) | Curve3::Ellipse(_));
-    let section = if arc && plane.is_some() {
-        Err(unbuilt(
-            file,
-            id,
-            "a cap's arc rim".to_owned(),
-            SECTION_LANE,
-        ))
-    } else {
-        section(file, id, spec, (sa, sb), region, extent, eps_band)
-    };
-    let analytic = arc || matches!(spec.carrier, Curve3::Line(_));
-    let chart = match (section, plane) {
-        (Ok(carrier), _) => {
-            let carrier = match &carrier {
-                Curve3::Nurbs(n) => crate::recognize_curve::try_line(n, file)
-                    .map_or(carrier.clone(), |(line, _)| line),
-                _ => carrier,
-            };
-            on_description(id, spec, &carrier, file)?;
-            // A straight printed edge whose section the recognition does
-            // not certify straight at the band (a marched branch's fit)
-            // is the segment between its built ends, which the section
-            // through them holds.
-            let between_ends =
-                matches!(spec.carrier, Curve3::Line(_)) && matches!(carrier, Curve3::Nurbs(_));
-            return Ok(Chosen {
-                description: Description::Intersection,
-                carrier,
-                intrinsic: true,
-                iso: None,
-                between_ends,
-            });
+    // **A cap's rational rim is the wall's own row**: a rational
+    // boundary row the cap plane holds is the native body's chart image of
+    // its rim (a rational wall mints nothing there), built exactly from the
+    // wall; a polynomial one is the plane × wall section, which the kernel
+    // builds as the same exact row, and the native rim's class.
+    if let Some(rim) = cap_row(id, spec, (sa, sb), ends, file, true)? {
+        return Ok(rim);
+    }
+    let read = |band| read_section(spec, (sa, sb), region, extent, band);
+    // An escalation at the file's band is the file's ambiguity: its
+    // statements do not decide the reading at their own precision.
+    match read(file.band()).map_err(|source| ambiguous(id, &source, file))? {
+        Ok(_) => {}
+        Err(V::Tangent) => {
+            return Err(unbuilt(
+                file,
+                id,
+                format!(
+                    "a tangency of {}, read at the file's band",
+                    pair_names(sa, sb)
+                ),
+                TANGENT_LANE,
+            ));
         }
-        (Err(StepImportError::NotYetSupported { .. }), Some(chart)) if analytic => chart,
-        (Err(e), _) => return Err(e),
+        Err(verdict) => {
+            if let Some(rim) = cap_row(id, spec, (sa, sb), ends, file, false)? {
+                return Ok(rim);
+            }
+            return Err(unbuilt(
+                file,
+                id,
+                format!(
+                    "the section of {} near it, read at the file's band: {verdict}",
+                    pair_names(sa, sb)
+                ),
+                SECTION_LANE,
+            ));
+        }
+    }
+    let carrier = match read(eps_band) {
+        Ok(Ok(carrier)) => carrier,
+        Ok(Err(verdict)) => {
+            return Err(unbuilt(
+                file,
+                id,
+                format!(
+                    "the section of {} builds at the file's band and not at the run's: \
+                     {verdict}",
+                    pair_names(sa, sb)
+                ),
+                SNAP_LANE,
+            ));
+        }
+        Err(source) => return Err(escalated(file, id, source)),
     };
-    // **A cap's rim** the section does not build (a plane holding a
-    // rational wall's boundary row, or meeting the wall along its edge
-    // only): the native rim's description, a curve in the cap plane's
-    // chart, is the cap's own profile, which no surface pair defines —
-    // so, like a curve one surface holds, its description is the curve
-    // as interpretation built it. What interpretation checks is that the
-    // wall holds it: its ends and middle lie on the wall at the file's
-    // band.
-    let wall = match chart {
-        Side::Plus => sb,
-        Side::Minus => sa,
+    // A straight section is the line it is, read by the recognition that
+    // promotes a printed spline ([`crate::recognize_curve::try_line`], at
+    // the file's band).
+    let carrier = match &carrier {
+        Curve3::Nurbs(n) => {
+            crate::recognize_curve::try_line(n, file).map_or(carrier.clone(), |(line, _)| line)
+        }
+        _ => carrier,
     };
-    let Some(net) = wall.spline_chart() else {
-        unreachable!("a plane × spline pair's other side is a spline")
-    };
-    let c = &spec.carrier;
-    let gap = [
-        c.eval(spec.t0),
-        c.mid_point(spec.t0, spec.t1),
-        c.eval(spec.t1),
-    ]
-    .into_iter()
-    .map(|p| net.project(p).map_or(f64::INFINITY, |f| f.distance))
-    .fold(0.0_f64, f64::max);
-    file.agree_at(id, STEP_RIM_ON_WALL, gap)?;
+    on_description(id, spec, &carrier, file)?;
+    // A straight printed edge whose section the recognition does not
+    // certify straight at the band (a marched branch's fit) is the segment
+    // between its built ends, which the section through them holds.
+    let between_ends =
+        matches!(spec.carrier, Curve3::Line(_)) && matches!(carrier, Curve3::Nurbs(_));
     Ok(Chosen {
-        description: Description::Chart { chart },
-        carrier: spec.carrier.clone(),
-        intrinsic: false,
-        iso: None,
-        between_ends: true,
+        between_ends,
+        ..Chosen::built(Description::Intersection, carrier)
     })
 }
 
@@ -512,46 +649,9 @@ fn spline_pair(
 /// angle levered at the edge's extent, read at the file's band.
 pub(crate) const STEP_PLANES_CROSS: &str = "step_planes_cross";
 
-/// Whether a cap's printed rim lies on its spline wall: the farthest of
-/// its ends and middle from the wall, read at the file's band.
-pub(crate) const STEP_RIM_ON_WALL: &str = "step_rim_on_wall";
-
-/// [`topo::section_near`] at `band`, its verdicts refused for edge `id`.
-fn section(
-    file: FileBand,
-    id: u64,
-    spec: &EdgeSpec,
-    (sa, sb): (&Surface<f64>, &Surface<f64>),
-    region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
-    band: geom_core::Band,
-) -> Result<Curve3<f64>, StepImportError> {
-    match topo::section_near(
-        Some(topo::SectionLane::f64()),
-        (sa, sb),
-        (&spec.carrier, (spec.t0, spec.t1)),
-        region,
-        extent,
-        band,
-    ) {
-        Ok(Ok(c)) => Ok(c),
-        Ok(Err(verdict)) => Err(unbuilt(
-            file,
-            id,
-            format!(
-                "the section of its {} and its {} near it: {verdict}",
-                sa.kind().name(),
-                sb.kind().name()
-            ),
-            SECTION_LANE,
-        )),
-        Err(source) => Err(StepImportError::BuildEscalated {
-            id,
-            source,
-            file: geom_core::FileCoincidence::new(file.eps_in()),
-        }),
-    }
-}
+/// Whether a wall's boundary row or column lies in a cap plane: the
+/// farthest of its controls from the plane, read at the file's band.
+pub(crate) const STEP_ISO_IN_PLANE: &str = "step_iso_in_plane";
 
 /// Two distinct analytic surfaces: the section at the file band chooses
 /// crossing or tangency and the component, and the run builds it.
@@ -564,57 +664,30 @@ fn analytic_pair(
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     use topo::SectionVerdict as V;
-    let read = |band| {
-        topo::section_near(
-            Some(topo::SectionLane::f64()),
-            (sa, sb),
-            (&spec.carrier, (spec.t0, spec.t1)),
-            region,
-            extent,
-            band,
-        )
-    };
+    let read = |band| read_section(spec, (sa, sb), region, extent, band);
     // An escalation at the file's band is the file's ambiguity: its
     // statements do not decide the reading at their own precision.
     let at_file = read(file.band()).map_err(|source| ambiguous(id, &source, file))?;
-    let crossing = |carrier| -> Result<Chosen, StepImportError> {
-        on_description(id, spec, &carrier, file)?;
-        Ok(Chosen {
-            description: Description::Intersection,
-            carrier,
-            intrinsic: true,
-            iso: None,
-            between_ends: false,
-        })
-    };
     match at_file {
+        // The file band builds the section; a run that builds another
+        // verdict (a tangency, a pose it does not read coaxial) reads apart
+        // a relation the file states, which the snap catalogue makes exact.
         Ok(_) => match read(eps_band) {
-            Ok(Ok(carrier)) => crossing(carrier),
-            Ok(Err(V::Tangent)) => Err(unbuilt(
-                file,
-                id,
-                format!(
-                    "its {} and {} read crossing at the file's band and tangent at the run's",
-                    sa.kind().name(),
-                    sb.kind().name()
-                ),
-                SNAP_LANE,
-            )),
+            Ok(Ok(carrier)) => {
+                on_description(id, spec, &carrier, file)?;
+                Ok(Chosen::built(Description::Intersection, carrier))
+            }
             Ok(Err(verdict)) => Err(unbuilt(
                 file,
                 id,
                 format!(
-                    "the section of its {} and its {} near it: {verdict}",
-                    sa.kind().name(),
-                    sb.kind().name()
+                    "the section of {} builds at the file's band and not at the run's: \
+                     {verdict}",
+                    pair_names(sa, sb)
                 ),
-                SECTION_LANE,
+                SNAP_LANE,
             )),
-            Err(source) => Err(StepImportError::BuildEscalated {
-                id,
-                source,
-                file: geom_core::FileCoincidence::new(file.eps_in()),
-            }),
+            Err(source) => Err(escalated(file, id, source)),
         },
         Err(V::Tangent) => tangent(id, spec, (sa, sb), region, extent, (file, eps_band)),
         // Two planes the file's band reads parallel meet in no line: the
@@ -630,9 +703,8 @@ fn analytic_pair(
             file,
             id,
             format!(
-                "the section of its {} and its {} near it, read at the file's band: {verdict}",
-                sa.kind().name(),
-                sb.kind().name()
+                "the section of {} near it, read at the file's band: {verdict}",
+                pair_names(sa, sb)
             ),
             SECTION_LANE,
         )),
@@ -648,8 +720,10 @@ fn plane_normals(a: &Surface<f64>, b: &Surface<f64>) -> Option<(Vec3<f64>, Vec3<
 }
 
 /// A pair the offset's closed forms do not serve: the pair section's
-/// classification at the file band picks crossing or tangency, and its
-/// carried component through the printed middle is the carrier.
+/// classification at the file band, and the run's carried component
+/// through the printed middle. The edge is the pair's tangency only where
+/// a tangency decided the arm and the printed middle lies on no crossing
+/// component.
 fn served_pair(
     id: u64,
     spec: &EdgeSpec,
@@ -659,43 +733,41 @@ fn served_pair(
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     let ball = Some(region.ball());
-    let read =
-        |band| geom_brep::pair_section(sa, sb, ball, Some(geom_brep::SsiLane::marched()), band);
-    let classified = |band| -> Result<Option<geom_brep::PairSection<f64>>, StepImportError> {
-        match read(band) {
-            Ok(geom_brep::SectionRead::Built(section)) => Ok(Some(section)),
-            Ok(geom_brep::SectionRead::Elsewhere(_)) => Ok(None),
-            Err(geom_brep::SectionError::CoincidentSurfaces) => Err(unbuilt(
-                file,
-                id,
-                format!(
-                    "an edge between two records of one {}, a curve inside one surface the \
+    let classified =
+        |band, at_file: bool| -> Result<Option<geom_brep::PairSection<f64>>, StepImportError> {
+            match geom_brep::pair_section(sa, sb, ball, Some(geom_brep::SsiLane::marched()), band) {
+                Ok(geom_brep::SectionRead::Built(section)) => Ok(Some(section)),
+                Ok(geom_brep::SectionRead::Elsewhere(_)) => Ok(None),
+                Err(geom_brep::SectionError::Escalated(source)) if at_file => {
+                    Err(ambiguous(id, &source, file))
+                }
+                Err(geom_brep::SectionError::Escalated(source)) => Err(escalated(file, id, source)),
+                Err(geom_brep::SectionError::CoincidentSurfaces) => Err(unbuilt(
+                    file,
+                    id,
+                    format!(
+                        "an edge between two records of one {}, a curve inside one surface the \
                      two records state twice",
-                    sa.kind().name()
-                ),
-                "one record of a non-planar surface \
+                        sa.kind().name()
+                    ),
+                    "one record of a non-planar surface \
                  (`work/importgate/two-records-of-one-non-planar-surface-stay-two-at-import.md`)",
-            )),
-            Err(e) => Err(unbuilt(
-                file,
-                id,
-                format!(
-                    "the section of its {} and its {}: {e}",
-                    sa.kind().name(),
-                    sb.kind().name()
-                ),
-                SECTION_LANE,
-            )),
-        }
-    };
-    let Some(at_file) = classified(file.band())? else {
+                )),
+                Err(e) => Err(unbuilt(
+                    file,
+                    id,
+                    format!("the section of {}: {e}", pair_names(sa, sb)),
+                    SECTION_LANE,
+                )),
+            }
+        };
+    let Some(at_file) = classified(file.band(), true)? else {
         return Err(unbuilt(
             file,
             id,
             format!(
-                "an edge between a {} and a {}, a pair whose section the kernel does not build",
-                sa.kind().name(),
-                sb.kind().name()
+                "an edge between {}, a pair whose section the kernel does not build",
+                pair_names(sa, sb)
             ),
             SECTION_LANE,
         ));
@@ -704,66 +776,74 @@ fn served_pair(
         .decided()
         .iter()
         .any(|z| matches!(z.decision, geom_brep::SectionDecision::Tangency(_)));
-    if tangency {
-        return tangent(id, spec, (sa, sb), region, extent, (file, eps_band));
-    }
-    let Some(at_eps) = classified(eps_band)? else {
-        unreachable!("a pair the section value builds at one band it builds at every band")
+    let Some(at_eps) = classified(eps_band, false)? else {
+        return Err(unbuilt(
+            file,
+            id,
+            format!(
+                "the section of {} builds at the file's band and not at the run's",
+                pair_names(sa, sb)
+            ),
+            SNAP_LANE,
+        ));
     };
-    let carried = at_eps
-        .carry(Some(geom_brep::SsiLane::marched()), eps_band)
-        .map_err(|e| {
-            unbuilt(
-                file,
-                id,
-                format!(
-                    "the section of its {} and its {} carries no component: {e}",
-                    sa.kind().name(),
-                    sb.kind().name()
-                ),
-                SECTION_LANE,
-            )
-        })?;
     let mid = spec.carrier.mid_point(spec.t0, spec.t1);
-    let component = match carried.site(mid, file.band()) {
-        Ok(geom_brep::SiteReading::OnArc(foot)) => &carried.components()[foot.component],
-        Ok(geom_brep::SiteReading::AtNode(_)) | Err(_) => {
-            // The printed middle on no component at the file's band: the
-            // file's statements are no description there.
-            let nearest = carried
-                .components()
-                .iter()
-                .map(|c| gap_to(&c.carrier, mid))
-                .fold(f64::INFINITY, f64::min);
-            file.agree_at(id, STEP_EDGE_ON_DESCRIPTION, nearest)?;
-            return Err(unbuilt(
+    let carried = at_eps.carry(Some(geom_brep::SsiLane::marched()), eps_band);
+    let on_crossing =
+        carried
+            .as_ref()
+            .ok()
+            .and_then(|carried| match carried.site(mid, file.band()) {
+                Ok(geom_brep::SiteReading::OnArc(foot)) => {
+                    Some(carried.components()[foot.component].carrier.clone())
+                }
+                Ok(geom_brep::SiteReading::AtNode(_)) | Err(_) => None,
+            });
+    let Some(component) = on_crossing else {
+        if tangency {
+            return tangent(id, spec, (sa, sb), region, extent, (file, eps_band));
+        }
+        return Err(match carried {
+            Err(e) => unbuilt(
                 file,
                 id,
                 format!(
-                    "the printed carrier's middle names no one component of the section of its \
-                     {} and its {}",
-                    sa.kind().name(),
-                    sb.kind().name()
+                    "the section of {} carries no component: {e}",
+                    pair_names(sa, sb)
                 ),
                 SECTION_LANE,
-            ));
-        }
+            ),
+            Ok(carried) => {
+                // The printed middle on no component at the file's band:
+                // the file's statements are no description there.
+                let nearest = carried
+                    .components()
+                    .iter()
+                    .map(|c| gap_to(&c.carrier, mid))
+                    .fold(f64::INFINITY, f64::min);
+                file.agree_at(id, STEP_EDGE_ON_DESCRIPTION, nearest)?;
+                unbuilt(
+                    file,
+                    id,
+                    format!(
+                        "the printed carrier's middle names no one component of the section of \
+                         {}",
+                        pair_names(sa, sb)
+                    ),
+                    SECTION_LANE,
+                )
+            }
+        });
     };
     // A marched loop is periodic; its edge is an arc of the loop's whole
     // turn, read on the clamped spline of that turn.
-    let carrier = match &component.carrier {
+    let carrier = match component {
         Curve3::Periodic(p) => Curve3::Nurbs(std::sync::Arc::new(p.whole_loop().clone())),
-        other => other.clone(),
+        other => other,
     };
     let carrier = running_with(id, carrier, spec, file)?;
     on_description(id, spec, &carrier, file)?;
-    Ok(Chosen {
-        description: Description::Intersection,
-        carrier,
-        intrinsic: true,
-        iso: None,
-        between_ends: false,
-    })
+    Ok(Chosen::built(Description::Intersection, carrier))
 }
 
 /// A tangency read at the file band: the tangent locus at the run, a
@@ -778,7 +858,6 @@ fn tangent(
     extent: geom_core::Lever<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
-    let names = || format!("{} and {}", sa.kind().name(), sb.kind().name());
     let locus = if geom_brep::tangent_locus_kinds(sa.kind(), sb.kind()) {
         match geom_brep::tangent_locus(sa, sb, region.ball(), eps_band) {
             Ok(geom_brep::TangentLocus::Line { line, .. }) => Curve3::Line(line),
@@ -787,78 +866,79 @@ fn tangent(
                     file,
                     id,
                     format!(
-                        "its {} read tangent at the file's band and apart at the run's",
-                        names()
+                        "{} read tangent at the file's band and apart at the run's",
+                        pair_names(sa, sb)
                     ),
                     SNAP_LANE,
                 ));
             }
             Err(geom_brep::TangentLocusError::Escalated(source)) => {
-                return Err(StepImportError::BuildEscalated {
-                    id,
-                    source,
-                    file: geom_core::FileCoincidence::new(file.eps_in()),
-                });
+                return Err(escalated(file, id, source));
             }
             Err(geom_brep::TangentLocusError::Unsupported { what }) => {
                 return Err(unbuilt(
                     file,
                     id,
-                    format!("the tangency of its {}: {what}", names()),
-                    SNAP_LANE,
+                    format!("the tangency of {}: {what}", pair_names(sa, sb)),
+                    TANGENT_LANE,
                 ));
             }
         }
     } else {
-        match geom_brep::coaxial_tangent_circle(sa, sb, extent, eps_band) {
+        let coaxial = |band| match geom_brep::coaxial_tangent_circle(sa, sb, extent, band) {
+            Ok(circle) => Ok(circle),
+            Err(geom_brep::SectionError::Escalated(source)) => Err(Err(source)),
+            Err(e) => Err(Ok(e)),
+        };
+        match coaxial(eps_band) {
             Ok(Some(circle)) => circle,
             Ok(None) => {
-                let coaxial_at_file =
-                    geom_brep::coaxial_tangent_circle(sa, sb, extent, file.band())
-                        .ok()
-                        .flatten()
-                        .is_some();
-                let (what, lane) = if coaxial_at_file {
+                let at_file = match coaxial(file.band()) {
+                    Ok(circle) => circle.is_some(),
+                    Err(Err(source)) => return Err(ambiguous(id, &source, file)),
+                    Err(Ok(_)) => false,
+                };
+                let (what, lane) = if at_file {
                     (
                         format!(
-                            "its {} read coaxial and tangent at the file's band and not at the \
-                             run's",
-                            names()
+                            "{} read coaxial and tangent at the file's band and not at the run's",
+                            pair_names(sa, sb)
                         ),
                         SNAP_LANE,
                     )
                 } else {
                     (
-                        format!("a tangency of its {} with no closed-form locus", names()),
-                        "a tangent-locus construction for this pose (C7)",
+                        format!(
+                            "a tangency of {} with no closed-form locus",
+                            pair_names(sa, sb)
+                        ),
+                        TANGENT_LANE,
                     )
                 };
                 return Err(unbuilt(file, id, what, lane));
             }
-            Err(e) => {
+            Err(Err(source)) => return Err(escalated(file, id, source)),
+            Err(Ok(e)) => {
                 return Err(unbuilt(
                     file,
                     id,
-                    format!("the tangency of its {}: {e}", names()),
-                    SECTION_LANE,
+                    format!("the tangency of {}: {e}", pair_names(sa, sb)),
+                    TANGENT_LANE,
                 ));
             }
         }
     };
     let carrier = running_with(id, locus, spec, file)?;
     on_description(id, spec, &carrier, file)?;
-    Ok(Chosen {
-        description: Description::Tangent,
-        carrier,
-        intrinsic: true,
-        iso: None,
-        between_ends: false,
-    })
+    Ok(Chosen::built(Description::Tangent, carrier))
 }
 
-/// One surface record on both sides: a periodic face's wrap edge on its
-/// seam generator, a closed spline patch's seam (taken by
-/// [`iso_of_wall`]), or a curve the surface holds between two faces.
+/// **One surface record on both sides** (a closed spline patch's seam is
+/// taken by [`iso_of_wall`]): a curve the surface holds, which its built
+/// ends fix. A periodic surface's is its own generator through them (a
+/// face's wrap edge, or a meridian, parallel, ruling or tube circle
+/// between two faces of the record); a plane's is the segment between
+/// them. Its carrier waits on its ends ([`Deferred`]).
 fn one_surface(
     id: u64,
     spec: &EdgeSpec,
@@ -866,53 +946,117 @@ fn one_surface(
     one_face: bool,
     file: FileBand,
 ) -> Result<Chosen, StepImportError> {
-    let mid = spec.carrier.mid_point(spec.t0, spec.t1);
-    let seams = if one_face {
-        generators_through(surface, mid)
+    let description = if one_face {
+        Description::Wrap
     } else {
-        Vec::new()
+        Description::Chart { chart: Side::Plus }
     };
-    if !seams.is_empty() {
-        // The generator the printed carrier lies on at the file's band:
-        // a torus has two through its middle.
-        // Both pass through it; the one it runs along is the one whose
-        // tangent there lies along the printed carrier's.
-        let tangent = spec.carrier.deriv(geom::mid_param(spec.t0, spec.t1));
-        let along = |c: &Curve3<f64>| {
-            param_at(c, mid).map_or(0.0, |t| {
-                let d = c.deriv(t);
-                (d.dot(tangent) / (d.norm() * tangent.norm())).abs()
-            })
-        };
-        let on = (0..seams.len())
-            .max_by(|&i, &j| along(&seams[i]).total_cmp(&along(&seams[j])))
-            .unwrap_or(0);
-        let carrier = running_with(id, seams[on].clone(), spec, file)?;
-        on_description(id, spec, &carrier, file)?;
-        return Ok(Chosen {
-            description: Description::Wrap,
-            carrier,
-            intrinsic: true,
-            iso: None,
-            between_ends: false,
-        });
-    }
+    let deferred = match (surface, &spec.carrier) {
+        (Surface::Plane { .. }, Curve3::Line(_)) => Deferred::Segment,
+        (
+            Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. },
+            _,
+        ) => Deferred::Generator,
+        _ => {
+            return Err(unbuilt(
+                file,
+                id,
+                format!(
+                    "a curve inside one {} two of its faces share, which is no generator of \
+                     the surface",
+                    surface.kind().name()
+                ),
+                "a construction of a curve inside one surface \
+                 (`work/importgate/an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses.md`)",
+            ));
+        }
+    };
     Ok(Chosen {
-        description: Description::Chart { chart: Side::Plus },
-        carrier: spec.carrier.clone(),
-        intrinsic: false,
+        description,
+        carrier: None,
+        deferred: Some(deferred),
+        intrinsic: matches!(deferred, Deferred::Generator),
         iso: None,
-        between_ends: true,
+        between_ends: false,
     })
 }
 
+/// **A deferred carrier built through its edge's built ends**: the
+/// segment between them, or the surface's generator through one of them
+/// that the printed carrier's middle lies on at the file's band (exactly
+/// one: a torus has two through a point, a sphere a meridian and a
+/// parallel). Where no built end names a generator (both stand on the
+/// axis), the generator through the printed middle's own foot on the
+/// surface: the ends leave the azimuth free, and the printed value chooses
+/// among equally valid models.
+fn deferred_carrier(
+    id: u64,
+    spec: &EdgeSpec,
+    surface: &Surface<f64>,
+    deferred: Deferred,
+    (p_start, p_end): (Point3<f64>, Point3<f64>),
+    file: FileBand,
+) -> Result<Curve3<f64>, StepImportError> {
+    if matches!(deferred, Deferred::Segment) {
+        return match (p_end - p_start).checked_direction() {
+            Ok((dir, _)) => Ok(Curve3::line(p_start, dir)),
+            Err(_) => Err(StepImportError::Topology {
+                id,
+                what: "a straight edge inside one plane whose built ends coincide",
+            }),
+        };
+    }
+    let mid = spec.carrier.mid_point(spec.t0, spec.t1);
+    // The first of the built ends, then the printed middle, whose
+    // generators hold the printed edge: a point a rounding off the axis
+    // names an azimuth no generator of the edge runs at.
+    let on: Vec<Curve3<f64>> = [p_start, p_end, mid]
+        .into_iter()
+        .map(|p| {
+            generators_through(surface, p)
+                .into_iter()
+                .filter(|g| file.read(STEP_EDGE_ON_DESCRIPTION, held_gap(g, spec)) == Read::Zero)
+                .collect::<Vec<_>>()
+        })
+        .find(|held| !held.is_empty())
+        .unwrap_or_default();
+    let generator = match <[Curve3<f64>; 1]>::try_from(on) {
+        Ok([g]) => g,
+        Err(on) if on.is_empty() => {
+            return Err(unbuilt(
+                file,
+                id,
+                format!(
+                    "a curve inside one {} that no generator of it through its ends holds at \
+                     the file's band",
+                    surface.kind().name()
+                ),
+                "a construction of a curve inside one surface \
+                 (`work/importgate/an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses.md`)",
+            ));
+        }
+        // Two generators the printed middle lies on: it stands where they
+        // cross, and the file's band does not say which one the edge runs
+        // along.
+        Err(on) => {
+            let gap = on.iter().map(|g| held_gap(g, spec)).fold(0.0_f64, f64::max);
+            return Err(file.refused(id, file.touching(STEP_EDGE_ON_DESCRIPTION, gap)));
+        }
+    };
+    let carrier = running_with(id, generator, spec, file)?;
+    on_description(id, spec, &carrier, file)?;
+    Ok(carrier)
+}
+
 /// **A periodic surface's own generators through `p`**: the ruling of a
-/// cylinder or a cone, the meridian of a sphere, and a torus's tube
-/// circle and parallel, each the surface's iso through the azimuth (and,
-/// on a torus, the tube angle) of `p`. A wrap edge is one of these; the
-/// printed carrier only says which. None where `p` stands on the axis,
-/// where no azimuth is read, or on a surface with no periodic chart
-/// coordinate.
+/// cylinder or a cone, the meridian and the parallel of a sphere, and a
+/// torus's tube circle and parallel, each the surface's iso through the
+/// azimuth (and, on a sphere or a torus, the station or tube angle) of
+/// `p`. None where `p` stands on the axis, where no azimuth is read, or on
+/// a surface with no periodic chart coordinate.
 fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>> {
     let Some(frame) = surface.frame() else {
         return Vec::new();
@@ -931,11 +1075,28 @@ fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>
         Surface::Cone {
             apex, half_angle, ..
         } => {
+            // The ruling from the apex to `p`: along `+axis` on the nappe
+            // that opens that way, against it on the mirror nappe (the
+            // kernel's cone is the complete double-nappe locus).
             let (s, c) = half_angle.sin_cos();
+            let c = if along < 0.0 { -c } else { c };
             vec![Curve3::line(apex, axis * c + radial * s)]
         }
         Surface::Sphere { center, radius, .. } => {
-            vec![Curve3::circle(center, radial.cross(axis), radius, radial)]
+            // The station's direction in the meridian half-plane, read as
+            // the unit vector it is.
+            let Ok((dir, _)) = Vec3::new(rho, along, 0.0).checked_direction() else {
+                return Vec::new();
+            };
+            vec![
+                Curve3::circle(center, radial.cross(axis), radius, radial),
+                Curve3::circle(
+                    center + axis * (radius * dir.y),
+                    axis,
+                    radius * dir.x,
+                    frame.square().u_ref,
+                ),
+            ]
         }
         Surface::Torus {
             center,
@@ -1007,18 +1168,20 @@ fn running_with(
 }
 
 /// **The parameter of a built spline's end `p`**, projected from `seed`.
-/// An end standing on a domain end within its rounding reads that end
-/// exactly: a projection lands ulps inside it, and an interval a hair
-/// short of an iso's own domain is no iso of the wall.
+/// An end the run's band reads at a domain end is that end: a projection
+/// lands a hair inside it, and an interval a hair short of an iso's own
+/// domain is no iso of the wall.
 fn spline_end_param(
     id: u64,
     n: &geom::NurbsCurve3<f64>,
     p: Point3<f64>,
     seed: f64,
+    band: geom_core::Band,
 ) -> Result<f64, StepImportError> {
     let (lo, hi) = n.domain();
     for end in [lo, hi] {
-        if n.eval(end).distance(p) <= rounding(p) {
+        let gap = n.eval(end).distance(p);
+        if decide(STEP_AT_DOMAIN_END, Margin::of(gap), band).is_ok_and(|s| s.is_zero()) {
             return Ok(end);
         }
     }
@@ -1029,6 +1192,10 @@ fn spline_end_param(
             what: "a built spline carrier whose end does not project onto it",
         })
 }
+
+/// Whether a built spline carrier's end stands at one of its domain's
+/// ends, read at the run's band.
+pub(crate) const STEP_AT_DOMAIN_END: &str = "step_at_domain_end";
 
 /// The parameter of `p`'s foot on `c`: the closed-form inverse of an
 /// analytic carrier, the projection of a spline one ([`spline_foot`]).
@@ -1049,29 +1216,20 @@ fn gap_to(c: &Curve3<f64>, p: Point3<f64>) -> f64 {
     }
 }
 
-/// The samples a spline foot is seeded from.
-const FOOT_SAMPLES: u32 = 64;
-
 /// **`p`'s foot on a spline carrier**, its parameter and distance: the
-/// projection ([`geom::NurbsCurve3::project`]), or, where its own seed
-/// leaves Newton inconclusive, the projection seeded at the nearest of a
-/// fixed schedule of samples, or that sample itself, whose distance is
-/// then an upper bound on the foot's.
+/// projection ([`geom::NurbsCurve3::project`]).
 fn spline_foot(n: &geom::NurbsCurve3<f64>, p: Point3<f64>) -> Option<(f64, f64)> {
-    if let Ok(f) = n.project(p) {
-        return Some((f.t, f.distance));
-    }
-    let (lo, hi) = n.domain();
-    let (t, d) = (0..=FOOT_SAMPLES)
-        .map(|i| {
-            let t = lo + (hi - lo) * (f64::from(i) / f64::from(FOOT_SAMPLES));
-            (t, n.eval(t).distance(p))
-        })
-        .min_by(|a, b| a.1.total_cmp(&b.1))?;
-    match n.project_from_seed(p, t) {
-        Ok(f) if f.distance <= d => Some((f.t, f.distance)),
-        _ => d.is_finite().then_some((t, d)),
-    }
+    n.project(p).ok().map(|f| (f.t, f.distance))
+}
+
+/// The farthest of the printed carrier's ends, quarters and middle from
+/// `built`: how far the printed edge stands off a candidate.
+fn held_gap(built: &Curve3<f64>, spec: &EdgeSpec) -> f64 {
+    [0.0, 0.25, 0.5, 0.75, 1.0]
+        .into_iter()
+        .map(|f| spec.carrier.eval(spec.t0 + (spec.t1 - spec.t0) * f))
+        .map(|p| gap_to(built, p))
+        .fold(0.0_f64, f64::max)
 }
 
 /// **D7 step 2's verification**: the printed carrier's ends and middle lie
@@ -1125,14 +1283,14 @@ fn iso_of_wall(
     // the pair's section, or a cap's rim.
     let both = walls.len() == 2 || one_record;
     let chosen = |wall, carrier, map: IsoMap| Chosen {
-        description: Description::Iso {
-            wall,
-            image: map.image(0.0, 1.0),
-        },
-        carrier,
-        intrinsic: true,
         iso: Some(map),
-        between_ends: false,
+        ..Chosen::built(
+            Description::Iso {
+                wall,
+                image: map.image(0.0, 1.0),
+            },
+            carrier,
+        )
     };
     for column in [true, false] {
         for end in [false, true] {
@@ -1156,7 +1314,7 @@ fn iso_of_wall(
                         let map = IsoMap {
                             fixed,
                             column,
-                            affine: None,
+                            running: Running::Own,
                         };
                         return Ok(Some(chosen(
                             wall,
@@ -1173,7 +1331,7 @@ fn iso_of_wall(
                             let map = IsoMap {
                                 fixed,
                                 column,
-                                affine: Some((from, to, len)),
+                                running: Running::Chord { from, to, len },
                             };
                             return Ok(Some(chosen(wall, Curve3::line(origin, dir), map)));
                         }
@@ -1184,6 +1342,160 @@ fn iso_of_wall(
         }
     }
     Ok(None)
+}
+
+/// **A cap's rim that is the wall's own boundary row** (`rational_only`:
+/// a rational row, before the section; otherwise any row the plane × wall
+/// section does not build, such as one whose weights do not factor):
+/// beside a plane, the boundary row
+/// or column the plane holds (every control in it at the file's band, so
+/// the rational iso lies in it) and the printed edge lies on (its ends and
+/// middle, at the file's band). The wall's exact iso is the carrier, on its
+/// own parameter, or on the reversed wall's where the edge runs against
+/// it.
+fn cap_row(
+    id: u64,
+    spec: &EdgeSpec,
+    (sa, sb): (&Surface<f64>, &Surface<f64>),
+    (p_start, p_end): (Point3<f64>, Point3<f64>),
+    file: FileBand,
+    rational_only: bool,
+) -> Result<Option<Chosen>, StepImportError> {
+    let walls: Vec<(Side, &geom::NurbsSurface<f64>)> = [(Side::Plus, sa), (Side::Minus, sb)]
+        .into_iter()
+        .filter_map(|(side, s)| match s {
+            Surface::Nurbs(p) if !p.is_placeholder() => Some((side, p.as_ref())),
+            _ => None,
+        })
+        .collect();
+    let structure = |source| StepImportError::WallColumnStructure { id, source };
+    let chosen = |wall, carrier, map: IsoMap| Chosen {
+        iso: Some(map),
+        ..Chosen::built(
+            Description::Iso {
+                wall,
+                image: map.image(0.0, 1.0),
+            },
+            carrier,
+        )
+    };
+    for &(wall, net) in &walls {
+        let cap = match (wall, sa, sb) {
+            (Side::Plus, _, Surface::Plane { origin, normal, .. })
+            | (Side::Minus, Surface::Plane { origin, normal, .. }, _) => (*origin, *normal),
+            _ => continue,
+        };
+        let Ok((normal, _)) = cap.1.checked_direction() else {
+            continue;
+        };
+        for column in [true, false] {
+            for end in [false, true] {
+                let iso = if column {
+                    geom_brep::boundary_iso_u(net, end)
+                } else {
+                    geom_brep::boundary_iso_v(net, end)
+                }
+                .map_err(structure)?;
+                if rational_only && iso.constant_weight().is_some() {
+                    continue;
+                }
+                let off_plane = iso
+                    .control()
+                    .iter()
+                    .map(|q| (*q - cap.0).dot(normal).abs())
+                    .fold(0.0_f64, f64::max);
+                if file.read(STEP_ISO_IN_PLANE, off_plane) != Read::Zero {
+                    continue;
+                }
+                let (fixed_domain, running_domain) = if column {
+                    (net.knot_values_u().domain(), net.knot_values_v().domain())
+                } else {
+                    (net.knot_values_v().domain(), net.knot_values_u().domain())
+                };
+                let fixed = if end { fixed_domain.1 } else { fixed_domain.0 };
+                // A straight rim is the line its ends span, on the chord's
+                // arc length, as a straight column is.
+                if matches!(spec.carrier, Curve3::Line(_)) {
+                    if let Some((origin, chord, forward)) =
+                        line_iso_match(&iso, p_start, p_end, file)
+                    {
+                        let (dir, len) = chord.direction_and_length();
+                        let (r0, r1) = running_domain;
+                        let (from, to) = if forward { (r0, r1) } else { (r1, r0) };
+                        let map = IsoMap {
+                            fixed,
+                            column,
+                            running: Running::Chord { from, to, len },
+                        };
+                        return Ok(Some(chosen(wall, Curve3::line(origin, dir), map)));
+                    }
+                    continue;
+                }
+                let c = &spec.carrier;
+                let held = [
+                    c.eval(spec.t0),
+                    c.mid_point(spec.t0, spec.t1),
+                    c.eval(spec.t1),
+                ]
+                .into_iter()
+                .map(|p| spline_foot(&iso, p).map_or(f64::INFINITY, |(_, d)| d))
+                .fold(0.0_f64, f64::max);
+                if file.read(STEP_EDGE_ON_DESCRIPTION, held) != Read::Zero {
+                    continue;
+                }
+                // The edge runs with the iso, or against it: then the
+                // carrier is the iso of the wall reversed along it, whose
+                // parameter `t` is the wall's running coordinate
+                // `lo + hi − t` (a knot vector that is its own reflection).
+                let (carrier, running) = if runs_along(&iso, spec, file) {
+                    (iso, Running::Own)
+                } else {
+                    let reversed = if column {
+                        net.reversed_v()
+                    } else {
+                        net.reversed_u()
+                    };
+                    let Ok(reversed) = reversed else {
+                        continue;
+                    };
+                    let back = if column {
+                        geom_brep::boundary_iso_u(&reversed, end)
+                    } else {
+                        geom_brep::boundary_iso_v(&reversed, end)
+                    }
+                    .map_err(structure)?;
+                    if !runs_along(&back, spec, file) {
+                        continue;
+                    }
+                    let (lo, hi) = running_domain;
+                    (back, Running::Mirror { lo, hi })
+                };
+                let map = IsoMap {
+                    fixed,
+                    column,
+                    running,
+                };
+                return Ok(Some(chosen(
+                    wall,
+                    Curve3::Nurbs(std::sync::Arc::new(carrier)),
+                    map,
+                )));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Whether the printed edge runs along a wall's iso at its middle: the
+/// cosine of their tangents there, read at the file's band.
+fn runs_along(iso: &geom::NurbsCurve3<f64>, spec: &EdgeSpec, file: FileBand) -> bool {
+    let (mid, tangent) = spec.carrier.ders1(geom::mid_param(spec.t0, spec.t1));
+    spline_foot(iso, mid).is_some_and(|(t, _)| {
+        let along = iso.deriv(t);
+        let cosine = along.dot(tangent) / (along.norm() * tangent.norm());
+        decide(STEP_BUILT_SENSE, Margin::of(cosine), file.band())
+            .is_ok_and(|s| matches!(s, Sign::Positive))
+    })
 }
 
 /// **A straight polynomial iso whose ends are the edge's printed vertex
@@ -1315,13 +1627,30 @@ pub(crate) fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
     }
 }
 
-/// **Every vertex built** (module docs, step 3): the root of a surface
-/// around it along an intrinsic carrier through it that the surface does
-/// not hold, else the foot of its printed point on a carrier through it.
+/// **Every vertex built** (module docs, step 3), and every deferred
+/// carrier with it.
+///
+/// - **Fixed**: a vertex the description fixes is the root of a surface
+///   around it along a built carrier through it that the surface does not
+///   hold ([`rooted`]), or a sphere's pole or a cone's apex its generators
+///   cross at ([`singular_point`]). A root the run's band does not decide
+///   refuses [`StepImportError::BuildEscalated`].
+/// - **Free**: a vertex the description leaves free along one built
+///   carrier (a seam's end on a rim, a split along one locus) is the foot
+///   of its printed point on that kernel-built carrier: the printed value
+///   choosing among equally valid models, not a cache. Certification reads
+///   it at ε on every incident carrier.
+/// - A deferred carrier is built through its built ends once they are
+///   ([`deferred_carrier`]), and may fix the vertices it reaches.
+///
+/// The worklist roots every vertex it can, builds every deferred carrier
+/// whose ends are built, and only then foots one free vertex, in id
+/// order; a vertex no built carrier reaches refuses. Every move off the
+/// printed point is read at the file's band and reported.
 fn build_vertices(
     solid: &SolidSpec,
     sides: &BTreeMap<u64, (usize, usize)>,
-    chosen: &BTreeMap<u64, Chosen>,
+    chosen: &mut BTreeMap<u64, Chosen>,
     tol: Tol,
     file: FileBand,
     moves: &mut Vec<StructureNormalization>,
@@ -1346,31 +1675,23 @@ fn build_vertices(
             }
         }
     }
-    let mut built = BTreeMap::new();
+    let mut built: BTreeMap<u64, Point3<f64>> = BTreeMap::new();
     for (&v, &printed) in &solid.vertices {
-        let Some((edges, faces)) = around.get(&v) else {
+        if !around.contains_key(&v) {
             // A vertex no edge ends at (a vertex loop's): its printed point
             // is the description, a point on its face's surface.
             built.insert(v, printed);
-            continue;
-        };
-        let point = rooted(solid, sides, chosen, (edges, faces), printed, eps_band)
-            .or_else(|| footed(chosen, edges, printed))
-            .unwrap_or(printed);
+        }
+    }
+    let place = |v: u64,
+                 point: Point3<f64>,
+                 built: &mut BTreeMap<u64, Point3<f64>>,
+                 moves: &mut Vec<StructureNormalization>|
+     -> Result<(), StepImportError> {
+        let printed = solid.vertices[&v];
         let moved = point.distance(printed);
         file.agree_at(v, STEP_VERTEX_BUILT, moved)?;
-        // A built point the printed one states within the rounding of the
-        // construction that built it (its neighbourhood's coordinates) is
-        // that point as the file states it, kept bit for bit, as a frame
-        // the file states rigid within its rounding is: rebuilding it
-        // would move it by rounding alone.
-        let scale = edges
-            .iter()
-            .flat_map(|e| [solid.edges[e].start, solid.edges[e].end])
-            .map(|w| rounding(solid.vertices[&w]))
-            .fold(rounding(printed), f64::max);
-        let point = if moved <= scale { printed } else { point };
-        if moved > scale {
+        if moved > 0.0 {
             moves.push(StructureNormalization {
                 face: v,
                 kind: NormalizationKind::VertexBuilt { moved_by: moved },
@@ -1379,65 +1700,129 @@ fn build_vertices(
             });
         }
         built.insert(v, crate::signed_zero::plus_zero_point(point));
+        Ok(())
+    };
+    loop {
+        let mut progress = false;
+        for (&v, (edges, faces)) in &around {
+            if built.contains_key(&v) {
+                continue;
+            }
+            let printed = solid.vertices[&v];
+            let fixed = match rooted(solid, sides, chosen, (edges, faces), printed, eps_band) {
+                Ok(Some(point)) => Some(point),
+                Ok(None) => singular_point(solid, faces, printed, file)?,
+                Err(source) => return Err(escalated(file, v, source)),
+            };
+            if let Some(point) = fixed {
+                place(v, point, &mut built, moves)?;
+                progress = true;
+            }
+        }
+        for (&id, c) in chosen.iter_mut() {
+            let (Some(deferred), None) = (c.deferred, &c.carrier) else {
+                continue;
+            };
+            let spec = &solid.edges[&id];
+            let ends = (built.get(&spec.start), built.get(&spec.end));
+            let ready = match deferred {
+                Deferred::Segment => matches!(ends, (Some(_), Some(_))),
+                Deferred::Generator => !matches!(ends, (None, None)),
+            };
+            if !ready {
+                continue;
+            }
+            // A generator through one built end: the other end is fixed
+            // on it, or footed there, by the next pass.
+            let (a, b) = match ends {
+                (Some(&a), Some(&b)) => (a, b),
+                (Some(&a), None) => (a, a),
+                (None, Some(&b)) => (b, b),
+                (None, None) => continue,
+            };
+            let surface = &solid.faces[sides[&id].0].surface;
+            c.carrier = Some(deferred_carrier(id, spec, surface, deferred, (a, b), file)?);
+            progress = true;
+        }
+        if progress {
+            continue;
+        }
+        // Nothing fixed: foot the first free vertex on a built carrier
+        // through it, intrinsic carriers first; or, where only carriers
+        // waiting on it reach it (a whole torus's one vertex), on the one
+        // surface around it.
+        let unplaced = || around.iter().filter(|(v, _)| !built.contains_key(*v));
+        let free = unplaced()
+            .find_map(|(&v, (edges, _))| footed(chosen, edges, solid.vertices[&v]).map(|p| (v, p)))
+            .or_else(|| {
+                unplaced().find_map(|(&v, (_, faces))| {
+                    one_surface_around(solid, faces)
+                        .and_then(|surface| surface.foot(solid.vertices[&v]))
+                        .map(|p| (v, p))
+                })
+            });
+        match free {
+            Some((v, point)) => place(v, point, &mut built, moves)?,
+            None => break,
+        }
+    }
+    if let Some((&v, _)) = around.iter().find(|(v, _)| !built.contains_key(*v)) {
+        return Err(unbuilt(
+            file,
+            v,
+            "a vertex no built carrier reaches: every edge ending at it waits on it".to_owned(),
+            "a construction of a curve inside one surface \
+             (`work/importgate/an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses.md`)",
+        ));
     }
     Ok(built)
 }
 
-/// The coordinates' own rounding at `p`: a move within it is no move.
-fn rounding(p: Point3<f64>) -> f64 {
-    ROUNDING * p.x.abs().max(p.y.abs()).max(p.z.abs())
+/// The one surface record every face around a vertex lies on, if they
+/// share one.
+fn one_surface_around<'a>(solid: &'a SolidSpec, faces: &[usize]) -> Option<&'a Surface<f64>> {
+    let (&first, rest) = faces.split_first()?;
+    let surface = &solid.faces[first].surface;
+    let sig = surface_sig(surface);
+    rest.iter()
+        .all(|&f| surface_sig(&solid.faces[f].surface) == sig)
+        .then_some(surface)
 }
 
-/// **A value's own rounding, relative to its size**: sixteen units of its
-/// last place, what a handful of products and sums move a coordinate by,
-/// each rounding once. A move within it is no move: the build's
-/// reconstruction of a value the file printed differs from it by its
-/// arithmetic alone.
-const ROUNDING: f64 = 16.0 * f64::EPSILON;
-
-/// **A built carrier admitted as the printed one** where the printed one
-/// states it within its own rounding, field by field (a frame the file
-/// states rigid within its rounding is admitted the same way): rebuilding
-/// it would move it by rounding alone, and the writer's own output would
-/// not be a fixed point of the import. A built line is first anchored at
-/// its foot of the printed line's origin, a point of the locus the printed
-/// line names. Every other carrier as built.
-fn admitted(built: Curve3<f64>, printed: &Curve3<f64>) -> Curve3<f64> {
-    let same_point = |a: Point3<f64>, b: Point3<f64>| a.distance(b) <= rounding(a).max(rounding(b));
-    let along = |a: Vec3<f64>, b: Vec3<f64>| (a - b).norm() <= ROUNDING;
-    let length = |a: f64, b: f64| (a - b).abs() <= ROUNDING * a.abs().max(b.abs());
-    match (&built, printed) {
-        (Curve3::Line(b), Curve3::Line(p)) => {
-            let anchored = b.foot(p.origin);
-            if same_point(anchored, p.origin) && along(b.dir, p.dir) {
-                printed.clone()
+/// **A chart singularity the vertex's faces' generators cross at**: a
+/// sphere's pole or a cone's apex, where the printed point stands at the
+/// file's band and every face around the vertex is that one surface.
+fn singular_point(
+    solid: &SolidSpec,
+    faces: &[usize],
+    printed: Point3<f64>,
+    file: FileBand,
+) -> Result<Option<Point3<f64>>, StepImportError> {
+    let Some(surface) = one_surface_around(solid, faces) else {
+        return Ok(None);
+    };
+    let point = match *surface {
+        Surface::Cone { apex, .. } => apex,
+        Surface::Sphere { center, radius, .. } => {
+            let Some(frame) = surface.frame() else {
+                return Ok(None);
+            };
+            let axis = frame.square().axis;
+            let side = if (printed - center).dot(axis) >= 0.0 {
+                radius
             } else {
-                Curve3::line(anchored, b.dir)
-            }
+                -radius
+            };
+            center + axis * side
         }
-        (Curve3::Circle(b), Curve3::Circle(p))
-            if same_point(b.frame.origin, p.frame.origin)
-                && along(b.frame.axis, p.frame.axis)
-                && along(b.frame.u_ref, p.frame.u_ref)
-                && length(b.radius, p.radius) =>
-        {
-            printed.clone()
-        }
-        (Curve3::Ellipse(b), Curve3::Ellipse(p))
-            if same_point(b.frame.origin, p.frame.origin)
-                && along(b.frame.axis, p.frame.axis)
-                && along(b.frame.u_ref, p.frame.u_ref)
-                && length(b.semi_u, p.semi_u)
-                && length(b.semi_v, p.semi_v) =>
-        {
-            printed.clone()
-        }
-        _ => built,
-    }
+        _ => return Ok(None),
+    };
+    Ok((file.read(STEP_VERTEX_BUILT, point.distance(printed)) == Read::Zero).then_some(point))
 }
 
-/// The first root, in edge then face order, of a face's surface along an
-/// intrinsic carrier ending at the vertex that the surface does not hold.
+/// The first root, in edge then face order, of a face's surface along a
+/// built intrinsic carrier ending at the vertex that the surface does not
+/// hold. `Err` where the run's band does not decide a root.
 fn rooted(
     solid: &SolidSpec,
     sides: &BTreeMap<u64, (usize, usize)>,
@@ -1445,18 +1830,20 @@ fn rooted(
     (edges, faces): (&[u64], &[usize]),
     printed: Point3<f64>,
     band: geom_core::Band,
-) -> Option<Point3<f64>> {
+) -> Result<Option<Point3<f64>>, geom_core::Indeterminate> {
     for &e in edges {
         let c = &chosen[&e];
-        if !c.intrinsic {
+        let Some(carrier) = c.carrier.as_ref().filter(|_| c.intrinsic) else {
             continue;
-        }
+        };
         let (plus, minus) = sides[&e];
         let held = [
             surface_sig(&solid.faces[plus].surface),
             surface_sig(&solid.faces[minus].surface),
         ];
-        let seed = param_at(&c.carrier, printed)?;
+        let Some(seed) = param_at(carrier, printed) else {
+            continue;
+        };
         let spec = &solid.edges[&e];
         let extent = geom_brep::edge_extent_inf(
             &spec.carrier,
@@ -1469,16 +1856,26 @@ fn rooted(
             if held.contains(&surface_sig(surface)) {
                 continue;
             }
-            if let Ok(Ok(t)) = topo::root_along(surface, &c.carrier, seed, extent, band) {
-                return Some(c.carrier.eval(t));
+            if topo::root_along(surface, carrier, seed, extent, band)?.is_err() {
+                continue;
             }
+            // The root, settled: Newton seeded at its own root again.
+            let root = |p: Point3<f64>| -> Result<Option<Point3<f64>>, geom_core::Indeterminate> {
+                let Some(seed) = param_at(carrier, p) else {
+                    return Ok(None);
+                };
+                Ok(topo::root_along(surface, carrier, seed, extent, band)?
+                    .ok()
+                    .map(|t| carrier.eval(t)))
+            };
+            return settled(printed, root);
         }
     }
-    None
+    Ok(None)
 }
 
-/// The printed point's foot on the first carrier ending at the vertex,
-/// intrinsic carriers first.
+/// The printed point's foot on the first built carrier ending at the
+/// vertex, intrinsic carriers first.
 fn footed(
     chosen: &BTreeMap<u64, Chosen>,
     edges: &[u64],
@@ -1488,10 +1885,54 @@ fn footed(
         .iter()
         .filter(|e| chosen[*e].intrinsic)
         .chain(edges.iter().filter(|e| !chosen[*e].intrinsic));
-    by_rank.into_iter().find_map(|e| {
-        let c = &chosen[e].carrier;
-        param_at(c, printed).map(|t| c.eval(t))
-    })
+    by_rank
+        .into_iter()
+        .find_map(|e| settled_foot(chosen[e].carrier.as_ref()?, printed))
+}
+
+/// How many times [`settled`] re-reads before it reads the cycle it has
+/// entered.
+const SETTLE: usize = 8;
+
+/// **A construction of a point from a point, settled**: `make` read again
+/// on its own output until a point repeats, and the least point of the
+/// cycle it entered (by its coordinates' total order). A foot or a root
+/// computed from a seed lands within rounding of the locus, and computing
+/// it again from that point may step back (a circle whose frame sits a
+/// rounding off its plane alternates between two feet; Newton from either
+/// of two seeds lands on the other): the settled point is the one point
+/// every member of the cycle returns, so building it again from it gives
+/// it back. The build's output is the next import's input, and its
+/// export a fixed point.
+fn settled(
+    start: Point3<f64>,
+    mut make: impl FnMut(Point3<f64>) -> Result<Option<Point3<f64>>, geom_core::Indeterminate>,
+) -> Result<Option<Point3<f64>>, geom_core::Indeterminate> {
+    let key = |p: &Point3<f64>| (p.x.to_bits(), p.y.to_bits(), p.z.to_bits());
+    let Some(first) = make(start)? else {
+        return Ok(None);
+    };
+    let mut seen = vec![first];
+    for _ in 0..SETTLE {
+        let Some(next) = make(seen[seen.len() - 1])? else {
+            break;
+        };
+        if let Some(at) = seen.iter().position(|q| key(q) == key(&next)) {
+            return Ok(seen[at..].iter().copied().min_by(|a, b| {
+                a.x.total_cmp(&b.x)
+                    .then(a.y.total_cmp(&b.y))
+                    .then(a.z.total_cmp(&b.z))
+            }));
+        }
+        seen.push(next);
+    }
+    Ok(seen.last().copied())
+}
+
+/// The foot of `printed` on `c`, settled ([`settled`]).
+fn settled_foot(c: &Curve3<f64>, printed: Point3<f64>) -> Option<Point3<f64>> {
+    let foot = |p: Point3<f64>| Ok(param_at(c, p).map(|t| c.eval(t)));
+    settled(printed, foot).ok().flatten()
 }
 
 /// A straight edge rebuilt between its built ends (`between_ends`): a
@@ -1516,18 +1957,17 @@ fn rebuilt_in_surface(
 /// **The built interval**: the built ends read on the built carrier by its
 /// own inverse ([`crate::geometry::endpoint_params`] for an analytic
 /// carrier, the projection for a spline). A spline carrier is cut
-/// ([`geom::NurbsCurve3::split_at`]) to the extent the printed carrier
-/// states — the printed spline's own domain ends, where it is a spline,
-/// and the edge's ends otherwise — as the printed carrier chooses the
-/// section's component. A wall's own iso (`whole`) is not cut: its image
-/// is on its own parameter, which the interval is read on.
+/// ([`geom::NurbsCurve3::split_at`]) at the edge's own built ends, so it
+/// is the edge's span of the section and nothing past it. A wall's own
+/// iso (`whole`) is not cut: its image is on its own parameter, which the
+/// interval is read on.
 fn params(
     id: u64,
     carrier: Curve3<f64>,
-    printed: &Curve3<f64>,
     (p_start, p_end): (Point3<f64>, Point3<f64>),
     self_loop: bool,
     whole: bool,
+    tol: Tol,
 ) -> Result<(Curve3<f64>, f64, f64), StepImportError> {
     let Curve3::Nurbs(n) = &carrier else {
         let (t0, t1) = crate::geometry::endpoint_params(id, &carrier, p_start, p_end, self_loop)?;
@@ -1537,13 +1977,20 @@ fn params(
     if self_loop {
         return Ok((carrier, lo, hi));
     }
-    let at = |p: Point3<f64>, seed: f64| spline_end_param(id, n, p, seed);
+    let band = geom_core::Band::linear(tol).map_err(|_| StepImportError::Topology {
+        id,
+        what: "the run's tolerance makes no band to build at",
+    })?;
+    let at = |p: Point3<f64>, seed: f64| spline_end_param(id, n, p, seed, band);
     let (t0, t1) = (at(p_start, lo)?, at(p_end, hi)?);
     if t1 <= t0 {
         return Err(StepImportError::Topology {
             id,
             what: "a built spline carrier whose end reads at or before its start",
         });
+    }
+    if whole {
+        return Ok((carrier, t0, t1));
     }
     let cut = |c: &geom::NurbsCurve3<f64>, u: f64, keep_left: bool| {
         c.split_at(u)
@@ -1553,22 +2000,12 @@ fn params(
                 what: "a built spline carrier that does not cut at its edge's end",
             })
     };
-    if whole {
-        return Ok((carrier, t0, t1));
-    }
-    let (c0, c1) = match printed {
-        Curve3::Nurbs(p) => {
-            let (a, b) = p.domain();
-            (at(p.eval(a), lo)?.min(t0), at(p.eval(b), hi)?.max(t1))
-        }
-        _ => (t0, t1),
-    };
     let mut piece = n.as_ref().clone();
-    if c1 < hi {
-        piece = cut(&piece, c1, true)?;
+    if t1 < hi {
+        piece = cut(&piece, t1, true)?;
     }
-    if c0 > lo {
-        piece = cut(&piece, c0, false)?;
+    if t0 > lo {
+        piece = cut(&piece, t0, false)?;
     }
     Ok((Curve3::Nurbs(std::sync::Arc::new(piece)), t0, t1))
 }

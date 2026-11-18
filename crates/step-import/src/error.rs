@@ -9,8 +9,9 @@ use core::fmt;
 use geom_brep::recourse::{LeverOnly, RefusedArm, SizedDecision};
 use geom_core::{FileCoincidence, Indeterminate};
 
-/// One rung of the D7 edge-adoption ladder, as data: which intensional
-/// interpretation was attempted, and the kernel gate's typed refusal.
+/// One certification of an edge's built description, as data: which
+/// intensional interpretation was stated, and the kernel gate's typed
+/// refusal.
 #[derive(Debug)]
 pub struct AdoptionAttempt {
     /// The interpretation attempted.
@@ -20,7 +21,7 @@ pub struct AdoptionAttempt {
     pub refusal: topo::EulerOpError,
 }
 
-/// The intensional interpretations the edge-adoption ladder can try
+/// The intensional interpretations an edge's built description can state
 /// (D7 stage 2's vocabulary — `geom_brep::EdgeDescription`'s variants,
 /// named as data for future remedy flows).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,6 +53,23 @@ impl fmt::Display for AdoptionCandidate {
         })
     }
 }
+
+/// What [`StepImportError::BuildEscalated`] asks.
+pub(crate) const BUILD_SUBJECT: &str =
+    "where an edge's surfaces meet, read while building its carrier or its ends";
+
+/// **Where an edge's surfaces meet, read at the run's band**, the build's
+/// sized decision of it: a reading of the run's ε that the band does not
+/// call (two surfaces nearly tangent, an end nearly at a third surface)
+/// refuses, and moving the geometry clear of it, or a smaller tolerance
+/// that decides it, passes ([tolerance.recourse]).
+pub(crate) const BUILD_READING: SizedDecision = SizedDecision {
+    lever: "move the edge's surfaces so they clearly cross, clearly part, or touch",
+    size: "distance",
+    passes: geom_brep::recourse::SizedPass::AnySign,
+    side: geom_brep::recourse::RefusedSide::Lever,
+    no_size: None,
+};
 
 /// What [`StepImportError::SingularityUndecided`] asks.
 pub(crate) const SINGULARITY_SUBJECT: &str = "whether a sphere pole or cone apex, or where a meridian minted from one meets a face's \
@@ -234,15 +252,15 @@ pub enum StepImportError {
         /// refusal's ending (D4 ¶1).
         file: FileCoincidence,
     },
-    /// The D7 adoption ladder could not certify any intensional
-    /// description for an edge: every candidate tried and its typed
-    /// refusal, in ladder order — **structured data, not prose**, so a
-    /// future remedy flow (GUI-offered healing, M7-2+) can act on what
+    /// The edge's built description does not certify: the description
+    /// stated and its typed refusal — **structured data, not prose**, so
+    /// a future remedy flow (GUI-offered healing, M7-2+) can act on what
     /// failed without re-parsing messages.
     Adoption {
         /// The `EDGE_CURVE` entity instance.
         id: u64,
-        /// The candidates tried and their refusals, in ladder order.
+        /// The description stated and its refusal (one attempt: the build
+        /// chooses one description per edge).
         attempts: Vec<AdoptionAttempt>,
         /// The file's ε_in, which picks the words of each refusal's
         /// ending (D4 ¶1).
@@ -428,12 +446,14 @@ pub enum StepImportError {
         /// What the split lacks (static description).
         what: &'static str,
     },
-    /// **An edge whose description the kernel cannot yet construct**
-    /// (`[import]`, D7 step 3): the description the file's statements
-    /// are evidence of has no construction in this kernel, so no cache
-    /// can be built from it, and no value the file printed stands in.
+    /// **An edge or vertex whose description the kernel cannot yet
+    /// construct** (`[import]`, D7 step 3): the description the file's
+    /// statements are evidence of has no construction in this kernel, so
+    /// no cache can be built from it, and no value the file printed stands
+    /// in.
     NotYetSupported {
-        /// The `EDGE_CURVE` entity instance.
+        /// The `EDGE_CURVE` entity instance, or the `VERTEX_POINT` no
+        /// built carrier reaches.
         id: u64,
         /// What has no construction: the pair or kind and why.
         what: String,
@@ -443,9 +463,9 @@ pub enum StepImportError {
         file: FileCoincidence,
     },
     /// A reading the build takes at the run's band escalated: the run's
-    /// tolerance does not decide the construction of edge `id`.
+    /// tolerance does not decide the construction of edge or vertex `id`.
     BuildEscalated {
-        /// The `EDGE_CURVE` entity instance.
+        /// The `EDGE_CURVE` or `VERTEX_POINT` entity instance.
         id: u64,
         /// The escalated reading.
         source: Indeterminate,
@@ -644,17 +664,18 @@ impl StepImportError {
             ),
             Self::NotYetSupported { id, what, lane, .. } => write!(
                 f,
-                "step import: edge #{id}: {what}, which the kernel does not yet construct (no \
+                "step import: entity #{id}: {what}, which the kernel does not yet construct (no \
                  value the file printed stands in for a construction); the lane that would: \
                  {lane}"
             ),
-            Self::BuildEscalated { id, source, .. } => {
-                write!(f, "step import: edge #{id}: building its carrier: ")?;
-                if ended {
-                    write!(f, "{source}")
-                } else {
-                    write!(f, "{}", source.payload())
-                }
+            Self::BuildEscalated { id, source, file } => {
+                let ending =
+                    door(file).map(|at| BUILD_READING.recourse(RefusedArm::Undecided(source), at));
+                write!(
+                    f,
+                    "step import: entity #{id}: {}",
+                    geom_brep::recourse::undecided_at(source, BUILD_SUBJECT, ending)
+                )
             }
             Self::TierInvalid { solid, errors } => {
                 // Both forms of each verdict: the Debug shape names

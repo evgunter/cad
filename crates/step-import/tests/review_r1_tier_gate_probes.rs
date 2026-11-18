@@ -418,6 +418,23 @@ fn r1_in_band_vertex_defect_refuses_loudly_at_adoption() {
             Err(StepImportError::Interpretation { .. }) => {}
             other => panic!("delta {delta:e}: refuses past an ε_in of ε, got {other:?}"),
         }
+        // **The file's own declaration** (default options): cube.step
+        // declares 1e-9, so its band's zero is the larger of that and the
+        // run's ε. A move the band reads Zero heals as above; one past it
+        // refuses at interpretation. Neither ships the defect.
+        let file_zero = 1e-9_f64.max(eps);
+        match import_step(&doctored, &ImportOptions::default(), Tol::witness()) {
+            Ok(StepImport::Solid { body, .. }) if delta <= file_zero => assert_eq!(
+                topo::validate_geometric(&body, Tol::witness()),
+                Ok(()),
+                "delta {delta:e}: the built corner is valid at rest at the file's own ε_in"
+            ),
+            Err(StepImportError::Interpretation { .. }) if delta > file_zero => {}
+            other => panic!(
+                "delta {delta:e}: at the file's own ε_in ({file_zero:e} m band zero) a move \
+                 the band reads Zero heals and one past it refuses, got {other:?}"
+            ),
+        }
     }
 }
 

@@ -117,7 +117,8 @@ fn in_file_words(eps_in: f64) -> String {
     format!(
         "This miss lies beyond the tolerance and within the file's declared coincidence \
          distance ε_in = {eps_in} m, and may be the kernel's own approximation. Recourse: \
-         re-export the file more precisely; this refusal may indicate a kernel bug worth reporting"
+         loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth \
+         reporting"
     )
 }
 

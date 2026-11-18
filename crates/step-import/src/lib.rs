@@ -45,13 +45,14 @@
 //! 4. **The build and adoption** ([`build`], [`adopt`]): every edge's
 //!    description is chosen off its faces' surfaces at the file band,
 //!    and every cache is built from it by the kernel's own
-//!    constructions — the carrier (section, tangent locus, a wall's iso,
-//!    a seam generator, an image in one chart), each vertex where built
-//!    carriers meet or else at the foot of its printed point, each
-//!    interval by the carrier's own inverse. A printed curve is kept
-//!    only where the description is that curve in one chart (an arc rim
-//!    beside its cap, a curve inside one surface), held on its surfaces
-//!    at the file band and kept within its own rounding. Surfaces attach (bitwise-identical records
+//!    constructions — the carrier (section, tangent locus, a wall's iso
+//!    or a cap's rational rim row, a surface's own generator through the
+//!    edge's built ends, the segment between them), each vertex where
+//!    the description fixes it (built carriers crossing a surface, a
+//!    pole or an apex), else, where the description leaves it free along
+//!    one built carrier, at the foot of its printed point on that
+//!    carrier, each interval by the carrier's own inverse. No curve or
+//!    point the file printed is a cache. Surfaces attach (bitwise-identical records
 //!    share one kernel surface key, restoring the writer-side key
 //!    sharing), `same_sense` lands as [`topo::Face::sense`] honored, not
 //!    healed, and the one built description is **certified** by the

@@ -2435,7 +2435,7 @@ fn measured_ends(
         Climb::Answered { answer: margin, .. } => {
             // The refusal reports the larger of the ends' misses, whichever
             // end the identity met first: at the import door the miss
-            // decides whether "set ε to ε_in" is offered and in which words
+            // decides which words its ending takes, within ε_in or past it
             // (`FileCoincidence::miss_recourse_in_file`). The ends are read
             // again only to name the refusal the identity made, so the
             // reading is detached and its recording dropped: the log stays
@@ -4386,7 +4386,7 @@ mod tests {
 
     /// **Two ends off a plane report the larger miss, in either order**
     /// ([`measured_ends`]): at the import door the refusal's miss decides
-    /// whether "set ε to ε_in" is offered and in which words, so it is the
+    /// which words its ending takes, within ε_in or past it, so it is the
     /// larger of the two ends' misses, not the one the identity happens to
     /// meet first. The log is the identity's own: the far end, never
     /// reached, leaves no verdict on it.
