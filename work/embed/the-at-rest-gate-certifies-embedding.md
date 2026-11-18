@@ -967,10 +967,10 @@ how it was run.
 
 Per-solid gate, `embed/gate-measure` at `674724090` (after PRs 7071 and
 7089): the 202 workspace tests the census found crossing inside one solid
-or with solids unlogged. 161 still fail on a gate finding; 140 of those on
-a crossing.
+or with solids unlogged. 161 still fail on a gate finding: 147 on a
+crossing, 14 on an engine refusal (departure, before any crossing).
 
-| crossing inside one solid | tests |
+| crossing inside one solid (147 tests) | tests |
 |---|---:|
 | a Boolean result whose door held a record of two cells of that solid, covering the crossing's face pair | 55 |
 | — point records only (vertex–vertex 14, vertex–face 4, vertex–edge 3) | 21 |
@@ -1065,3 +1065,67 @@ splits, discharges) before a worker restart stopped the dev walk at stop
 1.23×; on the 1,533 that hold, 271 ms against 229 ms an ask. So the build
 is not the gap between the tour's 29 ms and the workspace's 65 ms an ask:
 that gap is which bodies are asked.
+
+### Item 3, partial: where the asks come from and what a door carries (2026-11-18)
+
+**Partial, and stopped on purpose** (the interim answered what it was
+for). `embed/gate-measure`, full suite with `CAD_GATE_CARRY=1
+CAD_GATE_CENSUS=1`, stopped after 3,012 of 19,460 tests: 2,521 of
+`editor-core::all`, all 422 of `editor-core`'s unit tests, 57 of `bvh`
+and 12 of `sweep::all`. So the tables below are editor-core's; `sweep` is
+not measured. Five tests were killed for memory under the decomposition
+(two `coincidence_door` rows, `corpus_finish_count`, `docm5_subject`,
+`germ_torus_components::two_donuts_in_general_pose_pass_the_germ_mint`);
+their asks up to the kill are counted.
+
+Every finish site is tagged (`gate_measure::site`). Gate seconds by site:
+
+| site | asks | seconds | share | holding: seconds |
+|---|---:|---:|---:|---:|
+| Boolean `gate` | 46,696 | 3,147 | 57.0% | 2,085 |
+| blend | 708 | 1,448 | 26.2% | 1,337 |
+| revolve | 1,846 | 285 | 5.2% | 277 |
+| extrude | 40,898 | 179 | 3.2% | 179 |
+| a moved leaf (`LeafBody::moved_by`) | 18,468 | 177 | 3.2% | 177 |
+| the product's aggregate | 5,243 | 153 | 2.8% | 153 |
+| `topo::finish` called directly (fixtures) | 1,939 | 65 | 1.2% | 65 |
+| the `⊔` graft | 6,635 | 49 | 0.9% | 49 |
+| split | 1,355 | 15 | 0.3% | 15 |
+| shell | 45 | 6 | 0.1% | 6 |
+| loft and sweep | 139 | 2 | 0.0% | 2 |
+| `distribute`, `topo::take`, `carved` | 50 | 0 | — | 0 |
+
+The leaf doors (extrude, revolve, loft, a moved leaf) hold about 15% of
+the holding seconds; the deciding doors about 80%.
+
+**The carry fraction.** At the four deciding doors every holding ask's
+candidate face pairs were asked alone (exact, item 4) and classed by their
+faces against the door's operands, matched by a fingerprint of the
+`Debug` bits of carrier and sense and of every rim's curve and start
+point: *carried* (both faces bit-identical to faces of one operand),
+*trimmed* (both on one operand's carriers and senses, at least one with
+new loops), *two operands*, *new* (a face on no operand's carrier).
+Shares of the lone-ask seconds:
+
+| door | carried | trimmed | two operands | new |
+|---|---:|---:|---:|---:|
+| Boolean `gate` (1.70 M pairs) | 65% | 16% | 8% | 11% |
+| blend | 5% | 18% | — | 77% |
+| split | 1% | 73% | — | 27% |
+| shell | 8% | 4% | — | 89% |
+
+A Boolean's untouched faces do match their operand's bit for bit: that is
+where the 906,507 carried pairs come from.
+
+**Item 6, partial: the census at a Boolean's `gate`.** The tier-3′
+census (`AtRestPolicy::census_at_rest`) over each finished Boolean result
+with its door's records: 28,033 runs, 30 s in all (the gate there took
+3,147 s), 814 of them with records. It refused 17 bodies the gate had
+finished: 11 asks of `atrest_operation_rows_quiet::a_rod_on_a_plate_is_quiet_under_its_gap`
+(3 records, 7 findings), 5 of `face_face_touch_carry::a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records`
+(3 records, 3 findings), and 1 of `docm6_seam_declarations::a_boolean_over_a_product_keeps_its_parts`
+(no records, 1 finding). Not traced.
+
+Repeat: on `embed/gate-measure`, `CAD_GATE_LOG=<dir> CAD_GATE_CARRY=1
+CAD_GATE_CENSUS=1 cargo nextest run …`; the `CARRY` and `CENSUS` rows,
+summed by `site`, give these tables.
