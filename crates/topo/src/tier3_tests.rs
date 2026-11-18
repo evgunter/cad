@@ -1044,10 +1044,21 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
             Some(V::Poisoned(vec![D::Control])),
         ),
     ];
+    // The carriers whose frame, stated with a poisoned column, names no
+    // rotation: lifted to an enclosure the frame is answered poisoned
+    // whole (`Real::enclose_rotation`), so the read names both of its
+    // datums there, where at `f64` it names the one the statement
+    // poisoned.
+    let lift_poisons_the_frame = ["circle, zero u_ref"];
     for (name, carrier, expected) in cases {
         assert_eq!(verdict(&carrier), expected, "{name}, at f64");
         let lifted: Curve3<geom_core::Interval> =
             carrier.map_scalar(<geom_core::Interval as geom_core::Real>::from_f64);
+        let expected = if lift_poisons_the_frame.contains(&name) {
+            Some(V::Poisoned(vec![D::Axis, D::URef]))
+        } else {
+            expected
+        };
         assert_eq!(
             analytic_datum_verdicts(
                 poisoned_curve_datums(&lifted),

@@ -545,7 +545,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        25,
+        27,
         4,
         "the 4 that ask are the chart tube's span-hull window (`chart_tube_windows` refuses \
          either window hull by name before padding it — a refused hull is NaI, and its NaN ends \
@@ -559,8 +559,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          at each end, which selects the axis the end's slice is cut across (structure), \
          `probe_tube_pair`'s 8 are its reads of the two pcurves, their tangents (a direction the \
          probe refuses unless positive finite) and their end states (where an end's slice is \
-         cut, structure), and `exact`'s 2 and `analytic_limbs`' 1 are the same kind of \
-         evaluation read",
+         cut, structure), `exact`'s 2 and `analytic_limbs`' 1 are the same kind of \
+         evaluation read, and `frame_direction`'s 2 read a composite form's frame component, \
+         a NaN end or a width past rounding answering no direction (a refused bracket's NaN \
+         ends fail its width test, so it names none)",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
@@ -613,7 +615,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/section.rs", 5, 5, ""),
     (
         "crates/geom-core/src/interval.rs",
-        34,
+        39,
         8,
         "the type's own body. The 8 that ask are the two refusal doors (`certified_bracket`, \
          `sign_within`, 2 each) and the directed helpers `certified_hi`, `div_down`, `div_up` \
@@ -622,7 +624,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (the `Bounds` forwarders, `repr_bits`, `copysign`, the kink selectors, the two \
          `select_le_zero` arms, and `is_bounded`'s endpoint finiteness, which only refuses: a \
          mint that reads it refuses an unbounded enclosure and certifies nothing), which test \
-         NaI and empty themselves and carry the decoration forward rather than certifying",
+         NaI and empty themselves and carry the decoration forward rather than certifying; \
+         the polar enclosure's 5 (`enclose_rotation`'s `η`, determinant and remainder, \
+         `enclose_unit`'s `η` and remainder) bound a lift's width, and a refused bracket's NaN \
+         fails the comparisons they gate or widens the answer to NaI, which poisons",
     ),
     (
         "crates/geom-core/src/interval/certification.rs",
