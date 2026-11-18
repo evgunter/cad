@@ -624,9 +624,17 @@ fn arm(derivation: Derivation) -> &'static str {
 }
 
 /// Every arm and the terms it adds, as `incidence` spells them, plus
-/// the three every arm carries (`Frame`, `FidelityU`, `FidelityV`).
+/// the two every arm carries that a row can load (`FidelityU`,
+/// `FidelityV`).
 ///
-/// Left out: `Line` on an arm only circles and ellipses reach (a
+/// Left out: `Frame`, which every arm carries too. It meters a chart's
+/// frame against its orthonormal twin, and a stored frame is a rigid
+/// motion (`work/onehome/carrier-frames-the-types-and-the-lift.md`): a
+/// frame moved off unit or off square is squared back where it is minted
+/// ([`frame_moved`] reaches the same chart it started from, to rounding),
+/// so no row carries the term over its noise and it is defence.
+///
+/// Left out too: `Line` on an arm only circles and ellipses reach (a
 /// turning cylinder, every rim, parallel and meridian). Their harmonic
 /// form has `l = 0` identically and a line's has `a = b = 0`, so no
 /// carrier the arm admits has a linear term; the term is defence, zero
@@ -653,11 +661,7 @@ fn arm_terms() -> Vec<(&'static str, Vec<EnvelopeTerm>)> {
         .into_iter()
         .map(|(arm, own)| {
             let mut terms = own.to_vec();
-            terms.extend([
-                EnvelopeTerm::Frame,
-                EnvelopeTerm::FidelityU,
-                EnvelopeTerm::FidelityV,
-            ]);
+            terms.extend([EnvelopeTerm::FidelityU, EnvelopeTerm::FidelityV]);
             (arm, terms)
         })
         .collect()

@@ -257,23 +257,62 @@ fn n3r1_f64_adversarial_corpus_is_contained_at_zero_pad() {
 }
 
 /// Wide-bracket realizations: every corner and a grid of interior
-/// points of each bracket, realized as an `f64` carrier, must lie in the
-/// `Interval` box.
+/// points of each INPUT bracket, realized as an `f64` carrier through
+/// the same mint, must lie in the `Interval` box. The realizations are
+/// of the stated inputs, not of the stored frame's entries: a carrier's
+/// frame is squared where it is minted, so its stored entries enclose
+/// the squared members, and a corner of that enclosure is no member.
 /// The wide-bracket helper, for the tests that read it.
 mod interval_support {
     use super::*;
 
+    /// A conic's stated inputs, each a bracket: centre, axis, the first
+    /// semi-axis (a circle's radius), the second where it is an ellipse,
+    /// and `u_ref`.
+    #[derive(Clone, Copy)]
+    pub(super) struct Bracket {
+        pub(super) center: Point3<Interval>,
+        pub(super) axis: Vec3<Interval>,
+        pub(super) a: Interval,
+        pub(super) b: Option<Interval>,
+        pub(super) u_ref: Vec3<Interval>,
+    }
+
+    impl Bracket {
+        fn mint<T: Real>(
+            center: Point3<T>,
+            axis: Vec3<T>,
+            a: T,
+            b: Option<T>,
+            u_ref: Vec3<T>,
+        ) -> Curve3<T> {
+            match b {
+                None => Curve3::circle(center, axis, a, u_ref),
+                Some(b) => Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(center, axis, u_ref),
+                    a,
+                    b,
+                )),
+            }
+        }
+
+        pub(super) fn carrier(&self) -> Curve3<Interval> {
+            Self::mint(self.center, self.axis, self.a, self.b, self.u_ref)
+        }
+    }
+
     #[allow(clippy::too_many_arguments)] // one argument per named quantity, as the door's own helper
     pub(super) fn check_interval_dominates(
         what: &str,
-        iv_carrier: &Curve3<Interval>,
+        bracket: &Bracket,
         t0: Interval,
         t1: Interval,
         scale: f64,
     ) {
+        let iv_carrier = bracket.carrier();
         let end0 = iv_carrier.eval(t0);
         let end1 = iv_carrier.eval(t1);
-        let b = conic_arc_aabb(iv_carrier, t0, t1, end0, end1).unwrap();
+        let b = conic_arc_aabb(&iv_carrier, t0, t1, end0, end1).unwrap();
         // Realizations: pick each bracketed quantity at lo, mid, hi.
         let pick = |x: Interval, k: usize| -> f64 {
             match k {
@@ -282,6 +321,13 @@ mod interval_support {
                 _ => x.hi(),
             }
         };
+        let Bracket {
+            center,
+            axis,
+            a,
+            b: second,
+            u_ref,
+        } = *bracket;
         let mut worst = f64::NEG_INFINITY;
         for kc in 0..3 {
             for ka in 0..3 {
@@ -289,58 +335,21 @@ mod interval_support {
                     for kr in 0..3 {
                         for kt in 0..3 {
                             let (t0f, t1f) = (pick(t0, kt), pick(t1, 2 - kt));
-                            let real: Curve3<f64> = match iv_carrier {
-                                Curve3::Circle(geom::Circle { frame, radius }) => {
-                                    let (center, axis, u_ref) =
-                                        (frame.origin(), frame.axis(), frame.u_ref());
-                                    circle(
-                                        Point3::new(
-                                            pick(center.x, kc),
-                                            pick(center.y, kc),
-                                            pick(center.z, kc),
-                                        ),
-                                        Vec3::new(
-                                            pick(axis.x, ka),
-                                            pick(axis.y, ka),
-                                            pick(axis.z, ka),
-                                        ),
-                                        pick(*radius, kr),
-                                        Vec3::new(
-                                            pick(u_ref.x, ku),
-                                            pick(u_ref.y, 2 - ku),
-                                            pick(u_ref.z, ku),
-                                        ),
-                                    )
-                                }
-                                Curve3::Ellipse(geom::Ellipse {
-                                    frame,
-                                    semi_u,
-                                    semi_v,
-                                }) => {
-                                    let (center, axis, u_ref) =
-                                        (frame.origin(), frame.axis(), frame.u_ref());
-                                    ellipse(
-                                        Point3::new(
-                                            pick(center.x, kc),
-                                            pick(center.y, kc),
-                                            pick(center.z, kc),
-                                        ),
-                                        Vec3::new(
-                                            pick(axis.x, ka),
-                                            pick(axis.y, ka),
-                                            pick(axis.z, ka),
-                                        ),
-                                        pick(*semi_u, kr),
-                                        pick(*semi_v, 2 - kr),
-                                        Vec3::new(
-                                            pick(u_ref.x, ku),
-                                            pick(u_ref.y, 2 - ku),
-                                            pick(u_ref.z, ku),
-                                        ),
-                                    )
-                                }
-                                _ => unreachable!(),
-                            };
+                            let real = Bracket::mint(
+                                Point3::new(
+                                    pick(center.x, kc),
+                                    pick(center.y, kc),
+                                    pick(center.z, kc),
+                                ),
+                                Vec3::new(pick(axis.x, ka), pick(axis.y, ka), pick(axis.z, ka)),
+                                pick(a, kr),
+                                second.map(|s| pick(s, 2 - kr)),
+                                Vec3::new(
+                                    pick(u_ref.x, ku),
+                                    pick(u_ref.y, 2 - ku),
+                                    pick(u_ref.z, ku),
+                                ),
+                            );
                             let who = format!("{what} realization c{kc} a{ka} u{ku} r{kr} t{kt}");
                             check_contains(&who, &b, &real, t0f, t1f, 200, scale, &mut worst);
                         }
@@ -350,13 +359,13 @@ mod interval_support {
         }
     }
 }
-use interval_support::check_interval_dominates;
+use interval_support::{Bracket, check_interval_dominates};
 
 #[test]
 fn n3r1_interval_brackets_are_dominated_by_the_box() {
     let iv = <Interval as Real>::from_f64;
     let ib = Interval::from_bounds;
-    let mut cases: Vec<(String, Curve3<Interval>, Interval, Interval, f64)> = Vec::new();
+    let mut cases: Vec<(String, Bracket, Interval, Interval, f64)> = Vec::new();
     // Frame brackets on u_ref.x straddling zero (extremal angle straddled).
     for &w in &[1e-9, 1e-3, 0.3, 0.9] {
         for &(t0, t1, s) in &[
@@ -369,12 +378,13 @@ fn n3r1_interval_brackets_are_dominated_by_the_box() {
         ] {
             cases.push((
                 format!("u_ref.x straddles by {w}, {s}"),
-                Curve3::circle(
-                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                    ib(0.9, 1.1),
-                    Vec3::new(ib(-w, w), iv(1.0), iv(0.0)),
-                ),
+                Bracket {
+                    center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                    a: ib(0.9, 1.1),
+                    b: None,
+                    u_ref: Vec3::new(ib(-w, w), iv(1.0), iv(0.0)),
+                },
                 ib(t0, t0 + 1e-3),
                 ib(t1 - 1e-3, t1),
                 1.1,
@@ -408,12 +418,13 @@ fn n3r1_interval_brackets_are_dominated_by_the_box() {
         ] {
             cases.push((
                 format!("{s}, {ss}"),
-                Curve3::circle(
-                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                    ib(1.0, 1.0),
-                    Vec3::new(ib(ux.0, ux.1), ib(uy.0, uy.1), iv(0.0)),
-                ),
+                Bracket {
+                    center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                    a: ib(1.0, 1.0),
+                    b: None,
+                    u_ref: Vec3::new(ib(ux.0, ux.1), ib(uy.0, uy.1), iv(0.0)),
+                },
                 ib(t0, t0),
                 ib(t1, t1),
                 1.0,
@@ -424,27 +435,26 @@ fn n3r1_interval_brackets_are_dominated_by_the_box() {
     // ellipse with a wide axis bracket.
     cases.push((
         "theta brackets straddle pi/2".into(),
-        Curve3::circle(
-            Point3::new(ib(-1e-3, 1e-3), iv(2.0), iv(-1.0)),
-            Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-            ib(0.001, 0.0011),
-            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
-        ),
+        Bracket {
+            center: Point3::new(ib(-1e-3, 1e-3), iv(2.0), iv(-1.0)),
+            axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            a: ib(0.001, 0.0011),
+            b: None,
+            u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+        },
         ib(1.4, 1.6),
         ib(1.65, 1.8),
         2.0,
     ));
     cases.push((
         "tilted ellipse, wide axis".into(),
-        Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(
-                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                Vec3::new(ib(0.5, 0.6), iv(0.0), ib(0.8, 0.87)),
-                Vec3::new(ib(0.8, 0.87), iv(0.0), ib(-0.6, -0.5)),
-            ),
-            ib(50.0, 60.0),
-            ib(0.01, 0.02),
-        )),
+        Bracket {
+            center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+            axis: Vec3::new(ib(0.5, 0.6), iv(0.0), ib(0.8, 0.87)),
+            a: ib(50.0, 60.0),
+            b: Some(ib(0.01, 0.02)),
+            u_ref: Vec3::new(ib(0.8, 0.87), iv(0.0), ib(-0.6, -0.5)),
+        },
         ib(0.9, 1.0),
         ib(4.0, 4.1),
         60.0,

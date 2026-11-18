@@ -202,6 +202,14 @@ const ROSTER: &[Site] = &[
         why: HandedOff("Track Q's; a private helper S88's census names"),
     },
     Site {
+        path: "crates/geom-brep/src/ssi/certify.rs",
+        subject: "frame_direction",
+        why: Payload(
+            "a composite form's frame direction read at its midpoint and its turn bound, both \
+             f64 payloads the hull charges",
+        ),
+    },
+    Site {
         path: "crates/geom-core/src/dual.rs",
         subject: "impl<T> Bounds for Dual<T>",
         why: Impl(

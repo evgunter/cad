@@ -97,9 +97,8 @@ use crate::m10_9_pins_interval::measured_studies;
 /// the plate and the annulus `54 → 36`, the link `2738 → 2600`, the
 /// bracket `84 → 57` and the pad `2773 → 1967`; no symbolic or numeric
 /// count moves, and under `SymRules::without_canonical_root` the plate's
-/// 2,025 recorded decisions answer as on main, each with its outcome,
-/// its 64 blocked residuals the same predicates (main asks
-/// `mate_chart_pole` twice more, both `Definite(Positive)`).
+/// 2,025 recorded decisions answer as on the merge base, each with its
+/// outcome, its 64 blocked residuals the same predicates.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [979, 1046, 36]),
     ("r1_annulus", [511, 548, 36]),

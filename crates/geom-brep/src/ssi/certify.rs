@@ -541,9 +541,10 @@ fn composite_form<T: Bounds>(
     match *s {
         Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
-            let (Some(point), Some((normal, turn))) =
-                (exact3(origin.to_array()), frame_direction(normal.to_array()))
-            else {
+            let (Some(point), Some((normal, turn))) = (
+                exact3(origin.to_array()),
+                frame_direction(normal.to_array()),
+            ) else {
                 return Err(WIDENED);
             };
             Ok((
