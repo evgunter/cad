@@ -825,3 +825,49 @@ here (the gate is not on main); its named bodies on the tour
 (`budfillet`, `lily`) do not move.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
+
+### Review fix pass: the pose's extent (EMBED, lane lune, 2026-11-18)
+
+The review of `f35afe01` found the hollow refused under three of six
+rigid turns (`x` 0.3, `(1, 1, 1)` 1.0, `z` 1.2). The cells were the
+cavity's sphere halves beside a cap's circle, outside the face, which a
+pose read `Local` at every depth. A pose had no extent, so no sheet said
+the cell missed the face. The ruling took the pose's extent, in this
+row.
+
+**What landed:**
+- **The posed extent** (`posed_extent`) is carried in the posed boundary's
+  `Boundary::extent` and read by `face_extent` and `sheets` as a stored
+  extent is. It is granted only where:
+  - every row of the outer loop has an enclosure in the pose (pieces
+    placed by `posed_cell`; a piece holding the pose's pole refuses it);
+  - the lift closes on one sheet without wrapping the azimuth;
+  - its signed area, less the pieces' rectangle areas, has the sign that
+    makes the face the bounded side.
+
+  Otherwise the cell is read on the rectangle's own sheet, never
+  `Structural`.
+- **The lift** is the mint's (`geom_brep::chart_pcurve_over`), read as a
+  stored row is (`clearance::chart_use`). A pose reads circles only. The
+  azimuth is `geom::Azimuth::about_middle`, and the frame `geom::Frame`.
+- **A corner zero is read in a pose**, and `Zero::Past` is reachable
+  there. The sliver is still skipped. `placed_on_lines` and `narrow` are
+  gone. `unread_corner` fires only where the cell touches the pair at a
+  single shared vertex.
+
+**Measured** (head `8e9c651e8`, which merges main; f64 unless said):
+- the six turns hold, and 24 pinned random rigid motions hold (2,919 to
+  11,460 discharged). The corner-from-outside cells read `Missed`. Every
+  face point sampled lies in every granted extent;
+- the general lune, its seam off the equator, holds solid at both
+  scalars. Its hollow refuses `Departure` across the seam, where it meets
+  a cavity cap's circle: a corner of two different conics no chart
+  reads, this row's remainder, on a sphere;
+- at `Interval` the hollow's own shell refuses
+  (`a-lunes-cavity-refuses-its-shell-at-interval`);
+- the cavity switch over the 12 modules: 13 of 166 fail, the same as the
+  first pass. The suite is green at three ε (61 each). The tour walk
+  holds 82 of 85, identical stop by stop to main;
+- the off-axis snowman now refuses after about 2,000 splits, not at
+  once (the mint's lift reads the waist's cells). Its row pins a bound
+  of 4,096.
