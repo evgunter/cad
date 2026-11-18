@@ -807,8 +807,8 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 // minted variable per placement moves the ids after it.
 const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
     (1e-9, 0x49aa_a7be_d3c8_eae9),
-    (1e-6, 0x3772_357e_797b_666c),
-    (1e-12, 0x6477_f71e_7306_a056),
+    (1e-6, 0xcb88_5110_3f96_3ea8),
+    (1e-12, 0x34c6_123b_5cf3_4184),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

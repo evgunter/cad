@@ -320,25 +320,25 @@ fn eps_row(eps: f64) -> usize {
 /// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): the walls
 /// and caps are the sketch frame turned and stored, and a surface's
 /// evaluation reads its stored frame, so the walks build fewer forms over
-/// the same calls (at 1e-9 `Plain/Decision` 8308 → 7727, `Plain/Assertion`
-/// 2572 → 2554, `Early/Assertion` 3001 → 2878), with their digests;
-/// `Early/Decision` does not move.
+/// the same calls (at every ε row `Plain/Decision` 8308 → 7727,
+/// `Plain/Assertion` 2572 → 2554, `Early/Assertion` 3001 → 2878), with
+/// their digests; `Early/Decision` does not move.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 936 forms 8308 frozen 0 digest ebddfff107d3206a0c4b78d656c9b7ba\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest 05926a76790cbf1f6b2eb3d922f4a4b5\n\
+     Plain/Decision calls 936 forms 7727 frozen 0 digest 7dd354c68900f9bd2642e7867aa7117d\n\
+     Plain/Assertion calls 992 forms 2554 frozen 0 digest d06777ecab62fd486c6cf3d10ffa4292\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest 88997ebd42bafb7f7281f34aa07cc09d",
+     Early/Assertion calls 992 forms 2878 frozen 0 digest e261649c69c74804b353deb36837b75e",
     "\
      Plain/Decision calls 936 forms 7727 frozen 0 digest 25ebd6ec55ec27aac257c5ae03962bd8\n\
      Plain/Assertion calls 992 forms 2554 frozen 0 digest fed7a07a0b2a1819fbca55e6034725c4\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
      Early/Assertion calls 992 forms 2878 frozen 0 digest 3852450066b87648d9a47dabcbf4b3c6",
     "\
-     Plain/Decision calls 936 forms 8308 frozen 0 digest 9af3c2a47bf454282f13404027438701\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest 3886f7e664853234cb584c3502b1732d\n\
+     Plain/Decision calls 936 forms 7727 frozen 0 digest 0e443c7d8ad35608774883e83ff66472\n\
+     Plain/Assertion calls 992 forms 2554 frozen 0 digest 38013c4c51f3bafaf35bcb087fe3f8f2\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest a8c5c56f6a96335393e0ed723dda6b81",
+     Early/Assertion calls 992 forms 2878 frozen 0 digest 82f29cc0f25c0a1ecead88a1ad9741a0",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
