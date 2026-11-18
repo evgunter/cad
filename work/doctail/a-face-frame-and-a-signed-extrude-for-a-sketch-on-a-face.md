@@ -2,11 +2,12 @@
 id: a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face
 kind: unit
 title: A sketch on a face is drawn on the face's placement chart (one code with the plane mate's), and an extrude's depth is signed
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 parent: on-the-picked-face-makes-a-profile-and-extrudes-it-in-one-checkbox
+closed: 2026-11-18
 ---
 
 
@@ -66,3 +67,12 @@ units, and the last of those deletes them.
 3. **Signed depth:** unchanged from step 3 above.
 
 Check FRAME's 2026-11-03 note (the least turn's pole) against the orientation: a bottom cap writes `x: +x, z: −z`, and the least turn is the identity.
+
+## Closed
+
+Closed by the DOCTAIL unit's PR (2026-11-18).
+
+- **The face's chart** is `PoseDef::FaceChart { face, orient, spin, slides }` (`pose.rs`). It evaluates through `mate::value::face_chart`, which calls the same four functions a placement's fold calls on the same reads: `solve::arm_of` (factored out of `bundle_arm`), `Chart::read` (factored out of `Chart::of`), `solve::fold_cosets` (factored out of `fold_bundle`) and `settle`. Their refusals name no mate: a value's blame is the `ValueAt` trait, and a chart's pole is `ChartFault::Backwards { write }`. The pole refuses as `PoseConstruction::FaceChartBackwards { orient, write }`, and an arm past the format's reach as `FaceChartUnleverable`. The slides run along `mate::face_chart_slides(orient)`, which the old fused `sketch_on_face` now writes too.
+- **The door** is `Recording::draw_on_face` and `edit::draw_on_face`, which take `OnFace { orient, spin, slides, traced }`. `None` writes `nearest_to_face`'s orientation into the recipe.
+- **Signed depth.** `wire_extrude` runs the sweep at `d`. On the sweep's own `NegativeDepth` verdict it runs the sweep at `|d|` and lifts the body `d` along the profile's `z` (`ProfileValue::lifted`). The zero and the band stay the sweep's refusals. `crates/sweep` is unchanged.
+- **Rows** are in `crates/editor-core/tests/face_chart_and_signed_depth.rs`: a bottom cap, a top cap, a tilted face, the pole and its recourse, a re-dimension that leaves the chart bit-equal, the chart equal to a plane placement's motion entry for entry, a − depth pocket, and a 0 depth refusal.
