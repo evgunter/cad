@@ -89,6 +89,7 @@ use geom::Surface;
 
 use crate::entities::{EdgeSpec, EdgeUse, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
+use crate::interpret::{FileBand, Read, STEP_BAND_RIM_COAXIAL, STEP_BAND_SEAM_VERTEX};
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
 mod singularity;
@@ -225,26 +226,22 @@ fn chart_direction(
     (step.abs() > 0.1).then_some(step > 0.0)
 }
 
-/// Runs the shell normalizations (module docs). `eps_in` is the
-/// file's own declared uncertainty in kernel metres — the band mint's
-/// budget for recognizing an existing rim vertex as already sitting
-/// at the seam azimuth. `run_band` is the run's own linear band, which
-/// the singularity pass reads a pole or apex against beside the file's.
+/// Runs the shell normalizations (module docs), reading the file at
+/// its band (`file`, floored at the run's).
 pub(crate) fn normalize_shell(
     solid: &mut SolidSpec,
-    eps_in: f64,
-    chart_band: Option<geom_core::Band>,
-    run_band: Option<geom_core::Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
-    crate::knot_split::split_c0_knots(solid, eps_in, chart_band, mint, sink)?;
-    band_seam(solid, eps_in, chart_band, mint, sink)?;
+    let chart_band = Some(file.band());
+    crate::knot_split::split_c0_knots(solid, file, mint, sink)?;
+    band_seam(solid, file, mint, sink)?;
     // The walls' orientation is read first: an inverted cone wall holds
     // its apex on the side its bit claims, and is refused as inverted,
     // not cut.
     wall_inversion(solid, chart_band)?;
-    singularity::singularity_vertices(solid, eps_in, chart_band, run_band, mint, sink)
+    singularity::singularity_vertices(solid, file, mint, sink)
 }
 
 /// **The seamless periodic band** (M7-5): a cylinder/torus face whose
@@ -296,14 +293,13 @@ pub(crate) fn normalize_shell(
 /// license as the edge-free sphere's minted meridians (module docs).
 fn band_seam(
     solid: &mut SolidSpec,
-    eps_in: f64,
-    chart_band: Option<geom_core::Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
     for fi in 0..solid.faces.len() {
         if solid.faces[fi].band {
-            mint_band(solid, fi, eps_in, chart_band, mint, sink)?;
+            mint_band(solid, fi, file, mint, sink)?;
             solid.faces[fi].band = false;
         }
     }
@@ -336,11 +332,11 @@ fn face_boundary_census(solid: &SolidSpec, fi: usize) -> (usize, usize) {
 fn mint_band(
     solid: &mut SolidSpec,
     fi: usize,
-    eps_in: f64,
-    chart_band: Option<geom_core::Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
+    let chart_band = Some(file.band());
     let face_id = solid.faces[fi].id;
     let surface = solid.faces[fi].surface.clone();
     let sense = solid.faces[fi].sense;
@@ -404,10 +400,10 @@ fn mint_band(
     // refusal on a valid solid). The structural read has neither
     // failure mode and is exact on the class the mint admits.
     //
-    // The coaxiality that licenses it is GATED within the file's own
-    // ε_in budget, not a loose classifier: a tilt moves rim points
-    // off the iso-v circle by ~radius·|n × axis| and an off-axis
-    // centre by its offset, so both are held to ε_in — a
+    // The coaxiality that licenses it is read at the file's band, not
+    // a loose classifier: a tilt moves rim points off the iso-v circle
+    // by ~radius·|n × axis| and an off-axis centre by its offset, so
+    // both must read Zero — a
     // Villarceau-tilted rim takes the typed band refusal here rather
     // than a generic certification message downstream.
     let mut rim = Vec::with_capacity(2);
@@ -435,7 +431,13 @@ fn mint_band(
                     if ui == 0 {
                         raises = Some(u.forward == (n.dot(s_axis) > 0.0));
                     }
-                    tilt <= eps_in && off_axis <= eps_in
+                    // Coaxial is a lane choice (`[verdicts]`): Zero
+                    // takes the re-mint, whose winding read, splits and
+                    // seam endpoints are exact only on coaxial rims; in
+                    // band and apart take the general lane, which is not
+                    // written, so both refuse below with the closed
+                    // form's pose as the lever and no tolerance offer.
+                    file.read(STEP_BAND_RIM_COAXIAL, tilt.max(off_axis)) == Read::Zero
                 }
                 _ => false,
             };
@@ -443,11 +445,11 @@ fn mint_band(
                 return Err(StepImportError::Topology {
                     id: face_id,
                     what: "a seamless periodic band whose rim chain is not made of \
-                           circles coaxial with the surface within the file's own \
-                           interpretation budget — outside the band re-mint's \
-                           minted class (its winding read, splits and seam endpoints \
-                           are exact only on coaxial rims); extending the band \
-                           re-mint to this rim shape is the recourse",
+                           circles coaxial with the surface at the file's band — outside the \
+                           band re-mint's minted class (its winding read, splits and seam \
+                           endpoints are exact only on coaxial rims). Recourse: pose each rim \
+                           as a circle centred on the surface's axis in a plane normal to it, \
+                           or extend the band re-mint to this rim shape",
                 });
             }
         }
@@ -499,26 +501,18 @@ fn mint_band(
     let mut splits = 0usize;
     let mut seam_v = [0u64; 2];
     for li in [ls, le] {
-        seam_v[li] = seam_vertex_on_loop(
-            solid,
-            fi,
-            li,
-            &surface,
-            eps_in,
-            chart_band,
-            mint,
-            &mut splits,
-        )?;
+        seam_v[li] = seam_vertex_on_loop(solid, fi, li, &surface, file, mint, &mut splits)?;
     }
     let (p_start, p_end) = (solid.vertices[&seam_v[ls]], solid.vertices[&seam_v[le]]);
-    if (p_end - p_start).norm() <= eps_in {
-        return Err(StepImportError::Topology {
-            id: face_id,
-            what: "a seamless periodic band whose two rims meet at the seam azimuth — \
-                   the seam generator would be a point, so the band is degenerate and \
-                   the re-mint refuses",
-        });
-    }
+    // The minted seam generator's length: a positive length, which the
+    // band reads apart from zero or refuses as the file's (two rims that
+    // meet at the seam azimuth leave the band degenerate).
+    file.positive_length(
+        face_id,
+        "a seamless periodic band's seam generator (its two rims' distance at the seam \
+         azimuth)",
+        (p_end - p_start).norm(),
+    )?;
     // ---- The minted seam generator (band_seam docs) ---------------
     let gen_id = mint();
     let carrier = match torus {
@@ -615,8 +609,7 @@ fn seam_vertex_on_loop(
     fi: usize,
     li: usize,
     surface: &Surface<f64>,
-    eps_in: f64,
-    chart_band: Option<geom_core::Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     splits: &mut usize,
 ) -> Result<u64, StepImportError> {
@@ -637,10 +630,15 @@ fn seam_vertex_on_loop(
     for u in &solid.faces[fi].loops[li].uses {
         let vid = use_start(solid, *u);
         let p = solid.vertices[&vid];
-        if let Some(uv) = crate::chart::uv_of(surface, p, chart_band)
-            && (surface.eval(0.0, uv.y) - p).norm() <= eps_in
-        {
-            return Ok(vid);
+        if let Some(uv) = crate::chart::uv_of(surface, p, Some(file.band())) {
+            let gap = (surface.eval(0.0, uv.y) - p).norm();
+            match file.read(STEP_BAND_SEAM_VERTEX, gap) {
+                Read::Zero => return Ok(vid),
+                Read::InBand => {
+                    return Err(file.refused(vid, file.ambiguous(STEP_BAND_SEAM_VERTEX, gap)));
+                }
+                Read::Apart => {}
+            }
         }
     }
     // No vertex there: split the rim arc whose parameter interval
@@ -894,9 +892,7 @@ mod tests {
         let mut sink = Vec::new();
         singularity::singularity_vertices(
             &mut solid,
-            1e-9,
-            crate::chart::file_band(1e-9, geom_core::Tol::witness()),
-            geom_core::Band::linear(geom_core::Tol::witness()).ok(),
+            crate::interpret::FileBand::new(1e-9, geom_core::Tol::witness()).unwrap(),
             &mut || {
                 minted += 1;
                 1000 + minted

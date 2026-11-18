@@ -2861,12 +2861,13 @@ impl Node {
         })
     }
 
-    /// Extrude an upstream profile up its own +z.
+    /// Extrude an upstream profile along its own z by a signed depth.
     ///
-    /// `distance` is the node's `distance` slot, a depth: a size,
-    /// refused at `evaluate` unless definitely positive. The body lies
-    /// in its own coordinates, between its profile's xy and `distance`
-    /// up; a body that stands below a plane is placed so.
+    /// `distance` is the node's `distance` slot, a signed depth. The
+    /// body lies in the profile's coordinates, between its xy and
+    /// `distance` along z: a `+` depth is a boss up z, a `-` depth a
+    /// pocket's tool down it. A depth that is zero, or that the band
+    /// cannot sign, is refused at `evaluate`.
     /// `DocEdit.set_param(node, "distance", expr)` is what moves the
     /// depth, and what makes it a named, editable number: a literal is
     /// a new document per value, a parameter reference is one

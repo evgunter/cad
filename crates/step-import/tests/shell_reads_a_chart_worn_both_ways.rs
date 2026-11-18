@@ -143,3 +143,70 @@ fn a_chart_worn_both_ways_is_finished_and_shell_refuses_it() {
         ),
     }
 }
+
+/// `text` with its face on the plane y = 0 whose normal is +y restated on
+/// a plane of normal −y through the same point, its sense flipped: the
+/// same face, facing the same way, on a record antiparallel to it.
+fn restate_the_up_face_on_a_down_normal(text: &str) -> String {
+    let mut up = None;
+    for line in text.lines() {
+        let Some((id, rhs)) = line.split_once(" = ") else {
+            continue;
+        };
+        if !rhs.starts_with("ADVANCED_FACE(") {
+            continue;
+        }
+        let plane = *refs(rhs).last().unwrap();
+        let Some(placement) = record(text, plane).strip_prefix("PLANE(") else {
+            continue;
+        };
+        let at = refs(record(text, refs(placement)[0]));
+        let origin = tuple(record(text, at[0]));
+        let normal = tuple(record(text, at[1]));
+        if origin[1] == 0.0 && normal == [0.0, 1.0, 0.0] {
+            up = Some((
+                id.to_owned(),
+                plane.to_owned(),
+                at[0].to_owned(),
+                at[2].to_owned(),
+            ));
+        }
+    }
+    let (face, plane, origin, reference) = up.expect("the Z-step's up face on y = 0");
+    let old = format!("{face} = {}", record(text, &face));
+    assert!(old.ends_with(&format!("{plane}, .T.);")), "{old}");
+    let new = old.replace(&format!("{plane}, .T.);"), "#90003, .F.);");
+    let block = format!(
+        "#90001 = DIRECTION('', (0.0, -1.0, 0.0));\n\
+         #90002 = AXIS2_PLACEMENT_3D('', {origin}, #90001, {reference});\n\
+         #90003 = PLANE('', #90002);\n"
+    );
+    let text = text.replace(&old, &new);
+    let at = text.rfind("ENDSEC;").unwrap();
+    format!("{}{block}{}", &text[..at], &text[at..])
+}
+
+/// **Facing is the record's normal composed with the sense**: the Z-step
+/// with its up face on y = 0 restated on a down-normal record, sense
+/// flipped, still has its two y = 0 faces facing opposite ways. They are
+/// never one record, so it imports on two charts and shells, as the
+/// Z-step written plainly does.
+#[test]
+fn a_face_restated_on_an_antiparallel_record_still_faces_its_own_way() {
+    let tol = Tol::witness();
+    let text = step_string(
+        &crate::common::at_rest(&topo::test_support::prism::<f64>(&Z_STEP, 1.0, tol).body),
+        &StepOptions::default(),
+        tol,
+    )
+    .unwrap();
+    let restated = restate_the_up_face_on_a_down_normal(&text);
+    assert_ne!(restated, text, "the restatement applies");
+    let body = imported(&restated);
+    assert!(
+        shared_charts(&body).is_empty(),
+        "the two y = 0 faces stay on two records"
+    );
+    let body = topo::finish(body, tol).expect("the restated Z-step is finished");
+    topo::shell(&body, 0.1, tol).expect("the restated Z-step shells");
+}
