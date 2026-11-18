@@ -69,12 +69,13 @@ pub use ::profile::{lift, path};
 
 // The lattice: authoring states, targets, the closed-carrier verbs.
 pub use ::profile::{
-    ArcCarrierScalar, ArcData, ArcLen, ArcMode, ArcSide, ArrivesTangent, Bulge, Center, ClosedLoop,
-    ContinueTarget, CornerReason, CornerRefusal, CornerWindow, LegFit, LeverValue, LineTarget,
-    OntoTarget, Open, PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius,
-    Recourse, Refused, ReplayError, ReplayErrorKind, SpecForms, Start, Step, Sweep, Takes,
-    TangentArcTarget, Target, TargetKind, TipState, TurnLever, Verb, Via, Vocabulary, arc_specs_at,
-    circle, circle_split, rectangle, replay,
+    ArcCarrierScalar, ArcData, ArcLen, ArcMode, ArcSide, ArrivesTangent, Bulge, Center, ChainShape,
+    ClosedLoop, ContinueTarget, CornerReason, CornerRefusal, CornerWindow, LatticeFault, LegFit,
+    LeverValue, LineTarget, OntoTarget, Open, PartialPath, PathError, PathErrorKind,
+    PathNoCornerReason, PointLeg, Radius, Recourse, Refused, ReplayError, ReplayErrorKind,
+    SpecForms, Start, Step, Sweep, Takes, TangentArcTarget, Target, TargetKind, TipState,
+    TurnLever, Verb, Via, Vocabulary, arc_specs_at, chain_shape, circle, circle_split, rectangle,
+    replay,
 };
 // The §2c family's traits and arrival builders: the admissibility
 // matrix (one impl per admissible (state, mode) pair) and the states a

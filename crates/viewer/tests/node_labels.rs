@@ -307,7 +307,7 @@ fn a_refused_creation_applies_no_label() {
             distance: common::len(0.01),
         },
         SessionOp::AddProfile {
-            loops: vec![common::circle_at([0.0, 0.0], 0.0)],
+            loops: vec![common::unclosed_loop()],
         },
     ];
     for op in refused {

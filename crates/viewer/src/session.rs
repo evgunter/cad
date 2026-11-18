@@ -6485,15 +6485,18 @@ mod tests {
         let before = session.history().len();
         let outcome = session.commit_run(|run| {
             run.insert(square())?;
+            // A chain that never closes: the lattice refuses it.
             let degenerate = crate::sketch::path_program(
-                &[pncad::profile::Step::Circle {
-                    centre: pncad::geom_core::Point2::origin(),
-                    radius: 0.0,
-                }],
+                &[
+                    pncad::profile::Step::At(pncad::geom_core::Point2::origin()),
+                    pncad::profile::Step::LineTo(pncad::profile::Target::Point(
+                        pncad::geom_core::Point2::new(0.01, 0.0),
+                    )),
+                ],
                 crate::props::Notation::CANONICAL,
                 &|_, _| None,
             )
-            .expect("a zero radius lowers");
+            .expect("an unclosed chain lowers");
             let _ = run.insert(Node::Profile(ProfileProgram {
                 loops: vec![degenerate],
                 ids: Vec::new(),
