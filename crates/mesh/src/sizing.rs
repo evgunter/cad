@@ -362,15 +362,16 @@ pub(crate) struct SizingTols {
     /// convention `Band::linear` prescribes). The same band routes every
     /// face before this value exists (`tessellate::Routes::of`, whose
     /// doors hand it to `geom_brep::props::require_iso_rectangle` and then
-    /// to `require_one_chart_branch`). This field is consumed by three
+    /// to `require_one_chart_branch`). This field is consumed by four
     /// sites — the walk's wrap strip and the trimmed lane's singular
     /// vertices (`crate::chart_table::AnalyticRow::is_singular`), both of
     /// which hand it to
-    /// `geom_brep::chart_singularity::vertex_at_singular_point`, and a
+    /// `geom_brep::chart_singularity::vertex_at_singular_point`; a
     /// trimmed face's domain read at its turn (`tessellate::Route::ready`,
-    /// which hands it to `topo::Body::face_lift`) — and
-    /// by no rule of this crate's own: `mesh` decides nothing
-    /// against it, it carries the band to geom-brep's predicates. Not an
+    /// which hands it to `topo::Body::face_lift`); and a walked face's
+    /// one decision of its own, whether a side lies beyond its
+    /// neighbour's reach (`trimmed::may_make`), which reads it through
+    /// `geom_core::k_stats::decide` and holds no margin of its own. Not an
     /// ε read of this crate, and the inventory pin does not count it as
     /// one.
     pub band: Band,

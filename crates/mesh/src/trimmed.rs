@@ -321,6 +321,8 @@ use std::collections::{HashMap, HashSet};
 
 use geom::Surface;
 use geom_brep::{OutwardNormal, Pcurve, PolygonOrientation};
+use geom_core::k_stats;
+use geom_core::predicate::{Margin, Sign};
 use geom_core::{Band, Point3};
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
@@ -3490,31 +3492,33 @@ impl Creases {
 /// distance from its surface, and a certified bound is at most
 /// `δ·(1 + cert::ALLOWANCE_SHARE)` (the verdict absorbs rounding only while
 /// it is that small, `cert::verdict`). So where the side's midpoint lies
-/// farther than that from the neighbour's surface, past the rounding of
-/// the distance itself ([`SIDE_DISTANCE_ROUNDING`]), no triangle of the
-/// neighbour holds the side. The distance is to the surface's own foot of
-/// the point (`geom::Surface::foot`, in closed form on every analytic
-/// kind); a surface with no such foot, or a point where it is not one
-/// point, may make it. Every face of one run is meshed at its one δ (the
-/// run's `SizingTols`), and a face sized finer than δ is still within it.
-fn may_make(neighbour: &Surface<f64>, a: Point3<f64>, b: Point3<f64>, delta: f64) -> bool {
+/// farther than that from the neighbour's surface, no triangle of the
+/// neighbour holds the side. "Farther" is a decision on the run's `band`
+/// (`geom_core::k_stats::decide`), three-way: decided greater, the
+/// neighbour cannot make the side; decided not greater, or undecided, it
+/// may. The distance is to the surface's own foot of the point
+/// (`geom::Surface::foot`, in closed form on every analytic kind); a
+/// surface with no such foot, or a point where it is not one point, may
+/// make it. Every face of one run is meshed at its one δ (the run's
+/// `SizingTols`), and a face sized finer than δ is still within it.
+fn may_make(
+    neighbour: &Surface<f64>,
+    a: Point3<f64>,
+    b: Point3<f64>,
+    delta: f64,
+    band: Band,
+) -> bool {
     let mid = Point3::new(0.5 * (a.x + b.x), 0.5 * (a.y + b.y), 0.5 * (a.z + b.z));
     let Some(foot) = neighbour.foot(mid) else {
         return true;
     };
-    let scale = cert::coordinate_scale([mid, foot, a]);
-    let far = delta * (1.0 + cert::ALLOWANCE_SHARE) + SIDE_DISTANCE_ROUNDING * f64::EPSILON * scale;
-    (mid - foot).norm() <= far
+    // A distance less a distance: a length (`Margin::of`).
+    let beyond = Margin::of((mid - foot).norm() - delta * (1.0 + cert::ALLOWANCE_SHARE));
+    !matches!(
+        k_stats::decide("walked side beyond its neighbour's reach", beyond, band),
+        Ok(Sign::Positive)
+    )
 }
-
-/// **The rounding of a side's distance from a neighbour's surface**
-/// ([`may_make`]), in epsilons of the coordinates' magnitude:
-/// **structural**, a bound on the arithmetic, not a margin chosen for a
-/// mesh. The midpoint is one rounding per coordinate, the foot a few
-/// (the axis foot, a normalisation, a scaled step; the torus two of
-/// them), the norm two: the certificate's own count of a position's
-/// rounding (`cert::ROUNDING_ULPS`) covers each, and the sum is taken.
-const SIDE_DISTANCE_ROUNDING: f64 = 4.0 * cert::ROUNDING_ULPS;
 
 /// **A walked face's patch** (`crate::ruled_walk`): the walk of its two
 /// rows, a triangle a neighbouring face may also make a side of split at a
@@ -3590,7 +3594,13 @@ fn walk_face(
         };
         for &f in fp.iter().filter(|f| fq.contains(f)) {
             let neighbour = crate::tessellate::face_surface(body, f)?;
-            if may_make(neighbour, shared[p as usize], shared[q as usize], tol.delta) {
+            if may_make(
+                neighbour,
+                shared[p as usize],
+                shared[q as usize],
+                tol.delta,
+                tol.band,
+            ) {
                 return Ok(true);
             }
         }

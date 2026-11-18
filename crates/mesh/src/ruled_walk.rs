@@ -59,8 +59,9 @@
 //! a walked side whose two ends one neighbouring face holds
 //! (`trimmed::faces_across`, the fact the cone arm's shared-side rule
 //! reads) and which that face may make (`trimmed::may_make`: the side's
-//! midpoint within `δ·(1 + ALLOWANCE_SHARE)` of its surface, past which no
-//! triangle it certifies holds the side): a surface point at the side's
+//! midpoint not decided, on the run's band, to lie farther than
+//! `δ·(1 + ALLOWANCE_SHARE)` from its surface, past which no triangle it
+//! certifies holds the side): a surface point at the side's
 //! chart midpoint, between the same two rulings, makes each triangle on it
 //! two. The rule reads where the neighbour lies, not how it is meshed, so
 //! it also cuts a side a neighbour on the same surface would not make (the

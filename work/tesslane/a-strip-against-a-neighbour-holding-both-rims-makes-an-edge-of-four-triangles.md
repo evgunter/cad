@@ -52,9 +52,10 @@ The unsplit bore is the rectangle lane's, which reads no such fact.
 
 **The candidate cure here** is the walk's rule as it reads now
 (`trimmed::may_make`): cut a side whose two ends one neighbouring face
-holds only where its midpoint lies within `δ·(1 + cert::ALLOWANCE_SHARE)`
-of that face's surface (`geom::Surface::foot`, past the distance's own
-rounding), so that the face's certificate could pass a triangle on it. On
+holds unless its midpoint is decided, on the run's band
+(`geom_core::k_stats::decide`), to lie farther than
+`δ·(1 + cert::ALLOWANCE_SHARE)` from that face's surface
+(`geom::Surface::foot`), so that the face's certificate could pass a triangle on it. On
 the bored ball that is δ 0.04 and coarser (the shell is 0.05 thick); the
 cut adds two triangles per side cut, so the bore's strip of `2n`
 triangles becomes `6n` there, and nothing moves at a finer δ. Each cut
