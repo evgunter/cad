@@ -275,7 +275,11 @@ pub(crate) struct Study {
 /// the bracket (1356, 1619) -> (1290, 1613) and the pad (1531, 1714) ->
 /// (1483, 1710). Then the decided least-turn mint (fork 270) took each
 /// identity chart with no pole verdict, door shut: the bracket (1290,
-/// 1613) -> (1290, 1611) and the pad (1483, 1710) -> (1483, 1709).
+/// 1613) -> (1290, 1611) and the pad (1483, 1710) -> (1483, 1709). Then
+/// each measure read its placed operand through their relative motion
+/// and asked no session box of an image (PR 7088's review ruling), door
+/// shut: the bracket (1290, 1611) -> (1290, 1610) and the pad (1483,
+/// 1709) -> (1483, 1708).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -367,7 +371,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // The shipped count, with the registry, does not move.
             // +1 numeric: the placement asks the session box of its image.
             // −2 numeric: its two identity charts owe no pole verdict.
-            without_the_registry: Some(((1290, 1611), None)),
+            without_the_registry: Some(((1290, 1610), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -399,7 +403,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // PR 6594 and PR 6682 (`symbolic` below).
             // +1 numeric: the placement asks the session box of its image.
             // −1 numeric: its identity chart owes no pole verdict.
-            without_the_registry: Some(((1483, 1709), None)),
+            without_the_registry: Some(((1483, 1708), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -957,8 +961,11 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // sweeps keep their sketch frames, fitting no plane: (1531, 1714,
     // 4000) -> (1483, 1710, 2773), the Newell sums' forms no longer
     // frozen. Then the decided least-turn mint (fork 270) took the pad's
-    // identity chart with no pole verdict: 1710 -> 1709 numeric.
-    assert_eq!(got[0], (1483, 1709, 2773), "rule F shut: the pad's receipt");
+    // identity chart with no pole verdict: 1710 -> 1709 numeric. Then the
+    // pad's measure read its placed operand through their relative motion
+    // and asked no session box of an image (PR 7088's review ruling):
+    // 1709 -> 1708 numeric.
+    assert_eq!(got[0], (1483, 1708, 2773), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
