@@ -1137,8 +1137,11 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    construction from the file's ratio vectors.
 2. **Edge adoption**: verify the imported curve lies within ε_in of the
    intersection of its adjacent surfaces with adequate transversality
-   margin, then rebuild it as `Intersection { pair, witness }` — the
-   imported curve demoted to witness. Seams, tangency loci and a
+   margin, then rebuild it as `Intersection { pair, selector }`: the
+   imported curve only chooses which component of the pair's
+   intersection the edge is, and the description holds the same
+   selector a native edge holds (a point the kernel computes on that
+   component), never the file's curve. Seams, tangency loci and a
    surface's own isos are recognized likewise. Every cache — carrier,
    vertex point, parameter — is built from the description by the
    kernel's own constructions and certified at ε; no value the file
