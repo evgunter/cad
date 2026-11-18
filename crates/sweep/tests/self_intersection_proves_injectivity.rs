@@ -3193,11 +3193,21 @@ fn a_unit_cone_with_its_apex_off_the_origin_holds() {
 /// - `y0 = 101.3`, `(20, 50)`, apex down, body: 41,612 / 23,924 / 65,530
 /// - `y0 = 101.3`, `(0.013, 0.9)`, apex down, body: 42,033 / 23,503 / 65,530
 ///
-/// Only `y0 = 1.7`, `(1, 1)`, apex down was traced (its half-cones store
-/// `v` from `2.2e-16`; clamped to `0` it holds at 157 / 0 / 151:
-/// `a_unit_cone_with_its_apex_off_the_origin_holds`). The other eleven
-/// are untraced. Run with `--run-ignored only --no-capture`, about 8 min
-/// at the dev profile.
+/// With the apex read in `face_extent` nine of the twelve hold, each at
+/// `refused == 0`. Three refuse `Uncertified`, arm `Departure`, on the
+/// two half-cones across their shared meridian:
+/// - `y0 = 0`, `(20, 50)`, apex up, cavity (16,800 / 3,573 / 20,367) and
+///   `y0 = 101.3`, `(20, 50)`, apex down, body (16,842 / 4,404 / 21,240):
+///   a meridian's image ends an ulp of its far end off the apex, so it
+///   does not cover the rectangle's side
+///   (`work/embed/a-meridian-ending-an-ulp-of-its-far-end-off-the-apex-does-not-cover-the-apex-cells-side.md`);
+/// - `y0 = 101.3`, `(0.37, 2.3)`, apex up, cavity (167 / 17 / 178): the
+///   extent ends `1.4e-14` off the apex, past its slack, and refuses
+///   `Structural`
+///   (`work/embed/a-small-cone-tips-apex-end-may-round-past-the-nappe-slack.md`).
+///
+/// Run with `--run-ignored only --no-capture`, about 3 min at the dev
+/// profile.
 #[test]
 #[ignore = "review sweep: prints, asserts nothing"]
 fn review_sweep_cone_tips_off_the_origin() {
