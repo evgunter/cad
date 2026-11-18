@@ -855,14 +855,8 @@ fn a_copy_whose_rim_reaches_past_the_box_refuses_at_its_placement() {
         columns: [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [x, 0.0, 0.0],
     };
-    let (inside, _) = in_world(doc.clone(), disc, &at(900.0));
+    let (inside, copy) = in_world(doc.clone(), disc, &at(900.0));
     let ev = run(&inside, None);
-    let copy = inside
-        .ids()
-        .into_iter()
-        .filter(|&id| matches!(inside.node(id), Some(Node::Place { .. })))
-        .last()
-        .expect("the copy");
     let Some(ValuePayload::Body(framed)) = ev.value(copy).map(|v| &v.payload) else {
         panic!("the copy at 900 m evaluates: {:?}", ev.node_error(copy))
     };
