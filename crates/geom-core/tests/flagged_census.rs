@@ -119,7 +119,7 @@ struct Door {
 
 /// The home's `pub` fns that take a row-like parameter and cite no
 /// ledger row: each must be one ([`home_doors`] refuses a stale entry).
-const NON_ROW_DOORS: [&str; 2] = ["in_family", "identity_pass_set"];
+const NON_ROW_DOORS: [&str; 1] = ["identity_pass_set"];
 
 /// Whether a parameter reads as a ledger row: a name holding `row`, or,
 /// under any name but the predicate's `name`, a type that names `str` or
