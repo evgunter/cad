@@ -710,17 +710,19 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        164,
-        68,
-        "the 68 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
-         `present_chart` (26), \
-         `present_plane` (8), `present_plane_corner` (7), `present_vertex_corner` (12) and \
+        177,
+        79,
+        "the 79 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `iso_params` (4), `segment_params` (4), `present_chart` (26), \
+         `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12) and \
          `Trig::psi` (3). `present_chart` asks each clip line where it is placed, so 16 of its \
          reads, the touch, reach, merge, rectangle-side and apex reads, see only certified \
          lines; its other 10 read a sphere pole's clip line at `±π/2`, a constant never handed \
          to the ask, so they count as asking only because the census reads a whole function, \
          and they are sound because the line is exact. `present_plane` asks its one-edge `y`, \
-         and its other reads are behind the SPAN and CORNER funnels. `present_plane_corner` \
+         and its other reads are behind the SPAN and CORNER funnels, but the 3 that hand \
+         `segment_params` its range, which asks the parameter it returns. `iso_params` and \
+         `segment_params` read a parameter only where it `is_certified()`. `present_plane_corner` \
          and `present_vertex_corner` each read the cell's 4 ends behind their `cell` ask; \
          each also reads its arc's parameter span (2), and an upper bound on the chart's speed \
          (1, and 2 in `present_vertex_corner`, one per axis), neither of which the ask covers: \
@@ -742,6 +744,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          which is `work/embed/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`. \
          `one_value`'s 5 compare a stored frame's bracket ends to decide one value, never \
          asking, which is `work/embed/one-plane-reads-a-brackets-ends-as-a-point-without-asking`. \
+         `present_wall`'s `Curved::t` (2) is the wall piece's parameter span, a parameter read. \
          `continues` reads its arcs' parameter spans outward (2), a parameter read, and its \
          directions' product at its lower end (1), which no ask covers: \
          `work/embed/continues-reads-its-directions-product-at-its-lower-end-without-asking`",
