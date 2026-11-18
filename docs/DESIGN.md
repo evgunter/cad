@@ -898,7 +898,10 @@ tiers".
   shape up to isometry. The embedding certificate is one fact per pair
   of faces, of the two faces and the cells they share: a finish
   carries the fact of a pair it finds unchanged in a finished operand,
-  by comparing the faces itself, and asks the rest.
+  by comparing the faces itself, and asks the rest. The gate's fixed
+  constant ([tolerance.measure]) counts only what that finish asks: it
+  is a backstop against an ask that would not end, not a bound on a
+  body, so a carried fact costs it nothing and keeps no count.
   Its refusal is the list of what it found, every finding
   kept, none folded into another: each finding belongs to a family
   (the decision or check that made it), and a family's findings share

@@ -853,7 +853,17 @@ budget's unit (`docs/DESIGN-FORK-LOG.md`, row 286); the design is in
 - **Pinned before anything reads a carried fact:** a pair asked alone
   gives the verdict it has in the whole ask, and on asks that hold the
   pairs' cell-pair counts sum to the whole receipt.
-- **The budget's unit is Ev's ruling** (item 2's "one fixed pair
-  budget" follows it): a constant per body with each carried fact
-  charged at its recorded spend, or a constant per face pair.
+- **The budget stays a fixed constant on one ask, and nothing is
+  stored with a fact** (Ev, PR 7101, 2026-11-18: "a 'don't make the
+  program hang forever' backstop rather than a sharp bound"). It
+  counts only what that finish asks; a carried fact costs nothing. A
+  recipe of n ops spends at most n times the constant. A budget
+  refusal therefore follows the route: a chain can hold where the same
+  shape built in one op, or imported, runs out. Item 2's "one fixed
+  pair budget" stands as written.
+- **Measured** (the gate lane, 250 holding asks of the tour, every
+  face pair asked alone): the lone candidates are the whole ask's, the
+  lone leaves, splits and discharges sum to the whole's, and every
+  lone verdict holds, 250 of 250. The pin above is that measurement
+  made a test.
 
