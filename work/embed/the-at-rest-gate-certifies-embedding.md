@@ -909,3 +909,45 @@ test time: every intermediate finish asks, not only the doors' final
 bodies. Two `review_d2_adv_probes` rows run 50 minutes each, nearly all of
 it the gate (3,467 asks, 635 refusing, many at `Budget(Pairs)` after 10 s
 each). The tour walk: 24,258 asks, 706 s of gate in a 2,002 s release walk.
+
+## Lane C stage 2 landed on embed/gate (2026-11-18)
+
+- **One pair budget.** `topo::clearance::GATE_MAX_CELL_PAIRS` (65,536)
+  and `GATE_BUDGETS` (with `DEFAULT_MAX_CELL_DEPTH`). The shell's
+  `CAVITY_MAX_CELL_PAIRS` and editor-core's `DEFAULT_MAX_CELL_PAIRS` are
+  gone; `ClearanceConfig::default()` is `GATE_BUDGETS`, and the three test
+  files that restated 65,536 read the constant.
+- **Change 3.** `EmbeddingUncertified { refusal, width }`:
+  `clearance::blocking_width` reads `Family` where a vertex's coordinate,
+  crossed into the engine, is wider than the band's escalation, and
+  `Cell` otherwise; the text gives "narrow the parameter box" for the
+  first and the kernel-limit recourse for the second. A crossing is read
+  again at the body's own scalar (`AtRestBody::embedded`): the two
+  carriers at the verifier's stations, decided once at
+  `SELF_INTERSECTION_GAP`, the one logged row; apart there it is
+  `WitnessUnverified`, undecided it names the width. `embedded` now reads
+  the windows inside F41's scope too (the census's `mass_props` goldens
+  moved because they did not).
+- **Records.** `ContactRecords::face_pairs(body)` replaces the engine-side
+  reduction (`[topo.homes]`: the engine names no boolean item). A cell
+  reduces to every face holding a vertex of its closure: measured on two
+  resting bricks, the face-to-face record alone left the crossing between
+  a side face and the other brick's contact face offered.
+- **The loft.** `LoftError::SelfIntersecting { meeting, witness, findings }`
+  names each face as `LoftedFace::{Top, Bottom, Wall { loop_index,
+  segment, slab }}` with the sections it spans and its chart station;
+  `BoundaryMeetsItself` carries its two `stations` for it. Python tag
+  `self_intersecting`.
+- **Pins:** `topo` `the_at_rest_gate_asks_the_certificate` (two resting
+  bricks cross with no exclusion and hold off their records' pairs; the
+  same bricks refuse the finish `BoundaryMeetsItself`; a slab `(1 + K)·ε`
+  thick refuses `EmbeddingUncertified`, width `Cell`); `sweep`
+  `the_crossing_lofts_refuse_at_their_door_naming_their_faces` (9 and 13
+  rad arc spines: one wall against itself; the closed spine: bottom and
+  top caps; CARVETAIL: walls 0 and 3; 0.8 s, in the slow set).
+- **Mutants, all run:** no gate call reds the slab, the bricks' finish and
+  the lofts; a refusal mapped to `Ok` reds the slab; no exclusion in
+  `Sweep::run` reds the bricks' exclusion row.
+- **Not pinned:** the `bench` finishes (they wait on the fork: the finish
+  holds no records), and the box leaf at `w = 0.1` (the slab stands in as
+  the engine-refusal row).
