@@ -147,15 +147,21 @@ struct Side {
 }
 
 /// **A cup's faces, carried through a blend of size `0.005`, go with
-/// one of `0.1` and vanish on a clearance flip**, under a fillet and
-/// under a chamfer, on both sides. At `0.005` the band is clear of the
-/// cup; at `0.1` the cup lies wholly inside the band's region and the
-/// carve takes it, at `ΔV = ∓(A·L − π·a²·ℓ)`. Every face of the cup — its
-/// two half-walls and its floor or top — resolved at the blend node
-/// before the edit and resolves `Vanished` after it, its cause a
-/// `Positive → Negative` flip of a clearance verdict.
+/// one of `0.1`, and vanish where the blend's reach parts**, under a
+/// fillet and under a chamfer, on both sides. At `0.005` the band is
+/// clear of the cup; at `0.1` the cup lies wholly inside the band's
+/// region and the carve takes it, at `ΔV = ∓(A·L − π·a²·ℓ)`. Every face
+/// of the cup (its two half-walls and its floor or top) resolved at the
+/// blend node before the edit and resolves `Vanished` after it.
+///
+/// The two runs part before any clearance turns: the reach's cell prune
+/// (`sweep::blend::reach::sure`, marked) reads one cell surely clear in
+/// one run and not in the other, so the clearance readings that follow
+/// are of other cells. That is a parting, not a flip
+/// ([`editor_core::resolve::FirstTurn::Parted`]), so no clearance verdict is named,
+/// and the diagnosis is the evidence-free fallback at the blend node.
 #[test]
-fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_verdict() {
+fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_where_the_blends_reach_parts() {
     let (dimpled, sub) = dimpled_block();
     let (bossed, union) = bossed_die();
     let sides = [
@@ -293,6 +299,25 @@ fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_ver
                 (dv - want).abs() < 1e-12,
                 "{what} ({verb}): ΔV {dv} vs {want}"
             );
+            let path = |ev: &editor_core::Evaluation<f64>| {
+                let v = ev.value(blend).expect("the blend builds");
+                (v.verdicts.clone(), v.marks.clone())
+            };
+            let ((v1, m1), (v2, m2)) = (path(&ev1), path(&ev2));
+            assert_eq!(
+                editor_core::first_turn(
+                    editor_core::resolve::Path {
+                        verdicts: &v1,
+                        marks: &m1,
+                    },
+                    editor_core::resolve::Path {
+                        verdicts: &v2,
+                        marks: &m2,
+                    },
+                ),
+                editor_core::resolve::FirstTurn::Parted,
+                "{what} ({verb}): the blend's two runs part before any choice turns"
+            );
             for n in &carried {
                 assert!(
                     table(&ev2, blend).lookup(n).is_none(),
@@ -320,16 +345,12 @@ fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_ver
                         f.error
                     );
                 };
-                assert!(
-                    matches!(
-                        diagnosis,
-                        editor_core::Diagnosis::PredicateFlip {
-                            predicate: "fillet3_face_clearance" | "fillet3_ring_clearance",
-                            from: geom_core::Sign::Positive,
-                            to: geom_core::Sign::Negative,
-                        }
-                    ),
-                    "{what} ({verb}): the face vanishes on a clearance flip, got {diagnosis:?}"
+                assert_eq!(
+                    diagnosis,
+                    editor_core::Diagnosis::RecipeEdit {
+                        edit: editor_core::RecipeEditRef::NodeChanged { node: blend }
+                    },
+                    "{what} ({verb}): the blend's runs part, so no flip is named"
                 );
             }
         }

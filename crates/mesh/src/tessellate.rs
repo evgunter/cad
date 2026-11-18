@@ -8,8 +8,6 @@ use geom_core::k_stats::{self, Detached};
 use geom_core::{Band, Point3, Tol};
 use topo::{Body, FaceKey};
 
-use rayon::prelude::*;
-
 use crate::budget;
 use crate::chords::{compute_chords, edge_ends};
 use crate::curved::{Shape, tessellate_curved};
@@ -702,116 +700,113 @@ fn tessellate_impl(
     let reader = memo.as_deref();
     let work: Vec<FaceWork<'_>> = {
         let shared = &positions[..shared_below];
-        faces
-            .into_par_iter()
-            .map(|(fk, route)| {
-                // ONE wrapper for both of the tessellation's
-                // thread-local channels, because they are one problem:
-                // a channel the CALLER owns and the worker does not.
-                // The budget meter's per-face rows
-                // (`budget::record`) and the K-funnel's verdicts,
-                // escalations and `probe` samples
-                // (`k_stats::detached`) are both recorded into
-                // thread-locals by the lane, both travel back in this
-                // face's slot, and the fold hands both on in arena
-                // order — so an armed meter and a `Bracket` around
-                // `tessellate` see what a serial walk would have
-                // written, element for element, at any thread count.
-                //
-                // NO PORTABILITY GATE (`geom_core::sym::
-                // decisions_are_thread_portable`, which the evaluator's
-                // node map and `topo::props`' face walks read), and the
-                // reason is this crate's scalar policy: `mesh` takes
-                // `&Body<f64>` and instantiates nothing else, so a
-                // lane's decisions never reach `Sym::sign_within`. Both
-                // halves of that test are writes from there — the
-                // session (the decision itself and its receipt) and the
-                // shape report (a row per decision, session or not) —
-                // so neither can arise here.
-                let (((memo_work, place), meter), decided) = k_stats::detached(|| {
-                    budget::record(arming, || {
-                        let surface = match face_surface(body, fk) {
-                            Ok(surface) => surface,
-                            Err(error) => return (None, Err(error)),
-                        };
-                        // The trimmed lane's domain, read once and handed to
-                        // the memo key and the lane alike (`Route::ready`).
-                        let route = match route.and_then(|route| route.ready(body, fk, tol.band)) {
-                            Ok(route) => route,
-                            Err(error) => return (None, Err(error)),
-                        };
-                        let lane = route.lane();
-                        // The lanes, each over `shared` — the whole of what
-                        // a face reads from outside itself.
-                        //
-                        // The planar lane derives its chart frame from the
-                        // face's own boundary (planar.rs module docs, #284)
-                        // — the stored plane axes are deliberately not
-                        // passed: imported axes carry translator noise that
-                        // projects valid boundaries below spade's
-                        // coordinate domain.
-                        let run = || match &route {
-                            Ready::Trimmed(lift) => crate::trimmed::tessellate_trimmed(
-                                body,
-                                fk,
-                                surface,
-                                &chords,
-                                shared,
-                                &tol,
-                                &bounds,
-                                lift,
-                                crate::trimmed::BOUNDARY_CLEARANCE,
-                            ),
-                            Ready::Planar => tessellate_planar(body, fk, &chords.ids, shared),
-                            Ready::Curved(rectangle) => tessellate_curved(
-                                body,
-                                fk,
-                                surface,
-                                *rectangle,
-                                &chords.ids,
-                                shared,
-                                &tol,
-                            ),
-                        };
-                        let Some(memo) = reader else {
-                            return (None, run().map(Placement::Lane));
-                        };
-                        let inputs = match FaceInputs::gather(
+        k_stats::par_map(faces, |(fk, route)| {
+            // ONE wrapper for both of the tessellation's
+            // thread-local channels, because they are one problem:
+            // a channel the CALLER owns and the worker does not.
+            // The budget meter's per-face rows
+            // (`budget::record`) and the K-funnel's verdicts,
+            // escalations and `probe` samples
+            // (`k_stats::detached`) are both recorded into
+            // thread-locals by the lane, both travel back in this
+            // face's slot, and the fold hands both on in arena
+            // order — so an armed meter and a `Bracket` around
+            // `tessellate` see what a serial walk would have
+            // written, element for element, at any thread count.
+            //
+            // NO PORTABILITY GATE (`geom_core::sym::
+            // decisions_are_thread_portable`, which the evaluator's
+            // node map and `topo::props`' face walks read), and the
+            // reason is this crate's scalar policy: `mesh` takes
+            // `&Body<f64>` and instantiates nothing else, so a
+            // lane's decisions never reach `Sym::sign_within`. Both
+            // halves of that test are writes from there — the
+            // session (the decision itself and its receipt) and the
+            // shape report (a row per decision, session or not) —
+            // so neither can arise here.
+            let (((memo_work, place), meter), decided) = k_stats::detached(|| {
+                budget::record(arming, || {
+                    let surface = match face_surface(body, fk) {
+                        Ok(surface) => surface,
+                        Err(error) => return (None, Err(error)),
+                    };
+                    // The trimmed lane's domain, read once and handed to
+                    // the memo key and the lane alike (`Route::ready`).
+                    let route = match route.and_then(|route| route.ready(body, fk, tol.band)) {
+                        Ok(route) => route,
+                        Err(error) => return (None, Err(error)),
+                    };
+                    let lane = route.lane();
+                    // The lanes, each over `shared` — the whole of what
+                    // a face reads from outside itself.
+                    //
+                    // The planar lane derives its chart frame from the
+                    // face's own boundary (planar.rs module docs, #284)
+                    // — the stored plane axes are deliberately not
+                    // passed: imported axes carry translator noise that
+                    // projects valid boundaries below spade's
+                    // coordinate domain.
+                    let run = || match &route {
+                        Ready::Trimmed(lift) => crate::trimmed::tessellate_trimmed(
                             body,
                             fk,
-                            lane,
                             surface,
                             &chords,
                             shared,
-                            chordal,
-                            ambient,
-                            route.domain(),
-                        ) {
-                            Ok(inputs) => inputs,
-                            Err(error) => return (None, Err(error)),
-                        };
-                        let lookup = match memo.lookup(&inputs).answered() {
-                            Ok((placement, work)) => return (Some(work), Ok(placement)),
-                            Err(lookup) => lookup,
-                        };
-                        match run() {
-                            Ok(patch) => {
-                                let (placement, work) = lookup.ran(patch);
-                                (Some(work), Ok(placement))
-                            }
-                            Err(error) => (Some(lookup.refused()), Err(error)),
+                            &tol,
+                            &bounds,
+                            lift,
+                            crate::trimmed::BOUNDARY_CLEARANCE,
+                        ),
+                        Ready::Planar => tessellate_planar(body, fk, &chords.ids, shared),
+                        Ready::Curved(rectangle) => tessellate_curved(
+                            body,
+                            fk,
+                            surface,
+                            *rectangle,
+                            &chords.ids,
+                            shared,
+                            &tol,
+                        ),
+                    };
+                    let Some(memo) = reader else {
+                        return (None, run().map(Placement::Lane));
+                    };
+                    let inputs = match FaceInputs::gather(
+                        body,
+                        fk,
+                        lane,
+                        surface,
+                        &chords,
+                        shared,
+                        chordal,
+                        ambient,
+                        route.domain(),
+                    ) {
+                        Ok(inputs) => inputs,
+                        Err(error) => return (None, Err(error)),
+                    };
+                    let lookup = match memo.lookup(&inputs).answered() {
+                        Ok((placement, work)) => return (Some(work), Ok(placement)),
+                        Err(lookup) => lookup,
+                    };
+                    match run() {
+                        Ok(patch) => {
+                            let (placement, work) = lookup.ran(patch);
+                            (Some(work), Ok(placement))
                         }
-                    })
-                });
-                FaceWork {
-                    face: fk,
-                    meter,
-                    decided,
-                    memo: memo_work,
-                    place,
-                }
-            })
-            .collect()
+                        Err(error) => (Some(lookup.refused()), Err(error)),
+                    }
+                })
+            });
+            FaceWork {
+                face: fk,
+                meter,
+                decided,
+                memo: memo_work,
+                place,
+            }
+        })
     };
 
     // The fold (idiom 2), in face-arena order, and in TWO passes over

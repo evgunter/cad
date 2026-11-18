@@ -1340,6 +1340,7 @@ pub(crate) fn carrier_loop<T: Decide>(
                     geom_core::k_stats::relog(&geom_core::k_stats::Recorded {
                         verdicts: Vec::new(),
                         escalations: vec![geom_core::k_stats::Escalation { source: diag }],
+                        marks: Vec::new(),
                     });
                     return Err(PointInLoopError::on_margin(r#loop, LoopDecision::ArcSpan)(
                         diag,
