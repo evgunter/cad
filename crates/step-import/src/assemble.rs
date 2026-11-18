@@ -69,7 +69,7 @@ use topo::{Body, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use topo::construction::{MefSite, MekrSite, MevSite};
 
 use crate::adopt;
-use crate::entities::SolidSpec;
+use crate::entities::{SolidRecord, SolidSpec};
 use crate::error::StepImportError;
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 use geom_core::{FileCoincidence, Tol};
@@ -803,6 +803,7 @@ fn assemble_solid(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     tol: Tol,
+    band: geom_core::Band,
     file: FileCoincidence,
 ) -> Result<BTreeMap<FaceKey, u64>, StepImportError> {
     let target = Target::build(solid)?;
@@ -892,28 +893,65 @@ fn assemble_solid(
     let assembled = Assembled { target, use_he };
     // Each body face's `ADVANCED_FACE`: the join the build ends with
     // reports against the file's faces.
-    let keys = adopt::finish(body, solid, &assembled, tol, file)?;
+    let keys = adopt::finish(body, solid, &assembled, tol, band, file)?;
     Ok(keys
         .into_iter()
         .zip(solid.faces.iter().map(|f| f.id))
         .collect())
 }
 
-/// The assembly proper: one `MANIFOLD_SOLID_BREP` into a body of its
-/// OWN (phase A + verification + adoption), then one pcurve mint over
-/// that body.
+/// The assembly proper: one solid record into a body of its OWN. Its
+/// outer shell and each void shell are assembled alike (phase A +
+/// verification + adoption, then one pcurve mint), each into a body of
+/// its own, and each void's solid is folded into the outer's, so the
+/// body holds one solid of every shell the record names; the join
+/// records of every shell are returned together.
 ///
 /// A body per solid is what lets the shared at-rest gate be asked
 /// about that solid alone: the whole-body invariants the gate checks
 /// include summed ones (the +V flux sum over every shell), which
 /// cannot see a single inside-out solid whose neighbours cancel it.
-/// Nothing assembles two specs into one arena — each instance is
+/// Nothing assembles two records into one arena — each instance is
 /// built into a body of its own and the copies are grafted (`lib.rs`).
 pub(crate) fn build_one_solid(
+    record: &SolidRecord,
+    tol: Tol,
+    file: FileCoincidence,
+) -> Result<(Body<f64>, Vec<StructureNormalization>), StepImportError> {
+    let (mut body, mut joins) = build_one_shell(&record.outer, tol, file)?;
+    let Some((keeper, _)) = body.solids().next() else {
+        unreachable!("an assembled shell stands under the solid its mvfs minted")
+    };
+    for void in &record.voids {
+        let (cavity, void_joins) = build_one_shell(void, tol, file)?;
+        joins.extend(void_joins);
+        let donor = topo::graft_disjoint(&mut body, &cavity).unwrap_or_else(|e| {
+            unreachable!(
+                "a one-solid source grafts: the disjoint graft refuses only a source \
+                 without exactly one solid ({e:?})"
+            )
+        });
+        body.fold_solid_into(donor, keeper).unwrap_or_else(|e| {
+            unreachable!("both solids were just minted in this body and resolve ({e:?})")
+        });
+    }
+    Ok((body, joins))
+}
+
+/// One shell into a body of its own.
+fn build_one_shell(
     solid: &SolidSpec,
     tol: Tol,
     file: FileCoincidence,
 ) -> Result<(Body<f64>, Vec<StructureNormalization>), StepImportError> {
+    // A tolerance that makes no band (an ε within K of `f64::MAX`) reads
+    // neither a smooth join nor whether a vertex is joinable, so the
+    // solid refuses here, once, rather than at each edge.
+    let band = geom_core::Band::linear(tol).map_err(|e| StepImportError::Join {
+        solid: solid.id,
+        refusal: topo::JoinRefusal::of(&topo::BooleanError::Band(e)),
+        file,
+    })?;
     let mut body = Body::new();
     // The import IS a door: it runs the operator sequence a foreign
     // file describes, and D1's whole-body tier-1 postcondition is paid
@@ -922,11 +960,11 @@ pub(crate) fn build_one_solid(
     // it used to cost one per mint. The guard owns the borrow, so a
     // refusal part-way closes the scope by dropping it.
     let mut door = body.begin_surgery();
-    let faces = assemble_solid(&mut door, solid, tol, file)?;
+    let faces = assemble_solid(&mut door, solid, tol, band, file)?;
     topo::mint_pcurves(&mut door, tol)
         .map_err(|source| StepImportError::Pcurves { source, file })?;
     door.sweep_and_close();
-    let joins = join(&mut body, solid.id, &faces, tol, file)?;
+    let joins = join(&mut body, solid.id, &faces, tol, band, file)?;
     Ok((body, joins))
 }
 
@@ -947,6 +985,7 @@ fn join(
     solid: u64,
     faces: &BTreeMap<FaceKey, u64>,
     tol: Tol,
+    band: geom_core::Band,
     file: FileCoincidence,
 ) -> Result<Vec<StructureNormalization>, StepImportError> {
     let refused = |refusal: &topo::BooleanError| StepImportError::Join {
@@ -954,10 +993,6 @@ fn join(
         refusal: topo::JoinRefusal::of(refusal),
         file,
     };
-    // A tolerance that makes no band (an ε within K of `f64::MAX`) cannot
-    // read whether a vertex is joinable, so the join refuses here rather
-    // than leave one unread for the gate behind it.
-    let band = geom_core::Band::linear(tol).map_err(|e| refused(&topo::BooleanError::Band(e)))?;
     let joins = body.join_edges(band, tol).map_err(|e| refused(&e))?;
     joins
         .iter()

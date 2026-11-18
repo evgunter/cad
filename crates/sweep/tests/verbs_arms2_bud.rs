@@ -436,7 +436,7 @@ fn the_partial_revolve_of_the_bud_still_refuses() {
     )
     .map_err(|r| r.error)
     {
-        Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
+        Err(BlendError::UnsupportedChain { .. } | BlendError::UnbuiltEnd(_)) => {}
         other => panic!("a partial revolve's open mouth arc must refuse, got {other:?}"),
     }
 }

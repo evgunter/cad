@@ -119,10 +119,6 @@ pub struct SceneBody {
     /// shape whose point is what happens INSIDE it (a neck entering a
     /// body wall) cannot be read from an opaque render at any camera.
     transparency: u8,
-    /// `Some(pin)` when the SCENE declares this body to be past the
-    /// STEP writer's named subset frontier. See
-    /// [`SceneBody::step_at_frontier`].
-    step_frontier: Option<StepFrontierPin>,
     /// The durable name of every face of this body, where the scene
     /// built it from an evaluated document and could hand one over.
     /// See [`SceneBody::named`].
@@ -144,7 +140,6 @@ impl SceneBody {
             at_rest: false,
             color,
             transparency: 0,
-            step_frontier: None,
             face_names: None,
             delta: None,
         }
@@ -191,39 +186,6 @@ impl SceneBody {
         }
     }
 
-    /// **The scene DECLARES this body past the STEP writer's named
-    /// subset frontier**, and takes on the obligation that goes with
-    /// saying so.
-    ///
-    /// The STEP arm below refuses to drop a body from the manifest on
-    /// a frontier refusal, on the grounds that a scene which
-    /// legitimately enters that class has to say so where it is built.
-    /// This is that door, and it is a PROBE in the `walls` sense, not
-    /// a suppression: the export still runs on every pass, and
-    /// `pinned` — an EXACT variant test the scene supplies, exactly as
-    /// a wall probe supplies one — is the only outcome that passes
-    /// quietly. A different refusal fails the tour even when it is a
-    /// neighbouring variant of the same frontier CLASS, because a
-    /// probe that accepts the class cannot notice the frontier moving
-    /// inside it. SUCCESS fails it too, and `retire` then says what to
-    /// do with the scene.
-    ///
-    /// Its manifest entry carries a null `step`. That is a legitimate
-    /// value of the format (`demos/manifest.py`), and the readers that
-    /// take it are named there: the kernel lane never reads the field,
-    /// and the FreeCAD lane — whose whole subject is OCC re-tessellating
-    /// OUR STEP — has nothing to import for such a body and says so
-    /// rather than drawing it from the mesh, because a cell drawn from
-    /// the STL in that lane would look like OCC evidence and be none.
-    fn step_at_frontier(
-        mut self,
-        pinned: fn(&pncad::step_export::StepExportError) -> bool,
-        retire: &'static str,
-    ) -> Self {
-        self.step_frontier = Some(StepFrontierPin { pinned, retire });
-        self
-    }
-
     /// A boolean RESULT: validated at tier 3′ against the op's own
     /// contact records rather than through the plain geometric gate.
     /// Curved results (M5 PR 11's boss ∪ plate, whose cylinder walls
@@ -243,7 +205,6 @@ impl SceneBody {
             at_rest: false,
             color,
             transparency: 0,
-            step_frontier: None,
             face_names: None,
             delta: None,
         }
@@ -280,7 +241,6 @@ impl SceneBody {
             at_rest: true,
             color,
             transparency: 0,
-            step_frontier: None,
             face_names: None,
             delta: None,
         }
@@ -372,37 +332,16 @@ pub struct TourStop {
 
 /// A body entry for the scene manifest: file stems + render color.
 ///
-/// The STL stem is unconditional: every tour body tessellates and
-/// exports one, and [`run_body`] fails the tour on any refusal rather
-/// than emitting a body without it. The STEP stem is not, and there
-/// are two ways a null gets here — kept distinct because they say
-/// different things. The wild-corpus generator writes one for every
-/// cell, because its STEP is an input FIXTURE rather than something it
-/// exported; a tour body writes one only when its scene DECLARED the
-/// writer's named subset frontier ([`SceneBody::step_at_frontier`]),
-/// which is a probed refusal, not a skipped export.
-/// `demos/manifest.py` is where the field's nullability is stated for
-/// both readers.
+/// Both stems are unconditional: every tour body tessellates and
+/// exports both files, and [`run_body`] fails the tour on any refusal
+/// rather than emitting a body without one. The format's `step` is
+/// nullable for the wild-corpus generator, whose STEP is an input
+/// fixture rather than something it exported (`demos/manifest.py`).
 struct ManifestBody {
     stl: String,
-    /// `None` for a body whose scene declared the writer's frontier
-    /// (`SceneBody::step_at_frontier`) — serialized as a null.
-    step: Option<String>,
+    step: String,
     color: [f64; 3],
     transparency: u8,
-}
-
-/// A scene's declaration that one of its bodies is past the STEP
-/// writer's named subset frontier: the EXACT refusal it pins, and what
-/// to do when that stops being true.
-struct StepFrontierPin {
-    /// An exact-variant test, supplied by the scene. `walls::wall`'s
-    /// `pinned` argument is the same idea in the same words: a probe
-    /// that accepts a whole refusal CLASS cannot notice the frontier
-    /// moving inside it.
-    pinned: fn(&pncad::step_export::StepExportError) -> bool,
-    /// What to do with the scene when the export stops refusing.
-    retire: &'static str,
 }
 
 /// Whether a boolean result declares no contacts, which is how its
@@ -415,17 +354,84 @@ fn declares_no_contacts(contacts: &ContactRecords) -> bool {
     contacts.cell_pairs().next().is_none()
 }
 
-/// The writer's named subset frontier, as one list. Refusals in this
-/// class say a tour SCENE grew past the writer; everything else says
-/// the writer broke. Only the UNDECLARED arm asks this question — a
-/// declaring scene pins its own variant, which is narrower.
-fn named_subset_frontier(e: &pncad::step_export::StepExportError) -> bool {
-    matches!(
-        e,
-        pncad::step_export::StepExportError::UnsupportedSurface { .. }
-            | pncad::step_export::StepExportError::UnsupportedCurve { .. }
-            | pncad::step_export::StepExportError::VoidShellUnsupported { .. }
+/// What a user sees taking a hollow body through STEP: the export, and
+/// the re-import, which ships one solid with the same shell roles.
+pub struct StepRoundTrip {
+    /// The re-imported solid's `Void` shells.
+    pub voids: usize,
+    /// The re-imported body's certified volume (m³).
+    pub volume: f64,
+}
+
+/// Exports `body` and imports the text back through the public doors,
+/// panicking, named by `label`, on a refusal at either. The re-import
+/// is one solid of one `Outer` shell with as many cavities as the body
+/// has, whose certified volume overlaps the body's own (both enclosures
+/// of one true volume, plus a fold-order slop of `1e-12·|V|`)
+/// ([`StepRoundTrip`]).
+pub fn step_round_trip(label: &str, body: &Body<f64>, tol: Tol) -> StepRoundTrip {
+    let finished = pncad::topo::finish(body.clone(), tol)
+        .unwrap_or_else(|e| panic!("{label}: the at-rest gate refused: {e:?}"));
+    let text = pncad::step_export::step_string(
+        &finished,
+        &pncad::step_export::StepOptions {
+            product_name: label.to_owned(),
+            ..Default::default()
+        },
+        tol,
     )
+    .unwrap_or_else(|e| panic!("{label}: STEP export refused: {e:?}"));
+    let back = match pncad::step_import::import_step(&text, &Default::default(), tol) {
+        Ok(pncad::step_import::StepImport::Solid { body, .. }) => body,
+        Ok(_) => panic!("{label}: the STEP re-import is not a solid"),
+        Err(e) => panic!("{label}: STEP re-import refused: {e:?}"),
+    };
+    let roles = |body: &pncad::topo::AtRestBody<f64>, which: &str| {
+        let rows = pncad::topo::classify_shells(body, tol)
+            .unwrap_or_else(|e| panic!("{label}: the {which} shells classify: {e:?}"));
+        let count = |role| rows.iter().filter(|row| row.role == role).count();
+        (
+            count(pncad::topo::ShellRole::Outer),
+            count(pncad::topo::ShellRole::Void),
+        )
+    };
+    let (outers, voids) = roles(&back, "re-imported");
+    assert_eq!(
+        back.solids().count(),
+        1,
+        "{label}: re-imported as one solid"
+    );
+    assert_eq!(
+        outers, 1,
+        "{label}: the re-imported solid has one outer shell"
+    );
+    assert_eq!(
+        voids,
+        roles(&finished, "exported").1,
+        "{label}: the re-import keeps the exported body's cavities"
+    );
+    let measured = |body: &pncad::topo::AtRestBody<f64>, which: &str| {
+        pncad::topo::mass_properties(body, tol, printed())
+            .unwrap_or_else(|e| panic!("{label}: the {which} body measures: {e:?}"))
+            .enclosure
+    };
+    let (built, read) = (
+        measured(&finished, "exported"),
+        measured(&back, "re-imported"),
+    );
+    assert!(
+        (read.volume - built.volume).abs()
+            <= read.volume_pad + built.volume_pad + 1e-12 * built.volume.abs(),
+        "{label}: re-imported volume {} ± {} against the exported {} ± {}",
+        read.volume,
+        read.volume_pad,
+        built.volume,
+        built.volume_pad
+    );
+    StepRoundTrip {
+        voids,
+        volume: read.volume,
+    }
 }
 
 /// The mesh's own surface area: the sum over its triangles, written
@@ -680,83 +686,25 @@ fn run_body(
     std::fs::write(&stl_path, &stl_buf).expect("write stl");
     let stl = stl_name.clone();
 
-    // The STEP lane (#88): AP214 export beside every STL. Since M5
-    // PR 13 the writer's analytic subset is the whole elementary-
-    // surface vocabulary (plane/cylinder/cone/sphere/torus) with
-    // line/circle/ellipse/NURBS carriers, all as EXACT native AP214
-    // entities, so a refusal on an ORDINARY body is a regression. It
-    // is not the only outcome: the writer refuses a void shell (it does
-    // not write BREP_WITH_VOIDS), and a scene carrying a hollow body
-    // declares it
-    // ([`SceneBody::step_at_frontier`]), which turns the refusal into
-    // a pinned probe rather than a failure. Undeclared, it still fails
-    // the tour.
-    let step_name = format!("{label}.step");
+    // The STEP lane (#88): AP214 export beside every STL. The writer's
+    // analytic subset is the whole elementary-surface vocabulary
+    // (plane/cylinder/cone/sphere/torus) with line/circle/ellipse/NURBS
+    // carriers, all as EXACT native AP214 entities, and a solid with
+    // cavities leaves as BREP_WITH_VOIDS, so any refusal fails the tour.
+    let step = format!("{label}.step");
     let finished = pncad::topo::finish(sb.body.clone(), tol)
         .unwrap_or_else(|e| panic!("{label}: the STEP lane's at-rest gate refused: {e:?}"));
-    let step_result = pncad::step_export::step_string(
+    let doc = pncad::step_export::step_string(
         &finished,
         &pncad::step_export::StepOptions {
             product_name: label.clone(),
             ..Default::default()
         },
         tol,
-    );
-    let step = match (step_result, &sb.step_frontier) {
-        // The ordinary body: exported, and its stem goes in the
-        // manifest.
-        (Ok(doc), None) => {
-            std::fs::write(format!("{outdir}/{step_name}"), doc).expect("write step");
-            println!("   [{label}] exported {stl} + {step_name}");
-            Some(step_name)
-        }
-        // A DECLARED frontier body whose export succeeded: the writer
-        // grew the arm this declaration was waiting on, so the
-        // declaration is now a lie about the kernel. Same posture as a
-        // wall probe that stops refusing.
-        (Ok(_), Some(d)) => panic!(
-            "{label}: STEP export NO LONGER REFUSES — the writer covers this body \
-             now. Retire the scene's `step_at_frontier` declaration and {}",
-            d.retire
-        ),
-        // The declared refusal, reached: narrate it and carry a null
-        // `step`. The refusal is the evidence, so it is printed like
-        // an export rather than swallowed. `pinned` is an EXACT
-        // variant test supplied by the scene (klein's wall probes are
-        // the template), so this arm cannot absorb a neighbouring
-        // frontier variant the declaration did not mean.
-        (Err(e), Some(d)) if (d.pinned)(&e) => {
-            println!(
-                "   [{label}] exported {stl}; STEP REFUSED TYPED, exactly as the scene \
-                 pinned it ({e:?}) — manifest step = null"
-            );
-            None
-        }
-        // A declared body refusing for a DIFFERENT reason — including
-        // a different variant of the frontier class itself.
-        (Err(other), Some(_)) => panic!(
-            "{label}: the scene pinned a STEP refusal, but the export refused with a \
-             DIFFERENT one ({other:?}) — the frontier moved under the declaration. \
-             Re-derive the scene's `step_at_frontier` pin before trusting either."
-        ),
-        // Every OTHER tour body is inside the writer's analytic
-        // subset, so any refusal here fails the tour. The named subset
-        // frontier is still spelled out as its own arm because it says
-        // something different: reaching it undeclared means a tour
-        // SCENE grew past the writer, not that the writer broke.
-        // Either way the body does not go silently into the manifest
-        // without its STEP.
-        (Err(e), None) if named_subset_frontier(&e) => panic!(
-            "{label}: STEP refused typed at the writer's named subset \
-             frontier ({e:?}). A scene that legitimately enters that class says so \
-             where it is built — `SceneBody::step_at_frontier` — rather than having \
-             a body dropped from the manifest here"
-        ),
-        (Err(other), None) => panic!(
-            "{label}: STEP export failed OUTSIDE the analytic-subset \
-             refusal class: {other:?}"
-        ),
-    };
+    )
+    .unwrap_or_else(|e| panic!("{label}: STEP export failed: {e:?}"));
+    std::fs::write(format!("{outdir}/{step}"), doc).expect("write step");
+    println!("   [{label}] exported {stl} + {step}");
 
     // The UV lane (`demos/render-uv.sh`): every face's chart domain as
     // its own SVG. Runs beside the exports rather than in a separate
@@ -832,20 +780,9 @@ fn scene_json(stop: &TourStop, bodies: &[ManifestBody]) -> String {
         .iter()
         .map(|b| {
             format!(
-                "{{\"stl\": \"{}\", \"step\": {}, \"color\": [{}, {}, {}], \
+                "{{\"stl\": \"{}\", \"step\": \"{}\", \"color\": [{}, {}, {}], \
                  \"transparency\": {}}}",
-                b.stl,
-                // A null, not the string "null": the frontier bodies'
-                // entry is the format's own nullable `step`, which
-                // `demos/manifest.py` reads without a default.
-                match &b.step {
-                    Some(stem) => format!("\"{stem}\""),
-                    None => "null".to_string(),
-                },
-                b.color[0],
-                b.color[1],
-                b.color[2],
-                b.transparency
+                b.stl, b.step, b.color[0], b.color[1], b.color[2], b.transparency
             )
         })
         .collect();

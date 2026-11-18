@@ -41,9 +41,9 @@
 //! carry that are the sphere, cone, torus and NURBS rows.
 //! - trimmed (`trimmed::tessellate_trimmed`) on an ANALYTIC carrier:
 //!   `tilted_above` / `tilted_below`, the two halves of a cylinder cut
-//!   by an oblique plane — the cut rim is an ellipse, so
-//!   `has_trim_carrier` routes the wall through the pcurve-driven lane
-//!   with `cert::cert_cylinder` certificates.
+//!   by an oblique plane — the cut rim is an ellipse, whose stored image
+//!   is no iso line of the chart, so the route sends the wall through
+//!   the pcurve-driven lane with `cert::cert_cylinder` certificates.
 //! - trimmed on NURBS: `loft_prism` (walls of degree 1×2) and
 //!   `swept_elbow` (1×3), the described-NURBS lane with its
 //!   hull-derived certificate and its cert-driven refinement. A
@@ -53,8 +53,27 @@
 //!   the `Approx` half of the arm.
 //! - typed refusals: `keyway`, `slit`, `oblique_lens`,
 //!   `pole_crossing_half_cap` and `apex_crossing_bowtie` mesh to no
-//!   triangles at all. Their digest is the refusal, so a change that
-//!   turns one into a mesh — or into a DIFFERENT refusal — moves it.
+//!   triangles at all. Hand-built, they store no chart image on their
+//!   curved faces; the route sends a face its doors decide no rectangle
+//!   to the chart lane, whose domain read finds no image, so each but
+//!   the slit refuses `DomainUnread` where the kind route gave the
+//!   doors' verdict (moved by PR 7041, `tesslane/route-by-domain`: the
+//!   keyway from `0x9d8e_44fd_e323_88de`, the lens from
+//!   `0xfdb2_0be5_e9aa_8077`, the half cap from `0xdd6f_a9f2_0af3_083a`,
+//!   the bow tie from `0x9cdd_b7a3_543d_b550`). The lens and the half cap
+//!   digest alike (`0x72fb_aee1_b444_dff6`): the digest reads a refusal
+//!   by its `Debug` alone, and both refuse `DomainUnread` on face `1v1`
+//!   at half-edge `3v1`, keys their hand-built Euler sequences assign
+//!   alike, so the two refusals are equal in every field it reads. Their
+//!   minted forms, which refuse differently, are what tells them apart
+//!   here. The same four with their
+//!   images minted (`witness_bodies::minted`), as a finished body
+//!   carries them, are bodies of their own (`*_minted`): the keyway's
+//!   complement wound against its face (the keyway face itself meshes),
+//!   the lens's outer loop open in the chart, the half cap's branch
+//!   premise and the bow tie's rim sides, the last two the kind route's
+//!   digests. Their digest is the refusal, so a change that turns one
+//!   into a mesh — or into a DIFFERENT refusal — moves it.
 //!   δ does not reach the doors that refuse them, which is why their
 //!   two slots agree.
 //!
@@ -180,6 +199,26 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
             witness_bodies::apex_crossing_bowtie().0,
             [0.05, 0.15],
         ),
+        (
+            "keyway_minted",
+            witness_bodies::minted(witness_bodies::keyway().0),
+            [0.05, 0.15],
+        ),
+        (
+            "oblique_lens_minted",
+            witness_bodies::minted(witness_bodies::oblique_lens().0),
+            [0.05, 0.15],
+        ),
+        (
+            "pole_crossing_half_cap_minted",
+            witness_bodies::minted(witness_bodies::pole_crossing_half_cap().0),
+            [0.05, 0.15],
+        ),
+        (
+            "apex_crossing_bowtie_minted",
+            witness_bodies::minted(witness_bodies::apex_crossing_bowtie().0),
+            [0.05, 0.15],
+        ),
         ("loft_prism", nurbs_bodies::loft_prism(), [6e-3, 2e-2]),
         (
             "swept_elbow",
@@ -279,18 +318,34 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
         "tilted_below",
         [0x9406_eeca_b61e_b3d7, 0xadd5_1c61_1c66_25d6],
     ),
-    ("keyway", [0x9d8e_44fd_e323_88de, 0x9d8e_44fd_e323_88de]),
+    ("keyway", [0xe457_7191_dbec_3540, 0xe457_7191_dbec_3540]),
     ("slit", [0xaed6_09ed_f923_833b, 0xaed6_09ed_f923_833b]),
     (
         "oblique_lens",
-        [0xfdb2_0be5_e9aa_8077, 0xfdb2_0be5_e9aa_8077],
+        [0x72fb_aee1_b444_dff6, 0x72fb_aee1_b444_dff6],
     ),
     (
         "pole_crossing_half_cap",
-        [0xdd6f_a9f2_0af3_083a, 0xdd6f_a9f2_0af3_083a],
+        [0x72fb_aee1_b444_dff6, 0x72fb_aee1_b444_dff6],
     ),
     (
         "apex_crossing_bowtie",
+        [0xbd72_11b8_010f_3772, 0xbd72_11b8_010f_3772],
+    ),
+    (
+        "keyway_minted",
+        [0xa110_eb9f_658b_9246, 0xa110_eb9f_658b_9246],
+    ),
+    (
+        "oblique_lens_minted",
+        [0x1d3b_f531_e34e_7286, 0x1d3b_f531_e34e_7286],
+    ),
+    (
+        "pole_crossing_half_cap_minted",
+        [0xdd6f_a9f2_0af3_083a, 0xdd6f_a9f2_0af3_083a],
+    ),
+    (
+        "apex_crossing_bowtie_minted",
         [0x9cdd_b7a3_543d_b550, 0x9cdd_b7a3_543d_b550],
     ),
     ("loft_prism", [0xd3ce_dece_149d_e356, 0x6d45_152a_ef26_f951]),

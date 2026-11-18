@@ -159,10 +159,7 @@ fn a_positive_size_under_epsilon_reads_a_false_fact_at_both_doors_today() {
     assert!(
         matches!(
             c.error,
-            BlendError::UnsupportedCorner {
-                corner: sweep::blend::CornerConfig::DependentNormals,
-                ..
-            }
+            BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::DependentNormals { .. })
         ),
         "today the chamfer reads the levered corner determinant at {size} m: {c:?}"
     );

@@ -39,3 +39,20 @@ dispatched.
   Taken into the fix pass: M1, plus a sweep for that class; m1 (the external oracle could not fail, so add the mutant row and committed OCCT-written fixtures); m2–m4; the loose prose; S1–S4, S7, S8 and S11. Filed: S5. Skipped: S9, S10, S12.
 
   **Class to watch**: a PR that adds to a shared fixture list must run the slow-set rows that iterate that list, because the PR gate does not.
+- 2026-11-17 — **`walks-and-zeros` merged (PR 7067)**: single STYLE review (Opus 5.5, no draw under rule 12, so no model-compare row) and a fix pass that took one home over disclosure. `geom_core::fold_signed_zero` now replaces six production copies and six test copies; `adopt.rs`'s walks go through `first_he`/`body_loop`/`loop_face`/the topo door; `face_of_half_edge`'s doc states the rule callers follow. Closed: `step-lanes-spell-the-half-edge-to-face-walk`, `three-crates-fold-signed-zero-…`, `signed-zero-module-hand-counts-…`, and bind's `pncad-py-spells-the-hash-signed-zero-fold-twice`.
+- 2026-11-17 — **`smooth-join` merged (PR 7081).** It had a dual tier with letter M, and one review, since the first raised no MAJOR. That review was by Opus 5.5, with no draw under rule 12, so no model-compare row is recorded. A fix pass followed:
+  - the M7-2 coincidence rung was removed, since the rule rung subsumes it;
+  - `geom_brep::must_carry_reads` is now one predicate;
+  - the band is built once;
+  - TAIL_TURBINE is pinned once, with its probe kept as a slow row;
+  - the S7 label row was filed (P4).
+
+  Closed: `step-import-adopts-a-smooth-join-without-the-must-carry-rule`.
+- 2026-11-18 — **`void-shells` merged (PR 7077).** Single FULL review by Opus 5.5, no draw under rule 12, so no model-compare row. The fix pass covered:
+  - the census goldens re-blessed at every ε;
+  - the bound law restated for voids;
+  - OCCT-written hollow fixtures;
+  - unreversed-void mutant rows;
+  - stale narration and docs, the exhaustive solid keyword, and the S5 helper row filed.
+
+  The class it exposed (a shared-fixture-list diff skips the slow rows that iterate the list) is filed on GREEN as `a-diff-to-a-shared-fixture-list-skips-the-slow-rows-that-iterate-it`. Closed: `step-export-refuses-every-hollow-body`.

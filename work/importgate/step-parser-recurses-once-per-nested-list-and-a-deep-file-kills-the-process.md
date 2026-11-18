@@ -2,10 +2,13 @@
 id: step-parser-recurses-once-per-nested-list-and-a-deep-file-kills-the-process
 kind: issue
 title: step-import: the parser recurses once per nested list with no bound, so a deeply nested STEP file kills the process with SIGSEGV
-status: open
+status: closed
 opened: 2026-09-30
 priority: P1
 cost: E
+closed: 2026-11-17
+pr: 7069
+branch: importgate/parse-depth
 ---
 
 (Filed by EDIT's `edit/part-depth-bound` fix pass, from its review's
@@ -57,3 +60,7 @@ every walk over `Value` fit the smallest stack an import door runs on;
 or a parser and a `Value` whose walks do not recurse. A row that
 imports a file one past the bound, on that stack, and reads the
 refusal back.
+
+## Closed
+
+2026-11-17, PR 7069. `parse.rs` refuses a parameter nested past `MAX_NESTING` (32, a record's own list counting as the first; the deepest schema aggregate is four) as a typed `Syntax` error at the line where the nesting crosses the bound. Entering a list is the one place the depth grows and is checked, so the list, typed and complex-instance paths share it; rows at and one past the bound, and 100 000 deep, run each shape on `test_utils::own_thread::on_the_smallest_stack` (1 MiB). The sizing (about 5 KiB per level) is measured on a debug x86_64 build; wasm32 is not measured.
