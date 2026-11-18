@@ -75,7 +75,7 @@
 //!    them, read within the file's band, not a cache, and certification
 //!    reads it at ε on every incident carrier. Both are reported on the
 //!    ledger where they move ([`NormalizationKind::VertexBuilt`]), and a
-//!    carrier the kernel built off the printed one likewise
+//!    carrier the kernel built that is not the printed one likewise
 //!    ([`NormalizationKind::CarrierBuilt`]).
 //! 5. **The shared at-rest gate** (M7-7, #260 ruling (a);
 //!    [`import_step`]): the body is handed to
@@ -273,7 +273,9 @@ mod recognize_curve;
 mod signed_zero;
 mod units;
 
-pub use error::{AdoptionAttempt, AdoptionCandidate, SingularityBand, StepImportError};
+pub use error::{
+    AdoptionAttempt, AdoptionCandidate, BuiltEntity, SingularityBand, StepImportError,
+};
 pub use interpret::Refusal as InterpretationRefusal;
 
 use geom_core::Tol;
@@ -534,11 +536,14 @@ pub enum NormalizationKind {
     },
     /// **An edge whose built carrier is not the printed one** (`[import]`,
     /// D7 step 2): the carrier the kernel constructed from the edge's
-    /// description; any move, read within the file's band. Keyed by the
-    /// `EDGE_CURVE`; its census pair is empty.
+    /// description differs from the printed carrier as a value (a datum's
+    /// bits, a re-anchored line among them); a built carrier equal to the
+    /// printed one is not reported. Keyed by the `EDGE_CURVE`; its census
+    /// pair is empty.
     CarrierBuilt {
         /// The move (metres): the farthest of the printed carrier's ends,
-        /// quarters and middle from the built carrier.
+        /// quarters and middle from the built carrier, measured as read
+        /// (zero for the same locus under another datum).
         moved_by: f64,
     },
     /// **A NURBS carrier promoted to an analytic kind** (D7 stage 1,

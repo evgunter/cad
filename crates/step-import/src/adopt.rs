@@ -365,6 +365,7 @@ fn adopt_edges(
                 ) {
                     Some(Ok(_)) => {
                         return Err(StepImportError::NotYetSupported {
+                            entity: crate::BuiltEntity::Edge,
                             id: edge_id,
                             what: "a smooth join its two surfaces under-determine (the \
                                    relative normal curvature across it is not certified \

@@ -123,6 +123,26 @@ pub enum SingularityBand {
     File,
 }
 
+/// **Which kind of entity a build refusal names** (`[import]`, D7 step
+/// 2): an edge whose carrier, or a vertex whose point, the build does not
+/// construct.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BuiltEntity {
+    /// An `EDGE_CURVE`.
+    Edge,
+    /// A `VERTEX_POINT`.
+    Vertex,
+}
+
+impl core::fmt::Display for BuiltEntity {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Edge => "edge",
+            Self::Vertex => "vertex",
+        })
+    }
+}
+
 /// Typed import failure. `#id` fields are Part 21 entity instance
 /// ids; `line` fields are 1-based line numbers in the input text.
 #[derive(Debug)]
@@ -452,8 +472,10 @@ pub enum StepImportError {
     /// no cache can be built from it, and no value the file printed stands
     /// in.
     NotYetSupported {
-        /// The `EDGE_CURVE` entity instance, or the `VERTEX_POINT` no
-        /// built carrier reaches.
+        /// Which kind of entity `id` is.
+        entity: BuiltEntity,
+        /// The `EDGE_CURVE` entity instance, or the `VERTEX_POINT` the
+        /// build does not construct.
         id: u64,
         /// What has no construction: the pair or kind and why.
         what: String,
@@ -465,6 +487,8 @@ pub enum StepImportError {
     /// A reading the build takes at the run's band escalated: the run's
     /// tolerance does not decide the construction of edge or vertex `id`.
     BuildEscalated {
+        /// Which kind of entity `id` is.
+        entity: BuiltEntity,
         /// The `EDGE_CURVE` or `VERTEX_POINT` entity instance.
         id: u64,
         /// The escalated reading.
@@ -662,18 +686,29 @@ impl StepImportError {
                  carries a crease, and the split cannot be placed: {what} \
                  (work/importgate/the-c0-knot-split-refuses-what-it-cannot-place.md)"
             ),
-            Self::NotYetSupported { id, what, lane, .. } => write!(
+            Self::NotYetSupported {
+                entity,
+                id,
+                what,
+                lane,
+                ..
+            } => write!(
                 f,
-                "step import: entity #{id}: {what}, which the kernel does not yet construct (no \
-                 value the file printed stands in for a construction); the lane that would: \
-                 {lane}"
+                "step import: {entity} #{id}: {what}, which the kernel does not yet construct \
+                 (no value the file printed stands in for a construction); the lane that \
+                 would: {lane}"
             ),
-            Self::BuildEscalated { id, source, file } => {
+            Self::BuildEscalated {
+                entity,
+                id,
+                source,
+                file,
+            } => {
                 let ending =
                     door(file).map(|at| BUILD_READING.recourse(RefusedArm::Undecided(source), at));
                 write!(
                     f,
-                    "step import: entity #{id}: {}",
+                    "step import: {entity} #{id}: {}",
                     geom_brep::recourse::undecided_at(source, BUILD_SUBJECT, ending)
                 )
             }

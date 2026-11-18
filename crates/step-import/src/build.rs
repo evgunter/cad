@@ -41,7 +41,7 @@ use geom_core::k_stats::decide;
 use geom_core::{Margin, Point3, Sign, Tol, Vec3};
 
 use crate::entities::{EdgeSpec, FaceSpec, SolidSpec};
-use crate::error::StepImportError;
+use crate::error::{BuiltEntity, StepImportError};
 use crate::interpret::{FileBand, Read};
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
@@ -118,9 +118,8 @@ pub(crate) struct Edge {
 /// interpretation left them (each a kernel surface interpreted from its
 /// record, and its loops by entity id), every edge's description and
 /// built caches, and every built vertex point. No edge carrier, interval
-/// or vertex an edge ends at holds a value the file printed; a vertex no
-/// edge ends at (a vertex loop's) is its printed point, the one statement
-/// of a point on its face.
+/// or vertex holds a value the file printed; a vertex no edge ends at is
+/// no vertex of the model and is left out.
 #[derive(Debug)]
 pub(crate) struct Shell<'a> {
     /// The solid record's entity id; for a void, its shell's.
@@ -283,11 +282,14 @@ pub(crate) fn build<'a>(
             },
             (other, _) => other,
         };
-        let moved = held_gap(&carrier, spec);
-        if moved.is_finite() && moved != 0.0 {
+        // Reported where the built carrier is not the printed one, by
+        // value; the move is measured only then.
+        if carrier_sig(&carrier) != carrier_sig(&spec.carrier) {
             moves.push(StructureNormalization {
                 face: id,
-                kind: NormalizationKind::CarrierBuilt { moved_by: moved },
+                kind: NormalizationKind::CarrierBuilt {
+                    moved_by: held_gap(&carrier, spec),
+                },
                 file_census: FaceCensus::EMPTY,
                 kernel_census: FaceCensus::EMPTY,
             });
@@ -377,18 +379,25 @@ fn edge_faces(solid: &SolidSpec) -> Result<BTreeMap<u64, (usize, usize)>, StepIm
 fn ambiguous(id: u64, source: &geom_core::Indeterminate, file: FileBand) -> StepImportError {
     match crate::interpret::Refusal::in_band(STEP_EDGE_ON_DESCRIPTION, source, file.run_eps()) {
         Some(refusal) => file.refused(id, refusal),
-        None => StepImportError::BuildEscalated {
-            id,
-            source: *source,
-            file: geom_core::FileCoincidence::new(file.eps_in()),
-        },
+        None => escalated(file, id, *source),
     }
 }
 
 /// The not-yet-supported refusal of edge `id`, read at the import door of
 /// a file declaring `eps_in`.
 fn unbuilt(file: FileBand, id: u64, what: String, lane: &'static str) -> StepImportError {
+    not_yet(file, (BuiltEntity::Edge, id), what, lane)
+}
+
+/// [`unbuilt`] for an entity of either kind.
+fn not_yet(
+    file: FileBand,
+    (entity, id): (BuiltEntity, u64),
+    what: String,
+    lane: &'static str,
+) -> StepImportError {
     StepImportError::NotYetSupported {
+        entity,
         id,
         what,
         lane,
@@ -396,9 +405,19 @@ fn unbuilt(file: FileBand, id: u64, what: String, lane: &'static str) -> StepImp
     }
 }
 
-/// The build's escalation at the run's band, for edge or vertex `id`.
+/// The build's escalation at the run's band, for edge `id`.
 fn escalated(file: FileBand, id: u64, source: geom_core::Indeterminate) -> StepImportError {
+    escalated_at(file, (BuiltEntity::Edge, id), source)
+}
+
+/// [`escalated`] for an entity of either kind.
+fn escalated_at(
+    file: FileBand,
+    (entity, id): (BuiltEntity, u64),
+    source: geom_core::Indeterminate,
+) -> StepImportError {
     StepImportError::BuildEscalated {
+        entity,
         id,
         source,
         file: geom_core::FileCoincidence::new(file.eps_in()),
@@ -419,6 +438,11 @@ const SNAP_LANE: &str = "D7 step 3's snap catalogue, which makes a relation betw
 /// The lane a pair with no section construction waits on.
 const SECTION_LANE: &str = "a section construction for this pair \
                             (`work/importgate/an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses.md`)";
+
+/// The lane a vertex only an unsupported root fixes waits on.
+const ROOT_LANE: &str = "a root of a spline wall along a carrier, or of any surface along a \
+                         spline carrier other than a plane's \
+                         (`work/importgate/a-vertex-only-a-spline-wall-fixes-refuses-not-yet-supported.md`)";
 
 /// The lane a tangency with no closed-form locus waits on.
 const TANGENT_LANE: &str = "a C7 tangent-locus construction for this pose \
@@ -1637,6 +1661,53 @@ pub(crate) fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
     }
 }
 
+/// **A carrier's exact structural signature**: variant tag and field
+/// bits, as [`surface_sig`] is a surface's. Two carriers are the same
+/// value exactly where their signatures are equal (the ledger's
+/// `CarrierBuilt` test). A periodic cubic is its own variant read through
+/// its debug form, which prints every datum round-trip exact; no import
+/// path prints one.
+fn carrier_sig(carrier: &Curve3<f64>) -> Vec<u64> {
+    use geom::CurveData;
+    let p = |p: &Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
+    match carrier.data() {
+        CurveData::Analytic(data) => {
+            let tag: u64 = match carrier {
+                Curve3::Line(_) => 0,
+                Curve3::Circle(_) => 1,
+                Curve3::Ellipse(_) => 2,
+                Curve3::Spiric { .. } => 3,
+                Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+                    unreachable!("a spline carrier's data is not analytic")
+                }
+            };
+            core::iter::once(tag)
+                .chain(
+                    data.into_iter()
+                        .flat_map(|(_, value)| value.scalars())
+                        .map(f64::to_bits),
+                )
+                .collect()
+        }
+        CurveData::Nurbs(n) => {
+            let knots = n.knots_f64_interim();
+            let mut sig = vec![
+                4,
+                knots.degree() as u64,
+                knots.knots().len() as u64,
+                n.control().len() as u64,
+            ];
+            sig.extend(knots.knots().iter().map(|k| k.to_bits()));
+            sig.extend(n.control().iter().flat_map(p));
+            sig.extend(n.weights().iter().map(|w| w.to_bits()));
+            sig
+        }
+        CurveData::Periodic(n) => core::iter::once(5)
+            .chain(format!("{n:?}").bytes().map(u64::from))
+            .collect(),
+    }
+}
+
 /// **Every vertex built** (module docs, step 3), and every deferred
 /// carrier with it.
 ///
@@ -1685,14 +1756,11 @@ fn build_vertices(
             }
         }
     }
+    // A vertex no edge ends at is no vertex of the model: assembly reaches
+    // a vertex only through its edges, and a vertex loop's vertex is
+    // never recorded (the whole sphere it bounds is built with its own
+    // poles). It is left out, so no printed point stands in the model.
     let mut built: BTreeMap<u64, Point3<f64>> = BTreeMap::new();
-    for (&v, &printed) in &solid.vertices {
-        if !around.contains_key(&v) {
-            // A vertex no edge ends at (a vertex loop's): its printed point
-            // is the description, a point on its face's surface.
-            built.insert(v, printed);
-        }
-    }
     let place = |v: u64,
                  point: Point3<f64>,
                  built: &mut BTreeMap<u64, Point3<f64>>,
@@ -1719,10 +1787,28 @@ fn build_vertices(
                 continue;
             }
             let printed = solid.vertices[&v];
+            if let Some(point) = iso_end(chosen, edges, printed, file) {
+                place(v, point, &mut built, moves)?;
+                progress = true;
+                continue;
+            }
             let fixed = match rooted(solid, sides, chosen, (edges, faces), printed, eps_band) {
-                Ok(Some(point)) => Some(point),
-                Ok(None) => singular_point(solid, faces, printed, file)?,
-                Err(source) => return Err(escalated(file, v, source)),
+                Ok(Rooted::At(point)) => Some(point),
+                Ok(Rooted::Unfixed) => singular_point(solid, faces, printed, file)?,
+                Ok(Rooted::Unsupported(what)) => {
+                    match singular_point(solid, faces, printed, file)? {
+                        Some(point) => Some(point),
+                        None => {
+                            return Err(not_yet(
+                                file,
+                                (BuiltEntity::Vertex, v),
+                                format!("a vertex its description fixes: {what}"),
+                                ROOT_LANE,
+                            ));
+                        }
+                    }
+                }
+                Err(source) => return Err(escalated_at(file, (BuiltEntity::Vertex, v), source)),
             };
             if let Some(point) = fixed {
                 place(v, point, &mut built, moves)?;
@@ -1777,9 +1863,9 @@ fn build_vertices(
         }
     }
     if let Some((&v, _)) = around.iter().find(|(v, _)| !built.contains_key(*v)) {
-        return Err(unbuilt(
+        return Err(not_yet(
             file,
-            v,
+            (BuiltEntity::Vertex, v),
             "a vertex no built carrier reaches: every edge ending at it waits on it".to_owned(),
             "a construction of a curve inside one surface \
              (`work/importgate/an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses.md`)",
@@ -1830,11 +1916,61 @@ fn singular_point(
     Ok((file.read(STEP_VERTEX_BUILT, point.distance(printed)) == Read::Zero).then_some(point))
 }
 
+/// **An end of a wall's iso a vertex stands at**: an edge whose
+/// description is a spline wall's boundary column or row spans the whole
+/// iso, so its ends are the iso's ends, fixed by the description (the
+/// corner of a knot-split wall's piece among them, where a crease line
+/// meets the wall's rim). The one end the printed point reads Zero
+/// against at the file's band; none where both do (a closed iso) or
+/// neither.
+fn iso_end(
+    chosen: &BTreeMap<u64, Chosen>,
+    edges: &[u64],
+    printed: Point3<f64>,
+    file: FileBand,
+) -> Option<Point3<f64>> {
+    edges.iter().find_map(|e| {
+        let c = &chosen[e];
+        let (Description::Iso { .. }, Some(Curve3::Nurbs(iso))) = (&c.description, &c.carrier)
+        else {
+            return None;
+        };
+        let (lo, hi) = iso.domain();
+        let at = |t: f64| {
+            let p = iso.eval(t);
+            (file.read(STEP_VERTEX_BUILT, p.distance(printed)) == Read::Zero).then_some(p)
+        };
+        match (at(lo), at(hi)) {
+            (Some(p), None) | (None, Some(p)) => Some(p),
+            _ => None,
+        }
+    })
+}
+
+/// What the fixing constructions around a vertex answered ([`rooted`]).
+enum Rooted {
+    /// A definite root: the vertex.
+    At(Point3<f64>),
+    /// No construction fixes the vertex here: none was asked, or one read
+    /// a definite no-root or a decided graze. The vertex is free.
+    Unfixed,
+    /// Every construction asked answered that it does not solve this
+    /// root, or read a sine that is no number: the vertex is fixed by a
+    /// construction the kernel does not have.
+    Unsupported(String),
+}
+
 /// The first root, in edge then face order, of a face's surface along a
 /// built intrinsic carrier ending at the vertex that the surface does not
 /// hold. A reading the run's band does not decide is kept and the search
 /// goes on, as a climb keeps what it passes over: the first definite root
 /// answers, and the first escalation refuses only where none does.
+///
+/// **Every verdict ends.** A definite no-root and a decided graze say the
+/// surface does not fix the vertex along that carrier. An unsupported
+/// root, and a graze whose sine is no number (a spline surface has no
+/// implicit form to read one from), say nothing: where every construction
+/// asked answers so, the vertex is [`Rooted::Unsupported`], never footed.
 fn rooted(
     solid: &SolidSpec,
     sides: &BTreeMap<u64, (usize, usize)>,
@@ -1842,8 +1978,10 @@ fn rooted(
     (edges, faces): (&[u64], &[usize]),
     printed: Point3<f64>,
     band: geom_core::Band,
-) -> Result<Option<Point3<f64>>, geom_core::Indeterminate> {
+) -> Result<Rooted, geom_core::Indeterminate> {
     let mut unsettled = None;
+    let mut unsupported: Option<String> = None;
+    let mut decided = false;
     for &e in edges {
         let c = &chosen[&e];
         let Some(carrier) = c.carrier.as_ref().filter(|_| c.intrinsic) else {
@@ -1867,15 +2005,42 @@ fn rooted(
                 continue;
             }
             match root_on(surface, carrier, printed, extent, band) {
-                Ok(Some(point)) => return Ok(Some(point)),
-                Ok(None) => {}
+                Ok(Ok(point)) => return Ok(Rooted::At(point)),
+                Ok(Err(topo::CornerVerdict::Unsupported { what })) => {
+                    unsupported.get_or_insert_with(|| {
+                        format!(
+                            "face #{}'s surface along edge #{e}: {what}",
+                            solid.faces[f].id
+                        )
+                    });
+                }
+                Ok(Err(topo::CornerVerdict::Graze { sine })) if !sine.is_finite() => {
+                    unsupported.get_or_insert_with(|| {
+                        format!(
+                            "face #{}'s surface along edge #{e}: its root reads a sine that is \
+                             no number",
+                            solid.faces[f].id
+                        )
+                    });
+                }
+                Ok(Err(
+                    topo::CornerVerdict::NoRoot
+                    | topo::CornerVerdict::Graze { .. }
+                    | topo::CornerVerdict::Ssi(_),
+                )) => decided = true,
                 Err(source) => {
                     unsettled.get_or_insert(source);
                 }
             }
         }
     }
-    unsettled.map_or(Ok(None), Err)
+    if let Some(source) = unsettled {
+        return Err(source);
+    }
+    Ok(match unsupported {
+        Some(what) if !decided => Rooted::Unsupported(what),
+        _ => Rooted::Unfixed,
+    })
 }
 
 /// **The root of `surface` along `carrier` from `printed`, settled**
@@ -1888,16 +2053,26 @@ fn root_on(
     printed: Point3<f64>,
     extent: geom_core::Lever<f64>,
     band: geom_core::Band,
-) -> Result<Option<Point3<f64>>, geom_core::Indeterminate> {
+) -> Result<Result<Point3<f64>, topo::CornerVerdict<f64>>, geom_core::Indeterminate> {
+    let mut verdict = None;
     let root = |p: Point3<f64>| -> Result<Option<Point3<f64>>, geom_core::Indeterminate> {
         let Some(seed) = param_at(carrier, p) else {
             return Ok(None);
         };
-        Ok(topo::root_along(surface, carrier, seed, extent, band)?
-            .ok()
-            .map(|t| carrier.eval(t)))
+        Ok(
+            match topo::root_along(surface, carrier, seed, extent, band)? {
+                Ok(t) => Some(carrier.eval(t)),
+                Err(v) => {
+                    verdict.get_or_insert(v);
+                    None
+                }
+            },
+        )
     };
-    settled(printed, root)
+    Ok(match settled(printed, root)? {
+        Some(point) => Ok(point),
+        None => Err(verdict.unwrap_or(topo::CornerVerdict::NoRoot)),
+    })
 }
 
 /// The printed point's foot on the first built carrier ending at the
@@ -2112,6 +2287,130 @@ mod tests {
             line_iso_match(&curved, a, b, file).is_none(),
             "an iso bent past the band is not straight"
         );
+    }
+
+    /// **A vertex only unsupported roots fix refuses, never footed**
+    /// (A4, m1): a vertex where a spline wall meets two cylinders, whose
+    /// three fixing roots are the wall along the cylinders' carrier (a
+    /// sine that is no number: the wall has no implicit form) and each
+    /// cylinder along the other's spline section with the wall (a root
+    /// the kernel solves for a plane only). Every construction asked says
+    /// nothing, so the vertex refuses not-yet-supported, naming the root
+    /// lane; it does not drop to the printed point's foot.
+    #[test]
+    fn a_vertex_only_unsupported_roots_fix_refuses_naming_the_root_lane() {
+        let wall = {
+            let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let control = vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 0.0, 2.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 2.0),
+            ];
+            Surface::Nurbs(std::sync::Arc::new(
+                geom::NurbsSurface::new(k(), k(), control, vec![1.0; 4]).unwrap(),
+            ))
+        };
+        let cylinder = |origin: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>| Surface::Cylinder {
+            origin,
+            axis,
+            radius: 1.0,
+            u_ref,
+        };
+        let face = |id: u64, surface: Surface<f64>| FaceSpec {
+            id,
+            surface,
+            sense: true,
+            loops: Vec::new(),
+            band: false,
+        };
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let faces = vec![
+            face(10, wall),
+            face(11, cylinder(Point3::new(0.5, 1.0, 0.0), z, x)),
+            face(12, cylinder(Point3::new(0.0, 1.0, 1.0), x, y)),
+        ];
+        let p = Point3::new(0.5, 0.0, 1.0);
+        let segment = |a: Point3<f64>, b: Point3<f64>| {
+            let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            Curve3::Nurbs(std::sync::Arc::new(
+                geom::NurbsCurve3::new(knots, vec![a, b], vec![1.0, 1.0]).unwrap(),
+            ))
+        };
+        // Edge 1 on the cylinders, edges 2 and 3 on the wall and one
+        // cylinder each, all from vertex 1 at `p`.
+        let carriers = [
+            (
+                1,
+                (1, 2),
+                Curve3::line(p, z),
+                (0.0, 1.0),
+                Point3::new(0.5, 0.0, 2.0),
+            ),
+            (
+                2,
+                (0, 1),
+                segment(p, Point3::new(0.5, 0.0, 2.0)),
+                (0.0, 1.0),
+                Point3::new(0.5, 0.0, 2.0),
+            ),
+            (
+                3,
+                (0, 2),
+                segment(p, Point3::new(1.0, 0.0, 1.0)),
+                (0.0, 1.0),
+                Point3::new(1.0, 0.0, 1.0),
+            ),
+        ];
+        let mut vertices = BTreeMap::from([(1, p)]);
+        let mut edges = BTreeMap::new();
+        let mut sides = BTreeMap::new();
+        let mut chosen = BTreeMap::new();
+        for (id, side, carrier, (t0, t1), far) in carriers {
+            vertices.insert(id + 1, far);
+            edges.insert(
+                id,
+                EdgeSpec {
+                    start: 1,
+                    end: id + 1,
+                    carrier: carrier.clone(),
+                    t0,
+                    t1,
+                    reversed: false,
+                },
+            );
+            sides.insert(id, side);
+            chosen.insert(id, Chosen::built(Description::Intersection, carrier));
+        }
+        let solid = SolidSpec {
+            id: 1,
+            faces,
+            edges,
+            vertices,
+            band_seams: std::collections::BTreeSet::new(),
+        };
+        let mut moves = Vec::new();
+        let refused = build_vertices(
+            &solid,
+            &sides,
+            &mut chosen,
+            Tol::witness(),
+            FileBand::test(1e-6),
+            &mut moves,
+        );
+        match refused {
+            Err(StepImportError::NotYetSupported {
+                entity: BuiltEntity::Vertex,
+                id: 1,
+                lane,
+                ..
+            }) => assert_eq!(lane, ROOT_LANE, "the refusal names the root lane"),
+            other => panic!("the vertex refuses not-yet-supported, never footed: {other:?}"),
+        }
     }
 
     /// **A wrap edge is the surface's own generator through the printed

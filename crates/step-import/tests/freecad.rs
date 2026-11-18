@@ -353,14 +353,24 @@ fn freecad_body(
             let (moves, structure): (Vec<_>, Vec<_>) = normalizations
                 .into_iter()
                 .partition(|n| matches!(n.kind, VertexBuilt { .. } | CarrierBuilt { .. }));
+            // The file's band's far edge: `K·max(ε_in, ε)`. A move past it
+            // is no move the file's statements hold.
+            let tol = Tol::witness();
+            let far = tol.k() * eps_in.max(tol.eps());
             for m in &moves {
                 let (VertexBuilt { moved_by } | CarrierBuilt { moved_by }) = m.kind else {
                     unreachable!("partitioned on the kind")
                 };
                 assert!(
-                    moved_by.is_finite() && moved_by >= 0.0,
-                    "{name}: a vertex move is a distance: {m:?}"
+                    moved_by <= far,
+                    "{name}: a move is within the file's band ({far:e}): {m:?}"
                 );
+                if matches!(m.kind, VertexBuilt { .. }) {
+                    assert!(
+                        moved_by > 0.0,
+                        "{name}: a vertex is reported only where it moved: {m:?}"
+                    );
+                }
             }
             (body.into_body(), eps_in, structure)
         }
