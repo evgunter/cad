@@ -1988,7 +1988,7 @@ pub fn reask_chart<T: Decide>(
     band: Band,
 ) -> Result<Option<crate::EdgeDescriptionSpec<T>>, PairRefusal> {
     let [(ka, a), (kb, b)] = surfaces;
-    if ka == kb || a.spline_chart().is_some() || b.spline_chart().is_some() {
+    if ka == kb || !must_carry_reads(a, b) {
         return Ok(None);
     }
     Ok(
@@ -1997,6 +1997,16 @@ pub fn reask_chart<T: Decide>(
             intrinsic => Some(intrinsic),
         },
     )
+}
+
+/// **Whether the must-carry rule reads a pair**: both surfaces have an
+/// implicit form. A spline surface (`Nurbs`, `Approx`) has none, so the
+/// rule answers in band at its first station whatever the geometry
+/// ([`must_carry_over_edge`]), and a door re-asking a description over
+/// such a pair leaves it to the spline lanes ([`reask_chart`]).
+#[must_use]
+pub fn must_carry_reads<T: Real>(a: &Surface<T>, b: &Surface<T>) -> bool {
+    a.spline_chart().is_none() && b.spline_chart().is_none()
 }
 
 /// Why a join entered as definitely smooth gets no description:

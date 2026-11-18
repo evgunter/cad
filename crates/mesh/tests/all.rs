@@ -506,3 +506,6 @@ fn the_eps_inventory_is_pinned() {
 mod r2_mesh7_probes;
 #[path = "r2_sense_e2e.rs"]
 mod r2_sense_e2e;
+
+#[path = "route_rows.rs"]
+mod route_rows;

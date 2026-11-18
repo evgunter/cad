@@ -82,7 +82,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "loft_prism",
         about: "R5 shape (iii): three-section polyline loft, non-affine middle (M6-3)",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(loft),
         // Pins assert exact f64 equality; a quadrature enclosure's

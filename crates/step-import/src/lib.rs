@@ -8,7 +8,8 @@
 //! A reader for exactly the exchange structure the in-house writer
 //! emits: HEADER + DATA Part 21 sections, simple and complex entity
 //! instances, the AP214 advanced-B-rep product structure
-//! (`ADVANCED_BREP_SHAPE_REPRESENTATION` over `MANIFOLD_SOLID_BREP`s)
+//! (`ADVANCED_BREP_SHAPE_REPRESENTATION` over `MANIFOLD_SOLID_BREP`s,
+//! and `BREP_WITH_VOIDS` for a solid with cavities)
 //! and the curve-set wireframe form
 //! (`GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION`). The
 //! result of a solid import is a first-class [`topo::Body`]: topology
@@ -41,8 +42,10 @@
 //!    key sharing), `same_sense` lands as [`topo::Face::sense`]
 //!    honored, not healed, and every edge's intensional description is
 //!    **rebuilt and certified** by the kernel's own gates: intersection
-//!    / tangent-intersection for edges between distinct surfaces, seam
-//!    / conventional mapped-curve for edges inside one surface, the
+//!    / tangent-intersection for edges between distinct surfaces, and
+//!    the pair the must-carry rule answers where they under-determine
+//!    a smooth join; seam / conventional mapped-curve for edges inside
+//!    one surface; the
 //!    boundary iso-curve rung for NURBS wall seams (M7-3). Pcurve
 //!    caches re-mint through [`topo::mint_pcurves`] (every curved
 //!    chart that mints natively mints here — cylinder, cone, sphere,
@@ -607,12 +610,13 @@ pub struct ImportOptions {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum StepImport {
-    /// The file carried `MANIFOLD_SOLID_BREP`s: a first-class kernel
-    /// body, one kernel solid (with one shell) per `MANIFOLD_SOLID_BREP`
-    /// — the writer emits one MSB per shell, so solid grouping is not
-    /// recoverable from the file and each MSB adopts as its own solid
-    /// (matching what independent readers report for e.g. the
-    /// kiss assembly).
+    /// The file carried solid records: a first-class kernel body, one
+    /// kernel solid per record — a `MANIFOLD_SOLID_BREP` adopts as a
+    /// solid of its one shell, and a `BREP_WITH_VOIDS` as one solid of
+    /// its outer shell and a shell per void. A solid is one piece of
+    /// material, which is the grouping the writer states, so pieces
+    /// that only touch (the kiss assembly) arrive as the separate solids
+    /// they were and independent readers report.
     Solid {
         /// The adopted body — first-class: Euler-built, certified, and
         /// **tier-valid at rest, checked** (M7-7, #260 ruling (a)):

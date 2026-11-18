@@ -593,7 +593,7 @@ fn the_mc_report_is_deterministic_and_labeled() {
 fn the_mc_lane_changes_no_document_and_mints_no_assertion() {
     let (doc, _, _) = plate(uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let before = save(&doc, &[], Tol::witness()).expect("the document saves");
+    let before = save(&doc, Tol::witness()).expect("the document saves");
     let report = monte_carlo(
         &doc,
         &analyzed,
@@ -605,7 +605,7 @@ fn the_mc_lane_changes_no_document_and_mints_no_assertion() {
         Tol::witness(),
     )
     .expect("replays");
-    let after = save(&doc, &[], Tol::witness()).expect("the document saves");
+    let after = save(&doc, Tol::witness()).expect("the document saves");
     assert_eq!(
         before, after,
         "the lane takes &Doc and writes nothing: the saved bytes are the same bytes"

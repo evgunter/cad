@@ -105,7 +105,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "face_sketch",
         about: "DOCM-1: a boss sketched ON a box's top face, placed by a mate that names the face",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         // The box with its boss is the headline solid: the boss's pin
         // rides on the box's top face.

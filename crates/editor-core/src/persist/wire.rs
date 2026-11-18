@@ -65,7 +65,7 @@ use super::nesting::Child;
 /// different leaf sets: the shared variants are written here once, and
 /// each invocation adds its form's own variants and their two
 /// conversions. A variant name the forms share is spelled once, so a
-/// formula in an edit log and the expression a snapshot stores from it
+/// formula an edit carries and the expression a document stores from it
 /// write the same words.
 macro_rules! wire_tree {
     (
@@ -235,7 +235,7 @@ wire_tree! {
 }
 
 wire_tree! {
-    /// The persisted authored formula, as an edit log carries it: the
+    /// The persisted authored formula, as an edit carries it: the
     /// stored vocabulary plus a variable by name, a fresh-table read
     /// and a written quantity.
     WireFormula for Formula {

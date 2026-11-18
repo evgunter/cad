@@ -302,8 +302,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         &placement.doc,
         &[pncad::document::Operand::Node(placement.placement)],
         tol,
-    )
-    .doc;
+    );
 
     // The wall names come from the SELECTION door, the way a user gets
     // them: evaluate what is built so far, then ask for each hole's

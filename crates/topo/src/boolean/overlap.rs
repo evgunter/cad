@@ -699,8 +699,8 @@ fn edge_witness<T: Decide>(
     band: Band,
     kept: &mut Evidence<OverlapRefusal>,
 ) -> Result<bool, OverlapRefusal> {
-    let boundary = super::carrier_cross::face_boundary(y.0, y.1)
-        .map_err(|e| OverlapRefusal::Boundary(Arc::new(e)))?
+    let boundary = crate::face_boundary::face_boundary(y.0, y.1)
+        .map_err(|e| OverlapRefusal::Boundary(Arc::new(e.into())))?
         .ok_or(OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge))?;
     if !boundary.lone.is_empty() {
         return Err(OverlapRefusal::Unread(OverlapUnread::LoneVertex));

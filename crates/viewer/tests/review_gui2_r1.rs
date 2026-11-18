@@ -499,7 +499,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     let ring_delta = common::ring_delta();
     let loaded =
         pncad::document::load(&common::gallery_ring_at(tol), tol).expect("the gallery ring loads");
-    let mut session = DocSession::inline(loaded.snapshot, tol);
+    let mut session = DocSession::inline(loaded, tol);
     session.pump();
     let index = common::index_of(&session, ring_delta);
     assert!(!index.ids().is_empty(), "the ring draws pickable patches");

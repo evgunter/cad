@@ -42,7 +42,7 @@ fn small() -> String {
             distance: len(1.0),
         },
     );
-    save(&doc, &[], Tol::witness()).expect("saves")
+    save(&doc, Tol::witness()).expect("saves")
 }
 
 fn split(text: &str) -> (String, serde_json::Value) {
@@ -107,8 +107,8 @@ fn real_historical_documents_refuse_typed_and_name_what_they_lack() {
         match load(&text, Tol::witness()) {
             // Additive growth would put a historical document here.
             // The recorded ε is the document's, so under a non-default
-            // ε row the parse, the validator and the replay all ran and
-            // only the LAST door refused — the same evidence.
+            // ε row the parse and the validator both ran and only the
+            // LAST door refused — the same evidence.
             Ok(_) | Err(PersistError::ToleranceConflict { .. }) => {}
             Err(err @ PersistError::Unreadable { .. }) => {
                 let msg = err.to_string();
@@ -242,13 +242,11 @@ fn the_classification_seam_holds_at_its_edges() {
     // duplicate-field refusal and not a last-wins silent accept.
     // `deny_unknown_fields` is not what fires here — the repeated key
     // is one `FileBody` knows.
-    assert!(
-        pretty.starts_with("{\n  \"edits\""),
-        "serde_json orders keys: {pretty:.40}"
-    );
+    let body = pretty.trim_end();
+    assert!(body.ends_with('}'), "the body is an object: {body:.40}");
     let dup = format!(
-        "{header}{}\n",
-        pretty.replacen('{', "{\n  \"edits\": [],", 1)
+        "{header}{}, \"snapshot\": {{}}}}\n",
+        &body[..body.len() - 1]
     );
     match load(&dup, Tol::witness()) {
         Err(err @ PersistError::Unreadable { .. }) => {
@@ -265,10 +263,7 @@ fn the_classification_seam_holds_at_its_edges() {
     }
 
     // Non-finite tokens are not JSON: they refuse before the types.
-    for body in [
-        "{\"snapshot\": NaN, \"edits\": []}",
-        "{\"snapshot\": Infinity, \"edits\": []}",
-    ] {
+    for body in ["{\"snapshot\": NaN}", "{\"snapshot\": Infinity}"] {
         let text = format!("{header}{body}\n");
         match load(&text, Tol::witness()) {
             Err(err @ PersistError::Parse { .. }) => {
