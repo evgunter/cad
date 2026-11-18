@@ -500,7 +500,15 @@ fn brackets<T: Bounds>(v: Vec3<T>) -> [(f64, f64); 3] {
     v.to_array().map(|c| (c.lo(), c.hi()))
 }
 
-/// **What reading a frame's direction at its midpoint costs**: the
+/// **What reading a frame's direction at its midpoint costs** — the ring
+/// composite's reading ([`composite_form`]). Its implicit form is `f64`
+/// structure the carrier is composed with (`ImplicitSurface`'s
+/// coefficients), which holds no enclosure, so the turn the midpoint
+/// stands for is charged here as a bound. The chart tube's partner form
+/// holds its frame as an enclosure and reads through it instead
+/// ([`chart_partner_form`]); this charge goes when the composite takes
+/// enclosure-valued coefficients
+/// (`work/onehome/composite-form-takes-enclosure-valued-coefficients.md`): the
 /// surface the composite holds is the body's family turned by at most
 /// `turn` about `anchor`, the frame's origin. A turn by `θ` about a
 /// point moves each point of the family's every surface by at most `θ`
@@ -2142,6 +2150,24 @@ pub(crate) fn exact_certified<T: CertifiedEnclosure>(x: T) -> Option<f64> {
 /// enclosure ([`super::residual::ImplicitForm::with_frame`]): each
 /// encloses the turned partner's, so the midpoint costs nothing a read
 /// does not carry. A frame wider than rounding still refuses.
+///
+/// **What the midpoint surface is read for**: the partner's kind (which
+/// form), its radii (exact, as before), and the form's `f64` residual and
+/// rate ([`super::residual::ImplicitForm::residual`]), which only the
+/// boundary pass's settling reads, a seed it then holds to a tolerance.
+/// Limb 3's tube reads the form only through [`ChartPhi`] (`φ`, `∇f`,
+/// its partials and sup) and the node box ([`super::node::node_box`]:
+/// `φ`, its frame gradient, Hessian and vectors), every one of them
+/// through the frame enclosure, so nothing the certificate rests on reads
+/// the midpoint.
+///
+/// **Why not [`FrameCharge`]**, which the ring composite takes: the
+/// composite's implicit form is `f64` structure the carrier is composed
+/// with (`ImplicitSurface`'s coefficients), which holds no enclosure, so
+/// its midpoint's cost is charged as a bound; this form already holds its
+/// frame as one, so the enclosure carries the cost itself
+/// (`work/onehome/composite-form-takes-enclosure-valued-coefficients.md`
+/// would give the composite the same).
 ///
 /// # Errors
 ///

@@ -307,9 +307,11 @@ pub(super) fn turn_about<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
 /// [`turn_about`]'s cosine and sine arms: the dot and cross products about
 /// the unit `axis` of the offsets `a` and `b` less their parts along it,
 /// `a_p·b_p` and `(a_p × b_p)·axis`. They are read without forming the
-/// parts: `a_p·b_p = a·b − (a·axis)(b·axis)` for a unit axis, and
-/// `(a_p × b_p)·axis = (a × b)·axis` for any, since the parts along the
-/// axis cross into vectors square to it. At an enclosure scalar the
+/// parts: `(a_p × b_p)·axis = (a × b)·axis` for any axis, since every
+/// cross term the parts along it add is square to it; and
+/// `a_p·b_p = a·b − (a·axis)(b·axis)` where `|axis| = 1`, which holds of
+/// the true axis an enclosure of a unit axis contains, so the enclosure
+/// evaluation encloses it. At an enclosure scalar the
 /// axis's width then enters only through the product of the two parts
 /// along it, each near zero for arms about the axis, where subtracting
 /// them from the arms would widen every component by the arm's length
