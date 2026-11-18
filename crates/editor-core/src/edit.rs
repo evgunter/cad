@@ -1993,18 +1993,22 @@ pub(crate) fn pick_fault<P>(doc: &Doc<P>, copy: VarId, of: &[VarId]) -> Option<O
     if !copied || of.is_empty() {
         return Some(None);
     }
-    let mut at = copy;
-    for (k, &step) in of.iter().enumerate() {
+    // A pick of a pick walks the inner pick's path first, then `of`
+    // ([`Doc::pick_path`]); a step is counted in `of`.
+    let (mut at, mut path) = doc.pick_path(copy).unwrap_or((copy, Vec::new()));
+    let inner = path.len();
+    path.extend_from_slice(of);
+    for (k, &step) in path.iter().enumerate() {
         let var = match reach(at) {
             Reached::Part => return None,
             Reached::Body(var) => var,
         };
         let members = match doc.operation_of(var).and_then(|at| doc.node(at)) {
             Some(Node::Assemble { members }) => members.rows(),
-            _ => return Some(Some(k)),
+            _ => return Some(Some(k.saturating_sub(inner))),
         };
         if members.iter().filter(|(_, read)| read.read == step).count() != 1 {
-            return Some(Some(k));
+            return Some(Some(k.saturating_sub(inner)));
         }
         at = step;
     }

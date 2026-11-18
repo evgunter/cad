@@ -117,10 +117,18 @@ fn split_refusals() -> Vec<SplitError> {
             why,
         }
     }));
-    out.extend([
-        SplitError::NamedReadUncarried {
+    out.extend(
+        [
+            editor_core::NamedUncarried::Pick,
+            editor_core::NamedUncarried::Piece,
+            editor_core::NamedUncarried::NoCopy,
+        ]
+        .map(|why| SplitError::NamedReadUncarried {
             var: Box::new(var()),
-        },
+            why,
+        }),
+    );
+    out.extend([
         SplitError::NoMaterial {
             node: s(1, "Profile"),
         },

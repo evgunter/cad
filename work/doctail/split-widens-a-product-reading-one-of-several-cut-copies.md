@@ -75,3 +75,12 @@ At the second delta review, these changes landed:
 - A named source or pick every reader of which is cut goes with the cut.
 
 Filed: `a-named-pick-only-the-cut-reads-refuses-as-a-part-edit` (P3).
+
+At the third delta review, these changes landed:
+- "The path a pick reaches" has one home (`Doc::pick_path`), used by the edit door, the seat's evaluation, the gather and split.
+- The owned-source helpers are one walk (`owned_chain`).
+- "Every reader is cut" follows anonymous definitions.
+- The part's carry writes a pick afresh.
+- `NamedReadUncarried` says why (`NamedUncarried`).
+
+`a-named-pick-only-the-cut-reads-refuses-as-a-part-edit` is closed.

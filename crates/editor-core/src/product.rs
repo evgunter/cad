@@ -1250,39 +1250,31 @@ fn gather_pick<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     Ok(product)
 }
 
-/// **The piece the pick `var` reads**, walked from its copy's value — or,
-/// for a pick of a pick, from the piece the inner pick reads — by its
-/// path ([`crate::eval::Pieces::piece`]).
+/// **The piece the pick `var` reads**, walked from its copy's value by
+/// the path it reaches ([`Doc::pick_path`], a pick of a pick's composed)
+/// ([`crate::eval::Pieces::piece`]).
 fn picked<'e, P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &'e Evaluation<T>,
     var: crate::VarId,
 ) -> Result<&'e crate::eval::Piece<T>, ProductError> {
     let stranded = || ProductError::StrandedProduct { read: var };
-    let Some(pick) = doc.pick(var) else {
+    let Some((copy, path)) = doc.pick_path(var) else {
         unreachable!("asked of a pick")
     };
-    let mut pieces = match doc.pick(pick.placement) {
-        Some(_) => picked(doc, evaluation, pick.placement)?
-            .carry
-            .pieces
-            .as_deref(),
-        None => {
-            let node = doc
-                .defined_by(pick.placement)
-                .map(|(node, _)| node)
-                .filter(|&node| doc.node(node).is_some())
-                .ok_or_else(stranded)?;
-            evaluation
-                .usable(node)
-                .map_err(ProductError::Read)?
-                .carry
-                .pieces
-                .as_deref()
-        }
-    };
+    let node = doc
+        .defined_by(copy)
+        .map(|(node, _)| node)
+        .filter(|&node| doc.node(node).is_some())
+        .ok_or_else(stranded)?;
+    let mut pieces = evaluation
+        .usable(node)
+        .map_err(ProductError::Read)?
+        .carry
+        .pieces
+        .as_deref();
     let mut reached = None;
-    for &step in &pick.of {
+    for &step in &path {
         let piece = pieces
             .and_then(|held| held.piece(step))
             .ok_or_else(stranded)?;

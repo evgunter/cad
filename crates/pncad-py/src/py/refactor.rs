@@ -229,7 +229,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::NamedReadUncarried { var } => (
+        E::NamedReadUncarried { var, why: _ } => (
             none(),
             none(),
             none(),

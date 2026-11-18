@@ -2330,6 +2330,7 @@ NOT_BOUND = {
     # slots share is a `Var` it names first (`DocEdit.rename_var`).
     "FreshEntry": SHAPE,
     "Uncarried": SHAPE,
+    "NamedUncarried": SHAPE,
     "Affine3": SHAPE,
     "Applied": SHAPE,
     "Axis3": SHAPE,

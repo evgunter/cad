@@ -2242,6 +2242,28 @@ impl<P> Doc<P> {
         self.vars.get(&var)?.def().pick()
     }
 
+    /// **The copy a pick reaches into, and the path it reaches by**: a
+    /// pick of a pick reads the inner piece's piece, so its path is the
+    /// inner pick's then its own, down to the copy no pick defines. The
+    /// one composition every reader of a pick walks: the edit door's
+    /// check, the seat's evaluation, the product's gather and split's
+    /// heir. `None` where `var` is no pick; a chain of picks that repeats
+    /// (which no door writes) ends at the repeat.
+    #[must_use]
+    pub fn pick_path(&self, var: VarId) -> Option<(VarId, Vec<VarId>)> {
+        self.pick(var)?;
+        let mut path = Vec::new();
+        let mut at = var;
+        let mut seen = BTreeSet::new();
+        while seen.insert(at)
+            && let Some(pick) = self.pick(at)
+        {
+            path.splice(0..0, pick.of.iter().copied());
+            at = pick.placement;
+        }
+        Some((at, path))
+    }
+
     /// **The selection `var` is defined by**, if it is one.
     pub fn selection(&self, var: VarId) -> Option<&crate::var::Select> {
         self.vars.get(&var)?.def().select()
