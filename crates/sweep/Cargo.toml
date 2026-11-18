@@ -65,6 +65,9 @@ topo = { path = "../topo" }
 # `Real::from_computed` rather than as a constant. `test-support` for
 # `geom_core::test_support::fixture_lever`, a row's stated arm.
 geom-core = { path = "../geom-core", features = ["sym-revalue-testing", "test-support"] }
+# `test-support` for `geom::Frame::admitted`, the `f64` door that keeps a
+# stated rigid fixture frame's bits.
+geom = { path = "../geom", features = ["test-support"] }
 # Self dev-dependency: turns `test-support` on for THIS crate's own
 # integration tests without exposing it to production dependents. A
 # dev-dependency is in no consumer's build graph, and a flagless

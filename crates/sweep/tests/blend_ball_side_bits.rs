@@ -17,9 +17,14 @@
 //! `(Outer, Inner)` has no crossing — the two offsets miss — and
 //! answers poison, which pins nothing.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-// The pinned literals are the reduction's own bits; the ruled plane's
-// `u_ref` is its normal `(1, 1, 0).normalize()`, one ulp below `1/√2`,
-// and it is pinned as the bits the arm answered, not as the constant.
+// The pinned literals are the reduction's own bits. The ruled plane's
+// normal is `(1, 1, 0).normalize()`, one ulp below `1/√2`; the band's
+// `u_ref` is that normal squared into the band's frame (`geom::Frame::new`
+// over the ruling and the foot direction), which renormalizes it to the
+// `f64` nearest `1/√2` and writes its zeros `+0`. It is pinned as the bits
+// the arm answered, not as the constant. The fixtures' own frames are
+// admitted as stated (`geom::Frame::admitted`), so only the arm's frame
+// moves a bit.
 #![allow(clippy::approx_constant)]
 
 use crate::common::interval::iv;
@@ -53,34 +58,38 @@ fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
         rim: Point3::new(2.0, 0.0, 1.0),
     };
     let plane = Surface::Plane {
-        frame: geom::Frame::new(
+        frame: geom::Frame::admitted(
             Point3::new(0.0, 0.0, 1.0),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),
-        ),
+        )
+        .expect("a rigid fixture frame"),
     };
     let cyl = Surface::Cylinder {
-        frame: geom::Frame::new(
+        frame: geom::Frame::admitted(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),
-        ),
+        )
+        .expect("a rigid fixture frame"),
         radius: 2.0,
     };
     let sph1 = Surface::Sphere {
-        frame: geom::Frame::new(
+        frame: geom::Frame::admitted(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),
-        ),
+        )
+        .expect("a rigid fixture frame"),
         radius: 5.0f64.sqrt(),
     };
     let sph2 = Surface::Sphere {
-        frame: geom::Frame::new(
+        frame: geom::Frame::admitted(
             Point3::new(0.0, 0.0, 3.0),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),
-        ),
+        )
+        .expect("a rigid fixture frame"),
         radius: 8.0f64.sqrt(),
     };
     // (pairing, side_a, side_b, torus centre, major radius, setbacks)
@@ -242,32 +251,36 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
         lever: 1.0,
     };
     let px = Surface::Plane {
-        frame: geom::Frame::new(
+        frame: geom::Frame::admitted(
             Point3::new(1.0, 0.0, 0.0),
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
-        ),
+        )
+        .expect("a rigid fixture frame"),
     };
     let py = Surface::Plane {
-        frame: geom::Frame::new(
+        frame: geom::Frame::admitted(
             Point3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
-        ),
+        )
+        .expect("a rigid fixture frame"),
     };
     let pd = Surface::Plane {
-        frame: geom::Frame::new(
+        frame: geom::Frame::admitted(
             Point3::new(1.0, 0.0, 0.0),
             Vec3::new(1.0, 1.0, 0.0).normalize(),
             Vec3::new(0.0, 0.0, 1.0),
-        ),
+        )
+        .expect("a rigid fixture frame"),
     };
     let cz = Surface::Cylinder {
-        frame: geom::Frame::new(
+        frame: geom::Frame::admitted(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),
-        ),
+        )
+        .expect("a rigid fixture frame"),
         radius: 1.0,
     };
     // (pairing, side_a, side_b, cylinder origin, u_ref, setbacks)
@@ -294,7 +307,7 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
             Outer,
             Inner,
             [1.25, -0.25, 0.0],
-            [-1.0, -0.0, -0.0],
+            [-1.0, 0.0, 0.0],
             [0.25, 0.25],
         ),
         (
@@ -302,7 +315,7 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
             Outer,
             Outer,
             [1.25, 0.25, 0.0],
-            [-1.0, -0.0, -0.0],
+            [-1.0, 0.0, 0.0],
             [0.25, 0.25],
         ),
         (
@@ -310,7 +323,7 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
             Inner,
             Inner,
             [0.7436715123302204, -0.09722490292349413, 0.0],
-            [0.7071067811865475, 0.7071067811865475, 0.0],
+            [0.7071067811865476, 0.7071067811865476, 0.0],
             [0.11250322368518698, 0.12990753295868673],
         ),
         (
@@ -318,7 +331,7 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
             Inner,
             Outer,
             [1.1458876927113995, -0.49944108330467313, 0.0],
-            [0.7071067811865475, 0.7071067811865475, 0.0],
+            [0.7071067811865476, 0.7071067811865476, 0.0],
             [0.45631635361577966, 0.408141754371886],
         ),
         (
@@ -326,7 +339,7 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
             Outer,
             Outer,
             [1.2453040074843305, 0.1082493831089434, 0.0],
-            [-0.7071067811865475, -0.7071067811865475, -0.0],
+            [-0.7071067811865476, -0.7071067811865476, 0.0],
             [0.0969122542888112, 0.08668095537701102],
         ),
     ];
@@ -363,10 +376,13 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
 }
 
 /// **The plane–plane band's seam reference is its first support's foot
-/// direction, `±n_a`, to the bit**: `n_a` on a convex chain, its exact
-/// negation on a concave one, never the foot point less the centre (a
-/// radius-scale offset read off body-scale points). At `Interval` it is
-/// no wider than `n_a` itself.
+/// direction, `±n_a`, to the bit of its own renormalization**: `n_a` on a
+/// convex chain, its exact negation on a concave one, squared into the
+/// band's frame about the edge (`geom::Frame::new`, whose residual here
+/// is the foot direction itself, the edge being square to it), never the
+/// foot point less the centre (a radius-scale offset read off body-scale
+/// points). At `Interval` it is no wider than that renormalization of
+/// `n_a` itself.
 #[test]
 fn the_plane_plane_bands_u_ref_is_its_first_supports_foot_direction() {
     let n = Vec3::new(0.0, 1.0, -0.6).normalize();
@@ -383,7 +399,7 @@ fn the_plane_plane_bands_u_ref_is_its_first_supports_foot_direction() {
             panic!("{convexity}: the plane–plane arm mints a cylinder");
         };
         let u_ref = carrier_frame.u_ref();
-        let want = n * sign;
+        let want = (n * sign).normalize();
         for (got, want, c) in [
             (u_ref.x, want.x, "x"),
             (u_ref.y, want.y, "y"),
@@ -393,19 +409,20 @@ fn the_plane_plane_bands_u_ref_is_its_first_supports_foot_direction() {
         }
         let ivv = |v: Vec3<f64>| v.map(iv);
         let n_i = ivv(n);
+        let unit_i = (n_i * iv(sign)).normalize();
         let blend = plane_plane_blend(p.map(iv), ivv(tau), n_i, ivv(up), iv(0.1), convexity);
         let Surface::Cylinder { frame, .. } = blend.surface else {
             panic!("{convexity}: the plane–plane arm mints a cylinder at Interval");
         };
         let u_ref = frame.u_ref();
         for (got, of, c) in [
-            (u_ref.x, n_i.x, "x"),
-            (u_ref.y, n_i.y, "y"),
-            (u_ref.z, n_i.z, "z"),
+            (u_ref.x, unit_i.x, "x"),
+            (u_ref.y, unit_i.y, "y"),
+            (u_ref.z, unit_i.z, "z"),
         ] {
             assert!(
                 got.hi() - got.lo() <= of.hi() - of.lo(),
-                "{convexity} u_ref.{c} at Interval: {got:?} is wider than n_a's {of:?}"
+                "{convexity} u_ref.{c} at Interval: {got:?} is wider than n_a's renormalization {of:?}"
             );
         }
     }
