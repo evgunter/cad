@@ -30,9 +30,9 @@ What the unit carries, from the three designers' converged reports
    engine refusal refuses typed and never reads Ok. For a loft, the
    editor maps the faces through `Lofted`'s face roles to walls and
    section ranges.
-3. **Exclude recorded contact pairs.** This is a face-pair exclusion
-   on `topo::clearance::Side`, since a tier-3′ body is not injective at
-   its records.
+3. **Ask each solid against itself** (fork `embed-records`, below).
+   The gate never pairs faces of two solids: a meeting between solids
+   is the census's, and an assembly's is its `⊔`'s to record or report.
 4. **Keep the gate's verdict per node by content key**, which is
    PR 3870's "once, at the door that built it". Today
    `finished_operand` and the product gather re-gate on every
@@ -652,11 +652,11 @@ filed below. Rows touched: this one, and
     stations, made at the body's own scalar after the sweep returns.
     It is the one logged row, and at `Interval` its straddle is the
     drive's cue.
-- **Item 3:** `Side` (`clearance.rs` ~373) gains a face-pair
-  exclusion, built from the body's `ContactRecords` (`records.rs`
-  ~316: `face_face`, `edge_face`, `vertex_face` and the rest, each
-  cited cell reduced to its faces). The engine never offers an
-  excluded pair.
+- **Item 3:** the gate asks the verdict door once per solid, over that
+  solid's faces (`Side::faces` scopes the ask), and never offers the
+  engine a pair of faces of two solids. `finish` is handed no records
+  for this: none is in play between the faces of one solid, except a
+  record whose two cells lie in that solid (below).
 - **The loft:** `LoftError::SelfIntersecting` names the two faces by
   their `Lofted` roles (`loft.rs` ~131: `side_faces[l][j][s]`, `top`,
   `bottom`) and the section range each meets in.
@@ -664,15 +664,92 @@ filed below. Rows touched: this one, and
   - the 9 and 13 rad arc spines, the closed spine and CARVETAIL's
     loft refuse at their door at `f64` with `BoundaryMeetsItself` and
     the roles of table 2. Today they ship;
-  - `bench`, `bench60` and `bench90` finish: their contacts are
-    excluded. Today the question reads `Violated` at 0;
+  - `bench`, `bench60` and `bench90` finish: no pair between two
+    copies is asked. Asked of the whole body the question reads
+    `Violated` at 0;
+  - a product whose copies overlap finishes, with its interference
+    finding;
   - an engine refusal reads `EmbeddingUncertified`: the box leaf at
     `w = 0.1`, until lane B moves it.
 - **Mutants:** no gate call (the spine rows ship); a refusal mapped to
-  `Ok` (the uncertified row ships); no exclusion (the bench refuses).
+  `Ok` (the uncertified row ships); the gate pairs faces of two solids
+  (a bench and the overlapping product refuse).
 - **Gates:** every suite, the tour walk (85 bodies) and `demos/wild`.
   The price is table 1's: 4–25× tier 3 on planar bodies, and up to
   9.2 s on the Klein loop.
+
+### Fork `embed-records`: what the gate asks, and of what
+
+Raised by the gate lane on 2026-11-17: `AtRestBody::validate` is
+handed no `ContactRecords`, so an exclusion "built from the body's
+records" has nothing to read at `finish`. Two designers converged
+after three rounds (`docs/DESIGN-FORK-LOG.md`, row 287); the answer is
+in `docs/DESIGN.md` `[topology.tiers]`.
+
+- **The certificate is each solid's.** Lane C's gate asks per solid.
+- **The finished body holds its records**, and the gate confirms each
+  before anything relies on it. `BooleanBody::contacts`, the
+  evaluator's `Carry`, `Product`, the import's copy and the Python
+  `Body`'s become reads of the finished body. A door carries its
+  operands' records through its lineage before its finish, not after.
+  The Boolean's `gate` already holds them (`Held`); `shell`, split and
+  blend take a bare body today. This closes into it
+  `work/atrest/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md`
+  and its two neighbours on the same gap.
+- **A solid that holds a recorded contact between two of its own
+  cells refuses typed at the gate** (Ev, PR 7068, 2026-11-18:
+  "refusing for now sounds good"; the long run is open,
+  `[open.self-contact]`). The two candidates: the certificate reads
+  around the recorded cells as around a shared vertex or edge, the
+  gate first confirming the record with the census's self-touch
+  reading (both designers' recommendation, and
+  `a-recorded-contact-refuses-the-injectivity-question-until-contact-design-hands-it-off`'s
+  third candidate for records inside one solid); or the recorded face
+  pair is left out. An area self-touch inside one shell keeps its
+  typed refusal (`TouchesItself`). **What it refuses meanwhile:**
+  nothing in the demos (tour 0 of 86 stops, `demos/wild` 0 of 8
+  cells); in the workspace, the rows that build a self-touching solid
+  on purpose and hold its record (the gate lane's count is on this
+  row's `## Census`).
+- **After an op over an assembly, its pieces stay pieces, and the op
+  answers only for what it made** (the fork's third part, rewritten
+  after Ev's questions on PR 7068; nothing about an overlap rides the
+  finished body, and `[open.lint-output]` is untouched).
+  - Cells a door carried unchanged between two solids that descend
+    from different pieces of one operand keep the meeting they arrived
+    with: a recorded touch keeps its record, a reported overlap stays
+    the `⊔`'s finding, reported once. No gate reads that pair again.
+  - Cells a door made (minted or moved) are read once against the
+    other pieces. A removing door (`−`, `∩`, split, shell) cannot make
+    an overlap, but can leave a bare touch (two crossed bars, the
+    overlapping centre cut out: four stubs touching along edges the
+    cut made), and records it. A wall cut where the pieces already
+    overlapped is the old overlap. Old or new is read off the operand.
+  - A solid that crosses itself never passes: a `∪` whose added
+    material fuses two overlapping pieces refuses on the per-solid
+    certificate. (An overlapping assembly used as a cut's tool refuses
+    today for the same reason, which is a kernel limit and not a rule:
+    Ev, PR 7068, "the same as cutting by one of the interfering parts
+    and then the other";
+    `work/seal/a-cut-by-a-tool-whose-pieces-overlap-is-cut-as-it-stands.md`.)
+  - **A fillet whose added material reaches the neighbouring piece is
+    a new interference finding at the fillet, never a refusal** (Ev,
+    PR 7068, 2026-11-18). `[operations.operators]` and
+    `[topology.records]` say so.
+  - Confirming the records a door writes between solids it cuts out of
+    one piece is tier 3′, parked on
+    `work/reachhold/boolean-door-runs-the-census-over-its-result.md`.
+  - **Pins:** an overlapping assembly cut, met, split and shelled
+    finishes with one interference finding, at the assembly, and no
+    gate read between carried cells of different pieces (mutant: the
+    gate reads that pair); the crossed bars give four edge records,
+    each citing the cut; `(bolt ⊔ plate) − pin` reports one finding,
+    not six; a `∪` fusing both overlapping pieces refuses.
+
+**Order.** The per-solid ask lands with lane C. The records moving
+into the finished body, the confirmed meeting place and the census
+inside a deciding door's finish are units of their own, cut when lane
+C lands.
 
 ### Lane D — once per node; the viewer's preview (M)
 
