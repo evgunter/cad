@@ -336,8 +336,7 @@ impl Unsized {
 
     /// The ending a residual's refusal carries on `arm` at the import
     /// door (D4 ¶1): a miss within the file's declared coincidence
-    /// distance but beyond ε names setting ε to ε_in as a stopgap, beside
-    /// re-exporting the file more precisely
+    /// distance but beyond ε names re-exporting the file more precisely
     /// ([`FileCoincidence::miss_recourse_in_file`]); any other reading
     /// ends as the door ends it ([`Unsized::recourse`]). A residual passes
     /// only at zero, so its refused margin is a miss, on the sign-certain

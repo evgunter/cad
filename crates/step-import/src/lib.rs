@@ -42,16 +42,21 @@
 //!    structure is realized through `topo`'s public Euler operators
 //!    (`mvfs`/`mev`/`mef`, the ring vocabulary, scaffold struts killed
 //!    by their inverse ops) — the sanctioned construction path, D1.
-//! 4. **Adoption** ([`adopt`]): surfaces attach (bitwise-identical
-//!    records share one kernel surface key, restoring the writer-side
-//!    key sharing), `same_sense` lands as [`topo::Face::sense`]
-//!    honored, not healed, and every edge's intensional description is
-//!    **rebuilt and certified** by the kernel's own gates: intersection
-//!    / tangent-intersection for edges between distinct surfaces, and
-//!    the pair the must-carry rule answers where they under-determine
-//!    a smooth join; seam / conventional mapped-curve for edges inside
-//!    one surface; the
-//!    boundary iso-curve rung for NURBS wall seams (M7-3). Pcurve
+//! 4. **The build and adoption** ([`build`], [`adopt`]): every edge's
+//!    description is chosen off its faces' surfaces at the file band,
+//!    and every cache is built from it by the kernel's own
+//!    constructions — the carrier (section, tangent locus, a wall's iso,
+//!    a seam generator, an image in one chart), each vertex where built
+//!    carriers meet or else at the foot of its printed point, each
+//!    interval by the carrier's own inverse. A printed curve is kept
+//!    only where the description is that curve in one chart (an arc rim
+//!    beside its cap, a curve inside one surface), held on its surfaces
+//!    at the file band and kept within its own rounding. Surfaces attach (bitwise-identical records
+//!    share one kernel surface key, restoring the writer-side key
+//!    sharing), `same_sense` lands as [`topo::Face::sense`] honored, not
+//!    healed, and the one built description is **certified** by the
+//!    kernel's own gates at ε; a smooth join the must-carry rule answers
+//!    with the pair alone refuses not-yet-supported. Pcurve
 //!    caches re-mint through [`topo::mint_pcurves`] (every curved
 //!    chart that mints natively mints here — cylinder, cone, sphere,
 //!    torus, described non-rational NURBS; plane faces stay
@@ -143,7 +148,7 @@
 //! Every refusal is a typed [`StepImportError`] naming the offending
 //! entity id / line: malformed syntax, dangling references,
 //! unsupported entity types, units outside the subset, and geometry
-//! the adoption ladder cannot explain. No panics; no silent guesses;
+//! the build cannot interpret at the file band or that does not certify. No panics; no silent guesses;
 //! no lenient re-interpretation.
 //!
 //! # NURBS faces (M7-3)
@@ -221,8 +226,8 @@
 //! the point of refusal: a curved face carrying a genuine interior
 //! ring, which this reader adopts on no curved chart yet — `topo`
 //! measures one on a cone wall and on a cylinder or torus wall bounded
-//! by rims and rulings, and no other — and edges the D7 ladder cannot
-//! certify, the same refusal it has always been. Open CASCADE's
+//! by rims and rulings, and no other — and edges whose built description does
+//! not certify. Open CASCADE's
 //! seamless periodic band NORMALIZES since
 //! M7-5: cylinder and torus bands take the seam re-mint
 //! ([`NormalizationKind::SeamlessPeriodicBand`]); band shapes on

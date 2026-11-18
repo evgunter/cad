@@ -2999,6 +2999,10 @@ fn import_report_row_tags_are_stable() {
             "one_record",
         ),
         (
+            NormalizationKind::VertexBuilt { moved_by: 2.4e-16 },
+            "vertex_built",
+        ),
+        (
             NormalizationKind::CurvePromoted {
                 kind: pncad::step_import::PromotedCurveKind::Circle,
                 residual: 1e-17,
@@ -5370,6 +5374,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_re_minted",
             "seamless_periodic_band",
             "surface_promotion",
+            "vertex_built",
         ],
         delegates: &[],
     },

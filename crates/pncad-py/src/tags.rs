@@ -2281,6 +2281,7 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::PlacementReMinted { .. } => "placement_re_minted",
         NormalizationKind::OneRecord { .. } => "one_record",
         NormalizationKind::CurvePromoted { .. } => "curve_promoted",
+        NormalizationKind::VertexBuilt { .. } => "vertex_built",
     }
 }
 

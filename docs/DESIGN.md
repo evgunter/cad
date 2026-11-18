@@ -604,8 +604,8 @@ A side no kernel construction produces panics at a build and past the
 import door, and at the import door is the file's like any other. No
 refusal names a lever the decision does not.
 
-How each door applies these (the import door's ε_in sentences and its
-stopgap, `Indeterminate`'s rendering, `COINCIDENCE_RECOURSE`, the review
+How each door applies these (the import door's ε_in sentences,
+`Indeterminate`'s rendering, `COINCIDENCE_RECOURSE`, the review
 checklist) is `crates/geom-core/README.md`, "The recourse rules at each
 door".
 

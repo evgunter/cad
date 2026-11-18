@@ -962,7 +962,9 @@ pub enum ClassCarrier<T: Real> {
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::VariantArray))]
 pub enum NoCarrier {
     /// The surfaces are tangent along the component or at it, a C7
-    /// construction the section does not mint.
+    /// construction the section does not mint: its locus is
+    /// [`crate::tangent_locus`]'s or, for a coaxial pair,
+    /// [`coaxial_tangent_circle`]'s.
     Tangent,
     /// The thinner cylinder touches the fatter one from inside, at a node
     /// the two lobes end at; no march that starts at a node is built.

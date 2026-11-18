@@ -1788,8 +1788,10 @@ impl FileCoincidence {
 
     /// **A residual's miss read at the import door** (D4 ¶1, D7): a
     /// certification refusal whose miss lies beyond ε and within ε_in
-    /// names setting ε to ε_in as a stopgap, beside re-exporting the file
-    /// more precisely. Beyond ε is the classifier's placement: a definite
+    /// names re-exporting the file more precisely. It offers no tolerance:
+    /// every cache an import adopts is built at ε from what the file is
+    /// read to describe at ε_in (D7 `[import]`), so ε_in is never a
+    /// setting that certification could be run at instead. Beyond ε is the classifier's placement: a definite
     /// miss lies past the band, and a banded one wholly past its zero
     /// threshold. Within ε_in is the reading's farther end; where only its
     /// nearer end lies within ε_in, the miss "may lie" within it.
@@ -1820,10 +1822,7 @@ impl FileCoincidence {
     ) -> String {
         let eps_in = self.eps_in;
         let eps_shown = Readable(eps_in);
-        let stopgap = format!(
-            "Recourse: re-export the file more precisely, or, as a stopgap, set the tolerance to \
-             ε_in = {eps_shown} m"
-        );
+        let recourse = "Recourse: re-export the file more precisely";
         let within = match miss {
             MissReading::Banded(margin, band) => match margin.magnitudes() {
                 Some((near, _)) if near > band.zero => margin.within(eps_in),
@@ -1834,7 +1833,7 @@ impl FileCoincidence {
                 return match bound.within(eps_in) {
                     Some(Within::Wholly) => format!(
                         "The certificate's bound on this miss lies within the file's declared \
-                         coincidence distance ε_in = {eps_shown} m. {stopgap}; this refusal may \
+                         coincidence distance ε_in = {eps_shown} m. {recourse}; this refusal may \
                          indicate a kernel bug worth reporting"
                     ),
                     Some(Within::Partly) | None => otherwise.to_owned(),
@@ -1854,7 +1853,7 @@ impl FileCoincidence {
         );
         match (source, within) {
             (MissSource::File, Within::Wholly) => {
-                format!("{head}, to which alone the file's data claims to agree. {stopgap}")
+                format!("{head}, to which alone the file's data claims to agree. {recourse}")
             }
             (MissSource::File, Within::Partly) => format!(
                 concat!(
@@ -1862,10 +1861,10 @@ impl FileCoincidence {
                      there means the file is damaged, worth reporting ",
                     crate::to_the_files_writer!()
                 ),
-                head, stopgap
+                head, recourse
             ),
             (MissSource::Fit, _) => format!(
-                "{head}, and may be the kernel's own approximation. {stopgap}; this refusal may \
+                "{head}, and may be the kernel's own approximation. {recourse}; this refusal may \
                  indicate a kernel bug worth reporting"
             ),
         }
@@ -4285,30 +4284,28 @@ mod tests {
         }
     }
 
-    /// **A miss within ε_in but beyond ε names the stopgap** (D4 ¶1):
+    /// **A miss within ε_in but beyond ε names re-exporting the file** (D4 ¶1):
     /// a banded miss past the zero threshold, or a definite one, where its
     /// reading lies within ε_in, or "may lie" within it where only its
     /// nearer end does. A miss the kernel's fit may have made keeps the
     /// kernel-bug note and claims nothing of the file's data. Anything
     /// else keeps its at-rest ending.
     #[test]
-    fn a_miss_within_eps_in_names_setting_eps_to_eps_in() {
+    fn a_miss_within_eps_in_names_re_exporting_the_file() {
         let band = band_1e9();
         let file = FileCoincidence::new(1e-6);
         let file_words = |lies: &str, tail: &str| {
             format!(
                 "This miss lies beyond the tolerance and {lies} the file's declared coincidence \
                  distance ε_in = 1e-6 m, to which alone the file's data claims to agree. \
-                 Recourse: re-export the file more precisely, or, as a stopgap, set the \
-                 tolerance to ε_in = 1e-6 m{tail}"
+                 Recourse: re-export the file more precisely{tail}"
             )
         };
         let fit_words = |lies: &str| {
             format!(
                 "This miss lies beyond the tolerance and {lies} the file's declared coincidence \
                  distance ε_in = 1e-6 m, and may be the kernel's own approximation. Recourse: \
-                 re-export the file more precisely, or, as a stopgap, set the tolerance to ε_in = \
-                 1e-6 m; this refusal may indicate a kernel bug worth reporting"
+                 re-export the file more precisely; this refusal may indicate a kernel bug worth reporting"
             )
         };
         let persists = "; a miss that persists there means the file is damaged, worth reporting \

@@ -60,8 +60,8 @@ const WILD_REFUSALS: [(&str, &str); 5] = [
     // that IS a circle (deg 2, 7 points, weights `1, ½, …`, the 3×120°
     // form, r = 5 mm), stage-1 curve recognition certifies it against
     // an EXACT ring-composite bound and promotes it to `Curve3::Circle`,
-    // and the existing arc-rim rungs (`arc_rim_on_wall_boundary` +
-    // `RevolvedPoint` at the full period) carry it. Every edge of
+    // and the build's arc-rim path (the `step_rim_on_wall` check +
+    // `RevolvedPoint` at the full period) carries it. Every edge of
     // every instance now adopts and every pcurve mints and certifies.
     //
     // **The fragment carries the refusing door by name**, not a

@@ -914,7 +914,7 @@ mod nested_at_the_door {
     /// the import door, with no margin or with the pose height it may
     /// quote (`OffMargin::Past`, within ε_in here), is the file's, whoever
     /// declared the curve; its margin is no reading of the miss, so the
-    /// door's "set ε to ε_in" stopgap is not offered.
+    /// door's within-ε_in sentence is not offered.
     #[test]
     fn an_adopted_curve_off_its_face_names_the_damaged_file() {
         for margin in [

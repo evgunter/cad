@@ -1,7 +1,7 @@
 //! D7 adoption (Leg C, phases B–C): loop→face designation, surface
 //! attachment with key sharing, `same_sense` honored verbatim, and the
-//! **edge-adoption ladder** — every edge's intensional description
-//! rebuilt and certified by the kernel's own gates.
+//! certification of every edge's built description by the kernel's
+//! own gates.
 //!
 //! # Phase B — faces
 //!
@@ -14,34 +14,32 @@
 //! surface records share one kernel surface key** (`FaceSurface::
 //! Shared`), restoring the writer-side sharing that the per-face
 //! record emission flattened — this is what makes a seam edge's
-//! same-surface-both-sides state visible to the ladder. `same_sense`
+//! same-surface-both-sides state visible to the build. `same_sense`
 //! is stated beside the surface exactly as read (the corpus's reversed
 //! faces are deliberate kernel output — honored, never healed).
 //!
-//! # Phase C — the edge ladder (D7 stage 2)
+//! # Phase C — the built edges (D7 stage 2)
 //!
-//! For each edge, candidates in preference order (intrinsic before
-//! conventional — the kernel's own at-rest preference), each attempt a
-//! full [`topo::Body::set_edge_curve`] certification of the **parsed
-//! carrier** over the derived interval:
+//! Every edge arrives with one description and its carrier already
+//! built by the kernel's own constructions ([`crate::build`]): the
+//! carrier is never the file's curve record, only interpreted from it
+//! at the file band. Phase C states that one description and certifies
+//! it once through [`topo::Body::set_edge_curve`], at the kernel's ε:
 //!
-//! - first, on either branch, `IsoCurve`: a NURBS carrier bitwise equal
-//!   to an adjacent wall's boundary column;
-//! - distinct adjacent surfaces: `Intersection`, then
-//!   `TangentIntersection`, then one conventional rung — an image in
-//!   the plane's chart for a plane against a NURBS wall (the rim), else
-//!   the pair where the must-carry rule answers it ([`must_carry_rung`];
-//!   an in-band or mixed join refuses through the rule);
-//! - one surface on both sides: `Wrap` where one face of a periodic
-//!   surface bounds both uses, then the image in that surface's chart,
-//!   declared by its mapped self-description.
+//! - `Intersection` and `Iso` as built;
+//! - `Tangent` through the must-carry rule ([`must_carry_rung`]): the
+//!   rule's own refusal stands, and a join the rule answers with the
+//!   pair rather than a carrier refuses not-yet-supported, naming the
+//!   under-determined smooth join's lane;
+//! - `Wrap` where one face of a periodic surface bounds both uses;
+//! - `Chart` as the image in one surface's chart, declared by its mapped
+//!   self-description (an arc rim beside a cap plane, or a curve in one
+//!   surface on both sides).
 //!
-//! The first candidate that certifies wins; if none does, the typed
-//! [`StepImportError::Adoption`] carries every attempt and its typed
-//! refusal (structured, for future remedy flows). A wrong guess
-//! cannot survive: certification pins endpoints, the mid-parameter
-//! witness, transversality/tangency margins, and seam-side residuals
-//! at the kernel's own ε.
+//! There is no ladder and no fallback: a description that does not
+//! certify refuses as [`StepImportError::Adoption`] with its one typed
+//! attempt. Certification pins endpoints, the mid-parameter witness,
+//! transversality/tangency margins and seam-side residuals at ε.
 
 use geom::Curve3;
 use geom::Surface;
@@ -459,13 +457,12 @@ fn adopt_edges(
 /// ([`geom_brep::reask_pair`], levered at its faces' `reach` as tier 3
 /// levers it, at the kernel's band). `Some(Ok)` is
 /// the conventional pair the rule answers for an under-determined join,
-/// offered to certification like any candidate. `Some(Err)` is the rule's
-/// typed refusal of an in-band or mixed join, which is certifiable as
-/// neither, so no conventional candidate stands in for it. `None` where the
-/// rule demands an intrinsic description, which the ladder's intrinsic
-/// rungs offer and certify, or where the rule reads no pair
-/// ([`geom_brep::must_carry_reads`]: a spline record on either side), whose
-/// edges the spline rungs own.
+/// which the import refuses not-yet-supported (that join's lane). `Some(Err)`
+/// is the rule's typed refusal of an in-band or mixed join, which is
+/// certifiable as neither. `None` where the rule demands an intrinsic
+/// description, the built tangent carrier that is then certified, or where
+/// the rule reads no pair ([`geom_brep::must_carry_reads`]: a spline record
+/// on either side).
 fn must_carry_rung(
     surfaces: [(geom_brep::SurfaceKey, &Surface<f64>); 2],
     carrier: &Curve3<f64>,
@@ -501,8 +498,8 @@ fn must_carry_rung(
 /// pushforward data (the same shapes native constructions store),
 /// exact for the parsed carrier. Ellipse/NURBS carriers have no
 /// mapped form (none exists in `geom_brep::MappedCurve`'s vocabulary,
-/// and no exported body puts one inside a single surface); the ladder
-/// then reports every refusal typed.
+/// and no exported body puts one inside a single surface); the edge
+/// then refuses typed.
 ///
 /// A **Nurbs-adjacent LINE rim** (`nurbs_rim`, M7-3 item 4) the
 /// `Intersection` rung did not certify — that rung, offered first,
@@ -528,8 +525,8 @@ fn must_carry_rung(
 /// `RevolvedPoint` in both cases — on a rational wall nothing mints
 /// (the native rational body's own state), and a non-rational wall
 /// has no arc rims to mint (its profile was a polyline). Arc rims on
-/// a rational wall additionally pass the [`arc_rim_on_wall_boundary`]
-/// residual gate BEFORE this rung is offered (review F1).
+/// a rational wall are held on the wall's boundary by the build's
+/// `step_rim_on_wall` check before this description is stated.
 fn mapped_self_description(
     carrier: &Curve3<f64>,
     p_start: Point3<f64>,
@@ -597,7 +594,7 @@ fn mapped_self_description(
 /// inside a certified body. Belt and braces on top of the conditioning
 /// argument: a frame that still cannot be completed (non-finite or
 /// zero direction) answers `None`, the conventional rung is WITHHELD,
-/// and the edge refuses typed through the ladder — never a silent
+/// and the edge refuses typed — never a silent
 /// degenerate placement.
 fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<f64>> {
     let (ax, ay, az) = (dir.x.abs(), dir.y.abs(), dir.z.abs());

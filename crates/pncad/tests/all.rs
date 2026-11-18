@@ -1574,6 +1574,10 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             named::<&f64>(moved_by);
             "one_record"
         }
+        NormalizationKind::VertexBuilt { moved_by } => {
+            named::<&f64>(moved_by);
+            "vertex_built"
+        }
         NormalizationKind::CurvePromoted { kind, residual } => {
             named::<&f64>(residual);
             match kind {

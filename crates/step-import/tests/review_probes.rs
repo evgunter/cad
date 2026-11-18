@@ -639,39 +639,38 @@ fn h8_eps_in_not_consumed() {
         matches!(coarse, Err(StepImportError::Interpretation { .. })),
         "a 1 m ε_in refuses the unit cube at interpretation: {coarse:?}"
     );
-    for eps in [1e-30] {
-        let import = import_step(
-            &text,
-            &ImportOptions {
-                eps_in: Some(eps),
-                ..ImportOptions::default()
-            },
-            Tol::witness(),
+    let eps = 1e-30;
+    let import = import_step(
+        &text,
+        &ImportOptions {
+            eps_in: Some(eps),
+            ..ImportOptions::default()
+        },
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| {
+        panic!(
+            "eps_in {eps} must not affect certification: {e_at}",
+            e_at = e.render()
         )
-        .unwrap_or_else(|e| {
-            panic!(
-                "eps_in {eps} must not affect certification: {e_at}",
-                e_at = e.render()
-            )
-        });
-        let StepImport::Solid { body, eps_in, .. } = import else {
-            panic!("wireframe?")
-        };
-        assert_eq!(eps_in, eps);
-        let v = topo::test_support::pinned_volume(
+    });
+    let StepImport::Solid { body, eps_in, .. } = import else {
+        panic!("wireframe?")
+    };
+    assert_eq!(eps_in, eps);
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
+        &topo::test_support::finished(
             "the measured body",
-            &topo::test_support::finished(
-                "the measured body",
-                body.clone().into_body(),
-                Tol::witness(),
-            ),
+            body.clone().into_body(),
             Tol::witness(),
-        )
-        .volume;
-        assert_eq!(
-            v.to_bits(),
-            1.0f64.to_bits(),
-            "identical body under eps_in {eps}"
-        );
-    }
+        ),
+        Tol::witness(),
+    )
+    .volume;
+    assert_eq!(
+        v.to_bits(),
+        1.0f64.to_bits(),
+        "identical body under eps_in {eps}"
+    );
 }
