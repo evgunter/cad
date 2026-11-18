@@ -1413,12 +1413,11 @@ fn a_two_arc_lunes_hollow_holds_moved_at_random() {
 /// Each ball's faces are read beside the waist in the waist's pose, where
 /// it is a parallel, and the pair still refuses `Departure` across an
 /// edge it shares beside the waist (so, too, with the head moved along
-/// `z`, or along `x` and `z`). The pose's cost guards (`unread_corner`, and a pose left out
-/// where a shared edge is no coordinate line of it) keep the walk from
-/// splitting each such cell to the depth cap: it measured 1,978 splits on
-/// this tree, and the bound is 4,096, a sixteenth of the walk's budget
-/// [`BUDGET`]. Red if the waist reads `Holds` or another arm, or a guard
-/// that stops standing sends the walk past the bound.
+/// `z`, or along `x` and `z`). It measured 1,978 splits on this tree; the
+/// bound is 4,096, a sixteenth of the walk's budget [`BUDGET`], so the
+/// row says the refusal comes within a bounded walk, not at the depth
+/// cap. Red if the waist reads `Holds` or another arm, or the walk runs
+/// past the bound (a pose read on the stored chart's sheets does).
 #[test]
 fn a_snowman_with_its_head_off_the_axis_refuses_at_its_waist() {
     let ball = |r: f64, y: f64| {

@@ -65,10 +65,11 @@
 //! - **the touch** ([`vacuous`], [`present_chart`]): a line within
 //!   [`few_ulps`] of the cell's side touches it, and a cell reaching no
 //!   more than [`few_ulps`] past a line onto its face side lies outside
-//!   it. In a pose ([`present_posed`]) a line is an enclosure of its
-//!   edge's lift, and touches where its far bound does, so the touch is
-//!   widened there by the enclosure's width, the lift's rounding; a
-//!   posed extent's overlap is read as a stored one's;
+//!   it. The touch is read in a pose ([`present_posed`]) too, where a
+//!   line is an enclosure of its edge's lift: it touches only where
+//!   every point of the enclosure does (its far bound), so the pose's
+//!   touch is the stored one's, no wider; a posed extent's overlap is
+//!   read as a stored one's;
 //! - **the cover** ([`covered`]): an edge whose range stops within
 //!   [`few_ulps`] of the cell's side covers it. (A side's edge is first
 //!   run on past a corner it makes with a line on the other axis, to
@@ -1656,7 +1657,8 @@ fn vacuous(
     outside.iter().any(|&(side, line, ei)| {
         let (lo, hi) = side.axis().of(cell);
         // In a pose a line is an enclosure of its edge, so it touches
-        // where its far end does; a stored line is a point.
+        // only where every point of it does, its far end (the end the
+        // comparison below binds); a stored line is a point.
         let (near, far) = (line.lo(), line.hi());
         let (near, far) = match side {
             Side::XLo | Side::YLo => (near, far),
@@ -2742,7 +2744,7 @@ fn unread_corner(
 /// first presentation, else `Local`. Both answers that keep the stored
 /// chart's `Structural` are **cost guards**, not soundness: each is a
 /// cell every smaller cell of the pair also holds unread, so reading on
-/// would only split to the depth cap before refusing. A pose's rectangle
+/// only splits further before the pair refuses. A pose's rectangle
 /// and ball are wider than the cell's, so what it finds unread in reach
 /// may lie outside the cell, and a smaller cell is placed tighter: no
 /// pose's own failure decides `Structural`.
@@ -13482,6 +13484,16 @@ mod posed_rows {
             ),
             "the whole triangle, by the poses' own failure"
         );
+        assert!(
+            !exit(
+                &s,
+                &b,
+                ((0.2, 1.4), (-0.05, 1.25)),
+                (&[0], &[vertex(1), vertex(3)])
+            )
+            .2,
+            "a cell touching the pair at two vertices, one of them T: a smaller cell parts them"
+        );
     }
 
     /// **The cap `x ≥ A`**: the one closed circle `x = A`, its vertex at
@@ -13946,6 +13958,93 @@ mod posed_rows {
                 "the cap, sense {sense}"
             );
         }
+    }
+
+    /// The face `x ≥ A`, `y ≤ B` of the unit sphere, its loop the long arc
+    /// of the circle `x = A` through `y < B` and the arc of `y = B`
+    /// through `x > A`, walked one way (`forward`) or the other: one
+    /// direction is the face, the other its complement.
+    fn x_and_y_cut(forward: bool) -> Boundary {
+        let b = 0.5_f64;
+        let s = across(A);
+        let (r, z0) = ((1.0 - b * b).sqrt(), (1.0 - A * A - b * b).sqrt());
+        let tx = (b / s).acos();
+        let (t0, t1) = (A.atan2(z0), A.atan2(-z0));
+        let flat = curve_use(forward, (0.0, 0.0), (0.0, 0.0));
+        Boundary {
+            sense: true,
+            edges: vec![
+                circle_rim(1, [1, 2], x_circle(), (tx, TURN - tx), flat.clone()),
+                circle_rim(
+                    2,
+                    [1, 2],
+                    (pt(0.0, b, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0), r),
+                    (t0, t1),
+                    curve_use(!forward, (0.0, 0.0), (0.0, 0.0)),
+                ),
+            ],
+            vertices: BTreeMap::from([(vertex(1), pt(A, b, z0)), (vertex(2), pt(A, b, -z0))]),
+            extent: None,
+        }
+    }
+
+    /// **A loop round its pose's pole is granted no extent in that pose,
+    /// whatever its lifted area** ([`posed_extent`]): the face `x ≥ A`,
+    /// `y ≤ B` holds the pole `(1, 0, 0)` of the pose about `x`, its loop
+    /// winding once round it at varying latitude, so the forced-closed
+    /// polygon's area is no rounding, and in the pose about `y` it holds
+    /// neither pole. Walked as the face, only the pose about `y` grants an
+    /// extent, holding a point near `(1, 0, 0)`; walked as the complement,
+    /// which holds a pole of each, neither does. Red if the wrap goes
+    /// unchecked: the pose about `x` then grants a turn-wide hull.
+    #[test]
+    fn a_loop_round_its_poses_pole_is_granted_no_extent_there() {
+        let p = on_sphere([0.95, 0.1, 0.1]);
+        let mut got = [true, false].map(|f| holding(&x_and_y_cut(f), p));
+        got.sort();
+        assert_eq!(got, [vec![None, None], vec![None, Some(true)]]);
+    }
+
+    /// **A cell outside the face beside its pose's parallel misses the
+    /// posed extent** ([`posed_extent`], [`sheets`]): a cell of the
+    /// triangle's stored chart at latitude 0.5, its longitude 5e-4 to
+    /// 1.5e-3 past the circle `x = A`, the circle in its reach, so outside the face (`x < A`) though
+    /// inside its stored extent, and clear of the circle by more than the
+    /// touch. The stored chart reads the circle as no line; in the pose
+    /// about `x` the cell lies below the parallel `asin A`, which the
+    /// face's posed extent starts at, so it holds none of the face
+    /// (`Vacuous`). Red if a missed posed extent is not read.
+    #[test]
+    fn a_cell_outside_the_face_beside_its_poses_parallel_misses_the_posed_extent() {
+        let (s, b) = (sphere(), triangle());
+        let phi: f64 = 0.5;
+        let lc = (A / phi.cos()).acos();
+        let cell = ((lc + 5e-4, lc + 1.5e-3), (phi - 5e-4, phi + 5e-4));
+        let (_, ball) = reach(&s, &b, cell);
+        // The circle in the stored cell's reach, as a cell beside it holds
+        // it; the pose reads its own rectangle's reach ([`poses_of`]).
+        let local = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let piece = Piece {
+            face: face(1),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: cell.0,
+            v: cell.1,
+            local: &local,
+            ball,
+        };
+        let poses = Poses::default();
+        let got = present(&piece, &[0], &[], band(), &poses);
+        assert!(
+            matches!(got, Ok(Presentation::Vacuous)),
+            "outside the face, beside the parallel: {:?} (local {:?})",
+            got.as_ref().err(),
+            local.edges
+        );
     }
 
     /// **A face with its pose's pole on its boundary is granted no
