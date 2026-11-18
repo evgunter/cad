@@ -67,3 +67,8 @@
   Closed the unit and the six rows it claimed. `wild-nist-ftc-09-refuses-import-at-eps-1e-12` stays open for the snap unit. No model-compare row (Fable outage, rule 12). Next: file and dispatch the snap catalogue unit.
 
 - 2026-11-18 — Filed and dispatched the snap catalogue unit `import-snaps-each-zero-relation-by-a-closed-catalogue` (P1, H, dual; branch importgate/snap) on a cloud Opus session from main.
+
+- 2026-11-19 00:00 — The snap census came back from session_01BJC3B1rGRVP4Ex8YsWko8P. All SNAP_LANE refusals are nist_ftc_09's plane × cylinder tangencies, in fillet chains: gaps of 1.5–13 µm, cylinder axes in-plane bit-exactly. No coaxial or axis-normal relation is Zero at the file band and apart at the run band. One locus: TAIL_TURBINE's two cylinder records, bit-identical except u_ref. Rulings:
+  - Fork 1, (a): the tangent construction translates a fillet cylinder's axis perpendicular to itself, every plane kept. Conditions: the move itself reads Zero at the file band; the class is certified exact after the move; parallel planes, three or more tangencies, or a coaxial partner refuse unsolvable. The choice of mover is stated in the PR body for Ev.
+  - Fork 2: nist_ftc_09 still refuses on cylinder C5139's 56.8 µm in-band gap, which is the file's ambiguity by D7. Its row stays open with that evidence; the six snapped tangencies are pinned by their own row.
+  - Accepted: adjacent pairs only; exact relations as constraints; the `Snapped` ledger kind.
