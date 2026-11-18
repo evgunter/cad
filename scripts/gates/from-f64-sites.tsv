@@ -2,6 +2,7 @@
 # (file, argument), tab-separated: file, count, class, argument, reason.
 # The classes and what each one means are in the gate's header.
 crates/editor-core/src/analysis.rs	4	constant	value	a free variable's authored nominal; the box's offset, or the door's symbol, is the variable, and a Fixed axis holds it at that nominal (a constant at every scalar)
+crates/editor-core/src/coincide/replay.rs	1	constant	geom_core::Bounds::hi(arm.length()).log2().ceil().exp2()	the power of two at or above a decided pair's reach, a lever's scale: a positive constant factor, so the margin it levers is zero as a polynomial exactly where its sine is
 crates/editor-core/src/doc.rs	1	constant	value	a free variable's authored nominal, bound unvaried
 crates/editor-core/src/eval/mod.rs	1	constant	self.angle	a computing twist's stated angle (EvalOptions::computing_twist, test-facing), written in f64 by its caller
 crates/editor-core/src/eval/mod.rs	1	constant	v[0]	a computing twist's stated part (EvalOptions::computing_twist, test-facing), a motion written in f64 by its caller

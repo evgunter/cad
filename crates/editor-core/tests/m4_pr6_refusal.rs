@@ -540,19 +540,18 @@ fn program_structure_doors_refuse_typed_at_load() {
         serde_json::to_string_pretty(&v2).unwrap()
     );
     match load(&mangled2, Tol::witness()) {
-        Err(PersistError::ProfileProgram {
-            node,
-            fault:
-                editor_core::ProgramFault::Lattice {
-                    loop_: 0,
-                    step,
-                    verb: None,
-                    ..
-                },
-        }) => {
-            assert_eq!(node.id(), chain);
-            assert_eq!(step, n_left, "one past the end: the chain never closed");
-        }
+        Err(PersistError::ProfileProgram { node, refusal }) => match *refusal {
+            editor_core::ProgramRefusal::Transition {
+                loop_: 0,
+                step,
+                verb: None,
+                ..
+            } => {
+                assert_eq!(node.id(), chain);
+                assert_eq!(step, n_left, "one past the end: the chain never closed");
+            }
+            other => panic!("an unclosed chain must refuse on the lattice, got {other:?}"),
+        },
         other => panic!("an unclosed chain must refuse typed at load, got {other:?}"),
     }
     // The unmangled file loads and the program survives bit-exactly.
@@ -568,10 +567,10 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
     // v4's stronger posture (MAJOR-DELTA-1's inversion, moved a layer
     // UP): the retired stale-joint attack corrupted the pub payload
     // and needed the SAVE door to catch it. A lattice-violating
-    // program is refused already at `apply` (the VQ9 authoring-time
-    // check runs resolve + replay), so the corrupt state never enters
-    // a document at all — and the save-door twin (the shared
-    // validator's replay probe) stays for parsed files.
+    // program is refused already at `apply` (the lattice check, values
+    // erased), so the corrupt state never enters a document at all —
+    // and the save-door twin (the shared validator's same walk) stays
+    // for parsed files.
     use editor_core::{EditError, LoopProgram, ProgramRefusal, ProgramStep};
     let doc = ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness());
     let unclosed = editor_core::ProfileProgram {
