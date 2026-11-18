@@ -273,7 +273,7 @@ of them is a defect.
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -895,7 +895,14 @@ tiers".
   built it; construction state becomes a finished body only through
   that gate. An isometry, exact apart from rounding, keeps a finished
   body's verdict: every finding but the session box is a fact of the
-  shape up to isometry. Its refusal is the list of what it found, every finding
+  shape up to isometry. The embedding certificate is one fact per pair
+  of faces, of the two faces and the cells they share: a finish
+  carries the fact of a pair it finds unchanged in a finished operand,
+  by comparing the faces itself, and asks the rest. The gate's fixed
+  constant ([tolerance.measure]) counts only what that finish asks: it
+  is a backstop against an ask that would not end, not a bound on a
+  body, so a carried fact costs it nothing and keeps no count.
+  Its refusal is the list of what it found, every finding
   kept, none folded into another: each finding belongs to a family
   (the decision or check that made it), and a family's findings share
   one text and one recourse, the decision's ([tolerance.recourse]). A
@@ -1704,7 +1711,19 @@ not of the axes. An operand in another frame is read into it through
 their relative placement, which moves where the operand stands and
 none of its data: a reading within one operand is made in its own
 coordinates, and only a reading between two goes through their
-relative motion. Where conditioning does not decide, a construction
+relative motion. So a body records each of its parts in the frame it
+was built in, and that record is the part's data: a copy of it moved
+into another frame is derived from it, may be kept as a cache, and
+answers a reading only where it gives what the record read through
+the motion gives. The relative motion of two frames is composed
+through the nearest frame they share: an operation's result keeps what it
+takes from each operand where that operand stood, bit for bit, and an
+aggregate places each piece with its frame. A point the operation
+mints between two operands is held as the claim it is ([scalars]): the
+carrier it was found on, its parameter there and the reading that
+found it, its coordinates that carrier's point in that carrier's
+frame, or the operation's frame where it lies on no single carrier.
+Where conditioning does not decide, a construction
 computes in its own coordinates and an operation over copies in its
 first operand's as the author lists it. The census at a `⊔`
 ([assertions]) is defined order-free: each pair's verdict is the same
@@ -1939,7 +1958,9 @@ by door, is `crates/editor-core/ASSEMBLY.md` and
   uses the same node, edit, naming, undo and memo machinery as a part,
   and its evaluation is one kernel `Body`, generally multi-solid and
   not connected: the kernel has no assembly type. Which solids are one
-  part, and which mates hold, is recipe structure, never body state;
+  part, and which mates hold, is recipe structure, never body state
+(a body's frames say where its data stands, not which solids are one
+part);
   fusing copies is an explicit boolean, never implied.
 - **A reference pins content.** `[assemblies.pins]` A cross-document
   reference is a `DocRef`: a `DocumentId`, which says which document

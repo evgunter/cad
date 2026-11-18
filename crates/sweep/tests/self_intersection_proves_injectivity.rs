@@ -541,6 +541,23 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
     }
 }
 
+/// **A revolved ball holds**: a half disc revolved a full turn about
+/// its diameter, two half-bands of one sphere sharing their two
+/// meridians and both poles. Each half-band is read in its own half
+/// turn and the pair splits there, so the body holds only after it
+/// splits. Red if it holds without a split: one half-band was then read
+/// as holding nothing in its own window, on an extent off its sheet.
+#[test]
+fn a_revolved_ball_holds_only_after_it_splits() {
+    fn ball<T: Scalar>() -> Body<T> {
+        let p = |y: f64, b: f64| (Point2::new(0.0, y).map(T::from_f64), T::from_f64(b));
+        revolved_about_y_at(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol())
+    }
+    for report in holds_at_both("the ball", ball(), ball()) {
+        assert!(report.receipt.splits > 0, "{:?}", report.receipt);
+    }
+}
+
 /// **A cone holds**: the triangle `(0,0) (1,0) (0,1)` revolved a full
 /// turn about `y` — two half-cones sharing their two meridians and the
 /// apex, each sharing a half rim with the base disc.
