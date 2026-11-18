@@ -3,9 +3,11 @@
 //! other, the two meet in that line whatever the angle, and the mint
 //! returns it rather than solving for it.
 
+#![allow(clippy::expect_used, clippy::panic)]
+
 use crate::fixture;
 use editor_core::pose::{PoseDef, RoleRead};
-use editor_core::{Node, Operand, ProfileDoc};
+use editor_core::{Node, Operand};
 use fixture::{Recorder, len};
 use geom_core::Tol;
 
