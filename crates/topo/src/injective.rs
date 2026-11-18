@@ -5056,7 +5056,15 @@ fn narrowed(p: &Pieces<'_>, run: &Run, rising: bool, a: (f64, f64)) -> Option<(f
 ///
 /// It is the one guard against a second run: a run the cell itself
 /// holds meets `rb`, which holds the cell's range, so [`graph`] does not
-/// test for one apart from it. The chosen run's own copies need no
+/// test for one apart from it.
+///
+/// **Columns wider than a turn on a periodic column axis** are refused
+/// here too. Some column `a` has `a` plus a turn a column as well. The
+/// run read passes both column ends ([`monotone_run`]), so it holds a
+/// point at `a`, at a height in `rb`. Its lift a turn over is another run
+/// ([`runs`] lists each lift's pieces apart), and it holds the same point
+/// at `a` plus a turn, at the same height. So that run meets `rb`, and it
+/// is not apart. The chosen run's own copies need no
 /// reading: `rb` spans less than a turn and holds the run's reach, so a
 /// copy a turn away lies past it.
 fn apart(rb: (f64, f64), others: &[Interval], periodic: bool) -> bool {
