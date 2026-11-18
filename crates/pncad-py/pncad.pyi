@@ -2149,13 +2149,13 @@ class Node:
     def profile(outline: list[ClosedLoop]) -> Node: ...
     @staticmethod
     def extrude(profile: _Operand, distance: _LengthArg) -> Node:
-        """Extrude a profile up its own +z.
+        """Extrude a profile along its own z by a signed depth.
 
-        `distance` mints a LITERAL in the node's `distance` slot. It is
-        a depth: a size, refused at `evaluate` unless definitely
-        positive. The body lies in its own coordinates, between its
-        profile's xy and `distance` up; a body that stands below a
-        plane is placed so.
+        `distance` mints a LITERAL in the node's `distance` slot, a
+        signed depth. The body lies in the profile's coordinates,
+        between its xy and `distance` along z: a `+` depth is a boss up
+        z, a `-` depth a pocket's tool down it. A depth that is zero,
+        or that the band cannot sign, is refused at `evaluate`.
         `DocEdit.set_param(node, "distance", expr)` moves the depth,
         and makes it a named, editable number: a literal is a new
         document per value, a parameter reference is one

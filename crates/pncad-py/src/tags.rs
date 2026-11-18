@@ -1097,6 +1097,12 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             pncad::document::pose::PoseConstruction::Through => "through",
             pncad::document::pose::PoseConstruction::Meet => "meet",
             pncad::document::pose::PoseConstruction::Chart => "chart",
+            pncad::document::pose::PoseConstruction::FaceChartBackwards { .. } => {
+                "face_chart_backwards"
+            }
+            pncad::document::pose::PoseConstruction::FaceChartUnleverable { .. } => {
+                "face_chart_unleverable"
+            }
         }),
         NodeErrorKind::PoseScalar { .. } => None,
         NodeErrorKind::CountOutOfRange { .. } => None,

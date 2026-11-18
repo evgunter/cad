@@ -5317,7 +5317,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "node_inner_kind_tag",
-        values: &["chart", "meet", "through"],
+        values: &[
+            "chart",
+            "face_chart_backwards",
+            "face_chart_unleverable",
+            "meet",
+            "through",
+        ],
         delegates: &[
             "band_error_tag",
             "blend_error_tag",

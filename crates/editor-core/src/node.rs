@@ -1585,16 +1585,19 @@ impl AssertionBoundFault {
 pub enum Node<P, S: Slot = crate::VarId> {
     /// A programmatic sketch, carried opaquely (F4; never re-modeled).
     Profile(P),
-    /// Extrude an upstream profile by a Length depth along its own
-    /// normal, in coordinates of its own: the start cap is the
-    /// profile's plane and the end cap lies the depth along `+z`.
-    /// Which side of a face its material lies on is the placement's
-    /// mates' to say.
+    /// Extrude an upstream profile by a signed Length depth `d` along
+    /// its own `z`, in the profile's coordinates: its material lies
+    /// between the profile's plane and `d` along `z`. A `+` depth is a
+    /// boss, its start cap the profile's plane and its end cap `d` up
+    /// `z`; a `−` depth is a pocket's tool, the sweep of `|d|` whose
+    /// start cap sits `d` along `z` and whose end cap is the profile's
+    /// plane.
     Extrude {
         /// The profile node extruded.
         profile: S::Read,
-        /// Extrusion depth ([`SlotId::Distance`]): a size, refused
-        /// unless definitely positive (`sweep::Extrusion::Distance`).
+        /// Extrusion depth ([`SlotId::Distance`]), signed: a depth
+        /// that is zero, or that the band cannot sign, refuses
+        /// (`sweep::Extrusion::Distance`).
         distance: S,
     },
     /// Revolve an upstream profile about an axis in its own plane.

@@ -106,6 +106,10 @@ pub use editor_core::cascade_delete_order;
 // on the face and the union, as one action (`Recording::sketch_on_face`
 // composes it into a longer one).
 pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
+// A profile drawn on a face (DM1): one profile node on the face's chart,
+// in the face's body's space, where the library and the viewer draw on a
+// face (`Recording::draw_on_face` composes it into a longer action).
+pub use editor_core::{DrawnOnFace, OnFace, draw_on_face};
 // A takeover (A10): copies of a body re-pointed to a result that
 // replaces it, each reference the result carries uniquely rebound by a
 // `Rebind`, as one action (`Recording::take_over` composes it).
