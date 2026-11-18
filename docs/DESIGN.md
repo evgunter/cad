@@ -1670,9 +1670,12 @@ not of the axes. An operand in another frame is read into it through
 their relative placement, which moves where the operand stands and
 none of its data: a reading within one operand is made in its own
 coordinates, and only a reading between two goes through their
-relative motion. So a body holds each of its parts in the frame it was
-built in, and the relative motion of two frames is composed through
-the nearest frame they share: an operation's result keeps what it
+relative motion. So a body records each of its parts in the frame it
+was built in, and that record is the part's data: a copy of it moved
+into another frame is derived from it, may be kept as a cache, and
+answers a reading only where it gives what the record read through
+the motion gives. The relative motion of two frames is composed
+through the nearest frame they share: an operation's result keeps what it
 takes from each operand where that operand stood, bit for bit, and an
 aggregate places each piece with its frame. A point the operation
 mints between two operands is held as the claim it is ([scalars]): the
