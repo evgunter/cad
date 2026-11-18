@@ -530,7 +530,7 @@ impl FrameCharge {
         }
         // Read on the interval scalar, so the bound is rounded up by its
         // own arithmetic rather than padded.
-        let lift = Interval::from_f64;
+        let lift = |x: f64| Interval::from_bounds(x, x);
         let reach = (0..3)
             .map(|k| {
                 let (lo, hi) = b[k];
