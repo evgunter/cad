@@ -483,7 +483,7 @@ fn frame_direction(d: [(f64, f64); 3]) -> Option<([f64; 3], f64)> {
             return None;
         }
         mid[k] = lo + width / 2.0;
-        diag += width * width;
+        diag += width.powi(2);
     }
     let delta = diag.sqrt();
     let turn = if delta == 0.0 {
@@ -528,15 +528,20 @@ impl FrameCharge {
         if self.turn == 0.0 {
             return 0.0;
         }
+        // Read on the interval scalar, so the bound is rounded up by its
+        // own arithmetic rather than padded.
+        let lift = Interval::from_f64;
         let reach = (0..3)
             .map(|k| {
                 let (lo, hi) = b[k];
-                let far = (lo - self.anchor[k]).abs().max((hi - self.anchor[k]).abs());
-                far * far
+                let (lo, hi) = (
+                    lift(lo) - lift(self.anchor[k]),
+                    lift(hi) - lift(self.anchor[k]),
+                );
+                Real::abs(lo).max(Real::abs(hi)).powi(2)
             })
-            .sum::<f64>()
-            .sqrt();
-        self.turn * reach * (1.0 + 4.0 * f64::EPSILON)
+            .fold(Interval::zero(), |acc, x| acc + x);
+        (lift(self.turn) * Real::sqrt(reach)).hi()
     }
 }
 
@@ -2174,8 +2179,9 @@ pub(crate) fn exact_certified<T: CertifiedEnclosure>(x: T) -> Option<f64> {
 /// [`SsiError::UnsupportedCertificate`]: [`CHART_TUBE_PARTNER_INEXACT`]
 /// for a widened or domain-violated scalar, [`CHART_TUBE_NEEDS_FORM`] for
 /// a partner with no form.
-pub(crate) fn chart_partner_form<T: Real + CertifiedEnclosure>(
+pub(crate) fn chart_partner_form<T: Real>(
     partner: &Surface<T>,
+    bracket: impl Fn(T) -> Option<(f64, f64)>,
 ) -> Result<super::residual::ImplicitForm, SsiError> {
     let inexact = || SsiError::UnsupportedCertificate {
         what: CHART_TUBE_PARTNER_INEXACT,
@@ -2186,11 +2192,12 @@ pub(crate) fn chart_partner_form<T: Real + CertifiedEnclosure>(
     let Some(frame) = partner.frame() else {
         return Err(no_form());
     };
+    let point = |x: T| bracket(x).and_then(|(lo, hi)| (lo == hi && !lo.is_nan()).then_some(lo));
     let certified = |v: Vec3<T>| -> Option<[(f64, f64); 3]> {
-        let [x, y, z] = v.to_array().map(CertifiedEnclosure::certified_bracket);
+        let [x, y, z] = v.to_array().map(&bracket);
         Some([x?, y?, z?])
     };
-    let exact = |x: T| exact_certified(x).ok_or_else(inexact);
+    let exact = |x: T| point(x).ok_or_else(inexact);
     let (Some(axis), Some(u_ref)) = (certified(frame.axis()), certified(frame.u_ref())) else {
         return Err(inexact());
     };
@@ -2203,7 +2210,7 @@ pub(crate) fn chart_partner_form<T: Real + CertifiedEnclosure>(
         // Exact throughout: the partner at `f64`, its frame's bits kept.
         let widened = core::cell::Cell::new(false);
         let at_f64 = partner.map_scalar(|x| {
-            exact_certified(x).unwrap_or_else(|| {
+            point(x).unwrap_or_else(|| {
                 widened.set(true);
                 f64::NAN
             })
@@ -2845,7 +2852,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
             };
-            let form = chart_partner_form(partner)?;
+            let form = chart_partner_form(partner, CertifiedEnclosure::certified_bracket)?;
             let phi = ChartPhi(&form);
             let nodes = node_ends(p, n, &form, band);
             limb_three((widest, extent), band, |radius| {
@@ -3258,9 +3265,12 @@ mod tests {
             } else {
                 Vec3::new(iv(0.0), iv(1.0), iv(0.0))
             };
-            crate::ssi::certify::chart_partner_form(&geom::Surface::Plane {
-                frame: geom::Frame::new(origin, normal, u_ref),
-            })
+            crate::ssi::certify::chart_partner_form(
+                &geom::Surface::Plane {
+                    frame: geom::Frame::new(origin, normal, u_ref),
+                },
+                geom_core::CertifiedEnclosure::certified_bracket,
+            )
             .expect("an exact plane has a form")
         }
 
@@ -3368,7 +3378,10 @@ mod tests {
                         Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
                     ),
                 };
-                let got = crate::ssi::certify::chart_partner_form(&plane);
+                let got = crate::ssi::certify::chart_partner_form(
+                    &plane,
+                    geom_core::CertifiedEnclosure::certified_bracket,
+                );
                 assert!(
                     matches!(
                         got,

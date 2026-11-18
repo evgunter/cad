@@ -665,7 +665,10 @@ impl Real for Interval {
                 if i == j { d - Self::one() } else { d }
             })
         });
-        let frobenius = g.iter().flatten().fold(Self::zero(), |acc, &x| acc + x * x);
+        let frobenius = g
+            .iter()
+            .flatten()
+            .fold(Self::zero(), |acc, &x| acc + x.powi(2));
         let eta = Real::sqrt(frobenius).hi();
         let [u, v, w] = m;
         let cross = [
@@ -682,13 +685,11 @@ impl Real for Interval {
         let lever = Self::from_f64(0.375) / (Self::one() - e);
         // `rₗ`, the row sums of `|G|` (`G` is symmetric, so they are its
         // column sums `cⱼ` too), `l` a column of `M`.
-        let sums: [Self; 3] =
-            core::array::from_fn(|l| Real::abs(g[l][0]) + Real::abs(g[l][1]) + Real::abs(g[l][2]));
+        let abs = |x: Self| Real::abs(x);
+        let sums: [Self; 3] = core::array::from_fn(|l| abs(g[l][0]) + abs(g[l][1]) + abs(g[l][2]));
         // `aᵣ`, in world row `r`.
         let reach: [Self; 3] = core::array::from_fn(|r| {
-            Real::abs(m[0][r]) * sums[0]
-                + Real::abs(m[1][r]) * sums[1]
-                + Real::abs(m[2][r]) * sums[2]
+            abs(m[0][r]) * sums[0] + abs(m[1][r]) * sums[1] + abs(m[2][r]) * sums[2]
         });
         let half = Self::from_f64(0.5);
         // `(M·G)` column `j` is `Σₗ M_l · G_lj`, `M_l` column `l`.
@@ -714,7 +715,7 @@ impl Real for Interval {
             return Some([Self::from_bounds(f64::NAN, f64::NAN); 3]);
         }
         let e = Self::from_bounds(eta, eta);
-        let lever = Self::from_f64(0.375) * e * e / (Self::one() - e);
+        let lever = Self::from_f64(0.375) * e.powi(2) / (Self::one() - e);
         let half = Self::from_f64(0.5);
         Some(v.map(|x| {
             let rho = (Real::abs(x) * lever).hi();
@@ -722,8 +723,19 @@ impl Real for Interval {
         }))
     }
 
+    /// The intersection of the two enclosures, as
+    /// `Certification::meet` reads one: a refused reading refuses the
+    /// meet, an empty one is NaI (two sound enclosures of one real cannot
+    /// be disjoint), and the decoration is the weaker reading's.
     fn meet_readings(first: Self, second: impl FnOnce() -> Self) -> Self {
-        certification::Certification::meet(first, second())
+        let second = second();
+        if !first.is_certified() || !second.is_certified() {
+            return Self(DInterval::nai());
+        }
+        let (a, b) = (first.0.decoration(), second.0.decoration());
+        let weaker = if b < a { b } else { a };
+        let meet = first.0.intersection(second.0);
+        Self(DInterval::from_bounds(meet.lo(), meet.hi()).with_dec_capped(weaker))
     }
 
     fn is_bounded(self) -> bool {

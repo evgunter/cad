@@ -67,6 +67,7 @@ crates/geom-brep/src/props/quad/trimmed.rs	test	1	oracle
 crates/geom-brep/src/props/spiric.rs	test	1	oracle
 crates/geom-brep/src/recourse.rs	prod	1	re-pose
 crates/geom-brep/src/ssi.rs	test	1	oracle
+crates/geom-brep/src/ssi/certify.rs	prod	1	pose
 crates/geom-brep/src/ssi/certify.rs	test	2	oracle
 crates/geom-brep/src/ssi/compensated.rs	prod	1	exact-arith
 crates/geom-brep/src/ssi/compensated.rs	test	3	oracle
