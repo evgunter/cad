@@ -1805,7 +1805,7 @@ impl FileCoincidence {
     /// the miss may be the kernel's own: no re-export moves what the
     /// kernel fits, so the sentence names the kernel approximation
     /// limit's recourse, loosening the tolerance
-    /// ([`KERNEL_LIMIT_RECOURSE`](crate::KERNEL_LIMIT_RECOURSE)).
+    /// ([`KERNEL_LIMIT_RECOURSE`]).
     ///
     /// A certified bound on the miss ([`MissReading::Bound`]) places the
     /// miss nowhere but below it, so only a bound wholly within ε_in has
