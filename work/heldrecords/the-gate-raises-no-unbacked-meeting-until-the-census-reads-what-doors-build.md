@@ -10,8 +10,8 @@ cost: M
 
 
 `plan.md`'s step 5, as a row, with the measurement `embed/records`
-took when it built the type (PR for
-`work/embed/the-finished-body-holds-its-records.md`, 2026-11-18).
+took when it built the type
+(`a-finished-body-holds-its-contact-records-at-every-door`, 2026-11-18).
 
 ## Where the code stands
 
