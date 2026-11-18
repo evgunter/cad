@@ -875,7 +875,9 @@ tiers".
   made are read against the other pieces once, at that door: a touch
   there is the door's own record ([topology.records]), and a wall cut
   where the pieces already overlapped is that overlap, told from a new
-  one by reading the operand. A `⊔`'s own census records or reports,
+  one by reading the operand. Where material a door added to one
+  piece overlaps another, that is a new interference finding at that
+  door, never a refusal. A `⊔`'s own census records or reports,
   and nothing it finds refuses ([assertions]). The
   question is asked inside the gate once tier 3 has passed, and reads
   tier 3's facts from its verdict, never re-deciding one over a cell. At every
@@ -940,7 +942,10 @@ tiers".
   leaves on the result a contact record citing it, which every reader
   and every placement of that body carries, so the touch is never
   decided again. Inside one op's
-  result it is that op's defect, refused typed. Every op, the boolean
+  result it is that op's defect, refused typed. An overlap between two
+  pieces of an assembly an op was handed is never the op's refusal:
+  carried, it stays the `⊔`'s finding, and made by material the op
+  added, it is a new finding at that op ([operations.operators]). Every op, the boolean
   and every surgery verb alike, carries records through one lineage
   stating what it made of each cell (kept, substituted by a cell
   holding its interior, divided, or removed), and records are written
@@ -1360,7 +1365,11 @@ as separate pieces. They differ only in what they do where two
 operands' material meets: `∪` and `∩` glue there and merge an overlap,
 `−` removes, and `⊔` records a touch and reports an overlap as an
 interference finding ([assertions]). `−` and `∩` distribute over `⊔`,
-so `(p ⊔ q) − t` cuts both and keeps two pieces. `∪` does not absorb
+so `(p ⊔ q) − t` cuts both and keeps two pieces. A one-input operation
+over an assembly (a shell, a split, a blend) acts on its pieces the
+same way and keeps them pieces, so `fillet(p ⊔ q)` is `fillet(p) ⊔ q`:
+where material it adds to one piece overlaps another, that is a new
+interference finding at the operation, never a refusal. `∪` does not absorb
 `⊔`: a meeting inside an operand is never changed by an operator above
 it ([coincidence.booleans]), so `(bolt ⊔ plate) ∪ bead` fuses the bead
 to each part and leaves the bolt–plate meeting a record.

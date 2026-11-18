@@ -721,11 +721,15 @@ in `docs/DESIGN.md` `[topology.tiers]`.
     overlapped is the old overlap. Old or new is read off the operand.
   - A solid that crosses itself never passes: a `∪` whose added
     material fuses two overlapping pieces refuses on the per-solid
-    certificate, and so does an overlapping assembly used as a cut's
-    tool.
-  - **Ev's choice:** a fillet whose added material reaches the
-    neighbouring piece is reported as a new interference finding at
-    the fillet (both designers' lean), or refused there.
+    certificate. (An overlapping assembly used as a cut's tool refuses
+    today for the same reason, which is a kernel limit and not a rule:
+    Ev, PR 7068, "the same as cutting by one of the interfering parts
+    and then the other";
+    `work/seal/a-cut-by-a-tool-whose-pieces-overlap-is-cut-as-it-stands.md`.)
+  - **A fillet whose added material reaches the neighbouring piece is
+    a new interference finding at the fillet, never a refusal** (Ev,
+    PR 7068, 2026-11-18). `[operations.operators]` and
+    `[topology.records]` say so.
   - Confirming the records a door writes between solids it cuts out of
     one piece is tier 3′, parked on
     `work/reachhold/boolean-door-runs-the-census-over-its-result.md`.
