@@ -2,11 +2,12 @@
 id: carrier-frames-the-types-and-the-lift
 kind: unit
 title: Carrier frames (i): the variants hold UnitVec3 / RigidMotion behind accessors, and the lift re-mints a frame at the target scalar
-status: dispatched
+status: review
 opened: 2026-11-17
 priority: P1
 cost: H
 parent: carriers-hold-their-frame-as-unitvec3-and-rigidmotion-and-check-1s-frame-half-goes
+pr: 7131
 branch: onehome/carrier-frames
 ---
 
