@@ -610,7 +610,7 @@ fn the_shell_door_keeps_designation_order_and_drops_repeats() {
 #[test]
 fn a_repeated_open_entry_is_refused_at_load() {
     let d = cup::document();
-    let text = save(&d.doc, &[], Tol::witness()).expect("the cup saves");
+    let text = save(&d.doc, Tol::witness()).expect("the cup saves");
     // The wire form of the open faces is the names' own serde encoding
     // inside the selection's `"names"` list; the one entry names the
     // blank's END cap, and the pin reads that spelling rather than
@@ -651,7 +651,7 @@ fn a_repeated_open_entry_is_refused_at_load() {
     // The uncorrupted text round-trips, so the refusal above is the
     // repeat's and not the surgery's.
     let back = load(&text, Tol::witness()).expect("the cup loads");
-    assert!(back.doc.bit_eq(&d.doc));
+    assert!(back.bit_eq(&d.doc));
 }
 
 /// **A dual has no shell door**: the reason the two documents sit
@@ -697,29 +697,19 @@ fn a_dual_evaluation_refuses_the_shell_typed() {
 #[test]
 fn both_documents_round_trip_through_persistence() {
     for d in [cup::document(), vessel::document()] {
-        let empty = ProfileDoc::empty_derived("lib-g17-roundtrip", Tol::witness());
-        let mut expected = empty.clone();
-        for edit in &d.edits {
-            expected = editor_core::apply_replayed(&expected, edit, Tol::witness())
-                .expect("a corpus edit applies")
-                .doc;
-        }
-        let text = save(&empty, &d.edits, Tol::witness()).expect("saves");
+        let text = save(&d.doc, Tol::witness()).expect("saves");
         let back = load(&text, Tol::witness()).expect("loads");
-        assert!(back.snapshot.bit_eq(&empty), "{}: snapshot", d.name);
-        assert_eq!(back.edits, d.edits, "{}: edit log", d.name);
-        assert!(back.doc.bit_eq(&expected), "{}: replayed document", d.name);
+        assert!(back.bit_eq(&d.doc), "{}: loaded document", d.name);
         assert_eq!(
-            save(&back.snapshot, &back.edits, Tol::witness()).expect("re-saves"),
+            save(&back, Tol::witness()).expect("re-saves"),
             text,
             "{}: save bytes not canonical",
             d.name
         );
         assert!(
-            back.doc
-                .ids()
+            back.ids()
                 .iter()
-                .any(|&id| matches!(back.doc.node(id), Some(Node::Shell { .. }))),
+                .any(|&id| matches!(back.node(id), Some(Node::Shell { .. }))),
             "{}: the round-tripped recipe carries no shell",
             d.name
         );

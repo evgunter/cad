@@ -354,7 +354,7 @@ fn a_stored_name_carrying_a_read_the_document_never_minted_refuses_at_load() {
         })
         .expect("the union names a's edges through a's read");
     let (doc, fillet) = insert(doc, Node::fillet(union, len(0.1), vec![edge]));
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("the document saves");
     assert!(
         editor_core::persist::load(&text, Tol::witness()).is_ok(),
         "the premise: the file as saved loads"

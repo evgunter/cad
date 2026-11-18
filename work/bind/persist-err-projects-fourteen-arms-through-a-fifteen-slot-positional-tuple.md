@@ -61,3 +61,13 @@ That is the second cost recorded on this door rather than the first, and
 it is the argument for the named-field lift above: a door that grows an
 arm per kernel refusal will keep growing, and each new arm pays the same
 counting tax at the same invisibility.
+
+## 2026-11-17 — the tuple shrank by one arm and one slot
+
+`the-save-format-drops-its-edit-log` (doctail) removed
+`PersistError::EditReplay`, whose arm was the only one to fill the
+`index` slot, so that slot and the Python `PersistError.index`
+attribute went too. `persist_err` now projects 13 arms through a
+14-slot positional tuple. The defect this row describes, a field
+identified only by its position, is unchanged. The counts in the title
+are stale, and the id is kept.

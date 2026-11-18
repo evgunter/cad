@@ -96,7 +96,7 @@ fn m10r2_a_gap_between_same_id_pieces_refuses_at_the_contiguity_test() {
         "M10R2 gapped pieces: door {door:?}, flux {flux:?} vs control ({}, {})",
         ctl.flux, ctl.area
     );
-    let meet = PropsError::NotIsoRectangle {
+    let meet = PropsError::SpanUncertified {
         what: "props_meridian_pieces_meet",
     };
     assert_eq!(door, Err(meet.clone()));
@@ -134,7 +134,7 @@ fn m10r2_a_rimless_loop_of_one_meridians_pieces() {
     let door = require_iso_rectangle(&s, &pieces, band());
     let flux = curved_face(&s, &pieces, true, band()).map(|c| (c.flux, c.area));
     println!("M10R2 rimless pieces: door {door:?}, flux {flux:?}");
-    let closed = PropsError::NotIsoRectangle {
+    let closed = PropsError::Defect {
         what: "torus meridian pieces close a loop with no rim",
     };
     assert_eq!(door, Err(closed));

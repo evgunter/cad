@@ -3,15 +3,14 @@
 //! never a best-effort load (spec §2; review claim 3).
 //!
 //! The PR's own rows corrupt the SNAPSHOT; the unique rows here also
-//! corrupt the EDIT LOG of a saved file (load replays the log through
-//! the edit door), plant a `distribution` where the schema has no such
-//! field, and misspell a form.
+//! plant a `distribution` where the schema has no such field, and
+//! misspell a form.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    Dimension, Distribution, DistributionFault, DocEdit, DocumentId, EditError, FreeVar,
-    PersistError, ProfileDoc, VarName, load, save,
+    Dimension, Distribution, DistributionFault, DocEdit, DocumentId, FreeVar, PersistError,
+    ProfileDoc, VarName, load, save,
 };
 use geom_core::Tol;
 
@@ -37,7 +36,7 @@ fn annotated_doc(sigma: f64) -> ProfileDoc {
 /// the fault the save door would name.
 #[test]
 fn planted_snapshot_corruptions_refuse_typed_at_load() {
-    let text = save(&annotated_doc(0.01), &[], Tol::witness()).expect("saves");
+    let text = save(&annotated_doc(0.01), Tol::witness()).expect("saves");
     let cases: [(&str, &str, DistributionFault); 3] = [
         (
             "zero sigma",
@@ -89,7 +88,7 @@ fn a_planted_bounds_corruption_refuses_at_load() {
         .expect("applies")
         .doc
     };
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let corrupt = text.replace("\"lo\": -0.25", "\"lo\": 0.125");
     assert_ne!(corrupt, text, "the corruption must land");
     match load(&corrupt, Tol::witness()) {
@@ -104,51 +103,11 @@ fn a_planted_bounds_corruption_refuses_at_load() {
     }
 }
 
-/// **The log door**: a corrupt distribution planted in a saved file's
-/// EDIT LOG (not its snapshot) still refuses at LOAD — load replays
-/// the log through the same edit door `apply` runs.
-#[test]
-fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
-    let base = ProfileDoc::empty(DocumentId::derive("r1-corrupt-log"), Tol::witness());
-    let edit = DocEdit::DeclareVar {
-        name: VarName::from_static("s"),
-        def: editor_core::VarDecl::Free(FreeVar::continuous_with(
-            Dimension::Length,
-            1.0,
-            Distribution::Normal { sigma: 0.01 },
-        )),
-    };
-    let text = save(&base, std::slice::from_ref(&edit), Tol::witness())
-        .expect("a valid snapshot+log saves");
-    let corrupt = text.replace("\"sigma\": 0.01", "\"sigma\": -2.0");
-    assert_ne!(corrupt, text, "the corruption must land (in the LOG)");
-    match load(&corrupt, Tol::witness()) {
-        Err(PersistError::EditReplay { index, error }) => {
-            assert_eq!(index, 0);
-            assert_eq!(
-                *error,
-                EditError::InvalidDistribution {
-                    var: base.spoken_declare(
-                        &VarName::from_static("s"),
-                        &editor_core::VarDecl::Free(FreeVar::continuous_with(
-                            Dimension::Length,
-                            1.0,
-                            Distribution::Normal { sigma: -2.0 },
-                        )),
-                    ),
-                    fault: DistributionFault::SigmaNotPositive { sigma: -2.0 },
-                }
-            );
-        }
-        other => panic!("a corrupt LOG must refuse at load, got {other:?}"),
-    }
-}
-
 /// Strict serde: a misspelled form and a stray field both refuse to
 /// PARSE — there is no lenient reading of an unknown distribution.
 #[test]
 fn unknown_forms_and_stray_fields_refuse_to_parse() {
-    let text = save(&annotated_doc(0.01), &[], Tol::witness()).expect("saves");
+    let text = save(&annotated_doc(0.01), Tol::witness()).expect("saves");
     // A form the vocabulary does not have.
     let unknown_form = text.replace("\"Normal\"", "\"Gaussian\"");
     assert_ne!(unknown_form, text);
@@ -178,7 +137,7 @@ fn unknown_forms_and_stray_fields_refuse_to_parse() {
         .expect("applies")
         .doc
     };
-    let count_text = save(&count_doc, &[], Tol::witness()).expect("saves");
+    let count_text = save(&count_doc, Tol::witness()).expect("saves");
     let annotated_count = count_text.replace(
         "\"value\": 3",
         "\"value\": 3, \"distribution\": {\"Normal\": {\"sigma\": 1.0}}",

@@ -78,7 +78,7 @@ fn a_program_failing_validate_loads_clean_and_refuses_typed_at_evaluation() {
 
     // The same program in a file: the square's second and third
     // corners trade y, which is the bowtie.
-    let text = save(&doc, &[], Tol::witness()).expect("the square saves");
+    let text = save(&doc, Tol::witness()).expect("the square saves");
     let bowtie = doctored(&text, |v| {
         for (step, from, to) in [(1, 0.0, 1.0), (2, 1.0, 0.0)] {
             let y = &mut crate::wire::slot_var_def(v, |v| {
@@ -99,7 +99,7 @@ fn a_program_failing_validate_loads_clean_and_refuses_typed_at_evaluation() {
         Err(e) => panic!("a validate refusal is legal at rest; the load door refused {e:?}"),
     };
 
-    let ev = eval::<f64>(&loaded.doc);
+    let ev = eval::<f64>(&loaded);
     match ev
         .nodes
         .iter()

@@ -470,8 +470,8 @@ fn the_var_env_is_blind_to_annotations_even_after_a_round_trip() {
         plain.var_env::<f64>().bindings,
         annotated.var_env::<f64>().bindings
     );
-    let text = editor_core::save(&annotated, &[], Tol::witness()).expect("saves");
-    let back = editor_core::load(&text, Tol::witness()).expect("loads").doc;
+    let text = editor_core::save(&annotated, Tol::witness()).expect("saves");
+    let back = editor_core::load(&text, Tol::witness()).expect("loads");
     assert_eq!(
         plain.var_env::<f64>().bindings,
         back.var_env::<f64>().bindings,

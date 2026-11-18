@@ -25,7 +25,7 @@ def main() -> int:
         print(f"missing {FIXTURE}; run the editor-core probe row first", file=sys.stderr)
         return 2
 
-    doc = load(FIXTURE.read_text(encoding="utf-8")).doc
+    doc = load(FIXTURE.read_text(encoding="utf-8"))
     ev = evaluate(doc)
 
     # A consumer who did NOT author the document has to find the

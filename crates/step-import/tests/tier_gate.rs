@@ -521,7 +521,7 @@ const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 93] = [
+const CORPUS: &[(&str, Disposition)] = &[
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 4, 2)),
@@ -706,6 +706,19 @@ const CORPUS: [(&str, Disposition); 93] = [
     (
         "tests/fixtures/occ/side_cut_ring.step",
         Refused("mixing a VERTEX_LOOP with other bounds"),
+    ),
+    // -- tests/fixtures/occ_voids/: Open CASCADE's BREP_WITH_VOIDS ---
+    (
+        "tests/fixtures/occ_voids/box_cavity.step",
+        Pass(1, 2, 12, 24, 16),
+    ),
+    (
+        "tests/fixtures/occ_voids/cylinder_sphere_cavity.step",
+        Pass(1, 2, 5, 5, 4),
+    ),
+    (
+        "tests/fixtures/occ_voids/two_cavities.step",
+        Pass(1, 3, 18, 36, 24),
     ),
     // -- tests/fixtures/rim-only-cap/ ---------------------------------
     // A sphere pole or cone apex in a face's closure that the file does
@@ -958,6 +971,12 @@ const CORPUS: [(&str, Disposition); 93] = [
         Pass(1, 1, 6, 12, 8),
     ),
     (
+        // The hollow box: one BREP_WITH_VOIDS, its cavity a second
+        // shell of the one solid.
+        "../step-export/tests/fixtures/voided.step",
+        Pass(1, 2, 12, 24, 16),
+    ),
+    (
         "../step-export/tests/fixtures/washer.step",
         Pass(1, 1, 4, 6, 4),
     ),
@@ -1128,7 +1147,7 @@ fn every_corpus_import_passes_the_shared_gate() {
     let mut exposure = Exposure::new("tier_gate's import-door reading");
     // File-major, so each file is read once and each file's own ε_in
     // sweep (see `eps_in_rows_for`) is visible at the loop head.
-    for (rel, row) in CORPUS {
+    for &(rel, row) in CORPUS {
         let text = std::fs::read_to_string(root.join(rel))
             .unwrap_or_else(|e| panic!("reading {rel}: {e}"));
         for &(eps_tag, eps_in) in eps_in_rows_for(rel) {
