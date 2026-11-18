@@ -88,6 +88,7 @@ The non-touch row `each_window_reading_holds_on_a_dense_distance`, run at the ne
 The non-touch row `each_window_reading_holds_on_a_dense_distance`, which since 2026-11-16 holds only the unringed reading at the needle's band, reds about 3 seeds in 25 there. Each is an **unringed** `Recedes` (`ring None`), so the family reaches the reading the fence kept. The three seeds, each one contradiction at ε 1e-12, `CAD_FUZZ_EFFORT=1`:
 - `0xe8ff061a1fba18f3`: draw 51, `Recedes` on `(-3.527e-9, -3.486e-9)`, an ellipse of semi-axes (667.5, 1092.9) centred about 755 m from the origin;
 - `0x45acb5a5d7ddd040`;
-- `0xd5a0f0c0b139ce05`.
+- `0xd5a0f0c0b139ce05`;
+- `0x04f4dcf753f68827` (2026-11-18): draw 37, `Recedes` on `(2.803e-8, 2.806e-8)` on a circle centred about 610 m from the origin, red identically on the merge of PR 7048 (`0c2b761e91`).
 
 All three red identically on `onehome/pair-read` at e4f142b6b2 (PR 7048), which does not touch `curve_pair/pose/window/`, and on `onehome/span-foot` (step 3b), so neither branch is their cause. The scale, ~10³ m at ε 1e-12, matches the oracle-noise question above.
