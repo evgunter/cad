@@ -705,16 +705,36 @@ in `docs/DESIGN.md` `[topology.tiers]`.
   with a record inside it refuses typed at the gate; it is
   `a-recorded-contact-refuses-the-injectivity-question-until-contact-design-hands-it-off`'s
   third candidate, for records inside one solid.
-- **Between solids the census is the one reader, inside a deciding
-  door's finish.** A meeting no record covers refuses at the door that
-  made it. A meeting decided beneath that door (a record whose cells it
-  only carried, or an overlap a `⊔` reported, which rides the finished
-  body beside the records) keeps the verdict it arrived with. The
-  census has no lane for two curved solids near each other
-  (`work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
-  and the engine's two-body distance question is that lane. Until it
-  is built, a deciding door's between-solid meetings stay unasked, as
-  they are today.
+- **After an op over an assembly, its pieces stay pieces, and the op
+  answers only for what it made** (the fork's third part, rewritten
+  after Ev's questions on PR 7068; nothing about an overlap rides the
+  finished body, and `[open.lint-output]` is untouched).
+  - Cells a door carried unchanged between two solids that descend
+    from different pieces of one operand keep the meeting they arrived
+    with: a recorded touch keeps its record, a reported overlap stays
+    the `⊔`'s finding, reported once. No gate reads that pair again.
+  - Cells a door made (minted or moved) are read once against the
+    other pieces. A removing door (`−`, `∩`, split, shell) cannot make
+    an overlap, but can leave a bare touch (two crossed bars, the
+    overlapping centre cut out: four stubs touching along edges the
+    cut made), and records it. A wall cut where the pieces already
+    overlapped is the old overlap. Old or new is read off the operand.
+  - A solid that crosses itself never passes: a `∪` whose added
+    material fuses two overlapping pieces refuses on the per-solid
+    certificate, and so does an overlapping assembly used as a cut's
+    tool.
+  - **Ev's choice:** a fillet whose added material reaches the
+    neighbouring piece is reported as a new interference finding at
+    the fillet (both designers' lean), or refused there.
+  - Confirming the records a door writes between solids it cuts out of
+    one piece is tier 3′, parked on
+    `work/reachhold/boolean-door-runs-the-census-over-its-result.md`.
+  - **Pins:** an overlapping assembly cut, met, split and shelled
+    finishes with one interference finding, at the assembly, and no
+    gate read between carried cells of different pieces (mutant: the
+    gate reads that pair); the crossed bars give four edge records,
+    each citing the cut; `(bolt ⊔ plate) − pin` reports one finding,
+    not six; a `∪` fusing both overlapping pieces refuses.
 
 **Order.** The per-solid ask lands with lane C. The records moving
 into the finished body, the confirmed meeting place and the census

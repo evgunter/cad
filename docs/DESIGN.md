@@ -867,11 +867,15 @@ tiers".
   `Sym`; a scalar without them, such as a dual, cannot reach the
   gate). A recorded contact inside a solid is a place where it meets
   itself, read as a shared edge or vertex is: the question examines
-  the rest of both faces. Between two solids the census is the one
-  reader. A meeting no record covers refuses at the door that made it,
-  as that op's defect ([topology.records]); a meeting decided beneath
-  that door, by a record or by an overlap a `⊔` reported, keeps the
-  verdict it arrived with; and a `⊔`'s own census records or reports,
+  the rest of both faces. Between two solids that descend from
+  different pieces of one operand, the cells a door carried unchanged
+  keep the meeting they arrived with, a record carried through the
+  door's lineage or an overlap a `⊔` reported, and the door's gate
+  does not read them again ([operations.operators]). The cells a door
+  made are read against the other pieces once, at that door: a touch
+  there is the door's own record ([topology.records]), and a wall cut
+  where the pieces already overlapped is that overlap, told from a new
+  one by reading the operand. A `⊔`'s own census records or reports,
   and nothing it finds refuses ([assertions]). The
   question is asked inside the gate once tier 3 has passed, and reads
   tier 3's facts from its verdict, never re-deciding one over a cell. At every
