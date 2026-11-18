@@ -273,7 +273,8 @@ pub(crate) fn decide_reported<T: Decide>(
 ///
 /// Total by design: the turn is read through [`turn_negates`], so a
 /// `Zero` turn (unreachable for a classified arc) takes the convex arm
-/// exactly when [`turn_axis`] takes the positive one. Decided here once
+/// exactly when a carrier keeps the plane's normal as its axis (its frame
+/// not run back). Decided here once
 /// rather than at each consumer, which is the reason this is a
 /// function and not a rule each verb spells for itself.
 pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
@@ -687,7 +688,8 @@ pub(crate) fn sketch_chord<T: Real, S: SweptChord<T>>(seg: &S) -> (Unit2<T>, T) 
 
 /// The arc parameter span |Δθ|: the sweep signed by the segment's
 /// decided turn, read by [`turn_negates`] — a clockwise arc's span is
-/// its reversal's sweep ([`Arc2::reversed`]), as in [`turn_axis`].
+/// its reversal's sweep ([`Arc2::reversed`]), as a carrier's frame is run
+/// back for it.
 ///
 /// The turn is the profile's certified sign of the sweep, so this is
 /// `|sweep|` to the bit at `f64` and `|sweep|`'s enclosure at
@@ -704,7 +706,7 @@ pub(crate) fn arc_span<T: Real>(turn: Sign, arc: Arc2<T>) -> T {
 }
 
 /// **The crate's one reading of a turn**: `true` for a clockwise
-/// (`Negative`) turn. [`turn_axis`], [`arc_span`],
+/// (`Negative`) turn. A carrier's run-back frame, [`arc_span`],
 /// [`centre_on_material_side`] and [`Traversed::half_turn`]
 /// (`revolve::tube`'s circle traversal) all read it here, so `Zero` — unreachable for a classified arc, whose
 /// turn is a certified non-zero sign — takes the positive arm in every
@@ -712,17 +714,6 @@ pub(crate) fn arc_span<T: Real>(turn: Sign, arc: Arc2<T>) -> T {
 /// consumer can part from another on it.
 pub(crate) fn turn_negates(turn: Sign) -> bool {
     matches!(turn, Sign::Negative)
-}
-
-/// The turn-signed carrier axis (crate docs): `+normal` for a
-/// counterclockwise segment, `−normal` for a clockwise one, by
-/// [`turn_negates`].
-pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
-    if turn_negates(turn) {
-        Vec3::zero() - normal
-    } else {
-        normal
-    }
 }
 
 /// **A placed profile arc's rim IS its sketch rim** — the one fact the
@@ -832,12 +823,11 @@ fn register_placed_carrier_end<T: Real>(
 pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: impl Into<Placing<T>>,
-    normal: Vec3<T>,
     q_from: Point3<T>,
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let place = place.into();
-    placed_segment_spec_about(seg, place, normal, |c| place.point(c), None, q_from, tol)
+    placed_segment_spec_about(seg, place, |c| place.point(c), None, q_from, tol)
 }
 
 /// [`placed_segment_spec`] with an arc's 3-space centre given by
@@ -849,14 +839,15 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
 ///
 /// An arc's carrier is `place`'s frame turned onto the arc's start
 /// radial ([`Placing::frame_toward`]) and run back where the turn
-/// negates the axis: rigid by construction, nothing re-squared. A
-/// `radial` from another placing pairs that placing's direction with
-/// this one's normal, which no one frame carries, so that carrier is
-/// squared from its two directions ([`Curve3::circle`]).
+/// negates the axis: rigid by construction, nothing re-squared. Where
+/// `radial` is given the copy is the fixed one turned a half turn about
+/// an axis through its centre and its start radial, which turns its
+/// plane's normal over and keeps the radial: its carrier is the fixed
+/// copy's frame, read off `radial` the same way, with its axis run back
+/// (`0 − w`, so the two axes are each other's negation bit for bit).
 pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: Placing<T>,
-    normal: Vec3<T>,
     centre: impl FnOnce(Point2<T>) -> Point3<T>,
     radial: Option<Placing<T>>,
     q_from: Point3<T>,
@@ -904,12 +895,20 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
                         arc.radius,
                     )
                 }
-                Some(radial) => Curve3::circle(
-                    c_world,
-                    turn_axis(turn, normal),
-                    arc.radius,
-                    radial.direction(sketch_direction(seg)).get(),
-                ),
+                Some(radial) => {
+                    let turned = radial.frame_toward(sketch_vector(seg));
+                    let fixed = if turn_negates(turn) {
+                        turned.reversed_as_difference()
+                    } else {
+                        turned
+                    };
+                    Curve3::circle_on(
+                        geom::Frame::of_motion(
+                            &fixed.reversed_as_difference().with_origin(c_world),
+                        ),
+                        arc.radius,
+                    )
+                }
             };
             let param_end = arc_span(turn, arc);
             // The carrier end, stated where it is guaranteed
@@ -1710,7 +1709,7 @@ mod tests {
             };
             let to3 = |p: Point2<S>| place.transform_point(Point3::new(p.x, p.y, lit(0.0)));
             let (q_from, q_to) = (to3(seg.a), to3(seg.b));
-            let spec = placed_segment_spec(&seg, place, place.w().get(), q_from, tol);
+            let spec = placed_segment_spec(&seg, place, q_from, tol);
             let Curve3::Circle(
                 circle @ geom::Circle {
                     frame: carrier_frame,
@@ -1850,7 +1849,7 @@ mod tests {
                 let place = quarter_turn_placement([2.0, 3.0, 5.0]);
                 let to3 = |q: Point2<S>| place.transform_point(Point3::new(q.x, q.y, lit(0.0)));
                 let (q_from, q_to) = (to3(seg.a), to3(seg.b));
-                let spec = placed_segment_spec(&seg, place, place.w().get(), q_from, tol);
+                let spec = placed_segment_spec(&seg, place, q_from, tol);
                 let Curve3::Line(line) = spec.carrier else {
                     panic!("a line places onto a line carrier");
                 };
@@ -1922,13 +1921,7 @@ mod tests {
             canonical_segment: 0,
         };
         let q = |p: Point2<T>| Point3::new(p.x, p.y, lit(0.0));
-        placed_segment_spec(
-            &seg,
-            RigidMotion::identity(),
-            Vec3::new(lit(0.0), lit(0.0), lit(1.0)),
-            q(a),
-            Tol::witness(),
-        )
+        placed_segment_spec(&seg, RigidMotion::identity(), q(a), Tol::witness())
     }
 
     /// The carrier's samples against the pushforward's, at `s = i/8`:
@@ -2060,7 +2053,7 @@ mod tests {
             .expect("a rigid placement");
         let to3 = |p: Point2<f64>| place.transform_point(Point3::new(p.x, p.y, 0.0));
         let (q_from, q_to) = (to3(a), to3(b));
-        let spec = placed_segment_spec(&seg, place, place.w().get(), q_from, tol);
+        let spec = placed_segment_spec(&seg, place, q_from, tol);
         let Curve3::Line(line) = spec.carrier else {
             panic!("a line places onto a line carrier");
         };

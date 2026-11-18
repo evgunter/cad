@@ -55,8 +55,6 @@ pub(super) struct AxisFrame<T: Real> {
     /// revolve turns about. The frame's one copy of it; the axis line
     /// reads it ([`Self::line3`]).
     pub(super) axis: UnitVec3<T>,
-    /// The sketch plane's normal (the frame's third axis).
-    pub(super) n3: Vec3<T>,
 }
 
 impl<T: Real> AxisFrame<T> {
@@ -196,7 +194,6 @@ impl<T: Decide> AxisFrame<T> {
             azimuth: azimuth(origin3, u3),
             origin3,
             axis: turn_axis,
-            n3: place.linear.c2,
         }
     }
 }

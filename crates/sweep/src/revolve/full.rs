@@ -41,7 +41,7 @@
 
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Band, Decide, Margin, Point2, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Point2, Point3, Real, Sign};
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite, MekrSite, MevSite};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
@@ -479,7 +479,6 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
         theta,
         axis_c,
         place.into(),
-        frame.n3,
         band,
         tol,
     )?;
@@ -637,7 +636,6 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
             near: q,
             far: q,
             place_far: frame.motion.into(),
-            n_far: frame.n3,
         },
         theta,
         Sign::Positive,
@@ -772,10 +770,6 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     let half = theta * T::from_f64(0.5);
     let far = crate::swept::Placing::turned(place, frame.origin3, frame.axis, half)
         .map_err(RevolveError::Turn)?;
-    // The sketch normal is square to the axis, so the half turn turns it
-    // over: spelled as the negation, it has nothing to round
-    // (`geom::pole_form::azimuths`).
-    let n_pi = Vec3::zero() - frame.n3;
     let pinned = |i: usize| verts[i].pinned;
     let qw: Vec<Point3<T>> = wire.points.iter().map(|&p| frame.world(p)).collect();
     let qpi: Vec<Point3<T>> = (0..=k)
@@ -800,7 +794,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             r#loop: seed.r#loop,
         },
         qw[1],
-        placed_segment_spec(&segs[0], place, frame.n3, qw[0], tol),
+        placed_segment_spec(&segs[0], place, qw[0], tol),
         tol,
     )?;
     hes.push(first.he_plus);
@@ -812,7 +806,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 he2: prev.he_minus,
             },
             qw[i + 1],
-            placed_segment_spec(&segs[i], place, frame.n3, qw[i], tol),
+            placed_segment_spec(&segs[i], place, qw[i], tol),
             tol,
         )?;
         hes.push(m.he_plus);
@@ -889,16 +883,8 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             WallClass::Wall {
                 kind: WallKind::Sphere { .. },
                 ..
-            } => placed_segment_spec_about(
-                &segs[i],
-                far,
-                n_pi,
-                |c| frame.world(c),
-                radial,
-                qpi[i],
-                tol,
-            ),
-            _ => placed_segment_spec(&segs[i], far, n_pi, qpi[i], tol),
+            } => placed_segment_spec_about(&segs[i], far, |c| frame.world(c), radial, qpi[i], tol),
+            _ => placed_segment_spec(&segs[i], far, qpi[i], tol),
         };
         let mef = body.mef(MefSite::Chords { he1, he2 }, spec, surface, tol)?;
         faces.push(mef.face);

@@ -163,18 +163,12 @@ enum Reversal<T: Real> {
 impl<T: Real> Reversal<T> {
     fn of(surface: &Surface<T>) -> Self {
         match surface {
-            Surface::Plane {
-                frame: carrier_frame,
-            } => {
-                let (origin, normal, u_ref) = (
-                    carrier_frame.origin(),
-                    carrier_frame.axis(),
-                    carrier_frame.u_ref(),
-                );
-                Self::Chart(Surface::Plane {
-                    frame: geom::Frame::new(origin, -normal, u_ref),
-                })
-            }
+            // The plane's frame run back: its normal and `v` negated, its
+            // `u` kept ([`geom_core::RigidMotion::reversed`]), so no axis
+            // is re-squared and a second reversal restores every bit.
+            Surface::Plane { frame } => Self::Chart(Surface::Plane {
+                frame: geom::Frame::of_motion(&frame.motion().reversed()),
+            }),
             Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }

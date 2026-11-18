@@ -54,13 +54,13 @@ pub(super) fn build_chain<T: Decide + topo::AtRestPolicy>(
     cap: FaceSurface<T>,
     tol: Tol,
 ) -> Result<MeridianChain, EulerOpError> {
-    let (place, normal) = (frame.motion, frame.n3);
+    let place = frame.motion;
     let n = segs.len();
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(
         MevSite::Lone { r#loop },
         qs[1],
-        placed_segment_spec(&segs[0], place, normal, qs[0], tol),
+        placed_segment_spec(&segs[0], place, qs[0], tol),
         tol,
     )?;
     hes.push(first.he_plus);
@@ -73,7 +73,7 @@ pub(super) fn build_chain<T: Decide + topo::AtRestPolicy>(
                 he2: prev.he_minus,
             },
             qs[j],
-            placed_segment_spec(&segs[j - 1], place, normal, qs[j - 1], tol),
+            placed_segment_spec(&segs[j - 1], place, qs[j - 1], tol),
             tol,
         )?;
         hes.push(m.he_plus);
@@ -85,7 +85,7 @@ pub(super) fn build_chain<T: Decide + topo::AtRestPolicy>(
             he1: prev.he_minus,
             he2: first.he_plus,
         },
-        placed_segment_spec(&segs[n - 1], place, normal, qs[n - 1], tol),
+        placed_segment_spec(&segs[n - 1], place, qs[n - 1], tol),
         cap,
         tol,
     )?;

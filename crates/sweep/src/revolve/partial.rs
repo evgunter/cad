@@ -45,10 +45,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
 ) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let far = Placing::turned(frame.motion, frame.origin3, frame.axis, theta)
         .map_err(RevolveError::Turn)?;
-    let Some(n_end) = far.turn_vec(frame.n3) else {
-        unreachable!("a turned placing has a turn")
-    };
-    // The θ sign of the latitude carriers' axis ([`crate::swept::turn_axis`]'s).
+    // The θ sign of the latitude carriers' axis ([`crate::swept::turn_negates`]'s).
     let axis_c = if reverse {
         Sign::Positive
     } else {
@@ -104,7 +101,6 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
         near: points[li][0],
         far: rpoints[li][0],
         place_far: far,
-        n_far: n_end,
     };
     let seed = body.mvfs(
         if profile::is_full_turn(outer) {
@@ -236,7 +232,6 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
                 theta,
                 axis_c,
                 far,
-                n_end,
                 band,
                 tol,
             )?,
@@ -475,7 +470,6 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     theta: T,
     axis_c: Sign,
     far: Placing<T>,
-    n_end: geom_core::Vec3<T>,
     band: Band,
     tol: Tol,
 ) -> Result<LoopSwept, RevolveError> {
@@ -534,7 +528,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                     sense,
                 },
             };
-            let far = placed_segment_spec(&segs[j], far, n_end, rq[j], tol);
+            let far = placed_segment_spec(&segs[j], far, rq[j], tol);
             Ok::<_, RevolveError>(Some((far, surface)))
         },
         tol,

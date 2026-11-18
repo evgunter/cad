@@ -1270,13 +1270,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     let (bq, tq) = (&q_at[0], &q_at[k - 1]);
     // Loop `li`'s segment `j` placed at section `i`, from `q_from`.
     let rim_spec = |i: usize, li: usize, j: usize, q_from| {
-        placed_segment_spec(
-            &loops_at[i][li][j],
-            places[i].frame(),
-            places[i].normal().get(),
-            q_from,
-            tol,
-        )
+        placed_segment_spec(&loops_at[i][li][j], places[i].frame(), q_from, tol)
     };
     let wall_surface = |li: usize, j: usize, s: usize| FaceSurface::New {
         surface: Surface::Nurbs(Arc::clone(&walls[li][j][s])),

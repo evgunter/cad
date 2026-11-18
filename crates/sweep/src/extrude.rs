@@ -923,7 +923,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
             seed.r#loop,
             qs[0],
             [place, top_place],
-            normal,
             sweep,
             bottom_cap,
             tol,
@@ -942,7 +941,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 r#loop: seed.r#loop,
             },
             qs[1],
-            placed_segment_spec(&outer[0], place, normal, qs[0], tol),
+            placed_segment_spec(&outer[0], place, qs[0], tol),
             tol,
         )?;
         hes.push(first.he_plus);
@@ -954,7 +953,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                     he2: prev.he_minus,
                 },
                 qs[j],
-                placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], tol),
+                placed_segment_spec(&outer[j - 1], place, qs[j - 1], tol),
                 tol,
             )?;
             hes.push(m.he_plus);
@@ -965,7 +964,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], tol),
+            placed_segment_spec(&outer[n - 1], place, qs[n - 1], tol),
             bottom_cap,
             tol,
         )?;
@@ -996,7 +995,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                         ring,
                         hq[0],
                         [place, top_place],
-                        normal,
                         sweep,
                         disc,
                         tol,
@@ -1018,7 +1016,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
             hq[1],
-            placed_segment_spec(&segs[0], place, normal, hq[0], tol),
+            placed_segment_spec(&segs[0], place, hq[0], tol),
             tol,
         )?;
         hole_hes.push(first.he_plus);
@@ -1030,7 +1028,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                     he2: prev.he_minus,
                 },
                 hq[j],
-                placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], tol),
+                placed_segment_spec(&segs[j - 1], place, hq[j - 1], tol),
                 tol,
             )?;
             hole_hes.push(mv.he_plus);
@@ -1041,7 +1039,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], tol),
+            placed_segment_spec(&segs[m - 1], place, hq[m - 1], tol),
             swept::transient_disc(bottom_surface),
             tol,
         )?;
@@ -1070,7 +1068,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 qs,
                 place,
                 top_place,
-                normal,
                 sweep,
                 band,
                 tol,
@@ -1154,7 +1151,6 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     qs: &[Point3<T>],
     place: RigidMotion<T>,
     top_place: RigidMotion<T>,
-    normal: Vec3<T>,
     sweep: Sweep<T>,
     band: Band,
     tol: Tol,
@@ -1184,7 +1180,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         |j| struts[j].he_minus,
         |body, j, faces| {
             let surface = side_surface(body, segs, joins, faces, j, qs, place.into(), sweep, tol);
-            let top = placed_segment_spec(&segs[j], top_place, normal, qs[j] + w, tol);
+            let top = placed_segment_spec(&segs[j], top_place, qs[j] + w, tol);
             Ok::<_, ExtrudeError>(Some((top, surface)))
         },
         tol,
@@ -1310,7 +1306,6 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
     r#loop: topo::LoopKey,
     q: Point3<T>,
     [place, top_place]: [RigidMotion<T>; 2],
-    normal: Vec3<T>,
     sweep: Sweep<T>,
     near_cap: FaceSurface<T>,
     tol: Tol,
@@ -1344,10 +1339,10 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
         body,
         r#loop,
         q,
-        placed_segment_spec(seg, top_place, normal, far, tol),
+        placed_segment_spec(seg, top_place, far, tol),
         wall,
         strut,
-        placed_segment_spec(seg, place, normal, q, tol),
+        placed_segment_spec(seg, place, q, tol),
         near_cap,
         tol,
     )?;
@@ -1478,7 +1473,7 @@ fn side_surface<T: Real>(
             // (`swept::register_rigidity`).
             crate::swept::register_rigidity(qs[j] - c_world, arc, segs[j].chord.a, tol);
             // The sketch frame turned onto the arc's start radial, its
-            // normal the turn-signed plane normal ([`swept::turn_axis`]'s sign,
+            // normal the turn-signed plane normal ([`swept::turn_negates`]'s sign,
             // the frame run back): rigid by construction.
             let turned = place.frame_toward(swept::sketch_vector(&segs[j]));
             let turned = if swept::turn_negates(turn) {
