@@ -44,3 +44,15 @@ body has the reasons):
   P1s.
 - The budget returns to the default of 30, and the load is 21/30.
 - 2026-11-17 — **Merged: `the-save-format-drops-its-edit-log` (PR 7094).** A save file is now `{ "snapshot": <Doc> }`, and `persist::load` returns the document. The tour's die corpus is the document's state, re-stamped to each CI row's ε through one test home (`test_support::restamped_at`). Tier: single FULL review, APPROVE WITH FIXES, no MAJOR; the fix pass got the orchestrator's read. Closed alongside it: `persist-edit-replay-forwards-the-edit-doors-recourse` and BIND's `persist-inner-variant-stops-one-rung-above-the-check`. Re-opened at P2: the pose-chain row (a saved chain that loads aborts in evaluation). Filed: `docedit-keeps-a-read-half-no-door-reads` (P3) and the `{snapshot}` wrapper question (P4).
+- 2026-11-18 — **Merged: `split-widens-a-product-reading-one-of-several-cut-copies` (PR 7087).** The product slot is a read site in one enumeration (`Doc::read_sites`). Split, inline, flatten and `continuation::splice` re-point it by the rule they use for node seats, and the round-trip comparator now reads the product. Also:
+  - one walk of a source chain (`owned_chain`);
+  - one compose rule for picks of picks (`Doc::pick_path`, which the seat evaluator now uses too: a pick of a pick at a node seat failed to evaluate before);
+  - named sources and picks over the cut are carried, go with the cut, or refuse typed (`NamedReadUncarried { why }`).
+
+  Tier: a single FULL review (3 MAJORs), then delta reviews (1 MAJOR, then 2 MAJORs, then none) and four fix passes; the last pass got the orchestrator's read. Filed:
+  - P2: a named source whose heir is a piece (the VR4 fork);
+  - P2: inline and flatten redefine a seat's source where split rewrites it (the one kernel-defect path still reachable, on inline of a split remainder);
+  - P3: a part's product as the bodies no cut operation reads;
+  - P3: SPACES' viewer product readers.
+
+  The two P2 rows turn on one VR4 question; a designer pair should weigh it next.
