@@ -178,3 +178,16 @@ window.
   crossing rows. Put "the gate ran" back on them with the switch.
 - `min_separation`'s F41 scope has no pin (no production caller reads
   it).
+
+## Measured on `embed/pole` over main `ff2319654` (EMBED, lane pole, 2026-11-18)
+
+The same switch and the same modules (222 tests, 302 cavities asked on
+main). With `face_extent` reading a sphere face's pole off its vertex
+(`a-sphere-face-whose-extent-stops-ulps-short-of-its-pole-never-places-the-pole`),
+the six **pole** rows shell: the two-arc sphere's cavity at 526
+discharged and 516 splits, the domes at 182 / 169 and 228 / 215.
+
+**6 valid rows still refuse**, with the receipts of the table above:
+the three nested tori, the two-arc lune and the two rational windows.
+The two crossing pins fail as before. No other cavity's verdict or
+receipt moved.

@@ -42,3 +42,33 @@ Read the apex's `v` at the scale its rows round at. Two ways:
 
 Then build the tip of a large cone that reaches the current one, and
 pin it holding.
+
+## The same end rounded the other way leaves the apex unplaced (EMBED, lane pole, 2026-11-18)
+
+Found sweeping for the shape of
+`a-sphere-face-whose-extent-stops-ulps-short-of-its-pole-never-places-the-pole`:
+a singular point's collapsed side skipped because the rectangle,
+clipped to the stored extent, stops a rounding short of it.
+
+`present_chart`'s apex reading (`crates/topo/src/injective.rs`, "A
+cone's apex is a collapsed side of its chart") skips a face on the
+positive nappe where `y.0 > 0.0`, and `y` is the cell clipped to the
+extent. So an extent whose low end rounds ABOVE zero never places the
+apex, and the cell at the apex vertex reads `Local` at every depth.
+
+- **Unit probe (uncommitted):** the sector of
+  `a_cone_face_at_its_apex_is_read_on_its_own_nappe`, its meridians
+  ending at the apex vertex, in the cell `u ∈ [1.2, 1.8]`,
+  `v ∈ [-0.1, 0.3]`. With the extent's low end `0` or `-1e-17` the cell
+  is presented with the apex's side its zero. With `1e-17` or `1e-300`
+  it reads `Err(Local)`.
+- **Unreached on built bodies as far as measured:** no cavity row and
+  no tour stop moved with the sphere's fix or shows this refusal, and
+  PR 7086's cone tips all hold. A meridian line's `v` at the apex is
+  `c + l·t`, exactly zero where the line starts at the apex.
+
+The sphere's fix reads the pole off the face's vertex in `face_extent`
+(`reaching_its_poles`). The apex wants the same reading, a cone face
+holding a vertex at its apex has an extent that holds `v = 0`, and it
+is one decision with this row's: both are the apex end's rounding
+against the extent, on either side of zero.
