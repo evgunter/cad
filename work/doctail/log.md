@@ -181,3 +181,20 @@ body has the reasons):
   Delta review dispatched to a cloud session (`session_013QoYWU…` was the first review; this one is new). Disk hit 92% (the firstturn target at 15 GB, the tracechart target at 8.3 GB), so both lanes were told to trim.
 - 2026-11-18 — **PR 7126** (tracing on the face chart) is up and green. **Rung 3 proves the traced tangency** (2–5 ms per row, DAGs of 107–613 nodes, none over budget), so the stated-fact fallback was NOT needed; the measurement is on COINCIDE's one-source row. `traced_frame` and its sole readers are retired, and the traced-profile form is now "New profile on a face". The arm-0 defect was confirmed by measurement (a bottom cap tilted 0.2 rad). FULL review dispatched to a cloud session (disk).
 - 2026-11-18 — **PR 7114 merged** (verdict log: check/choice and first turn). The final pass: one marked home for every blend escalate threshold; mark cost measured as immaterial (worst ~1 MB, timing within noise); `k_stats::par_map` is the one recorded parallel map, with the gate `scripts/gates/parallel-maps-carry-the-role.sh`; typed `MarkItem`. ONEDOOR's wedge fold is unblocked (seam note on its log). The parting-site question moved to its own `[ev]` PR, because Ev does not scan merged PRs.
+- 2026-11-18 — **PR 7116 delta review: APPROVE WITH FIXES, no MAJOR** (the one order source holds over 228k prefixes). Last pass sent to the cloud lane:
+  - guards for `ClosesOnItsEntry` and the kernel bug;
+  - the #7082 coupling note corrected (`cosurface_pairs` is value-based, against `[recipe.doors]`);
+  - fuzz floors;
+  - one pen-order judgement (the viewer's third copy);
+  - one value-free form (`StepShape` vs `StepForm`);
+  - the load door carries `ProgramRefusal`.
+
+  **PR 7126 FULL review: APPROVE WITH FIXES, no MAJOR.** Rung 3 is sound, including the mated-flat case. Fix pass:
+  - lever over the boss wall's reach, not the session box;
+  - the viewer form's sticky trace latch, and the rows shown when nothing is latched;
+  - a recourse for float-turned frames;
+  - one home for `draw_on_face`'s defaulting;
+  - the reviewer's rows;
+  - `nearest_to_face` fails loud.
+
+  Both are bounded passes; the orchestrator reads and merges.
