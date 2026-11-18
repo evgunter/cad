@@ -3852,12 +3852,13 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
 /// and the claim two such carriers make is still the stored one.
 fn one_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
     // Equal as numbers, as [`one_value`] compares a point's ends (a
-    // signed zero is its own negation's value).
-    let same = |a: Vec3<f64>, b: Vec3<f64>| a.x == b.x && a.y == b.y && a.z == b.z;
+    // signed zero is its own negation's value): `equals_exactly`, the
+    // value question, of the vectors placed at the origin.
+    let same =
+        |a: Vec3<f64>, b: Vec3<f64>| (Point3::origin() + a).equals_exactly(Point3::origin() + b);
     let line = |a: Vec3<f64>, b: Vec3<f64>| same(a, b) || same(a, -b);
     let plane = |f: &geom::Frame<f64>, g: &geom::Frame<f64>| {
-        same(f.origin() - Point3::origin(), g.origin() - Point3::origin())
-            && line(f.axis(), g.axis())
+        f.origin().equals_exactly(g.origin()) && line(f.axis(), g.axis())
     };
     let one = |a: f64, b: f64| a == b;
     match (e, o) {
