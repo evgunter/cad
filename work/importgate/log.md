@@ -46,3 +46,5 @@
   No model-compare row (Fable outage). Check-ins at 45 min.
 
 - 2026-11-18 17:15 — The build lane forked on A3: `arc_loft_natively_computes_its_rational_volume` held per-face flux bit identity only through the printed rim circle. Ruled (a) with a tightening: the import's enclosure is certified and contains the native's value, and the total agrees within the import's pad; the per-face bit identity goes, as output stability. Accepted its A3 rule: a rational row the cap plane holds → the wall's exact row; a polynomial row → the plane × wall section.
+
+- 2026-11-18 20:05 — The build lane reports its fix pass done at d95bd600fb (CI green, run 44379987698), but says it is still waiting on the arc_loft ruling. My 17:15 and 18:36 sends apparently did not reach it, so the ruling was sent a third time with a request to confirm receipt. Delta review of the fix pass dispatched to R2 (resumed, same lane); one fresh-context reviewer suffices for a fix delta. Friction: cross-session messages to a busy cloud lane can be missed; ask for an acknowledgement on every ruling.
