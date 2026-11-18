@@ -61,3 +61,15 @@ How many of the 12,173 s are on bodies that are truly not embedded
 (about 12 tests in the census) against valid bodies the engine cannot
 yet read (1,056), and how many refusing asks end `Violated` after an
 earlier `Uncertified`, which is the case going on exists for.
+
+## Evidence (the gate lane, per-solid census on main `c2a0c41f40`, 2026-11-18)
+
+Over the workspace suite with the slow set: 341,880 asks, 29,187 s of
+gate, of which 11,434 s on asks that refuse. An ask that ends in a
+verified crossing after it has already kept a refusal (the case going on
+exists for) happened 38 times, 5 s in all. Crossings of any kind cost
+little: the first take's 8,727 crossing asks took 61 s. So nearly all of
+the refusing seconds are spent on valid bodies the engine refuses (1,076
+failing tests), not on the bodies that truly cross. Measured with
+`REFUSED_FIRST` in the `GATE` rows of `embed/gate-measure`
+(`measure/gate/README.md`).
