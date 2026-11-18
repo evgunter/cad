@@ -568,16 +568,9 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 count: Some(*have),
                 ..none
             },
-            pncad::document::LoftFault::EmptyStation { section }
-            | pncad::document::LoftFault::StationInFirstPlane { section } => EditPayload {
+            pncad::document::LoftFault::EmptyStation { section } => EditPayload {
                 node: Some(node.id()),
                 index: Some(*section),
-                ..none
-            },
-            pncad::document::LoftFault::DegreeOutOfRange { degree, sections } => EditPayload {
-                node: Some(node.id()),
-                count: Some(*sections),
-                given: usize::try_from(*degree).ok(),
                 ..none
             },
         },

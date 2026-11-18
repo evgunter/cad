@@ -67,6 +67,8 @@ mod arc_spec_census;
 mod blend7_review_probes;
 #[path = "bool11_probes.rs"]
 mod bool11_probes;
+#[path = "chain_shape_pieces.rs"]
+mod chain_shape_pieces;
 #[path = "fillet_constructions.rs"]
 mod fillet_constructions;
 #[path = "fillet_decided_tangency.rs"]

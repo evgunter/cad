@@ -2332,23 +2332,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "index"],
     );
-    carries(
-        &E::LoftShape {
-            node: sp(1),
-            fault: pncad::document::LoftFault::StationInFirstPlane { section: 1 },
-        },
-        &["node", "index"],
-    );
-    carries(
-        &E::LoftShape {
-            node: sp(1),
-            fault: pncad::document::LoftFault::DegreeOutOfRange {
-                degree: 2,
-                sections: 2,
-            },
-        },
-        &["node", "count", "given"],
-    );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
@@ -5085,12 +5068,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "loft_fault_tag",
-        values: &[
-            "degree_out_of_range",
-            "empty_station",
-            "station_in_first_plane",
-            "too_few_sections",
-        ],
+        values: &["empty_station", "too_few_sections"],
         delegates: &[],
     },
     TagEntry {

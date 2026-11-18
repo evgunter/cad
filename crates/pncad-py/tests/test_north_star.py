@@ -981,19 +981,18 @@ class TestLoftPrism(unittest.TestCase):
 
     def test_the_v_degree_is_a_count_the_kernel_checks(self):
         """`1 <= v_degree <= len(profiles) - 1` is the kernel's rule,
-        not the binding's: nothing is pre-checked here, so degree 3
-        through three sections is the kernel's `loft_shape` refusal at
-        the insert door."""
+        not the binding's: nothing is pre-checked here, and the degree
+        is a value, so degree 3 through three sections is admitted and
+        refused when the loft evaluates (`count_out_of_range`)."""
         doc = Doc()
         sections = [
             (doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in PRISM_SQUARE])), z)
             for z in (0.0, 1.0, 2.0)
         ]
-        with self.assertRaises(EditError) as caught:
-            doc.insert(Node.loft(*stacked(sections), Formula.count(3)))
-        self.assertEqual(caught.exception.variant, "loft_shape")
-        self.assertEqual(caught.exception.inner_variant, "degree_out_of_range")
-        self.assertEqual((caught.exception.count, caught.exception.given), (3, 3))
+        loft = doc.insert(Node.loft(*stacked(sections), Formula.count(3)))
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(loft)
+        self.assertEqual(caught.exception.kind, "count_out_of_range")
 
 
 class TestTheVDegreeParamBinding(unittest.TestCase):

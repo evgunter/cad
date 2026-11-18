@@ -262,7 +262,7 @@ fn on_trace<S>(t: &ProgramTarget<S>) -> bool {
 
 /// Whether `t` is a target found from the pen: a trace's crossing, or a
 /// written coordinate along a heading.
-fn from_the_pen<S>(t: &ProgramTarget<S>) -> bool {
+pub(crate) fn from_the_pen<S>(t: &ProgramTarget<S>) -> bool {
     on_trace(t) || matches!(t, ProgramTarget::AtX(_) | ProgramTarget::AtY(_))
 }
 

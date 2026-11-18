@@ -1833,6 +1833,69 @@ fn filleted_to_sharp(old: &[StepId]) -> Vec<Option<StepId>> {
     [0, 1, 2, 4, 6, 7, 8].map(|k| Some(old[k])).to_vec()
 }
 
+/// **An action's strand of a piece a kept step stopped drawing
+/// survives while the end program's structure still cannot draw it**
+/// (`MaintenanceNet`): a fillet inserted before the sharp square's
+/// right leg strands the shell on that leg; a second reshaping in the
+/// same action that drops the fillet draws the leg again and takes the
+/// strand back, while one that only moves the fillet's radius keeps
+/// it. No value is read: the net asks each program's structure.
+/// Broken by a survival test that asks whether the carrier still holds
+/// the name (both actions keep the strand), or one that reads values.
+#[test]
+fn an_actions_piece_strand_survives_until_a_later_reshaping_draws_it_again() {
+    let (doc, profile, ext) = extruded("net-redraw", vec![corner(false)]);
+    let ids = ids_of(&doc, profile);
+    let (doc, shell) = shell_on(doc, ext, wall_by(ext, ids[0][4], PieceRole::Leg));
+    let filleted = accepted(
+        &doc,
+        profile,
+        vec![corner(true)],
+        vec![sharp_to_filleted(&ids[0])],
+    );
+    assert!(
+        filleted.maintenance.iter().any(|row| matches!(
+            row,
+            Maintenance::StrandedSelection { readers, took: editor_core::Took::Piece, .. }
+                if readers.iter().any(|r| r.id() == shell)
+        )),
+        "the inserted fillet strands the shell on the kept leg: {:?}",
+        filleted.maintenance
+    );
+    let net = |second: &editor_core::Applied<ProfileProgram>| {
+        let mut net = editor_core::MaintenanceNet::new();
+        net.push(&filleted);
+        net.push(second);
+        net.finish(&second.doc)
+            .into_iter()
+            .filter(|row| matches!(row, Maintenance::StrandedSelection { .. }))
+            .count()
+    };
+    let new_ids = ids_of(&filleted.doc, profile);
+    let sharp_again = accepted(
+        &filleted.doc,
+        profile,
+        vec![corner(false)],
+        vec![filleted_to_sharp(&new_ids[0])],
+    );
+    assert_eq!(
+        net(&sharp_again),
+        0,
+        "dropping the fillet draws the leg again"
+    );
+    let other_radius = accepted(
+        &filleted.doc,
+        profile,
+        vec![corner_at(true, (0.0, 0.0), 1.0, 0.3)],
+        keep_all(&filleted.doc, profile),
+    );
+    assert_eq!(
+        net(&other_radius),
+        1,
+        "a radius moved by a reshaping leaves the leg undrawable"
+    );
+}
+
 /// **A fillet inserted before a kept leg strands the names on that
 /// leg.** The sharp square's right wall is its second `line`'s leg,
 /// and a shell and a paint name it. The reshaping inserts a fillet at
@@ -1972,22 +2035,21 @@ fn a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing() {
     shell_refuses_vanished(&applied.doc, shell, &up);
 }
 
-/// **A reshaping's values strand what the same value written by a
-/// slot edit would not** — the behaviour
-/// `work/doctail/a-reshapings-values-strand-what-a-value-edit-would-not.md`
-/// asks about, pinned as built. [`filleted_square`] at `r = 0.3` with a
-/// shell on the fillet's run out, rewritten whole at `r = 2` with every
-/// step kept: the run's `Zero` fit leaves it undrawn and the reshaping
-/// reports the shell, where `SetParam` landing the same document
-/// reports nothing. Back at `r = 0.3` through `SetProgram` nothing is
-/// reported. A `circle_split` hole's count `4 → 3`, keep-all, reports
-/// the paint on its `Piece(3)` only; the count is no slot, so
-/// `SetProgram` is its one door.
+/// **A reshaping's values strand nothing, as the same values written
+/// by a slot edit strand nothing; its count strands the pieces it
+/// stops drawing** (REFERENCES.md DM7: structure, values erased).
+/// [`filleted_square`] at `r = 0.3` with a shell on the fillet's run
+/// out, rewritten whole at `r = 2` with every step kept: the run's
+/// `Zero` fit leaves it undrawn, which is a value, and neither door
+/// reports the shell. A `circle_split` hole's count `4 → 3`, keep-all,
+/// reports the paint on its `Piece(3)` only; the count is no slot, so
+/// `SetProgram` is its one door. Broken by a strand report that reads
+/// the values (the radius case reports), or that erases the count.
 #[test]
-fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
+fn a_reshapings_values_strand_nothing_and_its_count_strands_its_pieces() {
     let (doc, profile, ext) = extruded("values-strand", vec![filleted_square(0.3)]);
     let run_out = wall_by(ext, ids_of(&doc, profile)[0][2], PieceRole::RunOut);
-    let (doc, shell) = shell_on(doc, ext, run_out.clone());
+    let (doc, _shell) = shell_on(doc, ext, run_out.clone());
     let via_program = accepted(
         &doc,
         profile,
@@ -2001,13 +2063,8 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
     );
     assert_eq!(
         crate::fixture::without_anonymous(&via_program.maintenance),
-        vec![fixture::selection_strand(
-            &doc,
-            shell,
-            doc.spoken_name(&run_out),
-            editor_core::Took::Piece,
-        )],
-        "the reshaping strands the run its value leaves undrawn"
+        vec![],
+        "the reshaping strands nothing its values alone leave undrawn"
     );
     assert_eq!(
         crate::fixture::without_anonymous(&via_slot.maintenance),
@@ -2299,51 +2356,39 @@ fn a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported() {
     }
 }
 
-/// **Moving a fillet off a corner breaks the run its run in was part
-/// of, and the reshaping reports a name that never resolved.** Pinned red
-/// on
-/// `work/doctail/a-reshaping-that-joins-a-kept-piece-into-a-run-reports-nothing.md`:
-/// before the move the bottom wall is the run of the leg and the
-/// fillet's run in, so `Lateral([run in])` names nothing; the moved
-/// fillet no longer draws that piece, and the door, which reads only
-/// which pieces are drawn, reports the name as taken.
+/// **Moving a fillet off a corner reports exactly what resolution
+/// says it took**: before the move the bottom wall is the run of the
+/// leg and the fillet's run in; the moved fillet's run in fits `Zero`
+/// at these values, which is a value and no removal, so the door, which
+/// compares what each program's structure can draw, reports no name on
+/// it. Broken by a strand report that reads the values (it reports
+/// `Lateral([run in])`, a name that never resolved).
 #[test]
-fn a_fillet_moved_off_a_corner_reports_a_run_piece_that_never_resolved() {
-    test_utils::pinned_red::row(
-        tol().eps(),
-        &test_utils::pinned_red::EVERY_ROW,
-        "a fillet moved to another corner",
-        &[
-            "fillet moved: a reported name on a kept step resolved before",
-            "role: RunIn })] }",
-        ],
-        || {
-            report_matches_resolution(
-                "fillet moved",
-                vec![corner(true)],
-                vec![LoopProgram::Chain(vec![
-                    ProgramStep::At(len2([0.0, 0.0])),
-                    ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
-                    ProgramStep::Toward {
-                        dx: scl(0.0),
-                        dy: scl(1.0),
-                    },
-                    ProgramStep::Line(len(1.5)),
-                    ProgramStep::Fillet(len(0.5)),
-                    ProgramStep::Toward {
-                        dx: scl(-1.0),
-                        dy: scl(0.0),
-                    },
-                    ProgramStep::At(len2([1.5, 2.0])),
-                    ProgramStep::Line(len(1.5)),
-                    ProgramStep::LineTo(ProgramTarget::Start),
-                ])],
-                &|d, p| {
-                    let o = &ids_of(d, p)[0];
-                    let k = |i: usize| Some(o[i]);
-                    vec![vec![k(0), None, k(4), None, k(3), None, k(5), k(6), k(8)]]
-                },
-            );
+fn a_fillet_moved_off_a_corner_reports_what_resolution_says_it_took() {
+    report_matches_resolution(
+        "fillet moved",
+        vec![corner(true)],
+        vec![LoopProgram::Chain(vec![
+            ProgramStep::At(len2([0.0, 0.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+            ProgramStep::Toward {
+                dx: scl(0.0),
+                dy: scl(1.0),
+            },
+            ProgramStep::Line(len(1.5)),
+            ProgramStep::Fillet(len(0.5)),
+            ProgramStep::Toward {
+                dx: scl(-1.0),
+                dy: scl(0.0),
+            },
+            ProgramStep::At(len2([1.5, 2.0])),
+            ProgramStep::Line(len(1.5)),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])],
+        &|d, p| {
+            let o = &ids_of(d, p)[0];
+            let k = |i: usize| Some(o[i]);
+            vec![vec![k(0), None, k(4), None, k(3), None, k(5), k(6), k(8)]]
         },
     );
 }
@@ -2358,7 +2403,7 @@ fn a_fillet_moved_off_a_corner_reports_a_run_piece_that_never_resolved() {
 /// hole's count up and down; a run's midpoint moved; and the identity.
 /// Inserting a fillet after a kept leg and moving one to another corner
 /// are their own pinned rows ([`a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported`],
-/// [`a_fillet_moved_off_a_corner_reports_a_run_piece_that_never_resolved`]).
+/// [`a_fillet_moved_off_a_corner_reports_what_resolution_says_it_took`]).
 /// The rows that leave a kept piece undrawn must report it, so a door
 /// that reported only dropped steps is red here.
 #[test]

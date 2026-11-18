@@ -185,10 +185,11 @@ pub use path::program::{
     replay, replay_guided, replay_recording,
 };
 pub use path::{
-    ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
-    CornerRefusal, CornerWindow, EscalatedAt, LegFit, LeverValue, LineTarget, OntoTarget, Open,
-    PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Recourse, Start,
-    Sweep, TangentArcTarget, TurnLever, Via, circle, circle_split, rectangle,
+    ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ChainShape, ContinueTarget,
+    CornerReason, CornerRefusal, CornerWindow, EscalatedAt, LatticeFault, LegFit, LeverValue,
+    LineTarget, OntoTarget, Open, PartialPath, PathError, PathErrorKind, PathNoCornerReason,
+    PointLeg, Radius, Recourse, Start, Sweep, TangentArcTarget, TurnLever, Via, chain_shape,
+    circle, circle_split, rectangle,
 };
 pub use seg::ArcRead;
 /// The path door's read-back rounding bounds and its magnitude

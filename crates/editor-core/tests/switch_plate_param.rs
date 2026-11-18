@@ -293,15 +293,16 @@ fn an_overlapping_radius_refuses_at_validate() {
 }
 
 // ------------------------------------------------------------------
-// Row 4 — the §4d authoring door
+// Row 4 — the doors read no value
 // ------------------------------------------------------------------
 
 /// The two doors, side by side: writing a refusing radius INTO the
-/// program is refused at the edit door, while re-pointing the document
-/// parameter to the same effective value is NOT — the asymmetry §4d
-/// states and VQ9 ratifies.
+/// program and re-pointing the document parameter to the same
+/// effective value are both admitted, and both surface at evaluation
+/// (`[recipe.doors]`: a door judges the document, never one
+/// evaluation of it).
 #[test]
-fn the_authoring_door_refuses_but_define_var_does_not() {
+fn the_slot_door_and_define_var_both_leave_a_zero_radius_to_evaluation() {
     let s = scene();
     let radius_slot = SlotId::Profile {
         loop_: 1,
@@ -309,8 +310,8 @@ fn the_authoring_door_refuses_but_define_var_does_not() {
         arg: StepArg::Radius,
     };
 
-    // (a) Writing zero into the slot: refused at the door.
-    let refused = apply(
+    // (a) Writing zero into the slot: admitted, refused at evaluation.
+    let written = apply(
         &s.doc,
         &DocEdit::SetParam {
             node: s.profile,
@@ -319,10 +320,11 @@ fn the_authoring_door_refuses_but_define_var_does_not() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-    );
+    )
+    .expect("the slot door reads no value");
     assert!(
-        refused.is_err(),
-        "the authoring door must refuse a zero radius"
+        node_error(&written.doc, s.profile).is_some(),
+        "the zero radius refuses at evaluation"
     );
 
     // (b) The same breakage via the document parameter: APPLIES, and
@@ -333,8 +335,8 @@ fn the_authoring_door_refuses_but_define_var_does_not() {
         "the refusal surfaces at evaluation instead"
     );
 
-    // (c) And a GOOD radius goes through the same door cleanly, so (a)
-    //     is a refusal about the value, not about the slot.
+    // (c) And a GOOD radius evaluates cleanly, so (a) is a refusal
+    //     about the value, not about the slot.
     let ok = apply(
         &s.doc,
         &DocEdit::SetParam {

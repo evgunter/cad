@@ -709,12 +709,15 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     fn reads(&self, var: VarId) -> bool {
         self.rows().into_iter().any(|(_, &e)| e == var)
     }
-    /// The authoring-time check (VQ9): resolve + replay + validate
-    /// under the CURRENT parameter environment, refusing typed at the
-    /// edit door. The evaluation-time twin re-checks under every
-    /// binding that is ever evaluated. A payload with no program has
-    /// nothing to check.
-    fn check(&self, _env: &VarEnv<f64>, _tol: Tol) -> Result<(), ProgramRefusal> {
+    /// **The program's lattice of verbs** ([`ProfileProgram::lattice`]),
+    /// the one question the edit door and the load door ask a program
+    /// (`[recipe.doors]`): no value moves it. A payload with no program
+    /// has nothing to ask.
+    ///
+    /// # Errors
+    ///
+    /// [`ProgramRefusal::Transition`].
+    fn lattice(&self) -> Result<(), ProgramRefusal> {
         Ok(())
     }
     /// **The loop programs this payload holds**, program order — the
@@ -752,23 +755,22 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     fn mint_step_ids(&mut self, _mint: &mut crate::Mint) -> Result<(), StepIdFault> {
         Ok(())
     }
-    /// **Every authored step's piece this program draws** under `env`
-    /// — [`ProfileProgram::pieces`], the one answer to which pieces a
-    /// program draws, flattened over its loops. Empty for a payload
-    /// with no program. Required, so a payload that holds a program
-    /// cannot answer that it draws nothing by omission.
+    /// **Every authored step's piece this program's structure can
+    /// draw** — [`ProfileProgram::drawable_pieces`], read off the
+    /// program alone. Empty for a payload with no program. Required, so
+    /// a payload that holds a program cannot answer that it draws
+    /// nothing by omission.
     ///
     /// # Errors
     ///
-    /// [`ProfileProgram::pieces`]'s refusals, for the same causes.
-    fn drawn_pieces(
+    /// [`ProfileProgram::drawable_pieces`]'s refusals.
+    fn drawable_pieces(
         &self,
-        env: &VarEnv<f64>,
-        tol: Tol,
     ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal>;
 }
 
-/// A typed authoring-time program refusal (VQ9; `EditError`'s payload).
+/// A typed program refusal (`EditError`'s payload, and
+/// [`ProfileProgram::pieces`]'s).
 ///
 /// The resolve and validate classes carry their causes UNALTERED
 /// (`EvalError`/`ProfileError` are `PartialEq`, as `EditError`
@@ -786,8 +788,7 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
 /// for a reader.** A consumer asking WHICH geometry refusal fired
 /// matches that variant's `kind` and never the string.
 /// The full typed error remains the EVALUATION surface's contract
-/// (`NodeErrorKind` carries it unaltered); the edit door is the early
-/// ergonomic mirror. REPORTED shape, not silent (LIB-SWITCH §10).
+/// (`NodeErrorKind` carries it unaltered).
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramRefusal {
     /// A program expression failed to resolve at f64 (unknown param,
@@ -812,8 +813,7 @@ pub enum ProgramRefusal {
         verb: Option<profile::Verb>,
     },
     /// The chain is well-typed but the geometry refuses under the
-    /// current binding (V1 class 2 — legal at rest; the CURRENT env
-    /// refuses it at the door for fail-loud-early ergonomics).
+    /// binding asked (V1 class 2 — legal at rest).
     Geometry {
         /// The loop whose replay refused.
         loop_: u32,
@@ -826,8 +826,8 @@ pub enum ProgramRefusal {
         /// scalar payloads `kind` drops; never an interface.
         rendered: String,
     },
-    /// The replayed loops refused profile validation under the current
-    /// binding (also V1 class 2).
+    /// The replayed loops refused profile validation under the binding
+    /// asked (also V1 class 2).
     Validate(profile::ProfileError),
     /// The program carries no step ids, so its pieces have no names:
     /// ids are minted by the document's insert door, and a program
@@ -891,9 +891,9 @@ impl core::error::Error for ProgramRefusal {}
 /// [`crate::ProgramFault::Lattice`]: [`profile::Refused`]'s clause,
 /// where, and its recourse in the chain's vocabulary. The verb is the
 /// transition table's, which is the [`ProgramStep`] variant's name for
-/// every step but [`ProgramStep::AlongTrace`] (it lowers to `Toward`;
-/// a program holding one runs from the pen, so this door never checks
-/// it).
+/// every step but those found from the pen, which are named by the
+/// verb they lower to ([`LoopProgram::erased_steps`]): `along_trace`
+/// as `toward`, a leg to a trace or a coordinate as `line`.
 pub(crate) fn write_lattice(
     f: &mut core::fmt::Formatter<'_>,
     loop_: u32,
@@ -1702,7 +1702,7 @@ pub(crate) fn res_chain_step<T: Decide>(
     loop_: u32,
     step: u32,
 ) -> Result<Step<T>, (SlotId, EvalError)> {
-    res_step(s, &leaf(step_rows(s, step), env, loop_))
+    res_step(s, &leaf(step_rows(s, step), env, loop_), Lowering::Values)
 }
 
 /// Resolves a point's two coordinates through `res`.
@@ -1733,6 +1733,7 @@ where
 fn res_target<T: Decide, R>(
     t: &ProgramTarget,
     res: &R,
+    lowering: Lowering,
 ) -> Result<profile::Target<T>, (SlotId, EvalError)>
 where
     R: Fn(&VarId) -> Result<T, (SlotId, EvalError)>,
@@ -1742,9 +1743,23 @@ where
         ProgramTarget::StartArriving => profile::Target::StartArriving,
         ProgramTarget::Point(p) => profile::Target::Point(res_point(p, res)?),
         ProgramTarget::OnTrace { .. } | ProgramTarget::AtX(_) | ProgramTarget::AtY(_) => {
-            unreachable!("a step reading a trace resolves through `crate::trace`")
+            match lowering {
+                Lowering::Shape => profile::Target::Point(Point2::new(T::zero(), T::zero())),
+                Lowering::Values => {
+                    unreachable!("a step reading a trace resolves through `crate::trace`")
+                }
+            }
         }
     })
+}
+
+/// **What a lowering is for**: a step's values, or its shape alone
+/// ([`LoopProgram::erased_steps`]), which reads no expression and lowers a
+/// target found from the pen to the form its trace lowering gives it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Lowering {
+    Values,
+    Shape,
 }
 
 /// Resolves one chain step to its scalar-valued mirror.
@@ -1753,10 +1768,15 @@ where
 /// [`ProgramStep`] and CONSTRUCTS a [`Step`], so a verb `profile`'s
 /// table gains is invisible here. The census in
 /// `tests/switch_program_vocabulary.rs` is what sees it.
-fn res_step<T: Decide, R>(s: &ProgramStep, res: &R) -> Result<Step<T>, (SlotId, EvalError)>
+fn res_step<T: Decide, R>(
+    s: &ProgramStep,
+    res: &R,
+    lowering: Lowering,
+) -> Result<Step<T>, (SlotId, EvalError)>
 where
     R: Fn(&VarId) -> Result<T, (SlotId, EvalError)>,
 {
+    let shape = lowering == Lowering::Shape;
     Ok(match s {
         ProgramStep::At(p) => Step::At(res_point(p, res)?),
         ProgramStep::Angle(e) => Step::Angle(res(e)?),
@@ -1768,18 +1788,25 @@ where
         ProgramStep::Cusp => Step::Cusp,
         ProgramStep::Turn(e) => Step::Turn(res(e)?),
         ProgramStep::Line(e) => Step::Line(res(e)?),
-        ProgramStep::LineTo(t) => Step::LineTo(res_target(t, res)?),
-        ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, res)?),
-        ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, res)?),
-        ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, res)?),
-        ProgramStep::ArcOnto(t) => Step::ArcOnto(res_target(t, res)?),
+        // A leg run from the pen to a trace or a coordinate lowers to
+        // the line along the pen's heading (`crate::trace`).
+        ProgramStep::LineTo(t) | ProgramStep::ContinueTo(t)
+            if shape && crate::trace::from_the_pen(t) =>
+        {
+            Step::Line(T::zero())
+        }
+        ProgramStep::LineTo(t) => Step::LineTo(res_target(t, res, lowering)?),
+        ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, res, lowering)?),
+        ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, res, lowering)?),
+        ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, res, lowering)?),
+        ProgramStep::ArcOnto(t) => Step::ArcOnto(res_target(t, res, lowering)?),
         ProgramStep::Fillet(e) => Step::Fillet { radius: res(e)? },
         ProgramStep::FilletArc { radius, spec } => Step::FilletArc {
             radius: res(radius)?,
-            spec: res_spec(spec, res)?,
+            spec: res_spec(spec, res, lowering)?,
         },
         ProgramStep::ArcFillet { spec, radius } => Step::ArcFillet {
-            spec: res_spec(spec, res)?,
+            spec: res_spec(spec, res, lowering)?,
             radius: res(radius)?,
         },
         ProgramStep::ArcFilletArc {
@@ -1787,12 +1814,16 @@ where
             radius,
             spec2,
         } => Step::ArcFilletArc {
-            spec: res_spec(spec, res)?,
+            spec: res_spec(spec, res, lowering)?,
             radius: res(radius)?,
-            spec2: res_spec(spec2, res)?,
+            spec2: res_spec(spec2, res, lowering)?,
         },
         ProgramStep::FarEndTo(p) => Step::FarEndTo(res_point(p, res)?),
         ProgramStep::CloseTo => Step::CloseTo,
+        ProgramStep::AlongTrace { .. } if shape => Step::Toward {
+            dx: T::zero(),
+            dy: T::zero(),
+        },
         ProgramStep::AlongTrace { .. } => {
             unreachable!("a step reading a trace resolves through `crate::trace`")
         }
@@ -1814,6 +1845,7 @@ where
 fn res_spec<T: Decide, R>(
     spec: &ProgramArcData,
     res: &R,
+    lowering: Lowering,
 ) -> Result<profile::ArcData<T>, (SlotId, EvalError)>
 where
     R: Fn(&VarId) -> Result<T, (SlotId, EvalError)>,
@@ -1824,17 +1856,17 @@ where
             side: *side,
         },
         ProgramArcData::Bulge { target, b } => profile::ArcData::Bulge {
-            target: res_target(target, res)?,
+            target: res_target(target, res, lowering)?,
             b: res(b)?,
         },
         ProgramArcData::Via { q, target } => profile::ArcData::Via {
             q: res_point(q, res)?,
-            target: res_target(target, res)?,
+            target: res_target(target, res, lowering)?,
         },
         ProgramArcData::Center { c, winding, target } => profile::ArcData::Center {
             c: res_point(c, res)?,
             winding: *winding,
-            target: res_target(target, res)?,
+            target: res_target(target, res, lowering)?,
         },
         ProgramArcData::Sweep { r, side, angle } => profile::ArcData::Sweep {
             r: res(r)?,
@@ -1980,6 +2012,41 @@ impl LoopProgram {
                     height: res(height)?,
                 }])
             }
+        }
+    }
+
+    /// **This loop's steps with every value erased**: each verb, target
+    /// form and arc mode as written, a `circle_split`'s count, and a
+    /// zero wherever an expression stands. A step found from the pen
+    /// lowers to the form its trace lowering gives it (`crate::trace`).
+    /// What [`profile::chain_shape`] reads, which reads no number.
+    #[must_use]
+    pub fn erased_steps(&self) -> Vec<Step<f64>> {
+        let zero = |_: &VarId| Ok(0.0);
+        let origin = Point2::new(0.0, 0.0);
+        match self {
+            LoopProgram::Chain(steps) => steps
+                .iter()
+                .map(|s| {
+                    res_step(s, &zero, Lowering::Shape)
+                        .unwrap_or_else(|_| unreachable!("no expression is read"))
+                })
+                .collect(),
+            LoopProgram::Circle { .. } => vec![Step::Circle {
+                centre: origin,
+                radius: 0.0,
+            }],
+            LoopProgram::CircleSplit { n, .. } => vec![Step::CircleSplit {
+                centre: origin,
+                radius: 0.0,
+                n: *n as usize,
+                phase: 0.0,
+            }],
+            LoopProgram::Rectangle { .. } => vec![Step::Rectangle {
+                centre: origin,
+                width: 0.0,
+                height: 0.0,
+            }],
         }
     }
 }
@@ -2341,31 +2408,75 @@ impl ProfileProgram {
         Ok(out)
     }
 
-    /// The authoring-time check's body (VQ9): resolve under `env`,
-    /// replay every loop, validate the assembled profile — all under
-    /// the run tolerance (VQ6: the same `Tolerance::get()` evaluation
-    /// pins). Used by the edit door; evaluation re-runs the same
-    /// ladder per binding with full typed errors. A program that lowers
-    /// against the pen ([`Self::runs_from_the_pen`]) is checked where
-    /// the pen is, at evaluation.
+    /// **Each loop's shape** ([`profile::chain_shape`] over
+    /// [`LoopProgram::erased_steps`]): the lattice walk over its verbs,
+    /// target forms and arc modes, and the pieces that structure can
+    /// draw. It reads no value, so no binding, member or tolerance
+    /// moves it.
+    fn shapes(&self) -> impl Iterator<Item = Result<profile::ChainShape, ProgramRefusal>> + '_ {
+        self.loops.iter().enumerate().map(|(li, lp)| {
+            profile::chain_shape(&lp.erased_steps()).map_err(|fault| ProgramRefusal::Transition {
+                loop_: program_index(li),
+                step: program_index(fault.step),
+                state: fault.state,
+                verb: fault.verb,
+            })
+        })
+    }
+
+    /// **The program's lattice of verbs**, the one question the edit
+    /// door and the load door ask a program (`[recipe.doors]`). A loop
+    /// that runs from the pen ([`LoopProgram::runs_from_the_pen`]) is
+    /// lowered by evaluation, which refuses its step orders typed
+    /// (`crate::trace::TraceStepFault`), so it is asked there.
     ///
     /// # Errors
     ///
-    /// [`ProgramRefusal::Resolve`], [`ProgramRefusal::Transition`],
-    /// [`ProgramRefusal::Geometry`] or [`ProgramRefusal::Validate`].
-    pub fn check(&self, env: &VarEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
-        if self.runs_from_the_pen() {
-            return Ok(());
-        }
-        self.validated(env, tol).map(|_| ())
+    /// [`ProgramRefusal::Transition`] at the first loop the lattice
+    /// refuses.
+    pub fn lattice(&self) -> Result<(), ProgramRefusal> {
+        self.shapes()
+            .zip(&self.loops)
+            .filter(|(_, lp)| !lp.runs_from_the_pen())
+            .try_for_each(|(shape, _)| shape.map(|_| ()))
     }
 
-    /// The check's ladder, keeping what it recorded ([`Replayed`]):
-    /// what [`ProfileProgram::pieces`] names the canonical positions
-    /// from. Recording changes nothing about what is computed
-    /// (`profile::replay_recording` is `replay` bit for bit plus the
-    /// account, and `validate_recording` is `validate` plus its record),
-    /// so this and [`ProfileProgram::check`] cannot disagree.
+    /// **The pieces this program's structure can draw**, by name: each
+    /// loop's shape piece spelled with the id its step was minted
+    /// (`names/README.md`, "N1, the profile pieces"). A piece absent
+    /// here is absent at every value; one present may still go undrawn
+    /// at some (a run that fits `Zero`). A loop whose shape the lattice
+    /// refuses draws nothing at any value.
+    ///
+    /// # Errors
+    ///
+    /// [`ProgramRefusal::Unminted`] and [`ProgramRefusal::StepIds`].
+    pub fn drawable_pieces(
+        &self,
+    ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal> {
+        if !self.carries_step_ids() {
+            return Err(ProgramRefusal::Unminted);
+        }
+        self.check_id_shape().map_err(ProgramRefusal::StepIds)?;
+        Ok(self
+            .shapes()
+            .zip(&self.ids)
+            .filter_map(|(shape, ids)| Some((shape.ok()?, ids)))
+            .flat_map(|(shape, ids)| {
+                shape
+                    .pieces
+                    .into_iter()
+                    .map(|p| crate::ProfileEdgeRef::Piece {
+                        step: ids[p.step],
+                        role: p.role,
+                    })
+            })
+            .collect())
+    }
+
+    /// Resolve under `env`, replay every loop and validate the assembled
+    /// profile, keeping what it recorded ([`Replayed`]): what
+    /// [`ProfileProgram::pieces`] names the canonical positions from.
     fn validated(&self, env: &VarEnv<f64>, tol: Tol) -> Result<Replayed, ProgramRefusal> {
         let (replayed, records) = self.replay_records(env, tol)?;
         // A profile is 2-D, its plane its own `xy`: what this door
@@ -2837,15 +2948,13 @@ impl ProfilePayload for ProfileProgram {
         }
     }
 
-    fn check(&self, env: &VarEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
-        ProfileProgram::check(self, env, tol)
+    fn lattice(&self) -> Result<(), ProgramRefusal> {
+        ProfileProgram::lattice(self)
     }
-    fn drawn_pieces(
+    fn drawable_pieces(
         &self,
-        env: &VarEnv<f64>,
-        tol: Tol,
     ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal> {
-        Ok(self.pieces(env, tol)?.edges.into_iter().flatten().collect())
+        ProfileProgram::drawable_pieces(self)
     }
     fn loops(&self) -> Option<&[LoopProgram]> {
         Some(&self.loops)

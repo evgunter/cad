@@ -55,6 +55,15 @@ this row:
 loop, and either loop of two) and
 `edit_set_program::a_fillet_moved_off_a_corner_reports_a_run_piece_that_never_resolved`.
 
+**The moved-fillet row is lifted (the value-free door, after #7075).**
+The strand report now compares what each program's structure can
+draw. In that row the moved fillet's run in fits `Zero` at the row's
+values, so the report no longer names it, and
+`report_matches_resolution` holds. The row is now an ordinary test,
+`a_fillet_moved_off_a_corner_reports_what_resolution_says_it_took`.
+A run that a moved fillet breaks at generic values is still this row's
+to report.
+
 ## Done when
 
 A reshaping reports a held wall name whose run it changed (joined or

@@ -465,10 +465,8 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
             hidden: reader(self.hidden, Dimension::Length),
         }
     }
-    fn drawn_pieces(
+    fn drawable_pieces(
         &self,
-        _env: &editor_core::VarEnv<f64>,
-        _tol: Tol,
     ) -> Result<BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal> {
         Ok(BTreeSet::new())
     }

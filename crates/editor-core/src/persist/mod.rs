@@ -533,8 +533,8 @@ impl core::error::Error for PersistError {}
 /// invariants are broken (an unloadable file, refused before it
 /// exists). Plus [`PersistError::Serialize`] if the JSON writer itself
 /// fails.
-pub fn save(doc: &ProfileDoc, tol: Tol) -> Result<String, PersistError> {
-    check::validate_document(doc, tol)?;
+pub fn save(doc: &ProfileDoc, _tol: Tol) -> Result<String, PersistError> {
+    check::validate_document(doc)?;
     let body = SerBody { snapshot: doc };
     // Written compact inside the writing door, so a stable name of any
     // depth writes one level at a time (`names::nest`), then laid out
@@ -568,7 +568,7 @@ struct SerBody<'a> {
 /// Every arm of [`PersistError`] except `Serialize` (`NonFinite` is
 /// guarded by the shared validator but unreachable post-parse — JSON
 /// carries no non-finite tokens, so those bytes refuse as `Parse`).
-pub fn load(text: &str, tol: Tol) -> Result<ProfileDoc, PersistError> {
+pub fn load(text: &str, _tol: Tol) -> Result<ProfileDoc, PersistError> {
     // The header carries the document's id (ASM-1 D-6); it is parsed
     // before the body so a malformed header refuses in header terms,
     // then verified against the snapshot below.
@@ -585,7 +585,7 @@ pub fn load(text: &str, tol: Tol) -> Result<ProfileDoc, PersistError> {
     // The ONE shared validator — the same call the save door makes
     // (convention 2): a parsed document passes exactly the checks an
     // in-memory document must pass to be saved.
-    check::validate_document(&doc, tol)?;
+    check::validate_document(&doc)?;
     reconcile_epsilon(doc.epsilon())?;
     Ok(doc)
 }

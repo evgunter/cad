@@ -1409,3 +1409,49 @@ fn a_vanished_traced_face_is_unresolved() {
         ev.node_error(scene.footprint).map(|e| e.kind.to_string())
     );
 }
+
+/// **A `SetProgram` that keeps a named step of a traced boss is
+/// admitted**: the strand report compares what each program's
+/// structure can draw (REFERENCES.md DM7), which reads no trace, so a
+/// boss whose wall a shell names is rewritten with every step kept and
+/// its far corner moved, and nothing refuses or strands. Red if the
+/// report resolves the program outside an evaluation
+/// (`TraceStepFault::Unevaluated`).
+#[test]
+fn a_traced_boss_rewritten_with_a_named_step_kept_is_admitted() {
+    let scene = traced_boss(RADIUS, None, boss_steps());
+    let Some(Node::Profile(program)) = scene.doc.node(scene.footprint) else {
+        panic!("the footprint is a profile")
+    };
+    let keep = program.kept_in_place();
+    let corner = program.ids[0][5];
+    let wall = fixture::fname(
+        scene.boss,
+        editor_core::RoleSeg::Lateral(
+            editor_core::ProfileEdgeRef::Piece {
+                step: corner,
+                role: editor_core::PieceRole::Leg,
+            }
+            .into(),
+        ),
+    );
+    let (doc, _shell) = fixture::insert(scene.doc, Node::shell(scene.boss, len(0.01), vec![wall]));
+    let mut steps = boss_steps();
+    steps[5] = ProgramStep::LineTo(ProgramTarget::Point(len2([REACH, 0.9 * BACK])));
+    let applied = doc
+        .apply(
+            &DocEdit::SetProgram {
+                node: scene.footprint,
+                loops: vec![LoopProgram::Chain(steps)],
+                ids: keep,
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("the reshaping reads no trace");
+    assert_eq!(
+        fixture::without_anonymous(&applied.maintenance),
+        vec![],
+        "a kept step's leg stays drawable, so nothing strands"
+    );
+}

@@ -400,6 +400,7 @@ pub(crate) mod arc_fillet;
 mod family;
 mod onto;
 pub mod program;
+pub mod shape;
 pub(crate) mod verbs;
 
 pub use arc_fillet::ArcCarrierScalar;
@@ -415,6 +416,7 @@ pub use family::{
 pub use onto::{ArcOnto, ArcOntoStart, OntoTarget};
 #[doc(inline)]
 pub use program::{circle, circle_split, rectangle};
+pub use shape::{ChainShape, LatticeFault, chain_shape};
 pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
 #[doc(hidden)]
 pub use verbs::{DirectedPoint, TangentArcLeg};

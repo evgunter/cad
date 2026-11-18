@@ -656,3 +656,88 @@ fn a_ring_canceled_mid_family_returns_the_completed_prefix() {
         );
     }
 }
+
+/// **A profile whose step reads the index is a family, and each
+/// member's walls are named by that member's profile pieces** (D10
+/// `[repetition]`; `[recipe.doors]`): the edit door admits the step,
+/// the profile is evaluated once per member, the extrude reading it is
+/// a family of three bodies, and each body's walls are
+/// `Member { (k), of: Lateral(piece) }` over the profile's own step
+/// ids. Red if the door refuses the step outside any member, if the
+/// profile is evaluated once, or if a member's walls are named by
+/// anything but the generic member machinery over the pieces.
+#[test]
+fn a_profile_reading_the_index_is_a_family_named_by_its_pieces() {
+    let doc = ProfileDoc::empty_derived("g-profile-family", Tol::witness());
+    let (doc, k) = fixture::index(doc, "k", 3);
+    let (doc, profile) = fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.0, 0.0, 0.5)],
+    );
+    // The start corner's x slides left by a tenth per member.
+    let x = Formula::add(
+        fixture::len(-0.5),
+        Formula::mul(fixture::scalar_of(k), fixture::len(-0.1)).unwrap(),
+    )
+    .unwrap();
+    let doc = fixture::step(
+        doc,
+        DocEdit::SetParam {
+            node: profile,
+            slot: editor_core::SlotId::Profile {
+                loop_: 0,
+                step: 0,
+                arg: editor_core::StepArg::PointX,
+            },
+            value: x.into(),
+            fresh: Vec::new(),
+        },
+    )
+    .0;
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: fixture::len(1.0),
+        },
+    );
+    let ev = run(&doc);
+    let profiles = ev.value(profile).unwrap().members.as_ref();
+    assert_eq!(
+        profiles.map(|m| m.members.len()),
+        Some(3),
+        "the profile is evaluated once per member"
+    );
+    assert_eq!(bodies(&ev, ext), 3, "one extruded body per member");
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("{profile} is a profile")
+    };
+    let steps = &program.ids[0];
+    let walls: std::collections::BTreeSet<(Vec<(VarId, u32)>, editor_core::StepId)> =
+        fixture::table(&ev, ext)
+            .iter()
+            .filter_map(|(name, _)| match name.path.as_slice() {
+                [RoleSeg::Member { at, of }] => match of.path.as_slice() {
+                    [RoleSeg::Lateral(run)] => match run.pieces() {
+                        [editor_core::ProfileEdgeRef::Piece { step, .. }] => {
+                            Some((at.clone(), *step))
+                        }
+                        _ => None,
+                    },
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
+    for member in 0..3 {
+        for step in &steps[1..] {
+            assert!(
+                walls.contains(&(vec![(k, member)], *step)),
+                "member {member} names the wall of step {step:?}: {walls:?}"
+            );
+        }
+    }
+}
