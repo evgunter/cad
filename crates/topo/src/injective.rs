@@ -8022,6 +8022,80 @@ mod presentation_rows {
         );
     }
 
+    /// **Near misses at a vertex a pair shares alone** (review rows):
+    /// the crossing quadrant of the row above with its axes swapped, its
+    /// second axis the one into the disc (red if a [`Zero::Point`]'s
+    /// sign is read off its first axis alone), and a quadrant whose edge
+    /// leaves `(1, 0)` a little inside the circle's tangent, so it runs
+    /// into the disc at second order: neither is parted from the disc. A
+    /// quadrant a little outside the tangent meets the disc at the
+    /// vertex alone, and is parted.
+    #[test]
+    fn a_crossing_quadrant_tangent_to_the_conic_at_a_vertex_alone_is_not_parted() {
+        let s = floor();
+        let local = both_arcs();
+        let disc = halves(true, 11, None);
+        let x = piece_on(&s, &disc, &local, 1);
+        let Ok(Presentation::Of(p)) = at_the_vertex_alone(&s, &disc, &local) else {
+            panic!("the disc is presented about (1, 0)");
+        };
+        let near = Near {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+        };
+        let axis = |x: f64, y: f64, z: f64| Vec3::new(iv0(x), iv0(y), iv0(z));
+        let plane = |normal, u_ref| Surface::Plane {
+            origin: Point3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            normal,
+            u_ref,
+        };
+        let quadrant = |surface| Presented {
+            surface,
+            map: Map::Affine {
+                o: [iv0(0.0), iv0(0.0)],
+                a: [iv0(1.0), iv0(0.0)],
+                b: [iv0(0.0), iv0(1.0)],
+            },
+            x: (0.0, 0.02),
+            y: (0.0, 0.02),
+            zero: Zero::Point(Side::XLo, Side::YLo, vertex(1)),
+            corner: true,
+            cache: Cache::default(),
+        };
+        let parted = |q: &Presented<'_>| {
+            graph_of(&x, &x, &near, &p, q, band()).is_some_and(|(psi, on)| {
+                match (
+                    sign_on(&psi, Some(&on), &p, Some(q), band()),
+                    sign_on(&psi, Some(&on), q, Some(&p), band()),
+                ) {
+                    (Some(a), Some(b)) => a == flip(b),
+                    _ => false,
+                }
+            })
+        };
+        // The plane y = 0: first axis +z, second axis -x, into the disc.
+        let swapped = plane(axis(0.0, -1.0, 0.0), axis(0.0, 0.0, 1.0));
+        // First axis +z, second axis the tangent (0, 1, 0) turned by
+        // `-s` toward the centre.
+        let tangent = |s: f64| {
+            let l = (1.0 + s * s).sqrt();
+            plane(axis(-1.0 / l, -s / l, 0.0), axis(0.0, 0.0, 1.0))
+        };
+        assert!(
+            !parted(&quadrant(&swapped)),
+            "the crossing quadrant, its second axis into the disc"
+        );
+        let (inward, outward) = (tangent(0.05), tangent(-0.05));
+        assert!(
+            !parted(&quadrant(&inward)),
+            "the quadrant just inside the tangent"
+        );
+        assert!(
+            parted(&quadrant(&outward)),
+            "the quadrant just outside the tangent"
+        );
+    }
+
     /// **`one_conic` admits two carriers only as one conic**, each
     /// component on its own: the same circle stored on the opposed axis
     /// and another `u_ref`, and an ellipse with axis and `u_ref` both
