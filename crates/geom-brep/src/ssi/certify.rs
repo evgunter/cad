@@ -479,7 +479,7 @@ fn frame_direction(d: [(f64, f64); 3]) -> Option<([f64; 3], f64)> {
     let mut diag = 0.0_f64;
     for (k, (lo, hi)) in d.into_iter().enumerate() {
         let width = hi - lo;
-        if lo.is_nan() || hi.is_nan() || !(width <= FRAME_ROUNDING) {
+        if lo.is_nan() || hi.is_nan() || width.is_nan() || width > FRAME_ROUNDING {
             return None;
         }
         mid[k] = lo + width / 2.0;
