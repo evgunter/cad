@@ -12,6 +12,7 @@ section's names survive it, and a `keep` that names an id twice refuses
 
 import unittest
 
+import pncad
 from pncad import (
     Doc,
     DocEdit,
@@ -87,29 +88,18 @@ class TestSetLoftSections(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "set_loft_sections_on_non_loft")
         self.assertEqual(caught.exception.node, self.b)
 
-    def test_a_shape_no_evaluation_lofts_refuses_at_both_doors(self):
-        # Broken by a shape check one door asks and the other does not:
-        # one section, an empty station, a station that slides by
-        # nothing, and degree 2 through two sections, each through
-        # `insert` and `set_loft_sections`.
-        rows = [
-            ([], 1, "too_few_sections"),
-            ([(self.b, [])], 1, "empty_station"),
-            ([(self.b, up(0.0))], 1, "station_in_first_plane"),
-            ([(self.b, up(1.0))], 2, "degree_out_of_range"),
-        ]
-        for then, degree, fault in rows:
+    def test_a_shape_refuses_at_both_doors_and_its_values_at_evaluation(self):
+        # Broken by a shape check one door asks and the other does not,
+        # or by a door that reads a value: one section and an empty
+        # station refuse at `insert` and `set_loft_sections`; a station
+        # that slides by nothing and degree 2 through two sections are
+        # admitted by both and refused when the loft evaluates.
+        for then, fault in [([], "too_few_sections"), ([(self.b, [])], "empty_station")]:
             with self.subTest(fault=fault):
                 with self.assertRaises(EditError) as inserted:
-                    self.doc.insert(Node.loft(self.a, then, Formula.count(degree)))
+                    self.doc.insert(Node.loft(self.a, then, Formula.count(1)))
                 self.assertEqual(inserted.exception.variant, "loft_shape")
                 self.assertEqual(inserted.exception.inner_variant, fault)
-        for then, fault in [
-            ([], "too_few_sections"),
-            ([(self.b, [])], "empty_station"),
-            ([(self.b, up(0.0))], "station_in_first_plane"),
-        ]:
-            with self.subTest(fault=fault, door="set_loft_sections"):
                 with self.assertRaises(EditError) as rewritten:
                     self.doc.apply(
                         DocEdit.set_loft_sections(
@@ -120,16 +110,24 @@ class TestSetLoftSections(unittest.TestCase):
                     )
                 self.assertEqual(rewritten.exception.variant, "loft_shape")
                 self.assertEqual(rewritten.exception.inner_variant, fault)
+
+        def refused(doc, node):
+            with self.assertRaises(pncad.EvaluationError) as caught:
+                evaluate(doc).value(node)
+            return caught.exception
+
+        flat = self.doc.insert(Node.loft(self.a, [(self.b, up(0.0))], Formula.count(1)))
+        stacked = refused(self.doc, flat)
+        self.assertEqual((stacked.kind, stacked.inner_kind), ("loft", "degenerate_stacking"))
+        steep = self.doc.insert(Node.loft(self.a, [(self.b, up(1.0))], Formula.count(2)))
+        self.assertEqual(refused(self.doc, steep).kind, "count_out_of_range")
         cubic = self.doc.insert(
             Node.loft(self.a, [(self.b, up(1.0)), (self.c, up(2.0))], Formula.count(2))
         )
-        with self.assertRaises(EditError) as dropped:
-            self.doc.apply(
-                DocEdit.set_loft_sections(
-                    cubic, (self.a, None), [(self.c, up(2.0), None)]
-                )
-            )
-        self.assertEqual(dropped.exception.inner_variant, "degree_out_of_range")
+        self.doc.apply(
+            DocEdit.set_loft_sections(cubic, (self.a, None), [(self.c, up(2.0), None)])
+        )
+        self.assertEqual(refused(self.doc, cubic).kind, "count_out_of_range")
 
     def test_a_section_kept_twice_refuses(self):
         # Broken by a binding that drops `keep`, or a door that lets two

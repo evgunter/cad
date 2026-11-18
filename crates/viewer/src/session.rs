@@ -3434,10 +3434,10 @@ impl DocSession {
     /// own plane.
     ///
     /// No loop-count or nesting judgment here: every list goes to
-    /// `commit`, where the edit door's authoring-time check refuses a
-    /// degenerate loop or a non-nested pair typed in the profile
-    /// layer's own words — the one rule authored and hand-written
-    /// programs share. An empty list is the empty region, and inserts.
+    /// `commit`, the one door authored and hand-written programs share;
+    /// a degenerate loop or a non-nested pair is the profile's
+    /// evaluation's to refuse, in the profile layer's own words. An
+    /// empty list is the empty region, and inserts.
     fn add_profile(&self, loops: Vec<LoopProgram<Formula>>) -> Result<Creating, Refusal> {
         Ok(creating(move |run| {
             run.insert(Node::Profile(ProfileProgram {
@@ -6474,15 +6474,18 @@ mod tests {
         let before = session.history().len();
         let outcome = session.commit_run(|run| {
             run.insert(square())?;
+            // A chain that never closes: the lattice refuses it.
             let degenerate = crate::sketch::path_program(
-                &[pncad::profile::Step::Circle {
-                    centre: pncad::geom_core::Point2::origin(),
-                    radius: 0.0,
-                }],
+                &[
+                    pncad::profile::Step::At(pncad::geom_core::Point2::origin()),
+                    pncad::profile::Step::LineTo(pncad::profile::Target::Point(
+                        pncad::geom_core::Point2::new(0.01, 0.0),
+                    )),
+                ],
                 crate::props::Notation::CANONICAL,
                 &|_, _| None,
             )
-            .expect("a zero radius lowers");
+            .expect("an unclosed chain lowers");
             let _ = run.insert(Node::Profile(ProfileProgram {
                 loops: vec![degenerate],
                 ids: Vec::new(),

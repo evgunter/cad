@@ -260,12 +260,6 @@ fn on_trace<S>(t: &ProgramTarget<S>) -> bool {
     matches!(t, ProgramTarget::OnTrace { .. })
 }
 
-/// Whether `t` is a target found from the pen: a trace's crossing, or a
-/// written coordinate along a heading.
-fn from_the_pen<S>(t: &ProgramTarget<S>) -> bool {
-    on_trace(t) || matches!(t, ProgramTarget::AtX(_) | ProgramTarget::AtY(_))
-}
-
 /// **Whether `step` reads a face's trace**: only a profile drawn on a
 /// frame has one to read.
 pub(crate) fn step_reads_a_trace<S>(step: &ProgramStep<S>) -> bool {
@@ -276,7 +270,7 @@ pub(crate) fn step_reads_a_trace<S>(step: &ProgramStep<S>) -> bool {
 /// or a written coordinate along a heading. Only an evaluation's
 /// resolution replays the prefix ([`Traces`]).
 pub(crate) fn step_runs_from_the_pen<S>(step: &ProgramStep<S>) -> bool {
-    matches!(step, ProgramStep::AlongTrace { .. }) || step_targets(step, from_the_pen)
+    crate::step_handle::pen_run(crate::step_handle::shape_of_program(step)).is_some()
 }
 
 /// Whether a target of `step` is one `is` names.
@@ -312,6 +306,68 @@ fn step_targets<S>(step: &ProgramStep<S>, is: fn(&ProgramTarget<S>) -> bool) -> 
     }
 }
 
+/// **Whether a step found from the pen is a run here**: the order
+/// refusals its lowering earns from the step's shape and the tip it
+/// leaves from alone, asked by [`resolve_chain`] before it reads a
+/// value and by the edit and load doors
+/// ([`crate::ProfileProgram::lattice`]) with values erased. `ran_onto`
+/// is whether the step before ended on a trace
+/// ([`crate::step_handle::PenRun::reaches_a_trace`]).
+///
+/// # Errors
+///
+/// [`TraceStepFault::NoPen`], [`TraceStepFault::OffTrace`],
+/// [`TraceStepFault::NoHeading`] or [`TraceStepFault::NotARun`].
+pub(crate) fn pen_order(
+    run: crate::step_handle::PenRun,
+    ran_onto: bool,
+    at: profile::PenAt,
+) -> Result<(), TraceStepFault> {
+    use crate::step_handle::PenRun;
+    if at == profile::PenAt::NoPen {
+        return Err(TraceStepFault::NoPen);
+    }
+    match run {
+        PenRun::Heading if !ran_onto => Err(TraceStepFault::OffTrace),
+        PenRun::Leg { wants_director, .. } => match at {
+            profile::PenAt::Heading { directed } if directed == wants_director => Ok(()),
+            _ => Err(TraceStepFault::NoHeading),
+        },
+        PenRun::NotARun => Err(TraceStepFault::NotARun),
+        PenRun::Heading | PenRun::Arc => Ok(()),
+    }
+}
+
+/// **The first step of `shapes`, one loop's steps with values erased,
+/// whose pen order is wrong at every value** ([`pen_order`]), each pen
+/// step judged at the state the value-free walk leaves its tip in
+/// ([`profile::chain_states`], [`profile::TipState::pen`]). The walk
+/// stops at the first step it refuses, so a pen step past it is not
+/// judged. Asked by the edit and load doors
+/// ([`crate::ProfileProgram::lattice`]) and by an editor holding steps
+/// back before they reach a door.
+#[must_use]
+pub fn pen_fault(shapes: &[crate::StepShape], loop_: u32) -> Option<TraceRefusal> {
+    use crate::step_handle::{PenRun, pen_run, step_kernel};
+    let forms: Vec<profile::StepForm> = shapes.iter().copied().map(step_kernel).collect();
+    let states = profile::chain_states(&forms);
+    states.iter().enumerate().find_map(|(i, state)| {
+        let run = pen_run(shapes[i])?;
+        let ran_onto = i
+            .checked_sub(1)
+            .and_then(|p| pen_run(shapes[p]))
+            .is_some_and(PenRun::reaches_a_trace);
+        pen_order(run, ran_onto, state.pen())
+            .err()
+            .map(|fault| TraceRefusal {
+                loop_,
+                step: program_index(i),
+                face: None,
+                fault,
+            })
+    })
+}
+
 /// **One chain loop resolved, reading its traces** at the lane scalar.
 /// Each step that reads no trace resolves as every step does; each that
 /// reads one lowers as the module docs say.
@@ -333,10 +389,10 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
     for (i, s) in steps.iter().enumerate() {
         let step = program_index(i);
         let ran_onto = reached.take();
-        if !step_runs_from_the_pen(s) {
+        let Some(run) = crate::step_handle::pen_run(crate::step_handle::shape_of_program(s)) else {
             out.push(crate::program::res_chain_step(s, env, loop_, step)?);
             continue;
-        }
+        };
         let refuse = |face: Option<u32>, fault| {
             ProgramResolveFault::Trace(TraceRefusal {
                 loop_,
@@ -376,8 +432,10 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
             Ok(pen) => pen,
             Err(_) => return Ok(out),
         };
+        let at = pen.map_or(profile::PenAt::NoPen, |pen| pen.state.pen());
+        pen_order(run, ran_onto.is_some(), at).map_err(|fault| refuse(None, fault))?;
         let Some(pen) = pen else {
-            return Err(refuse(None, TraceStepFault::NoPen));
+            unreachable!("`pen_order` refuses a tip with no pen")
         };
         let res = |e: &crate::VarId, arg: crate::StepArg| {
             crate::expr::eval_var::<T>(*e, arg.dimension(), env).map_err(|source| {
@@ -390,7 +448,7 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
         let lowered = match s {
             ProgramStep::AlongTrace { sense } => {
                 let Some((at, outward)) = ran_onto else {
-                    return Err(refuse(None, TraceStepFault::OffTrace));
+                    unreachable!("`pen_order` refuses a heading off a trace")
                 };
                 let tangent = tangent(face(at)?, outward, *sense);
                 Step::Toward {
@@ -401,10 +459,8 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
             ProgramStep::LineTo(target) | ProgramStep::ContinueTo(target) => {
                 // A director binds `line_to`'s heading; `continue_to`
                 // runs along the incoming tangent.
-                let wants_director = matches!(s, ProgramStep::LineTo(_));
-                let heading = match pen.heading {
-                    Some(h) if pen.directed == wants_director => h,
-                    _ => return Err(refuse(None, TraceStepFault::NoHeading)),
+                let Some(heading) = pen.heading else {
+                    unreachable!("`pen_order` refuses a leg with no heading")
                 };
                 let len = match target {
                     ProgramTarget::OnTrace { face: at, crossing } => {
@@ -448,7 +504,7 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
                     target: profile::Target::Point(point),
                 })
             }
-            _ => return Err(refuse(None, TraceStepFault::NotARun)),
+            _ => unreachable!("`pen_order` refuses a step that is no run"),
         };
         out.push(lowered);
     }

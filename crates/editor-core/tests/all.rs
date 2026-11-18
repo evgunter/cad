@@ -173,6 +173,8 @@ mod docm6_seam_declarations;
 mod docm8_flat_merged;
 #[path = "docm9_range.rs"]
 mod docm9_range;
+#[path = "door_step_order.rs"]
+mod door_step_order;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]

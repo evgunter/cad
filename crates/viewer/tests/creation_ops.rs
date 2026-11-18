@@ -608,28 +608,24 @@ fn a_profile_with_no_loops_inserts_and_what_sweeps_it_refuses() {
     }
 }
 
-/// Every profile refusal but the non-finite literal is the EDIT
-/// DOOR's — the authoring-time check replaying the program — so the
-/// sentence a hand-written program gets and the sentence the template
-/// gets are one sentence.
+/// A profile's step order is the EDIT DOOR's to refuse, and its
+/// values are evaluation's (`[recipe.doors]`), so the sentence a
+/// hand-written program gets and the sentence the template gets are
+/// one sentence; no rule about them is restated in the session.
 #[test]
 fn profile_refusals_are_typed_at_the_door() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let states = session.history().len();
 
-    // Degenerate loops — zero and negative radius — refuse the same
-    // way; no rule about them is restated in the session.
-    for radius in [0.0, -0.01] {
-        let degenerate = session.perform(SessionOp::AddProfile {
-            loops: vec![circle_at([0.0, 0.0], radius)],
-        });
-        assert!(
-            matches!(degenerate.refusal, Some(Refusal::Edit(_))),
-            "{:?}",
-            degenerate.refusal
-        );
-    }
+    let unclosed = session.perform(SessionOp::AddProfile {
+        loops: vec![common::unclosed_loop()],
+    });
+    assert!(
+        matches!(unclosed.refusal, Some(Refusal::Edit(_))),
+        "{:?}",
+        unclosed.refusal
+    );
 
     // A non-finite field refuses at the literal door — which is now
     // BEFORE the op exists, not inside it. The op carries `Expr`s, and
@@ -661,6 +657,29 @@ fn profile_refusals_are_typed_at_the_door() {
         states,
         "a refused creation leaves no history state behind"
     );
+
+    // Degenerate loops, zero and negative radius, are admitted and
+    // refuse at evaluation.
+    for radius in [0.0, -0.01] {
+        let degenerate = session.perform(SessionOp::AddProfile {
+            loops: vec![circle_at([0.0, 0.0], radius)],
+        });
+        assert!(degenerate.refusal.is_none(), "{:?}", degenerate.refusal);
+        let [profile] = degenerate.minted.as_slice() else {
+            panic!("one profile minted: {:?}", degenerate.minted)
+        };
+        let ev = pncad::document::evaluate::<f64>(
+            session.committed_doc(),
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            tol,
+        );
+        assert!(
+            ev.node_error(*profile).is_some(),
+            "radius {radius} refuses at evaluation"
+        );
+    }
 }
 
 /// One refusal from each of the five creation doors, and none of them
@@ -678,7 +697,7 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
             name: String::new(),
         },
         SessionOp::AddProfile {
-            loops: vec![circle_at([0.0, 0.0], 0.0)],
+            loops: vec![common::unclosed_loop()],
         },
         SessionOp::AddExtrude {
             profile: block,

@@ -130,9 +130,9 @@ use pncad::document::{
     Distribution, DistributionFault, DistributionField, EditError, EvalError, FlattenError,
     InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
     MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
-    PersistError, PinRefusal, ProductReadFault, ProgramFault, ProgramRefusal, ReachRefusal,
-    RecordedProgramError, ResolveFault, SectionIdFault, ShellClassifyError, SlotId, SnapshotError,
-    SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized, UpdateError,
+    PersistError, PinRefusal, ProductReadFault, ProgramRefusal, ReachRefusal, RecordedProgramError,
+    ResolveFault, SectionIdFault, ShellClassifyError, SlotId, SnapshotError, SplitError,
+    StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -1666,8 +1666,6 @@ pub fn loft_fault_tag(fault: &LoftFault) -> &'static str {
     match fault {
         LoftFault::TooFewSections { .. } => "too_few_sections",
         LoftFault::EmptyStation { .. } => "empty_station",
-        LoftFault::StationInFirstPlane { .. } => "station_in_first_plane",
-        LoftFault::DegreeOutOfRange { .. } => "degree_out_of_range",
     }
 }
 
@@ -1879,6 +1877,7 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
     match err {
         ProgramRefusal::Resolve { .. } => "resolve",
         ProgramRefusal::Transition { .. } => "transition",
+        ProgramRefusal::Order { .. } => "order",
         ProgramRefusal::Geometry { .. } => "geometry",
         ProgramRefusal::Validate(_) => "validate",
         ProgramRefusal::Unminted => "unminted",
@@ -2039,18 +2038,6 @@ pub fn resolve_fault_tag(fault: &pncad::document::ResolveFault) -> &'static str 
         R::PinMismatch => "part_pin_mismatch",
         R::EpsilonSeam => "part_epsilon_seam",
         R::Unresolved => "part_unresolved",
-    }
-}
-
-/// The stable tag for a PROFILE-PROGRAM structure fault — the inner
-/// arm of [`PersistError::ProfileProgram`].
-///
-/// The fault's own payload (the slot, the two dimensions, the loop and
-/// step counters) is the profile layer's surface and stays in the
-/// message; what crosses here is the word a caller branches on.
-pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
-    match fault {
-        ProgramFault::Lattice { .. } => "lattice",
     }
 }
 

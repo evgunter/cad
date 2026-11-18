@@ -1855,8 +1855,8 @@ fn persist_error_tags_are_stable() {
 /// Constructed rather than driven through `load`, and the reason is
 /// per arm:
 ///
-/// * `profile_program` — a `ProgramFault` is a profile-program
-///   structure fault. A file carrying one is reachable, but building
+/// * `profile_program` — the edit door's own `ProgramRefusal` for a
+///   profile-program structure fault. A file carrying one is reachable, but building
 ///   the tampered bytes means hand-assembling a lattice-violating
 ///   step order, which pins the WIRE shape rather than the tag.
 /// * `distribution` — the same fault the edit door refuses, so a
@@ -1871,18 +1871,18 @@ fn persist_error_tags_are_stable() {
 /// a compile error, not a missing test.
 #[test]
 fn the_persist_doors_nested_arms_carry_their_own_word() {
-    use crate::tags::{distribution_fault_tag, program_fault_tag, snapshot_error_tag};
+    use crate::tags::{distribution_fault_tag, program_refusal_tag, snapshot_error_tag};
     use pncad::document::{
-        DistributionFault, DistributionField, ProgramFault, RecipeNodeId, SnapshotError,
+        DistributionFault, DistributionField, ProgramRefusal, RecipeNodeId, SnapshotError,
     };
 
-    let program = ProgramFault::Lattice {
+    let program = ProgramRefusal::Transition {
         loop_: 0,
         step: 1,
         state: pncad::profile::TipState::Entry,
         verb: None,
     };
-    assert_eq!(program_fault_tag(&program), "lattice");
+    assert_eq!(program_refusal_tag(&program), "transition");
 
     let distribution = DistributionFault::NonFinite {
         field: DistributionField::Sigma,
@@ -2331,23 +2331,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             fault: pncad::document::LoftFault::EmptyStation { section: 1 },
         },
         &["node", "index"],
-    );
-    carries(
-        &E::LoftShape {
-            node: sp(1),
-            fault: pncad::document::LoftFault::StationInFirstPlane { section: 1 },
-        },
-        &["node", "index"],
-    );
-    carries(
-        &E::LoftShape {
-            node: sp(1),
-            fault: pncad::document::LoftFault::DegreeOutOfRange {
-                degree: 2,
-                sections: 2,
-            },
-        },
-        &["node", "count", "given"],
     );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
@@ -5100,12 +5083,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "loft_fault_tag",
-        values: &[
-            "degree_out_of_range",
-            "empty_station",
-            "station_in_first_plane",
-            "too_few_sections",
-        ],
+        values: &["empty_station", "too_few_sections"],
         delegates: &[],
     },
     TagEntry {
@@ -5585,14 +5563,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "program_fault_tag",
-        values: &["lattice"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "program_refusal_tag",
         values: &[
             "geometry",
+            "order",
             "resolve",
             "step_ids",
             "trace",

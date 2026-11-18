@@ -720,21 +720,14 @@ impl ProfileEdit {
     }
 
     /// **The first step a held loop puts out of the order a step that
-    /// lowers against the pen needs** ([`sketch::pen_order`]), over
-    /// the loops at plain numbers as `landed` reads them: the draft waits
-    /// on it, since the evaluation would refuse the profile there.
-    pub(crate) fn pen_order(
-        &self,
-        landed: &Doc<ProfileProgram>,
-        tol: Tol,
-    ) -> Option<pncad::document::TraceRefusal> {
+    /// lowers against the pen needs** ([`sketch::pen_order`]): the
+    /// draft waits on it, since the door would refuse the profile
+    /// there.
+    pub(crate) fn pen_order(&self) -> Option<pncad::document::TraceRefusal> {
         self.loops
             .iter()
-            .zip(self.steps(landed, tol))
             .enumerate()
-            .find_map(|(loop_, (rows, views))| {
-                sketch::pen_order(rows, &views, program_index(loop_), tol)
-            })
+            .find_map(|(loop_, rows)| sketch::pen_order(rows, program_index(loop_)))
     }
 
     /// **Every driven argument of a committed step that the held row

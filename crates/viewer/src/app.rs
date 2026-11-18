@@ -5816,7 +5816,7 @@ mod properties_pane_tests {
     mod live_editor {
         use super::*;
         use crate::forms::ShapeKind;
-        use crate::pane::profile::{DISCARD, PENDING, add_loop_label};
+        use crate::pane::profile::add_loop_label;
 
         /// The startup app with its plate's profile selected and the
         /// editor open on it.
@@ -5886,10 +5886,11 @@ mod properties_pane_tests {
                 .and_then(|row| row.value.ok()?.one().map(|value| value.as_f64()))
         }
 
-        /// The plate with a rectangle added across its hole: a change
-        /// the door refuses, so the editor holds it pending. Answers
-        /// the app, the profile and the history's length before it.
-        fn pending_rectangle() -> (Driven, RecipeNodeId, usize) {
+        /// The plate with its outline's last row removed: the chain no
+        /// longer closes, a step order no value makes valid, so the
+        /// editor holds it and says why. Answers the app, the profile
+        /// and the history's length before it.
+        fn pending_unclosed() -> (Driven, RecipeNodeId, usize) {
             let (mut driven, profile) = plate_open();
             // One step in the history, for an undo to have something
             // to step back over.
@@ -5899,12 +5900,29 @@ mod properties_pane_tests {
             }]);
             driven.settle();
             let steps = driven.app.session.history().len();
-            driven.click(&add_loop_label(ShapeKind::Rectangle));
+            let last = match driven.app.session.committed_doc().node(profile) {
+                Some(Node::Profile(program)) => program.loops[0].authored_steps() - 1,
+                other => panic!("{profile:?} is a profile: {other:?}"),
+            };
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("the editor holds the profile")
+                .edit_row(
+                    0,
+                    crate::drafts::RowEdit::Remove(last),
+                    crate::props::Notation::CANONICAL,
+                )
+                .expect("a removal makes no row");
             driven.settle();
             let painted = driven.quiet();
             assert!(
-                painted.iter().any(|(run, _)| run.starts_with(PENDING)),
-                "the rectangle across the hole is pending: {painted:?}"
+                painted
+                    .iter()
+                    .any(|(run, _)| run.contains("does not close")),
+                "the editor says why it holds the unclosed outline: {painted:?}"
             );
             assert!(pending(&driven));
             assert_eq!(driven.app.session.history().len(), steps, "nothing landed");
@@ -5914,13 +5932,16 @@ mod properties_pane_tests {
         /// **A field's commit and a click in one frame are two offers,
         /// in the order they were made.** The hole's radius typed, then
         /// `Add circle loop` clicked (the click takes the field's
-        /// focus): the radius lands on its own, one step; the circle,
-        /// placed in the plate's box and identical to the new hole, is
-        /// refused and alone is pending. Discarding it keeps the radius.
+        /// focus): the radius lands on its own, one step, and then the
+        /// circle, placed in the plate's box and identical to the new
+        /// hole, as a second (the door reads no value; the profile
+        /// refuses at evaluation). Undoing once takes back the circle
+        /// and keeps the radius.
         #[test]
         fn a_typed_field_lands_before_the_click_that_took_its_focus() {
             let (mut driven, profile) = plate_open();
             let steps = driven.app.session.history().len();
+            let loops = loop_count(&driven, profile);
             let painted = driven.quiet();
             let field = runs(&painted, "radius ")[0];
             driven.click_at(field);
@@ -5930,33 +5951,27 @@ mod properties_pane_tests {
             driven.settle();
             assert_eq!(
                 driven.app.session.history().len(),
-                steps + 1,
-                "the radius landed on its own: {}",
+                steps + 2,
+                "the radius, then the circle: {}",
                 status(&driven)
             );
-            assert_eq!(
-                hole_radius(&driven, profile),
-                Some(0.01),
-                "the radius moved"
-            );
-            assert!(pending(&driven), "the circle alone is pending");
-            driven.click(DISCARD);
+            assert_eq!(loop_count(&driven, profile), loops + 1, "the circle landed");
+            driven.app.perform_batch(vec![SessionOp::Undo]);
             driven.settle();
-            assert!(!pending(&driven), "discarded");
+            assert_eq!(loop_count(&driven, profile), loops, "undo took the circle");
             assert_eq!(
                 hole_radius(&driven, profile),
                 Some(0.01),
                 "the landed radius is kept"
             );
-            assert_eq!(driven.app.session.history().len(), steps + 1);
         }
 
         /// **Undo takes back a pending draft first, and says so.** The
-        /// first undo discards the pending rectangle without stepping
+        /// first undo discards the pending draft without stepping
         /// the history; the next undo steps it.
         #[test]
         fn undo_takes_back_a_pending_draft_first_and_says_so() {
-            let (mut driven, _profile, steps) = pending_rectangle();
+            let (mut driven, _profile, steps) = pending_unclosed();
             let state = driven.app.session.history().current();
             driven.app.perform_batch(vec![SessionOp::Undo]);
             driven.settle();
@@ -5984,7 +5999,7 @@ mod properties_pane_tests {
         /// **Selecting away from a pending draft says it was dropped.**
         #[test]
         fn selecting_away_from_a_pending_draft_says_so() {
-            let (mut driven, _profile, _) = pending_rectangle();
+            let (mut driven, _profile, _) = pending_unclosed();
             driven.select(Selection::Node(extrude()));
             driven.settle();
             assert!(
@@ -6001,7 +6016,7 @@ mod properties_pane_tests {
         /// **Another document drops a pending draft, and says so.**
         #[test]
         fn a_new_document_says_the_pending_draft_was_dropped() {
-            let (mut driven, _profile, _) = pending_rectangle();
+            let (mut driven, _profile, _) = pending_unclosed();
             driven.app.perform_batch(vec![SessionOp::NewDocument {
                 name: "other".to_owned(),
             }]);
@@ -6135,7 +6150,7 @@ mod properties_pane_tests {
         /// went**, not that the document moved.
         #[test]
         fn deleting_the_profile_under_a_pending_draft_says_it_went() {
-            let (mut driven, profile, _) = pending_rectangle();
+            let (mut driven, profile, _) = pending_unclosed();
             driven
                 .app
                 .perform_batch(vec![SessionOp::DeleteNode { node: profile }]);
