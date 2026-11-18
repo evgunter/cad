@@ -62,7 +62,7 @@ impl<T: Real> AxisFrame<T> {
     /// carried to `station` ([`Placing::carry_frame`]; the sketch's own
     /// station leaves it as it is), centred at `center`, and run back
     /// where `sense` negates the carrier axis ([`turn_negates`], the
-    /// θ-signed axis [`crate::swept::turn_axis`] spells): normal the
+    /// θ-signed axis): normal the
     /// signed placed axis, seam the radial `u₃` carried with it. A rigid
     /// image of a rigid frame, so nothing is re-squared.
     pub(super) fn latitude(

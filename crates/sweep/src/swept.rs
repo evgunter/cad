@@ -602,8 +602,8 @@ impl<T: Real> Unit2<T> {
 
 /// **A unit world direction the sweep holds by construction**: a
 /// [`Unit2`] or a station axis carried by a rigid frame
-/// ([`Placing::direction`], [`Placing::normal`],
-/// [`Placing::first_axis`]), a sketch plane's own normal
+/// ([`Placing::direction`], or an axis of [`Placing::frame`]), a
+/// sketch plane's own normal
 /// ([`Unit3::from_frame`]), or, on the vector arm alone, the user's
 /// vector normalized once ([`Unit3::normalized`]). It is unwrapped where
 /// a [`Surface`] or [`Curve3`] stores it: those carriers take bare
