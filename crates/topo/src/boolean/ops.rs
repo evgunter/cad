@@ -1049,6 +1049,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     recut: bool,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
+    crate::gate_measure::operands(&[a, b]);
     let band = Band::linear(tol)?;
     let (red, connected, interior_loops, glued) =
         match through_the_join(op, a, b, decls, strategy, recut, tol)? {
@@ -5804,12 +5805,17 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     #[cfg(any(test, feature = "test-support"))]
     let kinds = refused_faces::kinds(&body);
     crate::gate_measure::holding("boolean-gate", held.contacts);
+    let _site = crate::gate_measure::site("boolean");
     let finished = T::finish(body, tol);
     crate::gate_measure::clear();
     if let (Ok(f), Some(_)) = (&finished, std::env::var_os("CAD_GATE_CENSUS")) {
         let t = std::time::Instant::now();
         let findings = T::census_at_rest(f, held.contacts, tol);
-        crate::gate_measure::census_line(held.contacts.len(), findings.len(), t.elapsed().as_secs_f64());
+        crate::gate_measure::census_line(
+            held.contacts.len(),
+            findings.len(),
+            t.elapsed().as_secs_f64(),
+        );
     }
     #[cfg(any(test, feature = "test-support"))]
     if let Err(findings) = &finished {

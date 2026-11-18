@@ -215,6 +215,7 @@ impl<T: topo::AtRestPolicy> Lofted<T, Body<T>> {
             },
             station,
         };
+        let _site = topo::gate_measure::site("loft-sweep");
         let finished = T::leaf(body, tol).map_err(|findings| {
             match findings.as_slice().iter().find_map(|f| match f {
                 topo::ValidationError::BoundaryMeetsItself {

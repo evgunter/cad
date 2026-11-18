@@ -1627,6 +1627,7 @@ pub(crate) fn shell_open_at<T: Decide + geom_core::CertifiedBounds + crate::prop
     tol: Tol,
 ) -> Result<Shelled<T>, ShellError<T>> {
     let body: &Body<T> = body;
+    crate::gate_measure::operands(&[body]);
     let mut naming = ShellNaming::default();
     // `shell` reaches this door, so both verbs derive here, once.
     let band = Band::linear(tol).map_err(|error| ShellError::Band { error })?;
@@ -2433,6 +2434,7 @@ pub(crate) fn shell_open_at<T: Decide + geom_core::CertifiedBounds + crate::prop
     #[cfg(debug_assertions)]
     record_rooted(body, &out_body, &naming);
     naming.source = crate::SourceGeometry::of(body);
+    let _site = crate::gate_measure::site("shell");
     let body = T::finish(out_body, tol).map_err(|findings| ShellError::NotValid { findings })?;
     Ok(Shelled { body, naming })
 }

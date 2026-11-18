@@ -301,6 +301,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         _ => topo::BooleanResultKind::Assembly,
     };
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
+    let _site = topo::gate_measure::site("distribute");
     let fused =
         T::finish(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
     let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());

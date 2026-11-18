@@ -364,6 +364,7 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
     }
 
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
+        let _site = crate::gate_measure::site("moved-leaf");
         T::leaf(moved_body(self, iso, tol).map_err(MoveError::Map)?, tol)
             .map_err(MoveError::NotFinished)
     }
@@ -430,6 +431,7 @@ pub fn finishes_on_this_thread() -> u64 {
 ///
 /// [`NotFinished`]: every finding the scalar's gate made.
 pub fn finish<T: AtRestPolicy>(body: Body<T>, tol: Tol) -> Result<T::Finished, NotFinished> {
+    let _site = crate::gate_measure::site("take");
     T::finish(body, tol)
 }
 

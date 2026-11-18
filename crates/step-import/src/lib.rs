@@ -1045,6 +1045,7 @@ fn gate(
     solid: Option<u64>,
     tol: Tol,
 ) -> Result<topo::AtRestBody<f64>, StepImportError> {
+    let _site = topo::gate_measure::site("import");
     topo::finish(body, tol).map_err(|findings| StepImportError::TierInvalid {
         solid,
         errors: findings.into_findings(),

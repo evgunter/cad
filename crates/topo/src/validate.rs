@@ -10947,7 +10947,20 @@ impl<T: geom_core::Decide> AtRestBody<T> {
         let measure_report = embedded(&side, band, GATE_BUDGETS);
         let measure_secs = measure_clock.elapsed();
         crate::gate_measure::log(body, &side.faces, &measure_report, measure_secs);
-        crate::gate_measure::decompose(body, &side.faces, &measure_report, measure_secs.as_secs_f64(), band);
+        crate::gate_measure::decompose(
+            body,
+            &side.faces,
+            &measure_report,
+            measure_secs.as_secs_f64(),
+            band,
+        );
+        crate::gate_measure::carry(
+            body,
+            &side.faces,
+            &measure_report,
+            measure_secs.as_secs_f64(),
+            band,
+        );
         if std::env::var_os("CAD_GATE_PASS").is_some() {
             return None;
         }

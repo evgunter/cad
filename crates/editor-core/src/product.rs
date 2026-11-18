@@ -1239,8 +1239,11 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // carried, so a product that is not a finished body refuses as that
     // before any naming collision is read. The census over this product
     // reads the finished body and pays the census alone.
-    let aggregate =
-        T::finish(aggregate, tol).map_err(|findings| ProductError::ProductInvalid { findings })?;
+    let aggregate = {
+        let _site = topo::gate_measure::site("product-aggregate");
+        T::finish(aggregate, tol)
+    }
+    .map_err(|findings| ProductError::ProductInvalid { findings })?;
 
     // Pass 3: the carries, per grafted source, each across the key
     // bridge its graft minted: the source's name rows, its contact

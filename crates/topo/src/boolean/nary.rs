@@ -1253,6 +1253,7 @@ fn tool_parts<T: Decide + AtRestPolicy>(
                 what: "a finished tool's solid does not carve out of it",
             }
         })?;
+        let _site = crate::gate_measure::site("nary-carved");
         T::finish(body, tol).map_err(|findings| BooleanError::ResultInvalid { findings })
     };
     let mut parts = Vec::with_capacity(groups.len());

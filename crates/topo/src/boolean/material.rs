@@ -68,6 +68,7 @@ pub(super) fn assembled<T: geom_core::Decide + AtRestPolicy>(
         through.absorb(th, &keys, &material.body().contacts.carried(), &mut records)?;
     }
     let records = through.onto_material(riding, records, &body)?;
+    let _site = crate::gate_measure::site("material-graft");
     let body = T::finish(body, tol).map_err(|findings| BooleanError::ResultInvalid { findings })?;
     Ok((body, records, through))
 }

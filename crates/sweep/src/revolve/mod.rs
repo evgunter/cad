@@ -268,7 +268,10 @@ impl<T: topo::AtRestPolicy> Revolved<T, Body<T>> {
             scalar,
         } = self;
         Ok(Revolved {
-            body: T::leaf(body, tol)?,
+            body: {
+                let _site = topo::gate_measure::site("revolve");
+                T::leaf(body, tol)?
+            },
             solid,
             shell,
             cavities,

@@ -1183,6 +1183,7 @@ pub fn split<F: crate::FinishedBody>(
 where
     F::Scalar: geom_core::Decide,
 {
+    crate::gate_measure::operands(&[&**operand]);
     let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
     let flat;
     let operand: &Body<F::Scalar> = if operand.solids().nth(1).is_some() {
@@ -1207,6 +1208,7 @@ where
                 None,
             )
             .map_err(SplitError::Pieces)?;
+            let _site = crate::gate_measure::site("split");
             <F::Scalar as crate::props::AtRestPolicy>::finish(body, tol)
                 .map(finish::SplitPart::Body)
                 .map_err(|findings| {
