@@ -66,17 +66,12 @@ reads it in its own way:
 
 - **A sketch on a face is drawn on a frame read off the face.** Its
   profile's `on` is a frame in the space of the face's body
-  (`ProfileProgram.on`, `DrawnOn`), whose `z` is the face's outward
-  normal and whose `spin` turns it (the constant `0` unless named). The
-  gesture writes one of two frames, and the recipe holds which: a
-  **flag** read off a straight edge of the face and a vertex of it (the
-  origin at the vertex, `x` along the edge, the face on `+y`), or, where
-  the gesture names no such edge (a bare disc), a **charted** frame: the
-  space's axes under the orientation the gesture writes nearest the
-  face, carried onto the normal by the least turn, at the foot of a
-  point the gesture names, or of the space's origin (`[placement]`).
-  Neither is a fallback for the other: a cell an edit adds or removes
-  never switches a frame from one to the other. The profile and every sweep of it are in
+  (`ProfileProgram.on`, `DrawnOn`): the chart a plane placement onto the
+  face with the same orientation, spin and slides gives, computed by that
+  placement's own chart (`[placement]`): its `z` is the face's outward
+  normal, and its `x` and origin are the space's under the written
+  orientation, carried by the least turn, then the written spin and slides
+  (each the constant `0` unless named). The profile and every sweep of it are in
   that body's space, and nothing is placed. Extrude and Combine are the
   ordinary acts after it: a signed depth sweeps above the face (a boss) or
   into it (a pocket's tool).
