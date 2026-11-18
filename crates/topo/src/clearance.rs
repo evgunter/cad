@@ -3753,7 +3753,6 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         let f = body.face(face)?;
         let point = |p: &Point3<T>| p.map(|x| lift.of(x));
         let mut pts: Vec<Point3<Interval>> = Vec::new();
-        let mut arcs: Vec<Aabb> = Vec::new();
         let mut out = Boundary {
             sense: f.sense(),
             ..Boundary::default()
@@ -3817,7 +3816,17 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
             let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
-            arcs.push(crate::cover::arc_cover(&carrier, span).ok()?.aabb(0.0));
+            // The edge's region over its span, as the low and high
+            // corners of its world box: bracket ends, read by
+            // `Aabb::from_points` as the vertices are. No pad is owed:
+            // each corner is the cover's own enclosure at this scalar, and
+            // `Cover::aabb`'s pad would step every side out by an ulp even
+            // at zero, which moves every window off the points its splits
+            // land on.
+            let (lo, hi) = crate::cover::arc_cover(&carrier, span)
+                .ok()?
+                .box_in(&geom::cover::BoxAxes::World);
+            pts.extend([lo, hi]);
             let ends = <[_; 2]>::from(crate::query::edge_ends(body, ek));
             let uses = hes
                 .iter()
@@ -3845,8 +3854,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 uses,
             });
         }
-        let bounds = Aabb::from_points(pts)?;
-        Some((arcs.iter().fold(bounds, |b, arc| b.hull(arc)), out))
+        Aabb::from_points(pts).map(|b| (b, out))
     })
     .flatten()
 }
