@@ -2325,13 +2325,29 @@ fn holds_what_it_reads(out: &SplitOutcome, label: &str) {
 /// can carry, or the part's carry cannot write a pick.
 #[test]
 fn a_named_pick_only_the_cut_reads_goes_with_it() {
+    pick_goes("placement of P");
+}
+
+/// [`a_named_pick_only_the_cut_reads_goes_with_it`], through a named
+/// source of the pick.
+#[test]
+fn a_named_pick_only_the_cut_reads_through_a_named_source_goes_with_it() {
+    pick_goes("placement of s = P");
+}
+
+/// [`a_named_pick_only_the_cut_reads_goes_with_it`], as the inner pick of
+/// an anonymous pick, and refused where the product slot reads it.
+#[test]
+fn a_named_inner_pick_only_the_cut_reads_goes_with_it() {
+    pick_goes("placement of P1 [a]");
+}
+
+/// One shape of [`a_named_pick_only_the_cut_reads_goes_with_it`]: a row
+/// each, so each builds its scene alone.
+fn pick_goes(shape: &str) {
     let p = parts("pick-goes");
     let o = p.opts();
-    for shape in [
-        "placement of P",
-        "placement of s = P",
-        "placement of P1 [a]",
-    ] {
+    {
         let (doc, [c, a, b, g1, g2, placed], whole, g1o, ac) = nested_copy(&p, shape);
         let mut cut = vec![c, a, b, g1, g2, placed];
         let (doc, names) = match shape {
