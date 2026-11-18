@@ -127,8 +127,9 @@ The first pass reads the traces off the nominal f64 evaluation, and
 every lane re-reads them at its own scalar.
 
 The edit door and the load door ask a program only its lattice of
-verbs (`ProgramRefusal::Transition`), which no binding moves.
-`ProfileProgram::check`'s resolve + replay + validate
+verbs (`ProgramRefusal::Transition`), which no binding moves: the walk
+`chain_shape` takes over the steps with their values erased
+(`ProfileProgram::lattice`). Resolve + replay + validate
 (`ProgramRefusal::{Resolve, Geometry, Validate}`) run at evaluation, per
 binding: each member of a family, each analysis sample, the nominal.
 

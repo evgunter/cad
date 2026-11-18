@@ -10,8 +10,8 @@
 //!
 //! # The strict door (V1, wire.rs's rule at the program layer)
 //!
-//! Nothing here can mint a `profile::ProfileLoop`. Evaluation (and the
-//! authoring-time check) RESOLVES the expressions at `f64` and hands
+//! Nothing here can mint a `profile::ProfileLoop`. Evaluation RESOLVES
+//! the expressions at `f64` and hands
 //! the resolved steps to `profile::replay` — the driver, hence the
 //! typed binders and every check they carry. Deserialization rebuilds
 //! THIS type (through `Expr`'s dimension doors); the only path from
@@ -656,7 +656,7 @@ pub trait SlotPayload<S> {
 }
 
 /// What `Node<P>` needs from a profile payload so slot addressing and
-/// the authoring-time check stay generic (`Doc<P>` keeps its fake test
+/// the lattice check stay generic (`Doc<P>` keeps its fake test
 /// payloads — the defaults are the slot-free, check-free behavior the
 /// retired opaque payload had). `Serialize`, because the insert door
 /// mints a node's id from the node's bytes, payload included
@@ -2504,7 +2504,9 @@ impl ProfileProgram {
     ///
     /// # Errors
     ///
-    /// [`ProfileProgram::check`]'s; [`ProgramRefusal::Unminted`] for a
+    /// [`ProgramRefusal::Resolve`], [`ProgramRefusal::Transition`],
+    /// [`ProgramRefusal::Geometry`], [`ProgramRefusal::Validate`] and
+    /// [`ProgramRefusal::Trace`] at `env`; [`ProgramRefusal::Unminted`] for a
     /// program whose steps carry no ids
     /// ([`ProfileProgram::carries_step_ids`]); and
     /// [`ProgramRefusal::StepIds`] for ids not shaped one list per

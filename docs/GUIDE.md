@@ -1145,7 +1145,7 @@ at `insert`, not as a guess.
 ```python
 import math
 
-from pncad import Doc, EditError, Formula, Node, Open, Start, circle, evaluate, m, Settle
+from pncad import Doc, EvaluationError, Formula, Node, Open, Start, circle, evaluate, m, Settle
 
 # The tour's `plate` stop: a 6 x 3 slab, 0.6 deep, with two holes.
 outer = (
@@ -1167,17 +1167,19 @@ area = 6.0 * 3.0 - 2.0 * math.pi * 0.7 * 0.7
 assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - 0.6 * area) < 1e-12
 
 # Two disjoint circles are not an outline and its hole. The kernel
-# says so; the binding does not pre-empt it.
-try:
-    other = Doc()
-    other.insert(
-        Node.profile(
-            [circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)],
-        )
+# says so when the profile evaluates; neither the binding nor the edit
+# door, which reads no value, pre-empts it.
+other = Doc()
+pair = other.insert(
+    Node.profile(
+        [circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)],
     )
+)
+try:
+    evaluate(other).value(pair)
     raise AssertionError("that profile should not have validated")
-except EditError as refusal:
-    assert refusal.variant == "profile_program_refused"
+except EvaluationError as refusal:
+    assert refusal.kind == "profile"
 ```
 
 ### Filleting edges you name

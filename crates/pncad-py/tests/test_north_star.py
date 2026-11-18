@@ -1286,15 +1286,17 @@ class TestPlate(unittest.TestCase):
         """Nothing about the loop SET is pre-checked at the boundary.
         Two disjoint circles are not an outline and its hole, and the
         refusal is the kernel's own profile validation reaching Python
-        through the edit door's replay probe — typed, at `insert`."""
-        with self.assertRaises(EditError) as caught:
-            doc = Doc()
-            doc.insert(
-                Node.profile(
-                    [circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)],
-                )
+        typed, when the profile evaluates: the edit door reads no
+        value."""
+        doc = Doc()
+        profile = doc.insert(
+            Node.profile(
+                [circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)],
             )
-        self.assertEqual(caught.exception.variant, "profile_program_refused")
+        )
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(profile)
+        self.assertEqual(caught.exception.kind, "profile")
 
 
 class TestAz(unittest.TestCase):

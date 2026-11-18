@@ -3718,7 +3718,9 @@ class DocEdit:
         `set_program_on_non_profile`, and then everything an insert
         refuses of a profile: `slot_unknown_var_name` and its
         siblings over every argument, `profile_program_refused` for a
-        program that does not close, replay or validate."""
+        step order the lattice refuses (a program that does not close).
+        A program whose values do not replay or validate is admitted and
+        refused when it evaluates."""
 
     @staticmethod
     def rebind(from_name: str, to_name: str, body: Var | None = None) -> DocEdit:

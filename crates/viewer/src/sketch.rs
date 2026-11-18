@@ -216,8 +216,8 @@ fn recorded_notation(
 /// A non-finite field (the literal door's refusal), or a path that is
 /// not a program's shape — a complete-loop verb (`circle`,
 /// `circle_split`, `rectangle`) inside a chain. Degeneracy is NOT
-/// judged here: the edit door's authoring-time check replays the
-/// program and refuses it typed.
+/// judged here: it is a value, which the profile's evaluation refuses
+/// typed.
 pub fn path_program(
     steps: &[Step<f64>],
     notation: Notation,
@@ -1527,12 +1527,11 @@ impl PreviewError {
 /// **Replay the loops a form is holding and flatten them for
 /// drawing.**
 ///
-/// The SAME ladder the edit door runs on commit — lower, resolve,
-/// replay, validate (`ProfileProgram::check`) — run for its geometry
-/// instead of for its verdict, which is what makes the picture and
-/// the refusal one thing rather than two that can disagree. A form
-/// that draws this and shows what it refuses is showing the reason
-/// its Create button is disabled.
+/// The SAME ladder evaluation runs on the profile — lower, resolve,
+/// replay, validate — run for its geometry instead of for its
+/// verdict, which is what makes the picture and the refusal one thing
+/// rather than two that can disagree. A form that draws this and shows
+/// what it refuses is showing what the node's evaluation will say.
 ///
 /// `chord` is the display tolerance: how far a flattened arc may sag
 /// from the arc it stands for, in metres. It is a δ and never an ε —
