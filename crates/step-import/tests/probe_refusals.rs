@@ -107,19 +107,23 @@ fn a_conic_self_loop_with_a_nonfinite_angle_refuses_typed() {
     // here: putting a vertex at 1e308 inverts the cylinder wall's own
     // winding, so the face's orientation gate refuses the file before
     // any edge parameter is asked for.
-    // The zero semi-axis no longer reads a NaN angle: `Conic::azimuth`
-    // reads `(y·a, x·b)` with no division. The file is refused at
-    // adoption, typed, until the `ELLIPSE` mint goes through its deciding
-    // door (`work/importgate/step-import-mints-an-ellipse-past-its-deciding-door.md`).
+    // A zero semi-axis is a root no constructor takes: the file is
+    // refused at interpretation, naming the `ELLIPSE`, before any edge
+    // reads it.
     assert_ne!(
         zero_semi_axis, base,
         "zero semi-axis: the substitution must apply"
     );
     match import_step(&zero_semi_axis, &ImportOptions::default(), Tol::witness()) {
-        Err(StepImportError::Adoption { id, .. }) => {
-            assert_eq!(id, 21, "zero semi-axis: the rim edge is the offender");
+        Err(StepImportError::Interpretation {
+            id,
+            refusal: step_import::InterpretationRefusal::InvalidRoot { value, .. },
+            ..
+        }) => {
+            assert_eq!(id, 24, "zero semi-axis: the ellipse is the offender");
+            assert_eq!(value, 0.0, "zero semi-axis: the value is the file's");
         }
-        other => panic!("zero semi-axis must refuse at adoption, got {other:?}"),
+        other => panic!("zero semi-axis must refuse as an invalid root, got {other:?}"),
     }
     assert_ne!(
         overflowing_centre, base,

@@ -2,11 +2,12 @@
 id: step-adopt-reads-a-plane-origin-against-another-planes-normal
 kind: issue
 title: step-import's coincident_surfaces reads one plane's stored origin against another's normal after an unlevered parallel gate
-status: open
+status: closed
 opened: 2026-10-07
 priority: P3
 cost: E
 refs: [cylinder-offsets-read-at-a-stored-origin-off-the-reach]
+closed: 2026-11-18
 ---
 
 

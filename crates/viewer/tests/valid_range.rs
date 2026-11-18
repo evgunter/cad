@@ -263,11 +263,13 @@ fn a_value_that_fixes_a_failure_is_not_a_boundary() {
 }
 
 /// **The session's probe against a real document**: an extrude, whose
-/// depth must be positive.
+/// depth refuses where the kernel cannot tell it from zero.
 ///
-/// The kernel refuses a depth it cannot tell from zero and every depth
-/// below, so the range has a floor just above zero and no ceiling anywhere near — and the probe finds
-/// exactly that without the test naming a number the kernel decides.
+/// The depth is signed, so its failing region is the band about zero,
+/// and no ceiling is anywhere near. The probe's ladder from 8 mm by its
+/// 1 mm seed lands on zero exactly (8 mm is a power of two of it), so it
+/// brackets the band from above — and the probe finds that without the
+/// test naming a number the kernel decides.
 #[test]
 fn the_session_probes_a_real_slots_range() {
     let tol = Tol::witness();
@@ -476,28 +478,28 @@ fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
 /// steps over the floor reports [`Bound::Open`] and the row dies
 /// there saying so.
 ///
-/// **Where the floor sits depends on ε.** A depth is a size, so every
-/// thickness below the floor fails: the failing region is a half-line,
-/// bounded above by a thickness the tolerance decides — `0` itself at
+/// **Where the floor sits depends on ε.** A disc's radius is a size, so
+/// every radius below the floor fails: the failing region is a half-line,
+/// bounded above by a radius the tolerance decides — `0` itself at
 /// the default ε and at `1e-12`, about `1e-5` at `1e-6`. The row holds
 /// under either, which is why it asserts a halving COUNT and not a
 /// width.
 #[test]
 fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     let tol = Tol::witness();
-    let doc = thickness_document(tol);
+    let doc = radius_document(tol);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Variable {
-            var: common::thickness_var(session.committed_doc()),
+            var: common::var_of(session.committed_doc(), RADIUS),
         },
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let result = session.bounds().expect("a probe landed").bounds;
     assert_eq!(result.origin, 0.008);
 
-    // Upward: a thicker plate never fails, so the search reaches its
+    // Upward: a wider disc never fails, so the search reaches its
     // ceiling, which is `BoundsProbe::furthest_reach` of the seed it
     // stepped by — read from the probe rather than restated, so the
     // reach constant can move without reddening this.
@@ -516,11 +518,11 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
         "a millimetre-seeded reach stops metres out, not kilometres: {:?}",
         result.high
     );
-    // Downward: the plate fails at every thickness the tolerance
-    // cannot tell from 0 and below, so the first doubling past the
-    // floor lands in the failing half-line.
+    // Downward: the disc fails at every radius the tolerance cannot
+    // tell from 0 and below, so the first doubling past the floor lands
+    // in the failing half-line.
     let Bound::Edge { valid, invalid } = result.low else {
-        panic!("a depth below the floor refuses, so the low side brackets: {result:?}");
+        panic!("a radius below the floor refuses, so the low side brackets: {result:?}");
     };
     assert!(invalid < valid, "a bracket straddles: {invalid}..{valid}");
     // The refinement ENTERED the bracket the reach left it: the last
@@ -548,33 +550,55 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     );
 }
 
-/// One millimetre-authored `thickness` variable, 8 mm, driving the
-/// depth of a 40 mm square's extrude.
-fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
+/// The variable [`radius_document`] declares.
+const RADIUS: &str = "radius";
+
+/// One millimetre-authored `radius` variable, 8 mm, driving the radius
+/// of a disc extruded 40 mm. A radius is a size, refused at zero and
+/// below, so its failing region is a half-line; an extrude's depth is
+/// signed, and fails only in the band about zero.
+fn radius_document(tol: Tol) -> Doc<ProfileProgram> {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("valid-range-mm", tol);
     let (doc, _) = common::edited(
         &doc,
         pncad::document::DocEdit::DeclareVar {
-            name: common::thickness_param(),
+            name: pncad::document::VarName::from_static(RADIUS),
             def: pncad::document::VarDecl::Free(pncad::document::FreeVar::written_length(
                 WrittenLength::in_unit(8.0, MM),
             )),
         },
         tol,
     );
-    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
+    let (doc, profile) = common::inserted(
+        &doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![pncad::document::LoopProgram::Circle {
+                centre: [
+                    Formula::zero(Dimension::Length),
+                    Formula::zero(Dimension::Length),
+                ],
+                radius: Formula::named(
+                    pncad::document::VarName::from_static(RADIUS),
+                    Dimension::Length,
+                ),
+            }],
+            ids: Vec::new(),
+            on: None,
+        }),
+        tol,
+    );
     common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
-            distance: Formula::named(common::thickness_param(), Dimension::Length),
+            distance: common::len_mm(0.04),
         },
         tol,
     )
     .0
 }
 
-/// **Every seed brackets the floor.** The failing region below a depth
+/// **Every seed brackets the floor.** The failing region below a radius
 /// is a half-line, so a ladder lands in it whatever it steps by. The
 /// 0.8 mm and 1 m seeds are the ones a point floor at zero let through
 /// (`low: Open`), the 1 mm seed the one that bracketed it only because
@@ -582,7 +606,7 @@ fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
 #[test]
 fn every_seed_brackets_the_half_line_floor() {
     let tol = Tol::witness();
-    let doc = thickness_document(tol);
+    let doc = radius_document(tol);
     let failing = |doc: &Doc<ProfileProgram>| -> Vec<pncad::document::RecipeNodeId> {
         let ev: pncad::document::Evaluation<f64> = pncad::document::evaluate(
             doc,
@@ -598,13 +622,13 @@ fn every_seed_brackets_the_half_line_floor() {
             .collect()
     };
     let baseline = failing(&doc);
-    assert!(baseline.is_empty(), "the 8 mm plate builds: {baseline:?}");
+    assert!(baseline.is_empty(), "the 8 mm disc builds: {baseline:?}");
     for seed in [0.0008, 0.001, 1.0] {
         let bounds = probe(BoundsProbe::new(0.008, seed, false), |v| {
             let (moved, _) = common::edited(
                 &doc,
                 pncad::document::DocEdit::SetVarValue {
-                    var: common::thickness_param().into(),
+                    var: pncad::document::VarName::from_static(RADIUS).into(),
                     value: pncad::document::FreeValue::Continuous(v),
                 },
                 tol,
