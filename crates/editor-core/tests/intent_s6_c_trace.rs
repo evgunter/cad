@@ -215,6 +215,30 @@ fn trace_refusal(ev: &Evaluation<f64>, node: RecipeNodeId) -> editor_core::Trace
     }
 }
 
+/// The door's refusal of a boss drawn on the cylinder's base with
+/// `steps`: a pen step whose order is wrong at every value refuses
+/// there, before any evaluation, as the same typed trace refusal.
+fn door_trace_refusal(steps: Vec<ProgramStep<Formula>>) -> editor_core::TraceRefusal {
+    let (doc, cylinder) = cylinder(RADIUS, None);
+    let frame = frame_at_origin(&doc, cylinder);
+    let wall = face(&eval(&doc), cylinder, SurfaceKind::Cylinder);
+    let node = Node::Profile(ProfileProgram {
+        loops: vec![LoopProgram::Chain(steps)],
+        ids: Vec::new(),
+        on: Some(DrawnOn {
+            frame,
+            faces: vec![Operand::select(Operand::output(cylinder, 0), vec![wall])],
+        }),
+    });
+    match fixture::insert_refused(&doc, node) {
+        editor_core::EditError::ProfileProgramRefused { refusal, .. } => match *refusal {
+            editor_core::ProgramRefusal::Trace(t) => t,
+            other => panic!("expected a trace refusal at the door, got {other:?}"),
+        },
+        other => panic!("expected the profile door to refuse, got {other:?}"),
+    }
+}
+
 /// **The boss runs onto the cylinder's trace and along its tangent**:
 /// its wall stands at the cylinder's radius, in the cylinder's space,
 /// and is the boss the value-typed scene types by hand.
@@ -837,27 +861,6 @@ fn a_step_reading_a_trace_refuses_typed() {
             },
         ),
         (
-            "a line to a crossing with no heading bound",
-            closing(vec![at(), on(TracePassage::Leave, 1)]),
-            1,
-            None,
-            F::NoHeading,
-        ),
-        (
-            "a heading along a trace no piece ran onto",
-            closing(vec![
-                at(),
-                toward(0.0, 1.0),
-                ProgramStep::Line(len(0.5)),
-                ProgramStep::AlongTrace {
-                    sense: TraceSense::With,
-                },
-            ]),
-            3,
-            None,
-            F::OffTrace,
-        ),
-        (
             "a coordinate the heading never reaches",
             closing(vec![
                 at(),
@@ -867,20 +870,6 @@ fn a_step_reading_a_trace_refuses_typed() {
             2,
             None,
             F::Unreached,
-        ),
-        (
-            "a trace target on a tangent arc",
-            closing(vec![
-                at(),
-                toward(0.0, 1.0),
-                ProgramStep::TangentArcTo(ProgramTarget::OnTrace {
-                    face: 0,
-                    crossing: TraceCrossing::first(TracePassage::Leave),
-                }),
-            ]),
-            2,
-            None,
-            F::NotARun,
         ),
         (
             "a face the profile does not trace",
@@ -920,14 +909,99 @@ fn a_step_reading_a_trace_refuses_typed() {
     }
 }
 
+/// **A pen step whose order is wrong at every value refuses at the
+/// door**, as the trace refusal evaluation would have named, at its
+/// step: no value of the chain could bind the heading, the run or the
+/// piece it reads.
+#[test]
+fn a_pen_step_out_of_order_refuses_at_the_door() {
+    use TraceStepFault as F;
+    let toward = |dx, dy| ProgramStep::Toward {
+        dx: scl(dx),
+        dy: scl(dy),
+    };
+    let on = |passage, nth| {
+        ProgramStep::LineTo(ProgramTarget::OnTrace {
+            face: 0,
+            crossing: TraceCrossing { passage, nth },
+        })
+    };
+    let closing = |mut steps: Vec<ProgramStep<Formula>>| {
+        steps.extend([
+            ProgramStep::LineTo(ProgramTarget::Point(len2([REACH, BACK]))),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]);
+        steps
+    };
+    let at = || ProgramStep::At(len2([0.0, BACK]));
+    type Row = (&'static str, Vec<ProgramStep<Formula>>, u32, Option<u32>, F);
+    let rows: Vec<Row> = vec![
+        (
+            "a line to a crossing with no heading bound",
+            closing(vec![at(), on(TracePassage::Leave, 1)]),
+            1,
+            None,
+            F::NoHeading,
+        ),
+        (
+            "a heading along a trace no piece ran onto",
+            closing(vec![
+                at(),
+                toward(0.0, 1.0),
+                ProgramStep::Line(len(0.5)),
+                ProgramStep::AlongTrace {
+                    sense: TraceSense::With,
+                },
+            ]),
+            3,
+            None,
+            F::OffTrace,
+        ),
+        (
+            "a trace target on a tangent arc",
+            closing(vec![
+                at(),
+                toward(0.0, 1.0),
+                ProgramStep::TangentArcTo(ProgramTarget::OnTrace {
+                    face: 0,
+                    crossing: TraceCrossing::first(TracePassage::Leave),
+                }),
+            ]),
+            2,
+            None,
+            F::NotARun,
+        ),
+        (
+            "a direction bound before any pen",
+            closing(vec![
+                toward(0.0, 1.0),
+                ProgramStep::LineTo(ProgramTarget::OnTrace {
+                    face: 0,
+                    crossing: TraceCrossing::first(TracePassage::Leave),
+                }),
+            ]),
+            1,
+            None,
+            F::NoPen,
+        ),
+    ];
+    for (what, steps, step, face_at, fault) in rows {
+        let refusal = door_trace_refusal(steps);
+        assert_eq!(
+            (refusal.loop_, refusal.step, refusal.face, &refusal.fault),
+            (0, step, face_at, &fault),
+            "{what}: {refusal}"
+        );
+    }
+}
+
 /// **The refusals a document reaches beyond the table's**, each at its
-/// step and face: a pen with no position (the chain binds a direction
-/// first), a piece lying on the carrier (a frame in the cylinder's own
+/// step and face: a piece lying on the carrier (a frame in the cylinder's own
 /// base, tracing that base), a heading whose reach of a written `x` the
 /// band cannot call, and a face with no closed-form carrier (a twisted
 /// loft's spline wall).
 #[test]
-fn the_pen_the_carrier_and_the_band_refuse_typed() {
+fn the_carrier_and_the_band_refuse_typed() {
     use topo::boolean::trace::TraceFault;
     let toward = |dx, dy| ProgramStep::Toward {
         dx: scl(dx),
@@ -946,15 +1020,6 @@ fn the_pen_the_carrier_and_the_band_refuse_typed() {
         ]);
         steps
     };
-
-    // No pen: a direction bound first.
-    let scene = traced_boss(RADIUS, None, home(vec![toward(0.0, 1.0), leave()]));
-    let refusal = trace_refusal(&eval(&scene.doc), scene.footprint);
-    assert_eq!(
-        (refusal.step, refusal.face, &refusal.fault),
-        (1, None, &TraceStepFault::NoPen),
-        "{refusal}"
-    );
 
     // On the carrier: the frame stands in the base's plane, so a piece
     // in it lies on the base; the top, parallel and off it, has no trace.
@@ -1408,4 +1473,91 @@ fn a_vanished_traced_face_is_unresolved() {
         "the traced face's selection is unresolved: {:?}",
         ev.node_error(scene.footprint).map(|e| e.kind.to_string())
     );
+}
+
+/// **A `SetProgram` that keeps a named step of a traced boss is
+/// admitted**: the strand report compares what each program's
+/// structure can draw (REFERENCES.md DM7), which reads no trace, so a
+/// boss whose wall a shell names is rewritten with every step kept and
+/// its far corner moved, and nothing refuses or strands. Red if the
+/// report resolves the program outside an evaluation
+/// (`TraceStepFault::Unevaluated`).
+#[test]
+fn a_traced_boss_rewritten_with_a_named_step_kept_is_admitted() {
+    let scene = traced_boss(RADIUS, None, boss_steps());
+    let Some(Node::Profile(program)) = scene.doc.node(scene.footprint) else {
+        panic!("the footprint is a profile")
+    };
+    let keep = program.kept_in_place();
+    let corner = program.ids[0][5];
+    let wall = fixture::fname(
+        scene.boss,
+        editor_core::RoleSeg::Lateral(
+            editor_core::ProfileEdgeRef::Piece {
+                step: corner,
+                role: editor_core::PieceRole::Leg,
+            }
+            .into(),
+        ),
+    );
+    let (doc, _shell) = fixture::insert(scene.doc, Node::shell(scene.boss, len(0.01), vec![wall]));
+    let mut steps = boss_steps();
+    steps[5] = ProgramStep::LineTo(ProgramTarget::Point(len2([REACH, 0.9 * BACK])));
+    let applied = doc
+        .apply(
+            &DocEdit::SetProgram {
+                node: scene.footprint,
+                loops: vec![LoopProgram::Chain(steps)],
+                ids: keep,
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("the reshaping reads no trace");
+    assert_eq!(
+        fixture::without_anonymous(&applied.maintenance),
+        vec![],
+        "a kept step's leg stays drawable, so nothing strands"
+    );
+}
+
+/// **A traced boss that never closes refuses at the door**: its loop
+/// runs from the pen, and its step order is the door's to judge as any
+/// loop's is (`[recipe.doors]`), the pen steps as the verbs their trace
+/// lowering gives them. The `SetProgram` drops the closing
+/// `line_to(Start)`. Red if the door admits it, which evaluation would
+/// then refuse as a lattice violation no authoring surface records.
+#[test]
+fn a_traced_boss_that_never_closes_refuses_at_the_door() {
+    let scene = traced_boss(RADIUS, None, boss_steps());
+    let Some(Node::Profile(program)) = scene.doc.node(scene.footprint) else {
+        panic!("the footprint is a profile")
+    };
+    let mut steps = boss_steps();
+    steps.pop();
+    let mut keep = program.kept_in_place();
+    keep[0].pop();
+    match scene.doc.apply(
+        &DocEdit::SetProgram {
+            node: scene.footprint,
+            loops: vec![LoopProgram::Chain(steps)],
+            ids: keep,
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(editor_core::EditError::ProfileProgramRefused { refusal, .. }) => assert!(
+            matches!(
+                *refusal,
+                editor_core::ProgramRefusal::Transition {
+                    loop_: 0,
+                    step: 6,
+                    verb: None,
+                    ..
+                }
+            ),
+            "the chain ends unclosed after its six steps: {refusal:?}"
+        ),
+        other => panic!("the door refuses the unclosed traced loop, got {other:?}"),
+    }
 }

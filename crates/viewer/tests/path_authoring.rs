@@ -337,7 +337,8 @@ fn an_unclosable_chain_reports_the_refusal_for_the_program_that_was_written() {
 ///
 /// Two loops that cross are geometry a person needs to LOOK at to see
 /// what is wrong with them, so the refusal rides beside the picture
-/// rather than replacing it. The commit door still refuses the edit.
+/// rather than replacing it. The commit door admits the edit, and the
+/// profile refuses at evaluation (`[recipe.doors]`).
 #[test]
 fn an_invalid_profile_is_drawn_with_its_refusal_beside_it() {
     let tol = Tol::witness();
@@ -362,7 +363,25 @@ fn an_invalid_profile_is_drawn_with_its_refusal_beside_it() {
     let out = session.perform(SessionOp::AddProfile {
         loops: overlapping.iter().map(|steps| shape(steps)).collect(),
     });
-    assert!(out.refusal.is_some(), "the door refuses what it drew");
+    assert!(
+        out.refusal.is_none(),
+        "the door reads no value: {:?}",
+        out.refusal
+    );
+    let [profile] = out.minted.as_slice() else {
+        panic!("one profile minted: {:?}", out.minted)
+    };
+    let ev = pncad::document::evaluate::<f64>(
+        session.committed_doc(),
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        tol,
+    );
+    assert!(
+        ev.node_error(*profile).is_some(),
+        "the crossing refuses at evaluation"
+    );
 }
 
 /// **Every verb lowers, at every arc mode and every target form.**

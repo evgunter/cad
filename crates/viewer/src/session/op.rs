@@ -603,11 +603,11 @@ pub enum SessionOp {
     /// (`profile::structure`), never by list position — a list
     /// written holes-first describes the same profile. An empty list
     /// inserts the empty region, a profile with no loops. Every refusal
-    /// is the edit door's own: a degenerate loop and a non-nested pair
-    /// both refuse through the authoring-time check
-    /// ([`Refusal::Edit`]), one rule for authored and hand-written
-    /// programs alike (only a non-finite field refuses earlier, at
-    /// the literal door). A profile reads no frame: where it stands is
+    /// is the edit door's own ([`Refusal::Edit`]), one rule for
+    /// authored and hand-written programs alike (only a non-finite
+    /// field refuses earlier, at the literal door); a degenerate loop
+    /// or a non-nested pair is a value, admitted and refused at the
+    /// profile's evaluation. A profile reads no frame: where it stands is
     /// the placement of what is built from it.
     AddProfile {
         /// The loop programs, in description order.

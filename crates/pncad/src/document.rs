@@ -96,7 +96,8 @@ pub use editor_core::{
     apply_replayed, slot_admits,
 };
 pub use editor_core::{
-    ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
+    ArcShape, AuthoredStep, PenRun, PenStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
+    pen_run, shape_of_recorded, step_kernel,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -360,7 +361,7 @@ pub use editor_core::{Carry, Piece, Pieces};
 // schema version (the persist module docs say why), so there is no
 // version constant to carry either.
 pub use editor_core::{
-    NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE, SectionIdBreak,
+    NonFiniteSite, OutputFault, PersistError, REGENERATE_RECOURSE, SectionIdBreak,
     SelectionBodyFault, SnapshotError, load, save,
 };
 
@@ -615,5 +616,5 @@ pub use editor_core::{
     CanonicalSegment, DrawnOn, LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData,
     ProgramResolveFault, ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError,
     StepArg, StepSegmentsError, TraceCrossing, TracePassage, TraceRefusal, TraceSense,
-    TraceStepFault, WrittenLoopFault, resolve_loops, resolve_written_loops,
+    TraceStepFault, WrittenLoopFault, pen_fault, resolve_loops, resolve_written_loops,
 };

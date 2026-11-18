@@ -37,10 +37,8 @@ impl editor_core::ProfilePayload for Fake {
     ) -> Self {
         *self
     }
-    fn drawn_pieces(
+    fn drawable_pieces(
         &self,
-        _env: &editor_core::VarEnv<f64>,
-        _tol: geom_core::Tol,
     ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
     {
         Ok(std::collections::BTreeSet::new())

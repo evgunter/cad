@@ -3480,8 +3480,8 @@ class DocEdit:
         same kernel checks: `slot_var_kind` for a section that is not a
         profile, `slot_dimension_mismatch` for a station move of the
         wrong dimension, `loft_shape` (`fault`: `too_few_sections`,
-        `empty_station`, `station_in_first_plane`,
-        `degree_out_of_range`). A node that is not a
+        `empty_station`). A station or degree its values make degenerate
+        is admitted and refused at evaluation. A node that is not a
         loft refuses `set_loft_sections_on_non_loft`.
 
         Each section's `keep` is the `SectionId` of the old section it
@@ -3720,7 +3720,9 @@ class DocEdit:
         `set_program_on_non_profile`, and then everything an insert
         refuses of a profile: `slot_unknown_var_name` and its
         siblings over every argument, `profile_program_refused` for a
-        program that does not close, replay or validate."""
+        step order the lattice refuses (a program that does not close).
+        A program whose values do not replay or validate is admitted and
+        refused when it evaluates."""
 
     @staticmethod
     def rebind(from_name: str, to_name: str, body: Var | None = None) -> DocEdit:

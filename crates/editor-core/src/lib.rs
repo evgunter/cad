@@ -207,9 +207,7 @@ pub use node::{
 pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
-pub use persist::{
-    NonFiniteSite, OutputFault, ProgramFault, SectionIdBreak, SelectionBodyFault, SnapshotError,
-};
+pub use persist::{NonFiniteSite, OutputFault, SectionIdBreak, SelectionBodyFault, SnapshotError};
 pub use persist::{
     PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id, load, save,
 };
@@ -251,12 +249,13 @@ pub use resolve::{
     VerdictSummary, VerdictVector, VerdictVectorKey, diff_summaries, verdict_summary,
 };
 pub use step_handle::{
-    ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
+    ArcShape, AuthoredStep, PenRun, PenStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
+    pen_run, shape_of_recorded, step_kernel,
 };
 pub use take_over::{Answered, Moved, TakeOverOutcome, Taken, TakenOver, take_over};
 pub use trace::{
     TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, TracedFrameFault, Traces,
-    trace_marks, traced_frame,
+    pen_fault, trace_marks, traced_frame,
 };
 pub use var::{
     FreshEntry, Index, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId,
