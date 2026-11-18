@@ -3233,19 +3233,16 @@ pub fn replay_guided<T: ArcCarrierScalar>(
 /// the heading a leg from it would run along.
 ///
 /// The heading is the bound director where one is bound, else the
-/// incoming leg's end tangent ([`Self::directed`] says which); a plain
-/// point with no director has none.
+/// incoming leg's end tangent (the state's [`TipState::pen`] says
+/// which); a plain point with no director has none.
 #[derive(Clone, Copy, Debug)]
 pub struct Pen<T: Real> {
     /// The tip's position.
     pub at: Point2<T>,
     /// The unit ray a leg from the tip departs along, if any.
     pub heading: Option<Vec2<T>>,
-    /// Whether [`Self::heading`] is a bound director rather than the
-    /// incoming tangent.
-    pub directed: bool,
     /// The tip's lattice state, which fixes whether `heading` is
-    /// present and `directed` ([`TipState::pen`]).
+    /// present and whether it is a bound director ([`TipState::pen`]).
     pub state: TipState,
 }
 
@@ -3276,7 +3273,6 @@ pub fn pen<T: ArcCarrierScalar>(
         Some(Pen {
             at: pos.at,
             heading: bound.or(incoming),
-            directed: bound.is_some(),
             state,
         })
     }

@@ -1855,8 +1855,8 @@ fn persist_error_tags_are_stable() {
 /// Constructed rather than driven through `load`, and the reason is
 /// per arm:
 ///
-/// * `profile_program` — a `ProgramFault` is a profile-program
-///   structure fault. A file carrying one is reachable, but building
+/// * `profile_program` — the edit door's own `ProgramRefusal` for a
+///   profile-program structure fault. A file carrying one is reachable, but building
 ///   the tampered bytes means hand-assembling a lattice-violating
 ///   step order, which pins the WIRE shape rather than the tag.
 /// * `distribution` — the same fault the edit door refuses, so a
@@ -1871,18 +1871,18 @@ fn persist_error_tags_are_stable() {
 /// a compile error, not a missing test.
 #[test]
 fn the_persist_doors_nested_arms_carry_their_own_word() {
-    use crate::tags::{distribution_fault_tag, program_fault_tag, snapshot_error_tag};
+    use crate::tags::{distribution_fault_tag, program_refusal_tag, snapshot_error_tag};
     use pncad::document::{
-        DistributionFault, DistributionField, ProgramFault, RecipeNodeId, SnapshotError,
+        DistributionFault, DistributionField, ProgramRefusal, RecipeNodeId, SnapshotError,
     };
 
-    let program = ProgramFault::Lattice {
+    let program = ProgramRefusal::Transition {
         loop_: 0,
         step: 1,
         state: pncad::profile::TipState::Entry,
         verb: None,
     };
-    assert_eq!(program_fault_tag(&program), "lattice");
+    assert_eq!(program_refusal_tag(&program), "transition");
 
     let distribution = DistributionFault::NonFinite {
         field: DistributionField::Sigma,
@@ -5542,11 +5542,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "program_fault_tag",
-        values: &["lattice", "order", "pen"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "program_refusal_tag",
         values: &[
             "geometry",
@@ -6475,10 +6470,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // cross (`trace_step_fault_tag`).
     ("on_carrier", 2),
     ("op", 3),
-    // One fact: a step order wrong at every value, read by the load
-    // door (`ProgramFault::Order`) and the edit door
-    // (`ProgramRefusal::Order`).
-    ("order", 2),
     ("part_unresolved", 2),
     // A coincidence: a sweep's path operand and a replay's path fault.
     ("path", 2),

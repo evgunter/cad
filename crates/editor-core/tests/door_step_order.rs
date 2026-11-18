@@ -1,16 +1,17 @@
 //! **A step order no value makes valid refuses at both doors**
 //! (`[recipe.doors]`): the program's shape, values erased, refuses an
-//! arc leg off a fillet's open arrival, a far-end anchor with no fillet
-//! open and a `circle_split` of one arc, typed as the replay's own
+//! arc leg or a fused arc off a fillet's open arrival, an arc closing on
+//! its own entry, a far-end anchor with no fillet open and a
+//! `circle_split` of one arc, typed as the replay's own
 //! refusal (`ProgramRefusal::Order`), at the edit door and, for a file
-//! that holds it, at the load door (`ProgramFault::Order`).
+//! that holds it, at the load door, which carries the same refusal.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{self, len, len2, scl};
 use crate::wire::doctored;
 use editor_core::{
     DocEdit, EditError, Formula, LoopProgram, Node, PersistError, ProfileDoc, ProfileProgram,
-    ProgramFault, ProgramRefusal, ProgramStep, ProgramTarget, VarDecl, VarName, load, save,
+    ProgramRefusal, ProgramStep, ProgramTarget, VarDecl, VarName, load, save,
 };
 use geom_core::Tol;
 use profile::PathErrorKind;
@@ -42,17 +43,16 @@ fn refused_at_insert(doc: &ProfileDoc, loops: Vec<LoopProgram<Formula>>) -> (u32
 /// The load door's order refusal of `text`: its step and class.
 fn refused_at_load(text: &str) -> (u32, PathErrorKind) {
     match load(text, Tol::witness()) {
-        Err(PersistError::ProfileProgram {
-            fault:
-                ProgramFault::Order {
-                    loop_: 0,
-                    step,
-                    kind,
-                    ..
-                },
-            ..
-        }) => (step, kind),
-        other => panic!("an order refusal at load, got {other:?}"),
+        Err(PersistError::ProfileProgram { refusal, .. }) => match *refusal {
+            ProgramRefusal::Order {
+                loop_: 0,
+                step,
+                kind,
+                ..
+            } => (step, kind),
+            other => panic!("an order refusal at load, got {other:?}"),
+        },
+        other => panic!("a program refusal at load, got {other:?}"),
     }
 }
 
@@ -124,6 +124,88 @@ fn an_arc_leg_off_an_open_fillet_refuses_at_both_doors() {
     assert_eq!(
         refused_at_load(&mangled),
         (4, PathErrorKind::ArcLegOnOpenFillet),
+        "the load door"
+    );
+}
+
+/// **A fused arc incoming off a fillet's open arrival refuses at both
+/// doors**: `arc_fillet` from the anchor would claim the open fillet's
+/// arrival a second time, which the replay once did silently, so the
+/// first fillet vanished. The file is the landed twin with its leg
+/// rewritten as the fused verb. Red if either door admits it; the
+/// replay's own check is pinned in the profile crate
+/// (`chain_shape_random::each_order_refusal_refuses_at_the_replay_and_the_shape_alike`).
+#[test]
+fn a_fused_arc_off_an_open_fillet_refuses_at_both_doors() {
+    let doc = ProfileDoc::empty_derived("door-step-order-fused", Tol::witness());
+    let fused = ProgramStep::ArcFillet {
+        spec: editor_core::ProgramArcData::Via {
+            q: len2([5.0, 3.0]),
+            target: point(4.0, 4.0),
+        },
+        radius: len(0.5),
+    };
+    assert_eq!(
+        refused_at_insert(&doc, after_an_open_fillet(fused)),
+        (4, PathErrorKind::ArcLegOnOpenFillet),
+        "the insert door"
+    );
+    let (doc, twin) = fixture::insert(
+        doc,
+        profile(after_an_open_fillet(ProgramStep::LineTo(point(4.0, 4.0)))),
+    );
+    let text = save(&doc, Tol::witness()).expect("the twin saves");
+    let mangled = doctored(&text, |v| {
+        let chain = &mut v["snapshot"]["nodes"][twin.0.to_string()]["Profile"]["loops"][0]["Chain"];
+        let radius = chain[2]["Fillet"].clone();
+        let target = chain[4]["LineTo"].take();
+        let q = target["Point"].clone();
+        chain[4] = serde_json::json!({
+            "ArcFillet": { "spec": { "Via": { "q": q, "target": target } }, "radius": radius }
+        });
+    });
+    assert_eq!(
+        refused_at_load(&mangled),
+        (4, PathErrorKind::ArcLegOnOpenFillet),
+        "the load door"
+    );
+}
+
+/// **An arc closing on its own entry refuses at both doors**: with no
+/// leg drawn, `arc_onto(StartArriving)` from the entry spans the zero
+/// chord at every value. The file is a triangle whose first leg is
+/// rewritten as that arc; the walk stops there. Red if either door admits
+/// it, which evaluation would then refuse as `DegenerateArcChord`.
+#[test]
+fn an_arc_closing_on_its_own_entry_refuses_at_both_doors() {
+    let doc = ProfileDoc::empty_derived("door-step-order-entry", Tol::witness());
+    let closing = vec![LoopProgram::Chain(vec![
+        ProgramStep::At(len2([1.0, 2.0])),
+        ProgramStep::ArcOnto(ProgramTarget::StartArriving),
+    ])];
+    assert_eq!(
+        refused_at_insert(&doc, closing),
+        (1, PathErrorKind::DegenerateArcChord),
+        "the insert door"
+    );
+    let (doc, triangle) = fixture::insert(
+        doc,
+        profile(vec![LoopProgram::Chain(vec![
+            ProgramStep::At(len2([1.0, 2.0])),
+            ProgramStep::LineTo(point(3.0, 2.0)),
+            ProgramStep::LineTo(point(3.0, 4.0)),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])]),
+    );
+    let text = save(&doc, Tol::witness()).expect("the triangle saves");
+    let mangled = doctored(&text, |v| {
+        let chain =
+            &mut v["snapshot"]["nodes"][triangle.0.to_string()]["Profile"]["loops"][0]["Chain"];
+        chain[1] = serde_json::json!({ "ArcOnto": "StartArriving" });
+    });
+    assert_eq!(
+        refused_at_load(&mangled),
+        (1, PathErrorKind::DegenerateArcChord),
         "the load door"
     );
 }

@@ -43,11 +43,10 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    ArcShape, Dimension, DimensionError, Doc, Evaluation, Formula, LoopProgram, Node,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation,
-    RecordedProgramError, SlotId, SpokenNode, StepArg, StepId, StepShape, TargetShape,
-    TraceCrossing, TracePassage, TraceRefusal, TraceSense, TraceStepFault, ValuePayload,
-    WrittenLoopFault, resolve_written_loops,
+    Dimension, DimensionError, Doc, Evaluation, Formula, LoopProgram, Node, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation,
+    RecordedProgramError, SlotId, SpokenNode, StepArg, StepId, StepShape, TraceCrossing,
+    TracePassage, TraceRefusal, TraceSense, ValuePayload, WrittenLoopFault, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Point3, Tol, Vec2};
 use pncad::profile::path::program::{FilletConstruction, replay_drawn};
@@ -419,42 +418,7 @@ impl HeldStep {
     /// prefix such a step reads.
     #[must_use]
     pub fn runs_from_the_pen(&self) -> bool {
-        let pen = |target: TargetShape| {
-            matches!(
-                target,
-                TargetShape::OnTrace | TargetShape::AtX | TargetShape::AtY
-            )
-        };
-        let spec = |spec: ArcShape| match spec {
-            ArcShape::Bulge(target) | ArcShape::Via(target) | ArcShape::Center(_, target) => {
-                pen(target)
-            }
-            ArcShape::Radius(_) | ArcShape::Sweep(_) | ArcShape::ArcLen(_) => false,
-        };
-        match self.shape() {
-            StepShape::AlongTrace => true,
-            StepShape::LineTo(target)
-            | StepShape::ContinueTo(target)
-            | StepShape::TangentArcTo(target)
-            | StepShape::ArcOnto(target) => pen(target),
-            StepShape::ArcTo(arc) | StepShape::FilletArc(arc) | StepShape::ArcFillet(arc) => {
-                spec(arc)
-            }
-            StepShape::ArcFilletArc(arc, arc2) => spec(arc) || spec(arc2),
-            StepShape::At
-            | StepShape::Angle
-            | StepShape::Toward
-            | StepShape::Tangent
-            | StepShape::Cusp
-            | StepShape::Turn
-            | StepShape::Line
-            | StepShape::Fillet
-            | StepShape::FarEndTo
-            | StepShape::CloseTo
-            | StepShape::Circle
-            | StepShape::CircleSplit { .. }
-            | StepShape::Rectangle => false,
-        }
+        pncad::document::pen_run(self.shape()).is_some()
     }
 
     /// **This step over a document that re-wrote `was` as `now`** —
@@ -660,73 +624,16 @@ pub fn programs_written_as(a: &ProfileProgram<Formula>, b: &ProfileProgram<Formu
 }
 
 /// **Where one loop's held steps put a step that lowers against the
-/// pen out of order** — the order rules the evaluation's resolution
-/// reads (`editor_core::trace`), asked without one, so the edit door
-/// holds back what a commit would only learn from a broken profile:
-///
-/// - a heading along a trace directly after a piece that ran onto one
-///   ([`TraceStepFault::OffTrace`]);
-/// - a straight run to a trace's crossing or a written coordinate from
-///   a pen with a position ([`TraceStepFault::NoPen`]) and a heading of
-///   its kind — a bound director for `line_to`, the incoming tangent
-///   for `continue_to` ([`TraceStepFault::NoHeading`]).
-///
-/// The prefix is replayed from `views`, each row's view at plain
-/// numbers, and each pen step in it stands in as the kernel verb it
-/// lowers to with a number no evaluation read: enough to say what kind
-/// of heading the pen has, and nothing about where it is. So the check
-/// ends, answering nothing further, at a prefix that does not replay, a
-/// row with no view, an arc run to a crossing, or a pen target in any
-/// other verb; what lies past those is the evaluation's.
+/// pen out of order**: the one judgement the edit and load doors ask
+/// ([`pncad::document::pen_fault`]), over the rows' shapes with values
+/// erased, so the editor holds back exactly what the door would refuse
+/// — a heading along a trace no piece ran onto, a run from a tip with
+/// no pen or the wrong kind of heading, a pen target in a verb that is
+/// no run — and no row's value moves it.
 #[must_use]
-pub fn pen_order(
-    rows: &[HeldStep],
-    views: &[Result<Step<f64>, HeldStepFault>],
-    loop_: u32,
-    tol: Tol,
-) -> Option<TraceRefusal> {
-    let mut prefix: Vec<Step<f64>> = Vec::with_capacity(rows.len());
-    let mut ran_onto = false;
-    for (i, (row, view)) in rows.iter().zip(views).enumerate() {
-        let onto = core::mem::take(&mut ran_onto);
-        let refuse = |fault| {
-            Some(TraceRefusal {
-                loop_,
-                step: u32::try_from(i).ok()?,
-                face: None,
-                fault,
-            })
-        };
-        if !row.runs_from_the_pen() {
-            prefix.push(*view.as_ref().ok()?);
-            continue;
-        }
-        let LoopProgram::Chain(steps) = &row.0 else {
-            return None;
-        };
-        match steps.as_slice() {
-            [ProgramStep::AlongTrace { .. }] => {
-                if !onto {
-                    return refuse(TraceStepFault::OffTrace);
-                }
-                prefix.push(Step::Toward { dx: 1.0, dy: 0.0 });
-            }
-            [step @ (ProgramStep::LineTo(target) | ProgramStep::ContinueTo(target))] => {
-                let pen = pncad::profile::path::program::pen(&prefix, None, tol).ok()?;
-                let Some(pen) = pen else {
-                    return refuse(TraceStepFault::NoPen);
-                };
-                let wants_director = matches!(step, ProgramStep::LineTo(_));
-                if pen.heading.is_none() || pen.directed != wants_director {
-                    return refuse(TraceStepFault::NoHeading);
-                }
-                ran_onto = matches!(target, ProgramTarget::OnTrace { .. });
-                prefix.push(Step::Line(1.0));
-            }
-            _ => return None,
-        }
-    }
-    None
+pub fn pen_order(rows: &[HeldStep], loop_: u32) -> Option<TraceRefusal> {
+    let shapes: Vec<StepShape> = rows.iter().map(HeldStep::shape).collect();
+    pncad::document::pen_fault(&shapes, loop_)
 }
 
 /// The targets a step runs to, in field order.

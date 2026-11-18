@@ -1747,6 +1747,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Point2<
             target: Target::Point(spec.p),
             b: spec.b,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO)?;
         let leg = path.arc_bulge(spec.p, spec.b)?;
         path.arc_to_point(spec.p, leg, tol)
     }
@@ -1759,6 +1760,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> 
             target: Target::Start,
             b: spec.b,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
         let leg = path.arc_bulge(path.start_target()?, spec.b)?;
         path.arc_to_start(leg, SeamArrival::Undeclared, tol)
     }
@@ -1774,6 +1776,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::
             target: Target::StartArriving,
             b: spec.b,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
         let leg = path.arc_bulge(path.start_target()?, spec.b)?;
         path.arc_to_start(leg, SeamArrival::Checked, tol)
     }
@@ -1786,6 +1789,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Point2<T>> {
             q: spec.q,
             target: Target::Point(spec.p),
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO)?;
         let leg = path.arc_via(spec.q, spec.p, tol)?;
         path.arc_to_point(spec.p, leg, tol)
     }
@@ -1798,6 +1802,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Start> {
             q: spec.q,
             target: Target::Start,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
         let leg = path.arc_via(spec.q, path.start_target()?, tol)?;
         path.arc_to_start(leg, SeamArrival::Undeclared, tol)
     }
@@ -1812,6 +1817,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, super::ArrivesTa
             q: spec.q,
             target: Target::StartArriving,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
         let leg = path.arc_via(spec.q, path.start_target()?, tol)?;
         path.arc_to_start(leg, SeamArrival::Checked, tol)
     }
@@ -1825,6 +1831,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Point2<T>> {
             winding: spec.winding,
             target: Target::Point(spec.p),
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO)?;
         let leg = path.arc_center(spec.c, spec.p, spec.winding, tol)?;
         path.arc_to_point(spec.p, leg, tol)
     }
@@ -1838,6 +1845,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
             winding: spec.winding,
             target: Target::Start,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
         let leg = path.arc_center(spec.c, path.start_target()?, spec.winding, tol)?;
         path.arc_to_start(leg, SeamArrival::Undeclared, tol)
     }
@@ -1853,6 +1861,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, super::Arrive
             winding: spec.winding,
             target: Target::StartArriving,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
         let leg = path.arc_center(spec.c, path.start_target()?, spec.winding, tol)?;
         path.arc_to_start(leg, SeamArrival::Checked, tol)
     }

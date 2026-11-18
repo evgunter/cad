@@ -270,9 +270,7 @@ pub(crate) fn step_reads_a_trace<S>(step: &ProgramStep<S>) -> bool {
 /// or a written coordinate along a heading. Only an evaluation's
 /// resolution replays the prefix ([`Traces`]).
 pub(crate) fn step_runs_from_the_pen<S>(step: &ProgramStep<S>) -> bool {
-    crate::step_handle::StepShape::of_program(step)
-        .pen_run()
-        .is_some()
+    crate::step_handle::pen_run(crate::step_handle::shape_of_program(step)).is_some()
 }
 
 /// Whether a target of `step` is one `is` names.
@@ -340,6 +338,36 @@ pub(crate) fn pen_order(
     }
 }
 
+/// **The first step of `shapes`, one loop's steps with values erased,
+/// whose pen order is wrong at every value** ([`pen_order`]), each pen
+/// step judged at the state the value-free walk leaves its tip in
+/// ([`profile::chain_states`], [`profile::TipState::pen`]). The walk
+/// stops at the first step it refuses, so a pen step past it is not
+/// judged. Asked by the edit and load doors
+/// ([`crate::ProfileProgram::lattice`]) and by an editor holding steps
+/// back before they reach a door.
+#[must_use]
+pub fn pen_fault(shapes: &[crate::StepShape], loop_: u32) -> Option<TraceRefusal> {
+    use crate::step_handle::{PenRun, pen_run, step_kernel};
+    let forms: Vec<profile::StepForm> = shapes.iter().copied().map(step_kernel).collect();
+    let states = profile::chain_states(&forms);
+    states.iter().enumerate().find_map(|(i, state)| {
+        let run = pen_run(shapes[i])?;
+        let ran_onto = i
+            .checked_sub(1)
+            .and_then(|p| pen_run(shapes[p]))
+            .is_some_and(PenRun::reaches_a_trace);
+        pen_order(run, ran_onto, state.pen())
+            .err()
+            .map(|fault| TraceRefusal {
+                loop_,
+                step: program_index(i),
+                face: None,
+                fault,
+            })
+    })
+}
+
 /// **One chain loop resolved, reading its traces** at the lane scalar.
 /// Each step that reads no trace resolves as every step does; each that
 /// reads one lowers as the module docs say.
@@ -361,7 +389,7 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
     for (i, s) in steps.iter().enumerate() {
         let step = program_index(i);
         let ran_onto = reached.take();
-        let Some(run) = crate::step_handle::StepShape::of_program(s).pen_run() else {
+        let Some(run) = crate::step_handle::pen_run(crate::step_handle::shape_of_program(s)) else {
             out.push(crate::program::res_chain_step(s, env, loop_, step)?);
             continue;
         };

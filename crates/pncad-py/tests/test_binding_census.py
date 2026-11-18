@@ -1074,7 +1074,8 @@ BOUND_AS = {
     # `different-shape`, and that reading was true when written: the
     # persistence door carried one attribute, so there was no Python
     # shape to point at. There is one now. `SnapshotError`'s arms and
-    # `ProgramFault`'s two mint a word apiece from an exhaustive match,
+    # the profile door's `ProgramRefusal` (whose own mapping is the edit
+    # door's) mint a word apiece from an exhaustive match,
     # so a kernel arm added without one stops the bindings compiling,
     # and the word rides `inner_variant` beside
     # the stage's own. `NonFiniteSite` is the one that does NOT cross
@@ -1087,7 +1088,6 @@ BOUND_AS = {
     # snapshot refusal's node ids and counts are the snapshot door's
     # surface, not the persistence door's. A mapping here claims the
     # discriminant crosses, and nothing more.
-    "ProgramFault": "PersistError.inner_variant",
     "SnapshotError": "PersistError.inner_variant",
     "NonFiniteSite": "PersistError.site",
     # THE STL DOOR'S TWO OPTION REFUSALS. Both were `different-shape`

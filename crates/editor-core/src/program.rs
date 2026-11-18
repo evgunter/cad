@@ -907,13 +907,13 @@ impl core::fmt::Display for ProgramRefusal {
 
 impl core::error::Error for ProgramRefusal {}
 
-/// The sentence for a step order the chain lattice refuses, shared by
-/// [`ProgramRefusal::Transition`] and the persist door's
-/// [`crate::ProgramFault::Lattice`]: [`profile::Refused`]'s clause,
+/// The sentence for a step order the chain lattice refuses,
+/// [`ProgramRefusal::Transition`]'s at the edit and load doors alike:
+/// [`profile::Refused`]'s clause,
 /// where, and its recourse in the chain's vocabulary. The verb is the
 /// transition table's, which is the [`ProgramStep`] variant's name for
 /// every step but those found from the pen, named by the verb they
-/// lower to ([`crate::step_handle::StepShape::kernel`]); the pen's own
+/// lower to ([`crate::step_handle::step_kernel`]); the pen's own
 /// refusals ([`crate::trace::pen_order`]) stand ahead of the lattice's
 /// at those steps.
 pub(crate) fn write_lattice(
@@ -2364,43 +2364,24 @@ impl ProfileProgram {
     }
 
     /// **One loop's shape**: its steps as the kernel walks them
-    /// ([`crate::step_handle::StepShape::kernel`]) through
-    /// [`profile::chain_shape`], and each step found from the pen asked
-    /// [`crate::trace::pen_order`] at the state the walk leaves it. No
+    /// ([`crate::step_handle::step_kernel`]) through
+    /// [`profile::chain_shape`], and each step found from the pen judged
+    /// at the state the walk leaves it ([`crate::trace::pen_fault`]). No
     /// value is read, so no binding, member or tolerance moves it.
     fn loop_shape(li: usize, lp: &LoopProgram) -> Result<profile::ChainShape, ProgramRefusal> {
         let loop_ = program_index(li);
         let shapes = lp.shape();
-        let forms: Vec<profile::StepForm> = shapes.iter().map(|s| s.kernel()).collect();
-        let walked = profile::chain_shape(&forms);
-        let reach = walked.as_ref().map_or_else(|f| f.step, |_| forms.len());
         // A pen step's lowering runs before the replay reaches it, so
         // its refusal stands ahead of the walk's at the same step.
-        for (i, shape) in shapes.iter().enumerate().take(reach + 1) {
-            let Some(run) = shape.pen_run() else {
-                continue;
-            };
-            let at = match profile::chain_shape(&forms[..i]) {
-                Err(profile::ShapeFault {
-                    step,
-                    state,
-                    kind: profile::ShapeFaultKind::Lattice { verb: None },
-                }) if step == i => state.pen(),
-                _ => profile::PenAt::NoPen,
-            };
-            let ran_onto = i
-                .checked_sub(1)
-                .and_then(|p| shapes[p].pen_run())
-                .is_some_and(crate::step_handle::PenRun::reaches_a_trace);
-            crate::trace::pen_order(run, ran_onto, at).map_err(|fault| {
-                ProgramRefusal::Trace(crate::trace::TraceRefusal {
-                    loop_,
-                    step: program_index(i),
-                    face: None,
-                    fault,
-                })
-            })?;
+        if let Some(refusal) = crate::trace::pen_fault(&shapes, loop_) {
+            return Err(ProgramRefusal::Trace(refusal));
         }
+        let forms: Vec<profile::StepForm> = shapes
+            .iter()
+            .copied()
+            .map(crate::step_handle::step_kernel)
+            .collect();
+        let walked = profile::chain_shape(&forms);
         walked.map_err(|fault| match fault.kind {
             profile::ShapeFaultKind::Lattice { verb } => ProgramRefusal::Transition {
                 loop_,

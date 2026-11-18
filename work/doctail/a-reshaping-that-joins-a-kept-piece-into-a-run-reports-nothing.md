@@ -68,6 +68,11 @@ A reshaping reports a held wall name whose run it changed (joined or
 broken) exactly as it reports one whose piece it stopped drawing, or a
 ruling says the run's offer is the whole answer and the contract in
 `report_matches_resolution` changes; the pinned row is lifted either way.
-The door would need the sweep's run grouping (the cosurface verdicts in
-`crates/sweep/src/swept.rs`, `cosurface_pairs`/`wall_runs`) or a
-profile-side reading that agrees with it.
+Where the door reads a run's grouping from is #7082's ruling (an
+`[ev]` PR, unruled), not this row's. The sweep's own grouping
+(`crates/sweep/src/swept.rs` `cosurface_pairs`/`wall_runs`) is not
+it: it is crate-private, and it decides a join from values within a
+band, which would bring ε back into DM7's structural comparison
+against `[recipe.doors]`. #7082 proposes validation's per-joint carrier
+verdict as the one home, read at generic values for the structural
+strand report.

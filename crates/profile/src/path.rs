@@ -418,7 +418,10 @@ pub use onto::{ArcOnto, ArcOntoStart, OntoTarget};
 pub use order::OrderFault;
 #[doc(inline)]
 pub use program::{circle, circle_split, rectangle};
-pub use shape::{ArcForm, ChainShape, ShapeFault, ShapeFaultKind, StepForm, chain_shape};
+pub use shape::{
+    ArcForm, ChainShape, FormLowered, FormTarget, ShapeFault, ShapeFaultKind, StepForm,
+    chain_shape, chain_states,
+};
 pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
 #[doc(hidden)]
 pub use verbs::{DirectedPoint, TangentArcLeg};
@@ -6168,7 +6171,23 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
 
     /// The target point a closing verb resolves to (the entry pose's
     /// position — [`Start`] by reference, never re-typed).
+    /// **An arc leg from the tip, asked before its spec reads a value**:
+    /// it may not leave a fillet's open arrival, which is authored with
+    /// the fillet ([`order::arc_leg_leaves_no_open_fillet`]), so the
+    /// order refusal stands ahead of any the spec's geometry raises.
+    pub(super) fn arc_leg_from_the_tip(&self, site: &'static str) -> Result<(), PathError<T>> {
+        Ok(order::arc_leg_leaves_no_open_fillet(
+            self.core.pending.is_some(),
+            site,
+        )?)
+    }
+
+    /// The entry, as an arc leg closing there targets it: refused
+    /// first where no leg was drawn, whose chord is the zero one at
+    /// every value ([`order::a_closing_arc_leaves_its_entry`]; the
+    /// first leg binds the start direction).
     fn start_target(&self) -> Result<Point2<T>, PathError<T>> {
+        order::a_closing_arc_leaves_its_entry(self.core.start_ang.is_some())?;
         self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })

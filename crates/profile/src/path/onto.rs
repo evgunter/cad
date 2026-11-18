@@ -207,11 +207,13 @@ fn close<T: Decide>(
         site: "close before the entry position is bound",
     })?;
     let pos = tip_pos(tip)?;
-    super::order::onto_start_leaves_its_entry(arrival.is_some() || core.start_ang.is_some())?;
+    // The first leg binds the start direction, so it is bound exactly
+    // where a leg was drawn.
+    super::order::a_closing_arc_leaves_its_entry(core.start_ang.is_some())?;
     let (how, arrival) = match (arrival, core.start_ang) {
         (Some(arrival), _) => (SeamArrival::Undeclared, arrival),
         (None, Some(start_ang)) => (SeamArrival::Supplied, start_ang),
-        (None, None) => unreachable!("a direction is bound, checked above"),
+        (None, None) => unreachable!("a leg was drawn, so the start direction is bound"),
     };
     let (g, departure) = onto_arc_geom(pos.at, arrival, start_pos, tol)?;
     let start_ang = depart(&mut core, pos, departure, tol)?;

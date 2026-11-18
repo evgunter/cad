@@ -576,9 +576,8 @@ pub(crate) fn edit_door_ui(
             .edit_profile_report(node, base, loops, ids)
             .map(|_| ())
     };
-    let held_back = |edit: &ProfileEdit| {
-        edit.pen_order(landed, tol).is_some() || drivers_hold(edit, landed).is_some()
-    };
+    let held_back =
+        |edit: &ProfileEdit| edit.pen_order().is_some() || drivers_hold(edit, landed).is_some();
     let mut formed = edit.offer(dragging, held_back(edit), door);
     for change in clicks {
         // Waits on the op formed above, or is made now when none did.
@@ -604,7 +603,7 @@ pub(crate) fn edit_door_ui(
         crate::widgets::message_toned(ui, PEN_UNDRAWN, &theme, frame::Tone::Advisory);
     }
     preview_verdict(ui, theme, preview);
-    if let Some(refusal) = edit.pen_order(landed, tol) {
+    if let Some(refusal) = edit.pen_order() {
         let sentence = format!("{PENDING} the step order — {refusal}");
         crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
     }

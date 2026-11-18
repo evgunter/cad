@@ -19,7 +19,7 @@ use editor_core::{
     CapEnd, Diagnosis, Dimension, DimensionError, DocRef, DocumentId, EditError, EntityKind,
     EvalError, FreeValue, HitTestError, InterrogateError, LeverRefusal, Maintenance, MateFault,
     MateRef, MeshPickError, MetaVersionError, NamingError, NodeErrorKind, NodePickError,
-    ParseError, PartFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
+    ParseError, PartFault, ProgramRefusal, ReachRefusal, RecipeNodeId, RecordedProgramError,
     ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, SelectRefusal, SlotId, SnapshotError,
     StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity, VarName,
 };
@@ -2712,18 +2712,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
 }
 
-test_utils::f6_variants! {
-    /// `ProgramFault`'s census — see [`NODE_PICK_ERROR`]. The load
-    /// door's own refusal over a persisted profile program. A step
-    /// argument's KIND is not here: a program slot is a slot like any
-    /// other, refused by the document-wide slot read walk
-    /// ([`SnapshotError::SlotVarKind`]), so what is left is the step
-    /// order the program's shape refuses: its lattice coordinate, an
-    /// order the replay refuses at every value, and a pen step that is
-    /// no run.
-    const PROGRAM_FAULT: ProgramFault = [Lattice, Order, Pen];
-}
-
 /// **A slot refusal addresses its slot in the slot vocabulary's own
 /// words** ([`SlotId::label`], [`StepArg::label`]), not in the enum's
 /// — for every slot address alike, because one predicate decides them
@@ -2785,11 +2773,16 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
     }
 }
 
-/// A program fault states the transition table's coordinate, not its
-/// struct.
+/// **A step order wrong at every value states where it fails**, as
+/// the edit and load doors both carry it (`ProgramRefusal`, which
+/// `PersistError::ProfileProgram` carries unchanged): the lattice's
+/// coordinate, an order the replay refuses at every value, and a pen
+/// step that is no run. A step argument's KIND is not here: a program
+/// slot is a slot like any other, refused by the document-wide slot
+/// read walk ([`SnapshotError::SlotVarKind`]).
 ///
-/// **What it deliberately does not ban.** The `Lattice` arm renders its
-/// tip state and verb through `Debug`: the pair is the transition
+/// **What it deliberately does not ban.** The `Transition` arm renders
+/// its tip state and verb through `Debug`: the pair is the transition
 /// table's own coordinate, which `profile`'s `ReplayError` and this
 /// arm's comment both say, and `Verb`'s `Display` — the authoring
 /// spelling — is a different sentence from the coordinate. Banning
@@ -2800,7 +2793,7 @@ fn a_program_fault_states_where_its_step_order_fails() {
     let order = profile::OrderFault::FarEndAnchorWithoutFillet;
     let cases = [
         (
-            ProgramFault::Lattice {
+            ProgramRefusal::Transition {
                 loop_: 0,
                 step: 2,
                 state: profile::TipState::Entry,
@@ -2813,7 +2806,7 @@ fn a_program_fault_states_where_its_step_order_fails() {
             ],
         ),
         (
-            ProgramFault::Order {
+            ProgramRefusal::Order {
                 loop_: 1,
                 step: 3,
                 kind: order.kind(),
@@ -2822,16 +2815,18 @@ fn a_program_fault_states_where_its_step_order_fails() {
             vec!["loop 1 step 3", "no fillet is open here"],
         ),
         (
-            ProgramFault::Pen(Box::new(editor_core::TraceRefusal {
+            ProgramRefusal::Trace(editor_core::TraceRefusal {
                 loop_: 0,
                 step: 4,
                 face: None,
                 fault: editor_core::TraceStepFault::NotARun,
-            })),
+            }),
             vec!["step 4"],
         ),
     ];
-    assert_f6_every_variant(&cases, &PROGRAM_FAULT, &[]);
+    for (refusal, words) in &cases {
+        assert_f6(refusal, words, &[]);
+    }
 }
 
 test_utils::f6_variants! {

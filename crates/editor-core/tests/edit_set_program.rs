@@ -2224,9 +2224,9 @@ struct Report {
 /// builds. Every reported name is on a step the edit drops, or resolved
 /// before and does not after, and none is on the bystander. Every held
 /// name that is gone (on a dropped step, or resolved before and not
-/// after) is reported, unless a value took it: one of its pieces the
-/// new structure can draw ([`ProfileProgram::structure`]) and the new
-/// program does not draw at the document's values
+/// after) is reported, unless a value took it: every piece it spans is
+/// one the new structure can draw ([`ProfileProgram::structure`]) and
+/// the new program does not draw at the document's values
 /// ([`ProfileProgram::pieces`], the replay's own answer). Nothing that
 /// still resolves is reported.
 fn report_matches_resolution(
@@ -2258,6 +2258,12 @@ fn report_matches_resolution(
         table(&ev, ext).iter().map(|(n, _)| n.clone()).collect()
     };
     let before = resolves(&doc);
+    let Some(Node::Profile(old_program)) = doc.node(profile) else {
+        panic!("{label}: the profile is a profile")
+    };
+    let old_pieces = old_program
+        .structure()
+        .unwrap_or_else(|e| panic!("{label}: the old program walks: {e}"));
     let applied = set_program(&doc, profile, new, ids)
         .unwrap_or_else(|e| panic!("{label}: the reshaping is accepted: {e:?}"));
     let after = resolves(&applied.doc);
@@ -2271,17 +2277,31 @@ fn report_matches_resolution(
         .into_iter()
         .flatten()
         .collect();
-    let by_value: Vec<String> = program
+    let new_pieces = program
         .structure()
-        .unwrap_or_else(|e| panic!("{label}: the new program walks: {e}"))
-        .into_iter()
+        .unwrap_or_else(|e| panic!("{label}: the new program walks: {e}"));
+    let by_value: std::collections::BTreeSet<String> = new_pieces
+        .iter()
         .flatten()
         .filter(|p| !drawn.contains(p))
         .map(|p| format!("{p:?}"))
         .collect();
+    // Every piece either structure spells, as a name spells it.
+    let known: std::collections::BTreeSet<String> = old_pieces
+        .iter()
+        .chain(&new_pieces)
+        .flatten()
+        .map(|p| format!("{p:?}"))
+        .collect();
+    // A name a value took: every piece it spans is one the new
+    // structure can draw and the values do not.
     let undrawn_by_value = |n: &StableName| {
         let spelled = format!("{n:?}");
-        by_value.iter().any(|p| spelled.contains(p.as_str()))
+        let mut spans = known
+            .iter()
+            .filter(|p| spelled.contains(p.as_str()))
+            .peekable();
+        spans.peek().is_some() && spans.all(|p| by_value.contains(p))
     };
     // Beside its strands, a reshaping retires the anonymous variables
     // the arguments it rewrote were written in, which names nothing.

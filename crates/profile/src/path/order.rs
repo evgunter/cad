@@ -33,8 +33,8 @@ pub enum OrderFault {
     /// A seam classified on a chain whose closing leg is its first
     /// ([`PathError::UnderdeterminedLeg`]).
     NoFirstLeg,
-    /// An `arc_onto(Start)` arriving tangent from the entry itself: no
-    /// direction is bound, so its chord is the zero one
+    /// An arc closing at the start from the entry itself, no leg drawn
+    /// before it: its chord is the zero one
     /// ([`PathError::DegenerateArcChord`]).
     ClosesOnItsEntry,
 }
@@ -129,11 +129,11 @@ pub(crate) fn seam_reads_a_first_leg(drawn: bool) -> Result<(), OrderFault> {
     Ok(())
 }
 
-/// An `arc_onto(Start)` that supplies the seam's direction reads it off
-/// the chain, so a direction must be bound: Start's is unbound only
-/// while the tip is the entry, where no leg is drawn yet.
-pub(crate) fn onto_start_leaves_its_entry(bound: bool) -> Result<(), OrderFault> {
-    if !bound {
+/// An arc closing at the start spans a chord from the tip to the
+/// entry, so a leg must be drawn before it: with none, the tip is the
+/// entry and the chord is the zero one at every value.
+pub(crate) fn a_closing_arc_leaves_its_entry(drawn: bool) -> Result<(), OrderFault> {
+    if !drawn {
         return Err(OrderFault::ClosesOnItsEntry);
     }
     Ok(())

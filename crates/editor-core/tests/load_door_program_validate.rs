@@ -1,6 +1,6 @@
 //! **A profile program whose replayed loops fail `Profile::validate`
 //! is legal at rest: the load door passes it and evaluation refuses it
-//! typed** (`ProgramFault`'s doc, the validate class).
+//! typed** (`PersistError::ProfileProgram`'s doc, the validate class).
 //!
 //! The load door rebuilds a profile program by its derive and re-checks
 //! it with one walk, which refuses the lattice class alone

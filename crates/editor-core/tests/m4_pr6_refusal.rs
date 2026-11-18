@@ -540,19 +540,18 @@ fn program_structure_doors_refuse_typed_at_load() {
         serde_json::to_string_pretty(&v2).unwrap()
     );
     match load(&mangled2, Tol::witness()) {
-        Err(PersistError::ProfileProgram {
-            node,
-            fault:
-                editor_core::ProgramFault::Lattice {
-                    loop_: 0,
-                    step,
-                    verb: None,
-                    ..
-                },
-        }) => {
-            assert_eq!(node.id(), chain);
-            assert_eq!(step, n_left, "one past the end: the chain never closed");
-        }
+        Err(PersistError::ProfileProgram { node, refusal }) => match *refusal {
+            editor_core::ProgramRefusal::Transition {
+                loop_: 0,
+                step,
+                verb: None,
+                ..
+            } => {
+                assert_eq!(node.id(), chain);
+                assert_eq!(step, n_left, "one past the end: the chain never closed");
+            }
+            other => panic!("an unclosed chain must refuse on the lattice, got {other:?}"),
+        },
         other => panic!("an unclosed chain must refuse typed at load, got {other:?}"),
     }
     // The unmangled file loads and the program survives bit-exactly.

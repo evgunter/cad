@@ -320,10 +320,10 @@ impl Walk {
             Walk::UnnamedReader => {
                 first_unnamed_reader_fault(snapshot).map(super::PersistError::Snapshot)
             }
-            Walk::Program => first_program_fault(snapshot).map(|(node, fault)| {
+            Walk::Program => first_program_fault(snapshot).map(|(node, refusal)| {
                 super::PersistError::ProfileProgram {
                     node: snapshot.spoken(node),
-                    fault,
+                    refusal: Box::new(refusal),
                 }
             }),
             Walk::Snapshot => validate_snapshot(snapshot)
@@ -2240,119 +2240,16 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     Ok(())
 }
 
-/// A profile PROGRAM structure fault (the retired stored-joint walk's
-/// successor at the program layer): a lattice-violating step order.
-/// It is the corrupt-file class — the payload is `pub`, so an in-crate
-/// bug can also build one; both doors refuse with the same
-/// diagnostics.
-///
-/// A wrong-kind ARGUMENT is not here. A program slot is a slot like
-/// any other, so it is decided by the document-wide slot read walk
-/// ([`SnapshotError::SlotVarKind`]) that the edit doors ask too, rather
-/// than by a second spelling that reached profile nodes alone.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ProgramFault {
-    /// The program is not a legal lattice walk
-    /// ([`crate::ProgramRefusal::Transition`]): no authoring surface
-    /// records this. Geometry refusals, resolve failures and validate
-    /// refusals ([`crate::ProgramRefusal::Validate`] — a bowtie loop,
-    /// even one drawn in literals) deliberately PASS this door: they
-    /// are V1 class 2, legal at rest, surfaced as typed node errors at
-    /// evaluation (the validate class as
-    /// [`crate::NodeErrorKind::Profile`]).
-    Lattice {
-        /// The offending loop.
-        loop_: u32,
-        /// The offending step (one past the end for an unclosed
-        /// chain).
-        step: u32,
-        /// The tip's lattice state.
-        state: profile::TipState,
-        /// The ill-typed verb (`None` for end-of-program).
-        verb: Option<profile::Verb>,
-    },
-    /// The steps walk the lattice, and the replay refuses their order
-    /// at every value ([`crate::ProgramRefusal::Order`]).
-    Order {
-        /// The offending loop.
-        loop_: u32,
-        /// The offending step.
-        step: u32,
-        /// Which refusal.
-        kind: profile::PathErrorKind,
-        /// The replay's own sentence for it.
-        rendered: String,
-    },
-    /// A step found from the pen is no run where it stands
-    /// ([`crate::ProgramRefusal::Trace`]).
-    Pen(Box<crate::trace::TraceRefusal>),
-}
-
-// The lattice arm is the sentence [`crate::ProgramRefusal::Transition`]
-// renders — that refusal is what the probe raised. The typed variant
-// remains the machine contract.
-impl core::fmt::Display for ProgramFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Lattice {
-                loop_,
-                step,
-                state,
-                verb,
-            } => crate::program::write_lattice(f, *loop_, *step, *state, *verb),
-            Self::Order {
-                loop_,
-                step,
-                rendered,
-                ..
-            } => write!(f, "loop {loop_} step {step}: {rendered}"),
-            Self::Pen(refusal) => write!(f, "{refusal}"),
-        }
-    }
-}
-
 /// The first program fault in the document's profile nodes (module
 /// docs): a step order the program's shape refuses at every value,
 /// read off the program alone
 /// ([`ProfileProgram::lattice`](crate::ProfileProgram::lattice)).
-fn first_program_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, ProgramFault)> {
+fn first_program_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, ProgramRefusal)> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
         let Node::Profile(program) = node else {
             return None;
         };
-        match program.lattice() {
-            Err(ProgramRefusal::Transition {
-                loop_,
-                step,
-                state,
-                verb,
-            }) => Some((
-                id,
-                ProgramFault::Lattice {
-                    loop_,
-                    step,
-                    state,
-                    verb,
-                },
-            )),
-            Err(ProgramRefusal::Order {
-                loop_,
-                step,
-                kind,
-                rendered,
-            }) => Some((
-                id,
-                ProgramFault::Order {
-                    loop_,
-                    step,
-                    kind,
-                    rendered,
-                },
-            )),
-            Err(ProgramRefusal::Trace(refusal)) => Some((id, ProgramFault::Pen(Box::new(refusal)))),
-            Ok(()) => None,
-            Err(other) => unreachable!("the lattice refuses only a step order: {other:?}"),
-        }
+        program.lattice().err().map(|refusal| (id, refusal))
     })
 }
 
