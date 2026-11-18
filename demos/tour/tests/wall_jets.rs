@@ -45,7 +45,7 @@ fn injective<T: Scalar>(body: &Body<T>, faces: Vec<FaceKey>, budget: usize) -> B
     let side = Side {
         body,
         faces,
-        excluded: topo::clearance::FacePairs::none(),
+        excluded: pncad::topo::clearance::FacePairs::none(),
     };
     let windows = side.windows(Which::First).expect("every face has a window");
     let sweep = Sweep {
