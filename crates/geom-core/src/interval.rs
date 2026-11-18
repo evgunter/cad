@@ -742,7 +742,7 @@ impl Real for Interval {
             first.0.lo().max(second.0.lo()),
             first.0.hi().min(second.0.hi()),
         );
-        if !(lo <= hi) {
+        if lo.is_nan() || hi.is_nan() || lo > hi {
             debug_assert!(
                 false,
                 "meet_readings: two readings of one real are disjoint, [{}, {}] and [{}, {}]: \
