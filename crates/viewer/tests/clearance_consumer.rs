@@ -596,12 +596,12 @@ fn the_clearance_tool_writes_each_shape_of_bound() {
 /// **A clearance's bounds are its rows**: the tool inserts contact, and
 /// each end of the band is then a slot row of the requirement
 /// (`SlotId::ClearanceBound`), which takes a formula. A formula over a
-/// variable moves the verdict when the variable moves, and the edits
-/// that wrote it save and load back to the same document.
+/// variable moves the verdict when the variable moves, and the document
+/// saves and loads back to itself, its bound still reading the variable.
 ///
 /// Red if a bound is no row, if a row refuses a formula or does not
-/// follow its variable, or if the slot address does not round-trip
-/// through the file's edit log.
+/// follow its variable, or if the bound does not round-trip through
+/// the file.
 #[test]
 fn a_clearances_bounds_are_rows_that_take_a_formula_and_round_trip() {
     use pncad::document::{BoundEnd, SlotId};
@@ -667,28 +667,16 @@ fn a_clearances_bounds_are_rows_that_take_a_formula_and_round_trip() {
         "10 mm apart is not at least 20 mm"
     );
 
-    let history = session.history();
-    let edits: Vec<_> = history
-        .path()
-        .into_iter()
-        .flat_map(|step| history.entry(step).edits().to_vec())
-        .collect();
-    let text = pncad::document::save(history.entry(history.root()).doc(), &edits, tol)
-        .expect("a file carrying the log saves");
+    let text = pncad::document::save(session.committed_doc(), tol).expect("the document saves");
+    let loaded = pncad::document::load(&text, tol).expect("and loads");
     assert!(
-        text.contains("ClearanceBound"),
-        "the log carries the bound's slot address"
-    );
-    let loaded = pncad::document::load(&text, tol).expect("and loads, replaying the log");
-    assert!(
-        loaded.doc.bit_eq(session.committed_doc()),
-        "the log replays to the same document"
+        loaded.bit_eq(session.committed_doc()),
+        "the load is the same document"
     );
     assert_eq!(
         loaded
-            .doc
             .slot_expansion(id, low)
-            .map(|formula| loaded.doc.unparse(&formula)),
+            .map(|formula| loaded.unparse(&formula)),
         Some("gap".to_owned()),
         "the loaded bound reads the variable"
     );

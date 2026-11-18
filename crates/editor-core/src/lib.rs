@@ -207,11 +207,10 @@ pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
-    Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
-    load, save,
+    NonFiniteSite, OutputFault, ProgramFault, SectionIdBreak, SelectionBodyFault, SnapshotError,
 };
 pub use persist::{
-    NonFiniteSite, OutputFault, ProgramFault, SectionIdBreak, SelectionBodyFault, SnapshotError,
+    PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id, load, save,
 };
 pub use placement::{AxisRefusal, Frame, FrameFault};
 #[cfg(debug_assertions)]

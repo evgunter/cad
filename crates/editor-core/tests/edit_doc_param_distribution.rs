@@ -44,8 +44,7 @@ test_utils::gated_to![
 use editor_core::{
     AnalysisPolicy, CarryForwardDoor, Dimension, Distribution, DistributionFault,
     DistributionField, DistributionRefusal, Doc, DocEdit, DocumentId, EditError, FreeValue,
-    FreeVar, PersistError, ProfileDoc, SpokenVar, UnitSym, VarName, analyzed_box, apply, load,
-    save,
+    FreeVar, ProfileDoc, SpokenVar, UnitSym, VarName, analyzed_box, apply, load, save,
 };
 use geom_core::Tol;
 use quantity::{MM, WrittenLength};
@@ -463,20 +462,11 @@ fn the_count_refusal_names_its_parameter_and_the_door_renders_alone() {
     );
 }
 
-/// Rewrite the EDITS half of a saved file (the snapshot half is left
-/// alone, so a name that also appears in a declaration is not
-/// touched).
-fn patch_edits(text: &str, from: &str, to: &str) -> String {
-    let at = text.find("\"edits\"").expect("the file has an edits array");
-    let (head, tail) = text.split_at(at);
-    format!("{head}{}", tail.replace(from, to))
-}
-
-/// The edit persists and replays like every other `DocEdit`: set,
-/// change and clear all round-trip, and the loaded document carries
-/// the notation the annotations rode past.
+/// A document the edit annotated saves and loads: set, change and
+/// clear all land, and the loaded document carries the notation the
+/// annotations rode past.
 #[test]
-fn the_annotation_edit_saves_replays_and_loads() {
+fn an_annotated_document_saves_and_loads() {
     let snapshot = fixture();
     let edits = [
         DocEdit::SetVarDistribution {
@@ -492,57 +482,44 @@ fn the_annotation_edit_saves_replays_and_loads() {
             distribution: None,
         },
     ];
-    let text = save(&snapshot, edits.as_ref(), Tol::witness()).expect("a legal log saves");
+    let annotated = edits.iter().fold(snapshot, |doc, edit| {
+        apply(&doc, edit, Tol::witness())
+            .expect("a legal edit applies")
+            .doc
+    });
+    let text = save(&annotated, Tol::witness()).expect("the annotated document saves");
     assert!(
-        text.contains("SetVarDistribution") && text.contains("\"distribution\""),
-        "the wire form is the derive's, symbol and all"
+        text.contains("\"distribution\""),
+        "the wire form carries the annotation"
     );
     let loaded = load(&text, Tol::witness()).expect("and loads");
-    assert_eq!(loaded.edits.len(), 3, "the log round-tripped");
-    assert_eq!(
-        loaded.edits,
-        edits.to_vec(),
-        "each edit round-tripped, payload and all"
-    );
     assert!(
-        (*loaded.doc.free_named("wall").expect("declared"))
+        (*loaded.free_named("wall").expect("declared"))
             .distribution()
             .is_some_and(|d| d.bit_eq(&band())),
-        "replay wrote the LAST annotation"
+        "the LAST annotation landed"
     );
     assert_eq!(
-        notation(&loaded.doc, "wall"),
+        notation(&loaded, "wall"),
         mm(),
-        "and the notation survived the replay"
+        "and the notation survived the round trip"
     );
     assert_eq!(
-        (*loaded.doc.free_named("bore").expect("declared")).distribution(),
+        (*loaded.free_named("bore").expect("declared")).distribution(),
         None,
-        "the clearing replayed too"
+        "the clearing landed too"
     );
-    let again = save(&loaded.snapshot, &loaded.edits, Tol::witness()).expect("re-saves");
+    let again = save(&loaded, Tol::witness()).expect("re-saves");
     assert_eq!(again, text, "byte-identical round trip");
 }
 
-/// Each refusal is the same typed `EditError` at all four doors:
-/// `apply`, `Doc::replay`, `load` of a file whose edit log was bent by
-/// hand, and `save` of the same log.
+/// Each refusal is the same typed `EditError` at both doors that
+/// take an edit: `apply` and `Doc::replay`.
 #[test]
-fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
+fn the_refusals_are_symmetric_across_apply_and_replay() {
     let doc = fixture();
-    let legal = save(
-        &doc,
-        &[DocEdit::SetVarDistribution {
-            var: p("wall").into(),
-            distribution: Some(sigma()),
-        }],
-        Tol::witness(),
-    )
-    .expect("the legal log saves");
-    let cases: [(&str, &str, DocEdit<editor_core::ProfileProgram>, EditError); 3] = [
+    let cases: [(DocEdit<editor_core::ProfileProgram>, EditError); 3] = [
         (
-            "\"Name\": \"wall\"",
-            "\"Name\": \"nonesuch\"",
             DocEdit::SetVarDistribution {
                 var: p("nonesuch").into(),
                 distribution: Some(sigma()),
@@ -553,8 +530,6 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
             },
         ),
         (
-            "\"Name\": \"wall\"",
-            "\"Name\": \"ribs\"",
             DocEdit::SetVarDistribution {
                 var: p("ribs").into(),
                 distribution: Some(sigma()),
@@ -562,8 +537,6 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
             EditError::VarCountHasNoDistribution { var: sv("ribs") },
         ),
         (
-            "\"sigma\": 0.00001",
-            "\"sigma\": -1.0",
             DocEdit::SetVarDistribution {
                 var: p("wall").into(),
                 distribution: Some(Distribution::Normal { sigma: -1.0 }),
@@ -574,14 +547,14 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
             },
         ),
     ];
-    for (from, to, direct, want) in cases {
+    for (direct, want) in cases {
         assert_eq!(
             apply(&doc, &direct, Tol::witness()).expect_err("apply refuses"),
             want,
             "apply's refusal"
         );
         let mut log = declaring_log();
-        log.push(direct.clone());
+        log.push(direct);
         assert_eq!(
             Doc::replay(
                 DocumentId::derive("edit-doc-param-distribution"),
@@ -592,51 +565,5 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
             want,
             "replay's refusal"
         );
-        let bent = patch_edits(&legal, from, to);
-        assert_ne!(bent, legal, "the patch matched something");
-        match load(&bent, Tol::witness()).expect_err("load refuses") {
-            PersistError::EditReplay { index, error } => {
-                assert_eq!(index, 0, "the refusing edit is named by index");
-                assert_eq!(*error, want, "load's refusal is the same typed error");
-            }
-            other => panic!("load refused with {other:?}, not EditReplay"),
-        }
-        match save(&doc, &[direct], Tol::witness()).expect_err("save refuses") {
-            PersistError::EditReplay { error, .. } => assert_eq!(*error, want, "save's refusal"),
-            other => panic!("save refused with {other:?}"),
-        }
-    }
-}
-
-/// **The persistence float walk sees the EDIT's offsets.** A saved log
-/// is DATA — it has not necessarily been applied by this process — so
-/// the persistence doors walk every float an edit carries, and this
-/// door's whole payload is floats. The refusal names the parameter and
-/// the offending FIELD, through the same site vocabulary every other
-/// float in the document goes through rather than a second spelling.
-///
-/// Reached through `save` of an in-memory log rather than through a
-/// hand-bent file, because JSON cannot spell a non-finite number at
-/// all: `1e400` in a file is a PARSE refusal one door earlier.
-#[test]
-fn a_non_finite_offset_on_the_edit_refuses_at_the_persistence_door() {
-    let doc = fixture();
-    let edits = [DocEdit::SetVarDistribution {
-        var: p("wall").into(),
-        distribution: Some(Distribution::TruncatedNormal {
-            sigma: 1e-5,
-            lo: f64::NEG_INFINITY,
-            hi: 0.0,
-        }),
-    }];
-    match save(&doc, edits.as_ref(), Tol::witness()).expect_err("save refuses") {
-        PersistError::NonFinite { site } => {
-            let shown = format!("{site:?}");
-            assert!(
-                shown.contains("wall") && shown.contains("Lo"),
-                "the site names the parameter and the offending field: {shown}"
-            );
-        }
-        other => panic!("save refused with {other:?}, not NonFinite"),
     }
 }

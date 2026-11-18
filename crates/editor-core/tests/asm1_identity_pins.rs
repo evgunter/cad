@@ -2,9 +2,8 @@
 //! 1–5 and 8, each an executable falsifier).
 //!
 //! The pin is the SHA-256 of the canonical bytes (spec D-3 as
-//! AMENDED 2026-08-10, include-by-default): the full replayed
-//! snapshot with exactly two exclusions — the edit log and the
-//! document id. Metadata and appearance are INCLUDED (rows 4e/4f).
+//! AMENDED 2026-08-10, include-by-default): the full document with
+//! exactly one exclusion — the document id. Metadata and appearance are INCLUDED (rows 4e/4f).
 //! The rows below falsify each inclusion and each exclusion
 //! separately.
 
@@ -67,9 +66,8 @@ fn row1_same_construction_same_pin() {
 }
 
 /// Row 2a — history independence: two DIFFERENT edit paths reaching
-/// one snapshot pin identically (the log is excluded by
-/// construction: the pin is a function of the replayed state, and
-/// save/load replays before pinning).
+/// one state pin identically, and save to the same bytes (the pin and
+/// the save are both functions of the state).
 #[test]
 fn row2_two_edit_paths_one_snapshot_equal_pins() {
     let (base, _, _) = exemplar("asm1-row2");
@@ -103,47 +101,11 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
         content_pin(&a, Tol::witness()).unwrap(),
         content_pin(&b, Tol::witness()).unwrap()
     );
-    // And through the persistence door: the two saves carry DIFFERENT
-    // edit logs over one origin; both load-replay to the same pin.
-    let (origin, _, _) = exemplar("asm1-row2");
-    let log_a = vec![DocEdit::DefineVar {
-        var: VarName::from_static("depth").into(),
-        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
-        fresh: Vec::new(),
-    }];
-    let mut log_b = vec![DocEdit::DefineVar {
-        var: VarName::from_static("depth").into(),
-        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.1)),
-        fresh: Vec::new(),
-    }];
-    log_b.extend(log_a.clone());
-    let loaded_a = load(
-        &save(&origin, &log_a.to_vec(), Tol::witness()).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap();
-    let loaded_b = load(
-        &save(&origin, &log_b.to_vec(), Tol::witness()).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap();
-    assert_ne!(loaded_a.edits, loaded_b.edits, "the histories differ");
+    // And through the persistence door: a save holds the state, so the
+    // two saves are one file.
     assert_eq!(
-        content_pin(&loaded_a.doc, Tol::witness()).unwrap(),
-        content_pin(&loaded_b.doc, Tol::witness()).unwrap()
-    );
-    // The loaded pin is the EDITED state's pin, not the origin's — a
-    // load that skipped replay would degrade both branches to the
-    // origin pin and the equality above would hold vacuously (R1
-    // NOTE-1); this line is what catches it.
-    assert_eq!(
-        content_pin(&loaded_a.doc, Tol::witness()).unwrap(),
-        content_pin(&a, Tol::witness()).unwrap(),
-        "the replayed load pins as the 0.9 state, never the origin"
-    );
-    assert_ne!(
-        content_pin(&loaded_a.doc, Tol::witness()).unwrap(),
-        content_pin(&origin, Tol::witness()).unwrap()
+        save(&a, Tol::witness()).unwrap(),
+        save(&b, Tol::witness()).unwrap()
     );
 }
 
@@ -316,11 +278,11 @@ fn row4_witness_change_moves_pin() {
 #[test]
 fn header_id_line_round_trips_and_tamper_refuses() {
     let (doc, _, _) = exemplar("asm1-header");
-    let text = save(&doc, &[], Tol::witness()).unwrap();
+    let text = save(&doc, Tol::witness()).unwrap();
     let mut lines = text.lines();
     assert_eq!(lines.next(), Some(&format!("id: {}", doc.id())[..]));
     assert_eq!(header_document_id(&text).unwrap(), doc.id());
-    assert_eq!(load(&text, Tol::witness()).unwrap().doc.id(), doc.id());
+    assert_eq!(load(&text, Tol::witness()).unwrap().id(), doc.id());
 
     // Tamper the header id line: typed IdMismatch naming both ids.
     let other = DocumentId::derive("asm1-header-tampered");
@@ -379,7 +341,7 @@ fn doc_ref_display_and_serde() {
 #[test]
 fn row4_doc_metadata_in_preimage_via_crafted_save() {
     let (doc, _, _) = exemplar("asm1-row4-meta");
-    let text = save(&doc, &[], Tol::witness()).unwrap();
+    let text = save(&doc, Tol::witness()).unwrap();
     let needle = "\"metadata\": {}";
     assert_eq!(
         text.matches(needle).count(),
@@ -390,13 +352,13 @@ fn row4_doc_metadata_in_preimage_via_crafted_save() {
     let twin = load(&text, Tol::witness()).unwrap();
     let loaded = load(&crafted, Tol::witness()).unwrap();
     assert_eq!(
-        loaded.doc.metadata().get("units").map(String::as_str),
+        loaded.metadata().get("units").map(String::as_str),
         Some("mm"),
         "the crafted map survived the load doors"
     );
     assert_ne!(
-        content_pin(&loaded.doc, Tol::witness()).unwrap(),
-        content_pin(&twin.doc, Tol::witness()).unwrap(),
+        content_pin(&loaded, Tol::witness()).unwrap(),
+        content_pin(&twin, Tol::witness()).unwrap(),
         "metadata is content: dropping it from the preimage must fail HERE"
     );
 }

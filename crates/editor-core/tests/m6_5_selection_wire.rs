@@ -79,7 +79,7 @@ fn the_selection_reaches_the_wire_canonical() {
     .expect("the fillet node inserts")
     .doc;
 
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     assert!(
         text.contains("\"Select\""),
         "the selection reaches the wire"

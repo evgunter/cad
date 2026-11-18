@@ -486,17 +486,13 @@ class PersistError(PncadError):
     `variant` is the refusing arm's tag — `non_finite`,
     `profile_program`, `distribution`, `display_unit`, `serialize`,
     `header_id`, `id_mismatch`, `parse`, `unreadable`, `dimension`,
-    `snapshot`, `edit_replay`, `tolerance_conflict` or
-    `tolerance_invalid`.
+    `snapshot`, `tolerance_conflict` or `tolerance_invalid`.
 
-    Five arms wrap a refusal of their own, and its word rides beside
+    Four arms wrap a refusal of their own, and its word rides beside
     the carrier's on `inner_variant`: a profile-program fault, a
-    distribution fault, a snapshot invariant, the `EditError` a
-    replayed edit raised, or the dimension check a saved expression
-    failed. The nested refusal's own payload is
-    the inner door's surface and stays in the message.
-
-    `dimension` is
+    distribution fault, a snapshot invariant, or the dimension check a
+    saved expression failed. The nested refusal's own payload is the
+    inner door's surface and stays in the message.
 
     Two names are shared by arms that carry one concept under
     different spellings: `detail` is the underlying reporter's own
@@ -504,9 +500,8 @@ class PersistError(PncadError):
     and `document` is the document's recorded epsilon, whether the arm
     reports it beside the process's or alone.
 
-    `site` is where a non-finite float sits, as the kernel's own prose
-    — the descriptor nests an edit's index around the site inside that
-    edit, so it crosses as one sentence rather than a field per rung.
+    `site` is where a non-finite float sits, as the kernel's own
+    prose.
 
     Every field is present on every arm, `None` where that arm does
     not carry it."""
@@ -524,7 +519,6 @@ class PersistError(PncadError):
     snapshot: Optional[str]
     line: Optional[int]
     column: Optional[int]
-    index: Optional[int]
     process: Optional[float]
     document: Optional[float]
 
@@ -3886,11 +3880,10 @@ class Doc:
         applied none; a REFUSED edit leaves it untouched, as it
         leaves the document untouched.
 
-        The reading begins at the load boundary: a Doc from
-        `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
-        empty even where the replayed history's last edit performed
-        maintenance, so "the last accepted edit" means the last one
-        accepted through this object."""
+        The reading begins at the load boundary: a Doc from `load` or
+        `Workspace.resolve` starts empty — a file holds the document's
+        state and no edits — so "the last accepted edit" means the last
+        one accepted through this object."""
 
     def placements(self) -> list[NodeId]:
         """The placements, in document order: every `Place` and
@@ -4286,20 +4279,10 @@ class Doc:
     def save(self) -> str: ...
     def __len__(self) -> int: ...
 
-class Loaded:
-    """A loaded document: snapshot, replayed current state, and the
-    replayed edit count."""
-
-    @property
-    def doc(self) -> Doc: ...
-    @property
-    def snapshot(self) -> Doc: ...
-    @property
-    def edit_count(self) -> int: ...
-
-def load(text: str) -> Loaded:
-    """Parse, validate, and replay a saved document. Raises
-    PersistError, typed."""
+def load(text: str) -> Doc:
+    """Parse and validate a saved document: a save file holds the
+    document's state, and the load answers it. Raises PersistError,
+    typed."""
 
 # --- the workspace store ----------------------------------------------
 # Three vocabularies, kept apart on purpose. A document's ID answers

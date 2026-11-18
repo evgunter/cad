@@ -623,7 +623,7 @@ class TestTheProfileNode(unittest.TestCase):
     def test_the_program_survives_persistence_bit_for_bit(self):
         doc = Doc()
         doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded())), Formula.length_in(1, m)))
-        replayed = load(doc.save()).doc
+        replayed = load(doc.save())
         self.assertTrue(doc.bit_eq(replayed), "replay is bit-identical, not merely close")
 
 

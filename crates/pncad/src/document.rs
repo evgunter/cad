@@ -349,15 +349,15 @@ pub use editor_core::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recor
 pub use editor_core::{Carry, Piece, Pieces};
 
 // Persistence: the doors, verbatim.
-// `save`/`load` speak `ProfileDoc` + `DocEdit` — exactly this module's
-// vocabulary — and every refusal is a typed `PersistError`, whose
+// `save`/`load` speak `ProfileDoc` — this module's vocabulary — and
+// every refusal is a typed `PersistError`, whose
 // payload types ride along so each arm is matchable from here (all
 // crate-root re-exports in `editor_core`). The format carries no
 // schema version (the persist module docs say why), so there is no
 // version constant to carry either.
 pub use editor_core::{
-    Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
-    SectionIdBreak, SelectionBodyFault, SnapshotError, load, save,
+    NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE, SectionIdBreak,
+    SelectionBodyFault, SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as

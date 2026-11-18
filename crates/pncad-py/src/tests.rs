@@ -1664,7 +1664,8 @@ fn expression_evaluation_tags_are_stable() {
 /// **The second door.** `WireExpr::rebuild` (the load path) re-runs
 /// every dimension check through `Expr`'s OPERATOR builders, so a
 /// hand-edited save file reaches the genuine dimension-mismatch arms
-/// with no new binding at all — six of them, executed here.
+/// with no new binding at all, and `UnitSym`'s own read reaches the
+/// off-table display unit — executed here.
 ///
 /// They arrive as `PersistError` with `variant == "dimension"` and the
 /// failing check's own tag as `inner_variant`, which is what this pins:
@@ -1693,23 +1694,21 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         })),
         fresh: Vec::new(),
     };
-    apply(&doc, &profile, tol).expect("the profile inserts");
-    // Saved as its edit log over the empty document: a slot holds a
-    // variable's id in a snapshot, and the edits carry the formulas as
-    // written — the literals the load door rebuilds.
-    let text = save(&doc, &[profile], tol).expect("the document saves");
+    let doc = apply(&doc, &profile, tol).expect("the profile inserts").doc;
+    let text = save(&doc, tol).expect("the document saves");
     let (header, body) = text.split_once("\n{").expect("a header line then the body");
     let body = format!("{{{body}");
     let saved: serde_json::Value = serde_json::from_str(&body).expect("the save body is JSON");
 
-    // Every case replaces the FIRST literal in the document, so this
-    // is driven by the wire SHAPE rather than by a node id.
-    // The `unit` field is REQUIRED on the wire, and a literal written
-    // without one refuses as a missing field before the rebuild runs at
-    // all — which is a refusal about the schema, not about dimensions,
-    // and would make every case below prove the wrong thing.
-    let length = serde_json::json!({ "Quantity": { "value": 1.0, "dim": "Length", "unit": "m" } });
-    let angle = serde_json::json!({ "Quantity": { "value": 1.0, "dim": "Angle", "unit": "rad" } });
+    // Every case redefines the FIRST free variable in the document by
+    // the case's expression, so this is driven by the wire SHAPE rather
+    // than by a variable id. A stored expression's leaves read
+    // variables, and nothing reads one before the rebuild has checked
+    // the tree's dimensions.
+    let leaf =
+        |dim: &str| serde_json::json!({ "Var": { "var": "1:0000000000000001", "dim": dim } });
+    let (length, angle) = (leaf("Length"), leaf("Angle"));
+    let defined = |expr: serde_json::Value| serde_json::json!({ "Defined": expr });
     let cases = [
         ("mismatch", serde_json::json!({ "Add": [length, angle] })),
         (
@@ -1723,12 +1722,6 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         ("trig_needs_angle", serde_json::json!({ "Sin": length })),
         ("not_count", serde_json::json!({ "CountToScalar": length })),
         (
-            "unknown_display_unit",
-            serde_json::json!({
-                "Quantity": { "value": 1.0, "dim": "Length", "unit": "furlong" }
-            }),
-        ),
-        (
             "ratio_not_reduced",
             serde_json::json!({ "Ratio": { "num": 2, "den": 4 } }),
         ),
@@ -1736,21 +1729,32 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
             "constant_out_of_range",
             serde_json::json!({ "Ratio": { "num": 1, "den": 0 } }),
         ),
-        (
-            "display_unit_mismatch",
-            serde_json::json!({
-                "Quantity": { "value": 1.0, "dim": "Angle", "unit": "mm" }
-            }),
-        ),
     ];
+    let mut mutations: Vec<(&str, serde_json::Value)> = cases
+        .into_iter()
+        .map(|(arm, expr)| {
+            let mut mutated = saved.clone();
+            assert!(
+                replace_first(&mut mutated, "Free", &defined(expr)),
+                "{arm}: the save body has no free variable to redefine — \
+                 the wire shape moved and this probe was about to pass vacuously"
+            );
+            (arm, mutated)
+        })
+        .collect();
+    // A parameter's display unit off the table refuses at the token.
+    let mut off_table = saved.clone();
+    assert!(
+        replace_first(
+            &mut off_table,
+            "display_unit",
+            &serde_json::json!("furlong")
+        ),
+        "the save body has no display unit to replace"
+    );
+    mutations.push(("unknown_display_unit", off_table));
 
-    for (arm, expr) in cases {
-        let mut mutated = saved.clone();
-        assert!(
-            replace_first_literal(&mut mutated, &expr),
-            "{arm}: the save body has no written quantity to replace — \
-             the wire shape moved and this probe was about to pass vacuously"
-        );
+    for (arm, mutated) in mutations {
         let text = format!(
             "{header}\n{}",
             serde_json::to_string(&mutated).expect("re-serializing")
@@ -1776,20 +1780,54 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     }
 }
 
-/// Replaces the first single-key `Quantity` object found in a
-/// depth-first walk. Returns whether one was found — a probe that
-/// silently replaced nothing would assert nothing.
+/// **`display_unit_mismatch` is the tag of its own arm.** The load
+/// door has no snapshot route into it (a parameter whose unit measures
+/// another dimension is the validator's `display_unit` arm), so the
+/// dimension probe above cannot raise it. The authoring door that does
+/// (a written quantity whose unit measures another dimension) raises it
+/// here, and the tag is checked against the arm it came from rather
+/// than only listed in the census.
+#[test]
+fn display_unit_mismatch_is_the_tag_of_its_own_arm() {
+    use pncad::document::{DimensionError, Formula, UnitSym};
+    let err = Formula::literal_with_unit(
+        1.0,
+        Dimension::Length,
+        UnitSym::canonical_for(Dimension::Angle).def(),
+    )
+    .expect_err("a length written in an angle's unit refuses");
+    assert!(
+        matches!(
+            err,
+            DimensionError::DisplayUnitMismatch {
+                unit: Dimension::Angle,
+                literal: Dimension::Length,
+            }
+        ),
+        "the refusal is the display-unit arm: {err:?}"
+    );
+    assert_eq!(expr_dimension_error_tag(&err), "display_unit_mismatch");
+}
+
+/// Replaces the first value found under `key` in a depth-first walk:
+/// a single-key object `{key: …}` whole, or the value of a `key` field.
+/// Returns whether one was found — a probe that silently replaced
+/// nothing would assert nothing.
 #[cfg(test)]
-fn replace_first_literal(value: &mut serde_json::Value, with: &serde_json::Value) -> bool {
+fn replace_first(value: &mut serde_json::Value, key: &str, with: &serde_json::Value) -> bool {
     match value {
         serde_json::Value::Object(map) => {
-            if map.len() == 1 && map.contains_key("Quantity") {
+            if map.len() == 1 && map.contains_key(key) {
                 *value = with.clone();
                 return true;
             }
-            map.values_mut().any(|v| replace_first_literal(v, with))
+            if let Some(field) = map.get_mut(key) {
+                *field = with.clone();
+                return true;
+            }
+            map.values_mut().any(|v| replace_first(v, key, with))
         }
-        serde_json::Value::Array(items) => items.iter_mut().any(|v| replace_first_literal(v, with)),
+        serde_json::Value::Array(items) => items.iter_mut().any(|v| replace_first(v, key, with)),
         _ => false,
     }
 }
@@ -1810,7 +1848,7 @@ fn persist_error_tags_are_stable() {
     assert_eq!(persist_error_tag(&unreadable), "unreadable");
 }
 
-/// The persistence door's four NESTED arms, by construction: each
+/// The persistence door's NESTED arms, by construction: each
 /// wraps a refusal of another layer, and the word that rides out on
 /// `inner_variant` is the inner refusal's own.
 ///
@@ -1826,9 +1864,6 @@ fn persist_error_tags_are_stable() {
 ///   authoring doors cannot mint.
 /// * `snapshot` — reachable from Python (`tests/test_document.py`
 ///   drives one), pinned here for the arms a tamper cannot select.
-/// * `edit_replay` — needs a save file whose LOG replays into a
-///   refusal, and the save door verifies the log symmetrically, so
-///   the file has to be assembled by hand.
 ///
 /// What each pins is the tag the exhaustive map mints, which is what
 /// `inner_variant` carries; the projection itself is one positional
@@ -1836,12 +1871,9 @@ fn persist_error_tags_are_stable() {
 /// a compile error, not a missing test.
 #[test]
 fn the_persist_doors_nested_arms_carry_their_own_word() {
-    use crate::tags::{
-        distribution_fault_tag, edit_error_tag, program_fault_tag, snapshot_error_tag,
-    };
+    use crate::tags::{distribution_fault_tag, program_fault_tag, snapshot_error_tag};
     use pncad::document::{
-        DistributionFault, DistributionField, EditError, PersistError, ProgramFault, RecipeNodeId,
-        SnapshotError,
+        DistributionFault, DistributionField, ProgramFault, RecipeNodeId, SnapshotError,
     };
 
     let program = ProgramFault::Lattice {
@@ -1861,16 +1893,6 @@ fn the_persist_doors_nested_arms_carry_their_own_word() {
         id: pncad::document::SpokenNode::absent(RecipeNodeId::new(0, 7)),
     };
     assert_eq!(snapshot_error_tag(&snapshot), "node_not_minted");
-
-    let replayed = EditError::UnknownNode {
-        id: pncad::document::SpokenNode::absent(RecipeNodeId::new(0, 7)),
-    };
-    let carrier = PersistError::EditReplay {
-        index: 3,
-        error: Box::new(replayed.clone()),
-    };
-    assert_eq!(persist_error_tag(&carrier), "edit_replay");
-    assert_eq!(edit_error_tag(&replayed), "unknown_node");
 }
 
 /// The frame door's `band` arm, by construction: it is the one arm no
@@ -5459,7 +5481,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "dimension",
             "display_unit",
             "distribution",
-            "edit_replay",
             "header_id",
             "id_mismatch",
             "non_finite",
@@ -6399,8 +6420,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // this row had `edit_error_tag`'s down as a DIFFERENT question — a
     // slot's declared dimension against the expression handed to it,
     // which is `SlotDimensionMismatch`, a different arm — and calling
-    // them different is what made the three-door divergence in
-    // `PersistError`'s `EditReplay` projection invisible.
+    // them different is what hid a three-door divergence in a
+    // projection that nested one door's refusal inside another's.
     ("dimension", 3),
     // One fact, as `circle_circle`.
     ("edge_along_edge", 2),

@@ -971,12 +971,11 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
     (empty, edits.to_vec())
 }
 
-/// **A document whose log holds a `SetProgram` saves, loads and
-/// replays identically** — the edit rides the unversioned format like
-/// every other, its minting is a function of the log, and the loaded
-/// document is bit for bit the applied one.
+/// **A document a `SetProgram` authored saves, loads and replays
+/// identically** — its minting is a function of the log, and the
+/// loaded document is bit for bit the applied one.
 #[test]
-fn a_log_holding_a_set_program_saves_loads_and_replays_identically() {
+fn a_document_a_set_program_authored_saves_loads_and_replays_identically() {
     let (empty, log) = rod_log();
     let mut applied = empty.clone();
     for entry in &log {
@@ -984,12 +983,11 @@ fn a_log_holding_a_set_program_saves_loads_and_replays_identically() {
             .expect("the log applies")
             .doc;
     }
-    let text = save(&empty, &log, tol()).expect("saves");
+    let text = save(&applied, tol()).expect("saves");
     let loaded = load(&text, tol()).expect("loads");
-    assert_eq!(loaded.edits, log, "the log round-trips");
     assert!(
-        loaded.doc.bit_eq(&applied),
-        "the replayed document is the applied one"
+        loaded.bit_eq(&applied),
+        "the loaded document is the applied one"
     );
     let replayed = ProfileDoc::replay(empty.id(), &log, tol()).expect("replays");
     assert!(
@@ -997,7 +995,7 @@ fn a_log_holding_a_set_program_saves_loads_and_replays_identically() {
         "replay is a function of the log alone"
     );
     assert_eq!(
-        save(&loaded.snapshot, &loaded.edits, tol()).expect("re-saves"),
+        save(&loaded, tol()).expect("re-saves"),
         text,
         "the bytes are canonical"
     );
@@ -1026,7 +1024,7 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     );
 
     let r = rod("set-program-old-file", &[CREASE]);
-    let text = save(&r.doc, &[], tol()).expect("saves");
+    let text = save(&r.doc, tol()).expect("saves");
     let unreadable = |text: &str, what: &str| match load(text, tol()) {
         Err(e @ PersistError::Unreadable { .. }) => {
             let PersistError::Unreadable { detail, .. } = &e else {
@@ -1094,7 +1092,7 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     let wall = wall_of(&doc, ext, 0, 1);
     let (doc, _) = shell_on(doc, ext, wall);
     let stray = never_minted(&doc);
-    let text = save(&doc, &[], tol()).expect("saves");
+    let text = save(&doc, tol()).expect("saves");
     assert!(load(&text, tol()).is_ok(), "the untouched file loads");
     let (header, body) = text.split_once('\n').expect("an id line, then the body");
     let body: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
@@ -1254,7 +1252,7 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
 fn a_misshapen_step_id_list_refuses_typed_at_the_load_door() {
     let square = LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap();
     let (doc, profile, _) = extruded("load-step-id-shape", vec![square]);
-    let text = save(&doc, &[], tol()).expect("saves");
+    let text = save(&doc, tol()).expect("saves");
     assert!(load(&text, tol()).is_ok(), "the untouched file loads");
     let (header, body) = text.split_once('\n').expect("an id line, then the body");
     let body: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
@@ -2929,7 +2927,8 @@ fn a_profile_with_no_loops_is_admitted_evaluates_and_round_trips() {
     assert!(ids_of(&doc, rod_profile).is_empty(), "no loop, no ids");
     the_empty_region_and_its_extrude(&doc, rod_profile, rod_extrude, "emptied");
 
-    // The same document as a log: it saves, loads and replays.
+    // The same document as a log: it replays, and the document saves
+    // and loads.
     let log = vec![
         inserted,
         DocEdit::InsertNode {
@@ -2956,25 +2955,19 @@ fn a_profile_with_no_loops_is_admitted_evaluates_and_round_trips() {
         },
         emptied,
     ];
-    let text = save(&empty, &log, tol()).expect("saves");
-    let loaded = load(&text, tol()).expect("loads");
-    assert_eq!(loaded.edits, log, "the log round-trips");
     let replayed = ProfileDoc::replay(empty.id(), &log, tol()).expect("replays");
     assert!(
         replayed.bit_eq(&doc),
         "the log replays to the applied document"
     );
+    let text = save(&doc, tol()).expect("saves");
+    let loaded = load(&text, tol()).expect("loads");
     assert!(
-        loaded.doc.bit_eq(&replayed),
-        "the loaded document is the replayed one"
+        loaded.bit_eq(&doc),
+        "the loaded document is the applied one"
     );
-    the_empty_region_and_its_extrude(&loaded.doc, bare, bare_extrude, "loaded, inserted");
-    the_empty_region_and_its_extrude(&loaded.doc, rod_profile, rod_extrude, "loaded, emptied");
-
-    // And as a snapshot with no log.
-    let text = save(&loaded.doc, &[], tol()).expect("the snapshot saves");
-    let reloaded = load(&text, tol()).expect("the snapshot loads");
-    assert!(reloaded.doc.bit_eq(&loaded.doc), "the snapshot round-trips");
+    the_empty_region_and_its_extrude(&loaded, bare, bare_extrude, "loaded, inserted");
+    the_empty_region_and_its_extrude(&loaded, rod_profile, rod_extrude, "loaded, emptied");
 }
 
 /// **A program of no loops carries every id it has**, minted or not:
