@@ -56,3 +56,12 @@
   - m4: CarrierBuilt by carrier inequality, with a row, and the freecad assertion that can't fail replaced;
   - m5: file a row for E1-vs-E2 geometric drift;
   - N4: "edge #id" wording.
+
+- 2026-11-18 23:50 — PR 7128 merged (head 0b31e08511, all check-runs green, run 44416754384). The last pass:
+  - m1: every root verdict ends, and an unsupported-only fix refuses on ROOT_LANE; it found a real corpus case (the conic quarter torus's corner), now built as an iso end;
+  - m2: vertex-loop vertices are left out of the model;
+  - m3: the surfaces choose the construction;
+  - m4: CarrierBuilt by value, with rows; re-anchored lines that moved by 0 are reported, kept since the stored value changed;
+  - m5: filed;
+  - N4: edge or vertex wording.
+  Closed the unit and the six rows it claimed. `wild-nist-ftc-09-refuses-import-at-eps-1e-12` stays open for the snap unit. No model-compare row (Fable outage, rule 12). Next: file and dispatch the snap catalogue unit.
