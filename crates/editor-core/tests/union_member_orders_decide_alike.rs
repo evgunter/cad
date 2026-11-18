@@ -907,7 +907,7 @@ fn a_re_cited_record_cites_the_rows_its_steps_decided_in_every_member_order() {
         else {
             panic!("{order:?}: a union of three blocks is a boolean body");
         };
-        let contacts = &value.carry.contacts;
+        let contacts = &value.contacts();
         let mut cited: Vec<(String, Vec<String>)> = contacts
             .rows()
             .iter()
@@ -1063,7 +1063,7 @@ fn log(fixture: Members, order: &[usize], padding: usize) -> Vec<String> {
     else {
         panic!("{order:?}: a union of bodies is a boolean body");
     };
-    let contacts = &value.carry.contacts;
+    let contacts = &value.contacts();
     value
         .coincidences
         .iter()

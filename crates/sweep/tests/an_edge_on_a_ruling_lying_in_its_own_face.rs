@@ -157,13 +157,13 @@ fn a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime() {
             let r = built(&what, union(&c.body, &ridge, tol()));
             assert_eq!(r.body.solids().count(), 1, "{what}: one solid");
             assert_eq!(
-                r.contacts.edge_face().count(),
+                r.contacts().edge_face().count(),
                 1,
                 "{what}: the tip lies in the floor on record: {:?}",
-                r.contacts
+                r.contacts()
             );
             assert_eq!(
-                validate_pseudomanifold(&r.body, &r.contacts, tol()),
+                validate_pseudomanifold(&r.body, r.contacts(), tol()),
                 Ok(()),
                 "{what}: the ridge's wedge lies outside the floor's material"
             );

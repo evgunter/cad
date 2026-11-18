@@ -41,7 +41,7 @@ pub(crate) use wire::{reference_body, resolve_name};
 
 pub use anchor::{CanonicalSegment, LoopAnchor, ProfileNaming, ProfilePieces, ProfileValue};
 pub(crate) use anchor::{derive_naming, validated_naming};
-pub use carry::Carry;
+pub use carry::{Carry, Citing};
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
 pub(crate) use framed::Frame;
@@ -924,6 +924,18 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
         self.outputs.get(usize::from(port))
     }
 
+    /// **The contact records of a value of one body**, read off the
+    /// body that holds them and cited as the value cites them
+    /// ([`Carry::contacts`]); none for a value of no body or of
+    /// several, whose members carry their own.
+    #[must_use]
+    pub fn contacts(&self) -> topo::ContactRecords {
+        match self.payload.one_body() {
+            Some(Some(body)) => self.carry.contacts(body.holding().records()).into_owned(),
+            _ => topo::ContactRecords::default(),
+        }
+    }
+
     /// **This value read whole**: in a member's view of its family, the
     /// family; else this. A seat that takes a family whole
     /// ([`crate::repetition::takes_whole`]) and a selection of one
@@ -1525,11 +1537,10 @@ pub enum NodeErrorKind {
     /// The split op refused.
     Split(SplitError),
     /// **Its operand's contact records do not carry onto what it
-    /// built**, through the kernel's carry for its op
-    /// ([`topo::SplitResult::carry_contacts`],
-    /// [`topo::Shelled::carry_contacts`],
-    /// [`sweep::blend::naming::BlendNaming::carry_contacts`]): the
-    /// carry's refusal, unaltered, citing the operand's record.
+    /// built**: the carry its door ran before finishing
+    /// ([`topo::SplitFinishError::Carry`], [`topo::ShellError::Carry`],
+    /// [`sweep::blend::BlendError::Carry`]) refused, and this is that
+    /// refusal, unaltered, citing the operand's record.
     ContactCarry {
         /// The carry's refusal.
         refusal: topo::CarryRefusal,
@@ -2245,21 +2256,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 e.render(geom_brep::recourse::Reading::Build)
             ),
             Self::ContactCarry { refusal } => {
-                use topo::CarryRefusal as R;
-                let what = match refusal {
-                    R::Unmapped { .. } => "lies on geometry it lost without removing it",
-                    R::Pair { .. } => "lands only on cells that are one or adjacent",
-                    R::Parted { .. } => "lands on both sides of the cut away from the cut",
-                    R::Unread { .. } => "could not be read where it divided the touch",
-                    R::Stale { .. } => "no longer touches where it put the touch",
-                    R::MintedMeeting { .. } => "meets where it minted cells it cannot back",
-                };
                 write!(
                     f,
-                    "a touch its operand records {what}. {}",
-                    crate::sentence::Recourse(
-                        "move the touch, or this operation's geometry off it"
-                    )
+                    "a touch its operand records {}. {}",
+                    refusal.of_the_touch(),
+                    crate::sentence::Recourse(topo::CarryRefusal::RECOURSE)
                 )
             }
             Self::Blend {

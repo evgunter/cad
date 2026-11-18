@@ -282,11 +282,11 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
 // ---- the memo ----
 
 /// **Whether `later` served `id` from `earlier`** rather than running
-/// its op again: a memo hit returns the prior value's contact records,
-/// the same allocation, and every op that runs mints a fresh one.
+/// its op again: a memo hit returns the prior value's carry, the same
+/// allocation, and every op that runs mints a fresh one.
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
-        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(&a.carry.contacts, &b.carry.contacts),
+        (Some(a), Some(b)) => same_carry(a, b),
         _ => false,
     }
 }
@@ -664,4 +664,10 @@ fn a_box_run_over_an_overconstrained_bundle_refuses_at_its_witness() {
         cause.contains("no part resolver"),
         "the driver's evaluation has no resolver, so no instance resolves: {cause}"
     );
+}
+
+/// Whether two values hold one carry, by the allocation of the inputs
+/// it cites: every op that runs mints its own.
+fn same_carry(a: &editor_core::NodeValue<f64>, b: &editor_core::NodeValue<f64>) -> bool {
+    std::sync::Arc::ptr_eq(&a.carry.cited_inputs, &b.carry.cited_inputs)
 }

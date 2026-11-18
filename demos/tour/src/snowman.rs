@@ -262,10 +262,10 @@ fn placed(body: &Body<f64>, slot: f64) -> Body<f64> {
 /// [`crate::declares_no_contacts`].
 fn scene_body(name: &str, color: [f64; 3], bb: BooleanBody<f64>, slot: f64) -> SceneBody {
     let body = placed(&bb.body, slot);
-    if crate::declares_no_contacts(&bb.contacts) {
+    if crate::declares_no_contacts(bb.contacts()) {
         SceneBody::plain(name, color, body)
     } else {
-        SceneBody::seamed(name, color, body, bb.contacts)
+        SceneBody::seamed(name, color, body, bb.contacts().clone())
     }
 }
 

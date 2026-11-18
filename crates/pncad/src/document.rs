@@ -349,8 +349,9 @@ pub use editor_core::{
 pub use editor_core::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
 // What a body value carries from its source (`NodeValue::carry`), and
 // the pieces it holds: what a `⊔` grafted, each by its read, which a
-// pick reads one of.
-pub use editor_core::{Carry, Piece, Pieces};
+// pick reads one of. `Citing` is how the value's body's contact records
+// cite at that value (`Carry::citing`).
+pub use editor_core::{Carry, Citing, Piece, Pieces};
 
 // Persistence: the doors, verbatim.
 // `save`/`load` speak `ProfileDoc` — this module's vocabulary — and

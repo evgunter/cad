@@ -60,8 +60,8 @@ fn every_order(label: &str, holes: &[Hole], counts: [usize; 3]) {
         for (k, &i) in order.iter().enumerate().skip(1) {
             match union(&body, &members[i], t()) {
                 Ok(BooleanResult::Body(r)) => {
+                    contacts = Some(r.contacts().clone());
                     body = r.body;
-                    contacts = Some(r.contacts);
                 }
                 Ok(BooleanResult::Empty) => panic!("{what}: step {k} is empty"),
                 Err(e) => panic!("{what}: step {k} refused: {e:?}"),
@@ -146,7 +146,7 @@ fn sound(what: &str, r: &topo::BooleanBody<f64>, want: f64, pose: &Pose) {
     let b = &r.body;
     assert_eq!(validate_geometric(b, t()), Ok(()), "{what}: tier 3");
     assert!(
-        validate_pseudomanifold(b, &r.contacts, t()).is_ok(),
+        validate_pseudomanifold(b, r.contacts(), t()).is_ok(),
         "{what}: tier 3′"
     );
     let v = volume(b);
@@ -291,18 +291,14 @@ fn grid(k: usize) {
             let inside = volume(&body(&format!("{label}: P ∩ U"), intersect(&p, &u, t())));
             match subtract(&p, &u, t()) {
                 Ok(BooleanResult::Body(r)) => {
-                    let b = r.body;
-                    assert_eq!(
-                        validate_geometric(&b, t()),
-                        Ok(()),
-                        "{label}: P − U, tier 3"
-                    );
+                    let b = &r.body;
+                    assert_eq!(validate_geometric(b, t()), Ok(()), "{label}: P − U, tier 3");
                     assert!(
-                        validate_pseudomanifold(&b, &r.contacts, t()).is_ok(),
+                        validate_pseudomanifold(b, r.contacts(), t()).is_ok(),
                         "{label}: P − U, tier 3′"
                     );
-                    assert_eq!(corners_disjoint(&b, t()), Ok(()), "{label}: P − U, corners");
-                    let v = volume(&b);
+                    assert_eq!(corners_disjoint(b, t()), Ok(()), "{label}: P − U, corners");
+                    let v = volume(b);
                     assert!(
                         (v - (6.0 - inside)).abs() < 1e-8,
                         "{label}: P − U, volume {v}"

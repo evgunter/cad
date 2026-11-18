@@ -398,7 +398,7 @@ impl BlendNaming {
     /// # Errors
     ///
     /// As [`topo::ContactRecords::carried_through`].
-    pub fn carry_contacts<T: geom_core::Decide>(
+    pub(super) fn carry_contacts<T: geom_core::Decide>(
         &self,
         records: &topo::ContactRecords,
         body: &topo::Body<T>,

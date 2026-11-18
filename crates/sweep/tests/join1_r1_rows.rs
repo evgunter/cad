@@ -54,7 +54,7 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>, w
     let r = r.unwrap_or_else(|e| panic!("{what}: {e:?}"));
     let bb = r.body().unwrap_or_else(|| panic!("{what}: empty"));
     topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
-    topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+    topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol())
         .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
     topo::validate_geometric_certificate(&bb.body, tol())
         .unwrap_or_else(|e| panic!("{what}: certificate: {e:?}"));
@@ -204,7 +204,7 @@ fn a_pole_struts_halves_face_their_own_meridians() {
         let res = res.unwrap_or_else(|e| panic!("{what}: {e:?}"));
         let bb = res.body().unwrap_or_else(|| panic!("{what}: empty"));
         topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol())
             .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
         topo::validate_geometric_certificate(&bb.body, tol())
             .unwrap_or_else(|e| panic!("{what}: certificate: {e:?}"));

@@ -1591,7 +1591,7 @@ fn a_union_records_a_vertex_touch_once() {
         let ValuePayload::Boolean(editor_core::BooleanValue::Body { .. }) = &value.payload else {
             panic!("{what}: a boolean body")
         };
-        let contacts = &value.carry.contacts;
+        let contacts = &value.contacts();
         assert_eq!(contacts.len(), 1, "{what}: one record: {contacts:?}");
         all.push(got.len());
     }

@@ -166,14 +166,14 @@ fn assert_pinches_pass<
     for (name, r) in pinches::<T>() {
         let lines = 2;
         assert_eq!(
-            r.contacts.edge_edge().count(),
+            r.contacts().edge_edge().count(),
             lines,
             "{name}: edge-edge rows: {:?}",
-            r.contacts
+            r.contacts()
         );
         assert_eq!(validate_closed(&r.body), Ok(()), "{name}: tier 2");
         assert_eq!(
-            validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+            validate_pseudomanifold(&r.body, r.contacts(), Tol::witness()),
             Ok(()),
             "{name}: tier 3′ with the result's own records"
         );
@@ -196,7 +196,7 @@ fn pinch_copies_do_not_reach_rest() {
     };
     for (name, r) in pinches::<f64>() {
         let recorded: slotmap::SecondaryMap<topo::VertexKey, ()> = r
-            .contacts
+            .contacts()
             .vertex_vertex()
             .flat_map(|(a, b)| [(a, ()), (b, ())])
             .collect();

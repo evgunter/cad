@@ -63,7 +63,7 @@ fn l_corner_caps_merge_and_stay_tier3_green() {
         "tier 3"
     );
     assert_eq!(
-        validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+        validate_pseudomanifold(&bb.body, bb.contacts(), Tol::witness()),
         Ok(()),
         "tier 3′"
     );

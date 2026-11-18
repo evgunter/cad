@@ -1124,7 +1124,8 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     topo::mint_pcurves(&mut built, tol).map_err(ExtrudeError::Pcurve)?;
 
     Ok(Extruded {
-        body: T::leaf(built, tol).map_err(|findings| ExtrudeError::NotFinished { findings })?,
+        body: T::leaf(topo::Built::of(built), tol)
+            .map_err(|findings| ExtrudeError::NotFinished { findings })?,
         solid: seed.solid,
         shell: seed.shell,
         top: top_face,

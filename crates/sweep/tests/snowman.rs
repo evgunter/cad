@@ -1581,7 +1581,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
             let Ok(topo::BooleanResult::Body(bb)) = r else {
                 panic!("{label}: builds: {r:?}")
             };
-            let verdict: Vec<String> = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+            let verdict: Vec<String> = topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol)
                 .err()
                 .unwrap_or_default()
                 .iter()
@@ -1597,7 +1597,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
                 verdict.iter().all(|k| k == "CensusUndecidable"),
                 "{label}: tier 3′ finds no record at fault: {verdict:?}"
             );
-            let c = &bb.contacts;
+            let c = bb.contacts();
             let records = [
                 c.vertex_vertex().count(),
                 c.vertex_face().count(),
@@ -1622,7 +1622,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
             // Stripped of the record, the touch at the vertex is found:
             // the sweeps still read a conventional vertex's point.
             let bare: topo::ContactRecords = bb
-                .contacts
+                .contacts()
                 .rows()
                 .iter()
                 .filter(|c| !matches!(c.kind(), topo::ContactKind::VertexEdge(..)))
@@ -1723,9 +1723,9 @@ fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
             };
             let b = &bb.body;
             assert_body(&label, b, half);
-            topo::validate_pseudomanifold(b, &bb.contacts, tol)
+            topo::validate_pseudomanifold(b, bb.contacts(), tol)
                 .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
-            let c = &bb.contacts;
+            let c = bb.contacts();
             let got = (
                 (b.faces().count(), b.edges().count(), b.vertices().count()),
                 [

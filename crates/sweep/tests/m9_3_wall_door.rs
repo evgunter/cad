@@ -166,9 +166,13 @@ fn tangent_door_escalates_and_verifies() {
     match out {
         Ok(topo::BooleanResult::Body(r)) => {
             assert_eq!(r.body.solids().count(), 2, "two solids");
-            assert_eq!(r.contacts.edge_face().count(), 1, "the edge on the ruling");
             assert_eq!(
-                r.contacts.face_face().count(),
+                r.contacts().edge_face().count(),
+                1,
+                "the edge on the ruling"
+            );
+            assert_eq!(
+                r.contacts().face_face().count(),
                 0,
                 "no face holds the ruling inside"
             );

@@ -50,7 +50,7 @@ fn vertex_at(body: &topo::Body<f64>, at: [f64; 3]) -> topo::VertexKey {
 /// Every citation of `r`'s records, as the rows they name; panics on a
 /// citation that names no row or another operation's record.
 fn cited_rows(r: &BooleanBody<f64>) -> Vec<Vec<&Coincidence>> {
-    r.contacts
+    r.contacts()
         .cites()
         .map(|cites| {
             cites
@@ -78,10 +78,10 @@ fn a_corner_kiss_cites_the_vertex_fusion_that_decided_it() {
     let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), "b");
     let r = united(&a, &b, &BooleanInputs::default());
     assert_eq!(
-        r.contacts.vertex_vertex().count(),
+        r.contacts().vertex_vertex().count(),
         1,
         "one record: {:?}",
-        r.contacts
+        r.contacts()
     );
     let rows = cited_rows(&r);
     assert_eq!(rows.len(), 1, "one record, one citation set");
@@ -129,7 +129,11 @@ fn a_crossing_union_emits_no_vertex_fusion() {
     let a = box_of((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), "a");
     let b = box_of((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), "b");
     let r = united(&a, &b, &BooleanInputs::default());
-    assert!(r.contacts.cell_pairs().next().is_none(), "{:?}", r.contacts);
+    assert!(
+        r.contacts().cell_pairs().next().is_none(),
+        "{:?}",
+        r.contacts()
+    );
     assert!(
         !r.coincidences
             .iter()
@@ -151,13 +155,18 @@ fn a_carried_record_cites_its_operands_record() {
     let kiss = united(&a, &b, &BooleanInputs::default());
     let far = box_of((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), "far");
     let carried = BooleanInputs {
-        records_a: kiss.contacts.carried(),
+        records_a: kiss.contacts().carried(),
         ..BooleanInputs::default()
     };
     let r = united(&kiss.body, &far, &carried);
-    assert_eq!(r.contacts.vertex_vertex().count(), 1, "{:?}", r.contacts);
     assert_eq!(
-        r.contacts.rows()[0].cites,
+        r.contacts().vertex_vertex().count(),
+        1,
+        "{:?}",
+        r.contacts()
+    );
+    assert_eq!(
+        r.contacts().rows()[0].cites,
         topo::Cites::one(Backing::Carried {
             input: 0,
             record: 0,
@@ -304,12 +313,12 @@ fn a_cell_reached_from_both_sides_cites_its_shortest_chain() {
     let r = united(&kiss.body, &c, &BooleanInputs::default());
     let cited = cited_rows(&r);
     assert_eq!(
-        (cited.len(), r.contacts.edge_edge().count()),
+        (cited.len(), r.contacts().edge_edge().count()),
         (3, 1),
         "the two vertex records and the edge-edge row: {:?}",
-        r.contacts
+        r.contacts()
     );
-    let kinds: Vec<topo::ContactKind> = r.contacts.kinds().collect();
+    let kinds: Vec<topo::ContactKind> = r.contacts().kinds().collect();
     let mut ends = Vec::new();
     for (rows, kind) in cited.iter().zip(&kinds) {
         if matches!(kind, topo::ContactKind::EdgeEdge(..)) {
@@ -385,25 +394,25 @@ fn a_carried_vertex_on_face_record_cites_its_operands_record() {
     let kiss = united(&a, &on_corner, &BooleanInputs::default());
     assert_eq!(
         (
-            kiss.contacts.vertex_face().count(),
-            kiss.contacts.vertex_vertex().count()
+            kiss.contacts().vertex_face().count(),
+            kiss.contacts().vertex_vertex().count()
         ),
         (1, 0),
         "one vertex-on-face record: {:?}",
-        kiss.contacts
+        kiss.contacts()
     );
     let k = kiss
-        .contacts
+        .contacts()
         .kinds()
         .position(|k| matches!(k, topo::ContactKind::VertexFace(..)))
         .expect("the vertex-on-face record");
     let far = box_of((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), "far");
     let carried = BooleanInputs {
-        records_a: kiss.contacts.carried(),
+        records_a: kiss.contacts().carried(),
         ..BooleanInputs::default()
     };
     let r = united(&kiss.body, &far, &carried);
-    let carried: Vec<_> = r.contacts.cites().cloned().collect();
+    let carried: Vec<_> = r.contacts().cites().cloned().collect();
     assert_eq!(
         carried,
         [topo::Cites::one(Backing::Carried {
@@ -411,7 +420,7 @@ fn a_carried_vertex_on_face_record_cites_its_operands_record() {
             record: u32::try_from(k).expect("small"),
         })],
         "the carried vertex-on-face record cites the kiss's record {k}: {:?}",
-        r.contacts
+        r.contacts()
     );
 }
 
@@ -532,7 +541,7 @@ fn a_pinch_records_the_vertex_identity_that_made_it() {
                 point(copies[1]),
                 "{what}: on one point key"
             );
-            assert!(r.contacts.rows().is_empty(), "{what}: {:?}", r.contacts);
+            assert!(r.contacts().rows().is_empty(), "{what}: {:?}", r.contacts());
             let rows = vertex_rows(&r);
             assert_eq!(rows.len(), 1, "{what}: one vertex identity: {rows:?}");
             assert_eq!(
@@ -596,7 +605,7 @@ fn cutting_a_touching_pair_out_of_a_slab_refuses_its_revert() {
     let p2 = box_of((1.5, 2.0), (1.0, 4.0), (0.27, 1.73), "p2");
     let blocks = united(&p1, &p2, &BooleanInputs::default());
     let inputs = BooleanInputs {
-        records_b: blocks.contacts.carried(),
+        records_b: blocks.contacts().carried(),
         ..BooleanInputs::default()
     };
     let got = topo::boolean_op_with(

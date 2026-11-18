@@ -202,9 +202,13 @@ fn the_boolean_dispatch_is_the_boolean_door() {
         panic!("the dispatch's union is a body: {via:?}");
     };
     assert_eq!(dump(&door.body), dump(&via.body));
+    assert_eq!(
+        door.contacts(),
+        topo::FinishedBody::records(&via.body),
+        "the surviving contacts ride the body"
+    );
     let VerbRecord::Boolean {
         kind,
-        contacts,
         naming,
         verdicts: _,
         holdings: _,
@@ -213,10 +217,6 @@ fn the_boolean_dispatch_is_the_boolean_door() {
         panic!("a boolean run produced another family's record");
     };
     assert_eq!(door.kind, kind, "the result classification is carried");
-    assert_eq!(
-        door.contacts, contacts,
-        "the surviving contacts are carried"
-    );
     assert_eq!(
         format!("{:?}", door.naming),
         format!("{naming:?}"),

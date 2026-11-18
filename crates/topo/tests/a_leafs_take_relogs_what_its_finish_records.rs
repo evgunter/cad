@@ -46,7 +46,10 @@ fn a_take_relogs_the_verdicts_a_finish_records() {
         assert!(!fresh.verdicts.is_empty(), "{what}: the finish decides");
         let mut leaf = None;
         let built = recorded(|| {
-            leaf = Some(<f64 as AtRestPolicy>::leaf(body.clone(), t).expect("its leaf finishes"));
+            leaf = Some(
+                <f64 as AtRestPolicy>::leaf(topo::Built::of(body.clone()), t)
+                    .expect("its leaf finishes"),
+            );
         });
         assert_eq!(
             built,
@@ -71,7 +74,8 @@ fn a_leaf_that_refuses_relogs_its_record_where_it_refuses() {
         });
         assert!(!fresh.verdicts.is_empty(), "{what}: the refusal decided");
         let refused = recorded(|| {
-            <f64 as AtRestPolicy>::leaf(inside_out.clone(), t).expect_err("its leaf refuses");
+            <f64 as AtRestPolicy>::leaf(topo::Built::of(inside_out.clone()), t)
+                .expect_err("its leaf refuses");
         });
         assert_eq!(
             refused, fresh,

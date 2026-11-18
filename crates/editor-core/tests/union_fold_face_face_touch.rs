@@ -137,7 +137,7 @@ fn touches(
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("{what}: not a boolean body");
     };
-    let contacts = &value.carry.contacts;
+    let contacts = &value.contacts();
     assert_eq!(body.body().solids().count(), solids, "{what}: solids");
     let v = topo::test_support::pinned_volume(
         "the measured body",

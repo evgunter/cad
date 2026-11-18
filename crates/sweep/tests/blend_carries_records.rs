@@ -47,15 +47,24 @@ fn edge_between(body: &topo::Body<f64>, p: Point3<f64>, q: Point3<f64>) -> topo:
     e
 }
 
-/// The kiss's record carried onto `out`, citing the operand's record 0.
-fn carried_kiss(what: &str, base: &BooleanBody<f64>, out: &Blended<f64>) -> ContactRecords {
-    let carried = out
-        .carry_contacts(
-            &base.contacts,
-            geom_core::Band::linear(tol()).unwrap(),
-            Some(topo::RegionLane::certified()),
-        )
-        .unwrap();
+/// `records`, a list over `base`'s cells, carried through `out`'s
+/// lineage onto its body: the carry's own answer, which no gate reads.
+fn carried_through(
+    out: &Blended<f64>,
+    records: &ContactRecords,
+) -> Result<ContactRecords, topo::CarryRefusal> {
+    records.carried_through(
+        0,
+        &out.lineage(),
+        &out.body,
+        geom_core::Band::linear(tol()).unwrap(),
+        Some(topo::RegionLane::certified()),
+    )
+}
+
+/// The kiss's record as `out` holds it, citing the operand's record 0.
+fn carried_kiss(what: &str, out: &Blended<f64>) -> ContactRecords {
+    let carried = out.body.records().clone();
     assert_eq!(carried.vertex_vertex().count(), 1, "{what}: {carried:?}");
     assert_eq!(carried.len(), 1, "{what}: {carried:?}");
     let cites: Vec<Backing> = carried.rows()[0].cites.iter().collect();
@@ -89,10 +98,10 @@ fn a_blend_away_from_the_kiss_carries_it() {
         Point3::new(1.0, 0.0, 0.0),
     );
     let filleted = fillet_edges(&base.body, &[edge], R, tol()).expect("the fillet builds");
-    carried_kiss("fillet", &base, &filleted);
+    carried_kiss("fillet", &filleted);
 
     let chamfered = chamfer_edges(&base.body, &[edge], R, tol()).expect("the chamfer builds");
-    let carried = carried_kiss("chamfer", &base, &chamfered);
+    let carried = carried_kiss("chamfer", &chamfered);
     assert_eq!(
         validate_pseudomanifold(&chamfered.body, &carried, tol()),
         Ok(()),
@@ -111,7 +120,9 @@ fn a_blend_away_from_the_kiss_carries_it() {
 /// record (bookkeeping against the far cube's top, no touch) lands on no
 /// pair, and the lineage's stated removal consumes it, while the kiss
 /// carries. Red on the carry that refuses the record `Unmapped`, or keeps
-/// it on the excised edge or the band face.
+/// it on the excised edge or the band face. The record has no touch
+/// behind it, so a finish handed it refuses it stale; the carry is put
+/// the list directly, through the lineage of the blend of the operand.
 #[test]
 fn a_record_on_the_blended_edge_is_consumed() {
     let base = kiss();
@@ -132,11 +143,23 @@ fn a_record_on_the_blended_edge_is_consumed() {
         })
         .map(|(k, _)| k)
         .expect("the far cube's top");
-    let mut records = base.contacts.clone();
+    let mut records = base.contacts().clone();
     records.extend([topo::Cited::new(
         topo::Contact::new(&base.body, topo::Cell::Edge(edge), topo::Cell::Face(far)).unwrap(),
         topo::Cites::decided(7),
     )]);
+    let refused = topo::finish(
+        topo::Built::of(topo::Body::clone(&base.body)).recording(records.clone()),
+        tol(),
+    )
+    .expect_err("a finish reads every record it is handed");
+    assert!(
+        matches!(
+            refused.as_slice(),
+            [topo::ValidationError::StaleContactDeclaration { .. }]
+        ),
+        "the record with no touch behind it is stale: {refused:?}"
+    );
     for (what, out) in [
         (
             "fillet",
@@ -152,13 +175,8 @@ fn a_record_on_the_blended_edge_is_consumed() {
             topo::Fate::Removed,
             "{what}: the band removes the edge"
         );
-        let carried = out
-            .carry_contacts(
-                &records,
-                geom_core::Band::linear(tol()).unwrap(),
-                Some(topo::RegionLane::certified()),
-            )
-            .unwrap_or_else(|refusal| panic!("{what}: {refusal:?}"));
+        let carried =
+            carried_through(&out, &records).unwrap_or_else(|refusal| panic!("{what}: {refusal:?}"));
         assert_eq!(
             carried
                 .cites()
@@ -201,10 +219,10 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
         other => panic!("the union builds: {other:?}"),
     };
     assert_eq!(
-        base.contacts.vertex_edge().count(),
+        base.contacts().vertex_edge().count(),
         2,
         "{:?}",
-        base.contacts
+        base.contacts()
     );
     let corner = Point3::new(0.0, 0.0, 0.0);
     let y = edge_between(&base.body, corner, Point3::new(0.0, 1.0, 0.0));
@@ -222,12 +240,11 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
         })
         .map(|(k, _)| k)
         .unwrap();
-    let mut records = base.contacts.clone();
+    let mut records = base.contacts().clone();
     records.extend([topo::Cited::new(
         topo::Contact::new(&base.body, topo::Cell::Vertex(far), topo::Cell::Edge(rim)).unwrap(),
         topo::Cites::decided(7),
     )]);
-    let band = geom_core::Band::linear(tol()).unwrap();
     for (what, out) in [
         (
             "fillet",
@@ -243,10 +260,9 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
             .as_ref()
             .expect("birth records")
             .meridian_remnants;
-        let carried = out
-            .carry_contacts(&records, band, Some(topo::RegionLane::certified()))
+        let carried = carried_through(&out, &records)
             .unwrap_or_else(|refusal| panic!("{what}: the records land: {refusal:?}"));
-        let before: Vec<_> = base.contacts.vertex_edge().collect();
+        let before: Vec<_> = base.contacts().vertex_edge().collect();
         let after: Vec<_> = carried.vertex_edge().collect();
         assert_eq!(after.len(), 2, "{what}: {carried:?}");
         let moved: Vec<_> = after.iter().filter(|r| !before.contains(r)).collect();
@@ -304,7 +320,7 @@ fn a_record_on_a_support_face_is_consumed() {
         })
         .map(|(k, _)| k)
         .unwrap();
-    let mut records = base.contacts.clone();
+    let mut records = base.contacts().clone();
     records.extend([topo::Cited::new(
         topo::Contact::new(
             &base.body,
@@ -334,13 +350,8 @@ fn a_record_on_a_support_face_is_consumed() {
             ),
             "{what}: the bottom is a support face"
         );
-        let carried = out
-            .carry_contacts(
-                &records,
-                geom_core::Band::linear(tol()).unwrap(),
-                Some(topo::RegionLane::certified()),
-            )
-            .unwrap_or_else(|refusal| panic!("{what}: {refusal:?}"));
+        let carried =
+            carried_through(&out, &records).unwrap_or_else(|refusal| panic!("{what}: {refusal:?}"));
         assert_eq!(
             carried
                 .cites()

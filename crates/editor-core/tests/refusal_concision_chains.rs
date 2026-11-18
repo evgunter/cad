@@ -878,7 +878,7 @@ mod kernel {
             ConvexitySignFlip, UnbuiltEnd, ObliqueMixedCorner, SpineUnsupported,
             ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedGeometry, BodyNotIntact,
-            NotFinished, SurgeryInvariant,
+            NotFinished, Carry, SurgeryInvariant,
             RingClearance, WhollyInside, Certify, Op, Join,
         ];
     }
@@ -986,7 +986,7 @@ mod kernel {
             WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
-            ResultNotAtRest, EdgeJoin, Merge,
+            ResultNotAtRest, Carry, EdgeJoin, Merge,
         ];
     }
 
@@ -998,7 +998,7 @@ mod kernel {
             ChartSenseMixed, Face, OpenFaceStale, OpenFaceRepeated,
             OpenFacesExhaustShell, OpenFacesDisconnect, OpenFaceChartPartial, Lift,
             Insert, OpenFaceRimNotExpressible, Rim, Escalated, Pcurve, RimSeamMixed,
-            Join, NotValid,
+            Join, Carry, NotValid,
         ];
     }
 
@@ -1224,6 +1224,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
                 | S::Pcurve { .. }
                 | S::RimSeamMixed { .. }
                 | S::Join { .. }
+                | S::Carry { .. }
                 | S::NotValid { .. } => {}
             }
             welded(levels)
@@ -2917,6 +2918,12 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "Carry",
+            F::Carry {
+                refusal: topo::CarryRefusal::Stale { record: 0 },
+            },
+        ),
+        (
             "Merge",
             F::Merge {
                 side: topo::PlaneSide::Above,
@@ -4034,6 +4041,12 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::JoinableVertexAtRest { vertex },
                 ]),
+            },
+        ),
+        (
+            "Carry",
+            E::Carry {
+                refusal: topo::CarryRefusal::Stale { record: 0 },
             },
         ),
         (
@@ -5909,6 +5922,12 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 "Join",
                 S::Join {
                     refusal: join_refusal(),
+                },
+            ),
+            (
+                "Carry",
+                S::Carry {
+                    refusal: topo::CarryRefusal::Stale { record: 0 },
                 },
             ),
             (

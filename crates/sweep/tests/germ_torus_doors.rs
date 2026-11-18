@@ -705,7 +705,7 @@ fn the_torus_waisted_union_builds_like_the_cylinder_control() {
             "{handle:?}: tier 3"
         );
         assert_eq!(
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+            topo::validate_pseudomanifold(&bb.body, bb.contacts(), Tol::witness()),
             Ok(()),
             "{handle:?}: tier 3′"
         );
@@ -1315,7 +1315,7 @@ fn subtract_and_intersect_reach_the_doors_union_does() {
             "dumbbell, {op}: tier 3"
         );
         assert_eq!(
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol),
             Ok(()),
             "dumbbell, {op}: tier 3′"
         );

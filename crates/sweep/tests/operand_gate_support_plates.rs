@@ -310,7 +310,7 @@ fn plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op_ro
                                 BooleanResult::Empty => (true, true),
                                 BooleanResult::Body(bb) => (
                                     bb.kind == topo::BooleanResultKind::Assembly,
-                                    bb.contacts != topo::ContactRecords::default(),
+                                    *bb.contacts() != topo::ContactRecords::default(),
                                 ),
                             };
                             if disjoint && !(excluded && touch_recorded) {

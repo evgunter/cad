@@ -1435,7 +1435,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         normalizations,
         instances,
         coherence,
-        contacts,
         coincidences,
     } = imported
     else {
@@ -1461,6 +1460,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<Option<CoherenceReport>>(coherence.clone());
     // The touches between instances the gate recorded, and the rows
     // they cite: none, since one box touches nothing.
+    let contacts = body.records();
     named::<ContactRecords>(contacts.clone());
     named::<Vec<pncad::document::coincidence::Coincidence>>(coincidences.clone());
     assert!(
@@ -1625,7 +1625,7 @@ fn a_boolean_result_validates_at_tier_3_prime() {
 
     // The tier-3′ arm, with the operation's OWN contacts — not an
     // empty set. This is what makes 3′ meaningful.
-    ladder(&result.body, Some(&result.contacts));
+    ladder(&result.body, Some(result.contacts()));
 
     let props = mass_properties(
         &result.body,

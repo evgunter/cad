@@ -180,7 +180,7 @@ fn tiers<
     assert_eq!(validate(&bb.body), Ok(()), "{label}: tier 1");
     assert_eq!(validate_closed(&bb.body), Ok(()), "{label}: tier 2");
     assert_eq!(
-        validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+        validate_pseudomanifold(&bb.body, bb.contacts(), Tol::witness()),
         Ok(()),
         "{label}: tier 3′"
     );

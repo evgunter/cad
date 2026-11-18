@@ -75,8 +75,8 @@ fn the_star_fixture_folds_in_every_member_order() {
                 "{order:?} step {step}: {:?}",
                 bb.naming.merge_skipped
             );
+            contacts = Some(bb.contacts().clone());
             acc = bb.body;
-            contacts = Some(bb.contacts);
         }
         let contacts = contacts.unwrap();
         assert_eq!(validate_closed(&acc), Ok(()), "{order:?}: tier 2");

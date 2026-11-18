@@ -33,7 +33,7 @@ fn exact(label: &str, op: Op, x: &AtRestBody<f64>, y: &AtRestBody<f64>, want: f6
     assert_eq!(validate_closed(&bb.body), Ok(()), "{label}: tier 2");
     assert_eq!(validate_geometric(&bb.body, tol), Ok(()), "{label}: tier 3");
     assert_eq!(
-        validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+        validate_pseudomanifold(&bb.body, bb.contacts(), tol),
         Ok(()),
         "{label}: tier 3′"
     );

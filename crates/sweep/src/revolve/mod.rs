@@ -268,7 +268,7 @@ impl<T: topo::AtRestPolicy> Revolved<T, Body<T>> {
             scalar,
         } = self;
         Ok(Revolved {
-            body: T::leaf(body, tol)?,
+            body: T::leaf(topo::Built::of(body), tol)?,
             solid,
             shell,
             cavities,

@@ -493,7 +493,7 @@ fn measure_split() -> Split {
     for _ in 0..CENSUS_REPS {
         let t0 = Instant::now();
         let verdict =
-            <f64 as topo::AtRestPolicy>::census_at_rest(&subject.body, &subject.contacts, tol);
+            <f64 as topo::AtRestPolicy>::census_at_rest(&subject.body, subject.contacts(), tol);
         census.push(t0.elapsed());
         census_findings = verdict.len();
     }

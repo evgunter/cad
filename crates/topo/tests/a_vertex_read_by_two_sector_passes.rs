@@ -190,7 +190,7 @@ fn three_prime(
     ray: Option<[f64; 3]>,
     glued: Option<[[f64; 3]; 4]>,
 ) -> bool {
-    let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) else {
+    let Err(errors) = validate_pseudomanifold(&r.body, r.contacts(), t()) else {
         return true;
     };
     let meet = at(pose.at(MEET));
@@ -1124,14 +1124,15 @@ fn a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once() {
 /// the arches' faces part around the ray, so the edge is on the solid's
 /// (`vtxfac::along_partners`). The pyramid lies outside both arches,
 /// inside the wedge between their far faces, or with a face in each,
-/// at every pose. Tier 3′ holds in one result of the first pyramid and
+/// at every pose. Tier 3′ holds in all four results of the first
+/// pyramid, the plain doors carrying the arches' own records in, and in
 /// three of each other, at every pose; elsewhere it refuses only as
 /// [`three_prime`] allows.
 /// Slow set; the row below is its per-PR pose.
 #[test]
 fn a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op() {
     for pose in &poses() {
-        for (shape, held) in ARCH_PYRAMIDS.iter().zip([1, 3, 3]) {
+        for (shape, held) in ARCH_PYRAMIDS.iter().zip([4, 3, 3]) {
             assert_eq!(
                 along_two_arches_shared_ray(pose, shape),
                 held,
@@ -1148,7 +1149,7 @@ fn a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op() {
 fn a_touching_vertex_along_two_arches_shared_ray_builds_at_rest() {
     assert_eq!(
         along_two_arches_shared_ray(&Pose::rest(), &ARCH_PYRAMIDS[0]),
-        1
+        4
     );
 }
 
@@ -1529,7 +1530,7 @@ fn a_pyramid_resting_where_a_solid_touches_itself_holds_tier_three_prime() {
             let Ok(BooleanResult::Body(r)) = r else {
                 panic!("{what}: builds, got {:?}", r.map(|_| ()));
             };
-            let errors = validate_pseudomanifold(&r.body, &r.contacts, t()).err();
+            let errors = validate_pseudomanifold(&r.body, r.contacts(), t()).err();
             let pairs: Vec<_> = errors
                 .iter()
                 .flatten()

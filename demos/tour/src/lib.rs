@@ -186,6 +186,17 @@ impl SceneBody {
         }
     }
 
+    /// A door's finished RESULT, validated as [`Self::seamed`] against
+    /// the contact records it holds.
+    fn finished(
+        name: impl Into<String>,
+        color: [f64; 3],
+        body: pncad::topo::AtRestBody<f64>,
+    ) -> Self {
+        let contacts = body.records().clone();
+        Self::seamed(name, color, body.into_body(), contacts)
+    }
+
     /// A boolean RESULT: validated at tier 3′ against the op's own
     /// contact records rather than through the plain geometric gate.
     /// Curved results (M5 PR 11's boss ∪ plate, whose cylinder walls

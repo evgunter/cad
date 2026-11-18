@@ -404,7 +404,7 @@ fn holds(what: &str, b: &topo::BooleanBody<f64>, want: f64, region: &dyn Fn(Poin
     assert!((v - want).abs() < 1e-9, "{what}: holds {v}, not {want}");
     assert_eq!(validate_geometric(&b.body, tol()), Ok(()), "{what}: tier 3");
     assert_eq!(
-        validate_pseudomanifold(&b.body, &b.contacts, tol()),
+        validate_pseudomanifold(&b.body, b.contacts(), tol()),
         Ok(()),
         "{what}: tier 3′"
     );

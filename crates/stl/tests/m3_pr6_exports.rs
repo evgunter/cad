@@ -54,7 +54,7 @@ fn corner_kiss_assembly_exports() {
         panic!("kiss union is a body");
     };
     assert_eq!(
-        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        validate_pseudomanifold(&r.body, r.contacts(), Tol::witness()),
         Ok(())
     );
     // Shell count pinned alongside exact volume: admesh's parts=N alone
@@ -95,7 +95,7 @@ fn tangent_edge_assembly_exports() {
         panic!("tangent-edge union is a body");
     };
     assert_eq!(
-        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        validate_pseudomanifold(&r.body, r.contacts(), Tol::witness()),
         Ok(())
     );
     // Shell count pinned alongside exact volume: admesh's parts=N alone

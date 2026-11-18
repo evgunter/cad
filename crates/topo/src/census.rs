@@ -7796,7 +7796,9 @@ enum Recorded {
 // that it decides nothing of its own.
 
 mod curved;
+mod finding_solids;
 pub(crate) use curved::{EdgeSpan, edge_span};
+pub use finding_solids::census_finding_solids;
 mod depth_gap;
 #[cfg(test)]
 mod depth_gap_fuzz;
@@ -22114,6 +22116,9 @@ mod split_wedge_tests {
         let BooleanResult::Body(pinch) = union(&a, &b, tol).unwrap() else {
             panic!("the pinch is empty");
         };
+        // Read with its record given up: the plane along a face parts it
+        // (`split_along_a_pinch_face`), and this row reads wedges.
+        let pinch = at_rest(crate::FinishedBody::into_body(pinch.body));
         let mut read = 0;
         for (what, origin, normal) in [
             ("across the line", [1.0, 1.0, 0.5], [0.0, 0.0, 1.0]),
@@ -22129,7 +22134,7 @@ mod split_wedge_tests {
                 Vec3::new(normal[0], normal[1], normal[2]),
                 tol,
             );
-            let r = split(&pinch.body, &plane, tol).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let r = split(&pinch, &plane, tol).unwrap_or_else(|e| panic!("{what}: {e:?}"));
             for side in [r.above, r.below] {
                 let SplitPart::Body(body) = side else {
                     continue;

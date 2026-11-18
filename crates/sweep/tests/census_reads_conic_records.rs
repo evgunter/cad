@@ -55,9 +55,9 @@ fn a_corner_on_an_ellipse_rim_is_confirmed_on_its_arc() {
             let Ok(BooleanResult::Body(y)) = topo::union(&drum, &cube, tol) else {
                 panic!("{at}: drum ∪ cube is a body");
             };
-            let records: Vec<_> = y.contacts.vertex_edge().collect();
+            let records: Vec<_> = y.contacts().vertex_edge().collect();
             let [(corner, arc)] = records[..] else {
-                panic!("{at}: one (vertex, edge) record: {:?}", y.contacts);
+                panic!("{at}: one (vertex, edge) record: {:?}", y.contacts());
             };
             let ellipses: Vec<_> = y
                 .body
@@ -80,7 +80,7 @@ fn a_corner_on_an_ellipse_rim_is_confirmed_on_its_arc() {
                     .filter(|e| !matches!(e, topo::ValidationError::CensusUndecidable { .. }))
                     .collect::<Vec<_>>()
             };
-            let found = topo::validate_pseudomanifold(&y.body, &y.contacts, tol)
+            let found = topo::validate_pseudomanifold(&y.body, y.contacts(), tol)
                 .err()
                 .unwrap_or_default();
             assert_eq!(
@@ -142,14 +142,14 @@ fn a_box_edge_crossing_an_ellipse_rim_is_an_edge_edge_record() {
         let Ok(BooleanResult::Body(y)) = topo::union(&drum, &box_, tol) else {
             panic!("phi {phi}: drum ∪ box is a body");
         };
-        let crossings: Vec<_> = y.contacts.edge_edge().collect();
+        let crossings: Vec<_> = y.contacts().edge_edge().collect();
         assert_eq!(
             crossings.len(),
             1,
             "phi {phi}: one edge-edge record: {:?}",
-            y.contacts
+            y.contacts()
         );
-        let found = topo::validate_pseudomanifold(&y.body, &y.contacts, tol)
+        let found = topo::validate_pseudomanifold(&y.body, y.contacts(), tol)
             .err()
             .unwrap_or_default();
         let found: Vec<_> = found

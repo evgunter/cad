@@ -340,13 +340,13 @@ fn join1_r1_hex_detail() {
     println!("t2 {:?}", topo::validate_closed(&bb.body));
     println!(
         "t3p {:?}",
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol())
     );
     println!(
         "cert {:?}",
         topo::validate_geometric_certificate(&bb.body, tol())
     );
-    println!("contacts {:?}", bb.contacts);
+    println!("contacts {:?}", bb.contacts());
     println!("faces {}", bb.body.faces().count());
 }
 

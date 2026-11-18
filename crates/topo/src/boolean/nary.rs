@@ -712,7 +712,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
             )
         });
         holdings = lift(&holdings, member, &body, clone_a.as_ref(), members, band);
-        records_a = body.contacts.carried();
+        records_a = body.contacts().carried();
         steps.push(NaryStep {
             member,
             body,
@@ -1247,19 +1247,23 @@ fn tool_parts<T: Decide + AtRestPolicy>(
             }
         }
     }
-    let carved = |keep: crate::SolidKey| {
-        let body = crate::carve::solids_alone(tool, &[keep]).map_err(|_| {
-            BooleanError::ClassificationInvariant {
-                what: "a finished tool's solid does not carve out of it",
-            }
-        })?;
-        T::finish(body, tol).map_err(|findings| BooleanError::ResultInvalid { findings })
+    // A member is its solid carved out of the tool with its keys, holding
+    // the tool's records within it.
+    let carved = |keep: crate::SolidKey, within: &OperandRecords| {
+        let unread = || BooleanError::ClassificationInvariant {
+            what: "a finished tool's solid does not carve out of it",
+        };
+        let body = crate::carve::solids_alone(tool, &[keep]).map_err(|_| unread())?;
+        let held = within.records(&body, 0).map_err(|_| unread())?;
+        T::finish(crate::Built::of(body).recording(held), tol)
+            .map_err(|findings| BooleanError::ResultInvalid { findings })
     };
     let mut parts = Vec::with_capacity(groups.len());
     for (g, own) in groups.iter().zip(own) {
         let members = g
             .iter()
-            .map(|&k| carved(solids[k]))
+            .zip(&own)
+            .map(|(&k, within)| carved(solids[k], within))
             .collect::<Result<Vec<_>, _>>()?;
         let local = |k: usize| at[k].map_or(0, |(_, m)| m);
         let verdicts = verdicts

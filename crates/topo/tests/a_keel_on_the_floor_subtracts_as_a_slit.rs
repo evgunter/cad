@@ -312,9 +312,9 @@ fn a_keel_on_the_floor_subtracts_as_its_slit_form() {
                 assert_eq!(validate_closed(b), Ok(()), "{what}: tier 2");
                 assert_eq!(validate_geometric(b, tol), Ok(()), "{what}: tier 3");
                 assert!(
-                    r.contacts.rows().is_empty(),
+                    r.contacts().rows().is_empty(),
                     "{what}: records {:?}",
-                    r.contacts
+                    r.contacts()
                         .rows()
                         .iter()
                         .map(|c| c.record.kind())
@@ -422,7 +422,7 @@ fn a_cavity_resting_its_keel_on_the_floor_opens_through_it_as_a_ring() {
         let b = &r.body;
         assert_eq!(validate_closed(b), Ok(()), "{what}: tier 2");
         assert_eq!(validate_geometric(b, tol), Ok(()), "{what}: tier 3");
-        assert!(r.contacts.rows().is_empty(), "{what}: records");
+        assert!(r.contacts().rows().is_empty(), "{what}: records");
         assert_eq!(
             validate_pseudomanifold(b, &ContactRecords::default(), tol),
             Ok(()),
@@ -587,7 +587,7 @@ fn a_face_glued_to_the_slit_floor_merges_its_two_edges() {
                     assert_eq!(validate(b), Ok(()), "{what}: tier 1");
                     assert_eq!(validate_closed(b), Ok(()), "{what}: tier 2");
                     assert_eq!(validate_geometric(b, tol), Ok(()), "{what}: tier 3");
-                    assert!(r.contacts.rows().is_empty(), "{what}: records");
+                    assert!(r.contacts().rows().is_empty(), "{what}: records");
                     assert_eq!(
                         validate_pseudomanifold(b, &ContactRecords::default(), tol),
                         Ok(()),
@@ -665,7 +665,7 @@ fn a_slab_flush_with_the_slit_floor_intersects_it_keeping_the_keel() {
                     assert_eq!(validate_closed(b), Ok(()), "{what}: tier 2");
                     assert_eq!(validate_geometric(b, tol), Ok(()), "{what}: tier 3");
                     assert_eq!(
-                        validate_pseudomanifold(b, &r.contacts, tol),
+                        validate_pseudomanifold(b, r.contacts(), tol),
                         Ok(()),
                         "{what}: tier 3′"
                     );
@@ -792,7 +792,7 @@ fn a_partner_flush_beside_the_keel_unions_with_the_slit_at_tier_three() {
                 (v - want).abs() < 1e-9 * want,
                 "{what}: volume {v}, closed form {want}"
             );
-            match validate_pseudomanifold(b, &r.contacts, tol) {
+            match validate_pseudomanifold(b, r.contacts(), tol) {
                 Err(errs) => assert!(
                     errs.iter().all(|e| matches!(
                         e,
@@ -858,7 +858,12 @@ fn a_keel_glued_to_a_face_from_outside_stays_one_edge() {
                 let [keel] = keel[..] else {
                     panic!("{what}: the keel is {keel:?}, not one edge");
                 };
-                let kinds: Vec<_> = r.contacts.rows().iter().map(|r| r.record.kind()).collect();
+                let kinds: Vec<_> = r
+                    .contacts()
+                    .rows()
+                    .iter()
+                    .map(|r| r.record.kind())
+                    .collect();
                 let count =
                     |f: &dyn Fn(&topo::ContactKind) -> bool| kinds.iter().filter(|k| f(k)).count();
                 assert_eq!(
@@ -931,7 +936,7 @@ fn a_box_flush_under_a_ringed_top_builds_in_every_op() {
                         "{what}: {op}: tier 3"
                     );
                     assert_eq!(
-                        validate_pseudomanifold(&r.body, &r.contacts, tol),
+                        validate_pseudomanifold(&r.body, r.contacts(), tol),
                         Ok(()),
                         "{what}: {op}: tier 3′"
                     );
@@ -993,7 +998,7 @@ fn a_flush_partner_crossing_the_slit_intersects_it_in_either_order() {
         Ok(BooleanResult::Body(r)) => {
             assert_eq!(validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
             assert_eq!(
-                validate_pseudomanifold(&r.body, &r.contacts, tol),
+                validate_pseudomanifold(&r.body, r.contacts(), tol),
                 Ok(()),
                 "{what}: tier 3′"
             );
@@ -1302,7 +1307,7 @@ fn every_op_builds(
         };
         assert_eq!(validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
         assert_eq!(
-            validate_pseudomanifold(&r.body, &r.contacts, tol),
+            validate_pseudomanifold(&r.body, r.contacts(), tol),
             Ok(()),
             "{what}: tier 3′"
         );
@@ -1474,7 +1479,8 @@ fn lumps_united(lumps: &[Lump], pose: &Pose) -> (AtRestBody<f64>, topo::OperandR
         let Ok(BooleanResult::Body(r)) = r else {
             panic!("{}: the lumps unite, got {:?}", pose.label, r.map(|_| ()));
         };
-        acc = (r.body, r.contacts.carried());
+        let carried = r.contacts().carried();
+        acc = (r.body, carried);
     }
     acc
 }
@@ -1522,7 +1528,7 @@ fn builds_against(
     };
     assert_eq!(validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
     assert_eq!(
-        validate_pseudomanifold(&r.body, &r.contacts, tol),
+        validate_pseudomanifold(&r.body, r.contacts(), tol),
         Ok(()),
         "{what}: tier 3′"
     );
@@ -1903,7 +1909,7 @@ fn a_partner_along_part_of_the_keel_unites_with_the_slit_in_either_order() {
                     };
                     assert_eq!(validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
                     assert_eq!(
-                        validate_pseudomanifold(&r.body, &r.contacts, tol),
+                        validate_pseudomanifold(&r.body, r.contacts(), tol),
                         Ok(()),
                         "{what}: tier 3′"
                     );

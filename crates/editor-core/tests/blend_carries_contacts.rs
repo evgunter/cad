@@ -52,8 +52,7 @@ fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]
 fn held(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) -> usize {
     ev.value(id)
         .unwrap_or_else(|| panic!("{what}: {:?}", failure(ev, id)))
-        .carry
-        .contacts
+        .contacts()
         .rows()
         .len()
 }
@@ -113,8 +112,7 @@ fn a_blend_clear_of_a_pinch_carries_the_unions_records() {
         let cited: Vec<_> = ev
             .value(blend)
             .unwrap()
-            .carry
-            .contacts
+            .contacts()
             .cites()
             .flat_map(|cites| cites.iter().collect::<Vec<_>>())
             .collect();
@@ -154,8 +152,7 @@ fn pinch_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
 fn records(ev: &Evaluation<f64>, id: RecipeNodeId) -> Vec<topo::Contact> {
     ev.value(id)
         .unwrap_or_else(|| panic!("{:?}", failure(ev, id)))
-        .carry
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .map(|row| row.record)

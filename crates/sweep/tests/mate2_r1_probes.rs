@@ -62,7 +62,7 @@ fn probe_misaligned_azimuth_split_unions() {
         "tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), Tol::witness()),
         Ok(()),
         "the census"
     );
@@ -99,7 +99,7 @@ fn probe_out_by_height_reports_its_outcome() {
             );
             println!(
                 "PROBE2 pseudomanifold {:?}",
-                topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()).err()
+                topo::validate_pseudomanifold(&body, body.records(), Tol::witness()).err()
             );
         }
     }

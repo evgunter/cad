@@ -104,7 +104,7 @@ pub(crate) fn census_of(
     let value = ev.value(id).expect("the node evaluated");
     match &value.payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            topo::validate_pseudomanifold(body.body(), &value.carry.contacts, Tol::witness())
+            topo::validate_pseudomanifold(body.body(), &value.contacts(), Tol::witness())
                 .map(|_| ())
         }
         other => panic!("expected a boolean body, got {other:?}"),

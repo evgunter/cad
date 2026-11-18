@@ -87,7 +87,7 @@ fn prism_reflex_kiss_takes_edge_edge_lane() {
     };
     assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol),
         Ok(()),
         "tier 3′"
     );
@@ -175,7 +175,7 @@ fn tilted_saddle_corner_builds_every_op() {
         assert!((v - want).abs() < 1e-9, "{op}: volume {v}, want {want}");
         assert_eq!(topo::validate_closed(&out.body), Ok(()), "{op}: tier 2");
         assert_eq!(
-            topo::validate_pseudomanifold(&out.body, &out.contacts, tol),
+            topo::validate_pseudomanifold(&out.body, out.contacts(), tol),
             Ok(()),
             "{op}: 3′"
         );

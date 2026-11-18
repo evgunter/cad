@@ -80,6 +80,7 @@ names-boolean               1  attach.rs
 names-boolean               3  bound_side.rs
 names-boolean             285  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               1  census/curved.rs
+names-boolean               1  census/finding_solids.rs  # work/onecopy/contact-records-are-declared-under-boolean-while-the-finished-body-at-the-root-holds-them
 names-boolean               1  census/in_plane.rs
 names-boolean               1  census/pierce_fuzz.rs
 names-boolean               1  census/point.rs
@@ -88,6 +89,7 @@ names-boolean               3  cert_m3r1_probes.rs
 names-boolean              14  coincidence.rs
 names-boolean              10  construction.rs
 names-boolean               1  euler.rs
+names-boolean              14  finish.rs  # work/onecopy/contact-records-are-declared-under-boolean-while-the-finished-body-at-the-root-holds-them
 names-boolean               1  fuse.rs
 names-boolean               2  injective.rs
 names-boolean              14  instance.rs
@@ -105,14 +107,14 @@ names-boolean              10  replace_face.rs
 names-boolean              11  review_d18.rs
 names-boolean               1  sector_shape.rs
 names-boolean               6  separation.rs
-names-boolean              38  shell.rs
+names-boolean              36  shell.rs
 names-boolean               1  solid_contain/curved_edges.rs  # work/onecopy/the-containment-move-leaves-two-names-in-boolean
 names-boolean               2  surgery.rs
 names-boolean              28  test_support_holdings.rs
 names-boolean               6  test_support_samples.rs
 names-boolean              26  test_support_volume.rs
 names-boolean              33  tier3_tests.rs
-names-boolean              19  validate.rs
+names-boolean              30  validate.rs  # work/onecopy/contact-records-are-declared-under-boolean-while-the-finished-body-at-the-root-holds-them
 
 names-splitting            10  cell_region.rs
 names-splitting            52  census.rs
@@ -154,7 +156,7 @@ refused-binding             4  validate.rs
 
 splitting-names-boolean     5  splitting/classify.rs
 splitting-names-boolean     1  splitting/containment.rs
-splitting-names-boolean    40  splitting/finish.rs
+splitting-names-boolean    36  splitting/finish.rs
 splitting-names-boolean     2  splitting/mod.rs
 splitting-names-boolean     1  splitting/section.rs
 

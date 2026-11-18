@@ -8,9 +8,9 @@ use sweep::blend::naming::BlendNaming;
 use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
-    BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords, GlueVerdict,
-    NaryMember, NaryRun, ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart,
-    SplitResult, SweepStrategy, boolean_op_with, nary_boolean_apart, split,
+    BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, GlueVerdict, NaryMember,
+    NaryRun, ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult,
+    SweepStrategy, boolean_op_with, nary_boolean_apart, split,
 };
 
 use crate::verb::{Blend, Boolean, Members, Shell, Split, Sweep};
@@ -80,10 +80,6 @@ pub enum VerbRecord<T: topo::AtRestPolicy> {
     Boolean {
         /// How the result body came to be.
         kind: BooleanResultKind,
-        /// Contact records surviving into the result, result keys, each
-        /// citing the coincidence that backs it — the tier-3′ currency
-        /// the consuming layer carries onward.
-        contacts: ContactRecords,
         /// Mint-time naming facts the naming layer consumes.
         naming: BooleanNaming,
         /// The face pairs the op glued on its own decision — what an
@@ -303,7 +299,6 @@ impl Boolean {
                 let topo::BooleanBody {
                     body,
                     kind,
-                    contacts,
                     naming,
                     coincidences,
                     verdicts,
@@ -313,7 +308,6 @@ impl Boolean {
                     body,
                     record: VerbRecord::Boolean {
                         kind,
-                        contacts,
                         naming,
                         verdicts,
                         holdings: Box::new(holdings),

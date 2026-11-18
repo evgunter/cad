@@ -41,11 +41,13 @@ fn a_cylinder_flush_inside_a_block_unions_to_the_block() {
 /// touch). Unioned with a block it lies flush inside, the cylinder's
 /// walls are discarded and its caps merged into the block's faces, so
 /// the seam is removed, the row lands on no pair, and the removal
-/// consumes it. Unioned with a block far away, both cells are kept, and
-/// the same row lands on them by lineage, unread: what consumes it is
-/// the removal, never a reading of an untouched pair. Red when the door
-/// refuses a curved row, when the carry keeps the row on a cell the
-/// union removed, or when it re-reads a row on cells the op kept.
+/// consumes it. Unioned with a block far away, both cells are kept, so
+/// the row lands on them by lineage and the result holds it: the gate
+/// reads every record a result holds, and refuses this one stale, there
+/// being no touch behind it. What consumes the row is the removal, never
+/// a reading of an untouched pair. Red when the door refuses a curved
+/// row, when the carry keeps the row on a cell the union removed, or
+/// when a row on kept cells is dropped rather than put to the gate.
 #[test]
 fn a_carried_edge_edge_row_on_a_discarded_wall_is_consumed() {
     let tol = Tol::witness();
@@ -99,18 +101,20 @@ fn a_carried_edge_edge_row_on_a_discarded_wall_is_consumed() {
         panic!("the union builds: {got:?}");
     };
     assert!(
-        out.contacts.is_empty(),
+        out.contacts().is_empty(),
         "the row is consumed: {:?}",
-        out.contacts
+        out.contacts()
     );
-    let far = with((5.0, 7.0));
-    let Ok(BooleanResult::Body(far)) = far else {
-        panic!("the far union builds: {far:?}");
-    };
-    assert_eq!(
-        far.contacts.edge_edge().count(),
-        1,
-        "with both cells kept, the row lands: {:?}",
-        far.contacts
+    let far = with((5.0, 7.0)).map(|_| ());
+    assert!(
+        matches!(
+            &far,
+            Err(topo::BooleanError::ResultInvalid { findings })
+                if matches!(
+                    findings[..],
+                    [topo::ValidationError::StaleContactDeclaration { .. }]
+                )
+        ),
+        "with both cells kept, the row reaches the result and its gate refuses it: {far:?}"
     );
 }

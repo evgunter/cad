@@ -51,7 +51,7 @@ fn glued(
     );
     assert_eq!(validate_geometric(&g.body, Tol::witness()), Ok(()));
     assert_eq!(
-        validate_pseudomanifold(&g.body, &g.contacts, Tol::witness()),
+        validate_pseudomanifold(&g.body, g.contacts(), Tol::witness()),
         Ok(())
     );
     let mesh = mesh::tessellate(&g.body, 1e-2, Tol::witness()).expect("tessellate");

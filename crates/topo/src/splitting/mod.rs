@@ -96,7 +96,7 @@ pub use containment::{
     Uncrossable, UncrossableCarrier, point_in_loop,
 };
 pub use finish::{
-    FinishDesync, PlanePieces, SplitContacts, SplitFinishError, SplitNaming, SplitPart, SplitResult,
+    FinishDesync, PlanePieces, SplitFinishError, SplitNaming, SplitPart, SplitResult,
 };
 pub use neighborhood::{BoundClass, classify_neighborhood};
 pub use section::{
@@ -1184,6 +1184,7 @@ where
     F::Scalar: geom_core::Decide,
 {
     let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
+    let records = crate::FinishedBody::records(operand);
     let flat;
     let operand: &Body<F::Scalar> = if operand.solids().nth(1).is_some() {
         let mut body = Body::clone(operand);
@@ -1195,9 +1196,8 @@ where
         operand
     };
     let (above, below, naming, coincidences) = split_direct(operand, plane, tol)?.into_parts();
-    // Each side sorted into its pieces and gated at rest, the verdict kept
-    // ([`finish::SplitPart::Body`]).
-    let at_rest = |side, part| match part {
+    // Each side sorted into its pieces.
+    let sorted = |part| match part {
         finish::RawPart::Body(mut body) => {
             crate::pieces::sort_into_pieces(
                 &mut body,
@@ -1207,17 +1207,37 @@ where
                 None,
             )
             .map_err(SplitError::Pieces)?;
-            <F::Scalar as crate::props::AtRestPolicy>::finish(body, tol)
-                .map(finish::SplitPart::Body)
-                .map_err(|findings| {
-                    SplitError::from(SplitFinishError::ResultNotAtRest { side, findings })
-                })
+            Ok::<_, SplitError>(Some(body))
         }
-        finish::RawPart::Empty => Ok(finish::SplitPart::Empty),
+        finish::RawPart::Empty => Ok(None),
+    };
+    let (above, below) = (sorted(above)?, sorted(below)?);
+    // The operand's records ride each side through the split's lineage,
+    // a record the cut parts across the cut retired, and each side's gate
+    // confirms what landed on it.
+    let carried = finish::Sides {
+        above: above.as_ref(),
+        below: below.as_ref(),
+        naming: &naming,
+    }
+    .carried_across(
+        records,
+        band,
+        <F::Scalar as crate::props::AtRestPolicy>::region_lane(),
+    )
+    .map_err(|refusal| SplitError::from(SplitFinishError::Carry { refusal }))?;
+    let at_rest = |side, part: Option<Body<F::Scalar>>, records| match part {
+        Some(body) => <F::Scalar as crate::props::AtRestPolicy>::finish(
+            crate::Built::of(body).recording(records),
+            tol,
+        )
+        .map(finish::SplitPart::Body)
+        .map_err(|findings| SplitError::from(SplitFinishError::ResultNotAtRest { side, findings })),
+        None => Ok(finish::SplitPart::Empty),
     };
     Ok(SplitResult {
-        above: at_rest(PlaneSide::Above, above)?,
-        below: at_rest(PlaneSide::Below, below)?,
+        above: at_rest(PlaneSide::Above, above, carried.above)?,
+        below: at_rest(PlaneSide::Below, below, carried.below)?,
         naming,
         coincidences,
     })
@@ -1255,4 +1275,32 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
         }
     }
     Ok(result)
+}
+
+/// **The split's gate reads the records its carry lands.**
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod gate_reads_carried_records {
+    use super::{SplitError, SplitFinishError, split};
+    use crate::test_support_fixtures::split_plane;
+    use crate::validate::unconfirmed::{kiss_holding_a_false_record, the_false_record_alone};
+    use geom_core::{Point3, Tol, Vec3};
+
+    /// A finished operand holding a record with no touch behind it
+    /// ([`kiss_holding_a_false_record`]), split by a plane clear of both
+    /// its faces: the record lands by lineage, unread, on the side that
+    /// keeps them, and that side's gate refuses it. Red where the gate
+    /// takes its carried records on their word: the side finishes.
+    #[test]
+    fn the_split_refuses_a_carried_record_its_gate_does_not_confirm() {
+        let tol = Tol::witness();
+        let operand = kiss_holding_a_false_record(tol);
+        let plane = split_plane(Point3::new(0.0, 0.0, -5.0), Vec3::new(0.0, 0.0, 1.0), tol);
+        match split(&operand, &plane, tol) {
+            Err(SplitError::Finish(SplitFinishError::ResultNotAtRest { findings, .. })) => {
+                assert!(the_false_record_alone(&findings), "{findings:?}");
+            }
+            other => panic!("the split refuses at its gate: {:?}", other.map(|_| ())),
+        }
+    }
 }

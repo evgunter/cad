@@ -542,11 +542,12 @@ impl<T: Real> RimPlan<'_, T> {
 /// request. The verdict's chains are the input; nothing re-derives
 /// what the battery already resolved.
 pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
-    source: &Body<T>,
+    operand: &T::Finished,
     verdict: &BatteryVerdict<T>,
     band: Band,
     tol: Tol,
 ) -> Result<Blended<T>, BlendError> {
+    let source: &Body<T> = operand;
     // Every chain is carved inside the one shell its links lie in; the
     // body's other shells and solids are carried through untouched.
     let mut link_shells: BTreeMap<EdgeKey, ShellKey> = BTreeMap::new();
@@ -1006,8 +1007,18 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     rec.dead.vertices.dedup();
     rec.dead.faces.sort_unstable();
     rec.source = topo::SourceGeometry::of(source);
-    // The door's finish: the blended body leaves finished at its scalar.
-    let body = T::finish(body, tol).map_err(|findings| BlendError::NotFinished { findings })?;
+    // The operand's records ride the blended body through the blend's
+    // lineage, and the door's finish confirms each where it lands.
+    let carried = rec
+        .carry_contacts(
+            topo::FinishedBody::records(operand),
+            &body,
+            band,
+            T::region_lane(),
+        )
+        .map_err(|refusal| BlendError::Carry { refusal })?;
+    let body = T::finish(topo::Built::of(body).recording(carried), tol)
+        .map_err(|findings| BlendError::NotFinished { findings })?;
     Ok(Blended {
         body,
         shells,

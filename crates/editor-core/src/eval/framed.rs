@@ -190,6 +190,16 @@ impl<T: topo::AtRestPolicy> Held<T> {
             .map_err(topo::MoveError::under_a_motion)
     }
 
+    /// **The contact records its body holds**
+    /// ([`topo::FinishedBody::records`], [`topo::LeafBody::records`]).
+    #[must_use]
+    pub fn records(&self) -> &topo::ContactRecords {
+        match self {
+            Self::Finished(body) => topo::FinishedBody::records(&**body),
+            Self::Leaf(body) => topo::LeafBody::records(&**body),
+        }
+    }
+
     /// Whether the two hold one body, by `Arc`.
     #[must_use]
     pub fn same(&self, other: &Self) -> bool {

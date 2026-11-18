@@ -6952,7 +6952,21 @@ pub trait AtRestPolicy: Decide {
     /// # Errors
     ///
     /// [`crate::NotFinished`]: every finding, none folded into another.
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished>;
+    fn finish(built: crate::Built<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished>;
+
+    /// **A `⊔`'s gate** (`[assertions]`, "the census is each `⊔`'s
+    /// door"): tier 3 over the graft, then the census as the deciding
+    /// operation, recording each touch between two arrivals on the
+    /// finished body and handing back what it reports besides. Nothing
+    /// the census finds refuses. At a dual, tier 2 alone and no census.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::NotFinished`]: tier 3's findings (tier 2's at a dual).
+    fn finish_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<crate::Censused<Self>, crate::NotFinished>;
 
     /// **This scalar's leaf** ([`crate::LeafBody`]): what a sweep door
     /// (extrude, revolve, loft, sweep) returns, and what an evaluator
@@ -7015,7 +7029,26 @@ pub trait AtRestPolicy: Decide {
     ///
     /// [`crate::NotFinished`]: the finish's findings, or tier 2's at
     /// the box scalars.
-    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished>;
+    fn leaf(built: crate::Built<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished>;
+
+    /// **A `⊔` graft's leaf** ([`AtRestPolicy::leaf`] of
+    /// [`AtRestPolicy::finish_assembled`]): its finished body and what
+    /// its census decided where the switch finishes it; at the box
+    /// scalars a replay holding the arrivals for the taker's census,
+    /// and no rows or findings.
+    ///
+    /// # Errors
+    ///
+    /// As [`AtRestPolicy::leaf`].
+    fn leaf_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<crate::CensusedLeaf<Self>, crate::NotFinished>;
+
+    /// **`leaf` as the finished body it is**, where the switch finishes
+    /// a leaf where it is built (`f64`, `Probe`, a dual); `None` at the
+    /// box scalars, whose leaf is tier 2 alone.
+    fn leaf_as_finished(leaf: &Self::Leaf) -> Option<&Self::Finished>;
 
     /// **The one taker door** ([`crate::take`]): `leaf` as the finished
     /// body a door that takes finished bodies takes. At `f64` and `Probe`
@@ -7157,8 +7190,15 @@ impl AtRestPolicy for f64 {
 
     type Finished = crate::AtRestBody<Self>;
 
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    fn finish(built: crate::Built<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(built, tol).map_err(crate::NotFinished::new)
+    }
+
+    fn finish_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<crate::Censused<Self>, crate::NotFinished> {
+        crate::AtRestBody::validate_assembled(assembled, tol).map_err(crate::NotFinished::new)
     }
     type Leaf = crate::AtRestBody<Self>;
     const TAKE_FINISHES: bool = false;
@@ -7168,9 +7208,9 @@ impl AtRestPolicy for f64 {
     /// (`docs/predicate-dimension-audit.md` F34). A refusal has no
     /// taker: its record is relogged here, so the failure carries what
     /// its frame recorded on the way to it.
-    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+    fn leaf(built: crate::Built<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         let scope = geom_core::k_stats::Bracket::open();
-        let finished = Self::finish(body, tol);
+        let finished = Self::finish(built, tol);
         let record = scope.finish();
         match finished {
             Ok(body) => Ok(body.holding(record)),
@@ -7179,6 +7219,30 @@ impl AtRestPolicy for f64 {
                 Err(refused)
             }
         }
+    }
+
+    fn leaf_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<crate::CensusedLeaf<Self>, crate::NotFinished> {
+        let scope = geom_core::k_stats::Bracket::open();
+        let finished = Self::finish_assembled(assembled, tol);
+        let record = scope.finish();
+        match finished {
+            Ok(censused) => Ok(crate::CensusedLeaf {
+                leaf: censused.body.holding(record),
+                rows: censused.rows,
+                findings: censused.findings,
+            }),
+            Err(refused) => {
+                geom_core::k_stats::relog(&record);
+                Err(refused)
+            }
+        }
+    }
+
+    fn leaf_as_finished(leaf: &Self::Leaf) -> Option<&Self::Finished> {
+        Some(leaf)
     }
 
     fn take(
@@ -7318,8 +7382,15 @@ impl AtRestPolicy for geom_core::Probe {
 
     type Finished = crate::AtRestBody<Self>;
 
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    fn finish(built: crate::Built<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(built, tol).map_err(crate::NotFinished::new)
+    }
+
+    fn finish_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<crate::Censused<Self>, crate::NotFinished> {
+        crate::AtRestBody::validate_assembled(assembled, tol).map_err(crate::NotFinished::new)
     }
     type Leaf = crate::AtRestBody<Self>;
     const TAKE_FINISHES: bool = false;
@@ -7329,9 +7400,9 @@ impl AtRestPolicy for geom_core::Probe {
     /// (`docs/predicate-dimension-audit.md` F34). A refusal has no
     /// taker: its record is relogged here, so the failure carries what
     /// its frame recorded on the way to it.
-    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+    fn leaf(built: crate::Built<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         let scope = geom_core::k_stats::Bracket::open();
-        let finished = Self::finish(body, tol);
+        let finished = Self::finish(built, tol);
         let record = scope.finish();
         match finished {
             Ok(body) => Ok(body.holding(record)),
@@ -7340,6 +7411,30 @@ impl AtRestPolicy for geom_core::Probe {
                 Err(refused)
             }
         }
+    }
+
+    fn leaf_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<crate::CensusedLeaf<Self>, crate::NotFinished> {
+        let scope = geom_core::k_stats::Bracket::open();
+        let finished = Self::finish_assembled(assembled, tol);
+        let record = scope.finish();
+        match finished {
+            Ok(censused) => Ok(crate::CensusedLeaf {
+                leaf: censused.body.holding(record),
+                rows: censused.rows,
+                findings: censused.findings,
+            }),
+            Err(refused) => {
+                geom_core::k_stats::relog(&record);
+                Err(refused)
+            }
+        }
+    }
+
+    fn leaf_as_finished(leaf: &Self::Leaf) -> Option<&Self::Finished> {
+        Some(leaf)
     }
 
     fn take(
@@ -7474,22 +7569,48 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     type Finished = crate::AtRestBody<Self>;
 
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    fn finish(built: crate::Built<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(built, tol).map_err(crate::NotFinished::new)
+    }
+
+    fn finish_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<crate::Censused<Self>, crate::NotFinished> {
+        crate::AtRestBody::validate_assembled(assembled, tol).map_err(crate::NotFinished::new)
     }
     /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
     type Leaf = crate::Replay<Self>;
     const TAKE_FINISHES: bool = true;
 
-    fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        crate::Replay::of(body)
+    fn leaf(built: crate::Built<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        crate::Replay::of(built)
+    }
+
+    fn leaf_assembled(
+        assembled: crate::Assembled<Self>,
+        _tol: Tol,
+    ) -> Result<crate::CensusedLeaf<Self>, crate::NotFinished> {
+        Ok(crate::CensusedLeaf {
+            leaf: crate::Replay::of_assembled(assembled)?,
+            rows: Vec::new(),
+            findings: Vec::new(),
+        })
+    }
+
+    fn leaf_as_finished(_leaf: &Self::Leaf) -> Option<&Self::Finished> {
+        None
     }
 
     fn take(
         leaf: &std::sync::Arc<Self::Leaf>,
         tol: Tol,
     ) -> Result<std::sync::Arc<Self::Finished>, crate::NotFinished> {
-        Self::finish(Body::clone(leaf), tol).map(std::sync::Arc::new)
+        match leaf.assembled() {
+            Some(assembled) => Self::finish_assembled(assembled, tol).map(|censused| censused.body),
+            None => Self::finish(leaf.built(), tol),
+        }
+        .map(std::sync::Arc::new)
     }
 
     fn census_at_rest(
@@ -7633,22 +7754,48 @@ where
 
     type Finished = crate::AtRestBody<Self>;
 
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    fn finish(built: crate::Built<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(built, tol).map_err(crate::NotFinished::new)
+    }
+
+    fn finish_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<crate::Censused<Self>, crate::NotFinished> {
+        crate::AtRestBody::validate_assembled(assembled, tol).map_err(crate::NotFinished::new)
     }
     /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
     type Leaf = crate::Replay<Self>;
     const TAKE_FINISHES: bool = true;
 
-    fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        crate::Replay::of(body)
+    fn leaf(built: crate::Built<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        crate::Replay::of(built)
+    }
+
+    fn leaf_assembled(
+        assembled: crate::Assembled<Self>,
+        _tol: Tol,
+    ) -> Result<crate::CensusedLeaf<Self>, crate::NotFinished> {
+        Ok(crate::CensusedLeaf {
+            leaf: crate::Replay::of_assembled(assembled)?,
+            rows: Vec::new(),
+            findings: Vec::new(),
+        })
+    }
+
+    fn leaf_as_finished(_leaf: &Self::Leaf) -> Option<&Self::Finished> {
+        None
     }
 
     fn take(
         leaf: &std::sync::Arc<Self::Leaf>,
         tol: Tol,
     ) -> Result<std::sync::Arc<Self::Finished>, crate::NotFinished> {
-        Self::finish(Body::clone(leaf), tol).map(std::sync::Arc::new)
+        match leaf.assembled() {
+            Some(assembled) => Self::finish_assembled(assembled, tol).map(|censused| censused.body),
+            None => Self::finish(leaf.built(), tol),
+        }
+        .map(std::sync::Arc::new)
     }
 
     fn census_at_rest(
@@ -7805,15 +7952,44 @@ where
 
     /// Tier 2 alone: a dual certifies nothing (DL1), so its finished
     /// body is a replay's, carrying no verdict.
-    fn finish(body: Body<Self>, _tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::Replay::of(body)
+    fn finish(built: crate::Built<Self>, _tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
+        crate::Replay::of(built)
+    }
+
+    /// Tier 2 alone, holding the records the arrivals carried: a dual
+    /// runs no census, so it records no touch between them.
+    fn finish_assembled(
+        assembled: crate::Assembled<Self>,
+        _tol: Tol,
+    ) -> Result<crate::Censused<Self>, crate::NotFinished> {
+        let built = crate::Built::of(assembled.body).recording(assembled.carried);
+        Ok(crate::Censused {
+            body: crate::Replay::of(built)?,
+            rows: Vec::new(),
+            findings: Vec::new(),
+        })
     }
 
     type Leaf = crate::Replay<Self>;
     const TAKE_FINISHES: bool = false;
 
-    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        Self::finish(body, tol)
+    fn leaf(built: crate::Built<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        Self::finish(built, tol)
+    }
+
+    fn leaf_assembled(
+        assembled: crate::Assembled<Self>,
+        tol: Tol,
+    ) -> Result<crate::CensusedLeaf<Self>, crate::NotFinished> {
+        Self::finish_assembled(assembled, tol).map(|censused| crate::CensusedLeaf {
+            leaf: censused.body,
+            rows: censused.rows,
+            findings: censused.findings,
+        })
+    }
+
+    fn leaf_as_finished(leaf: &Self::Leaf) -> Option<&Self::Finished> {
+        Some(leaf)
     }
 
     /// The leaf is the finished body: passed through as it is.
@@ -8056,7 +8232,7 @@ mod at_rest_policy_tests {
         let door = crate::validate::validate_geometric(&b, tol);
         assert!(door.is_err(), "the seed body must refuse validation");
         assert_eq!(
-            T::finish(b, tol)
+            T::finish(crate::Built::of(b), tol)
                 .map(|_| ())
                 .map_err(crate::NotFinished::into_findings),
             door,
@@ -8076,7 +8252,8 @@ mod at_rest_policy_tests {
         );
         let door = crate::validate::validate_pseudomanifold(&overlap, &contacts, tol)
             .expect_err("the overlapping pair must refuse the census door");
-        let finished = T::finish(overlap, tol).expect("tier 3 alone passes the pair");
+        let finished =
+            T::finish(crate::Built::of(overlap), tol).expect("tier 3 alone passes the pair");
         assert_eq!(
             T::census_at_rest(&finished, &contacts, tol),
             door,
@@ -8153,7 +8330,7 @@ mod at_rest_policy_tests {
             crate::validate::validate_geometric_structural(&b, tol).is_err(),
             "the `_structural` twin still runs, and still refuses, at a dual"
         );
-        let refused = <D as AtRestPolicy>::finish(b.clone(), tol)
+        let refused = <D as AtRestPolicy>::finish(crate::Built::of(b.clone()), tol)
             .expect_err("a dual's finish is tier 2, which the seed body's empty loop fails");
         assert_eq!(
             refused.into_findings(),
@@ -8166,7 +8343,8 @@ mod at_rest_policy_tests {
             |x, y, z| identity_map::<D>(x + 0.5, y + 0.5, z + 0.5),
             tol,
         );
-        let replay = <D as AtRestPolicy>::finish(overlap, tol).expect("tier 2 passes the pair");
+        let replay = <D as AtRestPolicy>::finish(crate::Built::of(overlap), tol)
+            .expect("tier 2 passes the pair");
         assert!(
             <D as AtRestPolicy>::census_at_rest(&replay, &ContactRecords::default(), tol)
                 .is_empty(),
@@ -9052,7 +9230,7 @@ mod shell_reference_rows {
             })
             .unwrap();
             let about_first = fold_runs(&runs);
-            let walked = match crate::AtRestBody::validate(body.clone(), tol) {
+            let walked = match crate::AtRestBody::validate(crate::Built::of(body.clone()), tol) {
                 Ok(finished) => {
                     mass_properties(&finished, tol, crate::test_support::pinned_resolution(tol))
                 }

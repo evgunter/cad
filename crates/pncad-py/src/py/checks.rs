@@ -1114,9 +1114,9 @@ pub(crate) fn subject_body(
     output_ix: u32,
 ) -> PyResult<Option<Body>> {
     d::subject_body(&evaluation.inner, placement.0, output_ix)
-        .map(|(body, contacts)| {
+        .map(|(body, _)| {
             pncad::export::body_in_space(&body, Tol::witness())
-                .map(|body| Body::recorded(Body::host(body), contacts))
+                .map(|body| Body::plain(Body::host(body)))
                 .map_err(|err| crate::py::value::compose_err(py, *placement, &err))
         })
         .transpose()

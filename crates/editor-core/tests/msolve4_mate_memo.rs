@@ -19,8 +19,6 @@
 use crate::fixture;
 use editor_core::Formula;
 
-use std::sync::Arc;
-
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, MateFault, MateRef,
@@ -268,7 +266,7 @@ fn assert_ok(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) {
 /// is the whole question here.
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
-        (Some(a), Some(b)) => Arc::ptr_eq(&a.carry.contacts, &b.carry.contacts),
+        (Some(a), Some(b)) => same_carry(a, b),
         _ => false,
     }
 }
@@ -529,4 +527,10 @@ fn a_placement_in_another_space_is_untouched_by_a_refusal() {
         !reused_value(&first, &second, s.top_a),
         "the placement whose answer changed must not be served from the memo"
     );
+}
+
+/// Whether two values hold one carry, by the allocation of the inputs
+/// it cites: every op that runs mints its own.
+fn same_carry(a: &editor_core::NodeValue<f64>, b: &editor_core::NodeValue<f64>) -> bool {
+    std::sync::Arc::ptr_eq(&a.carry.cited_inputs, &b.carry.cited_inputs)
 }
