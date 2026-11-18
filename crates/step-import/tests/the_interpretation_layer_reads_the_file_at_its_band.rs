@@ -55,7 +55,17 @@ fn a_surface_placement_stated_off_its_frame_is_built_and_reported() {
     let [(46, moved_by)] = moved.as_slice() else {
         panic!("one report, keyed by the cylinder's placement #46: {moved:?}");
     };
-    assert!(*moved_by > 0.0, "the move is a distance: {moved_by}");
+    // The move is measured from the frame of the two directions
+    // normalized, not from the stated vectors: the reference normalized
+    // is (c, 0, s), s its projection on the axis, and the built one
+    // (1, 0, 0), so a box corner p moves by ((1−c)·pₓ, (1−c)·p_y, −s·pₓ),
+    // farthest at |pᵢ| = E: E·√(s² + 2(1−c)²).
+    let (c, s) = (1.0 / 1.25_f64.sqrt(), 0.5 / 1.25_f64.sqrt());
+    let want = geom_core::tolerance::SESSION_BOX_EXTENT * (s * s + 2.0 * (1.0 - c).powi(2)).sqrt();
+    assert!(
+        (moved_by - want).abs() <= 1e-12 * want,
+        "the move from the normalized frame: {moved_by:e} vs {want:e}"
+    );
     let StepImport::Solid { body, .. } = &imported else {
         panic!("a solid")
     };
@@ -490,4 +500,90 @@ fn a_torus_off_the_ring_convention_refuses_at_its_record() {
             other => panic!("major {major}: an invalid root, got {other:?}"),
         }
     }
+}
+
+/// A band fixture (`tests/fixtures/band/`), read as stated.
+fn band_fixture(name: &str) -> String {
+    let p = format!("{}/tests/fixtures/band/{name}", env!("CARGO_MANIFEST_DIR"));
+    std::fs::read_to_string(p).unwrap()
+}
+
+/// **Rim coaxiality is a lane choice** (`[verdicts.consumers]`): band_a's
+/// lower rim circle (radius 10 mm, read at its declared 0.01 mm) tilted
+/// by δ about its +y point moves its ±x points by 10·δ mm. Tilted 1e-12
+/// (a 1e-14 m tilt, below every run's ε, so the edge certifies too) it
+/// reads Zero and takes the band re-mint, which a coaxiality read exactly
+/// would refuse; tilted 3e-3
+/// (3e-5 m, in band) it takes the general lane, which is not written, so
+/// it refuses with the closed form's pose as the lever and offers no
+/// tolerance.
+#[test]
+fn a_rim_tilted_within_the_band_takes_the_re_mint_and_one_in_band_refuses() {
+    let tilted = |dx: &str| {
+        with(
+            &band_fixture("band_a.stp"),
+            "#113=DIRECTION('',(0.0,0.0,1.0));",
+            &format!("#113=DIRECTION('',({dx},0.0,1.0));"),
+        )
+    };
+    let zero = import(&tilted("1.E-12")).unwrap_or_else(|e| panic!("imports: {}", e.render()));
+    let StepImport::Solid { body, .. } = &zero else {
+        panic!("a solid")
+    };
+    assert_eq!(
+        crate::common::arena_census(body),
+        (1, 1, 2, 4, 2),
+        "the re-minted band, as the coaxial fixture imports"
+    );
+    match import(&tilted("3.E-03")) {
+        Err(ref e @ StepImportError::Topology { id, .. }) => {
+            let text = e.render();
+            assert_eq!(id, 136, "the torus face is named: {text}");
+            assert!(
+                text.contains("pose each rim as a circle centred on the surface's axis"),
+                "{text}"
+            );
+            assert!(!text.contains("ε_in"), "no tolerance offer: {text}");
+        }
+        other => panic!("the lane's refusal, got {:?}", other.map(|_| ())),
+    }
+}
+
+/// The `OneRecord` joins of an import, as `(kept, joined)`.
+fn joins_of(text: &str) -> Vec<(u64, u64)> {
+    import(text)
+        .unwrap_or_else(|e| panic!("imports: {}", e.render()))
+        .normalizations()
+        .iter()
+        .filter_map(|n| match n.kind {
+            NormalizationKind::OneRecord { kept, joined, .. } => Some((kept, joined)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// **The kept record is the one earliest in the DATA section**, not the
+/// one with the least id: fuse_boxes with one joined record's `PLANE`
+/// line moved to the head of DATA keeps that record, now earliest
+/// though its id is higher, and joins the other into it.
+#[test]
+fn the_kept_record_is_the_earliest_in_data_not_the_least_id() {
+    let text = freecad_fixture("fuse_boxes");
+    let (kept, joined) = joins_of(&text)[0];
+    assert!(kept < joined, "as stated, DATA order and id order agree");
+    let line = text
+        .lines()
+        .find(|l| l.starts_with(&format!("#{joined} = PLANE(")))
+        .expect("the joined record's line");
+    let moved =
+        with(&text, &format!("{line}\n"), "").replacen("DATA;\n", &format!("DATA;\n{line}\n"), 1);
+    let after = joins_of(&moved);
+    assert!(
+        after.contains(&(joined, kept)),
+        "#{joined}, now first in DATA, is kept and #{kept} joins it: {after:?}"
+    );
+    assert!(
+        after.iter().all(|&(_, j)| j != joined),
+        "#{joined} is joined into nothing: {after:?}"
+    );
 }
