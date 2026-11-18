@@ -44,3 +44,5 @@
   - generators through the built vertices; spline carriers cut at the edge ends;
   - direct rows for the three new constructions; the stale-premise sweep.
   No model-compare row (Fable outage). Check-ins at 45 min.
+
+- 2026-11-18 17:15 — The build lane forked on A3: `arc_loft_natively_computes_its_rational_volume` held per-face flux bit identity only through the printed rim circle. Ruled (a) with a tightening: the import's enclosure is certified and contains the native's value, and the total agrees within the import's pad; the per-face bit identity goes, as output stability. Accepted its A3 rule: a rational row the cap plane holds → the wall's exact row; a polynomial row → the plane × wall section.
