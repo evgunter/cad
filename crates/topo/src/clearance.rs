@@ -5940,12 +5940,13 @@ mod support_rows {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod depth_rows {
     use geom_core::{Band, Interval, Real, Tol};
 
     use super::{
         BoundVerdict, Budgets, Cell, CellPair, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep,
-        Which, apart_in_depth, certified_lift, separated_by_support, window_of,
+        Which, Window, apart_in_depth, certified_lift, separated_by_support, window_of,
     };
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use crate::{Body, FaceKey};
@@ -5977,7 +5978,7 @@ mod depth_rows {
             band: band(),
             budgets: Budgets {
                 max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-                max_cell_pairs: 256,
+                max_cell_pairs: 128,
             },
         };
         sweep.run(&windows, &windows, true, |_| Err("no witness".to_owned()))
@@ -5989,17 +5990,23 @@ mod depth_rows {
     /// in the axis's depth against a bound of zero and of half the gap,
     /// and not against one within the band of the gap, though the
     /// supports along a direction separate the two sheets at no bound.
-    /// The injectivity question holds without a split. A sheet a gap
-    /// inside the band away, and a unit sheet about an axis 0.1 off the
-    /// first's, which crosses it at mid-span, are not apart in depth,
-    /// and the question does not hold. Red where the root's depth gap is not asked (the
-    /// pair then spends the row's 256 pairs), or where it is read by
-    /// its sign.
+    /// The injectivity question holds without a split. Three sheets are
+    /// not apart in depth: one a gap inside the band away, one whose
+    /// gap is past the census's pads by less than the band, and a unit
+    /// sheet about an axis 0.1 off the first's, which crosses it at
+    /// mid-span. Of the first and the last the question does not hold.
+    /// Red where the root's depth gap is not asked (the pair then spends
+    /// the row's 128 pairs), where the gap is read by its sign rather
+    /// than against the band, or where the bound is not taken off it.
     #[test]
     fn walls_a_thin_gap_apart_are_apart_at_their_root_and_only_off_the_band() {
         let band = band();
         let in_band = 0.5 * (band.zero() + band.escalate());
         let at = Interval::from_f64;
+        let apart = |wa: &Window<'_, f64>, wb: &Window<'_, f64>, c: f64| {
+            certified_lift(|lift| apart_in_depth(wa, wb, at(c), band, lift))
+                .expect("every gap certifies")
+        };
         let read = |b: CylFrame| {
             let (body, fa, fb) = walls(CylFrame::canonical(1.0), b);
             let window = |f| window_of(&body, f, Which::First).expect("a wall has a window");
@@ -6010,20 +6017,16 @@ mod depth_rows {
                 depth: 0,
                 fresh: false,
             };
-            let apart = |c: f64| {
-                certified_lift(|lift| apart_in_depth(&wa, &wb, at(c), band, lift))
-                    .expect("every gap certifies")
-            };
             (
-                [apart(0.0), apart(5e-4), apart(1e-3 - in_band)],
+                [0.0, 5e-4, 1e-3 - in_band].map(|c| apart(&wa, &wb, c)),
                 separated_by_support(pair, &wa, &wb, at(0.0), band),
                 injective(&body, [fa, fb]),
             )
         };
 
-        let (apart, along, report) = read(CylFrame::canonical(1.001));
+        let (parted, along, report) = read(CylFrame::canonical(1.001));
         assert_eq!(
-            apart,
+            parted,
             [true, true, false],
             "a gap of 0.001, against 0, 0.0005 and the gap"
         );
@@ -6042,22 +6045,69 @@ mod depth_rows {
             report.receipt
         );
 
-        for (what, other) in [
-            ("a gap in the band", CylFrame::canonical(1.0 + in_band)),
+        let past_the_pads = 2.0 * crate::boxes::sweep_pad(band) + in_band;
+        for (what, other, never_holds) in [
+            (
+                "a gap in the band",
+                CylFrame::canonical(1.0 + in_band),
+                true,
+            ),
+            (
+                "a gap past the pads by less than the band",
+                CylFrame::canonical(1.0 + past_the_pads),
+                false,
+            ),
             (
                 "a wall that crosses",
                 CylFrame {
                     origin: geom_core::Point3::new(0.0718, -0.0696, 0.0),
                     ..CylFrame::canonical(1.0)
                 },
+                true,
             ),
         ] {
-            let (apart, _, report) = read(other);
-            assert_eq!(apart, [false; 3], "{what}: not apart in depth");
+            let (parted, _, report) = read(other);
+            assert_eq!(parted, [false; 3], "{what}: not apart in depth");
             assert!(
-                !matches!(report.verdict, BoundVerdict::Holds),
+                !(never_holds && matches!(report.verdict, BoundVerdict::Holds)),
                 "{what}: the question does not hold: {:?}",
                 report.verdict
+            );
+        }
+    }
+
+    /// **Each face's depths are read in its own body.** The two walls
+    /// in two bodies, the second after a wall of its own body's that
+    /// the first body has no face for: the pair is apart in depth,
+    /// either way round. Red where one body reads both faces.
+    #[test]
+    fn walls_in_two_bodies_are_each_read_in_their_own() {
+        let (inner, fa, _) = walls(CylFrame::canonical(1.0), CylFrame::canonical(3.0));
+        let (outer, _, fb) = {
+            let mut body = Body::<f64>::new();
+            let mut wall = |r| {
+                cyl_wall_sheet(
+                    &mut body,
+                    CylFrame::canonical(r),
+                    (0.2, 1.4),
+                    (0.0, 1.0),
+                    Tol::witness(),
+                )
+            };
+            let faces = [wall(5.0), wall(7.0), wall(1.001)];
+            (body, faces[0], faces[2])
+        };
+        assert!(
+            inner.faces().all(|(k, _)| k != fb),
+            "the first body has no face of the second wall's key"
+        );
+        let wa = window_of(&inner, fa, Which::First).expect("a wall has a window");
+        let wb = window_of(&outer, fb, Which::Second).expect("a wall has a window");
+        for (x, y) in [(&wa, &wb), (&wb, &wa)] {
+            assert_eq!(
+                certified_lift(|lift| apart_in_depth(x, y, Interval::from_f64(0.0), band(), lift)),
+                Some(true),
+                "walls 0.001 apart, each in its own body"
             );
         }
     }

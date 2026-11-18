@@ -1332,12 +1332,15 @@ fn two_nested_tori_a_thin_gap_apart_hold_at_their_roots() {
 /// and `0.05` apart, capped by two annuli, as the klein bulb's flare;
 /// and the band between two arcs about a centre off the axis, radii
 /// `0.8 ∓ 0.025`, closed by two radial lines, as its rim. Each wall's
-/// two faces share nothing, so only the distance test decides them.
-/// Both hold at both scalars, each splitting under a quarter of the
-/// default budget (about 3,100 and 6,600 splits). Red where the support
-/// test reads an analytic cell by its box: two slanted patches' boxes
+/// two faces share nothing. Both hold at both scalars, each splitting
+/// under a quarter of the default budget. The conical wall's faces
+/// have no depth that parts them, so the supports along a direction
+/// decide them, in about 3,100 splits: red where the support test reads
+/// an analytic cell by its box, since two slanted patches' boxes
 /// overlap until the cells are about as small as the gap, which costs
-/// about 39,000 and 32,000 splits.
+/// about 39,000. The toroidal wall's faces are apart in their core's
+/// depth and discharge at their root; it splits about 200 times, on
+/// the pairs that touch.
 #[test]
 fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
     fn conical<T: Scalar>() -> Body<T> {
