@@ -1376,9 +1376,13 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
     // `split_edge_on_faces_poses::an_edge_at_the_zero_bands_edge_refuses_typed_and_its_lever_builds`
     // at 1e-9 (measured; neither at 1e-6).
     // `Interval` charges nothing, its enclosure holding the
-    // rounding already. It reads each frame re-minted at its scalar, an
-    // enclosure of the rotation a few ulps wide, so the enclosure of the
-    // distance widens with the distance slid times that width. So it
+    // rounding already. It reads each frame lifted to its polar
+    // enclosure, η = 6.28e-17 (0.57 u: the tilted axis `(0, 0.6, 0.8)`
+    // rounds off unit), a few ulps wide at each entry where the stated
+    // f64 frame read as points had none, so the enclosure of the distance
+    // widens with the distance slid times that width (measured under the
+    // polar lift: 18 and 21 at 1e-9, 8 and 11 at 1e-12, 28 and none at
+    // 1e-6, where the point frame read 20, 24, 10, 14, 30 and 31). So it
     // reads the placement on below the `k`
     // where that width passes the zero band, in band from there, never
     // off: the row pins the measured `k` at each ε row CI runs, and that

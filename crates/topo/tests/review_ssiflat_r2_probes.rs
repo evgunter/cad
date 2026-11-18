@@ -227,9 +227,12 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
 ///
 /// **Which limb escalates is measured, not chosen.** On the quarter
 /// turn limb 2's hull bound reads about 5.29e-15, under limb 1's worst
-/// sample (about 6.66e-15, its upper end): the cylinder's frame is
-/// re-minted at `Interval`, a few ulps wide, which limb 1 reads and
-/// limb 2 charges over the carrier's reach. Limb 2 stays under limb 1
+/// sample (about 6.66e-15, its upper end): the tilted plane's and the
+/// arc's frames are squared at `Interval` from their stated axes
+/// (`(sin 0.6, 0, cos 0.6)` rounds off unit), each a few ulps wide,
+/// which limb 1 reads and limb 2 charges over the carrier's reach.
+/// Squared at `T`, not lifted from `f64`: the cross-kind lift's polar
+/// enclosure does not reach these rows (measured the same under it). Limb 2 stays under limb 1
 /// because every Bézier row of the composite is restricted from its own
 /// span window through the monotone step (`Certification::between`).
 /// Limb 2 stays under limb 1 over the arcs, tilts,

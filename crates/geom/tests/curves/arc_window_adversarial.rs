@@ -248,14 +248,10 @@ fn past_a_full_turn_both_doors_read_both_crests() {
             c + a,
             fuzz::replay()
         );
-        // The certified door reads the frame re-minted at `Interval`, an
-        // enclosure of the rotation a few ulps wide, so it sits within
-        // twice the f64 door's reach of the crests.
-        let wide = 2.0 * tol;
         let (blo, bhi) =
             conic_arc_extent_along_bracketed(&arc, t0, t1, Point3::origin(), n).unwrap();
         assert!(
-            blo <= c - a + tol && bhi >= c + a - tol && blo >= c - a - wide && bhi <= c + a + wide,
+            blo <= c - a + tol && bhi >= c + a - tol && blo >= c - a - tol && bhi <= c + a + tol,
             "{arc:?} along {n:?} over [{t0}, {t1}]: certified door [{blo}, {bhi}] vs \
              [{}, {}] — {}",
             c - a,
