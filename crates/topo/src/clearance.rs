@@ -4176,11 +4176,14 @@ fn separation(a: &Point3<Interval>, b: &Point3<Interval>) -> Interval {
     (d.x.powi(2) + d.y.powi(2) + d.z.powi(2)).sqrt()
 }
 
-/// **Whether two cells are apart by more than `c` along a direction**:
-/// [`support_separation`] minus `c`, decided [`Sign::Positive`] at
-/// [`CLEARANCE_SUPPORT_GAP`] (audit row F17). Only that sign is read:
-/// the support gap bounds the separation from below and from nowhere
-/// above, so no other sign says anything about the pair.
+/// **Whether two cells are apart by more than `c`**: a lower bound on
+/// their separation minus `c`, decided [`Sign::Positive`] at
+/// [`CLEARANCE_SUPPORT_GAP`] (audit row F17). The bound is one cell's
+/// distance off the other's whole carrier ([`spine_separation`], each
+/// way round), then the gap between the two cells' supports along a
+/// direction ([`support_separation`]). Only that sign is read: each
+/// bounds the separation from below and from nowhere above, so no other
+/// sign says anything about the pair.
 fn separated_by_support<T: Real>(
     pair: CellPair,
     x: &Window<'_, T>,
@@ -4188,12 +4191,224 @@ fn separated_by_support<T: Real>(
     c: Interval,
     band: Band,
 ) -> bool {
-    support_separation((x, pair.a), (y, pair.b)).is_some_and(|d| {
+    let clear = |d: Interval| {
         matches!(
             decide(CLEARANCE_SUPPORT_GAP, Margin::of(d - c), band),
             Ok(Sign::Positive)
         )
-    })
+    };
+    spine_separation(&x.surface, (&y.surface, pair.b)).is_some_and(clear)
+        || spine_separation(&y.surface, (&x.surface, pair.a)).is_some_and(clear)
+        || support_separation((x, pair.a), (y, pair.b)).is_some_and(clear)
+}
+
+/// **A carrier as the points one distance from a spine**: a sphere
+/// about its centre, a cylinder about its axis, a torus about its
+/// centre circle, and a plane, which is its own spine at no distance.
+/// Read off the carrier's frame as its chart reads it: the axis and
+/// `u_ref` unit and square, by the carriers' convention.
+struct Tube {
+    spine: Spine,
+    /// How far each point `S(u, v)` of the carrier is from its foot, the
+    /// spine's point at the same `u` (torus), `v` (cylinder) or its one
+    /// point (sphere).
+    radius: Interval,
+    /// An enclosure of every carrier point's distance from the whole
+    /// spine. It is `radius`, except on a torus whose tube is wider
+    /// than its centre circle: a point of it past the axis is nearer
+    /// the circle's far side than its foot.
+    off: Interval,
+}
+
+enum Spine {
+    Point(Point3<Interval>),
+    Line(geom::Line<Interval>),
+    Circle {
+        frame: geom::Frame<Interval>,
+        radius: Interval,
+    },
+    Plane {
+        on: Point3<Interval>,
+        normal: Vec3<Interval>,
+    },
+}
+
+/// **The feet of a cell's points on its carrier's spine**, as
+/// `at + w[0]·f[0] + w[1]·f[1]` over the enclosures `f`: a point (no
+/// term), a stretch of a line about its middle (one term), or an arc of
+/// a circle about its centre, `f` its cosine and sine (`turning`).
+struct Feet {
+    at: Point3<Interval>,
+    w: [Vec3<Interval>; 2],
+    f: [Interval; 2],
+    turning: bool,
+}
+
+impl Tube {
+    fn of(surface: &Surface<Interval>) -> Option<Self> {
+        let zero = Interval::zero();
+        Some(match *surface {
+            Surface::Plane { origin, normal, .. } => Self {
+                spine: Spine::Plane { on: origin, normal },
+                radius: zero,
+                off: zero,
+            },
+            Surface::Sphere { center, radius, .. } => Self {
+                spine: Spine::Point(center),
+                radius: radius.abs(),
+                off: radius.abs(),
+            },
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => Self {
+                spine: Spine::Line(geom::Line { origin, dir: axis }),
+                radius: radius.abs(),
+                off: radius.abs(),
+            },
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => {
+                let (major, minor) = (major_radius.abs(), minor_radius.abs());
+                Self {
+                    spine: Spine::Circle {
+                        frame: geom::Frame::new(center, axis, u_ref),
+                        radius: major_radius,
+                    },
+                    radius: minor,
+                    off: (minor - major)
+                        .select_le_zero(minor, geom_core::SpanLocate::enclosure_hull(zero, minor)),
+                }
+            }
+            Surface::Cone { .. }
+            | Surface::Spindle { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => return None,
+        })
+    }
+
+    /// The feet of `cell`'s points. A plane's cell has none: its feet
+    /// are the cell.
+    fn feet(&self, cell: Cell) -> Option<Feet> {
+        let span = |(lo, hi): (f64, f64)| Interval::from_bounds(lo, hi);
+        let zero = Interval::zero();
+        let none = Vec3::new(zero, zero, zero);
+        Some(match self.spine {
+            Spine::Point(at) => Feet {
+                at,
+                w: [none, none],
+                f: [zero, zero],
+                turning: false,
+            },
+            Spine::Line(geom::Line { origin, dir }) => {
+                let (_, mid) = centre(cell.u, cell.v);
+                let mid = Interval::from_bounds(mid, mid);
+                Feet {
+                    at: origin + dir * mid,
+                    w: [dir, none],
+                    f: [span(cell.v) - mid, zero],
+                    turning: false,
+                }
+            }
+            Spine::Circle { frame, radius } => {
+                let (sin, cos) = span(cell.u).sin_cos();
+                Feet {
+                    at: frame.origin,
+                    w: [frame.u_ref * radius, frame.v_ref() * radius],
+                    f: [cos, sin],
+                    turning: true,
+                }
+            }
+            Spine::Plane { .. } => return None,
+        })
+    }
+}
+
+impl Feet {
+    /// The feet less `o` as the three terms' vectors, each less its
+    /// part along the unit `n` where one is given.
+    fn less(&self, o: Point3<Interval>, n: Option<Vec3<Interval>>) -> [Vec3<Interval>; 3] {
+        let square = |w: Vec3<Interval>| n.map_or(w, |n| w - n * w.dot(n));
+        [square(self.at - o), square(self.w[0]), square(self.w[1])]
+    }
+
+    /// An enclosure of `⟨t[0] + t[1]·f[0] + t[2]·f[1], n⟩` over the feet.
+    fn along(&self, t: [Vec3<Interval>; 3], n: Vec3<Interval>) -> Interval {
+        t[0].dot(n) + t[1].dot(n) * self.f[0] + t[2].dot(n) * self.f[1]
+    }
+
+    /// An enclosure of `|t[0] + t[1]·f[0] + t[2]·f[1]|²` over the feet.
+    /// On an arc `f[0]² + f[1]² = 1`, so the square is
+    /// `|t₀|² + |t₁|² + 2⟨t₀, t₁⟩f₀ + 2⟨t₀, t₂⟩f₁ + (|t₂|² − |t₁|²)f₁² +
+    /// 2⟨t₁, t₂⟩f₀f₁`: the terms in `f` carry the offset of the two
+    /// spines and the tilt between them, and none where they are
+    /// coaxial.
+    fn norm_squared(&self, t: [Vec3<Interval>; 3]) -> Interval {
+        let two = Interval::one() + Interval::one();
+        let [f, g] = self.f;
+        if self.turning {
+            t[0].norm_squared()
+                + t[1].norm_squared()
+                + two * (t[0].dot(t[1]) * f + t[0].dot(t[2]) * g + t[1].dot(t[2]) * f * g)
+                + (t[2].norm_squared() - t[1].norm_squared()) * g.powi(2)
+        } else {
+            t[0].norm_squared() + two * t[0].dot(t[1]) * f + t[1].norm_squared() * f.powi(2)
+        }
+    }
+}
+
+impl Spine {
+    /// An enclosure of the distance from each of `feet` to this spine.
+    fn distance(&self, feet: &Feet) -> Interval {
+        // A square is not negative, whatever its enclosure's lower end.
+        let root = |square: Interval| square.max(Interval::zero()).sqrt();
+        match *self {
+            Self::Point(c) => root(feet.norm_squared(feet.less(c, None))),
+            Self::Line(geom::Line { origin, dir }) => {
+                root(feet.norm_squared(feet.less(origin, Some(dir))))
+            }
+            Self::Circle { frame, radius } => {
+                let rho = root(feet.norm_squared(feet.less(frame.origin, Some(frame.axis))));
+                let h = feet.along(feet.less(frame.origin, None), frame.axis);
+                ((rho - radius.abs()).powi(2) + h.powi(2)).sqrt()
+            }
+            Self::Plane { on, normal } => feet.along(feet.less(on, None), normal).abs(),
+        }
+    }
+}
+
+/// **A lower bound on the distance between a cell and every point of
+/// another carrier, read off the two carriers' spines** ([`Tube`]).
+///
+/// Write `δ(p)` for a point's distance from the spine of the carrier
+/// `a`. `δ` is 1-Lipschitz, so a point `x` of `a` and a point `p` of the
+/// cell are at least `|δ(p) − δ(x)|` apart. `δ(x)` is in `a`'s
+/// [`Tube::off`]. `p` is its own carrier's radius from its foot `q`, so
+/// `δ(p)` is within that radius of `δ(q)`, and [`Spine::distance`]
+/// encloses `δ(q)` over the cell's feet. The answer encloses
+/// `|δ(p) − δ(x)|` over every such pair; its lower end is the bound.
+///
+/// It reads the whole of `a`, so it holds for any face on `a`, and it
+/// reads nothing of the cell but the stretch of spine under it, so it
+/// does not narrow with the cell across its tube: two carriers a thin
+/// gap apart along their whole length read apart at the root. A cell
+/// that crosses `a`, or lies part on each side of it, has an answer
+/// holding zero, which bounds nothing. `None` where either carrier has
+/// no spine, or the cell is a plane's.
+fn spine_separation(
+    a: &Surface<Interval>,
+    (b, cell): (&Surface<Interval>, Cell),
+) -> Option<Interval> {
+    let (a, b) = (Tube::of(a)?, Tube::of(b)?);
+    let foot = a.spine.distance(&b.feet(cell)?);
+    let either_way = Interval::from_bounds(-1.0, 1.0);
+    Some((foot + b.radius * either_way - a.off).abs())
 }
 
 /// **What a cell's support along a direction is read off**: the
@@ -5894,5 +6109,359 @@ mod support_rows {
             let read = separated_by_support(pair, &wa, &wb, Interval::from_f64(c), band);
             assert_eq!(read, separated, "separated against {c}");
         }
+    }
+}
+
+#[cfg(test)]
+mod spine_rows {
+    use core::f64::consts::{FRAC_PI_2, PI, TAU};
+
+    use geom::Surface;
+    use geom_core::{Band, Bounds, Interval, Point3, Real, Tol, Vec3};
+
+    use super::{
+        Cell, CellPair, Region, Which, Window, separated_by_support, spine_separation,
+        support_separation, window_of,
+    };
+    use crate::Body;
+    use crate::injective::Boundary;
+
+    fn z() -> Vec3<f64> {
+        Vec3::new(0.0, 0.0, 1.0)
+    }
+
+    fn x() -> Vec3<f64> {
+        Vec3::new(1.0, 0.0, 0.0)
+    }
+
+    fn torus(center: Point3<f64>, major_radius: f64, minor_radius: f64) -> Surface<f64> {
+        Surface::Torus {
+            center,
+            axis: z(),
+            major_radius,
+            minor_radius,
+            u_ref: x(),
+        }
+    }
+
+    /// The torus about an axis tilted `tilt` radians from `z` toward `x`.
+    fn tilted(
+        center: Point3<f64>,
+        major_radius: f64,
+        minor_radius: f64,
+        tilt: f64,
+    ) -> Surface<f64> {
+        Surface::Torus {
+            center,
+            axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+            major_radius,
+            minor_radius,
+            u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+        }
+    }
+
+    fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
+        Surface::Sphere {
+            center,
+            radius,
+            axis: z(),
+            u_ref: x(),
+        }
+    }
+
+    fn cylinder(
+        origin: Point3<f64>,
+        axis: Vec3<f64>,
+        u_ref: Vec3<f64>,
+        radius: f64,
+    ) -> Surface<f64> {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        }
+    }
+
+    fn o() -> Point3<f64> {
+        Point3::new(0.0, 0.0, 0.0)
+    }
+
+    /// A carrier's whole chart, or as much of an unbounded one as a row
+    /// samples.
+    fn chart(s: &Surface<f64>) -> ((f64, f64), (f64, f64)) {
+        match s {
+            Surface::Plane { .. } => ((-3.0, 3.0), (-3.0, 3.0)),
+            Surface::Cylinder { .. } => ((0.0, TAU), (-3.0, 3.0)),
+            Surface::Sphere { .. } => ((0.0, TAU), (-FRAC_PI_2, FRAC_PI_2)),
+            _ => ((0.0, TAU), (0.0, TAU)),
+        }
+    }
+
+    fn lifted(s: &Surface<f64>) -> Surface<Interval> {
+        s.clone().map_scalar(Interval::from_f64)
+    }
+
+    /// `n × n` points of `s` over a rectangle of its chart, ends included.
+    fn grid(s: &Surface<f64>, (u, v): ((f64, f64), (f64, f64)), n: u32) -> Vec<Point3<f64>> {
+        let at = |(lo, hi): (f64, f64), i: u32| lo + (hi - lo) * f64::from(i) / f64::from(n - 1);
+        (0..n)
+            .flat_map(|i| (0..n).map(move |j| (i, j)))
+            .map(|(i, j)| s.eval(at(u, i), at(v, j)))
+            .collect()
+    }
+
+    /// **A cell's distance off a carrier is under the distance of every
+    /// point pair.** Each row is a carrier `a`, a carrier `b`, and
+    /// whether `b`'s whole chart reads apart from `a`. Over `b`'s whole
+    /// chart and over four smaller cells of it, the reading's lower end
+    /// is no more than the distance from each of 9 × 9 points of the
+    /// cell to each of 25 × 25 points of `a`. The rows that read apart
+    /// are what the bound is tight enough for: nested and coaxial, one
+    /// inside the other off its axis and tilted, and one outside the
+    /// other. Red if the reading drops the cell's own radius about its
+    /// feet, the tilt term of an arc's square, the part of a foot along
+    /// a line or a circle's axis, or reads a torus wider than its
+    /// centre circle as all one distance from it (the last row: a small
+    /// sphere on the wide torus's far sheet).
+    #[test]
+    fn a_cells_distance_off_a_carrier_is_under_every_point_pair() {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, -1.0),
+            normal: z(),
+            u_ref: x(),
+        };
+        let skew = Vec3::new(0.0, 0.6, 0.8);
+        let rows: [(&str, Surface<f64>, Surface<f64>, bool); 14] = [
+            (
+                "nested tori",
+                torus(o(), 2.0, 0.45),
+                torus(o(), 2.0, 0.425),
+                true,
+            ),
+            (
+                "a torus inside a torus, off its axis and tilted",
+                torus(o(), 2.0, 0.45),
+                tilted(Point3::new(0.02, -0.01, 0.03), 2.0, 0.3, 0.02),
+                true,
+            ),
+            (
+                "two tori that cross",
+                torus(o(), 2.0, 0.45),
+                tilted(Point3::new(0.3, 0.0, 0.1), 1.8, 0.4, 0.3),
+                false,
+            ),
+            (
+                "linked tori's far cells",
+                torus(o(), 2.0, 0.3),
+                Surface::Torus {
+                    center: Point3::new(2.0, 0.0, 0.0),
+                    axis: Vec3::new(0.0, 1.0, 0.0),
+                    major_radius: 2.0,
+                    minor_radius: 0.3,
+                    u_ref: x(),
+                },
+                false,
+            ),
+            (
+                "a ball in a ball",
+                sphere(o(), 1.0),
+                sphere(Point3::new(0.3, 0.2, 0.1), 0.5),
+                true,
+            ),
+            (
+                "a ball outside a ball",
+                sphere(o(), 1.0),
+                sphere(Point3::new(2.0, 0.0, 0.0), 0.7),
+                true,
+            ),
+            (
+                "a ball in a tube",
+                torus(o(), 2.0, 0.45),
+                sphere(Point3::new(0.0, 2.05, 0.1), 0.2),
+                true,
+            ),
+            (
+                "a pipe in a pipe, off its axis",
+                cylinder(o(), z(), x(), 1.0),
+                cylinder(Point3::new(0.1, 0.05, 0.3), z(), x(), 0.8),
+                true,
+            ),
+            (
+                "a skew pipe through a pipe",
+                cylinder(o(), z(), x(), 1.0),
+                cylinder(Point3::new(0.4, 0.0, 0.0), skew, x(), 0.3),
+                false,
+            ),
+            (
+                "a ring around a pipe",
+                cylinder(o(), z(), x(), 1.0),
+                torus(Point3::new(0.05, 0.0, 0.2), 2.0, 0.6),
+                true,
+            ),
+            (
+                "a pipe through a ring",
+                torus(o(), 2.0, 0.45),
+                cylinder(o(), z(), x(), 1.2),
+                true,
+            ),
+            (
+                "a ball over a plane",
+                plane.clone(),
+                sphere(Point3::new(0.5, 0.5, 0.2), 1.1),
+                true,
+            ),
+            (
+                "a tilted ring through a plane",
+                plane,
+                tilted(o(), 2.0, 0.3, 0.6),
+                false,
+            ),
+            (
+                "a small ball on the far sheet of a torus wider than its circle",
+                torus(o(), 0.5, 1.0),
+                sphere(Point3::new(-0.5, 0.0, 0.0), 0.1),
+                false,
+            ),
+        ];
+        for (what, a, b, apart) in rows {
+            let (la, lb) = (lifted(&a), lifted(&b));
+            let on_a = grid(&a, chart(&a), 25);
+            let (u, v) = chart(&b);
+            let part =
+                |(lo, hi): (f64, f64), k: f64| (lo + (hi - lo) * k, lo + (hi - lo) * (k + 0.25));
+            let cells = [
+                (u, v),
+                (part(u, 0.0), part(v, 0.0)),
+                (part(u, 0.25), part(v, 0.5)),
+                (part(u, 0.5), v),
+                (u, part(v, 0.75)),
+            ];
+            for (i, (cu, cv)) in cells.into_iter().enumerate() {
+                let read = spine_separation(&la, (&lb, Cell::on(&lb, cu, cv)))
+                    .unwrap_or_else(|| panic!("{what}: both carriers have a spine"));
+                assert!(read.is_certified(), "{what}, cell {i}: {read:?}");
+                if i == 0 {
+                    assert_eq!(
+                        read.lo() > 0.0,
+                        apart,
+                        "{what}: the whole chart reads {read:?}"
+                    );
+                }
+                let nearest = grid(&b, (cu, cv), 9)
+                    .iter()
+                    .flat_map(|&p| on_a.iter().map(move |&q| (p - q).norm()))
+                    .fold(f64::INFINITY, f64::min);
+                assert!(
+                    read.lo() <= nearest + 1e-12,
+                    "{what}, cell {i}: the reading {read:?} is over a sampled pair's {nearest}"
+                );
+            }
+        }
+    }
+
+    /// A window on `surface` over its whole chart, for a reader of the
+    /// window's carrier and face alone: the face is a brick's.
+    fn on<'b>(
+        body: &'b Body<Interval>,
+        nth: usize,
+        surface: &Surface<f64>,
+    ) -> Window<'b, Interval> {
+        let (face, _) = body.faces().nth(nth).expect("a brick has six faces");
+        let (u, v) = chart(surface);
+        Window {
+            surface: lifted(surface),
+            u,
+            v,
+            region: Region::Whole,
+            boundary: Boundary::default(),
+            ..window_of(body, face, Which::First).expect("a brick's face has a window")
+        }
+    }
+
+    fn whole(a: &Window<'_, Interval>, b: &Window<'_, Interval>) -> CellPair {
+        CellPair {
+            a: Cell::of(a),
+            b: Cell::of(b),
+            depth: 0,
+            fresh: false,
+        }
+    }
+
+    /// **Two whole carriers a thin gap apart read apart at the root,
+    /// and only off the band; two that cross never do.** Nested tori
+    /// 0.025 apart, as a shelled torus's cavity walls are, a ball 0.01
+    /// inside a ball and a pipe 0.01 inside a pipe: each pair of whole
+    /// charts is separated, either way round, where the supports along
+    /// a direction bound nothing. The same tori a gap inside the band
+    /// apart are not, and neither are two that cross, 0.03 off centre.
+    /// Red if the bound is read by its sign rather than against the
+    /// band, or not read at all.
+    #[test]
+    fn carriers_a_thin_gap_apart_read_apart_at_the_root_and_only_off_the_band() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let body = crate::test_support_fixtures::brick::<Interval>(
+            (0.0, 1.0),
+            (0.0, 1.0),
+            (0.0, 1.0),
+            tol,
+        );
+        let in_band = 0.5 * (band.zero() + band.escalate());
+        let zero = Interval::zero();
+        let outer = torus(o(), 2.0, 0.45);
+        let rows = [
+            ("nested tori", outer.clone(), torus(o(), 2.0, 0.425), true),
+            (
+                "a ball in a ball",
+                sphere(o(), 1.0),
+                sphere(o(), 0.99),
+                true,
+            ),
+            (
+                "a pipe in a pipe",
+                cylinder(o(), z(), x(), 1.0),
+                cylinder(o(), z(), x(), 0.99),
+                true,
+            ),
+            (
+                "tori a gap in the band apart",
+                outer.clone(),
+                torus(o(), 2.0, 0.45 - in_band),
+                false,
+            ),
+            (
+                "tori that cross",
+                outer,
+                torus(Point3::new(0.03, 0.0, 0.0), 2.0, 0.425),
+                false,
+            ),
+        ];
+        for (what, a, b, separated) in rows {
+            let (wa, wb) = (on(&body, 0, &a), on(&body, 1, &b));
+            for (x, y) in [(&wa, &wb), (&wb, &wa)] {
+                let pair = whole(x, y);
+                assert_eq!(
+                    separated_by_support(pair, x, y, zero, band),
+                    separated,
+                    "{what}: separated"
+                );
+                let along = support_separation((x, pair.a), (y, pair.b));
+                assert!(
+                    along.is_none_or(|d| d.lo() <= 0.0),
+                    "{what}: the supports along a direction bound nothing at the root: {along:?}"
+                );
+            }
+        }
+        let inner = lifted(&torus(o(), 2.0, 0.45 - in_band));
+        let gap = spine_separation(
+            &lifted(&torus(o(), 2.0, 0.45)),
+            (&inner, Cell::on(&inner, (0.0, TAU), (0.0, PI))),
+        )
+        .expect("two tori");
+        assert!(
+            gap.lo() > 0.0 && gap.lo() < band.escalate(),
+            "the gap in the band is read in the band, {gap:?}, so it is the compare that refuses it"
+        );
     }
 }
