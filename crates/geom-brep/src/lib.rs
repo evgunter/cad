@@ -198,10 +198,11 @@ pub use implicit::{
     ring_floor,
 };
 pub use intersect::{
-    ApexFansMeeting, ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection,
+    ApexFansMeeting, ConeCylinderSection, ConeSphereSection, ConicArcError, ConicBranch, EqualCylinderSection,
     OpenConic, OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection,
     PlaneSite, PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane,
     SectionRadius, SphereSphereSection, cone_cone_apex_meeting, cone_cylinder_section,
+    cone_sphere_section,
     cone_plane_apex_extrema, cylinder_axes_coplanar, cylinder_axes_parallel,
     cylinder_cylinder_section, parallel_axes_at, plane_cone_apex_extrema, plane_cone_section,
     plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section, plane_torus_section,
@@ -238,7 +239,7 @@ pub use pair_section::{
     SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
     TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
     TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
-    ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section, square_part,
+    ZeroKind, ZeroVerdict, axis_pose, coaxial_tangent_circle, line_tilt, pair_section, spline_pair_section, square_part,
     tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a

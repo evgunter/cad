@@ -646,7 +646,7 @@ fn nearest<T: Decide>(
 /// the held analytic surface `held`, nearest the old carrier on
 /// `[t0, t1]` and running with it. Plane × plane is the line both
 /// planes hold; a plane against a cylinder, cone, sphere or torus, and
-/// a cone against a coaxial cylinder, is that C5 arm's carrier. Any
+/// a cone against a coaxial cylinder or sphere, is that C5 arm's carrier. Any
 /// other pair is not derived here.
 ///
 /// `extent` is the old edge's extent from below
@@ -699,10 +699,31 @@ pub(crate) fn section_closed<T: Decide>(
             };
             return running_with(chosen, old, span, band);
         }
+        (Surface::Cone { .. }, Surface::Sphere { .. })
+        | (Surface::Sphere { .. }, Surface::Cone { .. }) => {
+            let (cone, sphere) = if matches!(new, Surface::Cone { .. }) {
+                (new, held)
+            } else {
+                (held, new)
+            };
+            let candidates = match c5::cone_sphere_section(cone, sphere, extent, band) {
+                Ok(c5::ConeSphereSection::CoaxialCircles(circles)) => circles,
+                Ok(c5::ConeSphereSection::TangentCircle(_)) => {
+                    return Ok(Err(SectionVerdict::Tangent));
+                }
+                Ok(c5::ConeSphereSection::Empty) => return Ok(Err(SectionVerdict::NoBranch)),
+                Err(e) => return closed(e),
+            };
+            let chosen = match nearest(candidates, old, span, band)? {
+                Ok(c) => c,
+                Err(v) => return Ok(Err(v)),
+            };
+            return running_with(chosen, old, span, band);
+        }
         _ => {
             return Ok(Err(SectionVerdict::Unsupported {
                 what: "the offset door derives a section through a plane, or of a cone \
-                       and a coaxial cylinder, only",
+                       and a coaxial cylinder or sphere, only",
             }));
         }
     };

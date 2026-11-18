@@ -427,6 +427,26 @@ pub enum StepImportError {
         /// What the split lacks (static description).
         what: &'static str,
     },
+    /// **An edge whose description the kernel cannot yet construct**
+    /// (`[import]`, D7 step 3): the description the file's statements
+    /// are evidence of has no construction in this kernel, so no cache
+    /// can be built from it, and no value the file printed stands in.
+    NotYetSupported {
+        /// The `EDGE_CURVE` entity instance.
+        id: u64,
+        /// What has no construction: the pair or kind and why.
+        what: String,
+        /// The lane that would construct it.
+        lane: &'static str,
+    },
+    /// A reading the build takes at the run's band escalated: the run's
+    /// tolerance does not decide the construction of edge `id`.
+    BuildEscalated {
+        /// The `EDGE_CURVE` entity instance.
+        id: u64,
+        /// The escalated reading.
+        source: Indeterminate,
+    },
     /// The adopted body failed the kernel's shared at-rest validation
     /// gate (M7-7, the #260 ruling (a)): `topo::validate_geometric` —
     /// tiers 1–3, the SAME function on the SAME body that a native
@@ -626,6 +646,20 @@ impl StepImportError {
                  carries a crease, and the split cannot be placed: {what} \
                  (work/importgate/the-c0-knot-split-refuses-what-it-cannot-place.md)"
             ),
+            Self::NotYetSupported { id, what, lane } => write!(
+                f,
+                "step import: edge #{id}: {what}, which the kernel does not yet construct (no \
+                 value the file printed stands in for a construction); the lane that would: \
+                 {lane}"
+            ),
+            Self::BuildEscalated { id, source } => {
+                write!(f, "step import: edge #{id}: building its carrier: ")?;
+                if ended {
+                    write!(f, "{source}")
+                } else {
+                    write!(f, "{}", source.payload())
+                }
+            }
             Self::TierInvalid { solid, errors } => {
                 // Both forms of each verdict: the Debug shape names
                 // the failing CHECK and its entity keys structurally

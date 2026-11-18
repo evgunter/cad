@@ -231,6 +231,7 @@
 
 mod adopt;
 mod assemble;
+mod build;
 mod chart;
 // `chart`'s randomized sweep, in a module of its own so the per-file test
 // gate can skip it without skipping `chart`'s deterministic rows.
@@ -496,6 +497,17 @@ pub enum NormalizationKind {
         joined: u64,
         /// The move (metres): a bound on the farthest a face on either
         /// record lies from the other's surface.
+        moved_by: f64,
+    },
+    /// **A vertex the build put where its built carriers meet** (`[import]`,
+    /// D7 step 2): the root of a surface around it along a carrier through
+    /// it, or the foot of its printed point on its one carrier, past the
+    /// printed point's own rounding and within the file's band. Keyed by
+    /// the `VERTEX_POINT`; its census pair is empty, since no face, edge or
+    /// vertex is added or lost.
+    VertexBuilt {
+        /// The move (metres): the built point's distance from the printed
+        /// one.
         moved_by: f64,
     },
     /// **A NURBS carrier promoted to an analytic kind** (D7 stage 1,

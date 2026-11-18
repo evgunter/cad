@@ -1475,6 +1475,72 @@ pub fn traced_in_r3(a: SurfaceKind, b: SurfaceKind) -> bool {
     residual(a) && residual(b)
 }
 
+/// **The tangent circle of a coaxial pair**, where the pair's own pose
+/// reading decides the two surfaces coaxial and tangent along one
+/// parallel: a cylinder and a sphere of one radius (the sphere's equator,
+/// `circle(0)`), a sphere and a torus or a cylinder and a torus whose
+/// coaxial tube or wall row reads `Zero` (the contact parallel in the
+/// meridian half-plane), and a plane normal to a torus's axis touching
+/// its tube ([`crate::plane_torus_section`]'s tangent circle, read at
+/// `extent`). The section value lists the same tangency as classification
+/// data ([`NoCarrier::Tangent`]) for its crossing readers; this is the
+/// construction of its locus, for a `TangentIntersection` edge, whose own
+/// certification decides the contact.
+///
+/// `Ok(None)` for any other pose or kind pair.
+///
+/// # Errors
+///
+/// The pose readings' refusals ([`SectionError`]).
+pub fn coaxial_tangent_circle<T: Decide>(
+    a: &Surface<T>,
+    b: &Surface<T>,
+    extent: geom_core::Lever<T>,
+    band: Band,
+) -> Result<Option<Curve3<T>>, SectionError> {
+    use SurfaceKind::{Cylinder, Plane, Sphere, Torus};
+    match (a.kind(), b.kind()) {
+        (Cylinder, Sphere) | (Sphere, Cylinder) => match CylinderSpherePose::decide(a, b, band) {
+            Some(pose) => Ok(pose?.tangent_circle()),
+            None => Ok(None),
+        },
+        (Sphere, Torus) | (Torus, Sphere) => match SphereTorusPose::decide(a, b, band) {
+            Some(pose) => Ok(pose?.tangent_parallel()),
+            None => Ok(None),
+        },
+        (Cylinder, Torus) | (Torus, Cylinder) => match CylinderTorusPose::decide(a, b, band) {
+            Some(pose) => Ok(pose?.tangent_parallel()),
+            None => Ok(None),
+        },
+        (Plane, Torus) | (Torus, Plane) => {
+            let (plane, torus) = if a.kind() == Plane { (a, b) } else { (b, a) };
+            match crate::plane_torus_section(plane, torus, extent, band)? {
+                crate::PlaneTorusSection::TangentCircle(c) => Ok(Some(c)),
+                _ => Ok(None),
+            }
+        }
+        _ => Ok(None),
+    }
+}
+
+impl<T: Decide> CylinderSpherePose<T> {
+    /// The coaxial pose's tangent circle, the sphere's equator, where the
+    /// wall reach decided `Zero`; `None` for every other pose.
+    fn tangent_circle(&self) -> Option<Curve3<T>> {
+        match self.stance {
+            CsStance::Coaxial { wall, .. } if wall.sign == Sign::Zero => Some(Curve3::circle(
+                self.center,
+                self.axis,
+                self.r,
+                geom::Frame::new(self.center, self.axis, self.u_ref)
+                    .square()
+                    .u_ref,
+            )),
+            _ => None,
+        }
+    }
+}
+
 /// The cylinder × sphere arm over its decided pose.
 fn cylinder_sphere<T: Decide>(
     pose: CylinderSpherePose<T>,

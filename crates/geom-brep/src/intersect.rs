@@ -2988,6 +2988,151 @@ pub fn plane_torus_section<T: Decide>(
 // cone × cylinder, the coaxial configuration only
 // ---------------------------------------------------------------------
 
+/// **The cone × sphere section, the coaxial configuration only**
+/// ([`cone_sphere_section`]).
+#[derive(Clone, Debug)]
+pub enum ConeSphereSection<T: Real> {
+    /// The sphere crosses the cone: one circle per root station of the
+    /// sphere along the cone's axis, each centred on the axis, normal to
+    /// it, with the cone's squared seam as its `u_ref`. A root at the apex
+    /// is a point, and lists no circle.
+    CoaxialCircles(Vec<Curve3<T>>),
+    /// The sphere touches the cone along one circle: classification data.
+    TangentCircle(Curve3<T>),
+    /// The sphere misses the cone.
+    Empty,
+}
+
+/// **The cone × sphere section where the sphere's centre lies on the
+/// cone's axis**: a coaxial sphere meets the cone's double nappe in
+/// circles, closed form. On the axis at station `h` from the apex the cone
+/// has radius `|h|·tan α`, and the sphere of radius `R` whose centre is at
+/// station `c` holds the points with `(h − c)² + h²·tan²α = R²`, so
+/// `h = c·cos²α ± cos α·√(R² − c²·sin²α)`. In order:
+///
+/// 1. `kos_sphere_radius`, `R`, definitely positive;
+/// 2. `kos_aperture_sin` and `kos_aperture_cos`, the cone's convention
+///    `0 < α < π/2`, each levered at `extent` from below;
+/// 3. `kos_coaxial`, the sphere centre's distance from the cone's axis:
+///    `Zero` is the coaxial pose; definite routes to the general rung;
+/// 4. `kos_reach`, `R − |c|·sin α`, the sphere centre's distance from the
+///    cone less its radius, sign flipped: `Positive` crosses (each root
+///    station's `kos_apex_station`, `|h|`, read apart from zero for a
+///    circle), `Zero` touches along the tangent circle, `Negative`
+///    misses.
+///
+/// # Errors
+///
+/// [`SectionError::WrongLane`] for another pair; the guards' refusals;
+/// [`SectionError::RoutesToGeneralRung`] for a sphere off the axis; an
+/// in-band reading escalates.
+pub fn cone_sphere_section<T: Decide>(
+    cone: &Surface<T>,
+    sphere: &Surface<T>,
+    extent: impl Into<LeverBounds<T>>,
+    band: Band,
+) -> Result<ConeSphereSection<T>, SectionError> {
+    let below = extent.into().below();
+    let (
+        &Surface::Cone {
+            apex, half_angle, ..
+        },
+        Some(frame),
+        &Surface::Sphere { center, radius, .. },
+    ) = (cone, cone.frame(), sphere)
+    else {
+        return Err(SectionError::WrongLane {
+            expected: "cone×sphere (cone first)",
+        });
+    };
+    let SquareFrame {
+        axis: a, u_ref, ..
+    } = frame.square();
+    match decide("kos_sphere_radius", Margin::of(radius), band).map_err(|diag| {
+        SectionError::RadiusEscalated {
+            radius: SectionRadius::Sphere,
+            diag,
+        }
+    })? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(SectionError::DegenerateOperand {
+                what: "the sphere's radius is not definitely positive",
+            });
+        }
+    }
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    for (name, margin, at_edge, outside) in [
+        (
+            "kos_aperture_sin",
+            sin_a,
+            "the cone's half-angle is zero within the tolerance",
+            "the cone's half-angle is negative, outside its convention 0 < α < π/2",
+        ),
+        (
+            "kos_aperture_cos",
+            cos_a,
+            "the cone's half-angle is a right angle within the tolerance",
+            "the cone's half-angle is past a right angle, outside its convention \
+             0 < α < π/2",
+        ),
+    ] {
+        match decide(name, Margin::levered(margin, below), band).map_err(SectionError::Escalated)? {
+            Sign::Positive => {}
+            Sign::Zero => return Err(SectionError::ConeAtTheBand { what: at_edge }),
+            Sign::Negative => return Err(SectionError::DegenerateOperand { what: outside }),
+        }
+    }
+    let axis = geom::Line {
+        origin: apex,
+        dir: a,
+    };
+    match decide("kos_coaxial", Margin::of(axis.distance(center)), band)
+        .map_err(SectionError::Escalated)?
+    {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            return Err(SectionError::RoutesToGeneralRung {
+                pair: "cone×sphere",
+                why: "a sphere whose centre is off the cone's axis cuts a QUARTIC, and the \
+                      pair's general-rung arm has not retired — the cone's composite has no \
+                      meters conversion",
+            });
+        }
+    }
+    let c = (center - apex).dot(a);
+    let circle = |h: T| {
+        Curve3::circle(
+            apex + a * h,
+            a,
+            h.abs() * (sin_a / cos_a),
+            u_ref,
+        )
+    };
+    let cos2 = cos_a * cos_a;
+    let reach = radius - c.abs() * sin_a;
+    Ok(
+        match decide("kos_reach", Margin::of(reach), band).map_err(SectionError::Escalated)? {
+            Sign::Positive => {
+                let root = (reach * (radius + c.abs() * sin_a)).sqrt() * cos_a;
+                let mut circles = Vec::with_capacity(2);
+                for h in [c * cos2 + root, c * cos2 - root] {
+                    match decide("kos_apex_station", Margin::of(h.abs()), band)
+                        .map_err(SectionError::Escalated)?
+                    {
+                        Sign::Positive => circles.push(circle(h)),
+                        Sign::Zero | Sign::Negative => {}
+                    }
+                }
+                ConeSphereSection::CoaxialCircles(circles)
+            }
+            Sign::Zero => ConeSphereSection::TangentCircle(circle(c * cos2)),
+            Sign::Negative => ConeSphereSection::Empty,
+        },
+    )
+}
+
+
 /// The classified cone×cylinder section — the one exact-degenerate
 /// configuration's closed form (rung 1: the trileans run before any
 /// rung, C5; **no fitted chord anywhere in this arm** — both loci are
