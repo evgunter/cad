@@ -105,16 +105,23 @@ pub(crate) fn endpoint_params(
                     })
                 }
             };
-            let t0 = turn.at_or_above(angle(p_start)?, 0.0);
+            // A spiric's tube angle is read within half a turn of zero,
+            // as its section constructs it; a conic's start angle in
+            // [0, τ).
+            let t0 = if matches!(carrier, Curve3::Spiric { .. }) {
+                angle(p_start)?
+            } else {
+                turn.at_or_above(angle(p_start)?, 0.0)
+            };
             if self_loop {
                 return Ok((t0, t0 + turn.length()));
             }
             Ok((t0, turn.above(angle(p_end)?, t0)))
         }
         // No construction the build reads makes a periodic carrier.
-        Curve3::Periodic(_) => unreachable!(
-            "endpoint_params: the STEP import builds no periodic carrier"
-        ),
+        Curve3::Periodic(_) => {
+            unreachable!("endpoint_params: the STEP import builds no periodic carrier")
+        }
         Curve3::Nurbs(payload) => {
             // Clamped B-splines interpolate their end control points,
             // so the subset's B-spline edges span the whole knot

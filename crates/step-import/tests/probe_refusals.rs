@@ -169,7 +169,10 @@ fn a_vertex_at_the_conic_centre_is_a_residual_refusal_not_a_finiteness_one() {
             ..
         }) => {
             assert_eq!(id, 22, "the centre vertex is the offender");
-            assert_eq!(reading, "step_vertex_built", "the vertex's own reading refuses");
+            assert_eq!(
+                reading, "step_vertex_built",
+                "the vertex's own reading refuses"
+            );
             assert!(
                 (miss - 5e-4).abs() < 1e-12,
                 "the miss is the rim's radius, the centre's distance from where the rim and \

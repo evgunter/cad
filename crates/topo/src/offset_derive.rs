@@ -821,24 +821,12 @@ pub(crate) fn section_of<'w, 's, T: Decide, E>(
     // chart, as for evaluation and pcurves. Each wall with its own slot
     // (the first arm wins where both are planes).
     let plane_wall = match (a, b) {
-        (plane @ Surface::Plane { .. }, wall) => wall.spline_chart().map(|net| {
-            (
-                plane,
-                Wall {
-                    net,
-                    chart: slot_b,
-                },
-            )
-        }),
-        (wall, plane @ Surface::Plane { .. }) => wall.spline_chart().map(|net| {
-            (
-                plane,
-                Wall {
-                    net,
-                    chart: slot_a,
-                },
-            )
-        }),
+        (plane @ Surface::Plane { .. }, wall) => wall
+            .spline_chart()
+            .map(|net| (plane, Wall { net, chart: slot_b })),
+        (wall, plane @ Surface::Plane { .. }) => wall
+            .spline_chart()
+            .map(|net| (plane, Wall { net, chart: slot_a })),
         _ => None,
     };
     let spline_pair = a.spline_chart().zip(b.spline_chart()).map(|(na, nb)| {

@@ -494,7 +494,6 @@ fn must_carry_rung(
     }
 }
 
-
 /// The conventional self-description for carriers the surfaces
 /// under-determine: a line is its start point's trajectory under the
 /// translation to its end, a circular arc its start point's
@@ -579,7 +578,6 @@ fn mapped_self_description(
     }
 }
 
-
 /// A rigid frame whose x-axis is the (unit) line direction, placed at
 /// the line's origin — the `PlacedSegment` placement for a
 /// Nurbs-adjacent rim ([`mapped_self_description`]). The y/z columns
@@ -625,7 +623,6 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
         origin - Point3::origin(),
     ))
 }
-
 
 #[cfg(test)]
 #[allow(

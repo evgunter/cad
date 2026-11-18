@@ -703,7 +703,10 @@ impl<T: Decide> SphereTorusPose<T> {
         }
         let ring = self.ring;
         let ca = (self.center - ring.center).dot(ring.axis);
-        let (c1, c2) = (Point2::new(ring.big_r, T::zero()), Point2::new(T::zero(), ca));
+        let (c1, c2) = (
+            Point2::new(ring.big_r, T::zero()),
+            Point2::new(T::zero(), ca),
+        );
         let p = Circles::new((c2 - c1).norm(), ring.r, self.radius)
             .at(c1, c2)
             .foot();

@@ -81,7 +81,7 @@
 
 use std::path::{Path, PathBuf};
 
-use Disposition::{EpsSensitive, Escalated, Pass, Refused, Wireframe};
+use Disposition::{EpsSensitive, Pass, Refused, Wireframe};
 use geom_core::{Band, Tol};
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 use test_utils::vacuity::Exposure;
@@ -104,11 +104,6 @@ enum Disposition {
     /// Refuses typed; the string is a distinctive fragment of the
     /// refusal's own message, so the ROW says why, not just that.
     Refused(&'static str),
-    /// Refuses typed on an escalation of the named predicate, with the
-    /// message containing the fragment (empty: any message). The name
-    /// is routing, which the message a person reads leaves out, so it
-    /// is read off the typed refusal's `Debug`.
-    Escalated(&'static str, &'static str),
     /// This file's disposition genuinely MOVES with the ambient ε, and
     /// its cells are pinned one by one in [`EPS_ROWS`] — a marker, not
     /// an outcome, so no cell of it can be satisfied by accident.
@@ -220,33 +215,13 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   precondition read the two walls' angle at the 1.6e-6 m edge's own
 ///   length, where they read as one ("tangent planes coincide"); at the
 ///   walls' extent they cross clearly.
-/// * **`nist_ftc_09_asme1_rd`** refuses at ambient 1e-12 with definite
-///   `EndpointStart` residuals on both the seam and the mapped-curve
-///   arm. This is the floor `wild.rs` already measures and documents:
-///   the NIST inch translator prints ~12 significant digits, so the
-///   file does not state itself to 1e-12 m, and the adoption ladder
-///   says so by name instead of certifying a carrier it cannot. The
-///   miss lies within the file's declared ε_in, so the refusal names
-///   setting ε to ε_in as a stopgap beside re-exporting more precisely
-///   (D4 ¶1).
-const EPS_ROWS: [(&str, f64, &str, Disposition); 39] = [
-    // -- tests/fixtures/wild/stepcode/TAIL_TURBINE.stp ----------------
-    // At the default and fine bands the spline-carried edge #170 misses
-    // its surface past ε and the ladder refuses it. At 1e-6 that edge
-    // certifies, and the half-cylinder faces (two records of one
-    // cylinder) meet along rulings the must-carry rule reads
-    // under-determined; they adopt as the pair, and the file passes.
-    // The census is the file's less its two reported `JoinedEdges`
-    // normalizations (56 edges and 38 vertices stated).
-    (TAIL_TURBINE, 1e-9, "file", Refused(TAIL_TURBINE_MISS)),
-    (TAIL_TURBINE, 1e-6, "file", Pass(1, 1, 20, 54, 36)),
-    (TAIL_TURBINE, 1e-12, "file", Refused(TAIL_TURBINE_MISS)),
+const EPS_ROWS: [(&str, f64, &str, Disposition); 33] = [
     // -- tests/fixtures/cert1-r1/nearpolar_*.step ---------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). At ambient 1e-6 both
-    // twins refuse at EDGE ADOPTION — the rim/plane wedge angle's
-    // certification margin (~8.6e-6 rad) is inside the ambiguity
-    // band, so no props arithmetic is even reached; at the default
+    // twins refuse at interpretation — the file is read no finer than
+    // the run, and the rim the build makes lies in that band of the
+    // printed one (~2.2e-6 m) without reading one with it; at the default
     // and fine bands both certify with the exact closed-form volume
     // (`cert1_r1_import_probes.rs` holds the value), the split twin
     // with its ordinary vertex joined, so with the no-split census.
@@ -258,7 +233,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 39] = [
         NEARPOLAR_SPLIT,
         1e-6,
         "file",
-        Escalated(NEARPOLAR_WEDGE_ESCALATED.0, NEARPOLAR_WEDGE_ESCALATED.1),
+        Refused(NEARPOLAR_RIM_IN_BAND),
     ),
     (NEARPOLAR_SPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
     (NEARPOLAR_NOSPLIT, 1e-9, "file", Pass(1, 1, 3, 4, 3)),
@@ -266,7 +241,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 39] = [
         NEARPOLAR_NOSPLIT,
         1e-6,
         "file",
-        Escalated(NEARPOLAR_WEDGE_ESCALATED.0, NEARPOLAR_WEDGE_ESCALATED.1),
+        Refused(NEARPOLAR_RIM_IN_BAND),
     ),
     (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
@@ -284,21 +259,6 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 39] = [
     (FTC11, 1e-12, "file", Pass(1, 1, 6, 12, 8)),
     (FTC11, 1e-12, "1e-6", Refused(FTC11_SEAM_VERTEX_IN_BAND)),
     (FTC11, 1e-12, "1e-12", Pass(1, 1, 6, 12, 8)),
-    // -- tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp ------------
-    // The AMBIENT sweep only, at this file's own ε_in — the same shape
-    // dm1 took in 2026-08-13, for the same reason and on the same kind
-    // of evidence. It was nine cells until 2026-08-22; the six dropped
-    // ones were the `1e-6` and `1e-12` ε_in tags, and each held the
-    // SAME disposition, census and refusal message as the `file` tag
-    // beside it at every band. This file is AMBIENT-sensitive and
-    // ε_in-INVARIANT, and those are different axes: what moves it is
-    // that the NIST inch translator prints ~12 significant digits, so
-    // at ambient 1e-12 the file does not state itself finely enough —
-    // a property of the file against the ambient band, which no
-    // interpretation budget in this sweep touches. See [`EPS_IN_SWEPT`].
-    (NIST09, 1e-9, "file", Pass(1, 1, 158, 454, 300)),
-    (NIST09, 1e-6, "file", Pass(1, 1, 158, 454, 300)),
-    (NIST09, 1e-12, "file", Refused(NIST09_STOPGAP)),
     // -- tests/fixtures/halfcap/halfcap_eps{6,7}.step (Ev, PR 4251) ---
     // The AMBIENT sweep only, at the files' own ε_in. The split vertex
     // sits 1e-8 m (eps6) and 1e-9 m (eps7) off the pole, and whether
@@ -376,16 +336,19 @@ const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
 /// FTC11's rim vertex beside the seam azimuth, read in the file's band.
 const FTC11_SEAM_VERTEX_IN_BAND: &str = "(step_band_seam_vertex) lies in the";
 pub(crate) const TAIL_TURBINE: &str = "tests/fixtures/wild/stepcode/TAIL_TURBINE.stp";
-/// `TAIL_TURBINE`'s refusal below 1e-6: its spline-carried edge (#170)
-/// misses one of its analytic surfaces past ε.
-const TAIL_TURBINE_MISS: &str = "the residual against one of the edge's surfaces";
+/// TAIL_TURBINE's refusal at every band: its half-cylinder faces state
+/// one cylinder in two records, and the edges between them are curves
+/// inside one surface, which waits on one record for a non-planar
+/// surface.
+const TAIL_TURBINE_TWO_RECORDS: &str = "an edge between two records of one cylinder";
 pub(crate) const NEARPOLAR_SPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_split.step";
 const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step";
-/// The nearpolar twins' coarse-band sub-reason: the rim/plane wedge
-/// angle's adoption certification, by predicate name, so a regression
-/// that moves the refusal to another door fails these cells.
-const NEARPOLAR_WEDGE_ESCALATED: (&str, &str) =
-    ("the crossing angle at sample 1 escalated", "dihedral_wedge");
+/// The nearpolar twins' coarse-band reason: at ambient 1e-6 the file is
+/// read no finer than the run, and the rim the build makes from its plane
+/// and its sphere lies within that band of the printed rim without
+/// reading one with it.
+const NEARPOLAR_RIM_IN_BAND: &str =
+    "(step_edge_on_description) lies in the band the file is read at";
 const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
 const POLEBAND: &str = "tests/fixtures/poleguard/poleband.step";
 const POLEBAND12: &str = "tests/fixtures/poleguard/poleband_eps12.step";
@@ -408,7 +371,6 @@ const POLE_SIBLING_CIRCLE_UNREAD: &str = "a circle's radius, which must be posit
 /// on a vertex two instances share. Named specifically so a refusal
 /// that drifted to a different door cannot stand in.
 const DM1_CONTACT_UNRECORDED: &str = "is an unrecorded contact";
-const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 const HALFCAP_EPS6: &str = "tests/fixtures/halfcap/halfcap_eps6.step";
 const HALFCAP_EPS7: &str = "tests/fixtures/halfcap/halfcap_eps7.step";
 /// The halfcap near-pole twins' default-band refusal: the split vertex
@@ -430,16 +392,14 @@ const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or
      vertex, onto that point or clear of it, or, if this distance is intended, tighten \
      the tolerance below 1.0000000011961913e-10 m";
 
-/// The MAPPED-CURVE arm's definite miss, read at the import door by its
-/// own value: it lies within the file's ε_in (its inch uncertainty,
-/// 1.331353158630e-3 in), so the ending names setting ε to ε_in as a
-/// stopgap (D4 ¶1) rather than a kernel defect or a damaged file.
-const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-endpoint residual \
-     at sample 0 definitely exceeds the tolerance band (the cache does not represent the \
-     description, D4 ¶2). This miss lies beyond the tolerance and within the file's declared \
-     coincidence distance ε_in = 3.3816370229201994e-5 m, to which alone the file's data claims \
-     to agree. Recourse: re-export the file more precisely, or, as a stopgap, set the tolerance \
-     to ε_in = 3.3816370229201994e-5 m";
+/// `nist_ftc_09`'s refusal at every band: its plane × cylinder pairs read
+/// tangent at the file's band (ε_in ≈ 34 µm, the inch translator's ~12
+/// digits) and crossing at the run's, a relation D7 step 3's snap
+/// catalogue makes exact. Until that lane the build has no construction
+/// for the edge, and says so rather than certifying a crossing the file
+/// does not state.
+const NIST09_SNAP: &str = "read tangent at the file's band and apart at the run's, which the \
+     kernel does not yet construct";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
@@ -749,7 +709,7 @@ const CORPUS: &[(&str, Disposition)] = &[
     ),
     (
         "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp",
-        EpsSensitive,
+        Refused(NIST09_SNAP),
     ),
     (
         "tests/fixtures/wild/nist/nist_ftc_11_asme1_rb.stp",
@@ -763,8 +723,7 @@ const CORPUS: &[(&str, Disposition)] = &[
         "tests/fixtures/wild/occ-oss/cq_red_cube_blue_cylinder.step",
         Pass(2, 2, 9, 15, 10),
     ),
-    // Pinned per ambient ε in [`EPS_ROWS`] (`TAIL_TURBINE`).
-    (TAIL_TURBINE, EpsSensitive),
+    (TAIL_TURBINE, Refused(TAIL_TURBINE_TWO_RECORDS)),
     (
         // **Two halves of this refusal are now retired.** M8
         // instancing took the placement half (dm1's seven occurrences
@@ -1059,7 +1018,7 @@ fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
 /// disposition from.
 pub(crate) fn refuses_at_run_eps(rel: &str) -> Option<bool> {
     let &(_, row) = CORPUS.iter().find(|(p, _)| *p == rel)?;
-    expected(rel, row, "file").map(|d| matches!(d, Refused(_) | Escalated(..)))
+    expected(rel, row, "file").map(|d| matches!(d, Refused(_)))
 }
 
 /// Every corpus file's disposition, and the positive tier-validity of
@@ -1118,21 +1077,6 @@ fn every_corpus_import_passes_the_shared_gate() {
                         msg.contains(fragment),
                         "{who}: refused for a DIFFERENT reason than the table records \
                          (want a message containing {fragment:?}): {msg}"
-                    );
-                }
-                (Err(e), Escalated(fragment, predicate)) => {
-                    let msg = e.render();
-                    assert_adoption_reading(&who, &e, &mut exposure);
-                    assert!(
-                        msg.contains(fragment),
-                        "{who}: refused for a DIFFERENT reason than the table records \
-                         (want a message containing {fragment:?}): {msg}"
-                    );
-                    let typed = format!("{e:?}");
-                    assert!(
-                        typed.contains(&format!("predicate: Some({predicate:?})")),
-                        "{who}: refused for a DIFFERENT reason than the table records \
-                         (want an escalation of {predicate:?}): {typed}"
                     );
                 }
                 (got, want) => panic!("{who}: disposition changed — want {want:?}, got {got:?}"),

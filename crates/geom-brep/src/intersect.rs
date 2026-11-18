@@ -3045,9 +3045,7 @@ pub fn cone_sphere_section<T: Decide>(
             expected: "cone×sphere (cone first)",
         });
     };
-    let SquareFrame {
-        axis: a, u_ref, ..
-    } = frame.square();
+    let SquareFrame { axis: a, u_ref, .. } = frame.square();
     match decide("kos_sphere_radius", Margin::of(radius), band).map_err(|diag| {
         SectionError::RadiusEscalated {
             radius: SectionRadius::Sphere,
@@ -3101,14 +3099,7 @@ pub fn cone_sphere_section<T: Decide>(
         }
     }
     let c = (center - apex).dot(a);
-    let circle = |h: T| {
-        Curve3::circle(
-            apex + a * h,
-            a,
-            h.abs() * (sin_a / cos_a),
-            u_ref,
-        )
-    };
+    let circle = |h: T| Curve3::circle(apex + a * h, a, h.abs() * (sin_a / cos_a), u_ref);
     let cos2 = cos_a * cos_a;
     let reach = radius - c.abs() * sin_a;
     Ok(
@@ -3131,7 +3122,6 @@ pub fn cone_sphere_section<T: Decide>(
         },
     )
 }
-
 
 /// The classified cone×cylinder section — the one exact-degenerate
 /// configuration's closed form (rung 1: the trileans run before any

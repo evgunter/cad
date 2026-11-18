@@ -82,15 +82,13 @@ const WILD_REFUSALS: [(&str, &str); 5] = [
     // weights 1 and 2), and the bolts and nuts sit on the bracket, so
     // two instances share vertex positions the gate finds unrecorded.
     ("stepcode/dm1-id-214.stp", "is an unrecorded contact"),
-    // A spline-carried edge between analytic surfaces: the file's
-    // geometry is inside the subset entity by entity, and the D7
-    // ladder still cannot certify any intensional description for the
-    // edge. The refusal is the ladder's own, with every candidate and
-    // its residual. Where it refuses is `tier_gate`'s pin
-    // ([`refuses_at_this_eps`]): at a coarse ε the edge certifies.
+    // Its half-cylinder faces state one cylinder in two records, and
+    // the edges between them are curves inside one surface: the build
+    // has no construction for them until one record reaches non-planar
+    // surfaces, and says so at every ε.
     (
         "stepcode/TAIL_TURBINE.stp",
-        "the spline foot's projection",
+        "an edge between two records of one cylinder",
     ),
     // Its plane × cylinder pairs read tangent at the file's band
     // (ε_in ≈ 34 µm) and crossing at the run's: the relation is a
@@ -823,7 +821,8 @@ fn eps_in_scales_through_the_conversion_factor_and_the_override_wins() {
         Ok(imported) => imported.eps_in(),
         Err(
             StepImportError::NotYetSupported { file, .. }
-            | StepImportError::BuildEscalated { file, .. },
+            | StepImportError::BuildEscalated { file, .. }
+            | StepImportError::Interpretation { file, .. },
         ) => file.eps_in(),
         Err(other) => panic!("{name}: imports or refuses at the build, got {other:?}"),
     };
