@@ -54,16 +54,48 @@ pub(crate) fn body_reach_at<T: Decide>(
     reach_of(
         body,
         |p| map.transform_point(p),
-        |curve| {
-            let carrier = crate::transform::map_carrier(&iso, curve.stored_carrier())?;
-            Ok(Some(curve.carried(
-                carrier,
-                curve.description().clone(),
-                curve.authority(),
-            )))
-        },
+        |curve| placed_edge(&iso, curve).map(Some),
         Covers::Read,
     )
+}
+
+/// **An edge where it stands under `iso`, as the image holds it**: its
+/// stored carrier mapped (`map_carrier`) and its reading over its span
+/// re-taken on the image (`EdgeCurve::carried`), as
+/// `transform::map_isometry` writes it. On a periodic cubic the reading
+/// is a clamped view of the loop, and mapping that view instead rounds
+/// differently. Only the carrier and its reading are read off it: the
+/// description and authority are the source's, unmapped.
+///
+/// # Errors
+///
+/// A carrier the motion does not map.
+fn placed_edge<T: Decide>(
+    iso: &crate::Isometry<T>,
+    curve: &geom_brep::EdgeCurve<T>,
+) -> Result<geom_brep::EdgeCurve<T>, crate::TransformError> {
+    let carrier = crate::transform::map_carrier(iso, curve.stored_carrier())?;
+    Ok(curve.carried(carrier, curve.description().clone(), curve.authority()))
+}
+
+/// **One edge's largest `|coordinate|` from below**, its ends as they
+/// stand: its carrier's cover over its span hulled with the ends
+/// (`cover::edge_cover_over`, the image's `Body::edge_cover`), read
+/// along the world axes, or its own sampled points where the cover
+/// refuses or is withheld (`geom_brep::edge_coordinate_reach_below`).
+fn edge_reach<T: Decide>(
+    curve: &geom_brep::EdgeCurve<T>,
+    ends: (Point3<T>, Point3<T>),
+    covers: Covers,
+) -> T {
+    let world_box = match covers {
+        Covers::Read => crate::cover::edge_cover_over(curve.carrier(), curve.params(), ends)
+            .ok()
+            .map(|cover| cover.box_in(&BoxAxes::World)),
+        #[cfg(test)]
+        Covers::Withheld => None,
+    };
+    geom_brep::edge_coordinate_reach_below(curve.carrier(), curve.params(), world_box)
 }
 
 /// Whether [`reach_of`] reads each edge's cover, or withholds it so the
@@ -103,18 +135,7 @@ fn reach_of<T: Decide, E>(
         let curve = moved.as_ref().unwrap_or(stored);
         let end = |he, which| place(crate::cover::edge_end_point(body, e, he, which));
         let ends = (end(data.he_plus, "he_plus"), end(data.he_minus, "he_minus"));
-        let world_box = match covers {
-            Covers::Read => crate::cover::edge_cover_over(curve.carrier(), curve.params(), ends)
-                .ok()
-                .map(|cover| cover.box_in(&BoxAxes::World)),
-            #[cfg(test)]
-            Covers::Withheld => None,
-        };
-        reach = reach.max(geom_brep::edge_coordinate_reach_below(
-            curve.carrier(),
-            curve.params(),
-            world_box,
-        ));
+        reach = reach.max(edge_reach(curve, ends, covers));
     }
     Ok(reach)
 }
@@ -278,7 +299,13 @@ mod tests {
     /// brick and a sphere cap (its rim a circle arc, read off its cover)
     /// under a motion off every axis. *Breaks if* the placed reading
     /// reads other data than the image's ask (a vertex alone, an edge's
-    /// cover without its mapped ends, an unmapped carrier).
+    /// cover without its mapped ends, an unmapped carrier). A periodic
+    /// cubic edge, whose stored loop and clamped reading differ, is
+    /// pinned one level down
+    /// ([`a_periodic_edges_placed_reach_is_its_images_to_the_bit`]): no
+    /// body fixture has periodic cubic edges, and at the body both reads
+    /// run through the one fold [`reach_of`], so the edge's mapping is
+    /// the only place the two could differ.
     #[test]
     fn a_placements_reach_is_its_images_to_the_bit() {
         let tol = Tol::witness();
@@ -307,6 +334,100 @@ mod tests {
                 "the placement reads its image's reach"
             );
         }
+    }
+
+    /// **A periodic cubic edge is placed as the image re-reads it, to the
+    /// bit**: forty edges, each a span of one closed periodic cubic in a
+    /// plane, the spans straddling its knots, under a motion off every
+    /// axis. Each edge's reach as the placement reads it ([`placed_edge`]
+    /// then [`edge_reach`]) is its image's, the carrier mapped from its
+    /// stored loop and the view re-taken (`EdgeCurve::carried`, what
+    /// `transform::map_isometry` writes). The body-level row cannot hold
+    /// one: no body fixture has periodic cubic edges. *Breaks if* the
+    /// placement maps the edge's clamped view instead, which rounds off
+    /// the image's on some of the spans; the row counts those, so the
+    /// contrast is shown and not assumed.
+    #[test]
+    fn a_periodic_edges_placed_reach_is_its_images_to_the_bit() {
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let axis = geom_core::UnitVec3::new(
+            geom_core::Vec3::new(1.0, 2.0_f64.sqrt(), 3.0_f64.sqrt()),
+            "a turn off every axis",
+            band,
+        )
+        .unwrap();
+        let motion =
+            geom_core::RigidMotion::translation(geom_core::Vec3::new(637.0, -251.25, 82.5))
+                .unwrap()
+                .compose(geom_core::RigidMotion::rotation(axis, 0.7).unwrap())
+                .unwrap();
+        let iso = crate::Isometry::Proper(motion);
+        let map = iso.to_affine();
+        let points: Vec<Point3<f64>> = (0..40)
+            .map(|i| {
+                let a = core::f64::consts::TAU * f64::from(i) / 40.0;
+                Point3::new(0.6 * a.cos() + 0.1 * (3.0 * a).cos(), 0.4 * a.sin(), 0.0)
+            })
+            .collect();
+        let net = geom::PeriodicNurbs3::interpolate(&points).unwrap();
+        let carrier = geom::Curve3::Periodic(std::sync::Arc::new(net));
+        let mut view_differs = 0;
+        for k in 0..40 {
+            let t0 = (f64::from(k) + 0.37) / 40.0;
+            let t1 = t0 + 1.0 / 40.0;
+            // A certified edge over the span, its carrier then replaced
+            // by the loop as a map replaces one (`EdgeCurve::carried`):
+            // the loop stored, its clamped view over the span the
+            // reading. No door certifies a periodic cubic on one plane.
+            let arc = geom::Curve3::circle(
+                Point3::origin(),
+                geom_core::Vec3::unit_z(),
+                1.0,
+                geom_core::Vec3::unit_x(),
+            );
+            let spec = geom_brep::EdgeCurveSpec::arc_of_circle(arc.clone(), t0, t1).unwrap();
+            let span = geom_brep::EdgeCurve::certify(
+                spec,
+                arc.eval(t0),
+                arc.eval(t1),
+                |_| None,
+                geom_core::test_support::fixture_lever(1.0),
+                band,
+                geom_brep::NurbsLane::certified(),
+            )
+            .unwrap_or_else(|e| panic!("span {k} certifies: {e:?}"));
+            let curve = span.carried(
+                carrier.clone(),
+                span.description().clone(),
+                span.authority(),
+            );
+            assert!(
+                !matches!(curve.carrier(), geom::Curve3::Periodic(_)),
+                "the reading is a clamped view of the loop"
+            );
+            let ends = (
+                map.transform_point(carrier.eval(t0)),
+                map.transform_point(carrier.eval(t1)),
+            );
+            let image = curve.carried(
+                crate::transform::map_carrier(&iso, curve.stored_carrier()).unwrap(),
+                curve.description().clone(),
+                curve.authority(),
+            );
+            let placed = edge_reach(&placed_edge(&iso, &curve).unwrap(), ends, Covers::Read);
+            let imaged = edge_reach(&image, ends, Covers::Read);
+            assert_eq!(placed.to_bits(), imaged.to_bits(), "span {k}");
+            let viewed = crate::transform::map_carrier(&iso, curve.carrier()).unwrap();
+            let viewed = curve.carried(viewed, curve.description().clone(), curve.authority());
+            if edge_reach(&viewed, ends, Covers::Read).to_bits() != imaged.to_bits() {
+                view_differs += 1;
+            }
+        }
+        assert!(
+            view_differs > 0,
+            "the clamped view's map rounds off the image's on some span"
+        );
     }
 
     /// **The reach is never short of a vertex's coordinate**: a long thin
