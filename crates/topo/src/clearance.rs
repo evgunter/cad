@@ -5995,10 +5995,13 @@ mod seated_windows {
     /// the sweep holds alike, and its receipt and its count of region
     /// readings are one.
     ///
+    /// A second brick stands 0.1 off the patch's middle, and `≥ 0.3` is
+    /// violated in both frames: the cells there read on the face.
+    ///
     /// *Breaks if* a cell's region is read against the placed carrier and
     /// the face's own boundary together (the window's own lift dropped):
-    /// the two frames disagree and the cells near the trimmed edge read
-    /// otherwise.
+    /// the two frames disagree, every cell reads clear of the boundary, and
+    /// a cell straddling the patch's edge reads by its centre alone.
     #[test]
     fn a_trimmed_face_read_across_a_turn_sweeps_as_the_placed_face() {
         let tol = Tol::witness();
@@ -6044,15 +6047,21 @@ mod seated_windows {
                 max_cell_pairs: 200_000,
             },
         };
-        let run = |(body, face): (&crate::Body<f64>, crate::FaceKey),
-                   at: Option<&RigidMotion<f64>>| {
-            let wa = Side {
+        fn windows<'b>(
+            (body, face): (&'b crate::Body<f64>, crate::FaceKey),
+            at: Option<&RigidMotion<f64>>,
+        ) -> super::Windows<'b, f64> {
+            Side {
                 body,
                 faces: vec![face],
             }
             .windows_at(Which::First, at)
-            .unwrap();
-            sweep.run(&wa, &wb, false, |_| Err::<(), _>("no witness".to_owned()))
+            .unwrap()
+        }
+        let run = |placed, at| {
+            sweep.run(&windows(placed, at), &wb, false, |_| {
+                Err::<(), _>("no witness".to_owned())
+            })
         };
         let (held, seated) = (
             run((&moved, moved_face), None),
@@ -6069,6 +6078,62 @@ mod seated_windows {
             assert!(
                 report.receipt.outside > 0 && report.decided > 0,
                 "{what}: the sweep reads cells off the face as off it: {:?}",
+                report.receipt
+            );
+        }
+        // A second brick, 0.1 past the patch's middle along its outward
+        // radial: the cells there hold the face, so `≥ 0.3` is violated,
+        // and the sweep sees it only if it reads those cells on the face.
+        let radial = Vec3::new(1.1f64.cos(), 1.1f64.sin(), 0.0);
+        let at = Point3::origin() + radial * 2.6;
+        let near: crate::Body<f64> = crate::transform_rigid(
+            &crate::test_support_fixtures::brick(
+                (at.x - 0.02, at.x + 0.02),
+                (at.y - 0.02, at.y + 0.02),
+                (-0.02, 0.02),
+                tol,
+            ),
+            &m,
+        )
+        .unwrap();
+        let wn = Side {
+            body: &near,
+            faces: near.faces().map(|(k, _)| k).collect(),
+        }
+        .windows(Which::Second)
+        .unwrap();
+        // One cell straddling the patch's `u = 1.9` edge reads its region
+        // alike in both frames: undecided, the edge inside its reach, its
+        // centre just off the face.
+        let cell_u = (1.88, 1.98);
+        let cell_v = (-0.05, 0.05);
+        let region = |placed: (&crate::Body<f64>, crate::FaceKey), motion| {
+            let w = super::window_of(placed.0, placed.1, Which::First, motion).unwrap();
+            let cell = super::Cell::on(&w.surface, cell_u, cell_v);
+            super::RegionMemo::at(band).ask(false, 0, &w, cell)
+        };
+        let here = region((&moved, moved_face), None);
+        assert_eq!(
+            here,
+            crate::cell_region::CellRegion::Undecided,
+            "the premise: the cell straddles the patch's edge"
+        );
+        assert_eq!(
+            region((&patch, face), Some(&m)),
+            here,
+            "the straddling cell's region, read through the motion"
+        );
+        for (what, placed, motion) in [
+            ("placed", (&moved, moved_face), None),
+            ("read through its motion", (&patch, face), Some(&m)),
+        ] {
+            let report = sweep.run(&windows(placed, motion), &wn, false, |_| {
+                Ok::<(), String>(())
+            });
+            assert!(
+                matches!(report.verdict, super::BoundVerdict::Violated(())),
+                "{what}: a brick 0.1 off the face's middle violates `≥ 0.3`: {:?} {:?}",
+                report.verdict,
                 report.receipt
             );
         }
