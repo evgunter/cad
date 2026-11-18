@@ -123,3 +123,13 @@ is read as the pole for being near it.
 - **Nothing else moves:** every other cavity's verdict and receipt is
   identical, the other six valid rows refuse as they did and the two
   crossing pins fail as they did.
+- **The tour walk** (`embed_walk`, release, all 85 bodies, main
+  against the branch): identical line for line. 82 hold and the three
+  bench assemblies cross at their recorded contacts; 6,929 candidates,
+  479,866 discharged, 0 refused and 473,162 splits on both.
+- **`self_intersection_proves_injectivity` and
+  `shell_cavity_embedded`:** 57 of 57 on both, every receipt identical,
+  at the default ε, 1e-6 and 1e-12.
+- **The endpoint census:** `injective.rs` reads 179 / 79 (177 / 79 on
+  main); the two added reads are `reaching_its_poles`' ends of the
+  polar latitude.
