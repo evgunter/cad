@@ -12,8 +12,7 @@ use editor_core::expr::DimensionError;
 use editor_core::persist::SnapshotError;
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Formula, FreeVar, MetaValue, Node, NodeErrorKind,
-    NodeResult, PersistError, ProfileDoc, RecipeNodeId, VarName, WitnessDatum, apply, evaluate,
-    load, save,
+    NodeResult, PersistError, ProfileDoc, VarName, WitnessDatum, apply, evaluate, load, save,
 };
 use fixture::{insert, len, on_frame};
 use geom_core::Tol;
@@ -48,7 +47,7 @@ fn small() -> (ProfileDoc, String) {
     )
     .expect("witness")
     .doc;
-    let text = save(&doc, &[], Tol::witness()).expect("save");
+    let text = save(&doc, Tol::witness()).expect("save");
     (doc, text)
 }
 
@@ -151,11 +150,6 @@ fn wire_leaf(dim: &str) -> serde_json::Value {
     serde_json::json!({ "Var": { "var": "1:0000000000000001", "dim": dim } })
 }
 
-/// A written quantity on an edit log's wire, of `dim` in `unit`.
-fn wire_quantity(dim: &str, unit: &str) -> serde_json::Value {
-    serde_json::json!({ "Quantity": { "value": 1.0, "dim": dim, "unit": unit } })
-}
-
 /// An expression the document layer's dimension checker refuses crosses
 /// the load door WHOLE: `PersistError::Dimension` carries the
 /// `DimensionError` itself, not a sentence about it.
@@ -236,18 +230,13 @@ fn a_dimension_refusal_does_not_advise_regenerating_the_file() {
     );
 }
 
-/// **One fault, one arm, whichever route it takes.** An off-table
-/// display-unit symbol reaches the load door two ways — on a written
-/// quantity in the edit log, through `WireFormula::rebuild`'s
-/// closed-table lookup, and on a document PARAMETER, through
-/// `UnitSym`'s own `Deserialize` — and it is the same fault both times.
-///
-/// This is the row that would red if the two ever diverged again. They
-/// did: the parameter route used to answer `Unreadable` with the
-/// regenerate recourse, which is advice that reproduces the refusal,
-/// while the expression route answered typed with none.
+/// **An off-table display-unit symbol is the document layer's fault,
+/// not vocabulary this build lacks.** It reaches the load door on a
+/// document PARAMETER, through `UnitSym`'s own `Deserialize`, and
+/// refuses typed as `Dimension` with no regenerate recourse — advice
+/// that would reproduce the refusal.
 #[test]
-fn an_off_table_display_unit_refuses_the_same_way_on_either_route() {
+fn an_off_table_display_unit_refuses_typed_without_the_regenerate_recourse() {
     let (doc, _) = small();
     // A document parameter carries a display unit of its own, so its
     // symbol is on the wire beside the expression literals'.
@@ -261,12 +250,12 @@ fn an_off_table_display_unit_refuses_the_same_way_on_either_route() {
     )
     .expect("the parameter applies")
     .doc;
-    let text = save(&doc, &[], Tol::witness()).expect("save");
+    let text = save(&doc, Tol::witness()).expect("save");
     let unknown = DimensionError::UnknownDisplayUnit {
         symbol: "furlong".to_owned(),
     };
 
-    // Route 1: the parameter's own display unit, refused at the token.
+    // The parameter's own display unit, refused at the token.
     let on_param = text.replace(r#""display_unit": "m""#, r#""display_unit": "furlong""#);
     assert_ne!(on_param, text, "the parameter's unit must be on the wire");
     match load(&on_param, Tol::witness()) {
@@ -274,148 +263,12 @@ fn an_off_table_display_unit_refuses_the_same_way_on_either_route() {
         other => panic!("a parameter's off-table unit must refuse typed, got {other:?}"),
     }
 
-    // Route 2: a logged quantity's, refused at the rebuild.
-    let on_literal = with_logged_quantity(wire_quantity("Length", "furlong"));
-    match load(&on_literal, Tol::witness()) {
-        Err(PersistError::Dimension { error, .. }) => assert_eq!(error, unknown),
-        other => panic!("a literal's off-table unit must refuse typed, got {other:?}"),
-    }
-
-    // And neither sends the caller to regenerate a file whose symbol
-    // would be just as absent from the table the second time.
-    for bad in [&on_param, &on_literal] {
-        let message = load(bad, Tol::witness())
-            .expect_err("must refuse")
-            .to_string();
-        assert!(!message.contains("regenerate"), "{message}");
-    }
-}
-
-/// A saved document whose one logged edit writes `wire` at an
-/// extrude's distance: a log the save door accepted, then hand-edited.
-fn with_logged_quantity(wire: serde_json::Value) -> String {
-    use editor_core::{ExprPath, SlotId};
-    let tol = Tol::witness();
-    let doc = ProfileDoc::empty_derived("m4_pr6_logged_quantity", tol);
-    let (doc, p) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    );
-    let (doc, extrude) = insert(
-        doc,
-        Node::Extrude {
-            profile: p.into(),
-            distance: Formula::add(len(1.0), len(1.0)).expect("Length + Length"),
-        },
-    );
-    let legal = DocEdit::SetExpression {
-        path: ExprPath {
-            node: extrude,
-            slot: SlotId::Distance,
-            path: vec![1],
-        },
-        expr: len(2.0),
-    };
-    let text = save(&doc, &[legal], tol).expect("a replayable log is written");
-    let (header, body_text) = text.split_once('\n').expect("a header line");
-    let mut body: serde_json::Value = serde_json::from_str(body_text).expect("a JSON body");
-    *body["edits"][0]
-        .pointer_mut("/SetExpression/expr")
-        .expect("the logged edit's expression slot") = wire;
-    format!(
-        "{header}\n{}",
-        serde_json::to_string(&body).expect("re-emit")
-    )
-}
-
-/// **The sibling route, and what it costs one rung up.** A save file's
-/// `edits` list is DATA, so a hand-edited one can carry an edit whose
-/// replay the document layer's dimension checker refuses. That reaches
-/// the load door too — as `EditReplay` wrapping the `EditError` the
-/// replay raised, which for `SetExpression` is `EditError::Dimension`
-/// carrying the same `DimensionError` the `Dimension` arm above does.
-///
-/// It has to be TAMPERED rather than handed to `save`: the save door
-/// replays the log through the same apply doors
-/// ([`unreplayable_edit_log_refuses_at_save`]), so a log this bad never
-/// gets written. The hand-edited file is the only way in, which is
-/// exactly what the load-door re-check is for.
-///
-/// The kernel loses nothing — both levels are on the value, matchable.
-/// What is one rung short is the PYTHON projection: `pncad-py`'s
-/// `persist_err` gives `PersistError.inner_variant` the `EditError`'s
-/// own word (`dimension`) and drops the check's (`mismatch`), which
-/// `crate::tags::edit_inner_variant_tag` would supply and which it
-/// calls at its other two sites. Filed as
-/// `work/bind/persist-inner-variant-stops-one-rung-above-the-check.md`;
-/// this row is the kernel-side fact that one rests on.
-#[test]
-fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
-    use editor_core::{EditError, ExprPath, SlotId};
-    let tol = Tol::witness();
-    // A distance that is an OPERATOR node, so replacing one leaf can
-    // make the rebuild ill-dimensioned. A bare literal could not.
-    let doc = ProfileDoc::empty_derived("m4_pr6_replay_dimension", tol);
-    let (doc, p) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    );
-    let (doc, extrude) = insert(
-        doc,
-        Node::Extrude {
-            profile: p.into(),
-            distance: Formula::add(len(1.0), len(1.0)).expect("Length + Length"),
-        },
-    );
-    // A log the save door accepts: same dimension, so the replay is
-    // clean and the file is written.
-    let legal = DocEdit::SetExpression {
-        path: ExprPath {
-            node: extrude,
-            slot: SlotId::Distance,
-            path: vec![1],
-        },
-        expr: len(2.0),
-    };
-    let text = save(&doc, &[legal], tol).expect("a replayable log is written");
-
-    // Now the hand edit: the logged replacement becomes an Angle.
-    let (header, body_text) = text.split_once('\n').expect("a header line");
-    let mut body: serde_json::Value = serde_json::from_str(body_text).expect("a JSON body");
-    let edits = body["edits"].as_array_mut().expect("an edit list");
-    assert_eq!(edits.len(), 1, "the fixture logs exactly one edit");
-    // `pointer_mut`, not `[..]` indexing: indexing a missing key would
-    // INSERT it, and the tamper would then refuse for the stray key
-    // rather than reach the dimension checker.
-    *edits[0]
-        .pointer_mut("/SetExpression/expr")
-        .expect("the logged edit's expression slot") = wire_quantity("Angle", "rad");
-    let tampered = format!(
-        "{header}\n{}",
-        serde_json::to_string(&body).expect("re-emit")
-    );
-
-    match load(&tampered, tol) {
-        Err(PersistError::EditReplay { index: 0, error }) => match *error {
-            EditError::Dimension(inner) => assert_eq!(
-                inner,
-                DimensionError::Mismatch {
-                    op: "add",
-                    left: Dimension::Length,
-                    right: Dimension::Angle,
-                },
-                "the replay refuses with the checker's own value, two levels deep"
-            ),
-            other => panic!("expected an EditReplay dimension refusal, got {other:?}"),
-        },
-        other => panic!("expected an EditReplay dimension refusal, got {other:?}"),
-    }
+    // And it does not send the caller to regenerate a file whose
+    // symbol would be just as absent from the table the second time.
+    let message = load(&on_param, Tol::witness())
+        .expect_err("must refuse")
+        .to_string();
+    assert!(!message.contains("regenerate"), "{message}");
 }
 
 /// A `Deserialize` impl driven from somewhere other than the load door
@@ -501,28 +354,13 @@ fn snapshot_invariant_violations_refuse_typed() {
     }
 }
 
+/// A profile has no raw float to carry a non-finite to the save door:
+/// its plane is a NODE and its programs are `Expr`s, so a non-finite
+/// is refused a layer earlier, when the frame's slot is authored. (The
+/// save door's own sites — a parameter's, a metadata value's — are
+/// `persist::check`'s rows: no public door hands it a NaN.)
 #[test]
-fn non_finite_floats_refuse_at_save_naming_the_site() {
-    use editor_core::persist::NonFiniteSite;
-    let (doc, _) = small();
-    // A NaN smuggled through an UNAPPLIED edit log (a log is data).
-    let nan_edit = DocEdit::DeclareVar {
-        name: VarName::from_static("bad"),
-        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, f64::NAN)),
-    };
-    match save(&doc, &[nan_edit], Tol::witness()) {
-        Err(PersistError::NonFinite {
-            site: NonFiniteSite::Edit { index: 0, inner },
-        }) => assert!(
-            matches!(*inner, NonFiniteSite::DocParam { .. }),
-            "site must name the doc param"
-        ),
-        other => panic!("expected NonFinite Edit site, got {other:?}"),
-    }
-    // A profile has no raw float left to smuggle one through: its
-    // plane is a NODE and its programs are `Expr`s, so the non-finite
-    // that used to reach the save door as a placement float is refused
-    // a layer earlier, when the frame's slot is authored.
+fn a_non_finite_literal_refuses_at_its_own_door() {
     assert!(
         matches!(
             Formula::literal(f64::INFINITY, Dimension::Length),
@@ -530,28 +368,6 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
         ),
         "the frame's origin slot refuses a non-finite at its literal door"
     );
-    // A NaN inside a metadata tree carried by an unapplied edit.
-    let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1.into()));
-    m.insert("x".to_owned(), MetaValue::Float(f64::NAN));
-    let meta_edit = DocEdit::SetAppearanceMeta {
-        body: doc
-            .read_of_node(doc.ids()[1])
-            .expect("the body's one output"),
-        name: editor_core::StableName {
-            kind: editor_core::EntityKind::Body,
-            node: doc.ids()[1],
-            path: vec![editor_core::RoleSeg::OutputBody],
-        },
-        key: "k".into(),
-        value: MetaValue::map(m).expect("a shallow value"),
-    };
-    match save(&doc, &[meta_edit], Tol::witness()) {
-        Err(PersistError::NonFinite {
-            site: NonFiniteSite::Edit { inner, .. },
-        }) => assert!(matches!(*inner, NonFiniteSite::Metadata { .. })),
-        other => panic!("expected NonFinite Metadata site, got {other:?}"),
-    }
 }
 
 #[test]
@@ -561,12 +377,14 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
     // A recorded ε that disagrees with the committed process ε: the
     // LOAD door refuses (one process = one ε, D4).
     let other_eps = ambient * 2.0;
-    let text = save(
+    let retol = apply(
         &doc,
-        &[DocEdit::SetTolerance { eps: other_eps }],
+        &DocEdit::SetTolerance { eps: other_eps },
         Tol::witness(),
     )
-    .expect("save");
+    .expect("SetTolerance applies as a pure doc edit")
+    .doc;
+    let text = save(&retol, Tol::witness()).expect("save");
     match load(&text, Tol::witness()) {
         Err(PersistError::ToleranceConflict { process, document }) => {
             assert_eq!(process.to_bits(), ambient.to_bits());
@@ -575,13 +393,6 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
         other => panic!("expected ToleranceConflict, got {other:?}"),
     }
     // The EVALUATE door refuses the same conflict per node, typed.
-    let retol = apply(
-        &doc,
-        &DocEdit::SetTolerance { eps: other_eps },
-        Tol::witness(),
-    )
-    .expect("SetTolerance applies as a pure doc edit")
-    .doc;
     let ev = evaluate::<f64>(
         &retol,
         None,
@@ -673,7 +484,7 @@ fn program_structure_doors_refuse_typed_at_load() {
             on: None,
         }),
     );
-    let text = save(&doc, &[], Tol::witness()).expect("save");
+    let text = save(&doc, Tol::witness()).expect("save");
     // The header is the id line; split it off.
     let (header, body) = text.split_once('\n').expect("id line");
     let mut v: serde_json::Value = serde_json::from_str(body).expect("body parses");
@@ -716,7 +527,7 @@ fn program_structure_doors_refuse_typed_at_load() {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
     );
-    let text2 = save(&doc2, &[], Tol::witness()).expect("save");
+    let text2 = save(&doc2, Tol::witness()).expect("save");
     let (header2, body2) = text2.split_once('\n').expect("id line");
     let mut v2: serde_json::Value = serde_json::from_str(body2).expect("body parses");
     let steps = v2["snapshot"]["nodes"][chain.0.to_string()]["Profile"]["loops"][0]["Chain"]
@@ -746,7 +557,7 @@ fn program_structure_doors_refuse_typed_at_load() {
     }
     // The unmangled file loads and the program survives bit-exactly.
     let loaded = load(&text, Tol::witness()).expect("canonical program loads");
-    let Some(Node::Profile(prog)) = loaded.doc.node(circle) else {
+    let Some(Node::Profile(prog)) = loaded.node(circle) else {
         panic!("profile lost");
     };
     assert_eq!(prog.loops.len(), 1);
@@ -787,44 +598,4 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
             ) => {}
         other => panic!("a lattice-violating program must refuse at apply, got {other:?}"),
     }
-}
-
-#[test]
-fn unreplayable_edit_log_refuses_at_save() {
-    // Save/load symmetry for the LOG: load replays through apply's
-    // doors, so a log that refuses there refuses at save too — e.g. a
-    // D7 metadata value without its "v" field.
-    let (doc, _) = small();
-    let mut m = std::collections::BTreeMap::new();
-    m.insert("x".to_owned(), MetaValue::Int(3.into()));
-    let bad = DocEdit::SetAppearanceMeta {
-        body: doc
-            .read_of_node(doc.ids()[1])
-            .expect("the body's one output"),
-        name: editor_core::StableName {
-            kind: editor_core::EntityKind::Body,
-            node: doc.ids()[1],
-            path: vec![editor_core::RoleSeg::OutputBody],
-        },
-        key: "k".into(),
-        value: MetaValue::map(m).expect("a shallow value"),
-    };
-    match save(&doc, &[bad], Tol::witness()) {
-        Err(PersistError::EditReplay { index: 0, error }) => assert!(
-            matches!(*error, editor_core::EditError::MetaUnversioned { .. }),
-            "expected the apply door's refusal, got {error:?}"
-        ),
-        other => panic!("unreplayable log must refuse at save, got {other:?}"),
-    }
-    // And a log referencing a node the snapshot lacks.
-    let orphan = DocEdit::SetParam {
-        node: RecipeNodeId::new(0, 77),
-        slot: editor_core::SlotId::Distance,
-        value: len(1.0).into(),
-        fresh: Vec::new(),
-    };
-    assert!(matches!(
-        save(&doc, &[orphan], Tol::witness()),
-        Err(PersistError::EditReplay { index: 0, .. })
-    ));
 }

@@ -116,7 +116,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "cup",
         about: "a unit box hollowed to a wall of 0.125 with its top opened into a rim",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(cup),
         pin: Some(closed_forms(L, H, T)),

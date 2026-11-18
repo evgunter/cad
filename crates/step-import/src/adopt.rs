@@ -25,14 +25,16 @@
 //! full [`topo::Body::set_edge_curve`] certification of the **parsed
 //! carrier** over the derived interval:
 //!
-//! - distinct adjacent surfaces: `Intersection` (transverse), then
-//!   `TangentIntersection` (the fillet-trimline contact class);
-//! - one surface on both sides: `Seam` (periodic charts only), then
-//!   the conventional `MappedCurve` self-description (a line as its
-//!   own extrusion trajectory, a circular arc as its own revolution
-//!   trajectory — honest data for loci the surfaces under-determine,
-//!   e.g. a sphere's π-copy meridian or a profile edge inside a
-//!   plane).
+//! - first, on either branch, `IsoCurve`: a NURBS carrier bitwise equal
+//!   to an adjacent wall's boundary column;
+//! - distinct adjacent surfaces: `Intersection`, then
+//!   `TangentIntersection`, then one conventional rung — an image in
+//!   the plane's chart for a plane against a NURBS wall (the rim), else
+//!   the pair where the must-carry rule answers it ([`must_carry_rung`];
+//!   an in-band or mixed join refuses through the rule);
+//! - one surface on both sides: `Wrap` where one face of a periodic
+//!   surface bounds both uses, then the image in that surface's chart,
+//!   declared by its mapped self-description.
 //!
 //! The first candidate that certifies wins; if none does, the typed
 //! [`StepImportError::Adoption`] carries every attempt and its typed
@@ -62,12 +64,13 @@ pub(crate) fn finish(
     solid: &SolidSpec,
     asm: &Assembled,
     tol: Tol,
+    band: geom_core::Band,
     file: FileCoincidence,
 ) -> Result<Vec<FaceKey>, StepImportError> {
     let face_keys = designate_faces(body, solid, asm, file)?;
     rotate_loop_firsts(body, solid, asm, tol, file)?;
     attach_surfaces(body, solid, &face_keys, file)?;
-    adopt_edges(body, solid, asm, tol, file)?;
+    adopt_edges(body, solid, asm, tol, band, file)?;
     Ok(face_keys)
 }
 
@@ -369,6 +372,7 @@ fn adopt_edges(
     solid: &SolidSpec,
     asm: &Assembled,
     tol: Tol,
+    band: geom_core::Band,
     file: FileCoincidence,
 ) -> Result<(), StepImportError> {
     for (&edge_id, spec) in &solid.edges {
@@ -409,6 +413,7 @@ fn adopt_edges(
         let mut candidates: Vec<(AdoptionCandidate, EdgeDescriptionSpec<f64>)> = Vec::new();
         let mut conventional = true;
         let mut nurbs_rim = false;
+        let mut must_carry_refusal = None;
         // The IsoCurve rung is offered on BOTH sides of the branch
         // below (M8): between two walls it is the loft/sweep wall–wall
         // seam class, and on ONE wall — the same described NURBS
@@ -471,46 +476,14 @@ fn adopt_edges(
                     witness,
                 },
             ));
-            // The conventional rung, for distinct surface RECORDS that
-            // describe **the same locus** (M7-2): a boolean union's
-            // re-tiled flat side arrives as two coplanar PLANE records
-            // with different origins, so the importer's bitwise key
-            // sharing cannot merge them and the edge between them is
-            // neither a transverse intersection nor a tangency with a
-            // second-order margin — the kernel's own gate says so in
-            // its refusal ("the surfaces under-determine the locus
-            // there — a G2 conventional join keeps its MappedCurve
-            // description BY THIS PREDICATE, D2's split"), and this
-            // rung follows that instruction.
-            //
-            // The condition is COINCIDENCE, tested on the surfaces'
-            // own fields at the ambient tolerance — not "the intrinsic
-            // rungs failed". A conventional self-description certifies
-            // against nothing but itself, so offering it wherever an
-            // intersection refuses would make the ladder vacuous: a
-            // face pointed at the WRONG surface would sail through.
-            // Under coincidence the two records describe one surface,
-            // which is exactly the same-surface case the `else` branch
-            // below already treats conventionally.
-            //
-            // Coincidence of the SURFACES is only half the gate. A
-            // conventional self-description certifies against nothing
-            // but itself, so once the rung is offered the carrier is
-            // never checked against anything again — and a carrier that
-            // wanders off the coincident locus adopts cleanly, with the
-            // wrong volume, caught only by a later whole-body tier-3
-            // pass a caller need not run (and `import_step`'s own error
-            // contract promises it will not need to). The rung
-            // therefore requires BOTH: the two records describe one
-            // locus, and this edge's carrier lies on it.
             // **The Nurbs-adjacency exemption (M7-3 item 4)** — the
             // cap-plane × NURBS-wall rims the `Intersection` rung above
             // does not certify (a curved rim, whose degree-1 chart
             // image its hull refuses; a straight one it does), exempt BY KIND
             // (mirroring tier-3 check 4's flip-B exemption,
-            // `topo::validate`): coincidence is an implicit-form
-            // question and a NURBS wall has no implicit form, so the
-            // gate above can never answer for this pair — while the
+            // `topo::validate`): the must-carry rule reads only
+            // implicit forms and a NURBS wall has none, so the rule
+            // rung below can never answer for this pair — while the
             // class itself is exactly the conventional one (the
             // wall's `v ∈ {0, 1}` iso IS the placed profile segment;
             // the loft builder's own rims carry `PlacedSegment`).
@@ -562,18 +535,34 @@ fn adopt_edges(
                     })?;
                 }
             }
-            conventional = nurbs_rim
-                || (coincident_surfaces(
-                    body.get_surface(fs_plus),
-                    body.get_surface(fs_minus),
-                    tol,
-                ) && carrier_on_surface(
-                    body.get_surface(fs_plus),
+            conventional = nurbs_rim;
+            if !conventional {
+                let surface = |key| {
+                    body.get_surface(key).unwrap_or_else(|| {
+                        unreachable!("{key:?} names a face's surface `attach_surfaces` attached")
+                    })
+                };
+                let interval = (spec.t0, spec.t1);
+                let reach = topo::wedge_reach(
+                    body,
+                    [sides.plus.face, sides.minus.face],
                     &spec.carrier,
-                    spec.t0,
-                    spec.t1,
-                    tol,
-                ));
+                    interval,
+                );
+                match must_carry_rung(
+                    [(fs_plus, surface(fs_plus)), (fs_minus, surface(fs_minus))],
+                    &spec.carrier,
+                    interval,
+                    reach,
+                    mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1, false),
+                    band,
+                    edge_key,
+                ) {
+                    Some(Ok(pair)) => candidates.push((AdoptionCandidate::MappedCurve, pair)),
+                    Some(Err(refusal)) => must_carry_refusal = Some(refusal),
+                    None => {}
+                }
+            }
         } else {
             let periodic = body.get_surface(fs_plus).is_some_and(|s| {
                 matches!(
@@ -597,13 +586,11 @@ fn adopt_edges(
             && let Some(mapped) =
                 mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1, nurbs_rim)
         {
-            // The conventional rung (D2): the locus rests where
-            // `topo::rest_locus` says by key, an image in the chart of
-            // one surface on both sides and the pair of two records
-            // otherwise, and the rung's own gate has just metered the
-            // carrier onto it (`carrier_on_surface`). The pushforward that used to BE the
-            // description becomes the authority record beside it
-            // (U2 Q3).
+            // The conventional rung (D2) for one surface on both sides
+            // and for a NURBS rim; two analytic records take the rule
+            // rung above. One surface rests in its chart
+            // (`topo::rest_locus`), and the mapped self-description
+            // rides as the authority record beside it (U2 Q3).
             //
             // A plane × spline edge is an image in the PLANE side of its
             // pair, as the native loft's rims are
@@ -652,6 +639,7 @@ fn adopt_edges(
         // refuses with the ladder's own typed report.
         if solid.band_seams.contains(&edge_id) {
             candidates.retain(|(c, _)| matches!(c, AdoptionCandidate::Wrap));
+            must_carry_refusal = None;
         }
 
         let mut attempts = Vec::new();
@@ -678,6 +666,10 @@ fn adopt_edges(
             }
         }
         if !adopted {
+            attempts.extend(must_carry_refusal.map(|refusal| AdoptionAttempt {
+                candidate: AdoptionCandidate::MappedCurve,
+                refusal,
+            }));
             return Err(StepImportError::Adoption {
                 id: edge_id,
                 attempts,
@@ -686,6 +678,46 @@ fn adopt_edges(
         }
     }
     Ok(())
+}
+
+/// **The must-carry rung** for an edge between two distinct surface
+/// records: what the rule over the pair says the edge stores
+/// ([`geom_brep::reask_pair`], levered at its faces' `reach` as tier 3
+/// levers it, at the kernel's band). `Some(Ok)` is
+/// the conventional pair the rule answers for an under-determined join,
+/// offered to certification like any candidate. `Some(Err)` is the rule's
+/// typed refusal of an in-band or mixed join, which is certifiable as
+/// neither, so no conventional candidate stands in for it. `None` where the
+/// rule demands an intrinsic description, which the ladder's intrinsic
+/// rungs offer and certify, or where the rule reads no pair
+/// ([`geom_brep::must_carry_reads`]: a spline record on either side), whose
+/// edges the spline rungs own.
+fn must_carry_rung(
+    surfaces: [(geom_brep::SurfaceKey, &Surface<f64>); 2],
+    carrier: &Curve3<f64>,
+    interval: (f64, f64),
+    reach: geom_core::Lever<f64>,
+    declared: Option<MappedCurve<f64>>,
+    band: geom_core::Band,
+    edge: topo::EdgeKey,
+) -> Option<Result<EdgeDescriptionSpec<f64>, topo::EulerOpError>> {
+    let [(_, a), (_, b)] = surfaces;
+    if !geom_brep::must_carry_reads(a, b) {
+        return None;
+    }
+    match geom_brep::reask_pair(surfaces, carrier, interval, reach, declared, band) {
+        Ok(pair @ EdgeDescriptionSpec::OnPair { .. }) => Some(Ok(pair)),
+        Ok(_) => None,
+        Err(geom_brep::PairRefusal::InBand(escalation)) => {
+            Some(Err(topo::EulerOpError::RestJoinUndecided {
+                edge,
+                diag: escalation.diag(),
+            }))
+        }
+        Err(geom_brep::PairRefusal::Mixed(stations)) => {
+            Some(Err(topo::EulerOpError::RestJoinMixed { edge, stations }))
+        }
+    }
 }
 
 /// The **`IsoCurve` rung's candidates** for one edge (M7-3, widened to
@@ -1038,7 +1070,7 @@ fn mapped_self_description(
 /// rational payloads), so the wall's own boundary column
 /// (`boundary_iso_v` — the locus the rim claims to be) is sampled at
 /// the certification schedule and metered against the rim circle's
-/// CLOSED-FORM distance, the [`carrier_on_surface`] door pattern with
+/// CLOSED-FORM distance, at the certification schedule, with
 /// the roles arranged so every quantity has a closed form (a point's
 /// distance to a rational patch does not; its distance to a circle
 /// does).
@@ -1269,72 +1301,6 @@ fn bitwise_iso_match(carrier: &geom::NurbsCurve3<f64>, iso: &geom::NurbsCurve3<f
             .iter()
             .zip(iso.weights())
             .all(|(a, b)| a.to_bits() == b.to_bits())
-}
-
-/// Whether two distinct surface records describe **the same locus** at
-/// the ambient tolerance (module docs' conventional rung).
-///
-/// Only the plane case is decided here, because only the plane case is
-/// measured: a boolean union re-tiles a flat side into several coplanar
-/// `PLANE` records with different origins. Any other pair answers
-/// `false` — the conventional rung is then not offered, and the edge
-/// must earn an intrinsic description or refuse typed, which is the
-/// conservative direction.
-fn coincident_surfaces(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>, tol: Tol) -> bool {
-    let eps = tol.eps();
-    match (s1, s2) {
-        (
-            Some(&Surface::Plane {
-                origin: o1,
-                normal: n1,
-                ..
-            }),
-            Some(&Surface::Plane {
-                origin: o2,
-                normal: n2,
-                ..
-            }),
-        ) => {
-            // Parallel normals (either orientation — a face's material
-            // side is its `sense`, not its surface record's normal),
-            // and one plane's origin on the other.
-            n1.cross(n2).norm() <= eps && (o2 - o1).dot(n1).abs() <= eps
-        }
-        _ => false,
-    }
-}
-
-/// Whether `carrier` lies ON `surface` over `[t0, t1]` — the locus
-/// check the conventional rung owes (its call site's comment).
-///
-/// Sampled through the same door the kernel's own certification uses:
-/// [`geom_brep::CERT_SAMPLES`] uniform parameters, endpoints included,
-/// each residual measured against the ambient tolerance — the same
-/// count and the same ε the `set_edge_curve` gates spend on their own
-/// residuals, so an edge that passes here has not passed a laxer test
-/// than the intrinsic rungs face.
-///
-/// Only the plane case decides, matching [`coincident_surfaces`]: any
-/// other surface answers `false`, which withholds the rung and leaves
-/// the edge to earn an intrinsic description or refuse typed.
-fn carrier_on_surface(
-    surface: Option<&Surface<f64>>,
-    carrier: &Curve3<f64>,
-    t0: f64,
-    t1: f64,
-    tol: Tol,
-) -> bool {
-    let Some(&Surface::Plane { origin, normal, .. }) = surface else {
-        return false;
-    };
-    let eps = tol.eps();
-    let Some(n) = normal.checked_nonzero_length().ok() else {
-        return false;
-    };
-    (0..geom_brep::CERT_SAMPLES).all(|i| {
-        let p = carrier.eval(geom_brep::sample_param(t0, t1, i));
-        ((p - origin).dot(normal) / n).abs() <= eps
-    })
 }
 
 #[cfg(test)]
@@ -1588,6 +1554,83 @@ mod tests {
             surface_sig(&a),
             surface_sig(&b),
             "swapped u/v knot vectors must not collide"
+        );
+    }
+
+    /// **The must-carry rung offers only what the rule asks for.** A unit
+    /// cylinder resting on the plane `y = 0` along the `z` axis, its wedge
+    /// levered at `reach`, so the join's sagitta is `reach²/2`: definitely
+    /// positive offers nothing (the intrinsic rungs carry the tangency),
+    /// definitely zero offers the pair, in band refuses typed rather than
+    /// offering it. A crossing offers nothing, and neither does a pair
+    /// with a spline record on one side, where the rule would answer in
+    /// band for want of an implicit form.
+    #[test]
+    fn the_must_carry_rung_offers_only_what_the_rule_asks_for() {
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let mut keys = slotmap::SlotMap::<geom_brep::SurfaceKey, ()>::with_key();
+        let (kp, kc) = (keys.insert(()), keys.insert(()));
+        let plane = |normal| Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal,
+            u_ref: geom_core::Vec3::new(0.0, 0.0, 1.0),
+        };
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        };
+        let floor = plane(geom_core::Vec3::new(0.0, 1.0, 0.0));
+        let carrier = Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+        );
+        let rung = |a: &Surface<f64>, b: &Surface<f64>, sagitta: f64| {
+            let reach = geom_brep::points_lever_from(
+                Point3::new(0.0, 0.0, 0.5),
+                [Point3::new((2.0 * sagitta).sqrt(), 0.0, 0.5)],
+            );
+            must_carry_rung(
+                [(kp, a), (kc, b)],
+                &carrier,
+                (0.0, 1.0),
+                reach,
+                None,
+                band,
+                topo::EdgeKey::default(),
+            )
+        };
+        let middle = (band.zero() * band.escalate()).sqrt();
+        assert!(
+            rung(&floor, &cylinder, 0.125).is_none(),
+            "a jet-determinate join is not offered the pair"
+        );
+        assert!(
+            matches!(
+                rung(&floor, &cylinder, band.zero() / 100.0),
+                Some(Ok(EdgeDescriptionSpec::OnPair { pair, declared: None }))
+                    if pair == SurfacePair::new(kp, kc)
+            ),
+            "an under-determined join is offered the pair"
+        );
+        assert!(
+            matches!(
+                rung(&floor, &cylinder, middle),
+                Some(Err(topo::EulerOpError::RestJoinUndecided { .. }))
+            ),
+            "an in-band join refuses typed: {:?}",
+            rung(&floor, &cylinder, middle)
+        );
+        let crossing = plane(geom_core::Vec3::new(1.0, 0.0, 0.0));
+        assert!(
+            rung(&crossing, &cylinder, band.zero() / 100.0).is_none(),
+            "a crossing is not offered the pair"
+        );
+        assert!(
+            rung(&wall(0.0), &cylinder, band.zero() / 100.0).is_none(),
+            "a spline record is not read by the rule"
         );
     }
 }

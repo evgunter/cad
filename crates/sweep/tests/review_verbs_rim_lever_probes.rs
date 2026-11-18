@@ -323,8 +323,8 @@ fn straight_edges_meter_bit_identically_to_the_endpoint_chord() {
 ///
 /// The legs no longer end in one place, and where they part is the
 /// finding: the CLOSED rim is a one-edge band the cylinder×cone arm
-/// builds, and the OPEN arc terminates at the revolve's seam-meridian
-/// vertices, whose corner configuration is unimplemented. Both are
+/// builds, and the OPEN arc ends at the revolve's cut faces, where an
+/// open chain's curved link has no built end (`UnsupportedChain`). Both are
 /// decisions taken after the dihedral was classified — which is the
 /// claim this row exists for, and it is asserted directly rather than
 /// through the class agreement that used to stand in for it (agreement
@@ -375,10 +375,9 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
              once the dihedral has decided, got {closed_verdict:?}"
         );
         assert!(
-            matches!(open_verdict, Err(BlendError::UnsupportedCorner { .. })),
-            "open rim at half-angle {half_angle} rad: the arc terminates at the revolve's \
-             seam-meridian vertices, whose corner configuration is unimplemented, got \
-             {open_verdict:?}"
+            matches!(open_verdict, Err(BlendError::UnsupportedChain { edge, .. }) if edge == open),
+            "open rim at half-angle {half_angle} rad: the arc ends at the revolve's cut \
+             faces, where an open chain's curved link has no built end, got {open_verdict:?}"
         );
     }
 }

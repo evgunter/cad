@@ -74,7 +74,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "hollow_tube_ring",
         about: "a sealed hollow ring torus — two shells, one solid — R = 2, outer 0.5, wall 0.125",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(ring),
         // Pappus carries π² — module docs.

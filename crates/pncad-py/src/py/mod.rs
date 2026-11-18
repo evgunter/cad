@@ -188,8 +188,8 @@ pyo3::create_exception!(
     PersistError,
     PncadError,
     "A save or load the persistence doors refused (bad header, \
-     unknown schema, unparseable body, a snapshot or edit log that \
-     fails the shared validator, ...). Carries `variant`, the stable \
+     unparseable body, a document that fails the shared validator, \
+     ...). Carries `variant`, the stable \
      tag of the refusing arm, plus every arm's payload as \
      attributes — `None` where the arm does not carry one.\n\n\
      Four arms wrap a refusal of their own (a profile-program fault, \

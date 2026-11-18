@@ -153,7 +153,7 @@ fn an_assertion_value_reading_an_undeclared_parameter_refuses_to_load() {
     }
 
     // The load door, over the file whose variable was never minted.
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     match load(&unmint(&text, &name), Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
@@ -191,7 +191,7 @@ fn an_assertion_value_retyped_under_its_bound_refuses_to_load() {
         other => panic!("the edit door must refuse the retyping, got {other:?}"),
     }
 
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     match load(&retype_to_angle(&text, &name), Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionBound {
             node,
@@ -233,7 +233,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
         other => panic!("the edit door must refuse an undeclared bound param, got {other:?}"),
     }
 
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     match load(&unmint(&text, &name), Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
@@ -258,8 +258,8 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
 #[test]
 fn a_payload_reference_the_table_answers_round_trips() {
     let (doc, _, measure) = asserting_depth();
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    let loaded = load(&text, Tol::witness()).expect("the fixture loads").doc;
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
+    let loaded = load(&text, Tol::witness()).expect("the fixture loads");
     assert!(
         signed_zero_leaf(&loaded, measure),
         "the payload's `-0.0` came back as `+0.0`: the saved text is {text}"
@@ -318,7 +318,7 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
         }),
     );
 
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     match load(&retype_to_angle(&text, &name), Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node, slot, var, ..
@@ -367,7 +367,7 @@ fn an_assertion_value_that_is_a_body_refuses() {
         other => panic!("the edit door must refuse a body as a value, got {other:?}"),
     }
 
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     let corrupt = doctored(&text, |wire| {
         let field = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["value"];
         assert_eq!(

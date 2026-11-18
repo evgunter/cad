@@ -126,8 +126,8 @@ fn a_re_target_strands_the_union_and_re_targeting_back_resolves_it() {
     let stranded = moved.doc;
     assert_eq!(stranded.space_fault(joined), Some((space_a, space_b)));
 
-    let text = save(&stranded, &[], Tol::witness()).expect("the stranded document saves");
-    let loaded = load(&text, Tol::witness()).expect("and loads").doc;
+    let text = save(&stranded, Tol::witness()).expect("the stranded document saves");
+    let loaded = load(&text, Tol::witness()).expect("and loads");
     assert!(loaded.bit_eq(&stranded), "as written");
     let ev = run(&loaded, &o);
     match ev.node_error(joined).map(|e| &e.kind) {
@@ -386,7 +386,7 @@ fn a_placement_saved_without_a_target_refuses_unreadable() {
     let doc = ProfileDoc::empty(DocumentId::derive("dprime1-old-file"), Tol::witness());
     let (doc, a) = block(doc, 0.0);
     let (doc, _) = fixture::place(doc, a);
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let old: String = text
         .lines()
         .filter(|l| !l.trim_start().starts_with("\"target\""))
