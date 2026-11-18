@@ -1160,6 +1160,20 @@ pub struct BooleanInputs {
     pub records_b: OperandRecords,
 }
 
+impl BooleanInputs {
+    /// **The records two finished operands hold**
+    /// ([`crate::FinishedBody::records`]), carried in as each one's own:
+    /// what the plain doors (`union`, `subtract`, `intersect`) hand
+    /// their op, so a result reused as an operand keeps its records.
+    #[must_use]
+    pub fn of<F: crate::FinishedBody>(a: &F, b: &F) -> Self {
+        Self {
+            records_a: a.records().carried(),
+            records_b: b.records().carried(),
+        }
+    }
+}
+
 /// **A face pair a boolean glued on its own decision**: a face of
 /// each operand, in that operation's operand keys, the class its
 /// margin's relation glued them under, and that margin; for a tangency

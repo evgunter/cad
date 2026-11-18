@@ -676,7 +676,7 @@ where
         BooleanOp::Union,
         a,
         b,
-        &BooleanInputs::default(),
+        &BooleanInputs::of(a, b),
         SweepStrategy::Realized,
         tol,
     )
@@ -705,7 +705,7 @@ where
         BooleanOp::Intersect,
         a,
         b,
-        &BooleanInputs::default(),
+        &BooleanInputs::of(a, b),
         SweepStrategy::Realized,
         tol,
     )
@@ -734,7 +734,7 @@ where
         BooleanOp::Subtract,
         a,
         b,
-        &BooleanInputs::default(),
+        &BooleanInputs::of(a, b),
         SweepStrategy::Realized,
         tol,
     )

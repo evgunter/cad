@@ -833,3 +833,49 @@ fn a_real_touch_on_a_substituted_face_lands_on_its_substitute() {
     }
     assert!(substituted > 0, "one cut absorbs the corner's half");
 }
+
+/// **A Boolean result reused as an operand keeps its records.** Two
+/// cubes kissing at (1, 1, 1) are united, and the result's body is
+/// united with a box far from both through the plain door, which is
+/// handed nothing but the two bodies. The kiss rides its body into the
+/// second union and lands on its result, citing the operand's record.
+/// Red where the plain door carries no record of its operands: the
+/// second result held none.
+#[test]
+fn a_boolean_result_reused_as_an_operand_keeps_its_records() {
+    let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
+    let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), "b");
+    let kiss = union_of(&a, &b);
+    assert_eq!(
+        kiss.contacts().vertex_vertex().count(),
+        1,
+        "the premise, the kiss is one vertex pair: {:?}",
+        kiss.contacts()
+    );
+    let far = box_of((10.0, 11.0), (10.0, 11.0), (0.0, 1.0), "far");
+    for (what, reused) in [
+        ("kiss ∪ far", topo::union(&kiss.body, &far, tol())),
+        ("far ∪ kiss", topo::union(&far, &kiss.body, tol())),
+    ] {
+        let BooleanResult::Body(out) = reused.unwrap_or_else(|e| panic!("{what}: {e:?}")) else {
+            panic!("{what}: a body");
+        };
+        let input = u32::from(what.starts_with("far"));
+        let cites: Vec<Vec<Backing>> = out
+            .contacts()
+            .rows()
+            .iter()
+            .map(|row| row.cites.iter().collect())
+            .collect();
+        assert_eq!(
+            cites,
+            [[Backing::Carried { input, record: 0 }]],
+            "{what}: the kiss rides its body in and cites the operand's record"
+        );
+        assert_eq!(
+            out.body.records(),
+            out.contacts(),
+            "{what}: the result's records are its body's"
+        );
+    }
+}
