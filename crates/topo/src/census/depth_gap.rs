@@ -81,7 +81,7 @@ pub(super) enum Source<T: geom_core::Real> {
 }
 
 /// A face as the depth gap reads it ([`face_read`]).
-pub(super) struct Read<T: geom_core::Real> {
+pub(crate) struct Read<T: geom_core::Real> {
     /// The face's cover.
     pub(super) cover: Cover<T>,
     /// The boundary's straight edges by their ends, and its isolated
@@ -110,7 +110,7 @@ impl<T: geom_core::Real> Read<T> {
 ///
 /// Where `f` or a record on the walk from it does not resolve, as
 /// [`face_cover`]: a torn boundary is not one with no claim.
-pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Option<Read<T>> {
+pub(crate) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Option<Read<T>> {
     let face = body.proven_face(f);
     let cover = face_cover(body, f, band).ok()?;
     let mut depths: Vec<Proposed<T>> = cover
@@ -198,13 +198,14 @@ pub(super) fn greatest<T: Decide>(bounds: impl Iterator<Item = Option<T>>) -> Op
     acc
 }
 
-/// Whether `lo − hi`, less both faces' pads, is definitely positive.
-pub(super) fn clears<T: Decide>(hi: T, lo: T, band: Band) -> bool {
-    let pad = T::from_f64(2.0 * sweep_pad(band));
-    matches!(
-        decide(DEPTH_GAP, Margin::of(lo - hi - pad), band),
-        Ok(Sign::Positive)
-    )
+/// `lo − hi`, less both faces' pads.
+fn gap<T: Decide>(hi: T, lo: T, band: Band) -> T {
+    lo - hi - T::from_f64(2.0 * sweep_pad(band))
+}
+
+/// Whether a gap is definitely positive.
+fn clears<T: Decide>(gap: T, band: Band) -> bool {
+    matches!(decide(DEPTH_GAP, Margin::of(gap), band), Ok(Sign::Positive))
 }
 
 /// An upper bound on `proposed`'s depth over the face read as `read`.
@@ -229,8 +230,40 @@ fn least_on<T: Decide>(
     greatest([Some(near)].into_iter())
 }
 
+/// **Each gap in depth between two faces**, read as `ra`, `rb`
+/// ([`face_read`]), each in its own body: for each depth either
+/// proposes and each order of the two, one face's least depth less the
+/// other's greatest, less both faces' pads, where both are read. A gap
+/// that is positive bounds the faces' separation from below; any other
+/// says nothing of the pair.
+///
+/// # Panics
+///
+/// As [`face_read`].
+pub(crate) fn gaps_in_depth<'r, T: Decide>(
+    (body_a, a, ra): (&'r Body<T>, FaceKey, &'r Read<T>),
+    (body_b, b, rb): (&'r Body<T>, FaceKey, &'r Read<T>),
+    band: Band,
+) -> impl Iterator<Item = T> + 'r {
+    ra.depths
+        .iter()
+        .chain(&rb.depths)
+        .flat_map(move |proposed| {
+            // A least bound costs a point placement, so it is read only
+            // against a greatest the other face has.
+            [((body_b, b, rb), ra), ((body_a, a, ra), rb)]
+                .into_iter()
+                .filter_map(move |((body, f, lo), hi)| {
+                    let hi = greatest_on(hi, proposed)?;
+                    let lo = least_on(body, f, lo, proposed, band)?;
+                    Some(gap(hi, lo, band))
+                })
+        })
+}
+
 /// **Whether the faces `a`, `b`, read as `ra`, `rb` ([`face_read`]),
-/// are apart in some depth** either proposes (module docs).
+/// are apart in some depth** either proposes (module docs): whether a
+/// gap of [`gaps_in_depth`] is definitely positive.
 ///
 /// # Panics
 ///
@@ -241,16 +274,7 @@ pub(super) fn apart_in_depth<T: Decide>(
     (b, rb): (FaceKey, &Read<T>),
     band: Band,
 ) -> bool {
-    ra.depths.iter().chain(&rb.depths).any(|proposed| {
-        // A least bound costs a point placement, so it is read only
-        // against a greatest the other face has.
-        let below = |lo: (FaceKey, &Read<T>), hi: &Read<T>| {
-            greatest_on(hi, proposed).is_some_and(|hi| {
-                least_on(body, lo.0, lo.1, proposed, band).is_some_and(|lo| clears(hi, lo, band))
-            })
-        };
-        below((b, rb), ra) || below((a, ra), rb)
-    })
+    gaps_in_depth((body, a, ra), (body, b, rb), band).any(|gap| clears(gap, band))
 }
 
 /// **The directions the depths of two faces, read as `ra` and `rb`
@@ -419,16 +443,22 @@ mod tests {
     fn a_gap_clears_only_past_the_pad() {
         let band = band();
         let pad = 2.0 * sweep_pad(band);
-        assert!(clears(0.85, 0.95, band), "0.1 clears");
+        assert!(clears(gap(0.85, 0.95, band), band), "0.1 clears");
         assert!(
-            !clears(0.95 - band.zero(), 0.95, band),
+            !clears(gap(0.95 - band.zero(), 0.95, band), band),
             "a band's width is a touch"
         );
-        assert!(!clears(0.95, 0.95, band), "no gap is a touch");
-        assert!(!clears(0.95 - 0.5 * pad, 0.95, band), "inside the pads");
-        assert!(!clears(0.95 - pad, 0.95, band), "exactly the pads, a Zero");
-        assert!(!clears(1.05, 0.95, band), "an overlap");
-        assert!(!clears(f64::NAN, 0.95, band), "not a number");
+        assert!(!clears(gap(0.95, 0.95, band), band), "no gap is a touch");
+        assert!(
+            !clears(gap(0.95 - 0.5 * pad, 0.95, band), band),
+            "inside the pads"
+        );
+        assert!(
+            !clears(gap(0.95 - pad, 0.95, band), band),
+            "exactly the pads, a Zero"
+        );
+        assert!(!clears(gap(1.05, 0.95, band), band), "an overlap");
+        assert!(!clears(gap(f64::NAN, 0.95, band), band), "not a number");
     }
 
     /// **A coaxial circle reads at its radius from both sides**, and one

@@ -1287,6 +1287,46 @@ fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
     holds_at_both("the thin shell", shell::<f64>(), shell::<Interval>());
 }
 
+/// **Two nested tori a thin gap apart hold at their roots.** The hollow
+/// torus `R = 2`, tube radius `0.45`, wall `0.025`, as a shelled torus's
+/// cavity is: four faces, each of the inner torus's two sharing nothing
+/// with each of the outer's. Each of those four pairs is read apart
+/// off the outer torus's whole carrier, so what is split is the two
+/// pairs of halves that touch. Red where a pair that shares nothing is
+/// separated by the cells' boxes and supports alone: the four spend the
+/// default budget between them, and the body refuses for pairs.
+#[test]
+fn two_nested_tori_a_thin_gap_apart_hold_at_their_roots() {
+    fn hollow<T: Scalar>() -> Body<T> {
+        let at = T::from_f64;
+        sweep::tube_along_arc_hollow(
+            sweep::test_support::tube_frame(
+                Point3::new(at(0.0), at(0.0), at(0.0)),
+                geom_core::Vec3::new(at(0.0), at(1.0), at(0.0)),
+                geom_core::Vec3::new(at(1.0), at(0.0), at(0.0)),
+                tol(),
+            ),
+            at(2.0),
+            sweep::TubeWindow::Full,
+            at(0.45),
+            at(0.025),
+            tol(),
+        )
+        .expect("the hollow torus builds")
+        .body
+        .into_body()
+    }
+    let float = hollow::<f64>();
+    assert_eq!(float.faces().count(), 4, "two tori, each in two halves");
+    for report in holds_at_both("the nested tori", float, hollow::<Interval>()) {
+        assert!(
+            report.receipt.splits < BUDGET / 16,
+            "the nested tori split under a sixteenth of the default budget: {:?}",
+            report.receipt
+        );
+    }
+}
+
 /// **A conical wall and a toroidal wall `0.05` thick**, each revolved a
 /// full turn: the meridian band between two lines `30°` off the axis
 /// and `0.05` apart, capped by two annuli, as the klein bulb's flare;
