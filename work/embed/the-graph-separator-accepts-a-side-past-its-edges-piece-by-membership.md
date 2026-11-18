@@ -136,3 +136,41 @@ its vertex under every separator, not only the graph.
 `piece`, which `graph_of` alone builds, the folds included. A change
 there (embed/conic-arcs) changes what every side and curve is measured
 against.
+
+**Fix pass after review (2026-11-18).**
+- **One graph rule.** `Along::under_graph` is the one statement sides
+  and curves are read by under the graph. It reads `Params` (the turn
+  shift included), which curves now carry too; `Curved` lost its copy.
+- **A side reaches its edges only without a run-on.** `on_edges` is now
+  true only where the edges cover the side without `run_on`'s carry past
+  a vertex. A spline side run on past its edge's end answers nothing
+  under the graph. Nothing measured moved: sweep's 77 rows,
+  editor-core's 24 `m10_5_clearance` rows and the tour are unchanged.
+- **Affine channels checked.** `iso_params` reads parameters only off a
+  moving channel with no cosine or sine term.
+- **The image shift stays.** The review read `iso_params`' image shift
+  as redundant with `Params::nearest`. Removing it refused the tour's
+  `diecomposed` (`Uncertified`, Departure). Its side lies two turns off
+  the use image's sheet, and the piece's one turn either way does not
+  reach it. The shifts cover different gaps, and both are pinned.
+- **Smaller fixes.** The plane segment presenters carry each point's
+  parameter with it. `Along::over` asks for parameters only for a whole
+  side. A collapsed side keeps its vertex. `sign_on`'s doc is a list,
+  with the sliver bound.
+- **Gate-run pins (topo):**
+  - `a_corner_side_past_its_vertex_is_zero_under_the_graph_only_within_its_piece`:
+    a non-whole corner side; the turn shift; the plane half;
+  - `a_chart_side_run_on_past_its_edges_end_answers_nothing_under_the_graph`;
+  - `a_sides_parameters_are_read_only_off_an_affine_moving_channel`:
+    the affinity check; the image shift;
+  - `a_plane_side_is_zero_under_the_graph_only_within_its_piece`, now
+    with a two-segment corner.
+- **Every mutant goes red on a row the gate runs:**
+  - a corner presenter setting `on_edges`;
+  - a non-whole side without `on_edges`;
+  - no affinity check;
+  - no image shift;
+  - no turns in `Params::nearest`;
+  - `run_on` counted as on the edge;
+  - a segment's orientation swapped, in each presenter.
+- **Tour:** identical to main on `da555737c`, all 85 bodies.

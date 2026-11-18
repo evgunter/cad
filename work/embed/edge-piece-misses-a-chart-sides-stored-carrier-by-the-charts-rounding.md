@@ -42,3 +42,15 @@ edge. One way: build the boxes `edge_piece` meets from the stored
 carrier's own enclosure over the side's span, not from the chart's.
 Another: give a spline side parameters by the edge's own pcurve. Measure
 first whether any spline side's points fall outside the piece.
+
+## What PR 7080's fix pass closed, and what stays (2026-11-18)
+
+The orchestrator's review named a second gap of the same size:
+`run_on` carries a `present_chart` side past its edge's vertex, to the
+other clip's line's far bound. That is closed. `on_edges` now holds only
+where the edges cover the side without the run-on; a spline side that
+needs it answers nothing under the graph. Nothing measured moved.
+
+What stays is this row's own gap: a spline side covered by its edges has
+points that are the edge's, but whether `edge_piece`'s hull holds them
+rests on the chart box against the stored carrier.
