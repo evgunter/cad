@@ -623,6 +623,90 @@ impl Real for Interval {
     /// reads the entire line and not poison.
     ///
     /// [`is_finite_length`]: crate::real::is_finite_length
+    /// **The polar enclosure, to second order.** For a stated frame `M`
+    /// (columns `u`, `v`, `w`) the rotation it names is its polar factor
+    /// `R = M(MᵀM)^(−1/2)`, the rotation nearest it. With `G = MᵀM − I`
+    /// (symmetric) and `η` an upper bound of `‖G‖_F ≥ ‖G‖₂`:
+    ///
+    /// - `(1 + x)^(−1/2) = 1 − x/2 + r(x)` with
+    ///   `|r(x)| ≤ (3/8)·x²·(1 − |x|)^(−5/2)` for `|x| < 1` (Taylor's
+    ///   remainder, the second derivative being `(3/4)(1 + ξ)^(−5/2)`);
+    ///   `G` is symmetric, so the same bound holds of the matrix
+    ///   function on its eigenvalues: `‖r(G)‖₂ ≤ (3/8)·η²·(1 − η)^(−5/2)`;
+    /// - so `R = M − ½·M·G + M·r(G)`, and `‖M·r(G)‖₂ ≤ ‖M‖₂·‖r(G)‖₂`
+    ///   with `‖M‖₂ = √‖MᵀM‖₂ ≤ √(1 + η)`;
+    /// - an entry is at most the spectral norm (`|aᵢⱼ| = |eᵢᵀAeⱼ| ≤ ‖A‖₂`).
+    ///
+    /// Each entry is answered `(M − ½·M·G)ᵢⱼ ± ρ`,
+    /// `ρ = √(1 + η)·(3/8)·η²·(1 − η)^(−5/2)`, all of it in this outward
+    /// rounded arithmetic, so it encloses `Rᵢⱼ`; for a rounded rigid
+    /// frame `η` is a few `u` and `ρ` is of order `u²`, so the width is
+    /// the rounding of `M − ½·M·G` itself.
+    ///
+    /// `R` is a rotation and not a reflection where `det M > 0` with every
+    /// singular value positive (`η < 1`), since `det M = det U · det Vᵀ
+    /// · Πσᵢ` and `det R = det U · det Vᵀ` for `M = UΣVᵀ`. The determinant
+    /// is enclosed here too, and a frame whose determinant is not
+    /// certified positive, or whose `η` is not below one half, is
+    /// answered poisoned (every entry NaI): it names no rotation this
+    /// lift encloses.
+    fn enclose_rotation(m: [[Self; 3]; 3]) -> Option<[[Self; 3]; 3]> {
+        let dot = |a: [Self; 3], b: [Self; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        let g: [[Self; 3]; 3] = core::array::from_fn(|i| {
+            core::array::from_fn(|j| {
+                let d = dot(m[i], m[j]);
+                if i == j { d - Self::one() } else { d }
+            })
+        });
+        let frobenius = g.iter().flatten().fold(Self::zero(), |acc, &x| acc + x * x);
+        let eta = Real::sqrt(frobenius).hi();
+        let [u, v, w] = m;
+        let cross = [
+            u[1] * v[2] - u[2] * v[1],
+            u[2] * v[0] - u[0] * v[2],
+            u[0] * v[1] - u[1] * v[0],
+        ];
+        let det = dot(cross, w);
+        if !(eta < 0.5 && det.lo() > 0.0) {
+            let poison = Self::from_bounds(f64::NAN, f64::NAN);
+            return Some([[poison; 3]; 3]);
+        }
+        let e = Self::from_bounds(eta, eta);
+        let rho = (Real::sqrt(Self::one() + e) * Self::from_f64(0.375) * e * e
+            / Real::powi(Real::sqrt(Self::one() - e), 5))
+        .hi();
+        let spread = Self::from_bounds(-rho, rho);
+        let half = Self::from_f64(0.5);
+        // `(M·G)` column `j` is `Σₖ M_k · G_kj`, `M_k` column `k`.
+        Some(core::array::from_fn(|j| {
+            core::array::from_fn(|r| {
+                let mg = m[0][r] * g[0][j] + m[1][r] * g[1][j] + m[2][r] * g[2][j];
+                m[j][r] - half * mg + spread
+            })
+        }))
+    }
+
+    /// **The unit's enclosure**, the one-column case of
+    /// [`Real::enclose_rotation`]'s argument: for `v` with `g = |v|² − 1`
+    /// and `η ≥ |g|`, `v/|v| = v·(1 + g)^(−1/2) = v − ½·g·v + v·r(g)`, so
+    /// each component lies within `ρ = √(1 + η)·(3/8)·η²·(1 − η)^(−5/2)`
+    /// of `(v − ½·g·v)`'s, answered so with outward rounding; poisoned
+    /// where `η` is not below one half.
+    fn enclose_unit(v: [Self; 3]) -> Option<[Self; 3]> {
+        let g = v[0] * v[0] + v[1] * v[1] + v[2] * v[2] - Self::one();
+        let eta = Real::abs(g).hi();
+        if !(eta < 0.5) {
+            return Some([Self::from_bounds(f64::NAN, f64::NAN); 3]);
+        }
+        let e = Self::from_bounds(eta, eta);
+        let rho = (Real::sqrt(Self::one() + e) * Self::from_f64(0.375) * e * e
+            / Real::powi(Real::sqrt(Self::one() - e), 5))
+        .hi();
+        let spread = Self::from_bounds(-rho, rho);
+        let half = Self::from_f64(0.5);
+        Some(v.map(|x| x - half * g * x + spread))
+    }
+
     fn is_bounded(self) -> bool {
         !Real::is_poison(self) && self.0.lo().is_finite() && self.0.hi().is_finite()
     }

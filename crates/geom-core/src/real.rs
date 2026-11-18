@@ -408,6 +408,35 @@ pub trait Real:
     /// own reading.
     fn is_bounded(self) -> bool;
 
+    /// **An enclosure of the rotation the stated frame `m` names**, where
+    /// this scalar's value is a plain enclosure and nothing else: the
+    /// columns of the polar factor `R` of `m` (the rotation nearest it),
+    /// each entry enclosed. `m` is a frame stated at a point scalar
+    /// (columns `u`, `v`, `w`, read here), which claims the exact
+    /// rotation it is the rounding of; this is the lift of that claim
+    /// into an enclosure ([`crate::RigidMotion::map_scalar`] across
+    /// kinds). A scalar with no such enclosure answers `None` (the
+    /// default): a point scalar has none to give, and a scalar that also
+    /// carries derivatives or symbolic forms holds the rotation in those
+    /// channels too, which an enclosure of its value does not reach.
+    /// Decides nothing; a frame whose rotation it cannot enclose is
+    /// answered poisoned.
+    #[must_use]
+    fn enclose_rotation(m: [[Self; 3]; 3]) -> Option<[[Self; 3]; 3]> {
+        let _ = m;
+        None
+    }
+
+    /// **An enclosure of the unit direction a stated `v` names**,
+    /// [`Real::enclose_rotation`]'s one-column case: the direction
+    /// `v/|v|`, each component enclosed, where this scalar's value is a
+    /// plain enclosure; `None` (the default) where it is not.
+    #[must_use]
+    fn enclose_unit(v: [Self; 3]) -> Option<[Self; 3]> {
+        let _ = v;
+        None
+    }
+
     /// **Is this scalar an exact zero in every channel it carries?** At
     /// the point and interval scalars, [`is_exact_zero`] (the value
     /// channel is the scalar). A scalar that carries more than its value

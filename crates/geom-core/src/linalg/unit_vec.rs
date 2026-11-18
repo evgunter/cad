@@ -431,15 +431,21 @@ impl<T: Real> UnitVec3<T> {
 
     /// **This direction at another scalar**, `f` a lift that keeps each
     /// component's point: carried as it is between two scalars of one
-    /// [`Witness`](crate::Witness) kind, and re-minted at the target
-    /// scalar ([`UnitVec3::squared`]) across kinds, for the reason
-    /// [`RigidMotion::map_scalar`](super::RigidMotion::map_scalar) gives.
+    /// [`Witness`](crate::Witness) kind, and across kinds, for the reason
+    /// [`RigidMotion::map_scalar`](super::RigidMotion::map_scalar) gives,
+    /// enclosed at the target ([`Real::enclose_unit`]) where its value is
+    /// a plain enclosure, and otherwise re-minted there
+    /// ([`UnitVec3::squared`]).
     #[must_use]
     pub fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> UnitVec3<U> {
+        let v = self.0.map(f);
         if T::WITNESS == U::WITNESS {
-            UnitVec3(self.0.map(f))
+            UnitVec3(v)
         } else {
-            UnitVec3::squared(self.0.map(f))
+            match U::enclose_unit([v.x, v.y, v.z]) {
+                Some([x, y, z]) => UnitVec3(Vec3::new(x, y, z)),
+                None => UnitVec3::squared(v),
+            }
         }
     }
 

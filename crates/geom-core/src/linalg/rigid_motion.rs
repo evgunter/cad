@@ -180,8 +180,16 @@
 //!   scalar takes from `f64` is a choice (DESIGN `[scalars]`). The
 //!   entries are taken as that choice, a value that depends on none of
 //!   the document's variables, and the frame is re-minted from them at
-//!   the target scalar with no decision ([`RigidMotion::squared`]), so
-//!   at `Interval` it encloses the rotation the `f64` frame stands for.
+//!   the target scalar with no decision. Where the target's value is a
+//!   plain enclosure (`Interval`) the image encloses the rotation the
+//!   `f64` frame stands for, its polar factor, entry by entry
+//!   ([`Real::enclose_rotation`], whose doc carries the bound): about
+//!   one ulp of each entry, its reflection poisoned. Where the target
+//!   also carries derivatives or forms (`Dual`, `Sym` over an
+//!   enclosure) the rotation is held in those channels too, and the
+//!   frame is squared there ([`RigidMotion::squared`]), its Gram–Schmidt
+//!   rotation exact in every channel. A computation runs at one scalar,
+//!   so the two never meet over one frame.
 //!
 //! A skin's carry, over a path that is a constant of the model, chooses
 //! each station's roll at `f64` as one reference vector, and the
@@ -1086,10 +1094,12 @@ impl<T: Real> RigidMotion<T> {
     /// no refusal. `origin` and every entry's finiteness are the
     /// caller's: a non-finite entry is poison in the axes it reaches.
     ///
-    /// It is the decision-free re-mint the scalar lift
-    /// ([`RigidMotion::map_scalar`]) runs, and the door a carrier's stated
-    /// frame enters the type through until its construction mints it;
-    /// a construction that can decide its frame decides it
+    /// It is the door a frame derived from two directions enters the type
+    /// through, where no frame carries it, and the scalar lift's re-mint
+    /// at a target that holds a frame in derivatives or forms
+    /// ([`RigidMotion::map_scalar`]); a lift to a plain enclosure encloses
+    /// the stated frame's rotation instead ([`Real::enclose_rotation`]),
+    /// and a construction that can decide its frame decides it
     /// ([`RigidMotion::from_axis_and_reference`]).
     #[must_use]
     pub fn squared(origin: Point3<T>, w: Vec3<T>, u: Vec3<T>) -> Self {
@@ -1273,11 +1283,13 @@ impl<T: Real> RigidMotion<T> {
     /// - **Across kinds** it is not: a rounded entry read as an
     ///   enclosure encloses nothing, and an enclosure read at a point is
     ///   no rounding of a rotation. The frame is re-minted from the
-    ///   mapped entries at the target scalar ([`RigidMotion::squared`]
-    ///   over the mapped `w` and `u`), built there rather than carried
-    ///   across (module docs, "Crossing scalars"), so at `Interval` the
-    ///   image of an `f64` frame encloses the rotation the frame stands
-    ///   for, and its entries are not `f`'s images of these verbatim.
+    ///   mapped entries at the target scalar, built there rather than
+    ///   carried across (module docs, "Crossing scalars"): at a target
+    ///   whose value is a plain enclosure the image encloses the stated
+    ///   frame's polar factor entry by entry ([`Real::enclose_rotation`]),
+    ///   and elsewhere it is squared there ([`RigidMotion::squared`] over
+    ///   the mapped `w` and `u`). Either way its entries are not `f`'s
+    ///   images of these verbatim.
     ///
     /// The kind is a property of the two types, so which branch runs is
     /// fixed at compile time and reads no value.
@@ -1293,7 +1305,22 @@ impl<T: Real> RigidMotion<T> {
                 w: carry(self.w),
             }
         } else {
-            RigidMotion::squared(origin, self.w.get().map(&f), self.u.get().map(&f))
+            let column = |d: UnitVec3<T>| {
+                let c = d.get().map(&f);
+                [c.x, c.y, c.z]
+            };
+            match U::enclose_rotation([column(self.u), column(self.v), column(self.w)]) {
+                Some([u, v, w]) => {
+                    let axis = |[x, y, z]: [U; 3]| UnitVec3::by_construction(Vec3::new(x, y, z));
+                    RigidMotion {
+                        origin,
+                        u: axis(u),
+                        v: axis(v),
+                        w: axis(w),
+                    }
+                }
+                None => RigidMotion::squared(origin, self.w.get().map(&f), self.u.get().map(&f)),
+            }
         }
     }
 }
@@ -1979,6 +2006,79 @@ mod tests {
     use crate::tolerance::Tol;
 
     pub(super) const SITE: &str = "rigid_motion_test_axis";
+
+    /// **A reflected `f64` frame names no rotation, and its lift to
+    /// `Interval` is poison**: `w` reversed, so the stated columns are
+    /// orthonormal (`η` is zero) and left-handed, and the polar
+    /// enclosure's determinant reading refuses it rather than taking the
+    /// reflection for a rotation.
+    #[test]
+    fn a_reflected_frame_lifted_to_an_enclosure_poisons() {
+        let turned = RigidMotion::<f64>::rotation(
+            UnitVec3::new(Vec3::new(1.0, 2.0, 3.0), SITE, band()).unwrap(),
+            0.83,
+        )
+        .unwrap();
+        let reflected = RigidMotion {
+            w: -turned.w,
+            ..turned
+        };
+        let lifted = reflected.map_scalar(Interval::from_f64);
+        for c in [lifted.u, lifted.v, lifted.w] {
+            for x in [c.get().x, c.get().y, c.get().z] {
+                assert!(
+                    x.lo().is_nan() && x.hi().is_nan(),
+                    "a reflection lifts as poison: {x:?}"
+                );
+            }
+        }
+        let kept = turned.map_scalar(Interval::from_f64);
+        assert!(!kept.u.get().x.lo().is_nan(), "the rotation itself lifts");
+    }
+
+    /// **A rounded rotation lifts to an enclosure of its polar factor about
+    /// one ulp wide** at every entry, no wider in all than squaring the
+    /// lifted columns at the target, and meeting it at every entry (both
+    /// enclose a rotation within rounding of the stated entries).
+    #[test]
+    fn a_rounded_rotation_lifts_to_its_polar_enclosure() {
+        let turned = RigidMotion::<f64>::rotation(
+            UnitVec3::new(Vec3::new(1.0, 2.0, 3.0), SITE, band()).unwrap(),
+            0.83,
+        )
+        .unwrap();
+        let polar = turned.map_scalar(Interval::from_f64);
+        let squared = RigidMotion::squared(
+            turned.origin.map(Interval::from_f64),
+            turned.w.get().map(Interval::from_f64),
+            turned.u.get().map(Interval::from_f64),
+        );
+        let width = |x: Interval| x.hi() - x.lo();
+        let (mut polar_total, mut squared_total) = (0.0, 0.0);
+        for (p, q) in [
+            (polar.u, squared.u),
+            (polar.v, squared.v),
+            (polar.w, squared.w),
+        ] {
+            for (a, b) in [
+                (p.get().x, q.get().x),
+                (p.get().y, q.get().y),
+                (p.get().z, q.get().z),
+            ] {
+                assert!(width(a) <= 4.0 * f64::EPSILON, "about an ulp wide: {a:?}");
+                assert!(
+                    a.lo() <= b.hi() && b.lo() <= a.hi(),
+                    "the two meet: {a:?}, {b:?}"
+                );
+                polar_total += width(a);
+                squared_total += width(b);
+            }
+        }
+        assert!(
+            polar_total <= squared_total,
+            "no wider in all than squaring: {polar_total:e} vs {squared_total:e}"
+        );
+    }
 
     /// The witness tolerance's linear band, shared by this module's
     /// rows and `motion_rows`.
