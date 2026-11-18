@@ -441,6 +441,11 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
             Neither,
             "re-parents shells between solids; no half-edge key changes meaning",
         ),
+        (
+            "fold_solid_into",
+            Neither,
+            "re-parents one solid's shells under another; no half-edge key changes meaning",
+        ),
         // ---- Neither: the caller's own row-level control of the
         // map, and writes the map is not keyed on. ----
         (

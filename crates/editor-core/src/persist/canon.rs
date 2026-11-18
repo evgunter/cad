@@ -1,21 +1,12 @@
 //! Canonical bytes and the content pin (ASM-1 D-2/D-3, as amended
 //! 2026-08-10: include-by-default).
 //!
-//! [`canonical_bytes`] serializes the REPLAYED document — the same
+//! [`canonical_bytes`] serializes the document — the same
 //! deterministic machinery the save body uses (BTreeMaps, pair-list
 //! structural keys, ryu shortest-round-trip floats) — with exactly
-//! TWO exclusions, each structurally justified:
-//!
-//! - the **edit log** — history is not state: two edit paths to one
-//!   snapshot are the same version, and undo must not move pins
-//!   (the log never appears here because the input is a [`ProfileDoc`]
-//!   value, not a save file; callers holding a (snapshot, log) pair
-//!   pin the replayed state, [`super::Loaded::doc`] — the same
-//!   replay-before-trust discipline as [`super::save`]/[`super::load`] —
-//!   so pin stability across no-op saves holds by construction);
-//! - the **[`DocumentId`]** — A4: the id answers "which part", the
-//!   pin "which version"; a document copied under a fresh id is
-//!   detectably the same content.
+//! ONE exclusion, structurally justified: the **[`DocumentId`]** — A4:
+//! the id answers "which part", the pin "which version"; a document
+//! copied under a fresh id is detectably the same content.
 //!
 //! Everything else is INCLUDED — nodes, order, variables and their
 //! names, recorded ε, witnesses, metadata, appearance, and every FUTURE `Doc` field,
@@ -43,11 +34,9 @@ use crate::program::ProfileDoc;
 use super::{PersistError, check};
 use geom_core::Tol;
 
-/// The canonical bytes of the CURRENT document state (module docs:
-/// the full serde form minus the `id` key; the edit log is absent
-/// because the input is the replayed value). Runs the shared
-/// validator first (with an empty log), so a document that could not
-/// be saved cannot be pinned. Deterministic: object keys land in
+/// The canonical bytes of the document's state (module docs: the full
+/// serde form minus the `id` key). Runs the shared validator first, so
+/// a document that could not be saved cannot be pinned. Deterministic: object keys land in
 /// serde_json's sorted map order, floats through ryu — bit-exact.
 ///
 /// # Errors
@@ -58,7 +47,7 @@ use geom_core::Tol;
 /// the serialized document is not the object shape this build wrote
 /// (unreachable short of a serde-impl bug; surfaced, not swallowed).
 pub fn canonical_bytes(doc: &ProfileDoc, tol: Tol) -> Result<Vec<u8>, PersistError> {
-    check::validate_document(doc, &[], tol)?;
+    check::validate_document(doc, tol)?;
     // Written compact inside the writing door, so a stable name of any
     // depth writes one level at a time (`names::nest`), then put in
     // canonical order over a heap stack: the bytes serde_json writes

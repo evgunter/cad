@@ -470,7 +470,7 @@ fn the_quantile_bisection_is_deterministic_and_monotone() {
 /// its body, for corruption.
 fn saved_normal() -> String {
     let doc = doc_with(&[("s", annotated(1.0, Distribution::Normal { sigma: 0.01 }))]);
-    save(&doc, &[], Tol::witness()).expect("saves")
+    save(&doc, Tol::witness()).expect("saves")
 }
 
 /// **The OTHER shape fault, planted at LOAD.** The unit pins a
@@ -483,7 +483,7 @@ fn a_hand_written_nominal_outside_support_refuses_at_load() {
         "b",
         annotated(1.0, Distribution::Uniform { lo: -0.2, hi: 0.3 }),
     )]);
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let corrupt = text.replace("\"lo\": -0.2", "\"lo\": 0.2");
     assert_ne!(corrupt, text, "the corruption must land");
     match load(&corrupt, Tol::witness()) {
@@ -526,7 +526,7 @@ fn an_unknown_key_inside_a_distribution_refuses_at_load() {
 #[test]
 fn a_distribution_on_a_count_param_refuses_at_load() {
     let doc = doc_with(&[("n", FreeVar::Count { value: 4 })]);
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let corrupt = text.replace(
         "\"value\": 4",
         "\"value\": 4, \"distribution\": {\"Normal\": {\"sigma\": 1.0}}",
@@ -549,15 +549,15 @@ fn a_distribution_on_a_count_param_refuses_at_load() {
 #[test]
 fn an_explicit_null_distribution_loads_and_is_normalized_out() {
     let doc = doc_with(&[("plain", FreeVar::continuous(Dimension::Length, 1.0))]);
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let corrupt = text.replace("\"value\": 1.0", "\"value\": 1.0, \"distribution\": null");
     assert_ne!(corrupt, text, "the corruption must land");
     let back = load(&corrupt, Tol::witness()).expect("an explicit null is accepted");
     assert_eq!(
-        (*back.doc.free_named("plain").expect("declared")).distribution(),
+        (*back.free_named("plain").expect("declared")).distribution(),
         None
     );
-    let again = save(&back.doc, &[], Tol::witness()).expect("saves");
+    let again = save(&back, Tol::witness()).expect("saves");
     assert_ne!(
         again, corrupt,
         "the key the file spelled is gone from the rewrite"
@@ -834,10 +834,8 @@ fn the_value_door_carries_the_declaration_forward() {
     ));
 }
 
-/// **The value door survives a round trip.** The new edit is file
-/// data: a document whose log carries one saves, loads and replays to
-/// the same parameter — annotation included — so the carry-forward is
-/// a property of the FORMAT and not only of this process's `apply`.
+/// **The value door survives a round trip.** A document the value door
+/// edited saves and loads to the same parameter — annotation included.
 #[test]
 fn a_value_edit_round_trips_through_the_file() {
     let dist = Distribution::TruncatedNormal {
@@ -846,22 +844,28 @@ fn a_value_edit_round_trips_through_the_file() {
         hi: 3e-5,
     };
     let doc = doc_with(&[("bore", annotated(0.01, dist))]);
-    let edits = [DocEdit::SetVarValue {
-        var: p("bore").into(),
-        value: FreeValue::Continuous(0.011),
-    }];
-    let text = save(&doc, edits.as_ref(), Tol::witness()).expect("saves");
+    let doc = apply(
+        &doc,
+        &DocEdit::SetVarValue {
+            var: p("bore").into(),
+            value: FreeValue::Continuous(0.011),
+        },
+        Tol::witness(),
+    )
+    .expect("the value door admits it")
+    .doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
     let back = load(&text, Tol::witness()).expect("loads");
-    match *back.doc.free_named("bore").expect("declared") {
+    match *back.free_named("bore").expect("declared") {
         FreeVar::Continuous {
             value,
             distribution,
             ..
         } => {
-            assert_eq!(value, 0.011, "the replayed value");
+            assert_eq!(value, 0.011, "the edited value");
             assert!(
-                distribution.expect("annotation replayed").bit_eq(&dist),
-                "the annotation crossed the file and the replay"
+                distribution.expect("annotation kept").bit_eq(&dist),
+                "the annotation crossed the file"
             );
         }
         FreeVar::Count { .. } => panic!("still continuous"),

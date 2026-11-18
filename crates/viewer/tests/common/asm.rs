@@ -262,9 +262,7 @@ pub fn copy(
 /// instance copies is authored into the file before a session opens it.
 pub fn store_union(bench: &Bench, members: &[RecipeNodeId], tol: Tol) -> RecipeNodeId {
     let text = std::fs::read_to_string(&bench.asm_path).expect("the assembly reads");
-    let mut doc = pncad::document::load(&text, tol)
-        .expect("the assembly loads")
-        .doc;
+    let mut doc = pncad::document::load(&text, tol).expect("the assembly loads");
     let reads = members
         .iter()
         .map(|&member| copy(bench, &doc, member))
@@ -278,7 +276,7 @@ pub fn store_union(bench: &Bench, members: &[RecipeNodeId], tol: Tol) -> RecipeN
     );
     std::fs::write(
         &bench.asm_path,
-        pncad::document::save(&doc, &[], tol).expect("the assembly saves"),
+        pncad::document::save(&doc, tol).expect("the assembly saves"),
     )
     .expect("the assembly writes");
     union
@@ -289,9 +287,7 @@ pub fn store_union(bench: &Bench, members: &[RecipeNodeId], tol: Tol) -> RecipeN
 /// person's placement, which no creation writes for them.
 pub fn store_world_copy(bench: &Bench, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     let text = std::fs::read_to_string(&bench.asm_path).expect("the assembly reads");
-    let mut doc = pncad::document::load(&text, tol)
-        .expect("the assembly loads")
-        .doc;
+    let mut doc = pncad::document::load(&text, tol).expect("the assembly loads");
     let placement = insert_into(
         &mut doc,
         super::world_place(pncad::document::Operand::Node(body)),
@@ -299,7 +295,7 @@ pub fn store_world_copy(bench: &Bench, body: RecipeNodeId, tol: Tol) -> RecipeNo
     );
     std::fs::write(
         &bench.asm_path,
-        pncad::document::save(&doc, &[], tol).expect("the assembly saves"),
+        pncad::document::save(&doc, tol).expect("the assembly saves"),
     )
     .expect("the assembly writes");
     placement
@@ -311,9 +307,7 @@ pub fn store_world_copy(bench: &Bench, body: RecipeNodeId, tol: Tol) -> RecipeNo
 /// writes over a copy.
 pub fn store_place_over(bench: &Bench, copy: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     let text = std::fs::read_to_string(&bench.asm_path).expect("the assembly reads");
-    let mut doc = pncad::document::load(&text, tol)
-        .expect("the assembly loads")
-        .doc;
+    let mut doc = pncad::document::load(&text, tol).expect("the assembly loads");
     let space = doc.node_space(copy).expect("a copy stands in a space");
     let placement = insert_into(
         &mut doc,
@@ -326,7 +320,7 @@ pub fn store_place_over(bench: &Bench, copy: RecipeNodeId, tol: Tol) -> RecipeNo
     );
     std::fs::write(
         &bench.asm_path,
-        pncad::document::save(&doc, &[], tol).expect("the assembly saves"),
+        pncad::document::save(&doc, tol).expect("the assembly saves"),
     )
     .expect("the assembly writes");
     placement

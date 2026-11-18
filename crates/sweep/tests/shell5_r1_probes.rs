@@ -625,58 +625,53 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         ),
         Err(e) => println!("[e2e] mesh refuses: {e}"),
     }
-    // 5. export it (STEP is the only exporter in the workspace).
-    match step_export::step_string(
-        &out,
-        &step_export::StepOptions {
-            product_name: "opened inner wall".into(),
-            ..Default::default()
-        },
-        tol(),
-    ) {
-        Ok(s) => println!(
-            "[e2e] STEP: {} bytes, MANIFOLD_SOLID_BREP × {}",
-            s.len(),
-            s.matches("MANIFOLD_SOLID_BREP").count()
-        ),
-        Err(e) => println!(
-            "[e2e] STEP refuses: {e_at}",
-            e_at = e.render(geom_brep::recourse::Reading::Build)
-        ),
-    }
-    match step_export::step_string(
+    // 5. export it (STEP is the only exporter in the workspace): the
+    // opened wall, the hollow body it was opened from (one solid with a
+    // void, so one BREP_WITH_VOIDS) and the sealed two-solid body.
+    let export = |body: &topo::AtRestBody<f64>, name: &str| {
+        step_export::step_string(
+            body,
+            &step_export::StepOptions {
+                product_name: name.into(),
+                ..Default::default()
+            },
+            tol(),
+        )
+        .unwrap_or_else(|e| {
+            panic!(
+                "[e2e] {name}: STEP refuses: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
+    };
+    let count = |s: &str, keyword: &str| s.matches(&format!("= {keyword}(")).count();
+    let opened = export(&out, "opened inner wall");
+    println!(
+        "[e2e] STEP: {} bytes, MANIFOLD_SOLID_BREP × {}",
+        opened.len(),
+        count(&opened, "MANIFOLD_SOLID_BREP")
+    );
+    let once = export(
         &topo::test_support::finished("the exported body", first.body.clone(), tol()),
-        &step_export::StepOptions {
-            product_name: "hollow once".into(),
-            ..Default::default()
-        },
-        tol(),
-    ) {
-        Ok(s) => println!(
-            "[e2e] STEP (hollow once, pre-existing shape): {} bytes",
-            s.len()
+        "hollow once",
+    );
+    assert_eq!(
+        (
+            count(&once, "BREP_WITH_VOIDS"),
+            count(&once, "ORIENTED_CLOSED_SHELL")
         ),
-        Err(e) => println!(
-            "[e2e] STEP (hollow once, pre-existing shape) refuses: {e_at}",
-            e_at = e.render(geom_brep::recourse::Reading::Build)
-        ),
-    }
-    match step_export::step_string(
+        (1, 1),
+        "[e2e] the hollow body is one solid with one void"
+    );
+    let sealed = export(
         &topo::test_support::finished("the exported body", twice.body.clone(), tol()),
-        &step_export::StepOptions {
-            product_name: "hollow twice".into(),
-            ..Default::default()
-        },
-        tol(),
-    ) {
-        Ok(s) => println!(
-            "[e2e] STEP (sealed, 2 solids): {} bytes, MANIFOLD_SOLID_BREP × {}",
-            s.len(),
-            s.matches("MANIFOLD_SOLID_BREP").count()
-        ),
-        Err(e) => println!(
-            "[e2e] STEP (sealed, 2 solids) refuses: {e_at}",
-            e_at = e.render(geom_brep::recourse::Reading::Build)
-        ),
-    }
+        "hollow twice",
+    );
+    println!(
+        "[e2e] STEP (sealed, 2 solids): {} bytes, MANIFOLD_SOLID_BREP × {}, \
+         BREP_WITH_VOIDS × {}",
+        sealed.len(),
+        count(&sealed, "MANIFOLD_SOLID_BREP"),
+        count(&sealed, "BREP_WITH_VOIDS")
+    );
 }

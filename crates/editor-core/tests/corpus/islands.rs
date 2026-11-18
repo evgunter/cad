@@ -106,7 +106,7 @@ pub fn document_105() -> CorpusDoc {
     CorpusDoc {
         name: "nested_islands_105",
         about: "doubly-nested island union chain (#105 exactness pin)",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(u2),
         pin: Some(MassPin {
@@ -138,7 +138,7 @@ pub fn document_106_depth1() -> CorpusDoc {
     CorpusDoc {
         name: "nested_islands_106_depth1",
         about: "depth-1 nested-island intersect (the #93 coverage control)",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(cut),
         pin: Some(MassPin {
@@ -176,7 +176,7 @@ pub fn document_106_depth2() -> CorpusDoc {
     CorpusDoc {
         name: "nested_islands_106_depth2",
         about: "depth-2 nested-island intersect (#106 closed by #113; exact 13/4)",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(cut),
         pin: Some(MassPin {

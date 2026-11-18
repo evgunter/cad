@@ -138,7 +138,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "plate_param",
         about: "the parametric scene: a plate whose two hole radii are one FreeVar",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(union),
         pin: None,

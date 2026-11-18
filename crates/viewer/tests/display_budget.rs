@@ -3,8 +3,8 @@
 //!
 //! The behaviour of Open was never the defect. `docio::open` and
 //! `SessionOp::Open` are exercised in `doc_io.rs` and always were; the
-//! typed door works, the resolver rebinds, the log replays, the round
-//! trip is byte-stable. What went untested was what opening a document
+//! typed door works, the resolver rebinds, the round trip is
+//! byte-stable. What went untested was what opening a document
 //! COSTS: a request the budget does not bind must be drawn as asked,
 //! and one it binds must be coarsened to a picture near the budget
 //! rather than left to make Open wait on millions of triangles.
@@ -57,34 +57,11 @@ fn gallery_ring(tol: Tol) -> DocSession {
 /// The same fixture as a document, for the rows that open every
 /// document the same way.
 fn gallery_ring_doc(tol: Tol) -> ProfileDoc {
-    let text = crate::common::GALLERY_RING;
     // The fixture is stamped at the ε it was born at; `doc_io.rs` owns
-    // the re-stamp and the proof that ε is its only ε-dependent byte.
-    // Here the document only has to LOAD, so the born-at ε is fine and
-    // the row runs at whatever the draw gave it.
-    let loaded = match pncad::document::load(text, tol) {
-        Ok(loaded) => loaded,
-        Err(_) => {
-            // A different ε row: re-stamp exactly as `doc_io` does.
-            let probe: pncad::document::Doc<pncad::document::ProfileProgram> =
-                pncad::document::Doc::empty_derived("budget-epsilon-probe", tol);
-            let probe_text =
-                pncad::document::save(&probe, &[], tol).expect("an empty document saves");
-            let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
-            let wanted = probe_text
-                .lines()
-                .find(|line| is_epsilon(line))
-                .expect("a saved document records its ε");
-            let mut restamped: String = text
-                .lines()
-                .map(|line| if is_epsilon(line) { wanted } else { line })
-                .collect::<Vec<&str>>()
-                .join("\n");
-            restamped.push('\n');
-            pncad::document::load(&restamped, tol).expect("the re-stamped fixture loads")
-        }
-    };
-    loaded.snapshot
+    // the proof that ε is its only ε-dependent byte. Here the document
+    // only has to LOAD, at whatever ε the draw gave the row.
+    pncad::document::load(&crate::common::gallery_ring_at(tol), tol)
+        .expect("the re-stamped fixture loads")
 }
 
 fn delta(value: f64) -> DisplayTolerance {
