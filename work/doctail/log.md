@@ -129,3 +129,8 @@ body has the reasons):
 
   The two P2 rows turn on one VR4 question; a designer pair should weigh it next.
 - 2026-11-18 — PR 7087 merged (f2f663dc9). Two new rows sat on the 0.5 s new-test bar on CI (0.504 s and 0.54 s); both went to the slow set. Main moved twice under the PR, each time conflicting on logs that GitHub cannot union-merge. **State:** every P0/P1 row on DOCTAIL is now parked on an Ev PR: the P0 runwall on 7082+7075; the face frame on 7073; valenv ×2 on 7075; verdict on 7076. The P2 tail is open: the VR4 pair, the pose-chain overflow, and the two certified-pick rows.
+- 2026-11-18 — **Ev ruled 7076** ("nice, this sounds like a real improvement!", with the encoding left to the build), and it is merged. The verdict-log build is dispatched (`doctail/verdict-log-…`). Tier: DUAL (two Opus; Fable out): a broad change across the resolver, drive, range checks, K telemetry and ONEDOOR. It measures before it re-baselines.
+
+  **7075:** Ev approved 2 with a caveat: if per-member naming is not generic, ask before the alternative. Ev asked what happens to formerly refused profiles; answered (admitted, refused typed at evaluation, poisoned downstream, shown on the node). Awaiting OK.
+
+  **7073:** Ev asked for the per-node-theorem context. Answered: the 2026-10-06 rule is that rung 3, the symbolic polynomial identity, proves coincidences, and a hand statement is only a cache checked against it. So the build tries rung 3 first, like the box mitre's `dot(d, cross(d,t))`, and needs no new ruling. Awaiting OK.
