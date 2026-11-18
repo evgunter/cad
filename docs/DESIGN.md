@@ -1493,11 +1493,20 @@ face by mates and values, then combined, and which side of the face
 its material lies on is the mates' to say. A sketch on a face is not
 placed: it is a profile drawn on a frame read off the face's own
 geometry, and it and every sweep of it are in the face's body's space.
-The frame's x points toward a cell of the body off the face's normal
-where the gesture names one; on a face with none (a bare disc) it is
-the space's x carried onto the face by the least turn, as a
-placement's spin is measured ([placement.values]). Either way the
-frame's spin then turns it. Only a placement relates
+That frame is the chart a plane placement onto the face gives, and
+the placement's own code computes it, so the two cannot differ: its z
+is the face's outward normal, and its x and origin are the space's
+under the orientation the gesture writes nearest the face, carried
+onto the face by the least turn, then turned by the written spin and
+moved by the two written slides ([placement.values]). Within the band
+about that orientation's pole it refuses, naming the orientation to
+write, as a placement does. Nothing about the face's cells chooses it:
+a sketch that should sit at a corner says so in its slides. The sketch
+may trace faces of that space ("Constructing a coincidence"): a profile
+on a face is one act whether or not it traces, and a sweep of it is
+tangent to a traced face by construction where the face's plane and the
+traced face's sweep are one construction (an extrude's cap and its
+wall, or a face mated flat onto that cap). Only a placement relates
 two spaces (FORK-S3P), so a feature at several positions is one body placed
 several times, each placement a copy.
 
