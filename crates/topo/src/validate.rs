@@ -10940,9 +10940,14 @@ impl<T: geom_core::Decide> AtRestBody<T> {
             faces,
             excluded: FacePairs::none(),
         };
+        if crate::gate_measure::off() {
+            return None;
+        }
         let measure_clock = std::time::Instant::now();
         let measure_report = embedded(&side, band, GATE_BUDGETS);
-        crate::gate_measure::log(body, &side.faces, &measure_report, measure_clock.elapsed());
+        let measure_secs = measure_clock.elapsed();
+        crate::gate_measure::log(body, &side.faces, &measure_report, measure_secs);
+        crate::gate_measure::decompose(body, &side.faces, &measure_report, measure_secs.as_secs_f64(), band);
         let crossing = match measure_report.verdict {
             Embedding::Embedded => return None,
             Embedding::Refused(refusal) => {

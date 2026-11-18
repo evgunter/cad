@@ -107,3 +107,85 @@ pub fn log<T: geom_core::Real>(
         let _ = f.write_all(line.as_bytes());
     }
 }
+
+/// Item 1: `CAD_GATE_OFF` skips the ask (the suite without the gate).
+pub fn off() -> bool {
+    std::env::var_os("CAD_GATE_OFF").is_some()
+}
+
+fn write(line: &str) {
+    let Ok(dir) = std::env::var("CAD_GATE_LOG") else { return };
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(format!("{dir}/{}.log", std::process::id())) {
+        let _ = f.write_all(line.as_bytes());
+    }
+}
+
+fn test_name() -> String {
+    std::env::args().skip(1).find(|a| !a.starts_with('-')).unwrap_or_default()
+}
+
+thread_local! {
+    static SEEN: RefCell<std::collections::BTreeSet<(usize, usize, usize)>> = RefCell::new(Default::default());
+}
+
+/// Item 4: every face pair of a holding ask asked alone (`Side`
+/// restricted to the two faces, their self-pairs excluded), against the
+/// whole ask. `CAD_GATE_DECOMPOSE=<min leaves>`; each body signature once.
+pub fn decompose<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    whole: &EmbeddingReport,
+    whole_secs: f64,
+    band: geom_core::Band,
+) {
+    use crate::clearance::{embedded, FacePairs, Side, GATE_BUDGETS};
+    let Some(min) = std::env::var("CAD_GATE_DECOMPOSE").ok().and_then(|v| v.parse::<usize>().ok()) else { return };
+    let w = &whole.receipt;
+    let leaves = |r: &crate::clearance::CellReceipt| r.discharged + r.violated + r.refused + r.within;
+    if !matches!(whole.verdict, Embedding::Embedded) || leaves(w) < min {
+        return;
+    }
+    let sig = (faces.len(), w.candidates, leaves(w));
+    if !SEEN.with(|s| s.borrow_mut().insert(sig)) {
+        return;
+    }
+    let (mut n, mut sum_leaves, mut sum_splits, mut sum_disc, mut secs) = (0usize, 0usize, 0usize, 0usize, 0f64);
+    let mut differ: Vec<String> = Vec::new();
+    let mut top: Vec<(usize, FaceKey, FaceKey)> = Vec::new();
+    for (i, &a) in faces.iter().enumerate() {
+        for &b in &faces[i..] {
+            let mut ex: Vec<(FaceKey, FaceKey)> = Vec::new();
+            let fs = if a == b { vec![a] } else { ex.push((a, a)); ex.push((b, b)); vec![a, b] };
+            let side = Side { body, faces: fs, excluded: ex.into_iter().collect::<FacePairs>() };
+            let t = std::time::Instant::now();
+            let r = embedded(&side, band, GATE_BUDGETS);
+            let dt = t.elapsed().as_secs_f64();
+            if r.receipt.candidates == 0 {
+                continue;
+            }
+            n += 1;
+            secs += dt;
+            let l = leaves(&r.receipt);
+            sum_leaves += l;
+            sum_splits += r.receipt.splits;
+            sum_disc += r.receipt.discharged;
+            top.push((l, a, b));
+            if !matches!(r.verdict, Embedding::Embedded) {
+                differ.push(format!("{a:?}/{b:?}:{:?}", r.verdict));
+            }
+        }
+    }
+    top.sort_by(|x, y| y.0.cmp(&x.0));
+    let kinds = |f: FaceKey| body.face_surface(f).map_or("?".to_owned(), |s| format!("{:?}", s.kind()));
+    let tops: Vec<String> = top.iter().take(3).map(|(l, a, b)| format!("{l}:{}/{}", kinds(*a), kinds(*b))).collect();
+    write(&format!(
+        "DECOMP\t{}\tfaces={}\twhole_cand={}\tpairs_asked={n}\twhole_leaves={}\tsum_leaves={sum_leaves}\twhole_splits={}\tsum_splits={sum_splits}\twhole_disc={}\tsum_disc={sum_disc}\twhole_secs={whole_secs:.4}\tsum_secs={secs:.4}\tmax_pair={}\ttop={tops:?}\tdiffer={differ:?}\n",
+        test_name(), faces.len(), w.candidates, leaves(w), w.splits, w.discharged,
+        top.first().map_or(0, |t| t.0),
+    ));
+}
+
+/// Item 6: the census over a Boolean result with the records its door holds.
+pub fn census_line(records: usize, findings: usize, secs: f64) {
+    write(&format!("CENSUS\t{}\trecords={records}\tfindings={findings}\tsecs={secs:.4}\n", test_name()));
+}

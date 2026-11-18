@@ -5806,6 +5806,11 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     crate::gate_measure::holding("boolean-gate", held.contacts);
     let finished = T::finish(body, tol);
     crate::gate_measure::clear();
+    if let (Ok(f), Some(_)) = (&finished, std::env::var_os("CAD_GATE_CENSUS")) {
+        let t = std::time::Instant::now();
+        let findings = T::census_at_rest(f, held.contacts, tol);
+        crate::gate_measure::census_line(held.contacts.len(), findings.len(), t.elapsed().as_secs_f64());
+    }
     #[cfg(any(test, feature = "test-support"))]
     if let Err(findings) = &finished {
         refused_faces::note(&kinds, findings.as_slice());
