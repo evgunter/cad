@@ -247,8 +247,8 @@ fn top_vol() -> f64 {
 /// containment fallback and yields the two-shell `Voided` body — the
 /// milestone's first legitimate voids. Not a render (an opaque void
 /// is indistinguishable from a cube; the old translucency hack is
-/// retired in favor of `crate::cutaway`'s honest split), and STEP
-/// refuses void shells typed — also narrated.
+/// retired in favor of `crate::cutaway`'s honest split). It leaves as
+/// STEP and comes back ([`crate::step_round_trip`]) — also narrated.
 pub fn voidbox_narration(tol: Tol) {
     println!("\n== voidbox (narration only since the #91 refresh) ==");
     let b = voidbox::<f64>(tol);
@@ -257,19 +257,18 @@ pub fn voidbox_narration(tol: Tol) {
          exactly; the void is INTERNAL — the montage panel is retired for the \
          cutaway split, which shows interiors honestly"
     );
-    match pncad::step_export::step_string(&b.body, &pncad::step_export::StepOptions::default(), tol)
-    {
-        Ok(_) => {
-            println!("   STEP export of the voided body: OK (unexpected — update this narration)");
-        }
-        Err(e) => println!("   STEP export of the voided body refuses typed: {e:?}"),
-    }
+    let trip = crate::step_round_trip("voidbox", &b.body, tol);
+    println!(
+        "   STEP: one BREP_WITH_VOIDS, re-imported as one solid with {} cavity, \
+         V = {:.9} m³",
+        trip.voids, trip.volume
+    );
 }
 
 /// The checked void subtract itself, scalar-generic (the Probe sweep
-/// samples its containment-fallback predicates too; the STEP-refusal
-/// narration stays in the f64-only wrapper above — the STEP writer is
-/// f64 by design).
+/// samples its containment-fallback predicates too; the STEP round
+/// trip stays in the f64-only wrapper above — the STEP doors are f64
+/// by design).
 pub(crate) fn voidbox<S: Scalar>(tol: Tol) -> pncad::topo::BooleanBody<S> {
     let outer: AtRestBody<S> = slab((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), tol);
     let inner: AtRestBody<S> = slab((0.5, 1.5), (0.5, 1.5), (0.5, 1.5), tol);

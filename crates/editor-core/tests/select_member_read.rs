@@ -181,10 +181,8 @@ fn a_family_read_whole_is_no_body_a_selection_reads() {
         doc,
         Node::fillet(Operand::Node(xs), len(0.1), vec![whole_name]),
     );
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
-    let loaded = editor_core::persist::load(&text, Tol::witness())
-        .expect("and loads")
-        .doc;
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("the document saves");
+    let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
     for (door, doc) in [("the edit door", &doc), ("the load door", &loaded)] {
         assert_eq!(
             doc.node_reach(fillet).chain(),
@@ -417,7 +415,7 @@ fn a_side_index_named_after_the_door_still_reads_its_member() {
         None,
         "the top seats"
     );
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("the document saves");
     editor_core::persist::load(&text, Tol::witness()).expect("and loads");
 }
 
@@ -449,7 +447,7 @@ fn the_load_door_holds_a_side_read_through_a_pose() {
         .doc;
     assert!(
         matches!(
-            editor_core::persist::save(&defined, &[], Tol::witness()),
+            editor_core::persist::save(&defined, Tol::witness()),
             Err(editor_core::PersistError::Snapshot(
                 SnapshotError::SelectionShape {
                     fault: editor_core::SelectionFault::SideIndex { k: 0 },
@@ -478,7 +476,7 @@ fn the_load_door_holds_a_side_read_through_a_pose() {
         .doc;
     assert!(
         matches!(
-            editor_core::persist::save(&deeper, &[], Tol::witness()),
+            editor_core::persist::save(&deeper, Tol::witness()),
             Err(editor_core::PersistError::Snapshot(
                 SnapshotError::SelectionShape {
                     fault: editor_core::SelectionFault::Input(ref fault),
@@ -536,7 +534,7 @@ fn the_load_door_holds_a_side_read_through_a_named_pose() {
         )
         .expect("the pose is named")
         .doc;
-    editor_core::persist::save(&doc, &[], Tol::witness()).expect("a written index saves");
+    editor_core::persist::save(&doc, Tol::witness()).expect("a written index saves");
     let defined = doc
         .apply(
             &DocEdit::DefineVar {
@@ -555,7 +553,7 @@ fn the_load_door_holds_a_side_read_through_a_named_pose() {
         .doc;
     assert!(
         matches!(
-            editor_core::persist::save(&defined, &[], Tol::witness()),
+            editor_core::persist::save(&defined, Tol::witness()),
             Err(editor_core::PersistError::Snapshot(
                 SnapshotError::SelectionShape {
                     fault: editor_core::SelectionFault::SideIndex { k: 0 },

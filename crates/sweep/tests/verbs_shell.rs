@@ -1565,12 +1565,14 @@ fn a_mixed_sense_chart_built_from_outside_is_refused_at_the_gate() {
 // The STEP gate, recorded
 // ---------------------------------------------------------------------
 
-/// **A shelled body's cavity reads as a void.** The shelled tube is a
+/// **A shelled body's cavity exports as a void.** The shelled tube is a
 /// solid of two curved shells, and STEP export reads their roles off
-/// the kernel's shell-role door: the inner wall is a void, which the
-/// writer refuses (`BREP_WITH_VOIDS` is not written yet).
+/// the kernel's shell-role door: the inner wall is the solid's void,
+/// written as the one `ORIENTED_CLOSED_SHELL` of a `BREP_WITH_VOIDS`.
+/// The round trip through the importer is
+/// `step-import`'s `hollow_bodies_round_trip`.
 #[test]
-fn a_curved_shelled_body_refuses_step_export_as_a_void() {
+fn a_curved_shelled_body_exports_its_cavity_as_a_void() {
     let hollow = topo::shell(
         &finished("the operand", tube(0.6, 1.0, 2.0), Tol::witness()),
         0.1,
@@ -1579,7 +1581,7 @@ fn a_curved_shelled_body_refuses_step_export_as_a_void() {
     .expect("the tube shells")
     .body;
     assert_eq!(hollow.shells().count(), 2);
-    let e = step_export::step_string(
+    let text = step_export::step_string(
         &finished("the shelled tube", hollow, Tol::witness()),
         &step_export::StepOptions {
             product_name: "shelled tube".into(),
@@ -1587,21 +1589,22 @@ fn a_curved_shelled_body_refuses_step_export_as_a_void() {
         },
         Tol::witness(),
     )
-    .expect_err("a body with a cavity has no STEP spelling yet");
-    let step_export::StepExportError::VoidShellUnsupported {
-        volume_lo,
-        volume_hi,
-        ..
-    } = e
-    else {
+    .unwrap_or_else(|e| {
         panic!(
-            "expected the void refusal, got {e_at}",
+            "the shelled tube exports: {e_at}",
             e_at = e.render(geom_brep::recourse::Reading::Build)
-        );
-    };
-    assert!(
-        volume_lo <= volume_hi && volume_hi < 0.0,
-        "the cavity's signed volume is negative: [{volume_lo}, {volume_hi}]"
+        )
+    });
+    let count = |keyword: &str| text.matches(&format!("= {keyword}(")).count();
+    assert_eq!(
+        (
+            count("MANIFOLD_SOLID_BREP"),
+            count("BREP_WITH_VOIDS"),
+            count("ORIENTED_CLOSED_SHELL"),
+            count("CLOSED_SHELL")
+        ),
+        (0, 1, 1, 2),
+        "one solid with one void, over two closed shells"
     );
 }
 

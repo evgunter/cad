@@ -109,7 +109,7 @@ fn two_inserted_parts_and_a_free_move_reopen_drawn_apart() {
     let bytes = std::fs::read_to_string(&path).expect("the document reads");
     assert_eq!(
         bytes,
-        save(&doc, &[], tol).expect("the document saves"),
+        save(&doc, tol).expect("the document saves"),
         "the document file holds the document's own bytes, no frame in them"
     );
 

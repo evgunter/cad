@@ -625,7 +625,7 @@ fn the_first_boundary_stops_the_walk_and_a_seed_on_the_island_certifies_it() {
 fn the_query_does_not_touch_the_input_document() {
     let (doc, node) = slab_slot(1.0);
     let before = doc.clone();
-    let before_text = editor_core::persist::save(&doc, &[], tol()).expect("the fixture saves");
+    let before_text = editor_core::persist::save(&doc, tol()).expect("the fixture saves");
     let _ = certified_range(
         &doc,
         &RangeField::Slot {
@@ -640,7 +640,7 @@ fn the_query_does_not_touch_the_input_document() {
     .expect("the slot widens");
     assert!(doc.bit_eq(&before));
     assert_eq!(
-        editor_core::persist::save(&doc, &[], tol()).expect("the fixture saves"),
+        editor_core::persist::save(&doc, tol()).expect("the fixture saves"),
         before_text
     );
 }

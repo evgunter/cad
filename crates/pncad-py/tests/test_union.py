@@ -165,7 +165,7 @@ class TestTheUnion(unittest.TestCase):
             if "Union" in node
         ]
         members.append(members[0])
-        loaded = load(f"{header}\n{json.dumps(wire)}").doc
+        loaded = load(f"{header}\n{json.dumps(wire)}")
         assert_volume(self, measured(loaded, union), AB_VOLUME)
 
     def row(self, doc, a):

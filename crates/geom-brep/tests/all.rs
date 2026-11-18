@@ -340,6 +340,8 @@ mod cert_n2r2_class3_probes;
 #[path = "cert_n2r2_class56_probes.rs"]
 mod cert_n2r2_class56_probes;
 
+#[path = "incidence_at_the_shape_door.rs"]
+mod incidence_at_the_shape_door;
 #[path = "iso_rectangle_door.rs"]
 mod iso_rectangle_door;
 #[path = "kstats_escalation_channel.rs"]
