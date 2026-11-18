@@ -678,40 +678,26 @@ pub(crate) fn section_closed<T: Decide>(
     let (plane, other) = match (new, held) {
         (Surface::Plane { .. }, _) => (new, held),
         (_, Surface::Plane { .. }) => (held, new),
-        (Surface::Cone { .. }, Surface::Cylinder { .. })
-        | (Surface::Cylinder { .. }, Surface::Cone { .. }) => {
-            let (cone, cyl) = if matches!(new, Surface::Cone { .. }) {
+        (
+            Surface::Cone { .. },
+            Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Torus { .. },
+        )
+        | (
+            Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Torus { .. },
+            Surface::Cone { .. },
+        ) => {
+            let (cone, other) = if matches!(new, Surface::Cone { .. }) {
                 (new, held)
             } else {
                 (held, new)
             };
-            let extent = geom_brep::LeverBounds::Between {
+            let between = geom_brep::LeverBounds::Between {
                 below: extent,
                 above: sup,
             };
-            let candidates = match c5::cone_cylinder_section(cone, cyl, extent, band) {
-                Ok(c5::ConeCylinderSection::CoaxialCircles { c1, c2 }) => vec![c1, c2],
-                Err(e) => return closed(e),
-            };
-            let chosen = match nearest(candidates, old, span, band)? {
-                Ok(c) => c,
-                Err(v) => return Ok(Err(v)),
-            };
-            return running_with(chosen, old, span, band);
-        }
-        (Surface::Cone { .. }, Surface::Sphere { .. })
-        | (Surface::Sphere { .. }, Surface::Cone { .. }) => {
-            let (cone, sphere) = if matches!(new, Surface::Cone { .. }) {
-                (new, held)
-            } else {
-                (held, new)
-            };
-            let candidates = match c5::cone_sphere_section(cone, sphere, extent, band) {
-                Ok(c5::ConeSphereSection::CoaxialCircles(circles)) => circles,
-                Ok(c5::ConeSphereSection::TangentCircle(_)) => {
-                    return Ok(Err(SectionVerdict::Tangent));
-                }
-                Ok(c5::ConeSphereSection::Empty) => return Ok(Err(SectionVerdict::NoBranch)),
+            let candidates = match coaxial_with_cone(cone, other, between, band) {
+                Ok(Ok(candidates)) => candidates,
+                Ok(Err(verdict)) => return Ok(Err(verdict)),
                 Err(e) => return closed(e),
             };
             let chosen = match nearest(candidates, old, span, band)? {
@@ -723,7 +709,7 @@ pub(crate) fn section_closed<T: Decide>(
         _ => {
             return Ok(Err(SectionVerdict::Unsupported {
                 what: "the offset door derives a section through a plane, or of a cone \
-                       and a coaxial cylinder or sphere, only",
+                       and a coaxial cylinder, sphere or torus, only",
             }));
         }
     };
@@ -894,30 +880,67 @@ pub fn section_near<T: Decide>(
     }
 }
 
+/// **The circles a cone's coaxial partner cuts it in**: each lane's own
+/// door reads which partner it is (the cylinder's answers the wrong lane
+/// for any other, and the sphere's and the torus's are asked in turn). A
+/// tangency is the verdict where the nearest circle the pair holds is a
+/// tangent one, a miss where it holds none.
+fn coaxial_with_cone<T: Decide>(
+    cone: &Surface<T>,
+    other: &Surface<T>,
+    between: geom_brep::LeverBounds<T>,
+    band: Band,
+) -> Result<Result<Vec<Curve3<T>>, SectionVerdict>, geom_brep::SectionError> {
+    use geom_brep::SectionError::WrongLane;
+    use geom_brep::intersect as c5;
+    match c5::cone_cylinder_section(cone, other, between, band) {
+        Ok(c5::ConeCylinderSection::CoaxialCircles { c1, c2 }) => return Ok(Ok(vec![c1, c2])),
+        Err(WrongLane { .. }) => {}
+        Err(e) => return Err(e),
+    }
+    match c5::cone_sphere_section(cone, other, between, band) {
+        Ok(c5::ConeSphereSection::CoaxialCircles(circles)) => return Ok(Ok(circles)),
+        Ok(c5::ConeSphereSection::TangentCircle(_)) => return Ok(Err(SectionVerdict::Tangent)),
+        Ok(c5::ConeSphereSection::Empty) => return Ok(Err(SectionVerdict::NoBranch)),
+        Err(WrongLane { .. }) => {}
+        Err(e) => return Err(e),
+    }
+    let section = c5::cone_torus_section(cone, other, between, band)?;
+    Ok(
+        match (section.crossing.is_empty(), section.tangent.is_empty()) {
+            (false, true) => Ok(section.crossing),
+            (true, true) => Err(SectionVerdict::NoBranch),
+            // A tangency beside or instead of a crossing: the build's tangent
+            // lane reads which the edge is, not this one.
+            (_, false) => Err(SectionVerdict::Tangent),
+        },
+    )
+}
+
 /// **The root of `surface` along `carrier` nearest `seed`**, at `f64`:
 /// the plane's root along a spline carrier through the spline lane
 /// ([`SectionLane::f64`]), and [`analytic_root`] along any other
-/// carrier. `extent` levers the graze.
+/// carrier. `lever` levers the graze.
 ///
 /// # Errors
 ///
 /// An escalated reading at `band`.
-pub fn root_near(
+pub fn root_along(
     surface: &Surface<f64>,
     carrier: &Curve3<f64>,
     seed: f64,
-    extent: geom_core::Lever<f64>,
+    lever: geom_core::Lever<f64>,
     band: Band,
 ) -> Result<Result<f64, CornerVerdict<f64>>, Indeterminate> {
     match (surface, carrier) {
         (Surface::Plane { .. }, Curve3::Nurbs(spline)) => Ok(
-            match SectionLane::f64().root(surface, spline, seed, extent, band) {
+            match SectionLane::f64().root(surface, spline, seed, lever, band) {
                 Ok(SplineRoot::At(t)) => Ok(t),
                 Ok(SplineRoot::Short { .. }) => Err(CornerVerdict::NoRoot),
                 Err(verdict) => Err(verdict),
             },
         ),
-        _ => analytic_root(surface, carrier, seed, extent, band),
+        _ => analytic_root(surface, carrier, seed, lever, band),
     }
 }
 

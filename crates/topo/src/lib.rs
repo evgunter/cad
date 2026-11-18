@@ -1550,7 +1550,7 @@ pub use merge_faces::{
 };
 pub use null::CurveGeom;
 pub use offset_axial::{is_axial, offset_charts_together};
-pub use offset_derive::{CornerVerdict, SectionLane, SectionVerdict, root_near, section_near};
+pub use offset_derive::{CornerVerdict, SectionLane, SectionVerdict, root_along, section_near};
 pub use offset_general::offset_surfaces_together;
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};

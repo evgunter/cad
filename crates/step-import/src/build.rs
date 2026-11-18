@@ -24,7 +24,7 @@
 //!    not-yet-supported, naming the lane.
 //! 3. **Vertices.** Each vertex is the root of a surface around it along
 //!    a built carrier through it that the surface does not hold
-//!    ([`topo::root_near`]), else the foot of the printed point on its
+//!    ([`topo::root_along`]), else the foot of the printed point on its
 //!    one carrier; the move from the printed point is read at the file
 //!    band and reported where it passes rounding.
 //! 4. **Parameters.** Each edge's interval is its built ends read on its
@@ -375,7 +375,9 @@ fn choose(
 }
 
 /// The diameter of the box about the vertices the faces `faces` bound,
-/// as a lever: how far the two faces of an edge run.
+/// as a lever: how far the two faces of an edge run. Read through the
+/// extent's own door ([`geom_brep::points_diameter`]) on the box's two
+/// far corners, whose distance is its diagonal.
 fn faces_reach(solid: &SolidSpec, faces: [usize; 2]) -> geom_core::Lever<f64> {
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
     for f in faces {
@@ -392,8 +394,13 @@ fn faces_reach(solid: &SolidSpec, faces: [usize; 2]) -> geom_core::Lever<f64> {
             }
         }
     }
-    let diagonal = Vec3::new(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]).norm();
-    geom_core::Lever::of_consumed_extent(if diagonal.is_finite() { diagonal } else { 0.0 })
+    if !lo.iter().chain(&hi).all(|c| c.is_finite()) {
+        return geom_brep::points_diameter(&[]);
+    }
+    geom_brep::points_diameter(&[
+        Point3::new(lo[0], lo[1], lo[2]),
+        Point3::new(hi[0], hi[1], hi[2]),
+    ])
 }
 
 /// A spline wall in the pair: the plane × wall section in the plane's
@@ -612,11 +619,8 @@ fn analytic_pair(
         Err(V::Tangent) => tangent(id, spec, (sa, sb), region, extent, (file, eps_band)),
         // Two planes the file's band reads parallel meet in no line: the
         // file's statements are no description there.
-        Err(V::Unsupported { .. })
-            if let (Surface::Plane { normal: n1, .. }, Surface::Plane { normal: n2, .. }) =
-                (sa, sb) =>
-        {
-            let crossing = n1.cross(*n2).norm() * extent.length();
+        Err(V::Unsupported { .. }) if let Some(normals) = plane_normals(sa, sb) => {
+            let crossing = normals.0.cross(normals.1).norm() * extent.length();
             Err(file.refused(id, file.touching(STEP_PLANES_CROSS, crossing)))
         }
         Err(V::Unsupported { .. }) => {
@@ -632,6 +636,14 @@ fn analytic_pair(
             ),
             SECTION_LANE,
         )),
+    }
+}
+
+/// The two normals of a pair of planes; `None` for any other pair.
+fn plane_normals(a: &Surface<f64>, b: &Surface<f64>) -> Option<(Vec3<f64>, Vec3<f64>)> {
+    match (a, b) {
+        (Surface::Plane { normal: n1, .. }, Surface::Plane { normal: n2, .. }) => Some((*n1, *n2)),
+        _ => None,
     }
 }
 
@@ -867,7 +879,7 @@ fn one_surface(
         // tangent there lies along the printed carrier's.
         let tangent = spec.carrier.deriv(geom::mid_param(spec.t0, spec.t1));
         let along = |c: &Curve3<f64>| {
-            foot_param(c, mid).map_or(0.0, |t| {
+            param_at(c, mid).map_or(0.0, |t| {
                 let d = c.deriv(t);
                 (d.dot(tangent) / (d.norm() * tangent.norm())).abs()
             })
@@ -909,11 +921,9 @@ fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>
     let off = p - frame.origin;
     let along = off.dot(axis);
     let across = off - axis * along;
-    let rho = across.norm();
-    if !(rho.is_finite() && rho > 0.0) {
+    let Ok((radial, rho)) = across.checked_direction() else {
         return Vec::new();
-    }
-    let radial = across / rho;
+    };
     match *surface {
         Surface::Cylinder { origin, radius, .. } => {
             vec![Curve3::line(origin + radial * radius, axis)]
@@ -933,8 +943,13 @@ fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>
             minor_radius,
             ..
         } => {
-            let v = along.atan2(rho - major_radius);
-            let (sv, cv) = v.sin_cos();
+            // The tube's direction at `p` in the meridian half-plane,
+            // (cos v, sin v) read as the unit vector it is, not an angle.
+            let Ok((tube, _)) = Vec3::new(rho - major_radius, along, 0.0).checked_direction()
+            else {
+                return Vec::new();
+            };
+            let (cv, sv) = (tube.x, tube.y);
             vec![
                 Curve3::circle(
                     center + radial * major_radius,
@@ -969,7 +984,7 @@ fn running_with(
 ) -> Result<Curve3<f64>, StepImportError> {
     let half = geom::mid_param(spec.t0, spec.t1);
     let (mid, tangent) = spec.carrier.ders1(half);
-    let Some(at) = foot_param(&built, mid) else {
+    let Some(at) = param_at(&built, mid) else {
         return Err(unbuilt(
             file,
             id,
@@ -991,9 +1006,33 @@ fn running_with(
     }
 }
 
+/// **The parameter of a built spline's end `p`**, projected from `seed`.
+/// An end standing on a domain end within its rounding reads that end
+/// exactly: a projection lands ulps inside it, and an interval a hair
+/// short of an iso's own domain is no iso of the wall.
+fn spline_end_param(
+    id: u64,
+    n: &geom::NurbsCurve3<f64>,
+    p: Point3<f64>,
+    seed: f64,
+) -> Result<f64, StepImportError> {
+    let (lo, hi) = n.domain();
+    for end in [lo, hi] {
+        if n.eval(end).distance(p) <= rounding(p) {
+            return Ok(end);
+        }
+    }
+    n.project_from_seed(p, seed)
+        .map(|f| f.t)
+        .map_err(|_| StepImportError::Topology {
+            id,
+            what: "a built spline carrier whose end does not project onto it",
+        })
+}
+
 /// The parameter of `p`'s foot on `c`: the closed-form inverse of an
 /// analytic carrier, the projection of a spline one ([`spline_foot`]).
-fn foot_param(c: &Curve3<f64>, p: Point3<f64>) -> Option<f64> {
+fn param_at(c: &Curve3<f64>, p: Point3<f64>) -> Option<f64> {
     match c {
         Curve3::Nurbs(n) => spline_foot(n, p).map(|(t, _)| t),
         _ => c.param_near(p, 0.0),
@@ -1129,8 +1168,7 @@ fn iso_of_wall(
                         if let Some((origin, chord, forward)) =
                             line_iso_match(&iso, p_start, p_end, file)
                         {
-                            let len = chord.norm();
-                            let dir = chord / len;
+                            let (dir, len) = chord.direction_and_length();
                             let (from, to) = if forward { (r0, r1) } else { (r1, r0) };
                             let map = IsoMap {
                                 fixed,
@@ -1347,17 +1385,15 @@ fn build_vertices(
 
 /// The coordinates' own rounding at `p`: a move within it is no move.
 fn rounding(p: Point3<f64>) -> f64 {
-    let size = p.x.abs().max(p.y.abs()).max(p.z.abs());
-    ROUNDING_ULPS * f64::EPSILON * size
+    ROUNDING * p.x.abs().max(p.y.abs()).max(p.z.abs())
 }
 
-/// How many units of a coordinate's last place a construction's own
-/// arithmetic moves it by: a handful of products and sums, each
-/// rounding once.
-const ROUNDING_ULPS: f64 = 16.0;
-
-/// The rounding of a unit direction's components.
-const DIRECTION_ROUNDING: f64 = 4.0 * f64::EPSILON;
+/// **A value's own rounding, relative to its size**: sixteen units of its
+/// last place, what a handful of products and sums move a coordinate by,
+/// each rounding once. A move within it is no move: the build's
+/// reconstruction of a value the file printed differs from it by its
+/// arithmetic alone.
+const ROUNDING: f64 = 16.0 * f64::EPSILON;
 
 /// **A built carrier admitted as the printed one** where the printed one
 /// states it within its own rounding, field by field (a frame the file
@@ -1367,20 +1403,20 @@ const DIRECTION_ROUNDING: f64 = 4.0 * f64::EPSILON;
 /// its foot of the printed line's origin, a point of the locus the printed
 /// line names. Every other carrier as built.
 fn admitted(built: Curve3<f64>, printed: &Curve3<f64>) -> Curve3<f64> {
-    let near = |a: Point3<f64>, b: Point3<f64>| a.distance(b) <= rounding(a).max(rounding(b));
-    let along = |a: Vec3<f64>, b: Vec3<f64>| (a - b).norm() <= DIRECTION_ROUNDING;
-    let length = |a: f64, b: f64| (a - b).abs() <= 4.0 * f64::EPSILON * a.abs().max(b.abs());
+    let same_point = |a: Point3<f64>, b: Point3<f64>| a.distance(b) <= rounding(a).max(rounding(b));
+    let along = |a: Vec3<f64>, b: Vec3<f64>| (a - b).norm() <= ROUNDING;
+    let length = |a: f64, b: f64| (a - b).abs() <= ROUNDING * a.abs().max(b.abs());
     match (&built, printed) {
         (Curve3::Line(b), Curve3::Line(p)) => {
             let anchored = b.foot(p.origin);
-            if near(anchored, p.origin) && along(b.dir, p.dir) {
+            if same_point(anchored, p.origin) && along(b.dir, p.dir) {
                 printed.clone()
             } else {
                 Curve3::line(anchored, b.dir)
             }
         }
         (Curve3::Circle(b), Curve3::Circle(p))
-            if near(b.frame.origin, p.frame.origin)
+            if same_point(b.frame.origin, p.frame.origin)
                 && along(b.frame.axis, p.frame.axis)
                 && along(b.frame.u_ref, p.frame.u_ref)
                 && length(b.radius, p.radius) =>
@@ -1388,7 +1424,7 @@ fn admitted(built: Curve3<f64>, printed: &Curve3<f64>) -> Curve3<f64> {
             printed.clone()
         }
         (Curve3::Ellipse(b), Curve3::Ellipse(p))
-            if near(b.frame.origin, p.frame.origin)
+            if same_point(b.frame.origin, p.frame.origin)
                 && along(b.frame.axis, p.frame.axis)
                 && along(b.frame.u_ref, p.frame.u_ref)
                 && length(b.semi_u, p.semi_u)
@@ -1420,7 +1456,7 @@ fn rooted(
             surface_sig(&solid.faces[plus].surface),
             surface_sig(&solid.faces[minus].surface),
         ];
-        let seed = foot_param(&c.carrier, printed)?;
+        let seed = param_at(&c.carrier, printed)?;
         let spec = &solid.edges[&e];
         let extent = geom_brep::edge_extent_inf(
             &spec.carrier,
@@ -1433,7 +1469,7 @@ fn rooted(
             if held.contains(&surface_sig(surface)) {
                 continue;
             }
-            if let Ok(Ok(t)) = topo::root_near(surface, &c.carrier, seed, extent, band) {
+            if let Ok(Ok(t)) = topo::root_along(surface, &c.carrier, seed, extent, band) {
                 return Some(c.carrier.eval(t));
             }
         }
@@ -1454,7 +1490,7 @@ fn footed(
         .chain(edges.iter().filter(|e| !chosen[*e].intrinsic));
     by_rank.into_iter().find_map(|e| {
         let c = &chosen[e].carrier;
-        foot_param(c, printed).map(|t| c.eval(t))
+        param_at(c, printed).map(|t| c.eval(t))
     })
 }
 
@@ -1469,15 +1505,10 @@ fn rebuilt_in_surface(
     p_end: Point3<f64>,
 ) -> Curve3<f64> {
     match (between_ends, &carrier) {
-        (true, Curve3::Line(_) | Curve3::Nurbs(_)) => {
-            let chord = p_end - p_start;
-            let len = chord.norm();
-            if len.is_finite() && len > 0.0 {
-                Curve3::line(p_start, chord / len)
-            } else {
-                carrier
-            }
-        }
+        (true, Curve3::Line(_) | Curve3::Nurbs(_)) => match (p_end - p_start).checked_direction() {
+            Ok((dir, _)) => Curve3::line(p_start, dir),
+            Err(_) => carrier,
+        },
         _ => carrier,
     }
 }
@@ -1506,22 +1537,7 @@ fn params(
     if self_loop {
         return Ok((carrier, lo, hi));
     }
-    // An end standing on a domain end within its rounding reads that end
-    // exactly: a projection lands ulps inside it, and an interval a hair
-    // short of an iso's own domain is no iso of the wall.
-    let at = |p: Point3<f64>, seed: f64| {
-        for end in [lo, hi] {
-            if n.eval(end).distance(p) <= rounding(p) {
-                return Ok(end);
-            }
-        }
-        n.project_from_seed(p, seed)
-            .map(|f| f.t)
-            .map_err(|_| StepImportError::Topology {
-                id,
-                what: "a built spline carrier whose end does not project onto it",
-            })
-    };
+    let at = |p: Point3<f64>, seed: f64| spline_end_param(id, n, p, seed);
     let (t0, t1) = (at(p_start, lo)?, at(p_end, hi)?);
     if t1 <= t0 {
         return Err(StepImportError::Topology {

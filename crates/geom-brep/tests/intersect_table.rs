@@ -3247,3 +3247,96 @@ fn cone_cylinder_station_reach_is_the_admission_criterion() {
     };
     assert_eq!(diag.predicate, Some("coc_station_reach"));
 }
+
+/// **A coaxial torus crosses a cone in circles that lie on both**
+/// (`cone_torus_section`): the five-wall sleeve's cone wall and the torus
+/// whose top parallel it passes through, a transverse cut, and a torus
+/// whose tube clears the cone, which misses. Each crossing circle's points
+/// read zero against both implicit forms.
+#[test]
+fn a_coaxial_cone_torus_section_is_circles_on_both() {
+    use geom_brep::intersect::cone_torus_section;
+    let axis = Vec3::new(0.0, 1.0, 0.0);
+    let u_ref = Vec3::new(1.0, 0.0, 0.0);
+    let cone: Surface<f64> = Surface::Cone {
+        apex: Point3::new(0.0, -0.65625, 0.0),
+        axis,
+        half_angle: (1.0_f64 / 6.0).atan(),
+        u_ref,
+    };
+    let torus = |major: f64, minor: f64| Surface::Torus {
+        center: Point3::new(0.0, 0.109375, 0.0),
+        axis,
+        major_radius: major,
+        minor_radius: minor,
+        u_ref,
+    };
+    let crossed = torus(0.140625, 0.078125);
+    let s = cone_torus_section(&cone, &crossed, fixture_lever(1.0), band())
+        .expect("the coaxial pose classifies");
+    assert!(s.tangent.is_empty(), "a transverse cut: {s:?}");
+    assert_eq!(
+        s.crossing.len(),
+        2,
+        "the tube crosses one nappe twice: {s:?}"
+    );
+    for c in &s.crossing {
+        let Curve3::Circle(circle) = c else {
+            panic!("a coaxial section is circles: {c:?}");
+        };
+        for t in [0.0, 1.3, 2.9, 4.4] {
+            let p = c.eval(t);
+            for (what, surface) in [("cone", &cone), ("torus", &crossed)] {
+                assert!(
+                    implicit_residual(surface, p).abs() < 1e-12,
+                    "{what} at t = {t} on the circle of radius {}",
+                    circle.radius
+                );
+            }
+        }
+    }
+    let top =
+        s.crossing.iter().filter_map(|c| c.as_circle()).any(|c| {
+            (c.radius - 0.140625).abs() < 1e-12 && (c.frame.origin.y - 0.1875).abs() < 1e-12
+        });
+    assert!(top, "the torus's top parallel is one of them: {s:?}");
+    let missed = cone_torus_section(&cone, &torus(0.6, 0.05), fixture_lever(1.0), band())
+        .expect("the coaxial pose classifies");
+    assert!(
+        missed.crossing.is_empty() && missed.tangent.is_empty(),
+        "{missed:?}"
+    );
+}
+
+/// **A torus off the cone's axis routes to the general rung**: the
+/// closed form holds only the coaxial pose.
+#[test]
+fn an_off_axis_cone_torus_routes_to_the_general_rung() {
+    use geom_brep::intersect::cone_torus_section;
+    let axis = Vec3::new(0.0, 1.0, 0.0);
+    let u_ref = Vec3::new(1.0, 0.0, 0.0);
+    let cone: Surface<f64> = Surface::Cone {
+        apex: Point3::new(0.0, -0.65625, 0.0),
+        axis,
+        half_angle: (1.0_f64 / 6.0).atan(),
+        u_ref,
+    };
+    let torus = Surface::Torus {
+        center: Point3::new(0.01, 0.109375, 0.0),
+        axis,
+        major_radius: 0.140625,
+        minor_radius: 0.078125,
+        u_ref,
+    };
+    let refused = cone_torus_section(&cone, &torus, fixture_lever(1.0), band());
+    assert!(
+        matches!(
+            refused,
+            Err(SectionError::RoutesToGeneralRung {
+                pair: "cone×torus",
+                ..
+            })
+        ),
+        "{refused:?}"
+    );
+}
