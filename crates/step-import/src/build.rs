@@ -263,8 +263,8 @@ pub(crate) fn build<'a>(
         let carrier = crate::signed_zero::plus_zero_curve(rebuilt_in_surface(
             between_ends,
             carrier,
-            p_start,
-            p_end,
+            (p_start, p_end),
+            file,
         ));
         let whole = matches!(description, Description::Iso { .. });
         let (carrier, t0, t1) = params(
@@ -444,6 +444,10 @@ const ROOT_LANE: &str = "a root of a spline wall along a carrier, or of any surf
                          spline carrier other than a plane's \
                          (`work/importgate/a-vertex-only-a-spline-wall-fixes-refuses-not-yet-supported.md`)";
 
+/// The lane a curve inside one surface, no generator of it, waits on.
+const ONE_SURFACE_LANE: &str = "a construction of a curve inside one surface \
+                                (`work/importgate/an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses.md`)";
+
 /// The lane a tangency with no closed-form locus waits on.
 const TANGENT_LANE: &str = "a C7 tangent-locus construction for this pose \
                             (`work/importgate/an-imported-tangency-with-no-closed-form-locus-refuses.md`)";
@@ -468,7 +472,7 @@ fn choose(
         return Ok(chosen);
     }
     if one_record {
-        return one_surface(id, spec, sa, plus == minus, file);
+        return one_surface(id, sa, plus == minus, file);
     }
     let eps_band = geom_core::Band::linear(tol).map_err(|_| StepImportError::Topology {
         id,
@@ -668,11 +672,10 @@ fn spline_pair(
         _ => carrier,
     };
     on_description(id, spec, &carrier, file)?;
-    // A straight printed edge whose section the recognition does not
-    // certify straight at the band (a marched branch's fit) is the segment
-    // between its built ends, which the section through them holds.
-    let between_ends =
-        matches!(spec.carrier, Curve3::Line(_)) && matches!(carrier, Curve3::Nurbs(_));
+    // A spline section the recognition does not certify straight at the
+    // band (a marched branch's fit) is the segment between its built ends
+    // where the section holds that chord ([`rebuilt_in_surface`]).
+    let between_ends = matches!(carrier, Curve3::Nurbs(_));
     Ok(Chosen {
         between_ends,
         ..Chosen::built(Description::Intersection, carrier)
@@ -975,7 +978,6 @@ fn tangent(
 /// them. Its carrier waits on its ends ([`Deferred`]).
 fn one_surface(
     id: u64,
-    spec: &EdgeSpec,
     surface: &Surface<f64>,
     one_face: bool,
     file: FileBand,
@@ -985,15 +987,12 @@ fn one_surface(
     } else {
         Description::Chart { chart: Side::Plus }
     };
-    let deferred = match (surface, &spec.carrier) {
-        (Surface::Plane { .. }, Curve3::Line(_)) => Deferred::Segment,
-        (
-            Surface::Cylinder { .. }
-            | Surface::Cone { .. }
-            | Surface::Sphere { .. }
-            | Surface::Torus { .. },
-            _,
-        ) => Deferred::Generator,
+    let deferred = match surface {
+        Surface::Plane { .. } => Deferred::Segment,
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => Deferred::Generator,
         _ => {
             return Err(unbuilt(
                 file,
@@ -1003,8 +1002,7 @@ fn one_surface(
                      the surface",
                     surface.kind().name()
                 ),
-                "a construction of a curve inside one surface \
-                 (`work/importgate/an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses.md`)",
+                ONE_SURFACE_LANE,
             ));
         }
     };
@@ -1035,13 +1033,26 @@ fn deferred_carrier(
     file: FileBand,
 ) -> Result<Curve3<f64>, StepImportError> {
     if matches!(deferred, Deferred::Segment) {
-        return match (p_end - p_start).checked_direction() {
-            Ok((dir, _)) => Ok(Curve3::line(p_start, dir)),
-            Err(_) => Err(StepImportError::Topology {
+        let Ok((dir, _)) = (p_end - p_start).checked_direction() else {
+            return Err(StepImportError::Topology {
                 id,
-                what: "a straight edge inside one plane whose built ends coincide",
-            }),
+                what: "an edge inside one plane whose built ends coincide",
+            });
         };
+        // The plane's curve between two points is the segment; the printed
+        // carrier only has to lie on it.
+        let segment = Curve3::line(p_start, dir);
+        if file.read(STEP_EDGE_ON_DESCRIPTION, held_gap(&segment, spec)) != Read::Zero {
+            return Err(unbuilt(
+                file,
+                id,
+                "a curve inside one plane two of its faces share that is not the segment \
+                 between its built ends"
+                    .to_owned(),
+                ONE_SURFACE_LANE,
+            ));
+        }
+        return Ok(segment);
     }
     let mid = spec.carrier.mid_point(spec.t0, spec.t1);
     // The first of the built ends, then the printed middle, whose
@@ -1068,8 +1079,7 @@ fn deferred_carrier(
                      the file's band",
                     surface.kind().name()
                 ),
-                "a construction of a curve inside one surface \
-                 (`work/importgate/an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses.md`)",
+                ONE_SURFACE_LANE,
             ));
         }
         // Two generators the printed middle lies on: it stands where they
@@ -1447,23 +1457,24 @@ fn cap_row(
                     (net.knot_values_v().domain(), net.knot_values_u().domain())
                 };
                 let fixed = if end { fixed_domain.1 } else { fixed_domain.0 };
-                // A straight rim is the line its ends span, on the chord's
-                // arc length, as a straight column is.
-                if matches!(spec.carrier, Curve3::Line(_)) {
-                    if let Some((origin, chord, forward)) =
-                        line_iso_match(&iso, p_start, p_end, file)
-                    {
-                        let (dir, len) = chord.direction_and_length();
-                        let (r0, r1) = running_domain;
-                        let (from, to) = if forward { (r0, r1) } else { (r1, r0) };
-                        let map = IsoMap {
-                            fixed,
-                            column,
-                            running: Running::Chord { from, to, len },
-                        };
-                        return Ok(Some(chosen(wall, Curve3::line(origin, dir), map)));
+                // A straight rim (the iso straight at the band, its ends the
+                // edge's) is the line its ends span, on the chord's arc
+                // length, as a straight column is: read off the iso, not
+                // the printed carrier's type, which only has to lie on it.
+                if let Some((origin, chord, forward)) = line_iso_match(&iso, p_start, p_end, file) {
+                    let (dir, len) = chord.direction_and_length();
+                    let line = Curve3::line(origin, dir);
+                    if file.read(STEP_EDGE_ON_DESCRIPTION, held_gap(&line, spec)) != Read::Zero {
+                        continue;
                     }
-                    continue;
+                    let (r0, r1) = running_domain;
+                    let (from, to) = if forward { (r0, r1) } else { (r1, r0) };
+                    let map = IsoMap {
+                        fixed,
+                        column,
+                        running: Running::Chord { from, to, len },
+                    };
+                    return Ok(Some(chosen(wall, line, map)));
                 }
                 let c = &spec.carrier;
                 let held = [
@@ -1690,14 +1701,15 @@ fn carrier_sig(carrier: &Curve3<f64>) -> Vec<u64> {
                 .collect()
         }
         CurveData::Nurbs(n) => {
-            let knots = n.knots_f64_interim();
+            let knots = n.knot_values();
+            let runs: Vec<(f64, usize)> = knots.runs().collect();
             let mut sig = vec![
                 4,
                 knots.degree() as u64,
-                knots.knots().len() as u64,
+                runs.len() as u64,
                 n.control().len() as u64,
             ];
-            sig.extend(knots.knots().iter().map(|k| k.to_bits()));
+            sig.extend(runs.iter().flat_map(|&(k, m)| [k.to_bits(), m as u64]));
             sig.extend(n.control().iter().flat_map(p));
             sig.extend(n.weights().iter().map(|w| w.to_bits()));
             sig
@@ -1711,11 +1723,13 @@ fn carrier_sig(carrier: &Curve3<f64>) -> Vec<u64> {
 /// **Every vertex built** (module docs, step 3), and every deferred
 /// carrier with it.
 ///
-/// - **Fixed**: a vertex the description fixes is the root of a surface
-///   around it along a built carrier through it that the surface does not
-///   hold ([`rooted`]), or a sphere's pole or a cone's apex its generators
-///   cross at ([`singular_point`]). A root the run's band does not decide
-///   refuses [`StepImportError::BuildEscalated`].
+/// - **Fixed**: a vertex the description fixes is an end of a wall's whole
+///   iso it stands at ([`iso_end`]), the root of a surface around it along
+///   a built carrier through it that the surface does not hold
+///   ([`rooted`]), or a sphere's pole or a cone's apex its generators cross
+///   at ([`singular_point`]). A root the run's band does not decide refuses
+///   [`StepImportError::BuildEscalated`]; a vertex every root asked of
+///   answers unsupported refuses [`StepImportError::NotYetSupported`].
 /// - **Free**: a vertex the description leaves free along one built
 ///   carrier (a seam's end on a rim, a split along one locus) is the foot
 ///   of its printed point on that kernel-built carrier: the printed value
@@ -1867,8 +1881,7 @@ fn build_vertices(
             file,
             (BuiltEntity::Vertex, v),
             "a vertex no built carrier reaches: every edge ending at it waits on it".to_owned(),
-            "a construction of a curve inside one surface \
-             (`work/importgate/an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses.md`)",
+            ONE_SURFACE_LANE,
         ));
     }
     Ok(built)
@@ -1935,16 +1948,26 @@ fn iso_end(
         else {
             return None;
         };
-        let (lo, hi) = iso.domain();
-        let at = |t: f64| {
-            let p = iso.eval(t);
-            (file.read(STEP_VERTEX_BUILT, p.distance(printed)) == Read::Zero).then_some(p)
-        };
-        match (at(lo), at(hi)) {
-            (Some(p), None) | (None, Some(p)) => Some(p),
-            _ => None,
-        }
+        domain_end_at(iso, printed, file)
     })
+}
+
+/// The one end of `iso`'s domain the printed point reads Zero against at
+/// the file's band ([`iso_end`]).
+fn domain_end_at(
+    iso: &geom::NurbsCurve3<f64>,
+    printed: Point3<f64>,
+    file: FileBand,
+) -> Option<Point3<f64>> {
+    let (lo, hi) = iso.domain();
+    let at = |t: f64| {
+        let p = iso.eval(t);
+        (file.read(STEP_VERTEX_BUILT, p.distance(printed)) == Read::Zero).then_some(p)
+    };
+    match (at(lo), at(hi)) {
+        (Some(p), None) | (None, Some(p)) => Some(p),
+        _ => None,
+    }
 }
 
 /// What the fixing constructions around a vertex answered ([`rooted`]).
@@ -2136,22 +2159,30 @@ fn settled_foot(c: &Curve3<f64>, printed: Point3<f64>) -> Option<Point3<f64>> {
     settled(printed, foot).ok().flatten()
 }
 
-/// A straight edge rebuilt between its built ends (`between_ends`): a
-/// segment one surface holds, whose description is its two ends, or a
-/// straight section the band does not certify straight. Every other
-/// carrier as built.
+/// A section the band does not certify straight, rebuilt between its
+/// built ends (`between_ends`): the segment between them, where the
+/// section holds that chord at the file's band (its ends, quarters and
+/// middle on the section). Every other carrier as built.
 fn rebuilt_in_surface(
     between_ends: bool,
     carrier: Curve3<f64>,
-    p_start: Point3<f64>,
-    p_end: Point3<f64>,
+    (p_start, p_end): (Point3<f64>, Point3<f64>),
+    file: FileBand,
 ) -> Curve3<f64> {
-    match (between_ends, &carrier) {
-        (true, Curve3::Line(_) | Curve3::Nurbs(_)) => match (p_end - p_start).checked_direction() {
-            Ok((dir, _)) => Curve3::line(p_start, dir),
-            Err(_) => carrier,
-        },
-        _ => carrier,
+    if !between_ends {
+        return carrier;
+    }
+    let Ok((dir, len)) = (p_end - p_start).checked_direction() else {
+        return carrier;
+    };
+    let off = [0.0, 0.25, 0.5, 0.75, 1.0]
+        .into_iter()
+        .map(|f| gap_to(&carrier, p_start + dir * (len * f)))
+        .fold(0.0_f64, f64::max);
+    if file.read(STEP_EDGE_ON_DESCRIPTION, off) == Read::Zero {
+        Curve3::line(p_start, dir)
+    } else {
+        carrier
     }
 }
 

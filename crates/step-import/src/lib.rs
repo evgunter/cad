@@ -64,9 +64,11 @@
 //!    derive-on-demand, exactly what a natively built body carries).
 //!
 //!    **A vertex the description fixes, and one it leaves free.** Where
-//!    the description fixes a vertex — two or more built carriers that
-//!    cross a surface around it, a sphere's pole, a cone's apex — the
-//!    build constructs it, and an escalation there refuses. Where it
+//!    the description fixes a vertex — an end of a wall's whole iso, a
+//!    built carrier crossing a surface around it, a sphere's pole, a
+//!    cone's apex — the build constructs it; an escalation there refuses,
+//!    and so does a vertex whose every fixing root the kernel does not
+//!    solve (not-yet-supported, never the foot). Where it
 //!    leaves the vertex free along one locus (a seam's end on a rim, an
 //!    edge split along one carrier, a whole torus's one vertex), every
 //!    point of that locus is an equally valid model of the file's
