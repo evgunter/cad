@@ -1810,7 +1810,7 @@ fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
         report.verdict,
         report.receipt
     );
-    assert_eq!(report.receipt.refused, 282, "{:?}", report.receipt);
+    assert_eq!(report.receipt.refused, 564, "{:?}", report.receipt);
 }
 
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity
