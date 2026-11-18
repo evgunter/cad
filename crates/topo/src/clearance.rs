@@ -2206,6 +2206,10 @@ where
                     },
                     other => other,
                 };
+                if std::env::var_os("CV_PAIRS").is_some() {
+                    let o = match &outcome { Outcome::Certified{..}=>"cert".to_string(), Outcome::Split{arm,shared}=>format!("split {arm:?} {shared:?}"), Outcome::Refuse(r)=>format!("refuse {r:?}"), Outcome::Cusp{..}=>"cusp".into() };
+                    eprintln!("CVP touch {:?} {:?} d={} {}", x.face, y.face, pair.depth, o);
+                }
                 match outcome {
                     Outcome::Certified { corner } => {
                         discharge(&mut walk.receipt, &mut self.widths);
@@ -2410,6 +2414,9 @@ where
             open: split,
             ..task
         };
+        if std::env::var_os("CV_PAIRS").is_some() {
+            eprintln!("CVP dist {:?} {:?} d={} sep={:?} a={:?}", x.face, y.face, pair.depth, separation(&pair.a.enc, &pair.b.enc), pair.a.enc);
+        }
         if let Err(stop) = walk.split(task, || split_by(pair, x, y, axes).map(|(lo, hi)| [lo, hi]))
         {
             let refusal = EngineRefusal::Budget(stop);
@@ -3536,6 +3543,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         Surface::Approx(_) => return unsupported(APPROXIMATED),
     };
     if !(u.0.is_finite() && u.1.is_finite() && v.0.is_finite() && v.1.is_finite()) {
+        if std::env::var_os("CV_CAVITY_F64").is_some() { eprintln!("CVWIN face={face:?} u={u:?} v={v:?} bounds={bounds:?}"); }
         return unsupported("a face whose carrier window is not a finite rectangle");
     }
     if !refines(&charted, u, v) {
@@ -3889,7 +3897,11 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             // The whole parameter span as ONE interval: the carrier's
             // interval evaluation over it encloses the entire arc, which is
             // what makes a curved boundary bound its own face's window.
-            pts.push(carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi())));
+            let whole = carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi()));
+            if std::env::var_os("CV_CAVITY_F64").is_some() && !(whole.x.hi().is_finite() && whole.x.lo().is_finite() && whole.y.hi().is_finite() && whole.y.lo().is_finite() && whole.z.hi().is_finite() && whole.z.lo().is_finite()) {
+                eprintln!("CVEDGE face={face:?} edge={ek:?} span={span:?} carrier={:?} whole={whole:?}", curve.carrier());
+            }
+            pts.push(whole);
             let ends = <[_; 2]>::from(crate::query::edge_ends(body, ek));
             let uses = hes
                 .iter()
