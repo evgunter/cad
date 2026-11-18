@@ -168,32 +168,20 @@ pub enum BooleanResultKind {
 ///
 /// # Validity-class carriage (D2 — the F1 contract)
 ///
-/// The validity class rides THIS wrapper, never a mutable field on
+/// The validity class rides the finished type, never a mutable field on
 /// [`Body`]: `body` is the scalar's finished body
 /// ([`AtRestPolicy::Finished`]), which the door's finish made of these
-/// bits ([`AtRestPolicy::finish`]: an [`AtRestBody`](crate::AtRestBody) carrying the tier-3
-/// verdict at a certifying scalar, a [`crate::Replay`] that passed tier 2
-/// alone and carries no verdict at a dual). `contacts` are the machine-checkable record of every
-/// intentional touching the pipeline propagated (F2's explicit-intent
-/// condition), and `body.validate_pseudomanifold(&contacts, tol)` is
-/// the tier-3′ pass over them, empty or not. The door does not run
-/// that census: a curved solid within reach of another solid is
-/// beyond its cross-solid lane, which would refuse valid disjoint
-/// unions (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+/// bits ([`AtRestPolicy::finish`]) and which holds the result's contact
+/// records ([`Self::contacts`]): at a certifying scalar an
+/// [`AtRestBody`](crate::AtRestBody) whose gate confirmed each, at a dual
+/// a [`crate::Replay`] that passed tier 2 alone and carries no verdict.
 #[derive(Debug)]
 pub struct BooleanBody<T: AtRestPolicy> {
     /// The result body: one solid per piece of material
-    /// ([`crate::pieces`]), gated at tier 3 by the door that built it —
-    /// tier 3, not tier 3′: the census over [`Self::contacts`] is not run
-    /// here (type-level docs).
+    /// ([`crate::pieces`]), finished by the door that built it.
     pub body: T::Finished,
     /// How it was produced.
     pub kind: BooleanResultKind,
-    /// Contacts, declared or glued on a decided Zero, surviving into the
-    /// result, in result keys
-    /// (module docs) — what a tier-3′ pass over the result reads
-    /// (type-level docs); the door has not checked them.
-    pub contacts: ContactRecords,
     /// Naming emission (M4 PR 3, NAMING-DESIGN N4): the mint-time
     /// wiring facts the naming layer consumes — recorded as the
     /// pipeline runs, never reconstructed by post-hoc inspection.
@@ -209,6 +197,17 @@ pub struct BooleanBody<T: AtRestPolicy> {
     /// operand A at place 0 and B at place 1, read from the naming's
     /// records ([`Holdings::of_records`]).
     pub holdings: Holdings,
+}
+
+impl<T: AtRestPolicy> BooleanBody<T> {
+    /// **The result's contact records**, as its finished body holds
+    /// them ([`crate::FinishedBody::records`]): each touch, declared or
+    /// glued on a decided Zero, that survives into the result, in result
+    /// keys (module docs).
+    #[must_use]
+    pub fn contacts(&self) -> &ContactRecords {
+        crate::FinishedBody::records(&self.body)
+    }
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -1226,7 +1225,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         holdings: Holdings::unread(),
         body,
         kind: BooleanResultKind::Seamed,
-        contacts,
         naming,
         verdicts: GlueVerdict::of_rows(&coincidences, &tangent_lines),
         coincidences,
@@ -5803,7 +5801,10 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     let from = std::time::Instant::now();
     #[cfg(any(test, feature = "test-support"))]
     let kinds = refused_faces::kinds(&body);
-    let finished = T::finish(body, tol);
+    let finished = T::finish(
+        crate::Built::of(body).recording(held.contacts.clone()),
+        tol,
+    );
     #[cfg(any(test, feature = "test-support"))]
     if let Err(findings) = &finished {
         refused_faces::note(&kinds, findings.as_slice());
@@ -7997,7 +7998,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 holdings: Holdings::unread(),
                 body,
                 kind,
-                contacts,
                 naming,
                 verdicts: GlueVerdict::of_rows(&coincidences, &red.tangent_lines),
                 coincidences,
@@ -8347,7 +8347,6 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         holdings: Holdings::unread(),
         body,
         kind,
-        contacts,
         naming,
         verdicts: GlueVerdict::of_rows(&coincidences, &red.tangent_lines),
         coincidences,

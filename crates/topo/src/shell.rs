@@ -671,6 +671,13 @@ pub enum ShellError<T: Real> {
         /// Why the join refused, typed and keyless.
         refusal: crate::boolean::JoinRefusal,
     },
+    /// A contact record of the operand does not carry onto the thin
+    /// solid through the shell's lineage
+    /// ([`crate::ContactRecords::carried_through`]).
+    Carry {
+        /// The carry's refusal.
+        refusal: crate::boolean::CarryRefusal,
+    },
     /// The assembled result is not a finished body
     /// ([`crate::AtRestPolicy::finish`]), so it is discarded: every
     /// finding, each read through its family.
@@ -830,6 +837,7 @@ impl<T: Real> ShellError<T> {
             Self::Join { refusal } => {
                 write!(f, "the assembled thin solid: {}", read_at(refusal, at))
             }
+            Self::Carry { refusal } => write!(f, "{refusal}"),
             Self::NotValid { findings } => write!(
                 f,
                 "the assembled thin solid is not a finished body, so it is discarded: {}",
@@ -1091,24 +1099,6 @@ pub struct Shelled<T: crate::props::AtRestPolicy> {
 }
 
 impl<T: crate::props::AtRestPolicy> Shelled<T> {
-    /// `records`, the operand's, carried onto the thin solid through
-    /// [`Self::lineage`] ([`crate::ContactRecords::carried_through`], at `band`
-    /// through `region`).
-    ///
-    /// # Errors
-    ///
-    /// As [`crate::ContactRecords::carried_through`].
-    pub fn carry_contacts(
-        &self,
-        records: &crate::boolean::ContactRecords,
-        band: Band,
-        region: Option<crate::RegionLane<T>>,
-    ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
-        records.carried_through(0, &self.lineage(), &self.body, band, region)
-    }
-}
-
-impl<T: crate::props::AtRestPolicy> Shelled<T> {
     /// **What the shell made of each operand cell** (D1), read through
     /// the closing join. The outer walls keep their operand keys and
     /// their places. The rim surgery opens each designated chart: on the
@@ -1128,9 +1118,17 @@ impl<T: crate::props::AtRestPolicy> Shelled<T> {
     /// operand's geometry ([`crate::Lineage::from_source`]).
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
+        lineage(&self.body, &self.naming)
+    }
+}
+
+/// [`Shelled::lineage`] over the thin solid `body` and its birth record,
+/// before the door's finish: what the door carries its operand's
+/// records through.
+fn lineage<T: Real>(body: &Body<T>, naming: &ShellNaming) -> crate::Lineage {
+    {
         use crate::boolean::Cell;
         use crate::lineage::{Descent, Division, Fate, Remainder, roots};
-        let naming = &self.naming;
         let outer: Vec<&RimNaming> = naming
             .rims
             .iter()
@@ -1219,7 +1217,7 @@ impl<T: crate::props::AtRestPolicy> Shelled<T> {
                 let pieces: Vec<EdgeKey> = Descent::of(root, &rim.seam_pieces).cells().collect();
                 let mut minted: Vec<Cell> = Vec::new();
                 for &e in &pieces {
-                    let ends = self.body.edge_vertices(e).map(|(a, b)| [a, b]);
+                    let ends = body.edge_vertices(e).map(|(a, b)| [a, b]);
                     for v in ends.into_iter().flatten() {
                         if corners.contains(&v) && !minted.contains(&Cell::Vertex(v)) {
                             minted.push(Cell::Vertex(v));
@@ -1621,12 +1619,12 @@ where
 /// [`shell_open`] at its scalar: the body of the door
 /// ([`crate::ShellDoor`] holds it).
 pub(crate) fn shell_open_at<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
-    body: &T::Finished,
+    operand: &T::Finished,
     thickness: T,
     open_faces: &[FaceKey],
     tol: Tol,
 ) -> Result<Shelled<T>, ShellError<T>> {
-    let body: &Body<T> = body;
+    let body: &Body<T> = operand;
     let mut naming = ShellNaming::default();
     // `shell` reaches this door, so both verbs derive here, once.
     let band = Band::linear(tol).map_err(|error| ShellError::Band { error })?;
@@ -2433,7 +2431,13 @@ pub(crate) fn shell_open_at<T: Decide + geom_core::CertifiedBounds + crate::prop
     #[cfg(debug_assertions)]
     record_rooted(body, &out_body, &naming);
     naming.source = crate::SourceGeometry::of(body);
-    let body = T::finish(out_body, tol).map_err(|findings| ShellError::NotValid { findings })?;
+    // The operand's records ride the thin solid through the shell's
+    // lineage, and the gate confirms each where it lands.
+    let carried = crate::FinishedBody::records(operand)
+        .carried_through(0, &lineage(&out_body, &naming), &out_body, band, T::region_lane())
+        .map_err(|refusal| ShellError::Carry { refusal })?;
+    let body = T::finish(crate::Built::of(out_body).recording(carried), tol)
+        .map_err(|findings| ShellError::NotValid { findings })?;
     Ok(Shelled { body, naming })
 }
 

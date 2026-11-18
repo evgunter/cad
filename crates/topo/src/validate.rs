@@ -10812,6 +10812,7 @@ pub fn validate_pseudomanifold_certificate_structural<
 #[derive(Clone)]
 pub struct AtRestBody<T: geom_core::Decide> {
     body: Body<T>,
+    records: crate::boolean::ContactRecords,
     sign: std::sync::Arc<crate::props::KeptSign<T>>,
     held: Option<std::sync::Arc<geom_core::k_stats::Recorded>>,
 }
@@ -10824,17 +10825,105 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     ///
     /// As [`validate_geometric`], verbatim; the body is dropped with the
     /// refusal.
-    pub(crate) fn validate(body: Body<T>, tol: Tol) -> Result<Self, Vec<ValidationError>>
+    pub(crate) fn validate(
+        built: crate::finish::Built<T>,
+        tol: Tol,
+    ) -> Result<Self, Vec<ValidationError>>
     where
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
         crate::finish::count_finish();
+        let crate::finish::Built { body, records } = built;
         let sign = std::sync::Arc::new(validate_geometric_certificate(&body, tol)?.into_parts());
+        census_verdict(
+            &body,
+            &records,
+            linear_band(tol)?,
+            tol,
+            Some(CertifiedLanes::<T>::held().region),
+        )?;
         Ok(Self {
             body,
+            records,
             sign,
             held: None,
         })
+    }
+
+    /// **Tier 3 over a `⊔`'s graft, then its census as the deciding
+    /// operation** ([`crate::census::record_at_rest`]): the certifying
+    /// scalars' [`crate::AtRestPolicy::finish_assembled`]. The finished
+    /// body holds the records its arrivals carried and each touch the
+    /// census recorded between two of them; what the census reports
+    /// besides is handed back, and none of it refuses.
+    ///
+    /// # Errors
+    ///
+    /// As [`validate_geometric`], verbatim, and the band's.
+    pub(crate) fn validate_assembled(
+        assembled: crate::finish::Assembled<T>,
+        tol: Tol,
+    ) -> Result<crate::finish::Censused<T>, Vec<ValidationError>>
+    where
+        T: geom_core::Decide
+            + geom_core::CertifiedBounds
+            + crate::props::AtRestPolicy<Finished = Self>,
+    {
+        crate::finish::count_finish();
+        let crate::finish::Assembled {
+            body,
+            carried,
+            arrivals,
+            first_row,
+        } = assembled;
+        let sign = std::sync::Arc::new(validate_geometric_certificate(&body, tol)?.into_parts());
+        let band = linear_band(tol)?;
+        let region = CertifiedLanes::<T>::held().region;
+        let recorded = crate::census::record_at_rest(
+            &body,
+            &carried,
+            |records| crate::census::census_and_certify(&body, records, band, tol, Some(region)),
+            &|solid| arrivals(solid),
+            first_row,
+        );
+        let mut records = carried;
+        records.extend(recorded.records.rows().iter().cloned());
+        Ok(crate::finish::Censused {
+            body: Self {
+                body,
+                records,
+                sign,
+                held: None,
+            },
+            rows: recorded.rows,
+            findings: recorded.findings,
+        })
+    }
+
+    /// **Its contact records**: the ones its gate confirmed
+    /// ([`crate::FinishedBody::records`]).
+    #[must_use]
+    pub fn records(&self) -> &crate::boolean::ContactRecords {
+        &self.records
+    }
+
+    /// **Maps its records' citations**
+    /// ([`crate::ContactRecords::try_recited`]): each record keeps its
+    /// two cells, which are what the gate confirmed, and cites what `f`
+    /// makes of each citation. A citation names a row or a record of the
+    /// op that holds the body, so a holder that renumbers those re-cites
+    /// here. A refusal leaves it with no record.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::ContactRecords::try_recited`].
+    pub fn try_recite<E>(
+        &mut self,
+        f: impl FnMut(crate::Backing) -> Result<Vec<crate::Backing>, E>,
+        uncited: impl FnOnce(usize) -> E,
+    ) -> Result<(), E> {
+        self.records = core::mem::take(&mut self.records).try_recited(f, uncited)?;
+        Ok(())
     }
 
     /// **This finished body holding its finish's record** for the taker
@@ -10869,6 +10958,7 @@ impl<T: geom_core::Decide> AtRestBody<T> {
         crate::finish::asked_after_isometry(&body, tol).map_err(crate::MoveError::NotFinished)?;
         Ok(Self {
             body,
+            records: self.records.clone(),
             sign: std::sync::Arc::new(self.sign.moved(&iso.to_affine())),
             held: self.held.clone(),
         })
@@ -10961,9 +11051,15 @@ impl<T: geom_core::Decide> fmt::Debug for AtRestBody<T> {
     /// The body, its certificate as [`crate::SignCertificate`]'s render
     /// reads it over this body, and whether it holds a finish record.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self { body, sign, held } = self;
+        let Self {
+            body,
+            records,
+            sign,
+            held,
+        } = self;
         f.debug_struct("AtRestBody")
             .field("body", body)
+            .field("records", records)
             .field("sign", &sign.of(body))
             .field("held", &held.is_some())
             .finish()

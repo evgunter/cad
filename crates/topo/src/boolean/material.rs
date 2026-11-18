@@ -53,7 +53,7 @@ pub(super) fn assembled<T: geom_core::Decide + AtRestPolicy>(
     if standing.is_empty() && folded.len() == 1 {
         let (material, mut through) = folded.pop().ok_or_else(unread)?;
         let fused = material.body();
-        let records = through.onto_material(riding, fused.contacts.carried(), &fused.body)?;
+        let records = through.onto_material(riding, fused.contacts().carried(), &fused.body)?;
         return Ok((fused.body.clone(), records, through));
     }
     let mut body = crate::carve::solids_alone(tool, standing).map_err(|_| {
@@ -65,10 +65,14 @@ pub(super) fn assembled<T: geom_core::Decide + AtRestPolicy>(
     for (material, th) in folded {
         let fused: &Body<T> = &material.body().body;
         let keys = crate::graft_disjoint_all_keyed(&mut body, fused)?;
-        through.absorb(th, &keys, &material.body().contacts.carried(), &mut records)?;
+        through.absorb(th, &keys, &material.body().contacts().carried(), &mut records)?;
     }
     let records = through.onto_material(riding, records, &body)?;
-    let body = T::finish(body, tol).map_err(|findings| BooleanError::ResultInvalid { findings })?;
+    let held = records
+        .records(&body, 0)
+        .map_err(|_| BooleanError::JoinDesync { what: UNREAD })?;
+    let body = T::finish(crate::Built::of(body).recording(held), tol)
+        .map_err(|findings| BooleanError::ResultInvalid { findings })?;
     Ok((body, records, through))
 }
 
@@ -240,8 +244,8 @@ impl Through {
                     _ => Err(unread()),
                 }
             };
-            let mut next = Vec::with_capacity(step.body.contacts.len());
-            for cites in step.body.contacts.cites() {
+            let mut next = Vec::with_capacity(step.body.contacts().len());
+            for cites in step.body.contacts().cites() {
                 let mut tool: BTreeSet<u32> = BTreeSet::new();
                 for b in cites.iter() {
                     tool.extend(of_backing(b)?);
@@ -906,7 +910,8 @@ impl Through {
             return Err(unread());
         }
         let records = &self.records;
-        out.contacts = core::mem::take(&mut out.contacts).try_recited(
+        crate::FinishedBody::try_recite(
+            &mut out.body,
             |backing| match backing {
                 Backing::Carried { input: 1, record } => records
                     .get(record as usize)

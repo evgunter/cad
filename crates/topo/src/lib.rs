@@ -1578,7 +1578,8 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
 pub use finish::{
-    FindingFamily, FinishedBody, LeafBody, MoveError, NotFinished, Replay, finish, take,
+    Arrivals, Assembled, Built, Censused, FindingFamily, FinishedBody, LeafBody, MoveError,
+    NotFinished, Replay, finish, finish_assembled, take,
 };
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
@@ -1606,7 +1607,7 @@ pub use splitting::{
     BoundClass, Escalation, FinishDesync, KnifeEdge, KnifeEdgeSite, LoopContainment, LoopDecision,
     NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge,
     SectionError, SectionGermFault, SectionGermReading, SectionPolygon, SectionRegion,
-    SectorReading, SplitContacts, SplitError, SplitFinishError, SplitPart, SplitPlane,
+    SectorReading, SplitError, SplitFinishError, SplitPart, SplitPlane,
     SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
     UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
     vertex_sides,
