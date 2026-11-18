@@ -826,3 +826,44 @@ test-support fixture built by Euler operators and finished through
   other 8 tour bodies as evidence, since their refusals have its
   shape (not traced to the cell), and is re-banded P0.
 - On CLEAVETAIL's slate: `two-tour-wall-probes-moved-on-main`.
+
+### Fork `embed-price`: what a finish asks
+
+Raised by the gate lane's census on 2026-11-18: the gate as built is
+247,480 asks and 27,344 s over the workspace's suites, about 90% of
+`sweep`'s test time, because every finish proves its whole body again.
+Two designers hold one design after six rounds and split on the
+budget's unit (`docs/DESIGN-FORK-LOG.md`, row 286); the design is in
+`docs/DESIGN.md` `[topology.tiers]`.
+
+- **The certificate is one fact per pair of faces**, of the two faces
+  and the cells they share. `finish` takes the body with the finished
+  operands it was built from, compares faces exactly itself (surface,
+  sense, loops, edge geometry, which cells the two share), carries the
+  fact of every pair it finds unchanged in one operand, and asks the
+  engine about the rest. The door declares nothing.
+- **Asked, always:** a pair with a new face; a pair from two operands;
+  a pair sharing a cell the door made or changed; every pair with a
+  face the door trimmed. Trimmed pieces of operand faces are not
+  carried.
+- **Regrouping doors and moves ask nothing** (the `⊔` graft, a
+  product, `distribute`, `carved`, the graft in `boolean/material.rs`,
+  a moved leaf). A leaf door asks its whole body.
+- **The same body gets the same verdict by any route.**
+- **Pinned before anything reads a carried fact:** a pair asked alone
+  gives the verdict it has in the whole ask, and on asks that hold the
+  pairs' cell-pair counts sum to the whole receipt.
+- **The budget stays a fixed constant on one ask, and nothing is
+  stored with a fact** (Ev, PR 7101, 2026-11-18: "a 'don't make the
+  program hang forever' backstop rather than a sharp bound"). It
+  counts only what that finish asks; a carried fact costs nothing. A
+  recipe of n ops spends at most n times the constant. A budget
+  refusal therefore follows the route: a chain can hold where the same
+  shape built in one op, or imported, runs out. Item 2's "one fixed
+  pair budget" stands as written.
+- **Measured** (the gate lane, 250 holding asks of the tour, every
+  face pair asked alone): the lone candidates are the whole ask's, the
+  lone leaves, splits and discharges sum to the whole's, and every
+  lone verdict holds, 250 of 250. The pin above is that measurement
+  made a test.
+
