@@ -4080,8 +4080,10 @@ class Doc:
     def set_product(self, body: Optional[_Operand]) -> None:
         """**Set the product**: the one body the document delivers, read
         in the world, or `None` for an empty product. What export writes
-        and an instance of the document copies. A body in another space
-        raises `EditError` (`product_read`)."""
+        and an instance of the document copies. The slot reads its body
+        as a node's body seat does, a pick (`Doc.pick`) among them. A
+        body in another space, or a pick of no piece, raises `EditError`
+        (`product_read`)."""
 
     @property
     def product(self) -> Optional[Var]:
@@ -6732,9 +6734,13 @@ def split(
     identity bundle, which reads nothing of the part), so its copy
     stands where the cut's world did. A remainder read of the cut
     crosses only where the instance's copy carries what it reads,
-    re-pointed to a pick of that copy; any other is severed (`severed_edge`,
-    `remainder_read_uncarried`), as is a name reaching material the
-    part's world does not hold once (`name_outside_part_world`). Pure —
+    re-pointed to a pick of that copy, the product slot's read among
+    them; any other is severed (`severed_edge`,
+    `remainder_read_uncarried`, `product_read_severed`), as is a named
+    source or pick the remainder keeps that cannot be defined afresh over
+    the instance's copy (`named_read_uncarried`), and a name reaching
+    material the part's world does not hold once
+    (`name_outside_part_world`). Pure —
     `doc` is untouched. Raises SplitError, typed, naming the offending
     edge, constraint, parameter or name.
 
