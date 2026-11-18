@@ -1,9 +1,11 @@
 //! **A curve's cover box over a span against one interval evaluation over
 //! it**, at `Interval`, per carrier arm:
-//! - on a segment and on circle arcs (a quarter, a half, a short arc,
-//!   more than a turn, and a half named the other way round),
-//!   [`Cover::box_in`] at [`BoxAxes::World`] is the whole-span evaluation
-//!   bracket for bracket, bit for bit;
+//! - on a segment and on circle arcs of radius ½ and 1 (a quarter, a
+//!   half, a short arc, more than a turn, and a half named the other way
+//!   round), [`Cover::box_in`] at [`BoxAxes::World`] is the whole-span
+//!   evaluation bracket for bracket, bit for bit;
+//! - at a crest of radius 0.7, 0.9 or 1.3, whose square rounds, the
+//!   cover's box is one or two ulps past the evaluation's;
 //! - [`Cover::aabb`] at a zero pad is that box stepped out by one ulp on
 //!   every side: [`bvh::Aabb::padded`] steps even at zero;
 //! - on a rational quadratic, weights from `1e-8` to `1e8` and a whole
@@ -171,5 +173,55 @@ fn a_spline_window_with_bracket_ends_reads_its_whole_net() {
         brackets(lo, hi),
         [0.0, 2.0, 0.0, 1.0, 0.0, 0.0],
         "the whole net's box"
+    );
+}
+
+/// **At a crest of a radius whose square is not a float, the cover reads
+/// one or two ulps out**: the arc's extremum is `c ± √(p² + q²)`, and
+/// `0.7²`, `0.9²`, `1.3²` round, where the evaluation reads `r·cos` at
+/// the crest exactly. The cover's box holds the evaluation's and is no
+/// more than two ulps past it on any side. Red if the cover reads
+/// narrower than the evaluation, or wider by more than its amplitude's
+/// rounding.
+#[test]
+fn at_a_crest_of_an_inexact_square_the_cover_reads_at_most_two_ulps_out() {
+    let out =
+        |x: f64, low: bool| (0..2).fold(x, |y, _| if low { y.next_down() } else { y.next_up() });
+    for r in [0.7f64, 0.9, 1.3] {
+        let c = Curve3::Circle(Circle::new(
+            Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            r,
+        ));
+        for (t0, t1) in [(0.0, PI), (0.0, 2.0 * PI), (0.3, 2.0)] {
+            let (lo, hi) = cover(&c, t0, t1).box_in(&BoxAxes::World);
+            let got = brackets(lo, hi);
+            let e = c
+                .map_scalar(Interval::from_f64)
+                .eval(Interval::from_bounds(t0, t1));
+            let want = [e.x.lo(), e.x.hi(), e.y.lo(), e.y.hi()];
+            for (k, w) in want.iter().enumerate() {
+                let g = got[k];
+                let outer = out(*w, k % 2 == 0);
+                let holds = if k % 2 == 0 {
+                    g <= *w && g >= outer
+                } else {
+                    g >= *w && g <= outer
+                };
+                assert!(
+                    holds || (w.abs() < 1e-300 && g.abs() < 1e-300),
+                    "r = {r} over [{t0}, {t1}], bound {k}: the cover's {g:e} against the evaluation's {w:e}"
+                );
+            }
+        }
+    }
+    let c = Curve3::Circle(Circle::new(
+        Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        0.9,
+    ));
+    let (_, hi) = cover(&c, 0.0, PI).box_in(&BoxAxes::World);
+    assert!(
+        hi.y.hi() > 0.9,
+        "the half circle of radius 0.9 reads past 0.9 at its crest: {:e}",
+        hi.y.hi()
     );
 }
