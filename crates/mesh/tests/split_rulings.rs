@@ -1,7 +1,7 @@
 //! **A ruled face whose straight side holds a point**: a cylinder or
-//! cone face with a ruling carried by more than one edge, which
-//! `tessellate::lane_of` sends to the chart lane
-//! (`walk::splits_a_straight_side`).
+//! cone face with a ruling carried by more than one edge, which the
+//! route sends to the chart lane (`tessellate::route_of`'s fourth fact,
+//! `walk::splits_a_straight_side`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -173,18 +173,18 @@ fn a_ruled_face_with_a_split_ruling_meshes() {
     assert_eq!(cells, 243, "the cells this row reads");
 }
 
-/// **A notched wall with a split ruling stays the rectangle lane's to
-/// refuse.** The pipe of `reach_probes`' notched-wall row with the bar
-/// half in its wall (`A ∪ B`): its wall's loop is no iso-rectangle, and
-/// the shape door refuses it (`props_rim_level`). Each line edge split
-/// at its middle in turn, a ruling of the notch's sides among them: the
-/// route sees a straight side that holds a point
-/// (`walk::splits_a_straight_side`), and the door it then asks keeps the
-/// face where the door refuses it, so every cell answers as the unsplit
-/// body does. Sent to the chart lane on the route alone, the notched wall
-/// would mesh there.
+/// **A notched wall with a split ruling answers as the unsplit wall
+/// does.** The pipe of `reach_probes`' notched-wall row with the bar half
+/// in its wall (`A ∪ B`): its wall's loop is no iso-rectangle, the doors
+/// decide so (`props_rim_level`), and the route sends it to the chart
+/// lane on that answer, which meshes it. Each line edge split at its
+/// middle in turn, a ruling of the notch's sides among them: the split
+/// side is a fact the route reads only of a rectangle
+/// (`walk::splits_a_straight_side`, `tessellate::route_of`'s fourth
+/// fact), so the doors' answer still routes the face and every cell
+/// answers as the unsplit body does.
 #[test]
-fn a_notched_wall_with_a_split_ruling_refuses_at_the_shape_door() {
+fn a_notched_wall_with_a_split_ruling_answers_as_the_unsplit_wall() {
     use crate::reach_probes::{got, op_of, rod};
     use sweep::test_support::{brick, finished};
     let pipe = finished("the pipe", rod(1.0, -2.0, 4.0), tol());
@@ -194,7 +194,7 @@ fn a_notched_wall_with_a_split_ruling_refuses_at_the_shape_door() {
         tol(),
     );
     let body = op_of(&pipe, &bar, "A ∪ B");
-    let want = Got::NotIsoRectangle(geom::SurfaceKind::Cylinder);
+    let want = Got::Meshed;
     assert_eq!(got(&body, 5e-3), want, "the unsplit notched wall");
     let lines = rulings(&body);
     assert!(lines.len() >= 2, "the notch's sides are rulings");
@@ -202,7 +202,7 @@ fn a_notched_wall_with_a_split_ruling_refuses_at_the_shape_door() {
         let split = split_and_placed(&body, &[ek], &[0.5]);
         for delta in [5e-3, 1e-3] {
             assert_eq!(
-                got(&split, delta),
+                got_enclosing(&split, &body, delta),
                 want,
                 "line edge {k} split at its middle, δ {delta}"
             );
@@ -213,8 +213,8 @@ fn a_notched_wall_with_a_split_ruling_refuses_at_the_shape_door() {
 /// **The chord pass chords a routed face for the lane that meshes it**:
 /// a one-face full-turn wall with its seam split at its middle, placed
 /// obliquely, at δ 0.01, meshes to these triangle counts per patch (the
-/// wall, then its neighbours). The chord pass reads the route (it asks
-/// `lane_of`), so the wall's edges, and with them its neighbours' shared
+/// wall, then its neighbours). The chord pass reads the route
+/// (`tessellate::Routes`), so the wall's edges, and with them its neighbours' shared
 /// boundary, are chorded at the chart lane's target. Chorded as the
 /// rectangle lane would chord them, every count here falls (the cylinder
 /// wall's to 296, 55, 64, 55): what the chord pass's reading of the route

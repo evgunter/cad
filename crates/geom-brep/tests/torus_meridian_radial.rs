@@ -47,7 +47,7 @@ fn fixture_about(axis: Vec3<f64>, off: f64) -> (Surface<f64>, Vec<LoopEdge<f64>>
 
 #[test]
 fn a_meridian_on_the_torus_axis_refuses_as_having_no_radial() {
-    let want = PropsError::NotIsoRectangle {
+    let want = PropsError::Defect {
         what: "props_meridian_radial",
     };
     for off in [0.0, 0.1 * band().zero()] {
@@ -104,7 +104,7 @@ fn a_torus_without_an_axis_refuses_under_the_axis_name() {
     let (torus, outer) = fixture_about(Vec3::new(0.0, 0.0, 0.0), 1.0);
     assert_eq!(
         require_iso_rectangle(&torus, &outer, band()).err(),
-        Some(PropsError::NotIsoRectangle {
+        Some(PropsError::Defect {
             what: "props_torus_axis"
         })
     );

@@ -10,7 +10,7 @@
 //!
 //! This is the shape the Klein bottle scene wanted and could not have.
 //! Its findings entry 7 is what this scene renders: the ring BUILDS,
-//! and its remaining wall is the STEP export (below).
+//! and it leaves as STEP and comes back (below).
 //!
 //! Its entry 6 — that `tube_along_arc`, the door storing a torus's
 //! INTENT parameters bit-exactly, was solid-only — **no longer
@@ -21,8 +21,7 @@
 //! one is the profile door's answer (a holed profile, fully revolved),
 //! that one the parameter door's (an outer radius and a wall, stored),
 //! and they come out with the same census, the same two shells and the
-//! same closed forms. What is still said only once is the STEP wall,
-//! which both of them hit — pinned on both, and on klein's wall 6.
+//! same closed forms, and both round-trip through STEP.
 //!
 //! # Why it is drawn see-through
 //!
@@ -54,19 +53,13 @@
 //!   over BOTH shells, and the mesh's signed volume tracks the exact
 //!   one.
 //!
-//! # The standing gate this scene declares
+//! # Its STEP
 //!
-//! **The ring cannot leave as STEP.** The writer reads the bore as the
-//! void it is and refuses it, `VoidShellUnsupported`, because it does
-//! not write `BREP_WITH_VOIDS` yet
-//! (`work/export/step-export-refuses-every-hollow-body.md`) — pinned as
-//! klein's wall 6. This scene is the first tour body to reach it while
-//! being RENDERED, so it declares the frontier at the scene
-//! (`SceneBody::step_at_frontier`), which runs the export every pass
-//! and fails the tour if the refusal ever changes or stops. Its
-//! manifest entry carries a null `step`, and the FreeCAD lane — whose
-//! subject is OCC re-tessellating our STEP — skips the body and says
-//! so rather than drawing it from the mesh.
+//! **The ring leaves as STEP and comes back.** The writer reads the
+//! bore as the void it is and writes the ring as one `BREP_WITH_VOIDS`,
+//! the bore its `ORIENTED_CLOSED_SHELL`; the scene imports that text
+//! back ([`crate::step_round_trip`]) and the import is one solid with
+//! one cavity and the same volume.
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
@@ -322,6 +315,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     assert_eq!(props.enclosure.volume_pad, 0.0, "closed forms need no pad");
 
     let bore = v_solid - v_want;
+    let trip = crate::step_round_trip("hollowring", &ring.body, tol);
     let (v, e, f) = (
         ring.body.vertices().count(),
         ring.body.edges().count(),
@@ -374,7 +368,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         // is what replaced it (see `bool_bodies::voidbox_narration`). The hollowness evidence was never the pixels: two
         // shells, `Revolved::cavities`, and the torus closed forms are
         // printed, and they stay, as does the standalone render and the
-        // STEP-frontier declaration.
+        // STEP round trip.
         montage: false,
         story: "a tube bent into a closed circle, hollow the whole way round — two \
                 concentric circles and a full turn, in ONE revolve call",
@@ -391,15 +385,17 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
              {bore:.6} m³, {:.1}% of it — and A = {:.6} m² = 4π²R(rₒ+rᵢ), which counts the \
              inner wall. Both at zero enclosure pad. Drawn see-through at 45 for the same \
              reason the bottle's loop tubes are: a cavity cannot be read from an opaque \
-             render at any camera. The shape's remaining wall is its STEP export — the \
-             writer reads the bore as a void and refuses it (VoidShellUnsupported: no \
-             BREP_WITH_VOIDS yet), declared at the scene and probed every pass. The SAME ring built as a two-node recipe \
+             render at any camera. It leaves as STEP — one BREP_WITH_VOIDS, the bore its \
+             void — and imports back as one solid with {} cavity and V = {:.6} m³. The \
+             SAME ring built as a two-node recipe \
              — one profile whose loop list is [Circle(rₒ), Circle(rᵢ)], and \
              Revolve(2π) — comes back with the same shells, the same {v}/{e}/{f} and a \
              bit-equal volume, so the hole reaches the verb through the document too",
             props.enclosure.volume,
             100.0 * bore / v_solid,
-            props.enclosure.surface_area
+            props.enclosure.surface_area,
+            trip.voids,
+            trip.volume
         )),
         view: View {
             elev: 24.0,
@@ -408,20 +404,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         },
         bodies: vec![
             SceneBody::plain("hollowring", [0.42, 0.66, 0.74], ring.body.into_body())
-                .transparent(45)
-                .step_at_frontier(
-                    |e| {
-                        matches!(
-                            e,
-                            pncad::step_export::StepExportError::VoidShellUnsupported { .. }
-                        )
-                    },
-                    "say so in klein's findings entry 7 and retire the other three probes \
-                     of this one gate — klein's WALL 6 (`klein::wall_probes`), which pins \
-                     this exact refusal on this exact shape, `tubewall::hollowtorus`, which \
-                     pins it on the parameter door's hollow torus, and `torusvessel`, which \
-                     pins it on a body `shell` hollowed",
-                ),
+                .transparent(45),
         ],
     }]
 }

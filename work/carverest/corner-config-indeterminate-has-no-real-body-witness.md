@@ -25,3 +25,4 @@ neighbour refusal into is now pinned by no body.
 Close: build one of those witnesses and pin the tag through the front
 door, or show the tag unreachable and retire it (a vocabulary change,
 Ev's).
+- 2026-11-17 — bracket step 3, cut 3 (`band/bracket-end-vocabulary`): the tag is now `UnbuiltEnd::Indeterminate`. A curved open link ending beside an unresolvable edge (the first witness shape named above) now refuses in the open-chain door's own words, `UnsupportedChain` on the link (`admit::open_link`, called from `battery::corner_at`'s neighbour arm), since no reading of that end would build it. The tag's remaining reach is a plane–plane end whose neighbour does not resolve, such as the tangential third edge of a turn.

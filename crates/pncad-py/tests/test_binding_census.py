@@ -2807,10 +2807,9 @@ NOT_BOUND = {
     # word), so its lever kind does not either.
     "TurnLever": INTERIOR,
     "ContentBits": INTERIOR,
-    # `BlendError::ConvexitySignFlip`'s payload and
-    # `UnsupportedCorner`'s, the other two of the blend four.
+    # `BlendError::ConvexitySignFlip`'s payload, and part of the
+    # run-out's odd edge (`OddEdge`).
     "Convexity": INTERIOR,
-    "CornerConfig": INTERIOR,
     "Curve3": INTERIOR,
     "ContactPair": INTERIOR,
     "GlueClass": INTERIOR,
@@ -3026,9 +3025,11 @@ NOT_BOUND = {
     # `Evaluation.select` rather than by key. A key bundle has nothing
     # to project to a surface that holds names and never keys.
     "RevolvedKind": INTERIOR,
-    # `BlendError::UnsupportedCorner`'s second field, the policy
-    # `CornerConfig::policy` assigns (LIB-CUR4).
-    "RunOutPolicy": INTERIOR,
+    # `BlendError::UnbuiltEnd`'s payload, whose tag the blend's own tag
+    # reads one level in (`unbuilt_end_seam`, …), and the run-out's odd
+    # edge inside it.
+    "UnbuiltEnd": INTERIOR,
+    "OddEdge": INTERIOR,
     # `BlendError::WedgeUnsettled`'s payload, which the blend's tag
     # (`wedge_unsettled`) already names at the Python seam.
     "UnsettledWedge": INTERIOR,

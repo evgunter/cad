@@ -1830,6 +1830,31 @@ pub trait Construct<T: geom_core::Real> {
     fn move_shells_to_new_solid(&mut self, shells: &[ShellKey]) -> Result<SolidKey, EulerOpError>
     where
         T: Decide;
+    /// Refiles every shell of `donor` under `keeper`, appended to
+    /// `keeper`'s shells in `donor`'s order, and removes `donor`:
+    /// [`Body::move_shells_to_new_solid`](crate::construction::Construct::move_shells_to_new_solid)
+    /// run backwards. Not an Euler operator; ownership moves and nothing
+    /// else, every shell keeping its key and faces. Folding a solid into
+    /// itself changes nothing.
+    ///
+    /// **Ownership, not material coherence**, as at
+    /// `move_shells_to_new_solid`: a caller owns the pairing it files.
+    /// Two pieces of material under one solid are construction state,
+    /// which tier 3's check 10 refuses
+    /// ([`ValidationError::SolidOuterShells`](crate::ValidationError::SolidOuterShells)).
+    ///
+    /// # Errors
+    ///
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `donor` or `keeper` does not resolve.
+    /// All checks precede any mutation (atomic).
+    ///
+    /// # Panics
+    ///
+    /// Where a shell `donor` lists does not resolve: on a tier-1-valid
+    /// body a solid's shells are live.
+    fn fold_solid_into(&mut self, donor: SolidKey, keeper: SolidKey) -> Result<(), EulerOpError>
+    where
+        T: Decide;
     /// Replaces `edge`'s curve geometry with a freshly certified
     /// attachment of `curve`, returning the new curve key. The
     /// certification endpoints are the edge's own vertices' points in
@@ -2624,6 +2649,13 @@ impl<T: geom_core::Real> Construct<T> for Body<T> {
         T: Decide,
     {
         Body::move_shells_to_new_solid(self, shells)
+    }
+
+    fn fold_solid_into(&mut self, donor: SolidKey, keeper: SolidKey) -> Result<(), EulerOpError>
+    where
+        T: Decide,
+    {
+        Body::fold_solid_into(self, donor, keeper)
     }
 
     fn set_edge_curve(

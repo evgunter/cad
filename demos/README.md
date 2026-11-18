@@ -169,15 +169,11 @@ the centroid's arc length — which the kernel's certified volume must
 contain and the MESH must fall short of inside a **two-sided** band,
 since exact agreement would mean no real mesh was measured.
 
-One typed refusal remains as a named frontier: a **hollow** solid,
-whose cavity the writer reads as a void through the kernel's
-shell-role door and refuses, since it does not write `BREP_WITH_VOIDS`
-(`VoidShellUnsupported`;
-`work/export/step-export-refuses-every-hollow-body.md`). Four tour
-bodies are in it, each declared at the body with
-`SceneBody::step_at_frontier` and exported with a null `step`:
-`hollowring` (`ring`), `hollowtorus` (`tubewall`), `torusvessel` and
-`fivewall`.
+A **hollow** solid leaves as one `BREP_WITH_VOIDS`, its cavities the
+solid's voids, and the scenes that carry one — `hollowring` (`ring`),
+`hollowtorus` (`tubewall`), `torusvessel` and `fivewall` — import that
+text back (`step_round_trip`) and assert one solid with the same
+cavities and volume.
 
 ## Rendering the montages
 

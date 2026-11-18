@@ -107,20 +107,55 @@ pub(crate) struct Placed {
 /// The shape content of the data section.
 #[derive(Debug)]
 pub(crate) enum Shape {
-    /// `MANIFOLD_SOLID_BREP`s, in entity-id order (the writer's
-    /// emission order).
-    Solids(Vec<SolidSpec>),
+    /// Solid records, in entity-id order (the writer's emission order).
+    Solids(Vec<SolidRecord>),
     /// A `GEOMETRIC_CURVE_SET` wireframe (curve-only file): the
     /// reconstructed carriers, in set order.
     Wireframe(Vec<Curve3<f64>>),
 }
 
-/// One `MANIFOLD_SOLID_BREP`: a closed shell to assemble.
+/// The keywords a solid record is spelled with: a
+/// `MANIFOLD_SOLID_BREP`, or its subtype `BREP_WITH_VOIDS`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SolidKeyword {
+    /// `MANIFOLD_SOLID_BREP(name, #closed_shell)`.
+    Manifold,
+    /// `BREP_WITH_VOIDS(name, #closed_shell, (voids))`.
+    WithVoids,
+}
+
+impl SolidKeyword {
+    /// The solid record `keyword` spells, if it spells one.
+    fn of(keyword: &str) -> Option<Self> {
+        match keyword {
+            "MANIFOLD_SOLID_BREP" => Some(Self::Manifold),
+            "BREP_WITH_VOIDS" => Some(Self::WithVoids),
+            _ => None,
+        }
+    }
+}
+
+/// One solid record: its outer shell, and the shells of its cavities
+/// (empty for a `MANIFOLD_SOLID_BREP`). A void is a shell, never a
+/// solid record, so it has no voids of its own.
+#[derive(Debug)]
+pub(crate) struct SolidRecord {
+    /// The record's entity id.
+    pub(crate) id: u64,
+    /// The outer shell.
+    pub(crate) outer: SolidSpec,
+    /// The void shells, in the file's order.
+    pub(crate) voids: Vec<SolidSpec>,
+}
+
+/// One closed shell of a solid record, to assemble.
 #[derive(Debug)]
 pub(crate) struct SolidSpec {
-    /// The MSB entity id.
+    /// The solid record's entity id; for a void, its
+    /// `ORIENTED_CLOSED_SHELL`'s.
     pub(crate) id: u64,
-    /// The shell's faces, in `CLOSED_SHELL` order.
+    /// The shell's faces, in `CLOSED_SHELL` order, each as the solid
+    /// uses it (a void's orientation composed in).
     pub(crate) faces: Vec<FaceSpec>,
     /// Every edge referenced by this shell's loops, keyed by
     /// `EDGE_CURVE` id (deterministic order).
@@ -1929,13 +1964,73 @@ impl<'a> Resolver<'a> {
         })
     }
 
-    /// One `MANIFOLD_SOLID_BREP` and its `CLOSED_SHELL`.
-    fn solid(&self, id: u64, args: &[Value]) -> Result<SolidSpec, StepImportError> {
-        let expected = "MANIFOLD_SOLID_BREP(name, #closed_shell)";
-        let [_, shell_ref] = args else {
-            return Err(StepImportError::MalformedRecord { id, expected });
+    /// One solid record: a `MANIFOLD_SOLID_BREP` and its `CLOSED_SHELL`,
+    /// or a `BREP_WITH_VOIDS`, its outer `CLOSED_SHELL` and its voids.
+    ///
+    /// A void is an `ORIENTED_CLOSED_SHELL`, which IS its
+    /// `closed_shell_element` with every face reversed where its
+    /// orientation is `.F.` (ISO 10303-42), the form `brep_with_voids`
+    /// requires and every writer measured states. The orientation is
+    /// honored either way, composed into the faces once
+    /// ([`reverse_face`]); whether the shell then bounds a cavity in the
+    /// outer shell's material is the at-rest gate's to decide, as for
+    /// every other statement the file makes.
+    fn solid(
+        &self,
+        id: u64,
+        keyword: SolidKeyword,
+        args: &[Value],
+    ) -> Result<SolidRecord, StepImportError> {
+        let (shell_ref, void_list, expected) = match (keyword, args) {
+            (SolidKeyword::Manifold, [_, shell_ref]) => {
+                (shell_ref, None, "MANIFOLD_SOLID_BREP(name, #closed_shell)")
+            }
+            (SolidKeyword::WithVoids, [_, shell_ref, voids]) => (
+                shell_ref,
+                Some(voids),
+                "BREP_WITH_VOIDS(name, #closed_shell, (voids))",
+            ),
+            (SolidKeyword::Manifold, _) => {
+                return Err(StepImportError::MalformedRecord {
+                    id,
+                    expected: "MANIFOLD_SOLID_BREP(name, #closed_shell)",
+                });
+            }
+            (SolidKeyword::WithVoids, _) => {
+                return Err(StepImportError::MalformedRecord {
+                    id,
+                    expected: "BREP_WITH_VOIDS(name, #closed_shell, (voids))",
+                });
+            }
         };
-        let shell_id = as_ref(id, shell_ref, expected)?;
+        let outer = self.shell(id, as_ref(id, shell_ref, expected)?, false)?;
+        let mut voids = Vec::new();
+        for void_ref in void_list.map_or(Ok(&[][..]), |list| as_list(id, list, expected))? {
+            let void_id = as_ref(id, void_ref, expected)?;
+            let vexpected = "ORIENTED_CLOSED_SHELL(name, *, #closed_shell, orientation)";
+            let vargs = self.simple(id, void_id, "ORIENTED_CLOSED_SHELL")?;
+            let [_, _, element, orientation] = vargs else {
+                return Err(StepImportError::MalformedRecord {
+                    id: void_id,
+                    expected: vexpected,
+                });
+            };
+            let reversed = !as_bool(void_id, orientation, vexpected)?;
+            let element = as_ref(void_id, element, vexpected)?;
+            voids.push(self.shell(void_id, element, reversed)?);
+        }
+        if keyword == SolidKeyword::WithVoids && voids.is_empty() {
+            return Err(StepImportError::Topology {
+                id,
+                what: "a BREP_WITH_VOIDS with no voids (its void set is 1..*)",
+            });
+        }
+        Ok(SolidRecord { id, outer, voids })
+    }
+
+    /// One `CLOSED_SHELL` as the solid `id` uses it, every face
+    /// `reversed` where an `ORIENTED_CLOSED_SHELL` says so.
+    fn shell(&self, id: u64, shell_id: u64, reversed: bool) -> Result<SolidSpec, StepImportError> {
         let sargs = self.simple(id, shell_id, "CLOSED_SHELL")?;
         let sexpected = "CLOSED_SHELL(name, (faces))";
         let [_, face_list] = sargs else {
@@ -1950,6 +2045,9 @@ impl<'a> Resolver<'a> {
         for face_ref in as_list(shell_id, face_list, sexpected)? {
             let face_id = as_ref(shell_id, face_ref, sexpected)?;
             faces.extend(self.face(shell_id, face_id, &mut edges, &mut vertices)?);
+        }
+        if reversed {
+            faces.iter_mut().for_each(reverse_face);
         }
         if faces.is_empty() {
             return Err(StepImportError::Topology {
@@ -2024,6 +2122,20 @@ impl<'a> Resolver<'a> {
             curves.push(self.curve(id, as_ref(id, element, expected)?)?);
         }
         Ok(curves)
+    }
+}
+
+/// `face` with its material side turned over: `same_sense` negated and
+/// every bound walked the other way, which keeps each bound
+/// counterclockwise about the reversed normal (outer) or clockwise
+/// (rings) — the reversal a `.F.` orientation states.
+fn reverse_face(face: &mut FaceSpec) {
+    face.sense = !face.sense;
+    for bound in &mut face.loops {
+        bound.uses.reverse();
+        for use_ in &mut bound.uses {
+            use_.forward = !use_.forward;
+        }
     }
 }
 
@@ -2385,7 +2497,7 @@ fn content_roots(r: &Resolver<'_>, file: &StepFile) -> Result<ContentRoots, Step
         for item in as_list(id, items, expected)? {
             let item_id = as_ref(id, item, expected)?;
             if let [(k, _)] = r.instance(id, item_id)?.records.as_slice()
-                && (k == "MANIFOLD_SOLID_BREP" || k == "GEOMETRIC_CURVE_SET")
+                && (SolidKeyword::of(k).is_some() || k == "GEOMETRIC_CURVE_SET")
             {
                 carries_content = true;
             }
@@ -3178,10 +3290,10 @@ fn resolve_shape(
                         // plain `SHAPE_REPRESENTATION`; resolving it
                         // per reference imported the part twice, as two
                         // coincident solids — a body no file describes.
-                        [(k, sargs)] if k == "MANIFOLD_SOLID_BREP" => {
+                        [(k, sargs)] if let Some(keyword) = SolidKeyword::of(k) => {
                             if referenced.insert(item_id) {
                                 owners.entry(id).or_default().push(solids.len());
-                                solids.push(r.solid(item_id, sargs)?);
+                                solids.push(r.solid(item_id, keyword, sargs)?);
                             }
                         }
                         // The representation's own placement item.
@@ -3233,7 +3345,7 @@ fn resolve_shape(
     // references would otherwise vanish or be guessed into the model).
     for (&id, instance) in &file.data {
         if let [(kw, _)] = instance.records.as_slice()
-            && (kw == "MANIFOLD_SOLID_BREP" || kw == "GEOMETRIC_CURVE_SET")
+            && (SolidKeyword::of(kw).is_some() || kw == "GEOMETRIC_CURVE_SET")
             && !referenced.contains(&id)
         {
             return Err(StepImportError::Structure {

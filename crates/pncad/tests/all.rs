@@ -303,7 +303,7 @@ fn mesh_validate_and_surface_projection_are_nameable() {
 // reached by a bare name out of `use pncad::prelude::*`, with no
 // module path spelled anywhere in the function — so dropping one from
 // the prelude stops this file compiling even though
-// `pncad::sweep::blend::CornerConfig` still resolves perfectly well.
+// `pncad::sweep::blend::UnbuiltEnd` still resolves perfectly well.
 // That is the failure mode a nameability pin cannot see.
 //
 // The matches are EXHAUSTIVE for the reason CUR3's tag map is: an arm
@@ -311,46 +311,55 @@ fn mesh_validate_and_surface_projection_are_nameable() {
 // becoming unmatchable at the curated surface.
 // ---------------------------------------------------------------
 
-/// `BlendError::UnsupportedCorner`'s payload — the OQ6 corner
-/// vocabulary (#85) — and the run-out policy the tag's own map
-/// assigns it. The two travel together in the arm, so they are pinned
-/// together here.
-fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
-    // `policy` is the ONE place the tag → policy map lives, so a
-    // refusal cannot disagree with its own tag. Matching its result
-    // exhaustively is what makes `RunOutPolicy`'s carriage
-    // load-bearing rather than decorative.
-    match corner.policy() {
-        Some(
-            RunOutPolicy::RunOutStopAtVertex
-            | RunOutPolicy::RunOutFeather
-            | RunOutPolicy::CutOffAtEndFace
-            | RunOutPolicy::Mitre,
-        )
-        | None => {}
-    }
-    match corner {
-        CornerConfig::ThreeConvexEdges => "three_convex_edges",
-        CornerConfig::NEdgeVertex { valence } => {
+/// `BlendError::UnbuiltEnd`'s payload — why a band's end is not built,
+/// each tag with its own site — and the run-out's odd edge.
+fn unbuilt_end_is_matchable(end: UnbuiltEnd) -> &'static str {
+    match end {
+        UnbuiltEnd::Valence { vertex, valence } => {
+            named::<VertexKey>(vertex);
             named::<usize>(valence);
-            "n_edge_vertex"
+            "valence"
         }
-        CornerConfig::MixedConvexity { convex } => {
-            named::<usize>(convex);
-            "mixed_convexity"
+        UnbuiltEnd::DependentNormals { vertex } => {
+            named::<VertexKey>(vertex);
+            "dependent_normals"
         }
-        CornerConfig::DependentNormals => "dependent_normals",
-        // Not a corner at all, and the one arm whose recourse names a
+        // Not a corner at all, and the one tag whose recourse names a
         // door that EXISTS — the distinction a caller who could not
         // name this type had to read out of the prose.
-        CornerConfig::SeamVertex => "seam_vertex",
-        // A straight band's cut-off — a configuration that CARVES,
-        // whose policy is the cut-off the tag's map assigns.
-        CornerConfig::EndFace => "end_face",
-        // Two of three edges requested: the mitre, built where the
-        // two bands' feet on the third edge meet.
-        CornerConfig::Turn => "turn",
-        CornerConfig::Indeterminate => "indeterminate",
+        UnbuiltEnd::Seam { vertex } => {
+            named::<VertexKey>(vertex);
+            "seam"
+        }
+        UnbuiltEnd::Indeterminate { vertex } => {
+            named::<VertexKey>(vertex);
+            "indeterminate"
+        }
+        UnbuiltEnd::CurvedEndFace { vertex } => {
+            named::<VertexKey>(vertex);
+            "curved_end_face"
+        }
+        UnbuiltEnd::FootInsideAFace { vertex } => {
+            named::<VertexKey>(vertex);
+            "foot_inside_a_face"
+        }
+        UnbuiltEnd::FeetCross { edge } => {
+            named::<EdgeKey>(edge);
+            "feet_cross"
+        }
+        UnbuiltEnd::RunOut {
+            vertex,
+            unrequested,
+            odd,
+        } => {
+            named::<VertexKey>(vertex);
+            named::<EdgeKey>(unrequested);
+            if let Some(OddEdge { edge, convexity }) = odd {
+                named::<EdgeKey>(edge);
+                named::<Convexity>(convexity);
+            }
+            "run_out"
+        }
     }
 }
 
@@ -614,7 +623,7 @@ fn profile_payloads_are_matchable(
 ///
 /// WHAT THIS DOES NOT PIN, stated rather than implied: none of these
 /// refusals is CONSTRUCTED from a façade door here. Reaching a real
-/// `UnsupportedCorner` needs a body with an out-of-scope trihedron,
+/// `UnbuiltEnd` needs a body with an out-of-scope trihedron,
 /// and reaching a real `UnrecordedContact` needs a census finding;
 /// both belong to the kernel suites that already own them. What is
 /// pinned is the CURATION property and only that — the values are
@@ -623,19 +632,22 @@ fn profile_payloads_are_matchable(
 #[test]
 fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     assert_eq!(
-        corner_config_is_matchable(CornerConfig::SeamVertex),
-        "seam_vertex"
+        unbuilt_end_is_matchable(UnbuiltEnd::Seam {
+            vertex: VertexKey::default()
+        }),
+        "seam"
     );
-    // The seam vertex is the arm whose policy is `None`: it is not a
-    // corner, so no run-out would help it. A caller that could not
-    // name `CornerConfig` could not tell that from a valence-4 vertex,
-    // whose policy is a real one.
-    assert!(CornerConfig::SeamVertex.policy().is_none());
     assert_eq!(
-        CornerConfig::NEdgeVertex { valence: 4 }.policy(),
-        Some(RunOutPolicy::RunOutStopAtVertex)
+        unbuilt_end_is_matchable(UnbuiltEnd::RunOut {
+            vertex: VertexKey::default(),
+            unrequested: EdgeKey::default(),
+            odd: Some(OddEdge {
+                edge: EdgeKey::default(),
+                convexity: Convexity::Concave,
+            }),
+        }),
+        "run_out"
     );
-    assert_eq!(CornerConfig::MixedConvexity { convex: 2 }.policy(), None);
 
     assert_eq!(
         blend_site_and_convexity_are_matchable(BlendSite::Chain, Convexity::Convex),

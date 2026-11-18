@@ -186,11 +186,9 @@ def import_bodies(doc, scenes, outdir, use_step):
         for body in scene.bodies:
             before = set(o.Name for o in doc.Objects)
             if use_step:
-                # `step` is nullable in the format, and since the tour
-                # grew `SceneBody::step_at_frontier` its producer CAN
-                # emit one: a body past the STEP writer's named subset
-                # frontier (a hollow solid, whose void shell the
-                # writer refuses) has no STEP to import. This lane's whole
+                # `step` is nullable in the format (`manifest.py`): the
+                # tour writes one for every body, and a null means a
+                # body with no STEP to import. This lane's whole
                 # subject is OCC re-tessellating OUR STEP, so there is
                 # nothing here for it to say about such a body, and
                 # substituting the STL would put a cell in this
@@ -200,7 +198,7 @@ def import_bodies(doc, scenes, outdir, use_step):
                 if body.step is None:
                     print(
                         f"skipped {body.stl} in scene {scene.name!r}: "
-                        "no STEP (the writer's named subset frontier)"
+                        "no STEP in the manifest"
                     )
                     skipped.setdefault(scene.name, 0)
                     skipped[scene.name] += 1
@@ -283,13 +281,13 @@ def main():
         drew = len(by_scene[name])
         lane_cells.note_path(renderdir, name).write_text(
             (
-                "no STEP — declared writer frontier\n"
+                "no STEP in the manifest\n"
                 if n == 1
-                else f"no STEP for any of {n} bodies — declared writer frontier\n"
+                else f"no STEP for any of {n} bodies in the manifest\n"
             )
             if not drew
-            else f"{n} of {n + drew} bodies have no STEP — declared writer "
-            f"frontier; the other {drew} drew\n"
+            else f"{n} of {n + drew} bodies have no STEP in the manifest; "
+            f"the other {drew} drew\n"
         )
     view = Gui.activeDocument().activeView()
     view.setCameraType("Orthographic")

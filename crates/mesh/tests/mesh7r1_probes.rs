@@ -23,7 +23,7 @@
 use crate::common;
 use topo::construction::Construct;
 
-use common::witness_bodies::{keyway, oblique_lens, pole_crossing_half_cap};
+use common::witness_bodies::{keyway, minted, oblique_lens, pole_crossing_half_cap};
 use common::*;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
@@ -480,6 +480,7 @@ fn report_band_arm_under_the_runs_eps() {
 #[test]
 fn a_pole_crossing_arc_is_refused_by_the_branch_door_not_the_shape_door() {
     let (body, cap, rest) = pole_crossing_half_cap();
+    let body = minted(body);
     let tol = Tol::witness();
     assert_eq!(door_verdict(&body, cap), Ok(()));
     assert_eq!(door_verdict(&body, rest), Ok(()));
