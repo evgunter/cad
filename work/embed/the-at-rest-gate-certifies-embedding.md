@@ -264,7 +264,11 @@ certificate runs.
     kinds (a line on a plane, a ruling in a plane through a cylinder's
     axis). Otherwise it stays a band reading, and the code must say so.
 - **`SELF_INTERSECTION_APEX`** (`present_chart` ~1675). It asks
-  whether a vertex of the piece sits at a cone's apex. Check 6's
+  whether a vertex of the piece sits at a cone's apex. (PR 7115
+  retired the site and its audit row: the apex and a sphere's poles
+  are read by `vertex_at_singular_point`, in `injective`'s
+  `singular_ends`. Handing over the vertex tier 3 placed is still
+  owed.) Check 6's
   chart-singularity arm (`ValidationError::ChartSingularityNotAVertex`,
   `validate.rs` ~1805, in `tier3_local_checks_marked` ~7654) already
   places every chart singularity in a face's closure on a vertex of
@@ -435,9 +439,9 @@ construction, already holds (`[topology.tiers]`).
     blend edge would read as a cusp and refuse `SecondOrder` past
     depth 10. The contact mark is derived from the wedge class.
 
-  The funnel sites `self_intersection_on_shared`,
-  `self_intersection_apex` and `self_intersection_cusp` retire, with
-  their audit rows.
+  The funnel sites `self_intersection_on_shared` and
+  `self_intersection_cusp` retire, with their audit rows
+  (`self_intersection_apex` retired with PR 7115).
 - **The callers.**
   - The gate (lane C) holds the verdict in the function that asks.
   - The shell's cavity check retires into the gate (item 7).
