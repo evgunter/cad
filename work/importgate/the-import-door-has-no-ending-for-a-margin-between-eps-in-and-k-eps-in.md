@@ -2,11 +2,12 @@
 id: the-import-door-has-no-ending-for-a-margin-between-eps-in-and-k-eps-in
 kind: issue
 title: the import door's shared in-file ending has no sentence for a margin in (ε_in, K·ε_in), so a reading the file's band cannot call falls through to a run-tolerance offer that would not decide it
-status: open
+status: closed
 opened: 2026-10-29
 priority: P3
 cost: M
 parent: adoption-rebuilds-caches-at-eps-from-eps-in-interpretation
+closed: 2026-11-18
 ---
 
 
