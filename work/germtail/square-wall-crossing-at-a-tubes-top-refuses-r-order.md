@@ -73,3 +73,4 @@ Degeneracy { … top: ~1e-9 }`, on embed/graph-piece's local run of topo
   - `R 0.15708184039820414, r 0.03233924842649333, (e, z0, rc) (-0.16267172524735657, -0.040157338658700345, 0.009610900698025776)`, `Degeneracy { tangent: 0.0014056222339962066, top: 3.367093825978884e-9 }`.
 
   The branch does not touch the section code.
+- 2026-11-18 — **another seed of the same `Tangent("section_torus_square_wall_fold_half")` family**, `CAD_FUZZ_SEED=0x80d159b76d7315df` (`CAD_FUZZ_EFFORT=1`), on `boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`. PR 7088's delta-3 reviewer drew it from the slow set; it is not replayed here.

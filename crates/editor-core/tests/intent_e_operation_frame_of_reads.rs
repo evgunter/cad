@@ -833,11 +833,16 @@ fn a_mirror_past_the_box_refuses_at_the_mirror() {
 
 /// **Each copy is asked where it stands in its space, not relative to
 /// another**: two copies of one block at 1999 m and 2002 m along `x`,
-/// under a `⊔`. A gather computes in its first operand's frame, where the
-/// second stands 3 m off, so a box asked of an image relative to that
-/// frame refuses neither; each placement asks the box of where its copy
-/// stands in the world (`Framed::asked_where_it_stands`, the copy's own
-/// frame into its space), and both refuse, each at its own placement.
+/// under a `⊔`, both past the 1 km box. Each placement asks the box of
+/// where its copy stands in the world (`Framed::asked_where_it_stands`,
+/// the copy's own frame into its space), and both refuse, each at its
+/// own placement, before the `⊔` reads either.
+///
+/// The `⊔`'s own ask is not this row's lever: a gather asks of each
+/// image read into its computing frame (`Framed::read_in`), a frame
+/// artefact that refuses two copies at +900 m and −900 m, a valid
+/// document (`work/onehome/a-gathers-box-ask-reads-each-image-in-its-computing-frame.md`).
+///
 /// *Breaks if* the placement asks relative to an operand's frame, or no
 /// placement asks (then no node refuses, as on main before the door).
 #[test]

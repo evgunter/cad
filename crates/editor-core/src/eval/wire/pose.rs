@@ -398,8 +398,10 @@ fn definition<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             // claim: its point nearest the origin, the representative the
             // solve below defines, with no division by the planes' angle.
             // Its direction is the solve's, so the planes are decided
-            // apart exactly as the solve decides them; the line's own
-            // direction is the claim's too, up to the sense `d` decides.
+            // apart exactly as the solve decides them and the meet keeps
+            // the sense `d` gives it. The claimed line's own direction is
+            // the same line's, and that the two agree up to sense is not
+            // checked here.
             if let Some(line) = crate::coincide::meet_by_construction(doc, *a, *second, tol) {
                 let PoseValue::Axis(line) = pose(&line)?.read_into(&first.frame, b)? else {
                     unreachable!("a meet is an axis")

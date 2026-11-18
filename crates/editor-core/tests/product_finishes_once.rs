@@ -310,23 +310,27 @@ fn a_copy_moved_past_the_box_refuses_at_the_box() {
         &EvalOptions::default(),
         tol,
     );
+    // Every node that reports a refusal reports the one at the far
+    // placement, and it is the session box's finding alone: the `⊔`
+    // and the product refuse of nothing their own.
     let refusals: Vec<_> = doc
         .ids()
         .into_iter()
-        .filter_map(|id| ev.node_error(id))
+        .filter_map(|id| ev.node_error(id).map(|e| (id, e)))
         .collect();
     assert!(
-        !refusals.is_empty() && refusals.iter().all(|r| r.node == far),
-        "every refusal is the far placement's: {refusals:?}"
+        refusals.iter().any(|&(id, _)| id == far),
+        "the far placement refuses: {refusals:?}"
     );
-    match &refusals[0].kind {
-        editor_core::NodeErrorKind::NotFinished { findings } => assert!(
-            matches!(
-                &findings[..],
-                [topo::ValidationError::OutsideSessionBox { .. }]
-            ),
-            "the session box is the placement's one refusal: {findings:?}"
-        ),
-        other => panic!("the placement refuses at the box: {other:?}"),
+    for (id, refused) in &refusals {
+        assert!(
+            refused.node == far
+                && matches!(
+                    &refused.kind,
+                    editor_core::NodeErrorKind::NotFinished { findings }
+                        if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+                ),
+            "{id:?} reports the far placement's box refusal alone: {refused:?}"
+        );
     }
 }
