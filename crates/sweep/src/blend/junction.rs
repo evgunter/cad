@@ -122,7 +122,7 @@ pub(super) fn shape<T: Decide>(
     if outward_of(body, host).is_none() {
         return Err(unbuilt_chain(named, JUNCTION_HOST_CURVED));
     }
-    let mate = |l: &Link<T>| if l.face_a == host { l.face_b } else { l.face_a };
+    let mate = |l: &Link<T>| l.across(host);
     let mates = [mate(arriving), mate(leaving)];
     let incident = fan_at(body.edges_of_vertex(vertex))
         .ok_or_else(|| unwalked(EntityId::Vertex(vertex), "a junction's edge orbit"))?;

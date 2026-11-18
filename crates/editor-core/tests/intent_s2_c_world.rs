@@ -86,7 +86,6 @@ fn documents() -> Vec<(String, ProfileDoc)> {
     let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let process_epsilon = editor_core::persist::save(
         &ProfileDoc::empty_derived("intent-s2-c-epsilon", Tol::witness()),
-        &[],
         Tol::witness(),
     )
     .expect("an empty document saves")
@@ -107,8 +106,7 @@ fn documents() -> Vec<(String, ProfileDoc)> {
             })
             .collect();
         let doc = editor_core::persist::load(&text, Tol::witness())
-            .unwrap_or_else(|e| panic!("{file} loads: {e}"))
-            .doc;
+            .unwrap_or_else(|e| panic!("{file} loads: {e}"));
         out.push((file.to_string(), doc));
     }
     out
@@ -595,10 +593,9 @@ fn a_construction_reads_a_world_copy_at_the_door_and_at_load() {
         "the slot edit reads the copy as the insert does"
     );
 
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("the document saves");
     let loaded = editor_core::persist::load(&text, Tol::witness())
-        .unwrap_or_else(|e| panic!("a boolean reading a world copy loads: {e}"))
-        .doc;
+        .unwrap_or_else(|e| panic!("a boolean reading a world copy loads: {e}"));
     assert!(loaded.bit_eq(&doc), "and round-trips bit for bit");
 }
 
@@ -1031,9 +1028,8 @@ fn a_measure_observes_a_world_copy() {
         Some(2.0),
         "the measure reads the copies where they are placed"
     );
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("the document saves");
     let loaded = editor_core::persist::load(&text, Tol::witness())
-        .unwrap_or_else(|e| panic!("a measure of two copies loads: {e}"))
-        .doc;
+        .unwrap_or_else(|e| panic!("a measure of two copies loads: {e}"));
     assert_eq!(distance(&loaded), Some(2.0), "and reads them after a load");
 }

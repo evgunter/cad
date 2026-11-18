@@ -113,7 +113,7 @@ pub(in crate::blend) struct Corner<'a, T: Real> {
 }
 
 /// **What a corner patch's bounding edges are.**
-enum CornerArcs<T: Real> {
+pub(in crate::blend) enum CornerArcs<T: Real> {
     /// A chamfer's: straight chords.
     Chords,
     /// A uniform fillet's: every arc about the ball's rest centre, at
@@ -126,6 +126,36 @@ enum CornerArcs<T: Real> {
         sections: [(EdgeKey, BallSection<T>); 3],
         host: (Point3<T>, T),
     },
+}
+
+/// **A mixed fillet's link** ([`CornerArcs::mixed_link`]).
+pub(in crate::blend) struct MixedLink<T: Real> {
+    /// Each pair edge with its ball's centre where its band meets the
+    /// link.
+    pub(in crate::blend) rests: [(EdgeKey, Point3<T>); 2],
+    /// The odd band's section: the torus's centre, the odd band's axis,
+    /// the ball's radius.
+    pub(in crate::blend) odd: BallSection<T>,
+    /// The torus's major radius: the radius its arc on `E` turns at.
+    pub(in crate::blend) major: T,
+}
+
+impl<T: Real> CornerArcs<T> {
+    /// A mixed fillet's link ([`MixedLink`]); `None` at any other
+    /// corner.
+    pub(in crate::blend) fn mixed_link(&self) -> Option<MixedLink<T>> {
+        match self {
+            Self::Mixed { sections, host } => Some(MixedLink {
+                rests: [
+                    (sections[0].0, sections[0].1.centre),
+                    (sections[1].0, sections[1].1.centre),
+                ],
+                odd: sections[2].1,
+                major: host.1,
+            }),
+            Self::Ball(..) | Self::Chords => None,
+        }
+    }
 }
 
 /// The corner patch at one fully-requested trivalent vertex: its
@@ -267,16 +297,73 @@ fn mixed_corner_plan<'a, T: Real>(
     links: CornerLinks<'a, T>,
     faces: CornerFaces,
     mixed: MixedVertex,
-    (p, normals): (Point3<T>, [Vec3<T>; 3]),
+    at: (Point3<T>, [Vec3<T>; 3]),
     radius: T,
     kind: BlendKind,
 ) -> Result<Corner<'a, T>, BlendError> {
     let vertex = links.vertex();
     let (seed, others) = links.sorted();
-    let (odd, pair): (Vec<&Link<T>>, Vec<&Link<T>>) = core::iter::once(&seed)
+    let all: Vec<&Link<T>> = core::iter::once(&seed)
         .chain(&others)
         .map(AdmittedOpen::link)
-        .partition(|l| l.edge == mixed.odd);
+        .collect();
+    let MixedGeometry {
+        arcs,
+        feet,
+        surface,
+        convexity,
+        ..
+    } = mixed_corner_geometry((vertex, mixed), &all, faces.as_slice(), at, radius, kind)?;
+    Ok(Corner {
+        links,
+        faces,
+        feet,
+        arcs,
+        surface,
+        convexity,
+        mixed: Some(mixed),
+    })
+}
+
+/// **A mixed corner's patch** ([`mixed_corner_geometry`]).
+pub(in crate::blend) struct MixedGeometry<T: Real> {
+    /// Its bounding arcs.
+    pub(in crate::blend) arcs: CornerArcs<T>,
+    /// Its feet on each of the corner's faces, in their order.
+    pub(in crate::blend) feet: [Foot<T>; 3],
+    /// Its surface: the fillet's torus, the chamfer's plane.
+    pub(in crate::blend) surface: Surface<T>,
+    /// The pair's convexity: what the patch does to the material.
+    pub(in crate::blend) convexity: Convexity,
+    /// `E`'s outward normal.
+    pub(in crate::blend) host_normal: Vec3<T>,
+    /// Per pair band, where it meets the patch ([`PairFeet`]).
+    pub(in crate::blend) pair: [PairFeet<T>; 2],
+}
+
+/// **Where one pair band meets a mixed corner's patch**: its foot on
+/// the odd edge's face it stands on, and its own foot on `E`.
+#[derive(Clone, Copy)]
+pub(in crate::blend) struct PairFeet<T: Real> {
+    pub(in crate::blend) edge: EdgeKey,
+    pub(in crate::blend) wall: Point3<T>,
+    pub(in crate::blend) host: Point3<T>,
+}
+
+/// **The mixed corner's geometry** ([`mixed_corner_plan`]), from its
+/// three links, its faces and its vertex's point and outward normals:
+/// the patch ([`MixedGeometry`]). The plan carves it, and the band's
+/// reach meters it (`reach::mixed_corner_reach`).
+pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
+    (vertex, mixed): (VertexKey, MixedVertex),
+    links: &[&Link<T>],
+    faces: &[FaceKey],
+    (p, normals): (Point3<T>, [Vec3<T>; 3]),
+    radius: T,
+    kind: BlendKind,
+) -> Result<MixedGeometry<T>, BlendError> {
+    let (odd, pair): (Vec<&Link<T>>, Vec<&Link<T>>) =
+        links.iter().copied().partition(|l| l.edge == mixed.odd);
     let ([odd], [p1, p2]) = (&odd[..], &pair[..]) else {
         return Err(disagrees(
             EntityId::Vertex(vertex),
@@ -286,18 +373,14 @@ fn mixed_corner_plan<'a, T: Real>(
     let (odd, p1, p2) = (*odd, *p1, *p2);
     let host = mixed.host;
     let slot = |f: FaceKey| {
-        faces
-            .as_slice()
-            .iter()
-            .position(|g| *g == f)
-            .ok_or_else(|| {
-                disagrees(
-                    EntityId::Vertex(vertex),
-                    "a mixed corner's link stands on a face the corner lacks",
-                )
-            })
+        faces.iter().position(|g| *g == f).ok_or_else(|| {
+            disagrees(
+                EntityId::Vertex(vertex),
+                "a mixed corner's link stands on a face the corner lacks",
+            )
+        })
     };
-    let other = |l: &Link<T>| if l.face_a == host { l.face_b } else { l.face_a };
+    let other = |l: &Link<T>| l.across(host);
     let n_e = normals[slot(host)?];
     let mut feet = [Foot::At(p); 3];
     let (arcs, surface) = match kind {
@@ -402,14 +485,31 @@ fn mixed_corner_plan<'a, T: Real>(
             )
         }
     };
-    Ok(Corner {
-        links,
-        faces,
-        feet,
+    let meets = |l: &Link<T>| -> Result<PairFeet<T>, BlendError> {
+        let (wall, on_e) = (
+            feet[slot(other(l))?].of(l.edge),
+            feet[slot(host)?].of(l.edge),
+        );
+        let (Some(wall), Some(host)) = (wall, on_e) else {
+            return Err(disagrees(
+                EntityId::Vertex(vertex),
+                "a mixed corner's pair band has no feet",
+            ));
+        };
+        Ok(PairFeet {
+            edge: l.edge,
+            wall,
+            host,
+        })
+    };
+    let pair = [meets(p1)?, meets(p2)?];
+    Ok(MixedGeometry {
         arcs,
+        feet,
         surface,
         convexity: p1.convexity,
-        mixed: Some(mixed),
+        host_normal: n_e,
+        pair,
     })
 }
 
@@ -618,7 +718,7 @@ pub(in crate::blend) fn mixed_link_plans<T: Decide>(
             Ok(MixedLinkPlan {
                 edge: l.edge,
                 host,
-                mate: if l.face_a == host { l.face_b } else { l.face_a },
+                mate: l.across(host),
                 trims: junction::mixed_trims(body, l, host)?,
                 surface: junction::band_chart(body, l, Some(&jp.reading))?,
             })

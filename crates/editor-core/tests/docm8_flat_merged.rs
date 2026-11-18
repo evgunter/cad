@@ -297,7 +297,7 @@ fn merged(node: RecipeNodeId, mut set: Vec<StableName>) -> StableName {
 /// **A boolean over a boolean that merged mints the outer merged face
 /// FLAT**: the inner merge's constituents, each wrapped
 /// `FromA`, plus the partner wrapped `FromB` — no `Merged` inside —
-/// and the edit-log replay of the document is bit-identical.
+/// and the document saves and loads bit-identically.
 #[test]
 fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     let tol = Tol::witness();
@@ -364,15 +364,15 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
         4,
         "the four long edges are joined"
     );
-    // The edit-log replay is the same document with the same table.
-    let empty = ProfileDoc::empty_derived("mod", tol);
-    let text = editor_core::persist::save(&empty, &rec.edits, tol).expect("saves");
+    // The saved document loads to the same document with the same
+    // table.
+    let text = editor_core::persist::save(&rec.doc, tol).expect("saves");
     let loaded = editor_core::persist::load(&text, tol).expect("loads");
     assert!(
-        loaded.doc.bit_eq(&rec.doc),
-        "the log replay is not the direct document"
+        loaded.bit_eq(&rec.doc),
+        "the loaded document is not the saved one"
     );
-    let replayed = run(&loaded.doc);
+    let replayed = run(&loaded);
     assert!(failure(&replayed, outer).is_none());
     assert_eq!(table(&replayed, outer), t);
     assert_eq!(

@@ -181,8 +181,8 @@ fn a_warm_memo_and_a_cold_load_run_out_alike() {
         warm.reused > 0,
         "the warm run served its prefix from the memo"
     );
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = editor_core::load(&text, Tol::witness()).expect("loads").doc;
+    let text = editor_core::save(&doc, Tol::witness()).expect("saves");
+    let loaded = editor_core::load(&text, Tol::witness()).expect("loads");
     out_at_b(
         &run(&loaded, None, &budget(OUT_AT_B, false)),
         a,

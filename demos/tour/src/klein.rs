@@ -145,17 +145,13 @@
 //!    `tubewall::hollowtorus` (the full period, whose bore is a
 //!    cavity). Never a probe here and none is owed: the gap was a
 //!    MISSING PARAMETER, so there was nothing to refuse.
-//! 7. **The one-call hollow ring BUILDS; its STEP export is the wall**
-//!    (wall 6 — re-baselined by VERBS-RING). A full revolve of a
-//!    holed profile no longer refuses: the annulus revolves into a
-//!    two-shell solid (torus + toroidal cavity) through the shared
-//!    void-insertion door, tier-valid, and the probe asserts that
-//!    build every run. What the shape still cannot do is leave as a
-//!    STEP file: the writer reads the cavity as the void it is and
-//!    refuses it, `VoidShellUnsupported`, because it does not write
-//!    `BREP_WITH_VOIDS` yet
-//!    (`work/export/step-export-refuses-every-hollow-body.md`) —
-//!    recorded here and never worked around.
+//! 7. **The one-call hollow ring BUILDS and round-trips through STEP**
+//!    (wall 6, retired). A full revolve of a holed profile revolves
+//!    into a two-shell solid (torus + toroidal cavity) through the
+//!    shared void-insertion door, tier-valid, and the writer writes it
+//!    as one `BREP_WITH_VOIDS`, the cavity its void, which imports back
+//!    as one solid with its one cavity ([`crate::step_round_trip`]).
+//!    Both are asserted every run.
 //! 8. **Edge selection by adjacent surface kinds works at BOTH
 //!    seats.** `select_where` + `GeomPred::AdjacentKinds` says "the
 //!    cone×cylinder corners" over an `Evaluation` (the die scene says
@@ -1111,10 +1107,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // as revolve(outer) − revolve(hole-as-outer) through the shared
     // void-insertion door (the degenerate no-crossing arm), so the
     // probe asserts the two-shell tier-valid build it used to pin as
-    // a refusal. The wall that REMAINS for this shape is its STEP
-    // export: the writer refuses its cavity as a void (no
-    // BREP_WITH_VOIDS) — OFFSET-DESIGN O6's standing demo gate,
-    // recorded here and never worked around.
+    // a refusal. Its STEP export, the wall that remained, is retired
+    // too: the ring leaves as BREP_WITH_VOIDS and comes back, and both
+    // stay live below.
     let ring_plane = meridian_plane::<S>();
     let ring =
         validated(ring_plane, annulus::<S>(&m, RLOOP, tol), tol).expect("the annulus validates");
@@ -1141,11 +1136,6 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         Ok(()),
         "the hollow ring is tier-3 valid"
     );
-    println!(
-        "   wall 6 — RETIRED as a refusal: the annulus revolves to a two-shell \
-         hollow ring in one call (VERBS-RING); the shape's remaining wall is \
-         its STEP export, probed next"
-    );
     // f64: `step_export` is a rendering/interchange-side door and
     // takes the run's own numbers (the wall-7 posture).
     let ring_f64 = validated(meridian_plane::<f64>(), annulus::<f64>(&m, RLOOP, tol), tol)
@@ -1160,30 +1150,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         tol,
     )
     .expect("the hollow ring builds at f64");
-    crate::walls::wall(
-        "bottle",
-        6,
-        "export the hollow ring as STEP (a multi-shell curved solid)",
-        pncad::step_export::step_string(
-            &hollow64.body,
-            &pncad::step_export::StepOptions {
-                product_name: "hollow_ring".into(),
-                ..Default::default()
-            },
-            tol,
-        ),
-        |e| {
-            matches!(
-                e,
-                pncad::step_export::StepExportError::VoidShellUnsupported { .. }
-            )
-        },
-        "record that the writer writes BREP_WITH_VOIDS, update \
-         findings entry 7 (the O6 demo-gates list row), and retire the `ring`, \
-         `tubewall::hollowtorus` and `torusvessel` scenes' `step_at_frontier` \
-         declarations, which pin this same refusal on the rendered hollow ring, on the \
-         parameter door's hollow torus and on the shelled torus-walled vessel — one \
-         gate, four probes, retiring together",
+    let trip = crate::step_round_trip("hollow_ring", &hollow64.body, tol);
+    println!(
+        "   wall 6 RETIRED — the annulus revolves to a two-shell hollow ring in one \
+         call (VERBS-RING), and it leaves as STEP and imports back as one solid with \
+         {} cavity, V = {:.9} m³",
+        trip.voids, trip.volume
     );
 
     // Wall 7 is RETIRED, per its own instruction: `mesh::planar`'s

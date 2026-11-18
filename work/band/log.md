@@ -1324,8 +1324,140 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - From now on, every band unit draws before dispatch, on `analysis/model-compare/band-2026-11-12`, and implementer briefs carry the no-trailer line.
 - 2026-11-12 — PR 6865's fix pass: m2's false `RingClearance` on clear holes near a corner arc now refuses with the true sequential recourse (`level_clearance` `beside_rim`). The exact circle-against-arc-strip read is filed as P1 in the widened meter row. m1 is pinned (intersect construction, ladder first); m3's numbers are corrected; m4's row is raised to P1. CI timing reds on the main merges are not this PR's (both rows are slow on main, or IO-bound), and those rows are added to the slow set. PR 6873 (cut 1) is up: the bracket fillets all round and the bore-less bracket chamfers all round, both at the closed forms; the renders are checked; the dual review is dispatched. PR 6866 (`[ev]`, UnbuiltEnd payload): Ev asked for context, and a context section has been added.
 - 2026-11-12 — PR 6865 merged (ab54a84d4c). Dispatched `a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter`: letter H, tier dual (a certified meter read, soundness-critical). Implementer draw: byte 170 → Opus, on `analysis/model-compare/band-2026-11-12`. Lane `band-meter`, branch `band/meter-exact-circle-read`. Queued, waiting on disk: `a-chamfer-over-a-plane-cylinder-edge-has-no-arm` (P1), `a-cups-fixture-boolean-is-unfinished-at-eps-1e-6` (P1), and bracket cut 2 once 6873's review is in.
+- 2026-11-13 — Ev approved `[ev]` PR 6866 ("this looks good!"), and it merged: the per-tag `UnbuiltEnd` payload is settled, so cut 3 has its vocabulary. PR 6883 merged.
+- **PR 6873** (cut 1): both reviews, Opus and Fable on frozen head 81ea1d1f28, came back APPROVE-WITH-FIXES with no MAJOR. Their probes confirmed every closed form at plan angles 30–150°, at Interval, rotated, and in a membership grid. The adjudicated union is all taken. Its main items:
+  - the chamfer over-refuses at short edges (margin exactly 0, demonstrated by both reviewers);
+  - the fillet over-refuses near r = 0.149 on the bracket;
+  - three guard rows for the ring arm (a) relaxation;
+  - the fillet odd-plus-one recourse wording;
+  - the battery's mixed verdict is read once.
+  
+  The original implementer agent was lost to a container restart, so the fix pass was re-dispatched on the same arm (Opus). The renders are committed to `docs/renders/band-2026-11/` for Ev.
+- **PR 6887** (the exact meter read): CI green, no blinding leak. Dual review: slot draw byte 28 → R1 Opus, R2 Fable, concurrent on frozen head 02a7a84ebf. Witnesses: the four corner holes and the 2- and 4-arc discs now build in one call, and the `beside_rim` fallback is retired.
+- 2026-11-13 — **PR 6887 merged** (4b3f0823cd): the exact meter read. The fix pass took the union of both reviews, including R2's demonstrated MAJOR (a touch escalating where it does not decide the read, now settled by `StripLevel::settle`). Blind coding: byte 123; 0 tallied on the loose reading, 1 (R2 → R1) on the strict one. Both readings are in the row. Filed by the fix pass: `the-support-meter-reads-an-ellipse-spiric-or-spline-piece-across-and-along-a-window-separately` (P2).
+- 2026-11-13 — Dispatched `a-chamfer-over-a-plane-cylinder-edge-has-no-arm`: letter M, tier single FULL (a new chamfer arm, the cone frustum). Implementer draw: byte 154 → Opus. Lane `band-borecham`. Scope: whole circular plane–cylinder rims. Arcs inside tangent chains are measured only.
+- 2026-11-13 — **PR 6873**'s fix pass is in (2c4c093b37). It filed `the-reach-meters-a-mixed-corner-as-a-uniform-one-and-refuses-short-edges` (P1), the traced cause of both reviewers' over-refusals. The renders are committed. `[ev]` is on the PR with the renders question at the top, and it is the only thing left. Blind coding: byte 229; 9 bilateral, no MAJOR, no tally. Row committed as the last commit (f4ac7359eb). Cut 2 (odd-plus-one chamfer) dispatches after 6873 merges.
+- 2026-11-16 — **PR 6873 merged** (2026-11-13), after Ev approved the renders ("these look great!"). Bracket step 3, cut 1 is done: the bracket fillets all round, and the bore-less bracket chamfers all round. The bore-chamfer lane (`band-borecham`) was stopped by the weekly usage limit with three commits pushed, and is resumed. Dispatched **cut 2**, the odd-plus-one chamfer: letter M, tier dual (sequential arm), because a face grows by a coplanar triangle at a mixed corner. Implementer draw: byte 240 → Opus. Lane `band-cut2`, branch `band/bracket-odd-plus-one`. Cut 3 (the vocabulary, payload settled on 6866) follows cut 2.
+2026-11-16 — **PR 6904** (the chamfer's plane–cylinder arm, a cone frustum) is up. Reviewer drawn: byte 135 → Fable, single FULL. The lane saw `verbs_germarms2` and `verbs_cylcyl_r1_review_probes` red at 1e-6 on its branch. Those are not known main reds, so the reviewer is checking them on main. **PR 7038** (cut 2: the odd edge plus one pair edge chamfers) is up, with CI green. First reviewer drawn: byte 97 → Fable, dual sequential. The cut 2 lane found that pair edges between s and 2s threw, failed to finish, or built wrong; it fixed this in `junction::feet_clear`.
+2026-11-16 — Both reviews came back APPROVE-WITH-FIXES with no MAJOR: 6904 (Fable) and 7038 (Fable first reviewer, so no second). The fix passes went to the implementers. A container restart lost both mid-pass. Under rule 3 they were re-dispatched on the same arm (Opus) to resume from the lane clones: 6904 had its fix commit 4a5f44e59c pushed; 7038 had uncommitted edits.
+2026-11-17 — **PR 6904 merged** at f0d422c2cc, with CI green on a10ba88a. Its fix pass took M1–M3 and S2/S3/S4/S6/S9. The model-compare row is the last commit. **PR 7038** is done with its fix pass (head fe6da33a01, row last) and is now `[ev]` for its renders, like cut 1. Cut 3 waits for 7038 to merge, because it touches the same gate and vocabulary.
+2026-11-17 — Dispatched `a-chamfer-over-an-arc-between-lines-has-no-strip-to-frustum-junction` (P1): letter H, tier dual concurrent. The lane is to stop and report if the plane–cone shared row needs a design decision. Implementer draw: byte 16 → Opus. Lane `band-stripfru`, branch `band/chamfer-strip-frustum-junction`. The cups row is waiting on ONEDOOR (see the row). The mixed-corner reach row (P1) and cut 3 wait for 7038, because they touch the same gate and reach.
+2026-11-17 — On 7038, Ev asked how the corner compares with other CAD kernels. A research lane (Opus, not drawn: research only) measured OCCT 8.0.1 on the same fixtures and searched vendor docs. Findings: OCCT's odd-plus-one chamfer is invalid at the flush right-angle corner and gouges the floor at 120°. Creo Elements/Direct and T-FLEX both document refusing this request. OCCT builds a pair edge alone (we refuse) and the odd-plus-one fillet at single corners. The comparison is posted on 7038 and the branch is `band/occt-compare-renders`. Its commit carries a Co-Authored-By trailer; it is not a reviewed lane, so blinding is unaffected.
+- 2026-11-17 — The strip-frustum lane opened PR 7050 (head 2d2380f2bc, CI green), with no design fork: the strip–frustum section is a generator that `analytic_shared_row` already certifies. The lane commits are clean of trailers. A slot-order draw (byte 47) put Fable in R1, so two concurrent reviews, one per model, are now running on the frozen head.
+- 2026-11-17 — Both reviews of 7050 approved with fixes, with no MAJOR between them. The blind coding found 3 bilateral findings and no tally candidates. The fix pass took everything but three style items and filed four P3 rows. Its head 64d87c9b35 is green. The row went on last (554b4797b1), and 7050 merges once CI is green. 7038 still waits for Ev's reply on the OCCT comparison.
+- 2026-11-13 — PR 6904 (`a-chamfer-over-a-plane-cylinder-edge-has-no-arm`, lane `band-borecham`): the chamfer gets the plane–cylinder arm, a cone frustum carved through the fillet's closed-rim walks. A bore's mouth, both rims of a through-bore, a post's top, a boss's foot and a counterbore's step build at the frustum ring's closed form, and with 6873 merged in, the bracket chamfers all round, its bore included, at its closed form. A rounded outline's arc keeps `ChamferArmUnsupported`, measured and filed as `a-chamfer-over-an-arc-between-lines-has-no-strip-to-frustum-junction` (P1, H).
+- 2026-11-17 — Merged 7050 at e25c78c0f0 after CI went green on the row commit (554b4797b1). The strip-frustum row is closed. Of the P0/P1 rows still open, cut 3 and the reach row wait on 7038, which waits on Ev; the cups row, the kiss row and the line-contact row are blocked on other programs. The stale open-mixed-chain row (6810 merged 11-12) is closed on this branch.
+- 2026-11-17 — 7038 conflicted with main once 7050 had merged (in `junction.rs` and one test file). A lane merged main into it (282e7a8c45) and kept both PRs' behaviour:
+  - `JUNCTION_FEET_CROSS` now combines both texts.
+  - The curved-link row now pins `ChainNotG1` for the curved link and the straight edge, because 7050 removed the gate.
+  - Its touched suites pass at all three ε. The resolution is unreviewed, and the row says so.
+  - The new head is 84f52cc745, with the row commit last.
+  - A small wart remains: the feet-cross refusal now gives its "smaller size" advice twice (7038's recourse plus 7050's detail suffix). Fold it in cut 3.
 - 2026-11-16 — Bracket step 3, cut 2 (lane `band-cut2`, PR 7038): a mixed corner's odd edge with one pair edge chamfers, as a turn whose overrun has the odd band the far one; admitted by the all-three corner's reading of `E`, so an oblique `E` and a curved link still refuse, and the fillet refuses for good. `junction::feet_clear` now reads a turn's stations: a pair edge between `s` and `2s` long built a wrong or unfinished body before. The row stays open for cut 3, the vocabulary.
 - 2026-11-17 — PR 7038's fix pass (first review approved with fixes, no MAJOR). The mixed corner's recourse now names what builds: the odd edge alone (a pair edge alone lands its foot inside a face), and the two that round alike only where `E` is square to the odd edge. A link too short for its feet gets its own recourse, which says the size is too large for the edge. A curved link refuses `ChamferArmUnsupported`, and the README now says so. The short-edge rows sit `100ε` either side of each boundary, and the reviewer's membership oracle is a permanent row. The oblique-`E` row now covers odd-plus-one, and the ε 1e-12 Interval escalation at inset 120° is filed (P3). Renders for Ev are under `docs/renders/band-2026-11/`.
 - 2026-11-13 — PR 6904 (`a-chamfer-over-a-plane-cylinder-edge-has-no-arm`, lane `band-borecham`): the chamfer gets the plane–cylinder arm, a cone frustum carved through the fillet's closed-rim walks. A bore's mouth, both rims of a through-bore, a post's top, a boss's foot and a counterbore's step build at the frustum ring's closed form, and with 6873 merged in, the bracket chamfers all round, its bore included, at its closed form. A rounded outline's arc keeps `ChamferArmUnsupported`, measured and filed as `a-chamfer-over-an-arc-between-lines-has-no-strip-to-frustum-junction` (P1, H).
 - 2026-11-17 — PR 7050 (`a-chamfer-over-an-arc-between-lines-has-no-strip-to-frustum-junction`, lane `band-stripfru`): a chamfer joins a strip to a frustum along the generator between their feet, a plane–cone shared row (no design fork: `analytic_shared_row` took it). Rounded outlines now chamfer all round, closed or open, at Pappus at both scalars, with names stable on replay and on a setback edit. A latent per-face sense bug (one sense per mixed rim, `true` for every open chamfer face) is fixed with it. At Interval at ε 1e-12 these chains refuse; evidence is added to that open row.
+- 2026-11-17 — Ev approved 7038 after seeing the OCCT and vendor comparison ("this seems fine, then"). It merged at 25fc8034a2, and [ev] is off the title. Filed two follow-up rows:
+  - `a-pair-edge-alone-at-a-mixed-corner-refuses-where-occt-ends-it-square` (P2);
+  - `the-odd-edge-with-one-pair-edge-fillet-refuses` (P3, design).
+
+  Next: draw and dispatch cut 3 (the vocabulary) and the reach row.
+- 2026-11-17 — Dispatched two lanes:
+  - **Cut 3, the vocabulary** (P0). Letter M, dual sequential. Implementer byte 102 → Opus. Lane `band-cut3`, branch `band/bracket-end-vocabulary`. In scope:
+    - `UnbuiltEnd` per the 6866 payload;
+    - `BandEnd` made private;
+    - the prelude retirements;
+    - the designers' invariant defects;
+    - the doubled feet-cross advice.
+  - **The mixed-corner reach row** (P1). Letter H, dual concurrent. Implementer byte 236 → Opus. Lane `band-reach`, branch `band/mixed-corner-reach`. It also takes `reach.rs`'s unitless `|n·τ|` item.
+
+  Both lanes are told to keep out of each other's files and to fold main in by merge.
+- 2026-11-17 — The cut 3 lane stopped at its measure step with a design fork, and has made no commits. Three `mixed_corner_square` refusals fit none of the eight ratified `UnbuiltEnd` tags:
+  - a curved odd link with all three edges requested;
+  - the fillet at a curved pair link;
+  - the chamfer where `E` is off square to the odd edge.
+
+  The other 26 sites map onto a tag or become an invariant. Draws: byte 84 → three designers, labels byte 211. They are weighing the fork concurrently and were given only the problem. Cut 3 resumes after Ev rules; the reach lane carries on.
+- 2026-11-17 — Three designers weighed the cut 3 fork (A Opus, B Fable, C Opus; first reports and every round are in `~/.local/share/cad-work/band-reviews/df-mixed/`). They reached a unanimous recommendation after five rounds:
+  - Curved-link mixed corners refuse `UnsupportedChain` on the arc, with the open-chain door's own sentence and the refreshed chain roster.
+  - A leaning `E` refuses a new `ObliqueMixedCorner` outside `UnbuiltEnd`. It covers both verbs, names the odd edge and gives the mixed-corner menu, and the oblique fillet moves off `SpineUnsupported`.
+  - There is no ninth tag.
+  - What decided it: all three designers ran every edge subset at the fixtures. The menu is false at the quarter-disc corner, half false at the bowed one, and true at the leaning one.
+
+  To Ev as `[ev]` PR 7058, with fork row 280's recommendation half. I settled the name `ObliqueMixedCorner` as naming. Cut 3 resumes on Ev's answer.
+
+  Off-question items for cut 3, from the designers:
+  - refresh `FILLET3_ASSEMBLY_RECOURSE` ("vertices of one convexity");
+  - mint the curved-link exit by calling the open-chain door's check, with an invariant if it finds none;
+  - the lone arc chamfered at a mixed vertex refuses corner-`Indeterminate` at a vertex that classified;
+  - `corner_at` passes the face count as the valence;
+  - `run_out_recourse` picks the recourse by matching the detail string;
+  - the dead `FILLET3_CORNER_RECOURSE` at the leaning corner's pair edges.
+- 2026-11-17 — Ev approved 7058: "sure, i have no strong opinions on the exact error strategy as long as they say correct, non-misleading stuff when it's not too burdensome to do so". Fork row 280's decision half and mapping are committed (bba8bab0b3), and the PR merges once CI is green. Cut 3 has resumed on the ruling, together with the designers' off-question items.
+- 2026-11-17 — Merged 7058 at 362cd72fd2. The fork row was renumbered 283, because main already had a 280. Ev asked for `[ev]` to come off, and it is off.
+- 2026-11-17 — Ev: Fable usage is running out. I chose to proceed on Opus only, outside the experiments, and Ev offered that option. Until Ev says Fable is back:
+  - no draws and no model-compare or design-fork rows;
+  - cut 3 and the reach row, drawn earlier, are dropped from the experiment, so they get no rows;
+  - reviews keep the tier's depth with Opus reviewers: two concurrent on the reach row, and a single review on cut 3 with a second only on a MAJOR;
+  - any design fork goes to two Opus designers and is flagged as single-model on its `[ev]` PR.
+- 2026-11-17 — Cut 3 opened PR 7072 (head 892c86881b, CI green; 33-row site table). It implements the 6866 and 7058 vocabulary: `UnbuiltEnd` with 8 tags, `ObliqueMixedCorner`, and the curved-link `UnsupportedChain` minted through a shared `admit::open_link`. The prelude retirements are done. It moved two things outside the brief, and both go to review:
+  - `FootInsideAFace` gets its own recourse;
+  - the open rim arcs of partial revolves now refuse `UnsupportedChain` instead of `Indeterminate`.
+
+  It has a single Opus review, with no experiment arm.
+- 2026-11-17 — 7072's first review (Opus) found one MAJOR, demonstrated. At a straight edge running tangentially into an arc, `RunOut { odd: None }` names the face-tangent seam rather than the edge the run continues into, so following `edge()` loops (`battery.rs:3149-3163`). Its pin cannot go red on this (`band_open_mixed_chain.rs:581-584`). It also found a MINOR: `PARTIAL_TANGENT_RUN` is false when the seam was requested.
+
+  Everything else held over a 5502-request differential: no lost or false build, and every text within budget. The ObliqueMixedCorner, curved-link and FeetCross recourses all build when followed.
+
+  A second Opus review is running on the frozen head, per the sequential arm. Disk fell to 0.9 GB with the reach lane building, so I freed about 19 GB of finished-lane targets and clones.
+- 2026-11-17 — 7072's second review (Opus) ran independently and found the same MAJOR (the tangent-run RunOut seam edge), so the MAJOR is bilateral. Its other findings:
+  - `FOOT_INSIDE_A_FACE_RECOURSE` follows to a build only where a smaller size helps;
+  - the reach site's `DependentNormals` recourse is false for `|n·τ|`;
+  - stale test prose, and the `UnbuiltEnd` texts spread over four homes.
+
+  The fix pass resumed the implementer with the union (`fix-cut3.md`). The reach lane was told about the reach-site text.
+- 2026-11-17 — The reach lane opened PR 7078 (head 2960690d8a, CI green):
+  - the mixed corner's own reach, sharing anchors with the plan through `mixed_corner_geometry`;
+  - `PatchEnd` link windows;
+  - the odd-plus-one turn's `MixedCut`;
+  - `|n·τ|` turned into an invariant deferring to predicate 6.
+
+  All seven witnesses build. It found and corrected the bracket's real limit, which is 1/4, not 1/6. The lane commits are clean of trailers. Two concurrent Opus reviews are running on the frozen head, with no experiment arm.
+- 2026-11-17 — Both 7078 reviews (Opus, run concurrently) came back APPROVE WITH FIXES with no MAJOR. Their randomized probes, about 3,100 between them, found no false clear, and both agree the containment argument holds.
+
+  Bilateral findings:
+  - "exactly the material the patch changes" over-claims air that stays air, so islands about 3% clear refuse;
+  - `cover-kind-match` was met by re-spelling the torus box rather than moving it to `Cover::torus`;
+  - a leftover probe test;
+  - CI never runs the new slow rows at 1e-6 or 1e-12.
+
+  Unilateral (B): the turned-body 3% false refusal is pinned as required, and `replaces` is not isolated by any test.
+
+  The fix pass resumed the implementer with the union (`fix-reach.md`).
+- 2026-11-17 — PR 7078, lane `band-reach` (`the-reach-meters-a-mixed-corner-as-a-uniform-one-and-refuses-short-edges`, P1): the reach meters a mixed corner by its own patch, the fillet's torus section and the chamfer's mitred strip, each holding the material the patch changes (and, as the fix pass found, the cut-back fill the result leaves as it was: filed P2). The odd-plus-one turn's pair strip now ends in the odd strip's plane, where a uniform turn's would end in its third face. Every witness builds at its closed form. A feature that enters a patch by `100ε` refuses, and one `100ε` clear of it builds, on the reflex side and beside the strips, for flush voids at 90°, 60° (chamfer) and 120°, and inset islands at 90°, 60° (chamfer) and 120°. The uniform reading had passed voids inside the fillet's patch, and the carve then failed to finish. The bracket builds to `0.249`: its real limit is `1/4`, not `1/6`. The reach's end-face check now defers to predicate 6's levered independence and is an invariant.
+- 2026-11-17 — PR 7078 fix pass (both reviews approved with fixes, no false clear in about 3,100 probes). The region holds the change plus the fill its patch cuts back. The prose now says so, a row pins it, and the P2 `a-mixed-corners-reach-holds-the-air-its-patch-leaves` is filed. The torus boxes are read through covers. The shared mixed geometry is one struct (pair feet, `E`'s normal, the pair's convexity). Inset islands are pinned at 60° and 120°. A fast row runs the inset fillet at every ε. Filed: P3 `a-turned-features-box-holds-the-reach-off-a-curved-patch`, P3 `a-corner-supports-replaced-region-is-not-isolated-by-a-row`, and on CIW's slate, evidence added to P2 `a-slow-rows-eps-pins-run-nowhere-on-the-pr-that-adds-them`.
 - 2026-11-17 — Bracket step 3, cut 3 (lane `band-cut3`, PR 7072), the end vocabulary as ratified on 6866 and 7058. `BlendError::UnbuiltEnd` (eight tags, each with its own site) replaces `UnsupportedCorner` and `UnsupportedRunOut`. `ObliqueMixedCorner { vertex, odd }` takes an oblique `E` for both verbs. A link at a mixed corner that is not between two planes refuses `UnsupportedChain` in the open-chain door's own words, because the battery calls `admit::open_link`. `CornerConfig`, `RunOutPolicy` and `MixedConvexity` leave the prelude, and `BandEnd` is the private per-end verdict. The designers' defects are made invariants or `disagrees`. Feet crossing has one tag and one recourse, and `FootInsideAFace` has its own recourse. The site table has 33 rows. Witnesses moved: the open rims of partial revolves (including klein wall 2) and the frustum at an open end now refuse in the door's words, where they used to refuse an indeterminate corner.
+- 2026-11-17 — Merged 7072 (cut 3) at 7f4d705e85. The fix head 3dee27218e had CI green; I meta-reviewed the run-out fix. With it the bracket row is closed (pr 7072), so the P0 is done.
+
+  What the fix pass did:
+  - the tangent run-out now names the vertex's third edge, pinned exactly, with a follow-`edge()` row that builds;
+  - `FOOT_INSIDE_A_FACE_RECOURSE` is followable, held by a followability row;
+  - `DependentNormals` has its own recourse with no size advice;
+  - the stale prose is swept, the tag texts have one home, and `corner_config` is deleted;
+  - it filed `band/a-chamfers-clearance-refusal-names-a-fillet3-predicate` (P3);
+  - it filed `topo/a-torn-body-fuzz-seed-panics-in-wedge-reach-naming-no-row-four-premise` (P1): a corrupt-input fuzz seed that panics on main, not caused by this PR.
+- 2026-11-18 — A container restart stopped the reach lane's agent. Its fix pass was already committed and pushed (9eaebfea72), but it was cut off midway through merging main, with a conflict in `.config/nextest.toml`. A fresh Opus agent is finishing the merge, adapting the branch to 7072's names, checking the fix-brief items and confirming CI.
+- 2026-11-18 — Merged 7078 (the mixed-corner reach) at 36c7cb2b66, CI green on 389238f26e. A fresh agent finished its fix pass after the restart: the main merge with 7072 kept the `|n·τ|` invariant. It filed P2 `a-mixed-corners-reach-holds-the-air-its-patch-leaves`, P3 `a-turned-features-box-holds-the-reach-off-a-curved-patch` and P3 `a-corner-supports-replaced-region-is-not-isolated-by-a-row`, and added evidence to CIW's slow-row ε P2. The reach row is closed.
+- 2026-11-18 — **Sitting ends; the track is handed back `ready`.** The P0 (the bracket filleted and chamfered all round) is done:
+  - 6873 all three edges;
+  - 7038 the odd edge plus one pair edge;
+  - 7072 the vocabulary;
+  - 7050 the strip-frustum junction;
+  - 7078 the reach.
+
+  No P1 row is dispatchable:
+  - the cups row waits on ONEDOOR;
+  - the line-contact unit is `blocked_on` HELDRECORDS;
+  - the kiss issue is its parent.
+
+  The P2/P3 tail is the next sitting's, including the two OCCT follow-ups and the rows filed this sitting. Since Fable usage ran out (Ev, 2026-11-17), work has run Opus-only, outside the experiments; a successor should check with Ev whether the draws resume.

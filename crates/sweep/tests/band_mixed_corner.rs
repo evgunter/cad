@@ -99,7 +99,7 @@ fn point<T: Scalar>(body: &Body<T>, v: topo::VertexKey) -> P {
 }
 
 /// [`realized`] at any scalar: the boolean `op` of `a` and `b`.
-fn realized_at<T: Scalar>(op: BooleanOp, a: &Body<T>, b: &Body<T>) -> Body<T> {
+pub(crate) fn realized_at<T: Scalar>(op: BooleanOp, a: &Body<T>, b: &Body<T>) -> Body<T> {
     let finished = |what: &str, x: &Body<T>| sweep::test_support::finished(what, x.clone(), tol());
     boolean_op_with(
         op,
@@ -234,7 +234,7 @@ pub(crate) fn inset_at<T: Scalar>(phi: f64) -> (Body<T>, [EdgeKey; 3]) {
 /// and the pair `y` and `z`: the odd run's section
 /// `A_φ = r²(cot(φ/2) − (π − φ)/2)`, the pair's lines from the link's
 /// ends `r·cot(φ/2)` out, and the link's piece by Pappus over `π − φ`.
-fn fillet_flush(phi: f64, r: f64, (l, y, z): (f64, f64, f64)) -> f64 {
+pub(crate) fn fillet_flush(phi: f64, r: f64, (l, y, z): (f64, f64, f64)) -> f64 {
     let (a, d) = section(r);
     let cot = 1.0 / (phi / 2.0).tan();
     let a_phi = r * r * (cot - (PI - phi) / 2.0);
@@ -243,7 +243,7 @@ fn fillet_flush(phi: f64, r: f64, (l, y, z): (f64, f64, f64)) -> f64 {
 
 /// The flush corner's chamfer at plan angle `φ`, the odd edge `l` long
 /// and the pair `y` and `z`.
-fn chamfer_flush(phi: f64, s: f64, (l, y, z): (f64, f64, f64)) -> f64 {
+pub(crate) fn chamfer_flush(phi: f64, s: f64, (l, y, z): (f64, f64, f64)) -> f64 {
     let half = s * s / 2.0;
     half * phi.sin() * l
         - half * (y + z - 2.0 * s + 2.0 * s * (phi / 2.0).sin())
@@ -395,7 +395,7 @@ fn corner_residual(out: &Blended<f64>) -> (f64, usize) {
 
 /// The requested edges whose two faces are both cylinders: a bore's
 /// smooth seams, which the blend leaves as they are.
-fn seams(body: &Body<f64>, edges: &[EdgeKey]) -> Vec<EdgeKey> {
+pub(crate) fn seams(body: &Body<f64>, edges: &[EdgeKey]) -> Vec<EdgeKey> {
     edges
         .iter()
         .copied()
@@ -893,38 +893,4 @@ fn a_bore_wholly_behind_a_pair_edges_line_clears_its_ring_meter() {
             );
         }
     }
-}
-
-/// **The reach meters a mixed corner as a uniform corner's** and so
-/// refuses `FaceClearance` where the corner would clear
-/// (`work/band/the-reach-meters-a-mixed-corner-as-a-uniform-one-and-refuses-short-edges.md`):
-/// the flush L 0.25 tall chamfered at `0.1` (it builds from 0.26), the
-/// bore-less bracket chamfered all round at `0.14`, and the bracket
-/// filleted all round at `0.149`. Each is pinned as it refuses today.
-#[test]
-fn a_mixed_corner_reach_metered_as_a_uniform_corner_refuses_typed() {
-    let bounded = |got: &Result<Blended<f64>, BlendError>| {
-        matches!(got, Err(BlendError::FaceClearance { bounded: true, .. }))
-    };
-    let short = l_prism(0.25);
-    let got = Verb::Chamfer.run(&short, &l_corner(&short, 0.25), R);
-    assert!(
-        bounded(&got),
-        "the flush L 0.25 tall, chamfered at 0.1, got {got:?}",
-        got = got.as_ref().map(|_| ())
-    );
-    let body = bracket(false);
-    let got = Verb::Chamfer.run(&body, &every_edge(&body), 0.14);
-    assert!(
-        bounded(&got),
-        "the bore-less bracket chamfered at 0.14, got {got:?}",
-        got = got.as_ref().map(|_| ())
-    );
-    let body = bracket(true);
-    let got = Verb::Fillet.run(&body, &every_edge(&body), 0.149);
-    assert!(
-        bounded(&got),
-        "the bracket filleted at 0.149, got {got:?}",
-        got = got.as_ref().map(|_| ())
-    );
 }
