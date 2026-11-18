@@ -394,6 +394,21 @@ fn definition<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             let d = na.get().cross(nb.get());
             let dir = UnitVec3::new(d, POSE_UNIT_NORM, b)
                 .map_err(|e| degenerate(e, PoseConstruction::Meet))?;
+            // A line both planes hold by construction is the meet, a
+            // claim: its point nearest the origin, the representative the
+            // solve below defines, with no division by the planes' angle.
+            // Its direction is the solve's, so the planes are decided
+            // apart exactly as the solve decides them; the line's own
+            // direction is the claim's too, up to the sense `d` decides.
+            if let Some(line) = crate::coincide::meet_by_construction(doc, *a, *second, tol) {
+                let PoseValue::Axis(line) = pose(&line)?.read_into(&first.frame, b)? else {
+                    unreachable!("a meet is an axis")
+                };
+                return Ok(in_frame(
+                    first.frame,
+                    PoseValue::axis_through(line.foot_of(Point3::origin()), dir),
+                ));
+            }
             // The line's point nearest the origin, in closed form:
             // `(ca (nb × d) + cb (d × na)) / |d|²` lies on both planes
             // (`na · (nb × d) = nb · (d × na) = |d|²`) and is
