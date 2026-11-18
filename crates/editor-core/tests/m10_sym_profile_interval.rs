@@ -572,6 +572,7 @@ const PLATE_MAX_TERMS: usize = 38;
 ///   hole's own cover about its own origin, not off the moved hole's: −61
 ///   (39644 → 39583). Reading it off the moved hole as well puts back the
 ///   whole pinned ledger.
+///
 /// Besides the session box's ask, every walk makes the calls it made:
 /// what moved is what the walks build.
 const PLATE_LEDGER: &str = "\
