@@ -844,8 +844,8 @@ fn row3_instance_qualified_names_round_trip_persistence() {
             }),
         },
     );
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("loads").doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("loads");
     assert!(
         loaded.appearance().keys().any(|k| k.name == name),
         "an instance-qualified name survives the wire verbatim"
@@ -1057,10 +1057,10 @@ fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
     let pin0 = content_pin(&doc, Tol::witness()).expect("pins");
 
     // A re-save of untouched content leaves the pin fixed.
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let reloaded = load(&text, Tol::witness()).expect("loads").doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let reloaded = load(&text, Tol::witness()).expect("loads");
     assert_eq!(content_pin(&reloaded, Tol::witness()).expect("pins"), pin0);
-    let again = save(&reloaded, &[], Tol::witness()).expect("saves again");
+    let again = save(&reloaded, Tol::witness()).expect("saves again");
     assert_eq!(text, again, "saves are byte-stable");
 
     // A placement moves it.
@@ -1207,8 +1207,8 @@ fn row7_instantiate_and_placement_round_trip() {
         &opts,
     );
 
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("loads").doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("loads");
     assert!(loaded.bit_eq(&doc), "the offset round-trips bit for bit");
     assert!(
         fixture::offset_of(&doc, ids[1]).is_some()
@@ -1219,7 +1219,7 @@ fn row7_instantiate_and_placement_round_trip() {
         matches!(loaded.node(ids[0]), Some(Node::InstantiatePart { doc_ref: r, .. }) if *r == doc_ref)
     );
     assert_eq!(
-        save(&loaded, &[], Tol::witness()).expect("saves"),
+        save(&loaded, Tol::witness()).expect("saves"),
         text,
         "byte-stable"
     );

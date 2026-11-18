@@ -2150,7 +2150,6 @@ fn lib_doors_vocabulary_is_nameable() {
     named::<Option<pncad::document::NodeValue<f64>>>(None);
     named::<Option<pncad::document::NodeResult<f64>>>(None);
     named::<Option<pncad::document::EvalOutcome>>(None);
-    named::<Option<pncad::document::Loaded>>(None);
     named::<Option<pncad::document::PersistError>>(None);
     named::<Option<pncad::document::NonFiniteSite>>(None);
     named::<Option<pncad::document::ProgramFault>>(None);
@@ -2536,21 +2535,16 @@ fn the_persist_doors_round_trip_through_the_facade() {
     // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(volume, 6.0);
 
-    let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = pncad::document::save(&doc, Tol::witness()).expect("the document saves");
     assert!(
         text.starts_with(&format!("id: {}\n", doc.id())),
         "the file's header names the document"
     );
 
     let loaded = pncad::document::load(&text, Tol::witness()).expect("the file loads");
-    assert!(loaded.edits.is_empty(), "no edit log was saved");
-    assert!(loaded.records.is_empty());
-    assert!(
-        loaded.doc.bit_eq(&doc),
-        "load replays to the SAME document (D9)"
-    );
+    assert!(loaded.bit_eq(&doc), "load answers the SAME document (D9)");
 
-    let after = doors_evaluate(&loaded.doc);
+    let after = doors_evaluate(&loaded);
     let replayed = mass_properties(
         &pncad::topo::finish(
             pncad::topo::Body::clone(
@@ -3035,7 +3029,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         "volume {volume} vs the plate_param oracle {oracle}"
     );
 
-    let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = pncad::document::save(&doc, Tol::witness()).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
@@ -3118,7 +3112,7 @@ fn ws_doc_and_body(label: &str) -> (pncad::document::ProfileDoc, String, PartBod
     );
     let (doc, copy) = place(doc, body);
     let doc = product_is(doc, &[copy]);
-    let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = pncad::document::save(&doc, Tol::witness()).expect("the document saves");
     (doc, text, PartBody { body })
 }
 
@@ -3218,7 +3212,7 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
     .expect("the edit applies")
     .doc;
     let new_text =
-        pncad::document::save(&edited, &[], Tol::witness()).expect("the edited document saves");
+        pncad::document::save(&edited, Tol::witness()).expect("the edited document saves");
     dir.write("part.pncad", &new_text);
     drop(text);
 
@@ -3379,66 +3373,6 @@ fn random_document_ids_are_distinct() {
     let a = pncad::workspace::random_document_id().expect("OS randomness");
     let b = pncad::workspace::random_document_id().expect("OS randomness");
     assert_ne!(a, b, "128 random bits collide never in practice");
-}
-
-/// D-5's pin-the-REPLAYED-document discipline, falsified (R2
-/// MINOR-2): a workspace file saved WITH a non-empty edit log. The
-/// replayed state's pin resolves; the RAW snapshot's pin refuses
-/// PinMismatch — so a resolve that pinned `loaded.snapshot` instead
-/// of `loaded.doc` fails this row in both directions.
-#[test]
-fn workspace_resolve_pins_replayed_state_not_snapshot() {
-    use pncad::document::{Dimension, DocEdit, FreeVar, VarName};
-    let dir = WsDir::new("log");
-    let (origin, _) = ws_doc("ws-logged");
-    let edit = DocEdit::DeclareVar {
-        name: VarName::from_static("depth"),
-        def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
-    };
-    // Save snapshot + ONE-edit log; the file's current state is the
-    // replayed result, and that is what a resolve must pin.
-    let text = pncad::document::save(&origin, std::slice::from_ref(&edit), Tol::witness())
-        .expect("the logged document saves");
-    dir.write("logged.pncad", &text);
-    let replayed = pncad::document::apply(&origin, &edit, Tol::witness())
-        .expect("the edit applies")
-        .doc;
-    let replayed_pin =
-        pncad::document::content_pin(&replayed, Tol::witness()).expect("the pin computes");
-    let snapshot_pin =
-        pncad::document::content_pin(&origin, Tol::witness()).expect("the pin computes");
-    assert_ne!(
-        replayed_pin, snapshot_pin,
-        "the log is semantic here, so the two pins must differ for this row to bite"
-    );
-
-    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let resolved = ws
-        .resolve(
-            &pncad::document::DocRef {
-                id: origin.id(),
-                pin: replayed_pin,
-            },
-            Tol::witness(),
-        )
-        .expect("the replayed state's pin is the one that resolves");
-    assert!(
-        resolved.bit_eq(&replayed),
-        "resolve hands back the replayed state"
-    );
-    match ws.resolve(
-        &pncad::document::DocRef {
-            id: origin.id(),
-            pin: snapshot_pin,
-        },
-        Tol::witness(),
-    ) {
-        Err(pncad::workspace::WorkspaceError::PinMismatch { wanted, found, .. }) => {
-            assert_eq!(wanted, snapshot_pin);
-            assert_eq!(found, replayed_pin);
-        }
-        other => panic!("the raw snapshot's pin must refuse PinMismatch, got {other:?}"),
-    }
 }
 
 // ---- A4: a save is two acts (the save door and the fork) ----
@@ -3962,7 +3896,7 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
                 distance: len(1.5),
             },
         );
-        pncad::document::save(&doc, &[], Tol::witness()).expect("saves")
+        pncad::document::save(&doc, Tol::witness()).expect("saves")
     };
     dir.write("part.pncad", &edited);
 
@@ -4186,7 +4120,7 @@ fn asm_r2a_child_mated_probe() {
     .expect("mass properties")
     .enclosure
     .volume;
-    let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = pncad::document::save(&doc, Tol::witness()).expect("the document saves");
     std::fs::write(
         &out,
         format!(
@@ -4278,10 +4212,10 @@ fn asm_r2b_child_crossing_probe() {
     )
     .expect("a whole-group cut splits");
     let text =
-        pncad::document::save(&split.remainder, &[], Tol::witness()).expect("the remainder saves");
+        pncad::document::save(&split.remainder, Tol::witness()).expect("the remainder saves");
     dir.write(
         "split.pncad",
-        &pncad::document::save(&split.part, &[], Tol::witness()).expect("the part saves"),
+        &pncad::document::save(&split.part, Tol::witness()).expect("the part saves"),
     );
 
     let ev = asm2a_eval(&doc, &ws);
@@ -4349,7 +4283,7 @@ fn asm_r2b_crossing_bearing_bits_agree_across_two_fresh_processes() {
 fn asm2b_workspace(dir: &WsDir) -> (pncad::document::DocRef, pncad::document::DocRef) {
     let p = asm2a_part(dir, "part.pncad", "asm2b-part");
     let (b_doc, _) = asm2a_assembly("asm2b-sub", p, 2);
-    let text = pncad::document::save(&b_doc, &[], Tol::witness()).expect("the sub-assembly saves");
+    let text = pncad::document::save(&b_doc, Tol::witness()).expect("the sub-assembly saves");
     dir.write("sub.pncad", &text);
     let b = pncad::document::DocRef {
         id: b_doc.id(),
@@ -4702,8 +4636,8 @@ fn asm4_child_split_probe() {
     .expect("legal");
     let text = format!(
         "{}\u{1e}{}",
-        d::save(&split_out.part, &[], Tol::witness()).expect("part saves"),
-        d::save(&split_out.remainder, &[], Tol::witness()).expect("remainder saves"),
+        d::save(&split_out.part, Tol::witness()).expect("part saves"),
+        d::save(&split_out.remainder, Tol::witness()).expect("remainder saves"),
     );
     std::fs::write(&out, text).expect("probe output writable");
 }
@@ -4919,7 +4853,7 @@ fn asm_upd_child_update_probe() {
     .volume;
     let text = format!(
         "{}\u{1e}{}",
-        d::save(&updated, &[], Tol::witness()).expect("the updated document saves"),
+        d::save(&updated, Tol::witness()).expect("the updated document saves"),
         volume.to_bits(),
     );
     std::fs::write(&out, text).expect("probe output writable");
@@ -6801,8 +6735,8 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
         ),
     );
 
-    let text = save(&doc, &[], Tol::witness()).expect("the annotated document saves");
-    let back = load(&text, Tol::witness()).expect("and loads").doc;
+    let text = save(&doc, Tol::witness()).expect("the annotated document saves");
+    let back = load(&text, Tol::witness()).expect("and loads");
     assert!(back.bit_eq(&doc), "the annotation round-trips bit for bit");
 
     let policy = AnalysisPolicy::default();

@@ -352,7 +352,7 @@ fn a_document_whose_mates_carry_no_orientation_refuses_naming_it() {
         }
     }
     let (doc, _) = hung_doc(0.0, TargetAxis::Y, Orientation::IDENTITY);
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let (header, body) = text.split_once('\n').expect("a header line");
     let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
     assert!(strip(&mut v) > 0, "the save carries the mate's orientation");

@@ -934,12 +934,13 @@ the geometry survived.
 `step_string` takes a finished body (`AtRestBody`), so a body the
 at-rest gate refuses never reaches the writer. Past the gate, STEP
 export is one of the few places the kernel refuses for a reason you
-should *expect* rather than fix: `UnsupportedSurface`,
-`UnsupportedCurve` and `VoidShellUnsupported` mean the AP214
-writer has no representation for a surface or a cavity the modeller
-can build.
-The tour treats exactly those three as tolerated, per scene, and
-panics on anything else.
+should *expect* rather than fix: `UnsupportedSurface` and
+`UnsupportedCurve` mean the AP214 writer has no representation for a
+surface or a curve the modeller can build. A solid with cavities is
+not one of them: it leaves as one `BREP_WITH_VOIDS` and re-imports as
+one solid with the same cavities.
+The tour's bodies reach neither refusal, and it panics on any refusal
+at all.
 
 ### 2.8 The same journey in Python
 
@@ -1106,7 +1107,7 @@ measures agree at rounding level. On a curved body they differ by the
 budget, and the difference shrinks with it — `docs/guide/meshing.md`
 runs that convergence.
 
-Python's document also persists and replays bit-identically:
+Python's document also saves and loads bit-identically:
 
 ```python
 from pncad import Doc, Formula, Node, evaluate, load, mm
@@ -1120,8 +1121,8 @@ profile = doc.insert(Node.polygon([
 doc.insert(Node.extrude(profile, Formula.length_in(1, mm)))
 
 text = doc.save()
-replayed = load(text).doc
-assert doc.bit_eq(replayed), "replay is bit-identical, not merely close"
+loaded = load(text)
+assert doc.bit_eq(loaded), "the load is bit-identical, not merely close"
 ```
 
 Bit-identity is a real guarantee, not a hope: the kernel uses pure

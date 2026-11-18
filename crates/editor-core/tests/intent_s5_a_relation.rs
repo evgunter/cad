@@ -116,11 +116,11 @@ fn the_relation_is_the_wire_field_and_dir_refuses() {
     let (doc, out) = slab("s5a-wire");
     let read = fixture::read_var(&doc, out);
     let (doc, id) = assert_on(doc, read, AssertionRelation::Equal, len(DEPTH));
-    let text = save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = save(&doc, Tol::witness()).expect("the document saves");
     let loaded = load(&text, Tol::witness()).expect("its own bytes load");
     assert!(
         matches!(
-            loaded.doc.node(id),
+            loaded.node(id),
             Some(Node::Assertion(editor_core::Claim::Value {
                 relation: AssertionRelation::Equal,
                 ..

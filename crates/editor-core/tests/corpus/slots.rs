@@ -104,7 +104,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "crossing_slots",
         about: "R13 / #86 crossing slots: boolean-of-boolean, coincident floors",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(sub2),
         pin: Some(MassPin {

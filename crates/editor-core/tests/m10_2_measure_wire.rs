@@ -212,8 +212,8 @@ fn angular() -> ProfileDoc {
 #[test]
 fn every_measure_form_round_trips() {
     for doc in [every_form(), angular()] {
-        let text = save(&doc, &[], Tol::witness()).expect("the document saves");
-        let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
+        let text = save(&doc, Tol::witness()).expect("the document saves");
+        let back = load(&text, Tol::witness()).expect("its own bytes load");
         for id in doc.ids() {
             let (mine, theirs) = (
                 doc.node(id).expect("live"),
@@ -224,7 +224,7 @@ fn every_measure_form_round_trips() {
                 "node {id:?} did not round-trip bit-exactly"
             );
         }
-        let again = save(&back, &[], Tol::witness()).expect("the reloaded document saves");
+        let again = save(&back, Tol::witness()).expect("the reloaded document saves");
         assert_eq!(text, again, "save . load is not a fixpoint");
     }
 }
@@ -261,7 +261,7 @@ fn the_quantity_kind_rides_the_primitive() {
 fn a_dimension_refusal_in_a_measured_definition_crosses_the_load_door_whole() {
     let doc = every_form();
     let value = crate::fixture::assertion_value(&doc, assertion(&doc));
-    let text = save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = save(&doc, Tol::witness()).expect("the document saves");
     let (header, body_text) = text.split_once('\n').expect("a header line");
     let mut body: serde_json::Value = serde_json::from_str(body_text).expect("a JSON body");
     let held = &mut body["snapshot"]["vars"][value.0.to_string().as_str()]["def"]["Defined"];
