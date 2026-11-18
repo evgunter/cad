@@ -209,6 +209,14 @@ impl<T: Real> Isometry<T> {
         }
     }
 
+    /// The map as a rigid motion, where it is one.
+    fn motion(&self) -> Option<&RigidMotion<T>> {
+        match self {
+            Self::Proper(motion) => Some(motion),
+            Self::Improper(_) => None,
+        }
+    }
+
     /// Whether the map keeps orientation.
     fn hand(&self) -> Hand {
         match self {
@@ -246,124 +254,78 @@ impl Hand {
 /// crosses as `−M·n`, already inside out, and its `sense` is kept.
 /// [`crate::Body::revert`]'s map then reverses every loop's cycle and
 /// every outward side once ([`crate::mirror`]).
+///
+/// `motion` is the map as the rigid motion it is, where it is one: an
+/// analytic frame is then that frame moved ([`geom::Frame::moved`]), a
+/// rigid image of a rigid frame, as [`map_carrier`] moves a conic's. A
+/// reflection, or a map handed only as an affine, maps the frame's three
+/// data and squares them ([`geom::Frame::new`]), the plane's normal as
+/// the axial image.
 fn map_surface<T: Real>(
     map: &Affine3<T>,
     hand: Hand,
+    motion: Option<&RigidMotion<T>>,
     s: &Surface<T>,
 ) -> Result<Surface<T>, TransformError> {
+    let mapped = |f: &geom::Frame<T>, axial: bool| match motion {
+        Some(motion) => f.moved(motion),
+        None => geom::Frame::new(
+            map.transform_point(f.origin()),
+            if axial {
+                hand.axial(map, f.axis())
+            } else {
+                map_vec(map, f.axis())
+            },
+            map_vec(map, f.u_ref()),
+        ),
+    };
     Ok(match *s {
         // The normal is the face's outward side, so the inside-out
         // image's is the axial one; the chart is then `M∘S` exactly.
         Surface::Plane {
             frame: carrier_frame,
-        } => {
-            let (origin, normal, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Plane {
-                frame: geom::Frame::new(
-                    map.transform_point(origin),
-                    hand.axial(map, normal),
-                    map_vec(map, u_ref),
-                ),
-            }
-        }
+        } => Surface::Plane {
+            frame: mapped(&carrier_frame, true),
+        },
         Surface::Cylinder {
             frame: carrier_frame,
             radius,
-        } => {
-            let (origin, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Cylinder {
-                frame: geom::Frame::new(
-                    map.transform_point(origin),
-                    map_vec(map, axis),
-                    map_vec(map, u_ref),
-                ),
-                radius,
-            }
-        }
+        } => Surface::Cylinder {
+            frame: mapped(&carrier_frame, false),
+            radius,
+        },
         Surface::Cone {
             frame: carrier_frame,
             half_angle,
-        } => {
-            let (apex, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Cone {
-                frame: geom::Frame::new(
-                    map.transform_point(apex),
-                    map_vec(map, axis),
-                    map_vec(map, u_ref),
-                ),
-                half_angle,
-            }
-        }
+        } => Surface::Cone {
+            frame: mapped(&carrier_frame, false),
+            half_angle,
+        },
         Surface::Sphere {
             frame: carrier_frame,
             radius,
-        } => {
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Sphere {
-                frame: geom::Frame::new(
-                    map.transform_point(center),
-                    map_vec(map, axis),
-                    map_vec(map, u_ref),
-                ),
-                radius,
-            }
-        }
+        } => Surface::Sphere {
+            frame: mapped(&carrier_frame, false),
+            radius,
+        },
         Surface::Torus {
             frame: carrier_frame,
             major_radius,
             minor_radius,
-        } => {
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Torus {
-                frame: geom::Frame::new(
-                    map.transform_point(center),
-                    map_vec(map, axis),
-                    map_vec(map, u_ref),
-                ),
-                major_radius,
-                minor_radius,
-            }
-        }
+        } => Surface::Torus {
+            frame: mapped(&carrier_frame, false),
+            major_radius,
+            minor_radius,
+        },
         Surface::Spindle {
             frame: carrier_frame,
             major_radius,
             minor_radius,
-        } => {
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Spindle {
-                frame: geom::Frame::new(
-                    map.transform_point(center),
-                    map_vec(map, axis),
-                    map_vec(map, u_ref),
-                ),
-                major_radius,
-                minor_radius,
-            }
-        }
+        } => Surface::Spindle {
+            frame: mapped(&carrier_frame, false),
+            major_radius,
+            minor_radius,
+        },
         // A DESCRIBED net maps by its control points, weights and
         // knots untouched — the exact image, not a re-fit, so there is
         // no certificate to re-derive and no fit door to reach
@@ -470,12 +432,20 @@ fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, T
             // `(axis, u_ref, offset)` and `(−axis, −u_ref, −offset)` name
             // one oval; under a reflection the image keeps its `v` with
             // `axis` mapped and the plane's side negated.
-            let (u_ref, offset) = match hand {
-                Hand::Proper => (map_vec(map, u_ref), offset),
-                Hand::Improper => (-map_vec(map, u_ref), -offset),
+            // Under a motion the frame is moved, as a conic's is.
+            let (frame, offset) = match iso {
+                Isometry::Proper(motion) => (carrier_frame.moved(motion), offset),
+                Isometry::Improper(_) => (
+                    geom::Frame::new(
+                        map.transform_point(center),
+                        map_vec(map, axis),
+                        -map_vec(map, u_ref),
+                    ),
+                    -offset,
+                ),
             };
             Curve3::Spiric {
-                frame: geom::Frame::new(map.transform_point(center), map_vec(map, axis), u_ref),
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
@@ -668,7 +638,7 @@ pub(crate) fn map_isometry<T: Decide>(
     }
     let mut mapped_surfaces = Vec::new();
     for (k, s) in &out.surfaces {
-        mapped_surfaces.push((k, map_surface(map, hand, s)?));
+        mapped_surfaces.push((k, map_surface(map, hand, iso.motion(), s)?));
     }
     for (k, s) in mapped_surfaces {
         out.surfaces[k] = s;
@@ -917,7 +887,7 @@ mod tests {
     #[test]
     fn the_surface_placeholder_is_what_refuses() {
         assert!(matches!(
-            map_surface(&aside(), Hand::Proper, &Surface::nurbs_placeholder()),
+            map_surface(&aside(), Hand::Proper, None, &Surface::nurbs_placeholder()),
             Err(TransformError::NurbsPlaceholder)
         ));
     }
@@ -937,7 +907,7 @@ mod tests {
     fn a_described_surface_maps_by_its_control_points() {
         let map = aside();
         let before = described_surface();
-        let after = map_surface(&map, Hand::Proper, &before).expect("a described net maps");
+        let after = map_surface(&map, Hand::Proper, None, &before).expect("a described net maps");
         let (Surface::Nurbs(b), Surface::Nurbs(a)) = (&before, &after) else {
             panic!("the variant changed under the map");
         };
@@ -1077,7 +1047,8 @@ mod tests {
             ),
         ];
         for (kind, surface, azimuth) in kinds {
-            let image = map_surface(&m, Hand::Improper, &surface).expect("an analytic surface");
+            let image =
+                map_surface(&m, Hand::Improper, None, &surface).expect("an analytic surface");
             for k in 0..9 {
                 let (s, t) = (f64::from(k) * 0.61 - 2.0, f64::from(k) * 0.17 - 0.6);
                 let want = m.transform_point(surface.eval(azimuth * s, t));

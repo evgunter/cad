@@ -1680,11 +1680,25 @@ mod tests {
                 .into_iter()
                 .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
                 .collect();
+            // A frame is squared where it is stated, so its datums read
+            // the squared axes; every other datum reads its scalars as
+            // given.
             assert_eq!(
-                walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
-                base[..kind.scalars],
-                "{at_rest:?}: the walk yields the builder's scalars, in its order"
+                walked.len(),
+                kind.scalars,
+                "{at_rest:?}: the walk reads every scalar"
             );
+            for (i, &(datum, x)) in walked.iter().enumerate() {
+                assert!(
+                    matches!(
+                        datum,
+                        geom::SurfaceDatum::Normal
+                            | geom::SurfaceDatum::Axis
+                            | geom::SurfaceDatum::URef
+                    ) || x == base[i],
+                    "{at_rest:?}: the walk yields the builder's scalar {i}, in its order"
+                );
+            }
             for (i, &(datum, _)) in walked.iter().enumerate() {
                 let mut moved = base.clone();
                 moved[i] += 0.5;
@@ -1717,11 +1731,21 @@ mod tests {
                 .into_iter()
                 .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
                 .collect();
+            // A frame is squared where it is stated, so its datums read
+            // the squared axes; every other datum reads its scalars as
+            // given.
             assert_eq!(
-                walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
-                base[..kind.scalars],
-                "{at_rest:?}: the walk yields the builder's scalars, in its order"
+                walked.len(),
+                kind.scalars,
+                "{at_rest:?}: the walk reads every scalar"
             );
+            for (i, &(datum, x)) in walked.iter().enumerate() {
+                assert!(
+                    matches!(datum, geom::CurveDatum::Axis | geom::CurveDatum::URef)
+                        || x == base[i],
+                    "{at_rest:?}: the walk yields the builder's scalar {i}, in its order"
+                );
+            }
             for (i, &(datum, _)) in walked.iter().enumerate() {
                 let mut moved = base.clone();
                 moved[i] += 0.5;

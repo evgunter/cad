@@ -226,12 +226,13 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
 /// ENCLOSURE, and the consumer-visible text renders it.
 ///
 /// **Which limb escalates is measured, not chosen.** On the quarter
-/// turn limb 2's hull bound reads about 3.13e-15, under limb 1's worst
-/// sample (about 4.77e-15, its upper end), because every Bézier row of
-/// the composite is restricted from its own span window through the
-/// monotone step (`Certification::between`). Under the convex step it
-/// read 5.0e-15, just over limb 1, and this row pinned limb 2's
-/// escalation there. Limb 2 stays under limb 1 over the arcs, tilts,
+/// turn limb 2's hull bound reads about 5.29e-15, under limb 1's worst
+/// sample (about 6.66e-15, its upper end): the cylinder's frame is
+/// re-minted at `Interval`, a few ulps wide, which limb 1 reads and
+/// limb 2 charges over the carrier's reach. Limb 2 stays under limb 1
+/// because every Bézier row of the composite is restricted from its own
+/// span window through the monotone step (`Certification::between`).
+/// Limb 2 stays under limb 1 over the arcs, tilts,
 /// radii and translations of this pair (hull/locus 0.06 to 0.88), so
 /// no band makes limb 2 the first limb in it, and the band here sits
 /// between the two: limb 1 escalates, limb 2 is under the band. Limb
@@ -249,7 +250,7 @@ fn the_interval_escalation_carries_an_enclosure() {
     let cert = certify_at::<Interval>(1.0, ARC, tight_band())
         .expect("the quarter turn certifies at a 1e-12 band");
     let (locus, hull) = (cert.on_locus_max.hi(), cert.hull_sup);
-    let band = Band::new(4.0e-15, 5.5e-15).unwrap();
+    let band = Band::new(6.0e-15, 7.0e-15).unwrap();
     assert!(
         hull.hi() < band.zero() && band.zero() < locus && locus < band.escalate(),
         "the band must sit between limb 2 ([{:e}, {:e}]) and limb 1 ({locus:e})",

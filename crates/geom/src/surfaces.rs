@@ -98,15 +98,16 @@ pub enum Surface<T: Real> {
     /// The infinite plane `S(u, v) = origin + u_ref·u + v_ref·v` with
     /// `v_ref = normal × u_ref`.
     ///
-    /// - `u`, `v` in meters (unit frame ⇒ arc-length parameters);
-    ///   domain ℝ², not periodic. `normal ⊥ u_ref`, both unit
-    ///   (conventional, unchecked).
+    /// - `u`, `v` in meters (arc-length parameters on the unit frame);
+    ///   domain ℝ², not periodic. `normal ⊥ u_ref`, both unit: the
+    ///   frame's.
     /// - The chart normal `∂u × ∂v` is exactly the stored `normal` (in
     ///   exact arithmetic): `u_ref × v_ref = normal` for the
     ///   right-handed frame.
     Plane {
-        /// The placement: the point at `(0, 0)`, the normal as its axis and the `u` direction as its `u_ref`,
-        /// held as the rigid frame it is.
+        /// The placement: the point at `(0, 0)`, the normal as its axis
+        /// and the `u` direction as its `u_ref`, held as the rigid frame
+        /// it is.
         frame: Frame<T>,
     },
 
@@ -121,8 +122,8 @@ pub enum Surface<T: Real> {
     ///   radial·r`.
     /// - No chart singularities (`radius > 0` by convention).
     Cylinder {
-        /// The placement: the `v = 0` point on the axis, the axis and the seam,
-        /// held as the rigid frame it is.
+        /// The placement: the `v = 0` point on the axis, the axis and the
+        /// seam, held as the rigid frame it is.
         frame: Frame<T>,
         /// The radius in meters (positive by convention).
         radius: T,
@@ -160,8 +161,8 @@ pub enum Surface<T: Real> {
     ///   `topo::validate`'s tier-3 check 1, which reads
     ///   [`Surface::representability_margins`].
     Cone {
-        /// The placement: the apex, the axis the `v > 0` nappe opens along, and the seam,
-        /// held as the rigid frame it is.
+        /// The placement: the apex, the axis the `v > 0` nappe opens
+        /// along, and the seam, held as the rigid frame it is.
         frame: Frame<T>,
         /// The half-angle α ∈ (0, π/2), radians, between `axis` and the
         /// generator lines.

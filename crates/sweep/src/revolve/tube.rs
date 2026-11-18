@@ -61,8 +61,7 @@ use geom_core::k_stats::decide;
 use geom_core::period::{Exact, Extent, NotForward, Period, TurnRows};
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, InfSpeed, Margin, Mat3, Point2, Point3, Real,
-    RigidMotion, Sign, Tol, Vec2,
+    Band, Decide, Indeterminate, InfSpeed, Margin, Point2, Real, RigidMotion, Sign, Tol, Vec2,
 };
 
 use super::axis::AxisFrame;
@@ -423,16 +422,11 @@ fn build<T: Decide + topo::AtRestPolicy>(
     // The frame's three axes, in this door's words: `w` is the SPINE
     // AXIS, `u` the reference radial the window's angles are measured
     // from, and `v = w × u` the radial a quarter turn on, which is
-    // what a windowed start direction rotates `u` towards. All three
-    // are read VERBATIM off the frame — the door never normalizes,
-    // because the mint already did, and it never re-crosses a leg the
-    // frame carries. The sketch placement's own third column is
-    // `x_dir × axis`, a different product with the other sign, and is
-    // formed below.
+    // what a windowed start direction rotates `u` towards. The sketch
+    // frame below is this frame turned and its axes re-chosen, so the
+    // door never normalizes and never re-crosses a leg the frame
+    // carries.
     let center = frame.origin();
-    let axis = frame.w().get();
-    let u_ref = frame.u().get();
-    let v_ref = frame.v().get();
     let band = Band::linear(tol).map_err(TubeError::Band)?;
     // The angle lever arm: the outer equator (D4 ¶1).
     let arm = major_radius + minor_radius;
@@ -516,17 +510,25 @@ fn build<T: Decide + topo::AtRestPolicy>(
     // the tube centre is the placement origin — zero arithmetic). A
     // window's start direction is the one derived quantity
     // (`u_ref` rotated by t0; exactly `u_ref` for Full and t0 = 0). ----
-    let x_dir = match window {
-        TubeWindow::Full => u_ref,
-        TubeWindow::Arc { t0, .. } => geom::radial_of_legs(u_ref, v_ref, t0),
+    //
+    // The sketch frame is the spine frame turned about its axis onto
+    // the window's start ([`RigidMotion::spun_toward`] of `(cos t0,
+    // sin t0)`; the frame itself for a full tube), its axes re-chosen
+    // among their own: sketch x the start radial, sketch y the axis,
+    // and the normal `x × axis`, the turned frame's `−v`. Rigid by
+    // construction, so nothing is re-squared.
+    let start = match window {
+        TubeWindow::Full => frame,
+        TubeWindow::Arc { t0, .. } => {
+            let (sin, cos) = t0.sin_cos();
+            frame.spun_toward(Vec2::new(cos, sin))
+        }
     };
-    let normal = x_dir.cross(axis);
-    let place = Affine3::from_parts(
-        Mat3::from_cols(x_dir, axis, normal),
-        center - Point3::origin(),
-    );
+    let Some(sketch) = start.with_signed_axes((0, false), (2, false)) else {
+        unreachable!("u and w are two axes")
+    };
     let sketch_frame = AxisFrame::build_on(
-        place,
+        sketch.with_origin(center),
         &RevolveAxis {
             origin: Point2::new(T::zero(), T::zero()),
             dir: Vec2::new(T::zero(), T::one()),

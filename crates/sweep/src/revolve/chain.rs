@@ -54,7 +54,7 @@ pub(super) fn build_chain<T: Decide + topo::AtRestPolicy>(
     cap: FaceSurface<T>,
     tol: Tol,
 ) -> Result<MeridianChain, EulerOpError> {
-    let (place, normal) = (frame.place, frame.n3);
+    let (place, normal) = (frame.motion, frame.n3);
     let n = segs.len();
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(

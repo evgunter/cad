@@ -47,19 +47,27 @@
 //!
 //! # What a lift is, and is not
 //!
-//! A lift is a **structural map**: every scalar field goes through `f`
-//! (a NURBS payload's control points, weights and held knots among
-//! them), every `f64` structure field (degrees, knot structure, the
-//! weights' value channel, windows, tolerances) is carried verbatim,
-//! and no arithmetic is performed. `f` keeps every value's point, so
-//! the structure carried over is still the lifted values' value
-//! channel. It
-//! is therefore exact whenever `f` is — `Real::from_f64` at every
-//! scalar, `Dual::constant` for the dual lanes — and then the lifted
-//! geometry **evaluates to the source**: bit for bit in a `Dual`'s
-//! value channel, as a bracket of the source's `f64` evaluation at the
-//! interval scalar. The rows named `described_nurbs_lifts_as_its_payload`
-//! in the enum modules' tests pin exactly that.
+//! A lift is a **structural map** but for one field: every scalar field
+//! goes through `f` (a NURBS payload's control points, weights and held
+//! knots among them), every `f64` structure field (degrees, knot
+//! structure, the weights' value channel, windows, tolerances) is
+//! carried verbatim, and no arithmetic is performed. `f` keeps every
+//! value's point, so the structure carried over is still the lifted
+//! values' value channel. It is therefore exact whenever `f` is —
+//! `Real::from_f64` at every scalar, `Dual::constant` for the dual lanes
+//! — and then the lifted geometry **evaluates to the source**: bit for
+//! bit in a `Dual`'s value channel, as a bracket of the source's `f64`
+//! evaluation at the interval scalar. The rows named
+//! `described_nurbs_lifts_as_its_payload` in the enum modules' tests pin
+//! exactly that.
+//!
+//! **The field is a carrier's frame** ([`crate::Frame::map_scalar`]). A
+//! frame is a claim, carried as it is between two scalars of one
+//! [`Witness`](geom_core::Witness) kind and re-minted at the target
+//! scalar across kinds: an `f64` carrier read at `Interval` stands on an
+//! enclosure, a few ulps wide, of the rotation its frame names, and
+//! brackets the carrier the `f64` body stands for rather than its
+//! rounded entries.
 //!
 //! # Why a structural map's counts survive it (the one home of this argument)
 //!

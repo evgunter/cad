@@ -54,9 +54,7 @@ use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::turn::{TurnEnds, sweep_turn};
 use super::upgrade::{upgrade_intersection, upgrade_meridian_wrap};
 use super::{BandWall, Cavity, CavityOrigin, RevolveError, Revolved, RevolvedKind, SweptSeg};
-use crate::swept::{
-    decide, face_surface_key, placed_segment_spec, placed_segment_spec_about, turn_axis,
-};
+use crate::swept::{decide, face_surface_key, placed_segment_spec, placed_segment_spec_about};
 use geom_core::Tol;
 
 /// Builds the full solid of revolution (file docs). `theta` is +2π
@@ -434,7 +432,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let (segs, cls) = (&col.segs[..], &col.cls);
-    let place = frame.place;
+    let place = frame.motion;
     let n = segs.len();
     let qs: Vec<Point3<T>> = segs.iter().map(|s| frame.world(s.a)).collect();
 
@@ -470,7 +468,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     // ---- Phase 2: the one-band sweep (the generic pinned-aware sweep
     // with nothing pinned; rotated copies at the original coordinates
     // and the original placement — full period is the identity). ----
-    let axis_c = turn_axis(Sign::Positive, frame.axis.get());
+    let axis_c = Sign::Positive;
     let swept = sweep_loop(
         &mut body,
         loop_index,
@@ -638,11 +636,11 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
         &TurnEnds {
             near: q,
             far: q,
-            place_far: frame.place.into(),
+            place_far: frame.motion.into(),
             n_far: frame.n3,
         },
         theta,
-        turn_axis(Sign::Positive, frame.axis.get()),
+        Sign::Positive,
         // A transient disc, killed by the closure, like the lamina's.
         FaceSurface::New {
             surface: Surface::nurbs_placeholder(),
@@ -769,7 +767,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let (segs, walls, verts) = (&wire.segs[..], &wire.walls[..], &wire.verts[..]);
-    let place = frame.place;
+    let place = frame.motion;
     let k = segs.len();
     let half = theta * T::from_f64(0.5);
     let far = crate::swept::Placing::turned(place, frame.origin3, frame.axis, half)
@@ -832,7 +830,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     // copies). The runs are collapsed (`collapse_runs`), so no two
     // adjacent wire walls continue one carrier: each takes its own
     // surface.
-    let axis_c = turn_axis(Sign::Positive, frame.axis.get());
+    let axis_c = Sign::Positive;
     let mut struts: Vec<Option<topo::construction::MevCreated>> = vec![None];
     for i in 1..k {
         let m = body.mev(
@@ -886,7 +884,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         // copy's centre, so the two are arcs of one circle in one plane.
         // Its start radial, where the start is pinned, lies along the axis,
         // which the turn fixes too: it takes the angle-0 copy's.
-        let radial = if pinned(i) { place.into() } else { far };
+        let radial = pinned(i).then(|| place.into());
         let spec = match walls[i] {
             WallClass::Wall {
                 kind: WallKind::Sphere { .. },
@@ -965,7 +963,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             description: geom_brep::EdgeDescriptionSpec::Scaffold(
                 geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
                     point: wire.points[i],
-                    place,
+                    place: frame.place,
                     axis: frame.line3(),
                     angle: theta,
                 })
@@ -973,7 +971,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             ),
             // `u_ref` points at the turned vertex: the seam direction
             // `u₃` (the vertex lies at `r > 0`), turned with it.
-            carrier: geom::Curve3::circle(center, axis_c, verts[i].r, far.carry(frame.u3)),
+            carrier: frame.latitude(center, verts[i].r, axis_c, far),
             param_start: T::zero(),
             param_end: half.abs(),
         };

@@ -96,7 +96,8 @@ use geom_brep::{
     WedgeRefusal,
 };
 use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, RigidMotion,
+    Sign, Tol, Vec3,
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
@@ -105,7 +106,7 @@ use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 use crate::swept;
 use crate::swept::{
     CapEnd, CosurfaceNames, Placing, SweptChord, Unit2, Unit3, cap_plane, decide, face_surface_key,
-    placed_segment_spec, sketch_chord, sketch_direction, turn_axis,
+    placed_segment_spec, sketch_chord, sketch_direction,
 };
 
 /// The predicate names this verb's cosurface decision reports under
@@ -789,7 +790,9 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     if profile.loops().is_empty() {
         return Err(ExtrudeError::EmptyProfile);
     }
-    let place = profile.plane().placement();
+    // The sketch plane's rigid frame: every station and wall below is
+    // this frame placed, carried or turned.
+    let place = profile.plane().frame();
     let normal = profile.plane().normal().get();
 
     // ---- Direction classification (crate docs; named predicates). ----
@@ -849,7 +852,9 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         course,
         normal: Unit3::from_frame(profile.plane().normal()),
     };
-    let top_place = Affine3::translation(w) * place;
+    // The far station's frame: the sketch frame carried by the sweep,
+    // its axes kept and its origin moved by `w`.
+    let top_place = place.with_origin(place.origin() + w);
 
     // ---- Swept traversals, each wall run collapsed to one segment
     // (`swept::collapse_runs`: a station inside a run has no entity),
@@ -1147,8 +1152,8 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     members: &[Vec<usize>],
     hes: &[topo::HalfEdgeKey],
     qs: &[Point3<T>],
-    place: Affine3<T>,
-    top_place: Affine3<T>,
+    place: RigidMotion<T>,
+    top_place: RigidMotion<T>,
     normal: Vec3<T>,
     sweep: Sweep<T>,
     band: Band,
@@ -1166,7 +1171,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 he2: hes[j],
             },
             qs[j] + w,
-            extruded_strut_spec(segs[j].chord.a, place, qs[j], sweep),
+            extruded_strut_spec(segs[j].chord.a, place.to_affine(), qs[j], sweep),
             tol,
         )?);
     }
@@ -1178,7 +1183,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         n,
         |j| struts[j].he_minus,
         |body, j, faces| {
-            let surface = side_surface(body, segs, joins, faces, j, qs, place, normal, sweep, tol);
+            let surface = side_surface(body, segs, joins, faces, j, qs, place.into(), sweep, tol);
             let top = placed_segment_spec(&segs[j], top_place, normal, qs[j] + w, tol);
             Ok::<_, ExtrudeError>(Some((top, surface)))
         },
@@ -1304,7 +1309,7 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
     seg: &WallSeg<T>,
     r#loop: topo::LoopKey,
     q: Point3<T>,
-    [place, top_place]: [Affine3<T>; 2],
+    [place, top_place]: [RigidMotion<T>; 2],
     normal: Vec3<T>,
     sweep: Sweep<T>,
     near_cap: FaceSurface<T>,
@@ -1317,8 +1322,7 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
         &[None],
         0,
         &[q],
-        place,
-        normal,
+        place.into(),
         sweep,
         tol,
     );
@@ -1328,7 +1332,7 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
         description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
             MappedSource::ExtrudedPoint {
                 point: seg.chord.a,
-                place: top_place,
+                place: top_place.to_affine(),
                 vec: back,
             },
         )),
@@ -1399,8 +1403,7 @@ fn side_surface<T: Real>(
     faces: &[Option<FaceKey>],
     j: usize,
     qs: &[Point3<T>],
-    place: Affine3<T>,
-    normal: Vec3<T>,
+    place: Placing<T>,
     sweep: Sweep<T>,
     tol: Tol,
 ) -> FaceSurface<T> {
@@ -1418,17 +1421,35 @@ fn side_surface<T: Real>(
         // It is where the four corners' centroid stood when the wall was
         // fitted to them, to rounding, and where a reader of a face's
         // point expects it; nothing is fitted or read back.
+        //
+        // Along the normal the wall's frame is the sketch frame turned
+        // onto the segment's direction ([`Placing::frame_toward`]), its
+        // axes re-chosen among their own so the normal is the right
+        // normal the course signs ([`Course::wall_normal`]): rigid by
+        // construction, so nothing is re-squared. Along a vector the
+        // normal is a cross product normalized, which no frame's axis
+        // is, and the wall is squared from its two directions.
         SegmentKind::Line => {
-            let along = Placing::from(place).direction(d);
+            let along = place.direction(d);
             let half = T::from_f64(0.5);
             let length = sketch_chord(&segs[j]).1;
-            Surface::Plane {
-                frame: geom::Frame::new(
-                    qs[j] + along.get() * (length * half) + sweep.w * half,
-                    course.wall_normal(place.into(), d).get(),
-                    along.get(),
-                ),
-            }
+            let origin = qs[j] + along.get() * (length * half) + sweep.w * half;
+            let frame = match course {
+                Course::Normal { reversed } => {
+                    let turned = place.frame_toward(swept::sketch_vector(&segs[j]));
+                    // `u` the direction, `v` the station's normal signed
+                    // so `w = u × v` is the course's right normal: the
+                    // turned frame's `−v` along the normal, `+v` against.
+                    let Some(wall) = turned.with_signed_axes((0, false), (2, reversed)) else {
+                        unreachable!("u and w are two axes")
+                    };
+                    geom::Frame::of_motion(&wall.with_origin(origin))
+                }
+                Course::Vector { .. } => {
+                    geom::Frame::new(origin, course.wall_normal(place, d).get(), along.get())
+                }
+            };
+            Surface::Plane { frame }
         }
         SegmentKind::Arc { arc, turn } => {
             // The carrier axis line is the arc's centre extruded:
@@ -1440,17 +1461,22 @@ fn side_surface<T: Real>(
             // ulp-level, not bitwise (M2 PR 4 review, A7). Certified
             // and deterministic either way: the residual gates bound
             // the drift and identical inputs replay identical bits.
-            let c_world = place.transform_point(Point3::new(arc.centre.x, arc.centre.y, T::zero()));
+            let c_world = place.point(arc.centre);
             // The SAME rigidity the bottom rim carrier registers, about
             // the same extruded centre through the same lamina vertex
             // (`swept::register_rigidity`).
             crate::swept::register_rigidity(qs[j] - c_world, arc, segs[j].chord.a, tol);
+            // The sketch frame turned onto the arc's start radial, its
+            // normal the turn-signed plane normal ([`swept::turn_axis`]'s sign,
+            // the frame run back): rigid by construction.
+            let turned = place.frame_toward(swept::sketch_vector(&segs[j]));
+            let turned = if swept::turn_negates(turn) {
+                turned.reversed()
+            } else {
+                turned
+            };
             Surface::Cylinder {
-                frame: geom::Frame::new(
-                    c_world,
-                    turn_axis(turn, normal),
-                    Placing::from(place).direction(d).get(),
-                ),
+                frame: geom::Frame::of_motion(&turned.with_origin(c_world)),
                 radius: arc.radius,
             }
         }

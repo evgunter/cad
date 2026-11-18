@@ -6,15 +6,14 @@
 //! them differently.
 //!
 //! Every revolution surface takes the call's **shared azimuthal
-//! frame** — `axis = +a₃`, `u_ref = u₃`, anchor on the placed axis
-//! line via [`AxisFrame::foot3`] — so identical-by-construction
-//! surfaces are bitwise identical and every seam sits on the angle-0
-//! meridian (module docs).
+//! frame** ([`AxisFrame::azimuth`]) — `axis = +a₃`, `u_ref = u₃`,
+//! re-anchored on the placed axis line via [`AxisFrame::foot3`] and
+//! never re-squared — so identical-by-construction surfaces are bitwise
+//! identical and every seam sits on the angle-0 meridian (module docs).
 
-use geom::Curve3;
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource};
-use geom_core::{Point2, Real, Vec3};
+use geom_core::{Point2, Real, Sign};
 
 use super::SweptSeg;
 use super::axis::{AxisFrame, WallKind};
@@ -28,21 +27,21 @@ pub(super) fn wall_surface<T: Real>(
 ) -> Surface<T> {
     match *kind {
         WallKind::Plane { .. } => Surface::Plane {
-            frame: geom::Frame::new(frame.world(seg.a), frame.axis.get(), frame.u3),
+            frame: frame.azimuth.with_origin(frame.world(seg.a)),
         },
         WallKind::Cylinder { radius } => Surface::Cylinder {
-            frame: geom::Frame::new(frame.foot3(seg.a), frame.axis.get(), frame.u3),
+            frame: frame.azimuth.with_origin(frame.foot3(seg.a)),
             radius,
         },
         WallKind::Cone {
             apex_sk,
             half_angle,
         } => Surface::Cone {
-            frame: geom::Frame::new(frame.foot3(apex_sk), frame.axis.get(), frame.u3),
+            frame: frame.azimuth.with_origin(frame.foot3(apex_sk)),
             half_angle,
         },
         WallKind::Sphere { center_sk, radius } => Surface::Sphere {
-            frame: geom::Frame::new(frame.foot3(center_sk), frame.axis.get(), frame.u3),
+            frame: frame.azimuth.with_origin(frame.foot3(center_sk)),
             radius,
         },
         WallKind::Torus {
@@ -50,7 +49,7 @@ pub(super) fn wall_surface<T: Real>(
             major,
             minor,
         } => Surface::Torus {
-            frame: geom::Frame::new(frame.foot3(center_sk), frame.axis.get(), frame.u3),
+            frame: frame.azimuth.with_origin(frame.foot3(center_sk)),
             major_radius: major,
             minor_radius: minor,
         },
@@ -59,7 +58,7 @@ pub(super) fn wall_surface<T: Real>(
             major,
             minor,
         } => Surface::Spindle {
-            frame: geom::Frame::new(frame.foot3(center_sk), frame.axis.get(), frame.u3),
+            frame: frame.azimuth.with_origin(frame.foot3(center_sk)),
             major_radius: major,
             minor_radius: minor,
         },
@@ -68,7 +67,7 @@ pub(super) fn wall_surface<T: Real>(
 
 /// A latitude strut/rim spec: the sketch point's trajectory under the
 /// rotation family (`MappedSource::RevolvedPoint`), carrier the
-/// latitude circle. `axis_c` is the θ-signed carrier axis (forward
+/// latitude circle. `axis_c` is the θ sign of the carrier axis (forward
 /// interval `(0, |θ|]`); `u_ref` points at the sketch point placed,
 /// which lies on the seam side of the axis (`r > 0`), so it is the
 /// frame's `u₃`.
@@ -82,7 +81,7 @@ pub(super) fn revolved_strut_spec<T: Real>(
     radius: T,
     frame: &AxisFrame<T>,
     theta: T,
-    axis_c: Vec3<T>,
+    axis_c: Sign,
 ) -> EdgeCurveSpec<T> {
     let center = frame.foot3(point);
     EdgeCurveSpec {
@@ -94,7 +93,7 @@ pub(super) fn revolved_strut_spec<T: Real>(
                 angle: theta,
             },
         )),
-        carrier: Curve3::circle(center, axis_c, radius, frame.u3),
+        carrier: frame.latitude(center, radius, axis_c, frame.motion.into()),
         param_start: T::zero(),
         param_end: theta.abs(),
     }

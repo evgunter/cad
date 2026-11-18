@@ -67,6 +67,11 @@ use topo::{Body, EdgeKey, EulerOpError, FaceKey, HalfEdgeKey, SurfaceKey};
 /// composed into the placement once.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Placing<T: Real> {
+    /// The rigid frame the copy is placed by: a sketch plane's frame, or
+    /// one a rigid motion carried (an extrude's translated copy).
+    motion: RigidMotion<T>,
+    /// `motion` as the placement map ([`RigidMotion::to_affine`]), the
+    /// map a point and a description are placed through.
     place: Affine3<T>,
     turn: Option<Turn<T>>,
 }
@@ -89,9 +94,13 @@ struct Turn<T: Real> {
     anchored: RigidMotion<T>,
 }
 
-impl<T: Real> From<Affine3<T>> for Placing<T> {
-    fn from(place: Affine3<T>) -> Self {
-        Placing { place, turn: None }
+impl<T: Real> From<RigidMotion<T>> for Placing<T> {
+    fn from(motion: RigidMotion<T>) -> Self {
+        Placing {
+            motion,
+            place: motion.to_affine(),
+            turn: None,
+        }
     }
 }
 
@@ -104,13 +113,14 @@ impl<T: Real> Placing<T> {
     /// The mint's refusal of an angle or axis point that is not a
     /// finite number.
     pub(crate) fn turned(
-        place: Affine3<T>,
+        motion: RigidMotion<T>,
         origin: Point3<T>,
         dir: UnitVec3<T>,
         angle: T,
     ) -> Result<Self, RigidMotionError> {
         Ok(Placing {
-            place,
+            motion,
+            place: motion.to_affine(),
             turn: Some(Turn {
                 origin,
                 axis: dir,
@@ -139,11 +149,6 @@ impl<T: Real> Placing<T> {
         }
     }
 
-    /// The station's origin: sketch (0, 0) placed, then turned.
-    pub(crate) fn origin(self) -> Point3<T> {
-        self.point(Point2::origin())
-    }
-
     /// A sketch direction carried by the station's frame: `(d, 0)`
     /// through the placement's linear part, then turned. The placement
     /// and the turn are rigid, so a unit direction comes out unit, and
@@ -154,14 +159,33 @@ impl<T: Real> Placing<T> {
         Unit3(self.carry(self.place.linear * Vec3::new(d.x, d.y, T::zero())))
     }
 
-    /// The station's normal: the placement's third axis, turned.
-    pub(crate) fn normal(self) -> Unit3<T> {
-        Unit3(self.carry(self.place.linear.c2))
+    /// **The station's frame**: the rigid frame this placing's
+    /// placement is ([`RigidMotion::to_affine`] of it), carried by the
+    /// turn where there is one ([`RigidMotion::carried_by`]). A rigid
+    /// image of a rigid frame, so nothing is decided and nothing is
+    /// re-squared.
+    pub(crate) fn frame(self) -> RigidMotion<T> {
+        self.carry_frame(self.motion)
     }
 
-    /// The station's first axis (sketch `+x`), turned.
-    pub(crate) fn first_axis(self) -> Unit3<T> {
-        Unit3(self.carry(self.place.linear.c0))
+    /// **The station's frame turned onto a sketch direction**: the
+    /// placing's own frame turned about its normal onto the direction
+    /// of the sketch vector `d` ([`RigidMotion::spun_toward`], which
+    /// normalizes `d` once, as [`sketch_direction`] does), then carried
+    /// by the turn. Its `u` is [`Self::direction`] of that sketch
+    /// direction, its `w` the station's normal, and nothing is decided
+    /// or re-squared.
+    pub(crate) fn frame_toward(self, d: Vec2<T>) -> RigidMotion<T> {
+        self.carry_frame(self.motion.spun_toward(d))
+    }
+
+    /// A frame of the placed copy carried by the turn, or as it is when
+    /// there is none.
+    pub(crate) fn carry_frame(self, frame: RigidMotion<T>) -> RigidMotion<T> {
+        match self.turn {
+            None => frame,
+            Some(turn) => frame.carried_by(turn.anchored),
+        }
     }
 
     /// A placed direction turned by the turn, or as it is when there is
@@ -631,6 +655,17 @@ pub(crate) fn sketch_direction<T: Real, S: SweptChord<T>>(seg: &S) -> Unit2<T> {
     }
 }
 
+/// **The sketch vector [`sketch_direction`] normalizes**: a line's chord
+/// `b − a`, an arc's start radial `a − centre`, for a frame turned onto
+/// that direction ([`Placing::frame_toward`]), which normalizes it by the
+/// same arithmetic.
+pub(crate) fn sketch_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {
+    match seg.kind().get() {
+        SegmentKind::Line => seg.b() - seg.a(),
+        SegmentKind::Arc { arc, .. } => seg.a() - arc.centre,
+    }
+}
+
 /// A segment's chord `b − a` as its unit direction and its own length,
 /// read once (`Vec2::direction_and_length`): a line's director and the
 /// span its carrier runs.
@@ -791,21 +826,28 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let place = place.into();
-    placed_segment_spec_about(seg, place, normal, |c| place.point(c), place, q_from, tol)
+    placed_segment_spec_about(seg, place, normal, |c| place.point(c), None, q_from, tol)
 }
 
 /// [`placed_segment_spec`] with an arc's 3-space centre given by
 /// `centre` from its sketch centre, in place of `place`'s image of it,
-/// and its start radial carried by `radial` in place of `place`: for a
-/// copy whose placement fixes the centre (and, where its start lies on
-/// the turn's axis, the radial along that axis), which then takes the
-/// values the fixed copy has.
+/// and, where `radial` is given, its start radial carried by it in
+/// place of `place`: for a copy whose placement fixes the centre (and,
+/// where its start lies on the turn's axis, the radial along that axis),
+/// which then takes the values the fixed copy has.
+///
+/// An arc's carrier is `place`'s frame turned onto the arc's start
+/// radial ([`Placing::frame_toward`]) and run back where the turn
+/// negates the axis: rigid by construction, nothing re-squared. A
+/// `radial` from another placing pairs that placing's direction with
+/// this one's normal, which no one frame carries, so that carrier is
+/// squared from its two directions ([`Curve3::circle`]).
 pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: Placing<T>,
     normal: Vec3<T>,
     centre: impl FnOnce(Point2<T>) -> Point3<T>,
-    radial: Placing<T>,
+    radial: Option<Placing<T>>,
     q_from: Point3<T>,
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
@@ -838,12 +880,26 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
             // expression below rather than spelled twice: one
             // subtraction, one node, one set of bits.
             register_rigidity(rim, arc, seg.a(), tol);
-            let carrier = Curve3::circle(
-                c_world,
-                turn_axis(turn, normal),
-                arc.radius,
-                radial.direction(sketch_direction(seg)).get(),
-            );
+            let carrier = match radial {
+                None => {
+                    let turned = place.frame_toward(sketch_vector(seg));
+                    let signed = if turn_negates(turn) {
+                        turned.reversed()
+                    } else {
+                        turned
+                    };
+                    Curve3::circle_on(
+                        geom::Frame::of_motion(&signed.with_origin(c_world)),
+                        arc.radius,
+                    )
+                }
+                Some(radial) => Curve3::circle(
+                    c_world,
+                    turn_axis(turn, normal),
+                    arc.radius,
+                    radial.direction(sketch_direction(seg)).get(),
+                ),
+            };
             let param_end = arc_span(turn, arc);
             // The carrier end, stated where it is guaranteed
             // (`register_placed_carrier_end` carries the proof), about the
@@ -881,25 +937,25 @@ pub(crate) enum CapEnd {
 /// the traversal `reversed` the canonical chain; the start cap faces
 /// opposite it, the end cap along it.
 ///
-/// `station` is a sketch plane's placement, or one a rigid motion
-/// carried (an extrude's translated copy, a revolve's turned one), so
-/// its axes are a rigid, right-handed frame and every cap vertex, being
-/// a sketch point placed by that frame, lies on the plane. Nothing is
-/// fitted to the vertices, so nothing is decided here.
+/// `station` is a sketch plane's frame, or one a rigid motion carried
+/// (an extrude's translated copy, a revolve's turned one,
+/// [`Placing::frame`]), and the cap is that frame as it stands, run back
+/// ([`RigidMotion::reversed`]) where the normal is negated: every cap
+/// vertex, being a sketch point placed by that frame, lies on the
+/// plane. Nothing is fitted to the vertices and the frame is not
+/// re-squared, so nothing is decided here.
 pub(crate) fn cap_plane<T: Real>(
-    station: impl Into<Placing<T>>,
+    station: RigidMotion<T>,
     reversed: bool,
     end: CapEnd,
 ) -> Surface<T> {
-    let station = station.into();
-    let normal = station.normal();
-    let normal = if reversed == (end == CapEnd::Start) {
-        normal
+    let frame = if reversed == (end == CapEnd::Start) {
+        station
     } else {
-        normal.reversed()
+        station.reversed()
     };
     Surface::Plane {
-        frame: geom::Frame::new(station.origin(), normal.get(), station.first_axis().get()),
+        frame: geom::Frame::of_motion(&frame),
     }
 }
 
@@ -1553,7 +1609,7 @@ mod tests {
     /// carrier's far end against the far vertex (one row per
     /// component), and the session's receipt.
     fn placed_arc_readings(
-        place: Affine3<geom_core::Sym<Interval>>,
+        place: RigidMotion<geom_core::Sym<Interval>>,
         carrier: Carrier,
         rules: geom_core::SymRules,
     ) -> ([Option<Sign>; 5], geom_core::SymCounts) {
@@ -1643,7 +1699,7 @@ mod tests {
             };
             let to3 = |p: Point2<S>| place.transform_point(Point3::new(p.x, p.y, lit(0.0)));
             let (q_from, q_to) = (to3(seg.a), to3(seg.b));
-            let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, tol);
+            let spec = placed_segment_spec(&seg, place, place.w().get(), q_from, tol);
             let Curve3::Circle(
                 circle @ geom::Circle {
                     frame: carrier_frame,
@@ -1668,12 +1724,12 @@ mod tests {
     }
 
     /// A quarter turn about z followed by `shift`, at `Sym<Interval>`.
-    fn quarter_turn_placement(shift: [f64; 3]) -> Affine3<geom_core::Sym<Interval>> {
+    fn quarter_turn_placement(shift: [f64; 3]) -> RigidMotion<geom_core::Sym<Interval>> {
         let lit = |x: f64| <geom_core::Sym<Interval> as Real>::from_f64(x);
-        let v = |x, y, z| Vec3::new(lit(x), lit(y), lit(z));
-        Affine3::from_parts(
-            geom_core::Mat3::from_cols(v(0.0, 1.0, 0.0), v(-1.0, 0.0, 0.0), v(0.0, 0.0, 1.0)),
-            v(shift[0], shift[1], shift[2]),
+        RigidMotion::turned(
+            Point3::new(lit(shift[0]), lit(shift[1]), lit(shift[2])),
+            UnitVec3::exact_z(),
+            geom_core::Turns::quarters(1),
         )
     }
 
@@ -1783,7 +1839,7 @@ mod tests {
                 let place = quarter_turn_placement([2.0, 3.0, 5.0]);
                 let to3 = |q: Point2<S>| place.transform_point(Point3::new(q.x, q.y, lit(0.0)));
                 let (q_from, q_to) = (to3(seg.a), to3(seg.b));
-                let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, tol);
+                let spec = placed_segment_spec(&seg, place, place.w().get(), q_from, tol);
                 let Curve3::Line(line) = spec.carrier else {
                     panic!("a line places onto a line carrier");
                 };
@@ -1857,7 +1913,7 @@ mod tests {
         let q = |p: Point2<T>| Point3::new(p.x, p.y, lit(0.0));
         placed_segment_spec(
             &seg,
-            Affine3::identity(),
+            RigidMotion::identity(),
             Vec3::new(lit(0.0), lit(0.0), lit(1.0)),
             q(a),
             Tol::witness(),
@@ -1982,11 +2038,18 @@ mod tests {
             Band::linear(tol).expect("the witness band"),
         )
         .expect("a unit axis");
-        let place = Affine3::translation(Vec3::new(12.5, -3.25, 7.0))
-            * Affine3::rotation_about_axis(Point3::origin(), axis.get(), 0.83);
+        let place = RigidMotion::translation(Vec3::new(12.5, -3.25, 7.0))
+            .and_then(|shift| {
+                shift.compose(RigidMotion::rotation_about_axis(
+                    Point3::origin(),
+                    axis,
+                    0.83,
+                )?)
+            })
+            .expect("a rigid placement");
         let to3 = |p: Point2<f64>| place.transform_point(Point3::new(p.x, p.y, 0.0));
         let (q_from, q_to) = (to3(a), to3(b));
-        let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, tol);
+        let spec = placed_segment_spec(&seg, place, place.w().get(), q_from, tol);
         let Curve3::Line(line) = spec.carrier else {
             panic!("a line places onto a line carrier");
         };

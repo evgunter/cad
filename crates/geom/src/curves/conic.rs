@@ -587,6 +587,15 @@ impl<T: Real> Curve3<T> {
         Self::Circle(Circle::new(Frame::new(center, axis, u_ref), radius))
     }
 
+    /// The circle of `radius` on `frame`: centred at its origin, normal
+    /// along its axis, seam along its `u_ref`, the frame kept as it is
+    /// handed, so a caller holding a rigid frame by construction stores
+    /// it without the re-squaring [`Curve3::circle`]'s three vectors take.
+    #[must_use]
+    pub fn circle_on(frame: Frame<T>, radius: T) -> Self {
+        Self::Circle(Circle::new(frame, radius))
+    }
+
     /// **The carrier read as a conic**: a circle or an ellipse as the
     /// readings they share; `None` for every other kind.
     #[must_use]

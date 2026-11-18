@@ -11,13 +11,13 @@
 //! bulging across the axis).
 
 use geom_core::{
-    Affine3, Arc2, Band, Decide, InfSpeed, Margin, Point2, Point3, Real, Sign, UnitVec3,
-    UnitVec3Error, Vec2, Vec3,
+    Affine3, Arc2, Band, Decide, InfSpeed, Margin, Point2, Point3, Real, RigidMotion, Sign,
+    UnitVec3, UnitVec3Error, Vec2, Vec3,
 };
 use profile::{SketchPlane, ValidatedProfile};
 
 use super::{ClearanceDecision, RevolveAxis, RevolveError, SweptSeg};
-use crate::swept::{arc_span, decide};
+use crate::swept::{Placing, arc_span, decide, turn_negates};
 use profile::SegmentKind;
 
 /// The K funnel name of the sketch axis's length: the revolve axis's
@@ -25,9 +25,9 @@ use profile::SegmentKind;
 pub(super) const REVOLVE_AXIS_DIRECTION: &str = "revolve_axis_direction";
 
 /// The classified axis in both coordinate systems: the sketch-plane
-/// line plus its placed 3-D frame. `axis`/`u3` are the **shared
+/// line plus its placed 3-D frame. `azimuth` is the **shared
 /// azimuthal frame** every revolution surface of this call uses
-/// (module docs): `u3` points at the angle-0 (seam) meridian
+/// (module docs): its `u_ref` points at the angle-0 (seam) meridian
 /// half-plane.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct AxisFrame<T: Real> {
@@ -35,8 +35,19 @@ pub(super) struct AxisFrame<T: Real> {
     pub(super) origin_sk: Point2<T>,
     /// Unit axis direction, sketch coordinates.
     pub(super) dir_sk: Vec2<T>,
-    /// The sketch placement (carried for convenience).
+    /// The sketch placement (carried for convenience): [`Self::motion`]
+    /// as a map.
     pub(super) place: Affine3<T>,
+    /// The sketch plane's rigid frame, which `place` is
+    /// ([`geom_core::RigidMotion::to_affine`]).
+    pub(super) motion: RigidMotion<T>,
+    /// **The shared azimuthal frame**, standing at the placed axis
+    /// origin: `w` the placed axis, `u` the placed seam radial. On a
+    /// sketch plane it is the plane's frame turned onto the sketch axis
+    /// and its axes re-chosen among their own, so it is rigid by
+    /// construction and every revolution surface stores it re-anchored,
+    /// nothing re-squared.
+    pub(super) azimuth: geom::Frame<T>,
     /// The sketch axis's origin, placed.
     pub(super) origin3: Point3<T>,
     /// The placed axis direction as the witness it is: the sketch axis's
@@ -44,11 +55,33 @@ pub(super) struct AxisFrame<T: Real> {
     /// revolve turns about. The frame's one copy of it; the axis line
     /// reads it ([`Self::line3`]).
     pub(super) axis: UnitVec3<T>,
-    /// Placed unit radial direction (the seam meridian; `u_ref` of
-    /// every revolution surface).
-    pub(super) u3: Vec3<T>,
     /// The sketch plane's normal (the frame's third axis).
     pub(super) n3: Vec3<T>,
+}
+
+impl<T: Real> AxisFrame<T> {
+    /// **A latitude circle's carrier**: the shared azimuthal frame
+    /// carried to `station` ([`Placing::carry_frame`]; the sketch's own
+    /// station leaves it as it is), centred at `center`, and run back
+    /// where `sense` negates the carrier axis ([`turn_negates`], the
+    /// θ-signed axis [`crate::swept::turn_axis`] spells): normal the
+    /// signed placed axis, seam the radial `u₃` carried with it. A rigid
+    /// image of a rigid frame, so nothing is re-squared.
+    pub(super) fn latitude(
+        &self,
+        center: Point3<T>,
+        radius: T,
+        sense: Sign,
+        station: Placing<T>,
+    ) -> geom::Curve3<T> {
+        let carried = station.carry_frame(self.azimuth.motion());
+        let signed = if turn_negates(sense) {
+            carried.reversed()
+        } else {
+            carried
+        };
+        geom::Curve3::circle_on(geom::Frame::of_motion(&signed.with_origin(center)), radius)
+    }
 }
 
 impl<T: Decide> AxisFrame<T> {
@@ -84,11 +117,23 @@ impl<T: Decide> AxisFrame<T> {
         band: Band,
     ) -> Result<Self, RevolveError> {
         let dir = Self::sketch_direction(axis, band)?;
+        let motion = plane.frame();
+        // The plane's frame turned onto the sketch axis `d` has `u` the
+        // placed axis and `v` its left normal; the azimuthal frame takes
+        // `u = −v` (the radial `ê_r`, `d` turned −90°) and `v = −w`, so
+        // `w = u × v` is the placed axis.
+        let Some(azimuth) = motion
+            .spun_toward(axis.dir)
+            .with_signed_axes((1, true), (2, true))
+        else {
+            unreachable!("v and w are two axes")
+        };
         Ok(Self::placed(
-            plane.placement(),
+            motion,
             axis,
             dir,
-            plane.frame().turn(dir),
+            motion.turn(dir),
+            |origin3, _| geom::Frame::of_motion(&azimuth.with_origin(origin3)),
         ))
     }
 
@@ -104,13 +149,15 @@ impl<T: Decide> AxisFrame<T> {
     ///
     /// [`Self::build`]'s.
     pub(super) fn build_on(
-        place: Affine3<T>,
+        motion: RigidMotion<T>,
         axis: &RevolveAxis<T>,
         turn_axis: UnitVec3<T>,
         band: Band,
     ) -> Result<Self, RevolveError> {
         let dir = Self::sketch_direction(axis, band)?;
-        Ok(Self::placed(place, axis, dir, turn_axis))
+        Ok(Self::placed(motion, axis, dir, turn_axis, |origin3, u3| {
+            geom::Frame::new(origin3, turn_axis.get(), u3)
+        }))
     }
 
     /// The sketch axis's direction, decided (the questions are
@@ -126,21 +173,28 @@ impl<T: Decide> AxisFrame<T> {
     }
 
     /// The frame from its decided parts.
+    /// `azimuth` mints the shared azimuthal frame from the placed axis
+    /// origin and radial `u3`.
     fn placed(
-        place: Affine3<T>,
+        motion: RigidMotion<T>,
         axis: &RevolveAxis<T>,
         dir: UnitVec3<T>,
         turn_axis: UnitVec3<T>,
+        azimuth: impl FnOnce(Point3<T>, Vec3<T>) -> geom::Frame<T>,
     ) -> Self {
+        let place = motion.to_affine();
         let dir_sk = Vec2::new(dir.get().x, dir.get().y);
         let e_r = radial_of(dir_sk);
+        let origin3 = place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero()));
+        let u3 = place.linear * Vec3::new(e_r.x, e_r.y, T::zero());
         Self {
             origin_sk: axis.origin,
             dir_sk,
             place,
-            origin3: place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero())),
+            motion,
+            azimuth: azimuth(origin3, u3),
+            origin3,
             axis: turn_axis,
-            u3: place.linear * Vec3::new(e_r.x, e_r.y, T::zero()),
             n3: place.linear.c2,
         }
     }

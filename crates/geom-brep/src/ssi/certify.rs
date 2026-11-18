@@ -435,8 +435,11 @@ fn refined_net(
 /// any representative would certify the carrier against a surface the
 /// body does not have. A thin bracket is exactly the case where the
 /// representative is the surface, so that case is admitted and every
-/// other one refuses typed (`UnsupportedCertificate`, below) — never a
-/// midpoint, never a guess. Retiring the gate means giving the
+/// other one refuses typed (`UnsupportedCertificate`, below), with one
+/// exception: a frame's direction re-minted at an enclosure scalar is
+/// one rotation enclosed a few ulps wide, read at its midpoint with the
+/// turn its width allows charged into the bound ([`frame_direction`],
+/// [`FrameCharge`]). Retiring the gate means giving the
 /// composite enclosure-valued coefficients, which is a `geom_core`
 /// change with its own unit.
 pub(crate) fn exact<T: Bounds>(v: T) -> Option<f64> {
@@ -449,6 +452,76 @@ pub(crate) fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
     Some([exact(p[0])?, exact(p[1])?, exact(p[2])?])
 }
 
+/// The widest a frame direction's component may enclose and still be
+/// read as one direction: a frame re-minted at an enclosure scalar from
+/// an `f64` one (`geom::Frame::map_scalar`) is an enclosure of one
+/// rotation a few ulps wide, and nothing a computation widened is this
+/// narrow.
+const FRAME_ROUNDING: f64 = 16.0 * f64::EPSILON;
+
+/// **A frame direction as `f64` structure**: each component's midpoint,
+/// and the turn the enclosure allows, an upper bound on the angle
+/// between any unit direction it encloses and the midpoint; `None` when
+/// a component is wider than [`FRAME_ROUNDING`] or not a number. An
+/// exact direction allows no turn.
+///
+/// A unit `a` within `δ` of the midpoint `m` (`|a − m| ≤ δ`, `δ` the
+/// box's diagonal) stands at an angle `θ` from `m`'s direction with
+/// `sin θ ≤ δ/|m|`, and `|m| ≥ 1 − δ`; the bound charges `θ` as
+/// `1.01·δ/(1 − δ)`, which covers `asin` at these widths.
+fn frame_direction<T: Bounds>(d: [T; 3]) -> Option<([f64; 3], f64)> {
+    let mut mid = [0.0; 3];
+    let mut diag = 0.0_f64;
+    for (k, c) in d.into_iter().enumerate() {
+        let (lo, hi) = (c.lo(), c.hi());
+        let width = hi - lo;
+        if lo.is_nan() || hi.is_nan() || !(width <= FRAME_ROUNDING) {
+            return None;
+        }
+        mid[k] = lo + width / 2.0;
+        diag += width * width;
+    }
+    let delta = diag.sqrt();
+    let turn = if delta == 0.0 {
+        0.0
+    } else {
+        1.01 * delta / (1.0 - delta)
+    };
+    Some((mid, turn))
+}
+
+/// **What reading a frame's direction at its midpoint costs**: the
+/// surface the composite holds is the body's family turned by at most
+/// `turn` about `anchor`, the frame's origin. A turn by `θ` about a
+/// point moves each point of the family's every surface by at most `θ`
+/// times its distance from that point, so the composite's residual over
+/// a carrier inside a box is off by at most `θ` times the box's reach
+/// from the anchor ([`FrameCharge::over`]).
+#[derive(Clone, Copy, Debug)]
+struct FrameCharge {
+    anchor: [f64; 3],
+    turn: f64,
+}
+
+impl FrameCharge {
+    /// The charge over the box `(least, greatest)` per channel, in
+    /// metres, rounded up; NaN for a box that is not a number.
+    fn over(self, b: [(f64, f64); 3]) -> f64 {
+        if self.turn == 0.0 {
+            return 0.0;
+        }
+        let reach = (0..3)
+            .map(|k| {
+                let (lo, hi) = b[k];
+                let far = (lo - self.anchor[k]).abs().max((hi - self.anchor[k]).abs());
+                far * far
+            })
+            .sum::<f64>()
+            .sqrt();
+        self.turn * reach * (1.0 + 4.0 * f64::EPSILON)
+    }
+}
+
 /// The `compose` implicit form of an analytic surface, and how its
 /// composite crosses to meters.
 ///
@@ -457,16 +530,19 @@ pub(crate) fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
 /// conversion), NURBS (no implicit form), and — since M6-2 — an operand
 /// whose structural parameters are not exact at the caller's scalar
 /// (see [`exact`]).
-fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeters), &'static str> {
+fn composite_form<T: Bounds>(
+    s: &Surface<T>,
+) -> Result<(ImplicitSurface, ToMeters, FrameCharge), &'static str> {
     const WIDENED: &str = "the analytic operand's structural parameters are not exact at this \
                            scalar — the ring composite's implicit form is f64 structure, and a \
                            widened operand is a family of surfaces, not the body's surface \
-                           — refused rather than represented by a midpoint";
+                           — refused rather than represented by a midpoint, which only a \
+                           frame's rounding-wide direction is, with its turn charged";
     match *s {
         Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
-            let (Some(point), Some(normal)) =
-                (exact3(origin.to_array()), exact3(normal.to_array()))
+            let (Some(point), Some((normal, turn))) =
+                (exact3(origin.to_array()), frame_direction(normal.to_array()))
             else {
                 return Err(WIDENED);
             };
@@ -474,6 +550,10 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
                 ImplicitSurface::Plane { point, normal },
                 // n·(P − p₀) is already meters for a unit normal.
                 ToMeters::Divisor(1.0),
+                FrameCharge {
+                    anchor: point,
+                    turn,
+                },
             ))
         }
         Surface::Sphere { frame, radius, .. } => {
@@ -486,13 +566,18 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
                 // |P−c|² − R² = 2R · the linearized meters residual,
                 // exactly.
                 ToMeters::Divisor(2.0 * radius),
+                // A sphere's locus reads no direction.
+                FrameCharge {
+                    anchor: center,
+                    turn: 0.0,
+                },
             ))
         }
         Surface::Cylinder { frame, radius, .. } => {
             let (origin, axis) = (frame.origin(), frame.axis());
-            let (Some(point), Some(axis), Some(radius)) = (
+            let (Some(point), Some((axis, turn)), Some(radius)) = (
                 exact3(origin.to_array()),
-                exact3(axis.to_array()),
+                frame_direction(axis.to_array()),
                 exact(radius),
             ) else {
                 return Err(WIDENED);
@@ -506,6 +591,10 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
                 // |w|² − R² = 2R · the linearized meters residual,
                 // exactly.
                 ToMeters::Divisor(2.0 * radius),
+                FrameCharge {
+                    anchor: point,
+                    turn,
+                },
             ))
         }
         Surface::Torus {
@@ -515,9 +604,9 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
             ..
         } => {
             let (center, axis) = (frame.origin(), frame.axis());
-            let (Some(center), Some(axis), Some(major), Some(minor)) = (
+            let (Some(center), Some((axis, turn)), Some(major), Some(minor)) = (
                 exact3(center.to_array()),
-                exact3(axis.to_array()),
+                frame_direction(axis.to_array()),
                 exact(major_radius),
                 exact(minor_radius),
             ) else {
@@ -534,6 +623,10 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
                     center,
                     major,
                     minor,
+                },
+                FrameCharge {
+                    anchor: center,
+                    turn,
                 },
             ))
         }
@@ -639,7 +732,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         _ => range_grid_points(t0, t1, SSI_CERT_SPANS, &[]),
     };
     let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
-        let (form, to_meters) =
+        let (form, to_meters, frame_charge) =
             composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
         let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
         breaks.sort_by(f64::total_cmp);
@@ -658,6 +751,19 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             }
         })?;
         let (sup, spans, floors) = meters_readings(&composite, &data, to_meters)?;
+        // The composite holds the body's surface turned by at most the
+        // frame's rounding: charged over the carrier's control box, which
+        // holds the carrier.
+        let charge = net.control_box().map_or(f64::NAN, |b| frame_charge.over(b));
+        let (sup, spans, floors) = if charge == 0.0 {
+            (sup, spans, floors)
+        } else {
+            (
+                sup + charge,
+                spans.into_iter().map(|s| s + charge).collect(),
+                floors.into_iter().map(|f| (f - charge).max(0.0)).collect(),
+            )
+        };
         Ok(Hull {
             sup,
             breaks: composite.num.breaks().to_vec(),
@@ -4401,7 +4507,7 @@ mod tests {
         let data = CurveCertData::new(ck, cw, cc)
             .unwrap()
             .with_breaks(net.cuts());
-        let (form, to) = super::composite_form(torus).unwrap();
+        let (form, to, _) = super::composite_form(torus).unwrap();
         let composite = compose::implicit_composite(&data, &form).unwrap();
         let (sup, spans, floors) = super::meters_readings(&composite, &data, to).unwrap();
         let at = composite.num.breaks().to_vec();

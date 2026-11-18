@@ -1,21 +1,22 @@
 //! **A carrier's placement**, [`Frame`]: a point and a right-handed
-//! orthonormal basis `(u_ref, v_ref, axis)`, the third axis
-//! `v_ref = axis × u_ref` derived, never stored.
+//! orthonormal basis `(u_ref, v_ref, axis)`, held as the
+//! [`RigidMotion`] it is, so its axes are unit and square as a property
+//! of the type. `v_ref` is read as `axis × u_ref`.
 //!
-//! `axis` and `u_ref` are unit and orthogonal by convention, unchecked
-//! here and certified at rest. What each one means on a carrier (a
-//! conic's plane normal and seam, a surface's axis of revolution) is
-//! that kind's own docs'. The readings of a placement alone below are
-//! its one home: a reader holding a `Frame` asks it for them rather than
-//! spelling them again from the fields.
+//! What each axis means on a carrier (a conic's plane normal and seam,
+//! a surface's axis of revolution) is that kind's own docs'. The
+//! readings of a placement alone below are its one home: a reader
+//! holding a `Frame` asks it for them rather than spelling them again
+//! from the axes.
 //!
-//! A [`RigidMotion`] is a different fact about the same shape of data:
-//! a motion is proven rigid where it is minted, a frame is stated data
-//! certified at rest. [`Frame::of_motion`] is the one bridge from the
-//! first to the second, and [`Frame::moved`] is a frame's image under
-//! one. An improper map has no reading here: its image is a per-kind
-//! rule (a conic's axis, a plane's outward normal), stated where the
-//! map is applied.
+//! A frame is placed by a motion its construction mints
+//! ([`Frame::of_motion`]), or stated as an origin and two directions and
+//! squared with no decision ([`Frame::new`], [`RigidMotion::squared`]).
+//! [`Frame::moved`] is its image under a motion. At another scalar it
+//! is carried within one witness kind and re-minted across kinds
+//! ([`Frame::map_scalar`]). An improper map has no reading here: its
+//! image is a per-kind rule (a conic's axis, a plane's outward normal),
+//! stated where the map is applied.
 
 use geom_core::{Point3, Real, RigidMotion, UnitVec3, Vec3};
 

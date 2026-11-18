@@ -7,10 +7,8 @@
 //! A motion places the world frame: [`RigidMotion::origin`] and the
 //! axes [`RigidMotion::u`], [`RigidMotion::v`], [`RigidMotion::w`] are
 //! where it sends the coordinate origin and `x̂`, `ŷ`, `ẑ`
-//! ([`RigidMotion::to_affine`]). It is not a carrier's placement: a
-//! carrier's frame (`geom::Frame`) is stated data certified at rest,
-//! and a motion is a proof certified at its mint. The two meet at one
-//! bridge, `geom::Frame::of_motion`.
+//! ([`RigidMotion::to_affine`]). A carrier's placement (`geom::Frame`)
+//! holds one, so a carrier's frame is rigid as a property of its type.
 //!
 //! # What the witness means, at every scalar
 //!
@@ -92,6 +90,19 @@
 //! [`RigidMotion::renormalized`] decides each axis of a minted frame's
 //! length again, the same real motion with its axes tightened.
 //!
+//! # The mints that decide nothing
+//!
+//! - [`RigidMotion::squared`] — a stated axis over its length and a
+//!   stated reference's part square to it over its own, poison where
+//!   either is zero: the door a stated frame enters through, and the
+//!   re-mint of [`RigidMotion::map_scalar`] across witness kinds;
+//! - [`RigidMotion::with_origin`] and [`RigidMotion::carried_by`] — a
+//!   frame placed elsewhere, or its image under a motion;
+//! - [`RigidMotion::reversed`], [`RigidMotion::quarter_turned`] and
+//!   [`RigidMotion::half_turned`] — a frame's own axes negated and
+//!   permuted;
+//! - [`RigidMotion::select_le_zero`] — one of two frames by a sign.
+//!
 //! **An axis-aligned frame is a written turn.** An exact axis
 //! ([`UnitVec3::exact_x`] and its siblings) turned by a whole number
 //! of quarter turns has columns of `0` and `±1` exactly at every
@@ -154,24 +165,36 @@
 //!
 //! # Crossing scalars
 //!
-//! A frame exists at a scalar only by being minted there: by an exact
-//! mint or a decided mint over inputs held at that scalar, or at `f64`
-//! by the `f64` door. No door carries a frame up from `f64`: a frame
-//! is a claim, and what a lane scalar takes from `f64` is a choice,
-//! the same across the box (DESIGN `[scalars]`). A skin's carry, over a
-//! path that is a constant of the model, chooses each station's roll at
-//! `f64` as one reference vector, a value that depends on none of the
-//! document's variables, and the station's frame is minted at the
-//! scalar from the path's tangent read there and that vector. Every
-//! frame that would cross is the product of a decision, so at `Sym` it
-//! would enter either as literals, a theorem about its rounding (E12),
-//! or as unknowns, over which nothing is proved; minted at the scalar,
-//! it carries its inputs' dependence on the variables instead (Ev on
-//! #5068, 2026-10-14).
+//! A frame exists at a scalar by being minted there: by an exact mint
+//! or a decided mint over inputs held at that scalar, at `f64` by the
+//! `f64` door, or by [`RigidMotion::map_scalar`] from another scalar.
+//! What a frame's entries mean is its scalar's
+//! [`Witness`](crate::Witness) kind: at an `Inexact` scalar (`f64`, a
+//! dual over it) they are the rounding of one rotation, at an `Exact`
+//! one (`Interval`, the duals and symbolic forms over it) they enclose
+//! it.
 //!
-//! The one crossing is downward, closure-free: an arbitrary map of the
-//! twelve numbers could unmake the witness (negating every component
-//! leaves `w` opposed to `u × v`).
+//! - **Within one kind** a frame's entries are carried through the
+//!   scalar map as they are: the claim is the same claim.
+//! - **Across kinds** they are not: a frame is a claim, and what a lane
+//!   scalar takes from `f64` is a choice (DESIGN `[scalars]`). The
+//!   entries are taken as that choice, a value that depends on none of
+//!   the document's variables, and the frame is re-minted from them at
+//!   the target scalar with no decision ([`RigidMotion::squared`]), so
+//!   at `Interval` it encloses the rotation the `f64` frame stands for.
+//!
+//! A skin's carry, over a path that is a constant of the model, chooses
+//! each station's roll at `f64` as one reference vector, and the
+//! station's frame is minted at the scalar from the path's tangent read
+//! there and that vector. A frame built by a decision over the
+//! document's variables is minted at the lane scalar, where it carries
+//! its inputs' dependence on the variables (Ev on #5068, 2026-10-14);
+//! no map of a frame decided at `f64` stands for it.
+//!
+//! An arbitrary map of the twelve numbers could unmake the witness
+//! (negating every component leaves `w` opposed to `u × v`), so the
+//! scalar map is a lift: it keeps each entry's point. The exact read
+//! down to `f64` is closure-free:
 //!
 //! - [`RigidMotion::point_value`] — any scalar to `f64`, every
 //!   component through [`SpanLocate::point_value`], `None` where one
@@ -202,10 +225,10 @@
 //! [`Affine3`] stays the general affine map: a motion CONVERTS into one
 //! ([`RigidMotion::to_affine`]), and an [`Affine3`] read back off a body
 //! is a placement, not a witness. There is no mirror and no scale here:
-//! the kernel acts with one group. The geometry carriers' direction
-//! fields — `Line.dir`, `Plane.normal`, the conic axes — stay bare
-//! `Vec3` under the at-rest rule stated in `geom`'s crate docs, and so
-//! do the carrier frames those fields make up. Two other types in the
+//! the kernel acts with one group. The geometry carriers' frames are this
+//! type (`geom::Frame` holds one); a line's `dir` stays a bare `Vec3`,
+//! since a line is also an affine chord whose parameter is scaled by
+//! `|dir|`. Two other types in the
 //! workspace are called frames and are different things:
 //! `editor-core`'s placement `Frame` stores a general linear part, so
 //! an improper map stays representable and refusable, and `sweep`'s
@@ -215,7 +238,7 @@
 //! one home, [`frame`](super::frame)'s module docs; nothing is
 //! restated here.
 
-use crate::linalg::{Affine3, Angle, Mat3, Point3, Turns, UnitVec3, UnitVec3Error, Vec3};
+use crate::linalg::{Affine3, Angle, Mat3, Point3, Turns, UnitVec3, UnitVec3Error, Vec2, Vec3};
 use crate::predicate::{Band, Decide, Indeterminate, Lever, Margin, Sign};
 use crate::real::Real;
 use crate::spline::SpanLocate;
@@ -987,7 +1010,7 @@ impl<T: Real> RigidMotion<T> {
             (2, 0) | (0, 2) => 1,
             _ => return None,
         };
-        let signed = |e: UnitVec3<T>, negative: bool| if negative { -e } else { e };
+        let signed = |e: UnitVec3<T>, negative: bool| if negative { opposite(e) } else { e };
         // `axes[i] × axes[j] = axes[k]` for the cyclic order, its negative
         // for the other.
         let cyclic = (u.0 + 1) % 3 == v.0;
@@ -1027,6 +1050,17 @@ impl<T: Real> RigidMotion<T> {
             w: spin(self.w),
         })
     }
+}
+
+/// **A frame axis reversed**, spelled `0 − e` rather than `−e`: the
+/// same direction, exactly, except that a zero component comes out `+0`
+/// whichever sign it had. A frame's re-chosen and run-back axes then
+/// carry no `−0` the negation wrote, so a frame a signed permutation of
+/// the axes turns and turns back keeps its bits (a turn's sum of
+/// products writes `+0` wherever a term is `+0`), as the carriers squared
+/// from cross products did.
+fn opposite<T: Real>(e: UnitVec3<T>) -> UnitVec3<T> {
+    UnitVec3::by_construction(Vec3::zero() - e.get())
 }
 
 impl<T: SpanLocate> RigidMotion<T> {
@@ -1121,8 +1155,8 @@ impl<T: Real> RigidMotion<T> {
     #[must_use]
     pub fn reversed(self) -> Self {
         Self {
-            v: -self.v,
-            w: -self.w,
+            v: opposite(self.v),
+            w: opposite(self.w),
             ..self
         }
     }
@@ -1134,7 +1168,7 @@ impl<T: Real> RigidMotion<T> {
     pub fn quarter_turned(self) -> Self {
         Self {
             u: self.v,
-            v: -self.u,
+            v: opposite(self.u),
             ..self
         }
     }
@@ -1144,8 +1178,8 @@ impl<T: Real> RigidMotion<T> {
     #[must_use]
     pub fn half_turned(self) -> Self {
         Self {
-            u: -self.u,
-            v: -self.v,
+            u: opposite(self.u),
+            v: opposite(self.v),
             ..self
         }
     }
@@ -1161,6 +1195,33 @@ impl<T: Real> RigidMotion<T> {
             u: by.turn(self.u),
             v: by.turn(self.v),
             w: by.turn(self.w),
+        }
+    }
+
+    /// **This frame turned about its own `w` onto the direction of `d`**,
+    /// a vector of its own `uv` plane: `d` normalized once
+    /// ([`Vec2::normalize`]) to `(c, s)`, then `u` becomes this frame
+    /// turning `(c, s, 0)` and `v` this frame turning `(−s, c, 0)`, `w`
+    /// and the origin kept. `(c, s)` is unit by its construction, and
+    /// its quarter turn is unit and perpendicular to it with it, so the
+    /// image is a rigid frame and nothing is decided: the one
+    /// arithmetic is the normalization a sketch direction is read by,
+    /// and a frame is not re-squared. A zero `d` yields a poisoned
+    /// frame, as [`Vec2::normalize`] yields a poisoned direction.
+    ///
+    /// The turned axes are [`RigidMotion::transform_vec`] of the sketch
+    /// vectors, the same arithmetic a placement's linear part applies
+    /// to `(c, s, 0)`, so `u` is a placed sketch direction bit for bit.
+    #[must_use]
+    pub fn spun_toward(self, d: Vec2<T>) -> Self {
+        let c = d.normalize();
+        let along = Vec3::new(c.x, c.y, T::zero());
+        let left = Vec3::new(T::zero() - c.y, c.x, T::zero());
+        Self {
+            origin: self.origin,
+            u: UnitVec3::by_construction(self.transform_vec(along)),
+            v: UnitVec3::by_construction(self.transform_vec(left)),
+            w: self.w,
         }
     }
 }

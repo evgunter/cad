@@ -41,11 +41,12 @@
 //!   [`RigidMotion`](super::RigidMotion) can build its axes and act on
 //!   a direction, and they are documented on their own doors.
 //!
-//! A witness exists at a scalar only by being minted there, and has no
-//! public crossing. It crosses down as an axis of its frame, through
+//! A witness exists at a scalar only by being minted there. It crosses
+//! to another scalar through [`UnitVec3::map_scalar`], carried as it is
+//! within one [`Witness`](crate::Witness) kind and re-minted across
+//! kinds, and down to `f64` as an axis of its frame, through
 //! [`RigidMotion::point_value`](super::RigidMotion::point_value) (its
-//! module's "Crossing scalars"), and never up (Ev on #5068,
-//! 2026-10-14).
+//! module's "Crossing scalars").
 //!
 //! The deciding doors in [`frame`](super::frame) mint through the
 //! constructor under their own funnel names and map its refusals onto
@@ -61,12 +62,11 @@
 //!
 //! # What is NOT this type
 //!
-//! The geometry carriers' direction fields — `Line.dir`, `Plane.normal`,
-//! the axes of the conics — stay bare `Vec3` under the at-rest rule
-//! stated in `geom`'s crate docs (conventional, unchecked, certified
-//! at rest by tier 3). The witness is a FUNCTION-boundary type. The
-//! 2-D analogue, `profile::path::Dir<T>`, is that crate's own and is
-//! left where it is.
+//! A line's `dir` (`geom::Line`) stays a bare `Vec3`: a line is also an
+//! affine chord whose parameter is scaled by `|dir|`. The carriers'
+//! frames are [`RigidMotion`](super::RigidMotion)s, whose axes are this
+//! type. The 2-D analogue, `profile::path::Dir<T>`, is that crate's own
+//! and is left where it is.
 
 use core::ops::Neg;
 

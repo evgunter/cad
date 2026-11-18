@@ -27,7 +27,7 @@ use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::turn::{TurnEnds, sweep_turn};
 use super::upgrade::upgrade_intersection;
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
-use crate::swept::{CapEnd, Placing, cap_plane, face_surface_key, placed_segment_spec, turn_axis};
+use crate::swept::{CapEnd, Placing, cap_plane, face_surface_key, placed_segment_spec};
 use geom_core::Tol;
 
 /// Builds the wedge solid (file docs). `reverse` is the already-decided
@@ -43,20 +43,17 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<Revolved<T, Body<T>>, RevolveError> {
-    let place = frame.place;
-    let far =
-        Placing::turned(place, frame.origin3, frame.axis, theta).map_err(RevolveError::Turn)?;
+    let far = Placing::turned(frame.motion, frame.origin3, frame.axis, theta)
+        .map_err(RevolveError::Turn)?;
     let Some(n_end) = far.turn_vec(frame.n3) else {
         unreachable!("a turned placing has a turn")
     };
-    let axis_c = turn_axis(
-        if reverse {
-            Sign::Positive
-        } else {
-            Sign::Negative
-        },
-        frame.axis.get(),
-    );
+    // The θ sign of the latitude carriers' axis ([`crate::swept::turn_axis`]'s).
+    let axis_c = if reverse {
+        Sign::Positive
+    } else {
+        Sign::Negative
+    };
 
     // Each loop with its runs collapsed: a station inside a run has no
     // entity, so a cap carries a run as one meridian edge.
@@ -124,7 +121,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     // entity and mints none — so the closing surface can be in hand
     // before the chain that will carry it.
     let start_cap = FaceSurface::New {
-        surface: cap_plane(place, reverse, CapEnd::Start),
+        surface: cap_plane(frame.motion, reverse, CapEnd::Start),
         sense: true,
     };
     let mut swept_early: Vec<Option<LoopSwept>> = (0..loops.len()).map(|_| None).collect();
@@ -253,7 +250,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     let end_surface = body.set_face_surface(
         end_face,
         FaceSurface::New {
-            surface: cap_plane(far, reverse, CapEnd::End),
+            surface: cap_plane(far.frame(), reverse, CapEnd::End),
             sense: true,
         },
     )?;
@@ -476,7 +473,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     rq: &[Point3<T>],
     frame: &AxisFrame<T>,
     theta: T,
-    axis_c: geom_core::Vec3<T>,
+    axis_c: Sign,
     far: Placing<T>,
     n_end: geom_core::Vec3<T>,
     band: Band,
