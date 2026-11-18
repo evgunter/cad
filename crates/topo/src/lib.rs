@@ -327,8 +327,8 @@ pub mod test_support {
     /// face does not lift. The containment pins of the posed extent read
     /// it.
     #[must_use]
-    pub fn posed_extents_holding<T: geom_core::Decide + geom_core::CertifiedBounds>(
-        body: &Body<T>,
+    pub fn posed_extents_holding(
+        body: &Body<f64>,
         face: crate::FaceKey,
         point: [f64; 3],
     ) -> Option<Vec<Option<bool>>> {

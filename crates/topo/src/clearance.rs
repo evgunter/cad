@@ -3730,8 +3730,8 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
 /// certificate reads it. `None` where the face or its carrier does not
 /// lift.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn posed_extents_holding<T: Decide + CertifiedBounds>(
-    body: &Body<T>,
+pub(crate) fn posed_extents_holding(
+    body: &Body<f64>,
     face: FaceKey,
     point: [f64; 3],
 ) -> Option<Vec<Option<bool>>> {

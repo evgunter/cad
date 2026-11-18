@@ -2302,7 +2302,8 @@ fn posed_use(surface: &Surface<Interval>, rim: &Rim, u: &Use, band: Band) -> Use
         harmonic: None,
         wall: None,
     };
-    let Some((carrier @ Curve3::Circle(_), (t0, t1))) = rim.arc.as_ref() else {
+    let Some((carrier, (t0, t1))) = rim.arc.as_ref().filter(|(c, _)| c.as_circle().is_some())
+    else {
         return none;
     };
     let got = geom_brep::chart_pcurve_over(carrier, *t0, *t1, surface, band);
@@ -2483,7 +2484,7 @@ pub(crate) fn posed_extents_holding(
     let mut axes: Vec<Vec3<Interval>> = Vec::new();
     let mut out = Vec::new();
     for e in &b.edges {
-        let Some((Curve3::Circle(c), _)) = e.arc.as_ref() else {
+        let Some(c) = e.arc.as_ref().and_then(|(c, _)| c.as_circle()) else {
             continue;
         };
         if seam(e) || !is_curved(surface, e) || axes.iter().any(|&a| one_line(a, c.frame.axis)) {

@@ -304,7 +304,7 @@ impl Azimuth<geom_core::Interval> {
     pub fn about_middle(self) -> Option<geom_core::Interval> {
         use geom_core::{Bounds, Interval};
         let mid = |x: Interval| geom_core::mid_param(x.lo(), x.hi());
-        let theta = Interval::from_f64(mid(self.y).atan2(mid(self.x)));
+        let theta = Interval::from_computed(mid(self.y).atan2(mid(self.x)));
         let (s, c) = theta.sin_cos();
         let along = self.x * c + self.y * s;
         let across = self.y * c - self.x * s;
