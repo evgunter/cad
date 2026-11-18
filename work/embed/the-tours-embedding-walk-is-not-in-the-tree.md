@@ -2,10 +2,13 @@
 id: the-tours-embedding-walk-is-not-in-the-tree
 kind: issue
 title: The tour's embedding walk is not in the tree
-status: open
+status: closed
 opened: 2026-11-18
 priority: P2
 cost: E
+closed: 2026-11-18
+pr: 7127
+branch: embed/tour-walk
 ---
 
 
