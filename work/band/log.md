@@ -1447,3 +1447,17 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - it filed `band/a-chamfers-clearance-refusal-names-a-fillet3-predicate` (P3);
   - it filed `topo/a-torn-body-fuzz-seed-panics-in-wedge-reach-naming-no-row-four-premise` (P1): a corrupt-input fuzz seed that panics on main, not caused by this PR.
 - 2026-11-18 — A container restart stopped the reach lane's agent. Its fix pass was already committed and pushed (9eaebfea72), but it was cut off midway through merging main, with a conflict in `.config/nextest.toml`. A fresh Opus agent is finishing the merge, adapting the branch to 7072's names, checking the fix-brief items and confirming CI.
+- 2026-11-18 — Merged 7078 (the mixed-corner reach) at 36c7cb2b66, CI green on 389238f26e. A fresh agent finished its fix pass after the restart: the main merge with 7072 kept the `|n·τ|` invariant. It filed P2 `a-mixed-corners-reach-holds-the-air-its-patch-leaves`, P3 `a-turned-features-box-holds-the-reach-off-a-curved-patch` and P3 `a-corner-supports-replaced-region-is-not-isolated-by-a-row`, and added evidence to CIW's slow-row ε P2. The reach row is closed.
+- 2026-11-18 — **Sitting ends; the track is handed back `ready`.** The P0 (the bracket filleted and chamfered all round) is done:
+  - 6873 all three edges;
+  - 7038 the odd edge plus one pair edge;
+  - 7072 the vocabulary;
+  - 7050 the strip-frustum junction;
+  - 7078 the reach.
+
+  No P1 row is dispatchable:
+  - the cups row waits on ONEDOOR;
+  - the line-contact unit is `blocked_on` HELDRECORDS;
+  - the kiss issue is its parent.
+
+  The P2/P3 tail is the next sitting's, including the two OCCT follow-ups and the rows filed this sitting. Since Fable usage ran out (Ev, 2026-11-17), work has run Opus-only, outside the experiments; a successor should check with Ev whether the draws resume.
