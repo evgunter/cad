@@ -265,7 +265,7 @@ impl Read {
     /// The typed refusal of a distance `d` the band could not call,
     /// naming whose band it was: the file's where its declared ε_in is at
     /// least the run's ε, the run's otherwise.
-    fn refuse(&self, cause: geom_core::Indeterminate, _d: f64, id: u64) -> StepImportError {
+    fn refuse(&self, cause: geom_core::Indeterminate, id: u64) -> StepImportError {
         use crate::error::SingularityBand;
         StepImportError::SingularityUndecided {
             id,
@@ -290,7 +290,7 @@ impl Read {
     /// refusal names no band ([`StepImportError::SingularitySideUndecided`]).
     fn unread(&self, why: Unread<f64>, id: u64) -> StepImportError {
         match why {
-            Unread::Boundary { cause, distance } => self.refuse(cause, distance, id),
+            Unread::Boundary { cause, .. } => self.refuse(cause, id),
             Unread::Side { why, .. } => StepImportError::SingularitySideUndecided {
                 id,
                 side: why,
@@ -308,7 +308,7 @@ impl Read {
 /// distance in band is the typed refusal naming the band that could not
 /// call it ([`StepImportError::SingularityUndecided`]).
 fn on_boundary(d: f64, read: &Read, id: u64) -> Result<bool, StepImportError> {
-    home::on_boundary(d, read.coarser).map_err(|cause| read.refuse(cause, d, id))
+    home::on_boundary(d, read.coarser).map_err(|cause| read.refuse(cause, id))
 }
 
 fn unreadable(id: u64) -> StepImportError {

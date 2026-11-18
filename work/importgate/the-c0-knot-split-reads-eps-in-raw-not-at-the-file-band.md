@@ -15,16 +15,25 @@ Found by `importgate/interp-layer`'s sweep of every ε_in read in
 
 ## What
 
-`crates/step-import/src/knot_split.rs` takes ε_in as a bare `f64`
-(`split_c0_knots`, from `normalize::normalize_shell`) and spends it raw:
-`interior_param_at` (`(carrier.eval(t) − q).norm() <= eps_in`),
-`crossing_knots` (`reach = eps_in / speed`), `clear_of` (`setback`, the
-box-near tests `… + bent <= eps_in` and `gap.norm().hi() <= eps_in`),
-`on_the_line`, and the corner `near` closure in the face split. None is
-read through the kernel's funnel at the file's band
+`crates/step-import/src/knot_split.rs` takes the file band
+(`split_c0_knots`, from `normalize::normalize_shell`) but spends ε_in raw
+as a distance (as of main after PR 7084):
+
+- `crossing_knots`: the reach `eps_in / speed` each foot is held to on
+  either side of a crease knot;
+- `clear_of`: the setback `eps_in / speed` from the knot line, and the
+  box-near tests `worst(corners…) + bent <= eps_in` and
+  `gap.norm().hi() <= eps_in`;
+- `on_the_line`: `worst(hull…) + bent <= eps_in`;
+- `split_face_once`: the corner `near` closure,
+  `(a - b).norm() <= eps_in`.
+
+None is read through the kernel's funnel at the file's band
 (`interpret::file_band`: `(e, K·e)`, `e` the larger of ε_in and the run's
 ε), so a file declaring ε_in below the run's ε is read finer here than
-everywhere else in the import, and no reading has an in-band arm.
+everywhere else in the import, and no reading has an in-band arm. The iso
+line's recognition (`recognize_curve::try_line`) already takes the file
+band whole.
 
 ## Why not fixed with the rest
 

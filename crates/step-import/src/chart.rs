@@ -63,9 +63,13 @@ pub(crate) enum OuternessRefusal {
     NotOnChart,
     /// A ring's chart image is seam-dependent (module docs).
     SeamDependent,
-    /// A containment test did not read apart at the file's band: the
-    /// probe's distance from the candidate's boundary, in metres.
+    /// A containment test read in the file's band: the probe's distance
+    /// from the candidate's boundary, in metres.
     UndecidableAtEps(f64),
+    /// A containment test read Zero: one bound touches another at the
+    /// file's band, the probe's distance from the candidate's boundary in
+    /// metres.
+    RingsTouch(f64),
     /// No ring, or more than one, contains all the others.
     NoUniqueOuter,
     /// Containment and orientation disagree: a ring contained in
@@ -92,6 +96,10 @@ impl OuternessRefusal {
                 "a face bound whose chart image depends on where the periodic seam was \
                  cut (a ring wrapping the surface's period): the containment answer \
                  would be an artifact of the seam, not a fact about the surface"
+            }
+            Self::RingsTouch(_) => {
+                "a face whose bounds touch at the file's own interpretation budget (a ring \
+                 within ε_in of another): no bound contains the other"
             }
             Self::UndecidableAtEps(_) => {
                 "a face whose ring containment is undecidable at the file's own \
@@ -239,11 +247,13 @@ pub(crate) fn infer_outer(
                 .ok_or(OuternessRefusal::NotOnChart)?;
             // The probe's chart distance from the candidate's boundary,
             // carried into metres by the chart's least local metric: a
-            // ring that does not read apart from the other at the file's
-            // band leaves containment undecided.
+            // ring that reads Zero touches the other, and one in band
+            // leaves containment undecided.
             let gap = boundary_distance(&candidate.poly, probe) * floor;
-            if file.read(STEP_RING_CONTAINMENT, gap) != Read::Apart {
-                return Err(OuternessRefusal::UndecidableAtEps(gap));
+            match file.read(STEP_RING_CONTAINMENT, gap) {
+                Read::Apart => {}
+                Read::Zero => return Err(OuternessRefusal::RingsTouch(gap)),
+                Read::InBand => return Err(OuternessRefusal::UndecidableAtEps(gap)),
             }
             if !contains(&candidate.poly, probe) {
                 contains_all = false;
@@ -509,19 +519,27 @@ mod review_outerness {
             Err(OuternessRefusal::SeamDependent),
             "wrap ring"
         );
-        // 3. UndecidableAtEps: probe ring's first sample within eps of the
-        //    candidate's boundary.
+        // 3. A ring whose first sample lies on the candidate's boundary
+        //    (gap 0) or within its band's zero touches it; one in the band
+        //    leaves containment undecided.
+        let file = crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap();
+        let zero = file.band().zero();
         let outer = ring_on_cyl(0.0, 2.0, 0.0, 1.0, 8);
-        let touching = ring_on_cyl(0.0 + 1e-12, 1.0, 0.3, 0.6, 8);
-        let touched = infer_outer(
-            &cyl(),
-            &[outer.clone(), touching],
-            crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap(),
-        );
-        assert!(
-            matches!(touched, Err(OuternessRefusal::UndecidableAtEps(gap)) if gap < 1e-9),
-            "touching ring: {touched:?}"
-        );
+        for (u0, want) in [(0.0, "touch"), (1e-12, "touch"), (3.0 * zero, "band")] {
+            let got = infer_outer(
+                &cyl(),
+                &[outer.clone(), ring_on_cyl(u0, 1.0, 0.3, 0.6, 8)],
+                file,
+            );
+            let read = match got {
+                Err(OuternessRefusal::RingsTouch(gap)) if gap <= zero => "touch",
+                Err(OuternessRefusal::UndecidableAtEps(gap)) if gap > zero && gap < 10.0 * zero => {
+                    "band"
+                }
+                _ => "other",
+            };
+            assert_eq!(read, want, "a ring {u0:e} off the outer bound: {got:?}");
+        }
         // 4. OrientationContradicts: inner ring wound the SAME way.
         let mut inner_same = ring_on_cyl(0.5, 1.0, 0.2, 0.4, 8);
         let outer2 = ring_on_cyl(0.0, 2.0, 0.0, 1.0, 8);

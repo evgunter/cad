@@ -284,3 +284,59 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     // Other ambient bands: the import and the no-panic assertions
     // above still ran; the walk outcome is unpinned there.
 }
+
+/// **The singularity's ambiguity read at the FILE's band names the ε_in
+/// that decides it.** halfcap_eps7's undeclared pole lies 1.0000000012e-9
+/// m from its boundary. Read with ε_in = 1e-9 (at least the run's ε, so
+/// the band is the file's), the distance is in band: the refusal ends in
+/// the decision's own move, the ε_in below the distance over K that reads
+/// it apart, and the run's tolerance below it too only where the run's ε
+/// is not already below it. A run whose ε exceeds the distance reads it
+/// Zero and has nothing to refuse.
+#[test]
+fn the_singularitys_file_band_ending_names_the_eps_in_that_decides_it() {
+    let eps = Tol::witness().get().eps;
+    if eps >= 1e-9 * 1.0000000012 {
+        test_utils::vacuity::stood_down(
+            "the run's ε reads the pole's distance as zero",
+            "the singularity's file-band ending",
+        );
+        return;
+    }
+    let p = format!(
+        "{}/tests/fixtures/halfcap/halfcap_eps7.step",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let text = std::fs::read_to_string(&p).unwrap();
+    let options = ImportOptions {
+        eps_in: Some(1e-9),
+        ..ImportOptions::default()
+    };
+    let imported = import_step(&text, &options, Tol::witness());
+    let Err(
+        e @ step_import::StepImportError::SingularityUndecided {
+            band: step_import::SingularityBand::File,
+            ..
+        },
+    ) = imported
+    else {
+        panic!("the pole's reading lands in the file's band and refuses: {imported:?}");
+    };
+    let text = e.render();
+    assert!(
+        text.contains(
+            "Recourse: move the face's boundary, or its vertex, onto that point or clear of it, \
+             or, if this distance is intended, import with ε_in below 1.0000000011961913e-10 m"
+        ),
+        "the ending names the move and the ε_in that decides it: {text}"
+    );
+    assert_eq!(
+        text.contains("tighten the tolerance below 1.0000000011961913e-10 m"),
+        eps >= 1.0000000011961913e-10,
+        "the run's tolerance is named exactly where it does not already decide: {text}"
+    );
+    assert!(
+        text.contains("with ε_in ≥ 1.0000000011961913e-9 m"),
+        "and the ε_in that reads it as one: {text}"
+    );
+}

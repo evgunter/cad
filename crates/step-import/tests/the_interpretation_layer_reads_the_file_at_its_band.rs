@@ -368,3 +368,23 @@ fn a_placement_pairs_entry_bounds_its_snap_and_its_frames() {
         "the snap and the frame's build, summed: {moved_by:e}"
     );
 }
+
+/// An ε_in whose band `K·ε_in` is no finite length makes no band the
+/// file can be read at: refused as that, naming the file's declared
+/// uncertainty, before any statement is read, and naming no entity.
+#[test]
+fn an_eps_in_that_makes_no_band_refuses_naming_the_declared_uncertainty() {
+    let options = ImportOptions {
+        eps_in: Some(1e308),
+        ..ImportOptions::default()
+    };
+    match import_step(&freecad_fixture("box"), &options, Tol::witness()) {
+        Err(ref e @ StepImportError::UnbandedUncertainty { eps_in }) => {
+            assert_eq!(eps_in, 1e308);
+            let text = e.render();
+            assert!(text.contains("declared uncertainty"), "{text}");
+            assert!(!text.contains("entity #"), "no entity: {text}");
+        }
+        other => panic!("an unbanded uncertainty, got {other:?}"),
+    }
+}

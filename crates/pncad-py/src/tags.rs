@@ -2200,6 +2200,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Structure { .. } => "structure",
         StepImportError::MissingUncertainty => "missing_uncertainty",
         StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
+        StepImportError::UnbandedUncertainty { .. } => "unbanded_uncertainty",
         StepImportError::MalformedReal { .. } => "malformed_real",
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",

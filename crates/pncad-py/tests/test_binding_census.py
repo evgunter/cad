@@ -3947,6 +3947,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Structure": "StepImportError.variant",
     "StepImportError::MissingUncertainty": "StepImportError.variant",
     "StepImportError::InvalidEpsOverride": "StepImportError.variant",
+    "StepImportError::UnbandedUncertainty": "StepImportError.variant",
     "StepImportError::MalformedReal": "StepImportError.variant",
     "StepImportError::Topology": "StepImportError.variant",
     "StepImportError::Assembly": "StepImportError.variant",

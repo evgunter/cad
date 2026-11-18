@@ -196,6 +196,13 @@ pub enum StepImportError {
         /// The rejected value.
         value: f64,
     },
+    /// The import's ε_in (the file's declared uncertainty, or the
+    /// override) makes no band the file can be read at: `K·ε_in` is no
+    /// finite length.
+    UnbandedUncertainty {
+        /// ε_in, in metres.
+        eps_in: f64,
+    },
     /// A real token failed to parse as an f64.
     MalformedReal {
         /// The entity instance carrying the token.
@@ -519,6 +526,21 @@ impl StepImportError {
                 f,
                 "step import: ε_in override {value} is not finite and strictly positive"
             ),
+            Self::UnbandedUncertainty { eps_in } => {
+                write!(
+                    f,
+                    "step import: the file's declared uncertainty (its coincidence distance \
+                     ε_in = {eps_in} m) makes no band the file can be read at: K·ε_in is no \
+                     finite length"
+                )?;
+                if ended {
+                    f.write_str(
+                        ". Recourse: re-export the file with a finite declared uncertainty, or \
+                         pass a smaller ε_in override",
+                    )?;
+                }
+                Ok(())
+            }
             Self::MalformedReal { id, token } => write!(
                 f,
                 "step import: entity #{id}: token '{token}' is not a Part 21 real"

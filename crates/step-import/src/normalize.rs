@@ -234,8 +234,8 @@ pub(crate) fn normalize_shell(
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
-    let (eps_in, chart_band) = (file.eps_in(), Some(file.band()));
-    crate::knot_split::split_c0_knots(solid, eps_in, chart_band, mint, sink)?;
+    let chart_band = Some(file.band());
+    crate::knot_split::split_c0_knots(solid, file, mint, sink)?;
     band_seam(solid, file, mint, sink)?;
     // The walls' orientation is read first: an inverted cone wall holds
     // its apex on the side its bit claims, and is refused as inverted,
@@ -431,19 +431,13 @@ fn mint_band(
                     if ui == 0 {
                         raises = Some(u.forward == (n.dot(s_axis) > 0.0));
                     }
-                    // Coaxial is a lane choice: Zero takes the re-mint,
-                    // apart is the rim shape it has no lane for (below),
-                    // and in band the file's precision does not say which.
-                    let off = tilt.max(off_axis);
-                    match file.read(STEP_BAND_RIM_COAXIAL, off) {
-                        Read::Zero => true,
-                        Read::Apart => false,
-                        Read::InBand => {
-                            return Err(
-                                file.refused(face_id, file.ambiguous(STEP_BAND_RIM_COAXIAL, off))
-                            );
-                        }
-                    }
+                    // Coaxial is a lane choice (`[verdicts]`): Zero
+                    // takes the re-mint, whose winding read, splits and
+                    // seam endpoints are exact only on coaxial rims; in
+                    // band and apart take the general lane, which is not
+                    // written, so both refuse below with the closed
+                    // form's pose as the lever and no tolerance offer.
+                    file.read(STEP_BAND_RIM_COAXIAL, tilt.max(off_axis)) == Read::Zero
                 }
                 _ => false,
             };
@@ -451,10 +445,11 @@ fn mint_band(
                 return Err(StepImportError::Topology {
                     id: face_id,
                     what: "a seamless periodic band whose rim chain is not made of \
-                           circles coaxial with the surface at the file's band — outside the band re-mint's \
-                           minted class (its winding read, splits and seam endpoints \
-                           are exact only on coaxial rims); extending the band \
-                           re-mint to this rim shape is the recourse",
+                           circles coaxial with the surface at the file's band — outside the \
+                           band re-mint's minted class (its winding read, splits and seam \
+                           endpoints are exact only on coaxial rims). Recourse: pose each rim \
+                           as a circle centred on the surface's axis in a plane normal to it, \
+                           or extend the band re-mint to this rim shape",
                 });
             }
         }

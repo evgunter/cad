@@ -43,6 +43,7 @@ use geom_core::{Band, Bounds as _, Interval, Point3, Vec3};
 
 use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
+use crate::interpret::FileBand;
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
 /// Runs both splits over the shell: edges first, so a face's knot line
@@ -51,13 +52,12 @@ use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 /// split reads the knot line's crossings with the trim at.
 pub(crate) fn split_c0_knots(
     solid: &mut SolidSpec,
-    eps_in: f64,
-    band: Option<Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
     split_edges(solid, mint, sink)?;
-    split_faces(solid, eps_in, band, mint, sink)
+    split_faces(solid, file, mint, sink)
 }
 
 /// The least `ADVANCED_FACE` id whose loops use `edge`.
@@ -277,11 +277,11 @@ fn boundary_census(solid: &SolidSpec, faces: &[usize]) -> (usize, usize) {
 /// so each face's boundary is read once per direction.
 fn split_faces(
     solid: &mut SolidSpec,
-    eps_in: f64,
-    band: Option<Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
+    let (eps_in, band) = (file.eps_in(), Some(file.band()));
     for fi in 0..solid.faces.len() {
         if !matches!(solid.faces[fi].surface, Surface::Nurbs(_)) {
             continue;
@@ -296,6 +296,7 @@ fn split_faces(
                     along_v,
                     eps_in,
                     band,
+                    file,
                 };
                 split_at_all(solid, f, &knots, at, mint, &mut tiles)?;
             }
@@ -329,6 +330,9 @@ struct Lines {
     along_v: bool,
     eps_in: f64,
     band: Option<Band>,
+    /// The file band the two above are read off, for a reading that
+    /// takes it whole (the iso line's recognition).
+    file: FileBand,
 }
 
 /// Splits face `f` along each of `knots` (ascending, each kept by
@@ -890,6 +894,7 @@ fn split_face_once(
         along_v,
         eps_in,
         band,
+        file,
     } = at;
     let Surface::Nurbs(ref s) = solid.faces[fi].surface else {
         unreachable!("only a B-spline chart has crease knots to split at")
@@ -943,9 +948,7 @@ fn split_face_once(
     // the reader's table reads in closed form, its arc length carried
     // back to the iso's parameter by the chord map the recognition
     // certifies within `ε_in`.
-    let straight =
-        crate::recognize_curve::try_line(&iso, crate::interpret::FileBand::of(eps_in, band))
-            .map(|(line, _)| line);
+    let straight = crate::recognize_curve::try_line(&iso, file).map(|(line, _)| line);
     let chord = (q1 - q0).norm();
     let (reading, read_span) = match straight {
         Some(line) => (line, (0.0, chord)),
@@ -1535,7 +1538,12 @@ mod tests {
             n
         };
         let mut sink = Vec::new();
-        let kept = split_faces(&mut solid, EPS_IN, band(), &mut mint, &mut sink);
+        let kept = split_faces(
+            &mut solid,
+            crate::interpret::FileBand::test(EPS_IN),
+            &mut mint,
+            &mut sink,
+        );
         assert!(kept.is_ok(), "the face along the line imports: {kept:?}");
         assert_eq!(
             (solid.faces.len(), sink.len(), solid.edges.len()),
@@ -1638,7 +1646,13 @@ mod tests {
             n
         };
         let mut sink = Vec::new();
-        split_faces(solid, EPS_IN, band(), &mut mint, &mut sink).map(|()| sink)
+        split_faces(
+            solid,
+            crate::interpret::FileBand::test(EPS_IN),
+            &mut mint,
+            &mut sink,
+        )
+        .map(|()| sink)
     }
 
     /// Points along a use, in its walking order, its last point left out.
@@ -2143,7 +2157,13 @@ mod tests {
             n
         };
         let mut sink = Vec::new();
-        split_faces(&mut solid, EPS_IN, band(), &mut mint, &mut sink).unwrap();
+        split_faces(
+            &mut solid,
+            crate::interpret::FileBand::test(EPS_IN),
+            &mut mint,
+            &mut sink,
+        )
+        .unwrap();
         assert_eq!((solid.faces.len(), sink.len()), (1, 0));
     }
 

@@ -6040,6 +6040,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "syntax",
             "tier_invalid",
             "topology",
+            "unbanded_uncertainty",
             "unsupported_entity",
             "unsupported_unit",
             "wall_column_structure",

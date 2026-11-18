@@ -102,8 +102,8 @@ impl FileBand {
     ///
     /// # Errors
     ///
-    /// An invalid root where `eps_in` makes no band (`K·ε_in` past the
-    /// format).
+    /// [`crate::StepImportError::UnbandedUncertainty`] where `eps_in`
+    /// makes no band (`K·ε_in` past the format).
     pub(crate) fn new(eps_in: f64, tol: Tol) -> Result<Self, crate::StepImportError> {
         Self::built(eps_in, tol.eps(), file_band(eps_in, tol))
     }
@@ -129,18 +129,7 @@ impl FileBand {
         run_eps: f64,
         band: Option<Band>,
     ) -> Result<Self, crate::StepImportError> {
-        let unread = Self::unread();
-        let band = band.ok_or_else(|| {
-            unread.refused(
-                0,
-                Refusal::InvalidRoot {
-                    what: "the file's declared coincidence distance ε_in, whose band K·ε_in must \
-                           be a finite length",
-                    value: eps_in,
-                    unit: "m",
-                },
-            )
-        })?;
+        let band = band.ok_or(crate::StepImportError::UnbandedUncertainty { eps_in })?;
         Ok(Self {
             eps_in,
             run_eps,
@@ -158,21 +147,6 @@ impl FileBand {
             run_eps: 0.0,
             band: Band::new(eps_in, geom_core::Tol::witness().k() * eps_in)
                 .expect("a test's budget makes a band"),
-        }
-    }
-
-    /// The file band as a caller that holds its parts carries them
-    /// (`knot_split`'s `Lines`): ε_in and the band [`file_band`] made, the
-    /// run's ε read off the band's floor.
-    pub(crate) fn of(eps_in: f64, band: Band) -> Self {
-        Self {
-            eps_in,
-            run_eps: if band.zero() > eps_in {
-                band.zero()
-            } else {
-                0.0
-            },
-            band,
         }
     }
 
@@ -209,6 +183,17 @@ impl FileBand {
             Ok(sign) if sign.is_zero() => Read::Zero,
             Ok(_) => Read::Apart,
             Err(_) => Read::InBand,
+        }
+    }
+
+    /// The refusal of `gap` read Zero under `reading`, where the act needs
+    /// the two apart.
+    pub(crate) fn touching(self, reading: &'static str, gap: f64) -> Refusal {
+        Refusal::Touching {
+            reading,
+            gap: gap.abs(),
+            k: self.band.escalate() / self.band.zero(),
+            run_eps: self.run_eps,
         }
     }
 
@@ -376,6 +361,21 @@ pub enum Refusal {
         /// The value's unit, as the refusal prints it (`m`, `rad`).
         unit: &'static str,
     },
+    /// **Two statements that read as one where the act needs them
+    /// apart**: the distance reads Zero at the band the file is read at
+    /// (a face's bound touching another). Reading them apart takes a band
+    /// whose escalation is below the distance, so both ε_in and the run's
+    /// ε below `gap / K`; at a distance of zero, no band does.
+    Touching {
+        /// The reading (its decision name).
+        reading: &'static str,
+        /// The distance, in metres.
+        gap: f64,
+        /// The band's K.
+        k: f64,
+        /// The run's ε (metres), which floors the band.
+        run_eps: f64,
+    },
     /// **A length the band cannot tell from zero**: a positive length a
     /// construction takes only positive (a radius, a semi-axis) that does
     /// not read apart from zero at the band the file is read at. Reading
@@ -442,6 +442,19 @@ impl Refusal {
                 Readable(eps_in),
                 Readable(run_eps)
             ),
+            Self::Touching {
+                reading,
+                gap,
+                run_eps,
+                ..
+            } => format!(
+                "the distance {} m ({reading}) reads as none at the band the file is read at (from \
+                 the larger of its declared ε_in = {} m and this run's tolerance {} m), where the \
+                 two must stand apart",
+                Readable(gap),
+                Readable(eps_in),
+                Readable(run_eps)
+            ),
             Self::InvalidRoot { what, value, unit } => format!(
                 "{what}: the file states {value} {unit}, which no kernel construction takes at any \
                  ε_in"
@@ -485,6 +498,18 @@ impl Refusal {
                 finer(gap / k, eps_in, run_eps),
                 Readable(gap)
             ),
+            Self::Touching {
+                gap, k, run_eps, ..
+            } => {
+                if gap > 0.0 {
+                    format!(
+                        "Recourse: {lever}, or, if this distance is intended, {}",
+                        finer(gap / k, eps_in, run_eps)
+                    )
+                } else {
+                    format!("Recourse: {lever}, moving the two apart")
+                }
+            }
             Self::LengthUnread {
                 length, k, run_eps, ..
             } => format!(
@@ -499,6 +524,34 @@ impl Refusal {
 #[cfg(test)]
 mod tests {
     use super::Refusal;
+
+    /// **Touching bounds end in what parts them**: at a distance of zero
+    /// no band reads them apart, so the ending is the lever alone, never a
+    /// value of zero; at a positive distance it names the levers that do.
+    #[test]
+    fn touching_names_what_parts_them_and_no_lever_at_zero() {
+        let touching = |gap: f64| Refusal::Touching {
+            reading: "r",
+            gap,
+            k: 10.0,
+            run_eps: 1e-9,
+        };
+        let at_zero = touching(0.0).ending(1e-6);
+        assert!(
+            !at_zero.contains("below") && !at_zero.contains("≥") && !at_zero.contains(" 0 m"),
+            "{at_zero}"
+        );
+        let apart = touching(5e-7).ending(1e-6);
+        assert!(apart.contains("import with ε_in below 5e-8 m"), "{apart}");
+        assert!(
+            !apart.contains("tighten"),
+            "the run's ε is already below: {apart}"
+        );
+        assert!(
+            !apart.contains("≥"),
+            "no lever that reads them one: {apart}"
+        );
+    }
 
     /// **An ambiguity's ending names exactly the levers that decide it.**
     /// Apart takes a band whose zero is below `gap / K`, and the band's
