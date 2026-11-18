@@ -151,7 +151,7 @@ pub use dihedral::{
     SmoothJoin, Station, TANGENT_SECOND_ORDER, Tangency, WedgeEnd, WedgeEscalation, WedgeRung,
     classify_dihedral, classify_dihedral_reported, classify_seam, folded_lever_arm,
     gradient_alignment, material_kappa_rel, must_carry_description, must_carry_over_edge,
-    reask_chart, reask_pair, rest_locus, tangent_second_order,
+    must_carry_reads, reask_chart, reask_pair, rest_locus, tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,

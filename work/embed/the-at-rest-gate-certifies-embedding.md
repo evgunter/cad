@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-02
 priority: P0
 cost: H
+design: true
 ---
 
 

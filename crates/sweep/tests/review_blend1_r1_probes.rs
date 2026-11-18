@@ -206,10 +206,7 @@ fn r1_the_coaxiality_predicate_is_the_first_to_speak_on_the_tilted_cap() {
     let (body, rim, _, _, _) = tilted_cap(0.0);
     let zero = verdict(&body, rim).unwrap_err();
     eprintln!("one arc at departure 0: {zero:?}");
-    assert!(
-        matches!(zero, BlendError::UnsupportedCorner { .. }),
-        "{zero:?}"
-    );
+    assert!(matches!(zero, BlendError::UnbuiltEnd(_)), "{zero:?}");
     let (body, rim, _, _, _) = tilted_cap(in_band());
     match verdict(&body, rim) {
         Err(BlendError::Escalated {
@@ -234,10 +231,7 @@ fn r1_the_coaxiality_predicate_is_the_first_to_speak_on_the_tilted_cap() {
     // same corner refusal as the zero leg.
     let (body, rim, _, _, _) = tilted_cap(0.5 * tol().eps());
     let sub = verdict(&body, rim).unwrap_err();
-    assert!(
-        matches!(sub, BlendError::UnsupportedCorner { .. }),
-        "{sub:?}"
-    );
+    assert!(matches!(sub, BlendError::UnbuiltEnd(_)), "{sub:?}");
 }
 
 /// **A THREE-arc rim carves where a two-arc rim does.** The whole

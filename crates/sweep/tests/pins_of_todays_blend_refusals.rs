@@ -22,7 +22,7 @@ fn tol() -> Tol {
 /// straight sides: the request stops part way along a smooth run, and
 /// refuses saying so, its recourse naming the whole run
 /// (`work/band/a-chain-end-beside-a-smooth-seam-folds-to-an-indeterminate-corner.md`,
-/// which this flipped from `UnsupportedCorner { Indeterminate }`).
+/// which this flipped from an indeterminate corner).
 #[test]
 fn a_slot_end_arc_alone_refuses_as_a_tangent_run_requested_in_part() {
     let body = slot();
@@ -41,8 +41,10 @@ fn a_slot_end_arc_alone_refuses_as_a_tangent_run_requested_in_part() {
     assert!(
         matches!(
             &got,
-            Err(BlendError::UnsupportedRunOut { detail, .. })
-                if *detail == sweep::blend::battery::PARTIAL_TANGENT_RUN
+            Err(BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::RunOut {
+                odd: None,
+                ..
+            }))
         ),
         "a slot's end arc alone refuses as a tangent run requested in part, got {got:?}"
     );

@@ -2,7 +2,8 @@
 id: a-curved-partners-chord-certifies-at-rest-in-seconds
 kind: issue
 title: A sphere or torus chord on a spline wall costs 5 to 12 s to certify at rest in debug: the union of a ball across a loft wall takes 24 s where it refused in 7
-status: open
+status: parked
+blocked_on: [a-node-arcs-chord-misses-its-at-rest-chart-image]
 opened: 2026-11-12
 priority: P2
 cost: M
@@ -64,3 +65,11 @@ certificate of the rest rows' arc at s = 1):
 
 The plane's lane is the same shape at a tenth of the cost
 (`a-carried-plane-spline-chords-at-rest-certificate-costs-half-a-second`).
+
+## Parked (2026-11-17, SECTARMS orchestrator)
+
+The at-rest image this cost is spent on is replaced by Ev's decision on
+PR 7032: one image function on the carrier's own knots, with the
+uniform 33-to-257-sample climb gone. Its build is briefed to measure
+at-rest cost against main. Re-measure this row when
+`a-node-arcs-chord-misses-its-at-rest-chart-image` closes.

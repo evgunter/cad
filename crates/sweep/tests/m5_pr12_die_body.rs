@@ -177,15 +177,15 @@ fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
         0.15,
         Tol::witness(),
     )
-    .expect_err("an edge ending at a curved end face is a run-out");
+    .expect_err("an edge ending at a curved end face is an unbuilt end");
     assert!(
-        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
+        matches!(err.error, BlendError::UnbuiltEnd(_)),
         "expected the assembly front-door refusal, got {err_at}",
         err_at = err.render(geom_brep::recourse::Reading::Build)
     );
     assert!(
         err.render(geom_brep::recourse::Reading::Build)
-            .contains(sweep::blend::battery::END_FACE_CURVED),
+            .contains(sweep::blend::END_FACE_CURVED),
         "the refusal names the missing front door: {err_at}",
         err_at = err.render(geom_brep::recourse::Reading::Build)
     );

@@ -1459,11 +1459,10 @@ sphere octant; the chamfer's plane through the three feet), where the
 three edges round one way. One: the cut-off — the band ends in the end face's plane section
 of it, a chord for a chamfer, and for a fillet a circle where the end
 face is perpendicular to the edge and an ellipse otherwise
-(`CornerConfig::EndFace`, `RunOutPolicy::CutOffAtEndFace`;
-`fillet3_cap_transverse` picks the kind). Two: the mitre — each band is
+(`fillet3_cap_transverse` picks the kind). Two: the mitre — each band is
 cut off by the other's support, so the two meet along their
-intersection, a line for a chamfer and a planar ellipse for a fillet
-(`CornerConfig::Turn`, `RunOutPolicy::Mitre`); where the shared face's
+intersection, a line for a chamfer and a planar ellipse for a fillet;
+where the shared face's
 sector is reflex the mitre joins over the wedge the two bands'
 extensions overlap in. At a vertex whose edges mix convexity, one edge
 and the two that round alike end so too. Chain G1 classifies a
@@ -1474,8 +1473,9 @@ involves a curved link. Every other end refuses — a curved end face, a
 foot landing inside a support rather than on a rim edge, an end vertex
 of valence other than three, a mixed-convexity vertex whose odd edge
 (the one rounding unlike the other two) is requested with another of
-its edges — with a `CornerConfig` tag and the `RunOutPolicy` that would
-handle it where one would, refusal-payload names only. A
+its edges — with one typed refusal, `UnbuiltEnd`, whose tag names why
+and carries its own site; what a built end is stays the blend's own
+verdict, with no public name. A
 spine that is neither line nor circle refuses `SpineUnsupported`: the
 canal-surface blend, an approximating surface per O2, is not
 implemented.
@@ -2063,8 +2063,9 @@ intensional description largely *is* the provenance.
   The engine has not moved yet (`editor_core::clearance`); the work is
   CLEAR's (`shell-curved-wall-clearance-window`, parked on
   `shell-curved-clearance-consumer`).
-- Corner taxonomy: the uniformly concave trihedron is carved but has no
-  `CornerConfig` tag; the finer run-out taxonomy (per-end assignment,
+- Corner taxonomy: a built end's kind (patch, cut-off, mitre, overrun)
+  is the blend's private verdict with no public tag; the finer run-out
+  taxonomy (per-end assignment,
   setback parameters) is reserved for the design that implements
   run-outs.
 

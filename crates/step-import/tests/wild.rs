@@ -87,7 +87,8 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the
     // edge. The refusal is the ladder's own, with every candidate and
-    // its residual.
+    // its residual. Where it refuses is `tier_gate`'s pin
+    // ([`refuses_at_this_eps`]): at a coarse ε the edge certifies.
     (
         "stepcode/TAIL_TURBINE.stp",
         "no intensional description certifies",
@@ -102,6 +103,12 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // `cq_red_cube_blue_cylinder`) were refusal-class here until the
     // M7-5 seam re-mint flipped both to `WILD_IMPORTS`.
 ];
+
+/// Whether the wild fixture `name` refuses at the run's ε, by its
+/// `tier_gate` pin ([`crate::tier_gate::refuses_at_run_eps`]).
+pub(crate) fn refuses_at_this_eps(name: &str) -> Option<bool> {
+    crate::tier_gate::refuses_at_run_eps(&format!("tests/fixtures/wild/{name}"))
+}
 
 /// A wild fixture's text (bytes as committed — CRLF line endings and
 /// column-72 string folds included, which is the point).
@@ -535,6 +542,27 @@ fn wild_refusals_are_typed_and_name_their_class() {
         // once per run, where the sharper assertions are.
         if name.contains("dm1-id-214") {
             continue;
+        }
+        match refuses_at_this_eps(name) {
+            Some(true) => {}
+            Some(false) => {
+                match import_step(&wild(name), &ImportOptions::default(), Tol::witness()) {
+                    Ok(StepImport::Solid { body, .. }) => assert_eq!(
+                        topo::validate_geometric(&body, Tol::witness()),
+                        Ok(()),
+                        "{name}: imports tier-3 valid at this ε"
+                    ),
+                    other => panic!("{name}: imports a solid at this ε, got {other:?}"),
+                }
+                continue;
+            }
+            None => {
+                test_utils::vacuity::stood_down(
+                    name,
+                    "its refusal's class: its disposition is not pinned at this ε",
+                );
+                continue;
+            }
         }
         let err = import_step(&wild(name), &ImportOptions::default(), Tol::witness())
             .err()
