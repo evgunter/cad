@@ -24,7 +24,12 @@
 //! `s(a_{i+1}) ≤ s(b_{j+1})`, has its corners' angles in `[s(a_i),
 //! s(a_{i+1})]` when `s(b_j) ≥ s(a_i)`, and in `[s(b_j), s(b_{j+1})]`
 //! otherwise: one chord of row `a` or one of row `b`, and the same for
-//! the triangle advancing `b`. A triangle whose corners lie on the
+//! the triangle advancing `b`. Where row `b` is the apex alone (`m = 0`,
+//! a face through the apex), every triangle is `(a_i, a_{i+1}, apex)`:
+//! the apex lies on every ruling, so the triangle's corners lie on the two
+//! rulings of one chord of row `a`. And where that row is one chord with
+//! both sides split, the one triangle holds both sides, and their points
+//! are zipped ([`Rows::zip_sides`], below). A triangle whose corners lie on the
 //! surface between two rulings lies in the hull of that piece of
 //! surface, and how far that hull stands from the surface is the column
 //! step's bound (`sizing::sagitta_step`, `sizing::cone_grid_step`), at

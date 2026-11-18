@@ -14,10 +14,14 @@
 //!
 //! One class of face here is not triangulated: a cylinder or cone face
 //! that is an iso rectangle of its chart but for a point on a straight
-//! side (`walk::splits_a_straight_side`) is **walked** (`tessellate::Lane::Walked`, [`walkable`],
-//! `crate::ruled_walk`): no lattice and no CDT, its triangles written
-//! along its two rows in order of angle and each read by the row's
-//! certificate, at δ rather than the headroom.
+//! side (`walk::splits_a_straight_side`), whose loop is the walk's
+//! ([`walkable`]), is **walked** (`tessellate::Lane::Walked`,
+//! `crate::ruled_walk`): no lattice and no CDT, its triangles written along
+//! its two rows in order of angle, a side shared with a neighbour that may
+//! make it cut at its midpoint ([`may_make`]), and each triangle read by
+//! the row's certificate. Its target is δ ([`face_target`]), by the
+//! theorems at `sizing::sagitta_step` and `sizing::cone_grid_step`; every
+//! other analytic face here sizes at [`UNPROVED_HEADROOM`] of δ.
 //!
 //! # Watertightness is inherited, not re-derived
 //!
@@ -43,8 +47,10 @@
 //! the swept-rectangle walk has no NURBS chart; RATIONAL faces since
 //! M8-5, whose Hessian bound is the second-order quotient statement over
 //! the homogeneous nets). An analytic face routes here when it holds a
-//! ring or the curved lane's doors decide it is no iso-rectangle of its
-//! chart (`crate::tessellate::route_of`).
+//! ring, stores an image of no iso form, or the curved lane's doors decide
+//! it is no iso-rectangle of its chart; or when it is a ruled rectangle
+//! whose straight side holds a point, which the route marks walked where
+//! its loop is the walk's (`crate::tessellate::route_of`; module header).
 //! The NURBS lane's certificate is the
 //! hull-derived Hessian interpolation bound (`crate::nurbs_cert`:
 //! derivation, covered-vs-refused inventory). Its boundary pcurves

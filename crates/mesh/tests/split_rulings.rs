@@ -1374,9 +1374,9 @@ fn split_beside(
 
 /// **Two runs anchored by the apex in one triangle mesh, on a cone face
 /// that is no rectangle.** A cone of half-angle 10°, a wedge of 0.05, cut
-/// near its rim with its apex kept ([`cut_apex_cone`]): the face is the
-/// apex, two rulings and one section chord. Every cone ruling split
-/// `10⁻⁷` beside its outer end, placed obliquely: each split vertex and its
+/// near its rim with its apex kept ([`cut_apex_cone`]): the face runs
+/// from one section chord up to the apex. Every line edge on a cone face
+/// split `10⁻⁷` beside its outer end, placed obliquely: each split vertex and its
 /// ruling's end are a run whose neighbour along the ruling is the apex,
 /// and the development's one triangle at the apex has both for corners;
 /// the lane cuts it along both (`trimmed::cut_along_runs`), and every cell
