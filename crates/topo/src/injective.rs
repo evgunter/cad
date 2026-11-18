@@ -2098,9 +2098,7 @@ fn present_chart<'a>(
     }
     // A sphere's pole is a collapsed side of its chart, `v = ±π/2`, a
     // bound of its canonical domain. A vertex is at it by the one reading
-    // of that incidence.
-    // A sphere's pole is a collapsed side of its chart, `v = ±π/2`, a
-    // bound of its canonical domain.
+    // of that incidence ([`at_poles`]).
     for &v in &piece.local.vertices {
         let Some(&p) = b.vertices.get(&v) else {
             continue;
@@ -2113,8 +2111,9 @@ fn present_chart<'a>(
                 continue;
             }
             let line = pole_latitude(north);
-            // The face's extent reaches the pole ([`face_extent`]), so a
-            // rectangle short of its latitude is a cell that is.
+            // The face's extent reaches the pole's latitude
+            // ([`face_extent`]), so a rectangle short of it is a cell
+            // short of it, or one a line of the face bounds below it.
             if (north && y.1 < line.lo()) || (!north && y.0 > line.hi()) {
                 continue;
             }
