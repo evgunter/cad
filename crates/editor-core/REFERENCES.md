@@ -66,11 +66,14 @@ reads it in its own way:
 
 - **A sketch on a face is drawn on a frame read off the face.** Its
   profile's `on` is a frame in the space of the face's body
-  (`ProfileProgram.on`, `DrawnOn`): `Spin { pose: Through { axis, point
-  }, about: z, by: spin }`, whose `z` is the face's outward normal, whose
-  `x` points toward a cell of the body the gesture names (along an edge at
-  a vertex, where the face has one), and whose `spin` turns it (the
-  constant `0` unless named). The profile and every sweep of it are in
+  (`ProfileProgram.on`, `DrawnOn`): the chart a plane placement onto the
+  face with the same orientation, spin and slides gives, computed by that
+  placement's own chart (`[placement]`): its `z` is the face's outward
+  normal, and its `x` and origin are the space's under the written
+  orientation, carried by the least turn, then the written spin and slides
+  (each the constant `0` unless named). It may trace faces of that body
+  (`DrawnOn.faces`, empty for a sketch that traces none); there is no
+  second frame rule for a traced sketch. The profile and every sweep of it are in
   that body's space, and nothing is placed. Extrude and Combine are the
   ordinary acts after it: a signed depth sweeps above the face (a boss) or
   into it (a pocket's tool).

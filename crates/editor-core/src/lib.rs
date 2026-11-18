@@ -229,8 +229,9 @@ pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{
-    FlattenError, FlattenOutcome, InlineError, InlineOutcome, NodeMap, RemapError, SectionMap,
-    SplitError, SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline, remap_name, split,
+    FlattenError, FlattenOutcome, InlineError, InlineOutcome, NamedUncarried, NodeMap, RemapError,
+    SectionMap, SplitError, SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline,
+    remap_name, split,
 };
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,

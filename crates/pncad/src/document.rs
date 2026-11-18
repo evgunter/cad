@@ -513,7 +513,8 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord,
-    NodeMap, SectionMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten, inline, split,
+    NamedUncarried, NodeMap, SectionMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten,
+    inline, split,
 };
 
 // The pin-update door. `DocEdit`'s
