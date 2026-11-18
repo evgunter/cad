@@ -5669,7 +5669,9 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v23: a slide beside a mate whose direction is oblique in
+            /// v24: an extrude's depth is signed, so a negative depth's
+            /// stream is a pocket's tool where it was a refusal. v23: a
+            /// slide beside a mate whose direction is oblique in
             /// the source's own coordinates runs along its carried axis's
             /// part in what the mate leaves, and a value may slide along
             /// the mated direction or a read direction, or spin about a
@@ -5711,7 +5713,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 23,
+            VERSION = 24,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
