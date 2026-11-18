@@ -2,10 +2,11 @@
 id: a-ruled-face-with-a-split-side-meshes-at-the-density-of-the-face-without-it
 kind: unit
 title: A cylinder or cone face with a split side meshes at the density of the same face without it; the cures are measured, then one is built
-status: open
+status: dispatched
 opened: 2026-11-17
 priority: P1
 cost: H
+branch: tesslane/ruled-density
 ---
 
 Unit 4c of the chart lane (`work/tesslane/plan.md`). It follows the design fork of 2026-11-17 (row 279 of `docs/DESIGN-FORK-LOG.md`) and Ev's answer to it on PR 7046: no rule about HOW a lane makes its triangles goes on the design page. `[mesh.sizing]` and `[mesh.winding]` already say what a mesh must be (each triangle within δ of its face, each winding resolved), and the per-triangle certificate holds that whatever a lane does; Ev prefers the triangulation left at that level of abstraction, "any division into triangles so that it never deviates by more than delta", over constraints laid on it. So this unit is engineering held to the page as it reads. It measures three cures and builds one.
@@ -70,3 +71,12 @@ The interim this unit follows has merged: a ruled face whose straight side holds
 - a planar neighbour narrower than δ beside a routed face refuses `Triangulation` where the rectangle lane's coarser rim meshed it (373 cells in the review's sweep; `a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta`);
 - two points of one ruling closer than 2⁻²⁷ of a cone's slant radius refuse `DevelopedMerge`, which on a draft-angle cone is reached at the default ε (408 cells; `a-ruling-split-within-the-developments-resolution-merges-two-points`, with a cure inside the development in flight as `a-run-of-ruling-points-the-development-merges-is-re-split-after-the-triangulation`). Only the walk leaves the development;
 - a ruling split a hair from its end folds a triangle (`a-ruling-split-a-hair-from-its-end-folds-a-triangle`).
+
+## Unit (2026-11-17, TESSLANE)
+
+**Letter H. Tier: dual review.** The cure changes how the chart lane sizes and triangulates every cylinder and cone face it takes with a split side, and candidates (1) and (3) each add a mechanism to that lane (a refine loop on the certificate; a second way of writing triangles); the count relation it must hold has no oracle but measurement. The two stages above are one unit: stage 1's report is not reviewed by the tier, stage 2's build is.
+
+Branch `tesslane/ruled-density`, cut from `tesslane/ev-ruled-strips` (PR 7046, the tracker change that carries this file) on main `184e484ed2`. Two pull requests in `crates/mesh` are in review and reach main beside this unit: PR 7054 (`trimmed.rs`: the cone arm's `insert_points` and `emit`, a run of merged ruling points re-split) and PR 7041 (`tessellate.rs`, `curved.rs`: one route per face; it takes `walk::splits_a_straight_side` into `tessellate::route_of`). Stage 1's switches are throwaway, so it does not wait for them; merge main before stage 2 and build on what has landed.
+
+**Pre-push for stage 2**, on the pushed head: fmt, `scripts/run-gates.sh`, the doc gate, clippy (`mesh` and `geom-brep` all features and targets, the viewer with `--features app`, `demos/tour`); `mesh` whole with the default profile (slow set included) and the changed rows at ε 1e-6 and 1e-12; `mesh --features budget`; the three `tools` roots; `step-import`, `stl`, `sweep`'s meshing modules; the viewer with `--ignore-default-filter` for its slow-set rows pinned on mesh output (`display_budget`, `review_pick_r2`); `demos/tour` with nextest's `--cargo-profile ci-tour`; the tess-budget meter's bytes (`tools/tess-meter`), since a density change moves them and each moved row is argued.
+

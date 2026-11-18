@@ -300,6 +300,11 @@ impl<'a> AnalyticRow<'a> {
         })
     }
 
+    /// The surface the row charts.
+    pub(crate) fn surface(&self) -> &Surface<f64> {
+        self.surface
+    }
+
     /// **The chart's kind, with what its steps and certificate read**,
     /// from the surface's own data and the face's window.
     pub(crate) fn kind(&self) -> Analytic {
@@ -358,12 +363,10 @@ impl<'a> AnalyticRow<'a> {
     /// `sizing::MAX_ANGULAR_STEP`; on a sphere the steps as they are, both
     /// capped already.
     ///
-    /// A cone's row step has two readers. The curved lane lays rows
-    /// uniform in `v` at it (`curved::grid_counts`, a face with a point on
-    /// a side between its rims); that face has no worst-triangle theorem
-    /// (`work/tesslane/a-cone-face-with-a-split-side-has-no-worst-triangle-theorem.md`),
-    /// its certificate is what holds it, and its rows are left as they
-    /// are. The trimmed lane lays [`Self::lattice_rows`] from it, graded.
+    /// A cone's row step has one reader: the trimmed lane lays
+    /// [`Self::lattice_rows`] from it, graded. The curved lane lays no
+    /// rows on a ruled chart (`curved::grid_counts`), and the trimmed lane
+    /// lays none on a face it walks (`crate::ruled_walk`).
     pub(crate) fn lattice_steps(&self, (hu, hv): (f64, f64)) -> (f64, f64) {
         match self.kind() {
             Analytic::Cylinder { radius: lever } | Analytic::Cone { rho_max: lever, .. } => {

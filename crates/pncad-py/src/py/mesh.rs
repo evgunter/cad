@@ -123,7 +123,7 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
             fields[4] = ("note", PyString::new(py, note).unbind().into_any());
             Ok(())
         }
-        T::MissingEntity { what } => {
+        T::MissingEntity { what } | T::RouterDefect { what, .. } => {
             fields[4] = ("note", PyString::new(py, what).unbind().into_any());
             Ok(())
         }

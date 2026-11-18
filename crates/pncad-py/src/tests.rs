@@ -6068,6 +6068,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pinch_wedge",
             "resolution_overflow",
             "rounding_unresolved",
+            "router_defect",
             "self_touching_trim_loop",
             "single_column_curved_face",
             "sphere_trim_shape",

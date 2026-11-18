@@ -631,6 +631,16 @@ pub enum TessellateError {
         /// The face whose patch keeps the ear.
         face: FaceKey,
     },
+    /// The route answered something of a face its lane finds untrue: a
+    /// kernel defect, not a property of the body. Raised where the route
+    /// sent a face to the chart lane's walk (`tessellate::route_of`) and
+    /// its trim polygon does not read as the walk's two rows.
+    RouterDefect {
+        /// The face the route misread.
+        face: FaceKey,
+        /// What the lane found.
+        what: &'static str,
+    },
     /// A trimmed face on a chart with singular rows — a sphere's poles,
     /// a cone's apex, a spindle sheet's apexes — whose shape about one
     /// the trimmed lane does not mesh ([`SphereTrimCause`] names which;
@@ -1010,6 +1020,12 @@ impl TessellateError {
                  across that chain may cut the same one, leaving an edge of four \
                  triangles; a different δ may clear it",
             ),
+            Self::RouterDefect { what, .. } => {
+                write!(
+                    f,
+                    "tessellate: the route misread a face (a kernel defect): {what}"
+                )
+            }
             Self::SphereTrimShape { cause, .. } => {
                 let what = match cause {
                     SphereTrimCause::PastPole => {

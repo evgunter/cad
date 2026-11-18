@@ -118,6 +118,7 @@ test_utils::f6_variants! {
         FoldedTriangle,
         UnresolvedWinding,
         BoundaryEar,
+        RouterDefect,
         SphereTrimShape,
     ];
 }
@@ -343,6 +344,13 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::BoundaryEar { face },
             vec!["consecutive boundary chord points", "four"],
+        ),
+        (
+            TessellateError::RouterDefect {
+                face,
+                what: "a face the route walks does not read as the walk's two rows",
+            },
+            vec!["route misread", "kernel defect", "walk's two rows"],
         ),
         (
             TessellateError::SphereTrimShape {

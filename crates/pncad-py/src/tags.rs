@@ -2509,6 +2509,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::FoldedTriangle { .. } => "folded_triangle",
         TessellateError::UnresolvedWinding { .. } => "unresolved_winding",
         TessellateError::BoundaryEar { .. } => "boundary_ear",
+        TessellateError::RouterDefect { .. } => "router_defect",
         TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
     }
 }
