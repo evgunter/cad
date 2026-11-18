@@ -5252,6 +5252,144 @@ mod cone_window {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod rational_window {
+    use std::sync::Arc;
+
+    use geom::{Curve3, NurbsCurve3, Surface};
+    use geom_core::spline::{KnotVector, SplineError};
+    use geom_core::{Point3, Vec3};
+
+    use super::{Which, window_of};
+    use crate::Body;
+    use crate::entity::FaceKey;
+
+    /// The cap's plane `x = D` and the cone's half-angle: the f64
+    /// conical wedge's cavity cap.
+    const D: f64 = 0.0078125;
+    const ALPHA: f64 = 0.245;
+
+    /// **A plane cap cut from a cone off its axis**: the cone of
+    /// half-angle [`ALPHA`] about `z` met by the plane `x = D` along the
+    /// hyperbola `(D, D·sinh s, (D/tan α)·cosh s)`, `s ∈ [−s0, s0]`,
+    /// stored as the rational quadratic whose middle weight is
+    /// `cosh s0`, then elevated `raise` times and refined at `insert`.
+    /// Two chords through a point above the arc close the cap. Returns
+    /// the cap, the stored arc and its control net.
+    fn hyperbola_cap(
+        s0: f64,
+        raise: usize,
+        insert: &[f64],
+    ) -> (Body<f64>, FaceKey, NurbsCurve3<f64>) {
+        let top = D / ALPHA.tan();
+        let at = |s: f64| Point3::new(D, D * s.sinh(), top * s.cosh());
+        let arc = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![at(-s0), Point3::new(D, 0.0, top / s0.cosh()), at(s0)],
+            vec![1.0, s0.cosh(), 1.0],
+        )
+        .unwrap()
+        .elevate_degree(raise)
+        .unwrap()
+        .refine_knots(insert)
+        .unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::new(D, 0.0, 0.0),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        };
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: ALPHA,
+            u_ref: Vec3::unit_x(),
+        };
+        let carrier = Curve3::Nurbs(Arc::new(arc.clone()));
+        let (body, face) = crate::boxes::tests::conic_sector(
+            plane,
+            cone,
+            carrier.clone(),
+            (0.0, 1.0),
+            carrier.eval(0.5),
+            (at(-s0), at(s0), Point3::new(D, 0.0, top * s0.cosh() + D)),
+        );
+        (body, face, arc)
+    }
+
+    /// **A face bounded by a rational edge has a finite window that
+    /// holds the edge and stays inside its net**: the cap's chart is
+    /// `(y, z)`, so its window's `u` holds every sampled `y` of the
+    /// arc and its `v` every sampled `z`, and neither reaches past the
+    /// hull of the arc's control points and the cap's apex. Rows: the
+    /// wedge's own weights `[1, 1.0722, 1]`; a wider arc (middle
+    /// weight `cosh 1.5 ≈ 2.35`) elevated to degree 4 and refined to
+    /// three spans, whose weights spread unevenly. Red if the edge is
+    /// enclosed by a reading that is unbounded over its whole span (the
+    /// window is refused), wider than the net, or narrower than the
+    /// arc.
+    #[test]
+    fn a_cap_bounded_by_a_rational_arc_has_a_window_inside_the_arcs_net() {
+        for (what, s0, raise, insert) in [
+            ("the wedge's quadratic", 1.0722f64.acosh(), 0, &[][..]),
+            ("a wide quartic over three spans", 1.5, 2, &[0.3, 0.7][..]),
+        ] {
+            let (body, face, arc) = hyperbola_cap(s0, raise, insert);
+            let w = window_of(&body, face, Which::First)
+                .unwrap_or_else(|e| panic!("{what}: the cap has a window, got {e:?}"));
+            let top = D / ALPHA.tan() * s0.cosh() + D;
+            let net = arc.control().iter().map(|p| (p.y, p.z));
+            let (lo, hi) = net.fold(((0.0f64, top), (0.0f64, top)), |(lo, hi), (y, z)| {
+                ((lo.0.min(y), lo.1.min(z)), (hi.0.max(y), hi.1.max(z)))
+            });
+            let slack = 1e-15;
+            assert!(
+                lo.0 - slack <= w.u.0 && w.u.1 <= hi.0 + slack,
+                "{what}: u = {:?} within the net's y [{}, {}]",
+                w.u,
+                lo.0,
+                hi.0
+            );
+            assert!(
+                lo.1 - slack <= w.v.0 && w.v.1 <= hi.1 + slack,
+                "{what}: v = {:?} within the net's z [{}, {}]",
+                w.v,
+                lo.1,
+                hi.1
+            );
+            for k in 0..=64 {
+                let p = arc.eval(f64::from(k) / 64.0);
+                assert!(
+                    w.u.0 <= p.y && p.y <= w.u.1 && w.v.0 <= p.z && p.z <= w.v.1,
+                    "{what}: the arc's point {p:?} at t = {k}/64 is in the window {:?} × {:?}",
+                    w.u,
+                    w.v
+                );
+            }
+        }
+    }
+
+    /// **A rational edge has no zero or negative weight to enclose**:
+    /// construction refuses one typed, so the net hull a cap's window
+    /// reads is a hull of points the arc is a convex combination of.
+    #[test]
+    fn a_non_positive_weight_is_refused_at_construction() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = vec![
+            Point3::new(D, -1.0, 1.0),
+            Point3::new(D, 0.0, 0.5),
+            Point3::new(D, 1.0, 1.0),
+        ];
+        for w in [0.0, -1.0, f64::NAN] {
+            let got = NurbsCurve3::new(knots.clone(), control.clone(), vec![1.0, w, 1.0]);
+            assert!(
+                matches!(got, Err(SplineError::NonPositiveWeight { index: 1, .. })),
+                "the weight {w} is refused typed at index 1, got {got:?}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod refines_rows {
     use std::sync::Arc;

@@ -532,7 +532,7 @@ pub(crate) mod tests {
     /// one conic edge `a → b` described as the plane×cylinder
     /// intersection with the given carrier and parameter run, closed
     /// by the chords `b → c → a` on the plane.
-    fn conic_sector(
+    pub(crate) fn conic_sector(
         plane_surface: Surface<f64>,
         cyl_surface: Surface<f64>,
         carrier: Curve3<f64>,
