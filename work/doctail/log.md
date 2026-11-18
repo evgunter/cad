@@ -171,3 +171,11 @@ body has the reasons):
   - the NITs.
 
   The orchestrator reads it and merges.
+- 2026-11-18 — PR 7116 fix pass (head 0575dc16), green:
+  - one order-predicate source (`path/order.rs`) for the replay and the walk;
+  - pen loops lattice-checked through one verb map;
+  - `report_matches_resolution` restated to the ruling;
+  - one value-free input type (`StepForm`);
+  - a randomized differential, which found a REAL kernel bug: a fused step at a plain point silently overwrote an open fillet; it now refuses.
+
+  Delta review dispatched to a cloud session (`session_013QoYWU…` was the first review; this one is new). Disk hit 92% (the firstturn target at 15 GB, the tracechart target at 8.3 GB), so both lanes were told to trim.
