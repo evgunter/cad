@@ -96,14 +96,15 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
         own: &Arc<T::Finished>,
         tol: Tol,
     ) -> Result<Arc<T::Finished>, NodeErrorKind> {
-        match into.relative(&self.body).map_err(NodeErrorKind::Motion)? {
+        match self
+            .body
+            .moving_into(into.frame())
+            .map_err(NodeErrorKind::Motion)?
+        {
             None => Ok(Arc::clone(own)),
-            Some(map) => {
-                crate::eval::counters::rigid_map();
-                topo::FinishedBody::moved(&**own, &map, tol)
-                    .map(Arc::new)
-                    .map_err(|findings| NodeErrorKind::NotFinished { findings })
-            }
+            Some(map) => topo::FinishedBody::moved(&**own, &map, tol)
+                .map(Arc::new)
+                .map_err(|findings| NodeErrorKind::NotFinished { findings }),
         }
     }
 
@@ -232,10 +233,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         let first = computing.get_or_insert_with(|| body.clone());
         let keys = first
             .graft_in(&mut fused, &body, tol)
-            .map_err(|e| match e {
-                crate::eval::GraftIn::Read(kind) => *kind,
-                crate::eval::GraftIn::Graft(e) => NodeErrorKind::Boolean(*e),
-            })?;
+            .map_err(NodeErrorKind::from)?;
         let base = coincidences.len();
         let inputs: Vec<u32> = out
             .carry

@@ -36,10 +36,15 @@
 //!
 //! Validation is the kernel's F8/D7 shape, gated once: the graft is a
 //! door that returns a body, so the aggregate is finished at its end
-//! ([`topo::AtRestPolicy::finish`]). Every source is a finished body
-//! (an evaluation's value is, and its read into the computing frame is
-//! finished at the placement's door), so an aggregate the finish refuses
-//! is a graft defect ([`ProductError::ProductInvalid`]). At a dual the
+//! ([`topo::AtRestPolicy::finish`]). Every source is an evaluation's
+//! value, finished in its own frame; one in another frame is grafted as
+//! its image, its data moved into the computing frame and the session
+//! box asked of it ([`crate::eval::Framed::graft_in`]), every other fact
+//! of it left to the aggregate's finish. So an aggregate the finish
+//! refuses ([`ProductError::ProductInvalid`]) is a graft defect, or an
+//! image whose rounding under its motion tips a fact its source held
+//! within the band: a defect of the model's placement, said by its
+//! findings, not of the kernel's. At a dual the
 //! finish is tier 2 alone, a replay carrying no verdict: the base-scalar
 //! evaluation beside it, whose value channel is bit-identical, is the
 //! validation of record (`docs/DUAL-DESIGN.md` DL3). Disjoint
@@ -137,7 +142,7 @@ pub enum ProductError {
     },
     /// **A source could not be read into the frame the gather computes
     /// in** (D10 `[placement.frame]`): its relative map overflowed, or
-    /// the kernel refused the mapped body.
+    /// its image there reaches past the session box.
     Frame {
         /// The piece whose body was being read.
         node: RecipeNodeId,
@@ -153,9 +158,11 @@ pub enum ProductError {
         source: Box<topo::BooleanError>,
     },
     /// The gathered product is not a finished body, though every
-    /// source is one — a graft defect: the graft transplants each
-    /// source verbatim, so every finding is about entities the transplant
-    /// changed. The findings are the aggregate's, in the aggregate's keys.
+    /// source is one in its own frame: a graft defect (the graft
+    /// transplants each source verbatim), or an image moved into the
+    /// product's frame whose rounding tips a fact its source held within
+    /// the band. The findings are the aggregate's, in the aggregate's
+    /// keys.
     ProductInvalid {
         /// The finish's findings.
         findings: topo::NotFinished,
@@ -299,8 +306,9 @@ impl ProductError {
                 source.render(geom_brep::recourse::Reading::Build)
             ),
             Self::ProductInvalid { findings } => {
-                // Every copy is finished, so a refusal here is a graft
-                // defect; the findings say which.
+                // Every copy is finished in its own frame, so a refusal
+                // here is a graft defect or an image's rounding; the
+                // findings say which.
                 f.write_str("the product does not finish:")?;
                 list(f, findings.as_slice())
             }
@@ -1220,10 +1228,13 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             .get_or_insert(body)
             .graft_in(&mut aggregate, body, tol)
             .map_err(|e| match e {
-                crate::eval::GraftIn::Read(kind) => ProductError::Frame { node: *node, kind },
                 crate::eval::GraftIn::Graft(source) => ProductError::Graft {
                     node: *node,
                     source,
+                },
+                read => ProductError::Frame {
+                    node: *node,
+                    kind: Box::new(read.into()),
                 },
             })?;
         grafted.push((source, Arc::new(keys)));

@@ -4702,10 +4702,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         let mut bridges = Vec::with_capacity(bodies.len());
         for body in &bodies {
             let first = computing.get_or_insert_with(|| body.clone());
-            let keys = first.graft_in(&mut fused, body, tol).map_err(|e| match e {
-                super::GraftIn::Read(kind) => *kind,
-                super::GraftIn::Graft(e) => NodeErrorKind::Boolean(*e),
-            })?;
+            let keys = first.graft_in(&mut fused, body, tol).map_err(NodeErrorKind::from)?;
             bridges.push(keys);
         }
         // A member's own records ride the piece it is, re-keyed through

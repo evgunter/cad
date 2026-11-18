@@ -349,12 +349,17 @@ pub enum PlacedGraftError {
 
 /// **The one door that grafts a placed source into an aggregate**:
 /// `src`'s body where its seat is the aggregate's frame, else its data
-/// mapped through the seat's motion, the session box asked of the image
-/// as a finished body's move asks it ([`crate::FinishedBody::moved`]),
-/// then grafted beside what `dst` holds ([`crate::graft_disjoint_all_keyed`]).
-/// The aggregate's own finish decides the rest. Every gather of copies
-/// into one body (the `⊔`, a distribute's assembly, a product) grafts
-/// through it.
+/// moved through the seat's motion and the session box asked of the
+/// image by the one move-and-ask (`finish::moved_and_asked`, the ask
+/// logged as a move of what `src` is held as logs it:
+/// [`crate::HeldKind::move_logs_its_ask`]), then grafted beside what
+/// `dst` holds ([`crate::graft_disjoint_all_keyed`]). The image is the
+/// aggregate's data, so its placement is asked here, by the door that
+/// places it. The aggregate's own finish decides the rest. Every gather
+/// of placed copies into one body in `editor-core` (the `⊔`, a
+/// distribute's assembly, a product) grafts through it; step-import's
+/// instance loop does not yet
+/// (`work/onehome/step-import-instances-graft-through-the-placed-door.md`).
 ///
 /// # Errors
 ///
@@ -364,15 +369,19 @@ pub enum PlacedGraftError {
 pub fn graft_placed<T: geom_core::Decide + crate::AtRestPolicy>(
     dst: &mut Body<T>,
     src: crate::Seat<'_, T>,
+    held: crate::HeldKind,
     tol: geom_core::Tol,
 ) -> Result<crate::GraftKeys, PlacedGraftError> {
     let Some(motion) = src.motion() else {
         return crate::graft_disjoint_all_keyed(dst, src.body()).map_err(PlacedGraftError::Graft);
     };
-    let image = crate::finish::moved_body(src.body(), &crate::Isometry::Proper(*motion), tol)
-        .map_err(|e| PlacedGraftError::Move(crate::MoveError::Map(e)))?;
-    crate::finish::asked_after_isometry(&image, tol)
-        .map_err(|f| PlacedGraftError::Move(crate::MoveError::NotFinished(f)))?;
+    let image = crate::finish::moved_and_asked(
+        src.body(),
+        &crate::Isometry::Proper(*motion),
+        held.move_logs_its_ask::<T>(),
+        tol,
+    )
+    .map_err(PlacedGraftError::Move)?;
     crate::graft_disjoint_all_keyed(dst, &image).map_err(PlacedGraftError::Graft)
 }
 
@@ -1120,22 +1129,11 @@ mod placed_rows {
         crate::test_support_fixtures::declined_cube::<f64>(tol).body
     }
 
-    /// **A placed source grafts what today's move then graft grafted, to
-    /// the bit** ([`super::graft_placed`]): a finished cube moved by a
-    /// rigid motion off every axis ([`crate::FinishedBody::moved`]) and
-    /// grafted, against the cube grafted through its seat at that motion.
-    /// The two aggregates are one deep snapshot and the two bridges one.
-    ///
-    /// *Breaks if* the door grafts the source unmoved, or maps it through
-    /// any other motion (here its inverse).
-    #[test]
-    fn a_placed_graft_is_the_move_then_the_graft_to_the_bit() {
-        use crate::FinishedBody as _;
-        let tol = Tol::witness();
+    /// **The source's motion off every axis**, and the source, a brick.
+    fn placed_source(tol: Tol) -> (Body<f64>, geom_core::RigidMotion<f64>) {
         let band = geom_core::Band::linear(tol).unwrap();
         let source: Body<f64> =
             crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 2.0), (0.0, 0.5), tol);
-        let finished = crate::finish(source.clone(), tol).unwrap();
         let axis = geom_core::UnitVec3::new(
             geom_core::Vec3::new(1.0, 2.0_f64.sqrt(), 3.0_f64.sqrt()),
             "a turn off every axis",
@@ -1146,22 +1144,106 @@ mod placed_rows {
             .unwrap()
             .compose(geom_core::RigidMotion::rotation(axis, 0.7).unwrap())
             .unwrap();
+        (source, motion)
+    }
+
+    /// The two bridges, entity by entity over the source.
+    fn same_bridge(src: &Body<f64>, a: &crate::GraftKeys, b: &crate::GraftKeys) {
+        assert_eq!(a.solids(), b.solids(), "the solids' keys");
+        for (f, _) in src.faces() {
+            assert_eq!(a.face(f), b.face(f), "face {f:?}");
+        }
+        for (e, _) in src.edges() {
+            assert_eq!(a.edge(e), b.edge(e), "edge {e:?}");
+        }
+        for (v, _) in src.vertices() {
+            assert_eq!(a.vertex(v), b.vertex(v), "vertex {v:?}");
+        }
+    }
+
+    /// **A placed source grafts what a move then a graft grafted, to the
+    /// bit, its log included** ([`super::graft_placed`]): a finished
+    /// brick moved by a rigid motion off every axis
+    /// ([`crate::FinishedBody::moved`]) and grafted, against the brick
+    /// grafted through its seat at that motion as a finished body. The
+    /// two aggregates are one deep snapshot, the two bridges one, and
+    /// the two verdict logs one.
+    ///
+    /// *Breaks if* the door grafts the source unmoved, maps it through
+    /// any other motion (here its inverse), or logs its ask by any rule
+    /// but the finished move's.
+    #[test]
+    fn a_placed_graft_is_the_move_then_the_graft_to_the_bit() {
+        use crate::FinishedBody as _;
+        let tol = Tol::witness();
+        let (source, motion) = placed_source(tol);
+        let finished = crate::finish(source.clone(), tol).unwrap();
         let mut today = cube(tol);
+        let scope = geom_core::k_stats::Bracket::open();
         let moved = finished.moved(&motion, tol).unwrap();
         let today_keys = crate::graft_disjoint_all_keyed(&mut today, &moved).unwrap();
+        let today_log = scope.finish();
         let mut placed = cube(tol);
-        let placed_keys =
-            super::graft_placed(&mut placed, crate::Seat::at(&source, motion).unwrap(), tol)
-                .unwrap();
+        let scope = geom_core::k_stats::Bracket::open();
+        let placed_keys = super::graft_placed(
+            &mut placed,
+            crate::Seat::at(&source, motion),
+            crate::HeldKind::Finished,
+            tol,
+        )
+        .unwrap();
+        let placed_log = scope.finish();
         assert_eq!(
             deep_snapshot(&placed),
             deep_snapshot(&today),
             "the placed graft's aggregate is the moved-then-grafted one, to the bit"
         );
-        assert_eq!(
-            format!("{placed_keys:?}"),
-            format!("{today_keys:?}"),
-            "and its key bridge is the same bridge"
+        same_bridge(&source, &placed_keys, &today_keys);
+        assert!(!today_log.verdicts.is_empty(), "the move logs its box ask");
+        assert_eq!(placed_log, today_log, "and the two logs are one");
+    }
+
+    /// **A placed leaf's ask is held off the log at `f64`**, as the
+    /// image's leaf finish a leaf's move runs there is
+    /// ([`crate::LeafBody::MOVE_LOGS_ITS_ASK`]); a refusal is logged
+    /// whatever it moves. *Breaks if* the door logs a leaf's ask, or
+    /// holds a refusal off the log.
+    #[test]
+    fn a_placed_leafs_ask_is_held_off_the_log_and_its_refusal_is_not() {
+        let tol = Tol::witness();
+        let (source, motion) = placed_source(tol);
+        let mut placed = cube(tol);
+        let scope = geom_core::k_stats::Bracket::open();
+        super::graft_placed(
+            &mut placed,
+            crate::Seat::at(&source, motion),
+            crate::HeldKind::Leaf,
+            tol,
+        )
+        .unwrap();
+        assert_eq!(scope.finish(), geom_core::k_stats::Recorded::default());
+        let far = geom_core::RigidMotion::translation(geom_core::Vec3::new(2e3, 0.0, 0.0)).unwrap();
+        let scope = geom_core::k_stats::Bracket::open();
+        let refused = super::graft_placed(
+            &mut placed,
+            crate::Seat::at(&source, far),
+            crate::HeldKind::Leaf,
+            tol,
+        );
+        assert!(
+            matches!(
+                refused,
+                Err(super::PlacedGraftError::Move(crate::MoveError::NotFinished(_)))
+            ),
+            "{refused:?}"
+        );
+        assert!(
+            scope
+                .finish()
+                .verdicts
+                .iter()
+                .any(|v| v.predicate == crate::session_box::SESSION_BOX_REACH),
+            "the refusal is logged"
         );
     }
 }

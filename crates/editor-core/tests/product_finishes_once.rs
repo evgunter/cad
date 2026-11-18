@@ -1,9 +1,10 @@
 //! **The gather finishes the aggregate once, and runs the census once.**
 //!
 //! The gather reads its sources and takes none: a source in the
-//! product's frame is read as its value holds it, and one standing under
-//! another frame is what its value holds, moved into the product's
-//! (`Framed::read_in`, `Held::moved`), which finishes nothing. The
+//! product's frame is grafted as its value holds it, and one standing
+//! under another frame is grafted as its image, its data moved into the
+//! product's and the session box asked of it (`Framed::graft_in`,
+//! `topo::boolean::graft_placed`), which finishes nothing. The
 //! aggregate is what finishes, once, and a refusal of it names the
 //! product, not a placement (`ProductError::ProductInvalid`).
 //!
@@ -279,12 +280,14 @@ fn a_moved_leaf_runs_one_finish() {
 }
 
 /// **A copy moved past the session box refuses at the box, typed**: the
-/// move asks the box of the image (`Held::moved`). A block placed 2 km off
-/// evaluates as its placement, in its own frame; the `Assemble` that reads
-/// it into the first copy's frame moves it, and refuses with the session
-/// box's finding alone. The refusal names that `Assemble`, the operation
-/// whose read moved the copy, not the far copy's placement: no
-/// `NodeErrorKind` arm names a member.
+/// door that grafts it asks the box of its image
+/// (`topo::boolean::graft_placed`). A block placed 2 km off evaluates as
+/// its placement, in its own frame; the `Assemble` that grafts it into
+/// the first copy's frame moves it, and refuses with the session box's
+/// finding alone. The refusal names that `Assemble`, the operation whose
+/// graft moved the copy, not the far copy's placement: no `NodeErrorKind`
+/// arm names a member (the product's own gather does name it:
+/// [`a_member_past_the_box_refuses_the_product_at_its_source`]).
 #[test]
 fn a_copy_moved_past_the_box_refuses_at_the_box() {
     let tol = Tol::witness();
@@ -336,4 +339,133 @@ fn a_copy_moved_past_the_box_refuses_at_the_box() {
         ),
         other => panic!("the Assemble refuses at the box: {other:?}"),
     }
+}
+
+/// `doc` with its product the family `row`, every member of it.
+fn product_of_family(doc: ProfileDoc, row: RecipeNodeId) -> ProfileDoc {
+    editor_core::apply(
+        &doc,
+        &editor_core::DocEdit::SetProduct {
+            product: Some(row.into()),
+        },
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the product reads the family: {e}"))
+    .doc
+}
+
+/// A block placed in the world at `at`, and a row of `count` copies of
+/// that copy along `x`, `spacing` apart: the document and the row.
+fn row_in_world(
+    name: &str,
+    at: &editor_core::Frame,
+    spacing: f64,
+    count: i64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive(name), tol);
+    let (doc, source) = block(doc);
+    let (doc, copy) = editor_core::test_support::in_world(doc, source, at, tol);
+    let (doc, _, row) = fixture::linear(doc, copy, [1.0, 0.0, 0.0], spacing, count);
+    (product_of_family(doc, row), row)
+}
+
+/// **A member placed past the session box refuses the product at its
+/// source, typed** (`ProductError::Frame`): a row of two blocks 2 km
+/// apart, read by the product whole. Each member stands in its own frame
+/// and evaluates; the gather computes in the first's, and the door that
+/// grafts the second into it (`topo::boolean::graft_placed`) asks the box
+/// of its image and refuses there, naming the row the member is read
+/// from. *Breaks if* that ask is dropped: the aggregate's own finish then
+/// refuses the product as a whole (`ProductError::ProductInvalid`), with
+/// no source named.
+#[test]
+fn a_member_past_the_box_refuses_the_product_at_its_source() {
+    let tol = Tol::witness();
+    let (doc, row) = row_in_world(
+        "a-member-past-the-box",
+        &editor_core::Frame::translation([0.0; 3]),
+        2000.0,
+        2,
+    );
+    let ev: Evaluation<f64> = evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    assert!(ev.node_error(row).is_none(), "the row evaluates, member by member");
+    match editor_core::product_recorded(&doc, &ev, tol) {
+        Err(editor_core::ProductError::Frame { node, kind }) => {
+            assert_eq!(node, row, "the refusal names the row the member is read from");
+            assert!(
+                matches!(
+                    &*kind,
+                    editor_core::NodeErrorKind::NotFinished { findings }
+                        if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+                ),
+                "with the session box's finding alone: {kind:?}"
+            );
+        }
+        other => panic!("the product refuses at the far member: {other:?}"),
+    }
+}
+
+/// A quarter turn about `z`, then `by`.
+fn turned(by: [f64; 3]) -> editor_core::Frame {
+    editor_core::Frame {
+        columns: [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
+        translation: by,
+    }
+}
+
+/// **Localizing interference reads each copy into the product's frame
+/// once**, however many interfering pairs it is in: a block placed in
+/// the world under a turned frame (so the product's frame is not its
+/// space's) and a row of three copies of it 0.4 apart, every pair of the
+/// four overlapping, so each copy is in several interfering pairs. A
+/// copy moved into the product's frame is a moved leaf, which runs one
+/// finish ([`a_moved_leaf_runs_one_finish`]). The checks run 31 finishes,
+/// measured; read once per pair, as before `checks::at_rest`'s
+/// `Operands`, they run 39. *Breaks if* a copy is read per pair.
+#[cfg(debug_assertions)]
+#[test]
+fn localizing_reads_each_copy_into_the_products_frame_once() {
+    let tol = Tol::witness();
+    let (doc, _) = row_in_world("localize-once", &turned([3.0, 1.0, 2.0]), 0.4, 3);
+    let ev: Evaluation<f64> = evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let product = editor_core::product_recorded(&doc, &ev, tol).expect("the row gathers");
+    assert!(
+        editor_core::in_space(&product).is_some(),
+        "the premise: the product computes in a frame that is not its space's"
+    );
+    let before = topo::finishes_on_this_thread();
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &editor_core::ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the checks run: {e}"));
+    let finishes = topo::finishes_on_this_thread() - before;
+    let found = fixture::interference(&report.findings);
+    assert!(found.len() >= 3, "every pair of the row interferes: {found:?}");
+    assert!(
+        found
+            .iter()
+            .all(|f| matches!(f.overlap, editor_core::Overlap::Bounded { .. })),
+        "and each overlap is bounded: {found:?}"
+    );
+    assert_eq!(
+        finishes, 31,
+        "the checks' finishes, each copy read into the product's frame once"
+    );
 }
