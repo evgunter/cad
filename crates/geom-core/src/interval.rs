@@ -711,7 +711,7 @@ impl Real for Interval {
     fn enclose_unit(v: [Self; 3]) -> Option<[Self; 3]> {
         let g = v[0] * v[0] + v[1] * v[1] + v[2] * v[2] - Self::one();
         let eta = Real::abs(g).hi();
-        if !(eta < 0.5) {
+        if eta.is_nan() || eta >= 0.5 {
             return Some([Self::from_bounds(f64::NAN, f64::NAN); 3]);
         }
         let e = Self::from_bounds(eta, eta);
