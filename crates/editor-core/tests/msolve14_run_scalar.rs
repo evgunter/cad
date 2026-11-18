@@ -885,6 +885,13 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// origin became the wall's middle from construction data, where the
 /// fitted centroid had stood to rounding: the digest hashes the stored
 /// planes' origins, so it moved; the solved poses did not.
+///
+/// RE-PINNED when the carriers held their frames as rigid motions: the
+/// digest feeds every carrier's `Debug`, and a surface variant now holds
+/// its frame. Corpus-wide the stored data is main's bits except the
+/// blends' squared frames (a chamfer plane's normal renormalized, a
+/// fillet's `u_ref` zero signed `+0`), measured by dumping every corpus
+/// body on both trees.
 #[test]
 fn a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus() {
     let eps = Tol::witness().eps();
