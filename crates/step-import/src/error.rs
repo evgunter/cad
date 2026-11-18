@@ -69,14 +69,20 @@ pub(crate) const SINGULARITY_ON_BOUNDARY: SizedDecision = geom_brep::chart_singu
 
 /// The same decision where the FILE's band could not call it (`(ε_in,
 /// K·ε_in)`, coarser than the run's): no smaller tolerance decides it,
-/// so it ends in its lever alone, which names the file's coincidence
-/// distance.
+/// so it ends in its lever and the ε_in that would decide it
+/// ([`crate::interpret::Refusal::Ambiguous`]), or in its lever alone where
+/// the margin is no point value.
 pub(crate) const SINGULARITY_IN_FILE_BAND: LeverOnly = LeverOnly {
     lever: "move the face's boundary, or its vertex, onto that point or clear of it, or, if \
             this distance is intended, re-export the file with a smaller declared \
             uncertainty (or pass a smaller ε_in override): the distance lies in the band past \
             the file's coincidence distance, which no tolerance of this run decides",
 };
+
+/// The singularity decision's move, which its file-band ending names
+/// beside the ε_in that decides it.
+const SINGULARITY_MOVE: &str =
+    "move the face's boundary, or its vertex, onto that point or clear of it";
 
 /// Which band a [`StepImportError::SingularityUndecided`] could not call
 /// its distance in.
@@ -189,6 +195,17 @@ pub enum StepImportError {
     InvalidEpsOverride {
         /// The rejected value.
         value: f64,
+    },
+    /// The import's ε_in (the file's declared uncertainty, or the
+    /// override) makes no band the file can be read at: `K·ε_in` is no
+    /// finite length.
+    UnbandedUncertainty {
+        /// ε_in, in metres.
+        eps_in: f64,
+        /// Whether ε_in is the caller's override
+        /// ([`crate::ImportOptions::eps_in`]) rather than the file's
+        /// declaration.
+        overridden: bool,
     },
     /// A real token failed to parse as an f64.
     MalformedReal {
@@ -336,6 +353,8 @@ pub enum StepImportError {
         band: SingularityBand,
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
+        /// The run's ε (metres), which floors the band the file is read at.
+        run_eps: f64,
     },
     /// Which side of a face's boundary a sphere pole or cone apex lies on,
     /// the point being off that boundary, cannot be read: its reading does
@@ -352,6 +371,35 @@ pub enum StepImportError {
         id: u64,
         /// Why the side is unread.
         side: geom_brep::chart_singularity::SideUnread,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
+    },
+    /// Where a pole-form meridian minted from a sphere pole or cone apex
+    /// meets a face's boundary did not run to an answer: the kernel's
+    /// meeting reading ([`geom_brep::curve_pair::meet`]) of the meridian
+    /// and a boundary edge stopped at a limit with no margin to rank it
+    /// (a root finder or a walk that did not settle, or a pose with no
+    /// closed form). Where the meridian ends is unread, so the
+    /// normalization that makes the point a vertex
+    /// ([`crate::NormalizationKind::ChartSingularityVertex`]) refuses
+    /// rather than guess; the refusal ends as the reading's own standing
+    /// does ([`geom_brep::curve_pair::MeetUnread::recourse`]).
+    SingularityMeetUnread {
+        /// The `ADVANCED_FACE` the meridian is minted in.
+        id: u64,
+        /// The reading that did not run to an answer.
+        why: geom_brep::curve_pair::MeetUnread,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
+    },
+    /// **An interpretation reading refused** (`[import]`, D7): what the
+    /// file's statements at `id` are evidence of is no description at
+    /// its band, or more than one, or a value no construction takes.
+    Interpretation {
+        /// The file entity the reading is of.
+        id: u64,
+        /// The reading, the distance and which way it refused.
+        refusal: crate::interpret::Refusal,
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
     },
@@ -500,6 +548,26 @@ impl StepImportError {
                 f,
                 "step import: ε_in override {value} is not finite and strictly positive"
             ),
+            Self::UnbandedUncertainty { eps_in, overridden } => {
+                let (whose, recourse) = if *overridden {
+                    ("the ε_in override", "pass a smaller ε_in override")
+                } else {
+                    (
+                        "the file's declared uncertainty",
+                        "re-export the file with a smaller declared uncertainty, or pass a \
+                         smaller ε_in override",
+                    )
+                };
+                write!(
+                    f,
+                    "step import: {whose} (the coincidence distance ε_in = {eps_in:e} m) makes \
+                     no band the file can be read at: K·ε_in is no finite length"
+                )?;
+                if ended {
+                    write!(f, ". Recourse: {recourse}")?;
+                }
+                Ok(())
+            }
             Self::MalformedReal { id, token } => write!(
                 f,
                 "step import: entity #{id}: token '{token}' is not a Part 21 real"
@@ -619,11 +687,24 @@ impl StepImportError {
                 cause,
                 band,
                 file,
+                run_eps,
             } => {
+                use crate::interpret::Refusal;
                 let arm = RefusedArm::Undecided(cause);
-                let ending = door(file).map(|at| match band {
-                    SingularityBand::Run => SINGULARITY_ON_BOUNDARY.recourse(arm, at),
-                    SingularityBand::File => SINGULARITY_IN_FILE_BAND.recourse(arm, at),
+                // The ending that names every lever that decides it; the
+                // run's own sized ending where a smaller tolerance alone
+                // does (ε_in already below the distance over K).
+                let ending = door(file).map(|at| {
+                    match (band, Refusal::in_band(SINGULARITY_SUBJECT, cause, *run_eps)) {
+                        (SingularityBand::Run, Some(Refusal::Ambiguous { gap, k, .. }))
+                            if !crate::interpret::lever_decides(file.eps_in(), gap / k) =>
+                        {
+                            SINGULARITY_ON_BOUNDARY.recourse(arm, at)
+                        }
+                        (_, Some(refusal)) => refusal.ending_with(SINGULARITY_MOVE, file.eps_in()),
+                        (SingularityBand::Run, None) => SINGULARITY_ON_BOUNDARY.recourse(arm, at),
+                        (SingularityBand::File, None) => SINGULARITY_IN_FILE_BAND.recourse(arm, at),
+                    }
                 });
                 write!(
                     f,
@@ -647,6 +728,29 @@ impl StepImportError {
                         ending.map(|e| format!(". {e}")).unwrap_or_default()
                     ),
                 }
+            }
+            Self::SingularityMeetUnread { id, why, file } => {
+                write!(
+                    f,
+                    "step import: face #{id}: where a meridian minted from a sphere pole or \
+                     cone apex meets the face's boundary is unread: {}",
+                    why.sentence()
+                )?;
+                if door(file).is_some() {
+                    write!(f, ". {}", why.recourse().render())?;
+                }
+                Ok(())
+            }
+            Self::Interpretation { id, refusal, file } => {
+                write!(
+                    f,
+                    "step import: entity #{id}: {}",
+                    refusal.payload(file.eps_in())
+                )?;
+                if ended {
+                    write!(f, ". {}", refusal.ending(file.eps_in()))?;
+                }
+                Ok(())
             }
             Self::Placement {
                 transform,
@@ -855,5 +959,45 @@ mod nested_at_the_door {
                 assert!(!text.contains(word), "{margin:?}: {word}: {text}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod meet_unread_text {
+    //! **A meridian's meeting that did not run to an answer ends as its
+    //! own standing does**: a pose with no closed form is no way through
+    //! yet, at the import door, and the bare text carries no ending.
+    #![allow(clippy::unwrap_used)]
+
+    use geom_brep::curve_pair::{MeetFault, MeetUnread};
+    use geom_core::FileCoincidence;
+
+    use super::StepImportError;
+
+    #[test]
+    fn an_unread_meeting_ends_as_its_standing() {
+        let why = MeetUnread::of(MeetFault::Unsupported {
+            pose: "a pose this row names",
+        })
+        .unwrap();
+        let error = StepImportError::SingularityMeetUnread {
+            id: 7,
+            why,
+            file: FileCoincidence::new(1e-6),
+        };
+        let ended = error.render();
+        assert!(
+            ended.contains("face #7") && ended.contains("a pose this row names"),
+            "the payload names the face and the pose: {ended}"
+        );
+        assert!(
+            ended.ends_with(&*why.recourse().render()),
+            "the door's ending is the reading's own: {ended}"
+        );
+        let bare = error.to_string();
+        assert!(
+            !bare.contains(&*why.recourse().render()),
+            "the bare text ends at its payload: {bare}"
+        );
     }
 }

@@ -1427,12 +1427,12 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     let imported: StepImport = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect("the export re-imports");
 
+    let curve_promotions = imported.curve_promotions();
     // Every field of the arm, bound by name and typed from this list.
     let StepImport::Solid {
         body,
         eps_in,
         normalizations,
-        curve_promotions,
         instances,
         coherence,
         contacts,
@@ -1562,6 +1562,23 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             match to {
                 PromotedKind::Plane => "surface_promotion_plane",
                 PromotedKind::Cylinder => "surface_promotion_cylinder",
+            }
+        }
+        NormalizationKind::OneRecord {
+            kept,
+            joined,
+            moved_by,
+        } => {
+            named::<&u64>(kept);
+            named::<&u64>(joined);
+            named::<&f64>(moved_by);
+            "one_record"
+        }
+        NormalizationKind::CurvePromoted { kind, residual } => {
+            named::<&f64>(residual);
+            match kind {
+                PromotedCurveKind::Circle => "curve_promoted_circle",
+                PromotedCurveKind::Line => "curve_promoted_line",
             }
         }
     }
@@ -4908,7 +4925,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
 ///   `Diagnosis`, `UpstreamCause`, `GroupCutters`, `Implicated`,
-///   `PredicateDivergence`, `DocDiff`, `NodeChange`, `diff_*`,
+///   `DocDiff`, `NodeChange`, `diff_*`, `first_turn`,
 ///   `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
@@ -5154,7 +5171,6 @@ const NOT_CARRIED: [&str; 101] = [
     "NodeVerdictDelta",
     "NodeVerdicts",
     "ParamValue",
-    "PredicateDivergence",
     "ProfileLane",
     "ProfilePayload",
     "Qualifier",
@@ -5170,9 +5186,9 @@ const NOT_CARRIED: [&str; 101] = [
     "SlotPayload",
     "StructureFlip",
     "SummaryDelta",
+    "SummaryDiff",
     "SummaryDivergence",
-    "SummaryFlip",
-    "SummaryFlipSet",
+    "SummaryShift",
     "TieWitness",
     "Tombstone",
     "UpstreamCause",
@@ -5195,6 +5211,7 @@ const NOT_CARRIED: [&str; 101] = [
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
+    "first_turn",
     "from_value",
     "var_env_over",
     // The analysis's axis rule (VR8), which `analyzed_box` and the

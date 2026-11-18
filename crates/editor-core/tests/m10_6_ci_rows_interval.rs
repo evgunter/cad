@@ -844,6 +844,11 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// neck's placement charts an identity, so its `mate_chart_pole` row
 /// leaves the vector. Deciding the pole at the identity again puts back
 /// the keys main holds.
+///
+/// All four keys moved, and not the filter (`dropped=1` held on both),
+/// when each verdict came to carry its role, a choice or a check, and
+/// the key to hash it: the vector compares every row with its role, so
+/// the key that stands for it does too.
 #[test]
 fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();
