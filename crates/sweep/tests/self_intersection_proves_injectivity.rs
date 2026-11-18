@@ -1792,6 +1792,24 @@ fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
     assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
 }
 
+/// **A two-arc sphere's cavity holds across its poles**: a sphere in
+/// four faces, two lunes over each side of a latitude seam
+/// (`common::latitude_seam::two_arc_sphere`), and the axial door's
+/// cavity of it. Each pair of lunes shares both halves of a great
+/// circle and a pole vertex, and each meridian's pcurve ends an ulp
+/// short of the north pole's latitude. A lune holds its pole vertex, so
+/// its extent reaches the latitude, and a cell at the pole is read
+/// through the pole's collapsed side. Red, out of pairs on the two
+/// northern lunes, where the cell is clipped to the stored extent.
+#[test]
+fn a_two_arc_spheres_cavity_holds_across_its_poles() {
+    use crate::common::latitude_seam::{door_cavity, two_arc_sphere};
+    let cavity = door_cavity(&two_arc_sphere(), 0.05);
+    let report = injective(&cavity, None, BUDGET);
+    assert_holds("the two-arc sphere's cavity", &report, &cavity);
+    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+}
+
 /// **The drum the cavity above is cut from refuses, out of depth**: its
 /// half-annulus cells a rounding off the disc's half-circle are read by no
 /// presentation (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
