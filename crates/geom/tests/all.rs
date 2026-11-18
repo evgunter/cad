@@ -65,7 +65,6 @@ mod curves {
     pub mod meter_fixture;
     pub mod n1r2_fixtures;
 }
-mod depth_gap_rounding;
 mod exact_q;
 
 // ---- curves ----
@@ -107,6 +106,8 @@ mod curves_m5_pr7_speed_meter;
 mod curves_m8_14_long_turn_meter;
 #[path = "curves/n1r1_c24_dump.rs"]
 mod curves_n1r1_c24_dump;
+#[path = "depth_gap_rounding.rs"]
+mod depth_gap_rounding;
 #[path = "r2_turn_probes.rs"]
 mod r2_turn_probes;
 #[path = "recourse_roster.rs"]
