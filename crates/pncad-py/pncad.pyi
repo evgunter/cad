@@ -603,7 +603,8 @@ class StepImportError(PncadError):
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
-    `join`, `singularity_undecided`, `interpretation`, `placement`,
+    `join`, `singularity_undecided`, `singularity_side_undecided`,
+    `singularity_meet_unread`, `interpretation`, `placement`,
     `instance`, `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
 

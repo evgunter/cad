@@ -16,15 +16,17 @@ Found by the dual review of `importgate/interp-layer` (PR 7091).
 Decisions on the interpretation path taken on literal thresholds, no
 named reading and no band:
 
-- `crates/step-import/src/normalize/singularity.rs`, `crossings` (about
-  :838 and :893): `den.abs() <= 1e-12 * g.norm()` decides a ray parallel
-  to a rim circle's plane, a dimensionless literal on an unlevered dot.
 - `crates/step-import/src/normalize.rs`, the chart-direction reading
   (about :226): `(step.abs() > 0.1).then_some(step > 0.0)` decides which
   way a carrier runs in the chart on a literal tenth of a chart unit.
 - `crates/step-import/src/normalize.rs`, the wall-inversion reading (about
   :774): `n_c.dot(axis).abs() <= 0.5` decides whether a rim circle is
   meridional on a literal half.
+
+The singularity pass's own literal (`crossings`' `den.abs() <= 1e-12 *
+g.norm()`, a ray parallel to a rim circle's plane) went with `crossings`
+when its meetings moved onto `geom_brep::curve_pair::meet`
+(`importgate/singularity-meet`); the two above remain.
 
 ## Fix
 

@@ -3983,6 +3983,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Interpretation": "StepImportError.variant",
     "StepImportError::SingularityUndecided": "StepImportError.variant",
     "StepImportError::SingularitySideUndecided": "StepImportError.variant",
+    "StepImportError::SingularityMeetUnread": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
     "StepImportError::C0KnotUnsplit": "StepImportError.variant",
