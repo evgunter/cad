@@ -12,6 +12,8 @@
 //!   span or a sub-span, the whole-span evaluation is the entire line
 //!   while the cover box is finite and holds the sampled curve.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::f64::consts::{FRAC_PI_2, PI};
 use std::sync::Arc;
 
