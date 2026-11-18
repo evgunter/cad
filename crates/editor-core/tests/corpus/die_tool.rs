@@ -154,7 +154,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "die_tool",
         about: "the die's multi-shell cutting tool: six pip placements, one union",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(pipped),
         // π-valued spherical caps are not dyadic — see the module docs.

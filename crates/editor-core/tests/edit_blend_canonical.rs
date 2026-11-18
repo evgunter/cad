@@ -97,7 +97,7 @@ fn saved_fillet(segments: &[u32]) -> String {
     )
     .expect("a canonical fillet inserts")
     .doc;
-    save(&doc, &[], Tol::witness()).expect("the fixture saves")
+    save(&doc, Tol::witness()).expect("the fixture saves")
 }
 
 /// Rewrites the FIRST [`edge`] `from` at or after the `"Select"` key

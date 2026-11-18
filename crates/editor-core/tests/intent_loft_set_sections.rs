@@ -595,7 +595,7 @@ fn a_value_edit_to_a_zero_slide_is_refused_at_evaluation() {
 #[test]
 fn a_saved_loft_of_one_section_or_an_empty_station_refuses_at_load() {
     let (doc, _, loft) = two_section_loft();
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("the fixture saves");
     editor_core::load(&text, Tol::witness()).expect("the fixture loads");
     let key = loft.0.to_string();
     // Each station's slides and spins read an anonymous variable that

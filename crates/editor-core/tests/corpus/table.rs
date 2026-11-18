@@ -91,7 +91,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "corner_table",
         about: "corner-aligned four-leg table (flush contacts)",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(acc),
         pin: Some(MassPin {

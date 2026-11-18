@@ -547,6 +547,13 @@ impl Walk {
         self.at[h.index()].push((id, self.entries));
         self.entries += 1;
     }
+
+    /// Counts the next walk entry and records it at no handle: one the
+    /// lane reads as part of an earlier entry's vertex and not as a pass
+    /// of its own (`trimmed::Run`).
+    pub(crate) fn skip(&mut self) {
+        self.entries += 1;
+    }
 }
 
 /// One pass of the boundary walk through a pinch handle: its mesh id

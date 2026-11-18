@@ -1150,16 +1150,27 @@ are properties of the current geometry: an imported edge recovers its
 selector (a boundary iso, the analytic contact catalogue, a swept net's
 structure) or refuses typed, naming the lane that would recover it. Pipeline:
 
-1. **Surface recognition**: an imported NURBS within ε of an analytic
+1. **Surface recognition**: an imported NURBS within ε_in of an analytic
    surface is promoted to it, restoring [surfaces]' exactness to imported
-   bodies.
-2. **Edge adoption**: verify the imported curve lies within ε of the
+   bodies. Every placement is built by ISO 10303-42's own axis
+   construction from the file's ratio vectors.
+2. **Edge adoption**: verify the imported curve lies within ε_in of the
    intersection of its adjacent surfaces with adequate transversality
-   margin, then rebuild it as `Intersection { pair, witness }` — the
-   imported curve demoted to witness + initial cache. Seams and
-   tangency loci are recognized likewise.
-3. **Healing**: where no description is satisfied within ε, repair
-   (refit/nudge) or fail loudly naming the unhealable entities.
+   margin, then rebuild it as `Intersection { pair, selector }`, the
+   selector a native edge holds. Seams, tangency loci and a
+   surface's own isos are recognized likewise. Every cache — carrier,
+   vertex point, parameter — is built from the description by the
+   kernel's own constructions and certified at ε; no value the file
+   printed becomes a cache.
+3. **Healing**: a relation between surfaces that reads Zero at the
+   file's band (tangent, coaxial, axis-normal, two records of one
+   locus) is made exact by one construction from a closed catalogue,
+   solving each connected class of such relations jointly; where the
+   construction is symmetric, the record earlier in the file stays.
+   Each move is reported. A relation no catalogue construction makes
+   exact, an edge whose description the kernel cannot construct, and
+   data no description satisfies within ε_in fail loudly, naming the
+   entity and the lane that would recover it.
 4. **The shared at-rest gate**: steps 1–3 certify each *entity*; the
    *body* is then handed to the kernel's own at-rest validator — tier
    3, or tier 3′ where solids touch — and only a body it

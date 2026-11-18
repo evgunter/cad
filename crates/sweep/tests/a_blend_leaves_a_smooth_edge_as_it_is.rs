@@ -176,7 +176,7 @@ fn a_smooth_strut_requested_beside_a_line_reads_as_the_line_alone() {
     let beside =
         fillet_edges(&operand, &[line, struts[0], struts[1]], 0.05, tol()).map_err(|r| r.error);
     assert!(
-        matches!(alone, Err(BlendError::UnsupportedRunOut { .. })),
+        matches!(alone, Err(BlendError::UnbuiltEnd(_))),
         "the line alone runs out at its ends, got {alone:?}"
     );
     assert_eq!(

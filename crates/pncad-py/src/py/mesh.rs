@@ -130,10 +130,10 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         T::UnsupportedCurvedDomain { max_distance, .. } => {
             float(*max_distance).map(|v| fields[1] = ("value", v))
         }
-        // The shape door's refusal is props' own, and its prose names
-        // the structural expectation that failed (`props_rim_level`,
-        // an incidence name); that sentence is the payload a caller can
-        // act on, so it rides as the note. The band arm's payload is
+        // The route's refusal is props' own, and its prose names the
+        // decision or the premise that failed (an escalated predicate, an
+        // incidence name); that sentence is the payload a caller can act
+        // on, so it rides as the note. The band arm's payload is
         // the run's configuration failure, likewise a sentence.
         T::UnsupportedCurvedShape { source, .. } => {
             fields[4] = (

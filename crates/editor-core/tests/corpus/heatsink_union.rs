@@ -80,7 +80,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "heat_sink_fins",
         about: "the parametric fin group fused: a union of one family over the fins index",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(fins),
         pin: Some(MassPin {

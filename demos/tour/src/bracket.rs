@@ -155,7 +155,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, body) = document(tol);
     let trimmed = trimmed_and_broken(&doc, body, tol);
     let placed = crate::world::place_in_world(&trimmed.doc, trimmed.chamfer, tol);
-    crate::world::set_product(&placed.doc, &[Operand::Node(placed.placement)], tol).doc
+    crate::world::set_product(&placed.doc, &[Operand::Node(placed.placement)], tol)
 }
 
 /// The trim and the break, as nodes over the bracket's extrude.
