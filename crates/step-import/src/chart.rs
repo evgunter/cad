@@ -85,9 +85,20 @@ pub(crate) enum OuternessRefusal {
 }
 
 impl OuternessRefusal {
-    /// The static description the typed import error carries.
-    pub(crate) fn what(self) -> &'static str {
-        match self {
+    /// **The import door's error for this refusal at face `id`**: a
+    /// containment distance that does not read apart is an interpretation
+    /// refusal at the file band `file` (touching where it reads Zero, in
+    /// band where it does not decide; either way only the levers that
+    /// read the rings apart are offered, since this act needs them
+    /// apart), and every other refusal a typed topology defect.
+    pub(crate) fn refused(self, id: u64, file: FileBand) -> crate::StepImportError {
+        let what = match self {
+            Self::RingsTouch(gap) => {
+                return file.refused(id, file.touching(STEP_RING_CONTAINMENT, gap));
+            }
+            Self::UndecidableAtEps(gap) => {
+                return file.refused(id, file.apart_in_band(STEP_RING_CONTAINMENT, gap));
+            }
             Self::NotOnChart => {
                 "a face bound whose ring does not lie on the face's own surface chart \
                  — outerness cannot be inferred from a ring that is not there"
@@ -96,15 +107,6 @@ impl OuternessRefusal {
                 "a face bound whose chart image depends on where the periodic seam was \
                  cut (a ring wrapping the surface's period): the containment answer \
                  would be an artifact of the seam, not a fact about the surface"
-            }
-            Self::RingsTouch(_) => {
-                "a face whose bounds touch at the file's own interpretation budget (a ring \
-                 within ε_in of another): no bound contains the other"
-            }
-            Self::UndecidableAtEps(_) => {
-                "a face whose ring containment is undecidable at the file's own \
-                 interpretation budget (a ring passing within ε_in of another): \
-                 refusing rather than guessing which bound is outer"
             }
             Self::NoUniqueOuter => {
                 "a face with no single bound containing all the others — the STEP \
@@ -119,7 +121,8 @@ impl OuternessRefusal {
                 "a face on a surface whose chart has no closed-form inverse, so \
                  outerness cannot be inferred (state FACE_OUTER_BOUND instead)"
             }
-        }
+        };
+        crate::StepImportError::Topology { id, what }
     }
 }
 
@@ -496,6 +499,41 @@ mod review_outerness {
                 )
             })
             .collect()
+    }
+
+    /// **A ring in band is offered only what reads it apart** (item 3 of
+    /// the third review): containment passes only apart, and the ε_in an
+    /// ambiguity would offer to read the two as one reads them touching,
+    /// which refuses too. So the ending names no `ε_in ≥`, and re-reading
+    /// at the gap does touch.
+    #[test]
+    fn a_ring_in_band_is_offered_only_what_reads_it_apart() {
+        use crate::interpret::FileBand;
+        let file = FileBand::new(1e-9, Tol::witness()).unwrap();
+        let rings = [
+            ring_on_cyl(0.0, 2.0, 0.0, 1.0, 8),
+            ring_on_cyl(3.0 * file.band().zero(), 1.0, 0.3, 0.6, 8),
+        ];
+        let got = infer_outer(&cyl(), &rings, file);
+        let Err(refusal @ OuternessRefusal::UndecidableAtEps(gap)) = got else {
+            panic!("a ring three band-zeros off reads in band: {got:?}");
+        };
+        let text = refusal.refused(7, file).render();
+        assert!(text.contains("must stand apart"), "{text}");
+        assert!(
+            !text.contains('≥'),
+            "nothing that reads the two as one: {text}"
+        );
+        assert!(
+            text.contains("import with ε_in below") || text.contains("tighten the tolerance"),
+            "a lever that reads them apart: {text}"
+        );
+        let at = FileBand::new(gap * 1.01, Tol::witness()).unwrap();
+        let reread = infer_outer(&cyl(), &rings, at);
+        assert!(
+            matches!(reread, Err(OuternessRefusal::RingsTouch(_))),
+            "at the ε_in an ambiguity would offer, the rings touch: {reread:?}"
+        );
     }
 
     #[test]

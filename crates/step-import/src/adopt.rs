@@ -1242,10 +1242,11 @@ fn nurbs_plane_pair(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>) -> boo
 /// least `1/√3` from parallel, so the projection step below is always
 /// well-conditioned. The old first-coordinate-axis pick (`|x| < 1.0`)
 /// was executed into a fail-loud violation by the M7-3 review (F2): a
-/// DIRECTION one ulp under unit and x-parallel is kept VERBATIM by
-/// the ε_in direction reader, satisfied `|x| < 1.0`, and minted
-/// `y ∥ dir`, `z = 0` — a det-0 claimed-rigid placement inside a
-/// certified body. Belt and braces on top of the conditioning
+/// DIRECTION one ulp under unit and x-parallel, which the line reader
+/// keeps as stated (`entities::unit_line_direction` keeps a triple that
+/// is unit within its own rounding bit for bit), satisfied `|x| < 1.0`
+/// and minted `y ∥ dir`, `z = 0` — a det-0 claimed-rigid placement
+/// inside a certified body. Belt and braces on top of the conditioning
 /// argument: a frame that still cannot be completed (non-finite or
 /// zero direction) answers `None`, the conventional rung is WITHHELD,
 /// and the edge refuses typed through the ladder — never a silent

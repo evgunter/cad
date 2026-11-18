@@ -545,15 +545,24 @@ pub enum SingularityFound {
     ValenceOneVertex,
 }
 
-/// A **reported structure normalization** (D7 stage-3 repair, in its
-/// letter): the file's locus is fully explained and adopted, but its
-/// boundary-graph tessellation is not representable, so the kernel
-/// re-minted the tessellation and says so — as data, never silently.
+/// A **reported normalization**, one row of the move ledger
+/// ([`StepImport::normalizations`]): something interpretation re-minted
+/// or moved beyond rounding, said as data, never silently.
 ///
-/// Volume and validity are exact as always; what changed is only how
-/// the same surface is cut into faces, edges, and vertices. The census
-/// pair is the mapping a reader needs to reconcile the file's counts
-/// with the imported body's.
+/// Two families share the row. A **structure normalization** (D7
+/// stage-3 repair, in its letter: the face kinds) re-mints a
+/// tessellation the file's locus fully explains but whose boundary
+/// graph is not representable; volume and validity are exact, and what
+/// changes is only how the same surface is cut into faces, edges and
+/// vertices, the census pair being the mapping a reader needs to
+/// reconcile the file's counts with the body's. An **interpretation
+/// move** ([`NormalizationKind::OneRecord`],
+/// [`NormalizationKind::PlacementReMinted`],
+/// [`NormalizationKind::CurvePromoted`]) changes what the file's
+/// statements are read as, by at most the distance it reports (a face
+/// carried onto another record, a frame built, a carrier promoted
+/// within its certified residual), so the body differs from the stated
+/// geometry by that bound; its census pair is [`FaceCensus::EMPTY`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StructureNormalization {
     /// The `ADVANCED_FACE` entity instance the file states; where the

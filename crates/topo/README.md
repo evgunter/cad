@@ -1887,12 +1887,16 @@ already and reads no extent.
   dihedral reading across the edge (`Body::dihedral_across`) decides two
   planes' join smooth and hands back the verdict (`SmoothAcross`), which
   only that reading constructs, and the act consumes it and records the
-  row (`Body::one_record_across`). No door re-points faces between
-  records from an edge and a face alone.
+  row (`Body::one_record_across`). No door on a body re-points faces
+  between records from an edge and a face alone.
   The split's flush section and the chord join keep two records of one
   carrier and are filed. Import makes two plane records whose faces read
   as one locus facing one way one record before anything is built
-  (`step_import`'s `one_record`); two records of one non-planar locus
+  (`step_import`'s `one_record`): with no body yet there is no token for
+  it to consume, so it re-points the file's faces on its own reading of
+  them, the file's band's Zero, and restates `[topo.one-record.act]`'s
+  rule (each sense restated so its material side is unchanged) rather
+  than calling `Body::one_record`. Two records of one non-planar locus
   stay two, filed
   (`work/importgate/two-records-of-one-non-planar-surface-stay-two-at-import.md`).
 - **`[topo.one-record.rest]` At rest no edge's locus reads values.**

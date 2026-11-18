@@ -292,6 +292,47 @@ fn identity_boundary_at_eps_in() {
     assert_cloud_eq(&clouds[1], &base_clouds[1], "the other solid does not move");
 }
 
+/// The identity's in-band arm (`[verdicts.consumers]`, a lane choice):
+/// a pair whose box displacement lies in the file's band is no identity,
+/// so it is carried as the motion it states, and nothing is snapped or
+/// reported for it. Only Zero snaps.
+#[test]
+fn an_in_band_displacement_is_carried_not_snapped() {
+    let tol = Tol::witness();
+    let zero = 1e-10_f64.max(tol.eps());
+    let d = 3.0 * zero;
+    assert!(d < tol.k() * zero, "three zeros lie in the band");
+    let text = base_text().replace(
+        "#16 = CARTESIAN_POINT('',(0.,0.,0.));",
+        &format!("#16 = CARTESIAN_POINT('',({:e},0.,0.));", d * 1e3),
+    );
+    let imported = import_step(&text, &ImportOptions::default(), tol).expect("import");
+    let snapped: Vec<_> = imported
+        .normalizations()
+        .iter()
+        .filter(|n| {
+            matches!(
+                n.kind,
+                step_import::NormalizationKind::PlacementReMinted { transform: 194, .. }
+            )
+        })
+        .collect();
+    assert!(snapped.is_empty(), "no snap reported: {snapped:?}");
+    let base = solid_clouds(&import(&base_text()));
+    let moved = solid_clouds(&solid_body(imported));
+    let shift = moved[0]
+        .iter()
+        .zip(&base[0])
+        .map(|(m, b)| m[0] - b[0])
+        .fold(f64::NAN, f64::max);
+    // The clouds are in the file's millimetres.
+    assert!(
+        (shift - d * 1e3).abs() <= 1e-3 * d * 1e3,
+        "the motion is carried: shifted {shift:e} mm for {d:e} m"
+    );
+    assert_cloud_eq(&moved[1], &base[1], "the other solid does not move");
+}
+
 /// (1)(d) tier gate: with one component INVERTED (sense-flipped faces)
 /// among instanced good copies, the per-solid gate's refusal must name
 /// the inverted component's own MANIFOLD_SOLID_BREP (#206, SphereB) —

@@ -55,7 +55,17 @@ fn a_surface_placement_stated_off_its_frame_is_built_and_reported() {
     let [(46, moved_by)] = moved.as_slice() else {
         panic!("one report, keyed by the cylinder's placement #46: {moved:?}");
     };
-    assert!(*moved_by > 0.0, "the move is a distance: {moved_by}");
+    // The move is measured from the frame of the two directions
+    // normalized, not from the stated vectors: the reference normalized
+    // is (c, 0, s), s its projection on the axis, and the built one
+    // (1, 0, 0), so a box corner p moves by ((1−c)·pₓ, (1−c)·p_y, −s·pₓ),
+    // farthest at |pᵢ| = E: E·√(s² + 2(1−c)²).
+    let (c, s) = (1.0 / 1.25_f64.sqrt(), 0.5 / 1.25_f64.sqrt());
+    let want = geom_core::tolerance::SESSION_BOX_EXTENT * (s * s + 2.0 * (1.0 - c).powi(2)).sqrt();
+    assert!(
+        (moved_by - want).abs() <= 1e-12 * want,
+        "the move from the normalized frame: {moved_by:e} vs {want:e}"
+    );
     let StepImport::Solid { body, .. } = &imported else {
         panic!("a solid")
     };
@@ -370,21 +380,210 @@ fn a_placement_pairs_entry_bounds_its_snap_and_its_frames() {
 }
 
 /// An ε_in whose band `K·ε_in` is no finite length makes no band the
-/// file can be read at: refused as that, naming the file's declared
-/// uncertainty, before any statement is read, and naming no entity.
+/// file can be read at: refused as that before any statement is read,
+/// naming no entity, and naming the value as what it is (here the
+/// caller's override, not the file's declaration), in scientific
+/// notation.
 #[test]
-fn an_eps_in_that_makes_no_band_refuses_naming_the_declared_uncertainty() {
+fn an_eps_in_that_makes_no_band_refuses_naming_whose_it_is() {
     let options = ImportOptions {
         eps_in: Some(1e308),
         ..ImportOptions::default()
     };
     match import_step(&freecad_fixture("box"), &options, Tol::witness()) {
-        Err(ref e @ StepImportError::UnbandedUncertainty { eps_in }) => {
+        Err(ref e @ StepImportError::UnbandedUncertainty { eps_in, overridden }) => {
             assert_eq!(eps_in, 1e308);
+            assert!(overridden, "the override, not the declaration");
             let text = e.render();
-            assert!(text.contains("declared uncertainty"), "{text}");
+            assert!(
+                text.contains("the ε_in override (the coincidence distance ε_in = 1e308 m)"),
+                "{text}"
+            );
+            assert!(
+                !text.contains("declared"),
+                "the file declared no such value: {text}"
+            );
             assert!(!text.contains("entity #"), "no entity: {text}");
         }
         other => panic!("an unbanded uncertainty, got {other:?}"),
     }
+}
+
+/// A declared ε_in of zero is read at the run's ε like any other value
+/// below it, not as an exact comparison: fuse_boxes declaring `0.`, with
+/// one of its top's records `#223` raised 1e-13 m (below every run's ε),
+/// still joins all four later records.
+#[test]
+fn a_declared_eps_in_of_zero_reads_at_the_runs_floor() {
+    let text = with(
+        &with(
+            &freecad_fixture("fuse_boxes"),
+            "LENGTH_MEASURE(1.E-07)",
+            "LENGTH_MEASURE(0.)",
+        ),
+        "#223 = CARTESIAN_POINT('',(0.,0.,1.));",
+        "#223 = CARTESIAN_POINT('',(0.,0.,1.0000000001));",
+    );
+    let imported = import(&text).unwrap_or_else(|e| panic!("imports: {}", e.render()));
+    assert_eq!(imported.eps_in(), 0.0, "the declaration stands as stated");
+    let joins = imported
+        .normalizations()
+        .iter()
+        .filter(|n| matches!(n.kind, NormalizationKind::OneRecord { .. }))
+        .count();
+    assert_eq!(joins, 4, "the raised record joins at the run's ε");
+}
+
+/// A declared ε_in below zero is no coincidence distance: refused where
+/// the declaration is read, as an invalid root naming the record, the
+/// value and its unit.
+#[test]
+fn a_negative_declared_eps_in_refuses_as_an_invalid_root() {
+    let text = with(
+        &freecad_fixture("fuse_boxes"),
+        "LENGTH_MEASURE(1.E-07)",
+        "LENGTH_MEASURE(-1.E-07)",
+    );
+    match import(&text) {
+        Err(
+            ref e @ StepImportError::Interpretation {
+                id,
+                refusal: InterpretationRefusal::InvalidRoot { value, unit, .. },
+                ..
+            },
+        ) => {
+            assert_eq!(id, 397, "the UNCERTAINTY_MEASURE_WITH_UNIT is named");
+            assert!((value + 1e-10).abs() < 1e-24, "in metres: {value:e}");
+            assert_eq!(unit, "m");
+            assert!(
+                e.render().contains("declared uncertainty"),
+                "{}",
+                e.render()
+            );
+        }
+        other => panic!("an invalid root, got {other:?}"),
+    }
+}
+
+/// A torus's major radius that is not positive, or not past its minor
+/// (a spindle or horn torus, outside D3's ring convention), is a root no
+/// construction takes: refused at the `TOROIDAL_SURFACE` record, naming
+/// which, before any edge's adoption reads the surface.
+#[test]
+fn a_torus_off_the_ring_convention_refuses_at_its_record() {
+    for (major, names, value) in [
+        ("-1.", "major radius, which", -1e-3),
+        ("0.", "major radius, which", 0.0),
+        ("0.1", "less its minor radius", -1.5e-4),
+        ("0.25", "less its minor radius", 0.0),
+    ] {
+        let text = with(
+            &freecad_fixture("torus"),
+            "#38 = TOROIDAL_SURFACE('',#39,1.,0.25);",
+            &format!("#38 = TOROIDAL_SURFACE('',#39,{major},0.25);"),
+        );
+        match import(&text) {
+            Err(
+                ref e @ StepImportError::Interpretation {
+                    id,
+                    refusal: InterpretationRefusal::InvalidRoot { value: got, .. },
+                    ..
+                },
+            ) => {
+                assert_eq!(id, 38, "major {major}: the surface record is named");
+                assert!(
+                    (got - value).abs() < 1e-15,
+                    "major {major}: the value in metres: {got:e}"
+                );
+                assert!(e.render().contains(names), "major {major}: {}", e.render());
+            }
+            other => panic!("major {major}: an invalid root, got {other:?}"),
+        }
+    }
+}
+
+/// A band fixture (`tests/fixtures/band/`), read as stated.
+fn band_fixture(name: &str) -> String {
+    let p = format!("{}/tests/fixtures/band/{name}", env!("CARGO_MANIFEST_DIR"));
+    std::fs::read_to_string(p).unwrap()
+}
+
+/// **Rim coaxiality is a lane choice** (`[verdicts.consumers]`): band_a's
+/// lower rim circle (radius 10 mm, read at its declared 0.01 mm) tilted
+/// by δ about its +y point moves its ±x points by 10·δ mm. Tilted 1e-12
+/// (a 1e-14 m tilt, below every run's ε, so the edge certifies too) it
+/// reads Zero and takes the band re-mint, which a coaxiality read exactly
+/// would refuse; tilted 3e-3
+/// (3e-5 m, in band) it takes the general lane, which is not written, so
+/// it refuses with the closed form's pose as the lever and offers no
+/// tolerance.
+#[test]
+fn a_rim_tilted_within_the_band_takes_the_re_mint_and_one_in_band_refuses() {
+    let tilted = |dx: &str| {
+        with(
+            &band_fixture("band_a.stp"),
+            "#113=DIRECTION('',(0.0,0.0,1.0));",
+            &format!("#113=DIRECTION('',({dx},0.0,1.0));"),
+        )
+    };
+    let zero = import(&tilted("1.E-12")).unwrap_or_else(|e| panic!("imports: {}", e.render()));
+    let StepImport::Solid { body, .. } = &zero else {
+        panic!("a solid")
+    };
+    assert_eq!(
+        crate::common::arena_census(body),
+        (1, 1, 2, 4, 2),
+        "the re-minted band, as the coaxial fixture imports"
+    );
+    match import(&tilted("3.E-03")) {
+        Err(ref e @ StepImportError::Topology { id, .. }) => {
+            let text = e.render();
+            assert_eq!(id, 136, "the torus face is named: {text}");
+            assert!(
+                text.contains("pose each rim as a circle centred on the surface's axis"),
+                "{text}"
+            );
+            assert!(!text.contains("ε_in"), "no tolerance offer: {text}");
+        }
+        other => panic!("the lane's refusal, got {:?}", other.map(|_| ())),
+    }
+}
+
+/// The `OneRecord` joins of an import, as `(kept, joined)`.
+fn joins_of(text: &str) -> Vec<(u64, u64)> {
+    import(text)
+        .unwrap_or_else(|e| panic!("imports: {}", e.render()))
+        .normalizations()
+        .iter()
+        .filter_map(|n| match n.kind {
+            NormalizationKind::OneRecord { kept, joined, .. } => Some((kept, joined)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// **The kept record is the one earliest in the DATA section**, not the
+/// one with the least id: fuse_boxes with one joined record's `PLANE`
+/// line moved to the head of DATA keeps that record, now earliest
+/// though its id is higher, and joins the other into it.
+#[test]
+fn the_kept_record_is_the_earliest_in_data_not_the_least_id() {
+    let text = freecad_fixture("fuse_boxes");
+    let (kept, joined) = joins_of(&text)[0];
+    assert!(kept < joined, "as stated, DATA order and id order agree");
+    let line = text
+        .lines()
+        .find(|l| l.starts_with(&format!("#{joined} = PLANE(")))
+        .expect("the joined record's line");
+    let moved =
+        with(&text, &format!("{line}\n"), "").replacen("DATA;\n", &format!("DATA;\n{line}\n"), 1);
+    let after = joins_of(&moved);
+    assert!(
+        after.contains(&(joined, kept)),
+        "#{joined}, now first in DATA, is kept and #{kept} joins it: {after:?}"
+    );
+    assert!(
+        after.iter().all(|&(_, j)| j != joined),
+        "#{joined} is joined into nothing: {after:?}"
+    );
 }

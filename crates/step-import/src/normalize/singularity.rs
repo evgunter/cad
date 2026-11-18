@@ -220,46 +220,35 @@ pub(super) fn singularity_vertices(
     })
 }
 
-/// The pass's band, as it reads it.
+/// The pass's band, as it reads it: the file's band, floored at the
+/// run's ([`FileBand`]), which every on-or-off and side decision is taken
+/// at and every refusal ends at.
 #[derive(Clone, Copy)]
 struct Read {
-    /// Off a vertex or an edge past this distance, the band's escalation
-    /// (its zero is [`Self::coarser`]'s); between the two, undecided.
-    escalate: f64,
-    /// The file's band, floored at the run's ([`FileBand`]): the door a
-    /// refusal ends at.
     file: FileBand,
-    /// The band every on-or-off and side decision is taken at.
-    coarser: geom_core::Band,
 }
 
 impl Read {
     /// The pass's reading of `file`'s band.
     fn of(file: FileBand) -> Self {
-        Self {
-            escalate: file.band().escalate(),
-            file,
-            coarser: file.band(),
-        }
+        Self { file }
+    }
+
+    /// The band itself, for a kernel reading that takes one.
+    fn band(&self) -> geom_core::Band {
+        self.file.band()
     }
 
     /// Whether the distance `d` reads Zero at the pass's band under the
     /// decision `name`.
     fn on(&self, name: &'static str, d: f64) -> bool {
-        matches!(
-            geom_core::k_stats::decide(name, geom_core::Margin::of(d.abs()), self.coarser),
-            Ok(sign) if sign.is_zero()
-        )
+        self.file.read(name, d) == crate::interpret::Read::Zero
     }
 
     /// Whether the finite distance `d` does not read apart at the pass's
     /// band under `name` (Zero or in band): a candidate the band keeps.
     fn not_apart(&self, name: &'static str, d: f64) -> bool {
-        d.is_finite()
-            && !matches!(
-                geom_core::k_stats::decide(name, geom_core::Margin::of(d.abs()), self.coarser),
-                Ok(sign) if !sign.is_zero()
-            )
+        d.is_finite() && self.file.read(name, d) != crate::interpret::Read::Apart
     }
 
     /// The typed refusal of a distance `d` the band could not call,
@@ -303,12 +292,12 @@ impl Read {
 }
 
 /// Whether a point lies on the boundary feature `d` metres from it,
-/// at the pass's band ([`Read::coarser`]), through the kernel's one
+/// at the pass's band ([`Read::band`]), through the kernel's one
 /// decision of it ([`geom_brep::chart_singularity::on_boundary`]); a
 /// distance in band is the typed refusal naming the band that could not
 /// call it ([`StepImportError::SingularityUndecided`]).
 fn on_boundary(d: f64, read: &Read, id: u64) -> Result<bool, StepImportError> {
-    home::on_boundary(d, read.coarser).map_err(|cause| read.refuse(cause, id))
+    home::on_boundary(d, read.band()).map_err(|cause| read.refuse(cause, id))
 }
 
 fn unreadable(id: u64) -> StepImportError {
@@ -371,7 +360,7 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
         .collect();
     let images = image_edges(solid, fi);
     let images: Vec<&[LoopEdge<f64>]> = images.iter().map(Vec::as_slice).collect();
-    for (k, located) in home::locate(&face.surface, &views, &images, face.sense, read.coarser)
+    for (k, located) in home::locate(&face.surface, &views, &images, face.sense, read.band())
         .into_iter()
         .enumerate()
     {
@@ -507,7 +496,7 @@ fn holds(
     };
     let images = image_edges(solid, fi);
     let views: Vec<&[LoopEdge<f64>]> = images.iter().map(Vec::as_slice).collect();
-    home::holds(&surface, &views, face.sense, singularity, read.coarser)
+    home::holds(&surface, &views, face.sense, singularity, read.band())
         .map_err(|why| read.unread(why, face.id))
 }
 
@@ -521,7 +510,7 @@ fn nappe(solid: &SolidSpec, fi: usize, chart: Chart, read: &Read) -> Result<f64,
     let points = home::singular_points(&inverse);
     let images = image_edges(solid, fi);
     let walk =
-        home::walk_loop(&inverse, &points, &images[0], read.coarser).ok_or(unreadable(face_id))?;
+        home::walk_loop(&inverse, &points, &images[0], read.band()).ok_or(unreadable(face_id))?;
     match home::nappe(&walk) {
         Ok(side) => Ok(side.unit()),
         Err(why) => Err(read.unread(Unread::Side { r#loop: 0, why }, face_id)),
@@ -655,7 +644,7 @@ fn first_hit(
              (`meridian_rays`), whose speed `speed_at` reads in closed form"
         )
     };
-    let lead = read.escalate / speed;
+    let lead = read.band().escalate() / speed;
     let mut best: Option<(f64, Hit, Point3<f64>)> = None;
     let offer =
         |delta: f64, hit: Hit, p: Point3<f64>, best: &mut Option<(f64, Hit, Point3<f64>)>| {
