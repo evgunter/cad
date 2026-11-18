@@ -2026,6 +2026,9 @@ impl<W, F> Bound<'_, W, F> {
         if matches!(r.below, Some(Reading::Answers)) {
             match self.offer(at, self.below()) {
                 Ok(w) => {
+                    if self.lower_refusal.is_some() {
+                        crate::gate_measure::refused_before_crossing();
+                    }
                     self.violation = Some(w);
                     return ControlFlow::Break(());
                 }
@@ -2343,6 +2346,9 @@ where
         if let Some(Reading::Undecided(source)) = &r.below {
             if probe_here && let Ok(w) = self.offer(&at, self.below()) {
                 walk.receipt.violated += 1;
+                if self.lower_refusal.is_some() {
+                    crate::gate_measure::refused_before_crossing();
+                }
                 self.violation = Some(w);
                 return ControlFlow::Break(());
             }

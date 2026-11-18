@@ -10,6 +10,8 @@ use std::io::Write as _;
 thread_local! {
     /// The records the door that is finishing holds, and its name.
     pub static HELD: RefCell<Option<(&'static str, crate::ContactRecords)>> = const { RefCell::new(None) };
+    static DECLARED: std::cell::Cell<[usize; 6]> = const { std::cell::Cell::new([0; 6]) };
+    static REFUSED_FIRST: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 pub fn holding(site: &'static str, records: &crate::ContactRecords) {
@@ -18,6 +20,7 @@ pub fn holding(site: &'static str, records: &crate::ContactRecords) {
 
 pub fn clear() {
     HELD.with(|h| *h.borrow_mut() = None);
+    DECLARED.with(|d| d.set([0; 6]));
 }
 
 pub fn log<T: geom_core::Real>(
@@ -99,6 +102,13 @@ pub fn log<T: geom_core::Real>(
         body.solids().count(),
         held.unwrap_or_else(|| "none".to_owned()),
         current_site(),
+    );
+    let line = line.replace(
+        " SITE ",
+        &format!(
+            " REFUSED_FIRST {} SITE ",
+            REFUSED_FIRST.with(|c| c.replace(false))
+        ),
     );
     if let Ok(mut f) = std::fs::OpenOptions::new()
         .create(true)
@@ -388,4 +398,24 @@ pub fn carry<T: geom_core::Decide + geom_core::CertifiedBounds>(
         faces.len(),
         cells.join(" ")
     ));
+}
+
+/// A refusal was kept before the walk found its verified crossing.
+pub fn refused_before_crossing() {
+    REFUSED_FIRST.with(|c| c.set(true));
+}
+
+/// The declared operand records a Boolean door holds, by kind
+/// (vv, vf, ve, ee, ef, ff), summed over both operands.
+pub fn declared(records: [&crate::boolean::OperandRecords; 2]) {
+    let mut k = [0usize; 6];
+    for r in records {
+        k[0] += r.vv.len();
+        k[1] += r.vf.len();
+        k[2] += r.ve.len();
+        k[3] += r.ee.len();
+        k[4] += r.ef.len();
+        k[5] += r.ff.len();
+    }
+    DECLARED.with(|d| d.set(k));
 }

@@ -5805,6 +5805,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     #[cfg(any(test, feature = "test-support"))]
     let kinds = refused_faces::kinds(&body);
     crate::gate_measure::holding("boolean-gate", held.contacts);
+    crate::gate_measure::declared(held.records);
     let _site = crate::gate_measure::site("boolean");
     let finished = T::finish(body, tol);
     crate::gate_measure::clear();
