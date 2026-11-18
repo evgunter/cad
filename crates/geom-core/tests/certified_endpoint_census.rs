@@ -710,9 +710,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        160,
-        64,
-        "the 64 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (26), \
+        164,
+        68,
+        "the 68 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `present_chart` (26), \
          `present_plane` (8), `present_plane_corner` (7), `present_vertex_corner` (12) and \
          `Trig::psi` (3). `present_chart` asks each clip line where it is placed, so 16 of its \
          reads, the touch, reach, merge, rectangle-side and apex reads, see only certified \
@@ -726,7 +727,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          the span is a parameter read like those below, and the speed is the jet bound \
          `speeds` reads. `present_vertex_corner` also reads its rectangle's chart footprint \
          (4), behind its own `is_certified()` ask. `Trig::psi`'s 3 are its `over` \
-         closure, read behind `is_certified()`. Of the other 95, the seeds and selections \
+         closure, read behind `is_certified()`. `face_extent`'s 4 read each line of the face \
+         against its extent, a line it takes only where its value `is_certified()` and places \
+         by whole turns, which keeps it certified. Of the other 95, the seeds and selections \
          (`mid`, `graph_read`'s `inside` and lever, `planes_through`'s point of a line edge, \
          any point of which is exact), `Curved::nearest`'s hull of the parameters shifted by \
          whole turns, read outward so `within`'s containment is conservative, the read behind \
