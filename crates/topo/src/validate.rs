@@ -2467,8 +2467,10 @@ pub enum ValidationError {
         /// The face holding the first point, then the face holding the
         /// second: the same face where one face folds through itself.
         faces: [FaceKey; 2],
-        /// The two points, as each face's chart coordinates, and how far
-        /// apart they are at most.
+        /// The two points, each as a `(u, v)` of its face's stored chart.
+        stations: [(f64, f64); 2],
+        /// The two points, as coordinates, and how far apart they are at
+        /// most.
         witness: String,
     },
     /// **The at-rest gate could not certify the boundary embedded.** The
@@ -2478,6 +2480,8 @@ pub enum ValidationError {
     EmbeddingUncertified {
         /// The engine's refusal, verbatim.
         refusal: crate::clearance::EngineRefusal,
+        /// The width that blocked it: the family's or the cell's.
+        width: crate::clearance::BlockingWidth,
     },
     /// Tier 3′: the census read a point at an arc's end that lies
     /// definitely off both of its edge's corners, on a body tier 3 passed
@@ -5378,11 +5382,17 @@ impl ValidationError {
                  recorded contact, so the boundary crosses itself. Recourse: change the \
                  construction so those faces stay apart, or record the contact if it is intended"
             ),
-            Self::EmbeddingUncertified { refusal } => write!(
+            Self::EmbeddingUncertified { refusal, width } => write!(
                 f,
                 "whether the boundary meets itself off its records is undecided: {}. {}",
                 embedding_refusal_words(refusal),
-                geom_core::KERNEL_LIMIT_RECOURSE
+                match width {
+                    crate::clearance::BlockingWidth::Family => {
+                        "The parameter box holds the body wider than the band. Recourse: narrow \
+                         the parameter box"
+                    }
+                    crate::clearance::BlockingWidth::Cell => geom_core::KERNEL_LIMIT_RECOURSE,
+                }
             ),
             Self::InstanceInterference { .. } => write!(
                 f,
@@ -10864,12 +10874,108 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     {
         crate::finish::count_finish();
         let sign = std::sync::Arc::new(validate_geometric_certificate(&body, tol)?.into_parts());
-        embedded_off(&body, crate::clearance::FacePairs::none(), tol)?;
+        Self::embedded(
+            &body,
+            crate::clearance::FacePairs::none(),
+            linear_band(tol)?,
+        )?;
         Ok(Self {
             body,
             sign,
             held: None,
         })
+    }
+
+    /// **The at-rest gate's embedding question** (`[topology.tiers]`): the
+    /// body-level injectivity question ([`crate::clearance::embedded`]) of
+    /// every face of `body` against every face and itself, off the pairs in
+    /// `excluded`, at the gate's one budget
+    /// ([`crate::clearance::GATE_BUDGETS`]). Asked once tier 3 has passed.
+    ///
+    /// A crossing is read again at the body's own scalar, the gate's one
+    /// logged reading: the two faces' carriers at the verifier's two
+    /// stations, their distance decided at
+    /// [`crate::clearance::SELF_INTERSECTION_GAP`]. Inside the band it is
+    /// [`ValidationError::BoundaryMeetsItself`]; clear of it, the engine's
+    /// witness does not hold at this scalar; undecided (a family whose
+    /// members straddle the band, the drive's cue), the width that blocked
+    /// it says which.
+    ///
+    /// # Errors
+    ///
+    /// [`ValidationError::BoundaryMeetsItself`] for a verified crossing and
+    /// [`ValidationError::EmbeddingUncertified`] for an engine refusal.
+    fn embedded(
+        body: &Body<T>,
+        excluded: crate::clearance::FacePairs,
+        band: Band,
+    ) -> Result<(), Vec<ValidationError>>
+    where
+        T: geom_core::CertifiedBounds,
+    {
+        use crate::clearance::{
+            BlockingWidth, Embedding, EngineRefusal, GATE_BUDGETS, SELF_INTERSECTION_GAP, Side,
+            blocking_width, embedded,
+        };
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        if faces.is_empty() {
+            return Ok(());
+        }
+        let side = Side {
+            body,
+            faces,
+            excluded,
+        };
+        let crossing = match embedded(&side, band, GATE_BUDGETS).verdict {
+            Embedding::Embedded => return Ok(()),
+            Embedding::Refused(refusal) => {
+                return Err(vec![ValidationError::EmbeddingUncertified {
+                    width: blocking_width(body, band),
+                    refusal,
+                }]);
+            }
+            Embedding::Crosses(crossing) => crossing,
+        };
+        let (a, b) = crossing.faces;
+        let at = |f: FaceKey, (u, v): (f64, f64)| {
+            body.face_surface(f)
+                .map(|s| s.eval(T::from_computed(u), T::from_computed(v)))
+        };
+        let (Some(pa), Some(pb)) = (at(a, crossing.stations[0]), at(b, crossing.stations[1]))
+        else {
+            unreachable!("the engine names faces of the body it was asked about")
+        };
+        let unverified = |what: &str, width| ValidationError::EmbeddingUncertified {
+            refusal: EngineRefusal::WitnessUnverified {
+                what: what.to_owned(),
+            },
+            width,
+        };
+        let finding = match geom_core::k_stats::decide(
+            SELF_INTERSECTION_GAP,
+            Margin::of((pa - pb).norm()),
+            band,
+        ) {
+            Ok(Sign::Zero | Sign::Negative) => ValidationError::BoundaryMeetsItself {
+                faces: [a, b],
+                stations: crossing.stations,
+                witness: format!(
+                    "{} and {}, at most {} m apart",
+                    crate::census::witness(pa),
+                    crate::census::witness(pb),
+                    crossing.distance
+                ),
+            },
+            Ok(Sign::Positive) => unverified(
+                "the crossing's two points are apart at the body's scalar",
+                BlockingWidth::Cell,
+            ),
+            Err(_) => unverified(
+                "the crossing's two points straddle the band at the body's scalar",
+                blocking_width(body, band),
+            ),
+        };
+        Err(vec![finding])
     }
 
     /// **This finished body holding its finish's record** for the taker
@@ -11068,52 +11174,6 @@ fn census_verdict<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core:
 
 /// `Band::linear(tol)`, its refusal as the verdict vector every door
 /// returns it in.
-/// **The at-rest gate's embedding question** (`[topology.tiers]`): the
-/// body-level injectivity question ([`crate::clearance::embedded`]) of
-/// every face of `body` against every face and itself, off the pairs in
-/// `excluded`, at the gate's one budget
-/// ([`crate::clearance::GATE_BUDGETS`]). Asked once tier 3 has passed.
-///
-/// # Errors
-///
-/// [`ValidationError::BoundaryMeetsItself`] for a verified crossing,
-/// [`ValidationError::EmbeddingUncertified`] for an engine refusal, and
-/// the band's finding where `tol` forms none.
-fn embedded_off<T>(
-    body: &Body<T>,
-    excluded: crate::clearance::FacePairs,
-    tol: Tol,
-) -> Result<(), Vec<ValidationError>>
-where
-    T: geom_core::Decide + geom_core::CertifiedBounds,
-{
-    use crate::clearance::{Embedding, GATE_BUDGETS, Side, embedded};
-    let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-    if faces.is_empty() {
-        return Ok(());
-    }
-    let side = Side {
-        body,
-        faces,
-        excluded,
-    };
-    match embedded(&side, linear_band(tol)?, GATE_BUDGETS).verdict {
-        Embedding::Embedded => Ok(()),
-        Embedding::Crosses(crossing) => {
-            let (a, b) = crossing.faces;
-            let [(ua, va), (ub, vb)] = crossing.stations;
-            Err(vec![ValidationError::BoundaryMeetsItself {
-                faces: [a, b],
-                witness: format!(
-                    "({ua}, {va}) and ({ub}, {vb}) of their charts, at most {} m apart",
-                    crossing.distance
-                ),
-            }])
-        }
-        Embedding::Refused(refusal) => Err(vec![ValidationError::EmbeddingUncertified { refusal }]),
-    }
-}
-
 /// **An injectivity refusal in words**, naming no arena key: what
 /// [`ValidationError::EmbeddingUncertified`] says the engine could not do.
 fn embedding_refusal_words(refusal: &crate::clearance::EngineRefusal) -> Cow<'static, str> {

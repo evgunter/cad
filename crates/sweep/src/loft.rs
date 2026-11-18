@@ -201,8 +201,39 @@ impl<T: topo::AtRestPolicy> Lofted<T, Body<T>> {
             seam_edges,
             section_params,
         } = self;
+        let sections = section_params.len();
+        let meeting = |face, station| LoftedMeeting {
+            face: role_of(face, top, bottom, &side_faces)
+                .unwrap_or_else(|| unreachable!("the finish names faces of the loft it finished")),
+            sections: match role_of(face, top, bottom, &side_faces) {
+                Some(LoftedFace::Top) => sections - 1..=sections - 1,
+                Some(LoftedFace::Bottom) => 0..=0,
+                Some(LoftedFace::Wall { slab, .. }) if side_faces_per_slab(&side_faces) => {
+                    slab..=slab + 1
+                }
+                _ => 0..=sections - 1,
+            },
+            station,
+        };
+        let finished = T::leaf(body, tol).map_err(|findings| {
+            match findings.as_slice().iter().find_map(|f| match f {
+                topo::ValidationError::BoundaryMeetsItself {
+                    faces: [a, b],
+                    stations: [sa, sb],
+                    witness,
+                } => Some(([*a, *b], [*sa, *sb], witness.clone())),
+                _ => None,
+            }) {
+                Some(([a, b], [sa, sb], witness)) => LoftError::SelfIntersecting {
+                    meeting: Box::new([meeting(a, sa), meeting(b, sb)]),
+                    witness,
+                    findings,
+                },
+                None => LoftError::NotFinished { findings },
+            }
+        })?;
         Ok(Lofted {
-            body: T::leaf(body, tol).map_err(|findings| LoftError::NotFinished { findings })?,
+            body: finished,
             solid,
             shell,
             top,
@@ -211,6 +242,98 @@ impl<T: topo::AtRestPolicy> Lofted<T, Body<T>> {
             seam_edges,
             section_params,
         })
+    }
+}
+
+/// **A face of a loft, by its role** ([`Lofted`]'s fields).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoftedFace {
+    /// The top cap, [`Lofted::top`].
+    Top,
+    /// The bottom cap, [`Lofted::bottom`].
+    Bottom,
+    /// A wall, `side_faces[loop_index][segment][slab]`.
+    Wall {
+        /// The section loop, outer first.
+        loop_index: usize,
+        /// The segment of the loop.
+        segment: usize,
+        /// The slab, in stacking order.
+        slab: usize,
+    },
+}
+
+/// **One of the two faces a self-intersecting loft meets on**
+/// ([`LoftError::SelfIntersecting`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct LoftedMeeting {
+    /// The face, by role.
+    pub face: LoftedFace,
+    /// The sections the face spans, first to last.
+    pub sections: core::ops::RangeInclusive<usize>,
+    /// The point, as a `(u, v)` of the face's stored chart.
+    pub station: (f64, f64),
+}
+
+/// `face`'s role in a loft whose caps are `top` and `bottom` and whose
+/// walls are `side_faces`.
+fn role_of(
+    face: FaceKey,
+    top: FaceKey,
+    bottom: FaceKey,
+    side_faces: &[Vec<Vec<FaceKey>>],
+) -> Option<LoftedFace> {
+    if face == top {
+        return Some(LoftedFace::Top);
+    }
+    if face == bottom {
+        return Some(LoftedFace::Bottom);
+    }
+    side_faces
+        .iter()
+        .enumerate()
+        .find_map(|(loop_index, segments)| {
+            segments.iter().enumerate().find_map(|(segment, slabs)| {
+                slabs
+                    .iter()
+                    .position(|&f| f == face)
+                    .map(|slab| LoftedFace::Wall {
+                        loop_index,
+                        segment,
+                        slab,
+                    })
+            })
+        })
+}
+
+/// Whether each wall spans one slab (v-degree 1 through three or more
+/// sections) rather than every section.
+fn side_faces_per_slab(side_faces: &[Vec<Vec<FaceKey>>]) -> bool {
+    side_faces.iter().flatten().any(|slabs| slabs.len() > 1)
+}
+
+impl fmt::Display for LoftedFace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Top => f.write_str("top cap"),
+            Self::Bottom => f.write_str("bottom cap"),
+            Self::Wall {
+                loop_index,
+                segment,
+                slab,
+            } => write!(f, "wall {segment} of loop {loop_index}, slab {slab}"),
+        }
+    }
+}
+
+impl fmt::Display for LoftedMeeting {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (first, last) = (self.sections.start(), self.sections.end());
+        if first == last {
+            write!(f, "{} (section {first})", self.face)
+        } else {
+            write!(f, "{} (sections {first} to {last})", self.face)
+        }
     }
 }
 
@@ -224,6 +347,18 @@ pub enum LoftError {
     /// each read through its family.
     NotFinished {
         /// The finish's findings.
+        findings: topo::NotFinished,
+    },
+    /// **The lofted body's boundary meets itself**: the at-rest gate
+    /// found two of its faces meeting off every edge they share
+    /// ([`topo::ValidationError::BoundaryMeetsItself`]), named here by
+    /// their roles and the sections each spans.
+    SelfIntersecting {
+        /// The two faces, each with its role, its sections and its point.
+        meeting: Box<[LoftedMeeting; 2]>,
+        /// The two points, as coordinates.
+        witness: String,
+        /// The finish's findings, the crossing among them.
         findings: topo::NotFinished,
     },
     /// The §10.3/§10.4 geometry construction refused (compatibility,
@@ -522,6 +657,15 @@ impl LoftError {
             Self::NotFinished { findings } => {
                 write!(f, "the lofted body is not a finished body: {findings}")
             }
+            Self::SelfIntersecting {
+                meeting, witness, ..
+            } => write!(
+                f,
+                "the loft's {} meets its {} at {witness}, off every edge they share, so the \
+                 lofted body crosses itself. Recourse: space or turn the sections so its \
+                 faces stay apart",
+                meeting[0], meeting[1]
+            ),
             Self::Skin(e) => write!(f, "{e}"),
             Self::Euler(e) => write!(
                 f,

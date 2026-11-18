@@ -4578,12 +4578,6 @@ fn wall_clearance<T: Decide>(
     Ok(())
 }
 
-/// **The cell-pair budget of the cavity's self-intersection question**,
-/// the document door's own default for the same question
-/// (`editor_core::clearance::DEFAULT_MAX_CELL_PAIRS`). A recorded run
-/// dial: exhausting it refuses typed and never answers.
-const CAVITY_MAX_CELL_PAIRS: usize = 65_536;
-
 /// **The cavity is embedded**: the verdict door
 /// ([`crate::clearance::embedded`]) asked of the moved clone, every face
 /// against every face and itself, before the void door grafts it. A
@@ -4597,7 +4591,7 @@ fn cavity_embedded<T: Decide + geom_core::CertifiedBounds + crate::props::AtRest
     cavity: &Body<T>,
     band: Band,
 ) -> Result<(), ShellError<T>> {
-    use crate::clearance::{Budgets, Crossing, DEFAULT_MAX_CELL_DEPTH, Embedding, Side, embedded};
+    use crate::clearance::{Crossing, Embedding, GATE_BUDGETS, Side, embedded};
     match CavityGate::at::<T>() {
         CavityGate::Asks => {}
         CavityGate::WaitsOnTheEngineRows => return Ok(()),
@@ -4607,11 +4601,7 @@ fn cavity_embedded<T: Decide + geom_core::CertifiedBounds + crate::props::AtRest
         faces: cavity.faces().map(|(k, _)| k).collect(),
         excluded: crate::clearance::FacePairs::none(),
     };
-    let budgets = Budgets {
-        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-        max_cell_pairs: CAVITY_MAX_CELL_PAIRS,
-    };
-    match embedded(&side, band, budgets).verdict {
+    match embedded(&side, band, GATE_BUDGETS).verdict {
         Embedding::Embedded => Ok(()),
         Embedding::Crosses(Crossing {
             faces: (face, other),

@@ -392,7 +392,7 @@ pub struct Side<'b, T: Real> {
     /// violations is reported — is a function of the body.
     pub faces: Vec<FaceKey>,
     /// The face pairs the engine never offers: where one body's faces
-    /// meet at its recorded contacts ([`FacePairs::of_records`]), so the
+    /// meet at its recorded contacts ([`crate::ContactRecords::face_pairs`]), so the
     /// injectivity question asks the body off them (`[topology.tiers]`).
     pub excluded: FacePairs,
 }
@@ -425,25 +425,6 @@ impl FacePairs {
     pub fn iter(&self) -> impl Iterator<Item = (FaceKey, FaceKey)> + '_ {
         self.0.iter().copied()
     }
-
-    /// **The face pairs `records` cite in `body`**: each record's two
-    /// cells reduced to their faces (a face is itself; an edge, the faces
-    /// of its half-edges; a vertex, the faces of the half-edges leaving
-    /// it), and every face of one cell paired with every face of the
-    /// other.
-    #[must_use]
-    pub fn of_records<T: Real>(body: &Body<T>, records: &crate::boolean::ContactRecords) -> Self {
-        let mut pairs = Self::none();
-        for (x, y) in records.cell_pairs() {
-            let (fx, fy) = (faces_of_cell(body, x), faces_of_cell(body, y));
-            for &a in &fx {
-                for &b in &fy {
-                    pairs.0.insert((a.min(b), a.max(b)));
-                }
-            }
-        }
-        pairs
-    }
 }
 
 impl FromIterator<(FaceKey, FaceKey)> for FacePairs {
@@ -454,33 +435,6 @@ impl FromIterator<(FaceKey, FaceKey)> for FacePairs {
                 .map(|(a, b)| (a.min(b), a.max(b)))
                 .collect(),
         )
-    }
-}
-
-/// The faces a cell of `body` lies in, ascending and once each.
-fn faces_of_cell<T: Real>(body: &Body<T>, cell: crate::boolean::Cell) -> BTreeSet<FaceKey> {
-    use crate::boolean::Cell as C;
-    let face_of_half = |h| {
-        body.get_half_edge(h)
-            .and_then(|he| body.get_loop(he.parent_loop))
-            .map(|l| l.face)
-    };
-    match cell {
-        C::Face(f) => BTreeSet::from([f]),
-        C::Edge(e) => body
-            .get_edge(e)
-            .map(|edge| {
-                [edge.he_plus, edge.he_minus]
-                    .into_iter()
-                    .filter_map(face_of_half)
-                    .collect()
-            })
-            .unwrap_or_default(),
-        C::Vertex(v) => body
-            .half_edges()
-            .filter(|(_, he)| he.start == v)
-            .filter_map(|(h, _)| face_of_half(h))
-            .collect(),
     }
 }
 
@@ -4731,6 +4685,41 @@ impl<T: Decide> ClearanceLane<T> {
     }
 }
 
+/// **The width that blocked a refusal of the injectivity question**
+/// ([`blocking_width`]): what would answer it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockingWidth {
+    /// The family's: a stored point of the body is held wider than the
+    /// band at its scalar, so a narrower parameter box answers it.
+    Family,
+    /// The cell's: every stored point of the body reads within the band,
+    /// so a finer cell or a larger budget answers it.
+    Cell,
+}
+
+/// **Which width blocked a refusal of `body`'s injectivity question**:
+/// the family's where a vertex's coordinate, crossed into the engine
+/// ([`Interval::from_certified`]), is wider than the band's escalation
+/// threshold, and the cell's otherwise. At a point scalar every vertex is
+/// a point, so the cell's.
+pub fn blocking_width<T: CertifiedBounds>(body: &Body<T>, band: Band) -> BlockingWidth {
+    let wide = |x: T| {
+        let i = Interval::from_certified(x);
+        !matches!(
+            (i.hi() - i.lo()).partial_cmp(&band.escalate()),
+            Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
+        )
+    };
+    if body
+        .points()
+        .any(|(_, p)| wide(p.x) || wide(p.y) || wide(p.z))
+    {
+        BlockingWidth::Family
+    } else {
+        BlockingWidth::Cell
+    }
+}
+
 /// **What the verdict door answers** ([`embedded`]): the yes and the no
 /// of E7's self-intersection question, and the typed refusal that is
 /// neither.
@@ -4803,7 +4792,7 @@ pub fn embedded<T: Decide + CertifiedBounds>(
     budgets: Budgets,
 ) -> EmbeddingReport {
     let lane = ClearanceLane::<T>::certified();
-    let windows = match lane.windows(side, Which::First) {
+    let windows = match k_stats::unlogged("F41", || lane.windows(side, Which::First)) {
         Ok(windows) => windows,
         Err(refusal) => {
             return EmbeddingReport {

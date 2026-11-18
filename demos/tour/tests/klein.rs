@@ -248,7 +248,6 @@ mod wall_gap_support {
     use std::collections::BTreeSet;
 
     use demo_tour::klein::bottle;
-    use pncad::analysis::DEFAULT_MAX_LEAVES;
     use pncad::geom_core::{Band, Tol};
     use pncad::topo::clearance::{
         BoundVerdict, Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which,
@@ -316,9 +315,7 @@ mod wall_gap_support {
             band: Band::linear(tol).expect("the run's tolerance forms a band"),
             budgets: Budgets {
                 max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-                // The clearance door's pair budget is the drive's leaf
-                // budget (`editor_core::clearance::DEFAULT_MAX_CELL_PAIRS`).
-                max_cell_pairs: DEFAULT_MAX_LEAVES,
+                max_cell_pairs: pncad::topo::clearance::GATE_MAX_CELL_PAIRS,
             },
         };
         for (a, b) in apart {

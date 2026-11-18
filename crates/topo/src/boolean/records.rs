@@ -406,6 +406,23 @@ impl ContactRecords {
         })
     }
 
+    /// **The face pairs these records cite in `body`**, which the at-rest
+    /// gate's injectivity question never offers
+    /// ([`crate::clearance::Side::excluded`]): each record's two cells
+    /// reduced to the faces about them ([`faces_about`]), and every face
+    /// of one paired with every face of the other.
+    #[must_use]
+    pub fn face_pairs<T: Real>(&self, body: &Body<T>) -> crate::clearance::FacePairs {
+        self.cell_pairs()
+            .flat_map(|(x, y)| {
+                let fy = faces_about(body, y);
+                faces_about(body, x)
+                    .into_iter()
+                    .flat_map(move |a| fy.clone().into_iter().map(move |b| (a, b)))
+            })
+            .collect()
+    }
+
     /// Every record's citations, in list order.
     pub fn cites(&self) -> impl Iterator<Item = &Cites> + '_ {
         self.rows.iter().map(|c| &c.cites)
@@ -912,6 +929,41 @@ impl FromIterator<Cited<Contact>> for ContactRecords {
         out.extend(iter);
         out
     }
+}
+
+/// **The faces about a cell of `body`**, ascending and once each: every
+/// face holding a vertex of the cell's closure, and a face cell itself.
+/// A recorded contact touches along its cells' closures, so the faces
+/// round a contact face's rim meet the other side's there too.
+fn faces_about<T: Real>(body: &Body<T>, cell: Cell) -> std::collections::BTreeSet<FaceKey> {
+    let face_of_half = |h| {
+        body.get_half_edge(h)
+            .and_then(|he| body.get_loop(he.parent_loop))
+            .map(|l| l.face)
+    };
+    let vertices: std::collections::BTreeSet<VertexKey> = match cell {
+        Cell::Vertex(v) => [v].into(),
+        Cell::Edge(e) => body
+            .get_edge(e)
+            .into_iter()
+            .flat_map(|edge| [edge.he_plus, edge.he_minus])
+            .filter_map(|h| body.get_half_edge(h).map(|he| he.start))
+            .collect(),
+        Cell::Face(f) => body
+            .half_edges()
+            .filter(|(h, _)| face_of_half(*h) == Some(f))
+            .map(|(_, he)| he.start)
+            .collect(),
+    };
+    let mut faces: std::collections::BTreeSet<FaceKey> = body
+        .half_edges()
+        .filter(|(_, he)| vertices.contains(&he.start))
+        .filter_map(|(h, _)| face_of_half(h))
+        .collect();
+    if let Cell::Face(f) = cell {
+        faces.insert(f);
+    }
+    faces
 }
 
 #[cfg(test)]

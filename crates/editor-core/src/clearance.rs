@@ -126,21 +126,9 @@ use crate::var::VarId;
 /// the receipt, the widths and the engine's refusals.
 pub use topo::clearance::{
     Budgets, CLEARANCE_MARGIN, CellBudget, CellReceipt, CertificateArm, ClearanceBound,
-    DEFAULT_MAX_CELL_DEPTH, DischargeWidths, EngineRefusal, MinSeparationRefusal,
-    SELF_INTERSECTION_GAP, SharedCell, Which,
+    DEFAULT_MAX_CELL_DEPTH, DischargeWidths, EngineRefusal, GATE_BUDGETS, GATE_MAX_CELL_PAIRS,
+    MinSeparationRefusal, SELF_INTERSECTION_GAP, SharedCell, Which,
 };
-
-/// The whole-query cell-pair budget: how many cell pairs one clearance
-/// query may examine before the rest of its frontier refuses
-/// [`CellBudget::Pairs`].
-///
-/// ENFORCED AT ADMISSION, like the driver's leaf budget: a split that
-/// would commit the query past this number is refused instead of taken.
-/// A recorded run dial, and it is the DRIVER's number rather than a
-/// second copy of it: a leaf-times-pairs run stays a thing a report can
-/// hold only if the two budgets are the same order, and two constants
-/// kept level by hand would not stay that way.
-pub const DEFAULT_MAX_CELL_PAIRS: usize = crate::drive::DEFAULT_MAX_LEAVES;
 
 /// Whether the monotonicity accelerator may run (E7's "duals
 /// accelerate, never decide").
@@ -163,8 +151,9 @@ pub enum Pruning {
 /// How one clearance query is run: the two budgets and the accelerator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClearanceConfig {
-    /// The sweep's budgets ([`DEFAULT_MAX_CELL_DEPTH`],
-    /// [`DEFAULT_MAX_CELL_PAIRS`]).
+    /// The sweep's budgets: the at-rest gate's own by default
+    /// ([`GATE_BUDGETS`]), so a query asks at the budget a finished body
+    /// was certified at.
     pub budgets: Budgets,
     /// Whether the monotonicity accelerator may restrict the leaf box
     /// to a facet ([`Pruning`]).
@@ -174,10 +163,7 @@ pub struct ClearanceConfig {
 impl Default for ClearanceConfig {
     fn default() -> Self {
         Self {
-            budgets: Budgets {
-                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-                max_cell_pairs: DEFAULT_MAX_CELL_PAIRS,
-            },
+            budgets: GATE_BUDGETS,
             pruning: Pruning::Off,
         }
     }

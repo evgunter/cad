@@ -5056,6 +5056,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "section_rim",
             "section_structure",
             "sections_touch",
+            "self_intersecting",
             "skin",
             "stacking_escalated",
         ],

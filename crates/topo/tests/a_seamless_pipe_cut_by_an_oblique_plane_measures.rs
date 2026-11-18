@@ -375,9 +375,8 @@ fn a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval(
     }
 }
 
-/// The document door's default whole-query budget
-/// (`editor_core::clearance::DEFAULT_MAX_CELL_PAIRS`).
-const BUDGET: usize = 65_536;
+/// The at-rest gate's whole-query budget.
+const BUDGET: usize = topo::clearance::GATE_MAX_CELL_PAIRS;
 
 /// A witness: two faces, the closest pair of on-face stations, and
 /// their distance.

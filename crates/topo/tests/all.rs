@@ -510,6 +510,8 @@ mod split_through_a_union_pinch;
 mod split_through_an_apex;
 #[path = "tangent_touch_charges_both_sags.rs"]
 mod tangent_touch_charges_both_sags;
+#[path = "the_at_rest_gate_asks_the_certificate.rs"]
+mod the_at_rest_gate_asks_the_certificate;
 #[path = "the_fin_crown_winds_as_a_solid.rs"]
 mod the_fin_crown_winds_as_a_solid;
 #[path = "three_solids_on_one_line.rs"]

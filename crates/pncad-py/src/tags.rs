@@ -1684,6 +1684,7 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::FarStackingEscalated { .. } => "far_stacking_escalated",
         LoftError::StackingEscalated { .. } => "stacking_escalated",
         LoftError::NotFinished { .. } => "not_finished",
+        LoftError::SelfIntersecting { .. } => "self_intersecting",
         LoftError::PinnedCorner { .. } => "pinned_corner",
         LoftError::PinnedCornerUnsupported { .. } => "pinned_corner_unsupported",
         LoftError::CornerEscalated { .. } => "corner_escalated",
