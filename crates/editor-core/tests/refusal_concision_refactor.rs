@@ -51,7 +51,7 @@ fn var() -> editor_core::SpokenVar {
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, CutsTheWorld, PartIdCollides, RemainderReadUncarried,
-        SeveredEdge, NoMaterial, UncutVarReference, SpaceStraddlesCut, DefinitionStraddlesCut,
+        ProductReadSevered, NamedReadUncarried, SeveredEdge, NoMaterial, UncutVarReference, SpaceStraddlesCut, DefinitionStraddlesCut,
         UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep,
         NameOnDroppedSection, BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit,
         RemainderEdit, Stopped,
@@ -110,6 +110,23 @@ fn split_refusals() -> Vec<SplitError> {
                 reader: s(6, "Union"),
                 why,
             }),
+    );
+    out.extend(uncarried().into_iter().map(Some).chain([None]).map(|why| {
+        SplitError::ProductReadSevered {
+            input: s(6, "Union"),
+            why,
+        }
+    }));
+    out.extend(
+        [
+            editor_core::NamedUncarried::Pick,
+            editor_core::NamedUncarried::Piece,
+            editor_core::NamedUncarried::NoCopy,
+        ]
+        .map(|why| SplitError::NamedReadUncarried {
+            var: Box::new(var()),
+            why,
+        }),
     );
     out.extend([
         SplitError::NoMaterial {
