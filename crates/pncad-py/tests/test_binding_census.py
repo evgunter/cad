@@ -3143,6 +3143,9 @@ NOT_BOUND = {
     # `Value.body` and its pieces as the bodies it holds, and the
     # census through `run_checks`.
     "Carry": INTERIOR,
+    # How a value's body's records cite at that value: `Carry`'s own
+    # field, interior with it.
+    "Citing": INTERIOR,
     "run_checks_on": INTERIOR,
     # The registry with the coincidence door split off to run at rest,
     # for a frame that redraws on every edit: Python's `run_checks` is
