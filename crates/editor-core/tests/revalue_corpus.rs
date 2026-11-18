@@ -446,7 +446,8 @@ fn holds(
 /// only on ratios of the variables, a plane's normal or an angle, does
 /// not move under a dilation), up to where the builds part. The parting
 /// is held exactly: it falls at `parting`, the work item `item` owes it,
-/// and no decision before it flips. Past it the row says nothing, which
+/// and no decision before it flips. The floor counts the choices' margins
+/// that moved: the checks align apart ([`streams`]). Past it the row says nothing, which
 /// the document's in-step row covers.
 fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting: &str, item: &str) {
     let cd = corpus::documents()
@@ -502,7 +503,7 @@ fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting:
 fn revalue_plate_param_apart_to_its_parting() {
     holds_until_parting(
         "plate_param",
-        2539,
+        1993,
         &[],
         "point_in_loop_arm",
         "work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md",
@@ -519,7 +520,7 @@ fn revalue_plate_param_apart_to_its_parting() {
 fn revalue_boss_union_apart_to_its_parting() {
     holds_until_parting(
         "boss_union",
-        1619,
+        1462,
         &[],
         // PCERT E1c (every mint reads incidence first, PR 5889): the apart move now parts
         // at the read every mint makes first, before the radial decision.

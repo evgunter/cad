@@ -94,7 +94,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("coincident_over_extent_as"),
     NameCarrier::Call("cone_cylinder_section"),
     NameCarrier::Call("constant_as"),
-    NameCarrier::Call("convexity"),
     NameCarrier::Call("definitely_as"),
     NameCarrier::Call("extreme_sign"),
     NameCarrier::Call("first_within"),
