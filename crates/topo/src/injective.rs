@@ -1329,22 +1329,28 @@ fn face_extent(
                     lo + slack < line.hi()
                 }
         });
-    let on_nappe = match surface {
-        Surface::Cone { apex, axis, .. } => nappe(b, *apex, *axis, band).is_none_or(|up| {
-            let (lo, hi) = extent[Axis::V.index()];
-            let slack = chart_slack(&[lo, hi]);
-            if up {
-                lo >= -slack && hi > slack
-            } else {
-                hi <= slack && lo < -slack
-            }
-        }),
-        _ => true,
-    };
+    let on_nappe = face_nappe(surface, b, band).is_none_or(|up| {
+        let (lo, hi) = extent[Axis::V.index()];
+        let slack = chart_slack(&[lo, hi]);
+        if up {
+            lo >= -slack && hi > slack
+        } else {
+            hi <= slack && lo < -slack
+        }
+    });
     if lines && on_nappe {
         Ok(Extent::Known(extent))
     } else {
         Err(Unpresented::Structural)
+    }
+}
+
+/// **A cone face's nappe** ([`nappe`]); `None` on any other surface, or
+/// where the nappe is not decided.
+fn face_nappe(surface: &Surface<Interval>, b: &Boundary, band: Band) -> Option<bool> {
+    match surface {
+        Surface::Cone { apex, axis, .. } => nappe(b, *apex, *axis, band),
+        _ => None,
     }
 }
 
