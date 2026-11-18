@@ -14,7 +14,7 @@
 //! section face carries **m = +n_SP** ([`section_normal`]).
 
 use geom::Conic;
-use geom_core::{Decide, Indeterminate, Point3, Real, UnitVec3, Vec3};
+use geom_core::{Decide, Indeterminate, Point3, Real, RigidMotion, UnitVec3, Vec2, Vec3};
 
 use super::PlaneSide;
 use super::containment::{LoopContainment, point_in_loop};
@@ -59,18 +59,43 @@ pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
 /// [`crate::chord_join`] mints one only as the whole conic or as a lone
 /// site's placeholder; the join refuses a loop of placeholders alone
 /// (`DegenerateSection`) before any frame is read.
-pub(super) fn chord_u_ref<T: Real>(
+pub(super) fn chord_u_ref<T: Decide>(
     body: &Body<T>,
     l: LoopKey,
     points: &[Point3<T>],
     n: UnitVec3<T>,
 ) -> Vec3<T> {
-    let in_plane = |d: Vec3<T>| {
-        let n = n.get();
-        (d - n * d.dot(n)).normalize()
-    };
+    chord_frame(body, l, points, n).u().get()
+}
+
+/// **The section plane's frame**, standing at the world origin: `w` the
+/// normal `n` as the split holds it, and `u` [`chord_u_ref`]'s
+/// direction. The frame aimed along `n` ([`RigidMotion::aimed`], `w = n`
+/// by construction) is turned about `n` onto the direction's components
+/// in its own plane ([`RigidMotion::spun_toward`]), so the frame is rigid
+/// by construction, its `u` is ⊥ `n` with no projection to re-square,
+/// and nothing is decided. An `n` whose aimed columns are not finite,
+/// which a decided unit normal never is, falls back to squaring the two
+/// directions ([`RigidMotion::squared`]), which poisons them.
+pub(super) fn chord_frame<T: Decide>(
+    body: &Body<T>,
+    l: LoopKey,
+    points: &[Point3<T>],
+    n: UnitVec3<T>,
+) -> RigidMotion<T> {
+    let d = chord_direction(body, l, points);
+    match RigidMotion::aimed(Point3::origin(), n) {
+        Ok(aimed) => aimed.spun_toward(Vec2::new(aimed.u().get().dot(d), aimed.v().get().dot(d))),
+        Err(_) => RigidMotion::squared(Point3::origin(), n.get(), d),
+    }
+}
+
+/// The direction [`chord_u_ref`] reads before it is taken into the
+/// plane: the loop's first chord, or a one-corner loop's conic
+/// principal direction.
+fn chord_direction<T: Real>(body: &Body<T>, l: LoopKey, points: &[Point3<T>]) -> Vec3<T> {
     if let [a, b, ..] = points {
-        return in_plane(*b - *a);
+        return *b - *a;
     }
     let first = match body.get_loop(l).map(|lp| lp.boundary) {
         Some(LoopBoundary::Cycle { first }) => first,
@@ -82,7 +107,7 @@ pub(super) fn chord_u_ref<T: Real>(
              loop of lone-site placeholders before it is charted"
         )
     };
-    in_plane(principal)
+    principal
 }
 
 /// The principal direction (`u_ref`) of the section conic the cycle at

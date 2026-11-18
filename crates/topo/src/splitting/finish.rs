@@ -1486,11 +1486,20 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             slits.push((slit, slit_side));
             continue;
         }
-        let u_ref = below_chord_u_ref(&body, section, red.plane.normal)?;
+        // The section face's frame: the split plane's, aimed along its
+        // normal and turned onto the below loop's chord
+        // ([`section_loops::chord_frame`]), run back on the side whose
+        // outward normal is the plane's negated
+        // ([`section_loops::section_normal`]'s sign), its `u_ref` kept.
+        let chord =
+            below_chord_frame(&body, section, red.plane.normal)?.with_origin(red.plane.origin);
         let normal_of =
             |side: PlaneSide| section_loops::section_normal(red.plane.normal.get(), side);
         let plane_for = |side: PlaneSide| Surface::Plane {
-            frame: geom::Frame::new(red.plane.origin, normal_of(side), u_ref),
+            frame: geom::Frame::of_motion(&match side {
+                PlaneSide::Above => chord.reversed(),
+                _ => chord,
+            }),
         };
         let ring_side = if ring == section.above_loop {
             PlaneSide::Above
@@ -2283,21 +2292,21 @@ fn shell_side<T: Decide>(
     }
 }
 
-/// The section's in-plane u axis ([`section_loops::chord_u_ref`] of
-/// the below loop, on the split's plane). Two adjacent corners of a
+/// The section's frame ([`section_loops::chord_frame`] of the below
+/// loop, on the split's plane), standing at the world origin. Two adjacent corners of a
 /// loop are distinct certified endpoints, so a chord is nonzero.
-fn below_chord_u_ref<T: Decide>(
+fn below_chord_frame<T: Decide>(
     body: &Body<T>,
     section: &CompletedSection,
     normal: UnitVec3<T>,
-) -> Result<Vec3<T>, SplitFinishError> {
+) -> Result<geom_core::RigidMotion<T>, SplitFinishError> {
     let points = loop_points_of(body, section.below_loop).map_err(|fault| {
         SplitFinishError::Desync(match fault {
             LoopStartsFault::Unresolved(key) => FinishDesync::Unresolved(key),
             LoopStartsFault::LoneVertex { face } => FinishDesync::LoopNotACycle { face },
         })
     })?;
-    Ok(section_loops::chord_u_ref(
+    Ok(section_loops::chord_frame(
         body,
         section.below_loop,
         &points,
@@ -3166,7 +3175,7 @@ mod desync_rows {
 
     use super::{
         CompletedSection, FinishDesync, PlaneSide, SectionKind, SplitFinishError,
-        below_chord_u_ref, classify_shell, whole_body_side,
+        below_chord_frame, classify_shell, whole_body_side,
     };
     use crate::body::Body;
     use crate::entity::{EntityId, FaceKey, LoopKey, ShellKey, SolidKey, VertexKey};
@@ -3288,7 +3297,7 @@ mod desync_rows {
             below_loop,
             kind: SectionKind::Area { slit: Vec::new() },
         };
-        let lone = below_chord_u_ref(&body, &section(seed.r#loop), normal);
+        let lone = below_chord_frame(&body, &section(seed.r#loop), normal);
         assert!(
             matches!(
                 lone,
@@ -3297,7 +3306,7 @@ mod desync_rows {
             ),
             "a lone-vertex loop: {lone:?}"
         );
-        let torn = below_chord_u_ref(&body, &section(LoopKey::default()), normal);
+        let torn = below_chord_frame(&body, &section(LoopKey::default()), normal);
         assert!(
             matches!(
                 torn,
