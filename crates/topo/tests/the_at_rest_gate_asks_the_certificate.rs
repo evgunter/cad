@@ -1,6 +1,6 @@
 //! **The at-rest gate asks the certificate** (`[topology.tiers]`): every
 //! certifying scalar's finish asks the body-level injectivity question
-//! after tier 3, a crossing refuses as
+//! of each solid after tier 3, a crossing refuses as
 //! [`ValidationError::BoundaryMeetsItself`] and an engine refusal as
 //! [`ValidationError::EmbeddingUncertified`], never `Ok`; the question
 //! never offers a face pair its records cite
@@ -68,19 +68,15 @@ fn two_resting_bricks_cross_at_their_contact_and_hold_off_it() {
     assert_eq!(ask(excluded), Embedding::Embedded, "off its records");
 }
 
-/// **A crossing refuses the finish** as
-/// [`ValidationError::BoundaryMeetsItself`], its witness read at the
-/// body's own scalar: the resting bricks, finished with no records.
+/// **Each solid certifies alone**: the resting bricks, finished with no
+/// records, finish, since the gate never pairs faces of two solids
+/// (Ev, PR 7068). Where they meet is the census's.
 #[test]
-fn a_crossing_refuses_the_finish_naming_its_faces() {
+fn two_resting_bricks_finish_each_certified_alone() {
     let (body, _) = resting();
-    let findings = f64::finish(body, Tol::witness()).expect_err("the bricks cross");
     assert!(
-        matches!(
-            findings.as_slice(),
-            [ValidationError::BoundaryMeetsItself { faces: [a, b], .. }] if a != b
-        ),
-        "{findings:?}"
+        f64::finish(body, Tol::witness()).is_ok(),
+        "each brick certifies alone"
     );
 }
 

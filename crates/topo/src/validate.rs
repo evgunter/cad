@@ -10874,11 +10874,7 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     {
         crate::finish::count_finish();
         let sign = std::sync::Arc::new(validate_geometric_certificate(&body, tol)?.into_parts());
-        Self::embedded(
-            &body,
-            crate::clearance::FacePairs::none(),
-            linear_band(tol)?,
-        )?;
+        Self::embedded(&body, linear_band(tol)?)?;
         Ok(Self {
             body,
             sign,
@@ -10888,13 +10884,15 @@ impl<T: geom_core::Decide> AtRestBody<T> {
 
     /// **The at-rest gate's embedding question** (`[topology.tiers]`): the
     /// body-level injectivity question ([`crate::clearance::embedded`]) of
-    /// every face of `body` against every face and itself, off the pairs in
-    /// `excluded`, at the gate's one budget
+    /// each solid of `body` against itself, every face of the solid against
+    /// every face and itself, at the gate's one budget
     /// ([`crate::clearance::GATE_BUDGETS`]). Asked once tier 3 has passed.
+    /// Faces of two solids are never paired: where solids meet is the
+    /// census's.
     ///
     /// A crossing is read again at the body's own scalar, the gate's one
-    /// logged reading: the two faces' carriers at the verifier's two
-    /// stations, their distance decided at
+    /// logged reading per solid: the two faces' carriers at the verifier's
+    /// two stations, their distance decided at
     /// [`crate::clearance::SELF_INTERSECTION_GAP`]. Inside the band it is
     /// [`ValidationError::BoundaryMeetsItself`]; clear of it, the engine's
     /// witness does not hold at this scalar; undecided (a family whose
@@ -10903,36 +10901,52 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     ///
     /// # Errors
     ///
-    /// [`ValidationError::BoundaryMeetsItself`] for a verified crossing and
-    /// [`ValidationError::EmbeddingUncertified`] for an engine refusal.
-    fn embedded(
-        body: &Body<T>,
-        excluded: crate::clearance::FacePairs,
-        band: Band,
-    ) -> Result<(), Vec<ValidationError>>
+    /// Per solid that does not certify: [`ValidationError::BoundaryMeetsItself`]
+    /// for a verified crossing and [`ValidationError::EmbeddingUncertified`]
+    /// for an engine refusal.
+    fn embedded(body: &Body<T>, band: Band) -> Result<(), Vec<ValidationError>>
+    where
+        T: geom_core::CertifiedBounds,
+    {
+        let findings: Vec<ValidationError> = body
+            .solids()
+            .filter_map(|(solid, _)| {
+                let faces = body.faces_of_solid(solid).unwrap_or_default();
+                Self::solid_finding(body, faces, band)
+            })
+            .collect();
+        if findings.is_empty() {
+            Ok(())
+        } else {
+            Err(findings)
+        }
+    }
+
+    /// [`Self::embedded`] of one solid's `faces`: its finding, `None` where
+    /// it certifies.
+    fn solid_finding(body: &Body<T>, faces: Vec<FaceKey>, band: Band) -> Option<ValidationError>
     where
         T: geom_core::CertifiedBounds,
     {
         use crate::clearance::{
-            BlockingWidth, Embedding, EngineRefusal, GATE_BUDGETS, SELF_INTERSECTION_GAP, Side,
-            blocking_width, embedded,
+            BlockingWidth, Embedding, EngineRefusal, FacePairs, GATE_BUDGETS,
+            SELF_INTERSECTION_GAP, Side, blocking_width, embedded,
         };
-        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
         if faces.is_empty() {
-            return Ok(());
+            return None;
         }
         let side = Side {
             body,
             faces,
-            excluded,
+            excluded: FacePairs::none(),
         };
         let crossing = match embedded(&side, band, GATE_BUDGETS).verdict {
-            Embedding::Embedded => return Ok(()),
+            Embedding::Embedded => return None,
             Embedding::Refused(refusal) => {
-                return Err(vec![ValidationError::EmbeddingUncertified {
+                return Some(ValidationError::EmbeddingUncertified {
                     width: blocking_width(body, band),
                     refusal,
-                }]);
+                });
             }
             Embedding::Crosses(crossing) => crossing,
         };
@@ -10951,31 +10965,32 @@ impl<T: geom_core::Decide> AtRestBody<T> {
             },
             width,
         };
-        let finding = match geom_core::k_stats::decide(
-            SELF_INTERSECTION_GAP,
-            Margin::of((pa - pb).norm()),
-            band,
-        ) {
-            Ok(Sign::Zero | Sign::Negative) => ValidationError::BoundaryMeetsItself {
-                faces: [a, b],
-                stations: crossing.stations,
-                witness: format!(
-                    "{} and {}, at most {} m apart",
-                    crate::census::witness(pa),
-                    crate::census::witness(pb),
-                    crossing.distance
+        Some(
+            match geom_core::k_stats::decide(
+                SELF_INTERSECTION_GAP,
+                Margin::of((pa - pb).norm()),
+                band,
+            ) {
+                Ok(Sign::Zero | Sign::Negative) => ValidationError::BoundaryMeetsItself {
+                    faces: [a, b],
+                    stations: crossing.stations,
+                    witness: format!(
+                        "{} and {}, at most {} m apart",
+                        crate::census::witness(pa),
+                        crate::census::witness(pb),
+                        crossing.distance
+                    ),
+                },
+                Ok(Sign::Positive) => unverified(
+                    "the crossing's two points are apart at the body's scalar",
+                    BlockingWidth::Cell,
+                ),
+                Err(_) => unverified(
+                    "the crossing's two points straddle the band at the body's scalar",
+                    blocking_width(body, band),
                 ),
             },
-            Ok(Sign::Positive) => unverified(
-                "the crossing's two points are apart at the body's scalar",
-                BlockingWidth::Cell,
-            ),
-            Err(_) => unverified(
-                "the crossing's two points straddle the band at the body's scalar",
-                blocking_width(body, band),
-            ),
-        };
-        Err(vec![finding])
+        )
     }
 
     /// **This finished body holding its finish's record** for the taker
