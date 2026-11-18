@@ -620,7 +620,7 @@ fn e5_closed_forms() {
     );
 }
 
-/// H8: ε_in must not be consumed by certification — an extreme
+/// H8: ε_in governs interpretation, never certification — an extreme
 /// override in either direction changes nothing about what is built.
 #[test]
 fn h8_eps_in_not_consumed() {
