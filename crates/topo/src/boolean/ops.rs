@@ -5772,12 +5772,15 @@ impl<'a> Held<'a> {
 /// **The result gate every [`BooleanBody`] passes**, at the site that
 /// built it: the body is sorted one solid per piece of material
 /// ([`crate::pieces`]), and no shell holds both faces of a face–face
-/// record an operand carried in ([`Held::apart`]), then finished ([`AtRestPolicy::finish`]), so the
-/// finish rides the result and is taken on the bits the caller
-/// receives. A solid whose only shell check 7 certified in band passes:
-/// how thin a result is gets judged by its pairs alone (D10, Booleans).
-/// Last, the edges on every line where two or more lie are read for
-/// disjoint material ([`coincident_wedges_disjoint`]), at every scalar.
+/// record an operand carried in ([`Held::apart`]); the edges on every
+/// line where two or more lie are read for disjoint material
+/// ([`coincident_wedges_disjoint`]), at every scalar, ahead of the
+/// finish, whose census reads the same lines and would name them as its
+/// own finding; then it is finished ([`AtRestPolicy::finish`]) holding
+/// the records the op decided, so the finish rides the result and is
+/// taken on the bits the caller receives. A solid whose only shell
+/// check 7 certified in band passes: how thin a result is gets judged
+/// by its pairs alone (D10, Booleans).
 ///
 /// # Errors
 ///
@@ -5797,6 +5800,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
         .map_err(BooleanError::Pieces)?;
     held.apart(&body)?;
     pinched_at_cone_apex(&body, band)?;
+    coincident_wedges_disjoint(&body, band)?;
     #[cfg(feature = "door-tier3-meter")]
     let from = std::time::Instant::now();
     #[cfg(any(test, feature = "test-support"))]
@@ -5817,9 +5821,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
             .map(|_| ())
             .map_err(crate::NotFinished::as_slice),
     ));
-    let finished = finished.map_err(|findings| BooleanError::ResultInvalid { findings })?;
-    coincident_wedges_disjoint(&finished, band)?;
-    Ok(finished)
+    finished.map_err(|findings| BooleanError::ResultInvalid { findings })
 }
 
 /// **The face the result gate last refused a volume on, and its surface
