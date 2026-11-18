@@ -33,19 +33,20 @@ box, and that box is all of space.
   of the cone by a plane off its axis. It is stored as a rational
   quadratic NURBS, weights `[1, 1.0722, 1]` and `[1, 1.0638, 1]`.
 - **`boundary_of` encloses each edge by one interval evaluation** of its
-  carrier over the whole span (`carrier.eval([t0, t1])`). For a rational
-  curve that evaluation comes out unbounded. The likely cause, not
-  traced into the evaluator, is that the weighted basis sum's interval
-  reaches zero over `[0, 1]`.
+  carrier over the whole span (`carrier.eval([t0, t1])`). For a spline
+  curve that evaluation comes out unbounded, rational or not: at
+  `t = [0, 1]` every basis function's enclosure reaches 0 at one end
+  of the span, so the weight sum `Σ Nⱼ·wⱼ` holds 0 and the quotient is
+  the whole line (measured below; the evaluator's row is
+  `nurbs-curve-interval-eval-loses-the-partition-of-unity-over-a-wide-t`).
 - **Every other point of the face is finite**: its vertices and its
   other edges.
 
-**The missing reading.** A bounded enclosure of a rational edge over
-its span. With positive weights, the curve lies in its control points'
-convex hull, which is finite. Subdividing the span until the
-denominator is decided positive would also serve. Either keeps a curved
-boundary bounding its own face's window, which is what the whole-span
-evaluation is for.
+**The reading it wanted** was there already: an edge's region over its
+span is its carrier's cover (`geom::Curve3::cover_over`, read in topo
+through `cover::arc_cover`), which for a spline is its control net met
+with the hull of its pieces' nets. With positive weights the curve lies
+in each, and both are finite.
 
 **Not checked:** whether this is the shape behind the at-rest gate
 lane's census of 59 workspace tests refusing the same text. Any face
