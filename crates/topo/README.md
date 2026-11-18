@@ -778,11 +778,17 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    op records them, straight or curved alike, citing its decision; the
    census confirms the record, by reconstruction from its bounds for a
    straight pair, and infers no record from shared bounds.
-   The Boolean door's result meets tier 3 without the census: its
-   contact records, each citing the coincidence that backs it, ride
-   beside it (`BooleanBody::contacts`), and the
-   census over them is parked on CONTACT's cross-solid curved lane
-   (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
+   The gate certifies each record it is handed (`finish` takes the
+   body with its records, `Built`): one the census does not confirm
+   where it lies, or reads otherwise, refuses at the door that handed
+   it over. A `⊔`'s gate (`finish_assembled`) runs the census as the
+   deciding operation between its arrivals and holds what it records.
+   A meeting no record backs is not raised by a deciding door's gate:
+   the census has no lane yet for shapes those doors build (two curved
+   solids within reach,
+   `work/reachhold/boolean-door-runs-the-census-over-its-result.md`;
+   the split's own touches and curved counts,
+   `work/heldrecords/the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime.md`).
    Construction state (tier 1, or tier 2 without geometric
    certification) is what Euler operators hand back, and becomes a
    finished body only through the at-rest gate.

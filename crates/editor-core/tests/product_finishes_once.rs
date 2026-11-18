@@ -92,47 +92,55 @@ fn a_gather_over_mapped_sources_finishes_once() {
 
 /// **A gather finishes its aggregate at one site and validates nothing
 /// else** in its own text. Red if a per-piece pass comes back (a second
-/// `T::finish`, or a validator call of the gather's own).
+/// finish, or a validator call of the gather's own).
 #[test]
 fn the_gather_finishes_the_aggregate_once() {
     let code = blanked(code_only, "editor-core/src/product.rs", PRODUCT);
     let what = "editor-core/src/product.rs (code view)";
-    let finishes = required_matches(&code, what, "T::finish(aggregate");
+    let finishes = required_matches(&code, what, "T::finish_assembled(");
     assert_eq!(finishes.len(), 1, "{what}: one finish, of the aggregate");
     for gate in [
         "T::finish(",
         "topo::finish(",
+        "topo::finish_assembled(",
         "validate_geometric(",
         "validate_pseudomanifold(",
     ] {
-        assert!(
-            code.matches(gate).count() <= usize::from(gate == "T::finish("),
+        assert_eq!(
+            code.matches(gate).count(),
+            0,
             "{what}: `{gate}` is called outside the aggregate's finish"
         );
     }
 }
 
-/// **The at-rest census runs in the gather, and only there.** The
-/// gather hands the tier-3′ census to the recording door once
-/// (`topo::record_at_rest`, whose next pass confirms what it records)
-/// and keeps its findings on the product (`Product::census`); the
-/// at-rest check reads them and calls no census of its own. Red if the
-/// check runs the census again, or the gather calls it from a second
+/// **The at-rest census runs inside the gather's finish, and only
+/// there.** The aggregate's finish is the `⊔`'s gate
+/// (`topo::AtRestPolicy::finish_assembled`), whose census records each
+/// touch between two copies on the finished body and hands back its
+/// findings, which the gather keeps on the product (`Product::census`);
+/// the at-rest check reads them and calls no census of its own. Red if
+/// the check runs the census again, or the gather calls it from a second
 /// site: an extra pass over one product changes no verdict, so no
 /// behavioural row can see it.
 #[test]
 fn the_census_runs_in_the_gather_and_never_at_the_check() {
-    let census = "T::census_at_rest(";
     let product = blanked(code_only, "editor-core/src/product.rs", PRODUCT);
-    let calls = required_matches(&product, "editor-core/src/product.rs (code view)", census);
-    assert_eq!(calls.len(), 1, "the gather calls the census from one site");
+    for census in ["census_at_rest", "record_at_rest("] {
+        assert!(
+            !product.contains(census),
+            "editor-core/src/product.rs: the gather's census is its finish's, not `{census}`"
+        );
+    }
     for (path, source) in [
         ("editor-core/src/checks/at_rest.rs", AT_REST),
         ("editor-core/src/checks.rs", CHECKS),
     ] {
         let code = blanked(code_only, path, source);
         assert!(
-            !code.contains("census_at_rest") && !code.contains("record_at_rest("),
+            !code.contains("census_at_rest")
+                && !code.contains("record_at_rest(")
+                && !code.contains("finish_assembled("),
             "{path}: the check reads the gather's census and runs none"
         );
     }

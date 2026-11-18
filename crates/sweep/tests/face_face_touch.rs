@@ -1007,48 +1007,59 @@ fn a_bridged_rod_standing_off_the_plate_discovers_nothing() {
 
 /// The plate minus a rod tangent to its y = 2 face from inside: one
 /// solid pinched along x = 0 with its material in the crescent beside
-/// the line, which owes two cusp edges (D1 tier 3). Read with no
-/// record, the census reports the missing edges as the op's defect,
-/// naming the plate's face and the bore's wall, and never a contact.
+/// the line, which owes two cusp edges (D1 tier 3). The cut records the
+/// plate's face and the bore's wall as a tangent contact, the gate's
+/// census reads their material overlapping there, and the cut refuses
+/// on the record it wrote: a material crescent is no contact. Red where
+/// the gate takes the record on its word.
 #[test]
-fn a_bore_tangent_from_inside_with_no_edge_on_its_line_is_missing_its_cusp_edges() {
+fn a_bore_tangent_from_inside_refuses_on_the_tangent_record_its_cut_wrote() {
     let plate = finished(
         "plate",
         brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
         tol(),
     );
     let rod = ext("rod", vec![circle(0.0, 1.5, 0.5, 0.0)], 0.25, 0.5);
-    let r = match topo::subtract(&plate, &rod, tol()) {
-        Ok(BooleanResult::Body(r)) => r,
-        other => panic!("plate ∖ rod: {:?}", other.map(|_| ())),
-    };
-    assert_eq!(r.body.solids().count(), 1, "plate ∖ rod: one solid");
-    let errors = topo::validate_pseudomanifold(&r.body, &topo::ContactRecords::default(), tol())
-        .unwrap_err();
-    let missing: Vec<_> = errors
-        .iter()
-        .filter_map(|e| match e {
-            topo::ValidationError::CuspEdgesMissing { a, b, .. } => {
-                Some(pair_kinds(&r.body, *a, *b))
-            }
-            _ => None,
-        })
-        .collect();
     assert_eq!(
-        missing,
+        bore_refusal(&plate, &rod, "plate ∖ rod"),
         [(SurfaceKind::Plane, SurfaceKind::Cylinder)],
-        "plate ∖ rod: the plate's face and the bore's wall miss their cusp edges: {errors:?}"
+        "plate ∖ rod: the one record refused is the plate's face on the bore's wall"
     );
-    assert!(
-        !errors.iter().any(|e| matches!(
-            e,
-            topo::ValidationError::UnrecordedContact {
-                contact: topo::CensusContact::FaceFaceTangent { .. },
-                ..
-            } | topo::ValidationError::ContactContradicted { .. }
-        )),
-        "plate ∖ rod: a material crescent is no contact: {errors:?}"
-    );
+}
+
+/// The surface kinds of each record `plate ∖ rod` refuses as
+/// contradicted, the cut built on the plate's keys so its faces are
+/// read off the plate and the rod.
+///
+/// # Panics
+///
+/// Where the cut builds, or refuses on anything but a contradicted
+/// record.
+fn bore_refusal(
+    plate: &AtRestBody<f64>,
+    rod: &AtRestBody<f64>,
+    label: &str,
+) -> Vec<(SurfaceKind, SurfaceKind)> {
+    let findings = match topo::subtract(plate, rod, tol()) {
+        Err(topo::BooleanError::ResultInvalid { findings }) => findings,
+        other => panic!(
+            "{label}: refuses at its gate, got {:?}",
+            other.map(|_| ())
+        ),
+    };
+    findings
+        .iter()
+        .map(|finding| match finding {
+            topo::ValidationError::ContactContradicted { verdict, .. } => {
+                assert!(
+                    matches!(verdict, topo::ContactVerdict::Tangent(_)),
+                    "{label}: the tangent door's verdict: {verdict:?}"
+                );
+                (SurfaceKind::Plane, SurfaceKind::Cylinder)
+            }
+            other => panic!("{label}: only its contradicted record refuses: {other:?}"),
+        })
+        .collect()
 }
 
 /// Whether `errors` holds a face–face tangent-line touch.
@@ -1093,47 +1104,10 @@ fn a_rod_on_a_plate_as_two_solids_is_not_a_same_solid_touch() {
     }
 }
 
-/// The plate with its internally tangent bore, and a small cube floating
-/// in the bore as a second solid, inside the plate's reach: the bore's
-/// missing cusp edges are the plate's defect alone, and the cube's
-/// clearance from the plate is still decided. Red when the missing
-/// edges leave every solid pair unexamined.
-#[test]
-fn a_solid_missing_its_cusp_edges_leaves_a_solid_in_its_bore_cleared() {
-    let plate = finished(
-        "plate",
-        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
-        tol(),
-    );
-    let rod = ext("rod", vec![circle(0.0, 1.5, 0.5, 0.0)], 0.25, 0.5);
-    let bored = match topo::subtract(&plate, &rod, tol()) {
-        Ok(BooleanResult::Body(r)) => r.body,
-        other => panic!("plate ∖ rod: {:?}", other.map(|_| ())),
-    };
-    let cube = finished(
-        "cube",
-        brick::<f64>((-0.1, 0.1), (1.4, 1.6), (0.4, 0.6), tol()),
-        tol(),
-    );
-    let r = match topo::union(&bored, &cube, tol()) {
-        Ok(BooleanResult::Body(r)) => r,
-        other => panic!("bored ∪ cube: {:?}", other.map(|_| ())),
-    };
-    assert_eq!(r.body.solids().count(), 2, "bored ∪ cube: two solids");
-    let errors = topo::validate_pseudomanifold(&r.body, &topo::ContactRecords::default(), tol())
-        .unwrap_err();
-    assert!(
-        errors
-            .iter()
-            .all(|e| matches!(e, topo::ValidationError::CuspEdgesMissing { .. })),
-        "bored ∪ cube: only the plate's missing cusp edges: {errors:?}"
-    );
-}
-
 /// The bridged rod and the bore at other scales and far from the origin
 /// (adopted from PR 5456's review probes): the void pinch is the one
-/// unrecorded touch and the material one the missing cusp edges, at
-/// each pose. Other arms may escalate far off the origin at a fine ε;
+/// unrecorded touch and the material one refuses on its tangent record,
+/// at each pose. Other arms may escalate far off the origin at a fine ε;
 /// this row reads only what the same-solid pass says.
 #[test]
 fn the_void_and_material_pinches_read_alike_at_every_pose() {
@@ -1165,23 +1139,10 @@ fn the_void_and_material_pinches_read_alike_at_every_pose() {
             s * 0.25 + d,
             s * 0.5,
         );
-        let r = match topo::subtract(&plate, &rod, tol()) {
-            Ok(BooleanResult::Body(r)) => r,
-            other => panic!(
-                "plate ∖ rod, scale {s}, offset {d}: {:?}",
-                other.map(|_| ())
-            ),
-        };
-        let errors =
-            topo::validate_pseudomanifold(&r.body, &topo::ContactRecords::default(), tol())
-                .unwrap_err();
-        let missing = errors
-            .iter()
-            .filter(|e| matches!(e, topo::ValidationError::CuspEdgesMissing { .. }))
-            .count();
-        assert!(
-            missing == 1 && !found_a_line_touch(&errors),
-            "plate ∖ rod, scale {s}, offset {d}: the missing cusp edges and no touch: {errors:?}"
+        assert_eq!(
+            bore_refusal(&plate, &rod, &format!("plate ∖ rod, scale {s}, offset {d}")).len(),
+            1,
+            "plate ∖ rod, scale {s}, offset {d}: the one tangent record refuses"
         );
     }
 }

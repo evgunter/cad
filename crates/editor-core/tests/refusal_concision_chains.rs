@@ -2947,6 +2947,12 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "Pieces".to_owned(),
                 SplitError::Pieces(topo::PieceSortError::NoOwner { shell }),
             ),
+            (
+                "Carry".to_owned(),
+                SplitError::Carry {
+                    refusal: topo::CarryRefusal::Stale { record: 0 },
+                },
+            ),
         ])
         .map(|(n, e)| row(&format!("Split/{n}"), NodeErrorKind::Split(e)))
         .chain(boolean_join)
@@ -4037,6 +4043,12 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::JoinableVertexAtRest { vertex },
                 ]),
+            },
+        ),
+        (
+            "Carry",
+            E::Carry {
+                refusal: topo::CarryRefusal::Stale { record: 0 },
             },
         ),
         (
@@ -5912,6 +5924,12 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 "Join",
                 S::Join {
                     refusal: join_refusal(),
+                },
+            ),
+            (
+                "Carry",
+                S::Carry {
+                    refusal: topo::CarryRefusal::Stale { record: 0 },
                 },
             ),
             (

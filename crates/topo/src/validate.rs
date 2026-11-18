@@ -10917,7 +10917,7 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     /// # Errors
     ///
     /// As [`crate::ContactRecords::try_recited`].
-    pub fn try_recite<E>(
+    pub(crate) fn try_recite<E>(
         &mut self,
         f: impl FnMut(crate::Backing) -> Result<Vec<crate::Backing>, E>,
         uncited: impl FnOnce(usize) -> E,

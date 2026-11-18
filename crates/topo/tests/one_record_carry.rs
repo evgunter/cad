@@ -52,15 +52,6 @@ struct Sides {
     below: ContactRecords,
 }
 
-/// `body` finished holding `records` in place of its own.
-fn holding(body: &AtRestBody<f64>, records: ContactRecords) -> AtRestBody<f64> {
-    topo::finish(
-        topo::Built::of(topo::Body::clone(body)).recording(records),
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("the body finishes holding the records: {e:?}"))
-}
-
 /// Splits `base` by the plane through `origin` across `normal`, which
 /// carries its records, and asserts each side passes at rest with what
 /// it holds.
@@ -222,8 +213,10 @@ fn vertex_at(body: &topo::Body<f64>, p: Point3<f64>) -> topo::VertexKey {
 /// record (bookkeeping: the first cube's far corner against the second
 /// cube's far face, no touch). A merge that merges nothing keeps both
 /// cells, and lands it; a split across the far face divides it, and
-/// refuses. Red on the carry that confirms kept pairs: the merge
-/// refused `Stale`.
+/// refuses; and a finish handed the record refuses it, since the gate
+/// reads every record it is handed. Red on the carry that confirms kept
+/// pairs (the merge refused `Stale`), and on the gate that takes a
+/// record on its word.
 #[test]
 fn a_record_lands_by_lineage_and_is_stale_only_on_a_divided_cell() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
@@ -263,15 +256,35 @@ fn a_record_lands_by_lineage_and_is_stale_only_on_a_divided_cell() {
             .any(|p| p == (Cell::Vertex(corner), Cell::Face(far))),
         "the merge lands the record on its keys: {kept:?}"
     );
-    let plane = common::split_plane(Point3::new(0.0, 0.0, 1.5), Vec3::new(0.0, 0.0, 1.0), tol());
-    let split = topo::split(&holding(&base.body, records), &plane, tol());
+    // No finished body holds the bookkeeping record: its gate reads it,
+    // finds no touch behind it, and refuses.
+    let refused = topo::finish(
+        topo::Built::of(topo::Body::clone(&base.body)).recording(records.clone()),
+        tol(),
+    )
+    .expect_err("a record with no touch behind it is not confirmed");
     assert!(
         matches!(
-            split,
-            Err(topo::SplitError::Carry {
-                refusal: topo::CarryRefusal::Stale { record: 1 }
-            })
+            refused.as_slice(),
+            [topo::ValidationError::StaleContactDeclaration { .. }]
         ),
+        "the gate refuses the one record it cannot confirm: {refused:?}"
+    );
+    let plane = common::split_plane(Point3::new(0.0, 0.0, 1.5), Vec3::new(0.0, 0.0, 1.0), tol());
+    let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
+    // The side below holds the corner and a piece of the divided far
+    // face: the pair is read there, and nothing confirms it.
+    let below = split.below.body().expect("the side below holds material");
+    let bookkeeping: ContactRecords = records.rows()[1..].iter().cloned().collect();
+    assert_eq!(
+        bookkeeping.carried_through(
+            0,
+            &split.lineage(),
+            below,
+            band(),
+            Some(topo::RegionLane::certified()),
+        ),
+        Err(topo::CarryRefusal::Stale { record: 0 }),
         "the split divides the far face: the record is stale"
     );
 }
@@ -378,14 +391,17 @@ fn corner_on_slab() -> BooleanBody<f64> {
     base
 }
 
-/// **A carried record on cells the boolean keeps lands unread** (D1):
-/// the carry reads geometry only where an op divided a cell. The
-/// corner-on-slab body carries its rest and a second record
-/// (bookkeeping: the cube's corner against the slab's bottom, no touch)
-/// into a union with a box far from both, which keeps every cell. Red
-/// on the boolean's carry that confirms kept pairs: it refused `Stale`.
+/// **A carried record with no touch behind it refuses at the Boolean's
+/// gate.** The carry reads geometry only where an op divided a cell
+/// (D1), so a record on cells the op keeps lands unread; the gate then
+/// reads every record the result holds. The corner-on-slab body carries
+/// its rest and a second record (bookkeeping: the cube's corner against
+/// the slab's bottom, no touch) into a union with a box far from both,
+/// which keeps every cell: the union refuses on that one record. Red on
+/// the gate that takes a record on its word: the union built, holding
+/// both.
 #[test]
-fn a_carried_record_on_cells_the_boolean_keeps_lands_unread() {
+fn a_carried_record_with_no_touch_behind_it_refuses_at_the_booleans_gate() {
     let base = corner_on_slab();
     let [corner, _] = base.contacts().rows()[0].cells();
     let bottom = base
@@ -407,13 +423,16 @@ fn a_carried_record_on_cells_the_boolean_keeps_lands_unread() {
     )]);
     let far = box_of((10.0, 11.0), (10.0, 11.0), (0.0, 1.0), "far");
     match carried_op_with(topo::BooleanOp::Union, &base.body, &records, &far) {
-        Ok(BooleanResult::Body(out)) => assert_eq!(
-            out.contacts().vertex_face().count(),
-            2,
-            "both records land: {:?}",
-            out.contacts()
+        Err(topo::BooleanError::ResultInvalid { findings }) => assert!(
+            matches!(
+                findings.as_slice(),
+                [topo::ValidationError::StaleContactDeclaration {
+                    declaration: topo::StaleDeclaration::VertexOnFace { face, .. }
+                }] if *face == bottom
+            ),
+            "the bookkeeping record alone refuses: {findings:?}"
         ),
-        other => panic!("the union builds: {:?}", other.map(|_| ())),
+        other => panic!("the union refuses at its gate: {:?}", other.map(|_| ())),
     }
 }
 

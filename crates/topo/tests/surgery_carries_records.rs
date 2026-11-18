@@ -141,13 +141,14 @@ fn every_surgery_verb_carries_a_corner_kiss() {
     );
 }
 
-/// **A record whose cells the cut parts is refused**, never dropped: a
-/// pair of a cell below the cut and one above it (bookkeeping, not a
-/// touch) has no side to land on, and neither face is on the cut, so it
-/// is no touch between the sides for the split to retire. Red if the
-/// carry drops it or files it on one side.
+/// **A record between two faces that do not meet refuses at the gate.**
+/// The kiss's two far faces, paired as a record (bookkeeping, not a
+/// touch), are read by the gate that is handed them: they rest on two
+/// carriers, and the finish refuses the record. Red where the gate takes
+/// a record on its word. (A record a cut parts off the cut is
+/// `split_along_a_pinch_face`'s: only a real touch reaches a split.)
 #[test]
-fn a_record_the_cut_parts_is_refused() {
+fn a_record_between_faces_that_do_not_meet_refuses_at_the_gate() {
     let base = kiss();
     let below = face_at_x(&base.body, 0.0);
     let above = face_at_x(&base.body, 2.0);
@@ -156,22 +157,18 @@ fn a_record_the_cut_parts_is_refused() {
         Contact::new(&base.body, Cell::Face(below), Cell::Face(above)).unwrap(),
         Cites::decided(7),
     )]);
-    let plane = common::split_plane(Point3::new(0.5, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), tol());
-    let operand = topo::finish(
+    let refused = topo::finish(
         topo::Built::of(Body::clone(&base.body)).recording(records),
         tol(),
     )
-    .expect("the kiss finishes holding both records");
-    let split = topo::split(&operand, &plane, tol());
+    .expect_err("the gate reads the record and does not confirm it");
     assert!(
         matches!(
-            split,
-            Err(topo::SplitError::Carry {
-                refusal: CarryRefusal::Parted { record: 1 }
-            })
+            refused.as_slice(),
+            [topo::ValidationError::ContactContradicted { record, .. }]
+                if [record.a, record.b] == [below, above] || [record.a, record.b] == [above, below]
         ),
-        "a parted record whose cells are off the cut refuses: {:?}",
-        split.map(|_| ())
+        "the one record refused is the bookkeeping pair: {refused:?}"
     );
 }
 
