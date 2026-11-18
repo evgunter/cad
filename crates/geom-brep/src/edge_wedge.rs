@@ -28,7 +28,7 @@
 use core::ops::ControlFlow;
 
 use geom_core::NonzeroSign;
-use geom_core::k_stats::Role;
+use geom_core::k_stats::{Role, recorded_as};
 use geom_core::{Band, Decide, Margin, Real};
 
 use crate::dihedral::{
@@ -109,6 +109,46 @@ pub enum WedgeVerdict {
     Mixed(MixedStations),
     /// A decision at a station escalated.
     InBand(WedgeEscalation),
+}
+
+/// **A [`WedgeVerdict`] with its side erased**: the class a reader that
+/// reads the class alone routes on (a constructor storing what the wedge
+/// demands, the split finish's join), which records the sign and end as
+/// checks ([`edge_wedge_over_as`] at [`Role::Check`]). Neither a crease's
+/// turn nor an end's side is in it, so such a reader cannot build from
+/// what it recorded as a check.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WedgeClass {
+    /// [`WedgeVerdict::Crease`], of either turn.
+    Crease,
+    /// [`WedgeVerdict::Seam`], whole: a seam has no side.
+    Seam {
+        /// Whether the surfaces determine the locus along the edge.
+        bend: Bend,
+        /// As [`WedgeVerdict::Seam`]'s.
+        margin: Option<geom_core::MarginDiag>,
+    },
+    /// [`WedgeVerdict::End`], of either side.
+    End,
+    /// [`WedgeVerdict::Lamina`].
+    Lamina,
+    /// [`WedgeVerdict::Mixed`].
+    Mixed(MixedStations),
+    /// [`WedgeVerdict::InBand`].
+    InBand(WedgeEscalation),
+}
+
+impl From<WedgeVerdict> for WedgeClass {
+    fn from(verdict: WedgeVerdict) -> Self {
+        match verdict {
+            WedgeVerdict::Crease { .. } => Self::Crease,
+            WedgeVerdict::Seam { bend, margin } => Self::Seam { bend, margin },
+            WedgeVerdict::End { .. } => Self::End,
+            WedgeVerdict::Lamina => Self::Lamina,
+            WedgeVerdict::Mixed(stations) => Self::Mixed(stations),
+            WedgeVerdict::InBand(escalation) => Self::InBand(escalation),
+        }
+    }
 }
 
 /// Why an edge's wedge read whole demands no description
@@ -258,58 +298,26 @@ pub fn edge_wedge_over<T: Decide>(
     reach: geom_core::Lever<T>,
     band: Band,
 ) -> WedgeVerdict {
-    edge_wedge_over_as(walk, reach, band, FoldRoles::SIDE)
+    edge_wedge_over_as(walk, reach, band, Role::Choice)
 }
 
-/// **What the fold's reader does with the side it reads**: each corner's
-/// sign ([`crate::DIHEDRAL_SIGN`]) and each tangency's end
-/// ([`crate::MATERIAL_CUSP_SIDE`]), the two reads that tell a reader
-/// which side of the edge its material lies on. A read the reader builds
-/// from is a [`Role::Choice`]; one it only refuses on, a [`Role::Check`]
-/// ([`geom_core::k_stats::checking`]). The class, its pairing and its
-/// bend are recorded in the reader's own scope: every reader routes on
-/// them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FoldRoles {
-    /// What each corner's sign does for the reader.
-    pub sign: Role,
-    /// What each tangency's end does for the reader.
-    pub end: Role,
-}
-
-impl FoldRoles {
-    /// A reader that reads the side: the blend, whose ball rolls on it,
-    /// and tier 3, whose check scope makes every read a check anyway.
-    pub const SIDE: Self = Self {
-        sign: Role::Choice,
-        end: Role::Choice,
-    };
-    /// A reader that reads the class alone: a constructor storing what
-    /// the wedge demands, which describes a crease of either turn and an
-    /// end of either side alike, so another sign can only refuse.
-    pub const CLASS: Self = Self {
-        sign: Role::Check,
-        end: Role::Check,
-    };
-}
-
-/// `work` recorded in `role`: a check scope where the reader only
-/// refuses on what it decides, the caller's own scope otherwise.
-fn in_role<R>(role: Role, work: impl FnOnce() -> R) -> R {
-    match role {
-        Role::Check => geom_core::k_stats::checking(work),
-        Role::Choice => work(),
-    }
-}
-
-/// [`edge_wedge_over`], each corner's sign and each tangency's end
-/// recorded in the role the reader gives it.
+/// [`edge_wedge_over`], each corner's sign ([`crate::DIHEDRAL_SIGN`])
+/// and each tangency's end ([`crate::MATERIAL_CUSP_SIDE`]) recorded as
+/// `side`: the two reads that tell a reader which side of the edge its
+/// material lies on. A reader that builds from the side passes
+/// [`Role::Choice`] (the blend, whose ball rolls on it; tier 3, whose
+/// check scope makes every read a check anyway); one that reads the
+/// class alone and refuses on the side passes [`Role::Check`] (a
+/// constructor storing what the wedge demands, the same for a crease of
+/// either turn and an end of either side). The class, its pairing and
+/// its bend are recorded in the reader's own scope: every reader routes
+/// on them.
 #[must_use]
 pub fn edge_wedge_over_as<T: Decide>(
     walk: &WedgeWalk<'_, T>,
     reach: geom_core::Lever<T>,
     band: Band,
-    roles: FoldRoles,
+    side: Role,
 ) -> WedgeVerdict {
     let (plus, minus) = (walk.plus, walk.minus);
     let senses = [plus.sense, minus.sense];
@@ -323,7 +331,7 @@ pub fn edge_wedge_over_as<T: Decide>(
     let reads: Result<Vec<_>, WedgeEscalation> = classes
         .into_iter()
         .map(|read| match read.dihedral {
-            Dihedral::Corner(c) => in_role(roles.sign, || c.convexity(&read.station, senses, band))
+            Dihedral::Corner(c) => recorded_as(side, || c.convexity(&read.station, senses, band))
                 .map(|(sign, margin)| (read.sample, Read::Corner(sign, margin)))
                 .map_err(|e| e.at_station(read.sample)),
             Dihedral::Tangent(t) => Ok((read.sample, Read::Tangent(read.station, t))),
@@ -361,7 +369,7 @@ pub fn edge_wedge_over_as<T: Decide>(
             Read::Corner(..) => None,
         })
         .collect();
-    let mut reads = MaterialReads::new(plus.sense, senses, band, roles.end);
+    let mut reads = MaterialReads::new(plus.sense, senses, band, side);
     let bend = match second_order_walk(
         plus.surface,
         minus.surface,
@@ -428,7 +436,7 @@ struct MaterialReads {
     sense_plus: bool,
     senses: [bool; 2],
     band: Band,
-    /// What each end does for the reader ([`FoldRoles::end`]).
+    /// What each end does for the reader ([`edge_wedge_over_as`]'s side).
     end: Role,
     pairings: Vec<(u32, MaterialPairing)>,
     ends: Vec<(u32, WedgeEnd, geom_core::MarginDiag)>,
@@ -475,7 +483,7 @@ impl<T: Decide> StationHook<T> for MaterialReads {
         &(i, _): &(u32, Tangency<T>),
     ) -> ControlFlow<WedgeEscalation> {
         let signed = material_kappa_rel(station.jet.kappa_rel, self.sense_plus);
-        let (end, margin) = match in_role(self.end, || {
+        let (end, margin) = match recorded_as(self.end, || {
             decide_nonzero_reported(
                 crate::MATERIAL_CUSP_SIDE,
                 Margin::sagitta(signed, station.arm.length()),

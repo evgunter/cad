@@ -804,8 +804,10 @@ fn d_rod_doc(bored: bool, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// that material and the carve takes it, at `ΔV = −2·A·L + π·a²·L`.
 /// The wall's name at the fillet
 /// node, which resolved before the edit, resolves `Vanished` after it,
-/// its cause the first choice that turned at the fillet, its trimline
-/// meeting the bore's ring: `PredicateFlip { fillet3_ring_clearance, Positive → Negative }`.
+/// its cause the first choice that turned at the fillet: the bore's rim
+/// circle on the end face beside the cut-off, metered against the region
+/// that encloses the sliver the cut removes, stops reading clear of it,
+/// `PredicateFlip { fillet3_ring_clearance, Positive → Negative }`.
 #[test]
 fn a_bore_a_radius_edit_puts_inside_the_sliver_vanishes_on_the_blends_verdict() {
     let a = 0.002;
@@ -875,7 +877,8 @@ fn a_bore_a_radius_edit_puts_inside_the_sliver_vanishes_on_the_blends_verdict() 
             from: geom_core::Sign::Positive,
             to: geom_core::Sign::Negative,
         },
-        "the wall vanishes on the blend's first turn: its trimline meets the bore's ring"
+        "the wall vanishes on the blend's first turn: the bore's rim on the end face stops \
+         reading clear of the sliver's region"
     );
 }
 

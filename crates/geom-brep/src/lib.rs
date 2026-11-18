@@ -166,7 +166,7 @@ pub use edge_nurbs::{
     probe_pick, sub_arc_joint,
 };
 pub use edge_wedge::{
-    Bend, FoldRoles, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over, edge_wedge_over_as,
+    Bend, WedgeClass, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over, edge_wedge_over_as,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,

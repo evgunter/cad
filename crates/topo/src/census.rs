@@ -12022,32 +12022,27 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> FlushAtRest {
-    // Every decision here is a check: a flush row changes no body and no
-    // name, it is a row the at-rest check reports, and an undecided pair
-    // is a finding.
-    geom_core::k_stats::checking(|| {
-        let geo = snapshot(body);
-        let pad = sweep_pad(band);
-        let faces: Vec<FaceKey> = geo
-            .faces
-            .iter()
-            .map(|f| f.key)
-            .chain(
-                geo.curved_faces
-                    .iter()
-                    .copied()
-                    .filter(|&f| exact_curved_face(body, f)),
-            )
-            .collect();
-        let boxes = Class::build(
-            CensusStrategy::Realized,
-            faces
+    let geo = snapshot(body);
+    let pad = sweep_pad(band);
+    let faces: Vec<FaceKey> = geo
+        .faces
+        .iter()
+        .map(|f| f.key)
+        .chain(
+            geo.curved_faces
                 .iter()
-                .map(|&f| face_box(body, f, pad, band))
-                .collect(),
-        );
-        flush_pairs(body, &geo, (&faces, &boxes), group, band, region)
-    })
+                .copied()
+                .filter(|&f| exact_curved_face(body, f)),
+        )
+        .collect();
+    let boxes = Class::build(
+        CensusStrategy::Realized,
+        faces
+            .iter()
+            .map(|&f| face_box(body, f, pad, band))
+            .collect(),
+    );
+    flush_pairs(body, &geo, (&faces, &boxes), group, band, region)
 }
 
 /// [`flush_at_rest`] over its candidates, `faces` and their box tree.

@@ -564,9 +564,11 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   stamped from the caller's scope (`geom_core::k_stats::checking`), and
   the resolver reads only choices. `first_cause`'s pass-over list is
   gone, so `dihedral_sign` is no longer hidden from the flip lane.
-- Touched on ONEDOOR's ground: the fold now takes the reader's roles
-  (`geom_brep::FoldRoles`, replacing `FoldNames`); the constructors' and
-  the rim's readings record the sign and end as checks (`CLASS`); the
+- Touched on ONEDOOR's ground: the fold now takes the role its reader
+  gives the side (`geom_brep::edge_wedge_over_as`'s `side: Role`,
+  replacing `FoldNames`); the constructors' and the rim's readings
+  record the sign and end as checks, the constructors reading back a
+  sign-erased `geom_brep::WedgeClass`; the
   blend's `fillet3_convexity_sign` / `fillet3_knife_end` pool back into
   `dihedral_sign` / `material_cusp_side`; `topo::edge_wedge_as` is gone.
 - Now possible, not done: `rules::edge_wedge`'s sign can move off

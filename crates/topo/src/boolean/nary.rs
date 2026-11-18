@@ -924,7 +924,13 @@ fn judged_pairs<'h>(
 ) -> impl Iterator<Item = (usize, usize)> + 'h {
     (0..hulls.len()).flat_map(move |p| {
         (p + 1..hulls.len())
-            .filter(move |&q| hulls[p].overlaps(&hulls[q]))
+            // The hull test prunes which pair booleans run, and decides
+            // nothing: its outcome is marked, so two member lists whose
+            // pruning differs part there rather than at a pair's
+            // decisions about another pair.
+            .filter(move |&q| {
+                geom_core::k_stats::mark_kept("nary_hulls_meet", hulls[p].overlaps(&hulls[q]))
+            })
             .map(move |q| if ranks[q] < ranks[p] { (q, p) } else { (p, q) })
     })
 }

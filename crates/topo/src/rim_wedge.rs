@@ -1084,7 +1084,8 @@ const RIM_PHASES: core::num::NonZeroU32 = match core::num::NonZeroU32::new(geom_
 /// same fold tier 3's check 4 reads an edge by, so a new wedge row cannot
 /// reach one and miss the other. The routing reads the class and never
 /// the side, so the crease's sign and the end are recorded as checks
-/// ([`geom_brep::FoldRoles::CLASS`]): another sign there can only refuse.
+/// ([`geom_brep::edge_wedge_over_as`] at [`geom_core::k_stats::Role::Check`]):
+/// another sign there can only refuse.
 ///
 /// The fold reads the class at every station before anything material:
 /// a sphere cut by a plane at 53° has aligned normals at its rim, and a
@@ -1148,7 +1149,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         RIM_PHASES,
     );
     use geom_brep::WedgeVerdict as V;
-    match geom_brep::edge_wedge_over_as(&walk, reach, band, geom_brep::FoldRoles::CLASS) {
+    match geom_brep::edge_wedge_over_as(&walk, reach, band, geom_core::k_stats::Role::Check) {
         V::Crease { .. } => Ok(RimRouting::Transverse),
         V::Seam { .. } => Ok(RimRouting::Seam),
         V::End { end, .. } => Ok(RimRouting::Cusp(end)),

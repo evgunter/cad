@@ -1142,7 +1142,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     // station's class, every corner's sign, and on a tangency its
     // pairing and end, levered at the faces' extent. The sign and the
     // end pick the side the ball rests on, so the blend reads them as
-    // choices (`geom_brep::FoldRoles::SIDE`).
+    // choices (`topo::edge_wedge` reads its side as one).
     let wedge = topo::edge_wedge(body, edge, band).ok_or_else(broken)?;
     let unsettled = |wedge| BlendError::WedgeUnsettled { edge, wedge };
     // A face's stored sense bit read STRUCTURALLY, never re-derived

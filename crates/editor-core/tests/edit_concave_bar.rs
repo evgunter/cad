@@ -111,8 +111,10 @@ fn named(
 /// clear of; at `0.1` it lies wholly inside the fill and the carve takes
 /// it, at `ΔV = +(A − π·a²)/2`. The wall's name at the blend node, which
 /// resolved before the edit, resolves `Vanished` after it, its cause a
-/// `Positive → Negative` turn of its ring clearance: the trimline meets
-/// the bar's ring, the first choice the two runs take differently.
+/// `Positive → Negative` turn of its ring clearance, the first choice the
+/// two runs take differently: the bar's rim circles on the end face
+/// beside the cut-off, metered against the region that encloses the
+/// sliver the cut removes, stop reading clear of it.
 #[test]
 fn a_bar_a_size_edit_puts_inside_a_concave_fill_vanishes_on_the_blends_verdict() {
     let (doc, union) = barred_die();
@@ -219,8 +221,9 @@ fn a_bar_a_size_edit_puts_inside_a_concave_fill_vanishes_on_the_blends_verdict()
             );
         };
         // The diagnosis names the node's first turn in decision order:
-        // the trimline meeting the bar's ring, which the blend reads
-        // before any face clearance, under either verb.
+        // the bar's rim on the end face beside the cut-off stops reading
+        // clear of the sliver's region, which the blend reads before any
+        // face clearance, under either verb.
         assert_eq!(
             diagnosis,
             editor_core::Diagnosis::PredicateFlip {

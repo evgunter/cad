@@ -277,7 +277,7 @@ thread_local! {
 /// one predicate is a choice where a reader builds from its sign and a
 /// check where a validator reads it off a body already built
 /// (`geom_brep::DIHEDRAL_SIGN` is both).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Role {
     /// Another sign can change what the node builds or names. The
     /// default: a decision is a choice unless its caller says otherwise.
@@ -292,31 +292,69 @@ pub enum Role {
 /// [`Role::Check`]**: for a caller whose use of every outcome inside it
 /// can only make the node refuse. A check scope is not reopened as a
 /// choice by anything inside it, since a decision taken inside a check
-/// only feeds that check, so nesting changes nothing and there is no
-/// door that undoes it.
+/// only feeds that check: this sets the role to `Check` whatever it was,
+/// and nothing but a scope's own exit, or a job's own spawner
+/// ([`SpawnRole`]), sets it back. There is no door that opens a choice
+/// scope.
 ///
 /// The role is this thread's for the call, [`map_detached`] hands it to
 /// its workers, and a panic inside `work` restores the outer role on
-/// unwind. Only the verdict channel and the symbolic recorder read it:
-/// an escalation is a refusal whatever the role of its reading, and a K
-/// sample is counted under its predicate's name alone.
+/// unwind. Only the verdict channel, the marks and the symbolic recorder
+/// read it: an escalation is a refusal whatever the role of its reading,
+/// and a K sample is counted under its predicate's name alone.
 pub fn checking<R>(work: impl FnOnce() -> R) -> R {
-    in_role(Role::Check, work)
+    with_role(Role::Check, work)
 }
 
-/// `work` with `role` this thread's role, unless the thread is already
-/// checking: a check scope is never reopened as a choice ([`checking`]).
-fn in_role<R>(role: Role, work: impl FnOnce() -> R) -> R {
+/// `work` with `role` this thread's role exactly, the outer one restored
+/// on exit and on unwind. Private: [`checking`] and [`SpawnRole::run`]
+/// are its only doors, so a choice is set only where a job's spawner was
+/// in one.
+fn with_role<R>(role: Role, work: impl FnOnce() -> R) -> R {
     struct Restore(Role);
     impl Drop for Restore {
         fn drop(&mut self) {
             ROLE.with(|r| r.set(self.0));
         }
     }
-    let outer = ROLE.with(Cell::get);
-    let _restore = Restore(outer);
-    ROLE.with(|r| r.set(outer.max(role)));
+    let _restore = Restore(ROLE.with(Cell::get));
+    ROLE.with(|r| r.set(role));
     work()
+}
+
+/// **`work` recorded as `role`, for a reader that states its use of an
+/// outcome as a value**: a [`checking`] scope for [`Role::Check`], and
+/// the caller's own scope unchanged for [`Role::Choice`], so a check
+/// stays a check (`geom_brep::edge_wedge_over_as`'s side).
+pub fn recorded_as<R>(role: Role, work: impl FnOnce() -> R) -> R {
+    match role {
+        Role::Check => checking(work),
+        Role::Choice => work(),
+    }
+}
+
+/// **The role a parallel job's spawner was in**, captured where the job
+/// is made and set where it runs. A rayon worker blocked inside a
+/// check-scoped `collect` steals other work from the pool meanwhile, so
+/// the thread a job runs on can be in any role; the job's own decisions
+/// are its spawner's, so a job SETS this role, never combines it with
+/// the running thread's (`k_stats_roles::a_stolen_job_runs_in_its_spawners_role`).
+/// [`map_detached`] does this for its jobs; a caller that maps deciding
+/// work with rayon itself captures one per map.
+#[derive(Debug, Clone, Copy)]
+pub struct SpawnRole(Role);
+
+impl SpawnRole {
+    /// This thread's role now.
+    #[must_use]
+    pub fn here() -> Self {
+        Self(current_role())
+    }
+
+    /// `work` in the captured role, the running thread's restored after.
+    pub fn run<R>(self, work: impl FnOnce() -> R) -> R {
+        with_role(self.0, work)
+    }
 }
 
 /// **Records `sign` under `name` as a verdict of this thread's role**,
@@ -364,6 +402,29 @@ pub fn mark_candidates(name: &'static str, items: impl IntoIterator<Item = usize
             top.recorded.marks.push(mark(None));
         }
     });
+}
+
+/// **Marks which way one pruning test went**, and hands the outcome
+/// back: for a box test or a cell prune written at its call site, which
+/// decides what is decided next and decides nothing itself (a hull
+/// overlap that skips a pair, the blend reach's sure-clear cell). One
+/// [`Mark`] per test, its item `1` where the test kept the candidate and
+/// `0` where it pruned it, so two runs whose tests went differently part
+/// there ([`mark_candidates`] for a query that hands on a list). Nothing
+/// where no frame is open.
+pub fn mark_kept(name: &'static str, kept: bool) -> bool {
+    FRAMES.with(|f| {
+        if let Some(top) = f.borrow_mut().last_mut() {
+            let before = top.recorded.verdicts.len();
+            top.recorded.marks.push(Mark {
+                before,
+                site: name,
+                item: Some(u32::from(kept)),
+                role: current_role(),
+            });
+        }
+    });
+    kept
 }
 
 /// The role a decision taken now is recorded in ([`checking`]); the
@@ -1648,10 +1709,10 @@ pub fn map_detached<I: Sync, R: Send>(
         "map_detached reached with a symbolic session or shape report installed: the caller \
          owes the serial walk here (`sym::decisions_are_thread_portable`)"
     );
-    let role = current_role();
+    let role = SpawnRole::here();
     items
         .par_iter()
-        .map(|item| in_role(role, || detached(|| run(item))))
+        .map(|item| role.run(|| detached(|| run(item))))
         .collect()
 }
 

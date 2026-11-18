@@ -45,11 +45,14 @@
 //! whose queries handed on other candidates part there, before any
 //! turn, and name no flip.
 //!
-//! The residue is pruning that does not go through `bvh`, and unlogged
-//! readings: a box-overlap test written at its call site (the
-//! idealized sweep's face-pair filter in `topo::boolean::ops`, and the
-//! others `work/doctail/hand-written-box-filters-steer-the-first-turn-unmarked.md`
-//! lists), a heuristic's [`geom_core::k_stats::choose`], and an
+//! Three pruning tests written at their call sites mark their outcome
+//! the same way ([`geom_core::k_stats::mark_kept`]): the section
+//! certificate's face-pair box test (`topo::boolean::ops`' `walk_pairs`),
+//! the n-ary union's hull test (`judged_pairs`), and the blend reach's
+//! sure-clear cell prune (`sweep::blend::reach::sure`). The residue is
+//! the box-overlap tests still written unmarked at their call sites
+//! (`work/doctail/hand-written-box-filters-steer-the-first-turn-unmarked.md`
+//! lists them), a heuristic's [`geom_core::k_stats::choose`], and an
 //! [`geom_core::k_stats::unlogged`] reading. Where one of those steers
 //! what follows while every logged decision and mark agrees, a first
 //! difference past it can still sit on a different candidate than the
@@ -169,24 +172,50 @@ impl Path<'_> {
     }
 }
 
+/// **How two runs' paths compare** ([`first_turn`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FirstTurn {
+    /// The choices and their candidates agree throughout.
+    Agree,
+    /// The first difference is one choice decided with the other sign:
+    /// the flip.
+    Turned(VerdictFlip),
+    /// The paths part at something that is no turn of a sign: another
+    /// predicate, a candidate a pruning test handed on or did not, or one
+    /// path ending first. The log shows where; no flip is named.
+    Parted,
+}
+
+impl FirstTurn {
+    /// The flip, where the paths turned.
+    #[must_use]
+    pub fn flip(self) -> Option<VerdictFlip> {
+        match self {
+            Self::Turned(flip) => Some(flip),
+            Self::Agree | Self::Parted => None,
+        }
+    }
+}
+
 /// **The first turn between two runs' logs** (module docs): the first
-/// choice the two take differently, read along their choices and their
-/// choices' candidates in the order each run met them, where it is the
-/// same predicate decided with the other sign. `None` where they agree
-/// throughout, or part on another predicate or on a candidate, or one
-/// ends first. Checks are not read.
+/// step the two take differently, read along their choices and their
+/// choices' candidates in the order each run met them. It is a flip
+/// where it is the same predicate decided with the other sign, and a
+/// parting otherwise ([`FirstTurn`]). Checks are not read.
 #[must_use]
-pub fn first_turn(old: Path<'_>, new: Path<'_>) -> Option<VerdictFlip> {
+pub fn first_turn(old: Path<'_>, new: Path<'_>) -> FirstTurn {
     let (old, new) = (old.steps(), new.steps());
-    match old.iter().zip(&new).find(|(a, b)| a != b)? {
-        (&Step::Choice(predicate, from), &Step::Choice(other, to)) if predicate == other => {
-            Some(VerdictFlip {
+    match old.iter().zip(&new).find(|(a, b)| a != b) {
+        Some((&Step::Choice(predicate, from), &Step::Choice(other, to))) if predicate == other => {
+            FirstTurn::Turned(VerdictFlip {
                 predicate,
                 from,
                 to,
             })
         }
-        _ => None,
+        Some(_) => FirstTurn::Parted,
+        None if old.len() == new.len() => FirstTurn::Agree,
+        None => FirstTurn::Parted,
     }
 }
 
@@ -288,13 +317,18 @@ fn sign_ix(s: Sign) -> usize {
 
 /// Diffs two evaluations' verdict logs (spec D2 — THE engine, built
 /// once): each node's standing in the two runs and, where both hold its
-/// log, its [`first_turn`]. Scalar-generic on BOTH sides independently:
-/// verdict logs are scalar-independent data, and a node logs the same
-/// passes at every scalar (a profile's `f64` lane logs the second pass
-/// it skips, [`crate::ProfileLane`]), so f64 runs, Interval runs, and
-/// mixtures diff identically; the caller chooses what the two runs
-/// differ by (parameter edit, ε change, recipe edit) and this function
-/// does not care.
+/// log, its [`first_turn`]. Scalar-generic on BOTH sides independently,
+/// and the caller chooses what the two runs differ by (parameter edit, ε
+/// change, recipe edit). The verdicts are float-free and a node logs
+/// the same passes at every scalar (a profile's `f64` lane logs the
+/// second pass it skips, [`crate::ProfileLane`]), but the candidate
+/// marks a path carries are NOT scalar-independent: an Interval run's
+/// boxes cover its whole parameter box, so its pruning queries can hand
+/// on candidates an f64 run at one point of that box prunes. An f64 run
+/// diffed against an Interval one can therefore part on a mark where
+/// their choices alone would agree, and names no flip there
+/// ([`FirstTurn::Parted`]); a mixed diff that finds a flip found one on
+/// one path.
 pub fn diff_verdicts<T: topo::AtRestPolicy + Decide, U: topo::AtRestPolicy + Decide>(
     old: &Evaluation<T>,
     new: &Evaluation<U>,
@@ -304,7 +338,7 @@ pub fn diff_verdicts<T: topo::AtRestPolicy + Decide, U: topo::AtRestPolicy + Dec
     for id in ids {
         let (old_status, new_status) = (status(old, id), status(new, id));
         let flip = match (old.value(id), new.value(id)) {
-            (Some(a), Some(b)) => first_turn(path(a), path(b)),
+            (Some(a), Some(b)) => first_turn(path(a), path(b)).flip(),
             _ => None,
         };
         if old_status != new_status || flip.is_some() {
@@ -605,6 +639,18 @@ pub struct VerdictRow {
 /// rounding of the other: `crates/editor-core/tests/props_verdict_shapes.rs`
 /// is the asymmetry as rows — logs the engine names no flip in whose
 /// keys here differ.
+///
+/// **Why the certificate omits the candidate marks.** A leaf is the
+/// witness build when its decisions are the witness's, row for row:
+/// every decision a pruning query steered is among them, so pruning that
+/// differs shows here as rows that differ, and a mark would add nothing
+/// a false yes could slip past. A mark is not scalar-independent either
+/// (an Interval leaf's boxes cover its box, so its queries can hand on
+/// candidates the f64 witness prunes, then decide nothing about them),
+/// and hashing marks would refuse leaves that decided exactly what the
+/// witness decided. The marks are the naming reading's: they keep the
+/// first turn from naming a flip between two different candidates, which
+/// a gate that compares whole logs never does.
 ///
 /// **Not the persisted shape.** [`VerdictSummary`] is: it is the one
 /// form with a serde derive and the one the strict codecs in

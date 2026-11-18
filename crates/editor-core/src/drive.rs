@@ -1345,7 +1345,9 @@ pub fn drive(
         };
         let verdicts: Result<Vec<(LeafVerdict, SymCounts)>, crate::Stopped> = if config.parallel {
             use rayon::prelude::*;
-            frontier.par_iter().map(leaf).collect()
+            // Each leaf runs in this map's role, whatever thread steals it.
+            let role = geom_core::k_stats::SpawnRole::here();
+            frontier.par_iter().map(|x| role.run(|| leaf(x))).collect()
         } else {
             frontier.iter().map(leaf).collect()
         };

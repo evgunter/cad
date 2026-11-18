@@ -69,7 +69,7 @@ fn voided_rod() -> Body<f64> {
 /// off rays aimed at its faces, every decision of which is recorded as a
 /// check (the aimed rows `side_at_infinity_*` and the ray walk's rows
 /// among them), and the side each shell reads once as a choice
-/// (`side_at_infinity`: the cavity's `Negative`, the outer's `Positive`);
+/// (`side_read`: the cavity's `Negative`, the outer's `Positive`);
 /// no volume sign is read.
 #[test]
 fn voided_rods_verdicts_as_a_sorted_multiset() {
@@ -108,8 +108,6 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("props_rim_fit Zero Choice", 4),
         ("props_rim_span_forward Positive Choice", 4),
         ("props_rim_span_winding Positive Choice", 4),
-        ("side_at_infinity Negative Choice", 1),
-        ("side_at_infinity Positive Choice", 1),
         ("side_at_infinity_advance Positive Check", 4),
         ("side_at_infinity_denom Negative Check", 4),
         ("side_at_infinity_denom Positive Check", 4),
@@ -117,6 +115,8 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("side_at_infinity_order Negative Check", 2),
         ("side_at_infinity_order Positive Check", 1),
         ("side_at_infinity_vertex Positive Check", 12),
+        ("side_read Negative Choice", 1),
+        ("side_read Positive Choice", 1),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))

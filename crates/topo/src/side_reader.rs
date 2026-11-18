@@ -585,7 +585,7 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
 /// read is what its caller builds from (a shell's role sorts the pieces;
 /// a point's side keeps or drops a piece), and that answer is a function
 /// of those checks no verdict states, so it is recorded once, here.
-pub const SIDE: &str = "side_at_infinity";
+pub const SIDE: &str = "side_read";
 
 /// The side as a sign: inside the material negative, outside positive,
 /// on the boundary zero.

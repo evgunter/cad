@@ -705,7 +705,9 @@ fn driver(
     // schedule. The error reported is the first in parameter order.
     let results: Vec<Result<Sensitivity, SensitivityRefusal>> = if parallel {
         use rayon::prelude::*;
-        names.par_iter().map(one).collect()
+        // Each job runs in this map's role, whatever thread steals it.
+        let role = geom_core::k_stats::SpawnRole::here();
+        names.par_iter().map(|n| role.run(|| one(n))).collect()
     } else {
         names.iter().map(one).collect()
     };
@@ -2058,7 +2060,9 @@ fn worst_case(
     // schedule (the driver's own collection says why).
     let results: Vec<Result<(f64, f64), StackupRefusal>> = if parallel {
         use rayon::prelude::*;
-        leaves.par_iter().map(one).collect()
+        // Each job runs in this map's role, whatever thread steals it.
+        let role = geom_core::k_stats::SpawnRole::here();
+        leaves.par_iter().map(|l| role.run(|| one(l))).collect()
     } else {
         leaves.iter().map(one).collect()
     };

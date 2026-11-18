@@ -280,3 +280,28 @@ fn a_turn_after_other_candidates_is_no_flip() {
         "after the same candidates the turn is named"
     );
 }
+
+/// Row 7, its other half: a query a check scope ran is not on the
+/// choices' path. The same choices and the same turn, with marks that
+/// differ only among checks: the turn is still named.
+#[test]
+fn a_check_scoped_query_parts_nothing() {
+    let log = |sign| vec![v("plane_eq_parallel", sign)];
+    let check_mark = |item| geom_core::k_stats::Mark {
+        role: Role::Check,
+        ..mark(0, item)
+    };
+    let (a, b) = marked(
+        (log(Sign::Zero), vec![check_mark(Some(0)), check_mark(None)]),
+        (log(Sign::Positive), vec![check_mark(None)]),
+    );
+    assert_eq!(
+        named(&a, &b),
+        VerdictFlip {
+            predicate: "plane_eq_parallel",
+            from: Sign::Zero,
+            to: Sign::Positive,
+        },
+        "a check's candidates part no choice"
+    );
+}

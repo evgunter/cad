@@ -586,7 +586,12 @@ pub fn monte_carlo(
     // reported is the first in sample order whatever the schedule.
     let samples: Vec<Result<Sample, crate::Stopped>> = if config.parallel {
         use rayon::prelude::*;
-        (0..config.samples).into_par_iter().map(one).collect()
+        // Each sample runs in this map's role, whatever thread steals it.
+        let role = geom_core::k_stats::SpawnRole::here();
+        (0..config.samples)
+            .into_par_iter()
+            .map(|i| role.run(|| one(i)))
+            .collect()
     } else {
         (0..config.samples).map(one).collect()
     };

@@ -158,6 +158,56 @@ fn a_disjoining_edit_names_no_flip_read_off_other_pairs() {
     assert_eq!(flips, diff_verdicts(&ev1, &ev2));
 }
 
+/// **An n-ary union whose hull test pairs other members names no flip
+/// read off the other pair.** Members `[C1, B, C2]`, `C1` and `C2`
+/// congruent and apart; `B` slides from across `C1` to across `C2`. The
+/// union's hull test (`topo`'s `judged_pairs`) runs the pair boolean
+/// `(C1, B)` in one run and `(B, C2)` in the other: congruent pairs,
+/// whose decisions can read alike or differ by place, about two different
+/// pairs either way. The test's outcomes are marked, so the two runs
+/// part at the first pair the test judged differently, and no flip is
+/// named.
+#[test]
+fn an_nary_union_whose_hull_test_pairs_other_members_names_no_flip() {
+    let doc = ProfileDoc::empty_derived("m4_pr4_diff", Tol::witness());
+    let (doc, c1) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c2_block) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    // Both are placed in `c1`'s space, as a union's members must be.
+    let (doc, c2) = fixture::slid(doc, c1, c2_block, [3.0, 0.0, 0.0]);
+    let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, placement) = fixture::slid(doc, c1, b0, [0.5, 0.25, 0.25]);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![c1.into(), placement.into(), c2.into()]),
+        },
+    );
+    let s = Slide {
+        doc,
+        placement,
+        union,
+    };
+    let ev1 = run(&s.doc, None);
+    let ev2 = run(&slide_to(&s, 3.5), Some(&ev1));
+    let marked = |ev: &Evaluation<f64>| {
+        ev.value(union)
+            .expect("the union builds")
+            .marks
+            .iter()
+            .filter(|m| m.site == "nary_hulls_meet")
+            .map(|m| m.item)
+            .collect::<Vec<_>>()
+    };
+    let (m1, m2) = (marked(&ev1), marked(&ev2));
+    assert!(!m1.is_empty(), "the hull test marks each pair it judges");
+    assert_ne!(m1, m2, "the hull test pairs other members in the two runs");
+    let flips = diff_verdicts(&ev1, &ev2);
+    assert!(
+        flips.nodes.get(&union).is_none_or(|d| d.flip.is_none()),
+        "no turn at the union: {flips:?}"
+    );
+}
+
 #[test]
 fn structural_count_edit_names_no_fake_flip() {
     // A union over a row of overlapping blocks whose index's count is

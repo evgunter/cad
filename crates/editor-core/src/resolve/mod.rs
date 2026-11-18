@@ -69,7 +69,7 @@ pub use pick::{
     answer_of, crossing, pick_face, ray_segment_point, ray_triangle,
 };
 pub use vdiff::{
-    FlipSet, NodeVerdictDelta, NodeVerdicts, Path, RunStatus, SummaryDelta, SummaryDiff,
+    FirstTurn, FlipSet, NodeVerdictDelta, NodeVerdicts, Path, RunStatus, SummaryDelta, SummaryDiff,
     SummaryDivergence, SummaryShift, VerdictFlip, VerdictRow, VerdictSummary, VerdictVector,
     VerdictVectorKey, diff_summaries, diff_verdicts, first_turn, verdict_summary,
 };

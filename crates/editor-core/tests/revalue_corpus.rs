@@ -254,6 +254,10 @@ fn compare_decisions(
     tally(&mut reader, &f0, &f1, in_step(&f0, &f1), env0, env);
     found.checks = reader.compared;
     found.drifted += reader.drifted;
+    // A check the f64 channel escalated is as much a gate failure as a
+    // choice: tier 3's readings are checks, and a row's `escalated == 0`
+    // holds them too.
+    found.escalated += reader.escalated;
     found.laundered.extend(reader.laundered);
     Some(found)
 }

@@ -508,7 +508,8 @@ fn signed_wedge<T: Real>(
 /// already built, under the at-rest doors' check scope; the boolean's
 /// shared-rim routing and the constructors that store an edge by its
 /// wedge (`topo::edge_wedge_description`) route a crease of either turn
-/// alike, so they record it as a check too ([`crate::FoldRoles`]). The
+/// alike, so they record it as a check too ([`crate::edge_wedge_over_as`]'s
+/// side, [`crate::WedgeClass`]). The
 /// blend builds from it, since the sign picks the side its ball rolls on,
 /// and records it as a choice. Which one a verdict is, the verdict says
 /// (`geom_core::k_stats::Role`); the name does not.

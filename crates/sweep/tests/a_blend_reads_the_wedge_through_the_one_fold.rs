@@ -74,10 +74,8 @@ fn the_blend_composes_no_wedge_of_its_own() {
         "enters_material",
         "WedgeWalk::",
         "Station::on(",
-        // A door that takes the fold's roles: the blend's sign and end
-        // could be recorded as checks.
-        "FoldRoles",
-        "edge_wedge_as(",
+        // A scope that records the blend's sign and end as checks.
+        "checking(",
     ];
     let mut door = 0;
     let mut normals = 0;

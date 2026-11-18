@@ -16,7 +16,7 @@ Filed by the DOCTAIL first-turn lane, from `verdict-log-tells-no-validation-read
 Every verdict now carries its role, a choice or a check (`geom_core::k_stats::Role`), stamped from the scope the caller opens (`k_stats::checking`). `editor_core::resolve::first_cause`'s pass-over list is gone, and the resolver reads only choices. So a reader that builds from `dihedral_sign` no longer needs a name of its own to stay visible to the flip lane: its reading is a choice wherever it is not inside a check scope.
 
 - The at-rest doors (tier 3 in `AtRestBody::validate`, tier 2 in `Replay::of`, a move's re-ask, `census::flush_at_rest`) record every decision as a check.
-- The fold takes the reader's roles (`geom_brep::FoldRoles`): `SIDE` (sign and end are choices) for the blend and `topo::edge_wedge`, `CLASS` (both are checks) for the constructors' `edge_wedge_read` / `edge_wedge_description` and the boolean's rim routing, which read the class and never the side.
+- The fold takes the role its reader gives the side (`geom_brep::edge_wedge_over_as`'s `side: Role`): `Choice` for the blend and `topo::edge_wedge`, `Check` for the constructors' `edge_wedge_read` / `edge_wedge_description` (which hand back a sign-erased `geom_brep::WedgeClass`) and the boolean's rim routing, which read the class and never the side.
 - The blend's `FoldNames` is retired: its corner signs and knife ends pool into `dihedral_sign` and `material_cusp_side` (`docs/K-REPORT.md`, census note 2026-11-18).
 
 ## What is now possible

@@ -124,9 +124,18 @@ pub(in crate::blend) const EDGE_SAMPLES: u32 = 9;
 /// Whether a reading is certainly positive, by `escalate`: what makes a
 /// point a witness of a three-way reading. A reading that is never
 /// reported is not classified.
+///
+/// It is unlogged and steers what is read next (a cell surely clear is
+/// not subdivided, so its clearance readings are never taken), so each
+/// outcome is marked ([`geom_core::k_stats::mark_kept`]): two runs whose
+/// cell prunes went differently part there, and the first-turn reading
+/// names no flip read off other cells.
 pub(in crate::blend) fn sure<T: Bounds>(x: T, band: Band) -> bool {
-    x.lo() >= band.escalate()
+    geom_core::k_stats::mark_kept(SURE, x.lo() >= band.escalate())
 }
+
+/// The name [`sure`]'s outcomes are marked under.
+const SURE: &str = "blend_reach_sure";
 
 /// A rectangle of a meridian sheet: `[ρ_lo, ρ_hi, z_lo, z_hi]`.
 type Rect<T> = [T; 4];
