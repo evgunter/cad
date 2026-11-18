@@ -271,23 +271,18 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 39] = [
     (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Pass(1, 1, 6, 12, 8)),
-    (FTC11, 1e-9, "1e-6", Pass(1, 1, 6, 12, 8)),
+    // Read at an ε_in of 1e-6, a rim vertex 1.6e-6 m from the seam
+    // azimuth lies in the file's band: whether it is the seam's vertex
+    // is undecided, and the import refuses that ambiguity.
+    (FTC11, 1e-9, "1e-6", Refused(FTC11_SEAM_VERTEX_IN_BAND)),
     (FTC11, 1e-9, "1e-12", Pass(1, 1, 6, 12, 8)),
     (FTC11, 1e-6, "file", Pass(1, 1, 6, 12, 8)),
-    (
-        FTC11,
-        1e-6,
-        "1e-6",
-        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
-    ),
-    (
-        FTC11,
-        1e-6,
-        "1e-12",
-        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
-    ),
+    // At ambient 1e-6 the file is read no finer than the run, so the
+    // same vertex lies in band whatever ε_in it declares or is given.
+    (FTC11, 1e-6, "1e-6", Refused(FTC11_SEAM_VERTEX_IN_BAND)),
+    (FTC11, 1e-6, "1e-12", Refused(FTC11_SEAM_VERTEX_IN_BAND)),
     (FTC11, 1e-12, "file", Pass(1, 1, 6, 12, 8)),
-    (FTC11, 1e-12, "1e-6", Pass(1, 1, 6, 12, 8)),
+    (FTC11, 1e-12, "1e-6", Refused(FTC11_SEAM_VERTEX_IN_BAND)),
     (FTC11, 1e-12, "1e-12", Pass(1, 1, 6, 12, 8)),
     // -- tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp ------------
     // The AMBIENT sweep only, at this file's own ε_in — the same shape
@@ -341,57 +336,45 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 39] = [
     (DM1, 1e-12, "file", Refused(DM1_CONTACT_UNRECORDED)),
     // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
-    // themselves to full double precision). The near-pole feature is
-    // 0.9e-9 m by construction, so which certification refuses is a
-    // function of the ambient band alone: the span escalates in the
-    // default band's indeterminate zone and certifies ZERO at 1e-6. At
-    // 1e-12 the pole the feature sits beside is read before any of it:
-    // 0.9e-9 m is inside the file's band (ε_in = 1e-10 m, K·ε_in =
-    // 1e-9 m), so whether it is a vertex of the face is undecided and
-    // the import refuses, its ending naming the file's coincidence
-    // distance (`chart_singularity_vertex.rs`); the pcurve
-    // re-mint that refused there before is no longer reached —
+    // themselves to full double precision). The twins' near-pole feature
+    // is a circle of radius 0.9e-9 m by construction, which the band the
+    // file is read at, `(e, K·e)` for `e` the larger of its ε_in
+    // (1e-10 m) and the run's ε, cannot tell from zero at any of the
+    // three bands: it reads zero at 1e-9 and 1e-6 and in band at 1e-12.
+    // So each twin refuses at interpretation, where the circle is read,
+    // before any span is certified or the pole beside it placed —
     // `poleguard.rs` holds the route argument.
+    (POLEBAND, 1e-9, "file", Refused(POLE_TWIN_CIRCLE_UNREAD)),
+    (POLEBAND, 1e-6, "file", Refused(POLE_TWIN_CIRCLE_UNREAD)),
+    (POLEBAND, 1e-12, "file", Refused(POLE_TWIN_CIRCLE_UNREAD)),
+    // The ε-relative sibling's circle is 0.9e-12 m, inside its file's
+    // ε_in (1e-10 m) at every band, so it refuses the same way.
     (
-        POLEBAND,
+        POLEBAND12,
         1e-9,
         "file",
-        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+        Refused(POLE_SIBLING_CIRCLE_UNREAD),
     ),
-    (POLEBAND, 1e-6, "file", Refused(POLEBAND_ZERO_SPAN_TOLD)),
-    (POLEBAND, 1e-12, "file", Refused(POLEBAND_POLE_IN_FILE_BAND)),
-    // The ε-relative sibling's cells mirror the twins' one band down:
-    // its 5.65e-12 m span escalates exactly where the band is 1e-12
-    // and certifies ZERO at both coarser bands.
-    (POLEBAND12, 1e-9, "file", Refused(INTERVAL_ZERO_SPAN_UNTOLD)),
-    (POLEBAND12, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN_UNTOLD)),
+    (
+        POLEBAND12,
+        1e-6,
+        "file",
+        Refused(POLE_SIBLING_CIRCLE_UNREAD),
+    ),
     (
         POLEBAND12,
         1e-12,
         "file",
-        Escalated(PARAM_SPAN_UNTOLD, PARAM_SPAN_ESCALATED.1),
+        Refused(POLE_SIBLING_CIRCLE_UNREAD),
     ),
-    (
-        POLEFRUSTUM,
-        1e-9,
-        "file",
-        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
-    ),
-    (
-        POLEFRUSTUM,
-        1e-6,
-        "file",
-        Refused(POLEFRUSTUM_ZERO_SPAN_TOLD),
-    ),
-    (
-        POLEFRUSTUM,
-        1e-12,
-        "file",
-        Refused(POLEFRUSTUM_POLE_IN_FILE_BAND),
-    ),
+    (POLEFRUSTUM, 1e-9, "file", Refused(POLE_TWIN_CIRCLE_UNREAD)),
+    (POLEFRUSTUM, 1e-6, "file", Refused(POLE_TWIN_CIRCLE_UNREAD)),
+    (POLEFRUSTUM, 1e-12, "file", Refused(POLE_TWIN_CIRCLE_UNREAD)),
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+/// FTC11's rim vertex beside the seam azimuth, read in the file's band.
+const FTC11_SEAM_VERTEX_IN_BAND: &str = "(step_band_seam_vertex) lies in the";
 pub(crate) const TAIL_TURBINE: &str = "tests/fixtures/wild/stepcode/TAIL_TURBINE.stp";
 /// `TAIL_TURBINE`'s refusal below 1e-6: its spline-carried edge (#170)
 /// misses one of its analytic surfaces past ε.
@@ -407,46 +390,13 @@ const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
 const POLEBAND: &str = "tests/fixtures/poleguard/poleband.step";
 const POLEBAND12: &str = "tests/fixtures/poleguard/poleband_eps12.step";
 const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
-/// The poleguard twins' coarse-band sub-reason: the sub-band span
-/// certifies zero, and the attachment gate refuses the interval by name,
-/// printing the span — the span's Zero verdict, not a reversed one. The
-/// span is a real edge shorter than the tolerance, a band-decided arm
-/// like every sized decision's, and certification at adoption reads as
-/// at rest (D4 ¶1): each twin's span lies past its file's ε_in
-/// (1e-10 m), so the file tells it from zero and the offer to tighten
-/// stands, valued — the value is the span over K, so it pins the span.
-/// A span of no length is refused as the interval the adoption's mint
-/// was handed instead, in the lever alone, which the offer's words
-/// cannot match.
-const POLEBAND_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
-     forward (length 5.654866773844621e-9 m). Recourse: move the geometry so this \
-     edge runs forward over a clear length, or, if this length is intended, tighten the tolerance \
-     below 5.654866773844621e-10 m";
-/// [`POLEBAND_ZERO_SPAN_TOLD`], for the frustum twin's shorter span.
-const POLEFRUSTUM_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
-     forward (length 1.799999999166981e-9 m). Recourse: move the geometry so this \
-     edge runs forward over a clear length, or, if this length is intended, tighten the tolerance \
-     below 1.799999999166981e-10 m";
-/// The ε-relative sibling at every band: its span lies within the
-/// file's ε_in (1e-10 m), so the file cannot tell it from zero, and the
-/// import door ends it in one sentence whether the run's band reads it as
-/// zero (the coarse bands, this fragment) or in band (the fine one,
-/// [`PARAM_SPAN_UNTOLD`]): the lever, or both steps that keep the
-/// span together — declare the file's uncertainty below it, and tighten
-/// below it over K (D4 ¶1). The values pin the span.
-const INTERVAL_ZERO_SPAN_UNTOLD: &str = "the stored parameter interval is not shown to run \
-     forward (length 5.65487109168879e-12 m). This length is within the file's \
-     declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it from zero. \
-     Recourse: move the geometry so this edge runs forward over a clear length, or, if this length \
-     is intended, re-export the file with its uncertainty declared below 5.65487109168879e-12 m \
-     and tighten the tolerance below 5.65487109168879e-13 m";
-/// [`INTERVAL_ZERO_SPAN_UNTOLD`]'s sentence on the fine band's
-/// escalation of the same span.
-const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). This length is \
-     within the file's declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it \
-     from zero. Recourse: move the geometry so this edge runs forward over a clear length, or, if \
-     this length is intended, re-export the file with its uncertainty declared below \
-     5.65487109168879e-12 m and tighten the tolerance below 5.65487109168879e-13 m";
+/// The poleguard twins' near-pole circle, whose 0.9e-9 m radius the band
+/// the file is read at cannot tell from zero.
+const POLE_TWIN_CIRCLE_UNREAD: &str = "a circle's radius, which must be positive: the file states \
+     8.999999995834905e-10 m, which the band it is read at";
+/// The ε-relative sibling's near-pole circle, 0.9e-12 m in radius.
+const POLE_SIBLING_CIRCLE_UNREAD: &str = "a circle's radius, which must be positive: the file \
+     states 9.000006867897335e-13 m, which the band it is read at";
 // dm1's `#389` polyline gap ("edge #389: no intensional description
 // certifies", with an empty attempt list) is RETIRED, by execution and
 // not by unreachability: degree-1 carriers promote to `Curve3::Line`
@@ -479,34 +429,7 @@ const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or
      lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
      vertex, onto that point or clear of it, or, if this distance is intended, tighten \
      the tolerance below 1.0000000011961913e-10 m";
-/// The poleguard twins' fine-band refusal: at 1e-12 the run's band
-/// reads their 0.9e-9 m distance clear, and the FILE's band, `(ε_in,
-/// K·ε_in)`, cannot call it, so no tolerance decides it and the ending
-/// names the file's coincidence distance instead.
-const POLEBAND_POLE_IN_FILE_BAND: &str = "step import: face #50: whether a sphere pole or cone \
-     apex, or where a meridian minted from one meets a face's boundary, lies on that boundary \
-     or at one of its vertices is undecided: margin \
-     8.999999995834914e-10 lies inside the ambiguity band (1e-10, 1e-9). Recourse: move the \
-     face's boundary, or its vertex, onto that point or clear of it, or, if this \
-     distance is intended, re-export the file with a smaller declared uncertainty (or pass a \
-     smaller ε_in override): the distance lies in the band past the file's coincidence \
-     distance, which no tolerance of this run decides";
-/// As [`POLEBAND_POLE_IN_FILE_BAND`], for the frustum twin.
-const POLEFRUSTUM_POLE_IN_FILE_BAND: &str = "step import: face #70: whether a sphere pole or \
-     cone apex, or where a meridian minted from one meets a face's boundary, lies on that \
-     boundary or at one of its vertices is undecided: margin \
-     8.999999995834914e-10 lies inside the ambiguity band (1e-10, 1e-9). Recourse: move the \
-     face's boundary, or its vertex, onto that point or clear of it, or, if this \
-     distance is intended, re-export the file with a smaller declared uncertainty (or pass a \
-     smaller ε_in override): the distance lies in the band past the file's coincidence \
-     distance, which no tolerance of this run decides";
 
-/// At ambient 1e-6 the file's own span decision is in-band too, and it
-/// is reached first — at assembly, before any edge is adopted.
-const PARAM_SPAN_ESCALATED: (&str, &str) = (
-    "the stored parameter interval's length (not a sampled check) escalated",
-    "interval_span_forward",
-);
 /// The MAPPED-CURVE arm's definite miss, read at the import door by its
 /// own value: it lies within the file's ε_in (its inch uncertainty,
 /// 1.331353158630e-3 in), so the ending names setting ε to ε_in as a
@@ -1234,16 +1157,18 @@ fn every_corpus_import_passes_the_shared_gate() {
     }
 }
 
-/// A certification refusal at adoption reads as at rest (D4 ¶1): no
-/// ending blames the kernel alone, and no offer to tighten keeps a size
-/// at or below the file's declared coincidence distance ε_in by
-/// tightening alone. Each offer's value is `|m|/K` at the margin's
+/// A certification refusal at adoption reads as at rest (D4 ¶1), and an
+/// interpretation refusal reads the file at its band: no ending blames
+/// the kernel alone, and no offer to tighten keeps a size at or below
+/// the file's declared coincidence distance ε_in by tightening alone. Each offer's value is `|m|/K` at the margin's
 /// nearer end, so the size it keeps, that value times K, lies past
 /// ε_in — or the offer is the second of two steps, after declaring the
 /// file's uncertainty below that size. Counts each offer it parsed, and
 /// each reading that withheld one, into `exposure`.
 fn assert_adoption_reading(who: &str, e: &StepImportError, exposure: &mut Exposure) {
-    let (StepImportError::Adoption { file, .. } | StepImportError::Assembly { file, .. }) = e
+    let (StepImportError::Adoption { file, .. }
+    | StepImportError::Assembly { file, .. }
+    | StepImportError::Interpretation { file, .. }) = e
     else {
         return;
     };
@@ -1264,13 +1189,26 @@ fn assert_adoption_reading(who: &str, e: &StepImportError, exposure: &mut Exposu
         if below * k > file.eps_in() {
             continue;
         }
-        let declared: Option<f64> = before
+        // The first step, in either door's words: the adoption's
+        // "uncertainty declared below X m and" (X the size, the offer at
+        // X/K), or the interpretation's "ε_in below X m (…) and" (the
+        // band's zero below the size over K, so both at one value).
+        let adoption: Option<f64> = before
             .strip_suffix(" m and ")
             .and_then(|b| b.rsplit_once("uncertainty declared below "))
             .and_then(|(_, v)| v.parse().ok());
+        let interpretation: Option<f64> = before
+            .strip_suffix(" and ")
+            .and_then(|b| b.rsplit_once("ε_in below "))
+            .and_then(|(_, rest)| rest.split_once(" m"))
+            .and_then(|(v, _)| v.parse().ok());
+        let paired = adoption
+            .is_some_and(|d| d <= file.eps_in() && (d / k - below).abs() <= below * 1e-9)
+            || interpretation
+                .is_some_and(|d| d <= file.eps_in() && (d - below).abs() <= below * 1e-9);
         assert!(
-            declared.is_some_and(|d| d <= file.eps_in() && (d / k - below).abs() <= below * 1e-9),
-            "{who}: an adoption refusal offers to keep a size of {:e} m, within the file's \
+            paired,
+            "{who}: a refusal offers to keep a size of {:e} m, within the file's \
              ε_in = {:e} m, without declaring the file's uncertainty below it: {msg}",
             below * k,
             file.eps_in()
@@ -1281,7 +1219,8 @@ fn assert_adoption_reading(who: &str, e: &StepImportError, exposure: &mut Exposu
         msg.matches("so the file cannot tell it from zero").count()
             + msg
                 .matches("so the file might not tell it from zero")
-                .count(),
+                .count()
+            + msg.matches("does not tell from zero").count(),
     );
 }
 

@@ -1097,6 +1097,12 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             pncad::document::pose::PoseConstruction::Through => "through",
             pncad::document::pose::PoseConstruction::Meet => "meet",
             pncad::document::pose::PoseConstruction::Chart => "chart",
+            pncad::document::pose::PoseConstruction::FaceChartBackwards { .. } => {
+                "face_chart_backwards"
+            }
+            pncad::document::pose::PoseConstruction::FaceChartUnleverable { .. } => {
+                "face_chart_unleverable"
+            }
         }),
         NodeErrorKind::PoseScalar { .. } => None,
         NodeErrorKind::CountOutOfRange { .. } => None,
@@ -2203,6 +2209,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Structure { .. } => "structure",
         StepImportError::MissingUncertainty => "missing_uncertainty",
         StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
+        StepImportError::UnbandedUncertainty { .. } => "unbanded_uncertainty",
         StepImportError::MalformedReal { .. } => "malformed_real",
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",
@@ -2214,6 +2221,8 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Join { .. } => "join",
         StepImportError::SingularityUndecided { .. } => "singularity_undecided",
         StepImportError::SingularitySideUndecided { .. } => "singularity_side_undecided",
+        StepImportError::SingularityMeetUnread { .. } => "singularity_meet_unread",
+        StepImportError::Interpretation { .. } => "interpretation",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::C0KnotUnsplit { .. } => "c0_knot_unsplit",
@@ -2279,6 +2288,8 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
         NormalizationKind::PlacementReMinted { .. } => "placement_re_minted",
+        NormalizationKind::OneRecord { .. } => "one_record",
+        NormalizationKind::CurvePromoted { .. } => "curve_promoted",
     }
 }
 

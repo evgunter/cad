@@ -1427,12 +1427,12 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     let imported: StepImport = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect("the export re-imports");
 
+    let curve_promotions = imported.curve_promotions();
     // Every field of the arm, bound by name and typed from this list.
     let StepImport::Solid {
         body,
         eps_in,
         normalizations,
-        curve_promotions,
         instances,
         coherence,
         coincidences,
@@ -1562,6 +1562,23 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             match to {
                 PromotedKind::Plane => "surface_promotion_plane",
                 PromotedKind::Cylinder => "surface_promotion_cylinder",
+            }
+        }
+        NormalizationKind::OneRecord {
+            kept,
+            joined,
+            moved_by,
+        } => {
+            named::<&u64>(kept);
+            named::<&u64>(joined);
+            named::<&f64>(moved_by);
+            "one_record"
+        }
+        NormalizationKind::CurvePromoted { kind, residual } => {
+            named::<&f64>(residual);
+            match kind {
+                PromotedCurveKind::Circle => "curve_promoted_circle",
+                PromotedCurveKind::Line => "curve_promoted_line",
             }
         }
     }

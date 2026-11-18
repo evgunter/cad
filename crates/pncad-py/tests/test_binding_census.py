@@ -1664,6 +1664,19 @@ FAMILIES: dict[str, str] = {
         "entry, and one Python row asking a reversed loop for a step's "
         "edges and naming the wall each addresses."
     ),
+    # A PROFILE DRAWN ON A FACE arrived with its door: DOCTAIL's
+    # `a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face` landed
+    # `editor_core::draw_on_face` and the face's chart it draws on, and
+    # the binding is
+    # `work/pydoor/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`.
+    "B-DRAW-ON-FACE": (
+        "the drawn-on-face door — `draw_on_face`, its `OnFace` "
+        "(orientation, spin, two slides, traced faces) and its "
+        "`DrawnOnFace` outcome. Closing it needs a `Doc` method taking "
+        "the face, the loops and those four, a `pncad.pyi` entry, and "
+        "one Python row drawing on a bottom cap and extruding a boss "
+        "and a pocket."
+    ),
     # THE FIFTH ARRIVED WITH ITS DOOR TOO, and it is the one whose
     # PYTHON half is the measurement. EDIT's
     # `recorded-program-arguments-carry-no-notation` landed the kernel
@@ -3393,6 +3406,13 @@ NOT_BOUND = {
     # kernel-side: the door exists, succeeds, and answers a closed
     # four-variant tag.
     "edge_carrier_kind": f"{GAP}: B-EDGE-KIND the named edge's stored carrier tag",
+    # --- gap: a profile drawn on a face -----------------------------
+    # The editor-core door landed with DOCTAIL's face-chart unit; its
+    # Python binding is the pydoor unit that retires `Doc.sketch_on_face`
+    # for it.
+    "draw_on_face": f"{GAP}: B-DRAW-ON-FACE the drawn-on-face door",
+    "DrawnOnFace": f"{GAP}: B-DRAW-ON-FACE the door's outcome",
+    "OnFace": f"{GAP}: B-DRAW-ON-FACE where the profile stands on the face",
     # --- gap: assorted single doors -------------------------------
     # B-CANCEL IS GONE FROM THIS ROSTER, closed at LIB-B-CANCEL, and
     # the id is gone from `FAMILIES` with it. `CancelToken` is a
@@ -3953,6 +3973,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Structure": "StepImportError.variant",
     "StepImportError::MissingUncertainty": "StepImportError.variant",
     "StepImportError::InvalidEpsOverride": "StepImportError.variant",
+    "StepImportError::UnbandedUncertainty": "StepImportError.variant",
     "StepImportError::MalformedReal": "StepImportError.variant",
     "StepImportError::Topology": "StepImportError.variant",
     "StepImportError::Assembly": "StepImportError.variant",
@@ -3962,8 +3983,10 @@ MEMBERS_BOUND_AS = {
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
+    "StepImportError::Interpretation": "StepImportError.variant",
     "StepImportError::SingularityUndecided": "StepImportError.variant",
     "StepImportError::SingularitySideUndecided": "StepImportError.variant",
+    "StepImportError::SingularityMeetUnread": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
     "StepImportError::C0KnotUnsplit": "StepImportError.variant",

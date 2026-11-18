@@ -123,6 +123,7 @@ DEFINITION_HOMES=(
 # number of calls it makes.
 DOOR_ALLOWLIST=(
   'crates/pncad-py/src/escalation.rs 1 the Python escalation payload: the numbers become the exception fields margin, margin_low and margin_high'
+  'crates/step-import/src/interpret.rs 1 the import door ambiguity sentence: the number becomes the distance and the ε_in that would decide it, printed in the refusal, and chooses only which levers the ending names (its text), never what the import does'
 )
 DOOR_RE='diagnostic_f64_for_error_text'
 

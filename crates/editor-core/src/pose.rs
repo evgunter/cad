@@ -326,6 +326,28 @@ pub enum PoseDef<R = crate::VarId, S = crate::VarId> {
         /// The pose flipped.
         pose: RoleRead<R>,
     },
+    /// **A face's chart** (D10 `[placement]`; `REFERENCES.md` DM1): the
+    /// frame a plane placement onto the face gives under the same
+    /// orientation, spin and slides, computed by that placement's own
+    /// code (`mate::value::face_chart`). Its `z` is the face's outward
+    /// normal; its `x` and origin are the face's space's under `orient`,
+    /// carried onto the face by the least turn, then turned by `spin`
+    /// about the normal and moved by `slides`, along the two target axes
+    /// the orientation leaves ([`crate::mate::face_chart_slides`]).
+    /// Within the band
+    /// about the least turn's pole it refuses typed, naming the
+    /// orientation to write ([`PoseConstruction::FaceChartBackwards`]).
+    FaceChart {
+        /// The face, a `Face` read of a planar face.
+        face: R,
+        /// Where the frame's axes lie among the space's.
+        orient: crate::Orientation,
+        /// The turn about the face's outward normal (Angle).
+        spin: S,
+        /// The slides along the two target axes the orientation leaves,
+        /// in `x`, `y`, `z` order (Length).
+        slides: [S; 2],
+    },
     /// **A pose of a copied shape as the copy carries it** (FORK-S3M):
     /// `pose`, read off a shape a placement copies, moved by the motion
     /// that placement's bundle solved to, keyed by the placement whose
@@ -882,7 +904,7 @@ impl<R, S> PoseDef<R, S> {
             Self::Plane { .. } => K::Plane,
             Self::Axis { .. } | Self::Meet { .. } => K::Axis,
             Self::Point { .. } => K::Point,
-            Self::Through { .. } => K::Frame,
+            Self::Through { .. } | Self::FaceChart { .. } => K::Frame,
             Self::Slide { .. } | Self::Spin { .. } | Self::Flip { .. } | Self::Carried { .. } => {
                 return None;
             }
@@ -902,7 +924,8 @@ impl<R, S> PoseDef<R, S> {
             | Self::Axis { .. }
             | Self::Point { .. }
             | Self::Through { .. }
-            | Self::Meet { .. } => None,
+            | Self::Meet { .. }
+            | Self::FaceChart { .. } => None,
         }
     }
 
@@ -944,6 +967,7 @@ impl<R, S> PoseDef<R, S> {
                 (PoseRead::Copy, copy, None, crate::SlotKind::Placeable),
                 at(PoseRead::Pose, pose, Pose(PoseAdmits::Any)),
             ],
+            Self::FaceChart { face, .. } => vec![(PoseRead::Face, face, None, Is(K::Face))],
         }
     }
 
@@ -953,6 +977,15 @@ impl<R, S> PoseDef<R, S> {
         match self {
             Self::Slide { by, .. } => vec![(PoseSlot::Slide, by)],
             Self::Spin { by, .. } => vec![(PoseSlot::Spin, by)],
+            Self::FaceChart {
+                spin,
+                slides: [a, b],
+                ..
+            } => vec![
+                (PoseSlot::Spin, spin),
+                (PoseSlot::Slide, a),
+                (PoseSlot::Slide, b),
+            ],
             Self::Plane { .. }
             | Self::Axis { .. }
             | Self::Point { .. }
@@ -1017,6 +1050,17 @@ impl<R, S> PoseDef<R, S> {
             Self::Carried { copy, pose } => PoseDef::Carried {
                 copy: read(PoseRead::Copy, copy)?,
                 pose: at(read, PoseRead::Pose, pose)?,
+            },
+            Self::FaceChart {
+                face,
+                orient,
+                spin,
+                slides: [a, b],
+            } => PoseDef::FaceChart {
+                face: read(PoseRead::Face, face)?,
+                orient: *orient,
+                spin: scalar(PoseSlot::Spin, spin)?,
+                slides: [scalar(PoseSlot::Slide, a)?, scalar(PoseSlot::Slide, b)?],
             },
         })
     }
@@ -1134,7 +1178,7 @@ impl core::fmt::Display for PoseReadFault {
 
 /// **A construction that refuses its degenerate case**
 /// ([`crate::NodeErrorKind::PoseDegenerate`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PoseConstruction {
     /// [`PoseDef::Through`]: the point lies on the axis.
     Through,
@@ -1143,6 +1187,26 @@ pub enum PoseConstruction {
     /// A value's chart: a direction its least turn carries that the
     /// band cannot mint as a unit.
     Chart,
+    /// [`PoseDef::FaceChart`]: the orientation puts the frame's `z`
+    /// opposite the face's outward normal, within the band about the
+    /// least turn's pole.
+    FaceChartBackwards {
+        /// The orientation written.
+        orient: crate::Orientation,
+        /// The orientation nearest it that puts the frame's `z` nearest
+        /// the face's outward normal: the one to write.
+        write: crate::Orientation,
+    },
+    /// [`PoseDef::FaceChart`]: the face and the slides stand too far
+    /// from the space's origin for the least turn to be decided over
+    /// them: the two halves of the lever
+    /// ([`crate::mate::LeverRefusal::OutOfRange`]).
+    FaceChartUnleverable {
+        /// The written slides' lengths, summed.
+        parts: f64,
+        /// The face's plane's distance from the space's origin.
+        datum: f64,
+    },
 }
 
 impl core::fmt::Display for PoseConstruction {
@@ -1159,6 +1223,25 @@ impl core::fmt::Display for PoseConstruction {
             Self::Chart => {
                 "a value's chart cannot mint the direction its least turn carries as a unit. \
                  Recourse: read the mate's poses off geometry whose directions are unit"
+            }
+            Self::FaceChartBackwards { orient, write } => {
+                return write!(
+                    f,
+                    "the face's chart's orientation ({orient}) puts the frame's z opposite the \
+                     face's outward normal, where no least turn is decided. Recourse: write the \
+                     orientation {write}"
+                );
+            }
+            Self::FaceChartUnleverable { parts, datum } => {
+                return write!(
+                    f,
+                    "the face's chart stands too far from its space's origin for its turn to be \
+                     decided: {}",
+                    crate::mate::LeverRefusal::OutOfRange {
+                        parts: *parts,
+                        datum: *datum
+                    }
+                );
             }
         })
     }
