@@ -2796,6 +2796,27 @@ fn a_line_leaving_an_arcs_end_along_its_tangent_meets_there_by_the_one_sided_win
     );
 }
 
+/// **A crossing off an arc's span reads no window.** A unit circle's arc
+/// over `(0.2, 0.8)` rad, and a segment square to the circle's plane
+/// through the circle at `1.4` rad, `0.6` m along the carrier past the
+/// arc's end. The pose's region about the crossing, `4·10⁻⁸` m, lies off
+/// the arc, so the window, the region on the spans, holds no pair, and
+/// the pose reads none (`curve_pair_pose_off_span`): no meeting. Read
+/// with the region on the arc, the polish holds the pair at the arc's
+/// end `0.6` m from the crossing, where the basin, `sin φ` less twice the
+/// turn over that run, is not proved, and the pose refuses.
+#[test]
+fn a_crossing_off_an_arcs_span_reads_no_window() {
+    let arc = circle([0.0; 3], [0.0, 0.0, 1.0], 1.0);
+    let through = arc.eval(1.4);
+    let square = line(through.to_array(), [0.0, 0.0, 1.0]);
+    let (a, b) = (Span::new(&arc, (0.2, 0.8)), Span::new(&square, (-1.0, 1.0)));
+    for (a, b) in [(&a, &b), (&b, &a)] {
+        let m = meet(a, b, band()).unwrap();
+        assert!(m.points.is_empty(), "no meeting: {m:?}");
+    }
+}
+
 /// **A held end whose span comes round within the window reads it
 /// two-sided.** The keel's wall and the bore's rim of
 /// [`a_keel_wall_past_a_bores_rim_is_cleared_by_its_held_ends_floor`],

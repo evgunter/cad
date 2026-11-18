@@ -274,7 +274,14 @@
 //! ([`super::polish::pair_held`]; an endless span holds nothing), as the
 //! walk's is, from the crossing and its foot each put on the turn about
 //! its span's middle ([`Span::branch`]), so a hold clamps a parameter
-//! into its own span and not a turn away from it. The polished pair names
+//! into its own span and not a turn away from it. The window is the
+//! region about the crossing on the spans, so where the region lies off
+//! either span, the start's parameter there farther from the span at
+//! the carrier's least speed than the region reaches, the window holds
+//! no pair and the pose reads none (`curve_pair_pose_off_span`). The
+//! polish is not read there: held at an end of a span far from the
+//! crossing, its travel is no part of the window, and would only weaken
+//! the basin. The polished pair names
 //! a parameter on each span and is read as that pair
 //! (`Found::read_posed`, C5's pair rule): its own gap, and each
 //! parameter's place, with no foot. A pair a span stops is held exactly
@@ -284,8 +291,8 @@
 //! span's parameter run and the window's at the least speed fall short of
 //! a turn together (`curve_pair_pose_held_one_piece`). A span that comes
 //! round to within the window of its other end holds the window in two
-//! pieces, one each side of the gap, and reads it two-sided. No pair of the window lies
-//! past either span, so an Off at the pair prunes only by the floor, and
+//! pieces, one each side of the gap, and reads it two-sided. No pair of
+//! the window lies past either span, so an Off at the pair prunes only by the floor, and
 //! otherwise escalates: the reach and the run, below, are read past a
 //! span for the walk's pair, never for the pose's.
 //!
@@ -647,6 +654,7 @@ mod row {
     pub(super) const ROOT_GAP: &str = "curve_pair_pose_root_gap";
     pub(super) const CLEAR: &str = "curve_pair_pose_clear";
     pub(super) const BASIN: &str = "curve_pair_pose_basin";
+    pub(super) const OFF_SPAN: &str = "curve_pair_pose_off_span";
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
@@ -913,6 +921,26 @@ impl<T: Decide> Side<'_, T> {
         .then_some(side)
     }
 
+    /// **The least metres from `u` to the span along the carrier**: none
+    /// on an endless span or within its parameters, and otherwise the
+    /// parameters from `u` to the nearer end at the carrier's least
+    /// speed. `u` is on the turn about the span's middle
+    /// ([`Span::branch`]), so on a conic the way round past the seam is
+    /// never the shorter.
+    fn off_span(self, span: &Span<'_, T>, u: T) -> T {
+        if !span.ended() {
+            return T::zero();
+        }
+        let (t0, t1) = span.params();
+        let half = (t1 - t0).abs() / T::from_f64(2.0);
+        let off = ((u - geom::mid_param(t0, t1)).abs() - half).max(T::zero());
+        let speed = match self {
+            Self::Line(line) => line.dir.norm(),
+            Self::Conic(k) => k.speed_lo(),
+        };
+        off * speed
+    }
+
     /// The most metres the carrier runs between the parameters `t0` and
     /// `t1`: their difference at its greatest speed.
     fn run(self, t0: T, t1: T) -> T {
@@ -989,6 +1017,15 @@ impl<T: Decide> Polish<'_, T> {
         // The start on the turn about each span's middle, so a hold
         // clamps a parameter to its own span, not a turn away from it.
         let (s0, t0) = (self.span_a.branch(s0), self.span_b.branch(t0));
+        // The window is the region about the start on the spans: where
+        // the region lies off either span, it holds no pair.
+        let off = self
+            .a
+            .off_span(self.span_a, s0)
+            .max(self.b.off_span(self.span_b, t0));
+        if decide(row::OFF_SPAN, Margin::of(off - region), band) == Ok(Sign::Positive) {
+            return Ok(None);
+        }
         let (s, t) = super::polish::pair_held(
             |s| self.a.ders(s),
             |t| self.b.ders(t),
