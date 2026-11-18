@@ -626,22 +626,29 @@ impl Real for Interval {
     /// **The polar enclosure, to second order.** For a stated frame `M`
     /// (columns `u`, `v`, `w`) the rotation it names is its polar factor
     /// `R = M(MᵀM)^(−1/2)`, the rotation nearest it. With `G = MᵀM − I`
-    /// (symmetric) and `η` an upper bound of `‖G‖_F ≥ ‖G‖₂`:
+    /// (symmetric) and `η` an upper bound of `‖G‖_F`, which is at least
+    /// `‖G‖₂` and at least `‖|G|‖₂` (`|·|` entry by entry):
     ///
-    /// - `(1 + x)^(−1/2) = 1 − x/2 + r(x)` with
-    ///   `|r(x)| ≤ (3/8)·x²·(1 − |x|)^(−5/2)` for `|x| < 1` (Taylor's
-    ///   remainder, the second derivative being `(3/4)(1 + ξ)^(−5/2)`);
-    ///   `G` is symmetric, so the same bound holds of the matrix
-    ///   function on its eigenvalues: `‖r(G)‖₂ ≤ (3/8)·η²·(1 − η)^(−5/2)`;
-    /// - so `R = M − ½·M·G + M·r(G)`, and `‖M·r(G)‖₂ ≤ ‖M‖₂·‖r(G)‖₂`
-    ///   with `‖M‖₂ = √‖MᵀM‖₂ ≤ √(1 + η)`;
-    /// - an entry is at most the spectral norm (`|aᵢⱼ| = |eᵢᵀAeⱼ| ≤ ‖A‖₂`).
+    /// - `(1 + x)^(−1/2) = Σₖ cₖ·xᵏ` with `cₖ = binom(−1/2, k)`, so
+    ///   `R = M − ½·M·G + M·Σₖ₌₂ cₖ·Gᵏ` wherever `‖G‖₂ < 1` (`G` is
+    ///   symmetric, so the series converges as its scalar does on the
+    ///   eigenvalues), and `|cₖ| ≤ 3/8` for `k ≥ 2`;
+    /// - entry by entry, for `k ≥ 2`, `|Gᵏ| ≤ |G|ᵏ = |G|·|G|ᵏ⁻²·|G|`, and an
+    ///   entry of `|G|ᵏ⁻²` is at most its spectral norm
+    ///   (`|aᵢⱼ| = |eᵢᵀAeⱼ| ≤ ‖A‖₂`), at most `‖|G|‖₂ᵏ⁻² ≤ ηᵏ⁻²` (and
+    ///   `|G|⁰ = I ≤ J`); so `|Σₖ₌₂ cₖGᵏ| ≤ (3/8)/(1 − η)·|G|·J·|G|`, `J`
+    ///   the all-ones matrix, whose `(l, j)` entry is `rₗ·cⱼ`, the row and
+    ///   column sums of `|G|`;
+    /// - so `|R − (M − ½·M·G)|ᵢⱼ ≤ ρᵢⱼ = (3/8)/(1 − η)·aᵢ·cⱼ`, with
+    ///   `aᵢ = Σₗ |Mᵢₗ|·rₗ`.
     ///
-    /// Each entry is answered `(M − ½·M·G)ᵢⱼ ± ρ`,
-    /// `ρ = √(1 + η)·(3/8)·η²·(1 − η)^(−5/2)`, all of it in this outward
-    /// rounded arithmetic, so it encloses `Rᵢⱼ`; for a rounded rigid
-    /// frame `η` is a few `u` and `ρ` is of order `u²`, so the width is
-    /// the rounding of `M − ½·M·G` itself.
+    /// Each entry is answered `(M − ½·M·G)ᵢⱼ ± ρᵢⱼ`, all of it in this
+    /// outward rounded arithmetic, so it encloses `Rᵢⱼ`. For a rounded
+    /// rigid frame `aᵢ` and `cⱼ` are each a few `u`, so `ρᵢⱼ` is of order
+    /// `u²` and the width is the rounding of `M − ½·M·G` itself; and a
+    /// column whose column of `G` vanishes (a column square to the others
+    /// and unit as stated) keeps its values exactly, as the polar factor
+    /// does (a frame block-diagonal in the world axes is so in `R`).
     ///
     /// `R` is a rotation and not a reflection where `det M > 0` with every
     /// singular value positive (`η < 1`), since `det M = det U · det Vᵀ
@@ -672,26 +679,34 @@ impl Real for Interval {
             return Some([[poison; 3]; 3]);
         }
         let e = Self::from_bounds(eta, eta);
-        let rho = (Real::sqrt(Self::one() + e) * Self::from_f64(0.375) * e * e
-            / Real::powi(Real::sqrt(Self::one() - e), 5))
-        .hi();
-        let spread = Self::from_bounds(-rho, rho);
+        let lever = Self::from_f64(0.375) / (Self::one() - e);
+        // `rₗ`, the row sums of `|G|` (`G` is symmetric, so they are its
+        // column sums `cⱼ` too), `l` a column of `M`.
+        let sums: [Self; 3] =
+            core::array::from_fn(|l| Real::abs(g[l][0]) + Real::abs(g[l][1]) + Real::abs(g[l][2]));
+        // `aᵣ`, in world row `r`.
+        let reach: [Self; 3] = core::array::from_fn(|r| {
+            Real::abs(m[0][r]) * sums[0]
+                + Real::abs(m[1][r]) * sums[1]
+                + Real::abs(m[2][r]) * sums[2]
+        });
         let half = Self::from_f64(0.5);
-        // `(M·G)` column `j` is `Σₖ M_k · G_kj`, `M_k` column `k`.
+        // `(M·G)` column `j` is `Σₗ M_l · G_lj`, `M_l` column `l`.
         Some(core::array::from_fn(|j| {
             core::array::from_fn(|r| {
                 let mg = m[0][r] * g[0][j] + m[1][r] * g[1][j] + m[2][r] * g[2][j];
-                m[j][r] - half * mg + spread
+                let rho = (lever * reach[r] * sums[j]).hi();
+                m[j][r] - half * mg + Self::from_bounds(-rho, rho)
             })
         }))
     }
 
     /// **The unit's enclosure**, the one-column case of
     /// [`Real::enclose_rotation`]'s argument: for `v` with `g = |v|² − 1`
-    /// and `η ≥ |g|`, `v/|v| = v·(1 + g)^(−1/2) = v − ½·g·v + v·r(g)`, so
-    /// each component lies within `ρ = √(1 + η)·(3/8)·η²·(1 − η)^(−5/2)`
-    /// of `(v − ½·g·v)`'s, answered so with outward rounding; poisoned
-    /// where `η` is not below one half.
+    /// and `η ≥ |g|`, `v/|v| = v·(1 + g)^(−1/2) = v − ½·g·v + v·Σₖ₌₂ cₖgᵏ`,
+    /// so each component `vᵢ` lies within `ρᵢ = |vᵢ|·(3/8)·η²/(1 − η)` of
+    /// `(v − ½·g·v)ᵢ`, answered so with outward rounding (a zero component
+    /// stays zero); poisoned where `η` is not below one half.
     fn enclose_unit(v: [Self; 3]) -> Option<[Self; 3]> {
         let g = v[0] * v[0] + v[1] * v[1] + v[2] * v[2] - Self::one();
         let eta = Real::abs(g).hi();
@@ -699,12 +714,12 @@ impl Real for Interval {
             return Some([Self::from_bounds(f64::NAN, f64::NAN); 3]);
         }
         let e = Self::from_bounds(eta, eta);
-        let rho = (Real::sqrt(Self::one() + e) * Self::from_f64(0.375) * e * e
-            / Real::powi(Real::sqrt(Self::one() - e), 5))
-        .hi();
-        let spread = Self::from_bounds(-rho, rho);
+        let lever = Self::from_f64(0.375) * e * e / (Self::one() - e);
         let half = Self::from_f64(0.5);
-        Some(v.map(|x| x - half * g * x + spread))
+        Some(v.map(|x| {
+            let rho = (Real::abs(x) * lever).hi();
+            x - half * g * x + Self::from_bounds(-rho, rho)
+        }))
     }
 
     fn is_bounded(self) -> bool {

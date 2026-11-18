@@ -134,8 +134,12 @@ fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>, frame: Option<&Frame>) -> O
             minor_radius,
             offset,
         } => {
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-            let (axis, u_ref) = (lift_v(axis), lift_v(u_ref));
+            // The axes at the enclosure scalar as the frame's lift there
+            // gives them (`Frame::map_scalar`): the rotation the stated
+            // frame names, enclosed, as the conic arm reads its axes.
+            let center = frame.origin();
+            let lifted = frame.map_scalar(i);
+            let (axis, u_ref) = (lifted.axis(), lifted.u_ref());
             let (minor, offset) = (i(*minor_radius), i(*offset));
             Some(Harmonic {
                 p0: pt(center) + vc(u_ref * offset),
