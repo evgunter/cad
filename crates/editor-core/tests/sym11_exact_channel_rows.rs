@@ -88,12 +88,24 @@ use crate::m10_9_pins_interval::measured_studies;
 /// them). (PR 6988's gate did not run this
 /// slow row:
 /// `work/onehome/main-red-sym11s-numeric-column-fell-on-five-documents-after-the-least-turn-mint.md`.)
+///
+/// Then the carriers held their frames as rigid motions
+/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): the sweeps'
+/// walls, caps and revolve frames are minted from the sketch plane's
+/// frame and a surface's evaluation reads its stored frame, so fewer of
+/// the forms the reads build reach the budget and freeze. Frozen only:
+/// the plate and the annulus `54 → 36`, the link `2738 → 2600`, the
+/// bracket `84 → 57` and the pad `2773 → 1967`; no symbolic or numeric
+/// count moves, and under `SymRules::without_canonical_root` the plate's
+/// 2,025 recorded decisions answer as on main, each with its outcome,
+/// its 64 blocked residuals the same predicates (main asks
+/// `mate_chart_pole` twice more, both `Definite(Positive)`).
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [979, 1046, 54]),
-    ("r1_annulus", [511, 548, 54]),
-    ("r2_link", [786, 943, 2738]),
-    ("r2_filleted_bracket", [1367, 1545, 84]),
-    ("r2_rounded_pad", [1483, 1709, 2773]),
+    ("two_hole_plate", [979, 1046, 36]),
+    ("r1_annulus", [511, 548, 36]),
+    ("r2_link", [786, 943, 2600]),
+    ("r2_filleted_bracket", [1367, 1545, 57]),
+    ("r2_rounded_pad", [1483, 1709, 1967]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

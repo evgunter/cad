@@ -315,6 +315,14 @@ fn eps_row(eps: f64) -> usize {
 /// start, half the segment's length along its direction, half the sweep):
 /// `Plain/Decision` 7778 → 8308 forms over the same calls, the forms of
 /// that middle, and its digest; nothing else moves.
+///
+/// **Moved with the carriers holding their frames as rigid motions**
+/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): the walls
+/// and caps are the sketch frame turned and stored, and a surface's
+/// evaluation reads its stored frame, so the walks build fewer forms over
+/// the same calls (at 1e-9 `Plain/Decision` 8308 → 7727, `Plain/Assertion`
+/// 2572 → 2554, `Early/Assertion` 3001 → 2878), with their digests;
+/// `Early/Decision` does not move.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 936 forms 8308 frozen 0 digest ebddfff107d3206a0c4b78d656c9b7ba\n\
@@ -322,10 +330,10 @@ const SLAB_LEDGER: [&str; 3] = [
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
      Early/Assertion calls 992 forms 3001 frozen 0 digest 88997ebd42bafb7f7281f34aa07cc09d",
     "\
-     Plain/Decision calls 936 forms 8308 frozen 0 digest 45b5180c8276b923878b23c0a88dd5b6\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest c2778ce893923cc5baf928828a4a5e5a\n\
+     Plain/Decision calls 936 forms 7727 frozen 0 digest 25ebd6ec55ec27aac257c5ae03962bd8\n\
+     Plain/Assertion calls 992 forms 2554 frozen 0 digest fed7a07a0b2a1819fbca55e6034725c4\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest 12694967b282815a08535eab2eff4e8c",
+     Early/Assertion calls 992 forms 2878 frozen 0 digest 3852450066b87648d9a47dabcbf4b3c6",
     "\
      Plain/Decision calls 936 forms 8308 frozen 0 digest 9af3c2a47bf454282f13404027438701\n\
      Plain/Assertion calls 992 forms 2572 frozen 0 digest 3886f7e664853234cb584c3502b1732d\n\
@@ -555,12 +563,21 @@ const PLATE_MAX_TERMS: usize = 38;
 /// identity's calls and forms, and the pole chord read as `|a + b|`
 /// rather than `√(2(1 + c))`, which moved those three digests with no
 /// count moving.
+///
+/// **Then moved with the carriers holding their frames as rigid
+/// motions**: fewer forms over the same calls on every walk
+/// (`Plain/Decision` 39644 → 33016, its frozen 54 → 36; `Plain/Assertion`
+/// 12902 → 11072; `Early/Decision` 28232 → 22928; `Early/Assertion`
+/// 13367 → 11417; `Door/Decision` 13466 → 11041), with their digests. The
+/// decisions hold: under `SymRules::without_canonical_root` every recorded
+/// decision answers as on main (`sym11_exact_channel_rows`'
+/// `PAST_THE_CEILING`).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 39644 frozen 54 digest 6864de9225c5f915043de2631828ca38\n\
-     Plain/Assertion calls 1046 forms 12902 frozen 0 digest f3f2650488c004b6132fe4e28185d1c3\n\
-     Early/Decision calls 308 forms 28232 frozen 0 digest 10ed8def872f6c15f2ccd18ea920e1f7\n\
-     Early/Assertion calls 1046 forms 13367 frozen 0 digest 2bbad2f47a2d5fe99f4737ebee317fe9\n\
-     Door/Decision calls 549 forms 13466 frozen 0 digest 065254e8781fc679bd94b8456903978f";
+     Plain/Decision calls 979 forms 33016 frozen 36 digest 0bde8e8a310c1cf11fba32d94cbf995f\n\
+     Plain/Assertion calls 1046 forms 11072 frozen 0 digest be5c1b755285e24ad533e9d3bd063804\n\
+     Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
+     Early/Assertion calls 1046 forms 11417 frozen 0 digest 8e03490c76377b27cb8147e6a16ee93c\n\
+     Door/Decision calls 549 forms 11041 frozen 0 digest 45d28e5a4af218a35ea9dc6656d51ad5";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

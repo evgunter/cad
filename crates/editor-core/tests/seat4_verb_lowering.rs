@@ -203,8 +203,8 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x7cbe_7b29_671d_8995_u64),
-        ("die_chamfer", 0x38b5_7ede_f05c_4b6d),
+        ("die_fillet", 0xa968_a45c_16ee_6213_u64),
+        ("die_chamfer", 0x89c5_5513_1c2e_99d3),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -296,9 +296,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xb23a_a372_91fe_158a_u64),
-        ("heat_sink", 0x2165_3b85_6f75_fdab),
-        ("kiss_carry", 0xf9a0_fd68_642d_b9cc),
+        ("crossing_slots", 0x1ed8_c7ce_aa81_8bd8_u64),
+        ("heat_sink", 0xec88_26b3_7f36_9d63),
+        ("kiss_carry", 0xc20e_4e75_0612_0ae6),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -463,7 +463,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         // walls' origins moved back to where their fitted centroids
         // stood, to rounding; the caps' stay at their sketch origins.
         got,
-        0x2dc5_d456_0ce3_02b2,
+        0xda0e_717e_22a2_9f24,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

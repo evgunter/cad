@@ -453,9 +453,9 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xd978_3279_a614_f38c_u64),
-        ("part_select", 0x80a0_2a31_a48f_de42),
-        ("kitchen_sink", 0x76e9_14eb_4322_b8fb),
+        ("cut_cylinder", 0xe5a6_6d83_0fff_478c_u64),
+        ("part_select", 0x323e_0e72_9c73_bca0),
+        ("kitchen_sink", 0x4080_aff5_e382_f53d),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -625,7 +625,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     // the walls' origins moved back to where their fitted centroids
     // stood, to rounding; the caps' stay at their sketch origins.
     assert_eq!(
-        got, 0x4623_582c_d764_9006,
+        got, 0x1d9e_9348_6605_d97e,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
