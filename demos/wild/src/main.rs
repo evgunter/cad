@@ -14,9 +14,10 @@
 //!     does not read them AT ALL — `sg1-c5-214.stp` imports fine and
 //!     is still excluded, by license rather than by capability;
 //!   * every render-OK file is attempted. The ones that import AND
-//!     tessellate become cells ([`WILD_CELLS`], pinned); the one that
-//!     refuses import ([`WILD_REFUSALS`]: `b123d_nema17_bracket`,
-//!     `SURFACE_CURVE` edge geometry) is pinned as a typed failure.
+//!     tessellate become cells ([`WILD_CELLS`], pinned); the ones that
+//!     refuse import ([`WILD_REFUSALS`]: `b123d_nema17_bracket`,
+//!     `SURFACE_CURVE` edge geometry, and `nist_ftc_09_asme1_rd`, the
+//!     snap catalogue's) are pinned as typed failures.
 //!     **Drift in any direction fails this tool loudly**: a montage
 //!     whose cell set moved silently would detach the sheet from the
 //!     audit's attribution block (`demos/README.md` carries it). If a
@@ -27,7 +28,7 @@
 //! The audit's import-status snapshot ("only 6 import today") predates
 //! the M7-5 band-seam re-mint (#252), which flipped
 //! `nist_ftc_11_asme1_rb` and `cq_red_cube_blue_cylinder` to
-//! imports-class — so eight of the nine render-OK files import today,
+//! imports-class — so eight of the nine render-OK files imported then,
 //! all eight render-OK in the audit's own table (its "YES (moot)" rows
 //! are moot no longer). Both arrivals stay inside the attribution
 //! block's law: nist_ftc_11 rides the NIST terms, and the CadQuery
@@ -67,14 +68,14 @@ struct Cell {
 
 /// **The pinned cell set.** Derivation (audit table + `wild.rs` + the
 /// tessellation record in the module docs): 13 wild fixtures − 4
-/// stepcode (license-EXCLUDED, D2) = 9 render-OK, − 1 typed import
-/// refusal (`b123d_nema17_bracket`, [`WILD_REFUSALS`]) = **8**.
+/// stepcode (license-EXCLUDED, D2) = 9 render-OK, − the typed import
+/// refusals ([`WILD_REFUSALS`]).
 ///
 /// The derivation's answer is stated once, as this array's own length:
 /// a cell added or dropped without re-deriving is a type error here,
 /// and every other drift fails loudly below. No count is written in
 /// prose a second time, because the second copy is the one that rots.
-const WILD_CELLS: [Cell; 8] = [
+const WILD_CELLS: [Cell; 7] = [
     Cell {
         fixture: "adafruit/64_Halfsize_Breadboard.step",
         name: "64_Halfsize_Breadboard",
@@ -116,14 +117,6 @@ const WILD_CELLS: [Cell; 8] = [
         delta_frac: 1.2e-3,
     },
     Cell {
-        fixture: "nist/nist_ftc_09_asme1_rd.stp",
-        name: "nist_ftc_09_asme1_rd",
-        caption: "nist/nist_ftc_09_asme1_rd.stp (NIST, PD)",
-        color: [0.62, 0.66, 0.72],
-        view: (30.0, -50.0, 'z'),
-        delta_frac: 1.2e-3,
-    },
-    Cell {
         fixture: "nist/nist_ftc_11_asme1_rb.stp",
         name: "nist_ftc_11_asme1_rb",
         caption: "nist/nist_ftc_11_asme1_rb.stp (NIST, PD)",
@@ -146,7 +139,15 @@ const WILD_CELLS: [Cell; 8] = [
 /// one of these imports, the cell set has grown: extend
 /// [`WILD_CELLS`] AND the attribution block in `demos/README.md`,
 /// per the audit.
-const WILD_REFUSALS: [(&str, &str); 1] = [("occ-oss/b123d_nema17_bracket.step", "SURFACE_CURVE")];
+///
+/// `nist_ftc_09_asme1_rd` states edges whose faces the file band reads
+/// neither crossing nor tangent; the import refuses them naming the snap
+/// catalogue's lane, at every ε, until that lane makes them exact. Its
+/// cell and its attribution return with it.
+const WILD_REFUSALS: [(&str, &str); 2] = [
+    ("occ-oss/b123d_nema17_bracket.step", "SURFACE_CURVE"),
+    ("nist/nist_ftc_09_asme1_rd.stp", "snap catalogue"),
+];
 
 fn fixture_text(rel: &str) -> String {
     let path = format!(
