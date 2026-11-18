@@ -43,32 +43,39 @@ Read the apex's `v` at the scale its rows round at. Two ways:
 Then build the tip of a large cone that reaches the current one, and
 pin it holding.
 
-## The same end rounded the other way leaves the apex unplaced (EMBED, lane pole, 2026-11-18)
+## The same end rounded the other way left the apex unplaced; fixed in PR 7115 (EMBED, lane pole, 2026-11-18)
 
 Found sweeping for the shape of
 `a-sphere-face-whose-extent-stops-ulps-short-of-its-pole-never-places-the-pole`:
 a singular point's collapsed side skipped because the rectangle,
 clipped to the stored extent, stops a rounding short of it.
 
-`present_chart`'s apex reading (`crates/topo/src/injective.rs`, "A
-cone's apex is a collapsed side of its chart") skips a face on the
-positive nappe where `y.0 > 0.0`, and `y` is the cell clipped to the
-extent. So an extent whose low end rounds ABOVE zero never places the
-apex, and the cell at the apex vertex reads `Local` at every depth.
+`present_chart`'s apex reading skipped a face on the positive nappe
+where `y.0 > 0.0`, and `y` is the cell clipped to the extent. So an
+extent whose low end rounded ABOVE zero never placed the apex, and the
+cell at the apex vertex read `Local` at every depth.
 
-- **Unit probe (uncommitted):** the sector of
-  `a_cone_face_at_its_apex_is_read_on_its_own_nappe`, its meridians
-  ending at the apex vertex, in the cell `u ∈ [1.2, 1.8]`,
-  `v ∈ [-0.1, 0.3]`. With the extent's low end `0` or `-1e-17` the cell
-  is presented with the apex's side its zero. With `1e-17` or `1e-300`
-  it reads `Err(Local)`.
-- **Unreached on built bodies as far as measured:** no cavity row and
-  no tour stop moved with the sphere's fix or shows this refusal, and
-  PR 7086's cone tips all hold. A meridian line's `v` at the apex is
-  `c + l·t`, exactly zero where the line starts at the apex.
+- **Reached by plain built bodies** (the review of PR 7115): the
+  triangle `(0, 2.7) (0, 1.7) (1, 2.7)` revolved a full turn about `y`
+  stores `v = (2.2e-16, 1.414…)` on both half-cones and refused
+  `Budget(Pairs)` at 41,321 / 24,215 / 65,530.
+- **How often** (this lane's sweep, f64): six cone shapes at 61 apex
+  heights `y0 = -1.0 … 5.0`, apex down and apex up, each body and its
+  axial-door cavity at `t = 0.05`. Of the first 949 cases, 113 refused
+  `Budget(Pairs)` before the fix, most of them the shape `r = 0.3`,
+  `h = 1`.
 
-The sphere's fix reads the pole off the face's vertex in `face_extent`
-(`reaching_its_poles`). The apex wants the same reading, a cone face
-holding a vertex at its apex has an extent that holds `v = 0`, and it
-is one decision with this row's: both are the apex end's rounding
-against the extent, on either side of zero.
+**What landed.** `face_extent` reads a cone face's apex as it reads a
+sphere face's poles (`reaching_its_singular_points`): a face holding a
+vertex at its apex has an extent that reaches `v = 0`, on the end its
+nappe says. All 1,464 cases of the sweep hold, and every case that
+held before holds at the same receipt. Pinned by
+`a_unit_cone_with_its_apex_off_the_origin_holds` and
+`a_cone_face_whose_extent_starts_a_rounding_off_its_apex_places_the_apex`.
+
+**What is still this row's.** The extent moves to the apex only across
+`chart_slack`, the same scale the nappe check above uses. An apex end
+rounded farther than that, on either side of zero, still refuses
+`Structural`: below zero by the nappe check (this row's finding), above
+it by the new one. The scale question is one decision with
+`a-vertex-in-band-of-a-pole-whose-rows-end-at-its-own-latitude-refuses-structural`.
