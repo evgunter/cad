@@ -711,19 +711,20 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/topo/src/injective.rs",
         179,
-        79,
-        "the 79 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
-         `present_chart` (26), \
+        77,
+        "the 77 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `present_chart` (24), \
          `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
          `is_certified()` and finiteness ask; `present_plane`'s 3 beyond its `y` are a side's \
          chart range handed to `segment_params` (2) and a corner's far coordinate (1), read \
-         behind the same SPAN and CORNER funnels as its rectangle. `present_chart` asks each clip line where it is placed, so 16 of its \
-         reads, the touch, reach, merge, rectangle-side and apex reads, see only certified \
-         lines; its other 10 read a sphere pole's clip line at `±π/2`, a constant never handed \
-         to the ask, so they count as asking only because the census reads a whole function, \
-         and they are sound because the line is exact. `present_plane` asks its one-edge `y`, \
+         behind the same SPAN and CORNER funnels as its rectangle. `present_chart` asks each clip line where it is placed, so 14 of its \
+         reads, the touch, reach, merge and rectangle-side reads, see only certified \
+         lines; its other 10 read a singular latitude's clip line, a sphere pole's `±π/2` or a \
+         cone apex's `0`, a constant never handed to the ask, so they count as asking only \
+         because the census reads a whole function, and they are sound because the line is \
+         exact. `present_plane` asks its one-edge `y`, \
          and its other reads are behind the SPAN and CORNER funnels. `present_plane_corner` \
          and `present_vertex_corner` each read the cell's 4 ends behind their `cell` ask; \
          each also reads its arc's parameter span (2), and an upper bound on the chart's speed \
@@ -733,9 +734,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (4), behind its own `is_certified()` ask. `Trig::psi`'s 3 are its `over` \
          closure, read behind `is_certified()`. `face_extent`'s 4 read each line of the face \
          against its extent, a line it takes only where its value `is_certified()` and places \
-         by whole turns, which keeps it certified. Of the other 97, `reaching_its_poles`' 2 read \
-         the ends of a sphere's polar latitude `±π/2` outward, to widen the extent to it: the \
-         constant's own enclosure, as `present_chart`'s pole reads are; the seeds and selections \
+         by whole turns, which keeps it certified. Of the other 102, `reaching_its_singular_points`' 4 \
+         read the ends of a singular latitude, a sphere pole's `±π/2` or a cone apex's `0`, to \
+         compare the stored extent with it and move the extent to it: the constant's own \
+         enclosure, as `present_chart`'s singular reads are; the seeds and selections \
          (`mid`, `graph_read`'s `inside` and lever, `planes_through`'s point of a line edge, \
          any point of which is exact), `Params::nearest`'s hull of the parameters shifted by \
          whole turns, read outward so `Along::under_graph`'s containment is conservative, \

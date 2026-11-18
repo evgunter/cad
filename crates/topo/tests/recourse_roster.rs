@@ -314,7 +314,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SIDE_ROWS"),
     NameCarrier::Const("APERTURE"),
     NameCarrier::Const("APEX"),
-    NameCarrier::Const("SELF_INTERSECTION_APEX"),
     NameCarrier::Const("TORUS_REGION_CORNER"),
     NameCarrier::Const("PIERCE_SECTOR_SIDE_CURVED"),
     NameCarrier::Const("CLEARANCE_SUPPORT_GAP"),

@@ -123,10 +123,6 @@ pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
 /// The funnel site of a planar corner's convexity: how far the second
 /// edge's far end stands on the first edge's face side, metres.
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
-/// The funnel site of a vertex at a collapse of its face's chart, a
-/// cone's apex or a sphere's pole: its distance from that point, metres.
-/// `Zero` is the collapse.
-pub(crate) const SELF_INTERSECTION_APEX: &str = "self_intersection_apex";
 /// The funnel site of a cone face's nappe: a vertex's signed height
 /// along the axis from the apex, metres. Its sign is the nappe.
 pub(crate) const SELF_INTERSECTION_NAPPE: &str = "self_intersection_nappe";
@@ -1425,12 +1421,16 @@ enum Extent {
 }
 
 /// **The face's extent, read against the face's own lines, nappe and
-/// poles** ([`Boundary::extent`]); the one reader of that field.
+/// singular points** ([`Boundary::extent`]); the one reader of that field.
 ///
-/// **A sphere face reaches each pole it holds a vertex at**
-/// ([`reaching_its_poles`]), in every cell, as the vertex is the face's:
-/// the extent returned ends on that pole's latitude wherever the stored
-/// rows' ends rounded to.
+/// **A face reaches each singular latitude it holds a vertex at**, a
+/// sphere's pole or a cone's apex ([`reaching_its_singular_points`]), in
+/// every cell, as the vertex is the face's: the extent returned ends on
+/// that latitude where the stored rows' ends rounded to within
+/// [`chart_slack`] of it, and a stored end farther off contradicts the
+/// vertex and refuses `Structural`. The lines and the nappe are read
+/// against the STORED extent, before it is moved: they are what the
+/// stored value is checked by.
 ///
 /// **A face lies within the hull of its boundary**, so every line of a
 /// boundary edge, placed by [`placed`] on the extent's sheet, meets the
@@ -1466,7 +1466,6 @@ fn face_extent(
     }) {
         return Ok(Extent::Wraps);
     }
-    let extent = reaching_its_poles(surface, b, band, extent);
     let sheet = extent.map(|(lo, hi)| Sheet::Copy(lo, hi));
     let lines = b
         .edges
@@ -1502,11 +1501,12 @@ fn face_extent(
             hi <= slack && lo < -slack
         }
     });
-    if lines && on_nappe {
-        Ok(Extent::Known(extent))
-    } else {
-        Err(Unpresented::Structural)
+    if !(lines && on_nappe) {
+        return Err(Unpresented::Structural);
     }
+    reaching_its_singular_points(surface, b, band, extent)
+        .map(Extent::Known)
+        .ok_or(Unpresented::Structural)
 }
 
 /// **A cone face's nappe** ([`nappe`]); `None` on any other surface, or
@@ -1525,53 +1525,106 @@ fn pole_latitude(north: bool) -> Interval {
     if north { half } else { -half }
 }
 
-/// **Which poles of a sphere the point `p` is at**, `[north, south]`,
-/// by the one reading of that incidence (`vertex_at_singular_point`);
-/// neither on any other surface.
-fn at_poles(surface: &Surface<Interval>, p: Point3<Interval>, band: Band) -> [bool; 2] {
-    use geom_brep::chart_singularity::{sphere_poles, vertex_at_singular_point};
-    let &Surface::Sphere {
-        center,
-        radius,
-        axis,
-        ..
-    } = surface
-    else {
-        return [false; 2];
-    };
-    let line = geom::Line {
-        origin: center,
-        dir: axis,
-    };
-    sphere_poles(line, radius)
-        .map(|(_, point)| matches!(vertex_at_singular_point(p, point, band), Ok(true)))
+/// The singular latitudes of a chart a point is at, `[high, low]`: the
+/// one that is the high end of the face's `v`, and the one that is its
+/// low end.
+type SingularEnds = [Option<Interval>; 2];
+
+/// **The singular latitudes of its chart that the face's vertex `p` is
+/// at** ([`SingularEnds`]): a sphere's `π/2` at its north pole, the high
+/// end, and `-π/2` at its south, the low; a cone's `0` at its apex, the
+/// low end of a face on the positive nappe and the high end of one on
+/// the negative ([`nappe`]). None on any other surface.
+///
+/// `p` is at a singular point by the one reading of that incidence
+/// (`vertex_at_singular_point`): its distance from the point decided
+/// zero at `band`, which a vertex within the band's zero of the point
+/// is. An incidence the band does not decide reads as off the point.
+///
+/// `None` where `p` is at a cone's apex and the face has no one nappe:
+/// the apex is then no one end of its `v`.
+fn singular_ends(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    p: Point3<Interval>,
+    band: Band,
+) -> Option<SingularEnds> {
+    use geom_brep::chart_singularity::{Singularity, sphere_poles, vertex_at_singular_point};
+    let held = |point| matches!(vertex_at_singular_point(p, point, band), Ok(true));
+    match *surface {
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            ..
+        } => {
+            let line = geom::Line {
+                origin: center,
+                dir: axis,
+            };
+            let mut ends = [None; 2];
+            for (pole, point) in sphere_poles(line, radius) {
+                let north = pole == Singularity::North;
+                if held(point) {
+                    ends[usize::from(!north)] = Some(pole_latitude(north));
+                }
+            }
+            Some(ends)
+        }
+        Surface::Cone { apex, axis, .. } if held(apex) => {
+            let low = nappe(b, apex, axis, band)?;
+            let mut ends = [None; 2];
+            ends[usize::from(low)] = Some(at(0.0));
+            Some(ends)
+        }
+        _ => Some([None; 2]),
+    }
 }
 
-/// **A sphere face's extent, reaching each pole the face holds a vertex
-/// at.** A vertex at a pole is a point of the face at `v = ±π/2`, the
-/// largest and smallest `v` the chart has, so the face's extent ends on
-/// that latitude. The stored hull ends where the lift's rows do, and a
-/// meridian's end at the pole is its pcurve evaluated at the edge's
-/// parameter, which rounds to either side of the latitude. The hull
-/// with the latitude is a superset of the stored one, so it holds the
-/// face still.
-fn reaching_its_poles(
+/// **A face's extent, reaching each singular latitude the face holds a
+/// vertex at** ([`singular_ends`]). A vertex at a sphere's pole or a
+/// cone's apex is a point of the face on that latitude, an end of the
+/// face's `v`, so the face's extent ends on it. The stored hull ends
+/// where the lift's rows do, and a meridian's end at the point is its
+/// pcurve evaluated at the edge's parameter, which rounds to either side
+/// of the latitude. The hull with the latitude is a superset of the
+/// stored one, so it holds the face still.
+///
+/// **A stored end farther from the latitude than [`chart_slack`]
+/// contradicts the vertex**, `None`: rounding does not account for it,
+/// so the extent and the vertex are not of one face. This reuses the
+/// incidence's decision and concedes nothing of its own: the extent's
+/// end moves to the latitude for a vertex the band reads at the point,
+/// which is one within the band's zero of it, in metres.
+///
+/// A cone face with no one nappe is left as stored: the apex is no one
+/// end of it.
+fn reaching_its_singular_points(
     surface: &Surface<Interval>,
     b: &Boundary,
     band: Band,
     mut extent: [(f64, f64); 2],
-) -> [(f64, f64); 2] {
+) -> Option<[(f64, f64); 2]> {
     let v = &mut extent[Axis::V.index()];
+    let slack = chart_slack(&[v.0, v.1]);
     for &p in b.vertices.values() {
-        let [north, south] = at_poles(surface, p, band);
-        if north {
-            v.1 = v.1.max(pole_latitude(true).hi());
+        let Some([high, low]) = singular_ends(surface, b, p, band) else {
+            continue;
+        };
+        if let Some(line) = high {
+            if v.1 < line.lo() - slack {
+                return None;
+            }
+            v.1 = v.1.max(line.hi());
         }
-        if south {
-            v.0 = v.0.min(pole_latitude(false).lo());
+        if let Some(line) = low {
+            if v.0 > line.hi() + slack {
+                return None;
+            }
+            v.0 = v.0.min(line.lo());
         }
     }
-    extent
+    Some(extent)
 }
 
 /// What [`sheets`] reads of a cell.
@@ -2044,88 +2097,52 @@ fn present_chart<'a>(
             Side::YHi => y.1 = c.at.hi(),
         }
     }
-    // A cone's apex is a collapsed side of its chart.
-    if let Surface::Cone { apex, axis, .. } = piece.surface {
-        for &v in &piece.local.vertices {
-            let Some(&p) = b.vertices.get(&v) else {
-                continue;
-            };
-            if !matches!(
-                decide(SELF_INTERSECTION_APEX, Margin::of((p - *apex).norm()), band),
-                Ok(Sign::Zero)
-            ) {
-                continue;
-            }
-            // A face with an apex vertex in reach and no one nappe is not
-            // presented in any cell that holds that vertex; a cell away
-            // from the apex reads it as any face.
-            let Some(lo) = nappe(b, *apex, *axis, band) else {
-                return Err(Unpresented::Structural);
-            };
-            // The cell on the other nappe holds only the apex of the
-            // face. This is read only where the face's extent wraps or is
-            // unknown: a known one is on the face's nappe ([`face_extent`]),
-            // and a cell on the other misses it in [`sheets`] first.
-            let (cv0, cv1) = piece.v;
-            if (lo && cv1 <= 0.0) || (!lo && cv0 >= 0.0) {
-                return Ok(Presentation::Vacuous);
-            }
-            if (lo && y.0 > 0.0) || (!lo && y.1 < 0.0) {
-                continue;
-            }
-            y = if lo {
-                (y.0.max(0.0), y.1)
-            } else {
-                (y.0, y.1.min(0.0))
-            };
-            let side = Side::of(Axis::V, lo);
-            // A line on the face's low side that does not hold `0`, in a
-            // rectangle that still reaches `0`, lies within the slack of
-            // `0` (every line meets the extent, which is on the nappe): the
-            // collapse and the line are two readings of one side that do
-            // not agree, which a smaller cell does not hold both of.
-            match merged.iter_mut().find(|m| m.side == side) {
-                Some(m) if m.at.lo() <= 0.0 && 0.0 <= m.at.hi() => m.collapsed = Some(v),
-                Some(_) => return Err(Unpresented::Local),
-                None => merged.push(Clip {
-                    side,
-                    at: at(0.0),
-                    edges: Vec::new(),
-                    collapsed: Some(v),
-                }),
-            }
-        }
-    }
-    // A sphere's pole is a collapsed side of its chart, `v = ±π/2`, a
-    // bound of its canonical domain. A vertex is at it by the one reading
-    // of that incidence ([`at_poles`]).
+    // A sphere's pole and a cone's apex are collapsed sides of the chart:
+    // `v = ±π/2`, bounds of the sphere's canonical domain, and `v = 0`.
+    let on_cone = matches!(piece.surface, Surface::Cone { .. });
     for &v in &piece.local.vertices {
         let Some(&p) = b.vertices.get(&v) else {
             continue;
         };
-        for (north, held) in [true, false]
-            .into_iter()
-            .zip(at_poles(piece.surface, p, band))
-        {
-            if !held {
+        // A face with an apex vertex in reach and no one nappe is not
+        // presented in any cell that holds that vertex; a cell away
+        // from the apex reads it as any face.
+        let Some(ends) = singular_ends(piece.surface, b, p, band) else {
+            return Err(Unpresented::Structural);
+        };
+        for (low, line) in [false, true].into_iter().zip(ends) {
+            let Some(line) = line else {
+                continue;
+            };
+            // The cell on a cone's other nappe holds only the apex of the
+            // face. This is read only where the face's extent wraps or is
+            // unknown: a known one is on the face's nappe ([`face_extent`]),
+            // and a cell on the other misses it in [`sheets`] first.
+            let (cv0, cv1) = piece.v;
+            if on_cone && ((low && cv1 <= 0.0) || (!low && cv0 >= 0.0)) {
+                return Ok(Presentation::Vacuous);
+            }
+            // A rectangle short of the latitude is a cell short of it, or
+            // one a line of the face bounds short of it. The extent, where
+            // it is known, reaches the latitude ([`face_extent`]), so its
+            // clip is never what stops the rectangle short.
+            if (low && y.0 > line.hi()) || (!low && y.1 < line.lo()) {
                 continue;
             }
-            let line = pole_latitude(north);
-            // The face's extent reaches the pole's latitude
-            // ([`face_extent`]), so a rectangle short of it is a cell
-            // short of it, or one a line of the face bounds below it.
-            if (north && y.1 < line.lo()) || (!north && y.0 > line.hi()) {
-                continue;
-            }
-            if (north && y.0 > line.hi()) || (!north && y.1 < line.lo()) {
+            if (low && y.1 < line.lo()) || (!low && y.0 > line.hi()) {
                 return Err(Unpresented::Local);
             }
-            if north {
-                y.1 = line.hi();
-            } else {
+            if low {
                 y.0 = line.lo();
+            } else {
+                y.1 = line.hi();
             }
-            let side = Side::of(Axis::V, !north);
+            let side = Side::of(Axis::V, low);
+            // A line on that side that does not hold the latitude, in a
+            // rectangle that still reaches it, lies within the slack of it
+            // (every line meets the extent): the collapse and the line are
+            // two readings of one side that do not agree, which a smaller
+            // cell does not hold both of.
             match merged.iter_mut().find(|m| m.side == side) {
                 Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
                     m.collapsed = Some(v);
@@ -9169,6 +9186,193 @@ mod presentation_rows {
             !matches!(&got, Ok(Presentation::Of(p)) if matches!(p.zero, Zero::Side(Side::YHi, _))),
             "the cut octant reads no pole"
         );
+    }
+
+    /// A boundary of one vertex, the point `p`, and the extent `v` over
+    /// `u ∈ [0, 1]`: what [`face_extent`] reads of a singular point.
+    fn lone(p: Point3<Interval>, v: (f64, f64)) -> Boundary {
+        Boundary {
+            sense: true,
+            vertices: BTreeMap::from([(vertex(3), p)]),
+            extent: Some([(0.0, 1.0), v]),
+            ..Boundary::default()
+        }
+    }
+
+    /// The extent's `v` as [`face_extent`] returns it: `Ok` where it is
+    /// known, `Err` where the face refuses.
+    fn v_of(s: &Surface<Interval>, b: &Boundary) -> Result<(f64, f64), Unpresented> {
+        match face_extent(s, b, band()) {
+            Ok(Extent::Known([_, v])) => Ok(v),
+            Ok(_) => panic!("an extent neither wrapping nor unknown"),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// **The extent moves to a pole only across a rounding**: a face
+    /// holding a vertex at its north pole whose stored extent ends half
+    /// of [`chart_slack`] under the latitude reaches it; one whose stored
+    /// extent ends two slacks under, or a radian under, contradicts its
+    /// vertex and refuses `Structural`. The same at the south pole. Red
+    /// where the extent is widened across any gap.
+    #[test]
+    fn an_extent_farther_from_its_pole_than_a_rounding_contradicts_the_vertex() {
+        let sphere = octant().0;
+        let (north, south) = (pole_latitude(true), pole_latitude(false));
+        let slack = chart_slack(&[0.5, north.hi()]);
+        let pole = |z: f64| Point3::new(iv0(0.0), iv0(0.0), iv0(z));
+        assert_eq!(
+            v_of(&sphere, &lone(pole(1.0), (0.5, north.lo() - 0.5 * slack))),
+            Ok((0.5, north.hi())),
+            "half a slack under the north pole"
+        );
+        assert_eq!(
+            v_of(&sphere, &lone(pole(-1.0), (south.hi() + 0.5 * slack, -0.5))),
+            Ok((south.lo(), -0.5)),
+            "half a slack over the south pole"
+        );
+        for (z, v, what) in [
+            (
+                1.0,
+                (0.5, north.lo() - 2.0 * slack),
+                "two slacks under the north pole",
+            ),
+            (1.0, (-1.0, 0.0), "a radian and a half under the north pole"),
+            (
+                -1.0,
+                (south.hi() + 2.0 * slack, -0.5),
+                "two slacks over the south pole",
+            ),
+        ] {
+            assert_eq!(
+                v_of(&sphere, &lone(pole(z), v)),
+                Err(Unpresented::Structural),
+                "{what}"
+            );
+        }
+    }
+
+    /// **The face's lines are read against the stored extent, before it
+    /// is moved to a pole**: a face above the latitude a slack and a half
+    /// under its north pole, holding the pole's vertex, whose stored
+    /// extent ends 0.9 of a slack under the pole. The line has no room
+    /// under the stored end, so the extent contradicts it and the face
+    /// refuses `Structural`. Red, the extent known, where the line is
+    /// read against the extent moved to the pole, which gives it room.
+    #[test]
+    fn a_line_is_read_against_the_stored_extent_not_the_one_moved_to_the_pole() {
+        let (s, mut b) = octant();
+        let q = core::f64::consts::FRAC_PI_2;
+        let north = pole_latitude(true);
+        let slack = chart_slack(&[0.0, north.hi()]);
+        let lat = north.lo() - 1.5 * slack;
+        b.edges[0] = rim(1, [1, 2], Axis::V, lat, (0.0, lat), (q, lat));
+        b.extent = Some([(0.0, q), (0.0, north.lo() - 0.9 * slack)]);
+        assert_eq!(v_of(&s, &b), Err(Unpresented::Structural));
+        // The same line with room under the stored end agrees with it.
+        b.extent = Some([(0.0, q), (0.0, north.lo())]);
+        assert_eq!(v_of(&s, &b), Ok((0.0, north.hi())));
+    }
+
+    /// **The extent moves to the pole for the vertices the incidence
+    /// reads at it, and no others**: on the unit sphere a vertex half the
+    /// band's zero of arc off the north pole is at it, and one twice the
+    /// band's escalation off is not, so the first face's extent ends on
+    /// the latitude and the second's is the stored one. The reading is
+    /// `vertex_at_singular_point`'s, in metres, reused; red where this
+    /// reader takes a scale of its own.
+    #[test]
+    fn the_extent_moves_for_a_vertex_the_band_reads_at_the_pole() {
+        let sphere = octant().0;
+        let north = pole_latitude(true);
+        let stored = (0.5, north.lo().next_down());
+        let off = |arc: f64| Point3::new(iv0(arc.sin()), iv0(0.0), iv0(arc.cos()));
+        assert_eq!(
+            v_of(&sphere, &lone(off(0.5 * band().zero()), stored)),
+            Ok((0.5, north.hi())),
+            "in the band's zero"
+        );
+        assert_eq!(
+            v_of(&sphere, &lone(off(2.0 * band().escalate()), stored)),
+            Ok(stored),
+            "past the band"
+        );
+    }
+
+    /// **A cone face whose stored extent starts a rounding off its apex
+    /// places the apex.** The sector of
+    /// [`a_cone_face_at_its_apex_is_read_on_its_own_nappe`], its
+    /// meridians ending at the apex vertex, with the extent's low end at
+    /// `0`, an ulp of 1 above it (as a meridian line `c + l·t` evaluates
+    /// off the origin) and an ulp below. The face holds a vertex at the
+    /// apex, so its extent reaches `v = 0` ([`face_extent`]) and the cell
+    /// at the apex is presented with the apex's side its zero. Red, the
+    /// cell `Local`, where the rectangle is clipped to a stored end above
+    /// zero. A stored end `1e-10` above the apex contradicts the vertex
+    /// and refuses `Structural`; a face on the negative nappe reaches the
+    /// apex at its high end.
+    #[test]
+    fn a_cone_face_whose_extent_starts_a_rounding_off_its_apex_places_the_apex() {
+        let s = Surface::Cone {
+            apex: origin(),
+            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        let sector = |lo: f64| Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [9, 3], Axis::U, 2.0, (2.0, lo), (2.0, 1.0)),
+                rim(2, [3, 4], Axis::V, 1.0, (2.0, 1.0), (1.0, 1.0)),
+                rim(3, [4, 9], Axis::U, 1.0, (1.0, 1.0), (1.0, lo)),
+            ],
+            vertices: BTreeMap::from([
+                (vertex(3), Point3::new(iv0(1.0), iv0(0.0), iv0(1.0))),
+                (vertex(9), origin()),
+            ]),
+            extent: Some([(1.0, 2.0), (lo, 1.0)]),
+        };
+        for lo in [0.0, f64::EPSILON, -f64::EPSILON] {
+            let b = sector(lo);
+            assert_eq!(
+                v_of(&s, &b),
+                Ok((lo.min(0.0), 1.0)),
+                "the extent from {lo:e}"
+            );
+            let local = Local {
+                edges: vec![0, 2],
+                vertices: vec![vertex(9)],
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: &b,
+                u: (1.2, 1.8),
+                v: (-0.1, 0.3),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            let got = match present_chart(&piece, &[], &[vertex(9)], band()) {
+                Ok(Presentation::Of(p)) => Some((p.zero, p.y)),
+                _ => None,
+            };
+            assert!(
+                matches!(&got, Some((Zero::Side(Side::YLo, a), (0.0, 0.3)))
+                    if a.vertex == Some(vertex(9))),
+                "the extent from {lo:e}: the apex's side is the zero: {got:?}"
+            );
+        }
+        assert_eq!(
+            v_of(&s, &sector(1e-10)),
+            Err(Unpresented::Structural),
+            "a stored end no rounding puts at the apex"
+        );
+        let mut below = lone(origin(), (-1.0, -f64::EPSILON));
+        below
+            .vertices
+            .insert(vertex(4), Point3::new(iv0(1.0), iv0(0.0), iv0(-1.0)));
+        assert_eq!(v_of(&s, &below), Ok((-1.0, 0.0)), "the negative nappe");
     }
 
     /// **An edge or a vertex in reach of the corner's rectangle but not
