@@ -146,7 +146,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "measured_web",
         about: "M10-2: a measured web with an assertion over it (E3/E10)",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         // The head is an assertion, not a body.
         result: None,

@@ -7,8 +7,8 @@
 //! identity is the store's uniqueness invariant (construction does
 //! not enforce it). [`Workspace::resolve`] takes a
 //! [`DocRef`], loads the named document through the full v5 door
-//! sequence ([`crate::document::load`]: validation, replay, ambient-ε
-//! reconciliation — all exactly as at any other load), recomputes the
+//! sequence ([`crate::document::load`]: validation and ambient-ε
+//! reconciliation — exactly as at any other load), recomputes the
 //! canonical content pin, and refuses a moved pin typed
 //! ([`WorkspaceError::PinMismatch`]) — an assembly is a self-contained
 //! reproducible value (Cargo.lock semantics), so
@@ -127,7 +127,7 @@ pub enum WorkspaceError {
         id: DocumentId,
     },
     /// The resolved file refused to load (the full door sequence:
-    /// parse, validate, replay, ε reconciliation), naming the file.
+    /// parse, validate, ε reconciliation), naming the file.
     Load {
         /// The refusing file.
         path: PathBuf,
@@ -408,9 +408,9 @@ impl Workspace {
     }
 
     /// Resolves a [`DocRef`]: loads the id's file through the full
-    /// door sequence (v5 validation, replay, ambient-ε reconciliation
-    /// — exactly as any load), recomputes the canonical content pin,
-    /// and hands back the replayed document iff the pin matches.
+    /// door sequence (validation and ambient-ε reconciliation — exactly
+    /// as any load), recomputes the canonical content pin, and hands
+    /// back the document iff the pin matches.
     ///
     /// # Errors
     ///
@@ -449,10 +449,8 @@ impl Workspace {
     }
 
     /// The shared read: locate, load through the full door sequence,
-    /// and pin the REPLAYED document (the pin is of the
-    /// canonical form of current state — never the raw snapshot, never
-    /// file bytes; a save carrying a non-empty log must pin its
-    /// replayed result).
+    /// and pin the loaded document (the pin is of the canonical form of
+    /// its state — never the file bytes).
     fn load_pinned(
         &self,
         id: DocumentId,
@@ -467,15 +465,15 @@ impl Workspace {
             kind: e.kind(),
             message: e.to_string(),
         })?;
-        let loaded = load(&text, tol).map_err(|error| WorkspaceError::Load {
+        let doc = load(&text, tol).map_err(|error| WorkspaceError::Load {
             path: path.clone(),
             error: Box::new(error),
         })?;
-        let pin = content_pin(&loaded.doc, tol).map_err(|error| WorkspaceError::Pin {
+        let pin = content_pin(&doc, tol).map_err(|error| WorkspaceError::Pin {
             path: path.clone(),
             error: Box::new(error),
         })?;
-        Ok((path, loaded.doc, pin))
+        Ok((path, doc, pin))
     }
 
     /// Creates a new save file for `doc` in the workspace (split's
@@ -501,7 +499,7 @@ impl Workspace {
                 second: path,
             });
         }
-        let text = save(doc, &[], tol).map_err(|error| WorkspaceError::Save {
+        let text = save(doc, tol).map_err(|error| WorkspaceError::Save {
             id,
             error: Box::new(error),
         })?;
@@ -529,7 +527,7 @@ impl Workspace {
         let Some(path) = self.by_id.get(&id).cloned() else {
             return Err(WorkspaceError::UnknownId { id });
         };
-        let text = save(doc, &[], tol).map_err(|error| WorkspaceError::Save {
+        let text = save(doc, tol).map_err(|error| WorkspaceError::Save {
             id,
             error: Box::new(error),
         })?;
@@ -607,7 +605,7 @@ impl Workspace {
                 requested: path,
             });
         }
-        let text = save(doc, &[], tol).map_err(|error| WorkspaceError::Save {
+        let text = save(doc, tol).map_err(|error| WorkspaceError::Save {
             id,
             error: Box::new(error),
         })?;
@@ -829,7 +827,6 @@ fn load_fault(error: &PersistError) -> ResolveFault {
         | PersistError::Parse { .. }
         | PersistError::Unreadable { .. }
         | PersistError::Dimension { .. }
-        | PersistError::EditReplay { .. }
         | PersistError::Snapshot(_)
         | PersistError::ToleranceInvalid { .. } => ResolveFault::Unresolved,
     }
@@ -843,7 +840,7 @@ fn load_fault(error: &PersistError) -> ResolveFault {
 /// storeless by design, so somebody has to say which version "the new
 /// one" is, and only the store knows. That answer is
 /// [`Workspace::current_pin`] — the canonical pin of the id's current
-/// file, computed through the same load-and-replay door every resolve
+/// file, computed through the same load door every resolve
 /// uses, so "the version on disk" means exactly what it means
 /// everywhere else.
 ///

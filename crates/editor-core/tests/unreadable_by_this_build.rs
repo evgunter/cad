@@ -49,7 +49,7 @@ fn small() -> String {
             distance: len(1.0),
         },
     );
-    save(&doc, &[], Tol::witness()).expect("saves")
+    save(&doc, Tol::witness()).expect("saves")
 }
 
 /// Splits a save into its header line and its body as a JSON value,
@@ -226,7 +226,7 @@ const OLDER_SHAPED: &str = concat!(
     "0,\"display_unit\":\"m\"}}}},\"18:608252c10d916cfe\":{\"kind\":\"Body\",\"def\":{\"Output\":{\"",
     "node\":\"17:4a08cd5c982f47a4\",\"port\":0}}},\"19:57d67edfcd80ce1c\":{\"kind\":\"Space\",\"d",
     "ef\":{\"Output\":{\"node\":\"17:4a08cd5c982f47a4\",\"port\":1}}}},\"epsilon\":1e-09,\"witnes",
-    "ses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "ses\":{},\"metadata\":{},\"appearance\":[]}}",
     "\n"
 );
 
@@ -253,8 +253,8 @@ fn an_older_shaped_document_lacking_newer_vocabulary_loads() {
     let text = OLDER_SHAPED.replacen("\"epsilon\":1e-09", &format!("\"epsilon\":{eps:?}"), 1);
     assert_ne!(text, OLDER_SHAPED, "the ε rewrite must land");
     let loaded = load(&text, Tol::witness()).expect("an older-shaped document loads");
-    assert_eq!(loaded.doc.ids().len(), 2, "profile and extrude, as written");
-    assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
+    assert_eq!(loaded.ids().len(), 2, "profile and extrude, as written");
+    assert_eq!(loaded.epsilon().to_bits(), eps.to_bits());
 }
 
 /// The seam's other side, so the split is pinned from both directions:

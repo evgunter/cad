@@ -301,9 +301,9 @@ fn a_self_read_through_a_role_is_one_reader() {
         "one definition, one reader"
     );
     assert!(doc.shared_unnamed_vars().is_empty());
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("saves");
     let back = editor_core::persist::load(&text, Tol::witness()).expect("the load door admits it");
-    assert_eq!(back.snapshot.reader_counts().get(&plane).copied(), Some(1));
+    assert_eq!(back.reader_counts().get(&plane).copied(), Some(1));
     let ev = eval(&doc);
     assert!(
         matches!(ev.nodes.get(&split), Some(NodeResult::Ok(_))),

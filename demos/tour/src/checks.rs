@@ -118,8 +118,7 @@ fn boolean_doc(
         &placed.doc,
         &[pncad::document::Operand::Node(placed.placement)],
         tol,
-    )
-    .doc;
+    );
     let placement = placed.placement;
     let ev = evaluate::<f64>(
         &doc,

@@ -12,7 +12,7 @@
 //!
 //! # A file is the document's state (GQ3)
 //!
-//! A save writes the current document with an empty edit log, and
+//! A save writes the current document, and
 //! [`open`] answers a history whose root is the loaded document: undo
 //! is session state and ends at an open.
 //!
@@ -172,8 +172,8 @@ pub fn open(path: &Path, tol: Tol) -> Result<History, DocIoError> {
     let text = std::fs::read_to_string(path).map_err(|e| DocIoError::Read {
         message: e.to_string(),
     })?;
-    let loaded = load(&text, tol).map_err(|e| DocIoError::Persist(Box::new(e)))?;
-    Ok(History::new(loaded.doc))
+    let doc = load(&text, tol).map_err(|e| DocIoError::Persist(Box::new(e)))?;
+    Ok(History::new(doc))
 }
 
 /// Write `doc` at `path` through the store of the folder the file

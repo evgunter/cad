@@ -69,7 +69,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "tube_arc",
         about: "a capped solid bend from its intent parameters, R = 2, r = 0.5, 1 rad",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(bend),
         // Pappus carries π — module docs.
