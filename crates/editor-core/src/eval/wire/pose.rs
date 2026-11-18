@@ -825,12 +825,8 @@ fn walk<T: Decide>(
                 PoseDef::Carried { .. } => arm::CARRIED,
                 PoseDef::FaceChart { .. } => arm::FACE_CHART,
             }));
-            // A face's chart's orientation, by where the frame's x and z
-            // lie, as a mate's is keyed.
             if let PoseDef::FaceChart { orient, .. } = def {
-                for axis in [orient.x(), orient.z()] {
-                    out.push(PoseWord::Tag(crate::eval::axis_word(axis)));
-                }
+                out.extend(crate::eval::orientation_words(*orient).map(PoseWord::Tag));
             }
             for (_, &read, role, _) in def.reads() {
                 out.push(PoseWord::Tag(role_word(role)));

@@ -1100,7 +1100,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             pncad::document::pose::PoseConstruction::FaceChartBackwards { .. } => {
                 "face_chart_backwards"
             }
-            pncad::document::pose::PoseConstruction::FaceChartUnleverable => {
+            pncad::document::pose::PoseConstruction::FaceChartUnleverable { .. } => {
                 "face_chart_unleverable"
             }
         }),

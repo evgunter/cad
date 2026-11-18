@@ -1530,8 +1530,12 @@ pub(crate) fn face_chart<T: SolveScalar>(
         value(FaceValue::Slide(b), Coord::slide(b), slides[1], None),
     ];
     let mates = [(&on, &to)];
-    let arm = super::solve::arm_of(0.0, mates, &values)
-        .map_err(|_| refuse(PoseConstruction::FaceChartUnleverable))?;
+    let arm = super::solve::arm_of(0.0, mates, &values).map_err(|refusal| match refusal {
+        super::LeverRefusal::OutOfRange { parts, datum } => {
+            refuse(PoseConstruction::FaceChartUnleverable { parts, datum })
+        }
+        other => unreachable!("an arm refuses out of range alone: {other:?}"),
+    })?;
     let chart = match Chart::read(&on, &to, false, orient, arm, band, tol) {
         Ok(Some(chart)) => chart,
         Ok(None) => unreachable!("a plane mate fixes a direction"),

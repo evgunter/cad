@@ -22,9 +22,10 @@ use editor_core::mate::face_chart_slides;
 use editor_core::pose::{PoseConstruction, PoseDef};
 use editor_core::{
     BodyRead, BooleanValue, CancelToken, CapEnd, Coord, Dimension, DocEdit, EvalOptions,
-    Evaluation, Formula, FreeValue, FreeVar, LoopProgram, Mate, Node, NodeErrorKind, NodeResult,
-    OnFace, Operand, OperandSlot, Orientation, Placed, PoseValue, ProfileDoc, RecipeNodeId,
-    RoleSeg, SignedAxis, StableName, TargetAxis, ValuePayload, VarName, draw_on_face, evaluate,
+    Evaluation, Formula, FreeValue, FreeVar, LoopProgram, Mate, MateFault, Node, NodeErrorKind,
+    NodeResult, OnFace, Operand, OperandSlot, Orientation, Placed, PoseValue, ProfileDoc,
+    RecipeNodeId, RoleSeg, SignedAxis, StableName, TargetAxis, ValuePayload, VarName, draw_on_face,
+    evaluate,
 };
 use geom_core::{RigidMotion, Tol};
 
@@ -97,11 +98,22 @@ fn drawn(
     face: StableName,
     on: OnFace,
 ) -> (ProfileDoc, RecipeNodeId) {
+    drawn_disc(doc, body, face, on, 0.25)
+}
+
+/// [`drawn`], a disc of radius `r`.
+fn drawn_disc(
+    doc: &ProfileDoc,
+    body: RecipeNodeId,
+    face: StableName,
+    on: OnFace,
+    r: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     let out = draw_on_face(
         doc,
         BodyRead::plain(Operand::from(body)),
         face,
-        vec![disc(0.25)],
+        vec![disc(r)],
         on,
         &EvalOptions::default(),
         &CancelToken::new(),
@@ -179,9 +191,13 @@ fn oriented(x: SignedAxis, z: SignedAxis) -> Orientation {
 }
 
 fn on(orient: Option<Orientation>, spin: f64, slides: [f64; 2]) -> OnFace {
+    on_by(orient, ang(spin), slides)
+}
+
+fn on_by(orient: Option<Orientation>, spin: Formula, slides: [f64; 2]) -> OnFace {
     OnFace {
         orient,
-        spin: ang(spin),
+        spin,
         slides: slides.map(len),
         traced: Vec::new(),
     }
@@ -275,19 +291,23 @@ fn a_top_caps_chart_is_the_space_at_the_cap_and_a_boss_stands_above() {
 /// The block's copy in the world, turned off every axis, and its
 /// placement.
 fn tilted() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    tilted_by([0.3, -0.2, 0.1], [0.5, -0.25, 0.75])
+}
+
+/// The block's copy in the world, spun about `x`, `y` and `z` in turn
+/// and slid along them, and its placement.
+fn tilted_by(spins: [f64; 3], slides: [f64; 3]) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, body) = block(2.0, 1.0);
-    let (doc, copy) = fixture::in_world_by(
-        doc,
-        body,
-        vec![
-            (Coord::Spin(Some(TargetAxis::X)), ang(0.3)),
-            (Coord::Spin(Some(TargetAxis::Y)), ang(-0.2)),
-            (Coord::Spin(Some(TargetAxis::Z)), ang(0.1)),
-            (Coord::slide(TargetAxis::X), len(0.5)),
-            (Coord::slide(TargetAxis::Y), len(-0.25)),
-            (Coord::slide(TargetAxis::Z), len(0.75)),
-        ],
-    );
+    let axes = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z];
+    let spun = axes
+        .iter()
+        .zip(spins)
+        .map(|(&axis, by)| (Coord::Spin(Some(axis)), ang(by)));
+    let slid = axes
+        .iter()
+        .zip(slides)
+        .map(|(&axis, by)| (Coord::slide(axis), len(by)));
+    let (doc, copy) = fixture::in_world_by(doc, body, spun.chain(slid).collect());
     (doc, body, copy)
 }
 
@@ -390,43 +410,31 @@ fn a_redimension_that_keeps_the_plane_leaves_the_chart_bit_equal() {
     assert_eq!(bits(&before), bits(&after), "{before:?} vs {after:?}");
 }
 
-/// **The chart is the plane placement's, with the same values**: on the
-/// tilted face, under the orientation the door wrote, a spin and two
-/// slides, a profile's chart and the motion a plane placement of a block
-/// onto the face (its start cap flipped to look up its own `z`) solves
-/// to are one map, entry for entry. Compared with `==`, so the two agree
-/// to the bit up to the sign of a zero.
-///
-/// *Breaks if* the chart is spelled a second time beside the
-/// placement's: any reordering of its arithmetic moves a low bit.
-#[test]
-fn the_chart_is_the_plane_placements_with_the_same_values() {
-    let (doc, body, copy) = tilted();
-    let top = cap(body, CapEnd::End);
-    let (spin, slides) = (0.4, [0.25, -0.15]);
-    let (doc, profile) = drawn(&doc, copy, top.clone(), on(None, spin, slides));
-    let PoseDef::FaceChart { orient, .. } = written(&doc, profile) else {
-        panic!("a face's chart")
-    };
-    let f = chart(&doc, profile)
-        .expect("the tilted cap charts")
-        .to_affine();
-
-    // A block of its own, placed on the face as DM1 places a body there.
+/// The motion a plane placement of a cube of side `side` onto `face` of
+/// `copy` solves to, under `orient` and the values a face's chart
+/// writes: its start cap flipped to look up its own `z`, as DM1 places
+/// a body on a face. Its fault where it refuses.
+fn placed_on(
+    doc: ProfileDoc,
+    (copy, face): (RecipeNodeId, StableName),
+    orient: Orientation,
+    (spin, slides): (Formula, [f64; 2]),
+    side: f64,
+) -> Result<geom_core::Affine3<f64>, MateFault> {
     let (doc, square) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(vec![vec![
             (0.0, 0.0),
-            (1.0, 0.0),
-            (1.0, 1.0),
-            (0.0, 1.0),
+            (side, 0.0),
+            (side, side),
+            (0.0, side),
         ]])),
     );
     let (doc, source) = fixture::insert(
         doc,
         Node::Extrude {
             profile: square.into(),
-            distance: len(0.25),
+            distance: len(side),
         },
     );
     let (doc, placement) =
@@ -438,7 +446,7 @@ fn the_chart_is_the_plane_placements_with_the_same_values() {
         ))),
         to: fixture::plane(Operand::select(
             BodyRead::plain(Operand::from(copy)),
-            vec![top],
+            vec![face],
         )),
         orient,
     };
@@ -448,30 +456,115 @@ fn the_chart_is_the_plane_placements_with_the_same_values() {
         values: vec![
             (Coord::slide(a), len(slides[0])),
             (Coord::slide(b), len(slides[1])),
-            (Coord::SPIN, ang(spin)),
+            (Coord::SPIN, spin),
         ],
     };
     let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
     let poses = fixture::solve(&doc, &EvalOptions::default(), Tol::witness());
-    assert!(
-        poses.fault(placement).is_none(),
-        "the block is placed: {:?}",
-        poses.fault(placement)
-    );
-    let m = poses.relative_map(placement).expect("the block's motion");
-    let entries = |a: &geom_core::Affine3<f64>| {
-        [
-            xyz(a.linear.c0),
-            xyz(a.linear.c1),
-            xyz(a.linear.c2),
-            xyz(a.translation),
-        ]
-        .concat()
+    if let Some(fault) = poses.fault(placement) {
+        return Err(fault.clone());
+    }
+    Ok(poses.relative_map(placement).expect("the block's motion"))
+}
+
+/// Every bit of an affine map: its linear part's columns, then its
+/// translation.
+fn affine_bits(a: &geom_core::Affine3<f64>) -> Vec<u64> {
+    [
+        xyz(a.linear.c0),
+        xyz(a.linear.c1),
+        xyz(a.linear.c2),
+        xyz(a.translation),
+    ]
+    .concat()
+    .into_iter()
+    .map(f64::to_bits)
+    .collect()
+}
+
+/// On the tilted face, under the orientation the door wrote, the bits of
+/// the chart a profile is drawn on with `spin` and two slides, and of the
+/// motion a plane placement of a block onto the face with the same values
+/// solves to.
+fn chart_and_placement(spin: Formula) -> (Vec<u64>, Vec<u64>) {
+    let (doc, body, copy) = tilted();
+    let top = cap(body, CapEnd::End);
+    let slides = [0.25, -0.15];
+    let (doc, profile) = drawn(&doc, copy, top.clone(), on_by(None, spin.clone(), slides));
+    let PoseDef::FaceChart { orient, .. } = written(&doc, profile) else {
+        panic!("a face's chart")
     };
-    assert_eq!(
-        entries(&f),
-        entries(&m),
-        "the chart is the placement's, entry for entry"
+    let f = chart(&doc, profile)
+        .expect("the tilted cap charts")
+        .to_affine();
+    let m = placed_on(doc, (copy, top), orient, (spin, slides), 1.0)
+        .unwrap_or_else(|f| panic!("the block is placed: {f:?}"));
+    (affine_bits(&f), affine_bits(&m))
+}
+
+/// **The chart is the plane placement's, with the same values**: on the
+/// tilted face, under the orientation the door wrote, a spin and two
+/// slides, a profile's chart and the motion a plane placement of a block
+/// onto the face solves to are one map, every bit.
+///
+/// *Breaks if* the chart is spelled a second time beside the
+/// placement's: any reordering of its arithmetic moves a low bit.
+#[test]
+fn the_chart_is_the_plane_placements_with_the_same_values() {
+    let (chart, placed) = chart_and_placement(ang(0.4));
+    assert_eq!(chart, placed, "the chart is the placement's, every bit");
+}
+
+/// **The chart is the placement's for a spin written as a fraction of a
+/// turn**: the placement turns a third of a turn by the sine and cosine
+/// of the form it is written in (a cosine of `−1/2` exactly), and so
+/// does the chart.
+///
+/// *Breaks if* the chart reads the spin's number and drops its form,
+/// turning by the radians' rounding where the placement turns exactly.
+/// An eighth of a turn cannot see that: its sine and cosine round alike
+/// from the radians.
+#[test]
+fn the_chart_is_the_placements_for_a_spin_written_as_a_fraction_of_a_turn() {
+    let third = Formula::turn_over(3).expect("a third of a turn");
+    let (chart, placed) = chart_and_placement(third);
+    assert_eq!(chart, placed, "the chart is the placement's, every bit");
+}
+
+/// **Near the pole the frame charts where a wide placement refuses.** A
+/// top cap tilted `1e-6` about `x`, under the orientation `x: +x, z: −z`,
+/// which puts the frame's `z` all but opposite the face's outward normal.
+/// The chart levers its least turn over its slides and the face's
+/// distance alone, so it charts, and a disc of radius 100 drawn on it
+/// sweeps to a boss. A cube of side 100 placed on the same face under the
+/// same orientation levers the turn over its own reach, and refuses
+/// backwards. The divergence is
+/// `work/doctail/a-face-charts-turn-is-levered-over-none-of-what-it-carries.md`'s.
+#[test]
+fn near_the_pole_the_frame_charts_where_a_wide_placement_refuses() {
+    let backwards = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
+    let (doc, body, copy) = tilted_by([1e-6, 0.0, 0.0], [0.0; 3]);
+    let top = cap(body, CapEnd::End);
+    let at = on(Some(backwards), 0.0, [0.0, 0.0]);
+    let (drawn_doc, profile) = drawn_disc(&doc, copy, top.clone(), at, 100.0);
+    chart(&drawn_doc, profile).expect("the frame charts");
+    let (drawn_doc, boss) = fixture::insert(
+        drawn_doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(0.5),
+        },
+    );
+    let built = eval(&drawn_doc);
+    assert!(
+        matches!(built.nodes.get(&boss), Some(NodeResult::Ok(_))),
+        "the disc's boss builds: {:?}",
+        built.nodes.get(&boss)
+    );
+    let refused = placed_on(doc, (copy, top), backwards, (ang(0.0), [0.0, 0.0]), 100.0);
+    assert!(
+        matches!(refused, Err(MateFault::Backwards { orient, .. }) if orient == backwards),
+        "the wide placement refuses backwards: {refused:?}"
     );
 }
 
@@ -574,4 +667,55 @@ fn a_zero_depth_refuses() {
         ),
         other => panic!("a zero depth refuses, got {other:?}"),
     }
+}
+
+/// **A pocket on a bottom cap lies inside the body**: drawn on the cap,
+/// whose chart's `z` is the outward `−z`, and swept `−0.5`, the tool
+/// fills `[0, 0.5]`. Its start cap sits the depth along the chart's `z`,
+/// at `0.5` facing `+z`, into the body; its end cap is the face's plane.
+///
+/// *Breaks if* the lift runs along the space's `z` rather than the
+/// chart's (the chart and the lift composed the other way about), which
+/// puts the tool under the cap; on a top cap the two agree.
+#[test]
+fn a_pocket_on_a_bottom_cap_lies_inside_the_body() {
+    let (doc, body) = block(2.0, 1.0);
+    let (doc, profile) = drawn(&doc, body, cap(body, CapEnd::Start), OnFace::nearest());
+    let (doc, tool) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(-0.5),
+        },
+    );
+    let (doc, at_start) = split_at(doc, tool, cap(tool, CapEnd::Start));
+    let (doc, at_end) = split_at(doc, tool, cap(tool, CapEnd::End));
+    let (doc, pocket) = fixture::insert(
+        doc,
+        Node::Subtract {
+            from: Operand::from(body).into(),
+            tool: Operand::from(tool).into(),
+        },
+    );
+    let ev = eval(&doc);
+    assert_eq!(
+        heights(&ev, tool),
+        [0.0, 0.5],
+        "the tool lies over the cap, inside the body"
+    );
+    assert_eq!(
+        tool_plane(&doc, &ev, at_start),
+        ([0.0, 0.0, 1.0], 0.5),
+        "the start cap sits the depth along the chart's z, facing into the body"
+    );
+    assert_eq!(
+        tool_plane(&doc, &ev, at_end),
+        ([0.0, 0.0, -1.0], 0.0),
+        "the end cap is the face's plane"
+    );
+    assert_eq!(
+        heights(&ev, pocket),
+        [0.0, 0.5, 1.0],
+        "the pocket is half a unit deep"
+    );
 }

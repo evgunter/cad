@@ -1178,7 +1178,7 @@ impl core::fmt::Display for PoseReadFault {
 
 /// **A construction that refuses its degenerate case**
 /// ([`crate::NodeErrorKind::PoseDegenerate`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PoseConstruction {
     /// [`PoseDef::Through`]: the point lies on the axis.
     Through,
@@ -1199,8 +1199,14 @@ pub enum PoseConstruction {
     },
     /// [`PoseDef::FaceChart`]: the face and the slides stand too far
     /// from the space's origin for the least turn to be decided over
-    /// them.
-    FaceChartUnleverable,
+    /// them: the two halves of the lever
+    /// ([`crate::mate::LeverRefusal::OutOfRange`]).
+    FaceChartUnleverable {
+        /// The written slides' lengths, summed.
+        parts: f64,
+        /// The face's plane's distance from the space's origin.
+        datum: f64,
+    },
 }
 
 impl core::fmt::Display for PoseConstruction {
@@ -1226,9 +1232,16 @@ impl core::fmt::Display for PoseConstruction {
                      orientation {write}"
                 );
             }
-            Self::FaceChartUnleverable => {
-                "the face's chart stands too far from its space's origin for its turn to be \
-                 decided. Recourse: read a face nearer the origin, or write shorter slides"
+            Self::FaceChartUnleverable { parts, datum } => {
+                return write!(
+                    f,
+                    "the face's chart stands too far from its space's origin for its turn to be \
+                     decided: {}",
+                    crate::mate::LeverRefusal::OutOfRange {
+                        parts: *parts,
+                        datum: *datum
+                    }
+                );
             }
         })
     }

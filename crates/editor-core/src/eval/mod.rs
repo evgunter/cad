@@ -5737,8 +5737,9 @@ mod tag {
         /// role it reads through ([`pose_role`]), then the read's tree
         /// — `OUTPUT` for an operation's output (whose key and port the
         /// upstream list carries), `SELECTION` and its names, or
-        /// `DEFINITION`, the arm ([`pose_arm`]), each read's role and
-        /// tree in field order, then each scalar's value and its
+        /// `DEFINITION`, the arm ([`pose_arm`]), a face's chart's
+        /// orientation as two [`signed_axis`] words (where its `x` and
+        /// `z` lie), each read's role and tree in field order, then each scalar's value and its
         /// nominal under [`slot`]'s `NOMINAL`; `SOURCE` for a source of a
         /// member ([`crate::VarDef::Source`]), its number of indices and
         /// each index's value.
@@ -7217,9 +7218,8 @@ fn feed_bundle(
         match &c.kind {
             crate::mate::ConstraintKind::Mate(mate) => {
                 h.write_tag(tag::constraint_kind::MATE);
-                // The orientation, by where the copy's x and z lie.
-                for axis in [mate.orient.x(), mate.orient.z()] {
-                    h.write_tag(axis_word(axis));
+                for word in orientation_words(mate.orient) {
+                    h.write_tag(word);
                 }
             }
             crate::mate::ConstraintKind::Value(value) => {
@@ -7245,6 +7245,13 @@ fn feed_bundle(
             }
         }
     }
+}
+
+/// **An orientation as a content key's two words**: where the frame's
+/// `x` and `z` lie, which fix it. A mate's and a face's chart's
+/// orientation are keyed by it.
+fn orientation_words(orient: crate::Orientation) -> [u8; 2] {
+    [axis_word(orient.x()), axis_word(orient.z())]
 }
 
 /// A signed axis as a content key's word.
