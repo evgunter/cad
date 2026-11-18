@@ -381,7 +381,7 @@ fn joined_carried(
     b: &AtRestBody<f64>,
 ) -> (AtRestBody<f64>, topo::OperandRecords) {
     match topo::union(a, b, tol()) {
-        Ok(BooleanResult::Body(r)) => (r.body.clone(), r.contacts.carried()),
+        Ok(BooleanResult::Body(r)) => (r.body.clone(), r.contacts().carried()),
         other => panic!("{what}: {other:?}"),
     }
 }
@@ -462,7 +462,7 @@ fn every_op(
             // line contact unrecorded
             // (`a-carried-line-contact-an-op-cuts-is-dropped`), pinned here
             // so its fix shows.
-            let findings = topo::validate_pseudomanifold(body, &r.contacts, tol())
+            let findings = topo::validate_pseudomanifold(body, &r.contacts(), tol())
                 .err()
                 .unwrap_or_default();
             let unrecorded = findings
@@ -541,14 +541,14 @@ fn every_order(
                 Ok(BooleanResult::Body(r)) => r,
                 other => panic!("{what}: step {k}: {other:?}"),
             };
-            carried = r.contacts.carried();
+            carried = r.contacts().carried();
             body = r.body.clone();
             last = Some(r);
         }
         let r = last.expect("at least two members");
         sound(&what, &r.body, holds, volume, read_pct);
         assert_eq!(
-            topo::validate_pseudomanifold(&r.body, &r.contacts, tol()),
+            topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()),
             Ok(()),
             "{what}: tier 3′"
         );

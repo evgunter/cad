@@ -23,10 +23,6 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn band() -> geom_core::Band {
-    geom_core::Band::linear(tol()).unwrap()
-}
-
 fn rod() -> AtRestBody<f64> {
     let at = |t: f64| Point2::new(0.5 * t.cos(), 2.5 + 0.5 * t.sin());
     let circle: ProfileLoop<f64> =
@@ -96,6 +92,22 @@ fn rested() -> (topo::BooleanBody<f64>, ContactRecords) {
     (u, one)
 }
 
+/// `plate ∪ rod` finished holding `one` as its records.
+fn holding(u: &topo::BooleanBody<f64>, one: &ContactRecords) -> AtRestBody<f64> {
+    topo::finish(
+        topo::Built::of(Body::clone(&u.body)).recording(one.clone()),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("plate ∪ rod finishes holding the record: {e:?}"))
+}
+
+/// The records a side of a split holds, an empty side holding none.
+fn side_records(part: &topo::SplitPart<f64>) -> ContactRecords {
+    part.body()
+        .map(|b| topo::FinishedBody::records(b).clone())
+        .unwrap_or_default()
+}
+
 fn carried(
     op: topo::BooleanOp,
     u: &topo::BooleanBody<f64>,
@@ -129,10 +141,10 @@ fn a_record_no_reading_covers_lands_by_lineage_through_an_op_that_keeps_its_cell
     ] {
         match carried(op, &u, &one, tool) {
             Ok(BooleanResult::Body(r)) => assert_eq!(
-                r.contacts.edge_face().count(),
+                r.contacts().edge_face().count(),
                 1,
                 "{what}: the record lands: {:?}",
-                r.contacts
+                r.contacts()
             ),
             other => panic!("{what}: {:?}", other.map(|_| ())),
         }
@@ -142,14 +154,13 @@ fn a_record_no_reading_covers_lands_by_lineage_through_an_op_that_keeps_its_cell
         Vec3::new(0.0, 0.0, 1.0),
         tol(),
     );
-    let split = topo::split(&u.body, &plane, tol()).expect("plate ∪ rod splits at z = 0.9");
-    let sides = split
-        .carry_contacts(&one, band(), Some(topo::RegionLane::certified()))
+    let split = topo::split(&holding(&u, &one), &plane, tol())
         .unwrap_or_else(|r| panic!("a split above both cells: the record lands: {r:?}"));
+    let (below, above) = (side_records(&split.below), side_records(&split.above));
     assert_eq!(
-        (sides.below.edge_face().count(), sides.above.len()),
+        (below.edge_face().count(), above.len()),
         (1, 0),
-        "a split above both cells: the record lands below: {sides:?}"
+        "a split above both cells: the record lands below: {below:?} {above:?}"
     );
 }
 
@@ -180,14 +191,15 @@ fn a_record_no_reading_covers_refuses_where_an_op_divides_one_of_its_cells() {
         Vec3::new(1.0, 0.0, 0.0),
         tol(),
     );
-    let split = topo::split(&u.body, &plane, tol()).expect("plate ∪ rod splits at x = 0");
-    let got = split.carry_contacts(&one, band(), Some(topo::RegionLane::certified()));
+    let got = topo::split(&holding(&u, &one), &plane, tol()).map(|_| ());
     assert!(
         matches!(
             got,
-            Err(topo::CarryRefusal::Unread {
-                record: 0,
-                cells: [Cell::Edge(_), Cell::Face(_)],
+            Err(topo::SplitError::Carry {
+                refusal: topo::CarryRefusal::Unread {
+                    record: 0,
+                    cells: [Cell::Edge(_), Cell::Face(_)],
+                },
             })
         ),
         "a split across both cells: {got:?}"

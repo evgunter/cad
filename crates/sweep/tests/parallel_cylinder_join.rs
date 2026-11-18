@@ -333,7 +333,7 @@ fn the_rim_crossing_rods_build_in_every_op() {
                         .unwrap_or_else(|| panic!("{label}: a body is owed"));
                     assert!(topo::validate_closed(&bb.body).is_ok(), "{label}: tier 2");
                     assert!(
-                        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok(),
+                        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol).is_ok(),
                         "{label}: tier 3′"
                     );
                     assert!(

@@ -249,7 +249,7 @@ pub use ops::{
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
 pub use overlap::{OverlapRefusal, OverlapUnread, overlap};
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
-pub(crate) use records::{Parting, incident};
+pub(crate) use records::incident;
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
 pub use reduce::SweepStrategy;

@@ -147,17 +147,17 @@ fn assert_union(
         inside.iter().all(|&p| holds(&r.body, p)),
         "{what}: both operands' material"
     );
-    let verdict = topo::validate_pseudomanifold(&r.body, &r.contacts, tol());
+    let verdict = topo::validate_pseudomanifold(&r.body, &r.contacts(), tol());
     assert!(
         verdict
             .as_ref()
             .err()
             .is_none_or(|errs| only_curved_within_reach(&r.body, errs)),
         "{what}: 3′ on its records: {verdict:?}\n{:?}",
-        r.contacts
+        r.contacts()
     );
 
-    let ee: Vec<(EdgeKey, EdgeKey)> = r.contacts.edge_edge().collect();
+    let ee: Vec<(EdgeKey, EdgeKey)> = r.contacts().edge_edge().collect();
     let [pair] = ee[..] else {
         panic!("{what}: one edge–edge record, got {ee:?}");
     };
@@ -199,7 +199,7 @@ fn assert_union(
     );
 
     let stripped: topo::ContactRecords = r
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .filter(|c| !matches!(c.record.kind(), ContactKind::EdgeEdge(..)))
@@ -217,7 +217,7 @@ fn assert_union(
             }
         )
     };
-    for (x, y) in r.contacts.vertex_vertex() {
+    for (x, y) in r.contacts().vertex_vertex() {
         let key = |v| {
             r.body
                 .get_vertex(v)

@@ -119,7 +119,7 @@ fn assert_every_op(
             "{label}: tier 3"
         );
         assert_eq!(
-            topo::validate_pseudomanifold(&out.body, &out.contacts, tol),
+            topo::validate_pseudomanifold(&out.body, &out.contacts(), tol),
             Ok(()),
             "{label}: tier 3′"
         );

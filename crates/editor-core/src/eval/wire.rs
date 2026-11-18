@@ -1892,7 +1892,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
     selection: &Selected<topo::EdgeKey>,
-    (doc, results): (&crate::doc::Doc<ProfileProgram>, &Results<T>),
+    (_, results): (&crate::doc::Doc<ProfileProgram>, &Results<T>),
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
@@ -1989,7 +1989,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::shell::ShellVerb<T>,
     id: RecipeNodeId,
     open: &Selected<topo::FaceKey>,
-    (doc, results): (&crate::doc::Doc<ProfileProgram>, &Results<T>),
+    (_, results): (&crate::doc::Doc<ProfileProgram>, &Results<T>),
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
@@ -2758,7 +2758,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     (target_read, target): (crate::VarId, RecipeNodeId),
     (tool, tool_read): (pose::Posed<T>, crate::pose::RoleRead<crate::VarId>),
-    (doc, results): (&crate::doc::Doc<ProfileProgram>, &Results<T>),
+    (_, results): (&crate::doc::Doc<ProfileProgram>, &Results<T>),
     tol: Tol,
 ) -> OpResult<T> {
     // It computes in its operand's frame, its tool read into it.

@@ -76,7 +76,7 @@ fn built(
     Built {
         solids: body.solids().count(),
         at_nodes: [at(nodes[0]), at(nodes[1])],
-        three_prime: topo::validate_pseudomanifold(body, &out.contacts, tol).map(|_| ()),
+        three_prime: topo::validate_pseudomanifold(body, &out.contacts(), tol).map(|_| ()),
         body: body.clone(),
     }
 }

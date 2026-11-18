@@ -74,7 +74,7 @@ fn never_twice(
     );
     assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
         Ok(()),
         "{what}: tier 3′"
     );
@@ -451,7 +451,7 @@ fn a_line_kiss_beside_a_tangent_site_records_its_contact() {
             assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
             assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
             assert_eq!(
-                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
                 Ok(()),
                 "{what}: tier 3′"
             );

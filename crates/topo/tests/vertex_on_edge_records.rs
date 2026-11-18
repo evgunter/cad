@@ -685,7 +685,7 @@ fn a_split_at_the_crossing_records_its_vertex_on_the_other_edge() {
     let across = crossing_into(&y, (0.3, 0.7), tol);
     assert_eq!(
         across.contacts(),
-        ContactRecords::default(),
+        &ContactRecords::default(),
         "the slab buries the crossing"
     );
     assert_eq!(errors(&across.body, &across.contacts()), vec![]);

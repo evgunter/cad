@@ -878,7 +878,7 @@ mod kernel {
             ConvexitySignFlip, UnbuiltEnd, ObliqueMixedCorner, SpineUnsupported,
             ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedGeometry, BodyNotIntact,
-            NotFinished, SurgeryInvariant,
+            NotFinished, Carry, SurgeryInvariant,
             RingClearance, WhollyInside, Certify, Op, Join,
         ];
     }
@@ -944,7 +944,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `SplitError`'s arms, for the `Split/` rows.
         pub(super) const SPLIT_ERROR: SplitError = [
-            Reduce, Join, Finish, Pcurves, Pieces,
+            Reduce, Join, Finish, Pcurves, Pieces, Carry,
         ];
     }
 
@@ -998,7 +998,7 @@ mod kernel {
             ChartSenseMixed, Face, OpenFaceStale, OpenFaceRepeated,
             OpenFacesExhaustShell, OpenFacesDisconnect, OpenFaceChartPartial, Lift,
             Insert, OpenFaceRimNotExpressible, Rim, Escalated, Pcurve, RimSeamMixed,
-            Join, NotValid,
+            Join, Carry, NotValid,
         ];
     }
 
@@ -1188,7 +1188,9 @@ fn forward(kind: &NodeErrorKind) -> Forward {
                 topo::SplitError::Reduce(e) => levels.push(level("SplitReduceError", e)),
                 topo::SplitError::Join(e) => levels.push(level("JoinError", e)),
                 topo::SplitError::Finish(e) => levels.push(level("SplitFinishError", e)),
-                topo::SplitError::Pcurves(_) | topo::SplitError::Pieces(_) => {}
+                topo::SplitError::Pcurves(_)
+                | topo::SplitError::Pieces(_)
+                | topo::SplitError::Carry { .. } => {}
             }
             welded(levels)
         }
@@ -1224,6 +1226,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
                 | S::Pcurve { .. }
                 | S::RimSeamMixed { .. }
                 | S::Join { .. }
+                | S::Carry { .. }
                 | S::NotValid { .. } => {}
             }
             welded(levels)

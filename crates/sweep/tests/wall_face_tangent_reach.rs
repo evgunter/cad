@@ -84,7 +84,7 @@ fn the_tangent_rest<T: geom_core::Decide + geom_core::Bounds + AtRestPolicy>(
             );
             let kind = |f: topo::FaceKey| r.body.face_surface(f).unwrap().kind();
             let ff: Vec<_> = r
-                .contacts
+                .contacts()
                 .face_face()
                 .map(|(x, y)| (kind(x), kind(y)))
                 .collect();
@@ -104,7 +104,7 @@ fn the_tangent_rest<T: geom_core::Decide + geom_core::Bounds + AtRestPolicy>(
                 "subtract: the plate's volume, got [{lo}, {hi}]"
             );
             assert_eq!(
-                r.contacts.face_face().count(),
+                r.contacts().face_face().count(),
                 0,
                 "subtract: the rod's wall is gone, and its record with it"
             );

@@ -137,7 +137,7 @@ fn reading(
     });
     let t2 = ok(topo::validate_closed(&bb.body).is_ok());
     let cert = ok(topo::validate_geometric_certificate(&bb.body, tol()).is_ok());
-    let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).map_or_else(
+    let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()).map_or_else(
         |es| {
             let mut v: Vec<String> = es.iter().map(variant).collect();
             v.dedup();
@@ -317,7 +317,7 @@ fn a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet() {
             topo::validate_geometric_certificate(&bb.body, tol()).is_ok(),
             "{label}: the certificate"
         );
-        let findings = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+        let findings = topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol())
             .err()
             .unwrap_or_default();
         assert!(
@@ -383,7 +383,7 @@ fn curved_notch_pinch_one() {
     let bb = res.body().expect("a body");
     let body = &bb.body;
     println!("solids {}", body.solids().count());
-    for row in bb.contacts.rows() {
+    for row in bb.contacts().rows() {
         println!("record {row:?}");
     }
     let face = |e: &topo::EntityId| match e {
@@ -393,7 +393,7 @@ fn curved_notch_pinch_one() {
         }
         e => format!("{e:?}"),
     };
-    if let Err(es) = topo::validate_pseudomanifold(body, &bb.contacts, tol()) {
+    if let Err(es) = topo::validate_pseudomanifold(body, &bb.contacts(), tol()) {
         for e in &es {
             if let topo::ValidationError::CensusUndecidable { a, b, what, .. } = e {
                 println!("undecidable {} | {} | {what}", face(a), face(b));

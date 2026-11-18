@@ -94,10 +94,10 @@ fn a_tube_rim_vertex_touching_a_turned_face_unions_past_tier_3_prime() {
                 (volume - exact).abs() < 1e-6,
                 "{tag}: the union's volume is the cube's and the tube's, got {volume}"
             );
-            let vf = bb.contacts.vertex_face().count();
+            let vf = bb.contacts().vertex_face().count();
             assert_eq!(vf, 1, "{tag}: the rim vertex on the cube face is recorded");
             assert_eq!(
-                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
                 Ok(()),
                 "{tag}: tier 3′ passes with the record"
             );
@@ -128,7 +128,7 @@ fn a_turned_face_clear_of_a_tube_rim_passes_tier_3_prime() {
             .unwrap_or_else(|| panic!("{tag}: the union is a body"));
         assert_eq!(bb.body.solids().count(), 2, "{tag}: two separated solids");
         assert_eq!(
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
             Ok(()),
             "{tag}: tier 3′ passes"
         );

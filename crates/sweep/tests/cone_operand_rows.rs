@@ -546,7 +546,7 @@ fn a_tangent_plane_refuses_and_a_sector_on_the_cone_face_builds_where_it_certifi
             "{label}: tier 3"
         );
         assert_eq!(
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol),
             Ok(()),
             "{label}: tier 3′"
         );

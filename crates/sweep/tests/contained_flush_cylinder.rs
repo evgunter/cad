@@ -99,18 +99,18 @@ fn a_carried_edge_edge_row_on_a_discarded_wall_is_consumed() {
         panic!("the union builds: {got:?}");
     };
     assert!(
-        out.contacts.is_empty(),
+        out.contacts().is_empty(),
         "the row is consumed: {:?}",
-        out.contacts
+        out.contacts()
     );
     let far = with((5.0, 7.0));
     let Ok(BooleanResult::Body(far)) = far else {
         panic!("the far union builds: {far:?}");
     };
     assert_eq!(
-        far.contacts.edge_edge().count(),
+        far.contacts().edge_edge().count(),
         1,
         "with both cells kept, the row lands: {:?}",
-        far.contacts
+        far.contacts()
     );
 }

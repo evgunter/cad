@@ -123,7 +123,7 @@ fn sound(what: &str, r: &topo::BooleanBody<f64>, want: f64, in_b: &dyn Fn(Point3
         "{what}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&r.body, &r.contacts, tol()).err(),
+        topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()).err(),
         None,
         "{what}: tier 3′"
     );

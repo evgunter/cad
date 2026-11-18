@@ -86,7 +86,7 @@ fn verdict(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -
             None => format!("BAD empty want={want}"),
             Some(bb) => {
                 let t2 = topo::validate_closed(&bb.body).is_ok();
-                let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).is_ok();
+                let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()).is_ok();
                 let cert = topo::validate_geometric_certificate(&bb.body, tol()).is_ok();
                 let Some(v) = volume(&bb.body) else {
                     return format!("UNMEAS t2={t2} t3p={t3} cert={cert}");

@@ -127,18 +127,9 @@ fn a_split_through_a_corner_kiss_carries_it_onto_both_sides() {
     let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), "b");
     let base = union_of(&a, &b);
     let plane = common::split_plane(Point3::new(1.0, 1.0, 1.0), Vec3::new(1.0, -1.0, 0.0), tol());
-    let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
-    let sides = split
-        .carry_contacts(
-            &base.contacts(),
-            geom_core::Band::linear(tol()).unwrap(),
-            Some(topo::RegionLane::certified()),
-        )
-        .expect("the record lands");
-    for (what, body, recs) in [
-        ("above", split.above.body(), &sides.above),
-        ("below", split.below.body(), &sides.below),
-    ] {
+    let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits, the record lands");
+    for (what, body) in [("above", split.above.body()), ("below", split.below.body())] {
+        let recs = body.expect("material").records();
         assert_eq!(recs.vertex_vertex().count(), 1, "{what}: {recs:?}");
         assert_eq!(
             recs.rows()[0].cites.iter().collect::<Vec<_>>(),

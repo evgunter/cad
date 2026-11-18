@@ -266,7 +266,7 @@ fn stacks(lower: Outline, upper: Outline) -> Vec<(String, topo::BooleanBody<f64>
                 "{label}: tier 3"
             );
             assert_eq!(
-                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
                 Ok(()),
                 "{label}: tier 3′"
             );
@@ -314,7 +314,7 @@ fn the_arc_joint_stacks_build_every_op() {
                 "{label}, ∖: tier 3"
             );
             assert_eq!(
-                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
                 Ok(()),
                 "{label}, ∖: tier 3′"
             );

@@ -39,27 +39,36 @@ fn a_corner_just_past_a_cut_lands_on_the_piece_refuses_unread_or_lands_on_the_mi
         Vec3::new(1.0, 0.0, 0.0),
         tol(),
     );
-    let split = topo::split(&base.body, &plane, tol()).expect("splits");
+    let split = topo::split(&base.body, &plane, tol())
+        .expect("splits, the records landing at the default band");
     let region = || Some(topo::RegionLane::certified());
-    let sides = split
-        .carry_contacts(&base.contacts(), Band::linear(tol()).unwrap(), region())
-        .expect("the records land at the default band");
-    for (side, body, records) in [
-        ("above", split.above.body(), &sides.above),
-        ("below", split.below.body(), &sides.below),
-    ] {
+    let above = split.above.body().expect("material");
+    let below = split.below.body().expect("material");
+    for (side, body) in [("above", above), ("below", below)] {
         assert_eq!(
-            validate_pseudomanifold(body.expect("material"), records, tol()),
+            validate_pseudomanifold(body, body.records(), tol()),
             Ok(()),
-            "{side}: {records:?}"
+            "{side}: {:?}",
+            body.records()
         );
     }
-    assert_eq!((sides.above.len(), sides.below.len()), (3, 0), "{sides:?}");
+    assert_eq!(
+        (above.records().len(), below.records().len()),
+        (3, 0),
+        "{:?} {:?}",
+        above.records(),
+        below.records()
+    );
     let corner = base.contacts().rows()[1].cells()[0];
     assert!(matches!(corner, Cell::Vertex(_)), "{:?}", base.contacts());
+    // The split's lineage read at a band of the caller's, onto the side
+    // above, which holds every landing.
+    let lineage = split.lineage();
     let at = |eps: f64| {
-        split.carry_contacts(
-            &base.contacts(),
+        base.contacts().carried_through(
+            0,
+            &lineage,
+            above,
             Band::linear_at(tol(), eps).unwrap(),
             region(),
         )
@@ -74,7 +83,6 @@ fn a_corner_just_past_a_cut_lands_on_the_piece_refuses_unread_or_lands_on_the_mi
     );
     let coarse = at(1e-3).expect("the record lands on the minted vertex");
     let on_minted: Vec<_> = coarse
-        .above
         .rows()
         .iter()
         .filter(|r| {

@@ -97,7 +97,7 @@ fn assert_six(
             Ok(BooleanResult::Body(bb)) => {
                 topo::validate_geometric(&bb.body, tol)
                     .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol)
                     .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
                 // Relative to the op's own volume: an absolute floor
                 // would pass any result of a millimetre pose (pair 82's

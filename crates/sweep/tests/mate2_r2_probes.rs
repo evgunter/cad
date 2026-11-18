@@ -38,7 +38,8 @@ fn never_silent(label: &str, a: &Body<f64>, b: &Body<f64>) -> Option<topo::Boole
             if let Err(errs) = topo::validate_geometric(&bb.body, Tol::witness()) {
                 panic!("{label}: SILENTLY INVALID BODY — {errs:?}");
             }
-            if let Err(errs) = topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness())
+            if let Err(errs) =
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts(), Tol::witness())
             {
                 panic!("{label}: NOT PSEUDOMANIFOLD — {errs:?}");
             }

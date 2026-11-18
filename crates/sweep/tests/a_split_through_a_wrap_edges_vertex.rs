@@ -813,7 +813,7 @@ fn tangent_boolean(build: Build, sweep: f64, t: f64, held: bool, what: &str) -> 
         let got = match got {
             Ok(_) if held => Err("builds: the held row's pin".into()),
             Ok(out) => match out.body() {
-                Some(r) => sound(&r.body, &r.contacts, closed, &what),
+                Some(r) => sound(&r.body, &r.contacts(), closed, &what),
                 None => Err(format!("no body where {closed} is kept")),
             },
             Err(BooleanError::JoinDesync { what }) if held && what == RING_ROLE_DESYNC => Ok(()),
@@ -967,7 +967,7 @@ fn a_ball_tangent_to_a_two_arc_holes_rim_is_held_or_builds_sound() {
                 topo::validate_geometric(body, tol()).map_err(|e| format!("tier 3: {e:?}"))
             })
             .and_then(|()| {
-                topo::validate_pseudomanifold(body, &r.contacts, tol())
+                topo::validate_pseudomanifold(body, &r.contacts(), tol())
                     .map_err(|e| format!("tier 3′: {e:?}"))
             });
         if let Err(e) = tiers {

@@ -152,11 +152,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             azim: -65.0,
             up: 'y',
         },
-        bodies: vec![SceneBody::seamed(
+        bodies: vec![SceneBody::finished(
             "az",
             [0.42, 0.55, 0.74],
-            az.body.into_body(),
-            az.contacts,
-        )],
+            az.body)],
     }]
 }

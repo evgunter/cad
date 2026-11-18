@@ -53,7 +53,7 @@ fn point(body: &Body<f64>, v: topo::VertexKey) -> [f64; 3] {
 /// Each record's two cells' carrier kinds, faces only.
 fn face_pairs(r: &topo::BooleanBody<f64>) -> Vec<(SurfaceKind, SurfaceKind)> {
     let kind = |f: topo::FaceKey| r.body.face_surface(f).unwrap().kind();
-    r.contacts
+    r.contacts()
         .face_face()
         .map(|(x, y)| {
             let (p, q) = (kind(x), kind(y));
@@ -128,16 +128,16 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
         [(SurfaceKind::Plane, SurfaceKind::Cylinder)],
         "plate ∪ rod: the face–face record of the plate's face and the rod's wall"
     );
-    let (side, _) = u.contacts.face_face().next().unwrap();
+    let (side, _) = u.contacts().face_face().next().unwrap();
     let plane = |f: topo::FaceKey| u.body.face_surface(f).unwrap().kind() == SurfaceKind::Plane;
     let side = if plane(side) {
         side
     } else {
-        u.contacts.face_face().next().unwrap().1
+        u.contacts().face_face().next().unwrap().1
     };
     // Each cap circle touches the plate's face at one point inside its
     // arc: an edge–face record of the circle and that face.
-    let ef: Vec<_> = u.contacts.edge_face().collect();
+    let ef: Vec<_> = u.contacts().edge_face().collect();
     let heights: Vec<f64> = ef
         .iter()
         .map(|&(e, f)| {
@@ -181,7 +181,7 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
         "plate ∪ rod: the tangency row is the glue door's"
     );
     let cites: Vec<_> = u
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .find(|r| matches!(r.kind(), topo::ContactKind::FaceFace(..)))
@@ -213,7 +213,7 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
         )
     };
     let ff = topo::OperandRecords {
-        ff: u.contacts.carried().ff,
+        ff: u.contacts().carried().ff,
         ..topo::OperandRecords::default()
     };
     match bridged(ff) {
@@ -228,14 +228,14 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
                 "∪ bridge: the record lands on the plate's face and the rod's wall"
             );
             assert_eq!(
-                topo::validate_pseudomanifold(&r.body, &r.contacts, tol()),
+                topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()),
                 Ok(()),
                 "∪ bridge: tier 3′ with the landed record"
             );
         }
         other => panic!("∪ bridge: {:?}", other.map(|_| ())),
     }
-    match bridged(u.contacts.carried()) {
+    match bridged(u.contacts().carried()) {
         Ok(BooleanResult::Body(r)) => {
             assert_eq!(
                 r.body.solids().count(),
@@ -243,7 +243,7 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
                 "∪ bridge, every record: one solid"
             );
             let ef: Vec<f64> = r
-                .contacts
+                .contacts()
                 .edge_face()
                 .map(|(e, _)| edge_ends(&r.body, e)[0][2])
                 .collect();
@@ -254,7 +254,7 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
                  top cap's touch point is inside the bridge"
             );
             assert_eq!(
-                topo::validate_pseudomanifold(&r.body, &r.contacts, tol()),
+                topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()),
                 Ok(()),
                 "∪ bridge, every record: tier 3′ confirms the landed records"
             );
@@ -291,8 +291,8 @@ fn a_cap_circles_point_touch_is_read_and_lands_on_the_piece_holding_it() {
         Ok(BooleanResult::Body(u)) => u,
         other => panic!("plate ∪ rod: {:?}", other.map(|_| ())),
     };
-    let caps: Vec<topo::EdgeKey> = u.contacts.edge_face().map(|(e, _)| e).collect();
-    let findings = topo::validate_pseudomanifold(&u.body, &u.contacts, tol())
+    let caps: Vec<topo::EdgeKey> = u.contacts().edge_face().map(|(e, _)| e).collect();
+    let findings = topo::validate_pseudomanifold(&u.body, &u.contacts(), tol())
         .err()
         .unwrap_or_default();
     assert!(
@@ -313,7 +313,7 @@ fn a_cap_circles_point_touch_is_read_and_lands_on_the_piece_holding_it() {
         &u.body,
         &step,
         &topo::BooleanInputs {
-            records_a: u.contacts.carried(),
+            records_a: u.contacts().carried(),
             ..topo::BooleanInputs::default()
         },
         topo::SweepStrategy::Realized,
@@ -323,7 +323,7 @@ fn a_cap_circles_point_touch_is_read_and_lands_on_the_piece_holding_it() {
         other => panic!("∪ step: {:?}", other.map(|_| ())),
     };
     let landed: Vec<Vec<[f64; 3]>> = r
-        .contacts
+        .contacts()
         .edge_face()
         .map(|(e, _)| edge_ends(&r.body, e))
         .filter(|ends| ends[0][2] == 0.25)
@@ -413,12 +413,12 @@ fn a_given_tangency_through_both_interiors_records_the_face_face_touch() {
     let decision = judged.body.coincidences[at];
     let stepped = &built.steps[0].body;
     assert_eq!(
-        stepped.contacts.face_face().collect::<Vec<_>>(),
-        judged.body.contacts.face_face().collect::<Vec<_>>(),
+        stepped.contacts().face_face().collect::<Vec<_>>(),
+        judged.body.contacts().face_face().collect::<Vec<_>>(),
         "plate ∪ rod, given: the face–face record the judged union carries"
     );
     let cites: Vec<_> = stepped
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .find(|r| matches!(r.kind(), topo::ContactKind::FaceFace(..)))
@@ -473,8 +473,8 @@ fn a_carried_curve_touch_row_with_a_bad_key_refuses_at_the_door() {
         brick::<f64>((-0.1, 0.1), (1.4, 1.6), (0.4, 0.6), tol()),
         tol(),
     );
-    let (edge, face) = u.contacts.edge_face().next().unwrap();
-    let (fa, _) = u.contacts.face_face().next().unwrap();
+    let (edge, face) = u.contacts().edge_face().next().unwrap();
+    let (fa, _) = u.contacts().face_face().next().unwrap();
     let rim = u
         .body
         .half_edges()
@@ -677,7 +677,7 @@ fn a_given_tangency_whose_faces_part_along_its_line_records_nothing() {
         "the restated tangency is the left piece's; the right piece's records nothing"
     );
     assert_eq!(
-        step.body.contacts.face_face().count(),
+        step.body.contacts().face_face().count(),
         1,
         "plate ∪ block ∪ rod: one face–face record, the left piece's"
     );
@@ -805,11 +805,11 @@ fn a_record_whose_faces_the_op_divides_lands_on_the_pair_holding_its_line() {
             "{label}: volume {v}, want {want_v}"
         );
         assert_eq!(
-            r.contacts.face_face().count(),
+            r.contacts().face_face().count(),
             ff,
             "{label}: face–face records"
         );
-        for (p, q) in r.contacts.face_face() {
+        for (p, q) in r.contacts().face_face() {
             let kind = |f: topo::FaceKey| r.body.face_surface(f).unwrap().kind();
             let (plane, wall) = if kind(p) == SurfaceKind::Plane {
                 (p, q)
@@ -902,7 +902,7 @@ fn bridged_rod_posed(
     );
     let records_a = if carry {
         topo::OperandRecords {
-            ff: u.contacts.carried().ff,
+            ff: u.contacts().carried().ff,
             ..topo::OperandRecords::default()
         }
     } else {
@@ -950,11 +950,11 @@ fn a_bridged_rods_unrecorded_tangent_line_refuses_and_its_carried_record_passes(
         let label = format!("rod first {rod_first}");
         let r = bridged_rod(0.0, rod_first, false);
         assert_eq!(
-            r.contacts.face_face().count(),
+            r.contacts().face_face().count(),
             0,
             "{label}: no face–face record"
         );
-        let errors = topo::validate_pseudomanifold(&r.body, &r.contacts, tol()).unwrap_err();
+        let errors = topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()).unwrap_err();
         let found: Vec<_> = errors
             .iter()
             .filter_map(|e| match e {
@@ -982,7 +982,7 @@ fn a_bridged_rods_unrecorded_tangent_line_refuses_and_its_carried_record_passes(
         );
         let r = bridged_rod(0.0, rod_first, true);
         assert_eq!(
-            topo::validate_pseudomanifold(&r.body, &r.contacts, tol()),
+            topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()),
             Ok(()),
             "{label}, carried: 3′ confirms the landed record"
         );
@@ -998,7 +998,7 @@ fn a_bridged_rod_standing_off_the_plate_discovers_nothing() {
     for rod_first in [false, true] {
         let r = bridged_rod(gap, rod_first, false);
         assert_eq!(
-            topo::validate_pseudomanifold(&r.body, &r.contacts, tol()),
+            topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()),
             Ok(()),
             "rod first {rod_first}: gap {gap}, nothing touches"
         );
@@ -1139,7 +1139,7 @@ fn a_solid_missing_its_cusp_edges_leaves_a_solid_in_its_bore_cleared() {
 fn the_void_and_material_pinches_read_alike_at_every_pose() {
     for (s, d) in [(1.0e-2, 0.0), (1.0e2, 0.0), (1.0, 5.0e2)] {
         let r = bridged_rod_posed(s, d, 0.0, false, false);
-        let errors = topo::validate_pseudomanifold(&r.body, &r.contacts, tol()).unwrap_err();
+        let errors = topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()).unwrap_err();
         let touches = errors
             .iter()
             .filter(|e| {

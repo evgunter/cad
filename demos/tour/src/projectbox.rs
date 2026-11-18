@@ -446,12 +446,10 @@ pub fn stop(tol: Tol) -> TourStop {
             azim: 55.0,
             up: 'z',
         },
-        bodies: core::iter::once(SceneBody::seamed(
+        bodies: core::iter::once(SceneBody::finished(
             "projectbox",
             [0.40, 0.60, 0.72],
-            acc.body.into_body(),
-            acc.contacts,
-        ))
+            acc.body))
         .chain(core::iter::once(SceneBody::plain(
             "spring",
             SPRING_COLOR,

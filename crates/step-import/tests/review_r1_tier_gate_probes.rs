@@ -694,13 +694,13 @@ fn r1_the_kiss_certifies_with_its_touch_recorded() {
     let text = fixture("../step-export/tests/fixtures/kiss_assembly.step");
     let StepImport::Solid {
         body,
-        contacts,
         coincidences,
         ..
     } = import_step(&text, &ImportOptions::default(), Tol::witness()).expect("the kiss imports")
     else {
         panic!("the kiss imports as a solid");
     };
+    let contacts = body.records();
     assert_eq!(body.solids().count(), 2, "both kissing solids ship");
     assert!(
         !coincidences.is_empty()

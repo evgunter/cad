@@ -264,7 +264,7 @@ fn review_6020_boolean_seam_poses() {
                                     .volume;
                                     let t3p = topo::validate_pseudomanifold(
                                         &bb.body,
-                                        &bb.contacts,
+                                        &bb.contacts(),
                                         tol(),
                                     );
                                     assert!(

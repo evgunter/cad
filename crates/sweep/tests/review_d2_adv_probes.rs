@@ -403,6 +403,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
         BlendError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
         BlendError::NotFinished { .. } => "NotFinished(row 4)",
+        BlendError::Carry { .. } => "Carry",
         BlendError::SurgeryInvariant { .. } => "SurgeryInvariant(row 4)",
         BlendError::RingClearance { .. } => "RingClearance",
         BlendError::WhollyInside { .. } => "WhollyInside(row 2)",

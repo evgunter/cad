@@ -154,7 +154,7 @@ fn builds_at_its_closed_form((t_a, t_b): (f64, f64), ops: &[(BooleanOp, &str)]) 
             m.volume,
             m.volume_pad
         );
-        topo::validate_pseudomanifold(body, &res.contacts, tol())
+        topo::validate_pseudomanifold(body, &res.contacts(), tol())
             .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
     }
 }
@@ -231,7 +231,7 @@ fn two_slanted_rims_tangent_on_the_ruling_build_at_their_touch() {
             let body = &res.body;
             topo::validate_geometric(body, tol())
                 .unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
-            topo::validate_pseudomanifold(body, &res.contacts, tol())
+            topo::validate_pseudomanifold(body, &res.contacts(), tol())
                 .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
             let m = topo::test_support::pinned_volume(&what, body, tol());
             assert!(

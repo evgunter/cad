@@ -63,7 +63,7 @@ fn a_groove_at_a_shafts_root_continues_its_wall() {
     let out = topo::boolean::subtract(&shaft, &tube, tol).unwrap();
     let grooved = out.body().expect("the shaft is not consumed");
     topo::validate_closed(&grooved.body).expect("tier 2");
-    topo::validate_pseudomanifold(&grooved.body, &grooved.contacts, tol).expect("tier 3′");
+    topo::validate_pseudomanifold(&grooved.body, &grooved.contacts(), tol).expect("tier 3′");
     topo::validate_geometric_certificate(&grooved.body, tol).expect("certificate");
     let volume = topo::test_support::pinned_volume("the grooved shaft", &grooved.body, tol).volume;
     let expected = PI * (1.0 + 4.0 - (1.5 * 1.5 - 1.0) * 0.5);

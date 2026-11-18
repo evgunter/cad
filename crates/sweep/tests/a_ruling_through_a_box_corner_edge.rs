@@ -155,9 +155,14 @@ fn checked(what: &str, r: Result<BooleanResult<f64>, BooleanError>) -> f64 {
         other => panic!("{what}: builds a body: {other:?}"),
     };
     topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
-    topo::validate_pseudomanifold(&bb.body, &bb.contacts, t)
+    topo::validate_pseudomanifold(&bb.body, &bb.contacts(), t)
         .unwrap_or_else(|e| panic!("{what}: tier 3′ against its records: {e:?}"));
-    assert_eq!(bb.contacts.len(), 0, "{what}: no record: {:?}", bb.contacts);
+    assert_eq!(
+        bb.contacts().len(),
+        0,
+        "{what}: no record: {:?}",
+        bb.contacts()
+    );
     topo::test_support::pinned_volume("the measured body", &bb.body, t).volume
 }
 

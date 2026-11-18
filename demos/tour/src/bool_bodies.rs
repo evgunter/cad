@@ -307,12 +307,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 azim: -55.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::seamed(
+            bodies: vec![SceneBody::finished(
                 "die",
                 [0.88, 0.86, 0.80],
-                die_bb.body.into_body(),
-                die_bb.contacts,
-            )],
+                die_bb.body)],
         },
         TourStop {
             name: "table",
@@ -344,12 +342,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 azim: -55.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::seamed(
+            bodies: vec![SceneBody::finished(
                 "table",
                 [0.62, 0.45, 0.28],
-                table_bb.body.into_body(),
-                table_bb.contacts,
-            )],
+                table_bb.body)],
         },
     ]
 }

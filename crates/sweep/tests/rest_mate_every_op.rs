@@ -138,7 +138,7 @@ fn holds(
         "{tag}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol),
         Ok(()),
         "{tag}: the census"
     );
@@ -450,7 +450,7 @@ fn a_shaft_a_tenth_of_eps_under_its_bore_mates_in_every_op() {
             "{tag}: tier 3"
         );
         assert_eq!(
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol),
             Ok(()),
             "{tag}: the census"
         );

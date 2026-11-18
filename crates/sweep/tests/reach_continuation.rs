@@ -139,7 +139,7 @@ fn union_honest(label: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Boolea
         "{label}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
         Ok(()),
         "{label}: tier 3′"
     );
@@ -392,7 +392,7 @@ fn a_tangent_beside_a_fillet_builds_every_op_in_either_order() {
                 let v = volume(&r.body);
                 assert!((v - va - vb).abs() < 1e-9, "{order}: A ∪ B, volume {v}");
                 let kinds: Vec<_> = r
-                    .contacts
+                    .contacts()
                     .face_face()
                     .map(|(x, y)| [x, y].map(|f| r.body.face_surface(f).unwrap().kind()))
                     .collect();
@@ -644,7 +644,7 @@ fn builds(
         "{label}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
         Ok(()),
         "{label}: tier 3′"
     );

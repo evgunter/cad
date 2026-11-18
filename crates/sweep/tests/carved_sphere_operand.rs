@@ -61,7 +61,7 @@ fn assert_op(label: &str, op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64
     assert!(expected > 0.0, "{label}: a body where none is owed");
     let tol = Tol::witness();
     topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{label}: tier 2: {e:?}"));
-    topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+    topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol)
         .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
     topo::validate_geometric_certificate(&bb.body, tol)
         .unwrap_or_else(|e| panic!("{label}: certificate: {e:?}"));

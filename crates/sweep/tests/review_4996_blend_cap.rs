@@ -61,14 +61,15 @@ fn a_record_on_a_cap_a_band_carves_is_read() {
     )]
     .into_iter()
     .collect();
+    let cube = topo::finish(
+        topo::Built::of(topo::Body::clone(&cube)).recording(record),
+        tol(),
+    )
+    .expect("the cube finishes holding the record");
     let out = fillet_edges(&cube, &[edge], 0.1, tol()).expect("the fillet builds");
     assert_eq!(
-        out.carry_contacts(
-            &record,
-            geom_core::Band::linear(tol()).unwrap(),
-            Some(topo::RegionLane::certified())
-        ),
-        Ok(topo::ContactRecords::default()),
+        out.body.records(),
+        &topo::ContactRecords::default(),
         "the record on the carved cap is read apart and consumed"
     );
 }

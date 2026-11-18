@@ -275,7 +275,11 @@ fn probe_records_partialeq_bites_on_mutation() {
         topo::Contact::new(&out.body, topo::Cell::Face(fa), topo::Cell::Face(fb)).unwrap(),
         topo::Cites::decided(0),
     )]);
-    assert_ne!(out.contacts(), mutated, "PartialEq must see the new fields");
+    assert_ne!(
+        out.contacts(),
+        &mutated,
+        "PartialEq must see the new fields"
+    );
 }
 
 /// CLAIM 7 — exactly-equal carriers are one carrier, and a definite

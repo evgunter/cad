@@ -858,7 +858,12 @@ fn a_keel_glued_to_a_face_from_outside_stays_one_edge() {
                 let [keel] = keel[..] else {
                     panic!("{what}: the keel is {keel:?}, not one edge");
                 };
-                let kinds: Vec<_> = r.contacts().rows().iter().map(|r| r.record.kind()).collect();
+                let kinds: Vec<_> = r
+                    .contacts()
+                    .rows()
+                    .iter()
+                    .map(|r| r.record.kind())
+                    .collect();
                 let count =
                     |f: &dyn Fn(&topo::ContactKind) -> bool| kinds.iter().filter(|k| f(k)).count();
                 assert_eq!(
@@ -1474,7 +1479,8 @@ fn lumps_united(lumps: &[Lump], pose: &Pose) -> (AtRestBody<f64>, topo::OperandR
         let Ok(BooleanResult::Body(r)) = r else {
             panic!("{}: the lumps unite, got {:?}", pose.label, r.map(|_| ()));
         };
-        acc = (r.body, r.contacts().carried());
+        let carried = r.contacts().carried();
+        acc = (r.body, carried);
     }
     acc
 }

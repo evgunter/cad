@@ -279,8 +279,8 @@ fn judge(
             if miss > 0 {
                 bad.push(format!("{miss} of {} samples disagree", pts.len()));
             }
-            let ee = bb.contacts.edge_edge().count();
-            let v3 = match topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()) {
+            let ee = bb.contacts().edge_edge().count();
+            let v3 = match topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()) {
                 Ok(()) => "3'=Ok".to_string(),
                 Err(errs) => {
                     let undec = errs
@@ -546,7 +546,7 @@ fn review_4781_r2_every_pose() {
 }
 
 fn ee_lines(r: &topo::BooleanBody<f64>) -> Vec<String> {
-    r.contacts
+    r.contacts()
         .edge_edge()
         .map(|(e0, e1)| {
             let ends = |e| {
@@ -577,7 +577,7 @@ fn review_4781_r2_record_survives() {
     };
     eprintln!("R2-4781 carry | first: ee {:?}", ee_lines(&u));
     let kinds: Vec<String> = u
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .map(|c| format!("{:?}", c.record.kind()).chars().take(40).collect())
@@ -612,7 +612,7 @@ fn review_4781_r2_record_survives() {
     ];
     for (name, op, c) in steps {
         let inputs = topo::BooleanInputs {
-            records_a: u.contacts.carried(),
+            records_a: u.contacts().carried(),
             ..topo::BooleanInputs::default()
         };
         let got = topo::boolean_op_with(
@@ -625,9 +625,9 @@ fn review_4781_r2_record_survives() {
         );
         match got {
             Ok(BooleanResult::Body(r)) => {
-                let v3 = topo::validate_pseudomanifold(&r.body, &r.contacts, tol());
+                let v3 = topo::validate_pseudomanifold(&r.body, &r.contacts(), tol());
                 let kinds: Vec<String> = r
-                    .contacts
+                    .contacts()
                     .rows()
                     .iter()
                     .map(|c| format!("{:?}", c.record.kind()).chars().take(40).collect())

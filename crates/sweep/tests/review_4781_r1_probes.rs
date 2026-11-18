@@ -256,7 +256,7 @@ fn judge(
             if miss > 0 {
                 bad.push(format!("{miss} of {} samples disagree", pts.len()));
             }
-            let ee = bb.contacts.edge_edge().count();
+            let ee = bb.contacts().edge_edge().count();
             if bad.is_empty() && unread > 0 {
                 format!(
                     "UNPROBED body solids={solids} kind={:?} ee={ee}: the membership \
@@ -657,10 +657,10 @@ fn review_4781_ee_record_after_a_later_op() {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("{other:?}"),
     };
-    let first: Vec<_> = u.contacts.edge_edge().collect();
+    let first: Vec<_> = u.contacts().edge_edge().collect();
     println!("first union ee: {first:?}");
     let inputs = topo::BooleanInputs {
-        records_a: u.contacts.carried(),
+        records_a: u.contacts().carried(),
         ..topo::BooleanInputs::default()
     };
     let far = boxed((10.0, 11.0), (0.0, 1.0), (0.0, 1.0));
@@ -703,14 +703,14 @@ fn review_4781_ee_record_after_a_later_op() {
             tol(),
         ) {
             Ok(BooleanResult::Body(r)) => {
-                let ee: Vec<_> = r.contacts.edge_edge().collect();
+                let ee: Vec<_> = r.contacts().edge_edge().collect();
                 let v =
                     mass_properties(&r.body, tol(), topo::test_support::pinned_resolution(tol()))
                         .unwrap()
                         .met()
                         .expect("the pinned resolution is met")
                         .volume;
-                let verdict = topo::validate_pseudomanifold(&r.body, &r.contacts, tol());
+                let verdict = topo::validate_pseudomanifold(&r.body, &r.contacts(), tol());
                 let short = verdict.as_ref().map_err(|e| {
                     e.iter()
                         .map(|x| format!("{x:?}").chars().take(200).collect::<String>())

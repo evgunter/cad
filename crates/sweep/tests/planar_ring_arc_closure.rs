@@ -255,7 +255,7 @@ fn check(label: &str, out: Result<topo::BooleanResult<f64>, BooleanError>, truth
         "{label}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&out.body, &out.contacts, tol),
+        topo::validate_pseudomanifold(&out.body, &out.contacts(), tol),
         Ok(()),
         "{label}: tier 3′"
     );

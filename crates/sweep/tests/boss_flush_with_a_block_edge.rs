@@ -52,7 +52,7 @@ fn assert_built(tag: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f6
         "{tag}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol),
         Ok(()),
         "{tag}: the census"
     );

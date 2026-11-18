@@ -69,7 +69,7 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f
         .body()
         .unwrap_or_else(|| panic!("{what}: leaves material"));
     topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
-    topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+    topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol())
         .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
     topo::validate_geometric_certificate(&bb.body, tol())
         .unwrap_or_else(|e| panic!("{what}: the at-rest certificate: {e:?}"));

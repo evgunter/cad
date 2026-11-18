@@ -313,7 +313,7 @@ fn pose_lines(s: &Shape, place: &str, f: [V3; 3], what: &str) -> Vec<String> {
                 Ok(r) => {
                     let why = match &r {
                         Ok(res) => res.body().and_then(|bb| {
-                            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+                            topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol())
                                 .err()
                                 .map(|e| format!(" T3WHY {e:?}"))
                         }),

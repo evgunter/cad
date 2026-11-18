@@ -175,7 +175,7 @@ fn unsound(what: &str, scene: &Scene<'_>, r: &topo::BooleanBody<f64>, k: usize) 
     if let Err(e) = topo::validate_geometric(&r.body, tol()) {
         wrong.push(format!("{what}: tier 3: {e:?}"));
     }
-    if let Err(e) = topo::validate_pseudomanifold(&r.body, &r.contacts, tol()) {
+    if let Err(e) = topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()) {
         wrong.push(format!("{what}: tier 3′: {e:?}"));
     }
     let band = Band::linear(tol()).unwrap();
@@ -674,7 +674,8 @@ fn an_arc_resting_in_a_cylinder_or_sphere_face_refuses_only_its_slit() {
                         if let Err(e) = topo::validate_geometric(&r.body, tol()) {
                             wrong.push(format!("{cut}: tier 3: {e:?}"));
                         }
-                        if let Err(e) = topo::validate_pseudomanifold(&r.body, &r.contacts, tol()) {
+                        if let Err(e) = topo::validate_pseudomanifold(&r.body, &r.contacts(), tol())
+                        {
                             wrong.push(format!("{cut}: tier 3′: {e:?}"));
                         }
                     }

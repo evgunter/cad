@@ -45,19 +45,40 @@ fn record_of(base: &ContactRecords, shape: fn(&ContactKind) -> bool) -> u32 {
     u32::try_from(at[0]).unwrap()
 }
 
-/// Splits `base` by the plane through `origin` across `normal`, carries
-/// its records, and asserts each side passes at rest with what it got.
+/// The records each side of a split holds, an empty side holding none.
+#[derive(Debug)]
+struct Sides {
+    above: ContactRecords,
+    below: ContactRecords,
+}
+
+/// `body` finished holding `records` in place of its own.
+fn holding(body: &AtRestBody<f64>, records: ContactRecords) -> AtRestBody<f64> {
+    topo::finish(
+        topo::Built::of(topo::Body::clone(body)).recording(records),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the body finishes holding the records: {e:?}"))
+}
+
+/// Splits `base` by the plane through `origin` across `normal`, which
+/// carries its records, and asserts each side passes at rest with what
+/// it holds.
 fn split_passes(
     what: &str,
     base: &BooleanBody<f64>,
     origin: Point3<f64>,
     normal: Vec3<f64>,
-) -> topo::SplitContacts {
+) -> Sides {
     let plane = common::split_plane(origin, normal, tol());
-    let split = topo::split(&base.body, &plane, tol()).expect("the body splits");
-    let sides = split
-        .carry_contacts(&base.contacts(), band(), Some(topo::RegionLane::certified()))
-        .unwrap_or_else(|refusal| panic!("{what}: the records land: {refusal:?}"));
+    let split = topo::split(&base.body, &plane, tol())
+        .unwrap_or_else(|refusal| panic!("{what}: the body splits, its records land: {refusal:?}"));
+    let held =
+        |part: &topo::SplitPart<f64>| part.body().map(|b| b.records().clone()).unwrap_or_default();
+    let sides = Sides {
+        above: held(&split.above),
+        below: held(&split.below),
+    };
     for (side, body, records) in [
         ("above", split.above.body(), &sides.above),
         ("below", split.below.body(), &sides.below),
@@ -243,11 +264,13 @@ fn a_record_lands_by_lineage_and_is_stale_only_on_a_divided_cell() {
         "the merge lands the record on its keys: {kept:?}"
     );
     let plane = common::split_plane(Point3::new(0.0, 0.0, 1.5), Vec3::new(0.0, 0.0, 1.0), tol());
-    let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
+    let split = topo::split(&holding(&base.body, records), &plane, tol());
     assert!(
         matches!(
-            split.carry_contacts(&records, band(), Some(topo::RegionLane::certified())),
-            Err(topo::CarryRefusal::Stale { record: 1 })
+            split,
+            Err(topo::SplitError::Carry {
+                refusal: topo::CarryRefusal::Stale { record: 1 }
+            })
         ),
         "the split divides the far face: the record is stale"
     );
@@ -304,18 +327,21 @@ fn carried_op(
     a: &BooleanBody<f64>,
     b: &AtRestBody<f64>,
 ) -> Result<BooleanResult<f64>, topo::BooleanError> {
+    carried_op_with(op, &a.body, a.contacts(), b)
+}
+
+/// `op` of `a` and `b`, carrying `records` in as `a`'s.
+fn carried_op_with(
+    op: topo::BooleanOp,
+    a: &AtRestBody<f64>,
+    records: &ContactRecords,
+    b: &AtRestBody<f64>,
+) -> Result<BooleanResult<f64>, topo::BooleanError> {
     let inputs = topo::BooleanInputs {
-        records_a: a.contacts().carried(),
+        records_a: records.carried(),
         ..topo::BooleanInputs::default()
     };
-    topo::boolean_op_with(
-        op,
-        &a.body,
-        b,
-        &inputs,
-        topo::SweepStrategy::Realized,
-        tol(),
-    )
+    topo::boolean_op_with(op, a, b, &inputs, topo::SweepStrategy::Realized, tol())
 }
 
 /// A unit cube turned off every axis, balanced on its corner at
@@ -360,7 +386,7 @@ fn corner_on_slab() -> BooleanBody<f64> {
 /// on the boolean's carry that confirms kept pairs: it refused `Stale`.
 #[test]
 fn a_carried_record_on_cells_the_boolean_keeps_lands_unread() {
-    let mut base = corner_on_slab();
+    let base = corner_on_slab();
     let [corner, _] = base.contacts().rows()[0].cells();
     let bottom = base
         .body
@@ -374,12 +400,13 @@ fn a_carried_record_on_cells_the_boolean_keeps_lands_unread() {
         })
         .map(|(k, _)| k)
         .expect("the slab's bottom");
-    base.contacts().extend([topo::Cited::new(
+    let mut records = base.contacts().clone();
+    records.extend([topo::Cited::new(
         topo::Contact::new(&base.body, corner, Cell::Face(bottom)).unwrap(),
         topo::Cites::decided(0),
     )]);
     let far = box_of((10.0, 11.0), (10.0, 11.0), (0.0, 1.0), "far");
-    match carried_op(topo::BooleanOp::Union, &base, &far) {
+    match carried_op_with(topo::BooleanOp::Union, &base.body, &records, &far) {
         Ok(BooleanResult::Body(out)) => assert_eq!(
             out.contacts().vertex_face().count(),
             2,

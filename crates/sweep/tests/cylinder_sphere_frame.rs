@@ -388,7 +388,7 @@ pub(crate) fn at_its_volume(
         },
     };
     let t2 = topo::validate_closed(&body.body).is_ok();
-    let t3 = topo::validate_pseudomanifold(&body.body, &body.contacts, tol).is_ok();
+    let t3 = topo::validate_pseudomanifold(&body.body, &body.contacts(), tol).is_ok();
     let cert = topo::validate_geometric_certificate(&body.body, tol).is_ok();
     let operand = far_union(&body.body);
     let measured =
