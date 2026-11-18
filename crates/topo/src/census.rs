@@ -7796,6 +7796,8 @@ enum Recorded {
 // that it decides nothing of its own.
 
 mod curved;
+mod finding_solids;
+pub use finding_solids::census_finding_solids;
 pub(crate) use curved::{EdgeSpan, edge_span};
 mod depth_gap;
 #[cfg(test)]

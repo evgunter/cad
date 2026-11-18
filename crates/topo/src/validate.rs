@@ -10835,12 +10835,12 @@ impl<T: geom_core::Decide> AtRestBody<T> {
         crate::finish::count_finish();
         let crate::finish::Built { body, records } = built;
         let sign = std::sync::Arc::new(validate_geometric_certificate(&body, tol)?.into_parts());
-        census_verdict(
+        deciding_door_census(
             &body,
             &records,
             linear_band(tol)?,
             tol,
-            Some(CertifiedLanes::<T>::held().region),
+            CertifiedLanes::<T>::held().region,
         )?;
         Ok(Self {
             body,
@@ -11124,6 +11124,47 @@ fn census_verdict<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core:
         Ok(())
     } else {
         Err(errors)
+    }
+}
+
+/// **Tier 3′ as a deciding door's gate runs it** (`[topology.tiers]`):
+/// the census over `body` against the records the door decided, each
+/// record confirmed, and every meeting inside one solid that no record
+/// backs refused. A meeting the census finds between two of the
+/// result's solids that no record backs is not asked here: the census
+/// has no lane for two curved solids within reach of each other
+/// (`work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
+/// so asking would refuse valid results. A record between two solids
+/// is confirmed like any other.
+fn deciding_door_census<
+    T: geom_core::Decide + crate::props::AtRestPolicy + geom_core::Bounds,
+>(
+    body: &Body<T>,
+    records: &crate::boolean::ContactRecords,
+    band: Band,
+    tol: Tol,
+    region: crate::chart_region::RegionLane<T>,
+) -> Result<(), Vec<ValidationError>> {
+    let about_a_record = |finding: &ValidationError| {
+        matches!(
+            finding,
+            ValidationError::StaleContactDeclaration { .. }
+                | ValidationError::ContactContradicted { .. }
+        )
+    };
+    let findings: Vec<ValidationError> =
+        crate::census::census_and_certify(body, records, band, tol, Some(region))
+            .into_iter()
+            .filter(|finding| {
+                about_a_record(finding)
+                    || crate::census::census_finding_solids(body, finding)
+                        .is_none_or(|(x, y)| x == y)
+            })
+            .collect();
+    if findings.is_empty() {
+        Ok(())
+    } else {
+        Err(findings)
     }
 }
 
