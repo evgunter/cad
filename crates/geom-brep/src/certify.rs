@@ -9760,8 +9760,13 @@ mod tests {
                             assert_eq!(door, past_eps_in, "{check:?} {arm:?}");
                         }
                     }
+                    // A miss within ε_in names re-exporting the file, or,
+                    // where the kernel's own fit may have made it, the
+                    // kernel approximation limit's recourse.
                     (Ending::Residual(_), _) if miss => assert!(
-                        door.contains("Recourse: re-export the file more precisely"),
+                        door.contains("Recourse: re-export the file more precisely")
+                            || (door.contains("may be the kernel's own approximation")
+                                && door.ends_with(geom_core::KERNEL_LIMIT_RECOURSE)),
                         "{check:?} {arm:?}: {door}"
                     ),
                     _ => assert_eq!(door, past_eps_in, "{check:?} {arm:?}"),
