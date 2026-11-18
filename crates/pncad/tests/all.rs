@@ -2177,7 +2177,6 @@ fn lib_doors_vocabulary_is_nameable() {
     named::<Option<pncad::document::EvalOutcome>>(None);
     named::<Option<pncad::document::PersistError>>(None);
     named::<Option<pncad::document::NonFiniteSite>>(None);
-    named::<Option<pncad::document::ProgramFault>>(None);
     named::<Option<pncad::document::SnapshotError>>(None);
     named::<Option<pncad::document::DimensionError>>(None);
     named::<Option<pncad::export::ExportError>>(None);

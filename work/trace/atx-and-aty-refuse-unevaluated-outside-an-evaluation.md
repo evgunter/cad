@@ -18,3 +18,11 @@ and the records with the faces. As a result the VQ9 edit-door check and
 `drawn_pieces` skip programs holding them, so "checks bind twice" is
 false for those programs. Untested claim from a designer's reading.
 Verify before fixing.
+
+## Note (2026-11-18, DOCTAIL)
+
+The consequence named above is gone: after #7075 neither the edit door
+nor the strand report resolves a program (they ask
+`ProfileProgram::lattice` and `drawable_pieces`, values erased). The
+cause stands for the callers that still resolve outside an evaluation,
+`ProfileProgram::pieces` among them.

@@ -173,6 +173,8 @@ mod docm6_seam_declarations;
 mod docm8_flat_merged;
 #[path = "docm9_range.rs"]
 mod docm9_range;
+#[path = "door_step_order.rs"]
+mod door_step_order;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
@@ -908,8 +910,8 @@ mod intent_s5_c_quietable;
 mod intent_s6_c_trace;
 #[path = "intent_s6_d_tangency.rs"]
 mod intent_s6_d_tangency;
-#[path = "intent_s6_e_traced_frame.rs"]
-mod intent_s6_e_traced_frame;
+#[path = "intent_s6_e_traced_on_a_face.rs"]
+mod intent_s6_e_traced_on_a_face;
 #[path = "intent_unused_check.rs"]
 mod intent_unused_check;
 #[path = "intent_value_chart_orientation.rs"]

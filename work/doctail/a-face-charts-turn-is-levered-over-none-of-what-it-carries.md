@@ -2,10 +2,12 @@
 id: a-face-charts-turn-is-levered-over-none-of-what-it-carries
 kind: issue
 title: A face's chart levers its least turn over its slides and the face's distance alone, so a wide profile on it builds where a placement of that size refuses backwards
-status: open
+status: parked
 opened: 2026-11-18
 priority: P1
 cost: M
+refs: [a-face-chart-over-a-plane-through-its-origin-refuses-backwards-at-arm-zero]
+blocked_on: [7122]
 ---
 
 Found by the FULL review of `a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face` (PR 7111, MINOR 2), and left open by its fix pass because the fix has more than one home.
@@ -28,3 +30,5 @@ Whatever the frame carries is levered as a placement levers its copy: it refuses
 4. **Restate the ruling**: the frame's band is levered over the frame's own arm, and a wide profile on a frame near the pole is the author's to see. That changes ratified text, so it is a question for Ev.
 
 Each re-decision at a carrier records its own `mate_chart_pole` funnel sample. When this lands, the pinned row above turns over (the frame, or its boss, refuses backwards) and is re-pinned with the outcome.
+
+2026-11-18 (DOCTAIL `tracing-reads-the-faces-chart-and-traced-frame-retires` lane): **a zero arm refuses every tilted face through its space's origin.** A face whose plane passes through the origin, drawn on with no slides, gives `solve::arm_of(0.0, ..)` an arm of 0: no slide, and both poses' `pose_origin` at the origin. The pole verdict `Margin::levered(chord, 0)` then reads Zero, `least_turn` refuses `Opposed`, and `Chart::charted` maps that to `ChartRefusal::Pole`, so the chart refuses `FaceChartBackwards`. The orientation it names to write is the one already written. Measured on a cylinder whose disc is drawn on a frame spun about `x` by a free angle at 0.2 rad: its bottom cap (outward normal `(0, 0.199, −0.980)`, written `x: +x, z: −z`) refuses "puts the frame's z opposite the face's outward normal … write the orientation x: +x, z: −z", and its top cap, a height off the origin, charts. An untilted cap through the origin charts only because the least turn's exact-identity read skips the verdict. Any home above that levers over what the frame carries fixes this too. `intent_s6_e_traced_on_a_face::a_tilted_cylinders_boss_is_tangent_for_every_tilt` draws on the top cap for this reason.

@@ -31,6 +31,7 @@ when each addresses the section by its `SectionId` (the station's `step`
 is a position within one authored station, which no other edit moves),
 the Python slot words (`station_slide`, `station_spin`) carry the id, and
 the refusal payloads that report a section by position
-(`LoftFault::{EmptyStation, StationInFirstPlane}`) are judged — they
+(`LoftFault::EmptyStation`; the plane check that reported a station's
+section is evaluation's now) are judged — they
 report the list the edit wrote, so a position may be the right word
 there.
