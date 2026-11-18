@@ -749,13 +749,15 @@ impl<'a> Resolver<'a> {
                     u_ref,
                 })
             }
-            // The minor radius is a root no construction takes unless
-            // positive, refused here before any certification reads it.
-            // D3's ring convention `R > r` is enforced at rest, by
-            // `topo::validate`'s tier-3 check 1 (`DegenerateTorus`) —
-            // the one net that covers this door and `sweep::revolve`
-            // alike, so a horn or spindle cannot reach a body's rest
-            // state through either.
+            // Both radii are roots no construction takes unless
+            // positive, and D3's ring convention `R > r` is one too: a
+            // spindle or horn torus is no surface the kernel builds. All
+            // three are refused here, at the record, before any
+            // certification reads them; `R − r` reads as a length at the
+            // file's band like any other, so a tube the band cannot tell
+            // from the axis is no ring either. `topo::validate`'s tier-3
+            // check 1 (`DegenerateTorus`) holds the same convention at
+            // rest, for `sweep::revolve` and every other door.
             "TOROIDAL_SURFACE" => {
                 let expected = "TOROIDAL_SURFACE(name, #placement, major, minor)";
                 let [_, placement, major, minor] = args.as_slice() else {
@@ -766,11 +768,15 @@ impl<'a> Resolver<'a> {
                     axis,
                     u_ref,
                 } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let major_radius = self.root_length(id, major, expected, TORUS_MAJOR_RADIUS)?;
+                let minor_radius = self.root_length(id, minor, expected, TORUS_MINOR_RADIUS)?;
+                self.budget
+                    .positive_length(id, TORUS_RING, major_radius - minor_radius)?;
                 Ok(Surface::Torus {
                     center,
                     axis,
-                    major_radius: self.as_length(id, major, expected)?,
-                    minor_radius: self.root_length(id, minor, expected, TORUS_MINOR_RADIUS)?,
+                    major_radius,
+                    minor_radius,
                     u_ref,
                 })
             }
@@ -1546,20 +1552,7 @@ impl<'a> Resolver<'a> {
             // narrow the subset the kernel's own writer emits.
             (Some(s), Err(_)) => Ok(s),
             (None, Ok(i)) => Ok(i),
-            (None, Err(chart::OuternessRefusal::RingsTouch(gap))) => Err(self.budget.refused(
-                id,
-                self.budget.touching(interpret::STEP_RING_CONTAINMENT, gap),
-            )),
-            (None, Err(chart::OuternessRefusal::UndecidableAtEps(gap))) => {
-                Err(self.budget.refused(
-                    id,
-                    self.budget.ambiguous(interpret::STEP_RING_CONTAINMENT, gap),
-                ))
-            }
-            (None, Err(refusal)) => Err(StepImportError::Topology {
-                id,
-                what: refusal.what(),
-            }),
+            (None, Err(refusal)) => Err(refusal.refused(id, self.budget)),
         }
     }
 
@@ -2615,6 +2608,12 @@ const CYLINDER_RADIUS: &str = "a cylinder's radius, which must be positive";
 const SPHERE_RADIUS: &str = "a sphere's radius, which must be positive";
 /// A torus's minor radius, as an invalid root names it.
 const TORUS_MINOR_RADIUS: &str = "a torus's minor radius, which must be positive";
+/// A torus's major radius, as an invalid root names it.
+const TORUS_MAJOR_RADIUS: &str = "a torus's major radius, which must be positive";
+/// A torus's major radius less its minor, as an invalid root names it.
+const TORUS_RING: &str = "a torus's major radius less its minor radius, which must be \
+                          positive: a ring torus (D3), since a spindle or horn torus is no \
+                          surface the kernel builds";
 /// A circle's radius, as an invalid root names it.
 const CIRCLE_RADIUS: &str = "a circle's radius, which must be positive";
 /// An ellipse's semi-axis, as an invalid root names it.
@@ -2813,6 +2812,21 @@ fn resolve_units_and_uncertainty(
                         // Into kernel meters with every other length
                         // (D7's ε_in rule unchanged; 1.E-07 mm → 1e-10 m).
                         let value = raw * factor;
+                        // A coincidence distance is a length no less
+                        // than zero; a declaration that is negative or
+                        // not finite is no budget any band reads.
+                        if !(value.is_finite() && value >= 0.0) {
+                            return Err(r.budget.refused(
+                                uid,
+                                interpret::Refusal::InvalidRoot {
+                                    what: "the file's declared uncertainty (its coincidence \
+                                           distance ε_in), which must be a finite length no \
+                                           less than zero",
+                                    value,
+                                    unit: "m",
+                                },
+                            ));
+                        }
                         match uncertainty {
                             None => uncertainty = Some(value),
                             Some(prev) if prev.to_bits() == value.to_bits() => {}
@@ -3424,11 +3438,11 @@ pub(crate) fn resolve(
         length_scale: units.length_scale,
         angle_scale: units.angle_scale,
         // The override wins where given (doc above). A file with no
-        // declared uncertainty and no override gets no interpretation
-        // budget here; the shape pass below refuses first when there
-        // is nothing to import, and `MissingUncertainty` is raised
-        // after it, when a body really was on the table.
-        budget: interpret::FileBand::new(eps_in, tol)?,
+        // declared uncertainty and no override is read at the run's own
+        // band here; the shape pass below refuses first when there is
+        // nothing to import, and `MissingUncertainty` is raised after
+        // it, when a body really was on the table.
+        budget: interpret::FileBand::of_import(eps_in, eps_override.is_some(), tol)?,
         // Past every stated id, so minted topology cannot collide.
         next_id: std::cell::Cell::new(
             file.data

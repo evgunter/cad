@@ -2330,6 +2330,7 @@ NOT_BOUND = {
     # slots share is a `Var` it names first (`DocEdit.rename_var`).
     "FreshEntry": SHAPE,
     "Uncarried": SHAPE,
+    "NamedUncarried": SHAPE,
     "Affine3": SHAPE,
     "Applied": SHAPE,
     "Axis3": SHAPE,
@@ -3922,6 +3923,8 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartIdCollides": "SplitError.variant",
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::RemainderReadUncarried": "SplitError.variant",
+    "SplitError::ProductReadSevered": "SplitError.variant",
+    "SplitError::NamedReadUncarried": "SplitError.variant",
     "SplitError::NoMaterial": "SplitError.variant",
     "SplitError::UncutVarReference": "SplitError.variant",
     "SplitError::SpaceStraddlesCut": "SplitError.variant",

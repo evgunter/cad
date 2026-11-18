@@ -202,6 +202,10 @@ pub enum StepImportError {
     UnbandedUncertainty {
         /// ε_in, in metres.
         eps_in: f64,
+        /// Whether ε_in is the caller's override
+        /// ([`crate::ImportOptions::eps_in`]) rather than the file's
+        /// declaration.
+        overridden: bool,
     },
     /// A real token failed to parse as an f64.
     MalformedReal {
@@ -526,18 +530,23 @@ impl StepImportError {
                 f,
                 "step import: ε_in override {value} is not finite and strictly positive"
             ),
-            Self::UnbandedUncertainty { eps_in } => {
+            Self::UnbandedUncertainty { eps_in, overridden } => {
+                let (whose, recourse) = if *overridden {
+                    ("the ε_in override", "pass a smaller ε_in override")
+                } else {
+                    (
+                        "the file's declared uncertainty",
+                        "re-export the file with a smaller declared uncertainty, or pass a \
+                         smaller ε_in override",
+                    )
+                };
                 write!(
                     f,
-                    "step import: the file's declared uncertainty (its coincidence distance \
-                     ε_in = {eps_in} m) makes no band the file can be read at: K·ε_in is no \
-                     finite length"
+                    "step import: {whose} (the coincidence distance ε_in = {eps_in:e} m) makes \
+                     no band the file can be read at: K·ε_in is no finite length"
                 )?;
                 if ended {
-                    f.write_str(
-                        ". Recourse: re-export the file with a finite declared uncertainty, or \
-                         pass a smaller ε_in override",
-                    )?;
+                    write!(f, ". Recourse: {recourse}")?;
                 }
                 Ok(())
             }
@@ -670,7 +679,7 @@ impl StepImportError {
                 let ending = door(file).map(|at| {
                     match (band, Refusal::in_band(SINGULARITY_SUBJECT, cause, *run_eps)) {
                         (SingularityBand::Run, Some(Refusal::Ambiguous { gap, k, .. }))
-                            if file.eps_in() < gap / k =>
+                            if !crate::interpret::lever_decides(file.eps_in(), gap / k) =>
                         {
                             SINGULARITY_ON_BOUNDARY.recourse(arm, at)
                         }

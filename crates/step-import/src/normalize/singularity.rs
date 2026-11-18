@@ -211,46 +211,35 @@ pub(super) fn singularity_vertices(
     })
 }
 
-/// The pass's band, as it reads it.
+/// The pass's band, as it reads it: the file's band, floored at the
+/// run's ([`FileBand`]), which every on-or-off and side decision is taken
+/// at and every refusal ends at.
 #[derive(Clone, Copy)]
 struct Read {
-    /// Off a vertex or an edge past this distance, the band's escalation
-    /// (its zero is [`Self::coarser`]'s); between the two, undecided.
-    escalate: f64,
-    /// The file's band, floored at the run's ([`FileBand`]): the door a
-    /// refusal ends at.
     file: FileBand,
-    /// The band every on-or-off and side decision is taken at.
-    coarser: geom_core::Band,
 }
 
 impl Read {
     /// The pass's reading of `file`'s band.
     fn of(file: FileBand) -> Self {
-        Self {
-            escalate: file.band().escalate(),
-            file,
-            coarser: file.band(),
-        }
+        Self { file }
+    }
+
+    /// The band itself, for a kernel reading that takes one.
+    fn band(&self) -> geom_core::Band {
+        self.file.band()
     }
 
     /// Whether the distance `d` reads Zero at the pass's band under the
     /// decision `name`.
     fn on(&self, name: &'static str, d: f64) -> bool {
-        matches!(
-            geom_core::k_stats::decide(name, geom_core::Margin::of(d.abs()), self.coarser),
-            Ok(sign) if sign.is_zero()
-        )
+        self.file.read(name, d) == crate::interpret::Read::Zero
     }
 
     /// Whether the finite distance `d` does not read apart at the pass's
     /// band under `name` (Zero or in band): a candidate the band keeps.
     fn not_apart(&self, name: &'static str, d: f64) -> bool {
-        d.is_finite()
-            && !matches!(
-                geom_core::k_stats::decide(name, geom_core::Margin::of(d.abs()), self.coarser),
-                Ok(sign) if !sign.is_zero()
-            )
+        d.is_finite() && self.file.read(name, d) != crate::interpret::Read::Apart
     }
 
     /// The typed refusal of a distance `d` the band could not call,
@@ -294,12 +283,12 @@ impl Read {
 }
 
 /// Whether a point lies on the boundary feature `d` metres from it,
-/// at the pass's band ([`Read::coarser`]), through the kernel's one
+/// at the pass's band ([`Read::band`]), through the kernel's one
 /// decision of it ([`geom_brep::chart_singularity::on_boundary`]); a
 /// distance in band is the typed refusal naming the band that could not
 /// call it ([`StepImportError::SingularityUndecided`]).
 fn on_boundary(d: f64, read: &Read, id: u64) -> Result<bool, StepImportError> {
-    home::on_boundary(d, read.coarser).map_err(|cause| read.refuse(cause, id))
+    home::on_boundary(d, read.band()).map_err(|cause| read.refuse(cause, id))
 }
 
 fn unreadable(id: u64) -> StepImportError {
@@ -362,7 +351,7 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
         .collect();
     let images = image_edges(solid, fi);
     let images: Vec<&[LoopEdge<f64>]> = images.iter().map(Vec::as_slice).collect();
-    for (k, located) in home::locate(&face.surface, &views, &images, face.sense, read.coarser)
+    for (k, located) in home::locate(&face.surface, &views, &images, face.sense, read.band())
         .into_iter()
         .enumerate()
     {
@@ -498,7 +487,7 @@ fn holds(
     };
     let images = image_edges(solid, fi);
     let views: Vec<&[LoopEdge<f64>]> = images.iter().map(Vec::as_slice).collect();
-    home::holds(&surface, &views, face.sense, singularity, read.coarser)
+    home::holds(&surface, &views, face.sense, singularity, read.band())
         .map_err(|why| read.unread(why, face.id))
 }
 
@@ -512,7 +501,7 @@ fn nappe(solid: &SolidSpec, fi: usize, chart: Chart, read: &Read) -> Result<f64,
     let points = home::singular_points(&inverse);
     let images = image_edges(solid, fi);
     let walk =
-        home::walk_loop(&inverse, &points, &images[0], read.coarser).ok_or(unreadable(face_id))?;
+        home::walk_loop(&inverse, &points, &images[0], read.band()).ok_or(unreadable(face_id))?;
     match home::nappe(&walk) {
         Ok(side) => Ok(side.unit()),
         Err(why) => Err(read.unread(Unread::Side { r#loop: 0, why }, face_id)),
@@ -659,7 +648,7 @@ impl Ray {
                  `strut_tip`), whose speed `speed_at` reads in closed form"
             )
         };
-        (far + 2.0 * read.escalate) / speed
+        (far + 2.0 * read.band().escalate()) / speed
     }
 }
 
@@ -714,7 +703,7 @@ fn first_hit(
     for &edge in &edges {
         let spec = &solid.edges[&edge];
         let other = Span::new(&spec.carrier, (spec.t0, spec.t1));
-        let met = curve_pair::meet(&span, &other, read.coarser).unwrap_or_else(|why| {
+        let met = curve_pair::meet(&span, &other, read.band()).unwrap_or_else(|why| {
             refused.push(edge);
             curve_pair::Meetings {
                 shared: None,
@@ -731,7 +720,7 @@ fn first_hit(
         for edge in refused {
             let spec = &solid.edges[&edge];
             let other = Span::new(&spec.carrier, (spec.t0, spec.t1));
-            let met = curve_pair::meet(&near, &other, read.coarser)
+            let met = curve_pair::meet(&near, &other, read.band())
                 .map_err(|why| meet_refused(why.fault, read, face.id))?;
             offer(
                 landings(solid, ray, &near, edge, &met, read, face.id)?,
@@ -740,7 +729,7 @@ fn first_hit(
         }
     }
     for &s in singular {
-        let hit = match span.read(s, ray.from, read.coarser) {
+        let hit = match span.read(s, ray.from, read.band()) {
             Ok(curve_pair::Reading::On { t, .. }) => t,
             Ok(curve_pair::Reading::End(end)) => span.at(curve_pair::Hit::End(end)),
             Ok(curve_pair::Reading::Carrier | curve_pair::Reading::Off) => continue,
@@ -783,7 +772,7 @@ fn landings(
     if met.shared.is_some() {
         for v in [spec.start, spec.end] {
             let p = solid.vertices[&v];
-            let at = match span.read(p, ray.from, read.coarser) {
+            let at = match span.read(p, ray.from, read.band()) {
                 Ok(curve_pair::Reading::On { t, margin }) => curve_pair::Hit::On { t, margin },
                 Ok(curve_pair::Reading::End(end)) => curve_pair::Hit::End(end),
                 Ok(curve_pair::Reading::Carrier | curve_pair::Reading::Off) => continue,

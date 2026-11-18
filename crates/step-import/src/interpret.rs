@@ -23,9 +23,10 @@ use geom_core::{Margin, Tol, k_stats};
 /// readings with the file's own coincidence distance as the band):
 /// `(e, K·e)` for `e` the larger of ε_in and the run's ε, the run's K. A
 /// file declaring less than the run's tolerance is still read no finer
-/// than the run can certify. A file with no budget (`ε_in` of `0`,
-/// refused later as `MissingUncertainty`) reads at [`Band::least`], as an
-/// exact comparison would. `None` where the pair makes no band (`K·e`
+/// than the run can certify, so a declared ε_in of `0` reads at the
+/// run's ε like any other value below it. (A declaration that is
+/// negative or not finite never gets here: it refuses where it is read,
+/// as an invalid root.) `None` where the pair makes no band (`K·e`
 /// overflowing, or rounding back onto `e`).
 pub(crate) fn file_band(eps_in: f64, tol: Tol) -> Option<Band> {
     band_at(eps_in, tol.eps(), tol.k())
@@ -33,9 +34,6 @@ pub(crate) fn file_band(eps_in: f64, tol: Tol) -> Option<Band> {
 
 /// [`file_band`] for a run of ε `run_eps` and `k`.
 pub(crate) fn band_at(eps_in: f64, run_eps: f64, k: f64) -> Option<Band> {
-    if eps_in == 0.0 {
-        return Some(Band::least());
-    }
     let e = eps_in.max(run_eps);
     Band::new(e, k * e).ok()
 }
@@ -98,14 +96,31 @@ pub(crate) enum Read {
 }
 
 impl FileBand {
-    /// The band for `eps_in` under the run's `tol` ([`file_band`]).
+    /// [`Self::of_import`] for a declared `eps_in`: a unit test's band
+    /// as production reads it.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::of_import`]'s.
+    #[cfg(test)]
+    pub(crate) fn new(eps_in: f64, tol: Tol) -> Result<Self, crate::StepImportError> {
+        Self::of_import(eps_in, false, tol)
+    }
+
+    /// The band for `eps_in` under the run's `tol` ([`file_band`]), where
+    /// `overridden` says whether `eps_in` is the caller's override or
+    /// the file's declaration, as a refusal names it.
     ///
     /// # Errors
     ///
     /// [`crate::StepImportError::UnbandedUncertainty`] where `eps_in`
     /// makes no band (`K·ε_in` past the format).
-    pub(crate) fn new(eps_in: f64, tol: Tol) -> Result<Self, crate::StepImportError> {
-        Self::built(eps_in, tol.eps(), file_band(eps_in, tol))
+    pub(crate) fn of_import(
+        eps_in: f64,
+        overridden: bool,
+        tol: Tol,
+    ) -> Result<Self, crate::StepImportError> {
+        Self::built(eps_in, overridden, tol.eps(), file_band(eps_in, tol))
     }
 
     /// [`Self::new`] for a run of ε `run_eps` and `k`: a unit test's
@@ -120,16 +135,18 @@ impl FileBand {
         run_eps: f64,
         k: f64,
     ) -> Result<Self, crate::StepImportError> {
-        Self::built(eps_in, run_eps, band_at(eps_in, run_eps, k))
+        Self::built(eps_in, false, run_eps, band_at(eps_in, run_eps, k))
     }
 
     /// The file band from its parts, refused where `band` is none.
     fn built(
         eps_in: f64,
+        overridden: bool,
         run_eps: f64,
         band: Option<Band>,
     ) -> Result<Self, crate::StepImportError> {
-        let band = band.ok_or(crate::StepImportError::UnbandedUncertainty { eps_in })?;
+        let band =
+            band.ok_or(crate::StepImportError::UnbandedUncertainty { eps_in, overridden })?;
         Ok(Self {
             eps_in,
             run_eps,
@@ -190,6 +207,19 @@ impl FileBand {
     /// the two apart.
     pub(crate) fn touching(self, reading: &'static str, gap: f64) -> Refusal {
         Refusal::Touching {
+            reading,
+            gap: gap.abs(),
+            k: self.band.escalate() / self.band.zero(),
+            run_eps: self.run_eps,
+        }
+    }
+
+    /// The refusal of `gap` read in band under `reading`, where the act
+    /// needs the two apart: reading them one would refuse too
+    /// ([`Self::touching`]), so only the levers that read them apart are
+    /// offered.
+    pub(crate) fn apart_in_band(self, reading: &'static str, gap: f64) -> Refusal {
+        Refusal::ApartInBand {
             reading,
             gap: gap.abs(),
             k: self.band.escalate() / self.band.zero(),
@@ -291,19 +321,28 @@ impl FileBand {
     }
 }
 
+/// **Which lever decides**: moving `value` (ε_in, or the run's ε) below
+/// `below` reads a distance of `below · K` apart from zero exactly where
+/// `value` is not already below it. The one spelling of the rule: every
+/// ending that names a finer ε_in or tolerance asks it here.
+pub(crate) fn lever_decides(value: f64, below: f64) -> bool {
+    value >= below
+}
+
 /// What reads a distance `below` apart from zero: every one of ε_in and
-/// the run's ε that is not already below it, moved below it.
+/// the run's ε that is not already below it, moved below it
+/// ([`lever_decides`]).
 fn finer(below: f64, eps_in: f64, run_eps: f64) -> String {
     use geom_core::Readable;
     let mut levers = Vec::new();
-    if eps_in >= below {
+    if lever_decides(eps_in, below) {
         levers.push(format!(
             "import with ε_in below {} m (re-export with a smaller declared uncertainty, or pass \
              the override)",
             Readable(below)
         ));
     }
-    if run_eps >= below {
+    if lever_decides(run_eps, below) {
         levers.push(format!("tighten the tolerance below {} m", Readable(below)));
     }
     levers.join(" and ")
@@ -367,6 +406,21 @@ pub enum Refusal {
     /// whose escalation is below the distance, so both ε_in and the run's
     /// ε below `gap / K`; at a distance of zero, no band does.
     Touching {
+        /// The reading (its decision name).
+        reading: &'static str,
+        /// The distance, in metres.
+        gap: f64,
+        /// The band's K.
+        k: f64,
+        /// The run's ε (metres), which floors the band.
+        run_eps: f64,
+    },
+    /// **A distance in band where the act needs the two apart**: the
+    /// distance lies in the band the file is read at, and the act (a
+    /// bound's containment of another) passes only where it reads apart;
+    /// an ε_in that read it Zero would end at [`Self::Touching`] instead.
+    /// Reading it apart takes both ε_in and the run's ε below `gap / K`.
+    ApartInBand {
         /// The reading (its decision name).
         reading: &'static str,
         /// The distance, in metres.
@@ -455,6 +509,19 @@ impl Refusal {
                 Readable(eps_in),
                 Readable(run_eps)
             ),
+            Self::ApartInBand {
+                reading,
+                gap,
+                run_eps,
+                ..
+            } => format!(
+                "the distance {} m ({reading}) lies in the band the file is read at (from the \
+                 larger of its declared ε_in = {} m and this run's tolerance {} m), where the \
+                 two must stand apart and do not read so",
+                Readable(gap),
+                Readable(eps_in),
+                Readable(run_eps)
+            ),
             Self::InvalidRoot { what, value, unit } => format!(
                 "{what}: the file states {value} {unit}, which no kernel construction takes at any \
                  ε_in"
@@ -510,6 +577,12 @@ impl Refusal {
                     format!("Recourse: {lever}, moving the two apart")
                 }
             }
+            Self::ApartInBand {
+                gap, k, run_eps, ..
+            } => format!(
+                "Recourse: {lever}, or, if this distance is intended, {}",
+                finer(gap / k, eps_in, run_eps)
+            ),
             Self::LengthUnread {
                 length, k, run_eps, ..
             } => format!(
