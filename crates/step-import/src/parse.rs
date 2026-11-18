@@ -49,6 +49,10 @@ pub(crate) struct Instance {
     /// The records: `len() == 1` for a simple instance, one per
     /// component for a complex `( A(..) B(..) … )` instance.
     pub(crate) records: Vec<Record>,
+    /// Where the instance stands in the DATA section: its order among the
+    /// section's instances, from 0. An entity id says nothing about
+    /// where its instance is written.
+    pub(crate) position: usize,
 }
 
 /// A parsed exchange file: header records (in file order) and the
@@ -414,7 +418,8 @@ pub(crate) fn parse_file(text: &str) -> Result<StepFile, StepImportError> {
             vec![c.record()?]
         };
         c.expect(";", "';' after an entity instance")?;
-        if data.insert(id, Instance { records }).is_some() {
+        let position = data.len();
+        if data.insert(id, Instance { records, position }).is_some() {
             return Err(StepImportError::Syntax {
                 line,
                 expected: "a unique entity id (this id is defined twice)",
