@@ -984,17 +984,47 @@ impl<T: Decide> ConicArc<T> {
     /// carrier's reading at `q`'s foot ([`geom::Foot::on_carrier`], off
     /// only on a lower bound on its distance from the whole conic, the
     /// ellipse's Hessian-bounded root) with the span's reading of its ends
-    /// ([`geom_brep::curve_pair::Span::place`]). A point past the arc is
-    /// off the edge, on its carrier ([`ConicHit::Carrier`]) or not; the
-    /// ellipse's straddle stays a straddle, and a span walk that cannot
-    /// certify its `Past` is [`ConicHit::Unsettled`].
+    /// ([`geom_brep::curve_pair::Span::place`]). A point off the arc is
+    /// off the edge. Off the carrier ([`OffBy::Carrier`]) it is
+    /// [`ConicHit::Off`], and on it at the foot ([`AtFoot::On`])
+    /// [`ConicHit::Carrier`], each read once. Past the arc with the
+    /// carrier undecided at the foot ([`AtFoot::Undecided`]), whether it
+    /// lies on the arc's carrier is the whole conic's own question
+    /// ([`geom::Curve3::on_carrier`]), asked here since the ray count
+    /// reads it: on it, [`ConicHit::Carrier`], and otherwise, an
+    /// undecided carrier included, [`ConicHit::Off`], as no answer to it
+    /// puts the point on the edge (its escalation is superseded, and a
+    /// decided reading spliced). The ellipse's straddle stays a straddle,
+    /// and a span walk that cannot certify its `Past` is
+    /// [`ConicHit::Unsettled`].
+    ///
+    /// [`OffBy::Carrier`]: geom_brep::curve_pair::OffBy::Carrier
+    /// [`AtFoot::On`]: geom_brep::curve_pair::AtFoot::On
+    /// [`AtFoot::Undecided`]: geom_brep::curve_pair::AtFoot::Undecided
     pub(crate) fn hit(&self, q: Point3<T>, band: Band) -> Result<ConicHit, ReadEscalation> {
-        use geom_brep::curve_pair::{Reading, Span};
+        use geom_brep::curve_pair::{AtFoot, OffBy, Reading, Span};
         let span = Span::new(&self.carrier, self.span);
         let near = geom::mid_param(self.span.0, self.span.1);
         Ok(match span.read(q, near, band).map_err(|r| r.refused()) {
-            Ok(Reading::Off) => ConicHit::Off,
-            Ok(Reading::Carrier) => ConicHit::Carrier,
+            Ok(Reading::Off(OffBy::Carrier)) => ConicHit::Off,
+            Ok(Reading::Off(OffBy::Span {
+                carrier: AtFoot::On,
+            })) => ConicHit::Carrier,
+            Ok(Reading::Off(OffBy::Span {
+                carrier: AtFoot::Undecided,
+            })) => {
+                let (on, record) =
+                    geom_core::k_stats::detached(|| self.carrier.on_carrier(q, near, band));
+                if on.is_ok() {
+                    geom_core::k_stats::splice(record);
+                } else {
+                    geom_core::k_stats::splice_superseded(record);
+                }
+                match on {
+                    Ok(geom::OnCarrier::On { .. }) => ConicHit::Carrier,
+                    _ => ConicHit::Off,
+                }
+            }
             Ok(Reading::On { margin, .. }) => ConicHit::On(margin),
             Ok(Reading::End(_)) => ConicHit::End,
             Err(geom::CarrierRefusal::Escalated(geom::CarrierEscalation::InBand(diag))) => {
@@ -2119,6 +2149,47 @@ mod tests {
         }
     }
 
+    /// **A point the span reads off is read once** ([`ConicArc::hit`]):
+    /// off the carrier ([`OffBy::Carrier`]), or on it at the foot past
+    /// the arc ([`AtFoot::On`]), the whole conic's question is already
+    /// decided, so `hit` does not ask it again. A point off a circle arc's carrier, inside and outside it,
+    /// is `Off`, and a point on the carrier past the arc is `Carrier`,
+    /// each on one `curve_carrier_gap` verdict. Red where `hit` asks the
+    /// whole carrier on every `Off`, or on an `AtFoot::On`: that point
+    /// reads two.
+    ///
+    /// [`OffBy::Carrier`]: geom_brep::curve_pair::OffBy::Carrier
+    /// [`AtFoot::On`]: geom_brep::curve_pair::AtFoot::On
+    #[test]
+    fn a_point_the_span_reads_off_is_read_once() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let carrier = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let Ok(Some(k)) = conic_of(&carrier, (0.0, 1.0), WALK_ROWS.conic(), band) else {
+            panic!("a circle arc under a period");
+        };
+        for (q, want) in [
+            (Point3::new(0.2, 0.1, 0.0), ConicHit::Off),
+            (Point3::new(1.5, 0.3, 0.0), ConicHit::Off),
+            (Point3::new(-1.0, 0.0, 0.0), ConicHit::Carrier),
+        ] {
+            let bracket = geom_core::k_stats::Bracket::open();
+            let got = k.hit(q, band).expect("decided");
+            let recorded = bracket.finish();
+            assert_eq!(got, want, "{q:?}");
+            let read = recorded
+                .verdicts
+                .iter()
+                .filter(|v| v.predicate == "curve_carrier_gap")
+                .count();
+            assert_eq!(read, 1, "{q:?}: the carrier read once");
+        }
+    }
+
     /// A steep ellipse (`a/b = 20`) read at the band's own width in
     /// metres, not in unit coordinates: a point `12ε` off the major
     /// vertex, either side, is not on the conic — the smaller semi-axis
@@ -2502,6 +2573,56 @@ mod tests {
         );
     }
 
+    /// **A straddle, or an `Off` that rests on no undecided reading**: the
+    /// reading of a point the carrier's two bounds straddle, `distance`
+    /// off the whole carrier (known in closed form). Where the walk over
+    /// the arc's span clears the point, an `Off` stands on that
+    /// certificate: the point is truly off (`distance` past the band's
+    /// zero), the reading's record holds no escalation but the walk's own
+    /// pieces refined on the way to its `Clear` (`curve_carrier_piece` and
+    /// `curve_carrier_piece_clear`;
+    /// the carrier's straddle superseded), and the closed-form lower bound
+    /// (`curve_carrier_clear`) is not what decided it. Otherwise the
+    /// straddle stands
+    /// ([`assert_straddle`]). Never `On`.
+    fn assert_straddle_or_walked_off(
+        got: Result<ConicHit, ReadEscalation>,
+        recorded: &geom_core::k_stats::Recorded,
+        (bounds, distance, band): ((f64, f64), f64, Band),
+        label: &str,
+    ) {
+        match got {
+            Err(got) => assert_straddle(
+                got,
+                recorded,
+                (LoopDecision::Boundary, "curve_carrier_straddle"),
+                bounds,
+                label,
+            ),
+            Ok(ConicHit::Off) => {
+                assert!(
+                    distance > band.zero(),
+                    "{label}: an Off of a point {distance:e} off the carrier"
+                );
+                assert!(
+                    recorded.escalations.iter().all(|e| matches!(
+                        e.source.predicate,
+                        Some("curve_carrier_piece" | "curve_carrier_piece_clear")
+                    )),
+                    "{label}: an Off resting on an undecided reading: {:?}",
+                    recorded.escalations
+                );
+                assert!(
+                    !recorded.verdicts.iter().any(|v| {
+                        v.predicate == "curve_carrier_clear" && v.sign == geom_core::Sign::Positive
+                    }),
+                    "{label}: an Off on the closed-form lower bound"
+                );
+            }
+            Ok(got) => panic!("{label}: expected a straddle or a walked Off, got {got:?}"),
+        }
+    }
+
     /// The lower bound and the upper bound `ConicArc::hit` reads on the
     /// distance from the ellipse of semi-axes `a` (along x) and `b` to the
     /// point `x` out along its major axis: the Hessian-bounded root of the
@@ -2519,10 +2640,13 @@ mod tests {
     /// its major vertex the lower bound on a point `kε` out reads within
     /// the zero band while the upper bound — here the distance itself —
     /// reads definitely beyond it. The answer escalates as a straddle of
-    /// the two ([`assert_straddle`]); it is never `On`, which reading ON
-    /// off the lower bound would give.
+    /// the two ([`assert_straddle`]), or is `Off` where the walk over the
+    /// arc's span `(0, τ)` clears the point, as `geom_brep`'s
+    /// `Span::read` reads it before any place (its early clearance) at
+    /// ε 1e-6 ([`assert_straddle_or_walked_off`]). It is never `On`,
+    /// which reading ON off the lower bound would give.
     #[test]
-    fn an_ellipse_tighter_than_the_band_straddles_it() {
+    fn an_ellipse_tighter_than_the_band_straddles_or_is_walked_off() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
         for a in [1.0, 4.0] {
@@ -2546,16 +2670,13 @@ mod tests {
             };
             for out in [15.0, 20.0, 40.0] {
                 let bracket = geom_core::k_stats::Bracket::open();
-                let got = k.hit(Point3::new(a + out * eps, 0.0, 0.0), band);
+                let q = Point3::new(a + out * eps, 0.0, 0.0);
+                let got = k.hit(q, band);
                 let recorded = bracket.finish();
-                let Err(got) = got else {
-                    panic!("a {a}, {out}ε out: expected a straddle, got {got:?}");
-                };
-                assert_straddle(
+                assert_straddle_or_walked_off(
                     got,
                     &recorded,
-                    (LoopDecision::Boundary, "curve_carrier_straddle"),
-                    major_vertex_bounds(a, b, a + out * eps),
+                    (major_vertex_bounds(a, b, a + out * eps), out * eps, band),
                     &format!("a {a}, {out}ε"),
                 );
             }
@@ -2579,17 +2700,20 @@ mod tests {
         ))
     }
 
-    /// **[`an_ellipse_tighter_than_the_band_straddles_it`], stored minor
-    /// first.** The lower bound's Hessian term is the SMALLER semi-axis
+    /// **[`an_ellipse_tighter_than_the_band_straddles_or_is_walked_off`],
+    /// stored minor first.** The lower bound's Hessian term is the SMALLER semi-axis
     /// whichever field holds it; read off `b` (here the larger), it
-    /// over-states the distance and reads the point `Off`.
+    /// over-states the distance and reads the point `Off` on the
+    /// closed-form bound, which an `Off` here never rests on: it stands
+    /// only on the walk over the span ([`assert_straddle_or_walked_off`]).
     #[test]
-    fn an_ellipse_stored_minor_first_tighter_than_the_band_straddles_it() {
+    fn an_ellipse_stored_minor_first_tighter_than_the_band_straddles_or_is_walked_off() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
         let (a, b) = (1.0, (eps / 100.0).sqrt());
+        let carrier = stored_minor_first(a, b);
         let Ok(Some(k)) = conic_of(
-            &stored_minor_first(a, b),
+            &carrier,
             (0.0, core::f64::consts::TAU),
             WALK_ROWS.conic(),
             band,
@@ -2597,16 +2721,13 @@ mod tests {
             panic!("the full ellipse is read");
         };
         let bracket = geom_core::k_stats::Bracket::open();
-        let got = k.hit(Point3::new(a + 20.0 * eps, 0.0, 0.0), band);
+        let q = Point3::new(a + 20.0 * eps, 0.0, 0.0);
+        let got = k.hit(q, band);
         let recorded = bracket.finish();
-        let Err(got) = got else {
-            panic!("expected a straddle, got {got:?}");
-        };
-        assert_straddle(
+        assert_straddle_or_walked_off(
             got,
             &recorded,
-            (LoopDecision::Boundary, "curve_carrier_straddle"),
-            major_vertex_bounds(a, b, a + 20.0 * eps),
+            (major_vertex_bounds(a, b, a + 20.0 * eps), 20.0 * eps, band),
             "stored minor first",
         );
     }

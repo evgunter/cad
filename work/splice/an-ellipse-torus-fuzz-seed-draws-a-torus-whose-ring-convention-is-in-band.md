@@ -68,3 +68,12 @@ Three more, from BOXFINISH's slow-set measurement (`boxfinish/chart-ends-slow-ro
 - seed `0x31f1331db90e9f43`, from the slow set at `dbb21b4a`;
 - seed `0xa00da6f2a06eefcb`, from the slow set at `bdb498df`, before PR 6959;
 - seed `0x18c721b4cca50dfa`, from the slow set on `boxfinish/chart-ends-slow-rows` (main `dbb21b4a` merged forward, with test-only edits).
+
+## Another seed (2026-11-18, ONEHOME fork 275 step 3b's workspace suite)
+
+`CAD_FUZZ_SEED=0xe071b34d3cca0e69` panics under the suite's default
+tolerance, the payload at band zero `1e-6`: `TorusRefusal { convention: Ring,
+verdict: Undecided(.. ring_torus_convention ..) }` read as outside the
+door's decision (`crates/geom-brep/src/curve_face/circle_roots.rs:419`).
+It reds identically on the merge of PR 7048 (`0c2b761e91`), so it is this
+item's, not the step's.

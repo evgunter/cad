@@ -1380,6 +1380,7 @@ fn two_arcs_of_one_node_are_held_apart_outside_its_box() {
                 reach: 0.0,
                 witness: pt(0.5, 0.0, 0.0),
                 boxes,
+                runs: Vec::new(),
             }))),
             cut_ends: None,
         }
