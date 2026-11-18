@@ -109,3 +109,13 @@ replaces this row's pin). The class stays open where a run still forms: a
 cone face with a ring or a trim carrier, such as the cone cut by an oblique
 plane (`split_rulings::a_run_on_a_cone_face_cut_by_an_oblique_plane_meshes`),
 and no row yet pins a needle there.
+
+## A needle on the cut family (2026-11-18, unit 4c, `tesslane/ruled-density`)
+
+A row now pins a needle there:
+`split_rulings::a_run_anchored_by_the_apex_on_a_needle_refuses_unresolved`.
+The face is a full-turn cone of half-angle 2°, cut near its rim with its
+apex kept (`split_rulings::cut_apex_cone`), and its first ruling is split
+a hair beside the section end. The face is not walked. It refuses
+`UnresolvedWinding` at the default ε with a gap of 10⁻⁸ at δ 0.01, and
+at 10⁻¹² with a gap of 10⁻¹⁰ at every δ from 10 to 0.01.
