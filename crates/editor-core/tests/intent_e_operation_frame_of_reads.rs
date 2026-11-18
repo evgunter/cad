@@ -822,11 +822,8 @@ fn a_copy_whose_rim_reaches_past_the_box_refuses_at_its_placement() {
     };
     let world = fixture::in_space(framed);
     let vertex_reach = world
-        .vertices()
-        .map(|(v, data)| {
-            let p = world.point_of(v, data);
-            p.x.abs().max(p.y.abs()).max(p.z.abs())
-        })
+        .vertex_points()
+        .map(|(_, p)| p.x.abs().max(p.y.abs()).max(p.z.abs()))
         .fold(0.0_f64, f64::max);
     assert!(
         (vertex_reach - 900.0).abs() < 1e-9,
