@@ -21,7 +21,8 @@
 //! face, the cells' and stations' point-in-face decisions run at `T`
 //! ([`crate::cell_region`]); a window that IS its face (an iso-bounded
 //! NURBS patch) asks neither door, since every cell and station of it
-//! is on the face.
+//! is on the face. Two faces' depths are read at `T` too, off their
+//! covers (`apart_in_depth`).
 //!
 //! # Two questions, one subdivision
 //!
@@ -84,8 +85,10 @@
 //! [`SELF_INTERSECTION_GAP`] (`d`, the separation a cell pair that does
 //! not touch in M must classify strictly positive) on the cells' boxes,
 //! and, where the box margin is indeterminate, [`CLEARANCE_SUPPORT_GAP`]
-//! on the gap between the cells' supports along one direction, which
-//! only discharges. Under the injectivity question a TOUCHING pair is
+//! on a lower bound of the separation, which only discharges: at a face
+//! pair's root the gap between the two faces' depths about an axis, a
+//! centre or a core circle (`apart_in_depth`), and at every pair the
+//! gap between the cells' supports along one direction. Under the injectivity question a TOUCHING pair is
 //! decided instead by a local certificate ([`crate::injective`]), at
 //! that module's own sites. The
 //! cell and station verdicts the sweep asks for decide on
@@ -153,7 +156,8 @@ pub const SELF_INTERSECTION_GAP: &str = "self_intersection_gap";
 
 /// The funnel site name of the support comparison — a lower bound on
 /// the separation between two domain cells, read off their supports
-/// along one direction, minus the requested clearance (`0` for the
+/// along one direction or, at a face pair's root, off the two faces'
+/// depths about one site, minus the requested clearance (`0` for the
 /// strict question), in metres against the linear band. Only a
 /// [`Sign::Positive`] is read here, and it discharges the pair under
 /// either bound: the comparand bounds the separation from below only,
@@ -5933,6 +5937,127 @@ mod support_rows {
         for (c, separated) in [(1.0 - in_band, false), (0.5, true)] {
             let read = separated_by_support(pair, &wa, &wb, Interval::from_f64(c), band);
             assert_eq!(read, separated, "separated against {c}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod depth_rows {
+    use geom_core::{Band, Interval, Real, Tol};
+
+    use super::{
+        BoundVerdict, Budgets, Cell, CellPair, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep,
+        Which, apart_in_depth, separated_by_support, window_of,
+    };
+    use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+    use crate::{Body, FaceKey};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// Two cylinder wall sheets in one body, over one azimuth span and
+    /// height, sharing nothing.
+    fn walls(a: CylFrame, b: CylFrame) -> (Body<f64>, FaceKey, FaceKey) {
+        let mut body = Body::<f64>::new();
+        let mut wall =
+            |frame| cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), Tol::witness());
+        let (fa, fb) = (wall(a), wall(b));
+        (body, fa, fb)
+    }
+
+    /// The injectivity question over the two walls, with a verifier
+    /// that confirms nothing.
+    fn injective(body: &Body<f64>, faces: [FaceKey; 2]) -> super::BoundReport<()> {
+        let side = Side {
+            body,
+            faces: faces.to_vec(),
+        };
+        let windows = side.windows(Which::First).expect("each wall has a window");
+        let sweep = Sweep {
+            bound: ClearanceBound::StrictlyPositive,
+            band: band(),
+            budgets: Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: 256,
+            },
+        };
+        sweep.run(&windows, &windows, true, |_| Err("no witness".to_owned()))
+    }
+
+    /// **Two walls a thin gap apart that share nothing are apart at
+    /// their root, off the band only, and two that cross are not.**
+    /// Coaxial cylinder sheets of radius 1 and 1.001: the pair is apart
+    /// in the axis's depth against a bound of zero and of half the gap,
+    /// and not against one within the band of the gap, though the
+    /// supports along a direction separate the two sheets at no bound.
+    /// The injectivity question holds without a split. A sheet a gap
+    /// inside the band away, and a unit sheet about an axis 0.1 off the
+    /// first's, which crosses it at mid-span, are not apart in depth,
+    /// and the question does not hold. Red where the root's depth gap is not asked (the
+    /// pair then spends the row's 256 pairs), or where it is read by
+    /// its sign.
+    #[test]
+    fn walls_a_thin_gap_apart_are_apart_at_their_root_and_only_off_the_band() {
+        let band = band();
+        let in_band = 0.5 * (band.zero() + band.escalate());
+        let at = Interval::from_f64;
+        let read = |b: CylFrame| {
+            let (body, fa, fb) = walls(CylFrame::canonical(1.0), b);
+            let window = |f| window_of(&body, f, Which::First).expect("a wall has a window");
+            let (wa, wb) = (window(fa), window(fb));
+            let pair = CellPair {
+                a: Cell::of(&wa),
+                b: Cell::of(&wb),
+                depth: 0,
+                fresh: false,
+            };
+            let apart = |c: f64| apart_in_depth(&wa, &wb, at(c), band);
+            (
+                [apart(0.0), apart(5e-4), apart(1e-3 - in_band)],
+                separated_by_support(pair, &wa, &wb, at(0.0), band),
+                injective(&body, [fa, fb]),
+            )
+        };
+
+        let (apart, along, report) = read(CylFrame::canonical(1.001));
+        assert_eq!(
+            apart,
+            [true, true, false],
+            "a gap of 0.001, against 0, 0.0005 and the gap"
+        );
+        assert!(
+            !along,
+            "the supports along a direction do not separate the whole sheets"
+        );
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "the walls hold: {:?}",
+            report.verdict
+        );
+        assert_eq!(
+            report.receipt.splits, 0,
+            "at their roots: {:?}",
+            report.receipt
+        );
+
+        for (what, other) in [
+            ("a gap in the band", CylFrame::canonical(1.0 + in_band)),
+            (
+                "a wall that crosses",
+                CylFrame {
+                    origin: geom_core::Point3::new(0.0718, -0.0696, 0.0),
+                    ..CylFrame::canonical(1.0)
+                },
+            ),
+        ] {
+            let (apart, _, report) = read(other);
+            assert_eq!(apart, [false; 3], "{what}: not apart in depth");
+            assert!(
+                !matches!(report.verdict, BoundVerdict::Holds),
+                "{what}: the question does not hold: {:?}",
+                report.verdict
+            );
         }
     }
 }

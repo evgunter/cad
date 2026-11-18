@@ -1268,6 +1268,14 @@ Flagged, NOT fixed here (dispositions):
   `n` only chooses which bound is decided; it is a raw `f64` read of the
   cells' centre normals and centres, and the choice among three
   directions decides nothing.
+  At a face pair's root the site is asked first with a second lower
+  bound (`apart_in_depth`): `G − c`, `G` a gap between the two faces'
+  depths about an axis, a centre or a core circle one of them proposes,
+  less both faces' pads, as the census's depth gap reads it
+  (`census::depth_gap::gaps_in_depth`, the comparand of
+  `census_backstop_depth_gap`). `G` is METRES and bounds the two faces'
+  separation from below, so it is read as `L` is: only `Sign::Positive`,
+  which discharges the pair whole under either bound.
 
 - **F18** (added by M10-8's fix pass, found by scoping the recorder's
   name) `editor-core/src/expr.rs` `refuse_non_finite`: the ruled
