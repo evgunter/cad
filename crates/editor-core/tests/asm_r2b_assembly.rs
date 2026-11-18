@@ -298,7 +298,7 @@ fn findings(result: &Result<AtRest, editor_core::ProductError>) -> Vec<String> {
 /// **The record set of a gathered product.**
 fn gate_records(result: &Result<AtRest, editor_core::ProductError>) -> &topo::ContactRecords {
     match result {
-        Ok(at_rest) => &at_rest.product.contacts(),
+        Ok(at_rest) => at_rest.product.contacts(),
         Err(other) => panic!("the product gathers: {other}"),
     }
 }

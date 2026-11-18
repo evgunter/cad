@@ -62,12 +62,12 @@ fn line(
 ) -> (String, Option<topo::BooleanBody<f64>>) {
     match r {
         Ok(BooleanResult::Body(b)) => {
-            let v = topo::validate_pseudomanifold(&b.body, &b.contacts(), tol());
+            let v = topo::validate_pseudomanifold(&b.body, b.contacts(), tol());
             let v = match v {
                 Ok(()) => "t3p=ok".to_string(),
                 Err(es) => format!("t3p=ERR {es:?}"),
             };
-            (format!("records={:?} {v}", counts(&b.contacts())), Some(b))
+            (format!("records={:?} {v}", counts(b.contacts())), Some(b))
         }
         Ok(BooleanResult::Empty) => ("EMPTY".into(), None),
         Err(e) => (format!("REFUSED {e:?}"), None),

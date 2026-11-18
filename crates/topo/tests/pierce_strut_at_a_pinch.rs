@@ -182,7 +182,7 @@ fn every_op(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, rows: &[Row])
             "{what}: volume {v}, closed form {volume}"
         );
         assert_eq!(
-            validate_pseudomanifold(&r.body, &r.contacts(), t()).is_ok(),
+            validate_pseudomanifold(&r.body, r.contacts(), t()).is_ok(),
             verdict,
             "{what}: tier 3′"
         );

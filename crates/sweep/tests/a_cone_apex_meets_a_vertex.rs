@@ -161,7 +161,7 @@ fn four_ops_pinching(
                 // (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
                 // Parts that touch nowhere, no contact recorded between
                 // them, clear on their faces' covers.
-                let census = topo::validate_pseudomanifold(&body.body, &body.contacts(), tol());
+                let census = topo::validate_pseudomanifold(&body.body, body.contacts(), tol());
                 let shells = body.body.shells().count();
                 if shells == 1 {
                     assert_eq!(census, Ok(()), "{what}: tier 3′ over the result's contacts");

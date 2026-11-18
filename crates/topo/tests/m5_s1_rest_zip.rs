@@ -64,7 +64,7 @@ fn assert_glued<
     assert_eq!(g.kind, BooleanResultKind::Seamed);
     assert_eq!(validate_geometric(&g.body, Tol::witness()), Ok(()));
     assert_eq!(
-        validate_pseudomanifold(&g.body, &g.contacts(), Tol::witness()),
+        validate_pseudomanifold(&g.body, g.contacts(), Tol::witness()),
         Ok(())
     );
     assert!(

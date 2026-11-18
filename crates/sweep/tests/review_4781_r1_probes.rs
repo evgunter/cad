@@ -710,7 +710,7 @@ fn review_4781_ee_record_after_a_later_op() {
                         .met()
                         .expect("the pinned resolution is met")
                         .volume;
-                let verdict = topo::validate_pseudomanifold(&r.body, &r.contacts(), tol());
+                let verdict = topo::validate_pseudomanifold(&r.body, r.contacts(), tol());
                 let short = verdict.as_ref().map_err(|e| {
                     e.iter()
                         .map(|x| format!("{x:?}").chars().take(200).collect::<String>())

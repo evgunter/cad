@@ -31,7 +31,7 @@ fn rc_detail() {
     if let Ok(topo::BooleanResult::Body(bb)) = &r {
         println!(
             "{case} tier 3′: {:?}",
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol())
+            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol())
         );
     }
     println!("{case} => {}", outcome(r, p.want[k], tol()));
@@ -248,7 +248,7 @@ fn assert_sound(
     };
     assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()),
         Ok(()),
         "{what}: tier 3′"
     );

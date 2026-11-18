@@ -89,7 +89,7 @@ fn one_body(label: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64)
         "{label}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()),
         Ok(()),
         "{label}: tier 3′"
     );
@@ -230,7 +230,7 @@ fn a_copy_moved_within_or_past_the_band_builds_right_or_refuses() {
                     }
                     Ok(BooleanResult::Body(bb)) => {
                         assert_eq!(
-                            topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
+                            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()),
                             Ok(()),
                             "{label}: tier 3′"
                         );

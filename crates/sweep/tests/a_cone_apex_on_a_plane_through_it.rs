@@ -185,7 +185,7 @@ fn six(what: &str, (c, r): (&AtRestBody<f64>, f64), (h, n): (&AtRestBody<f64>, V
                 // A solid touching the other's face at the apex alone is a
                 // contact the result records.
                 assert_eq!(
-                    topo::validate_pseudomanifold(&b.body, &b.contacts(), tol()),
+                    topo::validate_pseudomanifold(&b.body, b.contacts(), tol()),
                     Ok(()),
                     "{what}: tier 3′ over the result's contacts"
                 );
@@ -650,7 +650,7 @@ fn a_wedge_of_the_cone_cut_through_its_apex_holds_its_closed_form() {
                         assert_eq!(b.body.shells().count(), pieces, "{what}: its lobes");
                         // Two lobes touch along the axis, curved faces of two
                         // parts the census cannot yet clear.
-                        let census = topo::validate_pseudomanifold(&b.body, &b.contacts(), tol());
+                        let census = topo::validate_pseudomanifold(&b.body, b.contacts(), tol());
                         match pieces {
                             1 => assert_eq!(census, Ok(()), "{what}: tier 3′"),
                             _ => assert!(

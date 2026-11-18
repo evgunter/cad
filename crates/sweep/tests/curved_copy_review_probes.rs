@@ -216,7 +216,7 @@ fn builds_right_or_refuses(
             Ok(BooleanResult::Body(bb)) => {
                 let m = topo::test_support::pinned_volume(&label, &bb.body, tol());
                 let t3 = topo::validate_geometric(&bb.body, tol()).is_ok();
-                let t3p = topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()).is_ok();
+                let t3p = topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()).is_ok();
                 println!(
                     "PROBE {label}: want {want:.9}; Body {:.9} shells {} t3 {t3} t3' {t3p}",
                     m.volume,

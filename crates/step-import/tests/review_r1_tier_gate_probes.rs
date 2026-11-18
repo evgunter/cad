@@ -716,7 +716,7 @@ fn r1_the_kiss_certifies_with_its_touch_recorded() {
         contacts.decided().iter().all(|&k| k < rows),
         "every record cites a row the import ships"
     );
-    topo::validate_pseudomanifold(&*body, &contacts, Tol::witness())
+    topo::validate_pseudomanifold(&*body, contacts, Tol::witness())
         .expect("the shipped records confirm at rest");
 }
 

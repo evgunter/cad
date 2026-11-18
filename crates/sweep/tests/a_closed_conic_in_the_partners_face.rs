@@ -505,7 +505,7 @@ fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, r
             let r = r.unwrap_or_else(|e| panic!("{row}: {e:?}"));
             let b = r.body().unwrap_or_else(|| panic!("{row}: empty"));
             assert_eq!(census(&b.body)[0], 2, "{row}: shells");
-            let t3p = topo::validate_pseudomanifold(&b.body, &b.contacts(), tol());
+            let t3p = topo::validate_pseudomanifold(&b.body, b.contacts(), tol());
             let rim = |e: &ValidationError| {
                 matches!(
                     e,
@@ -1530,7 +1530,7 @@ fn a_hole_sharing_the_rim_along_an_arc_then_leaving_it_tangent() {
                 let r = r.unwrap_or_else(|e| panic!("{row}: {e:?}"));
                 let b = r.body().unwrap_or_else(|| panic!("{row}: empty"));
                 assert_eq!(census(&b.body)[0], 1, "{row}: shells");
-                let t3p = topo::validate_pseudomanifold(&b.body, &b.contacts(), tol());
+                let t3p = topo::validate_pseudomanifold(&b.body, b.contacts(), tol());
                 assert!(
                     t3p.as_ref().is_err_and(|es| !es.is_empty()
                         && es.iter().all(|e| matches!(

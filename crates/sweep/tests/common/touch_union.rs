@@ -147,7 +147,7 @@ fn assert_union(
         inside.iter().all(|&p| holds(&r.body, p)),
         "{what}: both operands' material"
     );
-    let verdict = topo::validate_pseudomanifold(&r.body, &r.contacts(), tol());
+    let verdict = topo::validate_pseudomanifold(&r.body, r.contacts(), tol());
     assert!(
         verdict
             .as_ref()

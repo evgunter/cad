@@ -618,7 +618,7 @@ fn miss(
         return Some("empty".into());
     };
     let t2 = topo::validate_closed(&bb.body).is_ok();
-    let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()).is_ok();
+    let t3 = topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()).is_ok();
     let cert = topo::validate_geometric_certificate(&bb.body, tol()).is_ok();
     let m = topo::mass_properties(
         &bb.body,

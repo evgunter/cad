@@ -107,7 +107,7 @@ fn a_split_across_an_edge_kiss_lands_the_minted_pair_on_the_kiss() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
     let base = union_of(&a, &b);
-    let ee = record_of(&base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let ee = record_of(base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
     let sides = split_passes(
         "edge kiss",
         &base,
@@ -165,7 +165,7 @@ fn ridge_on_slab() -> BooleanBody<f64> {
 #[test]
 fn a_split_across_a_resting_ridge_lands_its_minted_vertex_on_the_minted_chord() {
     let base = ridge_on_slab();
-    let ef = record_of(&base.contacts(), |k| matches!(k, ContactKind::EdgeFace(..)));
+    let ef = record_of(base.contacts(), |k| matches!(k, ContactKind::EdgeFace(..)));
     assert_eq!(
         base.contacts().vertex_face().count(),
         2,
@@ -300,7 +300,7 @@ fn a_minted_pair_an_op_cannot_back_refuses() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
     let base = union_of(&a, &b);
-    let ee = record_of(&base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let ee = record_of(base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
     let plane = common::split_plane(Point3::new(0.0, 0.0, 0.5), Vec3::new(0.0, 0.0, 1.0), tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the edge kiss splits");
     assert!(
@@ -447,7 +447,7 @@ fn a_lineage_gap_beside_a_removal_refuses_unmapped() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
     let base = union_of(&a, &b);
-    let ee = record_of(&base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let ee = record_of(base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
     let [x, y] = base.contacts().rows()[ee as usize].cells();
     let one: ContactRecords = [base.contacts().rows()[ee as usize].clone()]
         .into_iter()
@@ -498,7 +498,7 @@ fn a_pit_under_a_carried_rest_consumes_it() {
         out.contacts()
     );
     assert_eq!(
-        validate_pseudomanifold(&out.body, &out.contacts(), tol()),
+        validate_pseudomanifold(&out.body, out.contacts(), tol()),
         Ok(()),
         "the corner hangs over the pit"
     );
@@ -511,7 +511,7 @@ fn edge_kiss() -> (BooleanBody<f64>, u32) {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
     let base = union_of(&a, &b);
-    let ee = record_of(&base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let ee = record_of(base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
     (base, ee)
 }
 
@@ -583,7 +583,7 @@ fn two_cutters_meeting_on_a_recorded_touch_cite_the_doors_decision() {
         out.coincidences
     );
     assert_eq!(
-        validate_pseudomanifold(&out.body, &out.contacts(), tol()),
+        validate_pseudomanifold(&out.body, out.contacts(), tol()),
         Ok(()),
         "the difference passes at rest"
     );
@@ -613,7 +613,7 @@ fn one_cutter_on_a_recorded_touch_cites_the_record_and_a_decision() {
         "the pair cites the record and a decision: {minted:?}"
     );
     assert_eq!(
-        validate_pseudomanifold(&out.body, &out.contacts(), tol()),
+        validate_pseudomanifold(&out.body, out.contacts(), tol()),
         Ok(()),
         "the difference passes at rest"
     );
@@ -631,7 +631,7 @@ fn a_notch_that_removes_a_recorded_overlap_consumes_it() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 2.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 3.0), "b");
     let base = union_of(&a, &b);
-    let ee = record_of(&base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let ee = record_of(base.contacts(), |k| matches!(k, ContactKind::EdgeEdge(..)));
     let notch = box_of((0.5, 1.5), (0.5, 1.5), (0.9, 2.1), "notch");
     let out = match carried_op(topo::BooleanOp::Subtract, &base, &notch) {
         Ok(BooleanResult::Body(out)) => out,
@@ -647,7 +647,7 @@ fn a_notch_that_removes_a_recorded_overlap_consumes_it() {
         out.contacts()
     );
     assert_eq!(
-        validate_pseudomanifold(&out.body, &out.contacts(), tol()),
+        validate_pseudomanifold(&out.body, out.contacts(), tol()),
         Ok(()),
         "nothing of the touch is left"
     );
@@ -693,7 +693,7 @@ fn a_record_on_a_cell_an_offset_trims_is_re_read() {
         topo::replace_face_offset(&mut moved, side, -0.5, tol()).expect("the side moves in");
     let rest = outcome
         .carry_contacts(
-            &base.contacts(),
+            base.contacts(),
             &moved,
             band(),
             Some(topo::RegionLane::certified()),

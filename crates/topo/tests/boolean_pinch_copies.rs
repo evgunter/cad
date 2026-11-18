@@ -173,7 +173,7 @@ fn assert_pinches_pass<
         );
         assert_eq!(validate_closed(&r.body), Ok(()), "{name}: tier 2");
         assert_eq!(
-            validate_pseudomanifold(&r.body, &r.contacts(), Tol::witness()),
+            validate_pseudomanifold(&r.body, r.contacts(), Tol::witness()),
             Ok(()),
             "{name}: tier 3′ with the result's own records"
         );

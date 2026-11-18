@@ -1301,7 +1301,7 @@ fn built(label: &str, r: Result<BooleanResult<f64>, BooleanError>) -> Built {
     };
     let b = &bb.body;
     topo::validate_geometric(b, tol).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-    topo::validate_pseudomanifold(b, &bb.contacts(), tol)
+    topo::validate_pseudomanifold(b, bb.contacts(), tol)
         .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
     let band = geom_core::Band::linear(tol).unwrap();
     assert_eq!(
@@ -1309,7 +1309,7 @@ fn built(label: &str, r: Result<BooleanResult<f64>, BooleanError>) -> Built {
         vec![],
         "{label}: maximal edges"
     );
-    let c = &bb.contacts();
+    let c = bb.contacts();
     (
         topo::test_support::pinned_volume("the measured body", b, tol).volume,
         census(b),
@@ -1807,7 +1807,7 @@ fn narrow_review_dome_battery() {
                                 builds += 1;
                                 let t2 = topo::validate_closed(&bb.body).is_ok();
                                 let t3p =
-                                    topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol)
+                                    topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol)
                                         .is_ok();
                                 let cert =
                                     topo::validate_geometric_certificate(&bb.body, tol).is_ok();
@@ -1936,7 +1936,7 @@ fn narrow_review_corner_on_ball_battery() {
                         builds += 1;
                         let t2 = topo::validate_closed(&bb.body).is_ok();
                         let t3p =
-                            topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol).is_ok();
+                            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol).is_ok();
                         let cert = topo::validate_geometric_certificate(&bb.body, tol).is_ok();
                         let t3 = topo::validate_geometric(&bb.body, tol).is_ok();
                         let v = topo::mass_properties(

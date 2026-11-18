@@ -113,7 +113,7 @@ fn every_surgery_verb_carries_a_corner_kiss() {
         "replace_face_offset",
         &offset,
         &outcome
-            .carry_contacts(&base.contacts(), &offset, band(), region())
+            .carry_contacts(base.contacts(), &offset, band(), region())
             .unwrap(),
     );
 
@@ -123,7 +123,7 @@ fn every_surgery_verb_carries_a_corner_kiss() {
         "merge_coplanar_faces",
         &merged,
         &outcome
-            .carry_contacts(&base.contacts(), &merged, band(), region())
+            .carry_contacts(base.contacts(), &merged, band(), region())
             .unwrap(),
     );
 
@@ -274,7 +274,7 @@ fn a_touch_the_verb_creates_is_refused_at_rest() {
     let wall = face_at_x(&moved, 1.0);
     let outcome = topo::replace_face_offset(&mut moved, wall, 0.1, tol()).expect("an offset");
     let carried = outcome
-        .carry_contacts(&apart.contacts(), &moved, band(), region())
+        .carry_contacts(apart.contacts(), &moved, band(), region())
         .unwrap();
     assert!(carried.is_empty(), "{carried:?}");
     let refused = validate_pseudomanifold(&moved, &carried, tol()).expect_err("a new touch");

@@ -1026,6 +1026,13 @@ pub enum SplitFinishError {
         /// The validator's findings.
         errors: Vec<crate::validate::ValidationError>,
     },
+    /// A contact record of the operand does not carry onto the sides
+    /// through the split's lineage
+    /// ([`crate::ContactRecords::carried_through`]).
+    Carry {
+        /// The carry's refusal.
+        refusal: CarryRefusal,
+    },
     /// A side, sorted into its solids, is not a finished body
     /// ([`crate::AtRestPolicy::finish`], the gate the Boolean's result
     /// passes): every finding, each read through its family. `side` is
@@ -1325,6 +1332,7 @@ impl SplitFinishError {
                 side.word(),
                 read_at(error, at)
             ),
+            Self::Carry { refusal } => refusal.write_at_a_door(f),
             Self::ResultNotAtRest { side, findings } => write!(
                 f,
                 "the piece on the {} side of the plane is not a finished body, so no body is \

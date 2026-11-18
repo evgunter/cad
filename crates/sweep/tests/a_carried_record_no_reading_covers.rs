@@ -195,12 +195,12 @@ fn a_record_no_reading_covers_refuses_where_an_op_divides_one_of_its_cells() {
     assert!(
         matches!(
             got,
-            Err(topo::SplitError::Carry {
+            Err(topo::SplitError::Finish(topo::SplitFinishError::Carry {
                 refusal: topo::CarryRefusal::Unread {
                     record: 0,
                     cells: [Cell::Edge(_), Cell::Face(_)],
                 },
-            })
+            }))
         ),
         "a split across both cells: {got:?}"
     );

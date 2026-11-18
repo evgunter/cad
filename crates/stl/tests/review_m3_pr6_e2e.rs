@@ -71,7 +71,7 @@ fn r6_pocketed_dice_kiss_e2e() {
         "one corner kiss"
     );
     assert_eq!(
-        validate_pseudomanifold(&assembly.body, &assembly.contacts(), Tol::witness()),
+        validate_pseudomanifold(&assembly.body, assembly.contacts(), Tol::witness()),
         Ok(())
     );
     for (x, y) in assembly.contacts().vertex_vertex() {

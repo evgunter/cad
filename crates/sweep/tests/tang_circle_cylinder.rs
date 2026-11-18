@@ -370,7 +370,7 @@ fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
     let union = topo::union(&a, &rod, tol);
     let census = union.as_ref().ok().and_then(|r| r.body()).map(|bb| {
         matches!(
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol)
+            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol)
                 .as_ref()
                 .map_err(Vec::as_slice),
             Err([topo::ValidationError::CensusUnsupported {

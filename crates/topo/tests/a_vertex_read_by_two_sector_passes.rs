@@ -190,7 +190,7 @@ fn three_prime(
     ray: Option<[f64; 3]>,
     glued: Option<[[f64; 3]; 4]>,
 ) -> bool {
-    let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts(), t()) else {
+    let Err(errors) = validate_pseudomanifold(&r.body, r.contacts(), t()) else {
         return true;
     };
     let meet = at(pose.at(MEET));
@@ -1529,7 +1529,7 @@ fn a_pyramid_resting_where_a_solid_touches_itself_holds_tier_three_prime() {
             let Ok(BooleanResult::Body(r)) = r else {
                 panic!("{what}: builds, got {:?}", r.map(|_| ()));
             };
-            let errors = validate_pseudomanifold(&r.body, &r.contacts(), t()).err();
+            let errors = validate_pseudomanifold(&r.body, r.contacts(), t()).err();
             let pairs: Vec<_> = errors
                 .iter()
                 .flatten()

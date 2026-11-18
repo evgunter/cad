@@ -354,7 +354,7 @@ fn check_pose_refusals(
                 props.enclosure.volume
             ));
         }
-        let errors = topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol)
+        let errors = topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol)
             .err()
             .unwrap_or_default();
         let unread = |e: &ValidationError| {

@@ -232,7 +232,7 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_but_its_void_which_refuses_t
         let (volume, census, contacts) = want.unwrap();
         let body = &bb.body;
         topo::validate_geometric(body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
-        topo::validate_pseudomanifold(body, &bb.contacts(), tol)
+        topo::validate_pseudomanifold(body, bb.contacts(), tol)
             .unwrap_or_else(|e| panic!("{op}: tier 3′: {e:?}"));
         let v = topo::test_support::pinned_volume("the measured body", body, tol).volume;
         assert!(
@@ -249,7 +249,7 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_but_its_void_which_refuses_t
             census,
             "{op}: F, E, V, shells"
         );
-        let c = &bb.contacts();
+        let c = bb.contacts();
         assert_eq!(
             [c.vertex_vertex().count(), c.vertex_face().count()],
             contacts,

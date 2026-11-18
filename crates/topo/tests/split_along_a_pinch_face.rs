@@ -39,9 +39,9 @@ fn a_plane_through_a_pinch_puts_each_brick_on_its_side() {
     assert!(
         matches!(
             split(&pinch.body, &plane, tol),
-            Err(topo::SplitError::Carry {
+            Err(topo::SplitError::Finish(topo::SplitFinishError::Carry {
                 refusal: topo::CarryRefusal::Parted { record: 0 }
-            })
+            }))
         ),
         "the pinch's record is parted off any face of the cut"
     );

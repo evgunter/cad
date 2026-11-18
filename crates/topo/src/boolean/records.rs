@@ -121,7 +121,11 @@ impl CarryRefusal {
 
     /// The refusal as a door that carried the record states it, with
     /// its recourse.
-    pub(crate) fn write_at_a_door(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    ///
+    /// # Errors
+    ///
+    /// The formatter's.
+    pub fn write_at_a_door(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
             "a touch its operand records {}. Recourse: {}",

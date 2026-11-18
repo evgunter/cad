@@ -282,7 +282,7 @@ fn rows(side: Side) {
                 let (volume, solids, cones) = truth(lean, side, delta, op);
                 assert_eq!(validate_geometric(body, t()), Ok(()), "{what}: tier 3");
                 assert!(
-                    validate_pseudomanifold(body, &r.contacts(), t()).is_ok(),
+                    validate_pseudomanifold(body, r.contacts(), t()).is_ok(),
                     "{what}: tier 3′"
                 );
                 assert_eq!(corners_disjoint(body, t()), Ok(()), "{what}: corners");

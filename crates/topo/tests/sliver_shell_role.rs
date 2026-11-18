@@ -222,7 +222,7 @@ fn census(
     let body = result
         .body()
         .unwrap_or_else(|| panic!("{what}: is not empty"));
-    body.body.validate_pseudomanifold(&body.contacts(), tol)
+    body.body.validate_pseudomanifold(body.contacts(), tol)
 }
 
 /// **A needle reads every pair of its cells definite**: the `notch307`

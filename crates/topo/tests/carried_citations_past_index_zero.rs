@@ -99,9 +99,9 @@ fn a_carried_citation_past_index_zero_names_its_record_and_its_decision() {
     };
     let kiss = union(&a, &b, &BooleanInputs::default());
     assert_eq!(kiss.contacts().len(), 1, "{:?}", kiss.contacts());
-    let r2 = union(&kiss.body, &c, &carrying(&kiss.contacts()));
+    let r2 = union(&kiss.body, &c, &carrying(kiss.contacts()));
     assert_eq!(r2.contacts().len(), 2, "{:?}", r2.contacts());
-    let r3 = union(&r2.body, &e, &carrying(&r2.contacts()));
+    let r3 = union(&r2.body, &e, &carrying(r2.contacts()));
     // The edge–edge record first, then the vertex pairs: each vertex
     // pair's index in the list is past 0 and past its index among the
     // vertex pairs.

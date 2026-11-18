@@ -186,7 +186,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         },
         // Routed by `crate::declares_no_contacts`; this transverse
         // union declares none and passes plain tier 3 in full.
-        bodies: vec![if crate::declares_no_contacts(&bb.contacts()) {
+        bodies: vec![if crate::declares_no_contacts(bb.contacts()) {
             SceneBody::plain("bossplate", [0.85, 0.55, 0.25], bb.body.into_body())
         } else {
             SceneBody::finished("bossplate", [0.85, 0.55, 0.25], bb.body)

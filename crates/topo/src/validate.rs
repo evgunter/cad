@@ -10870,7 +10870,12 @@ pub struct AtRestBody<T: geom_core::Decide> {
     held: Option<std::sync::Arc<geom_core::k_stats::Recorded>>,
 }
 
-impl<T: geom_core::Decide> AtRestBody<T> {
+impl<
+    T: geom_core::Decide
+        + geom_core::CertifiedBounds
+        + crate::props::AtRestPolicy<Finished = AtRestBody<T>>,
+> AtRestBody<T>
+{
     /// **[`validate_geometric`] over `body`, keeping the verdict** — the
     /// certifying scalars' [`crate::AtRestPolicy::finish`].
     ///
@@ -10881,20 +10886,19 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     pub(crate) fn validate(
         built: crate::finish::Built<T>,
         tol: Tol,
-    ) -> Result<Self, Vec<ValidationError>>
-    where
-        T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
-    {
+    ) -> Result<Self, Vec<ValidationError>> {
         crate::finish::count_finish();
         let crate::finish::Built { body, records } = built;
         let sign = std::sync::Arc::new(validate_geometric_certificate(&body, tol)?.into_parts());
-        deciding_door_census(
-            &body,
-            &records,
-            linear_band(tol)?,
-            tol,
-            CertifiedLanes::<T>::held().region,
-        )?;
+        if !records.is_empty() {
+            records_certified(census_verdict(
+                &body,
+                &records,
+                linear_band(tol)?,
+                tol,
+                Some(CertifiedLanes::<T>::held().region),
+            ))?;
+        }
         Ok(Self {
             body,
             records,
@@ -10917,12 +10921,7 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     pub(crate) fn validate_assembled(
         assembled: crate::finish::Assembled<T>,
         tol: Tol,
-    ) -> Result<crate::finish::Censused<T>, Vec<ValidationError>>
-    where
-        T: geom_core::Decide
-            + geom_core::CertifiedBounds
-            + crate::props::AtRestPolicy<Finished = Self>,
-    {
+    ) -> Result<crate::finish::Censused<T>, Vec<ValidationError>> {
         crate::finish::count_finish();
         let crate::finish::Assembled {
             body,
@@ -10954,7 +10953,9 @@ impl<T: geom_core::Decide> AtRestBody<T> {
             findings: recorded.findings,
         })
     }
+}
 
+impl<T: geom_core::Decide> AtRestBody<T> {
     /// **Its contact records**: the ones its gate confirmed
     /// ([`crate::FinishedBody::records`]).
     #[must_use]
@@ -11205,31 +11206,24 @@ fn census_verdict<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core:
 /// split's own unrecorded touches, so raising them would refuse those
 /// results (`work/heldrecords/the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime.md`,
 /// `work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-fn deciding_door_census<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core::Bounds>(
-    body: &Body<T>,
-    records: &crate::boolean::ContactRecords,
-    band: Band,
-    tol: Tol,
-    region: crate::chart_region::RegionLane<T>,
-) -> Result<(), Vec<ValidationError>> {
-    if records.is_empty() {
+fn records_certified(census: Result<(), Vec<ValidationError>>) -> Result<(), Vec<ValidationError>> {
+    let Err(findings) = census else {
         return Ok(());
-    }
-    let findings: Vec<ValidationError> =
-        crate::census::census_and_certify(body, records, band, tol, Some(region))
-            .into_iter()
-            .filter(|finding| {
-                matches!(
-                    finding,
-                    ValidationError::StaleContactDeclaration { .. }
-                        | ValidationError::ContactContradicted { .. }
-                )
-            })
-            .collect();
-    if findings.is_empty() {
+    };
+    let about_a_record: Vec<ValidationError> = findings
+        .into_iter()
+        .filter(|finding| {
+            matches!(
+                finding,
+                ValidationError::StaleContactDeclaration { .. }
+                    | ValidationError::ContactContradicted { .. }
+            )
+        })
+        .collect();
+    if about_a_record.is_empty() {
         Ok(())
     } else {
-        Err(findings)
+        Err(about_a_record)
     }
 }
 

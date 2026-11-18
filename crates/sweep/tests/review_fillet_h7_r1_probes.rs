@@ -245,7 +245,7 @@ fn the_boolean_builds_the_groove_and_a_short_sunk_rod() {
         let r = r.unwrap_or_else(|e| panic!("{what} builds: {e:?}"));
         let bb = r.body().unwrap_or_else(|| panic!("{what}: a body"));
         topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol())
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol())
             .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
         topo::validate_geometric_certificate(&bb.body, tol())
             .unwrap_or_else(|e| panic!("{what}: certificate: {e:?}"));

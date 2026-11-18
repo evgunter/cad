@@ -1834,9 +1834,9 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
             error: sweep::blend::BlendError::Carry { refusal },
             ..
         })
-        | verbs::VerbError::Split(topo::SplitError::Carry { refusal }) => {
-            NodeErrorKind::ContactCarry { refusal }
-        }
+        | verbs::VerbError::Split(topo::SplitError::Finish(topo::SplitFinishError::Carry {
+            refusal,
+        })) => NodeErrorKind::ContactCarry { refusal },
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
             NodeErrorKind::Blend {
                 verb,

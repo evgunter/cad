@@ -208,7 +208,7 @@ fn edge_edge_sites_at_a_reflex_wedge_build_sound() {
             };
             assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
             assert_eq!(
-                topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
+                topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()),
                 Ok(()),
                 "{what}: tier 3′"
             );

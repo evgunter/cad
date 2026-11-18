@@ -109,7 +109,7 @@ fn declared_crosslap_rest_union_builds() {
         "tier 3"
     );
     assert_eq!(
-        validate_pseudomanifold(&glued.body, &glued.contacts(), Tol::witness()),
+        validate_pseudomanifold(&glued.body, glued.contacts(), Tol::witness()),
         Ok(()),
         "3′ with the surviving records"
     );

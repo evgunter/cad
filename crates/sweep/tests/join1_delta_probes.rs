@@ -313,7 +313,7 @@ fn an_apex_edge_in_the_partners_face_is_recorded() {
         // Tier 3′ confirms the record: no finding is a stale record or
         // an unrecorded touch. A curved partner's only findings are the
         // cross-solid backstop's.
-        match topo::validate_pseudomanifold(body, &bb.contacts(), tol()) {
+        match topo::validate_pseudomanifold(body, bb.contacts(), tol()) {
             Ok(()) => assert_eq!(name, "tri", "tri ∪ {name}: the backstop refuses"),
             Err(es) => assert!(
                 name != "tri"

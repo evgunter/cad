@@ -62,7 +62,7 @@ fn probe_misaligned_azimuth_split_unions() {
         "tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), Tol::witness()),
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), Tol::witness()),
         Ok(()),
         "the census"
     );

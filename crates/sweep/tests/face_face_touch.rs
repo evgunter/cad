@@ -228,7 +228,7 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
                 "∪ bridge: the record lands on the plate's face and the rod's wall"
             );
             assert_eq!(
-                topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()),
+                topo::validate_pseudomanifold(&r.body, r.contacts(), tol()),
                 Ok(()),
                 "∪ bridge: tier 3′ with the landed record"
             );
@@ -254,7 +254,7 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
                  top cap's touch point is inside the bridge"
             );
             assert_eq!(
-                topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()),
+                topo::validate_pseudomanifold(&r.body, r.contacts(), tol()),
                 Ok(()),
                 "∪ bridge, every record: tier 3′ confirms the landed records"
             );
@@ -292,7 +292,7 @@ fn a_cap_circles_point_touch_is_read_and_lands_on_the_piece_holding_it() {
         other => panic!("plate ∪ rod: {:?}", other.map(|_| ())),
     };
     let caps: Vec<topo::EdgeKey> = u.contacts().edge_face().map(|(e, _)| e).collect();
-    let findings = topo::validate_pseudomanifold(&u.body, &u.contacts(), tol())
+    let findings = topo::validate_pseudomanifold(&u.body, u.contacts(), tol())
         .err()
         .unwrap_or_default();
     assert!(
@@ -954,7 +954,7 @@ fn a_bridged_rods_unrecorded_tangent_line_refuses_and_its_carried_record_passes(
             0,
             "{label}: no face–face record"
         );
-        let errors = topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()).unwrap_err();
+        let errors = topo::validate_pseudomanifold(&r.body, r.contacts(), tol()).unwrap_err();
         let found: Vec<_> = errors
             .iter()
             .filter_map(|e| match e {
@@ -982,7 +982,7 @@ fn a_bridged_rods_unrecorded_tangent_line_refuses_and_its_carried_record_passes(
         );
         let r = bridged_rod(0.0, rod_first, true);
         assert_eq!(
-            topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()),
+            topo::validate_pseudomanifold(&r.body, r.contacts(), tol()),
             Ok(()),
             "{label}, carried: 3′ confirms the landed record"
         );
@@ -998,7 +998,7 @@ fn a_bridged_rod_standing_off_the_plate_discovers_nothing() {
     for rod_first in [false, true] {
         let r = bridged_rod(gap, rod_first, false);
         assert_eq!(
-            topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()),
+            topo::validate_pseudomanifold(&r.body, r.contacts(), tol()),
             Ok(()),
             "rod first {rod_first}: gap {gap}, nothing touches"
         );
@@ -1110,7 +1110,7 @@ fn a_rod_on_a_plate_as_two_solids_is_not_a_same_solid_touch() {
 fn the_void_and_material_pinches_read_alike_at_every_pose() {
     for (s, d) in [(1.0e-2, 0.0), (1.0e2, 0.0), (1.0, 5.0e2)] {
         let r = bridged_rod_posed(s, d, 0.0, false, false);
-        let errors = topo::validate_pseudomanifold(&r.body, &r.contacts(), tol()).unwrap_err();
+        let errors = topo::validate_pseudomanifold(&r.body, r.contacts(), tol()).unwrap_err();
         let touches = errors
             .iter()
             .filter(|e| {

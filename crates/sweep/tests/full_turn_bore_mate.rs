@@ -124,7 +124,7 @@ fn unions_both_ways(c: &AtRestBody<f64>, p: &AtRestBody<f64>, h: f64, tag: &str)
             "{tag}: tier 3"
         );
         assert_eq!(
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol),
+            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol),
             Ok(()),
             "{tag}: the census"
         );
@@ -394,7 +394,7 @@ fn intersect_and_differences_answer_the_closed_form() {
                         assert!(agrees(got, want), "{tag}: {order}: volume {got} vs {want}");
                         assert_eq!(bb.body.shells().count(), 1, "{tag}: {order}: one shell");
                         assert_eq!(
-                            topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol),
+                            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol),
                             Ok(()),
                             "{tag}: {order}: the census"
                         );

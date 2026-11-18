@@ -271,7 +271,7 @@ fn review_sweep_normals_through_the_pinch() {
             );
             let r = match split(&case.union.body, &plane, t()) {
                 Ok(r) => r,
-                Err(topo::SplitError::Carry { refusal }) => {
+                Err(topo::SplitError::Finish(topo::SplitFinishError::Carry { refusal })) => {
                     carry_refused += 1;
                     println!("CARRY {} n={n:?} cones {cones}: {refusal:?}", case.what);
                     continue;
@@ -420,7 +420,7 @@ fn every_operand_cells_split_images_are_live_through_chained_fusions() {
             );
             let r = match split(&case.union.body, &plane, t()) {
                 Ok(r) => r,
-                Err(topo::SplitError::Carry { refusal }) => {
+                Err(topo::SplitError::Finish(topo::SplitFinishError::Carry { refusal })) => {
                     println!("CARRY {} n={n:?}: {refusal:?}", case.what);
                     continue;
                 }

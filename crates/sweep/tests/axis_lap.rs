@@ -161,7 +161,7 @@ fn an_axis_lap_builds_every_op_as_its_planar_twin_does() {
                 let r = r.unwrap_or_else(|e| panic!("{what}: {e:?}"));
                 let bb = r.body().expect("a body remains");
                 topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
-                topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol())
+                topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol())
                     .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
                 assert_sound(&bb.body, want, &what);
             }
@@ -352,7 +352,7 @@ fn a_blind_d_pocket_builds_from_either_face() {
         let r = d_pocket(z0).unwrap_or_else(|e| panic!("{what} builds: {e:?}"));
         let bb = r.body().expect("a body remains");
         topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol())
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol())
             .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
         assert_sound(&bb.body, 4.0 - (PI * R * R - segment(0.3)) * 0.5, &what);
         sweep::test_support::assert_legal_operand(&what, &bb.body, tol());
@@ -475,7 +475,7 @@ fn an_engraved_one_arc_c_builds_at_every_sweep() {
                 let r = r.unwrap_or_else(|e| panic!("{what}: builds: {e:?}"));
                 let bb = r.body().unwrap_or_else(|| panic!("{what}: a body"));
                 topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
-                topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol())
+                topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol())
                     .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
                 assert_sound(&bb.body, want, &what);
             }

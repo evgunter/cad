@@ -1437,10 +1437,10 @@ pub fn split_op_error_tag(err: &SplitOpError) -> &'static str {
         SplitOpError::Finish(SplitFinishError::EdgeJoin { refusal, .. }) => {
             join_refusal_tag(refusal)
         }
+        SplitOpError::Finish(SplitFinishError::Carry { .. }) => "carry",
         SplitOpError::Finish(_) => "finish",
         SplitOpError::Pcurves(_) => "pcurves",
         SplitOpError::Pieces(_) => "pieces",
-        SplitOpError::Carry { .. } => "carry",
     }
 }
 

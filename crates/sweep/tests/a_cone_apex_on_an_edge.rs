@@ -168,7 +168,7 @@ fn six_ops(
                 // Parts touching at the apex or along a ruling are curved
                 // faces of two shells the census cannot yet clear
                 // (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-                let census = topo::validate_pseudomanifold(&body.body, &body.contacts(), tol());
+                let census = topo::validate_pseudomanifold(&body.body, body.contacts(), tol());
                 if body.body.shells().count() == 1 {
                     assert_eq!(census, Ok(()), "{what}: tier 3′ over the result's contacts");
                 } else {

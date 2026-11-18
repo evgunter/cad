@@ -57,7 +57,7 @@ fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
                         .unwrap_or_else(|e| panic!("{what}: tier 2, got {e:?}"));
                     topo::validate_geometric(&b.body, tol)
                         .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
-                    topo::validate_pseudomanifold(&b.body, &b.contacts(), tol)
+                    topo::validate_pseudomanifold(&b.body, b.contacts(), tol)
                         .unwrap_or_else(|e| panic!("{what}: tier 3′, got {e:?}"));
                     sweep::test_support::assert_legal_operand(what, &b.body, tol);
                     topo::test_support::pinned_volume("the measured body", &b.body, tol).volume
@@ -300,10 +300,10 @@ fn a_cube_touching_a_drum_at_a_corner_answers_its_closed_form() {
                 (2, 1),
                 "l {l} spin {spin}: drum ∖ inner is the drum and a void, its corner on the wall"
             );
-            topo::validate_pseudomanifold(&void.body, &void.contacts(), tol)
+            topo::validate_pseudomanifold(&void.body, void.contacts(), tol)
                 .unwrap_or_else(|e| panic!("l {l} spin {spin}: drum ∖ inner, tier 3′: {e:?}"));
             let pair = body(topo::union(&drum, &cube_at(p, n, spin, l), tol));
-            let undecided = topo::validate_pseudomanifold(&pair.body, &pair.contacts(), tol)
+            let undecided = topo::validate_pseudomanifold(&pair.body, pair.contacts(), tol)
                 .expect_err("below tier 3′");
             assert!(
                 !undecided.is_empty()

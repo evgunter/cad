@@ -477,7 +477,7 @@ fn every_order(
         ];
         assert_eq!(got, counts, "{what}: faces, edges, vertices");
         assert_eq!(validate_geometric(body, t()), Ok(()), "{what}: tier 3");
-        let verdict = validate_pseudomanifold(body, &r.contacts(), t()).err();
+        let verdict = validate_pseudomanifold(body, r.contacts(), t()).err();
         let undecided = verdict.iter().flatten().any(|e| {
             matches!(
                 e,
@@ -768,7 +768,7 @@ fn the_line_less_the_moved_bridge_passes_three_prime_with_its_records() {
         let r = op(topo::BooleanOp::Subtract, &line, &bridge, records);
         let what = format!("the line from {order:?} less the moved bridge");
         assert_eq!(
-            validate_pseudomanifold(&r.body, &r.contacts(), t()).err(),
+            validate_pseudomanifold(&r.body, r.contacts(), t()).err(),
             None,
             "{what}: tier 3′"
         );
@@ -984,7 +984,7 @@ fn edges_on_the_line_recorded(what: &str, x: &AtRestBody<f64>, y: &AtRestBody<f6
                 Ok(BooleanResult::Empty) => continue,
                 Err(e) => panic!("{what}: builds, got {e:?}"),
             };
-            if let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts(), t()) {
+            if let Err(errors) = validate_pseudomanifold(&r.body, r.contacts(), t()) {
                 let wrong = errors.iter().find(|e| {
                     matches!(
                         e,
@@ -1459,7 +1459,7 @@ fn a_contact_line_beside_a_face_holding_it_builds_in_every_op() {
                         carried_union(&b, &carried_body, [none(), records.clone()])
                     };
                     assert_eq!(
-                        validate_pseudomanifold(&r.body, &r.contacts(), t()).err(),
+                        validate_pseudomanifold(&r.body, r.contacts(), t()).err(),
                         None,
                         "{what}, the line body first: {line_first}: the carried union at 3′"
                     );
@@ -1626,7 +1626,7 @@ fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() 
                 Err((s, e)) => panic!("{what}: step {s} refused {e:?}"),
                 Ok(r) => {
                     assert!(k > 5.0, "{what}: built inside the band");
-                    let es = validate_pseudomanifold(&r.body, &r.contacts(), t()).unwrap_err();
+                    let es = validate_pseudomanifold(&r.body, r.contacts(), t()).unwrap_err();
                     assert!(
                         es.iter()
                             .any(|e| matches!(e, topo::ValidationError::CensusEscalated { .. })),
@@ -1740,7 +1740,7 @@ fn the_carried_fold_passes_three_prime_in_every_member_order() {
             assert!(shape(&body) == uncarried, "{what}: another body");
             let r = last.expect("at least two members");
             assert_eq!(
-                validate_pseudomanifold(&r.body, &r.contacts(), t()).err(),
+                validate_pseudomanifold(&r.body, r.contacts(), t()).err(),
                 None,
                 "{what}: the carried fold at 3′ ({} e-e rows)",
                 r.contacts().edge_edge().count()

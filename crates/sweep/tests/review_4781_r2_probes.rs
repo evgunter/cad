@@ -280,7 +280,7 @@ fn judge(
                 bad.push(format!("{miss} of {} samples disagree", pts.len()));
             }
             let ee = bb.contacts().edge_edge().count();
-            let v3 = match topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()) {
+            let v3 = match topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()) {
                 Ok(()) => "3'=Ok".to_string(),
                 Err(errs) => {
                     let undec = errs
@@ -625,7 +625,7 @@ fn review_4781_r2_record_survives() {
         );
         match got {
             Ok(BooleanResult::Body(r)) => {
-                let v3 = topo::validate_pseudomanifold(&r.body, &r.contacts(), tol());
+                let v3 = topo::validate_pseudomanifold(&r.body, r.contacts(), tol());
                 let kinds: Vec<String> = r
                     .contacts()
                     .rows()

@@ -80,7 +80,7 @@ fn findings(r: &topo::BooleanBody<f64>) -> Vec<String> {
         topo::EntityId::Solid(_) => "Solid".to_owned(),
         other => format!("{other:?}"),
     };
-    let mut out: Vec<String> = topo::validate_pseudomanifold(body, &r.contacts(), tol())
+    let mut out: Vec<String> = topo::validate_pseudomanifold(body, r.contacts(), tol())
         .err()
         .unwrap_or_default()
         .into_iter()

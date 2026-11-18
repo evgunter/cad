@@ -163,7 +163,7 @@ fn a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime() {
                 r.contacts()
             );
             assert_eq!(
-                validate_pseudomanifold(&r.body, &r.contacts(), tol()),
+                validate_pseudomanifold(&r.body, r.contacts(), tol()),
                 Ok(()),
                 "{what}: the ridge's wedge lies outside the floor's material"
             );

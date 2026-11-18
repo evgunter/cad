@@ -307,7 +307,7 @@ fn sound(
         "{what}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&r.body, &r.contacts(), t()),
+        topo::validate_pseudomanifold(&r.body, r.contacts(), t()),
         Ok(()),
         "{what}: tier 3′ under its records"
     );
@@ -758,7 +758,7 @@ fn a_tool_of_three_stacked_solids_is_one_material() {
                 "{what}: tier 3"
             );
             assert_eq!(
-                topo::validate_pseudomanifold(&r.body, &r.contacts(), t()),
+                topo::validate_pseudomanifold(&r.body, r.contacts(), t()),
                 Ok(()),
                 "{what}: tier 3′"
             );
@@ -1026,7 +1026,7 @@ fn one_solid(
         "{what}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&r.body, &r.contacts(), t()),
+        topo::validate_pseudomanifold(&r.body, r.contacts(), t()),
         Ok(()),
         "{what}: tier 3′"
     );

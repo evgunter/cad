@@ -38,7 +38,7 @@ fn run(op: Op, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Option<BooleanBody<f
 /// its own records; and how many `EdgeEdgeOverlap` refusals stripping
 /// those rows leaves, every other refusal failing the row.
 fn ee_rows(what: &str, r: &BooleanBody<f64>) -> (usize, usize) {
-    let verdict = validate_pseudomanifold(&r.body, &r.contacts(), tol());
+    let verdict = validate_pseudomanifold(&r.body, r.contacts(), tol());
     assert!(
         verdict.is_ok(),
         "{what}: 3′ with its records: {verdict:?}\n{:?}",

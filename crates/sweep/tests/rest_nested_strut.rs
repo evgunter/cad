@@ -152,7 +152,7 @@ fn a_pinch_apex_meeting_one_vertex_builds_in_either_order() {
             "pinch first: {pinch_first}: tier 3"
         );
         assert_eq!(
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
+            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()),
             Ok(()),
             "pinch first: {pinch_first}: tier 3′"
         );

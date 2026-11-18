@@ -1002,13 +1002,6 @@ pub enum SplitError {
     /// A side could not be sorted into solids ([`crate::pieces`]): the
     /// piece a shell of it belongs to could not be read.
     Pieces(crate::pieces::PieceSortError),
-    /// A contact record of the operand does not carry onto the sides
-    /// through the split's lineage
-    /// ([`crate::ContactRecords::carried_through`]).
-    Carry {
-        /// The carry's refusal.
-        refusal: crate::boolean::CarryRefusal,
-    },
 }
 
 impl From<SplitReduceError> for SplitError {
@@ -1070,7 +1063,6 @@ impl SplitError {
                 "a side of the split could not be sorted into solids: {}",
                 read_at(e, at)
             ),
-            Self::Carry { refusal } => refusal.write_at_a_door(f),
         }
     }
 }
@@ -1233,7 +1225,7 @@ where
         band,
         <F::Scalar as crate::props::AtRestPolicy>::region_lane(),
     )
-    .map_err(|refusal| SplitError::Carry { refusal })?;
+    .map_err(|refusal| SplitError::from(SplitFinishError::Carry { refusal }))?;
     let at_rest = |side, part: Option<Body<F::Scalar>>, records| match part {
         Some(body) => <F::Scalar as crate::props::AtRestPolicy>::finish(
             crate::Built::of(body).recording(records),

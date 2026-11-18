@@ -573,7 +573,7 @@ fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> crate::AtRestBody<f64> 
 fn built(what: &str, r: Result<BooleanResult<f64>, crate::BooleanError>) -> crate::AtRestBody<f64> {
     match r {
         Ok(BooleanResult::Body(r)) => {
-            if let Err(e) = validate_pseudomanifold(&r.body, &r.contacts(), tol()) {
+            if let Err(e) = validate_pseudomanifold(&r.body, r.contacts(), tol()) {
                 panic!("{what}: {e:?}");
             }
             r.body

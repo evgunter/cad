@@ -944,7 +944,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `SplitError`'s arms, for the `Split/` rows.
         pub(super) const SPLIT_ERROR: SplitError = [
-            Reduce, Join, Finish, Pcurves, Pieces, Carry,
+            Reduce, Join, Finish, Pcurves, Pieces,
         ];
     }
 
@@ -986,7 +986,7 @@ mod kernel {
             WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
-            ResultNotAtRest, EdgeJoin, Merge,
+            ResultNotAtRest, Carry, EdgeJoin, Merge,
         ];
     }
 
@@ -1188,9 +1188,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
                 topo::SplitError::Reduce(e) => levels.push(level("SplitReduceError", e)),
                 topo::SplitError::Join(e) => levels.push(level("JoinError", e)),
                 topo::SplitError::Finish(e) => levels.push(level("SplitFinishError", e)),
-                topo::SplitError::Pcurves(_)
-                | topo::SplitError::Pieces(_)
-                | topo::SplitError::Carry { .. } => {}
+                topo::SplitError::Pcurves(_) | topo::SplitError::Pieces(_) => {}
             }
             welded(levels)
         }
@@ -2920,6 +2918,12 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "Carry",
+            F::Carry {
+                refusal: topo::CarryRefusal::Stale { record: 0 },
+            },
+        ),
+        (
             "Merge",
             F::Merge {
                 side: topo::PlaneSide::Above,
@@ -2946,12 +2950,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             (
                 "Pieces".to_owned(),
                 SplitError::Pieces(topo::PieceSortError::NoOwner { shell }),
-            ),
-            (
-                "Carry".to_owned(),
-                SplitError::Carry {
-                    refusal: topo::CarryRefusal::Stale { record: 0 },
-                },
             ),
         ])
         .map(|(n, e)| row(&format!("Split/{n}"), NodeErrorKind::Split(e)))

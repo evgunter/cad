@@ -404,7 +404,7 @@ fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
             "slab {slab:?}: the corner's record lands on its piece"
         );
         assert_eq!(
-            errors(&out.body, &out.contacts()),
+            errors(&out.body, out.contacts()),
             vec![],
             "slab {slab:?}: the result certifies"
         );
@@ -518,7 +518,7 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
             }
         }
         assert_eq!(
-            errors(&out.body, &out.contacts()),
+            errors(&out.body, out.contacts()),
             vec![],
             "slab {slab:?}: the result certifies"
         );
@@ -595,7 +595,7 @@ fn a_crossing_the_join_makes_is_an_edge_edge_record() {
         joined.contacts()
     );
     assert_eq!(
-        errors(&joined.body, &joined.contacts()),
+        errors(&joined.body, joined.contacts()),
         vec![],
         "the joined union certifies"
     );
@@ -660,7 +660,7 @@ fn an_edge_edge_record_carries_onto_the_piece_of_a_split_edge_that_holds_it() {
             out.contacts()
         );
         assert_eq!(
-            errors(&out.body, &out.contacts()),
+            errors(&out.body, out.contacts()),
             vec![],
             "slab {slab:?}: the result certifies"
         );
@@ -688,7 +688,7 @@ fn a_split_at_the_crossing_records_its_vertex_on_the_other_edge() {
         &ContactRecords::default(),
         "the slab buries the crossing"
     );
-    assert_eq!(errors(&across.body, &across.contacts()), vec![]);
+    assert_eq!(errors(&across.body, across.contacts()), vec![]);
     for slab in [(0.5, 0.6), (0.4, 0.5), (0.5, 0.95)] {
         let out = crossing_into(&y, slab, tol);
         let at_crossing: Vec<_> = out
@@ -703,7 +703,7 @@ fn a_split_at_the_crossing_records_its_vertex_on_the_other_edge() {
             out.contacts()
         );
         assert_eq!(
-            errors(&out.body, &out.contacts()),
+            errors(&out.body, out.contacts()),
             vec![],
             "slab {slab:?}: the result certifies"
         );
@@ -807,7 +807,7 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
         out.contacts()
     );
     assert_eq!(
-        errors(&out.body, &out.contacts()),
+        errors(&out.body, out.contacts()),
         vec![],
         "the result certifies"
     );

@@ -185,7 +185,7 @@ fn r2_rand_seed2_case390() {
                 Ok(r) => match r.body() {
                     None => println!("[r2-390] {ord} {op}: EMPTY (want {want})"),
                     Some(bb) => {
-                        let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol());
+                        let t3 = topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol());
                         println!(
                             "[r2-390] {ord} {op}: BUILDS vol {:?} want {want}; t2 {:?}; t3' {:?}; cert {:?}",
                             topo::mass_properties(
@@ -195,7 +195,7 @@ fn r2_rand_seed2_case390() {
                             )
                             .map(|m| m.enclosure.volume),
                             topo::validate_closed(&bb.body),
-                            topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
+                            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()),
                             topo::validate_geometric_certificate(&bb.body, tol()).map(|_| ()),
                         );
                         bad.extend(t3.err().map(|e| format!("{ord} {op}: tier 3′ {e:?}")));

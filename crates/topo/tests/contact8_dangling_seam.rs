@@ -59,7 +59,7 @@ fn assert_green(bb: &BooleanBody<f64>, what: &str) {
     assert_eq!(validate_closed(&bb.body), Ok(()), "{what}: tier 2");
     assert_eq!(validate_geometric(&bb.body, tol), Ok(()), "{what}: tier 3");
     assert_eq!(
-        validate_pseudomanifold(&bb.body, &bb.contacts(), tol),
+        validate_pseudomanifold(&bb.body, bb.contacts(), tol),
         Ok(()),
         "{what}: tier 3′"
     );

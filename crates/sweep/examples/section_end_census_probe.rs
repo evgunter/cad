@@ -74,7 +74,6 @@ fn outcome(r: Result<topo::SplitResult<f64>, SplitError>) -> String {
                 SplitError::Finish(_) => "finish",
                 SplitError::Pcurves(_) => "pcurves",
                 SplitError::Pieces(_) => "pieces",
-                SplitError::Carry { .. } => "carry",
             };
             let variant = format!("{e:?}");
             let head: String = variant.chars().take(90).collect();

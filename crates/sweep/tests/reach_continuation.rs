@@ -139,7 +139,7 @@ fn union_honest(label: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Boolea
         "{label}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()),
         Ok(()),
         "{label}: tier 3′"
     );
@@ -644,7 +644,7 @@ fn builds(
         "{label}: tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol()),
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()),
         Ok(()),
         "{label}: tier 3′"
     );

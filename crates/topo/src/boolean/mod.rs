@@ -1078,7 +1078,7 @@ impl OperandRecords {
     ///
     /// [`ContactPairError`] for a record whose two cells are one cell or
     /// incident in `body`.
-    pub(crate) fn records<T: geom_core::Real>(
+    pub(in crate::boolean) fn records<T: geom_core::Real>(
         &self,
         body: &crate::Body<T>,
         input: u32,

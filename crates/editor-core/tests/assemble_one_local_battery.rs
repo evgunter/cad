@@ -73,7 +73,7 @@ fn the_gather_pays_tier_3_prime_once_and_the_at_rest_check_nothing() {
     });
     report.expect("the at-rest check runs over the product");
     let (whole, pass) =
-        recorded(|| topo::validate_pseudomanifold(&product.body, &product.contacts, tol));
+        recorded(|| topo::validate_pseudomanifold(&product.body, product.contacts(), tol));
     whole.expect("the assembled body passes tier 3′");
     assert!(
         !pass.is_empty(),

@@ -66,7 +66,7 @@ fn an_offset_moving_a_kissing_corner_off_the_kiss_consumes_the_record() {
             let gap = (point(&moved, x) - point(&moved, y)).norm();
             assert!(gap > 0.09, "face {face:?} by {d}: the corners part: {gap}");
             let carried = outcome.carry_contacts(
-                &base.contacts(),
+                base.contacts(),
                 &moved,
                 geom_core::Band::linear(tol()).unwrap(),
                 Some(topo::RegionLane::certified()),

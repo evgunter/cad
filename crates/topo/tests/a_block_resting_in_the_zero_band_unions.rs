@@ -42,7 +42,7 @@ fn unites(what: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, tol: Tol) -> (f6
         other => panic!("{what}: the union builds, got {:?}", other.map(|_| ())),
     };
     topo::validate_geometric(&bb.body, tol).unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
-    topo::validate_pseudomanifold(&bb.body, &bb.contacts(), tol)
+    topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol)
         .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
     assert_eq!(bb.body.solids().count(), 1, "{what}: one solid");
     assert_volume_relations(what, BooleanOp::Union, x, y, Some(&bb.body), tol);
