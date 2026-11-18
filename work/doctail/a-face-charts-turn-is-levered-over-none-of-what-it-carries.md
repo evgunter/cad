@@ -2,11 +2,12 @@
 id: a-face-charts-turn-is-levered-over-none-of-what-it-carries
 kind: issue
 title: A face's chart levers its least turn over its slides and the face's distance alone, so a wide profile on it builds where a placement of that size refuses backwards
-status: open
+status: parked
 opened: 2026-11-18
 priority: P1
 cost: M
 refs: [a-face-chart-over-a-plane-through-its-origin-refuses-backwards-at-arm-zero]
+blocked_on: [7122]
 ---
 
 Found by the FULL review of `a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face` (PR 7111, MINOR 2), and left open by its fix pass because the fix has more than one home.

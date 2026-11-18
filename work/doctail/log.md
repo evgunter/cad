@@ -205,3 +205,40 @@ body has the reasons):
   `shape_of_recorded`, `step_kernel`) were unlisted. `d038c60` lists them
   as interior, and the orchestrator read that delta. Green on `gate ok`,
   so no further review. The cloud lane is archived.
+
+- 2026-11-18 15:35 — **7126 merged** (`a350d76`). Tracing draws on the
+  face's chart, `traced_frame` and the New-traced-profile act are
+  retired, and the coincidence door proves the tangency by rung 3. The
+  orchestrator read the fix pass, which closes every item of the FULL
+  review:
+  - the heading is levered at the decided pair's own arm
+    (`carrier_pair_arm`), rounded up to a power of two, because the
+    reach's form, an opaque reach and its exact `f64` each run over the
+    budget or keep an atom;
+  - the viewer form lets its trace go on commit, on Cancel and from its
+    own button;
+  - the float-turn recourse names the axis read off the face;
+  - `chart_on_face` is the one home of the chart's defaults;
+  - `traced_faces` binds counts and then definitions;
+  - `nearest_to_face` returns a `Result`.
+
+  The merge with 7116 was a union in both conflicted files. Hardening
+  nit, not filed: `swept_along` would discharge any margin if the pair's
+  arm read zero. `consumed_arm` is the kernel's positive reach for any
+  face the replay built, so this cannot happen today, and a guard is
+  owed only if that arm ever changes. Worktree removed.
+- 2026-11-18 15:40 — **Sitting ends; the track goes back `ready`.** No
+  P0 or P1 row is dispatchable:
+  - the runwall P0 is parked on `[ev]` 7082;
+  - both face-chart P1 rows are now parked on `[ev]` 7122, because the
+    lever ruling decides where the band lives, and arm-zero is moot if
+    it lands;
+  - Diagnosis::Parted waits on `[ev]` 7129 and has no row until Ev
+    rules.
+
+  The P2/P3 tail is the successor's, per the board. Filed:
+  `through-and-meet-decide-their-degeneracy-at-unit-norm-unlevered-over-their-readers`
+  (P3 M), the `lever` designers' off-question class. This session stays
+  on the three `[ev]` PRs while it lives. On a ruling it updates the
+  diff in place, merges on approval, and unparks the rows that wait on
+  it. Whoever holds the track next dispatches them.

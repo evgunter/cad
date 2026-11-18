@@ -2,11 +2,12 @@
 id: a-face-chart-over-a-plane-through-its-origin-refuses-backwards-at-arm-zero
 kind: issue
 title: A face chart on a face whose plane passes through its space's origin, with zero slides, is levered over arm 0 and refuses Backwards, naming the orientation already written
-status: open
+status: parked
 opened: 2026-11-18
 priority: P1
 cost: E
 refs: [a-face-charts-turn-is-levered-over-none-of-what-it-carries]
+blocked_on: [7122]
 ---
 
 
