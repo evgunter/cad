@@ -1711,7 +1711,19 @@ not of the axes. An operand in another frame is read into it through
 their relative placement, which moves where the operand stands and
 none of its data: a reading within one operand is made in its own
 coordinates, and only a reading between two goes through their
-relative motion. Where conditioning does not decide, a construction
+relative motion. So a body records each of its parts in the frame it
+was built in, and that record is the part's data: a copy of it moved
+into another frame is derived from it, may be kept as a cache, and
+answers a reading only where it gives what the record read through
+the motion gives. The relative motion of two frames is composed
+through the nearest frame they share: an operation's result keeps what it
+takes from each operand where that operand stood, bit for bit, and an
+aggregate places each piece with its frame. A point the operation
+mints between two operands is held as the claim it is ([scalars]): the
+carrier it was found on, its parameter there and the reading that
+found it, its coordinates that carrier's point in that carrier's
+frame, or the operation's frame where it lies on no single carrier.
+Where conditioning does not decide, a construction
 computes in its own coordinates and an operation over copies in its
 first operand's as the author lists it. The census at a `⊔`
 ([assertions]) is defined order-free: each pair's verdict is the same
@@ -1946,7 +1958,9 @@ by door, is `crates/editor-core/ASSEMBLY.md` and
   uses the same node, edit, naming, undo and memo machinery as a part,
   and its evaluation is one kernel `Body`, generally multi-solid and
   not connected: the kernel has no assembly type. Which solids are one
-  part, and which mates hold, is recipe structure, never body state;
+  part, and which mates hold, is recipe structure, never body state
+(a body's frames say where its data stands, not which solids are one
+part);
   fusing copies is an explicit boolean, never implied.
 - **A reference pins content.** `[assemblies.pins]` A cross-document
   reference is a `DocRef`: a `DocumentId`, which says which document
