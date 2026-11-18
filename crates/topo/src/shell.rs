@@ -4610,7 +4610,12 @@ fn cavity_embedded<T: Decide + geom_core::CertifiedBounds + crate::props::AtRest
         max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
         max_cell_pairs: CAVITY_MAX_CELL_PAIRS,
     };
-    match embedded(&side, band, budgets).verdict {
+    let report = embedded(&side, band, budgets);
+    if std::env::var_os("CV_CAVITY_F64").is_some() {
+        let kinds: Vec<String> = cavity.faces().map(|(k, f)| format!("{k:?}={:?}", cavity.get_surface(f.surface))).collect();
+        eprintln!("CAVITY faces={} {:?} verdict={:?} receipt={:?}", cavity.faces().count(), kinds, report.verdict, report.receipt);
+    }
+    match report.verdict {
         Embedding::Embedded => Ok(()),
         Embedding::Crosses(Crossing {
             faces: (face, other),
@@ -4648,6 +4653,7 @@ impl CavityGate {
     fn at<T: Decide + crate::props::AtRestPolicy>() -> Self {
         match T::clearance_lane() {
             Some(_) => Self::Asks,
+            None if std::env::var_os("CV_CAVITY_F64").is_some() => Self::Asks,
             None => Self::WaitsOnTheEngineRows,
         }
     }
