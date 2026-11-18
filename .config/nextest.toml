@@ -173,7 +173,7 @@ failure-output = "immediate-final"
 #   16.4 s   topo::all boxed_revolved_bodies_read_what_their_members_read::containment_about_a_boxed_rim_answers_as_its_members_do
 #   23.6 s   topo::all boxed_revolved_bodies_read_what_their_members_read::aims_about_a_boxed_frustum_and_sphere_cap_read_no_wrong_side
 #   25 s     topo::all boxed_revolved_bodies_read_what_their_members_read::aims_beside_a_boxed_seams_vertices_read_no_wrong_side
-#    0.49 s  sweep::all a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside::a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside
+#    0.49 s  sweep::all a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk::a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk
 # Booleans of quadric pairs across a closed fitted section loop, each
 # built in several ops and meshed at up to three δ (a local debug run, 4
 # vCPUs, beside another lane's build):
@@ -469,7 +469,7 @@ not (
   (binary_id(editor-core::all) & test(=a_taken_slab_over_a_box_is_never_refused_as_a_flip::a_slab_under_a_taker_over_wider_boxes_is_never_refused_as_a_flip)) |
   (binary_id(topo::all) & test(=an_aimed_ray_beside_a_boxed_cylinders_moving_rim::no_ray_about_a_boxed_cylinder_reads_the_side_no_member_has)) |
   (binary_id(topo::all) & (test(=boxed_revolved_bodies_read_what_their_members_read::containment_about_a_boxed_rim_answers_as_its_members_do) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_about_a_boxed_frustum_and_sphere_cap_read_no_wrong_side) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_beside_a_boxed_seams_vertices_read_no_wrong_side))) |
-  (binary_id(sweep::all) & test(=a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside::a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside))
+  (binary_id(sweep::all) & test(=a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk::a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk))
 )
 """
 

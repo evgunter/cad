@@ -83,6 +83,18 @@ The non-touch row `each_window_reading_holds_on_a_dense_distance`, run at the ne
 - **The restart has no row that goes red without it.** Open a `k_stats::Bracket` around `w.chained(..)` on one of the 15 real windows, e.g. `curve_pair::plane_rows::two_circles_at_a_shallow_tilt_meet_twice_near_one_plane_root`. Assert that no verdict names `curve_pair_window_off_span` or `curve_pair_window_width` (locus.rs:1308 is the precedent).
 - **"A receding piece is off where its near end is" is spelled twice:** in `read`'s unringed arm (`window.rs:316-326`) and in `chained` (`window.rs:453`). One helper should map direction to near end for both. Alternatively, `read` could return `Off` for a ringed `Recedes` whose near end is off, leaving `chained` unchanged.
 
+## 2026-11-17: the unringed reading at 1e-12 too (ONEHOME, fork 275 step 3b)
+
+The non-touch row `each_window_reading_holds_on_a_dense_distance`, which since 2026-11-16 holds only the unringed reading at the needle's band, reds about 3 seeds in 25 there. Each is an **unringed** `Recedes` (`ring None`), so the family reaches the reading the fence kept. The three seeds, each one contradiction at ε 1e-12, `CAD_FUZZ_EFFORT=1`:
+- `0xe8ff061a1fba18f3`: draw 51, `Recedes` on `(-3.527e-9, -3.486e-9)`, an ellipse of semi-axes (667.5, 1092.9) centred about 755 m from the origin;
+- `0x45acb5a5d7ddd040`;
+- `0xd5a0f0c0b139ce05`;
+- `0x04f4dcf753f68827` (2026-11-18): draw 37, `Recedes` on `(2.803e-8, 2.806e-8)` on a circle centred about 610 m from the origin, red identically on the merge of PR 7048 (`0c2b761e91`).
+
+All three red identically on `onehome/pair-read` at e4f142b6b2 (PR 7048), which does not touch `curve_pair/pose/window/`, and on `onehome/span-foot` (step 3b), so neither branch is their cause. The scale, ~10³ m at ε 1e-12, matches the oracle-noise question above.
+
+## 2026-11-18: the dense-distance row at 1e-6 (importgate/build)
+
 The sibling row `curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance`
 (not `_at_a_touch`) reds the same way at ε = 1e-6 on
 `CAD_FUZZ_SEED=0x362191a627c797f4` (`CAD_FUZZ_EFFORT=1`): two `Recedes`

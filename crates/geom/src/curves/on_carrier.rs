@@ -6,8 +6,10 @@
 //! **The foot** is a parameter of the carrier near the point's closest
 //! point, held with the point and the carrier it was found for, and its
 //! gap `|q − C(t)|`, which bounds the point's distance from the carrier
-//! from above. Only [`Curve3::foot`] makes one, so a foot cannot be read
-//! against another point or another carrier. Where it is found:
+//! from above. Only [`Curve3::foot`] (the whole carrier) and
+//! [`Curve3::foot_within`] (an interval of it, the foot a point-on-span
+//! question reads) make one, so a foot cannot be read against another
+//! point or another carrier. Where it is found:
 //!
 //! - a line: in closed form;
 //! - a circle: the angle of the point about the centre, exact, the
@@ -16,14 +18,18 @@
 //!   Gauss–Newton. The unit-coordinate angle alone is not a foot: its
 //!   point lies up to `(1 + a/b)·d` from a point `d` off the ellipse;
 //! - a spiric oval: [`Curve3::param_near`]'s angle, then Gauss–Newton;
-//! - a spline: Gauss–Newton, held to the domain, from the caller's seed
-//!   and from some of a few samples on each knot span and the domain's
-//!   ends, the smallest gap kept. The samples polished from are the
-//!   ends, each local minimum of the sampled gaps, and the few least
-//!   gaps, so a branch whose nearest sample sits beside a nearer one of
-//!   another branch is still descended. A closed spline's two ends are
-//!   one point, so a descent held at one end continues from the other.
+//! - a spline: Gauss–Newton from the caller's seed, clamped into the
+//!   interval. Over the whole carrier, a clamped spline's foot is held
+//!   to its domain, and a periodic cubic's is free to leave its turn,
+//!   since the loop runs on.
 //!
+//! Over an interval, a line's and a circle's foot is the whole carrier's
+//! nearest point, which the interval's own reading of its ends places
+//! (the interval's nearest point is it, or an end); every other kind's
+//! seed is read on the branch about the interval's middle and clamped
+//! into it, and each polish iterate is held to it. No sample is read: a
+//! foot is a place to read, and a poor one costs an escalation, never a
+//! verdict (below).
 //! A closed kind's angle is read relative to the seed's direction, or to
 //! its opposite where the point lies definitely behind it, so an
 //! enclosure of the point's direction never crosses the angle's own cut.
@@ -86,6 +92,20 @@
 //!   extreme weights it is the same expression in round-to-nearest, not
 //!   a bound.
 //!
+//! **Where the walk keeps a piece.** The spline's walk is also the one
+//! home for where on the carrier the point can be near: the piece it
+//! stops at (the first, in parameter order, whose reach is within the
+//! band and that is not decided clear) is a place the carrier may come
+//! within the band of the point. So where the foot's gap does not decide
+//! zero, the polish is restarted once, from that piece's middle, and reads
+//! `On` there where its gap decides zero. The seed order is the caller's
+//! seed, then the walk's kept piece: the restart reads the certificate the
+//! Off already reads rather than guessing a start, and the walk stops
+//! where it always has, so it reads no more pieces than the Off does. A
+//! restart whose gap does not decide zero is no answer, its reading
+//! superseded, and the walk's reading of the kept piece stands as before:
+//! off where every piece clears, and otherwise the straddle below.
+//!
 //! The lower bound on the band's zero side and the gap past it straddle
 //! the whole band (`curve_carrier_straddle`): only a carrier bending
 //! tighter than the band resolves, or a poor foot, allows it, and it
@@ -102,16 +122,9 @@ use super::Curve3;
 /// The Gauss–Newton steps a foot is polished by.
 const POLISH_STEPS: usize = 6;
 
-/// How many of a spline's least-gap samples its foot search polishes
-/// from, beside each local minimum of the sampled gaps.
-const LEAST_SAMPLES: usize = 4;
-
-/// Where a spline's foot search samples each knot span, as fractions of
-/// it.
-const SPLINE_SAMPLES: [f64; 4] = [0.125, 0.375, 0.625, 0.875];
-
-/// A point's foot on a carrier, made only by [`Curve3::foot`], holding
-/// the point and the carrier it was found for (module docs).
+/// A point's foot on a carrier, made only by [`Curve3::foot`] and
+/// [`Curve3::foot_within`], holding the point and the carrier it was
+/// found for (module docs).
 #[derive(Clone, Copy, Debug)]
 pub struct Foot<'c, T: Real> {
     carrier: &'c Curve3<T>,
@@ -150,6 +163,21 @@ impl<'c, T: Decide> Foot<'c, T> {
         self.carrier.foot_is_nearest().then_some(self.t)
     }
 
+    /// **Of two feet of one point on one carrier, the one whose gap is
+    /// decided smaller**, `self` at a tie: the heuristic's choice between
+    /// sound places that the foot's own polish makes (ledger row F32), for
+    /// a reader holding feet found over several intervals (`geom-brep`'s
+    /// site reading over its tube pieces). No reader rests on which is
+    /// kept: the kept foot is read as any foot is ([`Self::on_carrier`]).
+    #[must_use]
+    pub fn least(self, other: Self) -> Self {
+        if smaller(other.gap, self.gap) {
+            other
+        } else {
+            self
+        }
+    }
+
     /// `|q − C(t)|`, an upper bound on the point's distance from the
     /// carrier: what [`Self::on_carrier`] decides `On` on.
     pub fn gap(&self) -> T {
@@ -176,10 +204,17 @@ impl<'c, T: Decide> Foot<'c, T> {
         }
         let clear = match self.carrier.clearance(self.q) {
             Some(lower) => decide_reported("curve_carrier_clear", Margin::of(lower), band),
-            None => match self.carrier.clear_of(self.q, self.carrier.domain(), band)? {
-                Clearance::Clear => return Ok(OnCarrier::Off),
-                Clearance::Near(kept) => kept,
-            },
+            None => {
+                match self
+                    .carrier
+                    .walk_kept(self.q, self.carrier.domain(), band, |mid| {
+                        self.restart(mid, band)
+                    })? {
+                    (Clearance::Clear, _) => return Ok(OnCarrier::Off),
+                    (_, Some(Some(on))) => return Ok(on),
+                    (Clearance::Near(near), _) => near,
+                }
+            }
         };
         match (clear, gap) {
             (
@@ -194,6 +229,34 @@ impl<'c, T: Decide> Foot<'c, T> {
                 straddle("curve_carrier_straddle", low, high, band),
             ))),
         }
+    }
+}
+
+impl<T: Decide> Foot<'_, T> {
+    /// **The polish restarted from a piece the Off's walk keeps** (module
+    /// docs, "Where the walk keeps a piece"): from `mid`, the kept piece's
+    /// middle, held to the carrier's domain, `On` where its gap decides
+    /// zero (`curve_carrier_gap`). A gap that does not is no answer: its
+    /// reading is superseded, since the walk's decides.
+    fn restart(&self, mid: T, band: Band) -> Option<OnCarrier<T>> {
+        let c = self.carrier;
+        // Held to the domain as the whole carrier's foot is: a periodic
+        // cubic's runs on past its turn.
+        let hold = c.as_periodic().is_none().then(|| c.domain());
+        let foot = c.polish(self.q, c.foot_at(self.q, mid), hold);
+        let (gap, record) = geom_core::k_stats::detached(|| {
+            decide_reported("curve_carrier_gap", Margin::of(foot.gap), band)
+        });
+        if let Ok(Decided {
+            sign: Sign::Zero,
+            margin,
+        }) = gap
+        {
+            geom_core::k_stats::splice(record);
+            return Some(OnCarrier::On { t: foot.t, margin });
+        }
+        geom_core::k_stats::splice_superseded(record);
+        None
     }
 }
 
@@ -444,54 +507,88 @@ impl<T: Decide> Curve3<T> {
         self.param_near(q, near)
     }
 
-    /// **`q`'s foot on the carrier** (module docs). `near` is a seed: the
-    /// parameter a consumer already holds for `q`, or any parameter of
-    /// the interval it reads.
+    /// **`q`'s foot on the whole carrier** (module docs): [`Self::foot_within`]
+    /// over the whole carrier, held to nothing but a spline's domain.
+    /// `near` is a seed: the parameter a consumer already holds for `q`.
     pub fn foot(&self, q: Point3<T>, near: T) -> Foot<'_, T> {
-        // A spline's foot is searched over its knot spans: a clamped
-        // one's over its domain, held to it; a periodic cubic's over one
-        // turn's, free to leave it, since the loop runs on.
-        let Some(net) = self.whole_net() else {
-            let Some(seed) = self.param_near(q, near) else {
-                unreachable!("only a spline reads no parameter near a point")
+        self.foot_held(q, None, near)
+    }
+
+    /// **`q`'s foot over the interval `(t0, t1)` of the carrier** (module
+    /// docs): on a line and a circle the whole carrier's nearest point,
+    /// in closed form, whose place against the interval says whether the
+    /// interval's nearest point is it or an end; on any other kind
+    /// polished from `near` clamped into the interval, each iterate held
+    /// to it. The foot is no farther from `q` than the interval's own
+    /// ends: an end nearer than the polish reached is polished in turn.
+    /// A periodic cubic's ([`Curve3::Periodic`]) is held to the interval
+    /// like any other spline's
+    /// (`rows::a_periodic_cubics_foot_over_a_span_is_held_to_it`); its
+    /// whole-carrier foot ([`Self::foot`]) is free, held to nothing, since
+    /// the loop runs on past its base turn
+    /// (`rows::a_periodic_cubics_whole_carrier_foot_runs_on_past_its_turn`).
+    /// No sample is read: a poor foot costs an escalation, never a
+    /// verdict, since `On` rests on its gap and `Off` on a lower bound on
+    /// the distance from the whole carrier.
+    pub fn foot_within(&self, q: Point3<T>, (t0, t1): (T, T), near: T) -> Foot<'_, T> {
+        self.foot_held(q, Some((t0.min(t1), t0.max(t1))), near)
+    }
+
+    /// [`Self::foot`] and [`Self::foot_within`]'s one search, `hold` the
+    /// interval the foot is held to, `None` for the whole carrier: a
+    /// clamped spline's whole carrier is its domain, and a periodic cubic's
+    /// runs on past its turn, held to nothing. A nearest kind's foot is
+    /// held to nothing either: clamped, a circle's would name an end where
+    /// a box of the point's angle lies astride the arc's gap, which only
+    /// the place reads, by the copy a turn away. Over an interval the seed
+    /// is read on the branch about its middle ([`Self::branch_near`]) and
+    /// clamped into it.
+    fn foot_held(&self, q: Point3<T>, hold: Option<(T, T)>, near: T) -> Foot<'_, T> {
+        let into = |t: T, (lo, hi): (T, T)| {
+            self.branch_near(t, crate::mid_param(lo, hi))
+                .max(lo)
+                .min(hi)
+        };
+        if let Some(net) = self.whole_net() {
+            let hold = hold.or_else(|| {
+                self.as_periodic()
+                    .is_none()
+                    .then(|| net.knot_values().domain())
+            });
+            let Some(hold) = hold else {
+                return self.polish(q, self.foot_at(q, near), None);
             };
-            let at = self.foot_at(q, seed);
-            return if self.foot_is_nearest() {
-                at
-            } else {
-                self.polish(q, at, None)
-            };
-        };
-        let (breaks, domain): (Vec<T>, Option<(T, T)>) = match self.as_periodic() {
-            Some(p) => (p.turn_breaks_in(), None),
-            None => {
-                let knots = net.knot_values();
-                (knots.breakpoints().collect(), Some(knots.domain()))
-            }
-        };
-        let (Some(&lo), Some(&hi)) = (breaks.first(), breaks.last()) else {
-            return self.foot_at(q, near);
-        };
-        let mut samples = vec![self.foot_at(q, lo)];
-        for k in breaks.windows(2) {
-            samples.extend(
-                SPLINE_SAMPLES.map(|s| self.foot_at(q, k[0] + (k[1] - k[0]) * T::from_f64(s))),
-            );
+            return self.held(q, into(near, hold), hold);
         }
-        samples.push(self.foot_at(q, hi));
-        let seed = if domain.is_some() {
-            near.max(lo).min(hi)
-        } else {
-            near
+        let Some(seed) = self.param_near(q, near) else {
+            unreachable!("only a spline reads no parameter near a point")
         };
-        let mut foot = self.polish(q, self.foot_at(q, seed), domain);
-        for i in spline_starts(&samples) {
-            let f = self.polish(q, samples[i], domain);
-            if smaller(f.gap, foot.gap) {
-                foot = f;
+        if self.foot_is_nearest() {
+            return self.foot_at(q, seed);
+        }
+        let Some(hold) = hold else {
+            return self.polish(q, self.foot_at(q, seed), None);
+        };
+        self.held(q, into(seed, hold), hold)
+    }
+
+    /// **The foot held to `(lo, hi)`**, no farther from `q` than the
+    /// interval's own ends: polished from `seed`, and from an end whose
+    /// gap is decided smaller than the polished foot's. A seed clamped
+    /// onto an end where the distance grows into the interval does not
+    /// move, though the other end be nearer
+    /// (`rows::a_foot_over_an_interval_is_no_farther_than_its_ends`); an
+    /// end that wins is polished, held, so a nearer stationary point by it
+    /// is found.
+    fn held<'c>(&'c self, q: Point3<T>, seed: T, (lo, hi): (T, T)) -> Foot<'c, T> {
+        let mut best = self.polish(q, self.foot_at(q, seed), Some((lo, hi)));
+        for end in [lo, hi] {
+            let at = self.foot_at(q, end);
+            if smaller(at.gap, best.gap) {
+                best = self.polish(q, at, Some((lo, hi)));
             }
         }
-        foot
+        best
     }
 
     /// The foot at `t` as read, unpolished.
@@ -675,9 +772,29 @@ impl<T: Decide> Curve3<T> {
     pub fn clear_of(
         &self,
         q: Point3<T>,
-        (t0, t1): (T, T),
+        span: (T, T),
         band: Band,
     ) -> Result<Clearance, CarrierRefusal> {
+        Ok(self.walk_kept(q, span, band, |_| ())?.0)
+    }
+
+    /// [`Self::clear_of`]'s walk, `kept` read once, at the middle of the
+    /// first piece the walk keeps (its reach within the band and not
+    /// decided clear, in parameter order), where the walk stops: no later
+    /// piece can make the point off. The piece it keeps is where on the
+    /// interval the carrier can come within the band of `q` (module docs,
+    /// "Where the walk keeps a piece"); `None` where every piece clears.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::clear_of`].
+    fn walk_kept<R>(
+        &self,
+        q: Point3<T>,
+        (t0, t1): (T, T),
+        band: Band,
+        kept: impl FnOnce(T) -> R,
+    ) -> Result<(Clearance, Option<R>), CarrierRefusal> {
         let hi = crate::carrier_speed::speed_range(self).1;
         if !geom_core::is_finite_length(hi.get())
             || geom_core::k_stats::prove("curve_carrier_speed", Margin::of(hi.get()))
@@ -705,12 +822,15 @@ impl<T: Decide> Curve3<T> {
                     decide("curve_carrier_piece", Margin::of(p.reach), band),
                     Ok(Sign::Negative | Sign::Zero)
                 ) {
-                    return PieceStep::Stop(clear);
+                    return PieceStep::Stop((p.mid, clear));
                 }
                 PieceStep::Halve
             })
             .map_err(|_| CarrierRefusal::from(PieceWalkRefusal::Exhausted))?;
-        Ok(near.map_or(Clearance::Clear, Clearance::Near))
+        Ok(match near {
+            Some((mid, clear)) => (Clearance::Near(clear), Some(kept(mid))),
+            None => (Clearance::Clear, None),
+        })
     }
 }
 
@@ -727,32 +847,6 @@ pub fn ellipse_level_clearance<T: Decide>((x, y): (T, T), (a, b): (T, T)) -> T {
     let g2 = (two * u / a).powi(2) + (two * v / b).powi(2);
     let small = a.min(b);
     two * f / (g2.sqrt() + (g2 + T::from_f64(4.0) * f.abs() / small.powi(2)).sqrt())
-}
-
-/// **The samples a spline's foot search polishes from**, by index, in
-/// order: both ends of the domain, each local minimum of the sampled
-/// gaps, and the [`LEAST_SAMPLES`] least gaps. A local minimum finds a
-/// branch whose samples dip toward the point; the least gaps find one
-/// whose nearest sample sits beside a nearer one on another branch
-/// (a cusp, or a hairpin narrower than the sampling).
-fn spline_starts<T: Decide>(samples: &[Foot<'_, T>]) -> Vec<usize> {
-    let gap = |i: usize| samples[i].gap;
-    let not_below = |i: usize, j: Option<usize>| j.is_none_or(|j| !smaller(gap(j), gap(i)));
-    let mut starts: Vec<usize> = (0..samples.len())
-        .filter(|&i| {
-            i == 0 || i + 1 == samples.len() || {
-                not_below(i, i.checked_sub(1)) && not_below(i, Some(i + 1))
-            }
-        })
-        .collect();
-    for _ in 0..LEAST_SAMPLES {
-        let least = (0..samples.len())
-            .filter(|i| !starts.contains(i))
-            .reduce(|a, b| if smaller(gap(b), gap(a)) { b } else { a });
-        starts.extend(least);
-    }
-    starts.sort_unstable();
-    starts
 }
 
 /// Whether `a` is decided smaller than `b`: a heuristic's choice
