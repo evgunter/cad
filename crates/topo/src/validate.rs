@@ -10769,6 +10769,22 @@ pub fn validate_pseudomanifold_certificate_structural<
     pseudomanifold_certificate_via(body, contacts, tol, None, None)
 }
 
+/// **The bar a finished body's gate paid past tier 3**
+/// ([`AtRestBody::bar`]): what its census read. Neither is tier 3′ in
+/// both directions; the type names which half was paid rather than let
+/// one verdict mean both.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Bar {
+    /// A deciding door's: every record the body holds is confirmed
+    /// where it lies. A meeting no record backs was not asked.
+    RecordsConfirmed,
+    /// A `⊔`'s: the census decided every meeting between two arrivals,
+    /// recorded or reported, and confirmed the records it holds. Inside
+    /// one arrival nothing was read: the arrival's verdict is its own
+    /// door's.
+    ArrivalsDecided,
+}
+
 /// **A finished body at a scalar with certification rights**, and tier
 /// 3's verdict on it kept beside it — so a tier-3′ pass over the same
 /// body pays the census alone — with the certificate its check 7
@@ -10813,6 +10829,7 @@ pub fn validate_pseudomanifold_certificate_structural<
 pub struct AtRestBody<T: geom_core::Decide> {
     body: Body<T>,
     records: crate::boolean::ContactRecords,
+    bar: Bar,
     sign: std::sync::Arc<crate::props::KeptSign<T>>,
     held: Option<std::sync::Arc<geom_core::k_stats::Recorded>>,
 }
@@ -10845,6 +10862,7 @@ impl<T: geom_core::Decide> AtRestBody<T> {
         Ok(Self {
             body,
             records,
+            bar: Bar::RecordsConfirmed,
             sign,
             held: None,
         })
@@ -10892,6 +10910,7 @@ impl<T: geom_core::Decide> AtRestBody<T> {
             body: Self {
                 body,
                 records,
+                bar: Bar::ArrivalsDecided,
                 sign,
                 held: None,
             },
@@ -10905,6 +10924,13 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     #[must_use]
     pub fn records(&self) -> &crate::boolean::ContactRecords {
         &self.records
+    }
+
+    /// **The bar its gate paid past tier 3** ([`Bar`]); an isometry
+    /// keeps it.
+    #[must_use]
+    pub const fn bar(&self) -> Bar {
+        self.bar
     }
 
     /// **Maps its records' citations**
@@ -10959,6 +10985,7 @@ impl<T: geom_core::Decide> AtRestBody<T> {
         Ok(Self {
             body,
             records: self.records.clone(),
+            bar: self.bar,
             sign: std::sync::Arc::new(self.sign.moved(&iso.to_affine())),
             held: self.held.clone(),
         })
@@ -11054,12 +11081,14 @@ impl<T: geom_core::Decide> fmt::Debug for AtRestBody<T> {
         let Self {
             body,
             records,
+            bar,
             sign,
             held,
         } = self;
         f.debug_struct("AtRestBody")
             .field("body", body)
             .field("records", records)
+            .field("bar", bar)
             .field("sign", &sign.of(body))
             .field("held", &held.is_some())
             .finish()

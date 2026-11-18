@@ -493,6 +493,22 @@ impl ContactRecords {
             .map(super::reduce::index)
     }
 
+    /// **These records, record `k` citing `cites[k]`** in place of what
+    /// it cited: the same pairs in the same order, as a holder that
+    /// names each record's backing in its own terms reads them. `None`
+    /// where `cites` is not one entry per record.
+    #[must_use]
+    pub fn citing(&self, cites: &[Cites]) -> Option<Self> {
+        (cites.len() == self.rows.len()).then(|| Self {
+            rows: self
+                .rows
+                .iter()
+                .zip(cites)
+                .map(|(c, cites)| Cited::new(c.record, cites.clone()))
+                .collect(),
+        })
+    }
+
     /// These records as an op's that carries them from its input
     /// `input` unchanged: each cell kept, each record citing this list's
     /// record ([`Backing::Carried`]) in place of what it cited here.

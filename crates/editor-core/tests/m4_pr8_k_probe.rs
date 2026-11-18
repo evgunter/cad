@@ -443,7 +443,7 @@ fn probe_agrees_with_f64_bit_for_bit_save_the_lane_pass_keys() {
                     // The value's contact records: a boolean's surviving
                     // contacts, and an instance's declared ones, which
                     // this registry has none of.
-                    let (cf, cp) = (&vf.carry.contacts, &vp.carry.contacts);
+                    let (cf, cp) = (&vf.contacts(), &vp.contacts());
                     assert!(
                         cf == cp,
                         "{}: node {id:?}: contact records ({} vv / {} v-on-f / {} e-f / {} f-f \

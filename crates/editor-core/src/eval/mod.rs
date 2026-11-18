@@ -41,7 +41,7 @@ pub(crate) use wire::{reference_body, resolve_name};
 
 pub use anchor::{CanonicalSegment, LoopAnchor, ProfileNaming, ProfilePieces, ProfileValue};
 pub(crate) use anchor::{derive_naming, validated_naming};
-pub use carry::Carry;
+pub use carry::{Carry, Citing};
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
 pub(crate) use framed::Frame;
@@ -922,6 +922,18 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
     /// ([`Evaluation::table`]).
     pub(crate) fn output(&self, port: u8) -> Option<&OutputNames> {
         self.outputs.get(usize::from(port))
+    }
+
+    /// **The contact records of a value of one body**, read off the
+    /// body that holds them and cited as the value cites them
+    /// ([`Carry::contacts`]); none for a value of no body or of
+    /// several, whose members carry their own.
+    #[must_use]
+    pub fn contacts(&self) -> topo::ContactRecords {
+        match self.payload.one_body() {
+            Some(Some(body)) => self.carry.contacts(body.holding().records()).into_owned(),
+            _ => topo::ContactRecords::default(),
+        }
     }
 
     /// **This value read whole**: in a member's view of its family, the

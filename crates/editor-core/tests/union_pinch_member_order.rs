@@ -374,7 +374,7 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> O
     let none = ContactRecords::default();
     let value = ev.value(id).expect("node evaluated to a value");
     let contacts = match &value.payload {
-        ValuePayload::Boolean(BooleanValue::Body { .. }) => &*value.carry.contacts,
+        ValuePayload::Boolean(BooleanValue::Body { .. }) => &value.contacts(),
         _ => &none,
     };
     let verdict = topo::validate_pseudomanifold(&body, contacts, Tol::witness()).map_err(|es| {
@@ -447,7 +447,7 @@ fn far_end_backed(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) {
     let none = ContactRecords::default();
     let value = ev.value(id).expect("the node evaluated");
     let contacts = match &value.payload {
-        ValuePayload::Boolean(BooleanValue::Body { .. }) => &*value.carry.contacts,
+        ValuePayload::Boolean(BooleanValue::Body { .. }) => &value.contacts(),
         _ => &none,
     };
     let z = |v: topo::VertexKey| {

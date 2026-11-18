@@ -194,10 +194,10 @@ fn a_mate_between_placed_instances_seats_their_copies() {
     let ev = run(&doc, &with_resolver(store));
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("the pair gathers");
     assert_eq!(
-        product.contacts.face_face().count(),
+        product.contacts().face_face().count(),
         1,
         "{:?}",
-        product.contacts
+        product.contacts()
     );
     assert!(
         crate::fixture::could_look(&doc, &ev).is_ok(),

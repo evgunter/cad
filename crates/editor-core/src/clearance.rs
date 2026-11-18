@@ -1392,7 +1392,7 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         let same_body = a.at == b.at && a.body == b.body;
         if same_body
             && matches!(query.bound, ClearanceBound::StrictlyPositive)
-            && let Some((x, y)) = recorded_contact(ev, a, &body_a, &faces_a, &faces_b)
+            && let Some((x, y)) = recorded_contact(&body_a, &faces_a, &faces_b)
         {
             return ClearanceReport::refused(ClearanceRefusal::RecordedContact { a: x, b: y });
         }
@@ -1859,25 +1859,15 @@ fn faces_of<T: topo::AtRestPolicy + geom_core::Decide>(
     })
 }
 
-/// **A contact record between the two scopes**: the first record of the
-/// selection's body whose one cell bounds a face of one scope and whose
-/// other bounds a face of the other. The records are the selected
-/// body's, as its value's carry holds them: a family member's or a
-/// split side's own ([`crate::Carry::member`]), else the one body's.
+/// **A contact record between the two scopes**: the first record the
+/// selection's body holds whose one cell bounds a face of one scope and
+/// whose other bounds a face of the other.
 fn recorded_contact<T: topo::AtRestPolicy + geom_core::Decide>(
-    ev: &Evaluation<T>,
-    sel: &Selection,
-    body: &Body<T>,
+    body: &crate::eval::Held<T>,
     fa: &[FaceKey],
     fb: &[FaceKey],
 ) -> Option<(topo::Cell, topo::Cell)> {
-    let value = ev.value(sel.at)?;
-    let carry = match &value.carry.members {
-        Some(_) => value.carry.member(usize::try_from(sel.body).ok()?),
-        None if sel.body == 0 => &value.carry,
-        None => return None,
-    };
-    let records = Arc::clone(&carry.contacts);
+    let records = body.records();
     let loop_face = |he| {
         body.get_half_edge(he)
             .and_then(|h| body.get_loop(h.parent_loop))

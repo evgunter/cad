@@ -19,7 +19,6 @@
 use crate::fixture;
 use editor_core::Formula;
 
-use std::sync::Arc;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
@@ -268,7 +267,7 @@ fn assert_ok(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) {
 /// is the whole question here.
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
-        (Some(a), Some(b)) => Arc::ptr_eq(&a.carry.contacts, &b.carry.contacts),
+        (Some(a), Some(b)) => same_body(a, b),
         _ => false,
     }
 }
@@ -529,4 +528,12 @@ fn a_placement_in_another_space_is_untouched_by_a_refusal() {
         !reused_value(&first, &second, s.top_a),
         "the placement whose answer changed must not be served from the memo"
     );
+}
+
+/// Whether two values of one body hold the same body, by allocation.
+fn same_body(a: &editor_core::NodeValue<f64>, b: &editor_core::NodeValue<f64>) -> bool {
+    match (a.payload.one_body(), b.payload.one_body()) {
+        (Some(Some(x)), Some(Some(y))) => x.holding().same(y.holding()),
+        _ => false,
+    }
 }

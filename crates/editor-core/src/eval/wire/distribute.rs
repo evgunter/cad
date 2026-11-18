@@ -216,7 +216,6 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     .cloned();
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
     let mut pieces: Vec<Piece<T>> = Vec::new();
-    let mut contacts = topo::ContactRecords::default();
     // What the graft holds: each piece result's own records, re-keyed
     // through its graft, and which arrival each solid came by.
     let mut held = topo::ContactRecords::default();
@@ -227,7 +226,6 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     let mut kinds = Vec::new();
     let mut parts = 0;
     for (read, out) in outs {
-        let records = &out.carry.contacts;
         let (body, kind) = match &out.payload {
             ValuePayload::Boolean(BooleanValue::Empty) => continue,
             ValuePayload::Boolean(BooleanValue::Body { body, kind }) => (body.clone(), *kind),
@@ -248,47 +246,8 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         )
         .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
         arrivals.extend(keys.solids().iter().map(|&solid| (solid, arrival)));
-        let base = coincidences.len();
-        let inputs: Vec<u32> = out
-            .carry
-            .cited_inputs
-            .iter()
-            .map(|input| {
-                let at = citing.iter().position(|c| c == input).unwrap_or_else(|| {
-                    citing.push(input.clone());
-                    citing.len() - 1
-                });
-                names::narrow(at, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)
-            })
-            .collect::<Result<_, _>>()?;
-        let rows = (base..base + out.coincidences.len())
-            .map(|row| names::narrow(row, names::Numbered::Row))
-            .collect::<Result<Vec<u32>, _>>()
-            .map_err(NodeErrorKind::Naming)?;
-        let recited = (**records)
-            .clone()
-            .recited(|b| match b {
-                topo::Backing::Decided(k) => vec![topo::Backing::Decided(
-                    rows.get(k as usize).copied().unwrap_or_else(|| {
-                        unreachable!(
-                            "a piece's record cites its row {k}, though its boolean decided {}",
-                            rows.len()
-                        )
-                    }),
-                )],
-                topo::Backing::Carried { input, record } => vec![topo::Backing::Carried {
-                    input: inputs.get(input as usize).copied().unwrap_or_else(|| {
-                        unreachable!(
-                            "a piece's record cites its input {input}, which its boolean does \
-                             not publish"
-                        )
-                    }),
-                    record,
-                }],
-            })
-            .unwrap_or_else(|k| unreachable!("record {k} cites nothing once renumbered"));
-        crate::product::carry_contacts(&fused, &mut contacts, &recited, &keys)
-            .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
+        // Each piece's result is one arrival, cited by the piece's read.
+        citing.push(crate::coincide::CitedInput::Read(read));
         coincidences.extend(out.coincidences.iter().cloned());
         let table = out
             .outputs
@@ -324,8 +283,13 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         ),
         tol,
     )
-    .map_err(|findings| NodeErrorKind::NotFinished { findings })?
-    .body;
+    .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    let topo::Censused {
+        body: fused,
+        rows,
+        findings,
+    } = fused;
+    let fused = Arc::new(fused);
     let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let pieces = Arc::new(Pieces { by: id, pieces });
     // What it made is the `⊔` of what each piece's boolean made, so the
@@ -334,10 +298,15 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     let census = Some(Arc::new(crate::product::Census::new(
         id,
         Arc::clone(&pieces),
+        Some(crate::product::Decided {
+            body: crate::eval::Held::Finished(Arc::clone(&fused)),
+            rows,
+            findings,
+        }),
     )));
     Ok(OpOut::plain(
         ValuePayload::Boolean(BooleanValue::Body {
-            body: crate::eval::Framed::in_frame(Arc::new(fused), frame),
+            body: crate::eval::Framed::in_frame(fused, frame),
             kind,
         }),
         table,
@@ -347,7 +316,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         pieces: Some(pieces),
         census,
         censused: true,
-        contacts: Arc::new(contacts),
+        citing: crate::eval::Citing::Own,
         cited_inputs: citing.into(),
         findings: Arc::default(),
         members: None,

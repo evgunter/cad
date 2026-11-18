@@ -119,6 +119,21 @@ impl<T: Real> fmt::Debug for Assembled<T> {
     }
 }
 
+/// **A `⊔` graft's leaf and what its census decided**
+/// ([`AtRestPolicy::leaf_assembled`]): [`Censused`] where the leaf is
+/// the finished body; where it is a replay (the box scalars), no census
+/// has run, and its taker's decides.
+#[derive(Debug)]
+pub struct CensusedLeaf<T: AtRestPolicy> {
+    /// The leaf.
+    pub leaf: T::Leaf,
+    /// The census's rows ([`Censused::rows`]); none where none ran.
+    pub rows: Vec<crate::Coincidence>,
+    /// The census's findings ([`Censused::findings`]); none where none
+    /// ran.
+    pub findings: Vec<ValidationError>,
+}
+
 /// **A `⊔`'s finished body and what its census decided**
 /// ([`AtRestPolicy::finish_assembled`]).
 #[derive(Debug)]

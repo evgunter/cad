@@ -47,13 +47,19 @@ fn edge_between(body: &topo::Body<f64>, p: Point3<f64>, q: Point3<f64>) -> topo:
     e
 }
 
-/// `base`'s body finished holding `records` in place of its own.
-fn holding(base: &BooleanBody<f64>, records: ContactRecords) -> topo::AtRestBody<f64> {
-    topo::finish(
-        topo::Built::of(topo::Body::clone(&base.body)).recording(records),
-        tol(),
+/// `records`, a list over `base`'s cells, carried through `out`'s
+/// lineage onto its body: the carry's own answer, which no gate reads.
+fn carried_through(
+    out: &Blended<f64>,
+    records: &ContactRecords,
+) -> Result<ContactRecords, topo::CarryRefusal> {
+    records.carried_through(
+        0,
+        &out.lineage(),
+        &out.body,
+        geom_core::Band::linear(tol()).unwrap(),
+        Some(topo::RegionLane::certified()),
     )
-    .unwrap_or_else(|e| panic!("the operand finishes holding the records: {e:?}"))
 }
 
 /// The kiss's record as `out` holds it, citing the operand's record 0.
@@ -114,7 +120,9 @@ fn a_blend_away_from_the_kiss_carries_it() {
 /// record (bookkeeping against the far cube's top, no touch) lands on no
 /// pair, and the lineage's stated removal consumes it, while the kiss
 /// carries. Red on the carry that refuses the record `Unmapped`, or keeps
-/// it on the excised edge or the band face.
+/// it on the excised edge or the band face. The record has no touch
+/// behind it, so a finish handed it refuses it stale; the carry is put
+/// the list directly, through the lineage of the blend of the operand.
 #[test]
 fn a_record_on_the_blended_edge_is_consumed() {
     let base = kiss();
@@ -140,17 +148,26 @@ fn a_record_on_the_blended_edge_is_consumed() {
         topo::Contact::new(&base.body, topo::Cell::Edge(edge), topo::Cell::Face(far)).unwrap(),
         topo::Cites::decided(7),
     )]);
-    let operand = holding(&base, records);
+    let refused = topo::finish(
+        topo::Built::of(topo::Body::clone(&base.body)).recording(records.clone()),
+        tol(),
+    )
+    .expect_err("a finish reads every record it is handed");
+    assert!(
+        matches!(
+            refused.as_slice(),
+            [topo::ValidationError::StaleContactDeclaration { .. }]
+        ),
+        "the record with no touch behind it is stale: {refused:?}"
+    );
     for (what, out) in [
         (
             "fillet",
-            fillet_edges(&operand, &[edge], R, tol())
-                .unwrap_or_else(|refusal| panic!("fillet: {refusal:?}")),
+            fillet_edges(&base.body, &[edge], R, tol()).expect("the fillet builds"),
         ),
         (
             "chamfer",
-            chamfer_edges(&operand, &[edge], R, tol())
-                .unwrap_or_else(|refusal| panic!("chamfer: {refusal:?}")),
+            chamfer_edges(&base.body, &[edge], R, tol()).expect("the chamfer builds"),
         ),
     ] {
         assert_eq!(
@@ -158,7 +175,8 @@ fn a_record_on_the_blended_edge_is_consumed() {
             topo::Fate::Removed,
             "{what}: the band removes the edge"
         );
-        let carried = out.body.records();
+        let carried =
+            carried_through(&out, &records).unwrap_or_else(|refusal| panic!("{what}: {refusal:?}"));
         assert_eq!(
             carried
                 .cites()
@@ -227,17 +245,14 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
         topo::Contact::new(&base.body, topo::Cell::Vertex(far), topo::Cell::Edge(rim)).unwrap(),
         topo::Cites::decided(7),
     )]);
-    let operand = holding(&base, records);
     for (what, out) in [
         (
             "fillet",
-            fillet_edges(&operand, &[y, z], R, tol())
-                .unwrap_or_else(|refusal| panic!("fillet: the records land: {refusal:?}")),
+            fillet_edges(&base.body, &[y, z], R, tol()).expect("the fillet builds"),
         ),
         (
             "chamfer",
-            chamfer_edges(&operand, &[y, z], R, tol())
-                .unwrap_or_else(|refusal| panic!("chamfer: the records land: {refusal:?}")),
+            chamfer_edges(&base.body, &[y, z], R, tol()).expect("the chamfer builds"),
         ),
     ] {
         let remnants = &out
@@ -245,7 +260,8 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
             .as_ref()
             .expect("birth records")
             .meridian_remnants;
-        let carried = out.body.records().clone();
+        let carried = carried_through(&out, &records)
+            .unwrap_or_else(|refusal| panic!("{what}: the records land: {refusal:?}"));
         let before: Vec<_> = base.contacts().vertex_edge().collect();
         let after: Vec<_> = carried.vertex_edge().collect();
         assert_eq!(after.len(), 2, "{what}: {carried:?}");
@@ -314,17 +330,14 @@ fn a_record_on_a_support_face_is_consumed() {
         .unwrap(),
         topo::Cites::decided(7),
     )]);
-    let operand = holding(&base, records);
     for (what, out) in [
         (
             "fillet",
-            fillet_edges(&operand, &[edge], R, tol())
-                .unwrap_or_else(|refusal| panic!("fillet: {refusal:?}")),
+            fillet_edges(&base.body, &[edge], R, tol()).expect("the fillet builds"),
         ),
         (
             "chamfer",
-            chamfer_edges(&operand, &[edge], R, tol())
-                .unwrap_or_else(|refusal| panic!("chamfer: {refusal:?}")),
+            chamfer_edges(&base.body, &[edge], R, tol()).expect("the chamfer builds"),
         ),
     ] {
         assert!(
@@ -337,7 +350,8 @@ fn a_record_on_a_support_face_is_consumed() {
             ),
             "{what}: the bottom is a support face"
         );
-        let carried = out.body.records();
+        let carried =
+            carried_through(&out, &records).unwrap_or_else(|refusal| panic!("{what}: {refusal:?}"));
         assert_eq!(
             carried
                 .cites()

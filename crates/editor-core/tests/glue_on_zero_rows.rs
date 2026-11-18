@@ -122,7 +122,7 @@ fn a_zero_glued_union_passes_tier_three_prime() {
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("the union is a body");
     };
-    let contacts = &value.carry.contacts;
+    let contacts = &value.contacts();
     assert_eq!(
         topo::validate_pseudomanifold(body.body(), contacts, Tol::witness()),
         Ok(()),

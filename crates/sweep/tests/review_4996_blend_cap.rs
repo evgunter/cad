@@ -5,7 +5,9 @@
 //! goes to the census's confirm rather than landing unread. A
 //! bookkeeping record (the far corner (0, 1, 1) against the cap x = 1,
 //! no touch) is read apart and consumed. Red on the lineage that called
-//! a carved cap kept: the record then landed.
+//! a carved cap kept: the record then landed. The record goes to the
+//! carry through the fillet's lineage, since a finish handed a record
+//! with no touch behind it refuses it stale.
 //!
 //! A body touching a cap inside the carved corner, the record that
 //! would land false, is refused before any carry: a tilted cube balanced
@@ -61,15 +63,28 @@ fn a_record_on_a_cap_a_band_carves_is_read() {
     )]
     .into_iter()
     .collect();
-    let cube = topo::finish(
-        topo::Built::of(topo::Body::clone(&cube)).recording(record),
+    let refused = topo::finish(
+        topo::Built::of(topo::Body::clone(&cube)).recording(record.clone()),
         tol(),
     )
-    .expect("the cube finishes holding the record");
+    .expect_err("a finish reads every record it is handed");
+    assert!(
+        matches!(
+            refused.as_slice(),
+            [topo::ValidationError::StaleContactDeclaration { .. }]
+        ),
+        "the record with no touch behind it is stale: {refused:?}"
+    );
     let out = fillet_edges(&cube, &[edge], 0.1, tol()).expect("the fillet builds");
     assert_eq!(
-        out.body.records(),
-        &topo::ContactRecords::default(),
+        record.carried_through(
+            0,
+            &out.lineage(),
+            &out.body,
+            geom_core::Band::linear(tol()).unwrap(),
+            Some(topo::RegionLane::certified())
+        ),
+        Ok(topo::ContactRecords::default()),
         "the record on the carved cap is read apart and consumed"
     );
 }

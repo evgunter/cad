@@ -88,15 +88,11 @@ impl<T: topo::AtRestPolicy + Decide> OpOut<T> {
         Self { motion, ..self }
     }
 
-    /// This output holding `contacts`, the records its op made, whose
-    /// carried citations name `inputs` by position.
-    fn holding(
-        self,
-        contacts: Arc<topo::ContactRecords>,
-        inputs: Vec<crate::coincide::CitedInput>,
-    ) -> Self {
+    /// This output's body holding its op's records as [`super::Citing`]
+    /// says, whose carried citations name `inputs` by position.
+    fn holding(self, citing: super::Citing, inputs: Vec<crate::coincide::CitedInput>) -> Self {
         Self {
-            carry: self.carry.recording(contacts, inputs),
+            carry: self.carry.recording(citing, inputs),
             ..self
         }
     }
@@ -1940,9 +1936,6 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             verb.no_records
         )
     };
-    // The blended body holds the operand's records, as its door carried
-    // them.
-    let carried = topo::FinishedBody::records(&out.body).clone();
     let table = (verb.emitter)(id, target, target_read, &target_table, &out.body, &rec)
         .map_err(NodeErrorKind::Naming)?;
     let inputs = crate::coincide::RowInputs {
@@ -1958,7 +1951,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         table,
     )
     .holding(
-        Arc::new(carried),
+        super::Citing::Own,
         vec![crate::coincide::CitedInput::Read(target_read)],
     )
     .recording(&out.coincidences, &inputs)
@@ -2012,10 +2005,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .ok_or(NodeErrorKind::ShellLaneUnsupported { scalar: T::NAME })?;
     let out = built.run_shell(&body, tol, door).map_err(verb_refused)?;
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-    // The thin solid holds the operand's records, as the shell's door
-    // carried them.
     let body = out.body;
-    let carried = topo::FinishedBody::records(&body).clone();
     let table = (verb.emitter)(id, target, target_read, &target_table, &body, &naming)
         .map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
@@ -2026,7 +2016,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         table,
     )
     .holding(
-        Arc::new(carried),
+        super::Citing::Own,
         vec![crate::coincide::CitedInput::Read(target_read)],
     ))
 }
@@ -2778,15 +2768,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let built = (verb.build)(plane);
     let out = built.run_split(&body, tol).map_err(verb_refused)?;
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-    // Each side holds the operand's records the split's door carried
-    // onto it, each citing the operand's record it is.
-    let records = |part: &SplitPart<T>| {
-        part.body()
-            .map(|body| topo::FinishedBody::records(body).clone())
-            .unwrap_or_default()
-    };
     let (above, below, coincidences) = (out.above, out.below, out.coincidences);
-    let carried = (records(&above), records(&below));
     let side = |part: SplitPart<T>| match part {
         SplitPart::Body(b) => SplitSide::Body(super::Framed::in_frame(
             Arc::new(b),
@@ -2823,16 +2805,12 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             )
         })
         .collect();
-    // Each side's carry at its half's output body, its records citing
-    // the operand's read.
-    let mut sides = [
-        (SplitHalf::Above, carried.0),
-        (SplitHalf::Below, carried.1),
-    ];
-    sides.sort_by_key(|(half, _)| half.output_body());
-    let sides = sides.map(|(_, records)| {
+    // Each side's carry at its half's output body: its body holds the
+    // records the split's door carried onto it, citing the operand's
+    // read.
+    let sides = [(); 2].map(|()| {
         super::Carry::default().recording(
-            Arc::new(records),
+            super::Citing::Own,
             vec![crate::coincide::CitedInput::Read(target_read)],
         )
     });
@@ -3575,8 +3553,8 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let body_a = from.taken_in(&computing, &body_a, tol)?;
     let body_b = &*b.taken_in(&computing, body_b, tol)?;
     let inputs = BooleanInputs {
-        records_a: from.carry.contacts.carried(),
-        records_b: b.carry.contacts.carried(),
+        records_a: topo::FinishedBody::records(&*body_a).carried(),
+        records_b: topo::FinishedBody::records(body_b).carried(),
     };
     match (verb.build)(BooleanOp::Subtract, inputs)
         .run_pair(&*body_a, body_b, boolean_sweep, tol)
@@ -3591,7 +3569,6 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 naming,
                 holdings,
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-            let contacts = topo::FinishedBody::records(&out.body).clone();
             let emitted = (verb.emitter)(
                 id,
                 BooleanOp::Subtract,
@@ -3622,7 +3599,7 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             )
             .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups)))
             .holding(
-                Arc::new(contacts),
+                super::Citing::Own,
                 vec![
                     crate::coincide::CitedInput::Read(from.read),
                     crate::coincide::CitedInput::Read(b.read),
@@ -4120,7 +4097,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .iter()
         .zip(member_ranks(&reads)?)
         .map(|(m, rank)| topo::MemberInputs {
-            records: m.carry.contacts.carried(),
+            records: topo::FinishedBody::records(&*m.body).carried(),
             rank,
         })
         .collect();
@@ -4220,7 +4197,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // member list. Row for row, they are the records the kernel carried
     // into the next step as the accumulation's own (checked at each
     // step), so a step's `Carried { input: 0, record }` indexes them.
-    let mut acc_records = Arc::new(first.carry.contacts.carried_from(0));
+    let mut acc_records = Arc::new(topo::FinishedBody::records(&*first.body).carried_from(0));
     let mut acc_body: &T::Finished = &first.body;
     let mut acc_table = Arc::clone(&views[0]);
     // Every step's rows, in fold order: a record's `Decided(k)` cites
@@ -4307,7 +4284,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             }
         }
         let carried_in = steps[..step].last().map_or_else(
-            || first.carry.contacts.carried(),
+            || topo::FinishedBody::records(&*first.body).carried(),
             |s| s.body.contacts().carried(),
         );
         if acc_records.carried() != carried_in {
@@ -4503,10 +4480,10 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         &published_groups,
     )))
     .with_coincidences(coincidences)
-    // The records may cite the members' own, each by its place in the
-    // list.
+    // The body's records as the node cites them: each a row of the
+    // node's own or a member's record, by its place in the list.
     .holding(
-        contacts,
+        super::Citing::each(&contacts),
         members
             .iter()
             .map(|m| crate::coincide::CitedInput::Read(m.read))
@@ -4666,7 +4643,6 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> =
         Vec::with_capacity(members.len());
     let mut pieces: Vec<super::Piece<T>> = Vec::with_capacity(members.len());
-    let mut contacts = topo::ContactRecords::default();
     let mut bridges_seen = 0usize;
     // What the graft holds: each member body's own records, re-keyed
     // through its graft, and which arrival each solid came by.
@@ -4696,21 +4672,8 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
             bridges_seen += 1;
             bridges.push(keys);
         }
-        // A member's own records ride the piece it is, re-keyed through
-        // its graft (each member's of a family), citing the member by its
-        // read.
-        let input = names::narrow(citing.len(), names::Numbered::InputPosition)
-            .map_err(NodeErrorKind::Naming)?;
-        for (i, keys) in bridges.iter().enumerate() {
-            crate::product::carry_contacts(
-                &fused,
-                &mut contacts,
-                &value.carry.member(i).contacts.carried_from(input),
-                keys,
-            )
-            .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
-        }
-        citing.push(crate::coincide::CitedInput::Read(read));
+        // Each body it grafts is one arrival, cited by the member's read.
+        citing.extend(bridges.iter().map(|_| crate::coincide::CitedInput::Read(read)));
         parts += value.carry.parts;
         pieces.push(super::Piece {
             read,
@@ -4726,7 +4689,11 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     // (`topo::AtRestPolicy::leaf_assembled`), as they are: finished at
     // `f64`, its census recording each touch between two members; tier
     // 2 at the box scalars, where a taker finishes it.
-    let fused = T::leaf_assembled(
+    let topo::CensusedLeaf {
+        leaf: fused,
+        rows,
+        findings,
+    } = T::leaf_assembled(
         topo::Assembled::new(
             fused,
             held,
@@ -4735,21 +4702,28 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         tol,
     )
     .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    let fused = Arc::new(fused);
     let frame = computing.map_or(super::Frame::Own, |first| first.frame().clone());
     let pieces = Arc::new(super::Pieces { by: id, pieces });
     Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::in_frame_leaf(Arc::new(fused), frame)),
+        ValuePayload::Body(super::Framed::in_frame_leaf(Arc::clone(&fused), frame)),
         table,
     )
     .carrying(super::Carry {
-        contacts: Arc::new(contacts),
+        citing: super::Citing::Own,
         cited_inputs: citing.into(),
         parts,
-        // The census at this door, over its pieces: run where a reader
-        // first asks for its verdict ([`crate::product::Census`]).
+        // The census at this door, over its pieces: decided in the
+        // graft's finish, and reported where a reader first asks for its
+        // verdict ([`crate::product::Census`]).
         census: Some(Arc::new(crate::product::Census::new(
             id,
             Arc::clone(&pieces),
+            Some(crate::product::Decided {
+                body: super::Held::Leaf(fused),
+                rows,
+                findings,
+            }),
         ))),
         censused: true,
         pieces: Some(pieces),

@@ -63,7 +63,7 @@ struct Run {
 /// would otherwise back.
 fn carried_records(product: &editor_core::Product<f64>) -> topo::ContactRecords {
     product
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .filter(|record| {

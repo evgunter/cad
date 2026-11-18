@@ -242,7 +242,7 @@ fn a_patterned_seat_carries_its_record_to_each_member() {
     let ev = run(&doc, &EvalOptions::default());
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
     assert_eq!(
-        product.contacts.face_face().count(),
+        product.contacts().face_face().count(),
         2,
         "each member carries the seat's record"
     );
@@ -472,7 +472,7 @@ fn a_pick_of_an_instance_piece_keeps_its_records() {
     let ev_direct = run(&direct, &opts);
     let seats = editor_core::product_recorded(&direct, &ev_direct, Tol::witness())
         .expect("the instance gathers")
-        .contacts
+        .contacts()
         .rows()
         .len();
     assert!(seats > 0, "the instance carries the part's seat");
@@ -493,7 +493,7 @@ fn a_pick_of_an_instance_piece_keeps_its_records() {
     let ev = run(&host, &opts);
     let product = editor_core::product_recorded(&host, &ev, Tol::witness()).expect("it gathers");
     assert_eq!(
-        product.contacts.rows().len(),
+        product.contacts().rows().len(),
         seats,
         "the pick keeps the part's seat record"
     );
@@ -656,7 +656,7 @@ fn a_mirror_of_a_seat_keeps_its_record() {
     let records = |doc: &ProfileDoc, ev: &Evaluation<f64>| {
         editor_core::product_recorded(doc, ev, Tol::witness())
             .expect("it gathers")
-            .contacts
+            .contacts()
             .rows()
             .len()
     };

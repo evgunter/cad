@@ -221,7 +221,7 @@ fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
         "three stands of two cubes each"
     );
     assert_eq!(
-        gathered.contacts.face_face().count(),
+        gathered.contacts().face_face().count(),
         3,
         "one carried record per stand — the inner census's, re-keyed onto \
          the aggregate"
@@ -253,7 +253,7 @@ fn the_carry_survives_a_second_nesting_level() {
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the deep row gathers");
     assert_eq!(gathered.body.solids().count(), 8, "two mids of two stands");
     assert_eq!(
-        gathered.contacts.face_face().count(),
+        gathered.contacts().face_face().count(),
         4,
         "one carried record per stand, through two seams"
     );
@@ -278,10 +278,10 @@ fn a_mate_that_leaves_clear_air_records_nothing_and_refuses_nothing() {
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the stand gathers");
     assert_eq!(
-        gathered.contacts.len(),
+        gathered.contacts().len(),
         0,
         "no touch, no record: {:?}",
-        gathered.contacts
+        gathered.contacts()
     );
     let raised = findings(&doc, &ev);
     assert!(raised.is_empty(), "nothing to refute: {raised:?}");
@@ -299,8 +299,8 @@ fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the bare row gathers");
     assert_eq!(gathered.body.solids().count(), 3);
     assert_eq!(
-        gathered.contacts,
-        topo::ContactRecords::default(),
+        gathered.contacts(),
+        &topo::ContactRecords::default(),
         "no touch, no records"
     );
 }
@@ -332,12 +332,12 @@ fn the_census_records_each_mated_seat_as_one_face_pair() {
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
-        gathered.contacts.face_face().count(),
+        gathered.contacts().face_face().count(),
         2,
         "one face–face record per seat: {:?}",
-        gathered.contacts
+        gathered.contacts()
     );
-    assert_eq!(gathered.contacts.len(), 2, "{:?}", gathered.contacts);
+    assert_eq!(gathered.contacts().len(), 2, "{:?}", gathered.contacts());
 }
 
 // ---- What a record cites ----
@@ -366,12 +366,12 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
     let ev = run(&stand, &with_resolver(store));
     let product = product_recorded(&stand, &ev, Tol::witness()).expect("the stand gathers");
     assert_eq!(
-        product.contacts.face_face().count(),
+        product.contacts().face_face().count(),
         1,
         "one seat, one record"
     );
     assert_eq!(
-        product.contacts.rows()[0].cites,
+        product.contacts().rows()[0].cites,
         topo::Cites::decided(0),
         "the record cites the product's row 0"
     );
@@ -871,7 +871,7 @@ fn an_instances_record_cites_the_parts_record() {
     let ev = run(&outer, &with_resolver(store));
     let value = ev.value(instances[0]).expect("the instance evaluates");
     assert_eq!(
-        value.carry.contacts.rows()[0].cites,
+        value.contacts().rows()[0].cites,
         topo::Cites::one(topo::Backing::Carried {
             input: 0,
             record: 0
@@ -883,7 +883,7 @@ fn an_instances_record_cites_the_parts_record() {
     );
     let product = product_recorded(&outer, &ev, Tol::witness()).expect("the row gathers");
     assert_eq!(
-        product.contacts.rows()[0].cites,
+        product.contacts().rows()[0].cites,
         topo::Cites::one(topo::Backing::Carried {
             input: 0,
             record: 0
@@ -934,10 +934,10 @@ fn the_world_records_the_placed_seat_and_not_the_loose_one() {
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
-        gathered.contacts.face_face().count(),
+        gathered.contacts().face_face().count(),
         1,
         "the seat between placed copies, and only it: {:?}",
-        gathered.contacts
+        gathered.contacts()
     );
 }
 

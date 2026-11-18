@@ -1222,7 +1222,6 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             body: super::Framed::in_frame(Arc::new(product.body), product.frame),
             names: Arc::new(product.names),
             carry: super::Carry {
-                contacts: Arc::new(product.contacts),
                 parts,
                 pieces,
                 censused: true,
