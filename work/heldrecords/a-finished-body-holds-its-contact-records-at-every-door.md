@@ -127,7 +127,7 @@ The eager graft census is the one new cost: 10.2 s over 2,679 calls.
   `…::a_carried_record_with_no_touch_behind_it_refuses_at_the_booleans_gate`
   (was `…lands_unread`: the union built holding it),
   `surgery_carries_records::a_record_between_faces_that_do_not_meet_refuses_at_the_gate`,
-  `validate::door_gates_read_carried_records` (split, shell), and
+  `splitting::gate_reads_carried_records`, `shell::gate_reads_carried_records`, and
   sweep's `contained_flush_cylinder`, `blend_carries_records`,
   `review_4996_blend_cap` rows.
 - `face_face_touch::a_bore_tangent_from_inside_refuses_on_the_tangent_record_its_cut_wrote`

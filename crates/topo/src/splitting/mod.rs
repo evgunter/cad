@@ -1276,3 +1276,31 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
     }
     Ok(result)
 }
+
+/// **The split's gate reads the records its carry lands.**
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod gate_reads_carried_records {
+    use super::{SplitError, SplitFinishError, split};
+    use crate::test_support_fixtures::split_plane;
+    use crate::validate::unconfirmed::{kiss_holding_a_false_record, the_false_record_alone};
+    use geom_core::{Point3, Tol, Vec3};
+
+    /// A finished operand holding a record with no touch behind it
+    /// ([`kiss_holding_a_false_record`]), split by a plane clear of both
+    /// its faces: the record lands by lineage, unread, on the side that
+    /// keeps them, and that side's gate refuses it. Red where the gate
+    /// takes its carried records on their word: the side finishes.
+    #[test]
+    fn the_split_refuses_a_carried_record_its_gate_does_not_confirm() {
+        let tol = Tol::witness();
+        let operand = kiss_holding_a_false_record(tol);
+        let plane = split_plane(Point3::new(0.0, 0.0, -5.0), Vec3::new(0.0, 0.0, 1.0), tol);
+        match split(&operand, &plane, tol) {
+            Err(SplitError::Finish(SplitFinishError::ResultNotAtRest { findings, .. })) => {
+                assert!(the_false_record_alone(&findings), "{findings:?}");
+            }
+            other => panic!("the split refuses at its gate: {:?}", other.map(|_| ())),
+        }
+    }
+}

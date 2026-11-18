@@ -19478,24 +19478,23 @@ mod door_roster {
     }
 }
 
-/// **A door's gate reads the records its carry lands**, pinned where no
-/// public door can stage it: a finished operand never holds a record
-/// its own gate did not confirm, so these rows write one into a finished
-/// body's fields, which only this module can reach, and hand it to the
-/// split and the shell. Each carries the record onto cells it keeps,
-/// unread, and its gate refuses it.
+/// **A finished body holding a record no gate confirmed**, for the rows
+/// that pin a door's gate reading the records its carry lands
+/// (`splitting::tests`, `shell::tests`). No public door can stage one: a
+/// finished operand never holds a record its own gate did not confirm,
+/// so this writes one into a finished body's fields, which only this
+/// module can reach.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod door_gates_read_carried_records {
+pub(crate) mod unconfirmed {
     use super::*;
-    use crate::test_support_fixtures::{brick, split_plane};
+    use crate::test_support_fixtures::brick;
     use crate::{BooleanResult, Cell, Cited, Cites, Contact, union};
-    use geom_core::{Point3, Vec3};
 
     /// Two cubes kissing at (1, 1, 1), finished, holding the kiss and a
     /// record of the first cube's `x = 0` face on the second's `x = 2`
     /// face, which do not meet.
-    fn kiss_holding_a_false_record(tol: Tol) -> AtRestBody<f64> {
+    pub(crate) fn kiss_holding_a_false_record(tol: Tol) -> AtRestBody<f64> {
         let at_rest = |b| crate::finish(b, tol).unwrap();
         let a = at_rest(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol));
         let b = at_rest(brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), tol));
@@ -19532,42 +19531,10 @@ mod door_gates_read_carried_records {
     }
 
     /// Whether `findings` are the one false record, refused.
-    fn the_false_record_alone(findings: &crate::NotFinished) -> bool {
+    pub(crate) fn the_false_record_alone(findings: &crate::NotFinished) -> bool {
         matches!(
             findings.as_slice(),
             [ValidationError::ContactContradicted { .. }]
         )
-    }
-
-    /// Red where the split's gate takes its carried records on their
-    /// word: the side holding both far faces finishes.
-    #[test]
-    fn the_split_refuses_a_carried_record_its_gate_does_not_confirm() {
-        let tol = Tol::witness();
-        let operand = kiss_holding_a_false_record(tol);
-        // A plane clear of both far faces, so the record lands by lineage
-        // on the side that keeps them.
-        let plane = split_plane(Point3::new(0.0, 0.0, -5.0), Vec3::new(0.0, 0.0, 1.0), tol);
-        match crate::split(&operand, &plane, tol) {
-            Err(crate::SplitError::Finish(crate::SplitFinishError::ResultNotAtRest {
-                findings,
-                ..
-            })) => assert!(the_false_record_alone(&findings), "{findings:?}"),
-            other => panic!("the split refuses at its gate: {:?}", other.map(|_| ())),
-        }
-    }
-
-    /// Red where the shell's gate takes its carried records on their
-    /// word: the thin solid finishes holding the record.
-    #[test]
-    fn the_shell_refuses_a_carried_record_its_gate_does_not_confirm() {
-        let tol = Tol::witness();
-        let operand = kiss_holding_a_false_record(tol);
-        match crate::shell(&operand, 0.1, tol) {
-            Err(crate::ShellError::NotValid { findings }) => {
-                assert!(the_false_record_alone(&findings), "{findings:?}");
-            }
-            other => panic!("the shell refuses at its gate: {:?}", other.map(|_| ())),
-        }
     }
 }

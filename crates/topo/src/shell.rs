@@ -6826,3 +6826,29 @@ mod tests {
         );
     }
 }
+
+/// **The shell's gate reads the records its carry lands.**
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod gate_reads_carried_records {
+    use super::{ShellError, shell};
+    use crate::validate::unconfirmed::{kiss_holding_a_false_record, the_false_record_alone};
+    use geom_core::Tol;
+
+    /// A finished operand holding a record with no touch behind it
+    /// ([`kiss_holding_a_false_record`]), shelled: the outer walls keep
+    /// their keys, so the record lands unread, and the thin solid's gate
+    /// refuses it. Red where the gate takes its carried records on their
+    /// word: the shell builds, holding the record.
+    #[test]
+    fn the_shell_refuses_a_carried_record_its_gate_does_not_confirm() {
+        let tol = Tol::witness();
+        let operand = kiss_holding_a_false_record(tol);
+        match shell(&operand, 0.1, tol) {
+            Err(ShellError::NotValid { findings }) => {
+                assert!(the_false_record_alone(&findings), "{findings:?}");
+            }
+            other => panic!("the shell refuses at its gate: {:?}", other.map(|_| ())),
+        }
+    }
+}

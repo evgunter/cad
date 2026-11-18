@@ -26,7 +26,7 @@ root's own types hold at the root, not under an operation's directory.
 ## The pins this row carries
 
 `scripts/gates/engine-leaves.counts`: `names-boolean` on `finish.rs`
-(14), `validate.rs` (19 → 21) and `census/finding_solids.rs` (1) rose
+(14), `validate.rs` (19 → 30, nine of them a test fixture) and `census/finding_solids.rs` (1) rose
 with the change and cite this row.
 
 ## Owed
