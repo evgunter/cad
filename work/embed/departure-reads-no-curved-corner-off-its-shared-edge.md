@@ -1,7 +1,7 @@
 ---
 id: departure-reads-no-curved-corner-off-its-shared-edge
 kind: issue
-title: The injectivity check reads no corner of two arcs of one conic, nor a cylinder's curved corner at a vertex the pair shares alone, so such pairs refuse; the tee, the two drums, the two-arc lune and a torus belly refuse so
+title: The injectivity check still reads no two-arc lune (a sphere face beside an off-axis circle arc), no corner of two different conics and no spiric wall continued onto its next arc; the tee, the two drums and the torus belly now hold
 status: open
 opened: 2026-10-29
 priority: P0
