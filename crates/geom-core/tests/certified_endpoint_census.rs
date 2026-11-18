@@ -710,9 +710,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        173,
-        75,
-        "the 75 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (26), \
+        177,
+        79,
+        "the 79 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `present_chart` (26), \
          `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
@@ -730,7 +731,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          the span is a parameter read like those below, and the speed is the jet bound \
          `speeds` reads. `present_vertex_corner` also reads its rectangle's chart footprint \
          (4), behind its own `is_certified()` ask. `Trig::psi`'s 3 are its `over` \
-         closure, read behind `is_certified()`. Of the other 95, the seeds and selections \
+         closure, read behind `is_certified()`. `face_extent`'s 4 read each line of the face \
+         against its extent, a line it takes only where its value `is_certified()` and places \
+         by whole turns, which keeps it certified. Of the other 95, the seeds and selections \
          (`mid`, `graph_read`'s `inside` and lever, `planes_through`'s point of a line edge, \
          any point of which is exact), `Params::nearest`'s hull of the parameters shifted by \
          whole turns, read outward so `Along::under_graph`'s containment is conservative, \
