@@ -48,3 +48,11 @@
 - 2026-11-18 17:15 — The build lane forked on A3: `arc_loft_natively_computes_its_rational_volume` held per-face flux bit identity only through the printed rim circle. Ruled (a) with a tightening: the import's enclosure is certified and contains the native's value, and the total agrees within the import's pad; the per-face bit identity goes, as output stability. Accepted its A3 rule: a rational row the cap plane holds → the wall's exact row; a polynomial row → the plane × wall section.
 
 - 2026-11-18 20:05 — The build lane reports its fix pass done at d95bd600fb (CI green, run 44379987698), but says it is still waiting on the arc_loft ruling. My 17:15 and 18:36 sends apparently did not reach it, so the ruling was sent a third time with a request to confirm receipt. Delta review of the fix pass dispatched to R2 (resumed, same lane); one fresh-context reviewer suffices for a fix delta. Friction: cross-session messages to a busy cloud lane can be missed; ask for an acknowledgement on every ruling.
+
+- 2026-11-18 21:40 — R2's delta review of the fix pass: APPROVE-WITH-FIXES. Its MAJOR, arc_loft red, is fixed by 2e8c0e8a99, and the head cff6e8582b is green; I accepted the lane's deviation from my letter (exact terms and the total, not face by face, since the region carry sits on the first face in arena order). No regressions; every C1 mutant is killed; the settle rule is bounded and not a decision. A last small pass was sent:
+  - m1: a fixing construction's Unsupported or NaN verdict must not fall to the foot; a row kills `unsup_only`;
+  - m2: a vertex-loop vertex takes the foot on its surface;
+  - m3: three sites still choose by the printed carrier's type;
+  - m4: CarrierBuilt by carrier inequality, with a row, and the freecad assertion that can't fail replaced;
+  - m5: file a row for E1-vs-E2 geometric drift;
+  - N4: "edge #id" wording.
