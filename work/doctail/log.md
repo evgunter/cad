@@ -98,3 +98,4 @@ body has the reasons):
   - `splice`'s `read_sites` arms carry their walks.
 
   A second delta review follows.
+- 2026-11-17 — **Merged: `the-save-format-drops-its-edit-log` (PR 7094).** A save file is now `{ "snapshot": <Doc> }`, and `persist::load` returns the document. The tour's die corpus is the document's state, re-stamped to each CI row's ε through one test home (`test_support::restamped_at`). Tier: single FULL review, APPROVE WITH FIXES, no MAJOR; the fix pass got the orchestrator's read. Closed alongside it: `persist-edit-replay-forwards-the-edit-doors-recourse` and BIND's `persist-inner-variant-stops-one-rung-above-the-check`. Re-opened at P2: the pose-chain row (a saved chain that loads aborts in evaluation). Filed: `docedit-keeps-a-read-half-no-door-reads` (P3) and the `{snapshot}` wrapper question (P4).

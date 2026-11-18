@@ -599,7 +599,7 @@ class TestTheRoundTrip(unittest.TestCase):
             bore_r=FreeVar.length(4 * mm, Distribution.normal(5e-6 * m)),
             plate_t=FreeVar.length(12 * mm, Distribution.band(-2e-4 * m, 2e-4 * m)),
         )
-        back = load(doc.save()).doc
+        back = load(doc.save())
         self.assertTrue(back.bit_eq(doc), "the annotation round-trips bit for bit")
         self.assertEqual(
             back.params.get(VarName("bore_r")).distribution,
@@ -634,7 +634,7 @@ class TestTheRoundTrip(unittest.TestCase):
         that is — the offsets read back as the quantities they were
         written as, through a save and a load."""
         doc = declared(draft=FreeVar.angle(2 * deg, Distribution.normal(0.1 * deg)))
-        back = load(doc.save()).doc
+        back = load(doc.save())
         spread = back.params.get(VarName("draft")).distribution
         self.assertEqual(spread.dimension, "angle")
         self.assertAlmostEqual(spread.sigma.in_unit(deg), 0.1, delta=1e-12)

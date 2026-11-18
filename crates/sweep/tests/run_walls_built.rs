@@ -11,7 +11,7 @@
 //! a sphere and a torus, and a circle cut into arcs, which keeps its
 //! canonical cut.
 //!
-//! The last row holds `SeamVertex`'s recourse true wherever the tag
+//! The last row holds `UnbuiltEnd::Seam`'s recourse true wherever the tag
 //! fires on these bodies: one arc of a rim refused as a seam vertex
 //! is one `rim_of` lists, so "request the rim whole" can be followed.
 
@@ -21,8 +21,8 @@ use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile};
 use sweep::ExtrudeSide;
+use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig};
 use sweep::test_support::{
     arc_polygon, arc_run, bored_block_of_arcs, circle_arcs_at_z, disc_of_arcs, finished,
     pocket_of_arcs,
@@ -806,14 +806,13 @@ fn refuses_seam_vertex(b: &Body<f64>, edges: &[EdgeKey]) -> bool {
     matches!(
         fillet_edges(&sweep::test_support::at_rest(b, tol()), edges, 0.1, tol())
             .map_err(|r| r.error),
-        Err(BlendError::UnsupportedCorner {
-            corner: CornerConfig::SeamVertex,
-            ..
-        })
+        Err(BlendError::UnbuiltEnd(
+            sweep::blend::UnbuiltEnd::Seam { .. }
+        ))
     )
 }
 
-/// `SeamVertex`'s recourse is "request the rim whole; `rim_of` lists
+/// `UnbuiltEnd::Seam`'s recourse is "request the rim whole; `rim_of` lists
 /// it", so wherever one arc refuses with that tag, `rim_of` answers a
 /// rim holding the arc. Every circular edge of bodies whose rims are
 /// several arcs: cocircular arcs swept beside whole planar faces, and
@@ -885,15 +884,15 @@ fn seam_vertex_fires_only_where_rim_of_lists_the_rim() {
             if refuses_seam_vertex(b, &[arc]) {
                 fired += 1;
                 let rim = topo::query::rim_of(b, arc).unwrap_or_else(|e| {
-                    panic!("{label}: SeamVertex fired but rim_of refuses: {e:?}")
+                    panic!("{label}: the seam tag fired but rim_of refuses: {e:?}")
                 });
                 assert!(rim.contains(&arc), "{label}: the rim holds the arc");
             }
         }
     }
     // The full revolves' plane-wall rims fire; the rows are not vacuous.
-    assert!(fired > 0, "no row fired SeamVertex");
-    // The sites the review measured flipping to `SeamVertex` when the
+    assert!(fired > 0, "no row fired the seam tag");
+    // The sites the review measured flipping to `UnbuiltEnd::Seam` when the
     // one-seam reading read incidence alone: one arc of a disc of
     // arcs. `rim_of` reads structure, so it lists the disc's arcs as
     // one rim, and the tag's recourse holds there too.

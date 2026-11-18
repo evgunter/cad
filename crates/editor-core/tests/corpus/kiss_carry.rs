@@ -93,7 +93,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "kiss_carry",
         about: "corner-kiss assembly; the surviving v-v record carried into the next union",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(u2),
         pin: Some(MassPin {

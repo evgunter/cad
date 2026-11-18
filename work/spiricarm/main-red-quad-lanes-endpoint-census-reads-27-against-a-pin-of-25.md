@@ -2,8 +2,9 @@
 id: main-red-quad-lanes-endpoint-census-reads-27-against-a-pin-of-25
 kind: issue
 title: main red (slow set): the endpoint census reads 27 sites in quad_lane.rs against a pin of 25
-status: open
+status: closed
 opened: 2026-11-16
+closed: 2026-11-17
 priority: P0
 cost: E
 ---
@@ -41,3 +42,7 @@ gate did not run it (`work/ciw/tree-wide-source-censuses-in-the-slow-set-run-on-
 The census is green on main. Either the two new sites are confirmed to ask
 `is_certified()` and the pin reads `(27, 27)`, or a site that does not ask
 is fixed or argued safe in place.
+
+## Closed (2026-11-17, GREEN)
+
+Measured on main `8466ca3d`: the census reads `quad_lane.rs` at 27 reads, all 27 in a fn that asks `is_certified()`, so the first arm of "Done when" holds and the roster now reads `(27, 27)` (GREEN's 11-17 nightly PR). The move is PR 6982 (`boxfinish/rectangle-runs`), the file's only first-parent change since the pin. (GREEN)
