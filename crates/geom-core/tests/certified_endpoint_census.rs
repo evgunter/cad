@@ -710,11 +710,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        160,
-        64,
-        "the 64 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (26), \
-         `present_plane` (8), `present_plane_corner` (7), `present_vertex_corner` (12) and \
-         `Trig::psi` (3). `present_chart` asks each clip line where it is placed, so 16 of its \
+        173,
+        75,
+        "the 75 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (26), \
+         `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
+         `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
+         `segment_params` each read the side's parameter enclosure (4) only behind their own \
+         `is_certified()` and finiteness ask; `present_plane`'s 3 beyond its `y` are a side's \
+         chart range handed to `segment_params` (2) and a corner's far coordinate (1), read \
+         behind the same SPAN and CORNER funnels as its rectangle. `present_chart` asks each clip line where it is placed, so 16 of its \
          reads, the touch, reach, merge, rectangle-side and apex reads, see only certified \
          lines; its other 10 read a sphere pole's clip line at `±π/2`, a constant never handed \
          to the ask, so they count as asking only because the census reads a whole function, \
@@ -728,8 +732,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (4), behind its own `is_certified()` ask. `Trig::psi`'s 3 are its `over` \
          closure, read behind `is_certified()`. Of the other 95, the seeds and selections \
          (`mid`, `graph_read`'s `inside` and lever, `planes_through`'s point of a line edge, \
-         any point of which is exact), `Curved::nearest`'s hull of the parameters shifted by \
-         whole turns, read outward so `within`'s containment is conservative, the read behind \
+         any point of which is exact), `Params::nearest`'s hull of the parameters shifted by \
+         whole turns, read outward so `Along::under_graph`'s containment is conservative, \
+         `present_wall`'s wall curve's parameter enclosure stored as its `Params` (2), the \
+         same parameters its curve already carries, the read behind \
          `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, `narrowed`, \
          `leaves_graph`, `leaves_line`, `copy_misses`) and `run_on`'s, behind `along`'s and \
          the placement asks, are sound. The rest read the window's carrier and the face's boundary, which \
