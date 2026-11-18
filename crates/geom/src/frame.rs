@@ -25,9 +25,23 @@ use crate::{Line, SquareFrame};
 /// **A placement**: a point and a right-handed orthonormal basis
 /// `(u_ref, v_ref, axis)` ([module docs](self)), held as the
 /// [`RigidMotion`] it is.
-#[derive(Clone, Copy, Debug)]
+///
+/// Its `Debug` renders the frame's data, `origin`, `axis` and `u_ref`,
+/// the three a frame is stated by and every reader reads; `v_ref` is
+/// `axis × u_ref` by the motion's rigidity and is not rendered.
+#[derive(Clone, Copy)]
 pub struct Frame<T: Real> {
     motion: RigidMotion<T>,
+}
+
+impl<T: Real> core::fmt::Debug for Frame<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Frame")
+            .field("origin", &self.origin())
+            .field("axis", &self.axis())
+            .field("u_ref", &self.u_ref())
+            .finish()
+    }
 }
 
 impl<T: Real> Frame<T> {

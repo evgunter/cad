@@ -1435,12 +1435,23 @@ fn side_surface<T: Real>(
             let length = sketch_chord(&segs[j]).1;
             let origin = qs[j] + along.get() * (length * half) + sweep.w * half;
             let frame = match course {
-                Course::Normal { reversed } => {
+                // Along the normal the frame is turned onto the segment's
+                // right normal ([`swept::sketch_right_vector`]): its `u` is
+                // that normal placed and its `v` the direction, so the
+                // wall is its axes cycled (`u = v`, `v = w`, `w = u`), no
+                // axis negated. Against the normal it is turned onto the
+                // direction itself: `u` the direction, `w` its left normal
+                // placed (the course's), `v` the station's normal reversed.
+                Course::Normal { reversed: false } => {
+                    let turned = place.frame_toward(swept::sketch_right_vector(&segs[j]));
+                    let Some(wall) = turned.with_signed_axes((1, false), (2, false)) else {
+                        unreachable!("v and w are two axes")
+                    };
+                    geom::Frame::of_motion(&wall.with_origin(origin))
+                }
+                Course::Normal { reversed: true } => {
                     let turned = place.frame_toward(swept::sketch_vector(&segs[j]));
-                    // `u` the direction, `v` the station's normal signed
-                    // so `w = u × v` is the course's right normal: the
-                    // turned frame's `−v` along the normal, `+v` against.
-                    let Some(wall) = turned.with_signed_axes((0, false), (2, reversed)) else {
+                    let Some(wall) = turned.with_signed_axes((0, false), (2, true)) else {
                         unreachable!("u and w are two axes")
                     };
                     geom::Frame::of_motion(&wall.with_origin(origin))
@@ -1471,7 +1482,7 @@ fn side_surface<T: Real>(
             // the frame run back): rigid by construction.
             let turned = place.frame_toward(swept::sketch_vector(&segs[j]));
             let turned = if swept::turn_negates(turn) {
-                turned.reversed()
+                turned.reversed_as_difference()
             } else {
                 turned
             };

@@ -76,7 +76,7 @@ impl<T: Real> AxisFrame<T> {
     ) -> geom::Curve3<T> {
         let carried = station.carry_frame(self.azimuth.motion());
         let signed = if turn_negates(sense) {
-            carried.reversed()
+            carried.reversed_as_difference()
         } else {
             carried
         };
@@ -118,15 +118,16 @@ impl<T: Decide> AxisFrame<T> {
     ) -> Result<Self, RevolveError> {
         let dir = Self::sketch_direction(axis, band)?;
         let motion = plane.frame();
-        // The plane's frame turned onto the sketch axis `d` has `u` the
-        // placed axis and `v` its left normal; the azimuthal frame takes
-        // `u = −v` (the radial `ê_r`, `d` turned −90°) and `v = −w`, so
-        // `w = u × v` is the placed axis.
+        // The plane's frame turned onto the sketch radial `ê_r = (d.y,
+        // 0 − d.x)` ([`radial_of`]'s spelling, over the authored axis) has
+        // `u` the placed radial and `v` its left normal, the placed axis;
+        // the azimuthal frame keeps `u`, takes `w` that axis and `v = −w`
+        // of the plane, so `w = u × v` is the placed axis.
         let Some(azimuth) = motion
-            .spun_toward(axis.dir)
-            .with_signed_axes((1, true), (2, true))
+            .spun_toward(radial_of(axis.dir))
+            .with_signed_axes((0, false), (2, true))
         else {
-            unreachable!("v and w are two axes")
+            unreachable!("u and w are two axes")
         };
         Ok(Self::placed(
             motion,

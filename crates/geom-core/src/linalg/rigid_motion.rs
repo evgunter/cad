@@ -1010,7 +1010,7 @@ impl<T: Real> RigidMotion<T> {
             (2, 0) | (0, 2) => 1,
             _ => return None,
         };
-        let signed = |e: UnitVec3<T>, negative: bool| if negative { opposite(e) } else { e };
+        let signed = |e: UnitVec3<T>, negative: bool| if negative { -e } else { e };
         // `axes[i] × axes[j] = axes[k]` for the cyclic order, its negative
         // for the other.
         let cyclic = (u.0 + 1) % 3 == v.0;
@@ -1050,17 +1050,6 @@ impl<T: Real> RigidMotion<T> {
             w: spin(self.w),
         })
     }
-}
-
-/// **A frame axis reversed**, spelled `0 − e` rather than `−e`: the
-/// same direction, exactly, except that a zero component comes out `+0`
-/// whichever sign it had. A frame's re-chosen and run-back axes then
-/// carry no `−0` the negation wrote, so a frame a signed permutation of
-/// the axes turns and turns back keeps its bits (a turn's sum of
-/// products writes `+0` wherever a term is `+0`), as the carriers squared
-/// from cross products did.
-fn opposite<T: Real>(e: UnitVec3<T>) -> UnitVec3<T> {
-    UnitVec3::by_construction(Vec3::zero() - e.get())
 }
 
 impl<T: SpanLocate> RigidMotion<T> {
@@ -1104,7 +1093,18 @@ impl<T: Real> RigidMotion<T> {
     /// ([`RigidMotion::from_axis_and_reference`]).
     #[must_use]
     pub fn squared(origin: Point3<T>, w: Vec3<T>, u: Vec3<T>) -> Self {
-        let w = UnitVec3::squared(w);
+        Self::squared_about(origin, UnitVec3::squared(w), u)
+    }
+
+    /// **[`RigidMotion::squared`] about a unit axis the caller holds**:
+    /// `w` kept bit for bit, and `u`'s part square to it normalized
+    /// (`u − w(w·u)` over its length), the one step of the squaring a
+    /// witness axis leaves. For a frame derived from an axis and a raw
+    /// reference, as a section plane's from its normal and a chord: no
+    /// frame carries it, so its `u` is the reference's residual, and
+    /// nothing is decided.
+    #[must_use]
+    pub fn squared_about(origin: Point3<T>, w: UnitVec3<T>, u: Vec3<T>) -> Self {
         let a = w.get();
         let u = UnitVec3::squared(u - a * a.dot(u));
         Self {
@@ -1155,8 +1155,38 @@ impl<T: Real> RigidMotion<T> {
     #[must_use]
     pub fn reversed(self) -> Self {
         Self {
-            v: opposite(self.v),
-            w: opposite(self.w),
+            v: -self.v,
+            w: -self.w,
+            ..self
+        }
+    }
+
+    /// **This frame run back, its reversed axes spelled `0 − e`**: the
+    /// frame [`RigidMotion::reversed`] is, `u` kept and `v`, `w` reversed,
+    /// each written as its difference from zero rather than its negation.
+    /// The two agree except that a zero component comes out `+0` here
+    /// whichever sign it had, so a caller whose run-back axis was spelled
+    /// `0 − n` reads it bit for bit. Nothing is decided.
+    #[must_use]
+    pub fn reversed_as_difference(self) -> Self {
+        let from_zero = |e: UnitVec3<T>| UnitVec3::by_construction(Vec3::zero() - e.get());
+        Self {
+            v: from_zero(self.v),
+            w: from_zero(self.w),
+            ..self
+        }
+    }
+
+    /// **This frame rolled a quarter turn about its own `u`**: `v`
+    /// becomes the old `w` and `w` the old `v` reversed, spelled `0 − v`
+    /// (as [`RigidMotion::reversed_as_difference`] spells it), which is
+    /// the old `u × w` where the frame is exact. Its own axes permuted
+    /// and one reversed, so nothing is decided.
+    #[must_use]
+    pub fn rolled(self) -> Self {
+        Self {
+            v: self.w,
+            w: UnitVec3::by_construction(Vec3::zero() - self.v.get()),
             ..self
         }
     }
@@ -1168,7 +1198,7 @@ impl<T: Real> RigidMotion<T> {
     pub fn quarter_turned(self) -> Self {
         Self {
             u: self.v,
-            v: opposite(self.u),
+            v: -self.u,
             ..self
         }
     }
@@ -1178,8 +1208,8 @@ impl<T: Real> RigidMotion<T> {
     #[must_use]
     pub fn half_turned(self) -> Self {
         Self {
-            u: opposite(self.u),
-            v: opposite(self.v),
+            u: -self.u,
+            v: -self.v,
             ..self
         }
     }

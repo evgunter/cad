@@ -514,9 +514,9 @@ fn build<T: Decide + topo::AtRestPolicy>(
     // The sketch frame is the spine frame turned about its axis onto
     // the window's start ([`RigidMotion::spun_toward`] of `(cos t0,
     // sin t0)`; the frame itself for a full tube), its axes re-chosen
-    // among their own: sketch x the start radial, sketch y the axis,
-    // and the normal `x × axis`, the turned frame's `−v`. Rigid by
-    // construction, so nothing is re-squared.
+    // among their own ([`RigidMotion::rolled`]): sketch x the start
+    // radial, sketch y the axis, and the normal `x × axis`, the turned
+    // frame's `0 − v`. Rigid by construction, so nothing is re-squared.
     let start = match window {
         TubeWindow::Full => frame,
         TubeWindow::Arc { t0, .. } => {
@@ -524,9 +524,7 @@ fn build<T: Decide + topo::AtRestPolicy>(
             frame.spun_toward(Vec2::new(cos, sin))
         }
     };
-    let Some(sketch) = start.with_signed_axes((0, false), (2, false)) else {
-        unreachable!("u and w are two axes")
-    };
+    let sketch = start.rolled();
     let sketch_frame = AxisFrame::build_on(
         sketch.with_origin(center),
         &RevolveAxis {

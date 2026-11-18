@@ -492,7 +492,33 @@ impl<'a> Resolver<'a> {
     /// the schema's `ref_direction` need not be perpendicular to the
     /// axis — but the ε_in window in [`Resolver::direction`] means an
     /// already-perpendicular unit pair comes through untouched.
+    ///
+    /// The kernel frame is minted from the fields this reads
+    /// ([`Self::placement_stated`]): fields that are a rigid frame within
+    /// their own rounding ([`geom_core::RigidMotion::check_rigid`], which
+    /// reads that exactly, decides nothing and keeps the stated bits) are
+    /// that frame, so a file
+    /// that states an orthonormal frame is adopted bit for bit and our
+    /// own export reads back as it was written; any other is squared with
+    /// no decision ([`geom::Frame::new`]). The fields as stated stay
+    /// readable beside it, for a report of how far a build moved them.
     fn placement(&self, from: u64, id: u64) -> Result<geom::Frame<f64>, StepImportError> {
+        self.placement_stated(from, id).map(|p| {
+            let stated = Affine3::from_parts(
+                Mat3::from_cols(p.u_ref, p.axis.cross(p.u_ref), p.axis),
+                p.origin - Point3::origin(),
+            );
+            geom_core::RigidMotion::check_rigid(&stated).map_or_else(
+                |_| geom::Frame::new(p.origin, p.axis, p.u_ref),
+                |motion| geom::Frame::of_motion(&motion),
+            )
+        })
+    }
+
+    /// [`Self::placement`]'s fields as the file states them, with its
+    /// defaults and its projection of a reference direction that is not
+    /// perpendicular applied, and before any frame is minted from them.
+    fn placement_stated(&self, from: u64, id: u64) -> Result<StatedPlacement, StepImportError> {
         let args = self.simple(from, id, "AXIS2_PLACEMENT_3D")?;
         let expected = "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction)";
         let [_, location, axis, ref_dir] = args else {
@@ -516,7 +542,11 @@ impl<'a> Resolver<'a> {
         if let Some(u_ref) = stated
             && axis.dot(u_ref).abs() <= self.eps_in
         {
-            return Ok(geom::Frame::new(origin, axis, u_ref));
+            return Ok(StatedPlacement {
+                origin,
+                axis,
+                u_ref,
+            });
         }
         // `first_proj_axis`: the file's reference direction when it has
         // one, else the first coordinate axis the placement's own axis
@@ -549,7 +579,11 @@ impl<'a> Resolver<'a> {
         } else {
             unit
         };
-        Ok(geom::Frame::new(origin, axis, u_ref))
+        Ok(StatedPlacement {
+            origin,
+            axis,
+            u_ref,
+        })
     }
 
     /// An `ADVANCED_FACE`'s surface reference → the kernel surface,
@@ -2358,8 +2392,11 @@ impl Resolver<'_> {
         let [_, _, from_ref, to_ref] = args else {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
-        let a = self.placement(id, as_ref(id, from_ref, expected)?)?;
-        let b = self.placement(id, as_ref(id, to_ref, expected)?)?;
+        // The two placements as the file states them: the identity read,
+        // the build and the report below all read the stated fields, so a
+        // frame the build moves is measured from what the file wrote.
+        let a = self.placement_stated(id, as_ref(id, from_ref, expected)?)?;
+        let b = self.placement_stated(id, as_ref(id, to_ref, expected)?)?;
         // Identity at ε_in: the origins coincide within the file's own
         // declared uncertainty, and so do the two direction fields
         // (dimensionless, but ε_in is the one budget this importer
@@ -2367,9 +2404,9 @@ impl Resolver<'_> {
         // tightly). Checked on the STATED fields, before any
         // orthonormalization, so an identity pair takes the same path
         // it took in M7-2 and moves nothing.
-        if (a.origin() - b.origin()).norm() <= self.eps_in
-            && (a.axis() - b.axis()).norm() <= self.eps_in
-            && (a.u_ref() - b.u_ref()).norm() <= self.eps_in
+        if (a.origin - b.origin).norm() <= self.eps_in
+            && (a.axis - b.axis).norm() <= self.eps_in
+            && (a.u_ref - b.u_ref).norm() <= self.eps_in
         {
             return Ok(None);
         }
@@ -2394,11 +2431,11 @@ impl Resolver<'_> {
         // to its axis at ε_in already refused where the frame was read
         // ([`Self::placement`]), so only an exactly vanishing one is left.
         let band = geom_core::Band::least();
-        let built = |f: geom::Frame<f64>| {
+        let built = |f: StatedPlacement| {
             geom_core::RigidMotion::from_axis_and_reference(
-                f.origin(),
-                f.axis(),
-                f.u_ref(),
+                f.origin,
+                f.axis,
+                f.u_ref,
                 crate::STEP_PLACEMENT_AXES,
                 band,
             )
@@ -2418,10 +2455,10 @@ impl Resolver<'_> {
         // `build_axes` moved them, and the move is reported: the
         // farthest a point of the session box moves between the stated
         // frame and the built one, summed over the pair.
-        let moved = |f: geom::Frame<f64>, built: geom_core::RigidMotion<f64>| {
+        let moved = |f: StatedPlacement, built: geom_core::RigidMotion<f64>| {
             let stated = Affine3::from_parts(
-                Mat3::from_cols(f.u_ref(), f.axis().cross(f.u_ref()), f.axis()),
-                f.origin() - Point3::origin(),
+                Mat3::from_cols(f.u_ref, f.axis.cross(f.u_ref), f.axis),
+                f.origin - Point3::origin(),
             );
             geom_core::RigidMotion::check_rigid(&stated)
                 .is_err()
@@ -2453,6 +2490,19 @@ impl Resolver<'_> {
         }
         Ok(Some(motion))
     }
+}
+
+/// **An `AXIS2_PLACEMENT_3D` as the file states it**: its location, and
+/// its axis and reference direction with the schema's defaults filled in
+/// and a reference direction that is not perpendicular projected
+/// ([`Resolver::placement_stated`]). No rigidity is claimed of them: a
+/// file's unit fields are its printer's, and a build that squares them
+/// reports how far it moved them.
+#[derive(Clone, Copy, Debug)]
+struct StatedPlacement {
+    origin: Point3<f64>,
+    axis: Vec3<f64>,
+    u_ref: Vec3<f64>,
 }
 
 /// **The farthest a point of the session box moves between two maps**:

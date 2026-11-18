@@ -1486,8 +1486,8 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             slits.push((slit, slit_side));
             continue;
         }
-        // The section face's frame: the split plane's, aimed along its
-        // normal and turned onto the below loop's chord
+        // The section face's frame: the split plane's normal and the
+        // below loop's chord's part square to it
         // ([`section_loops::chord_frame`]), run back on the side whose
         // outward normal is the plane's negated
         // ([`section_loops::section_normal`]'s sign), its `u_ref` kept.

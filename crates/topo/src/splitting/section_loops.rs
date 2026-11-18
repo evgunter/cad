@@ -14,7 +14,7 @@
 //! section face carries **m = +n_SP** ([`section_normal`]).
 
 use geom::Conic;
-use geom_core::{Decide, Indeterminate, Point3, Real, RigidMotion, UnitVec3, Vec2, Vec3};
+use geom_core::{Decide, Indeterminate, Point3, Real, RigidMotion, UnitVec3, Vec3};
 
 use super::PlaneSide;
 use super::containment::{LoopContainment, point_in_loop};
@@ -70,24 +70,18 @@ pub(super) fn chord_u_ref<T: Decide>(
 
 /// **The section plane's frame**, standing at the world origin: `w` the
 /// normal `n` as the split holds it, and `u` [`chord_u_ref`]'s
-/// direction. The frame aimed along `n` ([`RigidMotion::aimed`], `w = n`
-/// by construction) is turned about `n` onto the direction's components
-/// in its own plane ([`RigidMotion::spun_toward`]), so the frame is rigid
-/// by construction, its `u` is ⊥ `n` with no projection to re-square,
-/// and nothing is decided. An `n` whose aimed columns are not finite,
-/// which a decided unit normal never is, falls back to squaring the two
-/// directions ([`RigidMotion::squared`]), which poisons them.
+/// direction, the chord's part square to `n` normalized
+/// ([`RigidMotion::squared_about`], `n` kept bit for bit). The split
+/// plane is a point and a decided normal, with no frame of its own to
+/// turn, so the section's frame is derived from its normal and its
+/// chord, and nothing is decided.
 pub(super) fn chord_frame<T: Decide>(
     body: &Body<T>,
     l: LoopKey,
     points: &[Point3<T>],
     n: UnitVec3<T>,
 ) -> RigidMotion<T> {
-    let d = chord_direction(body, l, points);
-    match RigidMotion::aimed(Point3::origin(), n) {
-        Ok(aimed) => aimed.spun_toward(Vec2::new(aimed.u().get().dot(d), aimed.v().get().dot(d))),
-        Err(_) => RigidMotion::squared(Point3::origin(), n.get(), d),
-    }
+    RigidMotion::squared_about(Point3::origin(), n, chord_direction(body, l, points))
 }
 
 /// The direction [`chord_u_ref`] reads before it is taken into the

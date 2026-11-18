@@ -658,12 +658,23 @@ pub(crate) fn sketch_direction<T: Real, S: SweptChord<T>>(seg: &S) -> Unit2<T> {
 /// **The sketch vector [`sketch_direction`] normalizes**: a line's chord
 /// `b − a`, an arc's start radial `a − centre`, for a frame turned onto
 /// that direction ([`Placing::frame_toward`]), which normalizes it by the
-/// same arithmetic.
+/// same arithmetic. Its right normal `(y, 0 − x)` is spelled as
+/// [`Unit2::right`] spells it, so a frame turned onto it holds that
+/// normal placed bit for bit ([`sketch_right_vector`]).
 pub(crate) fn sketch_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {
     match seg.kind().get() {
         SegmentKind::Line => seg.b() - seg.a(),
         SegmentKind::Arc { arc, .. } => seg.a() - arc.centre,
     }
+}
+
+/// The right normal of [`sketch_vector`], `(y, 0 − x)`: normalized, it is
+/// [`Unit2::right`] of the normalized sketch direction, component for
+/// component (negation and division commute exactly, and `0 − x` over
+/// `n` is `0 − x/n`, signed zeros included).
+pub(crate) fn sketch_right_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {
+    let v = sketch_vector(seg);
+    Vec2::new(v.y, T::zero() - v.x)
 }
 
 /// A segment's chord `b − a` as its unit direction and its own length,
@@ -884,7 +895,7 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
                 None => {
                     let turned = place.frame_toward(sketch_vector(seg));
                     let signed = if turn_negates(turn) {
-                        turned.reversed()
+                        turned.reversed_as_difference()
                     } else {
                         turned
                     };
