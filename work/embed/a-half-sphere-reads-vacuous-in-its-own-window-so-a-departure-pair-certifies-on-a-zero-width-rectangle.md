@@ -294,7 +294,7 @@ run and goes red with the reading named:
   (two lines `u = 3/2`, the face above one and below the other).
 - A flat-axis miss turned `Local`: `a_cell_past_the_extent_on_a_flat_axis_holds_none_of_the_face`.
 - **Body pin:** `a_revolved_ball_holds_only_after_it_splits` (the review's
-  row, in the slow set). It is what ties the hand-built half-band to
+  row; 0.136 s on the PR gate's profile, so not in the slow set). It is what ties the hand-built half-band to
   what the revolve door stores.
 
 **6. What moved: nothing measured.** The 49 rows of
