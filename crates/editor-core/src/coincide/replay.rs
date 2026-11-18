@@ -106,6 +106,9 @@ type Lane = Sym<f64>;
 /// Why a row is left unproven, and what would prove it.
 type Left = (Unreplayed, Recourse);
 
+/// One value per row, in the shape of the nodes handed to [`rungs`].
+type PerRow<T> = [Vec<T>];
+
 /// A rung that proved a row, or why the replay could not and, for two
 /// cells with an axis, the first component of one axis, one radius and
 /// one sense it did not establish.
@@ -129,7 +132,7 @@ type Proved = Result<Rung, (Left, Option<Component>)>;
 pub(super) fn rungs(
     doc: &crate::doc::Doc<ProfileProgram>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
-    (left, axes_one, headings): (&[Vec<bool>], &[Vec<bool>], &[Vec<Option<Heading>>]),
+    (left, axes_one, headings): (&PerRow<bool>, &PerRow<bool>, &PerRow<Option<Heading>>),
     resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     stop: &crate::Stop,
@@ -370,13 +373,9 @@ fn swept_along(
     let Ok(faces) = crate::eval::traced_faces(doc, ev, program, tol) else {
         return false;
     };
-    let Some(face) = faces.get(heading.face) else {
+    let Some(across) = faces.get(heading.face).and_then(axis_in_sketch) else {
         return false;
     };
-    let Ok(geom::Surface::Cylinder { axis, .. }) = &face.surface else {
-        return false;
-    };
-    let across = face.body_to_sketch.transform_vec(*axis);
     let zero = |component: Lane| {
         geom_core::k_stats::decide_reported(
             SWEPT_ALONG,
@@ -386,6 +385,15 @@ fn swept_along(
         .is_ok_and(|d| deferred::discharge(d.margin))
     };
     zero(across.x) && zero(across.y)
+}
+
+/// A traced face's axis, where it is on a cylinder, carried into the
+/// sketch's coordinates; `None` on any other carrier.
+fn axis_in_sketch(face: &crate::TracedFace<Lane>) -> Option<geom_core::Vec3<Lane>> {
+    match &face.surface {
+        Ok(geom::Surface::Cylinder { axis, .. }) => Some(face.body_to_sketch.transform_vec(*axis)),
+        _ => None,
+    }
 }
 
 /// A form the tier read and did not discharge: a coincidence of values

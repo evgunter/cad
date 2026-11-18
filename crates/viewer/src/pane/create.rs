@@ -436,53 +436,11 @@ fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Opti
     chosen
 }
 
-/// **Why the profile-on-a-face button is withheld**, when it is — and how loud
-/// that is, which depends on which of two things it is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Withheld {
-    /// The form is waiting for its next input: a face to latch. The
-    /// form asking, [`Tone::Advisory`].
-    Waiting(&'static str),
-    /// An input the reader gave is refused, and the button stays shut
-    /// until they change it: [`Tone::Actionable`].
-    Refused(&'static str),
-}
-
-impl Withheld {
-    fn words(self) -> &'static str {
-        match self {
-            Self::Waiting(words) | Self::Refused(words) => words,
-        }
-    }
-
-    fn tone(self) -> Tone {
-        match self {
-            Self::Waiting(_) => Tone::Advisory,
-            Self::Refused(_) => Tone::Actionable,
-        }
-    }
-}
-
-/// **The one reason the profile-on-a-face button is withheld for**, out of every
-/// reason the form found, handed over in the form's own top-to-bottom
-/// order.
-///
-/// A refused input outranks the form waiting for one: a missing face
-/// shows in the form itself (its latch says nothing is held), while a
-/// refused pair of faces has no other voice. Between two of
-/// one kind the earlier in the form is said, so the first thing a
-/// person is asked for is the first thing the form lacks.
-fn withheld_for(holds: impl IntoIterator<Item = Withheld>) -> Option<Withheld> {
-    holds.into_iter().reduce(|said, next| match (said, next) {
-        (Withheld::Waiting(_), Withheld::Refused(_)) => next,
-        _ => said,
-    })
-}
-
-/// The withheld button's reason, drawn in its own voice. A free function
-/// over the `Ui` so a headless drive can reach it.
-fn withheld_line(ui: &mut egui::Ui, theme: &Theme, withheld: Withheld) {
-    crate::widgets::message_toned(ui, withheld.words(), theme, withheld.tone());
+/// **Why the profile-on-a-face button is withheld**: the form waiting for
+/// its face, drawn as the form asking ([`Tone::Advisory`]). A free
+/// function over the `Ui` so a headless drive can reach it.
+fn withheld_line(ui: &mut egui::Ui, theme: &Theme, words: &'static str) {
+    crate::widgets::message_toned(ui, words, theme, Tone::Advisory);
 }
 
 /// **Why the revolve button cannot work out a default axis** for the
@@ -1195,16 +1153,11 @@ impl ViewerBehavior<'_> {
             return;
         }
         self.profile_drawn.create = true;
-        let blocked = withheld_for(self.trace_rows(ui));
-        if let Some(withheld) = blocked {
-            withheld_line(ui, &self.theme, withheld);
+        let blocked = self.trace_rows(ui);
+        if let Some(words) = blocked {
+            withheld_line(ui, &self.theme, words);
         }
-        let closing = commit_row(
-            ui,
-            NEW_PROFILE_ON_FACE,
-            blocked.map(Withheld::words),
-            |_| {},
-        );
+        let closing = commit_row(ui, NEW_PROFILE_ON_FACE, blocked, |_| {});
         if closing.cancel {
             self.drafts.on_face_open = false;
         }
@@ -1232,14 +1185,13 @@ impl ViewerBehavior<'_> {
     /// it traces, if any — each taking the viewport's face pick on its
     /// button; the trace the two show, or the trace's own refusal; and
     /// the trace's branches. Answers what the commit still waits for.
-    fn trace_rows(&mut self, ui: &mut egui::Ui) -> Vec<Withheld> {
+    fn trace_rows(&mut self, ui: &mut egui::Ui) -> Option<&'static str> {
         let picked = match self.session.selection() {
             Selection::Face(face) => Some(face.clone()),
             _ => None,
         };
         let speaker = frame::landed_speaker(self.session.landed_pair());
         let doc = self.session.doc();
-        let mut withholds = Vec::new();
         for (label, plane) in [(ON_THE_FACE, true), (TRACE_FACE, false)] {
             ui.horizontal(|ui| {
                 ui.label(label);
@@ -1259,9 +1211,11 @@ impl ViewerBehavior<'_> {
                 }
             });
         }
-        if self.drafts.on_face.is_none() {
-            withholds.push(Withheld::Waiting(PICK_THE_FACE_DRAWN_ON));
-        }
+        let waiting = self
+            .drafts
+            .on_face
+            .is_none()
+            .then_some(PICK_THE_FACE_DRAWN_ON);
         match self.drafts.trace_shown.as_ref().map(|shown| &shown.read) {
             Some(Ok(marks)) => {
                 crate::widgets::message(
@@ -1306,7 +1260,7 @@ impl ViewerBehavior<'_> {
              chain heads along the trace there: both are read off the traced face at every \
              evaluation, and a crossing the piece does not make refuses on the profile",
         );
-        withholds
+        waiting
     }
 
     /// **The sweeps of the selected profile**: an extrude button and a
@@ -2397,7 +2351,7 @@ mod tone_tests {
 
     use pncad::document::DocumentId;
 
-    use super::{Withheld, part_listing, withheld_for, withheld_line};
+    use super::part_listing;
     use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
     use crate::parts::{PartCensus, PartChooser, PartEntry};
     use crate::session::Refusal;
@@ -2457,45 +2411,6 @@ mod tone_tests {
         );
         assert_eq!(find(&painted, "parts in /parts").ink, Some(voices.weak));
         assert_eq!(find(&painted, &id.to_string()).ink, Some(voices.weak));
-    }
-
-    /// **Which withholding reason is said**: a refused input over the form
-    /// waiting for one, wherever it came in the form; between two of
-    /// one kind, the earlier.
-    #[test]
-    fn a_refused_input_outranks_a_missing_one_and_the_form_order_breaks_ties() {
-        let frame = Withheld::Waiting("pick the face whose plane the sketch is on");
-        let chain = Withheld::Waiting("pick the face to trace");
-        let refused = Withheld::Refused("the traced frame does not read");
-        let later = Withheld::Refused("a later refusal");
-        assert_eq!(withheld_for([frame, chain]), Some(frame));
-        assert_eq!(withheld_for([frame, refused]), Some(refused));
-        assert_eq!(withheld_for([refused, frame]), Some(refused));
-        assert_eq!(withheld_for([frame, refused, chain]), Some(refused));
-        assert_eq!(withheld_for([refused, later]), Some(refused));
-        assert_eq!(withheld_for([]), None);
-    }
-
-    /// **The profile-on-a-face form's withholding reason**: a refused input is loud,
-    /// the form waiting for one is quiet.
-    #[test]
-    fn a_withheld_profile_button_says_why_in_the_reasons_own_voice() {
-        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            withheld_line(
-                ui,
-                theme,
-                Withheld::Refused("the traced frame does not read"),
-            );
-            withheld_line(ui, theme, Withheld::Waiting("pick the face to trace"));
-        });
-        assert_eq!(
-            find(&painted, "the traced frame does not read").ink,
-            Some(voices.actionable)
-        );
-        assert_eq!(
-            find(&painted, "pick the face to trace").ink,
-            Some(voices.weak)
-        );
     }
 }
 
