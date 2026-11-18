@@ -725,17 +725,38 @@ impl Real for Interval {
 
     /// The intersection of the two enclosures, as
     /// `Certification::meet` reads one: a refused reading refuses the
-    /// meet, an empty one is NaI (two sound enclosures of one real cannot
-    /// be disjoint), and the decoration is the weaker reading's.
+    /// meet, and the decoration is the weaker reading's.
+    ///
+    /// **A disjoint meet is a kernel defect, loud.** Two sound
+    /// enclosures of one real cannot be disjoint, so an empty meet says
+    /// one of the two spellings is wrong: it fails a debug assertion, and
+    /// a release build answers NaI, poison every consumer refuses, never
+    /// an empty or arbitrary interval
+    /// (`meet_readings_of_two_disjoint_enclosures_is_a_defect`).
     fn meet_readings(first: Self, second: impl FnOnce() -> Self) -> Self {
         let second = second();
         if !first.is_certified() || !second.is_certified() {
             return Self(DInterval::nai());
         }
+        let (lo, hi) = (
+            first.0.lo().max(second.0.lo()),
+            first.0.hi().min(second.0.hi()),
+        );
+        if !(lo <= hi) {
+            debug_assert!(
+                false,
+                "meet_readings: two readings of one real are disjoint, [{}, {}] and [{}, {}]: \
+                 one spelling is wrong",
+                first.0.lo(),
+                first.0.hi(),
+                second.0.lo(),
+                second.0.hi()
+            );
+            return Self(DInterval::nai());
+        }
         let (a, b) = (first.0.decoration(), second.0.decoration());
         let weaker = if b < a { b } else { a };
-        let meet = first.0.intersection(second.0);
-        Self(DInterval::from_bounds(meet.lo(), meet.hi()).with_dec_capped(weaker))
+        Self(DInterval::from_bounds(lo, hi).with_dec_capped(weaker))
     }
 
     fn is_bounded(self) -> bool {
@@ -1495,6 +1516,33 @@ mod tests {
     /// would pad one step. So `x · ½`, `½ · x`, `x · (−½)` and
     /// `scale_pow2` all read the exact half here, and a halving by `·½`
     /// pads nothing.
+    /// **Two disjoint readings of one real are a kernel defect, loud**
+    /// (`Real::meet_readings`): `[1, 2]` and `[3, 4]` cannot both enclose
+    /// one real, so a debug build fails its assertion and a release build
+    /// answers NaI, never an empty or arbitrary interval.
+    #[test]
+    #[cfg_attr(
+        debug_assertions,
+        should_panic(expected = "two readings of one real are disjoint")
+    )]
+    fn meet_readings_of_two_disjoint_enclosures_is_a_defect() {
+        let got = <Interval as Real>::meet_readings(Interval::from_bounds(1.0, 2.0), || {
+            Interval::from_bounds(3.0, 4.0)
+        });
+        assert!(Real::is_poison(got), "a disjoint meet poisons: {got:?}");
+    }
+
+    /// Two overlapping readings meet at their intersection, the tighter
+    /// enclosure of the real both enclose.
+    #[test]
+    fn meet_readings_of_two_overlapping_enclosures_is_their_intersection() {
+        let got = <Interval as Real>::meet_readings(Interval::from_bounds(1.0, 3.0), || {
+            Interval::from_bounds(2.0, 4.0)
+        });
+        assert_eq!((got.lo(), got.hi()), (2.0, 3.0));
+        assert!(got.is_certified());
+    }
+
     #[test]
     fn a_halving_is_exact_below_the_two_prod_floor() {
         let least = f64::MIN_POSITIVE;

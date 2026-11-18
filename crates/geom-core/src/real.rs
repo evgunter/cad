@@ -446,7 +446,14 @@ pub trait Real:
     /// scalar reads exactly the one spelling and records no other. A
     /// caller reaches for it where each spelling widens in its own regime
     /// and neither bounds the other (`turn_arms`, geom-brep). Decides
-    /// nothing; a disjoint meet poisons.
+    /// nothing.
+    ///
+    /// **Only for two readings of one real**, each a sound enclosure of
+    /// it by its own argument: never a general narrowing of an enclosure
+    /// by a window or a guess, which is `Certification::clamped_to`'s
+    /// and `Certification::meet`'s business. Two such readings cannot be
+    /// disjoint, so a disjoint meet is a kernel defect: it fails a debug
+    /// assertion and answers poison.
     #[must_use]
     fn meet_readings(first: Self, second: impl FnOnce() -> Self) -> Self {
         let _ = second;
