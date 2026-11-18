@@ -1280,7 +1280,7 @@ impl Escalation {
     }
 }
 
-/// **One candidate an enumeration examined** ([`mark`]): a sign-less
+/// **One candidate an enumeration examined** ([`mark_candidates`]): a sign-less
 /// record of which item a pruning query handed on, so that a reader of
 /// the log can tell two runs that examined the same candidates from two
 /// whose pruning differed while their decisions read alike. It decides
