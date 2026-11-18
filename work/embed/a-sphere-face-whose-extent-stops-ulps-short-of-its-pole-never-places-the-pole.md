@@ -133,3 +133,38 @@ is read as the pole for being near it.
 - **The endpoint census:** `injective.rs` reads 179 / 79 (177 / 79 on
   main); the two added reads are `reaching_its_poles`' ends of the
   polar latitude.
+
+## The fix pass after review (EMBED, lane pole, 2026-11-18)
+
+The review of PR 7115 reached the cone's apex with a plain built body,
+so the reading became one for both kinds, and its premise is checked:
+
+- **One reading of a vertex at a singular point** (`singular_ends`):
+  a sphere's poles and a cone's apex, by `vertex_at_singular_point`.
+  The apex's own site, `self_intersection_apex`, is retired.
+- **`face_extent` checks the stored extent, then moves it.** The lines
+  and the nappe are read against the stored extent, as on main. Only
+  then is it moved to each singular latitude the face holds a vertex
+  at (`reaching_its_singular_points`).
+- **It moves only across a rounding.** A stored end farther than
+  `chart_slack` from the latitude contradicts the vertex and refuses
+  `Structural`. That leaves a vertex in band of its pole with honest
+  rows refused:
+  `a-vertex-in-band-of-a-pole-whose-rows-end-at-its-own-latitude-refuses-structural`.
+- **The extent's end moves for a vertex the band reads at the point**,
+  which is one within the band's zero of it, `1e-9` m at the default
+  ε. That is the incidence's decision reused, not a concession of this
+  reader's own; the earlier section's "no bound is read as the pole
+  for being near it" is true of the extent's bound and not of the
+  vertex.
+
+**Measured on the merged tree** (main `bb54d3e4d` merged in):
+- the cavity rows at f64: the same 8 of 222 fail, and all 307
+  cavities' verdicts and receipts are those of the first head;
+- `self_intersection_proves_injectivity` and `shell_cavity_embedded`:
+  59 of 59 at the default ε, 1e-6 and 1e-12, every earlier receipt
+  unchanged; the cone pin holds at 157 discharged, 151 splits;
+- a cone sweep (six shapes, 61 apex heights, apex down and up, each
+  body and its axial-door cavity): 1,464 of 1,464 hold. On the first
+  head 113 of the first 949 refused `Budget(Pairs)`;
+- the endpoint census: `injective.rs` reads 177 / 75.

@@ -171,6 +171,13 @@ window.
 
 - At `Probe` the switch puts the cavity sweep's samples into the K
   population (audit row F41). Run the k-probe sweep with it.
+  - Since PR 7115, `face_extent` reads every vertex of a sphere or cone
+    face against its chart's singular points in each cell
+    (`singular_ends`), so a K-probe run that asks injectivity of such a
+    face gains `chart_singularity_at_vertex` samples, two per vertex
+    per cell on a sphere and one on a cone. None does today: the walk
+    runs inside `k_stats::unlogged("F41")` and the cavity gate does not
+    ask at `Probe`.
 - The valid-shell rows of `shell_cavity_embedded.rs` (`holds`, `shells`)
   lost their `gap > 0` assertions in PR 6885, so the pot, the frustum,
   the Klein elbow and the tube at `Sym<Interval>` no longer show the
