@@ -194,6 +194,16 @@ impl ImplicitForm {
         })
     }
 
+    /// **This form read through a frame enclosure**: `frame` (`e₀`, `e₁`,
+    /// `e₂`) in place of the one squared from the stored surface's axes,
+    /// for a partner whose `f64` surface stands on its frame's midpoints
+    /// ([`crate::ssi::certify::chart_partner_form`]): an enclosure of the
+    /// partner's own rotation, so every value and gradient the form reads
+    /// encloses the partner's.
+    pub(crate) fn with_frame(self, frame: [Vec3<Interval>; 3]) -> Self {
+        Self { frame, ..self }
+    }
+
     /// **The plane read at a pivot, lifted onto its stored plane**: the
     /// same form, with `lift` the stored plane's `f` at this one's
     /// origin, so that `f + lift` is the stored plane's `f`
