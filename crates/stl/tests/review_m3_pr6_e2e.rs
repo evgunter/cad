@@ -39,7 +39,7 @@ fn die(x0: f64, y0: f64, z0: f64) -> AtRestBody<f64> {
     let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
         panic!("die subtract is a body");
     };
-    assert!(b.contacts.is_empty());
+    assert!(b.contacts().is_empty());
     assert_eq!(
         mass_properties(
             &b.body,
@@ -66,15 +66,15 @@ fn r6_pocketed_dice_kiss_e2e() {
     // union put the kissing corners on one point key, which the census
     // reads as structure.
     assert_eq!(
-        assembly.contacts.vertex_vertex().count(),
+        assembly.contacts().vertex_vertex().count(),
         1,
         "one corner kiss"
     );
     assert_eq!(
-        validate_pseudomanifold(&assembly.body, &assembly.contacts, Tol::witness()),
+        validate_pseudomanifold(&assembly.body, &assembly.contacts(), Tol::witness()),
         Ok(())
     );
-    for (x, y) in assembly.contacts.vertex_vertex() {
+    for (x, y) in assembly.contacts().vertex_vertex() {
         let key = |v| assembly.body.get_vertex(v).unwrap().point;
         assert_eq!(key(x), key(y), "the kissing corners share one key");
     }
