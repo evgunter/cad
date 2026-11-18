@@ -624,11 +624,11 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
 
     // The load: the document holding the seat on the vanished face
     // loads with no store; what it then evaluates to is its reader's.
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let loaded =
         load(&text, Tol::witness()).expect("a seat on a vanished face loads with no store");
-    assert!(loaded.doc.bit_eq(&doc), "the seat as saved");
-    let ev = run(&loaded.doc, &s.opts);
+    assert!(loaded.bit_eq(&doc), "the seat as saved");
+    let ev = run(&loaded, &s.opts);
     assert!(
         matches!(
             target_refusal(&ev, s.mate).kind(),
@@ -819,14 +819,14 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
 #[test]
 fn the_seat_round_trips_byte_for_byte() {
     let s = seat("msolve9-wire", 1.0);
-    let text = save(&s.doc, &[], Tol::witness()).expect("saves");
+    let text = save(&s.doc, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("loads with no store");
     assert_eq!(
-        loaded.doc.node(s.block_i),
+        loaded.node(s.block_i),
         s.doc.node(s.block_i),
         "the seat as itself"
     );
-    let again = save(&loaded.doc, &[], Tol::witness()).expect("re-saves");
+    let again = save(&loaded, Tol::witness()).expect("re-saves");
     assert_eq!(again, text, "byte for byte");
 }
 
@@ -906,18 +906,17 @@ fn c5_every_tracked_document_loads_on_this_wire_and_re_saves_identically() {
             seen += 1;
         });
         let mates: usize = loaded
-            .doc
             .placements()
             .into_iter()
             .map(|p| {
-                fixture::bundle(&loaded.doc, p)
+                fixture::bundle(&loaded, p)
                     .iter()
                     .filter(|c| c.mate().is_some())
                     .count()
             })
             .sum();
         assert!(seen >= mates, "{}: the walk met every mate", path.display());
-        let again = save(&loaded.snapshot, &loaded.edits, Tol::witness())
+        let again = save(&loaded, Tol::witness())
             .unwrap_or_else(|e| panic!("{}: re-saves: {e}", path.display()));
         assert_eq!(again, text, "{}: re-saves byte for byte", path.display());
     }

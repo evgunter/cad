@@ -55,7 +55,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "tube_ring",
         about: "a solid ring torus from its intent parameters, R = 2, r = 0.5",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(ring),
         // 2π²Rr² is not dyadic — module docs.
