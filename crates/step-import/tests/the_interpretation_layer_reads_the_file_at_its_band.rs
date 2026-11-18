@@ -370,21 +370,124 @@ fn a_placement_pairs_entry_bounds_its_snap_and_its_frames() {
 }
 
 /// An ε_in whose band `K·ε_in` is no finite length makes no band the
-/// file can be read at: refused as that, naming the file's declared
-/// uncertainty, before any statement is read, and naming no entity.
+/// file can be read at: refused as that before any statement is read,
+/// naming no entity, and naming the value as what it is (here the
+/// caller's override, not the file's declaration), in scientific
+/// notation.
 #[test]
-fn an_eps_in_that_makes_no_band_refuses_naming_the_declared_uncertainty() {
+fn an_eps_in_that_makes_no_band_refuses_naming_whose_it_is() {
     let options = ImportOptions {
         eps_in: Some(1e308),
         ..ImportOptions::default()
     };
     match import_step(&freecad_fixture("box"), &options, Tol::witness()) {
-        Err(ref e @ StepImportError::UnbandedUncertainty { eps_in }) => {
+        Err(ref e @ StepImportError::UnbandedUncertainty { eps_in, overridden }) => {
             assert_eq!(eps_in, 1e308);
+            assert!(overridden, "the override, not the declaration");
             let text = e.render();
-            assert!(text.contains("declared uncertainty"), "{text}");
+            assert!(
+                text.contains("the ε_in override (the coincidence distance ε_in = 1e308 m)"),
+                "{text}"
+            );
+            assert!(
+                !text.contains("declared"),
+                "the file declared no such value: {text}"
+            );
             assert!(!text.contains("entity #"), "no entity: {text}");
         }
         other => panic!("an unbanded uncertainty, got {other:?}"),
+    }
+}
+
+/// A declared ε_in of zero is read at the run's ε like any other value
+/// below it, not as an exact comparison: fuse_boxes declaring `0.`, with
+/// one of its top's records `#223` raised 1e-13 m (below every run's ε),
+/// still joins all four later records.
+#[test]
+fn a_declared_eps_in_of_zero_reads_at_the_runs_floor() {
+    let text = with(
+        &with(
+            &freecad_fixture("fuse_boxes"),
+            "LENGTH_MEASURE(1.E-07)",
+            "LENGTH_MEASURE(0.)",
+        ),
+        "#223 = CARTESIAN_POINT('',(0.,0.,1.));",
+        "#223 = CARTESIAN_POINT('',(0.,0.,1.0000000001));",
+    );
+    let imported = import(&text).unwrap_or_else(|e| panic!("imports: {}", e.render()));
+    assert_eq!(imported.eps_in(), 0.0, "the declaration stands as stated");
+    let joins = imported
+        .normalizations()
+        .iter()
+        .filter(|n| matches!(n.kind, NormalizationKind::OneRecord { .. }))
+        .count();
+    assert_eq!(joins, 4, "the raised record joins at the run's ε");
+}
+
+/// A declared ε_in below zero is no coincidence distance: refused where
+/// the declaration is read, as an invalid root naming the record, the
+/// value and its unit.
+#[test]
+fn a_negative_declared_eps_in_refuses_as_an_invalid_root() {
+    let text = with(
+        &freecad_fixture("fuse_boxes"),
+        "LENGTH_MEASURE(1.E-07)",
+        "LENGTH_MEASURE(-1.E-07)",
+    );
+    match import(&text) {
+        Err(
+            ref e @ StepImportError::Interpretation {
+                id,
+                refusal: InterpretationRefusal::InvalidRoot { value, unit, .. },
+                ..
+            },
+        ) => {
+            assert_eq!(id, 397, "the UNCERTAINTY_MEASURE_WITH_UNIT is named");
+            assert!((value + 1e-10).abs() < 1e-24, "in metres: {value:e}");
+            assert_eq!(unit, "m");
+            assert!(
+                e.render().contains("declared uncertainty"),
+                "{}",
+                e.render()
+            );
+        }
+        other => panic!("an invalid root, got {other:?}"),
+    }
+}
+
+/// A torus's major radius that is not positive, or not past its minor
+/// (a spindle or horn torus, outside D3's ring convention), is a root no
+/// construction takes: refused at the `TOROIDAL_SURFACE` record, naming
+/// which, before any edge's adoption reads the surface.
+#[test]
+fn a_torus_off_the_ring_convention_refuses_at_its_record() {
+    for (major, names, value) in [
+        ("-1.", "major radius, which", -1e-3),
+        ("0.", "major radius, which", 0.0),
+        ("0.1", "less its minor radius", -1.5e-4),
+        ("0.25", "less its minor radius", 0.0),
+    ] {
+        let text = with(
+            &freecad_fixture("torus"),
+            "#38 = TOROIDAL_SURFACE('',#39,1.,0.25);",
+            &format!("#38 = TOROIDAL_SURFACE('',#39,{major},0.25);"),
+        );
+        match import(&text) {
+            Err(
+                ref e @ StepImportError::Interpretation {
+                    id,
+                    refusal: InterpretationRefusal::InvalidRoot { value: got, .. },
+                    ..
+                },
+            ) => {
+                assert_eq!(id, 38, "major {major}: the surface record is named");
+                assert!(
+                    (got - value).abs() < 1e-15,
+                    "major {major}: the value in metres: {got:e}"
+                );
+                assert!(e.render().contains(names), "major {major}: {}", e.render());
+            }
+            other => panic!("major {major}: an invalid root, got {other:?}"),
+        }
     }
 }
