@@ -11,3 +11,5 @@ Protocol: e1c428efbb (corrected 2026-11-17; first written as d327ffb52, a shallo
 | importgate/knot-place: PR 7084 head 69933c8708 (letter M, tier single FULL) | reviewer | 95 | Fable | 2026-11-17T20:12:30Z | protocol 083ca253dc |
 | importgate/interp-layer: PR 7091 frozen head 91b46ffaca (letter H, tier dual, concurrent) | slot order | 95 | R1 = Fable, R2 = Opus | 2026-11-17T21:58:32Z | protocol 083ca253dc |
 | importgate/interp-layer: PR 7091 | blind-coding map | 192 | even → A = R1, B = R2 | 2026-11-17T21:58:32Z | |
+
+**Fable outage, 2026-11-18 (rule 12).** The Fable reviewer of PR 7091's confirmation re-review stopped on the usage limit (resets 2026-11-22 14:00 UTC); Ev said proceed on Opus (PR 7091, 2026-11-18T07:17Z). PR 7091 (`importgate/interp-layer`) records **no row**: its Fable re-review half re-runs on Opus during the outage. No draws are taken for `importgate/build` or `importgate/singularity-meet`, dispatched during the outage; neither records a row. Rows already recorded (PR 7069, PR 7084) stand.
