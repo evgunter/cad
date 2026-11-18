@@ -5376,6 +5376,82 @@ mod rational_window {
         }
     }
 
+    /// **A spline edge on part of its carrier bounds its face by that part
+    /// alone**: the cap's edge runs over `t ∈ [0, ½]` of the hyperbola
+    /// arc, from its end at `y < 0` to its vertex at `y = 0`, and the
+    /// chords close it on `y ≤ 0`. The window's `u` (the chart's `y`)
+    /// stops at the vertex, where the arc's whole net reaches
+    /// `D·sinh s0`. Red if an edge is read over its whole carrier rather
+    /// than its span.
+    #[test]
+    fn a_spline_edge_on_part_of_its_carrier_bounds_its_face_by_that_part() {
+        let s0 = 1.0722f64.acosh();
+        let (_, _, arc) = hyperbola_cap(s0, 0, &[]);
+        let top = D / ALPHA.tan();
+        let carrier = Curve3::Nurbs(Arc::new(arc.clone()));
+        let at = |s: f64| Point3::new(D, D * s.sinh(), top * s.cosh());
+        let (body, face) = crate::boxes::tests::conic_sector(
+            Surface::Plane {
+                origin: Point3::new(D, 0.0, 0.0),
+                normal: Vec3::unit_x(),
+                u_ref: Vec3::unit_y(),
+            },
+            Surface::Cone {
+                apex: Point3::origin(),
+                axis: Vec3::unit_z(),
+                half_angle: ALPHA,
+                u_ref: Vec3::unit_x(),
+            },
+            carrier.clone(),
+            (0.0, 0.5),
+            carrier.eval(0.25),
+            (
+                at(-s0),
+                carrier.eval(0.5),
+                Point3::new(D, 0.0, top * s0.cosh() + D),
+            ),
+        );
+        let w = window_of(&body, face, Which::First).unwrap();
+        let reach = D * s0.sinh();
+        assert!(
+            w.u.1 < 0.5 * reach,
+            "the window stops near the vertex at y = 0, short of the whole net's {reach}: {:?}",
+            w.u
+        );
+        for k in 0..=32 {
+            let p = arc.eval(0.5 * f64::from(k) / 32.0);
+            assert!(
+                w.u.0 <= p.y && p.y <= w.u.1 && w.v.0 <= p.z && p.z <= w.v.1,
+                "the edge's point {p:?} is in the window {:?} × {:?}",
+                w.u,
+                w.v
+            );
+        }
+    }
+
+    /// **A face bounded by closed forms has the window its bounds give,
+    /// bit for bit**: the half disc of radius ½ on `z = 0`, its rim the
+    /// half circle over `[0, π]` and its diameter two radii, reads
+    /// `u = (−½, ½)` and `v` up to `½`, the circle's own bounds, not a
+    /// step past them. Red if the edges' boxes are padded, even by zero.
+    #[test]
+    fn a_half_disc_reads_its_circles_own_bounds_as_its_window() {
+        let (body, face) = crate::boxes::tests::arc_sector(0.5, core::f64::consts::PI);
+        let w = window_of(&body, face, Which::First).unwrap();
+        assert_eq!(
+            [w.u.0, w.u.1, w.v.1].map(f64::to_bits),
+            [-0.5f64, 0.5, 0.5].map(f64::to_bits),
+            "the half disc's window: {:?} × {:?}",
+            w.u,
+            w.v
+        );
+        assert!(
+            w.v.0 <= 0.0 && w.v.0 > -1e-15,
+            "the diameter's side of the window is at y = 0: {:?}",
+            w.v
+        );
+    }
+
     /// **A rational edge has no zero or negative weight to enclose**:
     /// construction refuses one typed, so the net hull a cap's window
     /// reads is a hull of points the arc is a convex combination of.

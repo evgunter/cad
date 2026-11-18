@@ -74,6 +74,8 @@ mod curves_arc_window_adversarial;
 mod curves_boxes;
 #[path = "curves/compose.rs"]
 mod curves_compose;
+#[path = "curves/cover_box_against_the_whole_span_eval.rs"]
+mod curves_cover_box_against_the_whole_span_eval;
 #[path = "curves/curvo_oracle.rs"]
 mod curves_curvo_oracle;
 #[path = "curves/decoration_certified_coords.rs"]
@@ -106,8 +108,6 @@ mod curves_m5_pr7_speed_meter;
 mod curves_m8_14_long_turn_meter;
 #[path = "curves/n1r1_c24_dump.rs"]
 mod curves_n1r1_c24_dump;
-#[path = "review_rational_window_tightness.rs"]
-mod review_rational_window_tightness;
 #[path = "r2_turn_probes.rs"]
 mod r2_turn_probes;
 #[path = "recourse_roster.rs"]

@@ -455,7 +455,7 @@ pub(crate) mod tests {
     /// and the shape whose locus leaves its boundary-vertex hull.
     ///
     /// Returns the body and the sector face.
-    fn arc_sector(r: f64, span: f64) -> (Body<f64>, FaceKey) {
+    pub(crate) fn arc_sector(r: f64, span: f64) -> (Body<f64>, FaceKey) {
         arc_sector_from(r, span, 0.0)
     }
 

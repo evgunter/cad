@@ -22,8 +22,7 @@ branch, whose corner reading this shape never reaches.
 - **The body.** The drum itself, not its cavity, refuses
   `Budget(Depth { max_cell_depth: 40 })` with 282 cells refused
   (`CellReceipt { candidates: 18, discharged: 2816, refused: 282,
-  splits: 3080, .. }`); 564 since the face windows are read off the
-  edges' covers (below). Its cavity holds
+  splits: 3080, .. }`). Its cavity holds
   (`a_drum_cavitys_cap_disc_on_two_half_circles_holds`).
 - **The pair.** The cap's disc `1v3` against the half-annulus `2v1`
   across their half-circle `6v3`, at every depth: the disc presented
@@ -51,9 +50,10 @@ cell the curve does not bound (its face's part of the cell is all on one
 side, or none of it), which is the sliver row's question for a curve.
 
 The at-rest gate asks every finished body, so it would refuse this
-drum at its door. Pinned by
-`the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle`
-(564 refused), which goes red when the drum holds.
+drum at its door. Pinned now by
+`a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle` (280
+refused), which goes red when that drum holds (the radius-1 drum's
+measurement since, below).
 
 The sliver fork's recommendation (PR 7095: a thin rectangle read rather
 than conceded, the departure margin metered at the faces' reach) would
@@ -70,19 +70,39 @@ question the sliver fork put to Ev (PR 7095), and by this row's own
 note that fork's reading does not reach the cell: `graph_read` refuses
 at its choice of run, before any rectangle or margin exists.
 
-## 2026-11-18 — the tour's `budfillet` meets it once its windows are read off the edges' covers (EMBED, lane rational-window)
+## 2026-11-18 — the radius-1 drum holds once its windows are read off its edges' covers, and other radii still meet this row (EMBED, lane rational-window)
 
-The tour walk (`embed_walk`, f64, the default depth, 65,536 pairs) holds `budfillet` on main `ff2319654` (24 candidates, 3,423 discharged, 3,399 splits). With `embed/rational-window`, which reads each face's boundary box off its edges' covers (`cover::arc_cover`) rather than one evaluation over the span, it refuses `Uncertified { a: 1v11, b: 7v1, shared: Edge(2v5), arm: Departure }` (3,601 discharged, 12 refused, 3,589 splits).
-- **What moved.** The base disc `7v1`'s window, `(−2, 0) × (−1, 1)` on main, is `(−2.0000000000000004, 2.2e-16) × (−1.0000000000000002, 1.0000000000000002)`: the circle's cover rounds outward by an ulp where `sin_cos` over the whole turn read `±1` exactly.
-- **The cell.** For example `u ∈ (−1.0, −0.9990234375)`, `v ∈ (0.25000000000000006, 0.2509765625000001)`, against the torus `1v11`'s cell at `v ∈ (4.6878, 4.7124)`: the disc reads `Err(Local)` at every depth. The edge `2v5` is the radius-0.25 circle about `u = −1`, so the cell's lower side is one rounding above the circle's top `v = 0.25`. On main's window the dyadic split put that side on `0.25` exactly.
+Measured with `injective` at f64, the default depth and 65,536 pairs,
+main `c5bc653ae` against `embed/rational-window`, where `boundary_of`
+reads each edge's box corners off its cover over its span
+(`cover::arc_cover`, `Cover::box_in`) instead of one interval
+evaluation. Windows printed with an uncommitted print in `window_of`.
 
-This row's shape, reached by a window an ulp wider.
+- **What moved on the radius-1 drum.** One window: the half-annulus
+  `2v1`'s, whose low `u` and `v` ends were `−1.0000000000000004` (the
+  outer circle's interval evaluation over its span) and are
+  `−1.0000000000000002` (its arc's closed-form extremum, one ulp
+  tighter). Halving from that end lands the cells' sides on `−0.5`
+  exactly, the half-circle's own bound, where main's window landed them
+  on `−0.5000000000000001`, a rounding off it. The drum then holds:
+  `Holds`, 18 candidates, 1,030 discharged, 0 refused, 1,012 splits.
+  The holding is the engine's own discharge of every pair; nothing about
+  this row's cell was read differently.
+- **Other radii still meet it.** The same drum built at radius `r`,
+  height `h`, ring at `r/2`:
 
-**The drum moves the same way.** On the same branch the drum refuses
-`Budget(Depth)` as before with 564 cells refused, not 282
-(`discharged: 4682, splits: 5228, outside: 588, certified: 102`), at
-the default ε, 1e-6 and 1e-12 alike. The disc `1v3`'s window was
-exactly `(−0.5, 0.5)²` on main and is `±0.5000000000000001` there: each
-support of the cover is read in interval arithmetic, so a closed-form
-edge's box rounds outward by an ulp or two, and cells now stand a
-rounding off the half-circle on both of its sides.
+  | `r`, `h` | main | branch |
+  |---|---|---|
+  | 1, 2 | `Budget(Depth)`, 282 refused | holds |
+  | 1, 1.3 | 282 | holds |
+  | 2, 3 | 282 | holds |
+  | 0.7, 2 | 282 | 280 |
+  | 0.3, 0.9 | 234 | 448 |
+  | 1.1, 2.3 | 152 | 436 |
+  | 0.9, 1.7 | 148 | 282 |
+  | 1.3, 2 | 140 | 284 |
+
+  So the drums whose windows halve onto the half-circle hold, and the
+  others refuse as before: the cell this row names is still read by no
+  presentation, and a window reaches it whenever its halvings miss the
+  curve's bound by a rounding.

@@ -16,6 +16,8 @@ mod common;
 mod blend1_r1_wall6_probes;
 #[path = "bracket.rs"]
 mod bracket;
+#[path = "budfillet_embedding.rs"]
+mod budfillet_embedding;
 #[path = "chaintol.rs"]
 mod chaintol;
 #[path = "eps_regression.rs"]
