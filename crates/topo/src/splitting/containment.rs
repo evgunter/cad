@@ -2572,17 +2572,22 @@ mod tests {
         );
     }
 
-    /// **A straddle, or an `Off` the walk over the span certifies**: the
-    /// reading of a point the carrier's two bounds straddle. Where the
-    /// walk over the arc's span clears the point (`walked`, the walk read
-    /// directly: [`geom::Curve3::clear_of`] over the span reads `Clear`),
-    /// an `Off` stands on that certificate; otherwise the straddle stands
-    /// ([`assert_straddle`]). Never `On`, and never an `Off` the walk does
-    /// not certify.
+    /// **A straddle, or an `Off` that rests on no undecided reading**: the
+    /// reading of a point the carrier's two bounds straddle, `distance`
+    /// off the whole carrier (known in closed form). Where the walk over
+    /// the arc's span clears the point, an `Off` stands on that
+    /// certificate: the point is truly off (`distance` past the band's
+    /// zero), the reading's record holds no escalation but the walk's own
+    /// pieces refined on the way to its `Clear` (`curve_carrier_piece` and
+    /// `curve_carrier_piece_clear`;
+    /// the carrier's straddle superseded), and the closed-form lower bound
+    /// (`curve_carrier_clear`) is not what decided it. Otherwise the
+    /// straddle stands
+    /// ([`assert_straddle`]). Never `On`.
     fn assert_straddle_or_walked_off(
         got: Result<ConicHit, ReadEscalation>,
-        (recorded, walked): (&geom_core::k_stats::Recorded, bool),
-        bounds: (f64, f64),
+        recorded: &geom_core::k_stats::Recorded,
+        (bounds, distance, band): ((f64, f64), f64, Band),
         label: &str,
     ) {
         match got {
@@ -2593,10 +2598,26 @@ mod tests {
                 bounds,
                 label,
             ),
-            Ok(ConicHit::Off) => assert!(
-                walked,
-                "{label}: an Off the walk over the span does not certify"
-            ),
+            Ok(ConicHit::Off) => {
+                assert!(
+                    distance > band.zero(),
+                    "{label}: an Off of a point {distance:e} off the carrier"
+                );
+                assert!(
+                    recorded.escalations.iter().all(|e| matches!(
+                        e.source.predicate,
+                        Some("curve_carrier_piece" | "curve_carrier_piece_clear")
+                    )),
+                    "{label}: an Off resting on an undecided reading: {:?}",
+                    recorded.escalations
+                );
+                assert!(
+                    !recorded.verdicts.iter().any(|v| {
+                        v.predicate == "curve_carrier_clear" && v.sign == geom_core::Sign::Positive
+                    }),
+                    "{label}: an Off on the closed-form lower bound"
+                );
+            }
             Ok(got) => panic!("{label}: expected a straddle or a walked Off, got {got:?}"),
         }
     }
@@ -2619,11 +2640,12 @@ mod tests {
     /// the zero band while the upper bound — here the distance itself —
     /// reads definitely beyond it. The answer escalates as a straddle of
     /// the two ([`assert_straddle`]), or is `Off` where the walk over the
-    /// arc's span clears the point, as it does at the vertex held at the
-    /// span's seam end at ε 1e-6 ([`assert_straddle_or_walked_off`]). It is
-    /// never `On`, which reading ON off the lower bound would give.
+    /// arc's span `(0, τ)` clears the point, as `geom_brep`'s
+    /// `Span::read` reads it before any place (its early clearance) at
+    /// ε 1e-6 ([`assert_straddle_or_walked_off`]). It is never `On`,
+    /// which reading ON off the lower bound would give.
     #[test]
-    fn an_ellipse_tighter_than_the_band_straddles_it() {
+    fn an_ellipse_tighter_than_the_band_straddles_or_is_walked_off() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
         for a in [1.0, 4.0] {
@@ -2650,14 +2672,10 @@ mod tests {
                 let q = Point3::new(a + out * eps, 0.0, 0.0);
                 let got = k.hit(q, band);
                 let recorded = bracket.finish();
-                let walked = matches!(
-                    carrier.clear_of(q, (0.0, core::f64::consts::TAU), band),
-                    Ok(geom::Clearance::Clear)
-                );
                 assert_straddle_or_walked_off(
                     got,
-                    (&recorded, walked),
-                    major_vertex_bounds(a, b, a + out * eps),
+                    &recorded,
+                    (major_vertex_bounds(a, b, a + out * eps), out * eps, band),
                     &format!("a {a}, {out}ε"),
                 );
             }
@@ -2681,14 +2699,14 @@ mod tests {
         ))
     }
 
-    /// **[`an_ellipse_tighter_than_the_band_straddles_it`], stored minor
-    /// first.** The lower bound's Hessian term is the SMALLER semi-axis
+    /// **[`an_ellipse_tighter_than_the_band_straddles_or_is_walked_off`],
+    /// stored minor first.** The lower bound's Hessian term is the SMALLER semi-axis
     /// whichever field holds it; read off `b` (here the larger), it
     /// over-states the distance and reads the point `Off` on the
     /// closed-form bound, which an `Off` here never rests on: it stands
     /// only on the walk over the span ([`assert_straddle_or_walked_off`]).
     #[test]
-    fn an_ellipse_stored_minor_first_tighter_than_the_band_straddles_it() {
+    fn an_ellipse_stored_minor_first_tighter_than_the_band_straddles_or_is_walked_off() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
         let (a, b) = (1.0, (eps / 100.0).sqrt());
@@ -2705,14 +2723,10 @@ mod tests {
         let q = Point3::new(a + 20.0 * eps, 0.0, 0.0);
         let got = k.hit(q, band);
         let recorded = bracket.finish();
-        let walked = matches!(
-            carrier.clear_of(q, (0.0, core::f64::consts::TAU), band),
-            Ok(geom::Clearance::Clear)
-        );
         assert_straddle_or_walked_off(
             got,
-            (&recorded, walked),
-            major_vertex_bounds(a, b, a + 20.0 * eps),
+            &recorded,
+            (major_vertex_bounds(a, b, a + 20.0 * eps), 20.0 * eps, band),
             "stored minor first",
         );
     }

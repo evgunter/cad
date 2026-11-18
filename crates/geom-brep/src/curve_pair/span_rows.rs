@@ -446,6 +446,40 @@ fn a_far_foot_keeps_its_place_where_the_carrier_is_undecided() {
     assert_eq!(place(span.place(q, -PI / 2.0, band())), "inside");
 }
 
+/// **A point the carrier cannot read reads off where the walk over the
+/// span clears it** (module docs, "The composition"; `Span::read`'s
+/// early clearance): on an ellipse bending near the band's own scale
+/// at its major vertex (semi-axes 1 and `7·10⁻⁶`), over the span
+/// `(−10⁻⁵, 10⁻⁵)` about that vertex, the point `15z` out along the major
+/// axis is read by the carrier as neither on nor off (its closed-form
+/// lower bound in the band, its gap at the vertex past it), and its foot
+/// is the vertex, inside the span. The walk over the span clears it, so it is off the span,
+/// `OffBy::Span { carrier: AtFoot::Undecided }`. Red where the early
+/// clearance is not read: the place reads the foot inside, the far-foot
+/// place keeps it there (the whole carrier does not read it on), and the
+/// read refuses on the carrier.
+#[test]
+fn a_point_the_carrier_cannot_read_reads_off_where_the_walk_over_the_span_clears_it() {
+    let z = band().zero();
+    let c = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+        1.0,
+        7e-6,
+    ));
+    let q = Point3::new(1.0 + 15.0 * z, 0.0, 0.0);
+    assert!(
+        c.on_carrier(q, 0.0, band()).is_err(),
+        "the carrier neither reads the point on nor off"
+    );
+    let span = Span::new(&c, (-1e-5, 1e-5));
+    assert_eq!(
+        span.read(q, 0.0, band()),
+        Ok(super::Reading::Off(super::OffBy::Span {
+            carrier: super::AtFoot::Undecided,
+        }))
+    );
+}
+
 /// **A circle's foot is its nearest point, so its `Past` stands**: a
 /// point on the unit circle read on the span `(0, 1)` with its seed a
 /// half turn away is still read where it lies, never at another point's

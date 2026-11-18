@@ -101,7 +101,7 @@ measurement above says those trims decide on every such ray).
 
 `geom_brep::curve_pair::Span::read` now reads a point whose carrier
 reading neither decides on nor off against the span itself: off the
-span where the piece walk over the span clears it (`Span::clear`, a
+span where the piece walk over the span clears it (`Span::read`'s early clearance, a
 non-nearest carrier only). Beside a shallow spiric edge that walk
 certifies the rays' points clear, so the straddle no longer sets them
 aside. On the pin's body at ε 1e-9, the 192 aimed rays read 88 `Out`

@@ -234,6 +234,58 @@ pub enum AtFoot {
     Undecided,
 }
 
+/// **The walk over a span, read at most once per reading** (module docs,
+/// "The composition"): the piece walk over the span
+/// ([`Curve3::clear_of`]), run the first time a step of the reading asks
+/// for it and carried to the next, so the span's early clearance in
+/// [`Span::read`], the far-foot place and the held end's `Past` share one
+/// walk. Its record is spliced by a step whose answer rests on it
+/// ([`Self::rests`]) and superseded otherwise ([`Self::done`]).
+struct Walk {
+    read: Option<(Result<Clearance, CarrierRefusal>, Option<k_stats::Detached>)>,
+}
+
+impl Walk {
+    const fn new() -> Self {
+        Self { read: None }
+    }
+
+    /// The walk over `span` from `q`, run on the first ask.
+    fn of<T: Decide>(
+        &mut self,
+        span: &Span<'_, T>,
+        q: Point3<T>,
+        band: Band,
+    ) -> Result<Clearance, CarrierRefusal> {
+        self.read
+            .get_or_insert_with(|| {
+                let (got, record) =
+                    k_stats::detached(|| span.carrier.clear_of(q, (span.t0, span.t1), band));
+                (got, Some(record))
+            })
+            .0
+    }
+
+    /// Whether the walk clears `q`: a walk that cannot run clears nothing.
+    fn clears<T: Decide>(&mut self, span: &Span<'_, T>, q: Point3<T>, band: Band) -> bool {
+        matches!(self.of(span, q, band), Ok(Clearance::Clear))
+    }
+
+    /// The answer rests on the walk: its record is spliced.
+    fn rests(&mut self) {
+        if let Some(record) = self.read.as_mut().and_then(|(_, r)| r.take()) {
+            k_stats::splice(record);
+        }
+    }
+
+    /// The reading is done: a record no answer rested on is superseded.
+    fn done(mut self) {
+        if let Some(record) = self.read.as_mut().and_then(|(_, r)| r.take()) {
+            k_stats::splice_superseded(record);
+        }
+    }
+}
+
 /// **Why [`Span::read`] refused**: which of its two readings refused,
 /// each refusal its own.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -536,7 +588,10 @@ impl<'a, T: Decide> Span<'a, T> {
     /// its gap (the chord to an end, the side of an end, or a `Past` the
     /// span walk does not certify), or the walk's own refusal.
     pub fn place(&self, q: Point3<T>, near: T, band: Band) -> Result<Place, CarrierRefusal> {
-        self.place_at(&self.foot(q, near), near, band)
+        let mut walk = Walk::new();
+        let place = self.place_at(&self.foot(q, near), near, band, &mut walk);
+        walk.done();
+        place
     }
 
     /// **`q`'s foot over the span** (module docs), found from `near`
@@ -551,23 +606,11 @@ impl<'a, T: Decide> Span<'a, T> {
         }
     }
 
-    /// **Whether `q` is clear of the span**, past the band from every
-    /// point of it (module docs, "The composition"), by the piece walk
-    /// over the span ([`Curve3::clear_of`]); a walk that cannot run clears
-    /// nothing. Read only where the foot is not the nearest point: a line's
-    /// and a circle's place reads past the span from their nearest foot.
-    fn clear(&self, q: Point3<T>, band: Band) -> bool {
-        matches!(
-            self.carrier.clear_of(q, (self.t0, self.t1), band),
-            Ok(Clearance::Clear)
-        )
-    }
-
     /// **Whether a foot inside the span is no place of `q` on it**: a
     /// foot that is not the nearest point (an ellipse's, a spiric's, a
     /// spline's) whose gap is decided past the band
     /// (`curve_pair_span_foot_gap`), of a point the walk over the span
-    /// clears ([`Self::clear`]) and the whole carrier reads on
+    /// clears (the walk over the span) and the whole carrier reads on
     /// ([`Curve3::on_carrier`], from `near`). On the carrier and clear of
     /// the span, `q` is on the carrier past the span; the foot over the
     /// span is a stationary point inside it, the span's nearest to a
@@ -576,7 +619,7 @@ impl<'a, T: Decide> Span<'a, T> {
     /// a point beside the span does. The two readings are asked only
     /// where the gap is past the band, and each record is spliced where
     /// the answer rests on it and superseded otherwise.
-    fn far_inside(&self, foot: &Foot<'_, T>, near: T, band: Band) -> bool {
+    fn far_inside(&self, foot: &Foot<'_, T>, near: T, band: Band, walk: &mut Walk) -> bool {
         if !self.ended || foot.nearest().is_some() {
             return false;
         }
@@ -594,9 +637,8 @@ impl<'a, T: Decide> Span<'a, T> {
             k_stats::splice_superseded(gap_record);
             return false;
         }
-        let (clear, walk) = k_stats::detached(|| self.clear(q, band));
-        let mut records = vec![gap_record, walk];
-        let on = clear && {
+        let mut records = vec![gap_record];
+        let on = walk.clears(self, q, band) && {
             let (on, carrier) = k_stats::detached(|| {
                 matches!(
                     self.carrier.on_carrier(q, near, band),
@@ -606,6 +648,9 @@ impl<'a, T: Decide> Span<'a, T> {
             records.push(carrier);
             on
         };
+        if on {
+            walk.rests();
+        }
         for record in records {
             if on {
                 k_stats::splice(record);
@@ -771,7 +816,13 @@ impl<'a, T: Decide> Span<'a, T> {
     /// end") reads the chords alone: at that end where its chord decides
     /// zero, and otherwise past the span by the chord to the end it is
     /// held at, which the certificate below stands on.
-    fn place_at(&self, foot: &Foot<'_, T>, near: T, band: Band) -> Result<Place, CarrierRefusal> {
+    fn place_at(
+        &self,
+        foot: &Foot<'_, T>,
+        near: T,
+        band: Band,
+        walk: &mut Walk,
+    ) -> Result<Place, CarrierRefusal> {
         let (q, t) = (foot.point(), self.branch(foot.seed()));
         let held = foot
             .nearest()
@@ -787,7 +838,9 @@ impl<'a, T: Decide> Span<'a, T> {
                 },
             },
             None => match self.ends_place(q, t, band)? {
-                EndsPlace::Inside if self.far_inside(foot, near, band) => return Ok(Place::Past),
+                EndsPlace::Inside if self.far_inside(foot, near, band, walk) => {
+                    return Ok(Place::Past);
+                }
                 EndsPlace::Inside => return Ok(Place::Inside),
                 EndsPlace::End(which, _) => return Ok(Place::End(which)),
                 EndsPlace::Past { chord, .. } => chord,
@@ -796,7 +849,9 @@ impl<'a, T: Decide> Span<'a, T> {
         if foot.nearest().is_some() {
             return Ok(Place::Past);
         }
-        match self.carrier.clear_of(q, (self.t0, self.t1), band)? {
+        let cleared = walk.of(self, q, band);
+        walk.rests();
+        match cleared? {
             Clearance::Clear => Ok(Place::Past),
             // A kept piece reading zero is no `On`: its reading is the
             // lower bound `|C(m) − q| − ℓ` on `q`'s distance from the
@@ -930,18 +985,16 @@ impl<'a, T: Decide> Span<'a, T> {
         };
         // Neither on nor off the carrier: the point may be on it past the
         // span, which the span's own clearance reads.
-        if on.is_err() && self.ended && foot.nearest().is_none() {
-            let (clear, record) = k_stats::detached(|| self.clear(q, band));
-            if clear {
-                k_stats::splice(record);
-                k_stats::splice_superseded(carrier);
-                return Ok(Reading::Off(OffBy::Span {
-                    carrier: AtFoot::Undecided,
-                }));
-            }
-            k_stats::splice_superseded(record);
+        let mut walk = Walk::new();
+        if on.is_err() && self.ended && foot.nearest().is_none() && walk.clears(self, q, band) {
+            walk.rests();
+            k_stats::splice_superseded(carrier);
+            return Ok(Reading::Off(OffBy::Span {
+                carrier: AtFoot::Undecided,
+            }));
         }
-        let place = self.place_at(&foot, near, band);
+        let place = self.place_at(&foot, near, band, &mut walk);
+        walk.done();
         // An end, and a past, are answers the carrier's reading does not
         // decide: its escalation is superseded. Past the span, a decided
         // `On` is spliced, since `AtFoot::On` carries it.

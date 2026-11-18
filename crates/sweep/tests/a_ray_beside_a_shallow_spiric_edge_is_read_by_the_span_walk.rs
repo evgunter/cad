@@ -15,7 +15,7 @@
 //! carriers and past the band from the curve's foot: the carrier's two
 //! bounds straddle the band (`curve_carrier_straddle`), at `f64`, on a
 //! body a door builds. The span reads such a point against the span
-//! itself, and the piece walk over the span clears it (`Span::clear`):
+//! itself, and the piece walk over the span clears it (`Span::read`'s early clearance):
 //! off the span, certified, so the ray reads `Out`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
