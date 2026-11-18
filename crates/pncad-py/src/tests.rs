@@ -6475,6 +6475,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // cross (`trace_step_fault_tag`).
     ("on_carrier", 2),
     ("op", 3),
+    // One fact: a step order wrong at every value, read by the load
+    // door (`ProgramFault::Order`) and the edit door
+    // (`ProgramRefusal::Order`).
+    ("order", 2),
     ("part_unresolved", 2),
     // A coincidence: a sweep's path operand and a replay's path fault.
     ("path", 2),

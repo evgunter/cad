@@ -2432,41 +2432,30 @@ fn fillet_moved_keep(d: &ProfileDoc, p: RecipeNodeId) -> Vec<Vec<Option<StepId>>
     vec![vec![k(0), None, k(4), None, k(3), None, k(5), k(6), k(8)]]
 }
 
-/// **A fillet moved where its run in fits `Zero` reports nothing for
-/// that run**: the moved fillet's structure still draws its run in, and
-/// the value leaves it undrawn, so the bottom wall's name goes
-/// `Vanished` with no report. Broken by a strand report that reads the
-/// values (it reports `Lateral([run in])`, a name that never resolved).
+/// **A fillet moved to another corner reports exactly what it takes**,
+/// whether its moved run in fits `Zero` (rise 1.5) or `Positive` (rise
+/// 1.0). Before the move the bottom wall is the run of the dropped leg
+/// and the fillet's run in, so its name rests on a dropped step and is
+/// reported. The run in's own name never resolved, and the moved
+/// fillet's structure still draws a run in, so the door, which compares
+/// structure, does not report it: a door that read which pieces the
+/// values draw reported `Lateral([run in])` at rise 1.5, a name that
+/// never resolved.
 #[test]
-fn a_fillet_moved_to_a_zero_fit_leaves_its_run_in_to_the_value() {
-    let (old, new) = fillet_moved(1.5);
-    let n = report_matches_resolution("fillet moved, zero fit", old, new, &fillet_moved_keep);
-    assert!(
-        n.by_value > 0,
-        "the run in is left undrawn by its value: {n:?}"
-    );
-}
-
-/// **A fillet moved off a corner breaks the run its run in was part
-/// of, unreported.** Pinned red on
-/// `work/doctail/a-reshaping-that-joins-a-kept-piece-into-a-run-reports-nothing.md`:
-/// before the move the bottom wall is the run of the leg and the
-/// fillet's run in; moved where the run in fits `Positive`, the run in
-/// is drawn on the right side, so `Lateral([leg, run in])` names
-/// nothing, and the door, which compares pieces and not runs, does not
-/// report it.
-#[test]
-fn a_fillet_moved_off_a_corner_breaks_its_run_unreported() {
-    test_utils::pinned_red::row(
-        tol().eps(),
-        &test_utils::pinned_red::EVERY_ROW,
-        "a fillet moved to another corner",
-        &["a held name is reported exactly when the edit took its referent"],
-        || {
-            let (old, new) = fillet_moved(1.0);
-            report_matches_resolution("fillet moved", old, new, &fillet_moved_keep);
-        },
-    );
+fn a_fillet_moved_off_a_corner_reports_exactly_what_it_takes() {
+    for rise in [1.5, 1.0] {
+        let (old, new) = fillet_moved(rise);
+        let n = report_matches_resolution(
+            &format!("fillet moved, rise {rise}"),
+            old,
+            new,
+            &fillet_moved_keep,
+        );
+        assert!(
+            n.reported > 0,
+            "rise {rise}: the dropped leg's wall is reported: {n:?}"
+        );
+    }
 }
 
 /// **A reshaping reports exactly the held names whose referent it
@@ -2477,9 +2466,10 @@ fn a_fillet_moved_off_a_corner_breaks_its_run_unreported() {
 /// with the bottom leg dropped, whose run out takes the kept right
 /// leg's segment; value-only rewrites through and out of a `Zero` fit; a two-loop profile's loops swapped; a split
 /// hole's count up and down; a run's midpoint moved; and the identity.
-/// Inserting a fillet after a kept leg and moving one to another corner
-/// are their own pinned rows ([`a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported`],
-/// [`a_fillet_moved_off_a_corner_breaks_its_run_unreported`]).
+/// Inserting a fillet after a kept leg is its own pinned row
+/// ([`a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported`]);
+/// moving one to another corner is its own row
+/// ([`a_fillet_moved_off_a_corner_reports_exactly_what_it_takes`]).
 /// The rows that leave a kept piece undrawn must report it, so a door
 /// that reported only dropped steps is red here.
 #[test]

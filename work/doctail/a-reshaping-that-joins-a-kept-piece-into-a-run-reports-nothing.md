@@ -52,17 +52,15 @@ The rows of that test that reach it are split out and pinned red on
 this row:
 `edit_set_program::a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported`
 (insert, one pinned row per sub-case: four radii and scales on one
-loop, and either loop of two) and
-`edit_set_program::a_fillet_moved_off_a_corner_breaks_its_run_unreported`.
+loop, and either loop of two).
 
-**The moved-fillet row, after #7075's value-free door.** The strand
-report compares what each program's structure can draw, so the row's
-first form, whose moved run in fits `Zero` at its values, now reports
-nothing for that run: a value left it undrawn
-(`a_fillet_moved_to_a_zero_fit_leaves_its_run_in_to_the_value`). The
-run break is this row's at a radius where the run in fits `Positive`:
-`edit_set_program::a_fillet_moved_off_a_corner_breaks_its_run_unreported`,
-pinned red here.
+**The moved-fillet row is lifted (#7075's value-free door).** The strand
+report compares what each program's structure can draw, so the moved
+fillet, whose structure still draws a run in, no longer reports
+`Lateral([run in])`; and the broken run's name rests on the dropped
+leg, so it is reported. The row passes at a rise where the moved run
+in fits `Zero` and at one where it fits `Positive`:
+`edit_set_program::a_fillet_moved_off_a_corner_reports_exactly_what_it_takes`.
 
 ## Done when
 
