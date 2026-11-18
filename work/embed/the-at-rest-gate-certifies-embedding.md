@@ -683,7 +683,7 @@ filed below. Rows touched: this one, and
 Raised by the gate lane on 2026-11-17: `AtRestBody::validate` is
 handed no `ContactRecords`, so an exclusion "built from the body's
 records" has nothing to read at `finish`. Two designers converged
-after three rounds (`docs/DESIGN-FORK-LOG.md`, row 284); the answer is
+after three rounds (`docs/DESIGN-FORK-LOG.md`, row 287); the answer is
 in `docs/DESIGN.md` `[topology.tiers]`.
 
 - **The certificate is each solid's.** Lane C's gate asks per solid.
