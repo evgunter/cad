@@ -86,3 +86,15 @@
 - 2026-11-19 02:25 — Main went red on PR 7134's `# from knot_split.rs` citation in `cover-kind-match.counts`: once the split was in the base, every tree summed 4 against knot_split's base pin of 3. The snap lane reported it. Fixed in tracker PR 7136, which drops the citation. Lesson: a `# from` citation is for the PR that does the split; it comes out before merge, or the next PR inherits the red.
 
 - 2026-11-19 03:08 — Snap PR 7135 green at 7d2464e9e5. The catalogue covers coaxial, tangent (one or two crossing planes; two parallel planes), axis-normal, and round one-record. nist_ftc_09 still refuses, on its printed crossing lines; TAIL_TURBINE now refuses on its cylinder × sphere sections, at each ε. Three rows filed. Dual Opus review dispatched (lanes importgate-rev-snap-1/2, brief snap-review-brief.md).
+
+- 2026-11-19 04:00 — Dual review of snap PR 7135: both REQUEST-CHANGES, with the same two MAJORs found independently and demonstrated by both.
+  - (1) The snap's lever is the printed-vertex box. A full-circle edge has one vertex, so a coin's cap tilted to move its rim 200 µm (apart) imports with moved_by 2e-6.
+  - (2) Round one-record reads axis separation at the stored datums; axes 30 or 54 µm apart at the faces join.
+  Fix pass sent:
+  - one reach instrument (carrier covers), with moves measured over every face of the moved record and offsets read at the faces;
+  - in-band parallelism as the file's ambiguity; a well-conditioned crossing solve;
+  - rows for eleven surviving guard mutants;
+  - DATA-order dependence stated as a known limit and filed;
+  - TAIL_TURBINE #217 to NotYetSupported with its per-ε pin restored;
+  - the catalogue stated once; the axis helpers through Surface::axis_line.
+  The nist √(2rg) [ev] question waits until the snap unit merges.
