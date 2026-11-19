@@ -2,7 +2,7 @@
 id: step-import-cuts-faces-and-splits-edges-three-ways
 kind: issue
 title: step-import cuts a face over SolidSpec three ways and splits an edge two ways, each with its own helpers
-status: open
+status: dispatched
 opened: 2026-11-17
 priority: P1
 cost: M

@@ -2,7 +2,7 @@
 id: main-red-the-sense-fold-census-flags-knot-split-a
 kind: issue
 title: Main red: face_normal's sense-fold census flags step-import knot_split.rs's a, so no_source_file_folds_the_bit_by_hand fails
-status: open
+status: dispatched
 opened: 2026-11-18
 priority: P1
 cost: E

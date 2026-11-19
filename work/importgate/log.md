@@ -72,3 +72,5 @@
   - Fork 1, (a): the tangent construction translates a fillet cylinder's axis perpendicular to itself, every plane kept. Conditions: the move itself reads Zero at the file band; the class is certified exact after the move; parallel planes, three or more tangencies, or a coaxial partner refuse unsolvable. The choice of mover is stated in the PR body for Ev.
   - Fork 2: nist_ftc_09 still refuses on cylinder C5139's 56.8 µm in-band gap, which is the file's ambiguity by D7. Its row stays open with that evidence; the six snapped tangencies are pinned by their own row.
   - Accepted: adjacent pairs only; exact relations as constraints; the `Snapped` ledger kind.
+
+- 2026-11-19 00:10 — PR 7132 merged (the tracker sync and the snap unit filed). Dispatched the remaining two P1s to one cloud Opus session (session_01BJC3B25yBjsWoDDirqxoaK), in order: `main-red-the-sense-fold-census-flags-knot-split-a` (E, branch importgate/knot-split-fold), then `step-import-cuts-faces-and-splits-edges-three-ways` (M, importgate/split-share). It is told to stay out of the snap lane's files (build.rs, interpret.rs, one_record.rs, the ledger).
