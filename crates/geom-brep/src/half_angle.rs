@@ -1273,15 +1273,8 @@ mod subdivision_guard_rows {
         let jet = |t: f64| {
             let (s, c) = (t - a).sin_cos();
             let wide = if s.abs() < 1e-6 { 2.0 } else { 0.0 };
-            [
-                Rounded::exact(s),
-                Rounded {
-                    value: c,
-                    error: wide,
-                },
-                Rounded::exact(-s),
-                Rounded::exact(-c),
-            ]
+            [(s, 0.0), (c, wide), (-s, 0.0), (-c, 0.0)]
+                .map(|(value, error)| Rounded { value, error })
         };
         let metered = |bound: f64| {
             let frame = SubdivisionFrame {
