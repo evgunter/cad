@@ -100,3 +100,9 @@
   The nist √(2rg) [ev] question waits until the snap unit merges.
 
 - 2026-11-19 05:55 — Snap fix pass green at 062dce9bfa. One reach instrument (`reach.rs`, plus a new geom door `Surface::face_region`); round one-record read at the faces; every listed mutant killed; #217 is NotYetSupported; the catalogue stated once. Delta review dispatched to R2, resumed in its lane.
+
+- 2026-11-19 06:20 — R2's delta review of the snap fix pass: REQUEST-CHANGES on one narrow residue. A rim-only cone face's region omits its apex, since the snap runs before the apex is minted: a slender cone cap moved ≈200 µm imports, reported as 10 µm. All else holds: coins and round records as ruled, the census unchanged, the turn bound sound, every named mutant killed. A last pass was sent:
+  - the cone region includes its apex;
+  - `face_region` exhaustive;
+  - rows for N2, N6 and N7;
+  - the tier_gate doc fix; the PR body's Sweep.
