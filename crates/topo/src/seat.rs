@@ -5,6 +5,15 @@
 //! its data. A [`Seat`] is that reading: the body untouched, and the
 //! motion each datum taken off it for a reading between two operands is
 //! mapped through.
+//!
+//! **What a seat promises its readers, and what a door does with it.**
+//! To a reader that relates two operands (a measure, a clearance, a
+//! carrier verdict) a seat moves nothing: each datum it takes is mapped
+//! at the reading, and no question of the moved body is asked there.
+//! The one door that builds data out of a seated body is the placed
+//! graft ([`crate::boolean::graft_placed`]): an aggregate's image is the
+//! aggregate's data, so that door moves the body whole and asks the
+//! session box of the image, as every move does.
 
 use geom_core::{RigidMotion, RigidMotionError};
 

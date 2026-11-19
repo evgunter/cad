@@ -32,3 +32,9 @@ box still refusing at the placements.
 ## The twist has the same shape (delta-4 review of PR 7088)
 
 Under `EvalOptions::computing_twist` only, `twisted` (`crates/editor-core/src/eval/wire.rs:646`) moves a construction's body by its node's twist. The move (`moved(&twist, tol)`, `wire.rs:661`) asks the session box of the image in twisted coordinates. It then gives the value the twist's inverse as its frame (`wire.rs:664`), so the body stands where it did. The box is asked of where the twist put the body, not of where it stands in its space. That is the gathers' frame-artefact shape: a body inside the box can refuse under a twist that carries it out, and the twist is a test lever that should change no verdict. The fix belongs with the gathers' in #7099: ask where the value stands through `asked_where_it_stands`, not the image in the computing frame.
+
+## Where PR 7099 leaves it
+
+PR 7099 ships main's frame rule: every operation over copies (the gathers, the Boolean fold and subtract) computes in its first operand's frame (`Framed::computing_among`), bit for bit with main. The gathers graft through the one door (`Framed::graft_into` → `topo::boolean::graft_placed`), which asks the box of each image in that frame. Copies at ±900 m therefore still refuse under `⊔`, `∪` and `⊖`, pinned as over-refusals (`product_finishes_once::copies_either_side_of_the_origin_refuse_to_{assemble,unite,subtract}`).
+
+The frame such an operation should compute in is a design fork, filed as `work/onehome/an-operation-over-far-apart-copies-has-no-conditioned-computing-frame.md` with its measurements and the rules tried. The twist's ask, in twisted coordinates under `ComputingTwist` only, is unchanged.

@@ -44,7 +44,7 @@ pub(crate) use anchor::{derive_naming, validated_naming};
 pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
-pub(crate) use framed::Frame;
+pub(crate) use framed::{Frame, GraftIn};
 pub use framed::{Framed, Held};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub(crate) use topo::Seat;

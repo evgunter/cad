@@ -2836,7 +2836,7 @@ fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
         .copies
         .iter()
         .map(|copy| {
-            let body = &*copy.body;
+            let body = &crate::fixture::in_space(&copy.body);
             body.vertices()
                 .map(|(_, v)| body.get_point(v.point).unwrap().y)
                 .fold(f64::INFINITY, f64::min)

@@ -255,6 +255,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "returns `graft_disjoint_all_keyed`'s solids — same body, same assertion",
     ),
     (
+        "graft_placed",
+        "moves the source into a fresh image (a new body, `dst` untouched), then calls \
+         `graft_disjoint_all_keyed` on `dst` — same body, same assertion",
+    ),
+    (
         "split_edge",
         "calls `split_edge_minting` with the carrier's own point — same body, same assertion",
     ),
