@@ -6403,6 +6403,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // another ring name the same shape (`ring_pair_contact_tag`);
     // `ring_pair_words_are_the_outer_contact_words` pins them.
     ("circle_circle", 2),
+    // Two vocabularies naming one geometric relation: a document's
+    // declared coincidence (`coincidence_relation_tag`) and the import's
+    // snap catalogue (`snap_relation_tag`). Neither is read against the
+    // other, so no pin is owed.
+    ("coaxial", 2),
     ("containment", 2),
     ("corrupt", 3),
     ("cosurface_escalated", 2),
@@ -6600,6 +6605,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`editor_core::Stopped`), at the Monte-Carlo and split doors.
     ("stopped", 2),
     ("structure", 3),
+    // As `coaxial`: the coincidence relation and the snap relation.
+    ("tangent", 2),
     ("tolerance_conflict", 2),
     // One fact at the edit door and in the skin: a loft through fewer
     // than two sections.
