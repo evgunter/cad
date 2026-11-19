@@ -2949,8 +2949,18 @@ fn promoted_kind_tags_are_stable() {
 #[test]
 fn import_report_row_tags_are_stable() {
     use pncad::step_import::{
-        NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound,
+        NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation,
     };
+    // The snap relation's word is the kernel's own name for it, one
+    // spelling in both languages (the table keeps the literals the tag
+    // inventory reads).
+    for relation in [
+        SnapRelation::Coaxial,
+        SnapRelation::Tangent,
+        SnapRelation::AxisNormal,
+    ] {
+        assert_eq!(crate::tags::snap_relation_tag(&relation), relation.name());
+    }
     for (kind, word) in [
         (NormalizationKind::EdgeFreeSphere, "edge_free_sphere"),
         (
@@ -2980,6 +2990,14 @@ fn import_report_row_tags_are_stable() {
                 moved_by: 1e-12,
             },
             "one_record",
+        ),
+        (
+            NormalizationKind::Snapped {
+                surface: 30,
+                relation: pncad::step_import::SnapRelation::Tangent,
+                moved_by: 2e-6,
+            },
+            "snapped",
         ),
         (
             NormalizationKind::VertexBuilt { moved_by: 2.4e-16 },
@@ -5362,6 +5380,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "one_record",
             "placement_re_minted",
             "seamless_periodic_band",
+            "snapped",
             "surface_promotion",
             "vertex_built",
         ],
@@ -5891,6 +5910,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["operand_slot_tag"],
     },
     TagEntry {
+        function: "snap_relation_tag",
+        values: &["axis_normal", "coaxial", "tangent"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "snapshot_error_tag",
         values: &[
             "anonymous_var_unread",
@@ -6389,6 +6413,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // another ring name the same shape (`ring_pair_contact_tag`);
     // `ring_pair_words_are_the_outer_contact_words` pins them.
     ("circle_circle", 2),
+    // Two vocabularies naming one geometric relation: a document's
+    // declared coincidence (`coincidence_relation_tag`) and the import's
+    // snap catalogue (`snap_relation_tag`). Neither is read against the
+    // other, so no pin is owed.
+    ("coaxial", 2),
     ("containment", 2),
     ("corrupt", 3),
     ("cosurface_escalated", 2),
@@ -6586,6 +6615,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`editor_core::Stopped`), at the Monte-Carlo and split doors.
     ("stopped", 2),
     ("structure", 3),
+    // As `coaxial`: the coincidence relation and the snap relation.
+    ("tangent", 2),
     ("tolerance_conflict", 2),
     // One fact at the edit door and in the skin: a loft through fewer
     // than two sections.

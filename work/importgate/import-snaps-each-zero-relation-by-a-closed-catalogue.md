@@ -2,12 +2,13 @@
 id: import-snaps-each-zero-relation-by-a-closed-catalogue
 kind: unit
 title: step-import: the snap catalogue — a relation between surfaces the file band reads Zero (coaxial, tangent, axis-normal, one locus) made exact by one catalogue construction per connected class, the earlier record staying, each move reported (D7 step 3, PR 7074)
-status: dispatched
+status: closed
 opened: 2026-11-18
 priority: P1
 cost: H
 parent: import-snaps-a-relation-the-file-band-reads-zero-and-the-run-reads-apart
 branch: importgate/snap
+closed: 2026-11-19
 ---
 
 The healing step of D7 as ratified on PR 7074 (step 3): a relation between surfaces that reads `Zero` at the file's band is made exact by one construction from a closed catalogue, each connected class of such relations solved jointly; where the construction is symmetric the record earlier in the file stays; each move is reported; a relation no catalogue construction makes exact refuses, naming the entity and the lane. It stacks on the build (PR 7128), whose `SNAP_LANE` arms (`crates/step-import/src/build.rs`: `analytic_pair`, `served_pair`, `tangent`, `spline_pair`) refuse today where the file band reads a relation the run's band reads apart.
@@ -32,3 +33,5 @@ Closes: `import-snaps-a-relation-the-file-band-reads-zero-and-the-run-reads-apar
 Not in scope: the normalizations' move after the build; the remaining C5 section arms (`an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses`); tangent loci with no closed form.
 
 Letter H, tier dual. Dispatched during the 2026-11-18 Fable outage on Opus (Ev, PR 7091), so no model-compare draws and no row.
+
+- 2026-11-19 — Closed by PR 7135 (the snap catalogue, D7 step 3).

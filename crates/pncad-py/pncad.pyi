@@ -4988,7 +4988,10 @@ class StructureNormalization:
     frames the import built by their axes, and the farthest a point of
     the session box moved, in metres; `moved_by` also `one_record`'s,
     the farthest a face on either of two records of one surface lies
-    from the other's, `vertex_built`'s, how far the build moved a
+    from the other's, `snapped`'s, how far the snap catalogue moved a
+    point of a surface's faces (`relation` is which construction moved
+    it: `coaxial`, `tangent` or `axis_normal`; `face` the surface
+    record's entity id), `vertex_built`'s, how far the build moved a
     vertex from its printed point, whose `face` is then the
     `VERTEX_POINT`'s entity id, and `carrier_built`'s, how far the printed
     carrier stands off the one the build constructed, whose `face` is the
@@ -5011,6 +5014,8 @@ class StructureNormalization:
     def joined(self) -> Optional[int]: ...
     @property
     def singularity(self) -> Optional[str]: ...
+    @property
+    def relation(self) -> Optional[str]: ...
     @property
     def transform(self) -> Optional[int]: ...
     @property

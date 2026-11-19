@@ -4,6 +4,7 @@ kind: issue
 title: An imported tangent edge whose pair has no closed-form tangent locus (a spline wall, an off-axis pose) refuses not-yet-supported
 status: open
 opened: 2026-11-18
+priority: P3
 ---
 
 

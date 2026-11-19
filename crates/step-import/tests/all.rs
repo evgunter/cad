@@ -61,6 +61,8 @@ mod a_conic_quarter_torus_measures_a_bracket_at_the_wall;
 mod a_foreign_carrier_splits_at_each_c0_knot;
 #[path = "a_line_beside_a_straight_spline_joins.rs"]
 mod a_line_beside_a_straight_spline_joins;
+#[path = "a_relation_the_file_band_reads_zero_is_snapped.rs"]
+mod a_relation_the_file_band_reads_zero_is_snapped;
 #[path = "a_smooth_join_imports_by_the_must_carry_rule.rs"]
 mod a_smooth_join_imports_by_the_must_carry_rule;
 #[path = "a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported.rs"]
@@ -173,6 +175,8 @@ mod tcost_k3_import_certificate;
 mod the_interpretation_layer_reads_the_file_at_its_band;
 #[path = "tier_gate.rs"]
 mod tier_gate;
+#[path = "two_records_of_one_round_surface_become_one.rs"]
+mod two_records_of_one_round_surface_become_one;
 
 #[path = "verbs_chamfer_roundtrip.rs"]
 mod verbs_chamfer_roundtrip;
