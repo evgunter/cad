@@ -1855,8 +1855,8 @@ fn persist_error_tags_are_stable() {
 /// Constructed rather than driven through `load`, and the reason is
 /// per arm:
 ///
-/// * `profile_program` — a `ProgramFault` is a profile-program
-///   structure fault. A file carrying one is reachable, but building
+/// * `profile_program` — the edit door's own `ProgramRefusal` for a
+///   profile-program structure fault. A file carrying one is reachable, but building
 ///   the tampered bytes means hand-assembling a lattice-violating
 ///   step order, which pins the WIRE shape rather than the tag.
 /// * `distribution` — the same fault the edit door refuses, so a
@@ -1871,18 +1871,18 @@ fn persist_error_tags_are_stable() {
 /// a compile error, not a missing test.
 #[test]
 fn the_persist_doors_nested_arms_carry_their_own_word() {
-    use crate::tags::{distribution_fault_tag, program_fault_tag, snapshot_error_tag};
+    use crate::tags::{distribution_fault_tag, program_refusal_tag, snapshot_error_tag};
     use pncad::document::{
-        DistributionFault, DistributionField, ProgramFault, RecipeNodeId, SnapshotError,
+        DistributionFault, DistributionField, ProgramRefusal, RecipeNodeId, SnapshotError,
     };
 
-    let program = ProgramFault::Lattice {
+    let program = ProgramRefusal::Transition {
         loop_: 0,
         step: 1,
         state: pncad::profile::TipState::Entry,
         verb: None,
     };
-    assert_eq!(program_fault_tag(&program), "lattice");
+    assert_eq!(program_refusal_tag(&program), "transition");
 
     let distribution = DistributionFault::NonFinite {
         field: DistributionField::Sigma,
@@ -2331,23 +2331,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             fault: pncad::document::LoftFault::EmptyStation { section: 1 },
         },
         &["node", "index"],
-    );
-    carries(
-        &E::LoftShape {
-            node: sp(1),
-            fault: pncad::document::LoftFault::StationInFirstPlane { section: 1 },
-        },
-        &["node", "index"],
-    );
-    carries(
-        &E::LoftShape {
-            node: sp(1),
-            fault: pncad::document::LoftFault::DegreeOutOfRange {
-                degree: 2,
-                sections: 2,
-            },
-        },
-        &["node", "count", "given"],
     );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
@@ -2989,6 +2972,29 @@ fn import_report_row_tags_are_stable() {
                 moved_by: 4.5e-9,
             },
             "placement_re_minted",
+        ),
+        (
+            NormalizationKind::OneRecord {
+                kept: 10,
+                joined: 20,
+                moved_by: 1e-12,
+            },
+            "one_record",
+        ),
+        (
+            NormalizationKind::VertexBuilt { moved_by: 2.4e-16 },
+            "vertex_built",
+        ),
+        (
+            NormalizationKind::CarrierBuilt { moved_by: 1.2e-16 },
+            "carrier_built",
+        ),
+        (
+            NormalizationKind::CurvePromoted {
+                kind: pncad::step_import::PromotedCurveKind::Circle,
+                residual: 1e-17,
+            },
+            "curve_promoted",
         ),
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
@@ -5085,12 +5091,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "loft_fault_tag",
-        values: &[
-            "degree_out_of_range",
-            "empty_station",
-            "station_in_first_plane",
-            "too_few_sections",
-        ],
+        values: &["empty_station", "too_few_sections"],
         delegates: &[],
     },
     TagEntry {
@@ -5302,7 +5303,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "node_inner_kind_tag",
-        values: &["chart", "meet", "through"],
+        values: &[
+            "chart",
+            "face_chart_backwards",
+            "face_chart_unleverable",
+            "meet",
+            "through",
+        ],
         delegates: &[
             "band_error_tag",
             "blend_error_tag",
@@ -5345,14 +5352,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "normalization_kind_tag",
         values: &[
+            "carrier_built",
             "chart_singularity_vertex",
+            "curve_promoted",
             "edge_free_sphere",
             "edge_split_at_c0_knot",
             "face_split_at_c0_knot",
             "joined_edges",
+            "one_record",
             "placement_re_minted",
             "seamless_periodic_band",
             "surface_promotion",
+            "vertex_built",
         ],
         delegates: &[],
     },
@@ -5482,11 +5493,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "pin_already_placed",
             "pin_no_frame",
-            "pin_no_member",
             "pin_no_node",
             "pin_not_a_body",
             "pin_unevaluated",
-            "pin_unwritten_index",
         ],
         delegates: &[],
     },
@@ -5528,7 +5537,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "product_read_fault_tag",
-        values: &["kind", "space", "unresolved"],
+        values: &[
+            "kind",
+            "member_at_product",
+            "pick_path",
+            "space",
+            "unresolved",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5558,14 +5573,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "program_fault_tag",
-        values: &["lattice"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "program_refusal_tag",
         values: &[
             "geometry",
+            "order",
             "resolve",
             "step_ids",
             "trace",
@@ -5943,10 +5954,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_on_dropped_step",
             "name_outside_part_world",
             "name_straddles_cut",
+            "named_read_uncarried",
             "no_material",
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
+            "product_read_severed",
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
@@ -6003,25 +6016,29 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "adoption",
             "assembly",
+            "build_escalated",
             "c0_knot_unsplit",
             "dangling_reference",
             "instance",
+            "interpretation",
             "invalid_eps_override",
             "join",
             "malformed_real",
             "malformed_record",
             "missing_uncertainty",
+            "not_yet_supported",
             "nothing_to_import",
             "pcurves",
             "placement",
             "recognition_ambiguous",
-            "rim_off_wall_boundary",
+            "singularity_meet_unread",
             "singularity_side_undecided",
             "singularity_undecided",
             "structure",
             "syntax",
             "tier_invalid",
             "topology",
+            "unbanded_uncertainty",
             "unsupported_entity",
             "unsupported_unit",
             "wall_column_structure",
@@ -6499,9 +6516,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_var_kind", 2),
     ("pcurve", 6),
     ("pcurves", 3),
-    // One fact at the edit and load doors: a pick whose path names no
-    // one piece of its copy (`editor_core::edit::pick_fault`).
-    ("pick_path", 2),
+    // One fact at the edit and load doors and the product slot: a pick
+    // whose path names no one piece of its copy
+    // (`editor_core::edit::pick_fault`).
+    ("pick_path", 3),
     // One fact for the boolean and the split: the result sort
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb.

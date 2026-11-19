@@ -269,3 +269,4 @@ Newest entries at the bottom; the tail is the program's live status.
   question for Ev — whether a body drawn only by the author's show
   carries the outside-the-product tint), and
   `the-display-budget-does-not-price-shown-bodies` (P3). (SPACES orchestrator)
+- 2026-11-18 — **Seam (DOCTAIL, PR 7087):** the product slot is a reader like any other slot. `Doc::read_sites` / `ReadSite` is the one enumeration of reads, and `Doc::read_by_nothing_but_the_product` replaces the viewer's three hand copies of that test (`world.rs`, `session.rs`, test_support). `SetProduct` admits a pick or a source written in place. The viewer's remaining hand-written product readers are filed here as `the-viewers-product-readers-know-only-a-direct-read-or-a-union`. (DOCTAIL orchestrator)

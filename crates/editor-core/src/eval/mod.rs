@@ -903,6 +903,12 @@ pub struct NodeValue<T: topo::AtRestPolicy + Decide> {
     /// **Not persisted**, like the verdicts and unlike their summary:
     /// an escalation is a fact about one run at one box, read in hand.
     pub escalations: Arc<EscalationLog>,
+    /// The candidates the node's pruning queries handed on, placed among
+    /// its verdicts ([`geom_core::k_stats::Mark`]): what the first-turn
+    /// reading ([`crate::resolve::first_turn`]) reads to tell two runs on
+    /// one path from two whose pruning parted. No verdict, so no part of
+    /// the strict form or the summary. **Not persisted**.
+    pub marks: Arc<MarkLog>,
     /// RESERVED empty slot: the solved witness assignment, filled by
     /// the sketch solver `docs/DESIGN.md` `[open.sketch-solver]` adopts
     /// when constraint-driven sketches have a consumer.
@@ -948,6 +954,7 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
             family: None,
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
+            marks: Arc::default(),
             motion: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
@@ -976,6 +983,7 @@ impl NodeValue<f64> {
             coincidences: Arc::new([]),
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
+            marks: Arc::default(),
             motion: None,
             members: None,
             family: None,
@@ -1072,6 +1080,9 @@ impl Evaluation<f64> {
 /// One evaluation's per-node verdict vector (the [`NodeValue::verdicts`]
 /// payload): [`geom_core::k_stats::Verdict`]s in decision order.
 pub type VerdictLog = Vec<geom_core::k_stats::Verdict>;
+
+/// One node's candidate marks ([`NodeValue::marks`]).
+pub type MarkLog = Vec<geom_core::k_stats::Mark>;
 
 /// One node's escalations (the [`NodeValue::escalations`] and
 /// [`NodeError::escalations`] payload):
@@ -3822,24 +3833,38 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
     tol: Tol,
 ) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
     // `doc` may be `ev`'s document with a probe lowered into it, whose
-    // member reads mint their indices as counts `ev` never bound: each
-    // is a count the document holds (`edit::written_count`), bound here
-    // as the run binds it.
-    let unbound: Vec<(crate::VarId, i64)> = doc
+    // member reads mint their indices as counts `ev` never bound, and
+    // whose values (a face's chart's spin and slides) are definitions it
+    // never bound. They are bound in the run's order: each count as the
+    // document holds it (`edit::written_count`), then the definitions
+    // over them (`Doc::bind_definitions`).
+    let unbound: Vec<crate::VarId> = doc
         .var_ids()
         .into_iter()
         .filter(|var| !ev.env.bindings.contains_key(var) && !ev.env.refused.contains_key(var))
+        .collect();
+    let defined = unbound.iter().any(|&var| {
+        matches!(
+            doc.var(var).map(crate::Var::def),
+            Some(crate::var::VarDef::Defined(_))
+        )
+    });
+    let counts: Vec<(crate::VarId, i64)> = unbound
+        .into_iter()
         .filter_map(|var| Some((var, crate::edit::written_count(doc, var)?)))
         .collect();
-    let env = match unbound.is_empty() {
-        true => std::borrow::Cow::Borrowed(&ev.env),
-        false => {
+    let env = match (defined, counts.is_empty()) {
+        (false, true) => std::borrow::Cow::Borrowed(&ev.env),
+        _ => {
             let mut env = ev.env.clone();
             env.bindings.extend(
-                unbound
+                counts
                     .into_iter()
                     .map(|(var, value)| (var, crate::expr::ParamValue::Count(value))),
             );
+            if defined {
+                doc.bind_definitions(&mut env);
+            }
             std::borrow::Cow::Owned(env)
         }
     };
@@ -5526,7 +5551,8 @@ where
         let fresh = bracket.finish();
         assert!(
             v.verdicts.starts_with(&fresh.verdicts)
-                && v.escalations.starts_with(&fresh.escalations),
+                && v.escalations.starts_with(&fresh.escalations)
+                && v.marks.starts_with(&fresh.marks),
             "a memo hit's pre-key decisions differ from the reused log's prefix"
         );
         return NodeStep {
@@ -5553,6 +5579,7 @@ where
                 family: None,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
+                marks: Arc::new(recorded.marks),
                 witness: WitnessSlot {},
                 content_key,
                 naming_key,
@@ -5670,7 +5697,9 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v23: a slide beside a mate whose direction is oblique in
+            /// v24: an extrude's depth is signed, so a negative depth's
+            /// stream is a pocket's tool where it was a refusal. v23: a
+            /// slide beside a mate whose direction is oblique in
             /// the source's own coordinates runs along its carried axis's
             /// part in what the mate leaves, and a value may slide along
             /// the mated direction or a read direction, or spin about a
@@ -5712,7 +5741,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 23,
+            VERSION = 24,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -5736,8 +5765,9 @@ mod tag {
         /// role it reads through ([`pose_role`]), then the read's tree
         /// — `OUTPUT` for an operation's output (whose key and port the
         /// upstream list carries), `SELECTION` and its names, or
-        /// `DEFINITION`, the arm ([`pose_arm`]), each read's role and
-        /// tree in field order, then each scalar's value and its
+        /// `DEFINITION`, the arm ([`pose_arm`]), a face's chart's
+        /// orientation as two [`signed_axis`] words (where its `x` and
+        /// `z` lie), each read's role and tree in field order, then each scalar's value and its
         /// nominal under [`slot`]'s `NOMINAL`; `SOURCE` for a source of a
         /// member ([`crate::VarDef::Source`]), its number of indices and
         /// each index's value.
@@ -5759,6 +5789,7 @@ mod tag {
             CARRIED = 10,
             SLIDE = 11,
             SPIN = 12,
+            FACE_CHART = 13,
         }
         /// The role a pose read reads through
         /// ([`crate::pose::PoseRole`]), a plain read's included.
@@ -7215,9 +7246,8 @@ fn feed_bundle(
         match &c.kind {
             crate::mate::ConstraintKind::Mate(mate) => {
                 h.write_tag(tag::constraint_kind::MATE);
-                // The orientation, by where the copy's x and z lie.
-                for axis in [mate.orient.x(), mate.orient.z()] {
-                    h.write_tag(axis_word(axis));
+                for word in orientation_words(mate.orient) {
+                    h.write_tag(word);
                 }
             }
             crate::mate::ConstraintKind::Value(value) => {
@@ -7243,6 +7273,13 @@ fn feed_bundle(
             }
         }
     }
+}
+
+/// **An orientation as a content key's two words**: where the frame's
+/// `x` and `z` lie, which fix it. A mate's and a face's chart's
+/// orientation are keyed by it.
+fn orientation_words(orient: crate::Orientation) -> [u8; 2] {
+    [axis_word(orient.x()), axis_word(orient.z())]
 }
 
 /// A signed axis as a content key's word.

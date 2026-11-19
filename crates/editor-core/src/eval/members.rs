@@ -487,16 +487,14 @@ fn family_value<T: topo::AtRestPolicy + Decide>(
         .iter()
         .flat_map(|(_, value)| value.coincidences.iter().cloned())
         .collect();
-    let verdicts: super::VerdictLog = members
-        .members
-        .iter()
-        .flat_map(|(_, value)| value.verdicts.iter().cloned())
-        .collect();
-    let escalations: super::EscalationLog = members
-        .members
-        .iter()
-        .flat_map(|(_, value)| value.escalations.iter().cloned())
-        .collect();
+    let mut log = geom_core::k_stats::Recorded::default();
+    for (_, value) in &members.members {
+        log.extend(&geom_core::k_stats::Recorded {
+            verdicts: value.verdicts.to_vec(),
+            escalations: value.escalations.to_vec(),
+            marks: value.marks.to_vec(),
+        });
+    }
     Ok(NodeValue {
         payload,
         outputs,
@@ -505,8 +503,9 @@ fn family_value<T: topo::AtRestPolicy + Decide>(
         motion: None,
         members: Some(Arc::new(members)),
         family: None,
-        verdicts: Arc::new(verdicts),
-        escalations: Arc::new(escalations),
+        verdicts: Arc::new(log.verdicts),
+        escalations: Arc::new(log.escalations),
+        marks: Arc::new(log.marks),
         witness: super::WitnessSlot {},
         content_key: content.finish(),
         naming_key: NamingKey(naming.finish().0),

@@ -599,10 +599,12 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
+    `unbanded_uncertainty`,
     `malformed_real`, `topology`,
-    `assembly`, `adoption`, `rim_off_wall_boundary`,
+    `assembly`, `adoption`, `not_yet_supported`, `build_escalated`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
-    `join`, `singularity_undecided`, `placement`,
+    `join`, `singularity_undecided`, `singularity_side_undecided`,
+    `singularity_meet_unread`, `interpretation`, `placement`,
     `instance`, `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
 
@@ -2147,13 +2149,13 @@ class Node:
     def profile(outline: list[ClosedLoop]) -> Node: ...
     @staticmethod
     def extrude(profile: _Operand, distance: _LengthArg) -> Node:
-        """Extrude a profile up its own +z.
+        """Extrude a profile along its own z by a signed depth.
 
-        `distance` mints a LITERAL in the node's `distance` slot. It is
-        a depth: a size, refused at `evaluate` unless definitely
-        positive. The body lies in its own coordinates, between its
-        profile's xy and `distance` up; a body that stands below a
-        plane is placed so.
+        `distance` mints a LITERAL in the node's `distance` slot, a
+        signed depth. The body lies in the profile's coordinates,
+        between its xy and `distance` along z: a `+` depth is a boss up
+        z, a `-` depth a pocket's tool down it. A depth that is zero,
+        or that the band cannot sign, is refused at `evaluate`.
         `DocEdit.set_param(node, "distance", expr)` moves the depth,
         and makes it a named, editable number: a literal is a new
         document per value, a parameter reference is one
@@ -3478,8 +3480,8 @@ class DocEdit:
         same kernel checks: `slot_var_kind` for a section that is not a
         profile, `slot_dimension_mismatch` for a station move of the
         wrong dimension, `loft_shape` (`fault`: `too_few_sections`,
-        `empty_station`, `station_in_first_plane`,
-        `degree_out_of_range`). A node that is not a
+        `empty_station`). A station or degree its values make degenerate
+        is admitted and refused at evaluation. A node that is not a
         loft refuses `set_loft_sections_on_non_loft`.
 
         Each section's `keep` is the `SectionId` of the old section it
@@ -3718,7 +3720,9 @@ class DocEdit:
         `set_program_on_non_profile`, and then everything an insert
         refuses of a profile: `slot_unknown_var_name` and its
         siblings over every argument, `profile_program_refused` for a
-        program that does not close, replay or validate."""
+        step order the lattice refuses (a program that does not close).
+        A program whose values do not replay or validate is admitted and
+        refused when it evaluates."""
 
     @staticmethod
     def rebind(from_name: str, to_name: str, body: Var | None = None) -> DocEdit:
@@ -4079,8 +4083,10 @@ class Doc:
     def set_product(self, body: Optional[_Operand]) -> None:
         """**Set the product**: the one body the document delivers, read
         in the world, or `None` for an empty product. What export writes
-        and an instance of the document copies. A body in another space
-        raises `EditError` (`product_read`)."""
+        and an instance of the document copies. The slot reads its body
+        as a node's body seat does, a pick (`Doc.pick`) among them. A
+        body in another space, or a pick of no piece, raises `EditError`
+        (`product_read`)."""
 
     @property
     def product(self) -> Optional[Var]:
@@ -4974,11 +4980,19 @@ class StructureNormalization:
     cut, and the two censuses are that change counted.
 
     `promoted_to` and `residual` are `surface_promotion`'s payload and
-    `singularity` is `chart_singularity_vertex`'s (`interior`,
-    `inside_edge` or `valence_one_vertex`), and `transform` and
-    `moved_by` are `placement_re_minted`'s (the assembly placement whose
+    `curve_promoted`'s (whose `face` is the curve's entity id), `kept`
+    and `joined` are `one_record`'s (the surface record kept and the one
+    its faces left), `singularity` is `chart_singularity_vertex`'s
+    (`interior`, `inside_edge` or `valence_one_vertex`), and `transform`
+    and `moved_by` are `placement_re_minted`'s (the placement whose
     frames the import built by their axes, and the farthest a point of
-    the session box moved, in metres), each `None` on the other arms —
+    the session box moved, in metres; `moved_by` also `one_record`'s,
+    the farthest a face on either of two records of one surface lies
+    from the other's, `vertex_built`'s, how far the build moved a
+    vertex from its printed point, whose `face` is then the
+    `VERTEX_POINT`'s entity id, and `carrier_built`'s, how far the printed
+    carrier stands off the one the build constructed, whose `face` is the
+    `EDGE_CURVE`'s), each `None` on the other arms —
     present on every row, so a read never raises and a caller never has
     to branch on `kind` first. On `placement_re_minted`, `face` is the
     transformation's entity id, the row naming no face."""
@@ -4991,6 +5005,10 @@ class StructureNormalization:
     def promoted_to(self) -> Optional[str]: ...
     @property
     def residual(self) -> Optional[float]: ...
+    @property
+    def kept(self) -> Optional[int]: ...
+    @property
+    def joined(self) -> Optional[int]: ...
     @property
     def singularity(self) -> Optional[str]: ...
     @property
@@ -5649,24 +5667,6 @@ class Evaluation:
         tied name whose candidates disagree, or an unreadable
         candidate refuse rather than silently including or dropping
         anything."""
-    def traced_frame(
-        self,
-        plane: tuple[_BodyArg, str],
-        traced: tuple[_BodyArg, str],
-    ) -> PoseDef:
-        """The frame a sketch tracing a face stands on: `Through` the
-        traced face's own axis and a vertex of the plane face `plane`,
-        square to it, its origin that vertex's foot on the axis. Each is a
-        `(body, name)` of this evaluation's document; pass the answer as
-        `Node.drawn_profile`'s `frame`. A boss swept up the axis from a
-        piece leaving the traced wall's trace along its tangent is tangent
-        to the wall by construction.
-
-        Raises `ValueError` naming why no frame reads off the two: the
-        traced face has no axis, the plane face is no plane square to it,
-        or has no vertex off the axis.
-        """
-        ...
     def face_frame(self, node: NodeId | Var | IndexedRead, name: str) -> Pose:
         """Where the named face SITS — its carrier's frame, as of THIS
         evaluation. The forward twin of the materializers: they hand
@@ -6721,9 +6721,13 @@ def split(
     identity bundle, which reads nothing of the part), so its copy
     stands where the cut's world did. A remainder read of the cut
     crosses only where the instance's copy carries what it reads,
-    re-pointed to a pick of that copy; any other is severed (`severed_edge`,
-    `remainder_read_uncarried`), as is a name reaching material the
-    part's world does not hold once (`name_outside_part_world`). Pure —
+    re-pointed to a pick of that copy, the product slot's read among
+    them; any other is severed (`severed_edge`,
+    `remainder_read_uncarried`, `product_read_severed`), as is a named
+    source or pick the remainder keeps that cannot be defined afresh over
+    the instance's copy (`named_read_uncarried`), and a name reaching
+    material the part's world does not hold once
+    (`name_outside_part_world`). Pure —
     `doc` is untouched. Raises SplitError, typed, naming the offending
     edge, constraint, parameter or name.
 

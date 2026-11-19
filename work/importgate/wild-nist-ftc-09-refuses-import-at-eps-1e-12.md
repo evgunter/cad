@@ -36,3 +36,11 @@ Reproduce: `cd demos/wild && cargo build --release` then
 `CAD_TOLERANCE_EPS=1e-12 <target>/release/wild-montage /tmp/wild`.
 
 - 2026-11-02 — moved from INTERP to IMPORTGATE by `git mv` when INTERP merged into IMPORTGATE, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and INTERP had fallen far under it).
+- 2026-11-18 — `importgate/build` (the import builds every cache from the
+  description it interprets) moves this file from refusing at 1e-12 to
+  refusing at every ε, the default 1e-9 included: its plane × cylinder
+  edges read tangent at the file's band (ε_in ≈ 34 µm) and apart at the
+  run's, and refuse not-yet-supported naming the snap catalogue's lane (`tests/tier_gate.rs`'s `NIST09_SNAP`,
+  `tests/wild.rs`'s refusal row, and `demos/wild`'s refusal pin, the cell
+  leaving the montage until it imports). The snap unit, which makes a relation that reads Zero at the file's
+  band exact, closes this row.

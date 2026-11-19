@@ -699,6 +699,9 @@ mod lever_rows {
         let seated = seated_extent((Seat::own(&a), fa), (Seat::at(&own, m), fo), band())
             .unwrap()
             .reach;
+        // Two asserts, two pins: the containment below is what an
+        // unmoved ball fails, and the size after it is what a ball grown
+        // to hold both frames fails, which passes the containment.
         // Every point of the placed patch, on a grid over its parameters.
         let n = 24;
         for i in 0..=n {

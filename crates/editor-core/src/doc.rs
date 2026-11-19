@@ -979,6 +979,77 @@ impl<'a> NameCarrier<'a> {
     }
 }
 
+/// **Which of the document's seats read a variable** (VR2) — one
+/// variant per kind of reader, iterated by [`Doc::read_sites`].
+///
+/// Exhaustive the way [`Carrier`] is: [`Doc::reads_in`] maps a kind to
+/// its seats with no wildcard arm, and the roster row's `f6_variants!`
+/// weld writes a second such match, so a variant added here is an
+/// E0004 at both until it says what it reads.
+/// `tests::the_reader_roster_is_what_the_walk_iterates` reds on a
+/// variant missing from [`Readers::ALL`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Readers {
+    /// The nodes' slots and operands ([`Node::exprs`],
+    /// [`Node::operand_rows`]): one site per read, so a node reading a
+    /// variable at two seats reads it twice.
+    Nodes,
+    /// The variables' definitions ([`Doc::definition_reads`]): one site
+    /// per variable a definition reads, however often it reads it. A
+    /// selection only its source's placements' own `on` sides read is
+    /// part of those placements' reading of the source, not a reader
+    /// ([`Doc::own_source_selections`]).
+    Definitions,
+    /// The product slot ([`Doc::product`]): being the product is a use
+    /// (D10 `[operations]`), and the slot reads its body as a node's
+    /// body seat does.
+    Product,
+}
+
+impl Readers {
+    /// Every kind of reader, in the order [`Doc::read_sites`] walks
+    /// them.
+    pub(crate) const ALL: [Readers; 3] = [Readers::Nodes, Readers::Definitions, Readers::Product];
+}
+
+/// **One read of a variable, and the seat reading it** — the element of
+/// [`Doc::read_sites`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReadSite {
+    /// A slot or an operand of a live node.
+    Node {
+        /// The node.
+        node: RecipeNodeId,
+        /// The operand seat reading it, `None` for a scalar slot.
+        seat: Option<crate::OperandSlot>,
+        /// The variable it reads.
+        read: VarId,
+    },
+    /// A variable's definition.
+    Definition {
+        /// The variable defined.
+        var: VarId,
+        /// The variable its definition reads.
+        read: VarId,
+    },
+    /// The product slot.
+    Product {
+        /// The body it reads.
+        read: VarId,
+    },
+}
+
+impl ReadSite {
+    /// The variable read.
+    pub(crate) fn read(self) -> VarId {
+        match self {
+            Self::Node { read, .. } | Self::Definition { read, .. } | Self::Product { read } => {
+                read
+            }
+        }
+    }
+}
+
 impl<P> Doc<P> {
     /// The empty document under the given identity: no nodes, no
     /// params, recorded ε = the process's ambient tolerance (M4 PR 6
@@ -1435,38 +1506,99 @@ impl<P> Doc<P> {
         !self.var_names.contains_key(&var) && self.free(var).is_some()
     }
 
-    /// **How many readers each variable has** (VR2): each slot holding
-    /// it — a measure's value leaves and an assertion's bound among
-    /// them (VR4) — each operand reading it, and each definition reading
-    /// it, however often that one definition reads it. The one census
-    /// of readers: the VR7 sweep ([`Self::unread_anonymous_vars`]) and
-    /// the share check ([`Self::shared_unnamed_vars`]) both ask it.
+    /// **How many readers each variable has** (VR2): one per read site
+    /// reading it — each slot holding it (a measure's value
+    /// leaves and an assertion's bound among them, VR4), each operand
+    /// reading it, each definition reading it, however often that one
+    /// definition reads it, and the product slot. The one census of
+    /// readers: the VR7 sweep ([`Self::unread_anonymous_vars`]), the
+    /// share check ([`Self::shared_unnamed_vars`]) and [`Self::unused`]
+    /// all ask it.
     pub fn reader_counts(&self) -> BTreeMap<VarId, usize>
     where
         P: crate::ProfilePayload,
     {
         let mut readers: BTreeMap<VarId, usize> = BTreeMap::new();
-        for node in self.nodes.values() {
-            let slots = node.exprs().into_iter().copied();
-            let operands = node.operand_rows().into_iter().map(|(_, var)| var);
-            for var in slots.chain(operands) {
-                *readers.entry(var).or_default() += 1;
-            }
-        }
-        let own = self.own_source_selections();
-        for var in self.vars.keys() {
-            if own.contains(var) {
-                continue;
-            }
-            for read in self
-                .definition_reads(*var)
-                .into_iter()
-                .collect::<BTreeSet<_>>()
-            {
-                *readers.entry(read).or_default() += 1;
-            }
+        for site in self.read_sites() {
+            *readers.entry(site.read()).or_default() += 1;
         }
         readers
+    }
+
+    /// **Whether anything reads `var`** ([`Self::reader_counts`]).
+    #[must_use]
+    pub fn is_read(&self, var: VarId) -> bool
+    where
+        P: crate::ProfilePayload,
+    {
+        self.read_sites().any(|site| site.read() == var)
+    }
+
+    /// **Whether nothing but the product slot reads `var`**: what a door
+    /// that replaces the product, or moves the body it reads, may delete
+    /// or move without stranding another reader.
+    #[must_use]
+    pub fn read_by_nothing_but_the_product(&self, var: VarId) -> bool
+    where
+        P: crate::ProfilePayload,
+    {
+        self.read_sites()
+            .all(|site| site.read() != var || matches!(site, ReadSite::Product { .. }))
+    }
+
+    /// **Every read of a variable the document holds, and the seat
+    /// reading it**: the one enumeration of readers, in [`Readers::ALL`]'s
+    /// order — the nodes in id order, then the definitions in
+    /// declaration order, then the product slot.
+    pub(crate) fn read_sites(&self) -> impl Iterator<Item = ReadSite> + '_
+    where
+        P: crate::ProfilePayload,
+    {
+        Readers::ALL
+            .into_iter()
+            .flat_map(move |readers| self.reads_in(readers))
+    }
+
+    /// The reads ONE kind of reader holds. Exhaustive with no wildcard
+    /// arm, which is what makes [`Readers`] the enumeration.
+    fn reads_in(&self, readers: Readers) -> Box<dyn Iterator<Item = ReadSite> + '_>
+    where
+        P: crate::ProfilePayload,
+    {
+        match readers {
+            Readers::Nodes => Box::new(self.nodes.iter().flat_map(|(&node, held)| {
+                let slots = held.exprs().into_iter().map(|&read| (None, read));
+                let operands = held
+                    .operand_rows()
+                    .into_iter()
+                    .map(|(seat, read)| (Some(seat), read));
+                slots
+                    .chain(operands)
+                    .map(move |(seat, read)| ReadSite::Node { node, seat, read })
+                    .collect::<Vec<_>>()
+            })),
+            Readers::Definitions => {
+                let own = self.own_source_selections();
+                Box::new(
+                    self.vars
+                        .keys()
+                        .copied()
+                        .filter(move |var| !own.contains(var))
+                        .flat_map(|var| {
+                            self.definition_reads(var)
+                                .into_iter()
+                                .collect::<BTreeSet<_>>()
+                                .into_iter()
+                                .map(move |read| ReadSite::Definition { var, read })
+                        }),
+                )
+            }
+            Readers::Product => Box::new(
+                self.product
+                    .into_iter()
+                    .map(|read| ReadSite::Product { read }),
+            ),
+        }
     }
 
     /// **The selections in a source that only that source's placements'
@@ -1533,8 +1665,9 @@ impl<P> Doc<P> {
 
     /// **What the person made and nothing uses** (D10 `[operations]`
     /// "The product"), read off the recipe alone. A use is a read (a
-    /// slot, an operand or a definition reading it), being the product,
-    /// or being what an assertion states, which is a read of its slot.
+    /// slot, an operand, a definition or the product slot reading it,
+    /// [`Self::reader_counts`]), and being what an assertion states is
+    /// a read of its slot.
     /// Reported are the tips: each operation with outputs none of which
     /// is used, in id order, and then each named variable nothing uses
     /// and no reported operation defines, in id order. What a tip reads
@@ -1546,9 +1679,7 @@ impl<P> Doc<P> {
     {
         let readers = self.reader_counts();
         // The world is exempt, named or not: one rule both passes read.
-        let used = |var: &VarId| {
-            *var == VarId::WORLD || readers.contains_key(var) || self.product == Some(*var)
-        };
+        let used = |var: &VarId| *var == VarId::WORLD || readers.contains_key(var);
         let mut defines: BTreeMap<RecipeNodeId, Vec<VarId>> = BTreeMap::new();
         for (&var, held) in &self.vars {
             if let Some((node, _)) = held.def().output() {
@@ -2109,6 +2240,28 @@ impl<P> Doc<P> {
     /// **The pick `var` is defined by**, if it is one.
     pub fn pick(&self, var: VarId) -> Option<&crate::var::Pick> {
         self.vars.get(&var)?.def().pick()
+    }
+
+    /// **The copy a pick reaches into, and the path it reaches by**: a
+    /// pick of a pick reads the inner piece's piece, so its path is the
+    /// inner pick's then its own, down to the copy no pick defines. The
+    /// one composition every reader of a pick walks: the edit door's
+    /// check, the seat's evaluation, the product's gather and split's
+    /// heir. `None` where `var` is no pick; a chain of picks that repeats
+    /// (which no door writes) ends at the repeat.
+    #[must_use]
+    pub fn pick_path(&self, var: VarId) -> Option<(VarId, Vec<VarId>)> {
+        self.pick(var)?;
+        let mut path = Vec::new();
+        let mut at = var;
+        let mut seen = BTreeSet::new();
+        while seen.insert(at)
+            && let Some(pick) = self.pick(at)
+        {
+            path.splice(0..0, pick.of.iter().copied());
+            at = pick.placement;
+        }
+        Some((at, path))
     }
 
     /// **The selection `var` is defined by**, if it is one.
@@ -3337,7 +3490,7 @@ pub(crate) fn strict_ancestors<P: crate::ProfilePayload>(
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
 
-    use super::{Carrier, Doc, NameCarrier};
+    use super::{Carrier, Doc, NameCarrier, Readers};
     use crate::appearance::AppearanceRecord;
     use crate::ident::{ContentPin, DocRef, DocumentId};
     use crate::names::{EntityKind, FaceName, StableName};
@@ -3351,6 +3504,12 @@ mod tests {
         /// leaves it non-exhaustive, and the census below compares
         /// this roster against [`Carrier::ALL`] in both directions.
         const CARRIER: Carrier = [Payloads, Selections, Appearance];
+    }
+
+    test_utils::f6_variants! {
+        /// **The document's kinds of reader**, welded to [`Readers`] as
+        /// [`CARRIER`] is to [`Carrier`].
+        const READERS: Readers = [Nodes, Definitions, Product];
     }
 
     fn name(node: u64, kind: EntityKind) -> StableName {
@@ -3396,6 +3555,29 @@ mod tests {
     /// about the two that exist — a carrying node or none — and a
     /// third that is neither is a design question this row cannot
     /// pose, only the build it breaks can.
+    /// **A kind of reader [`Readers::ALL`] does not name never walks**:
+    /// [`Doc::read_sites`] is driven by the array, as
+    /// [`Doc::name_carriers`] is by [`Carrier::ALL`] (the row below says
+    /// why the compiler does not hold this half).
+    #[test]
+    fn the_reader_roster_is_what_the_walk_iterates() {
+        let walked: Vec<String> = Readers::ALL
+            .iter()
+            .map(test_utils::f6::variant_identifier)
+            .collect();
+        let walked: Vec<&str> = walked.iter().map(String::as_str).collect();
+        if let Some(report) = test_utils::census::set_difference(
+            READERS.identifiers(),
+            &walked,
+            "the `Readers` roster and `Readers::ALL` disagree",
+            "in `Readers::ALL` and absent from the roster",
+            "in the roster and absent from `Readers::ALL`, which is what `Doc::read_sites` \
+             iterates — so this reader is never counted",
+        ) {
+            panic!("{report}");
+        }
+    }
+
     #[test]
     fn the_carrier_roster_is_what_the_walk_iterates() {
         let walked: Vec<String> = Carrier::ALL

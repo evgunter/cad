@@ -73,8 +73,8 @@ pub(crate) fn plus_zero_point(p: Point3<f64>) -> Point3<f64> {
 }
 
 /// A minted carrier with its signed zeros made positive
-/// (this module's docs state why): a line's or a circle's placed fields,
-/// anything else as it is.
+/// (this module's docs state why): a line's, a circle's or an ellipse's
+/// placed fields, anything else as it is.
 pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
     use geom::Curve3;
     match c {
@@ -95,6 +95,24 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
             radius,
             plus_zero(u_ref),
         ),
+        Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
+            semi_u,
+            semi_v,
+        }) => Curve3::Ellipse(geom::Ellipse {
+            frame: geom::Frame {
+                origin: plus_zero_point(center),
+                axis: plus_zero(axis),
+                u_ref: plus_zero(u_ref),
+            },
+            semi_u,
+            semi_v,
+        }),
         other => other,
     }
 }

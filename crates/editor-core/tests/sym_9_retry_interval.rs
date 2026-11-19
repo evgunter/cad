@@ -727,17 +727,18 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // pole verdict (its chord is 2), with the ladder or without it:
     // numeric the plate −2, the annulus −1, the boss −1, the bracket −2
     // and the link −1; no symbolic row moves and the recovery holds at 6.
-    // Then each document's measure read its placed operand through their
-    // relative motion and asked no session box of an image in its own
-    // frame (PR 7088's review ruling), with the ladder or without it:
-    // numeric −1 each, the one `session_box_reach` gone; no symbolic row
-    // moves and the recovery holds at 6.
+    // Then the session box moved from the readers to the placing doors
+    // (PR 7088): each placement asks it of where its copy stands
+    // (`topo::session_box_at`) and no measure asks it of an image. With
+    // the ladder or without it, numeric +1 on the plate and the bracket,
+    // each two placements where one measure asked, and unmoved on the
+    // rest, one for one; no symbolic row moves and the recovery holds at 6.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [979, 1045], [979, 1045], 0),
-        ("r1_annulus", [511, 547], [511, 547], 0),
-        ("r1_segment_boss", [489, 571], [489, 571], 0),
-        ("r2_filleted_bracket", [1361, 1539], [1367, 1533], 6),
-        ("r2_link", [786, 942], [786, 942], 0),
+        ("two_hole_plate", [979, 1047], [979, 1047], 0),
+        ("r1_annulus", [511, 548], [511, 548], 0),
+        ("r1_segment_boss", [489, 572], [489, 572], 0),
+        ("r2_filleted_bracket", [1361, 1541], [1367, 1535], 6),
+        ("r2_link", [786, 943], [786, 943], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -925,13 +926,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // (`sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`) is
     // what carries the ladder now. Then the decided least-turn mint (fork
     // 270) took the pad's identity chart with no pole verdict: [1390,
-    // 1802, 0] -> [1390, 1801, 0]. Then the pad's measure read its placed
-    // operand through their relative motion and asked no session box of
-    // an image (PR 7088's review ruling): [1390, 1801, 0] -> [1390, 1800,
-    // 0].
+    // 1802, 0] -> [1390, 1801, 0]. The pad's one session-box ask is its
+    // placement's, not its measure's (PR 7088): unmoved.
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1390, 1800, 0],
+        [1390, 1801, 0],
         "the shipped ladder's leaf receipt"
     );
     // With nothing retried the receipt writes no ladder column, as the
@@ -960,10 +959,8 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // Then the sweeps' frames: the ladder retries nothing on this leaf,
     // and the bare drive reads the shipped receipt, [1390, 1802, 0]. Then
     // the least-turn mint's identity chart, as the shipped receipt's:
-    // [1390, 1802, 0] -> [1390, 1801, 0]. Then the measure's session box
-    // on an image, as the shipped receipt's: [1390, 1801, 0] -> [1390,
-    // 1800, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1390, 1800, 0]);
+    // [1390, 1802, 0] -> [1390, 1801, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1390, 1801, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

@@ -13,11 +13,12 @@
 //! [`Framed::computing_among`]: the first operand in its space's
 //! coordinates ([`Frame::Own`], read through no map, so the others are
 //! read through their own placements and not through a widened
-//! rotation's inverse on an enclosure lane), else the first operand. A
-//! reading within an operand that asks it about another's point
-//! ([`topo::Seat::into_own`]) does send that point through the inverse. It reads the frames' structure and no value, so the
-//! `f64` witness and every lane over a box decide in one frame. Every
-//! operation over two or more operands of one space takes it — the
+//! rotation's inverse on an enclosure lane), else the first operand. The
+//! choice reads the frames' structure and no value, so the `f64` witness
+//! and every lane over a box decide in one frame. A reading within an
+//! operand that asks it about another's point
+//! ([`topo::Seat::into_own`]) does send that point through the inverse.
+//! Every operation over two or more operands of one space takes it — the
 //! booleans' fold, subtract and distribute, measure, the product gather,
 //! clearance and its witness rebuild, the coincidence replay's carrier
 //! verdict — and reads every other operand through
@@ -40,6 +41,27 @@
 //! one-input construction over a body — blend, shell, split, mirror —
 //! computes in that body's frame, there being no second operand to
 //! condition against.
+//!
+//! **Where a body stands is asked by the door that puts it there**
+//! ([`Framed::asked_where_it_stands`]). The box is a cube about the
+//! space's origin, so it holds the convex hull of any body it holds, and
+//! a result that lies within its operand's hull stands where the box
+//! already admitted its operand. The doors that ask are those whose
+//! result need not lie within that hull:
+//! - a copy's placement and a profile's sketch frame, which stand a body
+//!   by a map;
+//! - a sweep lifted along its profile's `z`, which stands it by the lift;
+//! - the mirror, whose reflection can carry the image off the operand's
+//!   hull and past the box while its source stands inside it.
+//!
+//! Every other one-input operation's result lies within its operand's
+//! hull. A blend or chamfer removes material at a convex edge and adds it
+//! at a concave one, and what it adds lies between the two faces it joins,
+//! inside their hull. A split keeps pieces of the operand. A shell is the
+//! operand less its inward offset. The twist moves its body whole and
+//! asks as a move does, and a tube is built in the world and finished
+//! there. A gather builds one body out of its operands, read into its
+//! computing frame ([`Framed::read_in`]), and its finish asks of that.
 //!
 //! Nothing here composes a body into its space's coordinates for a
 //! reader outside the model: that is `crate::mate::in_space`'s, and only
@@ -353,6 +375,39 @@ impl<T: topo::AtRestPolicy> Framed<T> {
             body: self.body.clone(),
             frame: self.frame.moved(motion)?,
         })
+    }
+
+    /// **This value, its placement asked the session box** (D4 ¶4,
+    /// `[placement.frame]`): where it stands in its space under a map,
+    /// the box asked of it there with no body moved
+    /// ([`topo::session_box_at`], the question a move asks of its image,
+    /// read off the same data). A copy's placement is asked by the door
+    /// that places it, not by the readers that read it: a placement
+    /// ([`super::wire`]'s `place`), a profile's sketch frame
+    /// ([`super::ProfileValue::framed`]) and a mirror of a placed copy
+    /// (`wire_mirror`: its image stands, under the copy's frame, where
+    /// the reflection carried it) each call this; a value in its space's own
+    /// coordinates was asked by its own finish. Which one-input
+    /// operations need it, and why the rest stand inside their operand,
+    /// is the module's account.
+    ///
+    /// # Errors
+    ///
+    /// [`super::NodeErrorKind::NotFinished`] holding the session box's
+    /// finding, or a carrier the map does not map
+    /// ([`topo::MoveError::under_a_motion`]).
+    pub(crate) fn asked_where_it_stands(self, tol: Tol) -> Result<Self, super::NodeErrorKind>
+    where
+        T: geom_core::Decide,
+    {
+        if let Some(map) = self.frame.map() {
+            topo::session_box_at(self.body(), map, tol).map_err(|e| {
+                super::NodeErrorKind::NotFinished {
+                    findings: e.under_a_motion(),
+                }
+            })?;
+        }
+        Ok(self)
     }
 
     /// **Whether it is in its space's coordinates** ([`Frame::Own`]): a

@@ -137,10 +137,10 @@ fn committed_corpus() {
     }
 }
 
-/// Row 2: import → export → import: censuses and certified volumes
-/// identical run to run, and the SECOND export byte-identical to the
-/// FIRST (one adoption pass is a fixed point of the deterministic
-/// writer). Byte-identity of the first re-export against the
+/// Row 2: import → export → import → export → import: censuses and
+/// certified volumes identical pass to pass, and the second round trip's
+/// export byte-identical to the first round trip's (our own output is a
+/// fixed point of the import and the deterministic writer). Byte-identity of the first re-export against the
 /// COMMITTED fixture is measured and reported (printed per fixture),
 /// not required — entity numbering/traversal may differ.
 #[test]
@@ -174,19 +174,12 @@ fn fixed_point() {
             .iter()
             .filter(|p| p.kind == step_import::PromotedCurveKind::Line)
             .count();
-        // ANCHORED, so the branch below cannot float: the re-import's
-        // straight-seam promotion is a deterministic function of the
-        // fixture and the ambient band (our export header states the
-        // ambient ε as ε_in; loft_prism's two straight seams carry
-        // the measured map fold 1.2644054553268222e-7, every other
-        // fixture none). A wrong promotion count must red HERE, not
-        // pick the branch that matches it.
-        let expected_line_promotions =
-            if name == "loft_prism" && Tol::witness().get().eps >= 1.264_405_455_326_822_2e-7 {
-                2
-            } else {
-                0
-            };
+        // ANCHORED: nothing in a re-export is promoted. Where a band
+        // reads a straight seam's spline as the line it is (loft_prism's
+        // two, whose map fold is 1.2644054553268222e-7, at an ambient
+        // band past that), the FIRST import already reads it so and
+        // builds the line, which the export writes as one.
+        let expected_line_promotions = 0;
         assert_eq!(
             line_promotions, expected_line_promotions,
             "{name}: the re-import's Line promotions are the fixture's own straight seams"
@@ -227,50 +220,59 @@ fn fixed_point() {
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 )
             });
-        if line_promotions == 0 {
-            assert_eq!(
-                export1, export2,
-                "{name}: the second export must be byte-identical to the first"
-            );
-        } else {
-            // The one-cycle byte pin moves EXACTLY one cycle out when
-            // the ambient band is coarser than the committed fixture's
-            // declared 1e-9: our re-export header states the ambient ε,
-            // so the re-import reads a coarser ε_in than the first and
-            // D7 promotes straight seam carriers the first left NURBS
-            // (each divergent record a reported promotion, re-stated as
-            // LINE). The SECOND cycle is the fixed point.
-            let count = |s: &str, pat: &str| s.matches(pat).count();
-            assert_eq!(
-                count(&export2, "= LINE("),
-                count(&export1, "= LINE(") + line_promotions,
-                "{name}: the divergence is exactly the promoted carriers, as LINE"
-            );
-            assert_eq!(
-                count(&export1, "B_SPLINE_CURVE_WITH_KNOTS("),
-                count(&export2, "B_SPLINE_CURVE_WITH_KNOTS(") + line_promotions,
-                "{name}: each promoted carrier retires one spline record"
-            );
-            let step_import::StepImport::Solid { body: body3, .. } = step_import::import_step(
-                &export2,
-                &step_import::ImportOptions::default(),
+        // **The fixed point is our own output's.** The build rebuilds
+        // every cache from the description, so the first re-export may
+        // differ from the second by the rounding a construction seeded
+        // from the committed file's digits leaves (a section's line
+        // anchored at its printed middle); the second round trip
+        // reproduces the first's output byte for byte.
+        let step_import::StepImport::Solid { body: body3, .. } = step_import::import_step(
+            &export2,
+            &step_import::ImportOptions::default(),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{name}: re-import 2: {e_at}", e_at = e.render())) else {
+            panic!("{name}: re-import 2 lost the solid");
+        };
+        assert_eq!(
+            arena_census(&body2),
+            arena_census(&body3),
+            "{name}: census identical across the second adoption pass"
+        );
+        let v3 = topo::test_support::pinned_volume(
+            "the measured body",
+            &topo::test_support::finished(
+                "the measured body",
+                body3.clone().into_body(),
                 Tol::witness(),
-            )
-            .unwrap_or_else(|e| panic!("{name}: re-import 2: {e_at}", e_at = e.render())) else {
-                panic!("{name}: re-import 2 lost the solid");
-            };
-            let export3 = step_export::step_string(&at_rest(&body3), &options, Tol::witness())
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "{name}: re-export 3: {e_at}",
-                        e_at = e.render(geom_brep::recourse::Reading::Build)
-                    )
-                });
-            assert_eq!(
-                export2, export3,
-                "{name}: fixed point from the second cycle on"
-            );
-        }
+            ),
+            Tol::witness(),
+        )
+        .volume;
+        assert_eq!(
+            v2.to_bits(),
+            v3.to_bits(),
+            "{name}: certified volume bit-identical across the second adoption pass"
+        );
+        let export3 = step_export::step_string(&at_rest(&body3), &options, Tol::witness())
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{name}: re-export 3: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
+        assert_eq!(
+            export2, export3,
+            "{name}: the second round trip's export must be byte-identical to the first's"
+        );
+        println!(
+            "fixed-point measurement: {name}: first re-export {} the second",
+            if export1 == export2 {
+                "byte-identical to"
+            } else {
+                "diverges (by construction rounding) from"
+            }
+        );
 
         // The measured (not required) comparison against the
         // committed fixture; report with `--nocapture`. The uncertainty

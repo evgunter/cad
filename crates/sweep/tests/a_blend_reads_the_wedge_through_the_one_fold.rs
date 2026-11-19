@@ -2,13 +2,14 @@
 //!
 //! The edge's wedge, its class at every station, each corner's sign, a
 //! tangency's pairing and end, is read once, by `geom_brep`'s fold
-//! through `topo::edge_wedge_as`, and the blend composes none of it
+//! through `topo::edge_wedge`, and the blend composes none of it
 //! itself. The token methods a composition would call
 //! (`Corner::convexity`, `Tangency::pairing`) and `normals_alignment`
 //! are crate-private to `geom_brep`, so the compiler keeps those out;
 //! this row pins the rest. The blend's production code calls the door
-//! once, under its own names (`topo::edge_wedge_as`, never the shape
-//! reading's `topo::edge_wedge`), spells no other wedge read (a class, a gradient or normal
+//! once, reading the side as a choice (`topo::edge_wedge`, never a door
+//! that takes the fold's roles and could record its sign as a check),
+//! spells no other wedge read (a class, a gradient or normal
 //! alignment, a jet, a material curvature, a walk or a station minted by
 //! hand), and reads its faces' outward normals at exactly the three
 //! sites that read the ARM's geometry (`battery::outward` and the
@@ -73,14 +74,8 @@ fn the_blend_composes_no_wedge_of_its_own() {
         "enters_material",
         "WedgeWalk::",
         "Station::on(",
-        "DIHEDRAL_SIGN",
-        "\"dihedral_sign\"",
-        "MATERIAL_CUSP_SIDE",
-        "\"material_cusp_side\"",
-        "FoldNames::SHAPE",
-        // The door under the shape reading's names: the blend's sign
-        // and end would be recorded as a shape reading's.
-        "edge_wedge(",
+        // A scope that records the blend's sign and end as checks.
+        "checking(",
     ];
     let mut door = 0;
     let mut normals = 0;
@@ -92,16 +87,16 @@ fn the_blend_composes_no_wedge_of_its_own() {
             assert!(
                 !source.contains(read),
                 "`{}` spells `{read}`: the blend reads an edge's wedge through \
-                 `topo::edge_wedge_as` alone",
+                 `topo::edge_wedge` alone",
                 file.display()
             );
         }
-        door += source.matches("edge_wedge_as(").count();
+        door += source.matches("edge_wedge(").count();
         normals += source.matches("implicit_outward_normal(").count();
     }
     assert_eq!(
         door, 1,
-        "the blend asks the edge's wedge door once, under its own names"
+        "the blend asks the edge's wedge door once, reading its side"
     );
     assert_eq!(
         normals, 3,

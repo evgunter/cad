@@ -356,50 +356,94 @@ fn perturb_corner_consistently(src: &str, delta: f64) -> String {
         .join("\n")
 }
 
-/// C3 route 1 (measured): an IN-BAND vertex defect never reaches the
-/// gate — the ADOPTION ladder re-certifies carriers with the KERNEL
-/// band (not eps_in) and refuses first, loudly, with an Escalated
-/// certification error; above the band it refuses definite. Either
-/// way: no in-band geometry ever ships silently, which is the C3
-/// posture. (A gate-level escalated verdict was not constructible
-/// through any route tried; adoption's certification sweep covers the
-/// vertex/carrier defect classes first.)
+/// C3 route 1, as D7 reads it: a vertex the file puts off where its
+/// edges' surfaces meet is evidence of the corner those surfaces state.
+/// Within the file's ε_in the build puts the vertex there, rebuilds its
+/// edges from their planes, and ships the corner it built, the move
+/// reported on the ledger (`NormalizationKind::VertexBuilt`); past ε_in
+/// the file's statements are no description, and the import refuses at
+/// interpretation. Neither ships the defect.
 ///
 /// The defect is sized FROM the ambient band, never from a literal:
 /// "in band" means (ε, Kε) and "above band" means past Kε, so the
-/// probe constructs the same two situations on every hosted ε row.
-/// (At the default ε = 1e-9, K = 10 these are the recorded
-/// 2/4/8e-9 and 1.5/3e-8 metres.) `eps_in` is pinned 1000× ABOVE the
-/// ambient ε on every row, which is the point being made: an ε_in that
-/// coarse still cannot loosen what adoption decides.
+/// probe constructs the same situations on every hosted ε row. Healed
+/// at an ε_in 1000× the run's; refused at an ε_in of the run's ε.
 #[test]
 fn r1_in_band_vertex_defect_refuses_loudly_at_adoption() {
     let src = fixture("../step-export/tests/fixtures/cube.step");
     let tol = geom_core::Tol::witness().get();
     let (eps, escalate) = (tol.eps, tol.k * tol.eps);
-    for (delta, want_escalated) in [
-        (2.0 * eps, true),
-        (4.0 * eps, true),
-        (8.0 * eps, true),
-        (1.5 * escalate, false),
-        (3.0 * escalate, false),
+    for delta in [
+        2.0 * eps,
+        4.0 * eps,
+        8.0 * eps,
+        1.5 * escalate,
+        3.0 * escalate,
     ] {
         let doctored = perturb_corner_consistently(&src, delta);
-        let options = ImportOptions {
+        let coarse = ImportOptions {
             eps_in: Some(1000.0 * eps),
             ..ImportOptions::default()
         };
-        match import_step(&doctored, &options, Tol::witness()) {
-            Ok(shipped) => panic!("delta {delta:e}: SHIPPED silently: {shipped:?}"),
-            Err(e) => {
-                let dbg = format!("{e:?}");
+        match import_step(&doctored, &coarse, Tol::witness()) {
+            Ok(StepImport::Solid {
+                body,
+                normalizations,
+                ..
+            }) => {
                 assert_eq!(
-                    dbg.contains("Escalated"),
-                    want_escalated,
-                    "delta {delta:e}: wrong refusal class: {dbg}"
+                    topo::validate_geometric(&body, Tol::witness()),
+                    Ok(()),
+                    "delta {delta:e}: the built corner is valid at rest"
+                );
+                let moved = normalizations
+                    .iter()
+                    .filter_map(|n| match n.kind {
+                        step_import::NormalizationKind::VertexBuilt { moved_by } => Some(moved_by),
+                        _ => None,
+                    })
+                    .fold(0.0_f64, f64::max);
+                assert!(
+                    (moved - delta).abs() <= 1e-3 * delta,
+                    "delta {delta:e}: the ledger reports the corner's move: {moved:e}"
                 );
             }
+            other => panic!("delta {delta:e}: heals within ε_in, got {other:?}"),
         }
+        let fine = ImportOptions {
+            eps_in: Some(eps),
+            ..ImportOptions::default()
+        };
+        match import_step(&doctored, &fine, Tol::witness()) {
+            Err(StepImportError::Interpretation { .. }) => {}
+            other => panic!("delta {delta:e}: refuses past an ε_in of ε, got {other:?}"),
+        }
+        // **The file's own declaration** (default options): cube.step
+        // declares 1e-9, so its band's zero is the larger of that and the
+        // run's ε. A move the band reads Zero heals as above; one past it
+        // refuses at interpretation. Neither ships the defect.
+        let file_zero = 1e-9_f64.max(eps);
+        match import_step(&doctored, &ImportOptions::default(), Tol::witness()) {
+            Ok(StepImport::Solid { body, .. }) if delta <= file_zero => assert_eq!(
+                topo::validate_geometric(&body, Tol::witness()),
+                Ok(()),
+                "delta {delta:e}: the built corner is valid at rest at the file's own ε_in"
+            ),
+            Err(StepImportError::Interpretation { .. }) if delta > file_zero => {}
+            other => panic!(
+                "delta {delta:e}: at the file's own ε_in ({file_zero:e} m band zero) a move \
+                 the band reads Zero heals and one past it refuses, got {other:?}"
+            ),
+        }
+    }
+}
+
+/// The import read at the run's own ε: the wedge files state themselves
+/// to full precision, and the poses are sized from the run's band.
+fn at_the_run(eps: f64) -> ImportOptions {
+    ImportOptions {
+        eps_in: Some(eps),
+        ..ImportOptions::default()
     }
 }
 
@@ -611,9 +655,9 @@ fn sliver_wedge_step(alpha: f64, leg: f64, h: f64) -> String {
 /// and `alpha` is chosen FROM the ambient band to put it at 3/5/8·ε,
 /// inside (ε, Kε) on every hosted ε row. That margin is also the far
 /// edge's length, `leg·alpha`: two planes in band over their whole
-/// extent leave their far ends in band too, so the file's far face is
-/// a sliver and the attachment gate refuses it there, by name, before
-/// the at-rest gate is asked. So this row pins THAT refusal; the
+/// extent leave their far ends in band too, so the build reading the
+/// far edge as the line its planes hold escalates, typed, before any
+/// body is assembled. So this row pins THAT refusal; the
 /// at-rest gate's own `SliverDihedral` is reached by `topo`'s
 /// `review_m2_pr3` lamina, and through import by no row
 /// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
@@ -623,7 +667,7 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
     let eps = geom_core::Tol::witness().get().eps;
     for alpha in [3.0 * eps / leg, 5.0 * eps / leg, 8.0 * eps / leg] {
         let text = sliver_wedge_step(alpha, leg, h);
-        match import_step(&text, &ImportOptions::default(), Tol::witness()) {
+        match import_step(&text, &at_the_run(eps), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => panic!(
                 "alpha={alpha:e}: the in-band wedge SHIPPED as a solid (gate re-run: {:?})",
                 topo::validate_geometric(&*body, Tol::witness())
@@ -632,8 +676,13 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
             Err(err) => {
                 let msg = err.render();
                 assert!(
-                    msg.contains("geometry attachment gate"),
-                    "alpha={alpha:e}: the far edge's in-band length refuses at attachment: {msg}"
+                    matches!(
+                        err,
+                        StepImportError::BuildEscalated { .. }
+                            | StepImportError::Interpretation { .. }
+                    ),
+                    "alpha={alpha:e}: the far edge's in-band planes refuse, typed, before any \
+                     body: {msg}"
                 );
             }
         }
@@ -651,10 +700,9 @@ fn r1_a_wedge_in_band_only_at_its_apex_edges_length_ships_as_a_corner() {
     let eps = geom_core::Tol::witness().get().eps;
     for alpha in [3.0 * eps / h, 5.0 * eps / h, 8.0 * eps / h] {
         let text = sliver_wedge_step(alpha, leg, h);
-        let Ok(StepImport::Solid { body, .. }) =
-            import_step(&text, &ImportOptions::default(), Tol::witness())
-        else {
-            panic!("alpha={alpha:e}: the wedge imports as a solid");
+        let imported = import_step(&text, &at_the_run(eps), Tol::witness());
+        let Ok(StepImport::Solid { body, .. }) = imported else {
+            panic!("alpha={alpha:e}: the wedge imports as a solid: {imported:?}");
         };
         assert_eq!(
             topo::validate_geometric(&*body, Tol::witness()),

@@ -1442,7 +1442,7 @@ pub mod transform;
 mod turn_rows;
 pub(crate) mod unresolved;
 pub mod validate;
-pub use edge_wedge::{edge_wedge, edge_wedge_as, edge_wedge_description, edge_wedge_walk};
+pub use edge_wedge::{edge_wedge, edge_wedge_description, edge_wedge_walk};
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
@@ -1481,7 +1481,7 @@ pub use lineage::{
     ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageKey, LineageRows,
     Minted, Remainder, RowDefect, RowRefusal, SourceGeometry, SplitEdgeDivisions, Substitutions,
 };
-pub use side_reader::{FAMILY as SIDE_READER_FAMILY, SetAside, SetAsideWhy};
+pub use side_reader::{SIDE as SIDE_AT_INFINITY, SetAside, SetAsideWhy};
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
     point_in_solid_of,
@@ -1552,7 +1552,7 @@ pub use merge_faces::{
 };
 pub use null::CurveGeom;
 pub use offset_axial::{is_axial, offset_charts_together};
-pub use offset_derive::{CornerVerdict, SectionLane, SectionVerdict};
+pub use offset_derive::{CornerVerdict, SectionLane, SectionVerdict, root_along, section_near};
 pub use offset_general::offset_surfaces_together;
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
@@ -1580,7 +1580,8 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
 pub use finish::{
-    FindingFamily, FinishedBody, HeldKind, LeafBody, MoveError, NotFinished, Replay, finish, take,
+    FindingFamily, FinishedBody, HeldKind, LeafBody, MoveError, NotFinished, Replay, finish,
+    session_box_at, take,
 };
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;

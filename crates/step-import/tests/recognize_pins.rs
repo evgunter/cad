@@ -30,7 +30,6 @@ use profile::SketchPlane;
 use common::{SOLID_FIXTURES, fixture};
 use geom_core::Point2;
 use geom_core::Tol;
-use geom_core::test_support::upper;
 use profile::test_support::bulge_loop;
 use step_import::{
     ImportOptions, NormalizationKind, PromotedKind, StepImport, StepImportError, import_step,
@@ -432,11 +431,11 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
         // carriers additionally promote to LINE (#388 — their Greville
         // map fold is ~1.3e-7 at unit scale, between the two bands);
         // the seams chart the same way either side of it.
-        Ok(StepImport::Solid {
-            body,
-            curve_promotions,
-            ..
-        }) => {
+        Ok(imported @ StepImport::Solid { .. }) => {
+            let curve_promotions = imported.curve_promotions();
+            let StepImport::Solid { body, .. } = imported else {
+                unreachable!("matched as a solid")
+            };
             topo::validate_geometric(&*body, Tol::witness())
                 .expect("first-class at rest: the rational wall's flux reaches its target");
             let taken = plane_nurbs_intersections(&body);
@@ -525,13 +524,13 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
 /// **The planted falsifier — declare-and-check, executed at the
 /// importer.** The file's carrier is EVIDENCE, never truth: a seam
 /// carrier doctored off the true intersection must refuse, and the
-/// refusal must carry the number that caught it.
+/// refusal must carry the number that caught it: the section the build
+/// makes from the plane and the wall, read against the printed seam at
+/// the file's band.
 ///
 /// The displacement is the seam spline's middle control point pushed
 /// `+x` by 1e-3 m — off the cylinder wall while staying exactly on
-/// the `y = 1` cap plane, so it is the NURBS-side residual (the
-/// certified foot distance and its between-samples sup) that has to
-/// do the catching, not the closed-form plane distance. A degree-2
+/// the `y = 1` cap plane. A degree-2
 /// Bézier moves half its middle control point's displacement at
 /// mid-parameter, so the honest measured bound is ~5e-4 m: past ε_in
 /// at every matrix row by six orders of magnitude and more.
@@ -555,34 +554,23 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
     );
     assert_ne!(text, doctored, "the falsifier applied");
 
-    let Err(StepImportError::Adoption { id, attempts, file }) =
-        import_step(&doctored, &ImportOptions::default(), Tol::witness())
+    let Err(StepImportError::Interpretation {
+        id,
+        refusal: step_import::InterpretationRefusal::EvidenceMiss { reading, miss },
+        ..
+    }) = import_step(&doctored, &ImportOptions::default(), Tol::witness())
     else {
         panic!("a carrier displaced 1e-3 m off the locus is NEVER trusted");
     };
     assert_eq!(id, 124, "the doctored seam, named");
-    let msg = format!("{:?}", attempts);
-    let measured = attempts.iter().find_map(|a| match a.refusal {
-        topo::EulerOpError::Certification {
-            error:
-                geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                    margin, ..
-                }),
-        } => Some(upper(margin)),
-        _ => None,
-    });
-    let Some(measured) = measured else {
-        panic!("the refusal must carry the plane × NURBS lane's measured bound: {msg}");
-    };
-    assert!(
-        (1e-4..1e-2).contains(&measured),
-        "the measured bound is the displacement the falsifier planted \
-         (~5e-4 m at mid-parameter): {measured:e}"
+    assert_eq!(
+        reading, "step_edge_on_description",
+        "the seam's own reading"
     );
-    let text = StepImportError::Adoption { id, attempts, file }.render();
     assert!(
-        text.contains("not on both surfaces"),
-        "the refusal text states the declare-and-check verdict: {text}"
+        (1e-4..1e-2).contains(&miss),
+        "the measured miss is the displacement the falsifier planted (~5e-4 m at \
+         mid-parameter): {miss:e}"
     );
 }
 

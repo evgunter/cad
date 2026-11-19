@@ -273,7 +273,7 @@ of them is a defect.
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -604,8 +604,8 @@ A side no kernel construction produces panics at a build and past the
 import door, and at the import door is the file's like any other. No
 refusal names a lever the decision does not.
 
-How each door applies these (the import door's ε_in sentences and its
-stopgap, `Indeterminate`'s rendering, `COINCIDENCE_RECOURSE`, the review
+How each door applies these (the import door's ε_in sentences,
+`Indeterminate`'s rendering, `COINCIDENCE_RECOURSE`, the review
 checklist) is `crates/geom-core/README.md`, "The recourse rules at each
 door".
 
@@ -895,7 +895,14 @@ tiers".
   built it; construction state becomes a finished body only through
   that gate. An isometry, exact apart from rounding, keeps a finished
   body's verdict: every finding but the session box is a fact of the
-  shape up to isometry. Its refusal is the list of what it found, every finding
+  shape up to isometry. The embedding certificate is one fact per pair
+  of faces, of the two faces and the cells they share: a finish
+  carries the fact of a pair it finds unchanged in a finished operand,
+  by comparing the faces itself, and asks the rest. The gate's fixed
+  constant ([tolerance.measure]) counts only what that finish asks: it
+  is a backstop against an ask that would not end, not a bound on a
+  body, so a carried fact costs it nothing and keeps no count.
+  Its refusal is the list of what it found, every finding
   kept, none folded into another: each finding belongs to a family
   (the decision or check that made it), and a family's findings share
   one text and one recourse, the decision's ([tolerance.recourse]). A
@@ -1220,6 +1227,16 @@ replay; and structural parameters (hole *count*) are explicitly
 distinct from continuous ones (hole *diameter*), so parameter-driven
 topology change is stated, not emergent.
 
+**A door judges the document, never one evaluation of it.**
+`[recipe.doors]` An edit is refused only for what it writes that no
+values of the document make valid: a kind, a read, an id, a cycle, a
+profile's lattice of verbs, a written count, a loft's list of
+sections. A fault that depends on values is evaluation's, judged at
+every binding it runs (each member, each analysis sample, the nominal)
+and reported as that node's typed error. So the edit door and the load
+door admit the same documents, a value edit owes either door nothing,
+and no edit is refused for a fault it did not write.
+
 **The recipe keeps the form that was written.** `[recipe.forms]`
 Where people state the
 same thing in more than one natural way, the recipe may hold a family
@@ -1486,11 +1503,20 @@ face by mates and values, then combined, and which side of the face
 its material lies on is the mates' to say. A sketch on a face is not
 placed: it is a profile drawn on a frame read off the face's own
 geometry, and it and every sweep of it are in the face's body's space.
-The frame's x points toward a cell of the body off the face's normal
-where the gesture names one; on a face with none (a bare disc) it is
-the space's x carried onto the face by the least turn, as a
-placement's spin is measured ([placement.values]). Either way the
-frame's spin then turns it. Only a placement relates
+That frame is the chart a plane placement onto the face gives, and
+the placement's own code computes it, so the two cannot differ: its z
+is the face's outward normal, and its x and origin are the space's
+under the orientation the gesture writes nearest the face, carried
+onto the face by the least turn, then turned by the written spin and
+moved by the two written slides ([placement.values]). Within the band
+about that orientation's pole it refuses, naming the orientation to
+write, as a placement does. Nothing about the face's cells chooses it:
+a sketch that should sit at a corner says so in its slides. The sketch
+may trace faces of that space ("Constructing a coincidence"): a profile
+on a face is one act whether or not it traces, and a sweep of it is
+tangent to a traced face by construction where the face's plane and the
+traced face's sweep are one construction (an extrude's cap and its
+wall, or a face mated flat onto that cap). Only a placement relates
 two spaces (FORK-S3P), so a feature at several positions is one body placed
 several times, each placement a copy.
 
@@ -1704,7 +1730,19 @@ not of the axes. An operand in another frame is read into it through
 their relative placement, which moves where the operand stands and
 none of its data: a reading within one operand is made in its own
 coordinates, and only a reading between two goes through their
-relative motion. Where conditioning does not decide, a construction
+relative motion. So a body records each of its parts in the frame it
+was built in, and that record is the part's data: a copy of it moved
+into another frame is derived from it, may be kept as a cache, and
+answers a reading only where it gives what the record read through
+the motion gives. The relative motion of two frames is composed
+through the nearest frame they share: an operation's result keeps what it
+takes from each operand where that operand stood, bit for bit, and an
+aggregate places each piece with its frame. A point the operation
+mints between two operands is held as the claim it is ([scalars]): the
+carrier it was found on, its parameter there and the reading that
+found it, its coordinates that carrier's point in that carrier's
+frame, or the operation's frame where it lies on no single carrier.
+Where conditioning does not decide, a construction
 computes in its own coordinates and an operation over copies in its
 first operand's as the author lists it. The census at a `⊔`
 ([assertions]) is defined order-free: each pair's verdict is the same
@@ -1939,7 +1977,9 @@ by door, is `crates/editor-core/ASSEMBLY.md` and
   uses the same node, edit, naming, undo and memo machinery as a part,
   and its evaluation is one kernel `Body`, generally multi-solid and
   not connected: the kernel has no assembly type. Which solids are one
-  part, and which mates hold, is recipe structure, never body state;
+  part, and which mates hold, is recipe structure, never body state
+(a body's frames say where its data stands, not which solids are one
+part);
   fusing copies is an explicit boolean, never implied.
 - **A reference pins content.** `[assemblies.pins]` A cross-document
   reference is a `DocRef`: a `DocumentId`, which says which document

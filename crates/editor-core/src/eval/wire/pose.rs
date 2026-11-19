@@ -394,6 +394,23 @@ fn definition<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             let d = na.get().cross(nb.get());
             let dir = UnitVec3::new(d, POSE_UNIT_NORM, b)
                 .map_err(|e| degenerate(e, PoseConstruction::Meet))?;
+            // A line both planes hold by construction is the meet, a
+            // claim: its point nearest the origin, the representative the
+            // solve below defines, with no division by the planes' angle.
+            // Its direction is the solve's, so the planes are decided
+            // apart exactly as the solve decides them and the meet keeps
+            // the sense `d` gives it. The claimed line's own direction is
+            // the same line's, and that the two agree up to sense is not
+            // checked here.
+            if let Some(line) = crate::coincide::meet_by_construction(doc, *a, *second, tol) {
+                let PoseValue::Axis(line) = pose(&line)?.read_into(&first.frame, b)? else {
+                    unreachable!("a meet is an axis")
+                };
+                return Ok(in_frame(
+                    first.frame,
+                    PoseValue::axis_through(line.foot_of(Point3::origin()), dir),
+                ));
+            }
             // The line's point nearest the origin, in closed form:
             // `(ca (nb × d) + cb (d × na)) / |d|²` lies on both planes
             // (`na · (nb × d) = nb · (d × na) = |d|²`) and is
@@ -407,6 +424,26 @@ fn definition<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
         PoseDef::Flip { pose: read } => {
             let first = pose(read)?;
             in_frame(first.frame, flip(first.value, b)?)
+        }
+        // The chart a plane placement onto the face gives, in the face's
+        // space: the face's plane read as a placement's target reads it.
+        PoseDef::FaceChart {
+            face,
+            orient,
+            spin,
+            slides: [a, c],
+        } => {
+            let to = read_off(doc, (results, env), slot, *face, K::Plane, b)?.in_its_space(b)?;
+            let angle = (
+                scalar(*spin, crate::expr::Dimension::Angle)?,
+                env.turns.get(spin).copied(),
+            );
+            let slides = [
+                scalar(*a, crate::expr::Dimension::Length)?,
+                scalar(*c, crate::expr::Dimension::Length)?,
+            ];
+            let chart = crate::mate::value::face_chart(to, *orient, angle, slides, b, tol)?;
+            in_frame(Frame::Own, PoseValue::Frame(chart))
         }
         // The pose as its copy carries it: its frame moved by the motion
         // the copy's placement solved to, the pose itself unchanged.
@@ -817,7 +854,11 @@ fn walk<T: Decide>(
                 PoseDef::Meet { .. } => arm::MEET,
                 PoseDef::Flip { .. } => arm::FLIP,
                 PoseDef::Carried { .. } => arm::CARRIED,
+                PoseDef::FaceChart { .. } => arm::FACE_CHART,
             }));
+            if let PoseDef::FaceChart { orient, .. } = def {
+                out.extend(crate::eval::orientation_words(*orient).map(PoseWord::Tag));
+            }
             for (_, &read, role, _) in def.reads() {
                 out.push(PoseWord::Tag(role_word(role)));
                 walk(doc, (seat, read), ports, env, nominal, out)?;

@@ -714,24 +714,45 @@ fn an_angle_to_a_turned_copys_edge_reads_the_turn() {
     );
 }
 
-/// **A copy placed past the session box still refuses its document**
-/// (`[placement.frame]`; the review ruling on PR 7088). A reading
-/// between two copies takes the far one through their relative motion
-/// and asks no session box of an image in the reader's frame, an
-/// artefact of that frame. The far copy's own place in the world is
-/// asked where the document's product, the `⊔` over its copies, builds
-/// the aggregate in the world's frame: one block in the world, its copy
-/// 2 km along `x`, a measure between their `+x` walls, and the `⊔`. The
-/// measure reads 2 km, and the `⊔` alone refuses, with the session box's
-/// finding (as
-/// `product_finishes_once::a_copy_moved_past_the_box_refuses_at_the_box`
-/// pins it without the measure).
+/// The one node of `doc` whose refusal every refusal reports (a node
+/// reading a refused one reports that node's refusal), and its refusal:
+/// the session box's finding alone.
+fn the_one_box_refusal(doc: &ProfileDoc, ev: &Evaluation<f64>) -> RecipeNodeId {
+    let mut refusals: Vec<_> = doc
+        .ids()
+        .into_iter()
+        .filter_map(|id| ev.node_error(id))
+        .collect();
+    refusals.dedup_by(|a, b| a.node == b.node);
+    let [refused] = &refusals[..] else {
+        panic!("one node refuses: {refusals:?}")
+    };
+    assert!(
+        matches!(
+            &refused.kind,
+            editor_core::NodeErrorKind::NotFinished { findings }
+                if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+        ),
+        "with the session box's finding alone: {refused:?}"
+    );
+    refused.node
+}
+
+/// **A copy placed past the session box refuses at its placement**
+/// (`[placement.frame]`; the ruling on PR 7088): the door that places a
+/// copy asks the box of where it stands (`topo::session_box_at`, the
+/// question a move asks of its image, read off the copy's own data), and
+/// no reader asks it. One block in the world, its copy 2 km along `x`,
+/// and a measure between their `+x` walls: the far copy's placement
+/// refuses with the session box's finding alone, and the measure,
+/// poisoned by it, reads nothing. So does the same document with its
+/// copies under a `⊔`: the placement refuses before the `⊔` grafts.
 ///
-/// *Breaks if* a copy past the box is admitted into the product (the
-/// aggregate's finish not asking the box), or the measure refuses on an
-/// image's coordinates.
+/// *Breaks if* no door asks the placement: the document with no `⊔`
+/// then refuses nowhere and its measure reads 2 km, and the one with a
+/// `⊔` refuses at the `⊔`.
 #[test]
-fn a_copy_placed_past_the_box_refuses_its_document_not_its_measure() {
+fn a_copy_placed_past_the_box_refuses_at_its_placement() {
     use editor_core::{MeasurePrimitive, SitedRef};
     let tol = Tol::witness();
     let doc = ProfileDoc::empty(DocumentId::derive("e-past-the-box"), tol);
@@ -748,36 +769,164 @@ fn a_copy_placed_past_the_box_refuses_its_document_not_its_measure() {
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![SitedRef::new(near, wall.clone()), SitedRef::new(far, wall)],
     );
+    for doc in [doc.clone(), fixture::assemble_world_copies(doc)] {
+        let ev = run(&doc, None);
+        assert_eq!(
+            the_one_box_refusal(&doc, &ev),
+            far,
+            "the far placement refuses"
+        );
+        assert!(
+            ev.value(measure).is_none(),
+            "the measure reads nothing past a refused copy"
+        );
+    }
+}
+
+/// **A mirror of a placed copy that stands past the box refuses at the
+/// mirror** (`[placement.frame]`; the one-input operations whose result
+/// can stand past their operand ask where it stands, as a placement
+/// does). A block's copy at 998.5 m along `x` stands inside the box;
+/// mirrored across its own `+x` wall it reaches 1000.5 m. The mirror
+/// refuses with the session box's finding alone, and a measure from a
+/// block at the origin to the image reads nothing.
+///
+/// *Breaks if* the mirror keeps the copy's frame without asking: the
+/// image then builds, and the measure reads it about 999 m off.
+#[test]
+fn a_mirror_past_the_box_refuses_at_the_mirror() {
+    use editor_core::{MeasurePrimitive, Operand, SitedRef};
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("e-mirror-past-the-box"), tol);
+    let (doc, source) = block(doc);
+    let (doc, near) = in_world(doc, source, &editor_core::Frame::translation([0.0; 3]));
+    let (doc, copy) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([998.5, 0.0, 0.0]),
+    );
+    let plane = fixture::plane_on(&doc, copy, [1.0, 0.5, 0.5], [1.0, 0.0, 0.0]);
+    let (doc, mirror) = fixture::insert(
+        doc,
+        Node::Mirror {
+            body: Operand::output(copy, 0).into(),
+            plane,
+        },
+    );
+    let wall = fixture::fname(source, fixture::wall(&doc, source, 1));
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            SitedRef::new(near, wall.clone()),
+            SitedRef::new(mirror, wall),
+        ],
+    );
+    let ev = run(&doc, None);
+    assert!(ev.value(copy).is_some(), "the copy stands inside the box");
+    assert_eq!(the_one_box_refusal(&doc, &ev), mirror, "the mirror refuses");
+    assert!(
+        ev.value(measure).is_none(),
+        "the measure reads nothing past a refused mirror"
+    );
+}
+
+/// **Each copy is asked where it stands in its space, not relative to
+/// another**: two copies of one block at 1999 m and 2002 m along `x`,
+/// under a `⊔`, both past the 1 km box. Each placement asks the box of
+/// where its copy stands in the world (`Framed::asked_where_it_stands`,
+/// the copy's own frame into its space), and both refuse, each at its
+/// own placement, before the `⊔` reads either.
+///
+/// The `⊔`'s own ask is not this row's lever: a gather asks of each
+/// image read into its computing frame (`Framed::read_in`), a frame
+/// artefact that refuses two copies at +900 m and −900 m, a valid
+/// document (`work/onehome/a-gathers-box-ask-reads-each-image-in-its-computing-frame.md`).
+///
+/// *Breaks if* the placement asks relative to an operand's frame, or no
+/// placement asks (then no node refuses, as on main before the door).
+#[test]
+fn two_far_copies_refuse_each_at_its_placement() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("e-two-far-copies"), tol);
+    let (doc, source) = block(doc);
+    let (doc, a) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([1999.0, 0.0, 0.0]),
+    );
+    let (doc, b) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([2002.0, 0.0, 0.0]),
+    );
     let doc = fixture::assemble_world_copies(doc);
     let ev = run(&doc, None);
-    match ev.value(measure).map(|v| &v.payload) {
-        Some(ValuePayload::Measure { value, .. }) => assert!(
-            (value - 2000.0).abs() < 1e-9,
-            "the measure reads the walls 2 km apart: {value}"
-        ),
-        other => panic!(
-            "the measure reads across frames: {other:?}, {:?}",
-            ev.node_error(measure)
-        ),
+    for copy in [a, b] {
+        assert!(
+            matches!(
+                ev.node_error(copy).map(|e| (e.node, &e.kind)),
+                Some((node, editor_core::NodeErrorKind::NotFinished { findings }))
+                    if node == copy
+                        && matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+            ),
+            "the copy refuses at its own placement: {:?}",
+            ev.node_error(copy)
+        );
     }
-    let refusals: Vec<_> = doc
-        .ids()
-        .into_iter()
-        .filter_map(|id| ev.node_error(id))
-        .collect();
-    let [refused] = &refusals[..] else {
-        panic!("one node refuses: {refusals:?}")
-    };
-    assert!(
-        matches!(doc.node(refused.node), Some(Node::Assemble { .. })),
-        "the document's product, the `⊔` over the copies, refuses: {refused:?}"
+}
+
+/// **The placement's ask reads the image's own reach, an edge's arc
+/// included**: a disc of radius 10 extruded 1 m, its circular rims'
+/// vertices on its own `+x`, turned onto the world's `+y` by a quarter
+/// turn about `z` and placed 995 m along `x`. Every vertex stands inside the box (the premise, read off
+/// the copy in the world), and each rim's arc reaches 1005 m along `x`,
+/// so the placement refuses with the session box's finding, as the
+/// moved image's ask refuses it (`session_box::body_reach`: each
+/// vertex, and each edge's coordinate reach read off its cover).
+/// *Breaks if* the door's ask reads the vertices alone.
+#[test]
+fn a_copy_whose_rim_reaches_past_the_box_refuses_at_its_placement() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("e-rim-past-the-box"), tol);
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(editor_core::ProfileProgram {
+            loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 10.0).expect("a circle")],
+            ids: Vec::new(),
+            on: None,
+        }),
     );
+    let (doc, disc) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+        },
+    );
+    let at = |x: f64| editor_core::Frame {
+        columns: [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
+        translation: [x, 0.0, 0.0],
+    };
+    let (inside, copy) = in_world(doc.clone(), disc, &at(900.0));
+    let ev = run(&inside, None);
+    let Some(ValuePayload::Body(framed)) = ev.value(copy).map(|v| &v.payload) else {
+        panic!("the copy at 900 m evaluates: {:?}", ev.node_error(copy))
+    };
+    let world = fixture::in_space(framed);
+    let vertex_reach = world
+        .vertex_points()
+        .map(|(_, p)| p.x.abs().max(p.y.abs()).max(p.z.abs()))
+        .fold(0.0_f64, f64::max);
     assert!(
-        matches!(
-            &refused.kind,
-            editor_core::NodeErrorKind::NotFinished { findings }
-                if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
-        ),
-        "with the session box's finding: {refused:?}"
+        (vertex_reach - 900.0).abs() < 1e-9,
+        "the premise: the rims' vertices stand on the copy's own +y, at 900 m along x: {vertex_reach}"
+    );
+    let (past, far) = in_world(doc, disc, &at(995.0));
+    let ev = run(&past, None);
+    assert_eq!(
+        the_one_box_refusal(&past, &ev),
+        far,
+        "the placement refuses"
     );
 }

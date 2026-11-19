@@ -3939,3 +3939,34 @@ each `m5-eps-*.csv.gz`, 10989 in each `m7-eps-*.csv.gz`), and
 `bool_plane_orient` and `bool_plane_offset` (353, 366 and 366 each).
 The two reach rows appear in no committed CSV. The committed CSVs and
 the addenda above keep the old spellings.
+
+## Census note (2026-11-18): the blend's fold reads pool into the fold's own names
+
+Not a sweep and not a threshold change. Two blend names go, and their
+populations **pool** into the names the wedge fold decides the same
+quantity under. The verdict log now records what a decision does where
+it is taken (a choice or a check, `geom_core::k_stats::Role`), so a
+building reader no longer needs a name of its own to be told apart from
+tier 3's check of the same reading. The blend reads the fold through
+`topo::edge_wedge`, which decides each corner's sign in
+`Corner::convexity` and each tangency's end in the fold's material
+reads, over the same walk and the same reach as tier 3's check 4. So
+each pooled sample is the margin the blend's name carried before:
+margins, bands and outcomes are untouched, and only the `predicate`
+column moves. Each target population gains the blend's samples.
+
+| old | pools into | decided in |
+|---|---|---|
+| `fillet3_convexity_sign` | `dihedral_sign` | `geom_brep::Corner::convexity` |
+| `fillet3_knife_end` | `material_cusp_side` | `geom_brep::edge_wedge`'s material reads |
+
+The pool moves none of the three witnesses `k-report-data/README.md`
+rule 1 names (`volume_backstop`, `props_quad_converged`,
+`pm_census_ee_span`): they are other predicates' samples, and no
+sample's margin changed. That is an argument from construction, not a
+re-taken sweep. So no re-cut is owed. One old spelling is in committed
+snapshots, as the sweeps wrote it: `fillet3_convexity_sign` (84 rows in
+each `m5-eps-*.csv.gz`, 171 in each `m7-eps-*.csv.gz`).
+`fillet3_knife_end`, `dihedral_sign` and `material_cusp_side` appear in
+no committed CSV. The committed CSVs and the addenda above keep the old
+spelling.

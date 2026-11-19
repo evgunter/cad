@@ -161,12 +161,12 @@ fn a_flip_against_a_wall_no_piece_borders_renames_no_piece() {
     // band-edge), a wall that piece does not border.
     let doc2 = slide(f.doc.clone(), f.placement, 1.25);
     let ev2 = run(&doc2, Some(&ev1));
-    // Every delta is at the subtract: the slide moved geometry the
-    // boolean decides about.
+    // No delta outside the subtract: the slide moved geometry only the
+    // boolean decides about. (Its own choices part at its candidates as
+    // the exit vertex moves, so it names no turn either.)
     let flips = diff_verdicts(&ev1, &ev2);
-    assert_eq!(
-        flips.nodes.keys().copied().collect::<Vec<_>>(),
-        vec![f.sub],
+    assert!(
+        flips.nodes.keys().all(|&n| n == f.sub),
         "flip cone wider than the subtract: {flips:?}"
     );
     // A piece is named by the walls it borders, and no piece gained or
@@ -286,13 +286,15 @@ fn fused_vertex_scenario(
         // The pin: the diagnosis is HONEST — the identity died at a
         // recorded flip (or through a vanished operand), never blamed
         // on a recipe edit or structural parameter that did not
-        // happen. Under the realized sweep the recorded evidence can
-        // honestly be ABSENT (the disjoint prior pruned every pair —
-        // module comment above), in which case the answers that claim
-        // no cause are admitted, both at the MINTING node: the
-        // documented evidence-free fallback, and the group-size table
-        // fact. This is a closed list of `Diagnosis` arms — when N5
-        // gains an arm, decide here whether it is honest without a
+        // happen. The recorded evidence can honestly be ABSENT under
+        // either sweep: the realized one prunes the disjoint prior's
+        // pairs, and under both the boolean's box queries hand on other
+        // candidates once the operands part, so the two runs' choices
+        // part before any turns (N5's first turn). The answers that
+        // claim no cause are then admitted, both at the MINTING node:
+        // the documented evidence-free fallback, and the group-size
+        // table fact. This is a closed list of `Diagnosis` arms — when
+        // N5 gains an arm, decide here whether it is honest without a
         // recorded flip.
         let honest_flip = matches!(
             diagnosis,
@@ -304,16 +306,10 @@ fn fused_vertex_scenario(
                 edit: editor_core::RecipeEditRef::NodeChanged { node }
             } | Diagnosis::GroupResized { node, .. } if *node == name.node
         );
-        match strategy {
-            topo::SweepStrategy::Idealized => assert!(
-                honest_flip,
-                "dishonest diagnosis for {name:?} (idealized): {diagnosis:?}"
-            ),
-            topo::SweepStrategy::Realized => assert!(
-                honest_flip || honest_fallback,
-                "dishonest diagnosis for {name:?} (realized): {diagnosis:?}"
-            ),
-        }
+        assert!(
+            honest_flip || honest_fallback,
+            "dishonest diagnosis for {name:?} ({strategy:?}): {diagnosis:?}"
+        );
         // The last-good entry survives as the tombstone (ghost
         // payload), and no merge offer is fabricated.
         assert!(last_good.is_some(), "prior run resolved {name:?}");

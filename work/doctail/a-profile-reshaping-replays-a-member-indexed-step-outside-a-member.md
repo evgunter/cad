@@ -2,11 +2,12 @@
 id: a-profile-reshaping-replays-a-member-indexed-step-outside-a-member
 kind: issue
 title: a profile whose step reads a member index is refused by the edit door, which replays it outside any member
-status: open
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: M
 design: true
+closed: 2026-11-18
 ---
 
 ## Finding
@@ -46,3 +47,18 @@ answer), while the same index on an extrude's distance is admitted.
 That is verb breadth beyond the everyday shapes. Which answer applies
 (replay per member, or refuse it as a profile family in its own words)
 is the open design question.
+
+## Closed
+
+2026-11-18, by replaying per member, as Ev ruled on #7075: the door no
+longer replays a profile at all (it asks the lattice, values erased),
+and `undrawn_kept_pieces` reads each program's structure. A profile
+whose step reads `k` is admitted and evaluated once per member, and
+each member's walls are named `Member { (k), of: Lateral(piece) }`
+through the generic member machinery (`eval/members.rs`):
+`g_index_families::a_profile_reading_the_index_is_a_family_named_by_its_pieces`.
+The viewer's `held_program` reads no value on main, and the path
+editor holds an index-driven argument pending in its own words
+(`drafts.rs`, `unread_drivers`). The coincidence door's on-face bound
+still reads `doc.var_env`; filed on COINCIDE as
+`the-coincidence-on-face-bound-reads-a-profile-at-the-current-values`.

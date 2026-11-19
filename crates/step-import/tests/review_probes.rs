@@ -120,7 +120,8 @@ fn a1_deleted_face_refuses() {
 
 /// C3(a): a CIRCLE whose axis is rotated so the curve leaves both
 /// adjacent surfaces (cut_cylinder's top rim, tilted with a
-/// still-orthogonal frame) must produce a structured Adoption refusal.
+/// still-orthogonal frame) must refuse at interpretation: the build's
+/// section misses the printed circle past the file's band.
 /// (First attempt used ball's seam meridian — a tilted GREAT circle
 /// stays on the sphere and the ladder honestly certified the
 /// legally-different body; recorded in the review report.)
@@ -137,23 +138,24 @@ fn c3a_rotated_circle_axis_refuses_adoption() {
         );
     let err = import_text(&text).expect_err("a tilted rim circle must not adopt");
     match err {
-        StepImportError::Adoption { id, attempts, file } => {
+        StepImportError::Interpretation {
+            id,
+            refusal: step_import::InterpretationRefusal::EvidenceMiss { reading, miss },
+            ..
+        } => {
             assert_eq!(id, 15, "the refusal names the EDGE_CURVE");
-            assert!(!attempts.is_empty(), "attempts carried as data");
-            println!(
-                "c3a refusals: {}",
-                StepImportError::Adoption { id, attempts, file }.render()
-            );
+            println!("c3a refusal: {reading} misses by {miss:e}");
         }
         other => panic!(
-            "expected Adoption, got: {other_at}",
+            "expected an evidence miss at interpretation, got: {other_at}",
             other_at = other.render()
         ),
     }
 }
 
 /// C3(b): a CYLINDRICAL_SURFACE radius perturbed by 1e-3 against its
-/// (unchanged) circular edges must refuse via the adoption ladder.
+/// (unchanged) circular edges must refuse: the sections the build makes
+/// miss the printed edges past the file's band.
 #[test]
 fn c3b_cylinder_radius_mismatch_refuses_adoption() {
     let text = fixture("cut_cylinder", "step").replace(
@@ -162,14 +164,13 @@ fn c3b_cylinder_radius_mismatch_refuses_adoption() {
     );
     let err = import_text(&text).expect_err("radius mismatch must not adopt");
     match err {
-        StepImportError::Adoption { id, attempts, file } => {
-            println!(
-                "c3b refusals: {}",
-                StepImportError::Adoption { id, attempts, file }.render()
-            );
-        }
+        StepImportError::Interpretation {
+            id,
+            refusal: step_import::InterpretationRefusal::EvidenceMiss { reading, miss },
+            ..
+        } => println!("c3b refusal: #{id} {reading} misses by {miss:e}"),
         other => panic!(
-            "expected Adoption, got: {other_at}",
+            "expected an evidence miss at interpretation, got: {other_at}",
             other_at = other.render()
         ),
     }
@@ -185,14 +186,13 @@ fn c3c_wrong_surface_pair_refuses_adoption() {
     );
     let err = import_text(&text).expect_err("wrong surface pair must not adopt");
     match err {
-        StepImportError::Adoption { id, attempts, file } => {
-            println!(
-                "c3c refusals: {}",
-                StepImportError::Adoption { id, attempts, file }.render()
-            );
-        }
+        StepImportError::Interpretation {
+            id,
+            refusal: step_import::InterpretationRefusal::EvidenceMiss { reading, miss },
+            ..
+        } => println!("c3c refusal: #{id} {reading} misses by {miss:e}"),
         other => panic!(
-            "expected Adoption, got: {other_at}",
+            "expected an evidence miss at interpretation, got: {other_at}",
             other_at = other.render()
         ),
     }
@@ -208,14 +208,13 @@ fn c3d_curve_off_intersection_refuses_adoption() {
     );
     let err = import_text(&text).expect_err("off-locus carrier must not adopt");
     match err {
-        StepImportError::Adoption { id, attempts, file } => {
-            println!(
-                "c3d refusals: {}",
-                StepImportError::Adoption { id, attempts, file }.render()
-            );
-        }
+        StepImportError::Interpretation {
+            id,
+            refusal: step_import::InterpretationRefusal::EvidenceMiss { reading, miss },
+            ..
+        } => println!("c3d refusal: #{id} {reading} misses by {miss:e}"),
         other => panic!(
-            "expected Adoption, got: {other_at}",
+            "expected an evidence miss at interpretation, got: {other_at}",
             other_at = other.render()
         ),
     }
@@ -620,44 +619,58 @@ fn e5_closed_forms() {
     );
 }
 
-/// H8: ε_in must not be consumed by certification — an extreme
-/// override in either direction changes nothing about what is built.
+/// H8: ε_in governs interpretation, never certification. A vanishing
+/// override reads the file at the run's own band, and builds the same
+/// body to the bit; an override as large as the cube reads its faces at
+/// a band that does not tell two of them apart, and refuses at
+/// interpretation rather than building anything from that reading.
 #[test]
 fn h8_eps_in_not_consumed() {
     let text = fixture("cube", "step");
-    for eps in [1e-30, 1.0] {
-        let import = import_step(
-            &text,
-            &ImportOptions {
-                eps_in: Some(eps),
-                ..ImportOptions::default()
-            },
-            Tol::witness(),
+    let coarse = import_step(
+        &text,
+        &ImportOptions {
+            eps_in: Some(1.0),
+            ..ImportOptions::default()
+        },
+        Tol::witness(),
+    );
+    assert!(
+        matches!(coarse, Err(StepImportError::Interpretation { .. })),
+        "a 1 m ε_in refuses the unit cube at interpretation: {coarse:?}"
+    );
+    let eps = 1e-30;
+    let import = import_step(
+        &text,
+        &ImportOptions {
+            eps_in: Some(eps),
+            ..ImportOptions::default()
+        },
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| {
+        panic!(
+            "eps_in {eps} must not affect certification: {e_at}",
+            e_at = e.render()
         )
-        .unwrap_or_else(|e| {
-            panic!(
-                "eps_in {eps} must not affect certification: {e_at}",
-                e_at = e.render()
-            )
-        });
-        let StepImport::Solid { body, eps_in, .. } = import else {
-            panic!("wireframe?")
-        };
-        assert_eq!(eps_in, eps);
-        let v = topo::test_support::pinned_volume(
+    });
+    let StepImport::Solid { body, eps_in, .. } = import else {
+        panic!("wireframe?")
+    };
+    assert_eq!(eps_in, eps);
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
+        &topo::test_support::finished(
             "the measured body",
-            &topo::test_support::finished(
-                "the measured body",
-                body.clone().into_body(),
-                Tol::witness(),
-            ),
+            body.clone().into_body(),
             Tol::witness(),
-        )
-        .volume;
-        assert_eq!(
-            v.to_bits(),
-            1.0f64.to_bits(),
-            "identical body under eps_in {eps}"
-        );
-    }
+        ),
+        Tol::witness(),
+    )
+    .volume;
+    assert_eq!(
+        v.to_bits(),
+        1.0f64.to_bits(),
+        "identical body under eps_in {eps}"
+    );
 }
