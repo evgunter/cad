@@ -80,3 +80,5 @@
 - 2026-11-19 00:27 — Snap: all five nist movers solve, but five of the six tangent edges still refuse at the build. The file printed each one as a crossing line √(2·r·gap) off the tangent ruling, from 115 to 344 µm against a band of (33.8, 338) µm. Ruled (a): the snap applies and the file refuses as its own inconsistency; NIST09 is re-pinned to #4950's in-band reading, and its row stays open. The lane files a row for printed crossing lines on tangent edges. Its option (b), reading the printed edge against the two surfaces and reporting a move along the tangent, would relax D7's O(ε_in) healing bound, so it is a candidate `[ev]` question.
 
 - 2026-11-19 00:40 — PR 7133 merged (the knot_split sense fold, a one-line test-helper change; orchestrator read, CI green). Its row is closed.
+
+- 2026-11-19 02:00 — PR 7134 (split-share) reviewed by a single Opus reviewer: APPROVE. The claims reproduced: the corpus is byte-identical and the 93 rows unchanged; 13 mutants, with only an equivalent one surviving. Merged and closed. Filed two rows: no committed row pins the corpus re-export (P2); relink trusts its attachments, and the module's home (P3).

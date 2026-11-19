@@ -2,10 +2,11 @@
 id: step-import-cuts-faces-and-splits-edges-three-ways
 kind: issue
 title: step-import cuts a face over SolidSpec three ways and splits an edge two ways, each with its own helpers
-status: dispatched
+status: closed
 opened: 2026-11-17
 priority: P1
 cost: M
+closed: 2026-11-19
 ---
 
 (Found by the review of PR 7084, `importgate/knot-place`; filed by its implementer.)
@@ -30,3 +31,5 @@ Each copy decides the same facts (which uses a split edge's halves replace, whic
 ## Repair shape
 
 One edge splitter with its use rewriting, and one census and `use_start`, in one module the passes share. Then one face-cutting step, which the three passes call with their own cut lines. Behaviour moves nowhere: the C⁰-knot, band and singularity rows pin each pass.
+
+- 2026-11-19 — Closed by PR 7134: `normalize/surgery.rs` holds the one edge splitter and the one face cut (`relink`). The corpus re-export is byte-identical.
