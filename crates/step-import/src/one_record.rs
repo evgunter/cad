@@ -235,7 +235,10 @@ fn one_round_record(
 fn round(surface: &Surface<f64>) -> bool {
     matches!(
         surface,
-        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. }
+        Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. }
     )
 }
 
@@ -283,12 +286,32 @@ fn round_gap(a: &Surface<f64>, b: &Surface<f64>, lever: f64) -> Option<f64> {
     let tilt = |a1: Vec3<f64>, a2: Vec3<f64>| a1.cross(a2).norm() * lever;
     Some(match (a, b) {
         (
-            &Surface::Cylinder { origin: o1, axis: a1, radius: r1, .. },
-            &Surface::Cylinder { origin: o2, axis: a2, radius: r2, .. },
+            &Surface::Cylinder {
+                origin: o1,
+                axis: a1,
+                radius: r1,
+                ..
+            },
+            &Surface::Cylinder {
+                origin: o2,
+                axis: a2,
+                radius: r2,
+                ..
+            },
         ) => tilt(a1, a2) + off(o1, o2, a1) + (r1 - r2).abs(),
         (
-            &Surface::Cone { apex: p1, axis: a1, half_angle: h1, .. },
-            &Surface::Cone { apex: p2, axis: a2, half_angle: h2, .. },
+            &Surface::Cone {
+                apex: p1,
+                axis: a1,
+                half_angle: h1,
+                ..
+            },
+            &Surface::Cone {
+                apex: p2,
+                axis: a2,
+                half_angle: h2,
+                ..
+            },
         ) => {
             if a1.dot(a2) <= 0.0 {
                 return None;
@@ -296,12 +319,32 @@ fn round_gap(a: &Surface<f64>, b: &Surface<f64>, lever: f64) -> Option<f64> {
             tilt(a1, a2) + (p2 - p1).norm() + (h1 - h2).abs() * lever
         }
         (
-            &Surface::Sphere { center: c1, radius: r1, .. },
-            &Surface::Sphere { center: c2, radius: r2, .. },
+            &Surface::Sphere {
+                center: c1,
+                radius: r1,
+                ..
+            },
+            &Surface::Sphere {
+                center: c2,
+                radius: r2,
+                ..
+            },
         ) => (c2 - c1).norm() + (r1 - r2).abs(),
         (
-            &Surface::Torus { center: c1, axis: a1, major_radius: big1, minor_radius: r1, .. },
-            &Surface::Torus { center: c2, axis: a2, major_radius: big2, minor_radius: r2, .. },
+            &Surface::Torus {
+                center: c1,
+                axis: a1,
+                major_radius: big1,
+                minor_radius: r1,
+                ..
+            },
+            &Surface::Torus {
+                center: c2,
+                axis: a2,
+                major_radius: big2,
+                minor_radius: r2,
+                ..
+            },
         ) => tilt(a1, a2) + (c2 - c1).norm() + (big1 - big2).abs() + (r1 - r2).abs(),
         _ => return None,
     })

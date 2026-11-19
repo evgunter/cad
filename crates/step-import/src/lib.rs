@@ -269,11 +269,11 @@ mod interpret;
 mod knot_split;
 mod normalize;
 mod one_record;
-mod snap;
 mod parse;
 mod recognize;
 mod recognize_curve;
 mod signed_zero;
+mod snap;
 mod units;
 
 pub use error::{

@@ -68,7 +68,14 @@ fn records(text: &str, keyword: &str) -> Vec<u64> {
     let hits: Vec<u64> = text
         .lines()
         .filter(|l| l.contains(&format!("= {keyword}(")))
-        .map(|l| l.trim_start_matches('#').split(' ').next().unwrap().parse().unwrap())
+        .map(|l| {
+            l.trim_start_matches('#')
+                .split(' ')
+                .next()
+                .unwrap()
+                .parse()
+                .unwrap()
+        })
         .collect();
     assert!(!hits.is_empty(), "a {keyword} record");
     hits
@@ -91,14 +98,18 @@ fn nudge_last(text: &str, id: u64, by_m: f64) -> String {
     text.replacen(line, &moved, 1)
 }
 
-/// `text` with the `CARTESIAN_POINT` `#id`'s `x` moved by `by_m` metres.
-fn nudge_point_x(text: &str, id: u64, by_m: f64) -> String {
+/// `text` with coordinate `k` (0 for `x`) of the `CARTESIAN_POINT` `#id`
+/// moved by `by_m` metres.
+fn nudge_point(text: &str, id: u64, k: usize, by_m: f64) -> String {
     let head = format!("#{id} = CARTESIAN_POINT('', (");
     let line = text.lines().find(|l| l.starts_with(&head)).unwrap();
-    let rest = &line[head.len()..];
-    let comma = rest.find(',').unwrap();
-    let x: f64 = rest[..comma].trim().parse().unwrap();
-    let moved = format!("{head}{:?}{}", x + by_m / unit(text), &rest[comma..]);
+    let close = line.rfind("))").unwrap();
+    let mut xyz: Vec<f64> = line[head.len()..close]
+        .split(',')
+        .map(|c| c.trim().parse().unwrap())
+        .collect();
+    xyz[k] += by_m / unit(text);
+    let moved = format!("{head}{:?}, {:?}, {:?}{}", xyz[0], xyz[1], xyz[2], &line[close..]);
     text.replacen(line, &moved, 1)
 }
 
@@ -106,7 +117,12 @@ fn nudge_point_x(text: &str, id: u64, by_m: f64) -> String {
 fn placement_point(text: &str, placement: u64) -> u64 {
     let head = format!("#{placement} = AXIS2_PLACEMENT_3D('', #");
     let line = text.lines().find(|l| l.starts_with(&head)).unwrap();
-    line[head.len()..].split(',').next().unwrap().parse().unwrap()
+    line[head.len()..]
+        .split(',')
+        .next()
+        .unwrap()
+        .parse()
+        .unwrap()
 }
 
 /// The placement record a surface record `#surface` is placed by.
@@ -174,7 +190,11 @@ fn a_fillet_off_its_planes_moves_its_axis_to_both() {
     let StepImport::Solid { body, .. } = &imported else {
         panic!("a solid")
     };
-    assert_eq!(topo::validate_geometric(body, tol()), Ok(()), "tier-3 valid");
+    assert_eq!(
+        topo::validate_geometric(body, tol()),
+        Ok(()),
+        "tier-3 valid"
+    );
     // The file as written moves nothing.
     assert!(snaps_of(&text).is_empty(), "an exact fillet is not moved");
 }
@@ -245,7 +265,7 @@ fn a_cap_off_its_cylinders_axis_is_made_coaxial() {
     let spheres = records(&text, "SPHERICAL_SURFACE");
     let moved = spheres.iter().fold(text.clone(), |t, &s| {
         let point = placement_point(&t, surface_placement(&t, s));
-        nudge_point_x(&t, point, 3e-6)
+        nudge_point(&t, point, 0, 3e-6)
     });
     let (sphere, cylinder) = (spheres[0], records(&text, "CYLINDRICAL_SURFACE")[0]);
     let imported = import(&moved).unwrap_or_else(|e| panic!("imports: {}", e.render()));
@@ -258,15 +278,23 @@ fn a_cap_off_its_cylinders_axis_is_made_coaxial() {
     let StepImport::Solid { body, .. } = &imported else {
         panic!("a solid")
     };
-    assert_eq!(topo::validate_geometric(body, tol()), Ok(()), "tier-3 valid");
+    assert_eq!(
+        topo::validate_geometric(body, tol()),
+        Ok(()),
+        "tier-3 valid"
+    );
 }
-
 
 /// The axis direction record of the placement `#placement`.
 fn placement_axis(text: &str, placement: u64) -> u64 {
     let head = format!("#{placement} = AXIS2_PLACEMENT_3D('', #");
     let line = text.lines().find(|l| l.starts_with(&head)).unwrap();
-    line[head.len()..].split(", #").nth(1).unwrap().parse().unwrap()
+    line[head.len()..]
+        .split(", #")
+        .nth(1)
+        .unwrap()
+        .parse()
+        .unwrap()
 }
 
 /// `text` with the `DIRECTION` `#id`'s `x` ratio moved by `by`.
@@ -308,7 +336,11 @@ fn a_base_off_square_to_its_cylinder_is_made_axis_normal() {
     let StepImport::Solid { body, .. } = &imported else {
         panic!("a solid")
     };
-    assert_eq!(topo::validate_geometric(body, tol()), Ok(()), "tier-3 valid");
+    assert_eq!(
+        topo::validate_geometric(body, tol()),
+        Ok(()),
+        "tier-3 valid"
+    );
 }
 
 /// `step-export`'s filleted die: each edge fillet a cylinder tangent to
@@ -347,4 +379,52 @@ fn a_fillet_with_a_coaxial_partner_refuses_as_unsolved() {
         }
         other => panic!("an unsolved class refuses: {other:?}"),
     }
+}
+
+/// A stadium prism: two half-cylinders of radius 1 between the planes
+/// `y = 0` and `y = 2`, a slot's two ends.
+fn stadium() -> String {
+    write(&prism(
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), 1.0),
+            (Point2::new(2.0, 2.0), 0.0),
+            (Point2::new(0.0, 2.0), 1.0),
+        ])],
+        1.0,
+    ))
+}
+
+/// A slot end stated 2 µm wide in its radius and 1 µm off its mid-plane
+/// reads tangent to both its parallel planes at the file's band and apart
+/// at the run's: the planes stay, the radius becomes half their spacing
+/// and the axis moves to the mid-plane, 3 µm in all, reported.
+#[test]
+fn a_slot_end_between_parallel_planes_takes_half_their_spacing() {
+    let text = stadium();
+    assert!(snaps_of(&text).is_empty(), "the native stadium is exact");
+    let cylinder = records(&text, "CYLINDRICAL_SURFACE")[0];
+    let point = placement_point(&text, surface_placement(&text, cylinder));
+    let moved = nudge_point(&nudge_last(&text, cylinder, 2e-6), point, 1, 1e-6);
+    let imported = import(&moved).unwrap_or_else(|e| panic!("imports: {}", e.render()));
+    let snaps = snaps(&imported);
+    assert_eq!(snaps.len(), 1, "one move: {snaps:?}");
+    let (surface, relation, moved_by) = snaps[0];
+    assert_eq!((surface, relation), (cylinder, SnapRelation::Tangent));
+    assert!((moved_by - 3e-6).abs() < 1e-9, "radius 2 µm and axis 1 µm: {moved_by:e}");
+    let StepImport::Solid { body, .. } = &imported else {
+        panic!("a solid")
+    };
+    assert_eq!(topo::validate_geometric(body, tol()), Ok(()), "tier-3 valid");
+    let radii: Vec<f64> = body
+        .faces()
+        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+            Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        radii.iter().all(|r| (r - 1.0).abs() < 1e-12),
+        "every slot end is half the spacing: {radii:?}"
+    );
 }

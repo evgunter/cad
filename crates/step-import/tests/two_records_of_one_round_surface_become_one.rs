@@ -35,7 +35,11 @@ fn restated(face: &str, surface: &str, record: &str) -> String {
     assert_ne!(line, moved, "the face states {surface}");
     let text = text.replacen(line, &moved, 1);
     let data_end = text.rfind("ENDSEC;").unwrap();
-    format!("{}#9000={record} ;\n{}", &text[..data_end], &text[data_end..])
+    format!(
+        "{}#9000={record} ;\n{}",
+        &text[..data_end],
+        &text[data_end..]
+    )
 }
 
 fn import(text: &str) -> Result<StepImport, StepImportError> {
@@ -85,11 +89,19 @@ fn a_cylinder_restated_within_the_zero_joins_the_earlier_record() {
         let record = CYLINDER_40.replace("40.)", &format!("{radius})"));
         let imported = import(&restated("#146", "#94", &record))
             .unwrap_or_else(|e| panic!("radius {radius}: imports: {}", e.render()));
-        assert_eq!(shape(&imported), base, "radius {radius}: the file's own body");
+        assert_eq!(
+            shape(&imported),
+            base,
+            "radius {radius}: the file's own body"
+        );
         let joins = joins(&imported);
         assert_eq!(joins.len(), 1, "radius {radius}: one join: {joins:?}");
         let (kept, joined, moved_by) = joins[0];
-        assert_eq!((kept, joined), (94, 9000), "radius {radius}: the earlier record kept");
+        assert_eq!(
+            (kept, joined),
+            (94, 9000),
+            "radius {radius}: the earlier record kept"
+        );
         assert!(
             (moved_by - moved).abs() < 1e-9,
             "radius {radius}: the move is the radius's ({moved_by})"
@@ -136,7 +148,11 @@ fn a_cylinder_restated_in_the_band_refuses_as_the_files_ambiguity() {
 fn a_cylinder_restated_apart_is_never_joined() {
     let record = CYLINDER_40.replace("40.)", "41.)");
     match import(&restated("#146", "#94", &record)) {
-        Ok(imported) => assert!(joins(&imported).is_empty(), "no join: {:?}", joins(&imported)),
+        Ok(imported) => assert!(
+            joins(&imported).is_empty(),
+            "no join: {:?}",
+            joins(&imported)
+        ),
         Err(e) => assert!(
             !e.render().contains("step_one_record"),
             "not refused on the one-record reading: {}",

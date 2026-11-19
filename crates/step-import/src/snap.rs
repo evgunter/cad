@@ -15,9 +15,15 @@
 //!   cylinder's axis is translated square to itself, its radius kept, to
 //!   where it stands its radius from each plane it is tangent to, on the
 //!   side it stands: one plane moves it along the plane's normal, two
-//!   planes to where their two offsets meet. A cylinder tangent to three
-//!   or more planes, or to two the file band reads parallel, is no class
-//!   the construction solves.
+//!   crossing planes to where their two offsets meet.
+//! - **tangent, between two parallel planes**: a cylinder tangent to two
+//!   planes the file band reads parallel, its axis between them (a slot's
+//!   or a rib's end). The planes stay; the radius becomes half their
+//!   spacing and the axis moves along their normal to the mid-plane.
+//!
+//!   A cylinder tangent to three or more planes, to two parallel planes
+//!   its axis does not lie between, or coaxial with another surface while
+//!   its tangency moves it, is a class the catalogue does not solve.
 //! - **axis-normal**: a plane and a cylinder, cone or torus whose axis
 //!   reads along the plane's normal. The later record turns: a plane's
 //!   normal takes the axis, a round surface's axis takes the normal, about
@@ -319,13 +325,7 @@ fn foot(q: Point3<f64>, (o, d): (Point3<f64>, Vec3<f64>)) -> Point3<f64> {
 /// middle of the box their vertices span) over `lever` (its diagonal): a
 /// direction's sine levered, and a distance read where the faces are.
 /// The pair is in the relation's order.
-fn gap(
-    kind: SnapRelation,
-    a: &Surface<f64>,
-    b: &Surface<f64>,
-    lever: f64,
-    at: Point3<f64>,
-) -> f64 {
+fn gap(kind: SnapRelation, a: &Surface<f64>, b: &Surface<f64>, lever: f64, at: Point3<f64>) -> f64 {
     match kind {
         SnapRelation::Tangent => {
             let (Surface::Plane { origin, normal, .. }, Surface::Cylinder { radius, .. }) = (a, b)
@@ -345,9 +345,7 @@ fn gap(
             normal.cross(d).norm() * lever
         }
         SnapRelation::Coaxial => match (axis(a), axis(b)) {
-            (Some(la), Some(lb)) => {
-                la.1.cross(lb.1).norm() * lever + off_line(foot(at, lb), la)
-            }
+            (Some(la), Some(lb)) => la.1.cross(lb.1).norm() * lever + off_line(foot(at, lb), la),
             (Some(l), None) => datum(b).map_or(f64::INFINITY, |c| off_line(c, l)),
             (None, Some(l)) => datum(a).map_or(f64::INFINITY, |c| off_line(c, l)),
             (None, None) => match (datum(a), datum(b)) {
@@ -364,7 +362,11 @@ fn centre(solid: &SolidSpec, edge: u64) -> Point3<f64> {
         .faces
         .iter()
         .enumerate()
-        .filter(|(_, f)| f.loops.iter().any(|l| l.uses.iter().any(|u| u.edge == edge)))
+        .filter(|(_, f)| {
+            f.loops
+                .iter()
+                .any(|l| l.uses.iter().any(|u| u.edge == edge))
+        })
         .map(|(fi, _)| fi)
         .collect();
     let (lo, hi) = bounds(solid, &faces);
@@ -499,20 +501,27 @@ fn solve(
             SnapRelation::Tangent => tangent(nodes, relations, class, n, file)?,
             SnapRelation::Coaxial => {
                 let (keep, _) = later(nodes, first);
-                coaxial(&nodes[keep].surface, &nodes[n].surface, first.lever.length())
+                coaxial(
+                    &nodes[keep].surface,
+                    &nodes[n].surface,
+                    first.lever.length(),
+                )
             }
             SnapRelation::AxisNormal => {
                 let (keep, _) = later(nodes, first);
-                axis_normal(&nodes[keep].surface, &nodes[n].surface, first.lever.length())
+                axis_normal(
+                    &nodes[keep].surface,
+                    &nodes[n].surface,
+                    first.lever.length(),
+                )
             }
         };
         match file.read(STEP_SNAP_MOVE, moved_by) {
             Read::Zero => {}
             Read::InBand => {
-                return Err(file.refused(
-                    nodes[n].record.id,
-                    file.ambiguous(STEP_SNAP_MOVE, moved_by),
-                ));
+                return Err(
+                    file.refused(nodes[n].record.id, file.ambiguous(STEP_SNAP_MOVE, moved_by))
+                );
             }
             Read::Apart => {
                 return Err(unsolved(
@@ -568,20 +577,24 @@ fn tangent(
     else {
         return Err(unsolved(file, edge, "a tangency off a cylinder".to_owned()));
     };
-    // Each plane's normal and the axis's signed offset to its tangency.
-    let need: Vec<(Vec3<f64>, f64)> = planes
+    // Each plane's normal and origin, and the axis's signed offset to its
+    // tangency.
+    let need: Vec<(Vec3<f64>, Point3<f64>, f64)> = planes
         .iter()
         .map(|r| {
-            let Surface::Plane { origin: p, normal, .. } = nodes[r.nodes.0].surface else {
+            let Surface::Plane {
+                origin: p, normal, ..
+            } = nodes[r.nodes.0].surface
+            else {
                 unreachable!("a tangent relation's first surface is its plane")
             };
             let s = normal.dot(origin - p);
-            (normal, s.signum() * radius - s)
+            (normal, p, s.signum() * radius - s)
         })
         .collect();
-    let delta = match need[..] {
-        [(n1, g1)] => n1 * g1,
-        [(n1, g1), (n2, g2)] => {
+    let (delta, radius_to) = match need[..] {
+        [(n1, _, g1)] => (n1 * g1, radius),
+        [(n1, p1, g1), (n2, p2, g2)] => {
             let lever = if planes[0].lever.length() >= planes[1].lever.length() {
                 planes[0].lever
             } else {
@@ -594,21 +607,43 @@ fn tangent(
                 lever,
                 file.band(),
             ) {
-                Ok(false) => {}
-                Ok(true) | Err(_) => {
+                Ok(false) => {
+                    let c = n1.dot(n2);
+                    let det = 1.0 - c * c;
+                    let x = (g1 - c * g2) / det;
+                    let y = (g2 - c * g1) / det;
+                    (n1 * x + n2 * y, radius)
+                }
+                // Two parallel planes: the radius is half their spacing and
+                // the axis moves along their normal to the mid-plane, where
+                // the axis lies between them.
+                Ok(true) => {
+                    let (c1, c2, at) = (
+                        n1.dot(p1 - Point3::origin()),
+                        n1.dot(p2 - Point3::origin()),
+                        n1.dot(origin - Point3::origin()),
+                    );
+                    if (at - c1) * (at - c2) >= 0.0 {
+                        return Err(unsolved(
+                            file,
+                            planes[1].edge,
+                            "a cylinder tangent to two parallel planes whose axis does not lie \
+                             between them"
+                                .to_owned(),
+                        ));
+                    }
+                    (n1 * ((c1 + c2) / 2.0 - at), (c2 - c1).abs() / 2.0)
+                }
+                Err(_) => {
                     return Err(unsolved(
                         file,
                         planes[1].edge,
-                        "a cylinder tangent to two planes the file's band reads parallel"
+                        "a cylinder tangent to two planes the file's band does not read \
+                         parallel or crossing"
                             .to_owned(),
                     ));
                 }
             }
-            let c = n1.dot(n2);
-            let det = 1.0 - c * c;
-            let x = (g1 - c * g2) / det;
-            let y = (g2 - c * g1) / det;
-            n1 * x + n2 * y
         }
         _ => {
             return Err(unsolved(
@@ -624,10 +659,10 @@ fn tangent(
         Surface::Cylinder {
             origin: origin + delta,
             axis: a,
-            radius,
+            radius: radius_to,
             u_ref,
         },
-        delta.norm(),
+        delta.norm() + (radius_to - radius).abs(),
     ))
 }
 
@@ -675,7 +710,14 @@ fn axis_normal(kept: &Surface<f64>, moved: &Surface<f64>, lever: f64) -> (Surfac
     } else {
         (moved, kept)
     };
-    let (Surface::Plane { origin: p, normal: n, u_ref }, Some((o, d))) = (plane, axis(round))
+    let (
+        Surface::Plane {
+            origin: p,
+            normal: n,
+            u_ref,
+        },
+        Some((o, d)),
+    ) = (plane, axis(round))
     else {
         return (moved.clone(), f64::INFINITY);
     };
