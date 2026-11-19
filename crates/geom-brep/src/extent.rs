@@ -197,6 +197,13 @@ impl<T: Real> ExtentBall<T> {
         self.center
     }
 
+    /// **The ball read through a rigid motion**: its centre mapped, its
+    /// radius kept, since a rigid motion keeps every distance it bounds.
+    #[must_use]
+    pub fn moved(self, motion: &geom_core::RigidMotion<T>) -> Self {
+        Self::new(motion.transform_point(self.center), self.radius)
+    }
+
     /// The ball's radius: its lever from its own centre.
     #[must_use]
     pub fn radius(self) -> T {

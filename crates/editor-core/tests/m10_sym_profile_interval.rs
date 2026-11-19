@@ -564,20 +564,39 @@ const PLATE_MAX_TERMS: usize = 38;
 /// rather than `√(2(1 + c))`, which moved those three digests with no
 /// count moving.
 ///
+/// **Then moved by the session box's move from the readers to the
+/// placing doors** (PR 7088). The plate's measure between the two placed
+/// holes' walls reads the second through its seat (`topo::Seat`): the
+/// hole is not moved whole, and no session box is asked of its image. Each
+/// of the two placements asks the box of where its hole stands
+/// (`topo::session_box_at`, the image's reach read off the hole's own
+/// data sent through its motion). So the assertions 1046 → 1047 on both
+/// walks and `Door/Decision` 549 → 550, one ask per placement where the
+/// measure asked one, and the walks build the forms those two asks read
+/// (each mapped vertex and edge reach): `Plain/Assertion` 12902 → 14592,
+/// `Early/Assertion` 13367 → 15162, `Door/Decision` 13466 → 15356, and
+/// `Plain/Decision` 39644 → 39703, its 979 calls unmoved. Measured by
+/// dropping the placements' ask, which gives the ledger with no session
+/// box asked anywhere on the plate (`Plain/Decision` 39847,
+/// `Plain/Assertion` 1045 calls 10872 forms, `Early/Assertion` 1045 calls
+/// 11571 forms, `Door/Decision` 548 calls 11668 forms).
+///
+/// Besides the session box's asks, every walk makes the calls it made.
+///
 /// **Then moved with the carriers holding their frames as rigid
 /// motions**: fewer forms over the same calls on every walk
-/// (`Plain/Decision` 39644 → 33016, its frozen 54 → 36; `Plain/Assertion`
-/// 12902 → 11072; `Early/Decision` 28232 → 22928; `Early/Assertion`
-/// 13367 → 11417; `Door/Decision` 13466 → 11041), with their digests. The
+/// (`Plain/Decision` 39703 → 33086, its frozen 54 → 36; `Plain/Assertion`
+/// 14592 → 12222; `Early/Decision` 28232 → 22928; `Early/Assertion`
+/// 15162 → 12672; `Door/Decision` 15356 → 12358), with their digests. The
 /// decisions hold: under `SymRules::without_canonical_root` every recorded
 /// decision answers as on main (`sym11_exact_channel_rows`'
 /// `PAST_THE_CEILING`).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 33016 frozen 36 digest 0bde8e8a310c1cf11fba32d94cbf995f\n\
-     Plain/Assertion calls 1046 forms 11072 frozen 0 digest be5c1b755285e24ad533e9d3bd063804\n\
+     Plain/Decision calls 979 forms 33086 frozen 36 digest 407898919d7b27c5149424e9ae1e1603\n\
+     Plain/Assertion calls 1047 forms 12222 frozen 0 digest 19890dfe5402031cb310bd9f2a6ac16d\n\
      Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
-     Early/Assertion calls 1046 forms 11417 frozen 0 digest 8e03490c76377b27cb8147e6a16ee93c\n\
-     Door/Decision calls 549 forms 11041 frozen 0 digest 45d28e5a4af218a35ea9dc6656d51ad5";
+     Early/Assertion calls 1047 forms 12672 frozen 0 digest 37c36445974ccfe414ca9058f7d94032\n\
+     Door/Decision calls 550 forms 12358 frozen 0 digest 78cd10530faa7f908c9d6f8c7eef962a";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

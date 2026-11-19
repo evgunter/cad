@@ -3216,3 +3216,194 @@ fn cone_cylinder_station_reach_is_the_admission_criterion() {
     };
     assert_eq!(diag.predicate, Some("coc_station_reach"));
 }
+
+/// **A coaxial torus crosses a cone in circles that lie on both**
+/// (`cone_torus_section`): the five-wall sleeve's cone wall and the torus
+/// whose top parallel it passes through, a transverse cut, and a torus
+/// whose tube clears the cone, which misses. Each crossing circle's points
+/// read zero against both implicit forms.
+#[test]
+fn a_coaxial_cone_torus_section_is_circles_on_both() {
+    use geom_brep::intersect::cone_torus_section;
+    let axis = Vec3::new(0.0, 1.0, 0.0);
+    let u_ref = Vec3::new(1.0, 0.0, 0.0);
+    let cone: Surface<f64> = Surface::Cone {
+        frame: geom::Frame::new(Point3::new(0.0, -0.65625, 0.0), axis, u_ref),
+        half_angle: (1.0_f64 / 6.0).atan(),
+    };
+    let torus = |major: f64, minor: f64| Surface::Torus {
+        frame: geom::Frame::new(Point3::new(0.0, 0.109375, 0.0), axis, u_ref),
+        major_radius: major,
+        minor_radius: minor,
+    };
+    let crossed = torus(0.140625, 0.078125);
+    let s = cone_torus_section(&cone, &crossed, fixture_lever(1.0), band())
+        .expect("the coaxial pose classifies");
+    assert!(s.tangent.is_empty(), "a transverse cut: {s:?}");
+    assert_eq!(
+        s.crossing.len(),
+        2,
+        "the tube crosses one nappe twice: {s:?}"
+    );
+    for c in &s.crossing {
+        let Curve3::Circle(circle) = c else {
+            panic!("a coaxial section is circles: {c:?}");
+        };
+        for t in [0.0, 1.3, 2.9, 4.4] {
+            let p = c.eval(t);
+            for (what, surface) in [("cone", &cone), ("torus", &crossed)] {
+                assert!(
+                    implicit_residual(surface, p).abs() < 1e-12,
+                    "{what} at t = {t} on the circle of radius {}",
+                    circle.radius
+                );
+            }
+        }
+    }
+    let top = s.crossing.iter().filter_map(|c| c.as_circle()).any(|c| {
+        (c.radius - 0.140625).abs() < 1e-12 && (c.frame.origin().y - 0.1875).abs() < 1e-12
+    });
+    assert!(top, "the torus's top parallel is one of them: {s:?}");
+    let missed = cone_torus_section(&cone, &torus(0.6, 0.05), fixture_lever(1.0), band())
+        .expect("the coaxial pose classifies");
+    assert!(
+        missed.crossing.is_empty() && missed.tangent.is_empty(),
+        "{missed:?}"
+    );
+}
+
+/// **A torus off the cone's axis routes to the general rung**: the
+/// closed form holds only the coaxial pose.
+#[test]
+fn an_off_axis_cone_torus_routes_to_the_general_rung() {
+    use geom_brep::intersect::cone_torus_section;
+    let axis = Vec3::new(0.0, 1.0, 0.0);
+    let u_ref = Vec3::new(1.0, 0.0, 0.0);
+    let cone: Surface<f64> = Surface::Cone {
+        frame: geom::Frame::new(Point3::new(0.0, -0.65625, 0.0), axis, u_ref),
+        half_angle: (1.0_f64 / 6.0).atan(),
+    };
+    let torus = Surface::Torus {
+        frame: geom::Frame::new(Point3::new(0.01, 0.109375, 0.0), axis, u_ref),
+        major_radius: 0.140625,
+        minor_radius: 0.078125,
+    };
+    let refused = cone_torus_section(&cone, &torus, fixture_lever(1.0), band());
+    assert!(
+        matches!(
+            refused,
+            Err(SectionError::RoutesToGeneralRung {
+                pair: "cone×torus",
+                ..
+            })
+        ),
+        "{refused:?}"
+    );
+}
+
+/// **The coaxial tangent circle is built only where the pose reads
+/// tangent** (`geom_brep::coaxial_tangent_circle`): a sphere of the
+/// cylinder's radius on its axis touches it along its equator, which lies
+/// on both; a larger coaxial sphere crosses it, and has no tangent circle
+/// (the mutant that drops the cylinder × sphere pose's `Zero`-wall guard,
+/// `cs_anywall`, answers one). The same for a sphere touching a coaxial
+/// torus's tube from inside, and one crossing it (`st_anytube`).
+#[test]
+fn a_coaxial_tangent_circle_is_built_only_where_the_pose_reads_tangent() {
+    use geom_brep::coaxial_tangent_circle;
+    let axis = Vec3::new(0.0, 0.0, 1.0);
+    let u_ref = Vec3::new(1.0, 0.0, 0.0);
+    let sphere = |radius: f64| Surface::Sphere {
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.5), axis, u_ref),
+        radius,
+    };
+    let cylinder: Surface<f64> = Surface::Cylinder {
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), axis, u_ref),
+        radius: 1.0,
+    };
+    let on_both = |c: &Curve3<f64>, a: &Surface<f64>, b: &Surface<f64>| {
+        for t in [0.0, 1.1, 2.7, 4.9] {
+            let p = c.eval(t);
+            assert!(
+                implicit_residual(a, p).abs() < 1e-12 && implicit_residual(b, p).abs() < 1e-12,
+                "the tangent circle lies on both at t = {t}: {c:?}"
+            );
+        }
+    };
+    let touching = coaxial_tangent_circle(&cylinder, &sphere(1.0), fixture_lever(1.0), band())
+        .expect("the coaxial pose classifies")
+        .expect("a sphere of the cylinder's radius touches it along its equator");
+    on_both(&touching, &cylinder, &sphere(1.0));
+    let crossing = coaxial_tangent_circle(&cylinder, &sphere(1.5), fixture_lever(1.0), band())
+        .expect("the coaxial pose classifies");
+    assert!(
+        crossing.is_none(),
+        "a larger coaxial sphere crosses the cylinder: no tangent circle, {crossing:?}"
+    );
+    let torus: Surface<f64> = Surface::Torus {
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.5), axis, u_ref),
+        major_radius: 3.0,
+        minor_radius: 1.0,
+    };
+    let inside = coaxial_tangent_circle(&sphere(2.0), &torus, fixture_lever(4.0), band())
+        .expect("the coaxial pose classifies")
+        .expect("a sphere of radius R − r touches the tube from inside along one parallel");
+    on_both(&inside, &sphere(2.0), &torus);
+    let through = coaxial_tangent_circle(&sphere(2.5), &torus, fixture_lever(4.0), band())
+        .expect("the coaxial pose classifies");
+    assert!(
+        through.is_none(),
+        "a sphere crossing the tube has no tangent parallel: {through:?}"
+    );
+}
+
+/// **The coaxial cone × sphere section keeps only what the pose reads**
+/// (`geom_brep::intersect::cone_sphere_section`): a sphere through the
+/// cone's apex lists the one circle away from it, and the apex root (a
+/// point) none (`kos_apexkeep`, the mutant that keeps the apex station,
+/// lists two); a sphere whose centre stands off the axis routes to the
+/// general rung (`kos_coaxany`, the mutant that reads any pose coaxial,
+/// builds circles).
+#[test]
+fn a_coaxial_cone_sphere_section_lists_no_apex_and_no_off_axis_pose() {
+    use geom_brep::intersect::{ConeSphereSection, cone_sphere_section};
+    let axis = Vec3::new(0.0, 0.0, 1.0);
+    let u_ref = Vec3::new(1.0, 0.0, 0.0);
+    let cone: Surface<f64> = Surface::Cone {
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), axis, u_ref),
+        half_angle: core::f64::consts::FRAC_PI_4,
+    };
+    let sphere = |x: f64| Surface::Sphere {
+        frame: geom::Frame::new(Point3::new(x, 0.0, 1.0), axis, u_ref),
+        radius: 1.0,
+    };
+    let through_apex = cone_sphere_section(&cone, &sphere(0.0), fixture_lever(2.0), band())
+        .expect("the coaxial pose classifies");
+    let ConeSphereSection::CoaxialCircles(circles) = through_apex else {
+        panic!("a sphere through the apex crosses the cone: {through_apex:?}");
+    };
+    assert_eq!(
+        circles.len(),
+        1,
+        "the apex root is a point and lists no circle: {circles:?}"
+    );
+    for t in [0.0, 2.0, 4.0] {
+        let p = circles[0].eval(t);
+        assert!(
+            implicit_residual(&cone, p).abs() < 1e-12
+                && implicit_residual(&sphere(0.0), p).abs() < 1e-12,
+            "the circle lies on both: {p:?}"
+        );
+    }
+    let off_axis = cone_sphere_section(&cone, &sphere(0.01), fixture_lever(2.0), band());
+    assert!(
+        matches!(
+            off_axis,
+            Err(SectionError::RoutesToGeneralRung {
+                pair: "cone×sphere",
+                ..
+            })
+        ),
+        "a sphere off the cone's axis routes to the general rung: {off_axis:?}"
+    );
+}

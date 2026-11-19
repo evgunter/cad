@@ -1,11 +1,11 @@
 //! **A definitely-smooth join imports as the must-carry rule says it
 //! stores**: the rule over the two surfaces (`geom_brep::reask_pair`)
-//! decides, and the adoption ladder offers what it answers. A native body
-//! whose join is under-determined stores the conventional pair; written
-//! by `step_string` and read back, it adopts the pair and ships tier-3
-//! valid. A jet-determinate join adopts the intrinsic tangency, an
-//! in-band one refuses typed, and a carrier the file puts off its
-//! surfaces still refuses at certification.
+//! decides what the build's tangency is. A jet-determinate join adopts
+//! the intrinsic tangency, built as the pair's own tangent circle; an
+//! under-determined one, which a native body stores as the conventional
+//! pair, has no construction of its own and refuses not-yet-supported,
+//! naming the lane; an in-band one refuses typed through the rule; and a
+//! join the file puts off its surfaces refuses at interpretation.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -129,25 +129,35 @@ fn bore_circles(r_bore: f64) -> impl Fn(&Curve3<f64>) -> bool + Copy {
 }
 
 /// **The bore join round-trips as the rule describes it, on both sides
-/// of the band.** A margin of half ε is under-determined: the
-/// native ring stores the pair, and the import adopts the pair. A margin
-/// of half the tube radius is jet-determinate: both store the intrinsic
-/// tangency. The base rim is a corner throughout.
+/// of the band.** A margin of half the tube radius is jet-determinate:
+/// the native ring and the import both store the intrinsic tangency. A
+/// margin of half ε is under-determined: the native ring stores the
+/// pair, and the import, which builds every carrier from its
+/// description, has no construction for a join its surfaces
+/// under-determine, so it refuses naming the lane. The base rim is a
+/// corner throughout.
 #[test]
 fn a_bore_join_round_trips_as_the_rule_describes_it() {
-    for (label, margin, join) in [
-        ("under-determined", band().zero() / 2.0, "OnPair"),
-        ("jet-determinate", TUBE / 2.0, "TangentIntersection"),
-    ] {
-        let (ring, r_bore) = ring_at(margin);
-        let mut want = vec!["Intersection", join];
-        want.sort_unstable();
-        assert_eq!(
-            kinds(&ring, bore_circles(r_bore)),
-            want,
-            "{label}: the native ring stores the join as the rule says"
-        );
-        round_trips(label, &ring, bore_circles(r_bore));
+    let (ring, r_bore) = ring_at(TUBE / 2.0);
+    assert_eq!(
+        kinds(&ring, bore_circles(r_bore)),
+        ["Intersection", "TangentIntersection"],
+        "jet-determinate: the native ring stores the join as the rule says"
+    );
+    round_trips("jet-determinate", &ring, bore_circles(r_bore));
+
+    let (ring, r_bore) = ring_at(band().zero() / 2.0);
+    assert_eq!(
+        kinds(&ring, bore_circles(r_bore)),
+        ["Intersection", "OnPair"],
+        "under-determined: the native ring stores the pair"
+    );
+    match import(&write(&ring)) {
+        Err(StepImportError::NotYetSupported { lane, .. }) => assert!(
+            lane.contains("under-determined smooth join"),
+            "under-determined: the refusal names the lane: {lane}"
+        ),
+        other => panic!("under-determined: the join refuses not-yet-supported, got {other:?}"),
     }
 }
 
@@ -215,11 +225,11 @@ fn a_scaled_join_is_read_by_the_rule_at_its_new_size() {
     let (text, _) = hecto_ring(middle / 1e2);
     match import(&text) {
         Err(StepImportError::Adoption { attempts, .. }) => {
-            let last = attempts.last().expect("the ladder tried something");
+            let last = attempts.last().expect("the build's description was tried");
             assert_eq!(
                 last.candidate,
-                AdoptionCandidate::MappedCurve,
-                "the conventional rung reports the rule's refusal: {attempts:?}"
+                AdoptionCandidate::TangentIntersection,
+                "the tangency reports the rule's refusal: {attempts:?}"
             );
             assert!(
                 matches!(last.refusal, topo::EulerOpError::RestJoinUndecided { .. }),
@@ -231,11 +241,11 @@ fn a_scaled_join_is_read_by_the_rule_at_its_new_size() {
     }
 }
 
-/// **The rung only offers; certification decides.** The under-determined
+/// **The file's join is evidence, never truth.** The under-determined
 /// ring's file with the torus moved outward by `100·ε`: its inner
-/// equator no longer carries the join's circle, so the pair the rule
-/// offers fails certification, and the import refuses at the join with
-/// every candidate tried.
+/// equator no longer carries the join's circle, which lies on neither of
+/// the two parallels the moved pair cuts at the file's band, so the
+/// import refuses at interpretation, naming the miss.
 #[test]
 fn a_join_off_its_surfaces_still_refuses() {
     let (ring, r_bore) = ring_at(band().zero() / 2.0);
@@ -249,24 +259,17 @@ fn a_join_off_its_surfaces_still_refuses() {
     let moved = torus.replacen(fields[1], &format!("{:?}", major + 100.0 * tol().eps()), 1);
     let text = text.replacen(torus, &moved, 1);
     match import(&text) {
-        Err(StepImportError::Adoption { attempts, .. }) => {
-            let tried: Vec<_> = attempts.iter().map(|a| a.candidate).collect();
+        Err(StepImportError::Interpretation {
+            refusal: step_import::InterpretationRefusal::EvidenceMiss { reading, miss },
+            ..
+        }) => {
             assert_eq!(
-                tried,
-                [
-                    AdoptionCandidate::Intersection,
-                    AdoptionCandidate::TangentIntersection,
-                    AdoptionCandidate::MappedCurve
-                ],
-                "the join's three rungs are tried and refused (r_bore {r_bore:e}): {attempts:?}"
+                reading, "step_edge_on_description",
+                "the join's own reading"
             );
             assert!(
-                matches!(
-                    attempts[2].refusal,
-                    topo::EulerOpError::Certification { .. }
-                ),
-                "the pair is refused by its certificate: {:?}",
-                attempts[2].refusal
+                miss > tol().eps(),
+                "the join misses the moved pair's section past ε (r_bore {r_bore:e}): {miss:e}"
             );
         }
         other => panic!("a join off its torus refuses, got {other:?}"),
@@ -346,73 +349,5 @@ fn thin_tangent_joins_round_trip() {
             let piece = piece.body().expect("material on both sides");
             round_trips(&format!("the shoulder {h:e} deep, {side}"), piece, is_line);
         }
-    }
-}
-
-// ---------------------------------------------------------------
-// A wild file's rulings between two records of one cylinder.
-// ---------------------------------------------------------------
-
-const TAIL_TURBINE: &str = "stepcode/TAIL_TURBINE.stp";
-
-fn census(body: &Body<f64>) -> [usize; 5] {
-    [
-        body.solids().count(),
-        body.shells().count(),
-        body.faces().count(),
-        body.edges().count(),
-        body.vertices().count(),
-    ]
-}
-
-/// **`TAIL_TURBINE`'s half-cylinder rulings adopt as the pair, and only
-/// where the rule reads them so.** Two of its faces wear two records of
-/// one cylinder (`#152`, `#563`) and meet along rulings the rule reads
-/// under-determined. Pointing face `#593` at `#152` instead makes the
-/// two faces one record, whose rulings are read by identity: the same
-/// census, and the same volume to rounding. Moving `#563`'s axis `2ε`
-/// across puts the rulings' wedge in band, so the rule refuses them,
-/// where incidence alone would pass them. Pinned only where `tier_gate`
-/// pins the file importing: below that its spline edge refuses first.
-/// The import's pass is thin: `#544`'s residual is about `0.79ε`, so a
-/// flip here reads as a change in that edge's certification.
-#[test]
-fn tail_turbines_rulings_adopt_as_the_pair_where_the_rule_reads_them() {
-    if crate::wild::refuses_at_this_eps(TAIL_TURBINE) != Some(false) {
-        test_utils::vacuity::stood_down(
-            "TAIL_TURBINE at this ε",
-            "its rulings' adoption: the file refuses earlier at this ε",
-        );
-        return;
-    }
-    let text = crate::wild::wild(TAIL_TURBINE);
-    let pair = import(&text).expect("the file imports");
-    let merged = text.replacen("(#592),#563,.T.", "(#592),#152,.T.", 1);
-    assert_ne!(merged, text, "face #593 names #563");
-    let one = import(&merged).expect("the one-record control imports");
-    assert_eq!(census(&pair), census(&one), "one census either way");
-    let volume = |b| topo::test_support::pinned_volume("the turbine", b, tol()).volume;
-    let (vp, vo) = (volume(&pair), volume(&one));
-    assert!(
-        ((vp - vo) / vo).abs() < 1e-12,
-        "one volume either way: {vp:e} against {vo:e}"
-    );
-
-    const AXIS: &str =
-        "#559=CARTESIAN_POINT('Axis2P3D Location',(-7.87401574803,3.14960629921,0.))";
-    let shifted = format!(
-        "#559=CARTESIAN_POINT('Axis2P3D Location',(-7.87401574803,{:.15},0.))",
-        3.14960629921 + 2.0 * tol().eps() / 0.0254
-    );
-    assert_eq!(text.matches(AXIS).count(), 1, "#563's axis is stated once");
-    match import(&text.replacen(AXIS, &shifted, 1)) {
-        Err(StepImportError::Adoption { attempts, .. }) => assert!(
-            matches!(
-                attempts.last().map(|a| &a.refusal),
-                Some(topo::EulerOpError::RestJoinUndecided { .. })
-            ),
-            "the rule refuses the moved rulings in band: {attempts:?}"
-        ),
-        other => panic!("a ruling 2ε off one record refuses, got {other:?}"),
     }
 }

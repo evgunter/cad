@@ -36,8 +36,8 @@
 # (D4 ¶1, as Ev ruled on `[ev]` PR 3380):
 # `MarginDiag::sized_recourse_in_file` withholds the offer to tighten
 # alone for a size whose nearer end lies at or below the file's ε_in,
-# and `FileCoincidence::miss_recourse_in_file` names the set-ε-to-ε_in
-# stopgap for a miss within it — a comparison against the margin that
+# and `FileCoincidence::miss_recourse_in_file` names re-exporting the
+# file for a miss within it — a comparison against the margin that
 # picks the words and nothing else, so a caller searching either
 # sentence would read whether the margin lies within ε_in. Their
 # production call sites are a third list here: the sized-decision table

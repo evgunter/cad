@@ -560,7 +560,7 @@ fn fitted(
     net: &NurbsSurface<f64>,
     nodes: [Option<usize>; 2],
 ) -> Result<super::CarriedComponent<f64>, super::CarryError> {
-    let (read, boxes) = pad_of(b, net, nodes)?;
+    let (read, boxes, runs) = pad_of(b, net, nodes)?;
     Ok(super::CarriedComponent {
         carrier: b.carrier.clone(),
         span: b.params,
@@ -571,6 +571,7 @@ fn fitted(
         reach: read.reach,
         witness: b.witness,
         boxes,
+        runs,
     })
 }
 
@@ -603,12 +604,14 @@ fn fitted(
 /// A desync where the certificate is not a chart tube, the branch
 /// carries no wall pcurve or its carrier is not a spline; otherwise
 /// [`super::pad_and_reach`]'s, with [`super::CarryRefusal::TubeUnread`]
-/// where the windows or a cell do not read.
+/// where the windows or a cell do not read. Beside the pad, each
+/// window's image with the carrier's span over it
+/// ([`super::CarriedComponent::runs`]).
 fn pad_of(
     b: &SsiBranch,
     net: &NurbsSurface<f64>,
     ends: [Option<usize>; 2],
-) -> Result<(super::TubeRead, Vec<super::PadBox>), super::CarryError> {
+) -> Result<(super::TubeRead, Vec<super::PadBox>, Vec<super::TubeRun>), super::CarryError> {
     use super::{CarryError, CarryRefusal, LoopTubeRefusal, TubePiece};
     let (
         SsiTube::Chart {
@@ -691,10 +694,22 @@ fn pad_of(
         b.certificate.hull_sup,
         geom::mid_param(b.params.0, b.params.1),
     )?;
+    // Each window's image with the carrier's span over it: where on the
+    // carrier a site in it lies (`CarriedComponent::runs`).
+    let runs = pieces
+        .iter()
+        .map(|piece| {
+            let hull = piece.boxes.iter().fold(None, |acc: Option<Box3>, &c| {
+                Some(acc.map_or(c, |a| a.hull(c)))
+            });
+            hull.and_then(|h| super::TubeRun::of(h, piece.span))
+                .ok_or_else(unread)
+        })
+        .collect::<Result<Vec<_>, CarryError>>()?;
     // Read box by box where an end is a node: the node's box is the
     // window at that end of the chain, marked with its node.
     if nodes == [None, None] {
-        return Ok((read, Vec::new()));
+        return Ok((read, Vec::new(), runs));
     }
     let last = windows.len() - 1;
     let boxes = windows
@@ -724,7 +739,7 @@ fn pad_of(
             })
         })
         .collect::<Result<Vec<_>, CarryError>>()?;
-    Ok((read, boxes))
+    Ok((read, boxes, runs))
 }
 
 /// How many rungs wide a cell's image [`pad_of`] reads as it stands:

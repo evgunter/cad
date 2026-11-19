@@ -293,15 +293,14 @@ fn split_half_cap(tol: Tol) -> Body<f64> {
 /// `mesh8_corpus_coherence`'s own disclosure and narrowed by the
 /// corpora being imported rather than minted: it is a statement about
 /// the files committed here, not about files a user has. The wild
-/// corpus is nine translator outputs from four veins, which is the
+/// corpus is eight translator outputs from four veins, which is the
 /// broadest evidence in the tree and still not a population.
 ///
 /// **A file that does not import contributes nothing, and the set of
-/// those is PINNED rather than shrugged at.** `REFUSES_AT_FINEST` is
-/// the whole of it: one wild fixture whose D7 adoption ladder cannot
-/// certify an attachment at ε = 1e-12, which the tier-gate suite
-/// already records as that band's disposition. Counting the examined
-/// fixtures against the corpora minus exactly that set is what stops
+/// those is PINNED rather than shrugged at**, and it is empty: the one
+/// wild fixture that refused at a fine ε, `nist_ftc_09`, now refuses at
+/// every ε at the build and is in `wild.rs`'s refusal corpus. Counting
+/// the examined fixtures against the corpora minus that set is what stops
 /// a fixture silently vanishing from the census — a refusal that
 /// spread to a second file would otherwise read as a quieter corpus.
 ///
@@ -359,17 +358,7 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
         );
     }
 
-    // The band's own disposition for `nist_ftc_09`: at 1e-12 the D7
-    // ladder cannot certify an attachment on edge #2928 and the file
-    // does not import, which `tests/tier_gate.rs` records as that
-    // band's answer for it. At every other band it imports and is
-    // examined like the rest.
-    const REFUSES_AT_FINEST: &str = "wild/nist/nist_ftc_09_asme1_rd.stp";
-    let expected_absent: Vec<String> = if tol.eps() <= 1.0e-12 {
-        vec![REFUSES_AT_FINEST.to_owned()]
-    } else {
-        Vec::new()
-    };
+    let expected_absent: Vec<String> = Vec::new();
     assert_eq!(
         absent,
         expected_absent,
@@ -527,8 +516,11 @@ fn a_refusing_file_refuses_identically_with_the_examination_asked_for() {
         panic!("{rel} must refuse in both calls");
     };
     assert!(
-        matches!(off, StepImportError::Adoption { .. }),
-        "{rel} refuses at adoption: {off:?}"
+        matches!(
+            off,
+            StepImportError::Adoption { .. } | StepImportError::NotYetSupported { .. }
+        ),
+        "{rel} refuses at the build or at adoption: {off:?}"
     );
     assert_eq!(
         off.render(),

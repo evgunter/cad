@@ -2,12 +2,13 @@
 id: import-builds-every-cache-from-the-interpreted-description
 kind: unit
 title: step-import: the build — evidence and description as two types, and every edge carrier, vertex point and parameter built by the kernel from the description chosen at the file band (D7, PR 7074)
-status: dispatched
+status: closed
 opened: 2026-11-18
 priority: P1
 cost: H
 parent: adoption-rebuilds-caches-at-eps-from-eps-in-interpretation
 branch: importgate/build
+closed: 2026-11-18
 ---
 
 
@@ -27,3 +28,5 @@ Closes: `adoption-rebuilds-caches-at-eps-from-eps-in-interpretation`, `step-impo
 Not in scope: the snap catalogue (tangency, coaxiality, axis-normality; a later unit); non-planar one-record.
 
 Letter H, tier dual: the architectural core of the stage, every later import row stands on it. Dispatched during the 2026-11-18 Fable outage on Opus (Ev, PR 7091), so no model-compare draws and no row.
+
+- 2026-11-18 — Closed by PR 7128 (the build: every cache kernel-built from the interpreted description).

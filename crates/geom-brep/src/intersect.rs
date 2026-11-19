@@ -323,14 +323,16 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
                    trace shape (the general-rung marcher), blocked on the cone's exact \
-                   meters conversion",
+                   meters conversion; the coaxial pose has a closed form \
+                   (cone_sphere_section), which this dispatch does not route to",
         },
         (Cone, Torus) | (Torus, Cone) => PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
                    trace shape (the general-rung marcher), blocked on the cone's exact \
-                   meters conversion",
+                   meters conversion; the coaxial pose has a closed form \
+                   (cone_torus_section), which this dispatch does not route to",
         },
         // ---- Rung 3, IMPLEMENTED: the ℝ³ implicit-pair march, each
         // torus read through its quartic. ----
@@ -3008,6 +3010,336 @@ pub fn plane_torus_section<T: Decide>(
 // ---------------------------------------------------------------------
 // cone × cylinder, the coaxial configuration only
 // ---------------------------------------------------------------------
+
+/// **The cone × sphere section, the coaxial configuration only**
+/// ([`cone_sphere_section`]).
+#[derive(Clone, Debug)]
+pub enum ConeSphereSection<T: Real> {
+    /// The sphere crosses the cone: one circle per root station of the
+    /// sphere along the cone's axis, each centred on the axis, normal to
+    /// it, with the cone's squared seam as its `u_ref`. A root at the apex
+    /// is a point, and lists no circle.
+    CoaxialCircles(Vec<Curve3<T>>),
+    /// The sphere touches the cone along one circle: classification data.
+    TangentCircle(Curve3<T>),
+    /// The sphere misses the cone.
+    Empty,
+}
+
+/// **The cone × sphere section where the sphere's centre lies on the
+/// cone's axis**: a coaxial sphere meets the cone's double nappe in
+/// circles, closed form. On the axis at station `h` from the apex the cone
+/// has radius `|h|·tan α`, and the sphere of radius `R` whose centre is at
+/// station `c` holds the points with `(h − c)² + h²·tan²α = R²`, so
+/// `h = c·cos²α ± cos α·√(R² − c²·sin²α)`. In order:
+///
+/// 1. `kos_sphere_radius`, `R`, definitely positive;
+/// 2. `kos_aperture_sin` and `kos_aperture_cos`, the cone's convention
+///    `0 < α < π/2`, each levered at `lever` from below;
+/// 3. `kos_coaxial`, the sphere centre's distance from the cone's axis:
+///    `Zero` is the coaxial pose; definite routes to the general rung;
+/// 4. `kos_reach`, `R − |c|·sin α`, the sphere centre's distance from the
+///    cone less its radius, sign flipped: `Positive` crosses (each root
+///    station's `kos_apex_station`, `|h|`, read apart from zero for a
+///    circle), `Zero` touches along the tangent circle, `Negative`
+///    misses.
+///
+/// # Errors
+///
+/// [`SectionError::WrongLane`] for another pair; the guards' refusals;
+/// [`SectionError::RoutesToGeneralRung`] for a sphere off the axis; an
+/// in-band reading escalates.
+pub fn cone_sphere_section<T: Decide>(
+    cone: &Surface<T>,
+    sphere: &Surface<T>,
+    lever: impl Into<LeverBounds<T>>,
+    band: Band,
+) -> Result<ConeSphereSection<T>, SectionError> {
+    let (
+        &Surface::Cone {
+            frame: cone_frame,
+            half_angle,
+            ..
+        },
+        Some(frame),
+        &Surface::Sphere {
+            frame: sphere_frame,
+            radius,
+            ..
+        },
+    ) = (cone, cone.frame(), sphere)
+    else {
+        return Err(SectionError::WrongLane {
+            expected: "cone×sphere (cone first)",
+        });
+    };
+    let apex = cone_frame.origin();
+    let center = sphere_frame.origin();
+    coaxial_cone_sphere(
+        (apex, half_angle, frame.square()),
+        (center, radius),
+        lever.into().below(),
+        band,
+    )
+}
+
+/// [`cone_sphere_section`]'s reading, past the kinds: the cone by its
+/// apex, half-angle and squared frame, the sphere by its centre and
+/// radius, `below` the lever's lower bound.
+fn coaxial_cone_sphere<T: Decide>(
+    (apex, half_angle, frame): (Point3<T>, T, SquareFrame<T>),
+    (center, radius): (Point3<T>, T),
+    below: geom_core::Lever<T>,
+    band: Band,
+) -> Result<ConeSphereSection<T>, SectionError> {
+    let SquareFrame { axis: a, u_ref, .. } = frame;
+    match decide("kos_sphere_radius", Margin::of(radius), band).map_err(|diag| {
+        SectionError::RadiusEscalated {
+            radius: SectionRadius::Sphere,
+            diag,
+        }
+    })? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(SectionError::DegenerateOperand {
+                what: "the sphere's radius is not definitely positive",
+            });
+        }
+    }
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    for (name, margin, at_edge, outside) in [
+        (
+            "kos_aperture_sin",
+            sin_a,
+            "the cone's half-angle is zero within the tolerance",
+            "the cone's half-angle is negative, outside its convention 0 < α < π/2",
+        ),
+        (
+            "kos_aperture_cos",
+            cos_a,
+            "the cone's half-angle is a right angle within the tolerance",
+            "the cone's half-angle is past a right angle, outside its convention \
+             0 < α < π/2",
+        ),
+    ] {
+        match decide(name, Margin::levered(margin, below), band).map_err(SectionError::Escalated)? {
+            Sign::Positive => {}
+            Sign::Zero => return Err(SectionError::ConeAtTheBand { what: at_edge }),
+            Sign::Negative => return Err(SectionError::DegenerateOperand { what: outside }),
+        }
+    }
+    let axis = geom::Line {
+        origin: apex,
+        dir: a,
+    };
+    match decide("kos_coaxial", Margin::of(axis.distance(center)), band)
+        .map_err(SectionError::Escalated)?
+    {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            return Err(SectionError::RoutesToGeneralRung {
+                pair: "cone×sphere",
+                why: "a sphere whose centre is off the cone's axis cuts a QUARTIC, and the \
+                      pair's general-rung arm has not retired — the cone's composite has no \
+                      meters conversion",
+            });
+        }
+    }
+    let c = (center - apex).dot(a);
+    let circle = |h: T| Curve3::circle(apex + a * h, a, h.abs() * (sin_a / cos_a), u_ref);
+    let cos2 = cos_a.powi(2);
+    let reach = radius - c.abs() * sin_a;
+    Ok(
+        match decide("kos_reach", Margin::of(reach), band).map_err(SectionError::Escalated)? {
+            Sign::Positive => {
+                let root = (reach * (radius + c.abs() * sin_a)).sqrt() * cos_a;
+                let mut circles = Vec::with_capacity(2);
+                for h in [c * cos2 + root, c * cos2 - root] {
+                    match decide("kos_apex_station", Margin::of(h.abs()), band)
+                        .map_err(SectionError::Escalated)?
+                    {
+                        Sign::Positive => circles.push(circle(h)),
+                        Sign::Zero | Sign::Negative => {}
+                    }
+                }
+                ConeSphereSection::CoaxialCircles(circles)
+            }
+            Sign::Zero => ConeSphereSection::TangentCircle(circle(c * cos2)),
+            Sign::Negative => ConeSphereSection::Empty,
+        },
+    )
+}
+
+/// **The cone × torus section, the coaxial configuration only**
+/// ([`cone_torus_section`]).
+#[derive(Clone, Debug)]
+pub struct ConeTorusSection<T: Real> {
+    /// The circles along which the torus crosses the cone, each centred on
+    /// the shared axis, normal to it, with the cone's squared seam as its
+    /// `u_ref`. A root at the apex is a point, and lists no circle.
+    pub crossing: Vec<Curve3<T>>,
+    /// The circles along which the torus touches the cone: classification
+    /// data.
+    pub tangent: Vec<Curve3<T>>,
+}
+
+/// **The cone × torus section where the torus shares the cone's axis**:
+/// a coaxial ring torus meets each nappe of the cone in circles, closed
+/// form. In a meridian half-plane, a nappe's generator is the ray from the
+/// apex along `g = (sin α, s·cos α)` (radius, station; `s = ±1` the
+/// nappe), and the torus is its tube circle of radius `r` about `(R, c)`,
+/// `c` the torus centre's station from the apex. The generator's signed
+/// distance from the tube's centre is `d = R·s·cos α − c·sin α`, and its
+/// foot is at `f = R·sin α + s·c·cos α` along it, so the roots are at
+/// `λ = f ± √((r − |d|)(r + |d|))` from the apex, the circle at station
+/// `s·λ·cos α` of radius `λ·sin α`. In order:
+///
+/// 1. the torus's own convention ([`TorusRefusal::require`]);
+/// 2. `kot_aperture_sin` and `kot_aperture_cos`, the cone's convention
+///    `0 < α < π/2`, each levered at `lever` from below;
+/// 3. `kot_coaxial`, the torus centre's distance from the cone's axis, and
+///    `kot_axes_parallel`, the two axes' cross product levered at `lever`
+///    from below: `Zero` on both is the coaxial pose; definite routes to
+///    the general rung;
+/// 4. per nappe, `kot_reach`, `r − |d|`: `Positive` crosses (each root's
+///    `kot_apex_station`, `λ`, read positive for a circle), `Zero` touches
+///    along the circle at the foot (its `kot_apex_station` read positive
+///    too), `Negative` misses.
+///
+/// # Errors
+///
+/// [`SectionError::WrongLane`] for another pair; the guards' refusals;
+/// [`SectionError::RoutesToGeneralRung`] for a torus off the cone's axis;
+/// an in-band reading escalates.
+pub fn cone_torus_section<T: Decide>(
+    cone: &Surface<T>,
+    torus: &Surface<T>,
+    lever: impl Into<LeverBounds<T>>,
+    band: Band,
+) -> Result<ConeTorusSection<T>, SectionError> {
+    let (
+        &Surface::Cone {
+            frame: cone_frame,
+            half_angle,
+            ..
+        },
+        Some(frame),
+        &Surface::Torus {
+            frame: torus_frame,
+            major_radius,
+            minor_radius,
+            ..
+        },
+    ) = (cone, cone.frame(), torus)
+    else {
+        return Err(SectionError::WrongLane {
+            expected: "cone×torus (cone first)",
+        });
+    };
+    let apex = cone_frame.origin();
+    let (center, axis) = (torus_frame.origin(), torus_frame.axis());
+    coaxial_cone_torus(
+        (apex, half_angle, frame.square()),
+        (center, axis, major_radius, minor_radius),
+        lever.into().below(),
+        band,
+    )
+}
+
+/// [`cone_torus_section`]'s reading, past the kinds: the cone by its apex,
+/// half-angle and squared frame, the torus by its centre, axis and radii,
+/// `below` the lever's lower bound.
+fn coaxial_cone_torus<T: Decide>(
+    (apex, half_angle, frame): (Point3<T>, T, SquareFrame<T>),
+    (center, torus_axis, big_r, r): (Point3<T>, Vec3<T>, T, T),
+    below: geom_core::Lever<T>,
+    band: Band,
+) -> Result<ConeTorusSection<T>, SectionError> {
+    let SquareFrame { axis: a, u_ref, .. } = frame;
+    TorusRefusal::require(big_r, r, band).map_err(SectionError::DegenerateTorus)?;
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    for (name, margin, at_edge, outside) in [
+        (
+            "kot_aperture_sin",
+            sin_a,
+            "the cone's half-angle is zero within the tolerance",
+            "the cone's half-angle is negative, outside its convention 0 < α < π/2",
+        ),
+        (
+            "kot_aperture_cos",
+            cos_a,
+            "the cone's half-angle is a right angle within the tolerance",
+            "the cone's half-angle is past a right angle, outside its convention \
+             0 < α < π/2",
+        ),
+    ] {
+        match decide(name, Margin::levered(margin, below), band).map_err(SectionError::Escalated)? {
+            Sign::Positive => {}
+            Sign::Zero => return Err(SectionError::ConeAtTheBand { what: at_edge }),
+            Sign::Negative => return Err(SectionError::DegenerateOperand { what: outside }),
+        }
+    }
+    let cone_axis = geom::Line {
+        origin: apex,
+        dir: a,
+    };
+    let off_axis = [
+        decide("kot_coaxial", Margin::of(cone_axis.distance(center)), band),
+        decide(
+            "kot_axes_parallel",
+            Margin::levered(a.cross(torus_axis).norm(), below),
+            band,
+        ),
+    ];
+    for reading in off_axis {
+        match reading.map_err(SectionError::Escalated)? {
+            Sign::Zero => {}
+            Sign::Positive | Sign::Negative => {
+                return Err(SectionError::RoutesToGeneralRung {
+                    pair: "cone×torus",
+                    why: "a torus off the cone's axis cuts a curve of degree eight, and the \
+                          pair's general-rung arm has not retired",
+                });
+            }
+        }
+    }
+    let c = (center - apex).dot(a);
+    let circle =
+        |s: T, lambda: T| Curve3::circle(apex + a * (s * lambda * cos_a), a, lambda * sin_a, u_ref);
+    let mut section = ConeTorusSection {
+        crossing: Vec::with_capacity(4),
+        tangent: Vec::new(),
+    };
+    for s in [T::one(), -T::one()] {
+        let d = (big_r * s * cos_a - c * sin_a).abs();
+        let foot = big_r * sin_a + s * c * cos_a;
+        let reach = r - d;
+        let on_ray = |lambda: T| -> Result<bool, SectionError> {
+            Ok(matches!(
+                decide("kot_apex_station", Margin::of(lambda), band)
+                    .map_err(SectionError::Escalated)?,
+                Sign::Positive
+            ))
+        };
+        match decide("kot_reach", Margin::of(reach), band).map_err(SectionError::Escalated)? {
+            Sign::Positive => {
+                let root = (reach * (r + d)).sqrt();
+                for lambda in [foot + root, foot - root] {
+                    if on_ray(lambda)? {
+                        section.crossing.push(circle(s, lambda));
+                    }
+                }
+            }
+            Sign::Zero => {
+                if on_ray(foot)? {
+                    section.tangent.push(circle(s, foot));
+                }
+            }
+            Sign::Negative => {}
+        }
+    }
+    Ok(section)
+}
 
 /// The classified cone×cylinder section — the one exact-degenerate
 /// configuration's closed form (rung 1: the trileans run before any

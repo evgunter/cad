@@ -115,7 +115,9 @@ pub enum TangentLocusError {
 /// restating its own residual-sign story.
 ///
 /// **The coaxial cylinder×sphere pair satisfies this contract and still
-/// has no arm.** At the only coaxial tangency, `R = r`, the sphere lies
+/// has no arm here**: an import that states its tangent edge builds the
+/// circle by [`crate::coaxial_tangent_circle`], and certifies it by the
+/// edge's own tangency checks. At the only coaxial tangency, `R = r`, the sphere lies
 /// wholly in the cylinder's non-positive residual half-space and the
 /// cylinder wholly in the sphere's non-negative one — opposite
 /// orientations per direction, which the contract allows (the

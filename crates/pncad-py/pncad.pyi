@@ -601,7 +601,7 @@ class StepImportError(PncadError):
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
     `unbanded_uncertainty`,
     `malformed_real`, `topology`,
-    `assembly`, `adoption`, `rim_off_wall_boundary`,
+    `assembly`, `adoption`, `not_yet_supported`, `build_escalated`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
     `join`, `singularity_undecided`, `singularity_side_undecided`,
     `singularity_meet_unread`, `interpretation`, `placement`,
@@ -4988,7 +4988,11 @@ class StructureNormalization:
     frames the import built by their axes, and the farthest a point of
     the session box moved, in metres; `moved_by` also `one_record`'s,
     the farthest a face on either of two records of one surface lies
-    from the other's), each `None` on the other arms —
+    from the other's, `vertex_built`'s, how far the build moved a
+    vertex from its printed point, whose `face` is then the
+    `VERTEX_POINT`'s entity id, and `carrier_built`'s, how far the printed
+    carrier stands off the one the build constructed, whose `face` is the
+    `EDGE_CURVE`'s), each `None` on the other arms —
     present on every row, so a read never raises and a caller never has
     to branch on `kind` first. On `placement_re_minted`, `face` is the
     transformation's entity id, the row naming no face."""

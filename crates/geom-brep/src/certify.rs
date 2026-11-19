@@ -1888,8 +1888,8 @@ impl DoorCheck for CertCheck {
     /// - At the STEP import door ([`ReadAt::File`]) the file's declared
     ///   coincidence distance picks the words: a sized decision's as
     ///   [`SizedDecision::recourse`] gives; a residual's miss within ε_in but
-    ///   beyond ε, or a bound on it wholly within ε_in, names setting ε to
-    ///   ε_in as a stopgap ([`Unsized::residual_in_file`]); and past ε_in a
+    ///   beyond ε, or a bound on it wholly within ε_in, names
+    ///   re-exporting the file more precisely ([`Unsized::residual_in_file`]); and past ε_in a
     ///   defect ending names the file ([`ReadAt::culprit`]), sized or not.
     fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
         let at = at.into();
@@ -9525,8 +9525,8 @@ mod tests {
     /// file's uncertainty below it and tightening, together, or else the
     /// lever alone, with no decision's note, an enclosure across zero's
     /// included — and a residual's miss within ε_in but beyond ε, or a
-    /// certified bound on it wholly within ε_in, names setting ε to ε_in
-    /// as a stopgap. An ε_in below every margin leaves every ending as at
+    /// certified bound on it wholly within ε_in, names re-exporting
+    /// the file more precisely. An ε_in below every margin leaves every ending as at
     /// rest but a reading at zero's, except that a defect ending names
     /// the file where rest names the kernel or the file. No ending at the
     /// door blames the kernel, or carries a second recourse.
@@ -9710,15 +9710,20 @@ mod tests {
                             assert!(
                                 door.starts_with(
                                     "The certificate's bound on this miss lies within"
-                                ) && door.contains("as a stopgap, set the tolerance to ε_in"),
+                                ) && door.contains("Recourse: re-export the file more precisely"),
                                 "{check:?} {arm:?}: {door}"
                             );
                         } else {
                             assert_eq!(door, past_eps_in, "{check:?} {arm:?}");
                         }
                     }
+                    // A miss within ε_in names re-exporting the file, or,
+                    // where the kernel's own fit may have made it, the
+                    // kernel approximation limit's recourse.
                     (Ending::Residual(_), _) if miss => assert!(
-                        door.contains("as a stopgap, set the tolerance to ε_in"),
+                        door.contains("Recourse: re-export the file more precisely")
+                            || (door.contains("may be the kernel's own approximation")
+                                && door.ends_with(geom_core::KERNEL_LIMIT_RECOURSE)),
                         "{check:?} {arm:?}: {door}"
                     ),
                     _ => assert_eq!(door, past_eps_in, "{check:?} {arm:?}"),
@@ -9728,7 +9733,7 @@ mod tests {
     }
 
     /// **A definite residual miss is read by its own value at the import
-    /// door** (D4 ¶1): within ε_in it names the stopgap, past ε_in the
+    /// door** (D4 ¶1): within ε_in it names re-exporting the file, past ε_in the
     /// file, and a miss the kernel's fit may have made keeps the
     /// kernel-bug note rather than vouching for the file's data.
     #[test]
@@ -9739,8 +9744,7 @@ mod tests {
             sample: 0,
             margin: MarginDiag::value(m),
         };
-        let stopgap = "Recourse: re-export the file more precisely, or, as a stopgap, set the \
-                       tolerance to ε_in = 1e-6 m";
+        let re_export = "Recourse: re-export the file more precisely";
         let exact = exceeded(CertCheck::EndpointStart, 5e-7)
             .ending(file)
             .unwrap();
@@ -9749,7 +9753,7 @@ mod tests {
             format!(
                 "This miss lies beyond the tolerance and within the file's declared \
                  coincidence distance ε_in = 1e-6 m, to which alone the file's data claims to \
-                 agree. {stopgap}"
+                 agree. {re_export}"
             )
         );
         let fit = exceeded(
@@ -9764,11 +9768,11 @@ mod tests {
             fit,
             "This miss lies beyond the tolerance and within the file's declared coincidence \
              distance ε_in = 1e-6 m, and may be the kernel's own approximation. Recourse: \
-             re-export the file more precisely, or, as a stopgap, set the tolerance to ε_in = \
-             1e-6 m; this refusal may indicate a kernel bug worth reporting",
+             loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth \
+             reporting",
             "a fit's miss keeps the kernel-bug note and vouches for no file data"
         );
-        // An enclosure across ε_in may lie within it, so the stopgap is
+        // An enclosure across ε_in may lie within it, so re-exporting is
         // named with the defect it leaves if the miss persists.
         let across = CertifyError::ResidualExceeded {
             check: CertCheck::EndpointStart,
@@ -9779,7 +9783,7 @@ mod tests {
         .unwrap();
         assert!(
             across.contains("and may lie within the file's declared")
-                && across.contains(stopgap)
+                && across.contains(re_export)
                 && across.ends_with(
                     "a miss that persists there means the file is damaged, worth reporting to \
                      the program that wrote it"
@@ -9813,20 +9817,19 @@ mod tests {
     #[test]
     fn a_defects_culprit_follows_the_door() {
         let file = FileCoincidence::new(1e-6);
-        let stopgap = "Recourse: re-export the file more precisely, or, as a stopgap, set the \
-                       tolerance to ε_in = 1e-6 m";
+        let re_export = "Recourse: re-export the file more precisely";
         let file_within = format!(
             "This miss lies beyond the tolerance and within the file's declared coincidence \
-             distance ε_in = 1e-6 m, to which alone the file's data claims to agree. {stopgap}"
+             distance ε_in = 1e-6 m, to which alone the file's data claims to agree. {re_export}"
         );
-        let fit_within = format!(
-            "This miss lies beyond the tolerance and within the file's declared coincidence \
-             distance ε_in = 1e-6 m, and may be the kernel's own approximation. {stopgap}; this \
-             refusal may indicate a kernel bug worth reporting"
-        );
+        let fit_within = "This miss lies beyond the tolerance and within the file's declared \
+                          coincidence distance ε_in = 1e-6 m, and may be the kernel's own \
+                          approximation. Recourse: loosen the tolerance, as a last resort; this \
+                          refusal may indicate a kernel bug worth reporting"
+            .to_owned();
         let bound_within = format!(
             "The certificate's bound on this miss lies within the file's declared coincidence \
-             distance ε_in = 1e-6 m. {stopgap}; this refusal may indicate a kernel bug worth \
+             distance ε_in = 1e-6 m. {re_export}; this refusal may indicate a kernel bug worth \
              reporting"
         );
         let (k, kf, f) = (
@@ -10023,7 +10026,7 @@ mod tests {
     /// **A refusal on a certified bound is the certificate's limit**
     /// (D4 ¶1 (i)): a loose bound contradicts nothing stored, so every
     /// arm ends in the last resort at every reading, and at the import
-    /// door a bound within ε_in names itself and the stopgap. A bound
+    /// door a bound within ε_in names itself and re-exporting the file. A bound
     /// past ε_in, or only partly within it, ends in the last resort: it
     /// says nothing about where the miss lies.
     #[test]
@@ -10034,8 +10037,7 @@ mod tests {
         let file = FileCoincidence::new(1e-6);
         let named = "The certificate's bound on this miss lies within the file's declared \
                      coincidence distance ε_in = 1e-6 m. Recourse: \
-                     re-export the file more precisely, or, as a stopgap, set the tolerance to \
-                     ε_in = 1e-6 m; this refusal may indicate a kernel bug worth reporting";
+                     re-export the file more precisely; this refusal may indicate a kernel bug worth reporting";
         let undecided = |margin| Indeterminate {
             margin,
             band,

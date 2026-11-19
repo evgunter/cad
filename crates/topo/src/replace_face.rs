@@ -3388,7 +3388,6 @@ fn derive_edge<'w, 's, T: Decide>(
     ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
     use crate::offset_derive::SectionVerdict;
-    use crate::offset_derive::Wall;
     untilted(edge, description)?;
     let (kind, other_kind) = (new_surface.kind(), neighbour.kind());
     if !geom_brep::intersect::route(kind, other_kind).implemented {
@@ -3447,72 +3446,21 @@ fn derive_edge<'w, 's, T: Decide>(
         });
     }
     let esc = |source| ReplaceFaceError::Escalated { source };
-    // A fitted surface is its fit as a section operand: its spline
-    // chart, as for evaluation and pcurves.
-    // Each wall with its own slot: the neighbour's where the plane is
-    // the new surface, the new surface's where the plane is the
-    // neighbour (the first arm wins where both are planes, as before).
-    let plane_wall = match (new_surface, neighbour) {
-        (plane @ Surface::Plane { .. }, wall) => wall.spline_chart().map(|net| {
-            (
-                plane,
-                Wall {
-                    net,
-                    chart: neighbour_slot,
-                },
-            )
-        }),
-        (wall, plane @ Surface::Plane { .. }) => wall.spline_chart().map(|net| {
-            (
-                plane,
-                Wall {
-                    net,
-                    chart: new_slot,
-                },
-            )
-        }),
-        _ => None,
-    };
-    let spline_pair = new_surface
-        .spline_chart()
-        .zip(neighbour.spline_chart())
-        .map(|(a, b)| {
-            (
-                Wall {
-                    net: a,
-                    chart: new_slot,
-                },
-                Wall {
-                    net: b,
-                    chart: neighbour_slot,
-                },
-            )
-        });
-    let lane = || {
-        section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
-            edge,
-            scalar: T::NAME,
-        })
-    };
-    let section = match (plane_wall, spline_pair) {
-        (Some((plane, wall)), _) => lane()?
-            .section(plane, wall, old, (t0, t1), extent, band)
-            .map_err(esc)?
-            .map(|c| Curve3::Nurbs(Arc::new(c))),
-        (None, Some((a, b))) => lane()?
-            .pair(a, b, old, (t0, t1), extent, band)
-            .map_err(esc)?
-            .map(|c| Curve3::Nurbs(Arc::new(c))),
-        (None, None) => crate::offset_derive::section_closed(
-            new_surface,
-            neighbour,
-            (old, (t0, t1)),
-            &region,
-            extent,
-            band,
-        )
-        .map_err(esc)?,
-    };
+    let section = crate::offset_derive::section_of(
+        || {
+            section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
+                edge,
+                scalar: T::NAME,
+            })
+        },
+        (new_surface, new_slot),
+        (neighbour, neighbour_slot),
+        (old, (t0, t1)),
+        &region,
+        extent,
+        band,
+        esc,
+    )?;
     let (carrier, refused) = match section {
         Ok(carrier) => (carrier, None),
         // The moved pair meets in an arc no door certifies: a fact about

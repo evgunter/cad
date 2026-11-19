@@ -732,9 +732,10 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // The counts are literals on purpose: a row that only compares the
     // two instances passes when both gain the same decisions. A copy
     // shares the part's product body under its own frame, so the
-    // placing op builds nothing and decides nothing: its pin is values
+    // placing op builds nothing and decides one thing: its pin is values
     // on the world's axes composed as a motion, reading no pose and
-    // deciding no margin. 826 is the part's, on its own nodes — its
+    // deciding no margin, and the placing door asks where the copy
+    // stands in its space (`session_box_reach`). 826 is the part's, on its own nodes — its
     // profile's pre-pass on the Profile node's log, then what the second
     // pass the `f64` lane skips decides, logged in its place
     // (`editor_core::ProfileLane`). Its placement's stand is the
@@ -755,8 +756,8 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // arise.
     assert_eq!(
         first.len(),
-        0,
-        "the instantiate op decides nothing; the part's {direct_total} decisions are its own"
+        1,
+        "the instantiate op decides its placement's box ask; the part's {direct_total} decisions are its own"
     );
     assert_eq!(direct_total, 1036, "the part's decisions on its own nodes");
 }

@@ -203,38 +203,50 @@ pub(crate) fn plane_desc_of<T: Real>(
 /// surface is not a carrier outside the inventory.
 pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
     let f = body.face(face)?;
+    carrier_desc_on(f.record(), f.surface())
+}
+
+/// [`face_carrier_desc`] of a face read from another operand's frame
+/// ([`crate::Seat`]): the description of its surface mapped through the
+/// seat's motion, which is to the bit the description a body moved by
+/// that motion holds.
+#[must_use]
+pub fn seated_carrier_desc<T: Decide>(
+    seat: crate::Seat<'_, T>,
+    face: FaceKey,
+) -> Option<CarrierDesc<T>> {
+    let f = seat.body().face(face)?;
+    carrier_desc_on(f.record(), &seat.surface(f.surface())?)
+}
+
+/// The description of a face whose record is `record` on `surface`.
+fn carrier_desc_on<T: Decide>(
+    record: &crate::entity::Face,
+    surface: &geom::Surface<T>,
+) -> Option<CarrierDesc<T>> {
     // `sense` is the material-side bit: true means the face's outward
     // normal IS the chart normal, which for a sphere/cylinder chart
     // points away from the centre/axis. Read as a BIT, never as a
     // comparison on `T` — the scalar backends order intervals, not
     // signs (S10's exact-bit discipline).
-    let outward = f.sense();
-    match f.surface() {
-        geom::Surface::Plane { frame, .. } => {
-            let (origin, normal) = (frame.origin(), frame.axis());
-            Some(CarrierDesc::Plane(plane_desc_of(
-                f.record(),
-                origin,
-                normal,
-            )))
-        }
-        geom::Surface::Sphere { frame, radius, .. } => {
-            let center = frame.origin();
-            Some(CarrierDesc::Sphere {
-                center,
-                radius: *radius,
-                outward,
-            })
-        }
-        geom::Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
-            Some(CarrierDesc::Cylinder {
-                origin,
-                axis,
-                radius: *radius,
-                outward,
-            })
-        }
+    let outward = record.sense;
+    match surface {
+        geom::Surface::Plane { frame, .. } => Some(CarrierDesc::Plane(plane_desc_of(
+            record,
+            frame.origin(),
+            frame.axis(),
+        ))),
+        geom::Surface::Sphere { frame, radius, .. } => Some(CarrierDesc::Sphere {
+            center: frame.origin(),
+            radius: *radius,
+            outward,
+        }),
+        geom::Surface::Cylinder { frame, radius, .. } => Some(CarrierDesc::Cylinder {
+            origin: frame.origin(),
+            axis: frame.axis(),
+            radius: *radius,
+            outward,
+        }),
         geom::Surface::Torus {
             frame,
             major_radius,
