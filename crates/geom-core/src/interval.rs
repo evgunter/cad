@@ -1582,7 +1582,13 @@ fn stated_points(m: &[[Interval; 3]; 3]) -> Option<[[f64; 3]; 3]> {
 /// rounding at the value's scale is the last (about an ulp wide).
 fn enclose_expansion(e: &crate::exact::Expansion, slack: f64) -> Interval {
     let from = <Interval as Real>::from_f64;
-    let small = Interval::from_bounds(-slack, slack);
+    // No slack is the exact zero, not `[−0, 0]`: an exact frame's zero
+    // entry reads as the zero a mint at the scalar writes.
+    let small = if slack > 0.0 {
+        Interval::from_bounds(-slack, slack)
+    } else {
+        <Interval as Real>::zero()
+    };
     match e.components().split_last() {
         None => small,
         Some((&head, rest)) => rest.iter().fold(small, |acc, &c| acc + from(c)) + from(head),
