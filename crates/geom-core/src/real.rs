@@ -437,6 +437,18 @@ pub trait Real:
         None
     }
 
+    /// **The `f64` this value states**, where it is a plain enclosure
+    /// that is a certified point (its two ends one `f64`); `None` (the
+    /// default) elsewhere: a point scalar's value is a rounding, not a
+    /// statement, and a scalar that also carries derivatives or forms
+    /// carries more than its value. A frame stated by such points is a
+    /// choice, minted at `f64` and read into the lane by its enclosure
+    /// ([`crate::RigidMotion::squared`]).
+    #[must_use]
+    fn stated_point(self) -> Option<f64> {
+        None
+    }
+
     /// **The meet of two readings of one real**, where `first` and the
     /// value `second` builds enclose the same real by independent
     /// spellings: at a scalar whose value is a plain enclosure, their

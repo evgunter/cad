@@ -633,7 +633,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         18,
         "the type's own body. The 18 that ask are the two refusal doors (`certified_bracket`, \
          `sign_within`, 2 each), the directed helpers `certified_hi`, `div_down`, `div_up` \
-         and `add_up` (1 each), `stated_points`' 2 (a frame's stated entries, taken as \
+         and `add_up` (1 each), `stated_point`'s 2 (a frame's stated entries, taken as \
          points only where the reading is certified and its ends are one bit pattern), \
          and `meet_readings`' 8 (the four ends it meets, and the four \
          its disjointness defect names), which refuses an uncertified reading by name before \

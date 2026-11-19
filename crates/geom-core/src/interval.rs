@@ -749,6 +749,11 @@ impl Real for Interval {
         }))
     }
 
+    /// A certified point's `f64`: its two ends one bit pattern.
+    fn stated_point(self) -> Option<f64> {
+        stated_point(self)
+    }
+
     /// **The unit's enclosure**, the one-column case of
     /// [`Real::enclose_rotation`]'s argument: for `v` with `g = |v|² − 1`
     /// and `η ≥ |g|`, `v/|v| = v·(1 + g)^(−1/2) = v − ½·g·v + v·Σₖ₌₂ cₖgᵏ`,
@@ -1563,17 +1568,21 @@ fn stated_points(m: &[[Interval; 3]; 3]) -> Option<[[f64; 3]; 3]> {
     let mut out = [[0.0; 3]; 3];
     for (j, col) in m.iter().enumerate() {
         for (r, x) in col.iter().enumerate() {
-            let (lo, hi) = (x.0.lo(), x.0.hi());
-            if !x.is_certified() || lo.to_bits() != hi.to_bits() || !lo.is_finite() {
+            let at = stated_point(*x)?;
+            if at != 0.0 && at.abs() < tiny {
                 return None;
             }
-            if lo != 0.0 && lo.abs() < tiny {
-                return None;
-            }
-            out[j][r] = lo;
+            out[j][r] = at;
         }
     }
     Some(out)
+}
+
+/// `x` as the `f64` it states, where it is a certified finite point (its
+/// two ends one bit pattern); `None` otherwise ([`Real::stated_point`]).
+fn stated_point(x: Interval) -> Option<f64> {
+    let (lo, hi) = (x.0.lo(), x.0.hi());
+    (x.is_certified() && lo.to_bits() == hi.to_bits() && lo.is_finite()).then_some(lo)
 }
 
 /// An exact expansion's value, widened by `±slack`, enclosed: every

@@ -96,6 +96,7 @@ crates/geom-core/src/linalg/angle.rs	1	constant	at as f64	the numerator of an oc
 crates/geom-core/src/linalg/angle.rs	1	constant	hi as f64	the high half of a written fraction's integer past 2^53, an exact integer below 2^32
 crates/geom-core/src/linalg/angle.rs	1	constant	lo as f64	the low half of a written fraction's integer past 2^53, an exact integer below 2^32
 crates/geom-core/src/linalg/angle.rs	1	constant	n as f64	a written fraction's numerator or denominator, an exact integer of magnitude at most 2^53
+crates/geom-core/src/linalg/rigid_motion.rs	1	constant	<fn>	squared_as_stated: a frame stated by certified points is a choice (DESIGN [scalars]), minted at f64 and read into the scalar by its polar enclosure, the read a stored frame takes
 crates/geom-core/src/period.rs	1	constant	f64::from(-i)	a half-period mark's branch below it
 crates/geom-core/src/period.rs	1	constant	f64::from(i)	a half-period mark's index
 crates/geom-core/src/period.rs	1	constant	f64::from(k)	a whole-period count as a length (`Period::times`, through which a stored winding's rate reads too, `Period::rate`)

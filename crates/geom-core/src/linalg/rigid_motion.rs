@@ -1115,9 +1115,38 @@ impl<T: Real> RigidMotion<T> {
     /// through, where no frame carries it; a construction that can
     /// decide its frame decides it
     /// ([`RigidMotion::from_axis_and_reference`]).
+    ///
+    /// **Stated directions are a choice** (DESIGN `[scalars]`): where `w`
+    /// and `u` are certified points at a plain enclosure
+    /// ([`Real::stated_point`]), the frame they state does not vary over
+    /// the box, so it is minted at `f64` (this squaring there) and read
+    /// into the scalar by its enclosure, the polar factor of the `f64`
+    /// frame ([`RigidMotion::map_scalar`], the read a stored frame takes),
+    /// `origin` kept as given. Directions that are not points (a bracket,
+    /// a value over the box) are a claim about the reals they enclose and
+    /// are squared at the scalar, as above.
     #[must_use]
     pub fn squared(origin: Point3<T>, w: Vec3<T>, u: Vec3<T>) -> Self {
+        if let Some(stated) = Self::squared_as_stated(w, u) {
+            return Self { origin, ..stated };
+        }
         Self::squared_about(origin, UnitVec3::squared(w), u)
+    }
+
+    /// The frame two stated directions name, minted at `f64` and read into
+    /// `T` by its enclosure; `None` unless both are certified points of a
+    /// plain enclosure ([`RigidMotion::squared`]).
+    fn squared_as_stated(w: Vec3<T>, u: Vec3<T>) -> Option<Self> {
+        let at = |v: Vec3<T>| {
+            Some(Vec3::new(
+                v.x.stated_point()?,
+                v.y.stated_point()?,
+                v.z.stated_point()?,
+            ))
+        };
+        let (w, u) = (at(w)?, at(u)?);
+        let minted = RigidMotion::<f64>::squared(Point3::origin(), w, u);
+        Some(minted.map_scalar(T::from_f64))
     }
 
     /// **[`RigidMotion::squared`] about a unit axis the caller holds**:
@@ -2132,6 +2161,46 @@ mod tests {
         assert!(
             entries.iter().any(|a| width(*a) > 0.0),
             "a rounded rotation's polar factor is no f64: {entries:?}"
+        );
+    }
+
+    /// **`squared` at `Interval` takes one of two paths by its inputs**
+    /// ([`RigidMotion::squared`]'s doc, DESIGN `[scalars]`): directions
+    /// stated as certified points are a choice, so the frame is the
+    /// `f64` squaring read by its polar enclosure, bit for bit; directions
+    /// that are brackets are squared over them at the scalar, bit for bit
+    /// the Gram–Schmidt arm.
+    #[test]
+    fn a_frame_squared_at_an_enclosure_reads_stated_points_as_a_choice() {
+        let bits = |m: &RigidMotion<Interval>| {
+            [m.u, m.v, m.w]
+                .iter()
+                .flat_map(|c| [c.get().x, c.get().y, c.get().z])
+                .map(|x| (x.lo().to_bits(), x.hi().to_bits()))
+                .collect::<Vec<_>>()
+        };
+        let (w, u) = (Vec3::new(0.3, -0.4, 0.866), Vec3::new(0.8, 0.6, 0.1));
+        let lift = |v: Vec3<f64>| v.map(Interval::from_f64);
+        let origin = Point3::new(1.0, 2.0, 3.0).map(Interval::from_f64);
+        let stated = RigidMotion::squared(origin, lift(w), lift(u));
+        let minted = RigidMotion::<f64>::squared(Point3::new(1.0, 2.0, 3.0), w, u)
+            .map_scalar(Interval::from_f64);
+        assert_eq!(
+            bits(&stated),
+            bits(&minted),
+            "points: the f64 squaring, read"
+        );
+        assert!(
+            bits(&stated).iter().any(|(lo, hi)| lo != hi),
+            "a rounded squaring reads as its polar enclosure, not as points"
+        );
+        let wide = |v: Vec3<f64>| v.map(|x| Interval::from_bounds(x - 1e-9, x + 1e-9));
+        let bracketed = RigidMotion::squared(origin, wide(w), wide(u));
+        let schmidt = RigidMotion::squared_about(origin, UnitVec3::squared(wide(w)), wide(u));
+        assert_eq!(
+            bits(&bracketed),
+            bits(&schmidt),
+            "brackets: Gram–Schmidt at the scalar"
         );
     }
 
