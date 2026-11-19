@@ -90,3 +90,15 @@ one is a design call.
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
+
+## Read against main at pickup (2026-11-19, ONEROUND orchestrator)
+
+From the two designers weighing this row for Ev, each item checked in the tree before it was written here.
+
+- **The site list above is stale.** `rg 'Unsourced lever' crates` gives 66 markers, matching `lever-sources.counts`; the title's 74 and the body's 63 are both old. Gone: `splitting::containment` `extent_from`, `boolean::recl`'s corner ball, `checks::at_rest` `constant_pairing`, `unglued_flat_sector`. New and not listed: `star::order` (2), `star::cut`, `coincide::replay`, `link::chord_rows`, `boolean::fan` (2).
+- **About seven of the pins are test code**, which the five families have no place for: `star::cut`, `star::order`'s probe, `boolean::fan` (2), a `join` fixture, `link::chord_rows` (`#[cfg(test)] mod`), `ssi::certify`'s test twin. They belong on the fixture doors and need no ruling.
+- **`geom_brep::sector_shape::metering_arm(arm: T) -> Lever<T>` is a `pub fn` over one pinned reference**, so every caller that hands it a length is invisible to the per-file pin. The count understates the exposure.
+- **`topo::boolean::trace::plane_misses` levers a tilt at the plane carrier's stored origin** (`(origin − point).norm()`), so one plane stored with two origins gives two verdicts. That is a defect whatever the lever's source turns out to be.
+- **`editor_core::mate::coset::Arm(f64)` is a second lever type**, whose doc calls it "the one door a lever is formed through".
+- **`Lever::curvature` has no caller** under `crates`; `curvature_radius` and `levered_inv` carry its cases.
+- **"A sum of radii whose union read is a max" holds only from a shared pivot.** Where each region is read from its own reference point the honest read is across both, and a max under-states it.
