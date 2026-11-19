@@ -249,3 +249,35 @@ fn two_axes_are_read_apart_where_the_faces_are() {
         }
     }
 }
+
+/// **A cone's tilt is levered at its faces' reach from its apex.** The
+/// cone `#151` restated on its own placement point turned 2e-5 rad:
+/// its apex, some 70 mm away, moves 1.4 µm and its faces, within about
+/// 0.1 m of it, by the tilt over that reach, inside the band's zero
+/// (5 µm), so the two records are one.
+#[test]
+fn a_cone_turned_by_a_small_angle_joins_at_its_faces_reach() {
+    let text = restated(
+        "#189",
+        "#151",
+        "CONICAL_SURFACE('Cone',#9001,20.,0.278299659005)",
+    );
+    let data_end = text.rfind("ENDSEC;").unwrap();
+    let text = format!(
+        "{}#9001=AXIS2_PLACEMENT_3D('',#9002,#9003,#9004) ;\n\
+         #9002=CARTESIAN_POINT('',(0.,0.,20.)) ;\n\
+         #9003=DIRECTION('',(2.E-05,0.,-1.)) ;\n\
+         #9004=DIRECTION('',(-0.479425538604,0.87758256189,0.)) ;\n{}",
+        &text[..data_end],
+        &text[data_end..]
+    );
+    let imported = import(&text).unwrap_or_else(|e| panic!("imports: {}", e.render()));
+    let joined = joins(&imported);
+    assert_eq!(joined.len(), 1, "one join: {joined:?}");
+    let (kept, record, moved_by) = joined[0];
+    assert_eq!((kept, record), (151, 9000));
+    assert!(
+        moved_by > 1e-6 && moved_by < 5e-6,
+        "the apex's move and the tilt over the faces' reach: {moved_by:e}"
+    );
+}
