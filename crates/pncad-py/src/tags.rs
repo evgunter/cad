@@ -147,7 +147,8 @@ use pncad::select::{
     ResolveIndeterminate, RimShare, SeamSidesShape, SeamVertexShape, UnionNameShape, WayShape,
 };
 use pncad::step_import::{
-    NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, StepImportError,
+    NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation,
+    StepImportError,
 };
 use pncad::sweep::blend::{BlendError, UnbuiltEnd};
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
@@ -2272,9 +2273,24 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
         NormalizationKind::PlacementReMinted { .. } => "placement_re_minted",
         NormalizationKind::OneRecord { .. } => "one_record",
+        NormalizationKind::Snapped { .. } => "snapped",
         NormalizationKind::CurvePromoted { .. } => "curve_promoted",
         NormalizationKind::VertexBuilt { .. } => "vertex_built",
         NormalizationKind::CarrierBuilt { .. } => "carrier_built",
+    }
+}
+
+/// The stable tag for the snap catalogue's relation whose construction
+/// moved a surface — `NormalizationKind::Snapped`'s payload, at
+/// `relation` beside the record's `kind` word.
+///
+/// The match is exhaustive, so a fourth relation stops this crate
+/// compiling instead of arriving under one of these three words.
+pub fn snap_relation_tag(relation: &SnapRelation) -> &'static str {
+    match relation {
+        SnapRelation::Coaxial => "coaxial",
+        SnapRelation::Tangent => "tangent",
+        SnapRelation::AxisNormal => "axis_normal",
     }
 }
 

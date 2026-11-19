@@ -36,8 +36,11 @@
 //!    cone placed at its base circle is moved to its apex; a NURBS
 //!    surface or carrier whose residual reads Zero is promoted; two
 //!    surface records of one locus become one
-//!    ([`NormalizationKind::OneRecord`]); a value no construction takes
-//!    refuses ([`InterpretationRefusal`]).
+//!    ([`NormalizationKind::OneRecord`]); a relation between two
+//!    surfaces the file's band reads `Zero` is made exact by the snap
+//!    catalogue ([`SnapRelation`], which states it), each move reported
+//!    ([`NormalizationKind::Snapped`]); a value no
+//!    construction takes refuses ([`InterpretationRefusal`]).
 //! 3. **Topology assembly** ([`assemble`]): the shell's half-edge
 //!    structure is realized through `topo`'s public Euler operators
 //!    (`mvfs`/`mev`/`mef`, the ring vocabulary, scaffold struts killed
@@ -270,9 +273,11 @@ mod knot_split;
 mod normalize;
 mod one_record;
 mod parse;
+mod reach;
 mod recognize;
 mod recognize_curve;
 mod signed_zero;
+mod snap;
 mod units;
 
 pub use error::{
@@ -524,6 +529,21 @@ pub enum NormalizationKind {
         /// record lies from the other's surface.
         moved_by: f64,
     },
+    /// **A surface the snap catalogue moved** (`[import]`, D7 step 3): a
+    /// relation the file's band reads `Zero` between it and another
+    /// surface, made exact by the catalogue's construction for
+    /// `relation`, its class solved jointly (`step_import`'s `snap`).
+    /// Keyed by the surface record; its census pair is empty, since no
+    /// face, edge or vertex changes.
+    Snapped {
+        /// The surface record moved (the earliest of its faces' records).
+        surface: u64,
+        /// The relation whose construction moved it.
+        relation: SnapRelation,
+        /// The move (metres): the farthest a point of its faces moves,
+        /// read `Zero` at the file's band.
+        moved_by: f64,
+    },
     /// **A vertex the build put off its printed point** (`[import]`, D7
     /// step 2): where its description fixes it (a root of a surface around
     /// it along a carrier through it, a pole, an apex), or, where the
@@ -561,6 +581,42 @@ pub enum NormalizationKind {
         /// deviation from the promoted curve over its whole domain.
         residual: f64,
     },
+}
+
+/// **The snap catalogue's relations** (`[import]`, D7 step 3), each one
+/// construction that makes a relation the file's band reads `Zero` exact:
+/// with the `snap` module's docs, the one statement of the catalogue,
+/// what each construction moves and what it refuses. Two records of one
+/// surface, the catalogue's fourth relation, are
+/// [`NormalizationKind::OneRecord`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SnapRelation {
+    /// Two round surfaces on one axis: the later record moved onto the
+    /// earlier one's axis.
+    Coaxial,
+    /// A plane and a cylinder tangent along their edge: the planes kept,
+    /// the cylinder's axis translated square to itself to stand its
+    /// radius from each (one plane, or two crossing); between two parallel
+    /// planes, its axis between them, its radius half their spacing and
+    /// its axis on the mid-plane; two planes whose parallelism the file's
+    /// band does not read, the file's ambiguity.
+    Tangent,
+    /// A plane and a round surface whose axis runs along its normal: the
+    /// later record turned about where the axis meets the plane.
+    AxisNormal,
+}
+
+impl SnapRelation {
+    /// The relation's name, as a refusal states it and as the Python
+    /// binding's `relation` word spells it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Coaxial => "coaxial",
+            Self::Tangent => "tangent",
+            Self::AxisNormal => "axis_normal",
+        }
+    }
 }
 
 /// The K row a placement frame's two directions are decided under where

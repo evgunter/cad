@@ -655,6 +655,8 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `CurvePromotion` the analytic carrier a NURBS one certified as (its
 // `PromotedCurveKind`), read off that ledger, and `PlacedInstance` the
 // A7 assembly record.
+// `SnapRelation` is `NormalizationKind::Snapped`'s discriminant: which
+// catalogue construction moved a surface.
 // `PromotedKind` was already here as the refusal's discriminant and
 // is `NormalizationKind::SurfacePromotion`'s too — one type, two
 // carriers, and the entry above says what it means on the refusal.
@@ -714,7 +716,7 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `NotBound` row with its reason.
 pub use step_import::{
     CurvePromotion, FaceCensus, ImportOptions, NormalizationKind, PlacedInstance,
-    PromotedCurveKind, PromotedKind, SingularityFound, StepImport, StepImportError,
+    PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation, StepImport, StepImportError,
     StructureNormalization, import_step,
 };
 pub use topo::{CoherenceCondition, CoherenceFinding, CoherenceReport, Unexaminable, Unexamined};
