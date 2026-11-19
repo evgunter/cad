@@ -4284,19 +4284,38 @@ mod limb2_memo {
 
     /// The carrier and the surface rendered whole, each scalar as its
     /// certified bracket's two ends beside the scalar's witness kind.
+    ///
+    /// The ends are read within the scalar's own kind, so a frame is
+    /// carried entry by entry and never re-minted: an `Exact` scalar's
+    /// bracket as an `Interval` (its enclosure read,
+    /// `RigidMotion::map_scalar` between two scalars of one kind), an
+    /// `Inexact` one's as its two `f64` ends, which are one value.
     pub(super) fn rendered<T: CertifiedBounds>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
     ) -> String {
-        let (lo, hi) = (|x: T| end(x, false), |x: T| end(x, true));
-        format!(
-            "{:?}|{:?}|{:?}|{:?}|{:?}",
-            T::WITNESS,
-            carrier.map_scalar(lo),
-            carrier.map_scalar(hi),
-            surface.map_scalar(lo),
-            surface.map_scalar(hi),
-        )
+        if T::WITNESS == geom_core::Witness::Exact {
+            let at = |x: T| {
+                let (lo, hi) = (end(x, false), end(x, true));
+                geom_core::Interval::from_bounds(lo, hi)
+            };
+            format!(
+                "{:?}|{:?}|{:?}",
+                T::WITNESS,
+                carrier.map_scalar(at),
+                surface.map_scalar(at),
+            )
+        } else {
+            let (lo, hi) = (|x: T| end(x, false), |x: T| end(x, true));
+            format!(
+                "{:?}|{:?}|{:?}|{:?}|{:?}",
+                T::WITNESS,
+                carrier.map_scalar(lo),
+                carrier.map_scalar(hi),
+                surface.map_scalar(lo),
+                surface.map_scalar(hi),
+            )
+        }
     }
 
     /// The round at `key` cut at `cuts`: the memo's, or `compute`'s,
@@ -16532,19 +16551,23 @@ mod limb2_memo_rows {
     const WALL: f64 = 1.25 - 1e-6;
 
     fn rim(radius: f64) -> (Curve3<f64>, Surface<f64>) {
+        rim_at(radius, |x| x)
+    }
+
+    /// [`rim`] minted at the scalar `lift` reads its numbers at: no read
+    /// carries a frame into `Sym`, so a row there mints its own.
+    fn rim_at<T: Real>(radius: f64, lift: impl Fn(f64) -> T) -> (Curve3<T>, Surface<T>) {
+        let p = |x: f64, y: f64, z: f64| Point3::new(lift(x), lift(y), lift(z));
+        let v = |x: f64, y: f64, z: f64| Vec3::new(lift(x), lift(y), lift(z));
         let rim = Curve3::circle(
-            Point3::new(0.3, -0.2, 0.7),
-            Vec3::new(0.0, 0.0, 1.0),
-            radius,
-            Vec3::new(1.0, 0.0, 0.0),
+            p(0.3, -0.2, 0.7),
+            v(0.0, 0.0, 1.0),
+            lift(radius),
+            v(1.0, 0.0, 0.0),
         );
         let wall = Surface::Cylinder {
-            frame: geom::Frame::new(
-                Point3::new(0.3, -0.2, 0.0),
-                Vec3::new(0.0, 0.0, 1.0),
-                Vec3::new(1.0, 0.0, 0.0),
-            ),
-            radius: WALL,
+            frame: geom::Frame::new(p(0.3, -0.2, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
+            radius: lift(WALL),
         };
         (rim, wall)
     }
@@ -16883,14 +16906,8 @@ mod limb2_memo_rows {
             },
             || {
                 let lift = |x: f64| <Sym<Interval> as Real>::from_f64(x);
-                let (c, s) = rim(1.25);
-                let read = limb2_offset_sup(
-                    &c.map_scalar(lift),
-                    (lift(0.2), lift(2.9)),
-                    &s.map_scalar(lift),
-                    band,
-                )
-                .unwrap();
+                let (c, s) = rim_at(1.25, lift);
+                let read = limb2_offset_sup(&c, (lift(0.2), lift(2.9)), &s, band).unwrap();
                 (
                     read.upper.to_bits(),
                     read.size.width.to_bits(),
@@ -16936,20 +16953,24 @@ mod limb2_quick_rows {
     use geom_core::{Band, Point3, Real, Vec3};
 
     fn rim(radius: f64, wall: f64) -> (Curve3<f64>, Surface<f64>) {
+        rim_at(radius, wall, |x| x)
+    }
+
+    /// [`rim`] minted at the scalar `lift` reads its numbers at: no read
+    /// carries a frame into `Sym`, so a row there mints its own.
+    fn rim_at<T: Real>(radius: f64, wall: f64, lift: impl Fn(f64) -> T) -> (Curve3<T>, Surface<T>) {
+        let p = |x: f64, y: f64, z: f64| Point3::new(lift(x), lift(y), lift(z));
+        let v = |x: f64, y: f64, z: f64| Vec3::new(lift(x), lift(y), lift(z));
         (
             Curve3::circle(
-                Point3::new(0.3, -0.2, 0.7),
-                Vec3::new(0.0, 0.0, 1.0),
-                radius,
-                Vec3::new(1.0, 0.0, 0.0),
+                p(0.3, -0.2, 0.7),
+                v(0.0, 0.0, 1.0),
+                lift(radius),
+                v(1.0, 0.0, 0.0),
             ),
             Surface::Cylinder {
-                frame: geom::Frame::new(
-                    Point3::new(0.3, -0.2, 0.0),
-                    Vec3::new(0.0, 0.0, 1.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                ),
-                radius: wall,
+                frame: geom::Frame::new(p(0.3, -0.2, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
+                radius: lift(wall),
             },
         )
     }
@@ -17067,14 +17088,8 @@ mod limb2_quick_rows {
             },
             || {
                 let lift = |x: f64| <Sym<Interval> as Real>::from_f64(x);
-                let (c, s) = rim(1.25, 1.25);
-                let r = limb2_offset_sup(
-                    &c.map_scalar(lift),
-                    (lift(0.2), lift(2.9)),
-                    &s.map_scalar(lift),
-                    band,
-                )
-                .unwrap();
+                let (c, s) = rim_at(1.25, 1.25, lift);
+                let r = limb2_offset_sup(&c, (lift(0.2), lift(2.9)), &s, band).unwrap();
                 (
                     r.upper.to_bits(),
                     r.size.width.to_bits(),

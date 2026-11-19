@@ -94,13 +94,18 @@
 //!
 //! - [`RigidMotion::squared`] — a stated axis over its length and a
 //!   stated reference's part square to it over its own, poison where
-//!   either is zero: the door a stated frame enters through, and the
-//!   re-mint of [`RigidMotion::map_scalar`] across witness kinds;
+//!   either is zero: the door a frame derived from two directions
+//!   enters through;
+//! - [`RigidMotion::squared_about`] — the same about a unit axis the
+//!   caller already holds, the axis kept bit for bit;
 //! - [`RigidMotion::with_origin`] and [`RigidMotion::carried_by`] — a
 //!   frame placed elsewhere, or its image under a motion;
-//! - [`RigidMotion::reversed`], [`RigidMotion::quarter_turned`] and
-//!   [`RigidMotion::half_turned`] — a frame's own axes negated and
-//!   permuted;
+//! - [`RigidMotion::reversed`], [`RigidMotion::reversed_as_difference`],
+//!   [`RigidMotion::rolled`], [`RigidMotion::quarter_turned`],
+//!   [`RigidMotion::half_turned`] and [`RigidMotion::with_signed_axes`]
+//!   — a frame's own axes negated and permuted;
+//! - [`RigidMotion::spun_toward`] — a frame turned in its own `uv`
+//!   plane toward a sketch direction, normalized once;
 //! - [`RigidMotion::select_le_zero`] — one of two frames by a sign.
 //!
 //! **An axis-aligned frame is a written turn.** An exact axis
@@ -165,31 +170,43 @@
 //!
 //! # Crossing scalars
 //!
-//! A frame exists at a scalar by being minted there: by an exact mint
-//! or a decided mint over inputs held at that scalar, at `f64` by the
-//! `f64` door, or by [`RigidMotion::map_scalar`] from another scalar.
-//! What a frame's entries mean is its scalar's
-//! [`Witness`](crate::Witness) kind: at an `Inexact` scalar (`f64`, a
-//! dual over it) they are the rounding of one rotation, at an `Exact`
-//! one (`Interval`, the duals and symbolic forms over it) they enclose
-//! it.
+//! **A frame enters a lane only by being minted there**: by an exact
+//! mint or a decided mint over inputs held at that scalar, at `f64` by
+//! the `f64` door, or by a mint above that decides nothing. No read
+//! carries a frame into a lane. What a frame's entries mean is its
+//! scalar's [`Witness`](crate::Witness) kind: at an `Inexact` scalar
+//! (`f64`, a dual over it) they are the rounding of one rotation, at an
+//! `Exact` one (`Interval`, the duals and symbolic forms over it) they
+//! enclose it.
 //!
-//! - **Within one kind** a frame's entries are carried through the
-//!   scalar map as they are: the claim is the same claim.
-//! - **Across kinds** they are not: a frame is a claim, and what a lane
-//!   scalar takes from `f64` is a choice (DESIGN `[scalars]`). The
-//!   entries are taken as that choice, a value that depends on none of
-//!   the document's variables, and the frame is re-minted from them at
-//!   the target scalar with no decision. Where the target's value is a
-//!   plain enclosure (`Interval`) the image encloses the rotation the
-//!   `f64` frame stands for, its polar factor, entry by entry
-//!   ([`Real::enclose_rotation`], whose doc carries the bound): about
-//!   one ulp of each entry, its reflection poisoned. Where the target
-//!   also carries derivatives or forms (`Dual`, `Sym` over an
-//!   enclosure) the rotation is held in those channels too, and the
-//!   frame is squared there ([`RigidMotion::squared`]), its Gram–Schmidt
-//!   rotation exact in every channel. A computation runs at one scalar,
-//!   so the two never meet over one frame.
+//! **Two reads take a frame out of the lane that holds it**:
+//!
+//! - **its point value**, down to `f64` ([`RigidMotion::point_value`]);
+//! - **its enclosure, to `Interval`** ([`RigidMotion::map_scalar`]):
+//!   from `Interval` the frame itself;
+//!   from `Dual` or `Sym` over an enclosure each component's bracket,
+//!   the claim the frame's value channel already makes; and from `f64`
+//!   the polar factor of the stored entries, the rotation nearest them,
+//!   enclosed entry by entry with no decision
+//!   ([`Real::enclose_rotation`], whose doc carries the bound): about an ulp
+//!   of each entry on a stated frame, a frame whose entries are exactly
+//!   orthonormal a point.
+//!
+//! **No read targets `Dual` or `Sym`.** A frame at a scalar that carries
+//! derivatives or forms holds the rotation in those channels, and no
+//! read of another lane's frame supplies them; a computation there
+//! mints its frames there. `map_scalar` across witness kinds into any
+//! target but `Interval` is a kernel defect: it fails a debug
+//! assertion, and a release build answers the frame poisoned. Within
+//! one kind `map_scalar` carries the entries as they are, the same
+//! claim at another spelling of the scalar.
+//!
+//! **The polar read's poison arm is unreachable from a stored frame.**
+//! It answers poison where `η` is not below ½ or the determinant is not
+//! certified positive, and every mint stores a rotation within its
+//! rounding, so a whole frame stored at `f64` never reaches it; a frame
+//! that does was built off the mints, and `map_scalar` fails a debug
+//! assertion on it (`a_reflected_frame_lifted_to_an_enclosure_poisons`).
 //!
 //! A skin's carry, over a path that is a constant of the model, chooses
 //! each station's roll at `f64` as one reference vector, and the
@@ -1095,11 +1112,8 @@ impl<T: Real> RigidMotion<T> {
     /// caller's: a non-finite entry is poison in the axes it reaches.
     ///
     /// It is the door a frame derived from two directions enters the type
-    /// through, where no frame carries it, and the scalar lift's re-mint
-    /// at a target that holds a frame in derivatives or forms
-    /// ([`RigidMotion::map_scalar`]); a lift to a plain enclosure encloses
-    /// the stated frame's rotation instead ([`Real::enclose_rotation`]),
-    /// and a construction that can decide its frame decides it
+    /// through, where no frame carries it; a construction that can
+    /// decide its frame decides it
     /// ([`RigidMotion::from_axis_and_reference`]).
     #[must_use]
     pub fn squared(origin: Point3<T>, w: Vec3<T>, u: Vec3<T>) -> Self {
@@ -1267,37 +1281,27 @@ impl<T: Real> RigidMotion<T> {
 }
 
 impl<T: Real> RigidMotion<T> {
-    /// **This frame at another scalar.** `f` is a lift: it reads each
+    /// **This frame at another scalar**, one of the two reads the module
+    /// docs' "Crossing scalars" names. `f` is a lift: it reads each
     /// entry's value at the target scalar (an embedding such as
-    /// `Real::from_f64` or `Dual::constant`, a bracket, a value channel)
-    /// and keeps its point. What the entries mean depends on the scalar's
-    /// [`Witness`](crate::Witness): at an `Inexact` scalar (`f64`, a dual
-    /// over it) they are the rounding of the exact rotation the frame's
-    /// mint names, and at an `Exact` one (`Interval`, the duals and
-    /// symbolic forms over it) they enclose it.
+    /// `Real::from_f64`, a bracket, a value channel) and keeps its point.
     ///
-    /// - **Between two scalars of one kind** the claim is the same
-    ///   claim, so the entries are carried through `f` as they are, and
-    ///   the image evaluates to the source bit for bit in its value
-    ///   channel.
-    /// - **Across kinds** it is not: a rounded entry read as an
-    ///   enclosure encloses nothing, and an enclosure read at a point is
-    ///   no rounding of a rotation. The frame is re-minted from the
-    ///   mapped entries at the target scalar, built there rather than
-    ///   carried across (module docs, "Crossing scalars"): at a target
-    ///   whose value is a plain enclosure the image encloses the stated
-    ///   frame's polar factor entry by entry ([`Real::enclose_rotation`]),
-    ///   and elsewhere it is squared there ([`RigidMotion::squared`] over
-    ///   the mapped `w` and `u`). Either way its entries are not `f`'s
-    ///   images of these verbatim.
+    /// - **Between two scalars of one [`Witness`](crate::Witness) kind**
+    ///   the claim is the same claim, so the entries are carried through
+    ///   `f` as they are, and the image evaluates to the source bit for
+    ///   bit in its value channel (a dual or form over an enclosure read
+    ///   at `Interval` by its bracket).
+    /// - **From `f64` to `Interval`** a rounded entry read as an
+    ///   enclosure encloses nothing, so the image is the polar factor of
+    ///   the mapped entries, enclosed ([`Real::enclose_rotation`]); its
+    ///   entries are not `f`'s images verbatim.
+    /// - **Across kinds into any other target** (a dual or form over an
+    ///   enclosure, or `f64`, whose read is [`RigidMotion::point_value`])
+    ///   there is no read: it fails a debug assertion, and a release
+    ///   build answers the frame poisoned.
     ///
     /// The kind is a property of the two types, so which branch runs is
-    /// fixed at compile time and reads no value. So is which door the
-    /// cross-kind branch takes: the box kinds' lift is the polar
-    /// enclosure at `Interval` and Gram–Schmidt at the kinds that carry
-    /// derivatives or forms, and a computation runs at one scalar, so the
-    /// two never meet over one frame
-    /// (`each_box_kind_lifts_a_frame_through_its_own_door`).
+    /// fixed at compile time and reads no value.
     #[must_use]
     pub fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> RigidMotion<U> {
         let origin = self.origin.map(&f);
@@ -1314,8 +1318,19 @@ impl<T: Real> RigidMotion<T> {
                 let c = d.get().map(&f);
                 [c.x, c.y, c.z]
             };
-            match U::enclose_rotation([column(self.u), column(self.v), column(self.w)]) {
+            let stated = [column(self.u), column(self.v), column(self.w)];
+            let stated_whole = stated.iter().flatten().all(|x| !x.is_poison());
+            match U::enclose_rotation(stated) {
                 Some([u, v, w]) => {
+                    // Every mint stores a rotation within its rounding
+                    // (η far below ½, the determinant near 1), so a whole
+                    // stored frame never reaches the poison arm; a frame
+                    // that does was built off its mints, a kernel defect.
+                    debug_assert!(
+                        !stated_whole || !u[0].is_poison(),
+                        "a stored frame read at an enclosure named no rotation: \
+                         η not below ½ or its determinant not positive"
+                    );
                     let axis = |[x, y, z]: [U; 3]| UnitVec3::by_construction(Vec3::new(x, y, z));
                     RigidMotion {
                         origin,
@@ -1324,7 +1339,25 @@ impl<T: Real> RigidMotion<T> {
                         w: axis(w),
                     }
                 }
-                None => RigidMotion::squared(origin, self.w.get().map(&f), self.u.get().map(&f)),
+                None => {
+                    debug_assert!(
+                        false,
+                        "no read carries a frame into a lane: the target is not a plain enclosure"
+                    );
+                    let poisoned = || {
+                        UnitVec3::by_construction(Vec3::new(
+                            crate::poison(),
+                            crate::poison(),
+                            crate::poison(),
+                        ))
+                    };
+                    RigidMotion {
+                        origin,
+                        u: poisoned(),
+                        v: poisoned(),
+                        w: poisoned(),
+                    }
+                }
             }
         }
     }
@@ -2012,37 +2045,45 @@ mod tests {
 
     pub(super) const SITE: &str = "rigid_motion_test_axis";
 
-    /// **The box kinds' lift, one door per kind**: a plain enclosure
-    /// (`Interval`) encloses the stated frame's rotation
-    /// ([`Real::enclose_rotation`] answers), and a kind that also carries
-    /// derivatives or forms (`Dual`, `Sym` over an enclosure) declines it,
-    /// so [`RigidMotion::map_scalar`] squares there. A computation runs at
-    /// one scalar, so the two never meet over one frame; this row is the
-    /// pin that each kind keeps its door.
+    /// **No read carries a frame into `Dual` or `Sym`**: across witness
+    /// kinds `map_scalar` reads only to `Interval`, and a target that
+    /// carries derivatives or forms declines the enclosure
+    /// ([`Real::enclose_rotation`] answers `None` there), so the map is a
+    /// kernel defect, loud in a debug build and poison in release.
     #[test]
-    fn each_box_kind_lifts_a_frame_through_its_own_door() {
+    #[cfg_attr(
+        debug_assertions,
+        should_panic(expected = "no read carries a frame into a lane")
+    )]
+    fn no_read_carries_a_frame_into_a_dual_or_a_form() {
         use crate::dual::Dual;
-        use crate::sym::Sym;
         let at = |k: usize| core::array::from_fn::<f64, 3, _>(|i| f64::from(u8::from(i == k)));
-        let columns = [at(0), at(1), at(2)];
-        let lift = |f: fn(f64) -> Interval| columns.map(|c| c.map(f));
-        assert!(Interval::enclose_rotation(lift(Interval::from_f64)).is_some());
-        assert!(Interval::enclose_unit(lift(Interval::from_f64)[0]).is_some());
-        let dual = columns.map(|c| c.map(|x| Dual::<Interval>::constant(Interval::from_f64(x))));
+        let dual = [at(0), at(1), at(2)]
+            .map(|c| c.map(|x| Dual::<Interval>::constant(Interval::from_f64(x))));
         assert!(Dual::<Interval>::enclose_rotation(dual).is_none());
-        assert!(Dual::<Interval>::enclose_unit(dual[0]).is_none());
-        let sym = columns.map(|c| c.map(<Sym<Interval> as Real>::from_f64));
-        assert!(Sym::<Interval>::enclose_rotation(sym).is_none());
-        assert!(Sym::<Interval>::enclose_unit(sym[0]).is_none());
-        assert!(f64::enclose_rotation(columns).is_none());
+        assert!(
+            <crate::sym::Sym<Interval> as Real>::enclose_unit(
+                at(0).map(<crate::sym::Sym<Interval> as Real>::from_f64)
+            )
+            .is_none()
+        );
+        let lifted = RigidMotion::<f64>::identity()
+            .map_scalar(|x| Dual::<Interval>::constant(Interval::from_f64(x)));
+        assert!(
+            lifted.u.get().x.is_poison(),
+            "a release build answers poison"
+        );
     }
 
     /// **A reflected `f64` frame names no rotation, and its lift to
     /// `Interval` is poison**: `w` reversed, so the stated columns are
     /// orthonormal (`η` is zero) and left-handed, and the polar
     /// enclosure's determinant reading refuses it rather than taking the
-    /// reflection for a rotation.
+    /// reflection for a rotation. No mint stores a reflection, so the read
+    /// of one is a kernel defect: loud in a debug build, poison in
+    /// release.
     #[test]
+    #[cfg_attr(debug_assertions, should_panic(expected = "named no rotation"))]
     fn a_reflected_frame_lifted_to_an_enclosure_poisons() {
         let turned = RigidMotion::<f64>::rotation(
             UnitVec3::new(Vec3::new(1.0, 2.0, 3.0), SITE, band()).unwrap(),
@@ -2066,10 +2107,12 @@ mod tests {
         assert!(!kept.u.get().x.lo().is_nan(), "the rotation itself lifts");
     }
 
-    /// **A rounded rotation lifts to an enclosure of its polar factor about
-    /// one ulp wide** at every entry, no wider in all than squaring the
-    /// lifted columns at the target, and meeting it at every entry (both
-    /// enclose a rotation within rounding of the stated entries).
+    /// **A rounded rotation lifts to an enclosure of its polar factor at
+    /// the floor of an `f64`-ended interval**: no entry wider than
+    /// `EPSILON` (two units in the last place of an entry below one), and
+    /// the frame not a point, since its entries are a rounding off rigid
+    /// and the polar factor is no `f64`. Containment of the true polar
+    /// factor is `the_polar_enclosure_contains_the_polar_factor`'s.
     #[test]
     fn a_rounded_rotation_lifts_to_its_polar_enclosure() {
         let turned = RigidMotion::<f64>::rotation(
@@ -2078,35 +2121,17 @@ mod tests {
         )
         .unwrap();
         let polar = turned.map_scalar(Interval::from_f64);
-        let squared = RigidMotion::squared(
-            turned.origin.map(Interval::from_f64),
-            turned.w.get().map(Interval::from_f64),
-            turned.u.get().map(Interval::from_f64),
-        );
         let width = |x: Interval| x.hi() - x.lo();
-        let (mut polar_total, mut squared_total) = (0.0, 0.0);
-        for (p, q) in [
-            (polar.u, squared.u),
-            (polar.v, squared.v),
-            (polar.w, squared.w),
-        ] {
-            for (a, b) in [
-                (p.get().x, q.get().x),
-                (p.get().y, q.get().y),
-                (p.get().z, q.get().z),
-            ] {
-                assert!(width(a) <= 4.0 * f64::EPSILON, "about an ulp wide: {a:?}");
-                assert!(
-                    a.lo() <= b.hi() && b.lo() <= a.hi(),
-                    "the two meet: {a:?}, {b:?}"
-                );
-                polar_total += width(a);
-                squared_total += width(b);
-            }
+        let entries: Vec<Interval> = [polar.u, polar.v, polar.w]
+            .iter()
+            .flat_map(|c| [c.get().x, c.get().y, c.get().z])
+            .collect();
+        for a in &entries {
+            assert!(width(*a) <= f64::EPSILON, "at the floor: {a:?}");
         }
         assert!(
-            polar_total <= squared_total,
-            "no wider in all than squaring: {polar_total:e} vs {squared_total:e}"
+            entries.iter().any(|a| width(*a) > 0.0),
+            "a rounded rotation's polar factor is no f64: {entries:?}"
         );
     }
 

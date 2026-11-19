@@ -247,9 +247,11 @@ impl<T: Real> Frame<T> {
         Some(Frame::of_motion(&self.motion.point_value()?))
     }
 
-    /// **The basis squared** ([`SquareFrame`]): the unit axis along a
-    /// stored `axis` of any length, and the unit seam square to it toward
-    /// the stored `u_ref`, taken as `a × (u_ref × a)` over the unit `a`.
+    /// **The basis squared** ([`SquareFrame`]): the axis over its length
+    /// and the seam taken as `a × (u_ref × a)` over the unit `a`. The
+    /// stored axes are already unit and square, so this moves them only
+    /// by rounding; it is kept as the arithmetic its readers' pins were
+    /// taken on.
     #[must_use]
     pub fn square(&self) -> SquareFrame<T> {
         let axis = self.axis().normalize();

@@ -53,7 +53,10 @@
 //! result always carries `Trv` — `DInterval::intersection` — would be
 //! refused on every result if this scalar ever exposed it. It does not;
 //! its one caller, `Certification::clamped_to`, reads its endpoints and
-//! keeps the enclosure's own decoration.
+//! keeps the enclosure's own decoration. The other meet in this file,
+//! [`Real::meet_readings`], does not call it: it takes the intersection
+//! from the two readings' endpoints and keeps the weaker one's
+//! decoration, so it is decorated as its readings are.
 //!
 //! # Certification semantics: truth containment, not f64 containment
 //!
@@ -1623,6 +1626,34 @@ mod tests {
     /// (`Real::meet_readings`): `[1, 2]` and `[3, 4]` cannot both enclose
     /// one real, so a debug build fails its assertion and a release build
     /// answers NaI, never an empty or arbitrary interval.
+    /// **The polar enclosure's poison arm, at its threshold**: a frame
+    /// stretched along `x̂` so that `G = MᵀM − I` is `diag(g, 0, 0)`, its
+    /// determinant positive. Just under `g = ½` the read encloses a
+    /// rotation; just over it, where the remainder bound no longer holds,
+    /// it answers poison rather than a box that may miss the polar factor.
+    #[test]
+    fn a_frame_stretched_past_half_its_gram_defect_reads_poison() {
+        let read = |g: f64| {
+            let s = (1.0 + g).sqrt();
+            let col = |k: usize, x: f64| -> [Interval; 3] {
+                core::array::from_fn(|i| Interval::from_f64(if i == k { x } else { 0.0 }))
+            };
+            <Interval as Real>::enclose_rotation([col(0, s), col(1, 1.0), col(2, 1.0)])
+                .expect("Interval encloses")
+        };
+        let below = read(0.49);
+        assert!(
+            !Real::is_poison(below[0][0]) && below[0][0].lo() <= 1.0 && 1.0 <= below[0][0].hi(),
+            "η 0.49 encloses the identity: {:?}",
+            below[0][0]
+        );
+        let over = read(0.501);
+        assert!(
+            over.iter().flatten().all(|x| Real::is_poison(*x)),
+            "η past ½ reads poison: {over:?}"
+        );
+    }
+
     #[test]
     #[cfg_attr(
         debug_assertions,

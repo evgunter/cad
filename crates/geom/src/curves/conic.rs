@@ -33,11 +33,11 @@
 //!   **eccentric anomaly**, not arc length and not the polar angle of the
 //!   point: `|dP/dθ|² = semi_u²sin²θ + semi_v²cos²θ` varies between the
 //!   two semi-axes.
-//! - **A unit frame, unchecked.** Nothing that reads a conic normalizes
-//!   its frame, and nothing can afford to: the sizes are the lengths
-//!   every speed and curvature bound is stated at, so a non-unit `u_ref`
-//!   rescales the curve without rescaling the bound. A caller
-//!   synthesising a frame owes the normalization.
+//! - **A unit frame, by its type.** The frame is a `RigidMotion`, its
+//!   axes unit and square by the mint that made it, so nothing that reads
+//!   a conic normalizes it: the sizes are the lengths every speed and
+//!   curvature bound is stated at, and the frame's axes carry no length
+//!   of their own to rescale them by.
 //! - **Positive sizes.** A radius and both semi-axes are positive
 //!   lengths, in metres. [`Curve3::ellipse`] refuses a non-positive
 //!   semi-axis, certification's span meter refuses one ([`speed_floor`]),

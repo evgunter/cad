@@ -35,6 +35,16 @@ fn base_plane() -> Surface<Interval> {
 }
 
 /// The prism's face surface, cloned.
+/// A face's chart sampled at its midpoints, on the frame squared at
+/// `f64` from its axes' midpoints: a midpoint is no read of a frame, so
+/// the row states the frame it samples on.
+fn chart_at_mid(s: &Surface<Interval>) -> Surface<f64> {
+    let mid = |x: Interval| 0.5 * (x.lo() + x.hi());
+    s.map_scalar_on(mid, |f| {
+        geom::Frame::new(f.origin().map(mid), f.axis().map(mid), f.u_ref().map(mid))
+    })
+}
+
 fn face_chart(body: &Body<Interval>, face: topo::FaceKey) -> Surface<Interval> {
     let key = body.get_face(face).unwrap().surface;
     body.get_surface(key).unwrap().clone()
@@ -244,7 +254,7 @@ fn the_cell_door_reads_a_spline_edge_as_its_ball() {
     let mut body = built.body;
     let face = built.bottom_face;
     swap_first_edge_for_a_chord_net(&mut body, face, (0.0, 1.0));
-    let chart = face_chart(&body, face).map_scalar(|x| 0.5 * (x.lo() + x.hi()));
+    let chart = chart_at_mid(&face_chart(&body, face));
     let n = 24;
     // Offset from the square's edges, so cells straddle them.
     let (lo, hi) = (-0.52, 1.48);
@@ -315,7 +325,7 @@ fn a_cell_crossing_only_the_spline_edge_is_undecided() {
     let m = q0.lerp(q1, 0.5);
     let along = (q1 - q0).normalize();
     let out = (m - Point3::new(0.5, 0.5, m.z)).normalize();
-    let chart = face_chart(&body, face).map_scalar(|x| 0.5 * (x.lo() + x.hi()));
+    let chart = chart_at_mid(&face_chart(&body, face));
     let c0 = chart.eval(0.0, 0.0);
     let (eu, ev) = (chart.eval(1.0, 0.0) - c0, chart.eval(0.0, 1.0) - c0);
     let uv = |p: Point3<f64>| ((p - c0).dot(eu) / eu.dot(eu), (p - c0).dot(ev) / ev.dot(ev));

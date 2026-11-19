@@ -1378,21 +1378,22 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
     // `Interval` charges nothing, its enclosure holding the
     // rounding already. It reads each frame lifted to its polar
     // enclosure, η = 6.28e-17 (0.57 u: the tilted axis `(0, 0.6, 0.8)`
-    // rounds off unit), a few ulps wide at each entry where the stated
+    // rounds off unit), about an ulp wide at each entry where the stated
     // f64 frame read as points had none, so the enclosure of the distance
     // widens with the distance slid times that width (measured under the
-    // polar lift: 18 and 21 at 1e-9, 8 and 11 at 1e-12, 28 and none at
-    // 1e-6, where the point frame read 20, 24, 10, 14, 30 and 31). So it
+    // polar lift summed exactly: 19 and 22 at 1e-9, 9 and 12 at 1e-12, 29
+    // and none at 1e-6; summed in interval arithmetic 18, 21, 8, 11, 28
+    // and none; the point frame read 20, 24, 10, 14, 30 and 31). So it
     // reads the placement on below the `k`
     // where that width passes the zero band, in band from there, never
     // off: the row pins the measured `k` at each ε row CI runs, and that
     // one transition at any other.
     let boundary = |shape: usize| match (shape, e) {
-        (0, 1e-9) => Some(18),
-        (0, 1e-12) => Some(8),
-        (0, 1e-6) => Some(28),
-        (1, 1e-9) => Some(21),
-        (1, 1e-12) => Some(11),
+        (0, 1e-9) => Some(19),
+        (0, 1e-12) => Some(9),
+        (0, 1e-6) => Some(29),
+        (1, 1e-9) => Some(22),
+        (1, 1e-12) => Some(12),
         (1, 1e-6) => Some(31),
         _ => None,
     };
@@ -1511,13 +1512,13 @@ fn a_stored_row_is_read_at_its_certification_as_its_mint_read_it() {
             }
         }
     }
-    // The mint images the rim below `2¹⁸` and the plane's circle below
-    // `2²¹` at ε 1e-9 (the far-anchor row's pins), so the `k` the twin's
+    // The mint images the rim below `2¹⁹` and the plane's circle below
+    // `2²²` at ε 1e-9 (the far-anchor row's pins), so the `k` the twin's
     // re-read refused are certified here.
     if eps() == 1e-9 {
         assert_eq!(
             certified,
-            [18, 21],
+            [19, 22],
             "the Interval images certified per shape"
         );
     }
@@ -1689,8 +1690,8 @@ fn a_corner_and_an_edge_on_a_tilted_plane_far_from_its_anchor_are_read_on_it() {
         ]
     };
     let k0 = match e {
-        1e-9 => Some(21),
-        1e-12 => Some(11),
+        1e-9 => Some(22),
+        1e-12 => Some(12),
         1e-6 => Some(31),
         _ => None,
     };

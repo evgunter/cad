@@ -312,3 +312,66 @@ fn n3r2_extremal_angle_exactly_pi_stays_sound_and_is_tight() {
         }
     }
 }
+
+/// The same shape with BRACKETS on the axes: the stated seam's
+/// direction is an angle bracket about each of the four axis directions,
+/// so one of its components straddles zero (a rectangle across an axis),
+/// and a point bracket exactly on the positive `u` axis, whose `v`
+/// component is the exact zero. A frame is unit by its type, so the
+/// brackets are of unit directions; every direction they hold must stay
+/// inside the box.
+#[test]
+fn n3r2_bracket_rectangles_on_the_axes_stay_sound() {
+    use geom_core::{Interval, Real};
+    let iv = <Interval as Real>::from_f64;
+    let half = core::f64::consts::FRAC_PI_2;
+    for &(phi, w) in &[
+        (0.0, 0.2),        // straddles the positive u axis
+        (half, 0.2),       // straddles the positive v axis
+        (2.0 * half, 0.3), // straddles the negative u axis
+        (-half, 0.1),      // straddles the negative v axis
+        (0.0, 0.0),        // a point on the positive u axis
+    ] {
+        let dir = |a: f64| (a.cos(), a.sin());
+        let corners = [dir(phi - w), dir(phi), dir(phi + w)];
+        let lo = |k: fn(&(f64, f64)) -> f64| corners.iter().map(k).fold(f64::INFINITY, f64::min);
+        let hi =
+            |k: fn(&(f64, f64)) -> f64| corners.iter().map(k).fold(f64::NEG_INFINITY, f64::max);
+        // The bracket of (cos, sin) over [phi − w, phi + w], w under a
+        // quarter turn: each component's extremes are at the two ends or
+        // at `phi`, the one axis direction the bracket crosses.
+        let ux = Interval::from_bounds(lo(|c| c.0) - 1e-15, hi(|c| c.0) + 1e-15);
+        let uy = Interval::from_bounds(lo(|c| c.1) - 1e-15, hi(|c| c.1) + 1e-15);
+        let (ux, uy) = if w == 0.0 {
+            (iv(1.0), iv(0.0))
+        } else {
+            (ux, uy)
+        };
+        let carrier: Curve3<Interval> = Curve3::circle(
+            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+            Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            iv(1.0),
+            Vec3::new(ux, uy, iv(0.0)),
+        );
+        for &(t0c, t1c) in &[(0.0, 1.0), (1.0, 4.0), (2.5, 3.8), (0.0, 6.3), (3.0, 3.2)] {
+            let (t0, t1) = (iv(t0c), iv(t1c));
+            let b = conic_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1)).unwrap();
+            for i in 0..=8u32 {
+                let a = phi - w + 2.0 * w * f64::from(i) / 8.0;
+                let real: Curve3<f64> = Curve3::circle(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    1.0,
+                    Vec3::new(a.cos(), a.sin(), 0.0),
+                );
+                for j in 0..=1000u32 {
+                    let t = t0c + (t1c - t0c) * f64::from(j) / 1000.0;
+                    assert!(
+                        !escapes(&b, real.eval(t), 1e-12),
+                        "phi={phi} w={w} span=({t0c},{t1c}): t={t} escaped {b:?}"
+                    );
+                }
+            }
+        }
+    }
+}

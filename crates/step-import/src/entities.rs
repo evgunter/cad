@@ -697,18 +697,16 @@ impl<'a> Resolver<'a> {
                     ));
                 }
                 let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
-                let (location, axis, u_ref) = (
-                    carrier_frame.origin(),
-                    carrier_frame.axis(),
-                    carrier_frame.u_ref(),
-                );
+                let (location, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let apex = if radius == 0.0 {
                     location
                 } else {
                     location - axis * (radius / half_angle.tan())
                 };
+                // The placement's own frame, moved to the apex: its axes
+                // as adopted, not squared again.
                 Ok(Surface::Cone {
-                    frame: geom::Frame::new(apex, axis, u_ref),
+                    frame: carrier_frame.with_origin(apex),
                     half_angle,
                 })
             }

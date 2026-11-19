@@ -250,8 +250,13 @@ type Oracle = Box<dyn Fn(Point3<f64>) -> Cls>;
 // Body helpers
 // ------------------------------------------------------------------ //
 
+/// The surface sampled at its midpoints, on the frame squared at `f64`
+/// from its axes' midpoints: a midpoint is no read of a frame, so the
+/// row states the frame it samples on.
 fn surface_f64(s: &Surface<Interval>) -> Surface<f64> {
-    s.map_scalar(mid)
+    s.map_scalar_on(mid, |f| {
+        geom::Frame::new(f.origin().map(mid), f.axis().map(mid), f.u_ref().map(mid))
+    })
 }
 
 fn face_surface(body: &Body<Interval>, face: FaceKey) -> Surface<Interval> {

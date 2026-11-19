@@ -455,8 +455,9 @@ pub(crate) fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
 /// The widest a frame direction's component may enclose and still be
 /// read as one direction: a frame re-minted at an enclosure scalar from
 /// an `f64` one (`geom::Frame::map_scalar`) is an enclosure of one
-/// rotation a few ulps wide, and nothing a computation widened is this
-/// narrow.
+/// rotation about an ulp wide at each entry, and nothing a computation
+/// widened is this narrow. It is `16·EPSILON`, 32 units in the last
+/// place of an entry below one.
 const FRAME_ROUNDING: f64 = 16.0 * f64::EPSILON;
 
 /// **A frame direction as `f64` structure**: each component's midpoint,
@@ -2206,27 +2207,33 @@ pub(crate) fn chart_partner_form<T: Real>(
     else {
         return Err(inexact());
     };
-    if axis_turn == 0.0 && u_turn == 0.0 {
-        // Exact throughout: the partner at `f64`, its frame's bits kept.
-        let widened = core::cell::Cell::new(false);
-        let at_f64 = partner.map_scalar(|x| {
-            point(x).unwrap_or_else(|| {
-                widened.set(true);
-                f64::NAN
-            })
-        });
-        if widened.get() {
-            return Err(inexact());
-        }
-        return super::residual::ImplicitForm::of(&at_f64).map_err(|_| no_form());
-    }
     let o = frame.origin();
     let origin = geom_core::Point3::new(exact(o.x)?, exact(o.y)?, exact(o.z)?);
-    let mid = geom::Frame::new(
-        origin,
-        Vec3::new(axis_mid[0], axis_mid[1], axis_mid[2]),
-        Vec3::new(u_mid[0], u_mid[1], u_mid[2]),
-    );
+    let exact_frame = axis_turn == 0.0 && u_turn == 0.0;
+    let mid = if exact_frame {
+        // Exact throughout: the partner's frame at `f64`, its bits kept.
+        // Its point value is read within its own kind (an `Exact`
+        // scalar's brackets as `Interval`, then `point_value`), never
+        // by a map across kinds, which reads no frame.
+        if T::WITNESS == geom_core::Witness::Exact {
+            frame
+                .map_scalar(|x| {
+                    bracket(x).map_or(Interval::from_bounds(f64::NAN, f64::NAN), |(lo, hi)| {
+                        Interval::from_bounds(lo, hi)
+                    })
+                })
+                .point_value()
+                .ok_or_else(inexact)?
+        } else {
+            frame.map_scalar(|x| point(x).unwrap_or(f64::NAN))
+        }
+    } else {
+        geom::Frame::new(
+            origin,
+            Vec3::new(axis_mid[0], axis_mid[1], axis_mid[2]),
+            Vec3::new(u_mid[0], u_mid[1], u_mid[2]),
+        )
+    };
     let at_f64 = match *partner {
         Surface::Plane { .. } => Surface::Plane { frame: mid },
         Surface::Cylinder { radius, .. } => Surface::Cylinder {
@@ -2249,6 +2256,9 @@ pub(crate) fn chart_partner_form<T: Real>(
         _ => return Err(no_form()),
     };
     let form = super::residual::ImplicitForm::of(&at_f64).map_err(|_| no_form())?;
+    if exact_frame {
+        return Ok(form);
+    }
     let enclose = |b: [(f64, f64); 3]| b.map(|(lo, hi)| Interval::from_bounds(lo, hi));
     let ([ax, ay, az], [ux, uy, uz]) = (enclose(axis), enclose(u_ref));
     let (e2, e0) = (Vec3::new(ax, ay, az), Vec3::new(ux, uy, uz));

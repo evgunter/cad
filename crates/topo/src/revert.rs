@@ -167,7 +167,7 @@ impl<T: Real> Reversal<T> {
             // `u` kept ([`geom_core::RigidMotion::reversed`]), so no axis
             // is re-squared and a second reversal restores every bit.
             Surface::Plane { frame } => Self::Chart(Surface::Plane {
-                frame: geom::Frame::of_motion(&frame.motion().reversed()),
+                frame: frame.reversed(),
             }),
             Surface::Cylinder { .. }
             | Surface::Cone { .. }

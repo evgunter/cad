@@ -261,13 +261,19 @@ impl Hand {
 /// reflection, or a map handed only as an affine, maps the frame's three
 /// data and squares them ([`geom::Frame::new`]), the plane's normal as
 /// the axial image.
-fn map_surface<T: Real>(
+/// **A carrier's frame under the map**: under a proper motion the
+/// frame's own image ([`geom::Frame::moved`]); under a reflection its
+/// mapped data squared ([`geom::Frame::new`]), the axis as the axial
+/// image where `axial` (a plane's normal, a conic's axis, so the image
+/// keeps its side and its parameter) and as a plain vector elsewhere.
+fn map_frame<T: Real>(
     map: &Affine3<T>,
     hand: Hand,
     motion: Option<&RigidMotion<T>>,
-    s: &Surface<T>,
-) -> Result<Surface<T>, TransformError> {
-    let mapped = |f: &geom::Frame<T>, axial: bool| match motion {
+    f: &geom::Frame<T>,
+    axial: bool,
+) -> geom::Frame<T> {
+    match motion {
         Some(motion) => f.moved(motion),
         None => geom::Frame::new(
             map.transform_point(f.origin()),
@@ -278,7 +284,16 @@ fn map_surface<T: Real>(
             },
             map_vec(map, f.u_ref()),
         ),
-    };
+    }
+}
+
+fn map_surface<T: Real>(
+    map: &Affine3<T>,
+    hand: Hand,
+    motion: Option<&RigidMotion<T>>,
+    s: &Surface<T>,
+) -> Result<Surface<T>, TransformError> {
+    let mapped = |f: &geom::Frame<T>, axial: bool| map_frame(map, hand, motion, f, axial);
     Ok(match *s {
         // The normal is the face's outward side, so the inside-out
         // image's is the axial one; the chart is then `M∘S` exactly.
@@ -390,14 +405,11 @@ fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, T
     let (map, hand) = (&iso.to_affine(), iso.hand());
     // A conic's frame: the frame's own image under a motion, and under a
     // reflection the axial axis, so the image keeps its parameter.
-    let frame = |f: &geom::Frame<T>| match iso {
-        Isometry::Proper(motion) => f.moved(motion),
-        Isometry::Improper(_) => geom::Frame::new(
-            map.transform_point(f.origin()),
-            hand.axial(map, f.axis()),
-            map_vec(map, f.u_ref()),
-        ),
+    let motion = match iso {
+        Isometry::Proper(motion) => Some(motion),
+        Isometry::Improper(_) => None,
     };
+    let frame = |f: &geom::Frame<T>| map_frame(map, hand, motion, f, true);
     Ok(match *c {
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(map.transform_point(origin), map_vec(map, dir))

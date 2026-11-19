@@ -1093,16 +1093,17 @@ pub(crate) mod tests {
         }
     }
 
-    /// **The slab reads a decided axis, never the carrier's bare one.**
-    /// A cylinder carrier whose axis is `2ẑ` describes the same point
-    /// set as the unit one; read bare, the axial window would be twice
-    /// the face's and the slab would place it twice again along the
-    /// axis — a box four times the wall's height. Its cover boxes it as
-    /// the unit-axis wall, bracketed and in the census's frame. An axis
-    /// that is no direction is a broken carrier, which proves neither
-    /// the slab nor the hull: the face has no cover.
+    /// **A cylinder stated with a long axis is the unit wall.** A carrier
+    /// holds its frame as a rigid motion, so an axis stated as `2ẑ`
+    /// enters the type as its direction (`Frame::new` squares it): the
+    /// carrier stores `ẑ`, and there is no bare long axis left for the
+    /// slab to read. The row pins that door and what follows from it: the
+    /// stored axis is unit, and the cover and the census box the wall as
+    /// the unit-axis one. An axis that is no direction squares to a
+    /// poisoned frame, which proves neither the slab nor the hull: the
+    /// face has no cover.
     #[test]
-    fn a_cylinder_axis_is_decided_unit_before_the_slab_reads_it() {
+    fn a_cylinder_stated_with_a_long_axis_is_the_unit_wall() {
         let (z0, z1) = (-0.25, 0.75);
         let (unit, face) = cyl_wall(1.0, 0.0, 2.0, z0, z1);
         let with_axis = |axis: Vec3<f64>| {
@@ -1116,6 +1117,13 @@ pub(crate) mod tests {
         };
         let want = face_box(&unit, face, pad(), witness_band());
         let long = with_axis(Vec3::new(0.0, 0.0, 2.0));
+        let key = long.get_face(face).unwrap().surface;
+        let stored = long.surfaces[key].frame().map(|f| f.axis()).unwrap();
+        assert_eq!(
+            [stored.x, stored.y, stored.z].map(f64::to_bits),
+            [0.0, 0.0, 1.0].map(f64::to_bits),
+            "the frame door stores the stated axis's direction"
+        );
         let got = face_box(&long, face, pad(), witness_band());
         for (what, w, g) in [
             ("min z", want.min_z, got.min_z),

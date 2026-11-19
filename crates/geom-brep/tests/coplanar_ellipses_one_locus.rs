@@ -217,7 +217,9 @@ fn two_coplanar_ellipses_a_few_band_widths_apart_are_not_one_curve() {
 }
 
 /// Two conics from their bits: `centre, normal, u_ref` and the two
-/// semi-axes of each, 22 `f64` bit patterns in hex.
+/// semi-axes of each, 22 `f64` bit patterns in hex. Each frame is
+/// admitted as stated (`Frame::admitted`, rigid within rounding), so the
+/// one-ulp differences the rows rest on are stored, not squared away.
 fn from_bits(line: &str) -> (Curve3<f64>, Curve3<f64>) {
     let x: Vec<f64> = line
         .split_whitespace()
@@ -226,11 +228,12 @@ fn from_bits(line: &str) -> (Curve3<f64>, Curve3<f64>) {
     assert_eq!(x.len(), 22, "two conics of eleven numbers: {line}");
     let conic = |x: &[f64]| {
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(
+            geom::Frame::admitted(
                 Point3::new(x[0], x[1], x[2]),
                 Vec3::new(x[3], x[4], x[5]),
                 Vec3::new(x[6], x[7], x[8]),
-            ),
+            )
+            .expect("each pair's frame is rigid within its rounding"),
             x[9],
             x[10],
         ))
@@ -291,15 +294,16 @@ fn an_ellipse_with_its_frame_an_ulp_off_unit_past_the_zero_of_a_circle_is_not_on
         Vec3::new(1.0, 0.0, 0.0),
     );
     for (a, b) in [(100.0 + 1e-12, 100.0), (100.0, 100.0 + 1e-12)] {
-        let e = Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(
-                Point3::origin(),
-                Vec3::new(0.0, 0.0, 1.0),
-                Vec3::new(0.6f64.next_up(), 0.8, 0.0),
-            ),
-            a,
-            b,
-        ));
+        // Admitted as stated: an ulp off unit is rigid within rounding,
+        // and the stored `û` keeps the stretch the row rests on.
+        let frame = geom::Frame::admitted(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.6f64.next_up(), 0.8, 0.0),
+        )
+        .expect("an ulp off unit is rigid within rounding");
+        assert_eq!(frame.u_ref().x.to_bits(), 0.6f64.next_up().to_bits());
+        let e = Curve3::Ellipse(geom::Ellipse::new(frame, a, b));
         assert_not_one(&format!("a {a}, b {b}"), &e, &circle, band);
     }
 }

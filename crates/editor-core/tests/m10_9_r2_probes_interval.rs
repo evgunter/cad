@@ -6,9 +6,10 @@
 //!   (ASSERTS): the drive's serialization, door on and off, on every
 //!   M10 fixture this test crate can build — claim 1 / claim 5 at
 //!   document scale, at whichever ε this process was built with.
-//! - `r2_circle_at_is_bit_identical_to_the_old_arm` (ASSERTS): D13's
-//!   delegation against a transcription of the merge base's arm, at
-//!   `f64` and at `Interval`.
+//! - `r2_circle_at_is_the_old_arm_at_f64_and_contains_it_at_interval`
+//!   (ASSERTS): D13's delegation against a transcription of the merge
+//!   base's arm, bit for bit at `f64`, and a containment smoke at
+//!   `Interval`.
 //! - `r2_link_end_to_end_with_and_without_the_door` (ASSERTS + prints):
 //!   R2's own arc-bearing document — a SLOTTED LINK (an obround outline
 //!   whose two ends are SEMICIRCLES (tangent arcs, bulge 1, `param_end = π`)
@@ -362,16 +363,17 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
 }
 
 /// **D13, checked**: `Curve3::circle_at` computes what the merge base's
-/// `eval` arm computed, bit for bit, at `f64`, and at `Interval` encloses
-/// it: there the frame is squared at the scalar, an enclosure of the
-/// rotation the boxed vectors state, which strictly contains the old
-/// arm's reading at every component. The old
+/// `eval` arm computed, bit for bit, at `f64`. At `Interval` the clause
+/// is a containment smoke, not a pin: the frame is squared at the
+/// scalar, an enclosure of the rotation the boxed vectors state, and the
+/// row checks that it contains the old arm's reading of the same boxed
+/// vectors at every component. The old
 /// arm (`crates/geom/src/curves.rs` at d1149b07d) was
 /// `let radial = azimuth::frame(*axis, *u_ref, t).radial.0; *center +
 /// radial * *radius`, with `frame` = `(s, c) = t.sin_cos(); v_ref =
 /// axis × u_ref; radial = u_ref·c + v_ref·s` — transcribed here.
 #[test]
-fn r2_circle_at_is_bit_identical_to_the_old_arm() {
+fn r2_circle_at_is_the_old_arm_at_f64_and_contains_it_at_interval() {
     use geom::Curve3;
     use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
@@ -414,9 +416,11 @@ fn r2_circle_at_is_bit_identical_to_the_old_arm() {
     }
     let iv = |x: f64| Interval::from_bounds(x - 1e-7, x + 1e-7);
     let axis = Vec3::new(iv(0.3), iv(-0.4), iv(0.866)).normalize();
-    let u_ref = Vec3::new(iv(0.8), iv(0.6), iv(0.0)).normalize();
+    // The old arm reads `u_ref` as given, so it is stated square to the
+    // axis, as the f64 clause states it.
+    let u0 = Vec3::new(iv(0.8), iv(0.6), iv(0.0));
+    let u_ref = (u0 - axis * u0.dot(axis)).normalize();
     let center = Point3::new(iv(1.0e-3), iv(-2.0e-3), iv(0.5e-3));
-    let bits = |v: Interval| (v.lo().to_bits(), v.hi().to_bits());
     for t in [0.0_f64, 0.7, 1.9, 4.0 * (2.5_f64).atan()] {
         let t = iv(t);
         // At `Interval` the frame is an enclosure of the rotation its
@@ -426,7 +430,6 @@ fn r2_circle_at_is_bit_identical_to_the_old_arm() {
         // holds the old arm inside the new at every component.
         let a = Curve3::circle_at(&geom::Frame::new(center, axis, u_ref), iv(0.8e-3), t);
         let b = old_arm(center, axis, iv(0.8e-3), u_ref, t);
-        let _ = bits;
         for (got, old, c) in [(a.x, b.x, "x"), (a.y, b.y, "y"), (a.z, b.z, "z")] {
             assert!(
                 got.lo() <= old.lo() && old.hi() <= got.hi(),

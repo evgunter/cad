@@ -476,12 +476,16 @@ fn a_skew_section_near_the_parabola_certifies() {
         let envelope = cache.certificate().envelope;
         assert!(envelope < 0.5 * eps(), "f64 envelope {envelope:e}");
         // Lifted to `Interval` the frames are their polar enclosures
-        // (η ≤ 5.3e-16), a few ulps wide, that the envelope levers by
-        // about `A/k`: in band at this pose, never a definite miss.
+        // (η ≤ 5.3e-16), about an ulp wide at each entry, that the
+        // envelope levers by about `A/k`: certified or in band at this
+        // pose, never a definite miss. Certified, the envelope is under
+        // the zero band, as certification states; the `0.5·ε` the f64
+        // read meets is not the enclosure's (it certifies at 9.5e-10 at
+        // ε 1e-9, where the wider interval-only polar read it in band).
         match certify_lifted(&image) {
             Ok(cache) => {
                 let envelope = cache.certificate().envelope.hi();
-                assert!(envelope < 0.5 * eps(), "Interval envelope {envelope:e}");
+                assert!(envelope < eps(), "Interval envelope {envelope:e}");
             }
             Err(e @ geom_brep::PcurveCertifyError::Escalated { .. }) => {
                 println!(

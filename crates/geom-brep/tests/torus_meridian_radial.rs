@@ -93,3 +93,25 @@ fn a_meridian_in_band_of_the_torus_axis_escalates_its_radial() {
         want
     );
 }
+
+/// **A torus with no axis refuses**, and not as a missing radial: a
+/// zero stated axis squares into a poisoned frame
+/// (`RigidMotion::squared` over a zero length), so the axis is no
+/// longer the exact zero `props_torus_axis` names as a defect. The
+/// frame's poison reaches the boundary's circles first, whose axis
+/// class cannot be decided over it, so the read escalates there, under
+/// `props_circle_axis_class`, before any radial is read.
+#[test]
+fn a_torus_without_an_axis_refuses_where_its_poisoned_axis_is_first_read() {
+    let (torus, outer) = fixture_about(Vec3::new(0.0, 0.0, 0.0), 1.0);
+    match require_iso_rectangle(&torus, &outer, band()).err() {
+        Some(PropsError::Escalated { cause, .. }) => {
+            assert_eq!(
+                cause.predicate,
+                Some("props_circle_axis_class"),
+                "{cause:?}"
+            );
+        }
+        other => panic!("a torus with no axis escalates its axis read, not {other:?}"),
+    }
+}
