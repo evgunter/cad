@@ -90,7 +90,7 @@ pub use crate::rows::{HalfAngleRows, SubdivisionRows, TouchRows};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
 use geom_core::period::Period;
-use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Rounded, Sign};
 
 use crate::quartic::depressed_quartic_roots;
 use crate::roots::{RootFault, RootRefusal, Roots, Unsettled, touch_or_tangency};
@@ -146,7 +146,7 @@ impl<T: geom_core::Real> TrigPoly<T> {
     /// `noise` is bounded by `Nᵏ·noise` (Bernstein's inequality, degree
     /// `N`). The `j`-th derivative's harmonic `k` is `kʲ` times the
     /// harmonic turned by `jπ/2`: the four turns repeat with period four.
-    pub fn taylor_at(&self, t: T, noise: T) -> [(T, T); 4] {
+    pub fn taylor_at(&self, t: T, noise: T) -> [Rounded<T>; 4] {
         let mut sc = [(T::zero(), T::one()); MAX_DEGREE + 1];
         for (k, kf) in self.harmonics() {
             sc[k] = (kf * t).sin_cos();
@@ -175,6 +175,7 @@ impl<T: geom_core::Real> TrigPoly<T> {
             (derivative(2), deg.powi(2) * noise),
             (derivative(3), deg.powi(3) * noise),
         ]
+        .map(|(value, error)| Rounded { value, error })
     }
 }
 
@@ -275,7 +276,7 @@ pub struct Local<'a, T> {
 
 /// `F` and its first three derivatives at a carrier parameter, each
 /// with a bound on its rounding ([`Local`]).
-pub type Jet<'a, T> = dyn Fn(T) -> [geom_core::Rounded<T>; 4] + 'a;
+pub type Jet<'a, T> = dyn Fn(T) -> [Rounded<T>; 4] + 'a;
 
 /// **The root-slack meter** a caller of [`certified_subdivision`] may
 /// hand it: `residual`, the surface's residual (metres) at a carrier
@@ -293,9 +294,10 @@ pub type Jet<'a, T> = dyn Fn(T) -> [geom_core::Rounded<T>; 4] + 'a;
 /// slope where the true root can be, which is at least `F`'s least slope
 /// there over `f_per_metre_hi`. That slope is read on a window about the
 /// root twice the slack it gives (Taylor about the root; the window is
-/// used only when that slack fits inside it), else on the whole piece,
-/// which holds the true root: a piece can pass the monotone test with a
-/// least slope barely above zero. At the carrier's top speed that is an
+/// used only when the root's own slope clears its bound and that slack
+/// fits inside it), else on the whole piece, which holds the true root:
+/// a piece can pass the monotone test with a least slope barely above
+/// zero. At the carrier's top speed that is an
 /// arc length,
 /// and it must be definitely inside the band under `row`, or the span
 /// and trim decisions the caller makes on the root are made on the wrong
@@ -312,7 +314,7 @@ pub struct RootSlack<'a, T> {
     /// The row the slack is decided under.
     pub row: &'static str,
     /// The surface's residual, with a running bound on its rounding.
-    pub residual: &'a dyn Fn(T) -> geom_core::Rounded<T>,
+    pub residual: &'a dyn Fn(T) -> Rounded<T>,
     /// The ceiling on `|F| / |residual|` near the surface.
     pub f_per_metre_hi: T,
 }
@@ -593,6 +595,11 @@ pub(crate) const SPLITS: [f64; 9] = [
 /// to reach the scalar's resolution from a sixteenth of a turn.
 const BISECTIONS: u32 = 64;
 
+/// The row a metered root's own slope is read under
+/// ([`Rounded::divisor`]): whether `F′` at the root clears its bound,
+/// so that the slack's window can be sized by it ([`RootSlack`]).
+const ROOT_SLOPE_ROOM: &str = "root_slack_slope_room";
+
 /// **The bracket about `g`'s one sign change on `(l, r)`**, halved
 /// [`BISECTIONS`] times: to two adjacent scalars from a sixteenth of a
 /// turn.
@@ -790,9 +797,9 @@ fn subdivision<T: Decide>(
     // `F` and its first three derivatives at `t`, each with a bound on
     // its distance from the true one: the door's jet where it reads `F`
     // locally, else the harmonics' ([`TrigPoly::taylor_at`]).
-    let taylor = |t: T| -> [(T, T); 4] {
+    let taylor = |t: T| -> [Rounded<T>; 4] {
         match terms {
-            Terms::Local(local) => (local.at)(t).map(|r| (r.value, r.error)),
+            Terms::Local(local) => (local.at)(t),
             Terms::Harmonics(f) => f.taylor_at(t, noise),
         }
     };
@@ -863,22 +870,20 @@ fn subdivision<T: Decide>(
         let half = (r - l) / two;
         let m = l + half;
         // The true `F`'s derivatives at `m`, each widened by its bound.
-        let [(f0, e0), (f1, e1), (f2, e2), (f3, e3)] = taylor(m);
-        let (d1_lo, d1_hi) = (f1.abs() - e1, f1.abs() + e1);
-        let d2_hi = f2.abs() + e2;
-        let d3_hi = f3.abs() + e3;
+        let [f0, f1, f2, f3] = taylor(m);
+        let (d1_hi, d2_hi, d3_hi) = (f1.magnitude(), f2.magnitude(), f3.magnitude());
         let fall = d1_hi * half
             + d2_hi * half.powi(2) / two
             + d3_hi * half.powi(3) / six
             + fourth_hi * half.powi(4) / twenty_four;
-        let clear = (f0.abs() - fall - e0) / f_per_metre_hi;
+        let clear = (f0.room() - fall) / f_per_metre_hi;
         let clear = residual_reach.map_or(clear, |reach| clear.min(reach));
         if definitely_as(rows.clear(), clear) {
             return Step::Settled;
         }
         let most_bend = d2_hi + d3_hi * half + fourth_hi * half.powi(2) / two;
         let least_slope =
-            d1_lo - d2_hi * half - d3_hi * half.powi(2) / two - fourth_hi * half.powi(3) / six;
+            f1.room() - d2_hi * half - d3_hi * half.powi(2) / two - fourth_hi * half.powi(3) / six;
         if definitely_as(rows.monotone(), speed_hi * least_slope / most_bend) {
             if sl == sr {
                 return Step::Settled;
@@ -924,19 +929,23 @@ fn subdivision<T: Decide>(
                 // `|F|` at the root, true to within `reach`: the true root
                 // lies within `reach / L` of it wherever `|F′| ≥ L` holds
                 // that far. `L` is read on a window about the root twice
-                // that width at the root's own slope — valid when the
-                // slack it gives fits inside it — and otherwise on the
-                // whole piece, which holds the true root.
+                // that width at the root's own slope — valid when that
+                // slope clears its bound and the slack it gives fits
+                // inside the window — and otherwise on the whole piece,
+                // which holds the true root.
                 let reach = meter.f_per_metre_hi * (meter.residual)(root).magnitude();
-                let [_, (g1, e1), (g2, e2), (g3, e3)] = taylor(root);
-                let near = g1.abs() - e1;
-                let w = (two * reach / near).min(half).max(T::zero());
-                let window = near
-                    - (g2.abs() + e2) * w
-                    - (g3.abs() + e3) * w.powi(2) / two
-                    - fourth_hi * w.powi(3) / six;
-                let lever =
-                    (reach - window * w).select_le_zero(window.max(least_slope), least_slope);
+                let [_, g1, g2, g3] = taylor(root);
+                let lever = g1.divisor(ROOT_SLOPE_ROOM).map_or(least_slope, |near| {
+                    let w = Rounded::exact(two * reach)
+                        .quotient(near)
+                        .magnitude()
+                        .min(half);
+                    let window = g1.room()
+                        - g2.magnitude() * w
+                        - g3.magnitude() * w.powi(2) / two
+                        - fourth_hi * w.powi(3) / six;
+                    (reach - window * w).select_le_zero(window.max(least_slope), least_slope)
+                });
                 let arc = speed_hi * reach / lever;
                 match decide(meter.row, Margin::of(arc), band) {
                     Ok(Sign::Zero | Sign::Negative) => {}
@@ -957,8 +966,8 @@ fn subdivision<T: Decide>(
                 T::zero() - T::one()
             };
             let exactly = |x: T| geom_core::k_stats::prove(touch.convex(), Margin::of(x)).ok();
-            let curve = toward * f2 - e2 - d3_hi * half - fourth_hi * half.powi(2) / two;
-            let slope = |t: T| toward * taylor(t)[1].0;
+            let curve = toward * f2.toward_zero() - d3_hi * half - fourth_hi * half.powi(2) / two;
+            let slope = |t: T| toward * taylor(t)[1].value;
             if exactly(curve) == Some(Sign::Positive)
                 && exactly(slope(l)) == Some(Sign::Negative)
                 && exactly(slope(r)) == Some(Sign::Positive)
@@ -973,9 +982,10 @@ fn subdivision<T: Decide>(
                     // least near `θ*`: where `G ≤ 0`, `|F|` is at most
                     // the fall, and the residual at most that over the
                     // floor.
-                    let [(g0, e0), (g1, e1), _, _] = taylor(at);
-                    let slope_hi = g1.abs() + e1;
-                    let fall = (e0 - toward * g0).max(T::zero()) + slope_hi.powi(2) / (two * curve);
+                    let [g0, g1, _, _] = taylor(at);
+                    let slope_hi = g1.magnitude();
+                    let fall = (g0.error - toward * g0.value).max(T::zero())
+                        + slope_hi.powi(2) / (two * curve);
                     match decide(touch.stretch(), Margin::of(fall / f_per_metre), band) {
                         Ok(Sign::Zero) => {
                             touches.push(Touch {
@@ -1245,6 +1255,78 @@ mod subdivision_guard_rows {
             }
             other => panic!("{other:?} for a residual crossing twice, once at a"),
         }
+    }
+
+    /// **A root whose own slope has no room is metered on its piece.**
+    /// `F = sin(θ − 0.3)` read locally, its jet exact but for `F′` within
+    /// `10⁻⁶` of a root, where the bound is `2` against a slope of `1`:
+    /// the root's reading does not hold `F′` off zero, though each piece's
+    /// midpoint reads it monotone. The slack is then the residual's bound
+    /// over the piece's least slope (about `0.9`): `10⁻¹²` is inside the
+    /// band and the roots are certified; `10⁻⁷`, ten bands, refuses the
+    /// meter. Read on the root's own negative room, the second's arc is
+    /// negative and it is certified.
+    #[test]
+    fn a_root_slope_inside_its_bound_is_metered_on_the_piece() {
+        let eps = 1e-9;
+        let a = 0.3;
+        let jet = |t: f64| {
+            let (s, c) = (t - a).sin_cos();
+            let wide = if s.abs() < 1e-6 { 2.0 } else { 0.0 };
+            [
+                Rounded::exact(s),
+                Rounded {
+                    value: c,
+                    error: wide,
+                },
+                Rounded::exact(-s),
+                Rounded::exact(-c),
+            ]
+        };
+        let metered = |bound: f64| {
+            let frame = SubdivisionFrame {
+                t0: -0.5,
+                t1: 0.5,
+                speed_hi: 1.0,
+                noise: 0.0,
+                f_per_metre: 1.0,
+                f_per_metre_hi: 1.0,
+                residual_reach: None,
+            };
+            let residual = |t: f64| Rounded {
+                value: (t - a).sin(),
+                error: bound,
+            };
+            certified_subdivision(
+                Terms::Local(Local {
+                    at: &jet,
+                    fourth: 1.0,
+                    degree: 1,
+                }),
+                &|t: f64| (t - a).sin(),
+                &frame,
+                &ROWS,
+                Some(&RootSlack {
+                    row: "half_angle_guard_root_slack",
+                    residual: &residual,
+                    f_per_metre_hi: 1.0,
+                }),
+                Band::new(eps, 10.0 * eps).unwrap(),
+            )
+        };
+        match metered(1e-12) {
+            Ok(Roots::Certified(found)) => assert_eq!(found.count(), 2, "{:?}", found.roots()),
+            other => panic!("{other:?} for a slack inside the band on the piece's slope"),
+        }
+        assert!(
+            matches!(
+                metered(1e-7),
+                Err(RootRefusal::Unsettled(Unsettled::Meter {
+                    row: "half_angle_guard_root_slack"
+                }))
+            ),
+            "a slack of ten bands on the piece's slope is certified"
+        );
     }
 
     /// **An odd count is not certified.** The harmonics read `sin θ`; the
