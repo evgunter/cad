@@ -74,3 +74,5 @@
   - Accepted: adjacent pairs only; exact relations as constraints; the `Snapped` ledger kind.
 
 - 2026-11-19 00:10 — PR 7132 merged (the tracker sync and the snap unit filed). Dispatched the remaining two P1s to one cloud Opus session (session_01BJC3B25yBjsWoDDirqxoaK), in order: `main-red-the-sense-fold-census-flags-knot-split-a` (E, branch importgate/knot-split-fold), then `step-import-cuts-faces-and-splits-edges-three-ways` (M, importgate/split-share). It is told to stay out of the snap lane's files (build.rs, interpret.rs, one_record.rs, the ledger).
+
+- 2026-11-19 00:20 — Snap: added a second tangent construction. Three of nist_ftc_09's fillet cylinders sit between parallel facing planes (slot and rib ends), which no axis translation solves. The cylinder takes half the planes' spacing as its radius, its axis moves to the mid-plane along the normal, and both planes stay; the same three conditions apply. Same-facing parallel planes, or a cylinder not between them, refuse unsolvable.
