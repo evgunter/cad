@@ -3,7 +3,7 @@
 //! that failed deliberately there now assert the fix.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use geom_core::Tol;
-use step_import::{ImportOptions, StepImport, import_step};
+use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 fn fixture(name: &str) -> String {
     std::fs::read_to_string(format!(
@@ -372,9 +372,10 @@ fn a1_control_cylinder_sense_flip() {
 }
 
 /// A5, **resolved**: an edge whose carrier leaves the coincident plane
-/// no longer adopts through the conventional rung. The rung now gates
-/// on the CURVE as well as the surface pair, so `import_step` refuses
-/// typed instead of returning a body only tier 3 would catch.
+/// does not adopt. Its two planes are parallel, so at the file's band
+/// they meet in no line, and the import refuses typed at interpretation,
+/// naming the edge, instead of returning a body only tier 3 would
+/// catch.
 #[test]
 fn a5_off_locus_arc_between_coincident_planes() {
     let text = fixture("fuse_boxes").replace(
@@ -389,8 +390,8 @@ fn a5_off_locus_arc_between_coincident_planes() {
         .expect_err("an off-locus carrier must not adopt as a conventional curve");
     let s = err.render();
     assert!(
-        s.contains("edge #206") && s.contains("no intensional description certifies"),
-        "expected the typed adoption refusal naming the edge: {s}"
+        matches!(err, StepImportError::Interpretation { id: 206, .. }),
+        "expected the typed interpretation refusal naming the edge: {s}"
     );
     println!("a5a refused: {}", &s[..s.len().min(200)]);
 }

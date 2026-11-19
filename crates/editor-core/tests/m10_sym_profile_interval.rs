@@ -555,12 +555,31 @@ const PLATE_MAX_TERMS: usize = 38;
 /// identity's calls and forms, and the pole chord read as `|a + b|`
 /// rather than `√(2(1 + c))`, which moved those three digests with no
 /// count moving.
+///
+/// **Then moved by the session box's move from the readers to the
+/// placing doors** (PR 7088). The plate's measure between the two placed
+/// holes' walls reads the second through its seat (`topo::Seat`): the
+/// hole is not moved whole, and no session box is asked of its image. Each
+/// of the two placements asks the box of where its hole stands
+/// (`topo::session_box_at`, the image's reach read off the hole's own
+/// data sent through its motion). So the assertions 1046 → 1047 on both
+/// walks and `Door/Decision` 549 → 550, one ask per placement where the
+/// measure asked one, and the walks build the forms those two asks read
+/// (each mapped vertex and edge reach): `Plain/Assertion` 12902 → 14592,
+/// `Early/Assertion` 13367 → 15162, `Door/Decision` 13466 → 15356, and
+/// `Plain/Decision` 39644 → 39703, its 979 calls unmoved. Measured by
+/// dropping the placements' ask, which gives the ledger with no session
+/// box asked anywhere on the plate (`Plain/Decision` 39847,
+/// `Plain/Assertion` 1045 calls 10872 forms, `Early/Assertion` 1045 calls
+/// 11571 forms, `Door/Decision` 548 calls 11668 forms).
+///
+/// Besides the session box's asks, every walk makes the calls it made.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 39644 frozen 54 digest 6864de9225c5f915043de2631828ca38\n\
-     Plain/Assertion calls 1046 forms 12902 frozen 0 digest f3f2650488c004b6132fe4e28185d1c3\n\
+     Plain/Decision calls 979 forms 39703 frozen 54 digest 7efda4b66066a94e596eb7fa2f430a65\n\
+     Plain/Assertion calls 1047 forms 14592 frozen 0 digest e6c6e5c3cd56ef78f91f2c7626f73670\n\
      Early/Decision calls 308 forms 28232 frozen 0 digest 10ed8def872f6c15f2ccd18ea920e1f7\n\
-     Early/Assertion calls 1046 forms 13367 frozen 0 digest 2bbad2f47a2d5fe99f4737ebee317fe9\n\
-     Door/Decision calls 549 forms 13466 frozen 0 digest 065254e8781fc679bd94b8456903978f";
+     Early/Assertion calls 1047 forms 15162 frozen 0 digest c7fd707ed0a699ee0a5d3f1d55c1fa69\n\
+     Door/Decision calls 550 forms 15356 frozen 0 digest 032cdcf5efa6396ea7a39bf7b7a8f1ab";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

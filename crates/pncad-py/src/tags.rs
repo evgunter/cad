@@ -2196,7 +2196,6 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",
         StepImportError::Adoption { .. } => "adoption",
-        StepImportError::RimOffWallBoundary { .. } => "rim_off_wall_boundary",
         StepImportError::WallColumnStructure { .. } => "wall_column_structure",
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
@@ -2208,6 +2207,8 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::C0KnotUnsplit { .. } => "c0_knot_unsplit",
+        StepImportError::NotYetSupported { .. } => "not_yet_supported",
+        StepImportError::BuildEscalated { .. } => "build_escalated",
         StepImportError::TierInvalid { .. } => "tier_invalid",
     }
 }
@@ -2272,6 +2273,8 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::PlacementReMinted { .. } => "placement_re_minted",
         NormalizationKind::OneRecord { .. } => "one_record",
         NormalizationKind::CurvePromoted { .. } => "curve_promoted",
+        NormalizationKind::VertexBuilt { .. } => "vertex_built",
+        NormalizationKind::CarrierBuilt { .. } => "carrier_built",
     }
 }
 

@@ -2982,6 +2982,14 @@ fn import_report_row_tags_are_stable() {
             "one_record",
         ),
         (
+            NormalizationKind::VertexBuilt { moved_by: 2.4e-16 },
+            "vertex_built",
+        ),
+        (
+            NormalizationKind::CarrierBuilt { moved_by: 1.2e-16 },
+            "carrier_built",
+        ),
+        (
             NormalizationKind::CurvePromoted {
                 kind: pncad::step_import::PromotedCurveKind::Circle,
                 residual: 1e-17,
@@ -5344,6 +5352,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "normalization_kind_tag",
         values: &[
+            "carrier_built",
             "chart_singularity_vertex",
             "curve_promoted",
             "edge_free_sphere",
@@ -5354,6 +5363,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_re_minted",
             "seamless_periodic_band",
             "surface_promotion",
+            "vertex_built",
         ],
         delegates: &[],
     },
@@ -6006,6 +6016,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "adoption",
             "assembly",
+            "build_escalated",
             "c0_knot_unsplit",
             "dangling_reference",
             "instance",
@@ -6015,11 +6026,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "malformed_real",
             "malformed_record",
             "missing_uncertainty",
+            "not_yet_supported",
             "nothing_to_import",
             "pcurves",
             "placement",
             "recognition_ambiguous",
-            "rim_off_wall_boundary",
             "singularity_meet_unread",
             "singularity_side_undecided",
             "singularity_undecided",

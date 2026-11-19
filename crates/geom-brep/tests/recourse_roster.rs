@@ -384,6 +384,8 @@ const INDIRECT: &[(&str, &str)] = &[
     ("half_angle.rs: subdivision: rows.side()", ROW_FIELD),
     ("half_angle.rs: subdivision: rows.width()", CARRIER_CALL),
     ("half_angle.rs: subdivision: touch.stretch()", ROW_FIELD),
+    ("intersect.rs: coaxial_cone_sphere: name", LOOP_ROWS),
+    ("intersect.rs: coaxial_cone_torus: name", LOOP_ROWS),
     ("intersect.rs: cone_cylinder_section: name", FORWARDS),
     ("intersect.rs: cylinder_cylinder_section: c1", NOT_A_NAME),
     ("intersect.rs: plane_cone_section: name", FORWARDS),
@@ -410,6 +412,7 @@ const INDIRECT: &[(&str, &str)] = &[
         CLOSED_TYPE,
     ),
     ("pair_section.rs: decide_stance: name", FORWARDS),
+    ("pair_section.rs: coaxial_tangent_circle: a", NOT_A_NAME),
     ("pair_section.rs: pair_section: a", NOT_A_NAME),
     ("pair_section/cylinders.rs: decide: lines", NOT_A_NAME),
     (

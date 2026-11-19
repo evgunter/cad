@@ -292,7 +292,7 @@ where
     let said = saying(row)?;
     let band = Band::linear(tol).ok()?;
     let kinds = if said.poses {
-        let read = said.read(doc, evaluation, tol)?;
+        let read = said.read(doc, evaluation)?;
         let kinds = [
             pose_kind::<T>(&read.cells[0])?,
             pose_kind::<T>(&read.cells[1])?,
@@ -368,10 +368,11 @@ impl RowCell {
 }
 
 /// **A row's entity cells, read as a measure reads its references**: in
-/// one computing frame (`Framed::computing_among`), the other read into
-/// it through `relative`.
+/// one computing frame (`Framed::computing_among`), each off its own
+/// body, the other's data taken through their relative motion
+/// (`crate::eval::Seat`).
 struct ReadCells<'e, T: topo::AtRestPolicy + Decide> {
-    cells: Vec<(crate::eval::Held<T>, EntityRef)>,
+    cells: Vec<(crate::eval::Seat<'e, T>, EntityRef)>,
     computing: &'e crate::eval::Framed<T>,
 }
 
@@ -383,7 +384,6 @@ impl Saying {
         &self,
         doc: &Doc<P>,
         evaluation: &'e Evaluation<T>,
-        tol: Tol,
     ) -> Option<ReadCells<'e, T>> {
         let mut framed = Vec::with_capacity(2);
         for (i, cell) in self.cells.iter().enumerate() {
@@ -407,7 +407,7 @@ impl Saying {
         let computing = crate::eval::Framed::computing_among(framed.iter().map(|(f, _)| *f))?;
         let cells = framed
             .iter()
-            .map(|(f, ent)| Some((computing.read_in(f, tol).ok()?, *ent)))
+            .map(|(f, ent)| Some((computing.seat(f).ok()?, *ent)))
             .collect::<Option<Vec<_>>>()?;
         Some(ReadCells { cells, computing })
     }
@@ -447,8 +447,9 @@ impl Saying {
 /// it: an axis off a cylinder, a cone or a torus, a centre off a sphere;
 /// `None` for any other cell.
 fn pose_kind<T: Decide + topo::AtRestPolicy>(
-    (body, ent): &(crate::eval::Held<T>, EntityRef),
+    (seat, ent): &(crate::eval::Seat<'_, T>, EntityRef),
 ) -> Option<crate::VarKind> {
+    let body = seat.body();
     use geom::SurfaceKind as S;
     let EntityKey::Face(face) = ent.key else {
         return None;
@@ -469,8 +470,8 @@ fn axes_parallel<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     band: Band,
 ) -> Option<bool> {
     let axis = |i: usize| {
-        let (body, ent) = &read.cells[i];
-        crate::eval::read_off_cell(body, *ent, crate::VarKind::Axis, band).ok()
+        let (seat, ent) = &read.cells[i];
+        crate::eval::read_off_cell(*seat, *ent, crate::VarKind::Axis, band).ok()
     };
     let (a, b) = (axis(0)?, axis(1)?);
     crate::eval::measure::axes_parallel(&a, &b, band)
@@ -500,7 +501,7 @@ where
     let quietable = || -> Option<bool> {
         let band = Band::linear(tol).ok()?;
         let said = saying(row)?;
-        let read = said.read(doc, evaluation, tol)?;
+        let read = said.read(doc, evaluation)?;
         let zero = |a: &crate::eval::measure::Carrier<'_, T>,
                     b: &crate::eval::measure::Carrier<'_, T>| {
             said.verbs.iter().any(|&verb| {
@@ -517,11 +518,11 @@ where
         if let Some(tool) = tool {
             // A split's ON row: its tool read as its plane, in its
             // space's coordinates, against the vertex.
-            let [(body, ent)] = read.cells.as_slice() else {
+            let [(seat, ent)] = read.cells.as_slice() else {
                 return None;
             };
             let crate::eval::measure::Carrier::Point { at, .. } =
-                crate::eval::measure::carrier_of(body, *ent, band)
+                crate::eval::measure::carrier_of(*seat, *ent, band)
             else {
                 return None;
             };
@@ -548,12 +549,12 @@ where
             return Some(zero(&plane, &vertex));
         }
         let carrier = |i: usize| {
-            let (body, ent) = &read.cells[i];
+            let (seat, ent) = &read.cells[i];
             if !said.poses {
-                return Some(crate::eval::measure::carrier_of(body, *ent, band));
+                return Some(crate::eval::measure::carrier_of(*seat, *ent, band));
             }
             let kind = pose_kind::<T>(&read.cells[i])?;
-            crate::eval::read_off_cell(body, *ent, kind, band).ok()
+            crate::eval::read_off_cell(*seat, *ent, kind, band).ok()
         };
         let (a, b) = (carrier(0)?, carrier(1)?);
         let axes = said.poses
@@ -1014,7 +1015,7 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
 fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band) -> bool {
     let carrier = |key| {
         crate::eval::measure::carrier_of(
-            body,
+            crate::eval::Seat::own(body),
             EntityRef {
                 body: 0,
                 key: EntityKey::Face(key),
@@ -1643,7 +1644,7 @@ fn could_quiet(
     };
     let carrier = |key| {
         carrier_of(
-            body,
+            crate::eval::Seat::own(body),
             EntityRef {
                 body: 0,
                 key: EntityKey::Face(key),
@@ -1856,7 +1857,7 @@ fn beyond(
         .map(|f| f.sense)
         .ok_or("an unreadable face")?;
     let carrier = carrier_of(
-        aggregate,
+        crate::eval::Seat::own(aggregate),
         EntityRef {
             body: 0,
             key: EntityKey::Face(face),
