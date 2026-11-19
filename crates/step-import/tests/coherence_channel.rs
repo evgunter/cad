@@ -515,9 +515,7 @@ fn a_refusing_file_refuses_identically_with_the_examination_asked_for() {
     assert!(
         matches!(
             off,
-            StepImportError::Adoption { .. }
-                | StepImportError::NotYetSupported { .. }
-                | StepImportError::Topology { .. }
+            StepImportError::Adoption { .. } | StepImportError::NotYetSupported { .. }
         ),
         "{rel} refuses at the build or at adoption: {off:?}"
     );

@@ -49,10 +49,14 @@ pub(crate) const WILD_IMPORTS: [&str; 8] = [
     "occ-oss/cq_red_cube_blue_cylinder.step",
 ];
 
+/// A refusal class pinned not here but by ε, in `tier_gate`'s cells
+/// ([`crate::tier_gate::refusal_at_run_eps`]).
+const TAIL_TURBINE_BY_EPS: &str = "tier_gate's cell at this ε";
+
 /// The refusal corpus: files whose typed refusal is itself the
 /// contract being pinned. Each entry is the fixture and the substring
-/// its message must carry — the class, not the prose; where it refuses
-/// by ε on two classes, both, separated by `|`.
+/// its message must carry — the class, not the prose — or, for a file
+/// that refuses by ε, [`TAIL_TURBINE_BY_EPS`].
 const WILD_REFUSALS: [(&str, &str); 5] = [
     // **Two refusals retired under this row, and it is still a
     // refusal.** The M7-4 Leg D instancing gate went in M8 (all seven
@@ -84,14 +88,8 @@ const WILD_REFUSALS: [(&str, &str); 5] = [
     // two instances share vertex positions the gate finds unrecorded.
     ("stepcode/dm1-id-214.stp", "is an unrecorded contact"),
     // Its two records of one cylinder are one; its cylinder × sphere
-    // section edges then refuse, `#217` across the marched loop's start
-    // at the default and fine bands and `#170` uncertified at 1e-6
-    // (`tier_gate`'s cells).
-    (
-        "stepcode/TAIL_TURBINE.stp",
-        "a built spline carrier whose end reads at or before its start|no intensional \
-         description certifies",
-    ),
+    // section edges then refuse by ε, each pinned in its `tier_gate` cell.
+    ("stepcode/TAIL_TURBINE.stp", TAIL_TURBINE_BY_EPS),
     // Its five fillets read tangent at the file's band (ε_in ≈ 34 µm) and
     // crossing at the run's; the snap catalogue makes each tangency
     // exact, and the edges the writer printed as crossing lines,
@@ -596,9 +594,15 @@ fn wild_refusals_are_typed_and_name_their_class() {
             .err()
             .unwrap_or_else(|| panic!("{name}: this fixture must refuse"));
         let message = err.render();
+        let class = if class == TAIL_TURBINE_BY_EPS {
+            crate::tier_gate::refusal_at_run_eps(&format!("tests/fixtures/wild/{name}"))
+                .unwrap_or_else(|| panic!("{name}: pinned by ε to a refusal at this ε"))
+        } else {
+            class
+        };
         assert!(
-            class.split('|').any(|c| message.contains(c)),
-            "{name}: refusal must name one of {class:?}, got: {message}"
+            message.contains(class),
+            "{name}: refusal must name {class:?}, got: {message}"
         );
         // Typed and entity-named: every variant here points at
         // something in the file a reader can go and look at.

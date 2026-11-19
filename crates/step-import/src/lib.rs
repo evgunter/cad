@@ -611,7 +611,7 @@ impl SnapRelation {
         match self {
             Self::Coaxial => "coaxial",
             Self::Tangent => "tangent",
-            Self::AxisNormal => "axis-normal",
+            Self::AxisNormal => "axis_normal",
         }
     }
 }

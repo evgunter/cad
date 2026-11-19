@@ -19,16 +19,21 @@ edges its cylinder `#152` and its sphere `#506` (off the cylinder's axis)
 share, `#170` and `#217`, whose printed carriers are quintic splines:
 
 - at ε 1e-9 and 1e-12, `#217`: "a built spline carrier whose end reads
-  at or before its start" (`crates/step-import/src/build.rs`, `params`).
-  The marched section's loop is built whole (`served_pair`,
-  `whole_loop`), and the edge's built ends are read on it by
-  `spline_end_param`; an edge that runs across the loop's start reads
-  its end before its start. This is a guess from the shape of the
-  refusal, not measured.
+  at or before its start (an edge across a marched loop's start)",
+  not-yet-supported naming this row (`crates/step-import/src/build.rs`,
+  `params`, `MARCHED_LANE`). The marched section's loop is built whole
+  (`served_pair`, `whole_loop`), a closed spline on `[0, 1]`, and the
+  edge's built ends are read on it by `spline_end_param`: measured,
+  `#217`'s ends both read at parameter 1, the loop's start, where its
+  sibling `#170` runs from 0.027 to 0.766, so `#217` is the rest of the
+  loop, across its start, which has no increasing interval on the
+  clamped whole loop. That its ends read at all is not measured further.
 - at ε 1e-6, `#170`: "no intensional description certifies …
   geometry attachment gate".
 
-`tests/tier_gate.rs`'s `TAIL_TURBINE` row pins the 1e-9 refusal.
+`tests/tier_gate.rs` pins each in its own cell (`TAIL_TURBINE_SECTION_ENDS`
+at 1e-9 and 1e-12, `TAIL_TURBINE_SECTION_UNCERTIFIED` at 1e-6), and
+`tests/wild.rs` reads those cells.
 
 ## What would close it
 

@@ -362,7 +362,7 @@ pub(crate) const TAIL_TURBINE: &str = "tests/fixtures/wild/stepcode/TAIL_TURBINE
 /// of one cylinder are one, and the cylinder × sphere section edge `#217`
 /// reads its built end before its start
 /// (`work/importgate/a-marched-section-edge-across-its-loops-start-refuses-at-import.md`).
-const TAIL_TURBINE_SECTION_ENDS: &str = "entity #217: a built spline carrier whose end reads at or \
+const TAIL_TURBINE_SECTION_ENDS: &str = "edge #217: a built spline carrier whose end reads at or \
      before its start";
 /// TAIL_TURBINE's refusal at ambient 1e-6: the other edge of that
 /// section, `#170`, does not certify.
@@ -1045,6 +1045,17 @@ fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
 /// `EpsSensitive` one off the pinned ambient matrix, where its disposition
 /// is not known. The one statement other suites read a corpus file's
 /// disposition from.
+/// The refusal fragment `rel` is pinned to at the run's ε, at its own
+/// ε_in: its row's, or its cell's for an ε-sensitive file. `None` where it
+/// is pinned to no refusal there.
+pub(crate) fn refusal_at_run_eps(rel: &str) -> Option<&'static str> {
+    let &(_, row) = CORPUS.iter().find(|(p, _)| *p == rel)?;
+    match expected(rel, row, "file")? {
+        Refused(fragment) => Some(fragment),
+        _ => None,
+    }
+}
+
 pub(crate) fn refuses_at_run_eps(rel: &str) -> Option<bool> {
     let &(_, row) = CORPUS.iter().find(|(p, _)| *p == rel)?;
     expected(rel, row, "file").map(|d| matches!(d, Refused(_)))

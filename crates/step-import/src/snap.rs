@@ -628,19 +628,18 @@ fn tangent(
                 Read::Zero => {
                     let at = n1.dot(q - Point3::origin());
                     let c2 = if n1.dot(n2) < 0.0 { -c2 } else { c2 };
-                    between(at, (c1, c2), file, nodes[n].record.id).and_then(|inside| {
-                        if inside {
-                            Ok((n1 * (geom::mid_param(c1, c2) - at), (c2 - c1).abs() / 2.0))
-                        } else {
-                            Err(unsolved(
-                                file,
-                                planes[1].edge,
-                                "a cylinder tangent to two parallel planes whose axis does not \
-                                 lie between them"
-                                    .to_owned(),
-                            ))
-                        }
-                    })?
+                    let Some((shift, radius_to)) =
+                        between_planes(at, (c1, c2), file, nodes[n].record.id)?
+                    else {
+                        return Err(unsolved(
+                            file,
+                            planes[1].edge,
+                            "a cylinder tangent to two parallel planes whose axis does not lie \
+                             between them"
+                                .to_owned(),
+                        ));
+                    };
+                    (n1 * shift, radius_to)
                 }
             }
         }
@@ -665,21 +664,25 @@ fn tangent(
     ))
 }
 
-/// Whether the level `at` lies between the levels `c1` and `c2`, each side
-/// read at the file's band ([`STEP_SNAP_SIDE`]); a side the band does not
-/// read is the file's ambiguity, named at `record`.
-fn between(
+/// **The parallel arm**: for an axis at level `at` between two parallel
+/// planes at levels `c1` and `c2` along one normal, the shift that puts it
+/// on the mid-plane and the radius that is half their spacing; `None`
+/// where the axis does not lie between them. Each side is read at the
+/// file's band ([`STEP_SNAP_SIDE`]); a side the band does not read is the
+/// file's ambiguity, named at `record`.
+fn between_planes(
     at: f64,
     (c1, c2): (f64, f64),
     file: FileBand,
     record: u64,
-) -> Result<bool, StepImportError> {
+) -> Result<Option<(f64, f64)>, StepImportError> {
     let side = |c: f64| {
         geom_core::k_stats::decide(STEP_SNAP_SIDE, geom_core::Margin::of(at - c), file.band())
             .map_err(|_| file.refused(record, file.ambiguous(STEP_SNAP_SIDE, at - c)))
     };
     let (s1, s2) = (side(c1)?, side(c2)?);
-    Ok(!s1.is_zero() && !s2.is_zero() && s1 != s2)
+    Ok((!s1.is_zero() && !s2.is_zero() && s1 != s2)
+        .then(|| (geom::mid_param(c1, c2) - at, (c2 - c1).abs() / 2.0)))
 }
 
 /// **The coaxial construction**: `moved`, whose faces occupy `faces`,
@@ -844,6 +847,104 @@ fn anchored(file: FileBand, edge: u64, what: String) -> StepImportError {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **The parallel arm reads "between" at the file's band**: an axis
+    /// between two parallel planes takes the mid-plane and half their
+    /// spacing; one beside both is no arm (a cylinder tangent to two
+    /// parallel planes with its axis outside them has the two at one
+    /// level, which no corpus or native body states, so this row reads the
+    /// arm directly); a side inside the file's band is the file's
+    /// ambiguity, which the run's finer band would read apart.
+    #[test]
+    fn the_parallel_arm_reads_between_at_the_files_band() {
+        let file = FileBand::test(1e-5);
+        assert_eq!(
+            between_planes(0.75, (0.0, 2.0), file, 7).unwrap(),
+            Some((0.25, 1.0)),
+            "between: the mid-plane and half the spacing"
+        );
+        assert_eq!(
+            between_planes(3.0, (0.0, 2.0), file, 7).unwrap(),
+            None,
+            "beside both: no arm"
+        );
+        match between_planes(5e-5, (0.0, 1e-4), file, 7) {
+            Err(StepImportError::Interpretation {
+                id,
+                refusal: crate::interpret::Refusal::Ambiguous { reading, .. },
+                ..
+            }) => assert_eq!((id, reading), (7, STEP_SNAP_SIDE)),
+            other => panic!("a side in the file's band is its ambiguity: {other:?}"),
+        }
+    }
+
+    /// One cylinder face of radius 1 about the `y` axis, `y` from 0 to 1,
+    /// bounded by its two rims.
+    fn wall() -> (SolidSpec, Surface<f64>) {
+        let y = Vec3::new(0.0, 1.0, 0.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let rim = |at: f64| crate::entities::EdgeSpec {
+            start: 1,
+            end: 1,
+            carrier: geom::Curve3::circle(Point3::new(0.0, at, 0.0), y, 1.0, x),
+            t0: 0.0,
+            t1: std::f64::consts::TAU,
+            reversed: false,
+        };
+        let surface = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: y,
+            radius: 1.0,
+            u_ref: x,
+        };
+        let solid = SolidSpec {
+            id: 1,
+            faces: vec![crate::entities::FaceSpec {
+                id: 2,
+                surface: surface.clone(),
+                sense: true,
+                loops: [10, 11]
+                    .into_iter()
+                    .map(|edge| crate::entities::LoopSpec {
+                        outer: edge == 10,
+                        uses: vec![crate::entities::EdgeUse {
+                            edge,
+                            forward: true,
+                        }],
+                    })
+                    .collect(),
+                band: false,
+            }],
+            edges: [(10, rim(0.0)), (11, rim(1.0))].into_iter().collect(),
+            vertices: [(1, Point3::new(1.0, 0.0, 0.0))].into_iter().collect(),
+            band_seams: std::collections::BTreeSet::new(),
+        };
+        (solid, surface)
+    }
+
+    /// **A coaxial move reports its turn over the faces' reach.** The
+    /// wall turned 1e-5 onto an axis through the origin moves its far rim
+    /// by the turn times its reach from the pivot (√1.25 from the faces'
+    /// middle on the axis) and its pivot by the turn times 0.5: the move
+    /// reported holds both.
+    #[test]
+    fn a_coaxial_turn_is_reported_over_the_faces_reach() {
+        let (solid, moved) = wall();
+        let reach = Reach::of(&solid, [0]).expect("the wall has a region");
+        let theta = 1e-5_f64;
+        let kept = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::new(theta.sin(), theta.cos(), 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(theta.cos(), -theta.sin(), 0.0),
+        };
+        let (_, moved_by) = coaxial(&kept, &moved, &reach);
+        let least = theta * (0.5 + 1.25_f64.sqrt());
+        assert!(
+            moved_by >= least * (1.0 - 1e-6) && moved_by <= 1.5 * least,
+            "the turn over the reach and the pivot's carry, {least:e}: {moved_by:e}"
+        );
+    }
 
     /// **`nist_ftc_09`'s five tangent snaps, and the build's reading of
     /// its six tangent edges after them.** The file (ε_in ≈ 33.8 µm)

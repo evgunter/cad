@@ -338,3 +338,85 @@ fn face_reach(solid: &SolidSpec, fi: usize, plane: &Surface<f64>) -> Option<f64>
     }
     any.then_some(reach)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// Two faces on one cylinder of radius 1 about `y` (`y` from 0 to 1
+    /// and from 1 to 2), each its own record, with senses `senses`.
+    fn two_walls(senses: [bool; 2]) -> (SolidSpec, [Record; 2]) {
+        let y = Vec3::new(0.0, 1.0, 0.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let rim = |at: f64| crate::entities::EdgeSpec {
+            start: 1,
+            end: 1,
+            carrier: geom::Curve3::circle(Point3::new(0.0, at, 0.0), y, 1.0, x),
+            t0: 0.0,
+            t1: std::f64::consts::TAU,
+            reversed: false,
+        };
+        let surface = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: y,
+            radius: 1.0,
+            u_ref: x,
+        };
+        let face = |id: u64, sense: bool, edges: [u64; 2]| crate::entities::FaceSpec {
+            id,
+            surface: surface.clone(),
+            sense,
+            loops: edges
+                .into_iter()
+                .map(|edge| crate::entities::LoopSpec {
+                    outer: true,
+                    uses: vec![crate::entities::EdgeUse {
+                        edge,
+                        forward: true,
+                    }],
+                })
+                .collect(),
+            band: false,
+        };
+        let solid = SolidSpec {
+            id: 1,
+            faces: vec![face(2, senses[0], [10, 11]), face(3, senses[1], [11, 12])],
+            edges: [(10, rim(0.0)), (11, rim(1.0)), (12, rim(2.0))]
+                .into_iter()
+                .collect(),
+            vertices: [(1, Point3::new(1.0, 0.0, 0.0))].into_iter().collect(),
+            band_seams: std::collections::BTreeSet::new(),
+        };
+        let records = [
+            Record {
+                position: 1,
+                id: 20,
+            },
+            Record {
+                position: 2,
+                id: 21,
+            },
+        ];
+        (solid, records)
+    }
+
+    /// **Two records of one round surface are asked only of faces facing
+    /// one way.** Two faces on one cylinder, each its own record: facing
+    /// one way they become one record; facing opposite ways (their senses
+    /// differing) they are never asked.
+    #[test]
+    fn round_records_join_only_facing_one_way() {
+        let file = crate::interpret::FileBand::test(1e-6);
+        for (senses, joined) in [([true, true], 1), ([true, false], 0)] {
+            let (mut solid, records) = two_walls(senses);
+            let mut sink = Vec::new();
+            one_record(&mut solid, &records, file, &mut sink).unwrap();
+            let joins = sink
+                .iter()
+                .filter(|n| matches!(n.kind, NormalizationKind::OneRecord { .. }))
+                .count();
+            assert_eq!(joins, joined, "senses {senses:?}");
+        }
+    }
+}

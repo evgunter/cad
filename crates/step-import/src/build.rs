@@ -273,7 +273,7 @@ pub(crate) fn build<'a>(
             (p_start, p_end),
             spec.start == spec.end,
             whole,
-            tol,
+            (tol, file),
         )?;
         let description = match (description, iso) {
             (Description::Iso { wall, .. }, Some(map)) => Description::Iso {
@@ -441,6 +441,11 @@ fn escalated_at(
 fn pair_names(a: &Surface<f64>, b: &Surface<f64>) -> String {
     format!("its {} and its {}", a.kind().name(), b.kind().name())
 }
+
+/// The lane an edge on a marched section loop across the loop's start
+/// waits on.
+const MARCHED_LANE: &str = "an edge's interval read across a marched section loop's start \
+                            (`work/importgate/a-marched-section-edge-across-its-loops-start-refuses-at-import.md`)";
 
 /// The lane a pair with no section construction waits on.
 const SECTION_LANE: &str = "a section construction for this pair \
@@ -2218,7 +2223,7 @@ fn params(
     (p_start, p_end): (Point3<f64>, Point3<f64>),
     self_loop: bool,
     whole: bool,
-    tol: Tol,
+    (tol, file): (Tol, FileBand),
 ) -> Result<(Curve3<f64>, f64, f64), StepImportError> {
     let Curve3::Nurbs(n) = &carrier else {
         let (t0, t1) = crate::geometry::endpoint_params(id, &carrier, p_start, p_end, self_loop)?;
@@ -2235,10 +2240,14 @@ fn params(
     let at = |p: Point3<f64>, seed: f64| spline_end_param(id, n, p, seed, band);
     let (t0, t1) = (at(p_start, lo)?, at(p_end, hi)?);
     if t1 <= t0 {
-        return Err(StepImportError::Topology {
+        return Err(unbuilt(
+            file,
             id,
-            what: "a built spline carrier whose end reads at or before its start",
-        });
+            "a built spline carrier whose end reads at or before its start (an edge across \
+             a marched loop's start)"
+                .to_owned(),
+            MARCHED_LANE,
+        ));
     }
     if whole {
         return Ok((carrier, t0, t1));

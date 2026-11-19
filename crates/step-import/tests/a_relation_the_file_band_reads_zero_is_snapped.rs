@@ -386,9 +386,9 @@ fn a_fillet_with_a_coaxial_partner_refuses_as_unsolved() {
             let StepImportError::NotYetSupported { what, lane, .. } = &e else {
                 unreachable!()
             };
-            assert!(
-                what.contains("coaxial"),
-                "the coaxial partner is named: {what}"
+            assert_eq!(
+                what,
+                "a cylinder whose tangency moves it while it is coaxial with another surface"
             );
             assert!(
                 lane.contains("a-relation-the-snap-catalogue-does-not-make-exact-refuses"),
@@ -564,4 +564,199 @@ fn a_coins_tilted_cap_is_read_over_its_rim() {
             }
         }
     }
+}
+
+fn revolved(chain: Vec<(Point2<f64>, f64)>) -> String {
+    let profile = Profile::new(SketchPlane::xy(), vec![bulge_loop(chain)])
+        .validate(tol())
+        .expect("the profile validates");
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    write(
+        &revolve(&profile, axis, Revolution::Full, tol())
+            .expect("the profile revolves")
+            .body,
+    )
+}
+
+/// A cylinder under a cone to its apex on a flat base, revolved about
+/// `y`: the cone the earliest record, then the cylinder, then the base.
+fn cone_on_cylinder() -> String {
+    revolved(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(0.0, 2.0), 0.0),
+    ])
+}
+
+/// **Every relation of a class is re-read after its moves, the exact ones
+/// too.** The cone's axis stated 2 µrad off the cylinder's reads coaxial
+/// at the file's band and apart at the run's, and the cylinder, the later
+/// record, turns onto it. Its base, exactly square to it before, is then
+/// 2 µrad off: the class's exact axis-normal relation re-reads not exact,
+/// and the class refuses as unsolved.
+#[test]
+fn a_move_that_breaks_an_exact_relation_refuses() {
+    let text = cone_on_cylinder();
+    assert!(snaps_of(&text).is_empty(), "the native body is exact");
+    let cones = records(&text, "CONICAL_SURFACE");
+    assert!(
+        cones[0] < records(&text, "CYLINDRICAL_SURFACE")[0],
+        "the cone is earlier"
+    );
+    let tilted = cones.iter().fold(text.clone(), |t, &c| {
+        let axis = placement_axis(&t, surface_placement(&t, c));
+        nudge_direction(&t, axis, 0, 2e-6)
+    });
+    match import(&tilted) {
+        Err(StepImportError::NotYetSupported { what, lane, .. }) => {
+            assert!(
+                what.starts_with("the axis_normal relation its class's constructions leave ")
+                    && what.ends_with(" m from exact"),
+                "the exact relation the move broke: {what}"
+            );
+            assert!(lane.contains("a-relation-the-snap-catalogue-does-not-make-exact-refuses"));
+        }
+        other => panic!("refuses as unsolved: {other:?}"),
+    }
+}
+
+/// **A relation whose kept surface another construction moves refuses**,
+/// whichever order would have read them. The capsule's cap stated 3 µm off
+/// the cylinder's axis moves the cylinder, the later record, onto it; its
+/// base tilted 2 µrad would turn onto the cylinder's axis, which that move
+/// changes: the solve anchored at each relation's earlier record cannot
+/// make both exact, and says so, naming its lane.
+#[test]
+fn a_construction_reading_a_moved_surface_refuses() {
+    let text = capped();
+    let mut moved = records(&text, "SPHERICAL_SURFACE")
+        .iter()
+        .fold(text.clone(), |t, &s| {
+            let point = placement_point(&t, surface_placement(&t, s));
+            nudge_point(&t, point, 0, 3e-6)
+        });
+    let [plane] = records(&text, "PLANE")[..] else {
+        panic!("one plane record")
+    };
+    let axis = placement_axis(&moved, surface_placement(&moved, plane));
+    moved = nudge_direction(&moved, axis, 0, 2e-6);
+    match import(&moved) {
+        Err(StepImportError::NotYetSupported { what, lane, .. }) => {
+            assert_eq!(
+                what,
+                "the axis_normal relation whose kept surface another of its class's \
+                 constructions moves"
+            );
+            assert!(lane.contains("a-snap-class-whose-solve-moves-a-surface-twice-refuses"));
+        }
+        other => panic!("refuses, naming the anchored solve's lane: {other:?}"),
+    }
+}
+
+/// **A surface two constructions would move refuses.** A corner sphere of
+/// the filleted die stated 3 µm off its corner reads coaxial with each of
+/// the three fillets it meets and apart from each at the run's band; it is
+/// the later record of all three, and no one construction moves it onto
+/// three axes.
+#[test]
+fn a_surface_two_constructions_would_move_refuses() {
+    let text = filleted_die();
+    let sphere = records(&text, "SPHERICAL_SURFACE")[0];
+    let point = placement_point(&text, surface_placement(&text, sphere));
+    match import(&nudge_point(&text, point, 0, 3e-6)) {
+        Err(StepImportError::NotYetSupported { what, lane, .. }) => {
+            assert_eq!(
+                what,
+                "a surface two of its class's constructions would move"
+            );
+            assert!(lane.contains("a-snap-class-whose-solve-moves-a-surface-twice-refuses"));
+        }
+        other => panic!("refuses, naming the anchored solve's lane: {other:?}"),
+    }
+}
+
+/// A prism whose bottom side turns by `turn` radians into its next side
+/// through a fillet of radius 1 at `(4, 1)`.
+fn turned(turn: f64) -> String {
+    let (s, c) = turn.sin_cos();
+    let b = Point2::new(4.0 + s, 1.0 - c);
+    let end = Point2::new(b.x + 2.0 * c, b.y + 2.0 * s);
+    write(&prism(
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(4.0, 0.0), (turn / 4.0).tan()),
+            (b, 0.0),
+            (end, 0.0),
+            (Point2::new(end.x, end.y + 2.0), 0.0),
+            (Point2::new(0.0, end.y + 2.0), 0.0),
+        ])],
+        1.0,
+    ))
+}
+
+/// **A move the file band reads apart refuses, and nothing moves.** A
+/// fillet in a corner of 8° (its sides turning 172°), its radius stated
+/// 8 µm long: each tangency's gap reads inside the band's zero (10 µm), but
+/// the two offsets meet 8 µm / sin 4° ≈ 115 µm along the bisector, past
+/// the band.
+#[test]
+fn a_move_the_file_band_reads_apart_refuses_as_unsolved() {
+    let text = turned(172f64.to_radians());
+    assert!(snaps_of(&text).is_empty(), "the native fillet is exact");
+    let [cylinder] = records(&text, "CYLINDRICAL_SURFACE")[..] else {
+        panic!("one cylinder record")
+    };
+    match import(&nudge_last(&text, cylinder, 8e-6)) {
+        Err(StepImportError::NotYetSupported { id, what, lane, .. }) => {
+            assert!(
+                what.starts_with("the tangent relation's construction moving its surface ")
+                    && what.ends_with(" m, past the file's band"),
+                "#{id}: {what}"
+            );
+            assert!(lane.contains("a-relation-the-snap-catalogue-does-not-make-exact-refuses"));
+        }
+        other => panic!("refuses as unsolved: {other:?}"),
+    }
+}
+
+/// **The two-plane solve keeps each plane's offset to its own plane.** A
+/// fillet between two sides 60° apart, the bottom side stated 3 µm lower:
+/// only that tangency is off, so the axis moves along the other side, the
+/// bottom's gap over the sine of the 60° between their normals.
+#[test]
+fn an_asymmetric_fillet_moves_its_axis_along_the_side_that_holds() {
+    let text = turned(60f64.to_radians());
+    assert!(snaps_of(&text).is_empty(), "the native fillet is exact");
+    let bottom = records(&text, "PLANE")
+        .into_iter()
+        .find(|&p| {
+            let axis = placement_axis(&text, surface_placement(&text, p));
+            text.contains(&format!("#{axis} = DIRECTION('', (0.0, -1.0, 0.0));"))
+                || text.contains(&format!("#{axis} = DIRECTION('', (-0.0, -1.0, -0.0));"))
+        })
+        .expect("the bottom side y = 0");
+    let point = placement_point(&text, surface_placement(&text, bottom));
+    let imported = import(&nudge_point(&text, point, 1, -3e-6))
+        .unwrap_or_else(|e| panic!("imports: {}", e.render()));
+    let moves = snaps(&imported);
+    assert_eq!(moves.len(), 1, "one move: {moves:?}");
+    let (_, relation, moved_by) = moves[0];
+    assert_eq!(relation, SnapRelation::Tangent);
+    let want = 3e-6 / 60f64.to_radians().sin();
+    assert!(
+        (moved_by - want).abs() < 1e-3 * want,
+        "the axis moves g / sin 60° = {want:e}: {moved_by:e}"
+    );
+    let StepImport::Solid { body, .. } = &imported else {
+        panic!("a solid")
+    };
+    assert_eq!(
+        topo::validate_geometric(body, tol()),
+        Ok(()),
+        "tier-3 valid"
+    );
 }
