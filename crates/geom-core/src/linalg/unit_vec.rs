@@ -50,7 +50,7 @@
 //! `Interval` the direction itself, from `Dual` or `Sym` over an
 //! enclosure each component's bracket, and from `f64` the unit vector
 //! nearest the stored one, `v/|v|`, enclosed component by component with
-//! no decision ([`Real::enclose_unit`](crate::Real::enclose_unit), which
+//! no decision ([`Real::enclose_unit`], which
 //! normalizes the one column directly, not through a frame). No read
 //! targets `Dual` or `Sym`: [`UnitVec3::map_scalar`] across witness
 //! kinds into any target but `Interval` fails a debug assertion, and a
