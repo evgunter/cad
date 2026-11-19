@@ -2338,12 +2338,17 @@ impl StructureNormalization {
 
     /// The move's bound (metres): how far building the frames moved a
     /// point of the session box on `placement_re_minted`, how far a face
-    /// on either record lies from the other's surface on `one_record`.
+    /// on either record lies from the other's surface on `one_record`,
+    /// how far the build moved a vertex from its printed point on
+    /// `vertex_built`, how far the printed carrier stands off the built one
+    /// on `carrier_built`.
     #[getter]
     fn moved_by(&self) -> Option<f64> {
         match &self.0.kind {
             pncad::step_import::NormalizationKind::PlacementReMinted { moved_by, .. }
-            | pncad::step_import::NormalizationKind::OneRecord { moved_by, .. } => Some(*moved_by),
+            | pncad::step_import::NormalizationKind::OneRecord { moved_by, .. }
+            | pncad::step_import::NormalizationKind::VertexBuilt { moved_by }
+            | pncad::step_import::NormalizationKind::CarrierBuilt { moved_by } => Some(*moved_by),
             _ => None,
         }
     }

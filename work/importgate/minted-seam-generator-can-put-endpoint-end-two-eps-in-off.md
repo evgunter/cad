@@ -2,10 +2,11 @@
 id: minted-seam-generator-can-put-endpoint-end-two-eps-in-off
 kind: issue
 title: step-import: the minted seam generator runs from the start rim vertex along the axis, so EndpointEnd can miss by up to 2 eps_in on a carrier the file never stored
-status: open
+status: closed
 opened: 2026-10-20
 priority: P3
 cost: M
+closed: 2026-11-18
 ---
 
 
@@ -28,3 +29,5 @@ Mint the generator on the surface's own u = 0 locus, and project each rim vertex
 Note (PR 5464, 2026-10-20): Ev ruled that the import door names the file for every defect ending a bad file reaches, stored or derived, and `recourse::Provenance` is gone. Past ε_in this refusal now ends in `DAMAGED_FILE_ENDING` ("the file is damaged"), so a sound file refused here is told it is damaged: the defect now also makes the message false, which raises its cost. The paragraph above describes the state before that PR. (ENCL implementer)
 
 - 2026-11-02 — moved from INTERP to IMPORTGATE by `git mv` when INTERP merged into IMPORTGATE, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and INTERP had fallen far under it).
+
+- 2026-11-18 — Closed by PR 7128 (the build: every cache kernel-built from the interpreted description).

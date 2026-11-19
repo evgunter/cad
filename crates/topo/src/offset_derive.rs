@@ -646,7 +646,7 @@ fn nearest<T: Decide>(
 /// the held analytic surface `held`, nearest the old carrier on
 /// `[t0, t1]` and running with it. Plane × plane is the line both
 /// planes hold; a plane against a cylinder, cone, sphere or torus, and
-/// a cone against a coaxial cylinder, is that C5 arm's carrier. Any
+/// a cone against a coaxial cylinder or sphere, is that C5 arm's carrier. Any
 /// other pair is not derived here.
 ///
 /// `extent` is the old edge's extent from below
@@ -678,19 +678,26 @@ pub(crate) fn section_closed<T: Decide>(
     let (plane, other) = match (new, held) {
         (Surface::Plane { .. }, _) => (new, held),
         (_, Surface::Plane { .. }) => (held, new),
-        (Surface::Cone { .. }, Surface::Cylinder { .. })
-        | (Surface::Cylinder { .. }, Surface::Cone { .. }) => {
-            let (cone, cyl) = if matches!(new, Surface::Cone { .. }) {
+        (
+            Surface::Cone { .. },
+            Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Torus { .. },
+        )
+        | (
+            Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Torus { .. },
+            Surface::Cone { .. },
+        ) => {
+            let (cone, other) = if matches!(new, Surface::Cone { .. }) {
                 (new, held)
             } else {
                 (held, new)
             };
-            let extent = geom_brep::LeverBounds::Between {
+            let between = geom_brep::LeverBounds::Between {
                 below: extent,
                 above: sup,
             };
-            let candidates = match c5::cone_cylinder_section(cone, cyl, extent, band) {
-                Ok(c5::ConeCylinderSection::CoaxialCircles { c1, c2 }) => vec![c1, c2],
+            let candidates = match coaxial_with_cone(cone, other, between, band) {
+                Ok(Ok(candidates)) => candidates,
+                Ok(Err(verdict)) => return Ok(Err(verdict)),
                 Err(e) => return closed(e),
             };
             let chosen = match nearest(candidates, old, span, band)? {
@@ -702,7 +709,7 @@ pub(crate) fn section_closed<T: Decide>(
         _ => {
             return Ok(Err(SectionVerdict::Unsupported {
                 what: "the offset door derives a section through a plane, or of a cone \
-                       and a coaxial cylinder, only",
+                       and a coaxial cylinder, sphere or torus, only",
             }));
         }
     };
@@ -776,6 +783,165 @@ pub(crate) fn section_closed<T: Decide>(
         Err(v) => return Ok(Err(v)),
     };
     running_with(chosen, old, span, band)
+}
+
+/// **The section of two surfaces nearest a seed carrier, running with
+/// it**: the plane × spline-wall section where one is a plane and the
+/// other a spline chart, the two-wall section where both are spline
+/// charts, and [`section_closed`] otherwise. The seed `old` on `span`
+/// picks the branch and the sense, and nothing else: the carrier is the
+/// section's own. `lane` is asked only for a spline pair, so a scalar
+/// that holds none refuses only there, in the caller's words.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn section_of<'w, 's, T: Decide, E>(
+    lane: impl FnOnce() -> Result<SectionLane<T>, E>,
+    (a, slot_a): (&'s Surface<T>, WallSlot<'w, 's>),
+    (b, slot_b): (&'s Surface<T>, WallSlot<'w, 's>),
+    (old, span): (&Curve3<T>, (T, T)),
+    region: &geom_brep::Reach<T>,
+    extent: geom_core::Lever<T>,
+    band: Band,
+    esc: impl Fn(Indeterminate) -> E,
+) -> Result<Result<Curve3<T>, SectionVerdict>, E> {
+    // A fitted surface is its fit as a section operand: its spline
+    // chart, as for evaluation and pcurves. Each wall with its own slot
+    // (the first arm wins where both are planes).
+    let plane_wall = match (a, b) {
+        (plane @ Surface::Plane { .. }, wall) => wall
+            .spline_chart()
+            .map(|net| (plane, Wall { net, chart: slot_b })),
+        (wall, plane @ Surface::Plane { .. }) => wall
+            .spline_chart()
+            .map(|net| (plane, Wall { net, chart: slot_a })),
+        _ => None,
+    };
+    let spline_pair = a.spline_chart().zip(b.spline_chart()).map(|(na, nb)| {
+        (
+            Wall {
+                net: na,
+                chart: slot_a,
+            },
+            Wall {
+                net: nb,
+                chart: slot_b,
+            },
+        )
+    });
+    Ok(match (plane_wall, spline_pair) {
+        (Some((plane, wall)), _) => lane()?
+            .section(plane, wall, old, span, extent, band)
+            .map_err(esc)?
+            .map(|c| Curve3::Nurbs(std::sync::Arc::new(c))),
+        (None, Some((wa, wb))) => lane()?
+            .pair(wa, wb, old, span, extent, band)
+            .map_err(esc)?
+            .map(|c| Curve3::Nurbs(std::sync::Arc::new(c))),
+        (None, None) => section_closed(a, b, (old, span), region, extent, band).map_err(esc)?,
+    })
+}
+
+/// **The section of `a` and `b` nearest the seed `old` on `span`,
+/// running with it** ([`section_of`], each spline wall's chart minted
+/// afresh): the kernel's construction of an edge between two surfaces
+/// from the surfaces alone, the seed choosing only which branch and
+/// which way. `region` and `extent` are the seed's region and its
+/// extent from below ([`geom_brep::edge_extent_inf`]), which the pose
+/// readings lever. `lane` is the scalar's spline lane
+/// ([`crate::AtRestPolicy::section_lane`]); a spline pair at a scalar
+/// that holds none refuses [`SectionVerdict::Unsupported`].
+///
+/// # Errors
+///
+/// An escalated reading at `band`.
+pub fn section_near<T: Decide>(
+    lane: Option<SectionLane<T>>,
+    (a, b): (&Surface<T>, &Surface<T>),
+    seed: (&Curve3<T>, (T, T)),
+    region: &geom_brep::Reach<T>,
+    extent: geom_core::Lever<T>,
+    band: Band,
+) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
+    let unlaned = SectionVerdict::Unsupported {
+        what: "a spline wall's section has no lane at this scalar",
+    };
+    match section_of(
+        || lane.ok_or(None),
+        (a, None),
+        (b, None),
+        seed,
+        region,
+        extent,
+        band,
+        Some,
+    ) {
+        Ok(section) => Ok(section),
+        Err(Some(escalated)) => Err(escalated),
+        Err(None) => Ok(Err(unlaned)),
+    }
+}
+
+/// **The circles a cone's coaxial partner cuts it in**: each lane's own
+/// door reads which partner it is (the cylinder's answers the wrong lane
+/// for any other, and the sphere's and the torus's are asked in turn). A
+/// tangency is the verdict where the nearest circle the pair holds is a
+/// tangent one, a miss where it holds none.
+fn coaxial_with_cone<T: Decide>(
+    cone: &Surface<T>,
+    other: &Surface<T>,
+    between: geom_brep::LeverBounds<T>,
+    band: Band,
+) -> Result<Result<Vec<Curve3<T>>, SectionVerdict>, geom_brep::SectionError> {
+    use geom_brep::SectionError::WrongLane;
+    use geom_brep::intersect as c5;
+    match c5::cone_cylinder_section(cone, other, between, band) {
+        Ok(c5::ConeCylinderSection::CoaxialCircles { c1, c2 }) => return Ok(Ok(vec![c1, c2])),
+        Err(WrongLane { .. }) => {}
+        Err(e) => return Err(e),
+    }
+    match c5::cone_sphere_section(cone, other, between, band) {
+        Ok(c5::ConeSphereSection::CoaxialCircles(circles)) => return Ok(Ok(circles)),
+        Ok(c5::ConeSphereSection::TangentCircle(_)) => return Ok(Err(SectionVerdict::Tangent)),
+        Ok(c5::ConeSphereSection::Empty) => return Ok(Err(SectionVerdict::NoBranch)),
+        Err(WrongLane { .. }) => {}
+        Err(e) => return Err(e),
+    }
+    let section = c5::cone_torus_section(cone, other, between, band)?;
+    Ok(
+        match (section.crossing.is_empty(), section.tangent.is_empty()) {
+            (false, true) => Ok(section.crossing),
+            (true, true) => Err(SectionVerdict::NoBranch),
+            // A tangency beside or instead of a crossing: the build's tangent
+            // lane reads which the edge is, not this one.
+            (_, false) => Err(SectionVerdict::Tangent),
+        },
+    )
+}
+
+/// **The root of `surface` along `carrier` nearest `seed`**, at `f64`:
+/// the plane's root along a spline carrier through the spline lane
+/// ([`SectionLane::f64`]), and [`analytic_root`] along any other
+/// carrier. `lever` levers the graze.
+///
+/// # Errors
+///
+/// An escalated reading at `band`.
+pub fn root_along(
+    surface: &Surface<f64>,
+    carrier: &Curve3<f64>,
+    seed: f64,
+    lever: geom_core::Lever<f64>,
+    band: Band,
+) -> Result<Result<f64, CornerVerdict<f64>>, Indeterminate> {
+    match (surface, carrier) {
+        (Surface::Plane { .. }, Curve3::Nurbs(spline)) => Ok(
+            match SectionLane::f64().root(surface, spline, seed, lever, band) {
+                Ok(SplineRoot::At(t)) => Ok(t),
+                Ok(SplineRoot::Short { .. }) => Err(CornerVerdict::NoRoot),
+                Err(verdict) => Err(verdict),
+            },
+        ),
+        _ => analytic_root(surface, carrier, seed, lever, band),
+    }
 }
 
 /// The line two planes hold, through the foot of the old carrier's

@@ -38,6 +38,9 @@ crates/topo/src/boolean/edge_join.rs 1
 #
 # replace_face: every move's apex nappe and window.
 crates/topo/src/replace_face.rs 2
+# intersect: coaxial_cone_torus's reach on each nappe, both of which the
+# section needs.
+crates/geom-brep/src/intersect.rs 1
 # ray_walk: ray_crossings, a crossing count over every vertex and edge.
 crates/topo/src/ray_walk.rs 2
 # blend battery: consumption_sweep strips every face.

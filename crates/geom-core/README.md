@@ -204,11 +204,11 @@ governs interpretation — what the file's data is evidence of, where
 healing may move geometry by up to O(ε_in) — and its refusals are
 the import door's, named in ε_in with the value the margin gives; a
 size below ε_in is not one the file intends, so no refusal offers to
-keep it. Until adoption rebuilds its caches from the file's
-descriptions ([import]), a certification refusal whose miss lies within
-ε_in but beyond ε (the file's data agrees to its own declared
-coincidence distance, not to this run's) names setting ε to ε_in as
-a stopgap, beside re-exporting the file more precisely. A change to
+keep it. A certification refusal whose miss lies within ε_in but
+beyond ε names re-exporting the file more precisely and offers no
+tolerance: adoption builds every cache at ε from what the file is read
+to describe at ε_in ([import]), so ε_in is never a setting to certify
+at instead. A change to
 a document's ε reports what it flips at the change itself. The
 three-arm sentence (make them one construction / move the geometry
 / tighten the tolerance) is thus the recourse of a decision whose
@@ -246,7 +246,7 @@ import door past ε_in it names the file: a bad file reaches every
 defect ending there, whether the reading compares a value the file
 stored or one adoption derives from it (an edge's carrier parameters,
 a carrier the import mints, the witness at the carrier's mid-parameter,
-a chart image, a fit, the adoption ladder's description candidate). A
+a chart image, a fit, the description the build chose). A
 sound file such an ending reaches is a kernel bug to fix, not a reason
 for the words to hedge. An unreadable margin's note follows the same
 chooser (`geom_brep::recourse::unreadable_margin_note`):

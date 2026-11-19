@@ -92,3 +92,14 @@ The non-touch row `each_window_reading_holds_on_a_dense_distance`, which since 2
 - `0x04f4dcf753f68827` (2026-11-18): draw 37, `Recedes` on `(2.803e-8, 2.806e-8)` on a circle centred about 610 m from the origin, red identically on the merge of PR 7048 (`0c2b761e91`).
 
 All three red identically on `onehome/pair-read` at e4f142b6b2 (PR 7048), which does not touch `curve_pair/pose/window/`, and on `onehome/span-foot` (step 3b), so neither branch is their cause. The scale, ~10³ m at ε 1e-12, matches the oracle-noise question above.
+
+## 2026-11-18: the dense-distance row at 1e-6 (importgate/build)
+
+The sibling row `curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance`
+(not `_at_a_touch`) reds the same way at ε = 1e-6 on
+`CAD_FUZZ_SEED=0x362191a627c797f4` (`CAD_FUZZ_EFFORT=1`): two `Recedes`
+readings contradicted on a circle of radius 569.93 m whose axis tilts
+~1.6e-9 off −z, against the point (152.48, 92.76), at windows
+(−2.509e-9, −2.367e-9) and (1.0218e-9, 1.0227e-9). Found on
+importgate/build's local run (2026-11-18), which does not touch the
+pose's window code.

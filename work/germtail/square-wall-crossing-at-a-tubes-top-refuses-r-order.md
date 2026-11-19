@@ -75,3 +75,10 @@ Degeneracy { … top: ~1e-9 }`, on embed/graph-piece's local run of topo
   The branch does not touch the section code.
 - 2026-11-18 — **another seed of the same `Tangent("section_torus_square_wall_fold_half")` family**, `CAD_FUZZ_SEED=0x80d159b76d7315df` (`CAD_FUZZ_EFFORT=1`), on `boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`. PR 7088's delta-3 reviewer drew it from the slow set; it is not replayed here.
 - 2026-11-18 — **another seed from the slow set**, `CAD_FUZZ_SEED=0x55e1793adeb1c7e3` (`CAD_FUZZ_EFFORT=1`), on PR 7088's head `343514f92` (a local run). It found 1 mismatch, "a strip crossing at a tube circle's top": `R 0.019909668948330725, r 0.003584650030920035, (e, z0, rc) (0.0522248658400246, 0.011720238237453275, 0.033323555767347746)`, tilt `8.64e-10`, refused `Tangent("section_torus_square_wall_fold_half")` at `Degeneracy { tangent: 0.0025332740334559137, top: 5.644358709588904e-9 }`.
+
+A third seed, `CAD_FUZZ_SEED=0x838f6bb8bc006541` (`CAD_FUZZ_EFFORT=1`),
+reds with two mismatches of the same shape (`R 0.08967…, r 0.009745…`;
+`R 7.828…, r 5.006…`), each `R-tan at Degeneracy { … top: ~1e-9 }:
+Tangent("section_torus_square_wall_fold_half")`, at ε = 1e-9 on
+importgate/build's local run of topo (2026-11-18); that branch does not
+touch the section-certificate code.

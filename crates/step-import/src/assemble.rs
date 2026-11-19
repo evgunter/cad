@@ -69,6 +69,7 @@ use topo::{Body, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use topo::construction::{MefSite, MekrSite, MevSite};
 
 use crate::adopt;
+use crate::build::Shell;
 use crate::entities::{SolidRecord, SolidSpec};
 use crate::error::StepImportError;
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
@@ -153,11 +154,11 @@ pub(crate) struct Target {
 impl Target {
     /// Flattens a `SolidSpec` (module docs). The manifold two-use
     /// precondition was checked at resolution.
-    fn build(solid: &SolidSpec) -> Result<Self, StepImportError> {
+    fn build(solid: &Shell<'_>) -> Result<Self, StepImportError> {
         let mut uses = Vec::new();
         let mut loops = Vec::new();
         let mut face_loops = Vec::new();
-        for face in &solid.faces {
+        for face in solid.faces {
             let mut ring_ids = Vec::new();
             let mut outer_id = 0;
             for lp in &face.loops {
@@ -265,7 +266,7 @@ pub(crate) struct Assembled {
 struct Builder<'a> {
     body: &'a mut Body<f64>,
     target: Target,
-    solid: &'a SolidSpec,
+    solid: &'a Shell<'a>,
     /// The file's ε_in, for the refusals assembly reports.
     file: FileCoincidence,
     /// `Some(he)` once a use is realized.
@@ -801,7 +802,7 @@ impl<'a> Builder<'a> {
 /// adoption phases (rings, surfaces, senses, edge descriptions).
 fn assemble_solid(
     body: &mut Body<f64>,
-    solid: &SolidSpec,
+    solid: &Shell<'_>,
     tol: Tol,
     band: geom_core::Band,
     file: FileCoincidence,
@@ -952,6 +953,12 @@ fn build_one_shell(
         refusal: topo::JoinRefusal::of(&topo::BooleanError::Band(e)),
         file,
     })?;
+    // The build (D7 step 2): every edge's description chosen at the
+    // file's band and its caches built, before any topology exists, so
+    // the body is assembled on built vertex points.
+    let file_band = crate::interpret::FileBand::of_import(file.eps_in(), false, tol)?;
+    let mut moves = Vec::new();
+    let shell = crate::build::build(solid, tol, file_band, &mut moves)?;
     let mut body = Body::new();
     // The import IS a door: it runs the operator sequence a foreign
     // file describes, and D1's whole-body tier-1 postcondition is paid
@@ -960,12 +967,12 @@ fn build_one_shell(
     // it used to cost one per mint. The guard owns the borrow, so a
     // refusal part-way closes the scope by dropping it.
     let mut door = body.begin_surgery();
-    let faces = assemble_solid(&mut door, solid, tol, band, file)?;
+    let faces = assemble_solid(&mut door, &shell, tol, band, file)?;
     topo::mint_pcurves(&mut door, tol)
         .map_err(|source| StepImportError::Pcurves { source, file })?;
     door.sweep_and_close();
-    let joins = join(&mut body, solid.id, &faces, tol, band, file)?;
-    Ok((body, joins))
+    moves.extend(join(&mut body, solid.id, &faces, tol, band, file)?);
+    Ok((body, moves))
 }
 
 /// **The import ends with the join** every finisher ends with
@@ -1119,7 +1126,6 @@ mod tests {
     /// everything reds here.
     #[test]
     fn the_tied_selfloop_door_refuses_a_strut_it_cannot_mint() {
-        use crate::entities::EdgeSpec;
         use geom::Curve3;
         use geom_core::{Point3, Tol, Vec3};
 
@@ -1132,22 +1138,21 @@ mod tests {
         const SWALLOWED: f64 = 9_007_199_254_740_992.0;
 
         let tol = Tol::witness();
-        let solid_at = |x: f64| SolidSpec {
+        let solid_at = |x: f64| Shell {
             id: 1,
-            faces: Vec::new(),
+            faces: &[],
             edges: BTreeMap::from([(
                 SELF_LOOP,
-                EdgeSpec {
+                crate::build::Edge {
                     start: VERTEX,
                     end: VERTEX,
+                    description: crate::build::Description::Wrap,
                     carrier: Curve3::line(Point3::new(x, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
                     t0: 0.0,
                     t1: 1.0,
-                    reversed: false,
                 },
             )]),
             vertices: BTreeMap::from([(VERTEX, Point3::new(x, 0.0, 0.0))]),
-            band_seams: std::collections::BTreeSet::new(),
         };
         // Use 0 is the self-loop's forward use, 1 its reversed use, 2
         // the built neighbour. `sigma(0) = next[mate[0]] = next[1] =

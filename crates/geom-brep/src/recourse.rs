@@ -336,8 +336,7 @@ impl Unsized {
 
     /// The ending a residual's refusal carries on `arm` at the import
     /// door (D4 ¶1): a miss within the file's declared coincidence
-    /// distance but beyond ε names setting ε to ε_in as a stopgap, beside
-    /// re-exporting the file more precisely
+    /// distance but beyond ε names re-exporting the file more precisely
     /// ([`FileCoincidence::miss_recourse_in_file`]); any other reading
     /// ends as the door ends it ([`Unsized::recourse`]). A residual passes
     /// only at zero, so its refused margin is a miss, on the sign-certain
@@ -551,9 +550,9 @@ pub enum RefusedSide {
     Lever,
     /// A contradiction between what the edge states and the geometry
     /// it is read against: a stored description and its stored geometry,
-    /// or, at the import door, what adoption derived from the file (a
-    /// chart image, the ladder's candidate description, the parameters
-    /// it samples at). At a build it is the user's geometry, which the lever
+    /// or, at the import door, what the import built from the file (a
+    /// chart image, the description the build chose, the parameters it
+    /// samples at). At a build it is the user's geometry, which the lever
     /// moves: the lever and the note. Past a build it ends in the defect
     /// ending naming the door's culprit ([`ReadAt::culprit`]): over a
     /// body at rest [`geom_core::KERNEL_OR_FILE_DEFECT_ENDING`], and at
