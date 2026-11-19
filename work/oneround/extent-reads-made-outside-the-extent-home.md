@@ -63,3 +63,9 @@ row's own differential.
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
+
+## Added 2026-11-19 (`oneround/lever-doors`)
+
+- First bullet: `Reach::Face` is still built in topo from bare measures. `scripts/gates/lever-doors.sh` pins `Reach::of_face`'s three production callers; nothing else about it changed.
+- Second bullet: sweep `blend::battery::extent_of` is pinned by the same gate as a `points_diameter` site (`lever-doors-pinned-sites-await-a-geometry-read`).
+- `edge_extent_inf` and `edge_extent_sup` lost their end-points argument: the chord is read off the carrier at the span's ends, so a caller no longer hands the extent home two points of its own.
