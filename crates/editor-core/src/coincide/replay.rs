@@ -321,7 +321,7 @@ fn prove_row(
         return left(Unreplayed::OtherDecisions);
     };
     if let (Some(heading), Ok(band)) = (heading, band)
-        && let Some(arm) = pair_arm(ev, row, band, tol)
+        && let Some(arm) = pair_arm(ev, row, band)
         && swept_along(doc, ev, heading, arm, band, tol)
     {
         return Ok(Ok(Rung::MarginIdentity));
@@ -408,18 +408,14 @@ fn pair_arm(
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
     band: Band,
-    tol: Tol,
 ) -> Option<geom_core::Lever<Lane>> {
     let [a, b] = row.cells.as_slice() else {
         return None;
     };
     let ((a, fa), (b, fb)) = (face_of(ev, a)?, face_of(ev, b)?);
     let computing = crate::eval::Framed::computing_among([a, b])?;
-    let (a_in, b_in) = (
-        computing.read_in(a, tol).ok()?,
-        computing.read_in(b, tol).ok()?,
-    );
-    topo::boolean::carrier_pair_arm(&a_in, fa, &b_in, fb, band).ok()
+    let (a_at, b_at) = (computing.seat(a).ok()?, computing.seat(b).ok()?);
+    topo::boolean::carrier_pair_arm((a_at, fa), (b_at, fb), band).ok()
 }
 
 /// A traced face's axis, where it is on a cylinder, carried into the
@@ -825,8 +821,12 @@ mod tests {
                     let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(radius), u, v, tol);
                     let mut b = topo::Body::<Lane>::new();
                     let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(radius, theta), u, v, tol);
-                    let arm = topo::boolean::carrier_pair_arm(&a, fa, &b, fb, band)
-                        .map(|arm| <Lane as geom_core::Bounds>::hi(arm.length()));
+                    let arm = topo::boolean::carrier_pair_arm(
+                        (topo::Seat::own(&a), fa),
+                        (topo::Seat::own(&b), fb),
+                        band,
+                    )
+                    .map(|arm| <Lane as geom_core::Bounds>::hi(arm.length()));
                     let read = one_cylinder(
                         (topo::Seat::own(&a), fa),
                         (topo::Seat::own(&b), fb),

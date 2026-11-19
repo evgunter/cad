@@ -348,20 +348,20 @@ fn decided_over<T: Decide>(
 /// ladder reads the pair's position datum at (two cylinders: the foot of
 /// the ball's centre on the second axis). A reader deciding the same
 /// tilt on its own reading of the two carriers levers it here, so the
-/// two judge one tilt alike.
+/// two judge one tilt alike. Each face is read from its seat
+/// ([`Seat`]): its body as it stands, its carrier and boundary through
+/// the seat's motion, so no operand is moved to read it.
 ///
 /// # Errors
 ///
 /// As [`carrier_pair_relation`]'s [`PairUnread`].
 pub fn carrier_pair_arm<T: Decide>(
-    a: &Body<T>,
-    fa: FaceKey,
-    b: &Body<T>,
-    fb: FaceKey,
+    (a, fa): (Seat<'_, T>, FaceKey),
+    (b, fb): (Seat<'_, T>, FaceKey),
     band: Band,
 ) -> Result<geom_core::Lever<T>, PairUnread> {
-    let (ca, cb) = carriers_of(a, fa, b, fb)?;
-    let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
+    let (ca, cb) = seated_carriers((a, fa), (b, fb))?;
+    let extent = seated_extent((a, fa), (b, fb), band).map_err(PairUnread::Extent)?;
     Ok(geom_brep::carrier_eq::consumed_arm(&ca, &cb, extent.reach))
 }
 
@@ -820,10 +820,14 @@ mod lever_rows {
             (b, fb)
         };
         let (b, fb) = twin(0.0);
-        let level = carrier_pair_arm(&a, fa, &b, fb, band()).unwrap().length();
+        let level = carrier_pair_arm((Seat::own(&a), fa), (Seat::own(&b), fb), band())
+            .unwrap()
+            .length();
         let theta = (band().zero() * band().escalate()).sqrt() / level;
         let (b, fb) = twin(theta);
-        let arm = carrier_pair_arm(&a, fa, &b, fb, band()).unwrap().length();
+        let arm = carrier_pair_arm((Seat::own(&a), fa), (Seat::own(&b), fb), band())
+            .unwrap()
+            .length();
         let (
             Some(CarrierDesc::Cylinder { axis: a1, .. }),
             Some(CarrierDesc::Cylinder { axis: a2, .. }),
@@ -884,9 +888,13 @@ mod lever_rows {
             (b, fb)
         };
         let (b, fb) = twin(0.0);
-        let level = carrier_pair_arm(&a, fa, &b, fb, band()).unwrap().length();
+        let level = carrier_pair_arm((Seat::own(&a), fa), (Seat::own(&b), fb), band())
+            .unwrap()
+            .length();
         let (b, fb) = twin(0.3 * e / level);
-        let arm = carrier_pair_arm(&a, fa, &b, fb, band()).unwrap().length();
+        let arm = carrier_pair_arm((Seat::own(&a), fa), (Seat::own(&b), fb), band())
+            .unwrap()
+            .length();
         let data = cylinder_pair_data((Seat::own(&a), fa), (Seat::own(&b), fb), band())
             .unwrap()
             .expect("two cylinder walls");

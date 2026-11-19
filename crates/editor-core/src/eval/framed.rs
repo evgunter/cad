@@ -34,7 +34,7 @@
 //! [`Framed::seat`]: its body as it stands and the relative motion each
 //! datum it takes off it goes through ([`topo::Seat`]). An operation
 //! that builds one body out of its operands reads them into its frame
-//! whole: the fold and the cut through [`Framed::read_in`], each gather
+//! whole: the fold and the cut through [`Framed::read_into`], each gather
 //! of copies into one aggregate (the `⊔`, a distribute's assembly, the
 //! product) through [`Framed::graft_into`], which moves the copy's data
 //! into the aggregate's and asks the session box of the image. Every
@@ -559,27 +559,17 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
 }
 
 impl<T: topo::AtRestPolicy> Framed<T> {
-    /// **`other`'s body in this one's coordinates**, for an operation
-    /// that builds one body out of both: what it holds, as it holds it,
-    /// where the two are in one frame; else what it holds moved once
-    /// ([`Self::relative`], [`Held::moved`]), of the same kind: a
+    /// **This body in `frame`'s coordinates**, for an operation that
+    /// builds one body out of several: what it holds, as it holds it,
+    /// where it is in that frame; else what it holds moved once
+    /// ([`Frame::relative`], [`Held::moved`]), of the same kind: a
     /// finished body stays finished, its verdict carried. A reader that
-    /// only relates the two takes [`Self::seat`] instead.
+    /// only relates two operands takes [`Self::seat`] instead.
     ///
     /// # Errors
     ///
     /// The relative map's overflow, or the move's one refusal: the image
     /// reaches past the session box.
-    pub(crate) fn read_in(&self, other: &Self, tol: Tol) -> Result<Held<T>, super::NodeErrorKind> {
-        other.read_into(&self.frame, tol)
-    }
-
-    /// **This body in `frame`'s coordinates** ([`Self::read_in`] with the
-    /// reader given by its frame alone).
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::read_in`].
     pub(crate) fn read_into(
         &self,
         frame: &Frame<T>,

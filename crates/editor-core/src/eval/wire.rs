@@ -3548,7 +3548,7 @@ struct Member<T: topo::AtRestPolicy + Decide> {
 impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
     /// **This member read into `computing`'s frame and taken**: what it
     /// holds where the two are one frame, else what it holds moved once
-    /// at the placement's door ([`super::Framed::read_in`]); taken as the
+    /// at the placement's door ([`super::Framed::read_into`]); taken as the
     /// Boolean takes it ([`super::Held::finished`]).
     ///
     /// `frame_of` is the operand whose frame `computing` is
