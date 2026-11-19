@@ -82,3 +82,5 @@
 - 2026-11-19 00:40 — PR 7133 merged (the knot_split sense fold, a one-line test-helper change; orchestrator read, CI green). Its row is closed.
 
 - 2026-11-19 02:00 — PR 7134 (split-share) reviewed by a single Opus reviewer: APPROVE. The claims reproduced: the corpus is byte-identical and the 93 rows unchanged; 13 mutants, with only an equivalent one surviving. Merged and closed. Filed two rows: no committed row pins the corpus re-export (P2); relink trusts its attachments, and the module's home (P3).
+
+- 2026-11-19 02:25 — Main went red on PR 7134's `# from knot_split.rs` citation in `cover-kind-match.counts`: once the split was in the base, every tree summed 4 against knot_split's base pin of 3. The snap lane reported it. Fixed in tracker PR 7136, which drops the citation. Lesson: a `# from` citation is for the PR that does the split; it comes out before merge, or the next PR inherits the red.
