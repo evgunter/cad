@@ -36,13 +36,22 @@
 //!   elbow's cavity refuses typed at a spiric cap edge;
 //! - a lens loft's cap refuses typed at the depth budget against a wall
 //!   at the lens tip, while a twisted loft's seams and the half-turn
-//!   helix's caps hold against their walls.
+//!   helix's caps hold against their walls;
+//! - a two-arc lune's hollow holds, its cavity's sphere read beside its
+//!   caps' circles in the caps' poses, turned six ways, moved at random,
+//!   and hollowed after a turn; balls crossing or touching its posed
+//!   sphere read `Violated` and balls clear of it hold; with its seam off
+//!   the equator it refuses across the seam.
 //!
 //! Every row builds its body twice, by the same generic builders: at
 //! `f64`, whose verdict and receipt the row pins, and at `Interval`, the
 //! certifying scalar the shell gate and the document door ask at, which
 //! must read the same verdict class ([`same_class`]) — `Holds`,
-//! `Violated`, or the same refusal arm.
+//! `Violated`, or the same refusal arm. The exception is a body the
+//! `Interval` build does not reach: the lune's hollow, whose shell
+//! refuses at `Interval`, so its rows read `f64` alone, and
+//! [`a_two_arc_lunes_hollow_is_refused_by_its_shell_at_interval`] pins
+//! the refusal.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
@@ -893,6 +902,555 @@ fn a_quarter_balls_lens_caps_hold_read_at_each_pole() {
         )
     }
     holds_at_both("the quarter ball", lune(), lune());
+}
+
+/// **The two-arc lune** of `torax_axial`, at `T`: a half disc of radius
+/// 0.3 revolved a quarter turn about its diameter, its arc split at the
+/// latitude `phi` by a seam cut by hand (the revolve builds the run as one
+/// wall), and, where `thick` is given, hollowed by it.
+fn two_arc_lune<T: Scalar>(phi: f64, thick: Option<f64>) -> Body<T> {
+    use crate::common::latitude_seam::latitude_on_partial_wall_at;
+    let r = 0.3_f64;
+    let quarter = -(core::f64::consts::PI / 8.0).tan();
+    let at = |a: f64| Point2::new(r * a.cos(), r * a.sin());
+    let arcs = if phi == 0.0 {
+        vec![
+            (Point2::new(0.0, -r), 0.0),
+            (Point2::new(0.0, r), quarter),
+            (at(0.0), quarter),
+        ]
+    } else {
+        vec![(Point2::new(0.0, -r), 0.0), (Point2::new(0.0, r), -1.0)]
+    };
+    let profile = validated::<T>(&[profile::test_support::bulge_loop(arcs)]);
+    let mut body = revolve(
+        &profile,
+        axis_y(),
+        Revolution::Partial(T::from_f64(core::f64::consts::FRAC_PI_2)),
+        tol(),
+    )
+    .expect("the lune revolves")
+    .body
+    .into_body();
+    let sphere = body
+        .faces()
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .expect("the sphere wall")
+        .1
+        .surface;
+    latitude_on_partial_wall_at(&mut body, sphere, at(phi), core::f64::consts::FRAC_PI_2);
+    match thick {
+        None => body,
+        Some(t) => Body::clone(
+            &topo::shell(
+                &sweep::test_support::finished("the lune", body, tol()),
+                T::from_f64(t),
+                tol(),
+            )
+            .expect("the lune hollows")
+            .body,
+        ),
+    }
+}
+
+/// **A two-arc lune's hollow holds, its cavity's sphere read in its
+/// caps' poses**: a half disc whose arc is split at the equator,
+/// revolved a quarter turn about its diameter, its equator seam cut by
+/// hand (`torax_axial`'s two-arc lune), then hollowed by 0.05. The
+/// cavity's caps stand 0.05 off the axis, in the planes `x = 0.05` and
+/// `z = −0.05`, so each meets the cavity's sphere in a circle off the
+/// sphere's axis, which its stored chart has no coordinate line for.
+/// Each sphere face is read beside a cap's circle in the chart about
+/// that cap's normal, where the circle is a parallel and the equator a
+/// meridian. Red if no pose reads them: the cavity's sphere halves then
+/// refuse `Uncertified` across the equator, and each cap against each
+/// sphere half beside its circle.
+#[test]
+fn a_two_arc_lunes_hollow_holds_its_cavity_read_in_its_caps_poses() {
+    use crate::common::latitude_seam::latitude_on_partial_wall;
+    use profile::test_support::bulge_loop;
+    let r = 0.3_f64;
+    let quarter_arc = -(core::f64::consts::PI / 8.0).tan();
+    let profile = Profile::new(
+        SketchPlane::xy(),
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, -r), 0.0),
+            (Point2::new(0.0, r), quarter_arc),
+            (Point2::new(r, 0.0), quarter_arc),
+        ])],
+    )
+    .validate(tol())
+    .expect("the two-arc lune's cross-section validates");
+    let mut body = revolve(
+        &profile,
+        axis_y(),
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol(),
+    )
+    .expect("the two-arc lune revolves")
+    .body
+    .into_body();
+    let sphere = body
+        .faces()
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .expect("the sphere wall")
+        .1
+        .surface;
+    latitude_on_partial_wall(
+        &mut body,
+        sphere,
+        Point2::new(r, 0.0),
+        core::f64::consts::FRAC_PI_2,
+    );
+    let hollow = topo::shell(
+        &sweep::test_support::finished("the lune", body, tol()),
+        0.05,
+        tol(),
+    )
+    .expect("the lune hollows")
+    .body;
+    let spheres = hollow
+        .faces()
+        .filter(|(k, _)| matches!(hollow.face_surface(*k), Some(Surface::Sphere { .. })))
+        .count();
+    assert_eq!(spheres, 4, "two sphere halves outside, two in the cavity");
+    let report = injective(&hollow, None, BUDGET);
+    assert_holds("the two-arc lune's hollow", &report, &hollow);
+}
+
+/// **The two-arc lune holds at both scalars, its seam at the equator or
+/// off it**: [`two_arc_lune`] solid, its arc split at the latitudes 0,
+/// 0.4 and −0.3. Off the equator the seam is a small circle, a meridian
+/// of neither cap's pose. Red if a lune refuses at either scalar, or
+/// the two read different classes.
+#[test]
+fn a_two_arc_lune_holds_at_both_scalars() {
+    for phi in [0.0, 0.4, -0.3] {
+        holds_at_both(
+            &format!("the lune split at {phi}"),
+            two_arc_lune(phi, None),
+            two_arc_lune(phi, None),
+        );
+    }
+}
+
+/// **The two-arc lune's hollow is built at `f64` only: at `Interval`
+/// its shell refuses**, at its own certificate, `CavityUncertified` at
+/// `Departure`. That is why the hollow's rows read `f64` alone, against
+/// the module's rule (`work/embed/a-lunes-cavity-refuses-its-shell-at-interval.md`).
+/// Red the day the hollow is built at `Interval`: its rows then read
+/// both scalars.
+#[test]
+fn a_two_arc_lunes_hollow_is_refused_by_its_shell_at_interval() {
+    let solid = two_arc_lune::<Interval>(0.0, None);
+    let got = topo::shell(
+        &sweep::test_support::finished("the lune", solid, tol()),
+        Interval::from_f64(0.05),
+        tol(),
+    );
+    assert!(
+        matches!(
+            got,
+            Err(topo::ShellError::CavityUncertified {
+                refusal: EngineRefusal::Uncertified {
+                    arm: CertificateArm::Departure,
+                    ..
+                }
+            })
+        ),
+        "the Interval shell refuses at Departure: {:?}",
+        got.err()
+    );
+}
+
+/// **The lune's hollow with its seam off the equator refuses across the
+/// seam**: [`two_arc_lune`] split at the latitudes 0.4 and −0.3, then
+/// hollowed by 0.05. The seam is a small circle, a parallel of the
+/// stored chart and a meridian of neither cap's pose; where it meets a
+/// cavity cap's circle, a parallel of that cap's pose alone, no chart
+/// reads the corner, and the cavity's two sphere halves refuse
+/// `Departure` across the seam. Measured: about 2,700 splits and 9 cells
+/// refused, 3 s, at either latitude. `f64` alone, as
+/// [`a_two_arc_lunes_hollow_is_refused_by_its_shell_at_interval`] says.
+/// Red if the corner is read (the row then holds and is to be re-pinned)
+/// or the refusal moves to another arm or off the seam.
+#[test]
+fn a_lunes_hollow_with_its_seam_off_the_equator_refuses_across_the_seam() {
+    for phi in [0.4, -0.3] {
+        let hollow = two_arc_lune::<f64>(phi, Some(0.05));
+        let seams: Vec<topo::EdgeKey> = hollow
+            .edges()
+            .filter(|&(ek, _)| {
+                topo::edge_faces(&hollow, ek)
+                    .iter()
+                    .all(|&f| matches!(hollow.face_surface(f), Some(Surface::Sphere { .. })))
+            })
+            .map(|(ek, _)| ek)
+            .collect();
+        let report = injective(&hollow, None, BUDGET);
+        assert!(
+            matches!(
+                report.verdict,
+                BoundVerdict::Refused(EngineRefusal::Uncertified {
+                    arm: CertificateArm::Departure,
+                    shared: SharedCell::Edge(e),
+                    ..
+                }) if seams.contains(&e)
+            ),
+            "split at {phi}: Departure across a seam of two sphere halves: {:?}",
+            report.verdict
+        );
+    }
+}
+
+/// The two-arc lune's hollow with a ball of radius 0.02 grafted into its
+/// wall, the ball's sphere `depth` past the cavity's sphere (radius 0.25)
+/// along `dir`: a crossing where `depth` is positive, a gap where it is
+/// negative, a tangency at an interior point of the cavity's sphere face
+/// at zero.
+fn lune_with_a_ball(dir: [f64; 3], depth: f64) -> Body<f64> {
+    let mut body = two_arc_lune::<f64>(0.0, Some(0.05));
+    let n = (dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]).sqrt();
+    let rho = 0.02;
+    let k = (0.25 + rho - depth) / n;
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+    let ball = topo::transform_rigid(
+        &revolved_about_y_at::<f64>(vec![p(-rho, 1.0), p(rho, 0.0)], Revolution::Full, tol()),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(
+            dir[0] * k,
+            dir[1] * k,
+            dir[2] * k,
+        ))
+        .expect("a translation"),
+    )
+    .expect("the ball moves");
+    topo::graft_disjoint_all_keyed(&mut body, &ball).expect("the ball grafts");
+    body
+}
+
+/// A direction onto the cavity's sphere at `(x, y)`, below the equator
+/// plane `z = 0`.
+fn onto_the_cavity(x: f64, y: f64) -> [f64; 3] {
+    [x, y, -(0.0625_f64 - x * x - y * y).sqrt()]
+}
+
+/// **A ball crossing the lune's posed cavity sphere reads `Violated`**:
+/// [`lune_with_a_ball`] just past the cavity cap `x = 0.05`, off the
+/// equator, where the cavity's sphere is read in the cap's pose, crossing
+/// by 5e-2, 1e-3 and 1e-6; and straddling the cap's circle itself, by
+/// 1e-2 and 1e-4; and touching it, tangent at an interior point of the
+/// sphere face. Red if a pose reads a crossing or a touch embedded.
+#[test]
+fn a_ball_crossing_or_touching_the_lunes_posed_cavity_sphere_reads_violated() {
+    let near = onto_the_cavity(0.06, 0.1);
+    let on_circle = onto_the_cavity(0.05, 0.1);
+    for (dir, depth) in [
+        (near, 5e-2),
+        (near, 1e-3),
+        (near, 1e-6),
+        (on_circle, 1e-2),
+        (on_circle, 1e-4),
+        (near, 0.0),
+    ] {
+        let body = lune_with_a_ball(dir, depth);
+        let report = injective(&body, None, BUDGET);
+        assert!(
+            matches!(report.verdict, BoundVerdict::Violated(_)),
+            "{dir:?} by {depth:e}: {:?}",
+            report.verdict
+        );
+    }
+}
+
+/// **A ball clear of the lune's posed cavity sphere holds**:
+/// [`lune_with_a_ball`] just past the cavity cap `x = 0.05`, short of the
+/// cavity's sphere by 5e-3 and 1e-4. Red if a pose's extent or touch
+/// drops a gap.
+#[test]
+fn a_ball_clear_of_the_lunes_posed_cavity_sphere_holds() {
+    for gap in [5e-3, 1e-4] {
+        let body = lune_with_a_ball(onto_the_cavity(0.06, 0.1), -gap);
+        let report = injective(&body, None, BUDGET);
+        assert_holds(&format!("a gap of {gap:e}"), &report, &body);
+    }
+}
+
+/// **A ball less two tilted half-spaces holds, its larger cap read in a
+/// pose**: the unit ball less the slabs above `z = 0.3` turned about `x`
+/// by 0.5 and by −0.9, whose circles meet on the sphere. The boolean
+/// charts the sphere face about one circle's axis, so the other is off
+/// it, and the face — the sphere less both small caps — holds a pole of
+/// that circle's pose: the circle lifts to an arc of a parallel, the
+/// loop wraps the azimuth, and the pose grants the face no extent
+/// ([`topo::test_support::posed_extents_holding`]); its cells are read on
+/// the rectangle's own sheet. Red if a pose grants the face an extent,
+/// or the ball refuses.
+#[test]
+fn a_ball_less_two_tilted_half_spaces_holds_its_larger_cap_read_in_a_pose() {
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+    let fin = |b| sweep::test_support::finished("the cut", b, tol());
+    let mut body =
+        revolved_about_y_at::<f64>(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol());
+    for angle in [0.5, -0.9] {
+        let slab = lune_moved(
+            &sweep::test_support::brick((-3.0, 3.0), (-3.0, 3.0), (0.3, 3.0), tol()),
+            [1.0, 0.0, 0.0],
+            angle,
+            [0.0; 3],
+        );
+        let cut = topo::boolean::subtract(&fin(body), &fin(slab), tol()).expect("the ball is cut");
+        body = Body::clone(&cut.body().expect("a body").body);
+    }
+    let cap = body
+        .faces()
+        .find(|(k, _)| matches!(body.face_surface(*k), Some(Surface::Sphere { .. })))
+        .expect("the sphere face")
+        .0;
+    let poses = topo::test_support::posed_extents_holding(&body, cap, [1.0, 0.0, 0.0])
+        .expect("the face lifts");
+    assert!(
+        !poses.is_empty() && poses.iter().all(Option::is_none),
+        "a pose about an off-axis circle, granting no extent: {poses:?}"
+    );
+    assert_holds("the larger cap", &injective(&body, None, BUDGET), &body);
+}
+
+/// **A lune's cap pushed through another's reads `Violated`**: two
+/// two-arc lune hollows in one body, the second moved 0.1 along `x`, so
+/// its cap `z = 0` runs through the first's cavity and wall. Within one
+/// lune neither cap can be pushed through the other: a revolve past a
+/// turn is refused (`FullRangeAngle`) and the shell builds no cavity
+/// whose caps cross. Red if the crossing reads embedded.
+#[test]
+fn a_lunes_cap_pushed_through_anothers_reads_violated() {
+    let hollow = two_arc_lune::<f64>(0.0, Some(0.05));
+    let mut body = Body::clone(&hollow);
+    let other = lune_moved(&hollow, [0.0, 1.0, 0.0], 0.0, [0.1, 0.0, 0.0]);
+    topo::graft_disjoint_all_keyed(&mut body, &other).expect("the lunes graft");
+    let report = injective(&body, None, BUDGET);
+    assert!(
+        matches!(report.verdict, BoundVerdict::Violated(_)),
+        "the caps cross: {:?}",
+        report.verdict
+    );
+}
+
+/// The six turns the two-arc lune's hollow was refused under before a
+/// pose granted its extent: about `y` by 0.1, 0.7 and 2.0, about `x` by
+/// 0.3, about `(1, 1, 1)` by 1.0 and about `z` by 1.2.
+const LUNE_TURNS: [([f64; 3], f64); 6] = [
+    ([0.0, 1.0, 0.0], 0.1),
+    ([0.0, 1.0, 0.0], 0.7),
+    ([0.0, 1.0, 0.0], 2.0),
+    ([1.0, 0.0, 0.0], 0.3),
+    ([1.0, 1.0, 1.0], 1.0),
+    ([0.0, 0.0, 1.0], 1.2),
+];
+
+/// `body` turned about `axis` by `angle`, then moved by `by`.
+fn lune_moved(body: &Body<f64>, axis: [f64; 3], angle: f64, by: [f64; 3]) -> Body<f64> {
+    let a = geom_core::UnitVec3::new(
+        geom_core::Vec3::new(axis[0], axis[1], axis[2]),
+        "the lune's turn",
+        band(),
+    )
+    .expect("a turn axis");
+    let turned = topo::transform_rigid(
+        body,
+        &geom_core::RigidMotion::rotation(a, angle).expect("a turn"),
+    )
+    .expect("the lune turns");
+    topo::transform_rigid(
+        &turned,
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(by[0], by[1], by[2]))
+            .expect("a translation"),
+    )
+    .expect("the lune moves")
+}
+
+/// **Every face point a sphere face's pose grants an extent for lies in
+/// it**: points of the face's sphere along a Fibonacci spiral of 2,000
+/// directions, those [`topo::curved_face_containment`] places inside the
+/// face, each read in every pose that grants the face an extent
+/// ([`topo::test_support::posed_extents_holding`]). Panics on a point an
+/// extent leaves out; returns how many (point, pose) readings it made, so
+/// a row that granted nothing is seen to.
+fn posed_extents_hold_its_points(what: &str, body: &Body<f64>) -> usize {
+    let mut read = 0;
+    for (fk, _) in body.faces() {
+        let Some(Surface::Sphere { center, radius, .. }) = body.face_surface(fk) else {
+            continue;
+        };
+        let n = 2000;
+        for i in 0..n {
+            #[allow(clippy::cast_precision_loss)]
+            let (z, t) = (
+                1.0 - (2.0 * i as f64 + 1.0) / n as f64,
+                i as f64 * core::f64::consts::PI * (3.0 - 5.0_f64.sqrt()),
+            );
+            let w = (1.0 - z * z).sqrt();
+            let q = [
+                center.x + radius * w * t.cos(),
+                center.y + radius * w * t.sin(),
+                center.z + radius * z,
+            ];
+            let inside = topo::curved_face_containment(
+                body,
+                fk,
+                geom_core::Point3::new(q[0], q[1], q[2]),
+                band(),
+            );
+            if !matches!(inside, Ok(Some(topo::FaceContainment::In))) {
+                continue;
+            }
+            let holds = topo::test_support::posed_extents_holding(body, fk, q)
+                .unwrap_or_else(|| panic!("{what}: face {fk:?} lifts"));
+            for (j, h) in holds.into_iter().enumerate() {
+                match h {
+                    Some(true) => read += 1,
+                    Some(false) => panic!(
+                        "{what}: face {fk:?}'s pose {j} grants an extent leaving out its point {q:?}"
+                    ),
+                    None => {}
+                }
+            }
+        }
+    }
+    read
+}
+
+/// **The two-arc lune's hollow holds turned six ways, and its poses'
+/// extents hold its faces**: the hollow of
+/// [`a_two_arc_lunes_hollow_holds_its_cavity_read_in_its_caps_poses`]
+/// turned by each of [`LUNE_TURNS`], each of which it refused under
+/// before a pose granted its extent (`Uncertified` at the root, a cell
+/// beside a cap's circle read `Local` at every depth). The extent is what
+/// reads the cells beside the circle from outside the face `Missed`. Red
+/// if a pose's extent is not granted, leaves out a face point, or a turn
+/// refuses.
+#[test]
+fn a_two_arc_lunes_hollow_holds_turned_six_ways() {
+    let hollow = two_arc_lune::<f64>(0.0, Some(0.05));
+    assert!(
+        posed_extents_hold_its_points("the hollow", &hollow) > 0,
+        "the hollow's poses grant an extent"
+    );
+    for (axis, angle) in LUNE_TURNS {
+        let what = format!("the hollow turned about {axis:?} by {angle}");
+        let body = lune_moved(&hollow, axis, angle, [0.0; 3]);
+        assert!(
+            posed_extents_hold_its_points(&what, &body) > 0,
+            "{what}: an extent is granted"
+        );
+        assert_holds(&what, &injective(&body, None, BUDGET), &body);
+    }
+}
+
+/// **The two-arc lune hollowed after it is turned holds**: the solid
+/// lune turned about `(1, 1, 1)` by 1.0, then hollowed, so the cavity's
+/// caps and circles are built in the turned pose rather than carried
+/// into it; the certificate's analogue of re-posing the shell's input.
+/// Red if the cavity built off every axis plane refuses where the
+/// carried one holds.
+#[test]
+fn a_two_arc_lune_turned_then_hollowed_holds() {
+    let solid = lune_moved(
+        &two_arc_lune::<f64>(0.0, None),
+        [1.0, 1.0, 1.0],
+        1.0,
+        [0.0; 3],
+    );
+    let hollow = Body::clone(
+        &topo::shell(
+            &sweep::test_support::finished("the turned lune", solid, tol()),
+            0.05,
+            tol(),
+        )
+        .expect("the turned lune hollows")
+        .body,
+    );
+    assert!(posed_extents_hold_its_points("the re-posed hollow", &hollow) > 0);
+    assert_holds(
+        "the re-posed hollow",
+        &injective(&hollow, None, BUDGET),
+        &hollow,
+    );
+}
+
+/// **The two-arc lune's hollow holds under a seeded sweep of rigid
+/// motions**: 24 draws of a turn about a uniform axis by a uniform angle
+/// and a move within 2 of the origin, each read for its poses' extents
+/// and certified. Pinned; `CAD_FUZZ_SEED` explores. Red on any draw that
+/// refuses or whose extent leaves out a face point.
+#[test]
+fn a_two_arc_lunes_hollow_holds_moved_at_random() {
+    let hollow = two_arc_lune::<f64>(0.0, Some(0.05));
+    let mut rng = test_utils::fuzz::pinned_sweep("the lune's rigid motions", 0x6c75_6e65);
+    for draw in 0..test_utils::fuzz::scaled(24) {
+        let axis = loop {
+            let a = [0; 3].map(|_| rng.range(-1.0, 1.0));
+            let n = a.iter().map(|x| x * x).sum::<f64>();
+            if (0.01..=1.0).contains(&n) {
+                break a;
+            }
+        };
+        let angle = rng.range(0.0, TAU);
+        let by = [0; 3].map(|_| rng.range(-2.0, 2.0));
+        let what = format!(
+            "draw {draw}: turned about {axis:?} by {angle}, moved by {by:?} ({})",
+            test_utils::fuzz::replay()
+        );
+        let body = lune_moved(&hollow, axis, angle, by);
+        posed_extents_hold_its_points(&what, &body);
+        assert_holds(&what, &injective(&body, None, BUDGET), &body);
+    }
+}
+
+/// **A snowman whose head stands off the axis refuses at its waist,
+/// within a bounded walk**: the two balls of
+/// [`a_two_ball_union_holds_with_its_poles_read`], the head moved 0.3
+/// across the axis, so the waist is a circle off both spheres' axes.
+/// Each ball's faces are read beside the waist in the waist's pose, where
+/// it is a parallel, and the pair still refuses `Departure` across an
+/// edge it shares beside the waist (so, too, with the head moved along
+/// `z`, or along `x` and `z`). It measured 1,978 splits on this tree; the
+/// bound is 4,096, a sixteenth of the walk's budget [`BUDGET`], so the
+/// row says the refusal comes within a bounded walk, not at the depth
+/// cap. Red if the waist reads `Holds` or another arm, or the walk runs
+/// past the bound (a pose read on the stored chart's sheets does).
+#[test]
+fn a_snowman_with_its_head_off_the_axis_refuses_at_its_waist() {
+    let ball = |r: f64, y: f64| {
+        let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+        revolved_about_y_at::<f64>(vec![p(y - r, 1.0), p(y + r, 0.0)], Revolution::Full, tol())
+    };
+    let head = topo::transform_rigid(
+        &ball(0.8, 0.0),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(0.3, 1.4, 0.0))
+            .expect("a translation"),
+    )
+    .expect("the head moves");
+    let finished = |b| sweep::test_support::finished("the ball", b, tol());
+    let union = topo::boolean::union(&finished(ball(1.0, 0.0)), &finished(head), tol())
+        .expect("the balls unite");
+    let body = Body::clone(&union.body().expect("a body").body);
+    let report = injective(&body, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Uncertified {
+                arm: CertificateArm::Departure,
+                ..
+            })
+        ),
+        "the waist refuses Departure: {:?}",
+        report.verdict
+    );
+    assert!(
+        report.receipt.splits < BUDGET / 16,
+        "within the bound, not to the depth: {:?}",
+        report.receipt
+    );
 }
 
 /// **A filleted cube corner's ball holds against the faces it touches

@@ -283,6 +283,45 @@ impl Quarter {
     }
 }
 
+impl Azimuth<geom_core::Interval> {
+    /// **The angle of an enclosed direction, read about the direction of
+    /// its middle**: with `θ` the angle of the components' middles (a
+    /// point read, at `f64`), the pair turned back by `θ` — its component
+    /// along `θ` and across it, by `θ`'s enclosed sine and cosine — and
+    /// `θ` plus the turned pair's angle. The sector is decided here: the
+    /// turned pair's along component must be certified positive, so the
+    /// read is in the open half-plane `θ` faces, within a quarter turn of
+    /// `θ`, and so narrower than half a turn. `None` otherwise: a box
+    /// that reaches the origin, or one wider than that half-plane.
+    /// Interval `atan2` reads a box straddling its cut as a certified
+    /// full-turn hull (decorated `Def`), and one holding the origin as an
+    /// uncertified one (`Trv`). The turned pair's along component holds
+    /// the middle's own, which is positive, so a turned box reaching the
+    /// cut reaches the origin too, and the closing certification ask
+    /// refuses it; the positive-side ask says so first, and is what bounds
+    /// the read within a quarter turn. Neither the full-turn hull nor a
+    /// read wider than half a turn is ever returned.
+    ///
+    /// [`Azimuth::about`] reads about a whole number of quarter turns,
+    /// exactly, with its branch decided by the caller; this reads about
+    /// the direction's own middle, deciding the branch itself, for an
+    /// enclosure whose spread a quarter-turn centre could leave straddling
+    /// its half-plane.
+    pub fn about_middle(self) -> Option<geom_core::Interval> {
+        use geom_core::{Bounds, Interval};
+        let mid = |x: Interval| geom_core::mid_param(x.lo(), x.hi());
+        let theta = Interval::from_computed(mid(self.y).atan2(mid(self.x)));
+        let (s, c) = theta.sin_cos();
+        let along = self.x * c + self.y * s;
+        let across = self.y * c - self.x * s;
+        if !(along.is_certified() && along.lo() > 0.0) {
+            return None;
+        }
+        let out = theta + across.atan2(along);
+        out.is_certified().then_some(out)
+    }
+}
+
 impl<T: Decide> Azimuth<T> {
     /// The principal angle in the angle window ([`Window::Angle`],
     /// `principal_in`): `atan2`'s, read on whichever side of the
@@ -779,6 +818,62 @@ mod tests {
     /// `sin` recover the direction) within half a turn of the centre, for
     /// every direction off the centre's antipode, at every centre in
     /// `−4..8`.
+    /// **`about_middle` reads an enclosed direction within a quarter turn
+    /// of its middle, or not at all**: a box clear of the origin in the
+    /// half-plane its middle faces reads an enclosure holding every
+    /// sampled direction of the box, narrower than half a turn, and one
+    /// reaching across the origin, or clear of it but past that half-plane
+    /// (`x ∈ [−1, 0.2]`, `y ∈ [0.1, 1]`, whose corner `(0.2, 0.1)` lies
+    /// behind its middle), reads none — where `atan2` over its cut would
+    /// give a certified full turn. Red if
+    /// the half-plane goes unasked.
+    #[test]
+    fn about_middle_reads_within_a_quarter_turn_of_the_middle_or_not_at_all() {
+        use geom_core::{Bounds, Interval};
+        let az = |(x0, x1): (f64, f64), (y0, y1): (f64, f64)| {
+            Azimuth::of(Interval::from_bounds(y0, y1), Interval::from_bounds(x0, x1))
+        };
+        for (x, y) in [
+            ((0.5, 0.7), (0.1, 0.4)),
+            ((-0.9, -0.2), (-0.3, 0.3)),
+            ((-0.2, 0.3), (0.6, 0.9)),
+        ] {
+            let read = az(x, y).about_middle();
+            assert!(read.is_some(), "{x:?} {y:?}: a box in one half-plane reads");
+            let Some(got) = read else { continue };
+            assert!(
+                got.hi() - got.lo() < core::f64::consts::PI,
+                "{x:?} {y:?}: {got:?}"
+            );
+            for i in 0..=8 {
+                for j in 0..=8 {
+                    let px = x.0 + (x.1 - x.0) * f64::from(i) / 8.0;
+                    let py = y.0 + (y.1 - y.0) * f64::from(j) / 8.0;
+                    let a = py.atan2(px);
+                    let k = ((got.lo() + got.hi()) / 2.0 - a) / core::f64::consts::TAU;
+                    let a = a + k.round() * core::f64::consts::TAU;
+                    assert!(
+                        got.lo() <= a && a <= got.hi(),
+                        "{x:?} {y:?}: {a} in {got:?}"
+                    );
+                }
+            }
+        }
+        for (x, y) in [
+            ((-1.0, 1.0), (-0.1, 1.0)),
+            ((-1.0, 1.0), (-1.0, 1.0)),
+            ((-1.0, 0.2), (0.1, 1.0)),
+            ((-1.0, -0.5), (-0.1, 0.1)),
+        ] {
+            let got = az(x, y).about_middle();
+            if (x, y) == ((-1.0, -0.5), (-0.1, 0.1)) {
+                assert!(got.is_some(), "behind the origin, off it: {got:?}");
+            } else {
+                assert!(got.is_none(), "{x:?} {y:?}: past the half-plane: {got:?}");
+            }
+        }
+    }
+
     #[test]
     fn a_quarter_rotates_exactly_and_about_names_the_angle_on_its_branch() {
         use core::f64::consts::{FRAC_PI_2, PI};

@@ -1,7 +1,7 @@
 ---
 id: departure-reads-no-curved-corner-off-its-shared-edge
 kind: issue
-title: The injectivity check still reads no two-arc lune (a sphere face beside an off-axis circle arc), no corner of two different conics and no spiric wall continued onto its next arc; the tee, the two drums and the torus belly now hold
+title: The injectivity check still reads no corner of two different conics (now measured on a sphere where a meridian meets an off-axis circle) and no spiric wall continued onto its next arc; the tee, the two drums, the torus belly and the two-arc lune now hold
 status: open
 opened: 2026-10-29
 priority: P0
@@ -461,7 +461,7 @@ The torus, the cone and the sphere are not covered:
 - two arcs of one conic at a corner (`embed/conic-arcs`), which was then
   every tee refusal (read since; the tee holds);
 - the drums' disc;
-- the two-arc lune.
+- the two-arc lune (read since: the sphere in its caps' poses, below).
 
 ### Review fix pass (2026-11-17)
 
@@ -600,7 +600,8 @@ The pin is re-set to it.
 - **The tee's vertex-alone pairs** (read since: the tee holds, by the
   conic corner at a vertex alone below).
 - **Two arcs of one conic where no partner is presented**, so only the
-  carrier arm applies. This is the two-arc lune: its sphere halves read
+  carrier arm applies (read since, with no carrier-arm reading of a
+  past curve: the sphere is presented in a pose, below). This is the two-arc lune: its sphere halves read
   no image of an off-axis circle, so neither the cap pairs nor the
   sphere pair can certify. It needs a presentation of the sphere beside
   such an arc, or a carrier-arm reading of a past curve that rules out
@@ -683,8 +684,9 @@ a main red found running the censuses. (The endpoint census's drift on
 `injective.rs` was main's, and PR 7104 re-blessed it.)
 
 **What remains of this row:** the two-arc lune (no presentation of the
-sphere beside an off-axis circle), a corner of two different conics,
-and a spiric continued onto its next arc, as the previous section says.
+sphere beside an off-axis circle; read since, in the caps' poses,
+below), a corner of two different conics, and a spiric continued onto
+its next arc, as the previous section says.
 
 ## Trace: the two-arc lune (EMBED, lane cavity-trace, 2026-11-18)
 
@@ -735,7 +737,9 @@ re-posed chart (the sphere is symmetric about its centre, so any axis
 through it charts it) turns the arc into a coordinate side. It lies on
 its edge, so its zero is on the shared cell. Two consequences:
 - **The cap–sphere pairs should then close with readings that exist**
-  (predicted from the arms' rules, not measured). The cap's
+  (predicted from the arms' rules, not measured; measured since, below:
+  they close, by the carrier arm under the cap's own plane against the
+  sphere's side, not by `past_read`). The cap's
   past curve against the sphere's exact side is admitted by
   `past_read`, under the graph separator over the arc or under the cap's
   plane (both vanish on the whole circle). So nothing short of the
@@ -746,8 +750,124 @@ its edge, so its zero is on the shared cell. Two consequences:
   face's corner at the equator vertex is the equator (a parallel) meeting
   a cap circle (a parallel only of the re-posed chart). That is a corner
   of two different conics, which this row also names, unread in any
-  chart.
+  chart. (False, measured below: the cap's normal lies in the equator's
+  plane, so in the cap's pose the equator is a meridian and the corner
+  is two coordinate lines.)
 
 **The cheapest evidence** is this row's lune at 0.34 s.
 
+## Read: a sphere face in the pose of its circle (EMBED, lane lune, 2026-11-18)
+
+**Measured first** (main `ff2319654`, f64; the cavity through the local
+`CavityGate` switch, `departure` instrumented, uncommitted). The trace
+above held. The four cap–sphere pairs refuse only in cells that hold
+the equator vertex their arc ends at (`4v1` or `3v1`): there the cap is
+read past it (`Curve(XHi, past)`), the sphere is `Err(Structural)`, and
+the pair is `stuck` (5 cells each). At the other end of the arc, the
+caps' common vertex (`2v1`, `1v1`), the cap is read with no past
+(`Curve(XHi)`), and the sphere's carrier certifies against it: the
+sphere is not needed there. The sphere pair refuses at the root, both
+`Structural`.
+
+**What landed** (`crates/topo/src/injective.rs`, `present_posed`):
+- **A sphere face the stored chart leaves unread is read in a pose**:
+  the same sphere charted about the axis of a circle in the cell's reach
+  that the stored chart reads as no coordinate line, from that circle's
+  seam (`poses_of`). The circle is a parallel there, and a great circle
+  through that axis a meridian. `present_chart` then runs unchanged
+  (`present_chart_in(.., posed)`), on the cell placed in the pose
+  (`posed_cell`: a rectangle holding every point of the sphere in the
+  cell's box, under half a turn wide) and the boundary lifted into it
+  (`posed_use`; corrected in the fix pass below: each circle's image is
+  the mint's own, `geom_brep::chart_pcurve_over`, read as a stored row
+  is, `clearance::chart_use`, not a radial projection of the lane's).
+- **What a pose does not read:** the graph separator (its sides carry
+  no parameters) and the sliver, which is frozen. (Corrected in the fix
+  pass below: a corner or point zero is read in a pose, as a stored
+  chart's is.)
+- **What a pose decides:** a presentation, or `Local`. Two exceptions
+  keep the stored `Structural`: a pose in which a shared edge is no
+  coordinate line is not tried (`poses_of`), and a cell reaching a
+  corner of the shared cell that no chart reads as two coordinate lines
+  is `Structural` (`unread_corner`, read off the cell's own reach).
+  Without them the off-axis snowman below took 10–20 s to refuse what
+  main refuses in 0.01 s.
+
+**In the lune** each sphere half is read beside a cap's circle in that
+cap's pose. The cap's normal lies in the equator's plane, so the equator
+is a meridian there: at the equator vertex the sphere's corner is two
+coordinate lines, and **no corner of two different conics is needed**.
+The cap pairs certify by the carrier arm, under the cap's own plane
+against the sphere's side; the sphere pair under the equator's plane.
+
+**Measured after** (f64, `47dda0040` and the snowman pin):
+
+| measure | main `ff2319654` | here |
+|---|---|---|
+| the lune's cavity | `Uncertified { 3v1, 4v1, Edge(6v1) }`: 120 discharged, 21 refused, 131 splits | `Embedded`: 338 discharged, 0 refused, 328 splits |
+| its pairs | each cap × sphere: 2 certified, 28 splits, 5 refused; sphere × sphere refused at the root | each cap × sphere: 7 certified, 23 splits; sphere × sphere: 16 certified, 91 splits |
+| the cavity switch over 12 test modules (166 tests, 228 asks) | 14 fail: 2 crossing pins, 12 valid | 13 fail: the same 2 pins (still `Crosses`) and 11 valid; three asks cheaper, verdicts unchanged (two domes 252 → 239 discharged, the one-arc lune 81 → 69); the other 224 identical |
+| `self_intersection_proves_injectivity`, three ε | 49 pass each | 51 pass each (the two rows below) |
+| the tour walk, 85 stops | 82 hold | identical, stop by stop |
+| a snowman, head moved `dx` off the axis | `dx` 0.1, 0.3, 0.5: `Uncertified` at the waist, 4 discharged, 0 splits | identical |
+
+**The corner of two different conics, now on a sphere.** The off-axis
+snowman refuses at its waist vertices, where each ball's half-band
+meridian (a coordinate line of the stored chart) meets the waist circle
+(a parallel only of its own pose). No chart reads both as lines, so the
+refusal is the row's next remainder; pinned by
+`a_snowman_with_its_head_off_the_axis_refuses_at_its_waist`.
+(Corrected in the fix pass below: with the mint's lift the walk reads
+the waist's cells in the pose and refuses after about 2,000 splits, not
+at once; the row pins a bound of 4,096.)
+The leftovers of the gate's 47 sphere/sphere refusals were not re-run
+here (the gate is not on main); its named bodies on the tour
+(`budfillet`, `lily`) do not move.
+
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
+
+### Review fix pass: the pose's extent (EMBED, lane lune, 2026-11-18)
+
+The review of `f35afe01` found the hollow refused under three of six
+rigid turns (`x` 0.3, `(1, 1, 1)` 1.0, `z` 1.2). The cells were the
+cavity's sphere halves beside a cap's circle, outside the face, which a
+pose read `Local` at every depth. A pose had no extent, so no sheet said
+the cell missed the face. The ruling took the pose's extent, in this
+row.
+
+**What landed:**
+- **The posed extent** (`posed_extent`) is carried in the posed boundary's
+  `Boundary::extent` and read by `face_extent` and `sheets` as a stored
+  extent is. It is granted only where:
+  - every row of the outer loop has an enclosure in the pose (pieces
+    placed by `posed_cell`; a piece holding the pose's pole refuses it);
+  - the lift closes on one sheet without wrapping the azimuth;
+  - its signed area, less the pieces' rectangle areas, has the sign that
+    makes the face the bounded side.
+
+  Otherwise the cell is read on the rectangle's own sheet, never
+  `Structural`.
+- **The lift** is the mint's (`geom_brep::chart_pcurve_over`), read as a
+  stored row is (`clearance::chart_use`). A pose reads circles only. The
+  azimuth is `geom::Azimuth::about_middle`, and the frame `geom::Frame`.
+- **A corner zero is read in a pose**, and `Zero::Past` is reachable
+  there. The sliver is still skipped. `placed_on_lines` and `narrow` are
+  gone. `unread_corner` fires only where the cell touches the pair at a
+  single shared vertex.
+
+**Measured** (head `8e9c651e8`, which merges main; f64 unless said):
+- the six turns hold, and 24 pinned random rigid motions hold (2,919 to
+  11,460 discharged). The corner-from-outside cells read `Missed`. Every
+  face point sampled lies in every granted extent;
+- the general lune, its seam off the equator, holds solid at both
+  scalars. Its hollow refuses `Departure` across the seam, where it meets
+  a cavity cap's circle: a corner of two different conics no chart
+  reads, this row's remainder, on a sphere;
+- at `Interval` the hollow's own shell refuses
+  (`a-lunes-cavity-refuses-its-shell-at-interval`);
+- the cavity switch over the 12 modules: 13 of 166 fail, the same as the
+  first pass. The suite is green at three ε (61 each). The tour walk
+  holds 82 of 85, identical stop by stop to main;
+- the off-axis snowman now refuses after about 2,000 splits, not at
+  once (the mint's lift reads the waist's cells). Its row pins a bound
+  of 4,096.

@@ -3782,6 +3782,27 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
             || half.min_z > whole.min_z)
 }
 
+/// **Whether each pose of a sphere face holds `point` in its extent**
+/// ([`injective::posed_extents_holding`]), the face read as the
+/// certificate reads it. `None` where the face or its carrier does not
+/// lift.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn posed_extents_holding(
+    body: &Body<f64>,
+    face: FaceKey,
+    point: [f64; 3],
+) -> Option<Vec<Option<bool>>> {
+    let stored = body.face(face)?.surface();
+    let (_, boundary) = boundary_of(body, face)?;
+    let surface = certified_lift(|lift| stored.map_scalar(|x| lift.of(x)))?;
+    let p = point.map(|x| Interval::from_bounds(x, x));
+    Some(injective::posed_extents_holding(
+        &surface,
+        &boundary,
+        Point3::new(p[0], p[1], p[2]),
+    ))
+}
+
 /// The face's boundary enclosure, and the boundary itself lifted.
 ///
 /// The enclosure is the hull of every boundary edge's carrier evaluated
@@ -3906,6 +3927,38 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         Aabb::from_points(pts).map(|b| (b, out))
     })
     .flatten()
+}
+
+/// **One use of an edge, read off a chart image held at the interval
+/// scalar**: [`boundary_of`]'s reading of a row, for an image no body
+/// stores (a pose of a sphere's chart, `injective::present_posed`). Its
+/// two ends at the edge's span `(t0, t1)`, and the coordinate line,
+/// harmonic and wall images it is, by variant; `full` where its edge is
+/// closed and the line holds an angle. `None` where a value it reads does
+/// not certify.
+pub(crate) fn chart_use(
+    pcurve: &Pcurve<Interval>,
+    (t0, t1): (Interval, Interval),
+    plus: bool,
+    closed: bool,
+) -> Option<Use> {
+    certified_lift(|lift: Lift<'_, Interval>| {
+        let end = |t: Interval| {
+            let q = pcurve.eval(t);
+            Point2::new(lift.of(q.x), lift.of(q.y))
+        };
+        Use {
+            plus,
+            image: Some([end(t0), end(t1)]),
+            harmonic: harmonic_of(pcurve, lift),
+            wall: wall_of(pcurve, lift),
+            iso: iso_of(pcurve, lift).map(|(held, at, angle)| Iso {
+                held,
+                at,
+                full: angle && closed,
+            }),
+        }
+    })
 }
 
 /// One row of a loop as [`extent_of`] reads it.
