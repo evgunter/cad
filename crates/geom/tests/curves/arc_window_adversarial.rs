@@ -186,7 +186,7 @@ fn carrier(rng: &mut fuzz::Rng) -> Curve3<f64> {
 /// itself can cancel far below it.
 fn harmonic_of(carrier: &Curve3<f64>, n: Vec3<f64>) -> (f64, f64, f64, f64) {
     let (center, axis, u, a, b) = match *carrier {
-        Curve3::Circle(geom::Circle { frame, radius }) => {
+        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             (center, axis, u_ref, radius, radius)
         }
@@ -194,6 +194,7 @@ fn harmonic_of(carrier: &Curve3<f64>, n: Vec3<f64>) -> (f64, f64, f64, f64) {
             frame,
             semi_u,
             semi_v,
+            ..
         }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             (center, axis, u_ref, semi_u, semi_v)

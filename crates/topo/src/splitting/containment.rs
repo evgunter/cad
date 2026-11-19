@@ -2376,14 +2376,14 @@ mod tests {
             );
         }
         // A circle: an overlap in its band escalates, one past it is wound.
-        let circle = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame::new(
+        let circle = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
                 Vec3::new(1.0, 0.0, 0.0),
             ),
-            radius: 1.0,
-        });
+            1.0,
+        ));
         let tau = core::f64::consts::TAU;
         assert!(matches!(
             conic_of(&circle, (0.0, tau + 5.0 * eps), WALK_ROWS.conic(), band),

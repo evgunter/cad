@@ -86,6 +86,7 @@ impl Pose {
             frame: carrier_frame,
             semi_u,
             semi_v,
+            ..
         }))) = plane_cone_section(&plane, &cone, &at_apex(&cone, self.lever), band())
         else {
             return None;

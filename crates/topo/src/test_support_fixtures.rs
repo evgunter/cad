@@ -2125,6 +2125,7 @@ pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let Curve3::Circle(geom::Circle {
         frame: carrier_frame,
         radius,
+        ..
     }) = carrier
     else {
         unreachable!("an arc cap is cut from a circle, and the caller passed another curve")

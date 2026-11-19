@@ -256,10 +256,10 @@ fn rim_edge(
         )
     } else {
         LoopEdge::hand_built(
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame::new(center, axis, u_ref),
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame::new(center, axis, u_ref),
                 radius,
-            }),
+            )),
             u0,
             u1,
             up,

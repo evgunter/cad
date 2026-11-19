@@ -189,6 +189,7 @@ pub fn circle_torus_roots<T: Decide>(
             circle @ geom::Circle {
                 frame: carrier_frame,
                 radius,
+                ..
             },
         ),
         &geom::Surface::Torus {
@@ -540,10 +541,12 @@ fn parallel_axes_roots<T: Decide>(
     band: Band,
 ) -> Result<CircleRoots<T>, RootRefusal> {
     let &ParallelPose {
-        circle: geom::Circle {
-            frame: carrier_frame,
-            radius,
-        },
+        circle:
+            geom::Circle {
+                frame: carrier_frame,
+                radius,
+                ..
+            },
         w_perp,
         offset,
         h0,
@@ -722,10 +725,10 @@ mod tests {
         torus: &geom::Surface<T>,
         band: Band,
     ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
-        let carrier = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame::new(center, axis, u_ref),
+        let carrier = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(center, axis, u_ref),
             radius,
-        });
+        ));
         circle_torus_roots(&carrier, t0, t1, torus, band)
     }
 

@@ -229,7 +229,7 @@ pub fn tangent_span_bounds<T: Real>(
         return None;
     }
     let step = (t1 - t0) / T::from_f64(f64::from(crate::certify::CERT_SAMPLES - 1));
-    if let Curve3::Circle(geom::Circle { frame, radius }) = *carrier {
+    if let Curve3::Circle(geom::Circle { frame, radius, .. }) = *carrier {
         let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         return circle_span_bounds(s1, s2, center, axis, radius, u_ref, step);
     }

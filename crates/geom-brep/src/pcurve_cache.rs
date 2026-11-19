@@ -8955,7 +8955,7 @@ fn run_iso_arc_checks<T: Decide>(
     if surface.is_placeholder_chart() {
         return Err(PcurveCertifyError::PlaceholderChart);
     }
-    let Curve3::Circle(geom::Circle { frame, radius }) = carrier else {
+    let Curve3::Circle(geom::Circle { frame, radius, .. }) = carrier else {
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "an arc-rim iso over a non-Circle carrier — the class IS the circle's \
                    rational-quadratic reparameterization",
@@ -11532,6 +11532,7 @@ fn derive_class_zero<T: Decide>(
                     frame: carrier_frame,
                     semi_u,
                     semi_v,
+                    ..
                 }) => {
                     let (center, e_axis, seam) = (
                         carrier_frame.origin(),
@@ -12688,6 +12689,7 @@ fn torus_oblique_circle<T: Decide>(
         &Curve3::Circle(geom::Circle {
             frame: carrier_frame,
             radius,
+            ..
         }),
         &Surface::Torus {
             frame,
@@ -15103,10 +15105,10 @@ mod tests {
             minor_radius: minor,
         };
         let circle = |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame::new(center, axis, u_ref),
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame::new(center, axis, u_ref),
                 radius,
-            })
+            ))
         };
         // Each row names its site by a word only that site's `why`
         // carries, so a row answered by a different site goes red.
@@ -16877,7 +16879,7 @@ mod limb2_memo_rows {
             let (c, s) = rim(1.25);
             let c = match c.map_scalar(lift) {
                 Curve3::Circle(geom::Circle { frame, .. }) => {
-                    Curve3::Circle(geom::Circle { frame, radius })
+                    Curve3::Circle(geom::Circle::new(frame, radius))
                 }
                 _ => unreachable!(),
             };
@@ -17061,10 +17063,7 @@ mod limb2_quick_rows {
             else {
                 unreachable!()
             };
-            let c = Curve3::Circle(geom::Circle {
-                frame: carrier_frame,
-                radius,
-            });
+            let c = Curve3::Circle(geom::Circle::new(carrier_frame, radius));
             bits(&limb2_offset_sup(
                 &c,
                 (lift(0.2), lift(2.9)),

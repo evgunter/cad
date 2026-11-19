@@ -9982,7 +9982,7 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
             let (a, b) = edge_endpoints(body, he)?;
             MeetSegment::Line { a, b }
         }
-        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+        geom::Curve3::Circle(geom::Circle { frame, radius, .. }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let (t0, t1) = geom.params();
             MeetSegment::Arc {
@@ -10315,10 +10315,10 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
             t0,
             t1,
         } => {
-            let carrier = geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame::new(center, axis, u_ref),
+            let carrier = geom::Curve3::Circle(geom::Circle::new(
+                geom::Frame::new(center, axis, u_ref),
                 radius,
-            });
+            ));
             let span = geom_brep::curve_pair::Span::new(&carrier, (t0, t1));
             match span.place(p, geom::mid_param(t0, t1), band) {
                 Ok(geom_brep::curve_pair::Place::Inside | geom_brep::curve_pair::Place::End(_)) => {
@@ -10534,7 +10534,7 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         geom::Curve3::Line(line) => Some(line.distance(p)),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
-        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+        geom::Curve3::Circle(geom::Circle { frame, radius, .. }) => {
             let (center, axis) = (frame.origin(), frame.axis());
             let (along, rho) = geom::Line {
                 origin: center,
@@ -15207,10 +15207,10 @@ mod tests {
         assert!(s.equals_exactly(t), "a closed edge");
         let radius = (s - center).norm();
         let u_ref = (s - center) / radius;
-        let carrier = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame::new(center, axis, u_ref),
+        let carrier = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(center, axis, u_ref),
             radius,
-        });
+        ));
         let spec =
             geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, std::f64::consts::TAU).unwrap();
         let curve = geom_brep::EdgeCurve::certify(
@@ -16480,10 +16480,10 @@ mod tests {
                 ((t1 - t0 < std::f64::consts::PI) != long).then_some((axis, t0, t1))
             })
             .expect("one sense of the circle is the arc asked for");
-        let carrier = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame::new(center, axis, u_ref),
+        let carrier = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(center, axis, u_ref),
             radius,
-        });
+        ));
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1).unwrap();
         let curve = geom_brep::EdgeCurve::certify(
             spec,

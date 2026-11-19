@@ -17,7 +17,7 @@ use geom_core::spline::{Knots, SpanLocate};
 
 /// The chain of the `circle` arc over `[f0, f1]` (radians), at `T`.
 pub fn chain<T: SpanLocate>(circle: &Curve3<T>, f0: f64, f1: f64) -> NurbsCurve3<T> {
-    let &Curve3::Circle(geom::Circle { frame, radius }) = circle else {
+    let &Curve3::Circle(geom::Circle { frame, radius, .. }) = circle else {
         panic!("the arc chain is a circle's");
     };
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());

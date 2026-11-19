@@ -2208,6 +2208,7 @@ fn mint_carrier<T: Decide>(
                 Curve3::Circle(geom::Circle {
                     frame: seam_frame,
                     radius,
+                    ..
                 }),
             ) => {
                 let (center, cc) = (sphere_frame.origin(), seam_frame.origin());
@@ -2241,6 +2242,7 @@ fn mint_carrier<T: Decide>(
                 Curve3::Circle(geom::Circle {
                     frame: seam_frame,
                     radius,
+                    ..
                 }),
             ) => {
                 let (center, cc) = (torus_frame.origin(), seam_frame.origin());
@@ -3069,7 +3071,7 @@ fn reauthor<T: Decide>(
                         geom_brep::SketchSegment::Line { a, b }
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
-                        let Curve3::Circle(geom::Circle { frame, radius }) = carrier else {
+                        let Curve3::Circle(geom::Circle { frame, radius, .. }) = carrier else {
                             return Err(refuse(
                                 "a sketch arc with no moved circle to be redrawn about",
                             ));

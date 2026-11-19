@@ -130,7 +130,7 @@ fn lift_v(v: Vec3<f64>) -> Vec3<Interval> {
 fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
     let at = Interval::from_f64;
     let carrier = match pose.carrier {
-        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+        geom::Curve3::Circle(geom::Circle { frame, radius, .. }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             geom::Curve3::circle(lift_p(center), lift_v(axis), at(radius), lift_v(u_ref))
         }
@@ -138,6 +138,7 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
             frame,
             semi_u,
             semi_v,
+            ..
         }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             geom::Curve3::Ellipse(geom::Ellipse::new(

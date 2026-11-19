@@ -1121,6 +1121,7 @@ impl<T: Decide> Quadric<T> {
             geom::Curve3::Circle(geom::Circle {
                 frame: carrier_frame,
                 radius,
+                ..
             }),
         ) = (*self, carrier)
         else {
@@ -1791,10 +1792,7 @@ impl<T: Decide> ConicArc<T> {
     pub(crate) fn distance_floor(&self, x: Point3<T>) -> T {
         let k = self.conic();
         let (f, (a, b)) = (k.frame(), k.semi_axes());
-        let circle = geom::Curve3::Circle(geom::Circle {
-            frame: *f,
-            radius: b,
-        });
+        let circle = geom::Curve3::Circle(geom::Circle::new(*f, b));
         let Some(arc) = circle.distance_within(x, self.span) else {
             unreachable!("a circle's arc distance is closed-form")
         };

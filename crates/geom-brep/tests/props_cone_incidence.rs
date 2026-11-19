@@ -168,7 +168,7 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
     let v = |q: geom_core::Vec3<f64>| vt::<T>([q.x, q.y, q.z]);
     match *e {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(p(origin), v(dir)),
-        Curve3::Circle(geom::Circle { frame, radius }) => {
+        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             Curve3::circle(p(center), v(axis), T::from_f64(radius), v(u_ref))
         }
@@ -176,6 +176,7 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
             frame,
             semi_u,
             semi_v,
+            ..
         }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             Curve3::Ellipse(geom::Ellipse::new(
@@ -373,6 +374,7 @@ fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
         frame,
         semi_u,
         semi_v,
+        ..
     }) = section(c)
     else {
         unreachable!()

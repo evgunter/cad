@@ -89,7 +89,7 @@ fn head_of(s: String) -> String {
 
 fn circle_pts(c: &Curve3<f64>, n: usize) -> Vec<Point3<f64>> {
     match *c {
-        Curve3::Circle(geom::Circle { frame, radius }) => {
+        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let u = (u_ref - axis * u_ref.dot(axis)).normalize();
             let v = axis.cross(u);

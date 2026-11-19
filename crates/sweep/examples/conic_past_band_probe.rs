@@ -177,6 +177,7 @@ fn arcs(e: &Curve3<f64>, coord: impl Fn(Point3<f64>) -> f64, lo: f64, hi: f64) -
         frame,
         semi_u,
         semi_v,
+        ..
     }) = *e
     else {
         unreachable!()

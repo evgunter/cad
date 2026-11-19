@@ -380,6 +380,7 @@ fn split_ellipse(
         frame: carrier_frame,
         semi_u,
         semi_v,
+        ..
     }) = *c
     else {
         panic!("a tilted section is an ellipse")

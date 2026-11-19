@@ -242,6 +242,7 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
                 let Curve3::Circle(geom::Circle {
                     frame: carrier_frame,
                     radius: ar,
+                    ..
                 }) = *c.carrier()
                 else {
                     // A corner patch's cycle also meets the cove

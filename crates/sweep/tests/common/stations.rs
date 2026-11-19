@@ -94,8 +94,11 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
             Curve3::Circle(geom::Circle {
                 frame: carrier_frame,
                 radius: r1,
+                ..
             }),
-            Curve3::Circle(geom::Circle { frame, radius: r2 }),
+            Curve3::Circle(geom::Circle {
+                frame, radius: r2, ..
+            }),
         ) => {
             let (c1, a1) = (carrier_frame.origin(), carrier_frame.axis());
             let (c2, a2) = (frame.origin(), frame.axis());

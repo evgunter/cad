@@ -609,6 +609,7 @@ pub(super) fn rim_trim_circles<T: Real>(
     let Curve3::Circle(geom::Circle {
         frame: carrier_frame,
         radius: pr,
+        ..
     }) = *first_trim
     else {
         return Err(unbuilt_geometry(
@@ -620,6 +621,7 @@ pub(super) fn rim_trim_circles<T: Real>(
     let Curve3::Circle(geom::Circle {
         frame: carrier_frame,
         radius: sr,
+        ..
     }) = *other_trim
     else {
         return Err(unbuilt_geometry(

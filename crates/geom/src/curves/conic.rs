@@ -75,6 +75,9 @@ pub struct Circle<T: Real> {
     pub frame: Frame<T>,
     /// The radius in metres (positive).
     pub radius: T,
+    /// The point at `θ = 0` where the circle was born anchored
+    /// ([module docs](self), "The two stored forms").
+    anchor: Option<Point3<T>>,
 }
 
 /// **A full ellipse**,
@@ -90,6 +93,9 @@ pub struct Ellipse<T: Real> {
     pub semi_u: T,
     /// The semi-axis along `axis × u_ref`, in metres (positive).
     pub semi_v: T,
+    /// The point at `θ = 0`, the vertex on `u_ref`, where the ellipse
+    /// was born anchored ([module docs](self), "The two stored forms").
+    anchor: Option<Point3<T>>,
 }
 
 /// An ellipse's principal frame with a chosen principal direction first
@@ -169,11 +175,26 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// seam is at; a tie, and a circle, keep the seam's own axis.
     fn major_frame(&self) -> MajorFrame<T>;
 
-    /// **The point at `θ` with a first-order running bound on its
-    /// rounding** ([`Rounded`]), from `sin θ` and `cos θ` already charged:
-    /// [`Self::point_at`] operation for operation, so its value is that
-    /// point bit for bit. The frame and the sizes are taken as exact.
-    fn running_point(&self, sin_cos: (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3];
+    /// **The point at the parameter `theta` with a first-order running
+    /// bound on its rounding** ([`Rounded`]): [`Self::point_at`]
+    /// operation for operation, so its value is that point bit for bit.
+    /// `theta`, the frame, the sizes and a stored anchor are taken as
+    /// exact; the half-angle's sine and cosine are charged an ulp each,
+    /// and a zero point summed from the centre its sum.
+    fn running_point(&self, theta: T) -> [Rounded<T>; 3];
+
+    /// **The point at parameter zero**, which every point of the conic
+    /// is summed from ([module docs](self), "The two stored forms"): the
+    /// vertex on `u_ref`, the stored anchor of a conic born anchored, else
+    /// `center + u_ref·semi_u`.
+    fn zero_point(&self) -> Point3<T>;
+
+    /// **The centre**: the frame's origin. Stored where the conic was
+    /// born with one; derived from the anchor where it was born
+    /// anchored, and then rounded at the semi-axes' own scale.
+    fn center(&self) -> Point3<T> {
+        self.frame().origin()
+    }
 
     /// **`p` in the conic's unit coordinates**: its in-plane components
     /// over the semi-axes, `((p − c)·u_ref/a, (p − c)·v_ref/b)`, in which
@@ -274,8 +295,14 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     fn major_frame(&self) -> MajorFrame<T> {
         (**self).major_frame()
     }
-    fn running_point(&self, sin_cos: (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3] {
-        (**self).running_point(sin_cos)
+    fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
+        (**self).running_point(theta)
+    }
+    fn zero_point(&self) -> Point3<T> {
+        (**self).zero_point()
+    }
+    fn center(&self) -> Point3<T> {
+        (**self).center()
     }
     fn along(&self, n: Vec3<T>) -> (T, T) {
         (**self).along(n)
@@ -308,18 +335,105 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
 fn running_frame<T: Real>(f: &Frame<T>) -> RunningFrame<T> {
     use geom_core::running::{cross, exact_vec};
     let (n, u) = (exact_vec(f.axis()), exact_vec(f.u_ref()));
-    let c = exact_vec(Vec3::new(f.origin().x, f.origin().y, f.origin().z));
-    (c, u, cross(n, u))
+    (exact_point(f.origin()), u, cross(n, u))
+}
+
+/// A point's coordinates entered exactly into running arithmetic.
+fn exact_point<T: Real>(p: Point3<T>) -> [Rounded<T>; 3] {
+    geom_core::running::exact_vec(Vec3::new(p.x, p.y, p.z))
 }
 
 /// A frame in running arithmetic: centre, `u_ref`, `v_ref`.
 type RunningFrame<T> = ([Rounded<T>; 3], [Rounded<T>; 3], [Rounded<T>; 3]);
 
+/// **The half-angle pair every conic point is summed from**:
+/// `m = 2·sin(θ/2)` and `(sin(θ/2), cos(θ/2))`, so that
+/// `cos θ − 1 = −m·sin(θ/2)` and `sin θ = m·cos(θ/2)` with no
+/// cancellation at any `θ`.
+fn half_angle<T: Real>(theta: T) -> (T, (T, T)) {
+    let (sh, ch) = (theta * T::from_f64(0.5)).sin_cos();
+    (T::from_f64(2.0) * sh, (sh, ch))
+}
+
+/// [`half_angle`] in running arithmetic: the sine and the cosine
+/// charged an ulp each, the halving and the doubling exact.
+fn running_half_angle<T: Real>(theta: T) -> (Rounded<T>, (Rounded<T>, Rounded<T>)) {
+    let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
+    let transcendental = |x: T| Rounded {
+        value: x,
+        error: ulp * x.abs(),
+    };
+    let (m, (sh, ch)) = half_angle(theta);
+    let (sh, ch) = (transcendental(sh), transcendental(ch));
+    let m = Rounded {
+        value: m,
+        error: T::from_f64(2.0) * sh.error,
+    };
+    (m, (sh, ch))
+}
+
+/// `−x`, exact.
+fn running_neg<T: Real>(x: Rounded<T>) -> Rounded<T> {
+    Rounded {
+        value: -x.value,
+        error: x.error,
+    }
+}
+
 impl<T: Real> Circle<T> {
     /// The circle of `radius` placed by `frame`.
     #[must_use]
     pub fn new(frame: Frame<T>, radius: T) -> Self {
-        Self { frame, radius }
+        Self {
+            frame,
+            radius,
+            anchor: None,
+        }
+    }
+
+    /// **The circle of `radius` born anchored at `anchor`** ([module
+    /// docs](self), "The two stored forms"): in the plane of normal
+    /// `axis`, its centre `radius` back from the anchor along `toward`
+    /// (the direction from the centre to the anchor, squared to the axis
+    /// with no decision). The anchor is its point at `θ = 0` and the
+    /// datum it stores; the centre is derived.
+    #[must_use]
+    pub fn anchored(anchor: Point3<T>, axis: Vec3<T>, toward: Vec3<T>, radius: T) -> Self {
+        let at = Frame::new(anchor, axis, toward);
+        Self {
+            frame: at.with_origin(anchor - at.u_ref() * radius),
+            radius,
+            anchor: Some(anchor),
+        }
+    }
+
+    /// The stored anchor, where the circle was born anchored.
+    #[must_use]
+    pub fn anchor(&self) -> Option<Point3<T>> {
+        self.anchor
+    }
+
+    /// **This circle with its placement and its anchor carried by
+    /// `frame` and `point`**: the image of the circle under whatever map
+    /// took its frame to `frame`, which `point` applies to a point. A
+    /// circle born with a centre stays so.
+    #[must_use]
+    pub fn carried(&self, frame: Frame<T>, point: impl Fn(Point3<T>) -> Point3<T>) -> Self {
+        Self {
+            frame,
+            radius: self.radius,
+            anchor: self.anchor.map(point),
+        }
+    }
+
+    /// **This circle at another scalar**: its frame as `frame` carries
+    /// it, its radius and its anchor through `f`.
+    pub fn map_scalar<U: Real>(&self, frame: Frame<U>, f: impl Fn(T) -> U) -> Circle<U> {
+        Circle {
+            frame,
+            radius: f(self.radius),
+            anchor: self.anchor.map(|p| Point3::new(f(p.x), f(p.y), f(p.z))),
+        }
     }
 
     /// **The circle's period**: its parameter is an angle
@@ -354,7 +468,9 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 
     fn point_at(&self, theta: T) -> Point3<T> {
-        self.point_on(&self.azimuth(theta))
+        let (m, (sh, ch)) = half_angle(theta);
+        let (u, v) = (self.frame.u_ref(), self.frame.v_ref());
+        self.zero_point() + (u * (-(m * sh)) + v * (m * ch)) * self.radius
     }
 
     fn derivative_at(&self, theta: T) -> Vec3<T> {
@@ -362,8 +478,10 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 
     fn jet_at(&self, theta: T) -> (Point3<T>, Vec3<T>) {
-        let at = self.azimuth(theta);
-        (self.point_on(&at), at.tangential.0 * self.radius)
+        (
+            self.point_at(theta),
+            self.azimuth(theta).tangential.0 * self.radius,
+        )
     }
 
     fn second_derivative_at(&self, theta: T) -> Vec3<T> {
@@ -374,8 +492,18 @@ impl<T: Real> Conic<T> for Circle<T> {
     /// `(x/r, y/r)`'s direction, read as `(y·r, x·r)`, as an ellipse
     /// reads its own: a circle of negative radius, traversed through the
     /// seam's antipode, reads the parameter that reproduces the point.
+    /// `p` is read from the zero point, so `x = r + (p − P₀)·u_ref`.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
-        self.frame.azimuth(p).scaled(self.radius, self.radius)
+        let w = p - self.zero_point();
+        let (x, y) = (w.dot(self.frame.u_ref()), w.dot(self.frame.v_ref()));
+        Azimuth::of(y, self.radius + x).scaled(self.radius, self.radius)
+    }
+
+    fn zero_point(&self) -> Point3<T> {
+        match self.anchor {
+            Some(p) => p,
+            None => self.frame.origin() + self.frame.u_ref() * self.radius,
+        }
     }
 
     fn speed_lo(&self) -> T {
@@ -390,10 +518,16 @@ impl<T: Real> Conic<T> for Circle<T> {
         self.radius
     }
 
-    fn running_point(&self, (sin, cos): (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3] {
+    fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
         let (c, u, v) = running_frame(&self.frame);
         let r = Rounded::exact(self.radius);
-        core::array::from_fn(|i| c[i] + (u[i] * cos + v[i] * sin) * r)
+        let (m, (sh, ch)) = running_half_angle(theta);
+        let (ku, kv) = (running_neg(m * sh), m * ch);
+        let zero: [Rounded<T>; 3] = match self.anchor {
+            Some(p) => exact_point(p),
+            None => core::array::from_fn(|i| c[i] + u[i] * r),
+        };
+        core::array::from_fn(|i| zero[i] + (u[i] * ku + v[i] * kv) * r)
     }
 
     fn major_frame(&self) -> MajorFrame<T> {
@@ -424,6 +558,63 @@ impl<T: Real> Ellipse<T> {
             frame,
             semi_u,
             semi_v,
+            anchor: None,
+        }
+    }
+
+    /// **The ellipse born anchored at its vertex `anchor`** ([module
+    /// docs](self), "The two stored forms"): in the plane of normal
+    /// `axis`, with `semi_u` along `toward` (the principal direction
+    /// from the centre to the anchor, squared to the axis with no
+    /// decision) and `semi_v` across it. The anchor is its point at
+    /// `θ = 0` and the datum it stores; the centre, `semi_u` back from
+    /// it, is derived. Unchecked; [`Curve3::ellipse_anchored`] is the
+    /// deciding door.
+    #[must_use]
+    pub fn anchored(
+        anchor: Point3<T>,
+        axis: Vec3<T>,
+        toward: Vec3<T>,
+        semi_u: T,
+        semi_v: T,
+    ) -> Self {
+        let at = Frame::new(anchor, axis, toward);
+        Self {
+            frame: at.with_origin(anchor - at.u_ref() * semi_u),
+            semi_u,
+            semi_v,
+            anchor: Some(anchor),
+        }
+    }
+
+    /// The stored anchor, where the ellipse was born anchored.
+    #[must_use]
+    pub fn anchor(&self) -> Option<Point3<T>> {
+        self.anchor
+    }
+
+    /// **This ellipse with its placement and its anchor carried by
+    /// `frame` and `point`**: the image of the ellipse under whatever
+    /// map took its frame to `frame`, which `point` applies to a point.
+    /// An ellipse born with a centre stays so.
+    #[must_use]
+    pub fn carried(&self, frame: Frame<T>, point: impl Fn(Point3<T>) -> Point3<T>) -> Self {
+        Self {
+            frame,
+            semi_u: self.semi_u,
+            semi_v: self.semi_v,
+            anchor: self.anchor.map(point),
+        }
+    }
+
+    /// **This ellipse at another scalar**: its frame as `frame` carries
+    /// it, its semi-axes and its anchor through `f`.
+    pub fn map_scalar<U: Real>(&self, frame: Frame<U>, f: impl Fn(T) -> U) -> Ellipse<U> {
+        Ellipse {
+            frame,
+            semi_u: f(self.semi_u),
+            semi_v: f(self.semi_v),
+            anchor: self.anchor.map(|p| Point3::new(f(p.x), f(p.y), f(p.z))),
         }
     }
 
@@ -479,6 +670,9 @@ impl<T: Real> Ellipse<T> {
             frame: Frame::select_le_zero(turn, f, f.turned_to(f.v_ref().normalize())),
             semi_u: turn.select_le_zero(self.semi_u, self.semi_v),
             semi_v: turn.select_le_zero(self.semi_v, self.semi_u),
+            // The anchor is the vertex on the stored seam, which a turn
+            // may leave: the turned reading is of the derived centre.
+            anchor: None,
         }
     }
 
@@ -525,8 +719,9 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     }
 
     fn point_at(&self, theta: T) -> Point3<T> {
-        let ((s, c), v_ref) = self.basis(theta);
-        self.frame.origin() + (self.frame.u_ref() * (self.semi_u * c) + v_ref * (self.semi_v * s))
+        let (m, (sh, ch)) = half_angle(theta);
+        let (u, v) = (self.frame.u_ref(), self.frame.v_ref());
+        self.zero_point() + (u * (self.semi_u * (-(m * sh))) + v * (self.semi_v * (m * ch)))
     }
 
     fn derivative_at(&self, theta: T) -> Vec3<T> {
@@ -538,7 +733,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
         let ((s, c), v_ref) = self.basis(theta);
         let u_ref = self.frame.u_ref();
         (
-            self.frame.origin() + (u_ref * (self.semi_u * c) + v_ref * (self.semi_v * s)),
+            self.point_at(theta),
             u_ref * (-(self.semi_u * s)) + v_ref * (self.semi_v * c),
         )
     }
@@ -549,9 +744,19 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     }
 
     /// `(x/a, y/b)`'s direction, read as `(y·a, x·b)`: the same
-    /// direction scaled by `a·b`, with no division.
+    /// direction scaled by `a·b`, with no division. `p` is read from the
+    /// zero point, so `x = a + (p − P₀)·u_ref`.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
-        self.frame.azimuth(p).scaled(self.semi_u, self.semi_v)
+        let w = p - self.zero_point();
+        let (x, y) = (w.dot(self.frame.u_ref()), w.dot(self.frame.v_ref()));
+        Azimuth::of(y, self.semi_u + x).scaled(self.semi_u, self.semi_v)
+    }
+
+    fn zero_point(&self) -> Point3<T> {
+        match self.anchor {
+            Some(p) => p,
+            None => self.frame.origin() + self.frame.u_ref() * self.semi_u,
+        }
     }
 
     fn speed_lo(&self) -> T {
@@ -574,13 +779,16 @@ impl<T: Real> Conic<T> for Ellipse<T> {
         self.frame_turned_where(self.semi_v - self.semi_u)
     }
 
-    fn running_point(&self, (sin, cos): (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3] {
+    fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
         let (c, u, v) = running_frame(&self.frame);
-        let (ac, bs) = (
-            Rounded::exact(self.semi_u) * cos,
-            Rounded::exact(self.semi_v) * sin,
-        );
-        core::array::from_fn(|i| c[i] + (u[i] * ac + v[i] * bs))
+        let (a, b) = (Rounded::exact(self.semi_u), Rounded::exact(self.semi_v));
+        let (m, (sh, ch)) = running_half_angle(theta);
+        let (ku, kv) = (a * running_neg(m * sh), b * (m * ch));
+        let zero: [Rounded<T>; 3] = match self.anchor {
+            Some(p) => exact_point(p),
+            None => core::array::from_fn(|i| c[i] + u[i] * a),
+        };
+        core::array::from_fn(|i| zero[i] + (u[i] * ku + v[i] * kv))
     }
 }
 

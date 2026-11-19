@@ -186,6 +186,7 @@ fn plane_cylinder_tilted_is_the_exact_ellipse() {
         frame: carrier_frame,
         semi_u,
         semi_v,
+        ..
     }) = e
     else {
         panic!("carrier is an ellipse");
@@ -227,6 +228,7 @@ fn plane_cylinder_rim_stays_rung_1_circle() {
     let Curve3::Circle(geom::Circle {
         frame: carrier_frame,
         radius,
+        ..
     }) = c
     else {
         panic!("carrier is a circle");
@@ -629,6 +631,7 @@ fn plane_cone_axis_normal_circle() {
     let Curve3::Circle(geom::Circle {
         frame: carrier_frame,
         radius,
+        ..
     }) = c
     else {
         panic!("carrier is a circle");
@@ -671,6 +674,7 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
             frame,
             semi_u,
             semi_v,
+            ..
         }) = e
         else {
             panic!("phi {phi}: the carrier is an ellipse");
@@ -926,7 +930,7 @@ pub(crate) fn cs_circles<T: geom_core::Decide>(s: &PairSection<T>) -> Vec<(Point
         .expect("a counted section")
         .iter()
         .map(|c| match c.carrier {
-            ClassCarrier::Closed(Curve3::Circle(geom::Circle { frame, radius })) => {
+            ClassCarrier::Closed(Curve3::Circle(geom::Circle { frame, radius, .. })) => {
                 let (center, axis) = (frame.origin(), frame.axis());
                 (center, axis, radius)
             }
@@ -1818,6 +1822,7 @@ fn plane_sphere_cut_is_the_exact_circle_zero_residual() {
     let Curve3::Circle(geom::Circle {
         frame: carrier_frame,
         radius,
+        ..
     }) = c
     else {
         panic!("carrier is a circle");
@@ -1905,7 +1910,7 @@ fn sphere_sphere_cut_is_the_exact_circle_zero_residual() {
     let SphereSphereSection::Circle(c) = sphere_sphere_section(&a, &b, band()).unwrap() else {
         panic!("expected the circle");
     };
-    let Curve3::Circle(geom::Circle { frame, radius }) = c else {
+    let Curve3::Circle(geom::Circle { frame, radius, .. }) = c else {
         panic!("carrier is a circle");
     };
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
@@ -2108,6 +2113,7 @@ fn plane_torus_meridian_cut_is_two_exact_circles_zero_residual() {
         let Curve3::Circle(geom::Circle {
             frame: carrier_frame,
             radius,
+            ..
         }) = *c
         else {
             panic!("{which}: carrier is a circle");
@@ -2167,6 +2173,7 @@ fn plane_torus_axis_normal_cut_is_two_concentric_circles_zero_residual() {
         let Curve3::Circle(geom::Circle {
             frame: carrier_frame,
             radius,
+            ..
         }) = *c
         else {
             panic!("{which}: carrier is a circle");
@@ -2230,7 +2237,7 @@ fn plane_torus_cap_gap_trilean_trio() {
     let PlaneTorusSection::TangentCircle(c) = s else {
         panic!("expected the tangency circle, got {s:?}");
     };
-    let Curve3::Circle(geom::Circle { frame, radius }) = c else {
+    let Curve3::Circle(geom::Circle { frame, radius, .. }) = c else {
         panic!("carrier is a circle");
     };
     let center = frame.origin();
@@ -2587,6 +2594,7 @@ fn plane_torus_negative_station_pins_the_centre_sign() {
         let Curve3::Circle(geom::Circle {
             frame: carrier_frame,
             radius,
+            ..
         }) = *c
         else {
             panic!("{which}: carrier is a circle");
@@ -2617,6 +2625,7 @@ fn plane_torus_negative_station_pins_the_centre_sign() {
     let Curve3::Circle(geom::Circle {
         frame: carrier_frame,
         radius,
+        ..
     }) = c
     else {
         panic!("carrier is a circle");
@@ -2792,7 +2801,7 @@ fn cone_cylinder_coaxial_cut_is_two_exact_circles_zero_residual() {
     let ConeCylinderSection::CoaxialCircles { c1, c2 } = s;
     let station = big_r * 0.75;
     for (which, c, sign) in [("c1", &c1, 1.0), ("c2", &c2, -1.0)] {
-        let Curve3::Circle(geom::Circle { frame, radius }) = *c else {
+        let Curve3::Circle(geom::Circle { frame, radius, .. }) = *c else {
             panic!("{which}: carrier is a circle");
         };
         let (center, c_axis, c_u) = (frame.origin(), frame.axis(), frame.u_ref());

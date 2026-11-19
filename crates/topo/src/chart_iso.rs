@@ -88,6 +88,7 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
         Curve3::Circle(geom::Circle {
             frame: carrier_frame,
             radius,
+            ..
         }) => {
             let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
             if axis.dot(chart.frame().axis()).abs() > 0.5 {

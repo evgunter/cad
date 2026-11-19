@@ -77,18 +77,11 @@ fn line(o: [f64; 3], d: [f64; 3]) -> Curve3<f64> {
 }
 
 fn circle(f: geom::Frame<f64>, r: f64) -> Curve3<f64> {
-    Curve3::Circle(geom::Circle {
-        frame: f,
-        radius: r,
-    })
+    Curve3::Circle(geom::Circle::new(f, r))
 }
 
 fn ellipse(f: geom::Frame<f64>, su: f64, sv: f64) -> Curve3<f64> {
-    Curve3::Ellipse(geom::Ellipse {
-        frame: f,
-        semi_u: su,
-        semi_v: sv,
-    })
+    Curve3::Ellipse(geom::Ellipse::new(f, su, sv))
 }
 
 fn spiric(c: [f64; 3], a: [f64; 3], u: [f64; 3], big: f64, small: f64, off: f64) -> Curve3<f64> {

@@ -1468,21 +1468,16 @@ pub(crate) fn conic_axis_distance_floor<T: Real>(conic: &dyn Conic<T>, axis: geo
 
 /// The conic's running point at `theta` ([`Conic::running_point`]) less
 /// `origin`, taken as exact.
-fn running_offset<T: Real>(
-    conic: &dyn Conic<T>,
-    sin_cos: (Rounded<T>, Rounded<T>),
-    origin: Point3<T>,
-) -> [Rounded<T>; 3] {
+fn running_offset<T: Real>(conic: &dyn Conic<T>, theta: T, origin: Point3<T>) -> [Rounded<T>; 3] {
     let o = geom_core::running::exact_vec(Vec3::new(origin.x, origin.y, origin.z));
-    let p = conic.running_point(sin_cos);
+    let p = conic.running_point(theta);
     core::array::from_fn(|i| p[i] - o[i])
 }
 
 /// The cone's [`implicit_residual`] at the [`Conic`] point of parameter
 /// `theta`, `ρ cos α − |h| sin α` ([`cone_elevation`] with no nappe),
 /// carried with a first-order running bound on its rounding
-/// ([`Rounded`]): the point's own evaluation (the kind's own [`Conic::point_at`] order, through [`Conic::running_point`]:
-/// `sin` and `cos` charged an ulp each), the axial split, the distance
+/// ([`Rounded`]): the point's own evaluation (the kind's own [`Conic::point_at`] order, through [`Conic::running_point`]), the axial split, the distance
 /// from the axis and the elevation, `sin α` and `cos α` charged an ulp
 /// each. `theta`, the frames and the half-angle are taken as exact.
 #[must_use]
@@ -1502,11 +1497,9 @@ pub fn conic_cone_residual<T: Real>(
         value: x,
         error: ulp * x.abs(),
     };
-    let (sin, cos) = theta.sin_cos();
-    let (sin, cos) = (transcendental(sin), transcendental(cos));
     let (sin_a, cos_a) = half_angle.sin_cos();
     let (sin_a, cos_a) = (transcendental(sin_a), transcendental(cos_a));
-    let q = running_offset(conic, (sin, cos), apex);
+    let q = running_offset(conic, theta, apex);
     let axis = exact_vec(c_axis);
     let h = dot(q, axis);
     let w: [Rounded<T>; 3] = core::array::from_fn(|i| q[i] - axis[i] * h);
@@ -1879,14 +1872,7 @@ fn conic_torus_split<T: Real>(
         dir: t_axis,
     } = torus;
     use geom_core::running::{dot, exact_vec};
-    let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
-    let (sin, cos) = theta.sin_cos();
-    let transcendental = |x: T| Rounded {
-        value: x,
-        error: ulp * x.abs(),
-    };
-    let (sin, cos) = (transcendental(sin), transcendental(cos));
-    let q = running_offset(conic, (sin, cos), t_center);
+    let q = running_offset(conic, theta, t_center);
     let axis = exact_vec(t_axis);
     let h = dot(q, axis);
     let w: [Rounded<T>; 3] = core::array::from_fn(|i| q[i] - axis[i] * h);
@@ -1912,14 +1898,7 @@ pub fn conic_quadric_residual<T: Real>(
     theta: T,
 ) -> Rounded<T> {
     use geom_core::running::{dot, exact_vec};
-    let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
-    let (sin, cos) = theta.sin_cos();
-    let transcendental = |x: T| Rounded {
-        value: x,
-        error: ulp * x.abs(),
-    };
-    let (sin, cos) = (transcendental(sin), transcendental(cos));
-    let q = running_offset(conic, (sin, cos), anchor);
+    let q = running_offset(conic, theta, anchor);
     let w = match axis {
         None => q,
         Some(axis) => {
@@ -2001,7 +1980,7 @@ pub fn circle_sphere_harmonic<T: Real>(
     s_center: Point3<T>,
     s_radius: T,
 ) -> CircleSphereHarmonic<T> {
-    let geom::Circle { frame, radius } = *circle;
+    let geom::Circle { frame, radius, .. } = *circle;
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     use geom_core::running::{cross, dot, exact_vec, unit_defect};
     let two = T::from_f64(2.0);
@@ -3368,14 +3347,15 @@ mod conic_tests {
             .into_iter()
             .map(|e| Box::new(e) as Box<dyn Conic<f64>>)
             .collect();
-        conics.push(Box::new(geom::Ellipse {
-            frame: geom::Frame::new(
+        conics.push(Box::new(geom::Ellipse::new(
+            geom::Frame::new(
                 first.frame.origin(),
                 first.frame.axis(),
                 Vec3::new(1.0, 0.3, 0.1),
             ),
-            ..first
-        }));
+            first.semi_u,
+            first.semi_v,
+        )));
         for (c, n, r) in [
             ([0.2, 0.1, -0.1], [0.0, 0.6, 0.8], 0.7),
             ([1.0, -2.0, 0.5], [2.0, 2.0, 1.0], 1.3),
@@ -3487,14 +3467,15 @@ mod conic_tests {
             0.7,
         )));
         let first = ellipses()[0];
-        conics.push(Box::new(geom::Ellipse {
-            frame: geom::Frame::new(
+        conics.push(Box::new(geom::Ellipse::new(
+            geom::Frame::new(
                 first.frame.origin(),
                 first.frame.axis(),
                 Vec3::new(1.0, 0.003, 0.0),
             ),
-            ..first
-        }));
+            first.semi_u,
+            first.semi_v,
+        )));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
                 let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: ax }, big, small);
@@ -3584,14 +3565,15 @@ mod conic_tests {
             0.7,
         )));
         let first = ellipses()[0];
-        conics.push(Box::new(geom::Ellipse {
-            frame: geom::Frame::new(
+        conics.push(Box::new(geom::Ellipse::new(
+            geom::Frame::new(
                 first.frame.origin(),
                 first.frame.axis(),
                 Vec3::new(1.0, 0.003, 0.0),
             ),
-            ..first
-        }));
+            first.semi_u,
+            first.semi_v,
+        )));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
                 let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: ax }, big, small);

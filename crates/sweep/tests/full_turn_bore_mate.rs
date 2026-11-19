@@ -280,7 +280,7 @@ fn split_collar() -> Body<f64> {
     let rim = c
         .edges()
         .find_map(|(_, e)| match carrier(&c, e) {
-            Some(geom::Curve3::Circle(geom::Circle { frame, radius }))
+            Some(geom::Curve3::Circle(geom::Circle { frame, radius, .. }))
                 if (radius - BORE).abs() < 1e-12 && (frame.origin().y - COLLAR.0).abs() < 1e-12 =>
             {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());

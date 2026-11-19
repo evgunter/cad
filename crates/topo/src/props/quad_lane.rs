@@ -337,14 +337,8 @@ pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> O
     let back = -(by - Point3::origin());
     Some(match curve.clone() {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(shift(origin), dir),
-        Curve3::Circle(c) => Curve3::Circle(geom::Circle {
-            frame: c.frame.translated(back),
-            ..c
-        }),
-        Curve3::Ellipse(e) => Curve3::Ellipse(geom::Ellipse {
-            frame: e.frame.translated(back),
-            ..e
-        }),
+        Curve3::Circle(c) => Curve3::Circle(c.carried(c.frame.translated(back), shift)),
+        Curve3::Ellipse(e) => Curve3::Ellipse(e.carried(e.frame.translated(back), shift)),
         Curve3::Spiric {
             frame: carrier_frame,
             major_radius,

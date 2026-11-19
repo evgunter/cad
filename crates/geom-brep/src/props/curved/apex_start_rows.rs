@@ -35,14 +35,14 @@ fn circle(
     ids: (u32, u32),
 ) -> LoopEdge<f64> {
     LoopEdge::hand_built(
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame::new(
+        Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, -depth),
                 Vec3::new(0.0, 0.0, 1.0),
                 Vec3::new(1.0, 0.0, 0.0),
             ),
             radius,
-        }),
+        )),
         span.0,
         span.1,
         forward,

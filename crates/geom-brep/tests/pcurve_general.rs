@@ -378,6 +378,7 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
                 frame,
                 semi_u,
                 semi_v,
+                ..
             }) = ellipse()
             else {
                 unreachable!()

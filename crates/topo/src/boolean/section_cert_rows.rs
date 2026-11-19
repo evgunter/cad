@@ -2420,10 +2420,10 @@ fn torus_iso(
             pair: SurfacePair::new(torus, cut),
             selector: geom_brep::CurveSelector::Witness(torus_at((major, minor), mid)),
         },
-        carrier: Curve3::Circle(geom::Circle {
-            frame: geom::Frame::new(center, axis, u_ref),
+        carrier: Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(center, axis, u_ref),
             radius,
-        }),
+        )),
         param_start: 0.0,
         param_end: sweep,
     }

@@ -738,7 +738,7 @@ mod tests {
     fn c1_the_rational_quadratic_circle_certifies_exactly() {
         let curve = rational_circle(0.005, false);
         let CurveRecognition::Promoted {
-            curve: Curve3::Circle(geom::Circle { frame, radius }),
+            curve: Curve3::Circle(geom::Circle { frame, radius, .. }),
             residual,
             kind,
         } = recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
@@ -980,7 +980,10 @@ mod tests {
             )
             .unwrap();
             let CurveRecognition::Promoted {
-                curve: Curve3::Circle(geom::Circle { frame, radius: r }),
+                curve:
+                    Curve3::Circle(geom::Circle {
+                        frame, radius: r, ..
+                    }),
                 residual,
                 ..
             } = recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
@@ -1561,7 +1564,10 @@ mod r2_probes {
             .unwrap();
             let outcome = recognize(&curve, crate::interpret::FileBand::test(EPS_IN));
             let CurveRecognition::Promoted {
-                curve: Curve3::Circle(geom::Circle { frame, radius: r }),
+                curve:
+                    Curve3::Circle(geom::Circle {
+                        frame, radius: r, ..
+                    }),
                 residual,
                 ..
             } = outcome

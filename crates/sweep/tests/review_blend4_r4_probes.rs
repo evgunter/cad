@@ -77,7 +77,7 @@ fn hits_station_radius(body: &Body<f64>, y: f64, r: f64, win: f64) -> Vec<EdgeKe
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match *c.carrier() {
-                Curve3::Circle(geom::Circle { frame, radius })
+                Curve3::Circle(geom::Circle { frame, radius, .. })
                     if (frame.origin().y - y).abs() < win && (radius - r).abs() < win =>
                 {
                     Some(k)

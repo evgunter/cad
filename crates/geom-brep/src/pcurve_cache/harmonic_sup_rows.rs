@@ -158,10 +158,10 @@ pub(super) fn circle(
     radius: f64,
     u_ref: Vec3<f64>,
 ) -> Curve3<f64> {
-    Curve3::Circle(geom::Circle {
-        frame: geom::Frame::new(center, axis, u_ref),
+    Curve3::Circle(geom::Circle::new(
+        geom::Frame::new(center, axis, u_ref),
         radius,
-    })
+    ))
 }
 
 /// The circle about `+z` through `center`, tilted by `phi` about

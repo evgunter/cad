@@ -2085,7 +2085,9 @@ fn cylinder_boundary<T: Decide>(
                 levels.push((e.p0() - origin).dot(axis));
                 levels.push((e.p1() - origin).dot(axis));
             }
-            Curve3::Circle(geom::Circle { frame, radius: r_c }) => {
+            Curve3::Circle(geom::Circle {
+                frame, radius: r_c, ..
+            }) => {
                 let (center, n_c, u_c) = (frame.origin(), frame.axis(), frame.u_ref());
                 let s = classify_as(
                     "props_circle_axis_class",
@@ -2517,7 +2519,9 @@ fn require_on_cone<T: Decide>(
         Curve3::Line(geom::Line { dir, .. }) => {
             require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)
         }
-        Curve3::Circle(geom::Circle { frame, radius: r_c }) => {
+        Curve3::Circle(geom::Circle {
+            frame, radius: r_c, ..
+        }) => {
             let (center, n_c) = (frame.origin(), frame.axis());
             require_cone_circle(
                 apex,
@@ -2647,6 +2651,7 @@ fn require_cone_ellipse<T: Decide>(
         frame,
         semi_u,
         semi_v,
+        ..
     }) = e.carrier
     else {
         return Err(PropsError::Unimplemented);
@@ -3342,7 +3347,9 @@ fn cone_boundary<T: Decide>(
                 levels.push((e.p0() - apex).dot(axis) / cos_a);
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
             }
-            Curve3::Circle(geom::Circle { frame, radius: r_c }) => {
+            Curve3::Circle(geom::Circle {
+                frame, radius: r_c, ..
+            }) => {
                 let (center, n_c) = (frame.origin(), frame.axis());
                 let s = require_cone_circle(
                     apex,
@@ -3927,7 +3934,10 @@ fn sphere_loop<T: Decide>(
     let mut curvature = T::zero();
     let mut arcs = Vec::with_capacity(edges.len());
     for e in edges {
-        let Curve3::Circle(geom::Circle { frame, radius: r_c }) = e.carrier else {
+        let Curve3::Circle(geom::Circle {
+            frame, radius: r_c, ..
+        }) = e.carrier
+        else {
             return Err(match e.carrier {
                 Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
                     PropsError::Unimplemented
@@ -5125,7 +5135,10 @@ fn sphere_boundary<T: Decide>(
         (h / radius, rho / radius)
     };
     for e in edges {
-        let Curve3::Circle(geom::Circle { frame, radius: r_c }) = e.carrier else {
+        let Curve3::Circle(geom::Circle {
+            frame, radius: r_c, ..
+        }) = e.carrier
+        else {
             return Err(IsoChart::Sphere { center, radius }.kind_refusal(e, band));
         };
         let (c_c, n_c) = (frame.origin(), frame.axis());
@@ -5745,7 +5758,10 @@ fn torus_chart_loop<T: Decide>(
     // a torus 990 m out at the interval scalar, whatever the minor radius.
     let turns = pieces.iter().map(|p| {
         let (a, b) = p.edge.traversal_ends();
-        let Curve3::Circle(geom::Circle { frame, radius: r_c }) = p.edge.carrier else {
+        let Curve3::Circle(geom::Circle {
+            frame, radius: r_c, ..
+        }) = p.edge.carrier
+        else {
             return Err(PropsError::Defect {
                 what: "a torus piece that is no circle",
             });
@@ -6087,7 +6103,10 @@ fn torus_classify<'a, T: Decide>(
 ) -> Result<Vec<TorusEdge<'a, T>>, PropsError> {
     let mut classified: Vec<TorusEdge<T>> = Vec::with_capacity(edges.len());
     for e in edges {
-        let Curve3::Circle(geom::Circle { frame, radius: r_c }) = e.carrier else {
+        let Curve3::Circle(geom::Circle {
+            frame, radius: r_c, ..
+        }) = e.carrier
+        else {
             return Err(IsoChart::Torus {
                 center,
                 axis,

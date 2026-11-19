@@ -290,6 +290,7 @@ fn rational_quadratic_arc(e: &Curve3<f64>, t0: f64, t1: f64) -> NurbsCurve3<f64>
         frame,
         semi_u,
         semi_v,
+        ..
     }) = *e
     else {
         panic!("oracle needs an ellipse");

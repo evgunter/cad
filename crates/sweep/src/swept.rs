@@ -1714,6 +1714,7 @@ mod tests {
                 circle @ geom::Circle {
                     frame: carrier_frame,
                     radius,
+                    ..
                 },
             ) = spec.carrier
             else {

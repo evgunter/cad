@@ -529,7 +529,7 @@ fn line_meetings<T: Decide>(
         geom::Curve3::Line(geom::Line { origin, dir }) => {
             vec![(origin - m).cross(dir).dot(normal) / w.cross(dir).dot(normal)]
         }
-        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+        geom::Curve3::Circle(geom::Circle { frame, radius, .. }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             conic(center, axis, u_ref, radius, radius)
         }
@@ -537,6 +537,7 @@ fn line_meetings<T: Decide>(
             frame,
             semi_u,
             semi_v,
+            ..
         }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             conic(center, axis, u_ref, semi_u, semi_v)

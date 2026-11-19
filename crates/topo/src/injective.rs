@@ -2808,7 +2808,7 @@ impl Curved {
 /// A conic carrier as a [`Trig`]: `center + u_ref·a·cos t + v_ref·b·sin t`.
 fn conic(c: &Curve3<Interval>) -> Option<Trig> {
     let (center, axis, a, b, x) = match *c {
-        Curve3::Circle(geom::Circle { frame, radius }) => {
+        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             (center, axis, radius, radius, u_ref)
         }
@@ -2816,6 +2816,7 @@ fn conic(c: &Curve3<Interval>) -> Option<Trig> {
             frame,
             semi_u,
             semi_v,
+            ..
         }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             (center, axis, semi_u, semi_v, u_ref)

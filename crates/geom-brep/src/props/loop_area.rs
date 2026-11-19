@@ -71,7 +71,7 @@ pub fn loop_vector_area<T: SpanLocate>(
                 let b = e.p1() - ref_point;
                 a.cross(b) * half
             }
-            Curve3::Circle(geom::Circle { frame, radius }) => {
+            Curve3::Circle(geom::Circle { frame, radius, .. }) => {
                 let axis = frame.axis();
                 arc_vector_area(e, ref_point, axis, radius.powi(2)) * half
             }
@@ -79,6 +79,7 @@ pub fn loop_vector_area<T: SpanLocate>(
                 frame,
                 semi_u,
                 semi_v,
+                ..
             }) => {
                 let axis = frame.axis();
                 arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half

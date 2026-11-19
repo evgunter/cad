@@ -394,7 +394,7 @@ impl<'a> Writer<'a> {
             // for field, including the seam at `u_ref` (θ = 0) and the
             // right-hand winding about `axis`. Exact, native, no
             // parameter remapping.
-            Curve3::Circle(geom::Circle { frame, radius }) => {
+            Curve3::Circle(geom::Circle { frame, radius, .. }) => {
                 let placement =
                     self.axis2_placement(&frame, ["circle centre", "circle axis", "circle u_ref"])?;
                 let r = fmt_real(radius, "circle radius")?;
@@ -414,6 +414,7 @@ impl<'a> Writer<'a> {
                 frame,
                 semi_u,
                 semi_v,
+                ..
             }) => {
                 // STEP's `semi_axis_1` lies along the placement's
                 // reference direction, in either order with `semi_axis_2`.

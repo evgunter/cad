@@ -133,6 +133,7 @@ pub fn ellipse_pcurve_on_plane(
         frame: carrier_frame,
         semi_u,
         semi_v,
+        ..
     }) = carrier
     else {
         return Err(PcurveError::WrongLane {

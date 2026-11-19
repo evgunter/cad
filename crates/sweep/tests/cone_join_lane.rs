@@ -236,7 +236,7 @@ fn section(
 /// `chord`'s carrier is the conic `(centre, normal, a, b)`.
 fn is_conic(chord: &Chord, (centre, normal, a, b): (Point3<f64>, Vec3<f64>, f64, f64)) -> bool {
     let (c, axis, ra, rb) = match chord.carrier {
-        Curve3::Circle(geom::Circle { frame, radius }) => {
+        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
             let (center, axis) = (frame.origin(), frame.axis());
             (center, axis, radius, radius)
         }
@@ -382,6 +382,7 @@ fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
         frame: carrier_frame,
         semi_u,
         semi_v,
+        ..
     }) = e
     else {
         panic!("an ellipse")
@@ -399,6 +400,7 @@ fn ellipse_param(e: &Curve3<f64>, p: Point3<f64>) -> f64 {
         frame: carrier_frame,
         semi_u,
         semi_v,
+        ..
     }) = e
     else {
         panic!("an ellipse")

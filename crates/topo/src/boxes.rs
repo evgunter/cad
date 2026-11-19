@@ -3353,7 +3353,7 @@ pub(crate) mod tests {
     /// point at parameter `t` is `centre_i + (a·û)_i·cos t + (b·v̂)_i·sin t`.
     fn conic_frame(carrier: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
         match carrier {
-            Curve3::Circle(geom::Circle { frame, radius }) => {
+            Curve3::Circle(geom::Circle { frame, radius, .. }) => {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 (center, u_ref * *radius, axis.cross(u_ref) * *radius)
             }
@@ -3361,6 +3361,7 @@ pub(crate) mod tests {
                 frame,
                 semi_u,
                 semi_v,
+                ..
             }) => {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 (center, u_ref * *semi_u, axis.cross(u_ref) * *semi_v)

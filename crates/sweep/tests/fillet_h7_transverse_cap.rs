@@ -169,7 +169,10 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 .get_curve_geom(out.body.get_edge(a).unwrap().curve)
                 .and_then(|g| g.certified())
                 .expect("a certified arc");
-            let Curve3::Circle(geom::Circle { frame, radius: rr }) = *c.carrier() else {
+            let Curve3::Circle(geom::Circle {
+                frame, radius: rr, ..
+            }) = *c.carrier()
+            else {
                 panic!("{what}: a cut-off arc is a circle, got {:?}", c.carrier());
             };
             let (center, ax) = (frame.origin(), frame.axis());
@@ -506,6 +509,7 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                         frame,
                         semi_u,
                         semi_v,
+                        ..
                     }) => {
                         let axis = frame.axis();
                         ellipses += 1;
@@ -559,6 +563,7 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
         frame: carrier_frame,
         semi_u,
         semi_v,
+        ..
     })) = oblique
     else {
         panic!("a definite departure picks the ellipse, got {oblique:?}");
@@ -588,6 +593,7 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
         frame,
         semi_u,
         semi_v,
+        ..
     })) = sliver
     else {
         panic!("the sliver band picks the ellipse, got {sliver:?}");
@@ -622,7 +628,7 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         .and_then(|g| g.certified())
         .unwrap()
         .clone();
-    let Curve3::Circle(geom::Circle { frame, radius }) = *c.carrier() else {
+    let Curve3::Circle(geom::Circle { frame, radius, .. }) = *c.carrier() else {
         panic!("an arc");
     };
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());

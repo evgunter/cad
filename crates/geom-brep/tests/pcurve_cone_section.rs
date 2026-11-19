@@ -72,6 +72,7 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
         frame: carrier_frame,
         semi_u,
         semi_v,
+        ..
     }) = e
     else {
         unreachable!()
@@ -96,6 +97,7 @@ fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
         frame: carrier_frame,
         semi_u,
         semi_v,
+        ..
     }) = e
     else {
         unreachable!()
@@ -111,11 +113,11 @@ fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
         2 => (-u_ref, semi_u, semi_v),
         _ => (-axis.cross(u_ref), semi_v, semi_u),
     };
-    Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame::new(center, axis, u_ref),
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(center, axis, u_ref),
         semi_u,
         semi_v,
-    })
+    ))
 }
 
 /// Every pairing of nappe and traversal, seamed at each principal
@@ -860,6 +862,7 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
         frame,
         semi_u,
         semi_v,
+        ..
     }) = exact
     else {
         unreachable!()

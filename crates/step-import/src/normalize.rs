@@ -302,7 +302,7 @@ fn mint_band(
         for (ui, u) in lp.uses.iter().enumerate() {
             let spec = &solid.edges[&u.edge];
             let coaxial = match spec.carrier {
-                Curve3::Circle(geom::Circle { frame, radius }) => {
+                Curve3::Circle(geom::Circle { frame, radius, .. }) => {
                     let (center, n) = (frame.origin(), frame.axis());
                     let off_axis = geom::Line {
                         origin: axis_point,

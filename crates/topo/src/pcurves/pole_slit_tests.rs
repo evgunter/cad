@@ -1088,10 +1088,10 @@ fn a_sphere_patch_anywhere_in_latitude_reads_in_the_charts_region() {
     let band = Band::linear(tol).unwrap();
     let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::unit_z());
     let circle = |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| {
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame::new(center, axis, u_ref),
+        Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(center, axis, u_ref),
             radius,
-        })
+        ))
     };
     let p = |u: f64, v: f64| Point3::new(v.cos() * u.cos(), v.cos() * u.sin(), v.sin());
     let rhat = |u: f64| Vec3::new(u.cos(), u.sin(), 0.0);

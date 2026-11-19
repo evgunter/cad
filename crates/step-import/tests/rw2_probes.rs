@@ -239,10 +239,10 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
     let nurbs = geom::NurbsSurface::new(ku, kv, ctrl, weights).unwrap();
     let surface = geom::Surface::Nurbs(std::sync::Arc::new(nurbs));
 
-    let carrier = geom::Curve3::Circle(geom::Circle {
-        frame: geom::Frame::new(center, axis, u_ref),
+    let carrier = geom::Curve3::Circle(geom::Circle::new(
+        geom::Frame::new(center, axis, u_ref),
         radius,
-    });
+    ));
     let mut knots_b = vec![0.0, 0.0];
     #[allow(clippy::cast_precision_loss)]
     for k in 1..spans {

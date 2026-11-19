@@ -7433,6 +7433,7 @@ mod frame_dispatch_tests {
                         frame: carrier_frame,
                         semi_u,
                         semi_v,
+                        ..
                     }) = *e
                     else {
                         panic!("{deg}°, {name}: the section carried a non-ellipse");

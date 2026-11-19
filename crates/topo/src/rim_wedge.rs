@@ -873,7 +873,7 @@ fn crossings<T: Decide>(
             }
             Ok(Some(kept))
         }
-        (geom::Curve3::Circle(arc @ geom::Circle { frame, radius }), _) => {
+        (geom::Curve3::Circle(arc @ geom::Circle { frame, radius, .. }), _) => {
             let (center, axis) = (frame.origin(), frame.axis());
             let (ce, ae, re) = (center, axis, *radius);
             let e1 = {
@@ -961,7 +961,7 @@ fn rides<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     match (locus, curve.carrier()) {
-        (Locus::Rim(rim), geom::Curve3::Circle(geom::Circle { frame, radius })) => same_circle(
+        (Locus::Rim(rim), geom::Curve3::Circle(geom::Circle { frame, radius, .. })) => same_circle(
             Rim {
                 center: frame.origin(),
                 axis: frame.axis(),
@@ -1025,7 +1025,7 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
     face_boundary_arcs(body, face)
         .into_iter()
         .filter_map(|(_, c)| match *c.carrier() {
-            geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+            geom::Curve3::Circle(geom::Circle { frame, radius, .. }) => {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 Some(Rim {
                     center,

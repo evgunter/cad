@@ -236,7 +236,7 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
     let mut meridians = 0;
     for (_, e) in a.edges() {
         let c = a.get_curve_geom(e.curve).unwrap().certified().unwrap();
-        let geom::Curve3::Circle(geom::Circle { frame, radius }) = *c.carrier() else {
+        let geom::Curve3::Circle(geom::Circle { frame, radius, .. }) = *c.carrier() else {
             continue;
         };
         if (radius - MINOR).abs() > 1e-12 {

@@ -257,6 +257,7 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
     let Curve3::Circle(geom::Circle {
         frame: carrier_frame,
         radius: ra,
+        ..
     }) = b.trim_a.0
     else {
         panic!("a circular trimline on the plane");
@@ -270,6 +271,7 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
     let Curve3::Circle(geom::Circle {
         frame: carrier_frame,
         radius: rb,
+        ..
     }) = b.trim_b.0
     else {
         panic!("a circular trimline on the sphere");
@@ -329,6 +331,7 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
     let Curve3::Circle(geom::Circle {
         frame: carrier_frame,
         radius: ra,
+        ..
     }) = b.trim_a.0
     else {
         panic!("a circular trimline on the plane");
@@ -339,7 +342,10 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
         (b.trim_a.1 - (big_r - s)).abs() < 1e-12,
         "the plane-side setback is a − s: the flat face SHRINKS"
     );
-    let Curve3::Circle(geom::Circle { frame, radius: rb }) = b.trim_b.0 else {
+    let Curve3::Circle(geom::Circle {
+        frame, radius: rb, ..
+    }) = b.trim_b.0
+    else {
         panic!("a circular trimline on the sphere");
     };
     let cb = frame.origin();

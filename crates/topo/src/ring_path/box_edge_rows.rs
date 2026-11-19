@@ -57,13 +57,14 @@ fn minted_kind(
     let geom::Curve3::Circle(geom::Circle {
         frame: carrier_frame,
         radius: rho,
+        ..
     }) = edge.carrier
     else {
         unreachable!("a meridian or a parallel")
     };
     let k = carrier_frame.origin();
     let off = |c: &geom::Curve3<f64>| match c {
-        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+        geom::Curve3::Circle(geom::Circle { frame, radius, .. }) => {
             let center = frame.origin();
             (center - k).norm() + (radius - rho).abs()
         }

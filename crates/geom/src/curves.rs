@@ -245,29 +245,26 @@ impl<T: SpanLocate> Curve3<T> {
         let frame = |f: &Frame<T>, g: &Frame<T>| {
             point(f.origin(), g.origin()) && vec(f.axis(), g.axis()) && vec(f.u_ref(), g.u_ref())
         };
+        let anchor = |a: Option<Point3<T>>, b: Option<Point3<T>>| match (a, b) {
+            (None, None) => true,
+            (Some(p), Some(q)) => point(p, q),
+            (None, Some(_)) | (Some(_), None) => false,
+        };
         match (self, other) {
             (Self::Line(Line { origin, dir }), Self::Line(Line { origin: o, dir: d })) => {
                 point(*origin, *o) && vec(*dir, *d)
             }
-            (
-                Self::Circle(Circle { frame: f, radius }),
-                Self::Circle(Circle {
-                    frame: g,
-                    radius: r,
-                }),
-            ) => frame(f, g) && same(*radius, *r),
-            (
-                Self::Ellipse(Ellipse {
-                    frame: f,
-                    semi_u,
-                    semi_v,
-                }),
-                Self::Ellipse(Ellipse {
-                    frame: g,
-                    semi_u: su,
-                    semi_v: sv,
-                }),
-            ) => frame(f, g) && same(*semi_u, *su) && same(*semi_v, *sv),
+            (Self::Circle(c), Self::Circle(d)) => {
+                frame(&c.frame, &d.frame)
+                    && same(c.radius, d.radius)
+                    && anchor(c.anchor(), d.anchor())
+            }
+            (Self::Ellipse(e), Self::Ellipse(g)) => {
+                frame(&e.frame, &g.frame)
+                    && same(e.semi_u, g.semi_u)
+                    && same(e.semi_v, g.semi_v)
+                    && anchor(e.anchor(), g.anchor())
+            }
             (
                 Self::Spiric {
                     frame: f,
@@ -618,6 +615,9 @@ pub enum CurveDatum {
     MinorRadius,
     /// A spiric's plane stand-off `offset`.
     Offset,
+    /// The point at parameter zero of a circle or an ellipse born
+    /// anchored ([`crate::curves::conic`], "The two stored forms").
+    Anchor,
     /// A `Nurbs` carrier's control net — the datum this read checks
     /// (its knots and weights are held at the scalar too, and refused
     /// non-finite on their value channel at construction).
@@ -644,6 +644,7 @@ impl CurveDatum {
             Self::MajorRadius => "major_radius",
             Self::MinorRadius => "minor_radius",
             Self::Offset => "offset",
+            Self::Anchor => "anchor",
             Self::Control => "control",
         }
     }
@@ -1146,23 +1147,44 @@ impl<T: Real> Curve3<T> {
             Curve3::Line(Line { origin, dir }) => {
                 AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
             }
-            Curve3::Circle(Circle { frame, radius }) => AnalyticData::new([
-                (D::Center, Point(frame.origin())),
-                (D::Axis, Direction(frame.axis())),
-                (D::Radius, Scalar(radius)),
-                (D::URef, Direction(frame.u_ref())),
-            ]),
-            Curve3::Ellipse(Ellipse {
-                frame,
-                semi_u,
-                semi_v,
-            }) => AnalyticData::new([
-                (D::Center, Point(frame.origin())),
-                (D::Axis, Direction(frame.axis())),
-                (D::SemiU, Scalar(semi_u)),
-                (D::SemiV, Scalar(semi_v)),
-                (D::URef, Direction(frame.u_ref())),
-            ]),
+            Curve3::Circle(c) => {
+                let Circle { frame, radius, .. } = c;
+                let stored = [
+                    (D::Center, Point(frame.origin())),
+                    (D::Axis, Direction(frame.axis())),
+                    (D::Radius, Scalar(radius)),
+                    (D::URef, Direction(frame.u_ref())),
+                ];
+                match c.anchor() {
+                    None => AnalyticData::new(stored),
+                    Some(p) => {
+                        let [a, b, c, d] = stored;
+                        AnalyticData::new([a, b, c, d, (D::Anchor, Point(p))])
+                    }
+                }
+            }
+            Curve3::Ellipse(e) => {
+                let Ellipse {
+                    frame,
+                    semi_u,
+                    semi_v,
+                    ..
+                } = e;
+                let stored = [
+                    (D::Center, Point(frame.origin())),
+                    (D::Axis, Direction(frame.axis())),
+                    (D::SemiU, Scalar(semi_u)),
+                    (D::SemiV, Scalar(semi_v)),
+                    (D::URef, Direction(frame.u_ref())),
+                ];
+                match e.anchor() {
+                    None => AnalyticData::new(stored),
+                    Some(p) => {
+                        let [a, b, c, d, f] = stored;
+                        AnalyticData::new([a, b, c, d, f, (D::Anchor, Point(p))])
+                    }
+                }
+            }
             Curve3::Spiric {
                 frame,
                 major_radius,
@@ -1490,14 +1512,9 @@ impl<T: Real> Curve3<T> {
     pub fn reversed(&self) -> Option<Self> {
         Some(match self.clone() {
             Curve3::Line(Line { origin, dir }) => Curve3::line(origin, -dir),
-            Curve3::Circle(c) => Curve3::Circle(Circle {
-                frame: c.frame.reversed(),
-                ..c
-            }),
-            Curve3::Ellipse(e) => Curve3::Ellipse(Ellipse {
-                frame: e.frame.reversed(),
-                ..e
-            }),
+            // The seam is kept, so the point at parameter zero is too.
+            Curve3::Circle(c) => Curve3::Circle(c.carried(c.frame.reversed(), |p| p)),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.carried(e.frame.reversed(), |p| p)),
             Curve3::Spiric {
                 frame: carrier_frame,
                 major_radius,
@@ -1532,14 +1549,8 @@ impl<T: Real> Curve3<T> {
     pub fn translated(&self, by: Vec3<T>) -> Option<Self> {
         Some(match self.clone() {
             Curve3::Line(Line { origin, dir }) => Curve3::line(origin + by, dir),
-            Curve3::Circle(c) => Curve3::Circle(Circle {
-                frame: c.frame.translated(by),
-                ..c
-            }),
-            Curve3::Ellipse(e) => Curve3::Ellipse(Ellipse {
-                frame: e.frame.translated(by),
-                ..e
-            }),
+            Curve3::Circle(c) => Curve3::Circle(c.carried(c.frame.translated(by), |p| p + by)),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.carried(e.frame.translated(by), |p| p + by)),
             Curve3::Spiric {
                 frame: carrier_frame,
                 major_radius,
@@ -2296,7 +2307,7 @@ mod tests {
         fn circle_point_lies_on_locus(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame, radius }) => { let (center, axis) = (frame.origin(), frame.axis()); (center, axis, radius) },
+                Curve3::Circle(crate::Circle { frame, radius, .. }) => { let (center, axis) = (frame.origin(), frame.axis()); (center, axis, radius) },
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2312,7 +2323,7 @@ mod tests {
         fn circle_derivative_geometry(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame, radius }) => { let (center, axis) = (frame.origin(), frame.axis()); (center, axis, radius) },
+                Curve3::Circle(crate::Circle { frame, radius, .. }) => { let (center, axis) = (frame.origin(), frame.axis()); (center, axis, radius) },
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2566,6 +2577,7 @@ mod tests {
                 frame: carrier_frame,
                 semi_u: u,
                 semi_v: v,
+                ..
             } = e.as_ellipse().unwrap().seamed_toward(cos, sin);
             let u_ref = carrier_frame.u_ref();
             assert_eq!(
@@ -2699,7 +2711,7 @@ mod tests {
         #[test]
         fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame, semi_u, semi_v, .. }) = e else {
                 panic!("fixture is an ellipse");
             };
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
@@ -2718,7 +2730,7 @@ mod tests {
         #[test]
         fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame, semi_u, semi_v, .. }) = e else {
                 panic!("fixture is an ellipse");
             }; let (center, axis) = (frame.origin(), frame.axis());
             let p = e.eval(theta);
@@ -3220,6 +3232,7 @@ mod tests {
                 frame,
                 semi_u,
                 semi_v,
+                ..
             }) = ei
             else {
                 panic!("fixture is an ellipse");
@@ -3588,7 +3601,7 @@ mod tests {
             let c = super::tilted_circle();
             let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
-                Curve3::Circle(crate::Circle { frame, radius }) => {
+                Curve3::Circle(crate::Circle { frame, radius, .. }) => {
                     let (center, axis) = (frame.origin(), frame.axis());
                     (center, axis, radius)
                 }

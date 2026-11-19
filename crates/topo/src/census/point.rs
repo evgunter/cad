@@ -293,7 +293,7 @@ pub(super) fn edge_face<T: Decide>(
     };
     let touch = match (curve, surface(body, face)) {
         (
-            geom::Curve3::Circle(geom::Circle { frame, radius }),
+            geom::Curve3::Circle(geom::Circle { frame, radius, .. }),
             Some(Surface::Plane { origin, normal }),
         ) => {
             let (center, axis) = (frame.origin(), frame.axis());

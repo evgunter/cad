@@ -1052,6 +1052,7 @@ mod torus_rows {
                             frame: carrier_frame,
                             semi_u,
                             semi_v,
+                            ..
                         }),
                         geom::Surface::Torus {
                             frame,

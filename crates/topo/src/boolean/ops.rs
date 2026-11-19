@@ -6608,6 +6608,7 @@ fn sphere_pair_cut<T: Decide>(
         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
             frame,
             radius: rho,
+            ..
         }))) => {
             let (foot, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             Ok(SphereCutIn {

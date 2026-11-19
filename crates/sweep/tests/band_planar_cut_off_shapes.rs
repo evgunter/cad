@@ -42,6 +42,7 @@ fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
                 frame: carrier_frame,
                 semi_u,
                 semi_v,
+                ..
             }) => {
                 let axis = carrier_frame.axis();
                 ellipses += 1;

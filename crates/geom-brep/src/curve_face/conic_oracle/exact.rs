@@ -277,7 +277,7 @@ pub struct Truth {
 #[allow(clippy::panic)]
 pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth {
     let (center, axis, (a, b), u_ref) = match *carrier {
-        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+        geom::Curve3::Circle(geom::Circle { frame, radius, .. }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             (center, axis, (radius, radius), u_ref)
         }
@@ -285,6 +285,7 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
             frame,
             semi_u,
             semi_v,
+            ..
         }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             (center, axis, (semi_u, semi_v), u_ref)

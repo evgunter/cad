@@ -380,6 +380,7 @@ impl Rim {
             frame,
             semi_u,
             semi_v,
+            ..
         }) = &self.ellipse
         else {
             unreachable!("the rim is a half-ellipse");

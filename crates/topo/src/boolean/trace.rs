@@ -310,10 +310,10 @@ pub fn circle_crossings<T: Decide>(
             });
         }
         _ => {
-            let circle = Curve3::Circle(geom::Circle {
-                frame: geom::Frame::new(center, axis, u_ref),
+            let circle = Curve3::Circle(geom::Circle::new(
+                geom::Frame::new(center, axis, u_ref),
                 radius,
-            });
+            ));
             let found = match surface {
                 Surface::Torus { .. } => geom_brep::curve_face::circle_torus::circle_torus_roots(
                     &circle,

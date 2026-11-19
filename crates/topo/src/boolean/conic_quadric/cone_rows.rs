@@ -705,8 +705,8 @@ fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
     let cases = [
         (
             1e-6,
-            geom::Curve3::Circle(geom::Circle {
-                frame: frame(
+            geom::Curve3::Circle(geom::Circle::new(
+                frame(
                     [0.38180397980370573, 0.9260832315064935, 2.5664775268927267],
                     [
                         0.9482094717695619,
@@ -715,8 +715,8 @@ fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
                     ],
                     [-0.19606156387255988, 0.9805915883648227, 0.0],
                 ),
-                radius: 1.6277963338351105,
-            }),
+                1.6277963338351105,
+            )),
             cone_at(
                 [0.3636073164749831, -0.3467551218854421, 1.5519461902326226],
                 [
@@ -762,8 +762,8 @@ fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
         ),
         (
             1e-9,
-            geom::Curve3::Circle(geom::Circle {
-                frame: frame(
+            geom::Curve3::Circle(geom::Circle::new(
+                frame(
                     [-2.4691715662523097, 1.3671848009225616, -1.6066775348685667],
                     [
                         -0.026199321635919894,
@@ -772,8 +772,8 @@ fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
                     ],
                     [0.9995241661618604, 0.0, 0.030845441453121267],
                 ),
-                radius: 1.8490826456950697,
-            }),
+                1.8490826456950697,
+            )),
             cone_at(
                 [-0.7237669286148725, 1.8600212669128329, -1.2464255426747348],
                 [

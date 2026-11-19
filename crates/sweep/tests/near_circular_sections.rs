@@ -220,6 +220,7 @@ fn assert_on_within(
         frame,
         semi_u,
         semi_v,
+        ..
     }) = *curve
     else {
         panic!("{what}: an ellipse, got {curve:?}");

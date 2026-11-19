@@ -5143,7 +5143,8 @@ impl RimSide {
                     .ok_or(invariant(
                         "a one-site loop's conic carries no certified curve",
                     ))?;
-                let geom::Curve3::Circle(geom::Circle { frame, radius }) = *curve.carrier() else {
+                let geom::Curve3::Circle(geom::Circle { frame, radius, .. }) = *curve.carrier()
+                else {
                     return Err(invariant(
                         "a one-site loop's conic on a sphere is not a circle",
                     ));

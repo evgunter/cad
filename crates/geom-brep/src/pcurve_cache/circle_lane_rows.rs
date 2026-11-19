@@ -1166,7 +1166,7 @@ fn a_circles_projected_envelope_covers_its_residual() {
         let offset = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0))
             * (0.3 * b.zero() * f64::from(u8::from(s.below(2) == 0)));
         let (carrier, t0, t1) = match carrier {
-            Curve3::Circle(geom::Circle { frame, radius }) => {
+            Curve3::Circle(geom::Circle { frame, radius, .. }) => {
                 let (center, n, x) = (frame.origin(), frame.axis(), frame.u_ref());
                 let t0 = s.range(-4.0, 4.0);
                 let t1 = t0
@@ -1458,7 +1458,7 @@ fn turned(carrier: &Curve3<f64>, surface: &Surface<f64>, angle: f64) -> Curve3<f
     let (s, c) = angle.sin_cos();
     let turn = |v: Vec3<f64>| v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c));
     match *carrier {
-        Curve3::Circle(geom::Circle { frame, radius }) => {
+        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
             let (centre, n, x) = (frame.origin(), frame.axis(), frame.u_ref());
             Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x))
         }

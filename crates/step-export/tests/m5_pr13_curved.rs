@@ -804,7 +804,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
             let place = || placement(&recs, refs(&a[1])[0]);
             match *carrier {
                 Curve3::Line(_) => assert_eq!(kw, "LINE", "{name}"),
-                Curve3::Circle(geom::Circle { frame, radius }) => {
+                Curve3::Circle(geom::Circle { frame, radius, .. }) => {
                     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                     assert_eq!(kw, "CIRCLE", "{name}");
                     let (l, z, x) = place();
@@ -817,6 +817,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                     frame,
                     semi_u,
                     semi_v,
+                    ..
                 }) => {
                     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                     saw_ellipse = true;
