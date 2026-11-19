@@ -305,14 +305,18 @@ fn placement_axis(text: &str, placement: u64) -> u64 {
         .unwrap()
 }
 
-/// `text` with the `DIRECTION` `#id`'s `x` ratio moved by `by`.
-fn nudge_direction_x(text: &str, id: u64, by: f64) -> String {
+/// `text` with ratio `k` (0 for `x`) of the `DIRECTION` `#id` moved by
+/// `by`.
+fn nudge_direction(text: &str, id: u64, k: usize, by: f64) -> String {
     let head = format!("#{id} = DIRECTION('', (");
     let line = text.lines().find(|l| l.starts_with(&head)).unwrap();
-    let rest = &line[head.len()..];
-    let comma = rest.find(',').unwrap();
-    let x: f64 = rest[..comma].trim().parse().unwrap();
-    let moved = format!("{head}{:?}{}", x + by, &rest[comma..]);
+    let close = line.rfind("))").unwrap();
+    let mut xyz: Vec<f64> = line[head.len()..close]
+        .split(',')
+        .map(|c| c.trim().parse().unwrap())
+        .collect();
+    xyz[k] += by;
+    let moved = format!("{head}{:?}, {:?}, {:?}{}", xyz[0], xyz[1], xyz[2], &line[close..]);
     text.replacen(line, &moved, 1)
 }
 
@@ -331,7 +335,7 @@ fn a_base_off_square_to_its_cylinder_is_made_axis_normal() {
         "the plane is the later record (the cylinder's are one, the earliest kept)"
     );
     let axis = placement_axis(&text, surface_placement(&text, plane));
-    let imported = import(&nudge_direction_x(&text, axis, 2e-6))
+    let imported = import(&nudge_direction(&text, axis, 0, 2e-6))
         .unwrap_or_else(|e| panic!("imports: {}", e.render()));
     let snaps = snaps(&imported);
     assert_eq!(snaps.len(), 1, "one move: {snaps:?}");
@@ -442,4 +446,36 @@ fn a_slot_end_between_parallel_planes_takes_half_their_spacing() {
         radii.iter().all(|r| (r - 1.0).abs() < 1e-12),
         "every slot end is half the spacing: {radii:?}"
     );
+}
+
+/// A fillet whose side plane `x = 2` the file tilts 2 µrad toward the
+/// fillet's axis reads tangent at the file's band, the tilt levered at
+/// the faces' reach inside it, and apart at the run's. The tangent
+/// construction translates the axis and keeps the plane, so no
+/// translation makes that tangency exact: the class re-read at the run's
+/// band is not, and refuses as unsolved, moving nothing.
+#[test]
+fn a_tangency_its_construction_leaves_apart_refuses_as_unsolved() {
+    let text = filleted();
+    let side = records(&text, "PLANE")
+        .into_iter()
+        .find(|&p| {
+            let axis = placement_axis(&text, surface_placement(&text, p));
+            text.contains(&format!("#{axis} = DIRECTION('', (1.0, 0.0, 0.0));"))
+        })
+        .expect("the side plane x = 2");
+    let axis = placement_axis(&text, surface_placement(&text, side));
+    match import(&nudge_direction(&text, axis, 2, 2e-6)) {
+        Err(StepImportError::NotYetSupported { what, lane, .. }) => {
+            assert!(
+                what.contains("tangent relation its class's constructions leave"),
+                "the tangency left apart is named: {what}"
+            );
+            assert!(
+                lane.contains("a-relation-the-snap-catalogue-does-not-make-exact-refuses"),
+                "the lane is the filed row: {lane}"
+            );
+        }
+        other => panic!("an unsolved class refuses: {other:?}"),
+    }
 }
