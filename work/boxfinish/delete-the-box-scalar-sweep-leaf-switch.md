@@ -35,7 +35,10 @@ this final state, but … keep it disabled/selectively disabled for now".
   662 finishes with it, 389 with the move and no f64 leaf re-finish,
   and 505 on main before a move carried its verdict. Since ONEHOME's
   PR 7088 (readers move no body) it runs 466, and since PR 7099 (a gather
-  grafts each copy through its seat, the aggregate finishing once) 445;
+  grafts each copy through its seat, the aggregate finishing once) 445,
+  and since the n-ary fold and the at-rest intersection take placed
+  operands (fork 288 stage 1: each member finished in its own frame,
+  then moved by the door) 390;
 - the `⊔` graft's `T::leaf` end, which becomes `T::finish`
   (`crates/editor-core/src/eval/wire.rs`); the twist and the mirror move
   what a value holds (`Held::moved`) and end in no gate;
