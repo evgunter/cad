@@ -131,6 +131,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("GAP"),
     NameCarrier::Const("HULL"),
     NameCarrier::Const("NODE_RAY"),
+    NameCarrier::Const("OFF_SPAN"),
     NameCarrier::Const("OFFSET"),
     NameCarrier::Const("ONE_CURVE"),
     NameCarrier::Const("PARALLEL"),
