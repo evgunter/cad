@@ -328,3 +328,212 @@ pub(crate) fn relink(
     }
     Ok(cycles)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use geom::Curve3;
+    use geom_core::{Point3, Vec3};
+
+    use super::{CutLine, EdgeUse, relink, split_at_point};
+    use crate::entities::{EdgeSpec, FaceSpec, LoopSpec, SolidSpec};
+
+    fn fwd(edge: u64) -> EdgeUse {
+        EdgeUse {
+            edge,
+            forward: true,
+        }
+    }
+
+    fn rev(edge: u64) -> EdgeUse {
+        EdgeUse {
+            edge,
+            forward: false,
+        }
+    }
+
+    /// The unit square `1 → 2 → 3 → 4` on edges `10..=13`, a pole `5`
+    /// off it, and the cut edges `(id, start, end)`. Only the graph is
+    /// read, so every carrier is one line.
+    fn square(cuts: &[(u64, u64, u64)]) -> (SolidSpec, Vec<Vec<EdgeUse>>) {
+        let line = Curve3::Line(geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        });
+        let spec = |start, end| EdgeSpec {
+            start,
+            end,
+            carrier: line.clone(),
+            t0: 0.0,
+            t1: 1.0,
+            reversed: false,
+        };
+        let mut edges: BTreeMap<u64, EdgeSpec> = [(10, 1, 2), (11, 2, 3), (12, 3, 4), (13, 4, 1)]
+            .into_iter()
+            .map(|(e, a, b)| (e, spec(a, b)))
+            .collect();
+        for &(e, a, b) in cuts {
+            edges.insert(e, spec(a, b));
+        }
+        let vertices = (1..=5)
+            .map(|v| (v, Point3::new(f64::from(v as u32), 0.0, 0.0)))
+            .collect();
+        let solid = SolidSpec {
+            id: 1,
+            faces: Vec::new(),
+            edges,
+            vertices,
+            band_seams: BTreeSet::new(),
+        };
+        (solid, vec![vec![fwd(10), fwd(11), fwd(12), fwd(13)]])
+    }
+
+    /// A diagonal `1 → 3` attached at both ends parts the square into
+    /// its two triangles, each closing through the diagonal one way;
+    /// the seeded one comes first and starts at its seed.
+    #[test]
+    fn a_cut_attached_at_both_ends_parts_the_face_from_its_seed() {
+        let (solid, loops) = square(&[(20, 1, 3)]);
+        let diagonal = CutLine {
+            first: fwd(20),
+            ends: [Some((0, 0)), Some((0, 2))],
+        };
+        let cycles = relink(&solid, &loops, &[diagonal], &[(0, 2)]).unwrap();
+        assert_eq!(
+            cycles,
+            vec![
+                vec![fwd(12), fwd(13), fwd(20)],
+                vec![fwd(10), fwd(11), rev(20)],
+            ],
+            "the seeded triangle first, from its seed, then the other"
+        );
+    }
+
+    /// Two spokes out of a pole off the loop, to vertices `1` and `3`:
+    /// a walk arriving at the pole along one leaves along the other.
+    #[test]
+    fn a_walk_at_a_pole_off_the_loop_leaves_along_the_other_spoke() {
+        let (solid, loops) = square(&[(21, 5, 1), (22, 5, 3)]);
+        let spokes = [
+            CutLine {
+                first: fwd(21),
+                ends: [None, Some((0, 0))],
+            },
+            CutLine {
+                first: fwd(22),
+                ends: [None, Some((0, 2))],
+            },
+        ];
+        let cycles = relink(&solid, &loops, &spokes, &[]).unwrap();
+        assert_eq!(
+            cycles,
+            vec![
+                vec![fwd(10), fwd(11), rev(22), fwd(21)],
+                vec![fwd(12), fwd(13), rev(21), fwd(22)],
+            ],
+            "each piece passes the pole from one spoke to the other"
+        );
+    }
+
+    /// A spoke whose far end nothing else meets is walked out and back
+    /// inside the one piece.
+    #[test]
+    fn a_spoke_with_a_free_end_is_walked_out_and_back() {
+        let (solid, loops) = square(&[(23, 1, 5)]);
+        let spoke = CutLine {
+            first: fwd(23),
+            ends: [Some((0, 0)), None],
+        };
+        let cycles = relink(&solid, &loops, &[spoke], &[]).unwrap();
+        assert_eq!(
+            cycles,
+            vec![vec![fwd(10), fwd(11), fwd(12), fwd(13), fwd(23), rev(23)]],
+            "one piece, the spoke walked out and back"
+        );
+    }
+
+    /// A circle edge over `[3π/2, 5π/2]` split at `π/4` past the turn:
+    /// the vertex is the point handed in, the far half's interval is the
+    /// one a re-import derives from its endpoints (start angle in
+    /// `[0, τ)`), not the parent's representative, and both uses of the
+    /// edge walk the halves.
+    #[test]
+    fn a_split_past_the_turn_rederives_the_far_halfs_interval() {
+        use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
+        let circle = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let (t0, t1) = (1.5 * PI, 2.5 * PI);
+        let face = |id, forward| FaceSpec {
+            id,
+            surface: geom::Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                normal: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+            loops: vec![LoopSpec {
+                outer: true,
+                uses: vec![EdgeUse { edge: 7, forward }],
+            }],
+            band: false,
+        };
+        let mut solid = SolidSpec {
+            id: 1,
+            faces: vec![face(2, true), face(3, false)],
+            edges: BTreeMap::from([(
+                7,
+                EdgeSpec {
+                    start: 1,
+                    end: 2,
+                    carrier: circle.clone(),
+                    t0,
+                    t1,
+                    reversed: false,
+                },
+            )]),
+            vertices: BTreeMap::from([(1, circle.eval(t0)), (2, circle.eval(t1))]),
+            band_seams: BTreeSet::new(),
+        };
+        let q = Point3::new(FRAC_PI_4.cos(), FRAC_PI_4.sin(), 0.0);
+        let mut next = 100;
+        let v = split_at_point(&mut solid, 7, TAU + FRAC_PI_4, q, &mut || {
+            next += 1;
+            next
+        })
+        .unwrap();
+        assert_eq!(v, 101, "the vertex is minted first");
+        assert!(
+            solid.vertices[&v].same_bits(q),
+            "the vertex is the point handed in"
+        );
+        let (near, far) = (&solid.edges[&102], &solid.edges[&103]);
+        assert_eq!((near.start, near.end, far.start, far.end), (1, v, v, 2));
+        assert!(
+            (near.t0 - t0).abs() < 1e-12 && (near.t1 - (TAU + FRAC_PI_4)).abs() < 1e-12,
+            "the near half keeps its start's representative: {:?}",
+            (near.t0, near.t1)
+        );
+        assert!(
+            (far.t0 - FRAC_PI_4).abs() < 1e-12 && (far.t1 - FRAC_PI_2).abs() < 1e-12,
+            "the far half starts in [0, τ), as a re-import reads it: {:?}",
+            (far.t0, far.t1)
+        );
+        assert!(!solid.edges.contains_key(&7), "the parent is gone");
+        assert_eq!(
+            solid.faces[0].loops[0].uses,
+            vec![fwd(102), fwd(103)],
+            "a forward use walks the halves in order"
+        );
+        assert_eq!(
+            solid.faces[1].loops[0].uses,
+            vec![rev(103), rev(102)],
+            "a reversed use walks them backwards, each reversed"
+        );
+    }
+}

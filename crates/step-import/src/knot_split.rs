@@ -1198,9 +1198,10 @@ mod tests {
     use geom_core::spline::KnotVector;
     use geom_core::{Point3, Vec3};
 
-    use super::{crossing_knots, split_faces};
+    use super::{crossing_knots, split_faces, use_start};
     use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
     use crate::error::StepImportError;
+    use crate::normalize::surgery::use_end;
 
     const EPS_IN: f64 = 1e-7;
 
@@ -1526,11 +1527,7 @@ mod tests {
                     let n = lp.uses.len();
                     for i in 0..n {
                         let (a, b) = (lp.uses[i], lp.uses[(i + 1) % n]);
-                        let end = |u: EdgeUse| {
-                            let spec = &solid.edges[&u.edge];
-                            if u.forward { spec.end } else { spec.start }
-                        };
-                        assert_eq!(end(a), super::use_start(solid, b), "the loop closes");
+                        assert_eq!(use_end(solid, a), use_start(solid, b), "the loop closes");
                     }
                     let pts: Vec<_> = lp.uses.iter().flat_map(|&u| walked(solid, u)).collect();
                     for p in &pts {
@@ -1881,9 +1878,8 @@ mod tests {
                     let n = lp.uses.len();
                     for i in 0..n {
                         let (a, b) = (lp.uses[i], lp.uses[(i + 1) % n]);
-                        let spec = &solid.edges[&a.edge];
-                        let end = if a.forward { spec.end } else { spec.start };
-                        assert_eq!(end, super::use_start(solid, b), "the loop closes");
+                        let end = use_end(solid, a);
+                        assert_eq!(end, use_start(solid, b), "the loop closes");
                         let foot = s.project(solid.vertices[&end]).unwrap();
                         assert!(foot.distance < 1e-9, "a corner lies on its piece's chart");
                         (lo, hi) = (lo.min(foot.u), hi.max(foot.u));
