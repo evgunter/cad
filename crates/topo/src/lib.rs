@@ -235,6 +235,8 @@ pub(crate) mod ring_path;
 #[cfg(test)]
 mod row_walk_proofs;
 pub mod rows;
+mod seat;
+pub use seat::Seat;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub(crate) mod separating;
@@ -1578,7 +1580,8 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
 pub use finish::{
-    FindingFamily, FinishedBody, LeafBody, MoveError, NotFinished, Replay, finish, take,
+    FindingFamily, FinishedBody, LeafBody, MoveError, NotFinished, Replay, finish, session_box_at,
+    take,
 };
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
