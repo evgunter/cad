@@ -16,8 +16,9 @@
 //!   * every render-OK file is attempted. The ones that import AND
 //!     tessellate become cells ([`WILD_CELLS`], pinned); the ones that
 //!     refuse import ([`WILD_REFUSALS`]: `b123d_nema17_bracket`,
-//!     `SURFACE_CURVE` edge geometry, and `nist_ftc_09_asme1_rd`, the
-//!     snap catalogue's) are pinned as typed failures.
+//!     `SURFACE_CURVE` edge geometry, and `nist_ftc_09_asme1_rd`, a
+//!     tangent edge printed off its tangency) are pinned as typed
+//!     failures.
 //!     **Drift in any direction fails this tool loudly**: a montage
 //!     whose cell set moved silently would detach the sheet from the
 //!     audit's attribution block (`demos/README.md` carries it). If a
@@ -140,14 +141,18 @@ const WILD_CELLS: [Cell; 7] = [
 /// [`WILD_CELLS`] AND the attribution block in `demos/README.md`,
 /// per the audit.
 ///
-/// `nist_ftc_09_asme1_rd` states plane × cylinder edges whose faces read
-/// tangent at the file's band and apart at the run's; the import refuses
-/// them naming the snap catalogue's lane, at every ε, until that lane
-/// makes them exact. Its
-/// cell and its attribution return with it.
+/// `nist_ftc_09_asme1_rd`'s fillets read tangent at the file's band and
+/// crossing at the run's; the import makes each tangency exact, and the
+/// edges its writer printed as crossing lines then lie off the tangency
+/// in the file's band, the file's ambiguity, at every ε
+/// (`work/importgate/a-tangent-edge-printed-as-a-crossing-line-refuses-at-the-build.md`).
+/// Its cell and its attribution return with it.
 const WILD_REFUSALS: [(&str, &str); 2] = [
     ("occ-oss/b123d_nema17_bracket.step", "SURFACE_CURVE"),
-    ("nist/nist_ftc_09_asme1_rd.stp", "snap catalogue"),
+    (
+        "nist/nist_ftc_09_asme1_rd.stp",
+        "(step_edge_on_description), in the band",
+    ),
 ];
 
 fn fixture_text(rel: &str) -> String {
