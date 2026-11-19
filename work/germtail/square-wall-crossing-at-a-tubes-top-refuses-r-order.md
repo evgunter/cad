@@ -82,3 +82,4 @@ reds with two mismatches of the same shape (`R 0.08967…, r 0.009745…`;
 Tangent("section_torus_square_wall_fold_half")`, at ε = 1e-9 on
 importgate/build's local run of topo (2026-11-18); that branch does not
 touch the section-certificate code.
+- 2026-11-19 — **another seed from the slow set**, `CAD_FUZZ_SEED=0x2a3bc317ec000517` (`CAD_FUZZ_EFFORT=1`), on PR 7099's merge of main (`bb3030aed`, a local run). It found 3 mismatches of the same `Tangent("section_torus_square_wall_fold_half")` shape, "a strip crossing at a tube circle's top", at tilt 0 (the first: `R 0.03718180571997164, r 0.026862353293602703, (e, z0, rc) (0.013995399530219547, -0.03597452314082404, 0.02491266790414395)`). The branch does not touch the section code.

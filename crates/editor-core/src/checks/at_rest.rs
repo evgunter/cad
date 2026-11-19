@@ -1487,7 +1487,11 @@ impl<'p> Operands<'p> {
     fn of(product: &'p Product<f64>) -> Self {
         Self {
             product,
-            read: product.copies.iter().map(|_| std::cell::OnceCell::new()).collect(),
+            read: product
+                .copies
+                .iter()
+                .map(|_| std::cell::OnceCell::new())
+                .collect(),
         }
     }
 

@@ -806,9 +806,9 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 // it mints (VARIABLES VR4): the digest feeds every node id, and one more
 // minted variable per placement moves the ids after it.
 const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x7e2d_2c34_0060_0c3e),
-    (1e-6, 0x3772_357e_797b_666c),
-    (1e-12, 0x6477_f71e_7306_a056),
+    (1e-9, 0x14ee_5e4d_5dd3_65fa),
+    (1e-6, 0x1032_e416_e505_15d7),
+    (1e-12, 0x3a22_4981_bea1_1dec),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -885,6 +885,13 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// origin became the wall's middle from construction data, where the
 /// fitted centroid had stood to rounding: the digest hashes the stored
 /// planes' origins, so it moved; the solved poses did not.
+///
+/// RE-PINNED when an aggregate came to compute in the nearest frame its
+/// operands share (`Framed::aggregate_frame`, `[placement.frame]`): a
+/// gather whose operands are all placed copies under different maps now
+/// computes in the space's coordinates rather than the first copy's, so
+/// its body's stored data moved. Computing in the first operand's frame
+/// again puts back the three digests held before at every ε row.
 #[test]
 fn a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus() {
     let eps = Tol::witness().eps();

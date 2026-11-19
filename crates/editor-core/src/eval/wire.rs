@@ -4739,13 +4739,11 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
             Ok((read, value, bodies, family))
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-    // The frame it computes in: its first operand's that is in its
-    // space's coordinates, else its first's, as the author lists them
-    // ([`super::Framed::computing_among`]); every other body is grafted
-    // into it through `relative` ([`super::Framed::graft_in`]).
-    let mut computing: Option<super::Framed<T>> =
-        super::Framed::computing_among(operands.iter().flat_map(|(_, _, bodies, _)| bodies.iter()))
-            .cloned();
+    // The frame it computes in: the nearest its operands share
+    // ([`super::Framed::aggregate_frame`]); every body is grafted into it
+    // through its own placement ([`super::Framed::graft_into`]).
+    let frame =
+        super::Framed::aggregate_frame(operands.iter().flat_map(|(_, _, bodies, _)| bodies.iter()));
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> =
         Vec::with_capacity(members.len());
     let mut pieces: Vec<super::Piece<T>> = Vec::with_capacity(members.len());
@@ -4756,8 +4754,8 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         let table = read_table(value);
         let mut bridges = Vec::with_capacity(bodies.len());
         for body in &bodies {
-            let first = computing.get_or_insert_with(|| body.clone());
-            let keys = first.graft_in(&mut fused, body, tol).map_err(NodeErrorKind::from)?;
+            let keys = super::Framed::graft_into(&frame, &mut fused, body, tol)
+                .map_err(NodeErrorKind::from)?;
             bridges.push(keys);
         }
         // A member's own records ride the piece it is, re-keyed through
@@ -4790,7 +4788,6 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     // (`topo::AtRestPolicy::leaf`), as they are: finished at `f64`, tier
     // 2 at the box scalars, where a taker finishes it.
     let fused = T::leaf(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
-    let frame = computing.map_or(super::Frame::Own, |first| first.frame().clone());
     let pieces = Arc::new(super::Pieces { by: id, pieces });
     Ok(OpOut::plain(
         ValuePayload::Body(super::Framed::in_frame_leaf(Arc::new(fused), frame)),

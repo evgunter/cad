@@ -18,12 +18,21 @@
 //! and every lane over a box decide in one frame. A reading within an
 //! operand that asks it about another's point
 //! ([`topo::Seat::into_own`]) does send that point through the inverse.
-//! Every operation over two or more operands of one space takes it — the
-//! booleans' fold, subtract and distribute, measure, the product gather,
-//! clearance and its witness rebuild, the coincidence replay's carrier
-//! verdict — and reads every other operand through
-//! [`Framed::relative`], the one door between two operands of a space;
-//! its result is in the frame it computed in.
+//! Every operation over two operands of one space takes it — the
+//! booleans' fold and subtract, measure, clearance and its witness
+//! rebuild, the coincidence replay's carrier verdict — and reads the
+//! other through [`Framed::relative`], the one door between two operands
+//! of a space; its result is in the frame it computed in.
+//!
+//! **An aggregate computes in the nearest frame its operands share**
+//! ([`Framed::aggregate_frame`]; `[placement.frame]`: a relative motion
+//! "is composed through the nearest frame they share"). A gather of
+//! copies into one body (the `⊔`, a distribute's assembly, the product)
+//! computes in the one frame every operand holds, else in its space's
+//! coordinates, where every placement already stands inside the session
+//! box. It is not the first operand's: copies at `+900 m` and `−900 m`
+//! stand 1800 m apart in either one's frame, past the box, while in
+//! their space they reach 900 m.
 //!
 //! **A reading moves no operand.** A reader that relates two operands
 //! (measure, clearance and its witness, the replay's carrier verdict,
@@ -33,7 +42,7 @@
 //! that builds one body out of its operands reads them into its frame
 //! whole: the fold and the cut through [`Framed::read_in`], each gather
 //! of copies into one aggregate (the `⊔`, a distribute's assembly, the
-//! product) through [`Framed::graft_in`], which moves the copy's data
+//! product) through [`Framed::graft_into`], which moves the copy's data
 //! into the aggregate's and asks the session box of the image. Every
 //! such move is counted once, at [`Framed::moving_into`].
 //!
@@ -437,6 +446,38 @@ impl<T: topo::AtRestPolicy> Framed<T> {
             .or_else(|| operands.into_iter().next())
     }
 
+    /// **The frame an aggregate over `operands` computes in**: the
+    /// nearest frame they all share (`[placement.frame]`: the relative
+    /// motion of two frames "is composed through the nearest frame they
+    /// share"). That is the one frame every operand holds ([`Frame::same`]:
+    /// all in their space's coordinates, or all under one shared map), and
+    /// otherwise the space's own coordinates ([`Frame::Own`]). Every
+    /// operand's placement was asked the session box where it stands by
+    /// the door that placed it, so the aggregate's coordinates lie in the
+    /// box in this frame, and its one finish asks the box of them.
+    ///
+    /// A value holds its frame as one composed map, not as a chain of the
+    /// frames it was placed through, so two operands placed under one
+    /// sub-assembly by different maps share no frame here but the space,
+    /// and their aggregate computes in the space's coordinates. Inside a
+    /// part's own document its copies stand in the part's space, which is
+    /// the sub-assembly's frame, and the instance that places the part
+    /// asks the box once, where it stands.
+    pub(crate) fn aggregate_frame<'a>(operands: impl IntoIterator<Item = &'a Self>) -> Frame<T>
+    where
+        T: 'a,
+    {
+        let mut operands = operands.into_iter();
+        let Some(first) = operands.next() else {
+            return Frame::Own;
+        };
+        if operands.all(|f| f.frame.same(&first.frame)) {
+            first.frame.clone()
+        } else {
+            Frame::Own
+        }
+    }
+
     /// **The one door between two operands of one space**: the map from
     /// `other`'s body coordinates into this one's
     /// (`self.frame⁻¹ ∘ other.frame`), `None` where the two are in one
@@ -465,7 +506,7 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     }
 }
 
-/// **Why a copy did not graft into an aggregate** ([`Framed::graft_in`]):
+/// **Why a copy did not graft into an aggregate** ([`Framed::graft_into`]):
 /// it did not read into the aggregate's frame, or the graft refused.
 #[derive(Debug)]
 pub(crate) enum GraftIn {
@@ -504,7 +545,7 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     /// `None` where the two are one frame, counted as the one rigid map
     /// it costs where it is a motion (`counters::rigid_map`): the one
     /// home of that count, for every door that moves a body between
-    /// frames ([`Self::read_into`], [`Self::graft_in`]).
+    /// frames ([`Self::read_into`], [`Self::graft_into`]).
     ///
     /// # Errors
     ///
@@ -522,26 +563,26 @@ impl<T: topo::AtRestPolicy> Framed<T> {
 }
 
 impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
-    /// **`other` grafted into `dst`, an aggregate computed in this one's
-    /// frame** ([`topo::boolean::graft_placed`]): its body as it stands
-    /// where the two are one frame, else its data moved through their
-    /// relative motion and the image asked the session box, as a move of
-    /// what `other` holds asks and logs it. The image is the aggregate's
-    /// data, so this door, which places it, asks. The aggregate's own
-    /// finish decides the rest.
+    /// **`other` grafted into `dst`, an aggregate computed in `frame`**
+    /// ([`Self::aggregate_frame`], [`topo::boolean::graft_placed`]): its
+    /// body as it stands where `other` is in that frame, else its data
+    /// moved through its placement into it and the image asked the
+    /// session box, as a move of what `other` holds asks and logs it. The
+    /// image is the aggregate's data, so this door, which places it,
+    /// asks. The aggregate's own finish decides the rest.
     ///
     /// # Errors
     ///
-    /// [`GraftIn::Motion`]: the relative motion's overflow;
+    /// [`GraftIn::Motion`]: the motion's overflow;
     /// [`GraftIn::Moved`]: the image is past the session box;
     /// [`GraftIn::Graft`]: the graft's.
-    pub(crate) fn graft_in(
-        &self,
+    pub(crate) fn graft_into(
+        frame: &Frame<T>,
         dst: &mut Body<T>,
         other: &Self,
         tol: Tol,
     ) -> Result<topo::GraftKeys, GraftIn> {
-        let seat = match other.moving_into(&self.frame).map_err(GraftIn::Motion)? {
+        let seat = match other.moving_into(frame).map_err(GraftIn::Motion)? {
             None => topo::Seat::own(other.body()),
             Some(motion) => topo::Seat::at(other.body(), motion),
         };

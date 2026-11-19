@@ -1233,7 +1233,9 @@ mod placed_rows {
         assert!(
             matches!(
                 refused,
-                Err(super::PlacedGraftError::Move(crate::MoveError::NotFinished(_)))
+                Err(super::PlacedGraftError::Move(
+                    crate::MoveError::NotFinished(_)
+                ))
             ),
             "{refused:?}"
         );

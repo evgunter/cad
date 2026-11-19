@@ -39,7 +39,7 @@
 //! ([`topo::AtRestPolicy::finish`]). Every source is an evaluation's
 //! value, finished in its own frame; one in another frame is grafted as
 //! its image, its data moved into the computing frame and the session
-//! box asked of it ([`crate::eval::Framed::graft_in`]), every other fact
+//! box asked of it ([`crate::eval::Framed::graft_into`]), every other fact
 //! of it left to the aggregate's finish. So an aggregate the finish
 //! refuses ([`ProductError::ProductInvalid`]) is a graft defect, or an
 //! image whose rounding under its motion tips a fact its source held
@@ -644,8 +644,8 @@ pub struct Product<T: topo::AtRestPolicy + Decide> {
     /// it and runs no census again.
     pub body: T::Finished,
     /// **The frame [`Self::body`] is in** (D10 `[placement.frame]`): the
-    /// frame the gather computed in, its first source in its space's
-    /// coordinates, else its first source's. Export, the façade's
+    /// frame the gather computed in, the nearest its sources share
+    /// ([`crate::eval::Framed::aggregate_frame`]). Export, the façade's
     /// read-outs and the viewer compose it into the world through
     /// [`crate::mate::in_space`] alone.
     pub(crate) frame: crate::eval::Frame<T>,
@@ -1314,11 +1314,11 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // over the source however many solids it spans, so the carries
     // below are the same code for N as for 1.
     let mut aggregate = Body::new();
-    // The gather computes in its first non-empty source's frame whose
-    // frame is its space's (`Own`), else its first's
-    // ([`crate::eval::Framed::computing_among`]), and grafts every other
-    // into it through `relative` ([`crate::eval::Framed::graft_in`]).
-    let mut computing: Option<&crate::eval::Framed<T>> = crate::eval::Framed::computing_among(
+    // The gather computes in the nearest frame its non-empty sources
+    // share ([`crate::eval::Framed::aggregate_frame`]), and grafts each
+    // into it through its own placement
+    // ([`crate::eval::Framed::graft_into`]).
+    let frame = crate::eval::Framed::aggregate_frame(
         sources
             .iter()
             .map(|source| &source.body)
@@ -1335,10 +1335,8 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         // A source is read, not taken: its body as it stands, or mapped
         // into the product's frame as construction state. The aggregate
         // is what finishes, once, below.
-        let keys = computing
-            .get_or_insert(body)
-            .graft_in(&mut aggregate, body, tol)
-            .map_err(|e| match e {
+        let keys = crate::eval::Framed::graft_into(&frame, &mut aggregate, body, tol).map_err(
+            |e| match e {
                 crate::eval::GraftIn::Graft(source) => ProductError::Graft {
                     node: *node,
                     source,
@@ -1347,10 +1345,10 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                     node: *node,
                     kind: Box::new(read.into()),
                 },
-            })?;
+            },
+        )?;
         grafted.push((source, Arc::new(keys)));
     }
-    let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());
 
     // The graft's finish, ONCE, on the aggregate — before any name is
     // carried, so a product that is not a finished body refuses as that

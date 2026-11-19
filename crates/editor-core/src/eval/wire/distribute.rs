@@ -207,14 +207,13 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
-    // Computed in the first result's frame that is its space's, else the
-    // first's ([`crate::eval::Framed::computing_among`]), each other
-    // grafted into it ([`crate::eval::Framed::graft_in`]).
-    let mut computing: Option<crate::eval::Framed<T>> = crate::eval::Framed::computing_among(
+    // Computed in the nearest frame its results share
+    // ([`crate::eval::Framed::aggregate_frame`]), each grafted into it
+    // through its own placement ([`crate::eval::Framed::graft_into`]).
+    let frame = crate::eval::Framed::aggregate_frame(
         outs.iter()
             .filter_map(|(_, out)| out.payload.one_body().flatten()),
-    )
-    .cloned();
+    );
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
     let mut pieces: Vec<Piece<T>> = Vec::new();
     let mut contacts = topo::ContactRecords::default();
@@ -230,9 +229,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
             ValuePayload::Body(body) => (body.clone(), topo::BooleanResultKind::OperandA),
             _ => unreachable!("a boolean of one piece makes a body or nothing"),
         };
-        let first = computing.get_or_insert_with(|| body.clone());
-        let keys = first
-            .graft_in(&mut fused, &body, tol)
+        let keys = crate::eval::Framed::graft_into(&frame, &mut fused, &body, tol)
             .map_err(NodeErrorKind::from)?;
         let base = coincidences.len();
         let inputs: Vec<u32> = out
@@ -304,7 +301,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
     let fused =
         T::finish(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
-    let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());
+
     let pieces = Arc::new(Pieces { by: id, pieces });
     // What it made is the `⊔` of what each piece's boolean made, so the
     // census of that `⊔` runs at this door, over the pieces made here
