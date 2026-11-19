@@ -23,8 +23,9 @@ for _ in 0..FEET {
 ```
 
 That is a closest pair of a line and a curve, a second spelling beside the
-curve-pair polish (`polish::pair`,
-`crates/geom-brep/src/curve_pair/polish.rs:51`), and it reads
+curve-pair polish (`polish::pair_held`,
+`crates/geom-brep/src/curve_pair/polish.rs:69`; the unheld `polish::pair`
+it was beside went in PR 7137), and it reads
 `Curve3::foot`, whose spline foot is sampled
 (`crates/geom/src/curves/on_carrier.rs`, `work/onehome/a-spline-foot-misses-its-true-minimum-on-a-fifth-of-random-draws.md`).
 A fixed eight rounds with no convergence reading is a budget, not a
