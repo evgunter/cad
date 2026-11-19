@@ -372,6 +372,129 @@ mod tests {
         }
     }
 
+    /// EXPERIMENT: the exact miss (metres) of the carrier's point at `t`
+    /// off the worse of `surfaces`.
+    fn miss_m(carrier: &Curve3<f64>, t: f64, surfaces: [&Surface<f64>; 2]) -> f64 {
+        let p = carrier.eval(t);
+        let mut worst = 0.0_f64;
+        for s in surfaces {
+            let (q, rate) = residual(s, p);
+            let (mut lo, mut hi) = (0.0_f64, 1e-3_f64);
+            for _ in 0..60 {
+                let mid = 0.5 * (lo + hi);
+                if q.within(-mid * rate, mid * rate) {
+                    hi = mid;
+                } else {
+                    lo = mid;
+                }
+            }
+            worst = worst.max(hi);
+        }
+        worst
+    }
+
+    #[test]
+    fn probe_far_centre_section_misses() {
+        let mut rng = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut next = || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            (rng >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let u = f64::EPSILON * 0.5;
+        // (label, decade of a) -> (count, worst miss/(u·a), worst miss, worst param)
+        let mut table: std::collections::BTreeMap<(String, i32), (usize, f64, f64, f64)> =
+            std::collections::BTreeMap::new();
+        let mut record = |label: &str, c: &Curve3<f64>, surfaces: [&Surface<f64>; 2]| {
+            let Some(conic) = c.conic() else { return };
+            let a = conic.speed_hi();
+            // The in-box part: the parameter nearest the origin among a fine sample, then a
+            // window about it that stays within 100 m.
+            let mut best = (f64::INFINITY, 0.0);
+            for k in 0..200_000 {
+                let t = core::f64::consts::TAU * f64::from(k) / 200_000.0;
+                let d = (c.eval(t) - Point3::origin()).norm();
+                if d < best.0 {
+                    best = (d, t);
+                }
+            }
+            if best.0 > 500.0 || (conic.frame().origin() - Point3::origin()).norm() < 1e3 {
+                return;
+            }
+            // Seam at the nearest principal vertex, as the join does.
+            let seamed = c.seamed_near(best.1).unwrap_or_else(|| c.clone());
+            let sc = seamed.conic().unwrap();
+            let t0 = sc.param_in(c.eval(best.1), (-1.0, 1.0));
+            let e = table
+                .entry((label.to_string(), a.log10().floor() as i32))
+                .or_insert((0, 0.0, 0.0, 0.0));
+            for k in -8..=8 {
+                let t = t0 + f64::from(k) * 10.0 / a;
+                let m = miss_m(&seamed, t, surfaces);
+                e.0 += 1;
+                if m / (u * a) > e.1 {
+                    *e = (e.0, m / (u * a), m, t);
+                }
+            }
+        };
+        let cyl = Surface::Cylinder {
+            frame: geom::Frame::new(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(1.0, 2.0, 2.0),
+                Vec3::new(2.0, -1.0, 0.0),
+            ),
+            radius: 1.7,
+        };
+        let reach = |at| Reach::of_frame(at, (1.0, 1.0));
+        for tilt in [1e-3, 1e-4, 1e-5, 1e-6] {
+            for _ in 0..40 {
+                // A plane `tilt` off the wall's axis, passing within the wall near the origin.
+                let axis = Vec3::new(1.0, 2.0, 2.0).normalize();
+                let side = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5);
+                let side = (side - axis * side.dot(axis)).normalize();
+                let n = (side + axis * (tilt * (0.5 + next()))).normalize();
+                let cut = plane(Point3::new(0.3, -0.2, 0.1) + side * (1.7 * (next() - 0.5)), n);
+                if let Ok(PlaneCylinderSection::TiltedEllipse(c)) =
+                    plane_cylinder_section(&cut, &cyl, &reach(Point3::origin()), band())
+                {
+                    record("cylinder", &c, [&cut, &cyl]);
+                }
+            }
+        }
+        let half = 0.4_f64;
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(
+                Point3::new(0.2, 0.1, 2.0),
+                Vec3::new(0.1, -0.2, -1.0),
+                Vec3::new(1.0, 0.0, 0.1),
+            ),
+            half_angle: half,
+        };
+        let parabolic = core::f64::consts::FRAC_PI_2 - half;
+        for off in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7] {
+            for _ in 0..40 {
+                let axis = Vec3::new(0.1, -0.2, -1.0).normalize();
+                let side = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5);
+                let side = (side - axis * side.dot(axis)).normalize();
+                let tilt = parabolic * (1.0 - off * (0.5 + next()));
+                let n = axis * tilt.cos() + side * tilt.sin();
+                let at = Point3::new(0.2, 0.1, 2.0) + axis * (1.0 + next());
+                let cut = plane(at, n);
+                if let Ok(PlaneConeSection::TiltedEllipse(c)) =
+                    plane_cone_section(&cut, &cone, &reach(at), band())
+                {
+                    record("cone", &c, [&cut, &cone]);
+                }
+            }
+        }
+        for ((label, decade), (n, ratio, miss, t)) in table {
+            eprintln!(
+                "FARMISS {label} a~1e{decade}: {n} samples, worst miss {miss:.2e} = {ratio:.2} u·a at seamed θ {t:.3e}"
+            );
+        }
+    }
+
     /// **The resolution is the same wherever the part sits.** A carrier
     /// moved across the model reads the same bound, and a far centre is
     /// charged its distance from the arc.

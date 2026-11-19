@@ -1388,7 +1388,36 @@ impl<T: Decide> Curve3<T> {
         if !(geom_core::is_finite_length(semi_u) && geom_core::is_finite_length(semi_v)) {
             return Err(EllipseInvalid::SemiAxisNotFinite);
         }
-        let e = Ellipse::new(Frame::new(center, axis, u_ref), semi_u, semi_v);
+        Self::ellipse_decided(
+            Ellipse::new(Frame::new(center, axis, u_ref), semi_u, semi_v),
+            band,
+        )
+    }
+
+    /// **[`Curve3::ellipse`] for an ellipse born anchored**
+    /// ([`Ellipse::anchored`]): `anchor` its vertex at `θ = 0`, `toward`
+    /// the principal direction from the centre to it, `semi_u` along
+    /// that direction. The same two refusals under the same row.
+    ///
+    /// # Errors
+    ///
+    /// As [`Curve3::ellipse`].
+    pub fn ellipse_anchored(
+        anchor: Point3<T>,
+        axis: Vec3<T>,
+        toward: Vec3<T>,
+        (semi_u, semi_v): (T, T),
+        band: Band,
+    ) -> Result<Self, EllipseInvalid> {
+        if !(geom_core::is_finite_length(semi_u) && geom_core::is_finite_length(semi_v)) {
+            return Err(EllipseInvalid::SemiAxisNotFinite);
+        }
+        Self::ellipse_decided(Ellipse::anchored(anchor, axis, toward, semi_u, semi_v), band)
+    }
+
+    /// [`Curve3::ellipse`]'s one decision, the smaller semi-axis
+    /// definitely positive.
+    fn ellipse_decided(e: Ellipse<T>, band: Band) -> Result<Self, EllipseInvalid> {
         let minor = e.semi_axes_by_size().1;
         match geom_core::k_stats::decide("ellipse_minor_positive", Margin::of(minor), band) {
             Ok(Sign::Positive) => {}

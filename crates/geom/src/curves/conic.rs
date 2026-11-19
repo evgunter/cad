@@ -372,6 +372,16 @@ fn running_half_angle<T: Real>(theta: T) -> (Rounded<T>, (Rounded<T>, Rounded<T>
     (m, (sh, ch))
 }
 
+/// `when_le` where `d ≤ 0`, else `when_gt`, coordinate by coordinate
+/// ([`Real::select_le_zero`]).
+fn select_point<T: Real>(d: T, when_le: Point3<T>, when_gt: Point3<T>) -> Point3<T> {
+    Point3::new(
+        d.select_le_zero(when_le.x, when_gt.x),
+        d.select_le_zero(when_le.y, when_gt.y),
+        d.select_le_zero(when_le.z, when_gt.z),
+    )
+}
+
 /// `−x`, exact.
 fn running_neg<T: Real>(x: Rounded<T>) -> Rounded<T> {
     Rounded {
@@ -443,14 +453,6 @@ impl<T: Real> Circle<T> {
     #[must_use]
     pub fn period(&self) -> geom_core::period::Period<T> {
         crate::conic_period()
-    }
-
-    /// The point from an azimuthal frame already built:
-    /// `center + radial·radius`, exactly as parenthesized (D9) — the one
-    /// spelling of a circle's point, which [`Curve3::circle_at`] and
-    /// [`Conic::jet_at`] both reach.
-    pub(crate) fn point_on(&self, at: &azimuth::AzimuthFrame<T>) -> Point3<T> {
-        self.frame.origin() + at.radial.0 * self.radius
     }
 
     fn azimuth(&self, theta: T) -> azimuth::AzimuthFrame<T> {
@@ -666,13 +668,17 @@ impl<T: Real> Ellipse<T> {
     #[must_use]
     pub fn quarter_turned_where(&self, turn: T) -> Self {
         let f = self.frame;
+        let turned = f.turned_to(f.v_ref().normalize());
         Self {
-            frame: Frame::select_le_zero(turn, f, f.turned_to(f.v_ref().normalize())),
+            frame: Frame::select_le_zero(turn, f, turned),
             semi_u: turn.select_le_zero(self.semi_u, self.semi_v),
             semi_v: turn.select_le_zero(self.semi_v, self.semi_u),
-            // The anchor is the vertex on the stored seam, which a turn
-            // may leave: the turned reading is of the derived centre.
-            anchor: None,
+            // An anchored ellipse stays anchored at its seam's vertex: the
+            // stored one where the seam is kept, the turned seam's, read
+            // off the derived centre, where it turns.
+            anchor: self.anchor.map(|p| {
+                select_point(turn, p, turned.origin() + turned.u_ref() * self.semi_v)
+            }),
         }
     }
 
@@ -700,6 +706,9 @@ impl<T: Real> Ellipse<T> {
         let e = self.quarter_turned_where(turn);
         Self {
             frame: Frame::select_le_zero(back, e.frame, e.frame.half_turned()),
+            anchor: e.anchor.map(|p| {
+                select_point(back, p, e.frame.origin() - e.frame.u_ref() * e.semi_u)
+            }),
             ..e
         }
     }

@@ -2555,8 +2555,17 @@ pub fn plane_cone_section<T: Decide>(
                     // construction, where `apex − (c·a − sin²α·n)·δ/K`
                     // reads a vector that cancels to K along the normal
                     // and then divides it by K.
-                    let center = apex - n * apex_gap + u_major * tilt.centre(apex_gap);
-                    let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
+                    //
+                    // The ellipse is born anchored at its vertex nearer
+                    // the apex's foot, read where the plane meets that
+                    // ruling (`ConeTilt::near_vertex`, finite toward the
+                    // parabola), so the arc there is stored at its own
+                    // scale however far the centre lies; the centre lies
+                    // from it along `δσ·û`.
+                    let delta_sigma = apex_gap * tilt.c.unit_sign();
+                    let vertex = apex - n * apex_gap + u_major * tilt.near_vertex(delta_sigma);
+                    let toward = u_major * (T::zero() - delta_sigma.unit_sign());
+                    let e = Curve3::ellipse_anchored(vertex, n, toward, (major, minor), band)?;
                     Ok(PlaneConeSection::TiltedEllipse(e))
                 }
                 verdict @ (Sign::Zero | Sign::Positive) => {
