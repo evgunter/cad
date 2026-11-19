@@ -346,30 +346,37 @@ fn exact_point<T: Real>(p: Point3<T>) -> [Rounded<T>; 3] {
 /// A frame in running arithmetic: centre, `u_ref`, `v_ref`.
 type RunningFrame<T> = ([Rounded<T>; 3], [Rounded<T>; 3], [Rounded<T>; 3]);
 
-/// **The half-angle pair every conic point is summed from**:
-/// `m = 2·sin(θ/2)` and `(sin(θ/2), cos(θ/2))`, so that
-/// `cos θ − 1 = −m·sin(θ/2)` and `sin θ = m·cos(θ/2)` with no
-/// cancellation at any `θ`.
-fn half_angle<T: Real>(theta: T) -> (T, (T, T)) {
-    let (sh, ch) = (theta * T::from_f64(0.5)).sin_cos();
-    (T::from_f64(2.0) * sh, (sh, ch))
+/// **The two offsets every conic point is summed from**:
+/// `(cos θ − 1, sin θ)`, the first read as `−2·sin²(θ/2)`, which has no
+/// cancellation at any `θ`, and each a function of one sine alone, so an
+/// enclosure of `θ` gives the enclosure of each with no dependency
+/// between two factors.
+fn offsets<T: Real>(theta: T) -> (T, T) {
+    let (sh, _) = (theta * T::from_f64(0.5)).sin_cos();
+    let (s, _) = theta.sin_cos();
+    (-(T::from_f64(2.0) * sh.powi(2)), s)
 }
 
-/// [`half_angle`] in running arithmetic: the sine and the cosine
-/// charged an ulp each, the halving and the doubling exact.
-fn running_half_angle<T: Real>(theta: T) -> (Rounded<T>, (Rounded<T>, Rounded<T>)) {
+/// [`offsets`] in running arithmetic: each sine charged an ulp, the
+/// square its rounding, the halving, the doubling and the negation
+/// exact.
+fn running_offsets<T: Real>(theta: T) -> (Rounded<T>, Rounded<T>) {
     let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
     let transcendental = |x: T| Rounded {
         value: x,
         error: ulp * x.abs(),
     };
-    let (m, (sh, ch)) = half_angle(theta);
-    let (sh, ch) = (transcendental(sh), transcendental(ch));
-    let m = Rounded {
-        value: m,
-        error: T::from_f64(2.0) * sh.error,
-    };
-    (m, (sh, ch))
+    let (sh, _) = (theta * T::from_f64(0.5)).sin_cos();
+    let (s, _) = theta.sin_cos();
+    let sq = transcendental(sh).square();
+    let two = T::from_f64(2.0);
+    (
+        Rounded {
+            value: -(two * sq.value),
+            error: two * sq.error,
+        },
+        transcendental(s),
+    )
 }
 
 /// `when_le` where `d ≤ 0`, else `when_gt`, coordinate by coordinate
@@ -380,14 +387,6 @@ fn select_point<T: Real>(d: T, when_le: Point3<T>, when_gt: Point3<T>) -> Point3
         d.select_le_zero(when_le.y, when_gt.y),
         d.select_le_zero(when_le.z, when_gt.z),
     )
-}
-
-/// `−x`, exact.
-fn running_neg<T: Real>(x: Rounded<T>) -> Rounded<T> {
-    Rounded {
-        value: -x.value,
-        error: x.error,
-    }
 }
 
 impl<T: Real> Circle<T> {
@@ -470,9 +469,9 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 
     fn point_at(&self, theta: T) -> Point3<T> {
-        let (m, (sh, ch)) = half_angle(theta);
+        let (ku, kv) = offsets(theta);
         let (u, v) = (self.frame.u_ref(), self.frame.v_ref());
-        self.zero_point() + (u * (-(m * sh)) + v * (m * ch)) * self.radius
+        self.zero_point() + (u * ku + v * kv) * self.radius
     }
 
     fn derivative_at(&self, theta: T) -> Vec3<T> {
@@ -494,11 +493,21 @@ impl<T: Real> Conic<T> for Circle<T> {
     /// `(x/r, y/r)`'s direction, read as `(y·r, x·r)`, as an ellipse
     /// reads its own: a circle of negative radius, traversed through the
     /// seam's antipode, reads the parameter that reproduces the point.
-    /// `p` is read from the zero point, so `x = r + (p − P₀)·u_ref`.
+    /// A circle born anchored reads `p` from its anchor,
+    /// `x = r + (p − P₀)·u_ref`, so the angle resolves at the arc's scale
+    /// however far the derived centre lies.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
-        let w = p - self.zero_point();
-        let (x, y) = (w.dot(self.frame.u_ref()), w.dot(self.frame.v_ref()));
-        Azimuth::of(y, self.radius + x).scaled(self.radius, self.radius)
+        match self.anchor {
+            None => self.frame.azimuth(p),
+            Some(zero) => {
+                let w = p - zero;
+                Azimuth::of(
+                    w.dot(self.frame.v_ref()),
+                    self.radius + w.dot(self.frame.u_ref()),
+                )
+            }
+        }
+        .scaled(self.radius, self.radius)
     }
 
     fn zero_point(&self) -> Point3<T> {
@@ -523,8 +532,7 @@ impl<T: Real> Conic<T> for Circle<T> {
     fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
         let (c, u, v) = running_frame(&self.frame);
         let r = Rounded::exact(self.radius);
-        let (m, (sh, ch)) = running_half_angle(theta);
-        let (ku, kv) = (running_neg(m * sh), m * ch);
+        let (ku, kv) = running_offsets(theta);
         let zero: [Rounded<T>; 3] = match self.anchor {
             Some(p) => exact_point(p),
             None => core::array::from_fn(|i| c[i] + u[i] * r),
@@ -728,9 +736,9 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     }
 
     fn point_at(&self, theta: T) -> Point3<T> {
-        let (m, (sh, ch)) = half_angle(theta);
+        let (ku, kv) = offsets(theta);
         let (u, v) = (self.frame.u_ref(), self.frame.v_ref());
-        self.zero_point() + (u * (self.semi_u * (-(m * sh))) + v * (self.semi_v * (m * ch)))
+        self.zero_point() + (u * (self.semi_u * ku) + v * (self.semi_v * kv))
     }
 
     fn derivative_at(&self, theta: T) -> Vec3<T> {
@@ -753,12 +761,22 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     }
 
     /// `(x/a, y/b)`'s direction, read as `(y·a, x·b)`: the same
-    /// direction scaled by `a·b`, with no division. `p` is read from the
-    /// zero point, so `x = a + (p − P₀)·u_ref`.
+    /// direction scaled by `a·b`, with no division. An ellipse born
+    /// anchored reads `p` from its anchor, `x = a + (p − P₀)·u_ref`, so
+    /// the angle resolves at the arc's scale however far the derived
+    /// centre lies.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
-        let w = p - self.zero_point();
-        let (x, y) = (w.dot(self.frame.u_ref()), w.dot(self.frame.v_ref()));
-        Azimuth::of(y, self.semi_u + x).scaled(self.semi_u, self.semi_v)
+        match self.anchor {
+            None => self.frame.azimuth(p),
+            Some(zero) => {
+                let w = p - zero;
+                Azimuth::of(
+                    w.dot(self.frame.v_ref()),
+                    self.semi_u + w.dot(self.frame.u_ref()),
+                )
+            }
+        }
+        .scaled(self.semi_u, self.semi_v)
     }
 
     fn zero_point(&self) -> Point3<T> {
@@ -791,8 +809,8 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
         let (c, u, v) = running_frame(&self.frame);
         let (a, b) = (Rounded::exact(self.semi_u), Rounded::exact(self.semi_v));
-        let (m, (sh, ch)) = running_half_angle(theta);
-        let (ku, kv) = (a * running_neg(m * sh), b * (m * ch));
+        let (ku, kv) = running_offsets(theta);
+        let (ku, kv) = (a * ku, b * kv);
         let zero: [Rounded<T>; 3] = match self.anchor {
             Some(p) => exact_point(p),
             None => core::array::from_fn(|i| c[i] + u[i] * a),
