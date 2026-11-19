@@ -2,10 +2,11 @@
 id: main-red-the-sense-fold-census-flags-knot-split-a
 kind: issue
 title: Main red: face_normal's sense-fold census flags step-import knot_split.rs's a, so no_source_file_folds_the_bit_by_hand fails
-status: dispatched
+status: closed
 opened: 2026-11-18
 priority: P1
 cost: E
+closed: 2026-11-19
 ---
 
 Found by lane `embed/conic-vertex` (EMBED, 2026-11-18) at the PR 7105
@@ -28,3 +29,5 @@ bit. The census is in the slow set and the PR gate does not select it.
 **What closes it:** the fold routed through `OutwardNormal::from_chart`
 or a `face_normal` door, or, if `a` is a genuinely signed scalar, its
 entry added to the sanctioned list saying what it negates.
+
+- 2026-11-19 — Closed by PR 7133: `a` was a test helper's signed chart shoelace area; it now folds through `PolygonOrientation::of_face(sense).to_interior`, the chart-polygon door the census names.
