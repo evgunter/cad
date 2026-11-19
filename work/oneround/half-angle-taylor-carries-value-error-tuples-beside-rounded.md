@@ -2,10 +2,11 @@
 id: half-angle-taylor-carries-value-error-tuples-beside-rounded
 kind: issue
 title: half_angle's taylor carries (value, error) tuples and spells room by hand beside running::Rounded
-status: open
+status: dispatched
 priority: P1
 cost: M
 opened: 2026-11-02
+branch: oneround/rounded-room
 ---
 
 
