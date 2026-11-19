@@ -109,7 +109,13 @@ fn nudge_point(text: &str, id: u64, k: usize, by_m: f64) -> String {
         .map(|c| c.trim().parse().unwrap())
         .collect();
     xyz[k] += by_m / unit(text);
-    let moved = format!("{head}{:?}, {:?}, {:?}{}", xyz[0], xyz[1], xyz[2], &line[close..]);
+    let moved = format!(
+        "{head}{:?}, {:?}, {:?}{}",
+        xyz[0],
+        xyz[1],
+        xyz[2],
+        &line[close..]
+    );
     text.replacen(line, &moved, 1)
 }
 
@@ -411,11 +417,18 @@ fn a_slot_end_between_parallel_planes_takes_half_their_spacing() {
     assert_eq!(snaps.len(), 1, "one move: {snaps:?}");
     let (surface, relation, moved_by) = snaps[0];
     assert_eq!((surface, relation), (cylinder, SnapRelation::Tangent));
-    assert!((moved_by - 3e-6).abs() < 1e-9, "radius 2 µm and axis 1 µm: {moved_by:e}");
+    assert!(
+        (moved_by - 3e-6).abs() < 1e-9,
+        "radius 2 µm and axis 1 µm: {moved_by:e}"
+    );
     let StepImport::Solid { body, .. } = &imported else {
         panic!("a solid")
     };
-    assert_eq!(topo::validate_geometric(body, tol()), Ok(()), "tier-3 valid");
+    assert_eq!(
+        topo::validate_geometric(body, tol()),
+        Ok(()),
+        "tier-3 valid"
+    );
     let radii: Vec<f64> = body
         .faces()
         .filter_map(|(_, f)| match body.get_surface(f.surface) {

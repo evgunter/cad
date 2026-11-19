@@ -33,7 +33,8 @@ use crate::py::{
 };
 use crate::tags::{
     export_error_tag, node_error_tag, node_inner_kind_tag, normalization_kind_tag,
-    promoted_curve_kind_tag, promoted_kind_tag, singularity_found_tag, step_import_error_tag,
+    promoted_curve_kind_tag, promoted_kind_tag, singularity_found_tag, snap_relation_tag,
+    step_import_error_tag,
 };
 use crate::validation;
 use pncad::analysis as a;
@@ -2312,6 +2313,19 @@ impl StructureNormalization {
         }
     }
 
+    /// The snap catalogue's relation whose construction moved the surface
+    /// record `face` names (`coaxial`, `tangent`, `axis_normal`) — on
+    /// `snapped` alone.
+    #[getter]
+    fn relation(&self) -> Option<&'static str> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::Snapped { relation, .. } => {
+                Some(snap_relation_tag(relation))
+            }
+            _ => None,
+        }
+    }
+
     /// Where the file put the chart singularity import made a vertex —
     /// on `chart_singularity_vertex` alone.
     #[getter]
@@ -2339,6 +2353,7 @@ impl StructureNormalization {
     /// The move's bound (metres): how far building the frames moved a
     /// point of the session box on `placement_re_minted`, how far a face
     /// on either record lies from the other's surface on `one_record`,
+    /// how far the snap moved a point of the surface's faces on `snapped`,
     /// how far the build moved a vertex from its printed point on
     /// `vertex_built`, how far the printed carrier stands off the built one
     /// on `carrier_built`.
@@ -2347,6 +2362,7 @@ impl StructureNormalization {
         match &self.0.kind {
             pncad::step_import::NormalizationKind::PlacementReMinted { moved_by, .. }
             | pncad::step_import::NormalizationKind::OneRecord { moved_by, .. }
+            | pncad::step_import::NormalizationKind::Snapped { moved_by, .. }
             | pncad::step_import::NormalizationKind::VertexBuilt { moved_by }
             | pncad::step_import::NormalizationKind::CarrierBuilt { moved_by } => Some(*moved_by),
             _ => None,

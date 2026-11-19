@@ -220,14 +220,24 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // Its cylinder × sphere section, at its own ε_in: the edge across the
     // marched loop's start at the default and fine bands, its sibling's
     // certificate at 1e-6.
-    (TAIL_TURBINE, 1e-9, "file", Refused(TAIL_TURBINE_SECTION_ENDS)),
+    (
+        TAIL_TURBINE,
+        1e-9,
+        "file",
+        Refused(TAIL_TURBINE_SECTION_ENDS),
+    ),
     (
         TAIL_TURBINE,
         1e-6,
         "file",
         Refused(TAIL_TURBINE_SECTION_UNCERTIFIED),
     ),
-    (TAIL_TURBINE, 1e-12, "file", Refused(TAIL_TURBINE_SECTION_ENDS)),
+    (
+        TAIL_TURBINE,
+        1e-12,
+        "file",
+        Refused(TAIL_TURBINE_SECTION_ENDS),
+    ),
     // -- tests/fixtures/cert1-r1/nearpolar_*.step ---------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). At ambient 1e-6 both

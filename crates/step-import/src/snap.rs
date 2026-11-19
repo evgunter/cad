@@ -125,8 +125,8 @@ pub(crate) fn snap(
             continue;
         }
         let moves = solve(&nodes, &relations, &class, file)?;
-        for &(n, ref surface, _, _) in &moves {
-            nodes[n].surface = surface.clone();
+        for m in &moves {
+            nodes[m.node].surface = m.surface.clone();
         }
         for &r in &class {
             let rel = &relations[r];
@@ -148,7 +148,13 @@ pub(crate) fn snap(
                 ));
             }
         }
-        for (n, surface, moved_by, relation) in moves {
+        for Move {
+            node: n,
+            surface,
+            moved_by,
+            relation,
+        } in moves
+        {
             for &fi in &nodes[n].faces {
                 solid.faces[fi].surface = surface.clone();
             }
@@ -442,6 +448,15 @@ fn classes(nodes: usize, relations: &[Relation]) -> Vec<Vec<usize>> {
     out
 }
 
+/// One construction's move: the surface it moves, where to, how far, and
+/// the relation whose construction it is.
+struct Move {
+    node: usize,
+    surface: Surface<f64>,
+    moved_by: f64,
+    relation: SnapRelation,
+}
+
 /// A symmetric relation's pair as (kept, moved): the earlier record
 /// stays.
 fn later(nodes: &[Node], r: &Relation) -> (usize, usize) {
@@ -460,7 +475,7 @@ fn solve(
     relations: &[Relation],
     class: &[usize],
     file: FileBand,
-) -> Result<Vec<(usize, Surface<f64>, f64, SnapRelation)>, StepImportError> {
+) -> Result<Vec<Move>, StepImportError> {
     // Which surface each relation not yet exact moves, and from what.
     let mut movers: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
     let mut fixed: Vec<(usize, u64)> = Vec::new();
@@ -540,7 +555,12 @@ fn solve(
                 ));
             }
         }
-        out.push((n, surface, moved_by, first.kind));
+        out.push(Move {
+            node: n,
+            surface,
+            moved_by,
+            relation: first.kind,
+        });
     }
     Ok(out)
 }
@@ -637,10 +657,7 @@ fn tangent(
                             file.band(),
                         )
                         .map_err(|_| {
-                            file.refused(
-                                nodes[n].record.id,
-                                file.ambiguous(STEP_SNAP_SIDE, at - c),
-                            )
+                            file.refused(nodes[n].record.id, file.ambiguous(STEP_SNAP_SIDE, at - c))
                         })
                     };
                     let (s1, s2) = (side(c1)?, side(c2)?);

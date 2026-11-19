@@ -1574,6 +1574,19 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             named::<&f64>(moved_by);
             "one_record"
         }
+        NormalizationKind::Snapped {
+            surface,
+            relation,
+            moved_by,
+        } => {
+            named::<&u64>(surface);
+            named::<&f64>(moved_by);
+            match relation {
+                SnapRelation::Coaxial => "snapped_coaxial",
+                SnapRelation::Tangent => "snapped_tangent",
+                SnapRelation::AxisNormal => "snapped_axis_normal",
+            }
+        }
         NormalizationKind::VertexBuilt { moved_by } => {
             named::<&f64>(moved_by);
             "vertex_built"

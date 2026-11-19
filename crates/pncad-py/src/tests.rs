@@ -2982,6 +2982,14 @@ fn import_report_row_tags_are_stable() {
             "one_record",
         ),
         (
+            NormalizationKind::Snapped {
+                surface: 30,
+                relation: pncad::step_import::SnapRelation::Tangent,
+                moved_by: 2e-6,
+            },
+            "snapped",
+        ),
+        (
             NormalizationKind::VertexBuilt { moved_by: 2.4e-16 },
             "vertex_built",
         ),

@@ -97,7 +97,10 @@ const WILD_REFUSALS: [(&str, &str); 5] = [
     // exact, and the edges the writer printed as crossing lines,
     // √(2·r·gap) off the ruling, then read off their description in the
     // file's band: the file's ambiguity, at every ε.
-    ("nist/nist_ftc_09_asme1_rd.stp", "(step_edge_on_description), in the band"),
+    (
+        "nist/nist_ftc_09_asme1_rd.stp",
+        "(step_edge_on_description), in the band",
+    ),
     // A `\X2\` string control directive (Japanese annotation text).
     ("stepcode/io1-cm-214.stp", r"\X2\"),
     // Open CASCADE's `SURFACE_CURVE` edge geometry: a curve stated
