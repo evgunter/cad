@@ -10,7 +10,7 @@ use topo::splitting::SplitNaming;
 use topo::{
     BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords, GlueVerdict,
     NaryMember, NaryRun, ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart,
-    SplitResult, SweepStrategy, boolean_op_with, nary_boolean_apart, split,
+    SplitResult, SweepStrategy, nary_boolean_apart, split,
 };
 
 use crate::verb::{Blend, Boolean, Members, Shell, Split, Sweep};
@@ -191,6 +191,9 @@ pub enum VerbError<T: Real> {
     Blend(BlendRefusal),
     /// The boolean pipeline refused.
     Boolean(BooleanError),
+    /// A placed operand's image in the computing frame reaches past the
+    /// session box (`topo::Placed::taken`).
+    Placed(topo::NotFinished),
     /// The extrude door refused.
     Extrude(ExtrudeError),
     /// The revolve door refused.
@@ -215,6 +218,7 @@ impl<T: Real> VerbError<T> {
         match self {
             Self::Blend(refusal) => write!(f, "{}", read_at(refusal, at)),
             Self::Boolean(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Placed(refusal) => write!(f, "{}", read_at(refusal, at)),
             Self::Extrude(refusal) => write!(f, "{}", read_at(refusal, at)),
             Self::Revolve(refusal) => write!(f, "{}", read_at(refusal, at)),
             Self::Split(refusal) => write!(f, "{}", read_at(refusal, at)),
@@ -272,7 +276,9 @@ impl Boolean {
     ///
     /// Both bodies come in borrowed, in operand order, finished
     /// ([`topo::AtRestPolicy::Finished`]: the door's operands are finished
-    /// bodies, and the result it hands back is one too). `sweep` is the
+    /// bodies, and the result it hands back is one too), each where it
+    /// stands ([`topo::Placed`]: a body alone is in the computing frame),
+    /// and the door moves each one not in it ([`topo::boolean_placed`]). `sweep` is the
     /// candidate-generation strategy — a property of the RUN, not of
     /// the operation (both strategies produce bit-identical results;
     /// the kernel's differential suite pins it), which is why it rides
@@ -281,11 +287,13 @@ impl Boolean {
     /// # Errors
     ///
     /// [`VerbError::Boolean`] carrying the pipeline's [`BooleanError`]
-    /// verbatim (`topo::boolean_op_with` enumerates the cases).
-    pub fn run_pair<F: topo::FinishedBody>(
+    /// verbatim (`topo::boolean_op_with` enumerates the cases);
+    /// [`VerbError::Placed`] where an operand's image past the session
+    /// box refuses its move.
+    pub fn run_pair<'p, F: topo::FinishedBody>(
         &self,
-        a: &F,
-        b: &F,
+        a: impl Into<topo::Placed<'p, F>>,
+        b: impl Into<topo::Placed<'p, F>>,
         sweep: SweepStrategy,
         tol: Tol,
     ) -> Result<PairOut<F::Scalar>, VerbError<F::Scalar>>
@@ -293,7 +301,12 @@ impl Boolean {
         F::Scalar: DoorScalar,
     {
         let Self { op, inputs } = self;
-        match boolean_op_with(*op, a, b, inputs, sweep, tol).map_err(VerbError::Boolean)? {
+        match topo::boolean_placed(*op, (a.into(), b.into()), inputs, sweep, tol).map_err(
+            |refusal| match refusal {
+                topo::PlacedBooleanError::Placed(findings) => VerbError::Placed(findings),
+                topo::PlacedBooleanError::Boolean(error) => VerbError::Boolean(error),
+            },
+        )? {
             BooleanResult::Empty => Ok(PairOut::Empty),
             BooleanResult::Body(bb) => {
                 // Exhaustive destructure, deliberately: a field

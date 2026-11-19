@@ -86,22 +86,21 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
             .map_err(NodeErrorKind::unfinished(self.node))
     }
 
-    /// **Its body taken in `into`'s frame**: `own`, its body already
-    /// taken in its own frame ([`Self::taken`]), where the two are one
-    /// frame; else `own` moved into it ([`topo::FinishedBody::moved`]),
-    /// still finished.
-    pub(super) fn taken_in(
+    /// **Its body placed in `into`'s frame** ([`topo::Placed`]): `own`,
+    /// its body already taken in its own frame ([`Self::taken`]), under
+    /// the motion into `into`, or alone where the two are one frame. The
+    /// door it is handed to moves it.
+    pub(super) fn placed_in<'a>(
         &self,
         into: &crate::eval::Frame<T>,
-        own: &Arc<T::Finished>,
-        tol: Tol,
-    ) -> Result<Arc<T::Finished>, NodeErrorKind> {
-        match self.body.moving_into(into).map_err(NodeErrorKind::Motion)? {
-            None => Ok(Arc::clone(own)),
-            Some(map) => topo::FinishedBody::moved(&**own, &map, tol)
-                .map(Arc::new)
-                .map_err(|findings| NodeErrorKind::NotFinished { findings }),
-        }
+        own: &'a Arc<T::Finished>,
+    ) -> Result<topo::Placed<'a, T::Finished>, NodeErrorKind> {
+        Ok(
+            match self.body.moving_into(into).map_err(NodeErrorKind::Motion)? {
+                None => topo::Placed::own(&**own),
+                Some(map) => topo::Placed::at(&**own, map),
+            },
+        )
     }
 
     /// Its names as the seat's table spells them: each holder's

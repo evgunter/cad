@@ -1889,6 +1889,7 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
             }
         }
         verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
+        verbs::VerbError::Placed(findings) => NodeErrorKind::NotFinished { findings },
         verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
         verbs::VerbError::Revolve(error) => NodeErrorKind::Revolve(error),
         verbs::VerbError::Split(error) => NodeErrorKind::Split(error),
@@ -3654,14 +3655,14 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .unwrap_or(&from.body)
         .frame()
         .clone();
-    let body_a = from.taken_in(&computing, &body_a, tol)?;
-    let body_b = &*b.taken_in(&computing, body_b, tol)?;
+    let body_a = from.placed_in(&computing, &body_a)?;
+    let body_b = b.placed_in(&computing, body_b)?;
     let inputs = BooleanInputs {
         records_a: from.carry.contacts.carried(),
         records_b: b.carry.contacts.carried(),
     };
     match (verb.build)(BooleanOp::Subtract, inputs)
-        .run_pair(&*body_a, body_b, boolean_sweep, tol)
+        .run_pair(body_a, body_b, boolean_sweep, tol)
         .map_err(verb_refused)?
     {
         verbs::PairOut::Empty => Ok(OpOut::empty()),
@@ -3684,13 +3685,13 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     node: from.node,
                     read: from.read,
                     table: &from.table,
-                    body: &body_a,
+                    body: body_a.body(),
                 },
                 &names::OperandCtx {
                     node: b.node,
                     read: b.read,
                     table: &b.table,
-                    body: body_b,
+                    body: body_b.body(),
                 },
                 tol,
             )

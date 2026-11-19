@@ -776,6 +776,115 @@ where
     boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
 }
 
+/// **A finished operand where it stands** (`[placement.frame]`): its
+/// body as it is held, and the motion from its coordinates into the
+/// operation's computing frame, `None` where it is in that frame. The
+/// door that takes it is the one that moves it
+/// ([`Placed::taken`]), so a caller reads no operand into another's
+/// frame itself.
+#[derive(Debug)]
+pub struct Placed<'a, F: crate::FinishedBody> {
+    body: &'a F,
+    motion: Option<geom_core::RigidMotion<F::Scalar>>,
+}
+
+impl<F: crate::FinishedBody> Clone for Placed<'_, F> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<F: crate::FinishedBody> Copy for Placed<'_, F> {}
+
+impl<'a, F: crate::FinishedBody> Placed<'a, F> {
+    /// `body` in the computing frame already.
+    #[must_use]
+    pub fn own(body: &'a F) -> Self {
+        Self { body, motion: None }
+    }
+
+    /// `body` under `motion` into the computing frame.
+    #[must_use]
+    pub fn at(body: &'a F, motion: geom_core::RigidMotion<F::Scalar>) -> Self {
+        Self {
+            body,
+            motion: Some(motion),
+        }
+    }
+
+    /// The body as it is held.
+    #[must_use]
+    pub fn body(&self) -> &'a F {
+        self.body
+    }
+
+    /// The motion into the computing frame, `None` where it is in it.
+    #[must_use]
+    pub fn motion(&self) -> Option<&geom_core::RigidMotion<F::Scalar>> {
+        self.motion.as_ref()
+    }
+
+    /// **The operand in the computing frame**: its body as it is held
+    /// where it is in that frame, else moved once through its motion
+    /// ([`crate::FinishedBody::moved`]: its verdict carried, the
+    /// session box asked of the image).
+    ///
+    /// # Errors
+    ///
+    /// The move's refusal: the image reaches past the session box.
+    pub fn taken(&self, tol: Tol) -> Result<std::borrow::Cow<'a, F>, crate::NotFinished> {
+        match &self.motion {
+            None => Ok(std::borrow::Cow::Borrowed(self.body)),
+            Some(motion) => self.body.moved(motion, tol).map(std::borrow::Cow::Owned),
+        }
+    }
+}
+
+impl<'a, F: crate::FinishedBody> From<&'a F> for Placed<'a, F> {
+    fn from(body: &'a F) -> Self {
+        Self::own(body)
+    }
+}
+
+/// **Why a placed Boolean did not run** ([`boolean_placed`]).
+#[derive(Debug)]
+pub enum PlacedBooleanError {
+    /// An operand's image in the computing frame reaches past the
+    /// session box ([`Placed::taken`]).
+    Placed(crate::NotFinished),
+    /// The Boolean refused ([`boolean_op_with`]).
+    Boolean(BooleanError),
+}
+
+/// **The pair Boolean over two placed operands**: each taken into the
+/// computing frame by its placement ([`Placed::taken`], `a` first), then
+/// [`boolean_op_with`] over the two. The moves are the door's, so an
+/// operand's data is read into another's frame here and nowhere in
+/// its caller.
+///
+/// # Panics
+///
+/// As [`boolean_op_with`].
+///
+/// # Errors
+///
+/// [`PlacedBooleanError::Placed`]: an operand's image past the box;
+/// [`PlacedBooleanError::Boolean`]: as [`boolean_op_with`].
+pub fn boolean_placed<F: crate::FinishedBody>(
+    op: BooleanOp,
+    (a, b): (Placed<'_, F>, Placed<'_, F>),
+    inputs: &BooleanInputs,
+    strategy: SweepStrategy,
+    tol: Tol,
+) -> Result<BooleanResult<F::Scalar>, PlacedBooleanError>
+where
+    F::Scalar: Decide + Bounds,
+{
+    let a = a.taken(tol).map_err(PlacedBooleanError::Placed)?;
+    let b = b.taken(tol).map_err(PlacedBooleanError::Placed)?;
+    boolean_op_with(op, &*a, &*b, inputs, strategy, tol).map_err(PlacedBooleanError::Boolean)
+}
+
 /// [`boolean_op_with`], its coincidences `given` where they are a fold
 /// step's of the n-ary door ([`super::nary`]): `Some` makes those pairs
 /// the operation's only coincidences, and it decides none of its own.
