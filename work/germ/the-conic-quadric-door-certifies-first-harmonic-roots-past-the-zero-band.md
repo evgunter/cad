@@ -85,3 +85,5 @@ being certified.
 Reproduce: `cargo nextest run -p topo -E 'test(the_nightly_1115_ellipse_root_is_certified_past_the_band)' --success-output final`
 (it prints both roots, the residuals and their slopes), or the fuzz row
 with `CAD_FUZZ_SEED=0x5a2a16bda0f5438c CAD_FUZZ_EFFORT=1` at any ε.
+
+- 2026-11-18 — **another draw, from the slow set** (PR 7088's head `343514f92`, a local run; the branch does not touch `conic_quadric`). `boolean::conic_quadric::cone_rows::certified_answers_hold_against_the_quadric_form` drew `CAD_FUZZ_SEED=0xce97a78f89b1508e` (`CAD_FUZZ_EFFORT=1`) at ε 1e-6, case 193: an ellipse against a cone on `[2.8377, 8.5266]`. The root 4.783746514871949 lies 3.11e-6 along the arc from the oracle's 4.785208012994074, with 6.7e-14 unresolved.

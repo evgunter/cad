@@ -47,6 +47,7 @@ pub use counters::EvalCounters;
 pub(crate) use framed::Frame;
 pub use framed::{Framed, Held};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
+pub(crate) use topo::Seat;
 pub use wire::DirectionRefusal;
 
 use std::collections::BTreeMap;
