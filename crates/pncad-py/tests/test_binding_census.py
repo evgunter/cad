@@ -936,6 +936,11 @@ BOUND_AS = {
     # (`interior`, `inside_edge`, `valence_one_vertex`; `None` on every
     # other arm), the way `promoted_to` carries `surface_promotion`'s.
     "SingularityFound": "StructureNormalization.singularity",
+    # `NormalizationKind::Snapped`'s payload, at the same spelling: which
+    # catalogue construction moved the surface, as `relation` beside the
+    # `kind` word (`coaxial`, `tangent`, `axis_normal`; `None` on every
+    # other arm).
+    "SnapRelation": "StructureNormalization.relation",
     # `CurvePromotion::kind`, the same rule one row over. Two words
     # (`circle`, `line` — the degree-1 follow-up, #388) and a map
     # rather than a literal because the recognizer's remaining named

@@ -60,6 +60,39 @@ impl<T: Real> Surface<T> {
             Surface::Approx(approx) => net(entity, approx.fit().control()),
         }
     }
+
+    /// **The region a face of this carrier occupies, given its boundary's
+    /// region `boundary`**, for a reader that has the face's boundary and
+    /// no built face yet (an import before its body exists). A bound,
+    /// never narrower than the face: a plane's or a cylinder's face lies in
+    /// its boundary's convex hull (a plane's region is that hull; a
+    /// cylinder's face is swept by rulings between boundary points); a
+    /// cone's is swept by rulings through its apex, and a face that reaches
+    /// the apex (a cap stated by its rim alone) has no boundary there, so
+    /// the apex joins the hull whatever the face; any other carrier's face
+    /// can bulge past its boundary and is held with the carrier's whole
+    /// region ([`Surface::cover`]). A built face's tighter region is
+    /// `topo`'s to read (its sphere and torus face regions, from the face's
+    /// own chart walk); this is the region before there is one.
+    ///
+    /// # Errors
+    ///
+    /// As [`Surface::cover`] for a carrier whose whole region bounds its
+    /// faces, and [`Unknown::NonFinite`] for a cone apex that is not a
+    /// finite point.
+    pub fn face_region(&self, boundary: Cover<T>) -> Covered<T> {
+        match self {
+            Surface::Plane { .. } | Surface::Cylinder { .. } => Ok(boundary.convex()),
+            Surface::Cone { frame, .. } => Cover::points(vec![frame.origin()])
+                .map(|tip| boundary.hull(tip).convex())
+                .ok_or_else(|| Uncovered::new(Entity::Surface(self.kind()), Unknown::NonFinite)),
+            Surface::Sphere { .. }
+            | Surface::Torus { .. }
+            | Surface::Spindle { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => Ok(boundary.hull(self.cover()?).convex()),
+        }
+    }
 }
 
 impl<T: SpanLocate> Curve3<T> {

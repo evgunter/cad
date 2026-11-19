@@ -273,7 +273,7 @@ pub(crate) fn build<'a>(
             (p_start, p_end),
             spec.start == spec.end,
             whole,
-            tol,
+            (tol, file),
         )?;
         let description = match (description, iso) {
             (Description::Iso { wall, .. }, Some(map)) => Description::Iso {
@@ -342,6 +342,19 @@ impl IsoMap {
             Pcurve::iso_row(self.fixed, (at(t0), at(t1)), (t0, t1))
         }
     }
+}
+
+/// [`choose`] of edge `id` alone: a unit test's reading of one edge's
+/// selection and carrier.
+#[cfg(test)]
+pub(crate) fn choose_edge(
+    solid: &SolidSpec,
+    id: u64,
+    tol: Tol,
+    file: FileBand,
+) -> Result<(), StepImportError> {
+    let sides = edge_faces(solid)?;
+    choose(solid, id, &solid.edges[&id], sides[&id], tol, file).map(|_| ())
 }
 
 /// Each edge's two faces, by index: the forward use's, then the reverse
@@ -429,11 +442,15 @@ fn pair_names(a: &Surface<f64>, b: &Surface<f64>) -> String {
     format!("its {} and its {}", a.kind().name(), b.kind().name())
 }
 
-/// The lane a relation the file band reads `Zero` and the run reads apart
+/// The lane an edge on a marched section loop across the loop's start
 /// waits on.
-const SNAP_LANE: &str = "D7 step 3's snap catalogue, which makes a relation between surfaces \
-                         that reads Zero at the file's band exact \
-                         (`work/importgate/import-snaps-a-relation-the-file-band-reads-zero-and-the-run-reads-apart.md`)";
+const MARCHED_LANE: &str = "an edge's interval read across a marched section loop's start \
+                            (`work/importgate/a-marched-section-edge-across-its-loops-start-refuses-at-import.md`)";
+
+/// The lane an edge between two records of one surface that
+/// `crate::one_record` does not join waits on.
+const ONE_LOCUS_LANE: &str = "one record of a surface stated twice that one_record does not join \
+     (`work/importgate/an-edge-between-two-records-of-one-surface-one-record-does-not-join-refuses.md`)";
 
 /// The lane a pair with no section construction waits on.
 const SECTION_LANE: &str = "a section construction for this pair \
@@ -660,7 +677,7 @@ fn spline_pair(
                      {verdict}",
                     pair_names(sa, sb)
                 ),
-                SNAP_LANE,
+                crate::snap::UNCATALOGUED_LANE,
             ));
         }
         Err(source) => return Err(escalated(file, id, source)),
@@ -711,7 +728,8 @@ fn analytic_pair(
     match at_file {
         // The file band builds the section; a run that builds another
         // verdict (a tangency, a pose it does not read coaxial) reads apart
-        // a relation the file states, which the snap catalogue makes exact.
+        // a relation the file states that the snap catalogue
+        // (`crate::snap`), run before this, did not make exact.
         Ok(_) => match read(eps_band) {
             Ok(Ok(carrier)) => {
                 on_description(id, spec, &carrier, file)?;
@@ -725,7 +743,7 @@ fn analytic_pair(
                      {verdict}",
                     pair_names(sa, sb)
                 ),
-                SNAP_LANE,
+                crate::snap::UNCATALOGUED_LANE,
             )),
             Err(source) => Err(escalated(file, id, source)),
         },
@@ -802,8 +820,7 @@ fn served_pair(
                      two records state twice",
                         sa.kind().name()
                     ),
-                    "one record of a non-planar surface \
-                 (`work/importgate/two-records-of-one-non-planar-surface-stay-two-at-import.md`)",
+                    ONE_LOCUS_LANE,
                 )),
                 Err(e) => Err(unbuilt(
                     file,
@@ -836,7 +853,7 @@ fn served_pair(
                 "the section of {} builds at the file's band and not at the run's",
                 pair_names(sa, sb)
             ),
-            SNAP_LANE,
+            crate::snap::UNCATALOGUED_LANE,
         ));
     };
     let mid = spec.carrier.mid_point(spec.t0, spec.t1);
@@ -901,7 +918,8 @@ fn served_pair(
 /// A tangency read at the file band: the tangent locus at the run, a
 /// ruling of a plane and a cylinder or of two parallel cylinders, or the
 /// parallel of a coaxial pair. A pair the run reads apart where the file
-/// reads it tangent waits on the snap catalogue.
+/// reads it tangent is one the snap catalogue (`crate::snap`), run before
+/// this, has no construction for.
 fn tangent(
     id: u64,
     spec: &EdgeSpec,
@@ -921,7 +939,7 @@ fn tangent(
                         "{} read tangent at the file's band and apart at the run's",
                         pair_names(sa, sb)
                     ),
-                    SNAP_LANE,
+                    crate::snap::UNCATALOGUED_LANE,
                 ));
             }
             Err(geom_brep::TangentLocusError::Escalated(source)) => {
@@ -956,7 +974,7 @@ fn tangent(
                             "{} read coaxial and tangent at the file's band and not at the run's",
                             pair_names(sa, sb)
                         ),
-                        SNAP_LANE,
+                        crate::snap::UNCATALOGUED_LANE,
                     )
                 } else {
                     (
@@ -2028,7 +2046,9 @@ enum Rooted {
 
 /// The first root, in edge then face order, of a face's surface along a
 /// built intrinsic carrier ending at the vertex that the surface does not
-/// hold. A reading the run's band does not decide is kept and the search
+/// hold, the vertex's tangent edges first: any other carrier through a
+/// vertex on a tangency grazes one of its two surfaces there, where a root
+/// is square-root-conditioned on the tangency's gap. A reading the run's band does not decide is kept and the search
 /// goes on, as a climb keeps what it passes over: the first definite root
 /// answers, and the first escalation refuses only where none does.
 ///
@@ -2048,7 +2068,15 @@ fn rooted(
     let mut unsettled = None;
     let mut unsupported: Option<String> = None;
     let mut decided = false;
-    for &e in edges {
+    let tangent_first = edges
+        .iter()
+        .filter(|e| matches!(chosen[e].description, Description::Tangent))
+        .chain(
+            edges
+                .iter()
+                .filter(|e| !matches!(chosen[e].description, Description::Tangent)),
+        );
+    for &e in tangent_first {
         let c = &chosen[&e];
         let Some(carrier) = c.carrier.as_ref().filter(|_| c.intrinsic) else {
             continue;
@@ -2242,7 +2270,7 @@ fn params(
     (p_start, p_end): (Point3<f64>, Point3<f64>),
     self_loop: bool,
     whole: bool,
-    tol: Tol,
+    (tol, file): (Tol, FileBand),
 ) -> Result<(Curve3<f64>, f64, f64), StepImportError> {
     let Curve3::Nurbs(n) = &carrier else {
         let (t0, t1) = crate::geometry::endpoint_params(id, &carrier, p_start, p_end, self_loop)?;
@@ -2259,10 +2287,14 @@ fn params(
     let at = |p: Point3<f64>, seed: f64| spline_end_param(id, n, p, seed, band);
     let (t0, t1) = (at(p_start, lo)?, at(p_end, hi)?);
     if t1 <= t0 {
-        return Err(StepImportError::Topology {
+        return Err(unbuilt(
+            file,
             id,
-            what: "a built spline carrier whose end reads at or before its start",
-        });
+            "a built spline carrier whose end reads at or before its start (an edge across \
+             a marched loop's start)"
+                .to_owned(),
+            MARCHED_LANE,
+        ));
     }
     if whole {
         return Ok((carrier, t0, t1));
