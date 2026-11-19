@@ -2,7 +2,7 @@
 id: oneround
 kind: program
 title: ONEROUND — f64 rounding has one statement, a lever one source, the consumed extent one home
-status: ready
+status: active
 opened: 2026-11-08
 group: kernel/boolean/one-home
 prefix: oneround/

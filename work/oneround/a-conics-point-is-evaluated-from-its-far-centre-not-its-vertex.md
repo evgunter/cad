@@ -2,11 +2,12 @@
 id: a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex
 kind: issue
 title: A near-graze conic point is summed from its far centre, so its rounding is ~u·ρ; evaluated from the arc's vertex it is ~u·ρ·θ² and certifies the near-gap poses PR 6349 now refuses
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
 refs: [6349, 6329]
+branch: oneround/conic-vertex
 ---
 
 From the delta review of PR 6349 (the conic frame unit), 2026-11-02.
