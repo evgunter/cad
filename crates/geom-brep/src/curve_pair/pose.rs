@@ -275,14 +275,21 @@
 //! walk's is, from the crossing and its foot each put on the turn about
 //! its span's middle ([`Span::branch`]), so a hold clamps a parameter
 //! into its own span and not a turn away from it. The window is the
-//! region about the crossing on the spans, so where the region lies off
-//! either span, the start's parameter there farther from the span at
-//! the carrier's least speed than the region reaches, the window holds
-//! no pair and the pose reads none (`curve_pair_pose_off_span`). The
-//! polish is not read there: held at an end of a span far from the
+//! region about the crossing on the spans. A pair of it within the
+//! band's escalation `e` has its first point within `ℓ` of the crossing
+//! along the first carrier, so within `ℓ` of it in metres, and its second
+//! within `e` of the first: both lie in the ball of `ℓ + e` about the
+//! crossing. Where that ball is clear of either span, by the span's own
+//! piece walk in metres ([`Span::clear_by`],
+//! `curve_carrier_piece_clear_by`), the window holds no such pair and the
+//! pose reads none. A parameter's distance along a carrier is no such
+//! bound, nor is a ball about the start's foot on the second carrier: the
+//! foot need not be the crossing's nearest point, and a conic can come
+//! round within the ball from far along its arc.
+//! The polish is not read there: held at an end of a span far from the
 //! crossing, its travel is no part of the window, and would only weaken
-//! the basin. The polished pair names
-//! a parameter on each span and is read as that pair
+//! the basin. The polished pair names a parameter on each span and is
+//! read as that pair
 //! (`Found::read_posed`, C5's pair rule): its own gap, and each
 //! parameter's place, with no foot. A pair a span stops is held exactly
 //! at that span's end, and reads the window there one-sided ("The
@@ -292,8 +299,8 @@
 //! a turn together (`curve_pair_pose_held_one_piece`). A span that comes
 //! round to within the window of its other end holds the window in two
 //! pieces, one each side of the gap, and reads it two-sided. No pair of
-//! the window lies past either span, so an Off at the pair prunes only by the floor, and
-//! otherwise escalates: the reach and the run, below, are read past a
+//! the window lies past either span, so an Off at the pair prunes only
+//! by the floor, and otherwise escalates: the reach and the run, below, are read past a
 //! span for the walk's pair, never for the pose's.
 //!
 //! # The gap's lower bound
@@ -304,13 +311,24 @@
 //! carriers could still take up. Two premises, stated where they are
 //! read:
 //!
-//! - **(P1) the span.** Every pair of the window lies within `span`
-//!   metres of `(p, q)`, along each carrier: `span = region + travel`,
-//!   `travel` the polish's parameter run at the carrier's greatest speed
-//!   (the larger of the two).
+//! - **(P1) the span.** `span = region + travel`, `travel` the polish's
+//!   parameter run at the carrier's greatest speed (the larger of the
+//!   two). What is proved differs by carrier:
+//!   - on the first carrier, an **arc** bound: every pair of the window
+//!     has its first point within `ℓ` of the crossing along the carrier,
+//!     so within `span` of `p` along it;
+//!   - on the second, only a **chord** bound: the pair's second point
+//!     lies within `ℓ + e` of the crossing in metres. Nothing proved
+//!     here turns that into an arc along the second carrier from `q`,
+//!     which a conic can exceed, and the start's foot need not be the
+//!     crossing's nearest point.
+//!
+//!   The walk's window is its pieces, a parameter run on each carrier,
+//!   and is an arc bound on both.
 //! - **(P2) the curvature.** `K = κ₁ + κ₂` bounds the carriers'
 //!   curvatures over every arc within `span` of the start
-//!   (`Side::curvature_near`).
+//!   (`Side::curvature_near`). For the pose, the second carrier's arcs it
+//!   covers are those of (P1)'s arc reading, unproved there (below).
 //!
 //! By arc length from the pair, a point of each carrier is `A = p + uα +
 //! r_A` and `B = q + vβ + r_B`, with `|r_A| ≤ κ₁α²/2` and `|r_B| ≤ κ₂β²/2`
@@ -329,7 +347,9 @@
 //! positive between its roots `m∓ = (s ∓ √D)/K`, so `m < m₋` or
 //! `m > m₊`. **The basin** (`curve_pair_pose_basin`) is the premise that
 //! puts the window below `m₊`: `s − K·span > 0`, since then
-//! `span < s/K ≤ m₊`, and by (P1) `m ≤ span`. Every pair of the window
+//! `span < s/K ≤ m₊`, and by (P1) `m ≤ span`. **For the pose, that step
+//! is unproved on the second carrier**, where (P1) has a chord bound and
+//! `m` is an arc: `work/onehome/the-pose-basin-reads-the-second-carriers-reach-as-an-arc-where-only-a-chord-bound-is-proved.md`. Every pair of the window
 //! within `e` lies within `m₋ = 2(σ_w + e)/(s + √D)` of `(p, q)` along
 //! both carriers (written so a pair of lines, `K = 0`, reads
 //! `(σ_w + e)/s`). `s` is the sine's lower bound over the window,
@@ -344,13 +364,10 @@
 //! - **a floor past the band** (`curve_pair_pose_closest`) contradicts any
 //!   pair within `e`: the window holds no meeting;
 //! - **the reach** `m₋` places every such pair: on the first carrier
-//!   within `m₋` of `p`, on the second within `m₋` of `q`. Where `p` reads
-//!   past a span and its chord to each of the span's ends exceeds `m₋`
-//!   past the band (`curve_pair_span_past_reach`), the arc of `m₋` either
-//!   side of `p` reaches neither end (a chord is at most its arc), so no
-//!   pair of the window lies on that span ([`Span::past_by`]); `q` on the
-//!   second span alike. The pose's pair is held to the spans, so it reads
-//!   no reach past one; the walk's reads it.
+//!   within `m₋` of `p`, on the second within `m₋` of `q`. The walk reads
+//!   it past a span (`walk`'s module docs, "The reach and the run, past a
+//!   span"); the pose's pair is held to the spans, and reads no reach past
+//!   one.
 //!
 //! **The one-sided window.** Where `p` is exactly an end of the first
 //! span, `q` exactly an end of the second, and every pair of the window
@@ -398,39 +415,6 @@
 //! exchanged. It is what clears a crossing just past an end, where the
 //! gap at the held pair runs along the held span's tangent and `|w·n̂|`
 //! reads nothing (the keel's wall past a bore's rim).
-//!
-//! **The run.** The *run* is the pairs of the window within `e` of each
-//! other. Where the polished pair is itself one of them (its gap `|w|`
-//! in the zero band, `curve_pair_walk_pair_gap`), an end of a span the
-//! run would cross can be read off the other carrier:
-//!
-//! - Every pair of the run lies within `m₋` of `(p, q)` along both
-//!   carriers (the move, above).
-//! - Take a pair of the run at arc parameters `(α, β)` from `(p, q)`, and
-//!   the pairs `(tα, tβ)`, `t ∈ [0, 1]`, between it and the polished
-//!   pair. Their difference is `L(t) + r(t)`, with
-//!   `L(t) = −w + t(uα − vβ)` affine in `t` and `|r(t)| ≤ K·m₋²/2`, the
-//!   *bend*, since `t·m ≤ m₋`.
-//! - A norm is convex, so `|L(t)| ≤ max(|L(0)|, |L(1)|)`. Here
-//!   `|L(0)| = |w| ≤ e` and `|L(1)| < e + bend`, since the pair at
-//!   `t = 1` is within `e` and its remainder is at most the bend.
-//! - So every point of the first carrier between `p` and the run's pair,
-//!   an end of the span among them, lies within `e + 2·bend` of the
-//!   second carrier.
-//!
-//! So where `p` is past a span and each of the span's ends is either out
-//! of the reach (its chord to `p` past `m₋`, `curve_pair_span_past_reach`)
-//! or has a closed-form clearance from the other carrier
-//! ([`geom::Curve3::clearance`]) past `e + 2·bend`
-//! (`curve_pair_span_run_end`), no pair of the run lies on the span, and
-//! the Off prunes ([`Span::past_by`]). `q` on the second span alike. This
-//! is main's argument, that the closest pair's run is read through the
-//! spans' ends: its premise, that the polish converged, is replaced by a
-//! decided one, the polished pair's own gap. It needs no premise past the
-//! basin's: no monotonicity of the gap along a carrier, only the move's
-//! bound and the bend. A spline end has no closed-form clearance, so its
-//! run arm does not read. The pose's pair, held to the spans, has no run
-//! past one, so it reads neither arm; the walk's pair reads both.
 //!
 //! Where `D` is not proved positive the bound is undecided: no floor, and
 //! no reach short of the carriers. **The composition is the reader's**
@@ -654,7 +638,8 @@ mod row {
     pub(super) const ROOT_GAP: &str = "curve_pair_pose_root_gap";
     pub(super) const CLEAR: &str = "curve_pair_pose_clear";
     pub(super) const BASIN: &str = "curve_pair_pose_basin";
-    pub(super) const OFF_SPAN: &str = "curve_pair_pose_off_span";
+    pub(super) const BASIN_HELD: &str = "curve_pair_pose_basin_held";
+    pub(super) const HELD_ONE_PIECE: &str = "curve_pair_pose_held_one_piece";
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
@@ -916,29 +901,8 @@ impl<T: Decide> Side<'_, T> {
         };
         let (t0, t1) = span.params();
         let short = T::tau() - (t1 - t0).abs() - reach / k.speed_lo();
-        (geom_core::k_stats::prove("curve_pair_pose_held_one_piece", Margin::of(short))
-            == Ok(Sign::Positive))
-        .then_some(side)
-    }
-
-    /// **The least metres from `u` to the span along the carrier**: none
-    /// on an endless span or within its parameters, and otherwise the
-    /// parameters from `u` to the nearer end at the carrier's least
-    /// speed. `u` is on the turn about the span's middle
-    /// ([`Span::branch`]), so on a conic the way round past the seam is
-    /// never the shorter.
-    fn off_span(self, span: &Span<'_, T>, u: T) -> T {
-        if !span.ended() {
-            return T::zero();
-        }
-        let (t0, t1) = span.params();
-        let half = (t1 - t0).abs() / T::from_f64(2.0);
-        let off = ((u - geom::mid_param(t0, t1)).abs() - half).max(T::zero());
-        let speed = match self {
-            Self::Line(line) => line.dir.norm(),
-            Self::Conic(k) => k.speed_lo(),
-        };
-        off * speed
+        (geom_core::k_stats::prove(row::HELD_ONE_PIECE, Margin::of(short)) == Ok(Sign::Positive))
+            .then_some(side)
     }
 
     /// The most metres the carrier runs between the parameters `t0` and
@@ -1017,13 +981,19 @@ impl<T: Decide> Polish<'_, T> {
         // The start on the turn about each span's middle, so a hold
         // clamps a parameter to its own span, not a turn away from it.
         let (s0, t0) = (self.span_a.branch(s0), self.span_b.branch(t0));
-        // The window is the region about the start on the spans: where
-        // the region lies off either span, it holds no pair.
-        let off = self
-            .a
-            .off_span(self.span_a, s0)
-            .max(self.b.off_span(self.span_b, t0));
-        if decide(row::OFF_SPAN, Margin::of(off - region), band) == Ok(Sign::Positive) {
+        // Every pair of the window within the band's escalation has its
+        // first point within `ℓ` of the crossing along the first carrier,
+        // and its second within the escalation of that: both within
+        // `ℓ + e` of the crossing, in metres. Where the ball of that
+        // radius about the crossing is clear of either span, by the span's
+        // own walk, the window on the spans holds no such pair. The first
+        // span's arm is the window's premise read whole: a crossing off it
+        // is routed apart (`line_conic`, the line's ends) or read off by
+        // the window over the first span (`transverse`) before here.
+        let crossing = self.a.ders(s0).0;
+        let ball = self.reach + e;
+        if self.span_a.clear_by(crossing, ball, band) || self.span_b.clear_by(crossing, ball, band)
+        {
             return Ok(None);
         }
         let (s, t) = super::polish::pair_held(
@@ -1036,7 +1006,8 @@ impl<T: Decide> Polish<'_, T> {
         let ((p, da), (q, db)) = (self.a.ders(s), self.b.ders(t));
         // Every pair of the window lies within `region` of the start, and
         // the polished pair within its travel of it: within `span` of the
-        // polished pair, along either carrier.
+        // polished pair, along the first carrier; on the second only in
+        // chord, the arc reading unproved there (module docs, (P1)).
         let span = region + self.a.run(s0, s).max(self.b.run(t0, t));
         let curvature = self.a.curvature_near(s0, span) + self.b.curvature_near(t0, span);
         // A side held at an end of its span reads its window's arcs
@@ -1047,13 +1018,7 @@ impl<T: Decide> Polish<'_, T> {
             self.a.held(self.span_a, s, span),
             self.b.held(self.span_b, t, span),
         );
-        let into = |d: Vec3<T>, side: geom::ParamSide| {
-            if side == geom::ParamSide::Above {
-                d
-            } else {
-                -d
-            }
-        };
+        let into = super::polish::into_span;
         let mut along = super::polish::Along::two_sided((p, da), (q, db));
         if let Some(side) = held_b {
             along = along.held_across(q - p, da, into(db, side));
@@ -1061,32 +1026,26 @@ impl<T: Decide> Polish<'_, T> {
         if let Some(side) = held_a {
             along = along.held_across(p - q, db, into(da, side));
         }
-        let two = super::polish::bound((row::BASIN, Some(self.lever)), along, curvature, (e, span));
-        let bound = match two.filter(|b| geom_core::is_finite_length(b.reach)) {
-            Some(bound) => bound,
-            None => {
-                let one = || {
-                    let (side_a, side_b) = (held_a?, held_b?);
-                    super::polish::bound(
-                        ("curve_pair_pose_basin_held", None),
-                        super::polish::Along::one_sided(
-                            (p, into(da, side_a)),
-                            (q, into(db, side_b)),
-                        ),
-                        curvature,
-                        (e, span),
-                    )
-                };
-                match one()
-                    .filter(|b| geom_core::is_finite_length(b.reach))
-                    .or(two)
-                {
-                    Some(bound) => bound,
-                    None => {
-                        return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN }));
-                    }
-                }
-            }
+        let two_sided =
+            super::polish::bound((row::BASIN, Some(self.lever)), along, curvature, (e, span));
+        // The walk's fallback (`polish::two_or_one_sided`), differing from
+        // the walk's window in three ways: the carriers' own derivatives,
+        // a conic's and a line's, which have no crease, so the
+        // half-tangent is the tangent turned into the span; the conic's
+        // curvature bound, over both sides of the end; and the two-sided
+        // reading carries a held side's floor. Where neither reading
+        // bounds a reach, the pose refuses on its basin.
+        let one = || {
+            let (side_a, side_b) = (held_a?, held_b?);
+            super::polish::bound(
+                (row::BASIN_HELD, None),
+                super::polish::Along::one_sided((p, into(da, side_a)), (q, into(db, side_b))),
+                curvature,
+                (e, span),
+            )
+        };
+        let Some(bound) = super::polish::two_or_one_sided(two_sided, one) else {
+            return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN }));
         };
         Ok(Some(Candidate {
             point: p,

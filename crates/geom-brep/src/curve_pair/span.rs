@@ -887,9 +887,30 @@ impl<'a, T: Decide> Span<'a, T> {
         }
     }
 
+    /// **Whether the ball of `radius` metres about `q` is clear of the
+    /// span**, in metres: the span's own piece walk
+    /// ([`Curve3::clear_by`]), its record spliced where it clears and
+    /// superseded where it does not, since no answer then rests on it. An
+    /// endless span is its whole carrier, which no ball about a point of
+    /// it is clear of, and is not walked.
+    pub fn clear_by(&self, q: Point3<T>, radius: T, band: Band) -> bool {
+        if !self.ended {
+            return false;
+        }
+        let (got, record) =
+            k_stats::detached(|| self.carrier.clear_by(q, (self.t0, self.t1), radius, band));
+        let clear = matches!(got, Ok(Clearance::Clear));
+        if clear {
+            k_stats::splice(record);
+        } else {
+            k_stats::splice_superseded(record);
+        }
+        clear
+    }
+
     /// **Whether the window's run lies past the span**
-    /// (`curve_pair::pose`'s module docs, "The gap's lower bound" and "The
-    /// run"), `q` a point of the carrier at about `near`, the polished
+    /// (`curve_pair::pose`'s module docs, "The gap's lower bound", and
+    /// `curve_pair::walk`'s, "The reach and the run, past a span"), `q` a point of the carrier at about `near`, the polished
     /// pair's, and every pair of the window within the band's escalation
     /// within `reach` metres of `q` along it. The span's own place reading
     /// says `q` is past it ([`Self::place`]); then each end is one the run

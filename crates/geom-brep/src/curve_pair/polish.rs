@@ -207,9 +207,7 @@ impl<T: Decide> Along<T> {
             across: None,
         }
     }
-}
 
-impl<T: Decide> Along<T> {
     /// **A floor across the free side, at an end the other is held at**
     /// (`pose`'s module docs, "A held end's floor"): `w = q − p`, `u` the
     /// free side's tangent, `v` the held side's half-tangent pointing
@@ -276,6 +274,31 @@ pub(super) fn bound<T: Decide>(
         reach,
         bend,
     })
+}
+
+/// **The two-sided reading, or the one-sided where it bounds no reach**:
+/// a two-sided reading whose reach is finite stands; otherwise the
+/// one-sided reading (`one`, `None` where the pair is not held at an end
+/// of each span) where its reach is finite; otherwise the two-sided
+/// result as it is, a basin proved but its move not, or none. The walk's
+/// window (`walk::window`) and the pose's (`pose`, `Polish::closest`)
+/// read it; how each spells its two readings differs (their sites).
+pub(super) fn two_or_one_sided<T: Decide>(
+    two: Option<WindowBound<T>>,
+    one: impl FnOnce() -> Option<WindowBound<T>>,
+) -> Option<WindowBound<T>> {
+    let finite = |b: &WindowBound<T>| geom_core::is_finite_length(b.reach);
+    two.filter(finite).or_else(|| one().filter(finite).or(two))
+}
+
+/// A held side's tangent `d` at its end turned to point into its span:
+/// `d` where the span lies above the end's parameter, `−d` below.
+pub(super) fn into_span<T: Decide>(d: Vec3<T>, side: geom::ParamSide) -> Vec3<T> {
+    if side == geom::ParamSide::Above {
+        d
+    } else {
+        -d
+    }
 }
 
 /// The bound of a window nothing bounds: no floor, and no reach or bend

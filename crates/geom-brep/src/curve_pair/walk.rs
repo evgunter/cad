@@ -53,6 +53,51 @@
 //! read under the reader's stretch rule (the parent module's docs). A
 //! walk past [`geom_core::bisect::PIECE_BUDGET`] refuses typed
 //! ([`Unsettled::Exhausted`]).
+//!
+//! # The reach and the run, past a span
+//!
+//! The walk's pair reads its window's reach and run past a span
+//! ([`Span::past_by`]), on the bound `pose`'s module docs derive ("The
+//! gap's lower bound"); the pose's pair is held to the spans and reads
+//! neither.
+//!
+//! **The reach.** Where `p` reads past a span and its chord to each of
+//! the span's ends exceeds `m₋` past the band
+//! (`curve_pair_span_past_reach`), the arc of `m₋` either side of `p`
+//! reaches neither end (a chord is at most its arc), so no pair of the
+//! window lies on that span; `q` on the second span alike.
+//!
+//! **The run.** The *run* is the pairs of the window within `e` of each
+//! other. Where the polished pair is itself one of them (its gap `|w|`
+//! in the zero band, `curve_pair_walk_pair_gap`), an end of a span the
+//! run would cross can be read off the other carrier:
+//!
+//! - Every pair of the run lies within `m₋` of `(p, q)` along both
+//!   carriers (the move, above).
+//! - Take a pair of the run at arc parameters `(α, β)` from `(p, q)`, and
+//!   the pairs `(tα, tβ)`, `t ∈ [0, 1]`, between it and the polished
+//!   pair. Their difference is `L(t) + r(t)`, with
+//!   `L(t) = −w + t(uα − vβ)` affine in `t` and `|r(t)| ≤ K·m₋²/2`, the
+//!   *bend*, since `t·m ≤ m₋`.
+//! - A norm is convex, so `|L(t)| ≤ max(|L(0)|, |L(1)|)`. Here
+//!   `|L(0)| = |w| ≤ e` and `|L(1)| < e + bend`, since the pair at
+//!   `t = 1` is within `e` and its remainder is at most the bend.
+//! - So every point of the first carrier between `p` and the run's pair,
+//!   an end of the span among them, lies within `e + 2·bend` of the
+//!   second carrier.
+//!
+//! So where `p` is past a span and each of the span's ends is either out
+//! of the reach (its chord to `p` past `m₋`, `curve_pair_span_past_reach`)
+//! or has a closed-form clearance from the other carrier
+//! ([`geom::Curve3::clearance`]) past `e + 2·bend`
+//! (`curve_pair_span_run_end`), no pair of the run lies on the span, and
+//! the Off prunes ([`Span::past_by`]). `q` on the second span alike. This
+//! is main's argument, that the closest pair's run is read through the
+//! spans' ends: its premise, that the polish converged, is replaced by a
+//! decided one, the polished pair's own gap. It needs no premise past the
+//! basin's: no monotonicity of the gap along a carrier, only the move's
+//! bound and the bend. A spline end has no closed-form clearance, so its
+//! run arm does not read.
 
 use geom::{Curve3, ParamSide, PieceStep};
 use geom_core::bisect::{Step, bisect};
@@ -349,10 +394,12 @@ fn window<T: Decide>(
     );
     // A two-sided reading that bounds its reach stands; one whose basin
     // or move is not proved gives way to the one-sided reading where the
-    // pair is held at an end of each span.
-    if let Some(bound) = two.filter(|b| geom_core::is_finite_length(b.reach)) {
-        return bound;
-    }
+    // pair is held at an end of each span (`polish::two_or_one_sided`, the
+    // pose's too, which differs in three ways: it reads its carriers' own
+    // derivatives, conics' and lines' with no crease; their curvature
+    // over both sides of the end; and its two-sided reading carries a
+    // held side's floor). Where neither bounds a reach the window is
+    // undecided, where the pose refuses.
     let one = || {
         let (side_a, side_b) = (held(ra.span, s)?, held(rb.span, t)?);
         // Each end reads its span's side: its half-tangent is the
@@ -360,7 +407,7 @@ fn window<T: Decide>(
         // span, and the curvature is read over that side alone.
         let into = |r: &Read<'_, '_, T>, u: T, side: ParamSide| {
             let (p, d) = r.curve().ders1_from(u, side);
-            (p, if side == ParamSide::Above { d } else { -d })
+            (p, super::polish::into_span(d, side))
         };
         let curvature = ra.curvature_near(s, span, Arcs::Toward(side_a))
             + rb.curvature_near(t, span, Arcs::Toward(side_b));
@@ -371,13 +418,7 @@ fn window<T: Decide>(
             (e, span),
         )
     };
-    // Where the one-sided reading bounds no reach either, the two-sided
-    // result stands as it is: a basin proved but its move not, whose
-    // bound is undecided (`polish::undecided`, the reach `+∞`), or none.
-    one()
-        .filter(|b| geom_core::is_finite_length(b.reach))
-        .or(two)
-        .unwrap_or_else(super::polish::undecided)
+    super::polish::two_or_one_sided(two, one).unwrap_or_else(super::polish::undecided)
 }
 
 /// **A polished parameter at its span's end is that end**: where the
@@ -396,9 +437,8 @@ fn window<T: Decide>(
 /// The place is read once, held apart with its record
 /// ([`super::PlaceRead`]), for the pair read to use.
 fn at_end<T: Decide>(span: &Span<'_, T>, u: T, band: Band) -> (T, super::PlaceRead) {
-    let (place, record) = geom_core::k_stats::detached(|| span.place_param(u, band));
-    let at_an_end = matches!(place, Ok(super::Place::End(_)));
-    let read = super::PlaceRead { place, record };
+    let read = super::PlaceRead::of(span, u, band);
+    let at_an_end = matches!(read.place, Ok(super::Place::End(_)));
     if !at_an_end {
         return (u, read);
     }
@@ -1002,7 +1042,7 @@ mod tests {
     }
 
     /// **The run arm reads only where the polished pair is in the run**
-    /// (`pose`'s module docs, "The run"; [`super::super::window_off`]):
+    /// (the module docs, "The reach and the run, past a span"; [`super::super::window_off`]):
     /// the x axis over `(0, 1)` and a line square to it, read at a pair on
     /// the axis at `x = 1.5`, past the span, with a window of reach 10
     /// and no bend, so both of the axis span's ends are within reach.

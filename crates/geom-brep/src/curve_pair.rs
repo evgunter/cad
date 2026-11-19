@@ -524,13 +524,22 @@ fn both<T>(
     }
 }
 
-/// **A parameter's place on its span, read once** at the walk's stop
-/// (`walk::at_end`): the place [`Span::place_param`] reads, and the record
-/// of reading it, held apart until the pair read knows whether its
+/// **A parameter's place on its span, read once**, at the walk's stop
+/// (`walk::at_end`) and at the pose's polished pair
+/// ([`Found::read_posed`]): the place [`Span::place_param`] reads, and the
+/// record of reading it, held apart until the pair read knows whether its
 /// outcome rests on it ([`pair_both`]).
 pub(super) struct PlaceRead {
     pub(super) place: Result<Place, Indeterminate>,
     pub(super) record: geom_core::k_stats::Detached,
+}
+
+impl PlaceRead {
+    /// `u`'s place on `span`, read with its record held apart.
+    pub(super) fn of<T: Decide>(span: &Span<'_, T>, u: T, band: Band) -> Self {
+        let (place, record) = geom_core::k_stats::detached(|| span.place_param(u, band));
+        Self { place, record }
+    }
 }
 
 /// A decided gap at a polished pair, handed from the pair read to the
@@ -683,12 +692,17 @@ impl<T: Decide> Found<T> {
     /// window holds no pair past either span, so an Off is not read past
     /// one ([`Span::past_by`]): it is no meeting where the floor clears,
     /// and otherwise escalates.
+    ///
+    /// **No end snap**, unlike the walk's stop (`walk::at_end`). A pair
+    /// the span stops is clamped exactly to the end, so the hold, the
+    /// one-sided window and the place all read that end. A pair within
+    /// rounding of an end but not clamped to it reads two-sided, a window
+    /// bounding the larger set, and the side it is reported at is its
+    /// place's, whichever end that names. The walk snaps because its
+    /// pieces' polish lands within rounding of a joint it must read as
+    /// held.
     fn read_posed(&mut self, a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) {
-        let place = |span: &Span<'_, T>, u: T| {
-            let (place, record) = geom_core::k_stats::detached(|| span.place_param(u, band));
-            PlaceRead { place, record }
-        };
-        let places = (place(a, c.ta), place(b, c.tb));
+        let places = (PlaceRead::of(a, c.ta, band), PlaceRead::of(b, c.tb, band));
         self.read_with(a, b, c, CandidateRead::Posed(Box::new(places)), band);
     }
 
@@ -835,9 +849,10 @@ fn window_off<T: Decide>(
     let sides = if posed {
         [PastBy::Not, PastBy::Not]
     } else {
-        // The run arm's premise (`pose`'s module docs, "The run"): the
-        // polished pair is itself a pair of the run, its gap in the zero
-        // band, read on the gap the pair read decided.
+        // The run arm's premise (`walk`'s module docs, "The reach and the
+        // run, past a span"): the polished pair is itself a pair of the
+        // run, its gap in the zero band, read on the gap the pair read
+        // decided.
         let in_run = gap.is_ok_and(|g| g.sign == geom_core::Sign::Zero);
         let (run_a, run_b) = (
             in_run.then(|| (b.carrier(), bound.bend)),

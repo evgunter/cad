@@ -97,11 +97,10 @@ fn places(
     b: &Span<'_, f64>,
     c: super::Candidate<f64>,
 ) -> (super::PlaceRead, super::PlaceRead) {
-    let place = |span: &Span<'_, f64>, u: f64| {
-        let (place, record) = geom_core::k_stats::detached(|| span.place_param(u, band()));
-        super::PlaceRead { place, record }
-    };
-    (place(a, c.ta), place(b, c.tb))
+    (
+        super::PlaceRead::of(a, c.ta, band()),
+        super::PlaceRead::of(b, c.tb, band()),
+    )
 }
 
 /// **The table is total, and its closed arms are the line, circle and
@@ -2798,10 +2797,11 @@ fn a_line_leaving_an_arcs_end_along_its_tangent_meets_there_by_the_one_sided_win
 
 /// **A crossing off an arc's span reads no window.** A unit circle's arc
 /// over `(0.2, 0.8)` rad, and a segment square to the circle's plane
-/// through the circle at `1.4` rad, `0.6` m along the carrier past the
-/// arc's end. The pose's region about the crossing, `4·10⁻⁸` m, lies off
-/// the arc, so the window, the region on the spans, holds no pair, and
-/// the pose reads none (`curve_pair_pose_off_span`): no meeting. Read
+/// through the circle at `1.4` rad, `0.6` rad past the arc's end, about
+/// `0.59` m from it. The ball of `ℓ + e = 2·10⁻⁸` m about the crossing is
+/// clear of the arc by its walk (`Span::clear_by`), so the
+/// window, the region on the spans, holds no pair, and the pose reads
+/// none (`curve_carrier_piece_clear_by`): no meeting. Read
 /// with the region on the arc, the polish holds the pair at the arc's
 /// end `0.6` m from the crossing, where the basin, `sin φ` less twice the
 /// turn over that run, is not proved, and the pose refuses.
@@ -2813,6 +2813,156 @@ fn a_crossing_off_an_arcs_span_reads_no_window() {
     let (a, b) = (Span::new(&arc, (0.2, 0.8)), Span::new(&square, (-1.0, 1.0)));
     for (a, b) in [(&a, &b), (&b, &a)] {
         let m = meet(a, b, band()).unwrap();
+        assert!(m.points.is_empty(), "no meeting: {m:?}");
+    }
+}
+
+/// The full review's case for the off-span guard: a circle of radius
+/// `r = 10⁻⁴` m about the origin in the `z = 0` plane, its arc `(π − 0.3,
+/// π + 0.3)` about `(−r, 0, 0)`, and a segment crossing the plane at
+/// `(−r + d, 0, 0)` and rising `e/ℓ` per metre towards `−x`, so it passes
+/// `e·d/ℓ` over `(−r, 0, 0)`, `e` the band's escalation. The crossing's
+/// foot on the circle is `(r, 0, 0)`, `2.84` rad of arc (`2.84·10⁻⁴` m)
+/// from the arc. In metres the arc's end is `1.14r` from the crossing,
+/// inside the ball of `ℓ + e` about it.
+fn over_an_arcs_far_side(
+    (d, ell): (f64, f64),
+    band: Band,
+) -> [Result<Meetings<f64>, super::MeetRefusal<f64>>; 2] {
+    let r = 1e-4;
+    let rise = band.escalate() / ell;
+    let arc = circle([0.0; 3], [0.0, 0.0, 1.0], r);
+    let over = line([-r + d, 0.0, 0.0], [-1.0, 0.0, rise]);
+    let (a, b) = (
+        Span::new(&over, (-3.0 * r, 3.0 * r)),
+        Span::new(&arc, (PI - 0.3, PI + 0.3)),
+    );
+    [meet(&a, &b, band), meet(&b, &a, band)]
+}
+
+/// **A segment over an arc's far side, inside the zero band, is never
+/// read as no meeting.** The full review's case
+/// ([`over_an_arcs_far_side`], `d = 1.15r`, `ℓ = 1.3r`) at the bands `(10⁻⁹,
+/// 1.05·10⁻⁹)` and `(10⁻⁹, 1.2·10⁻⁹)`: the segment passes `9.29·10⁻¹⁰` m
+/// (and `1.06·10⁻⁹` m) over the arc's middle, so the pair meets or the
+/// pose refuses; it never reads no meeting. Red where the off-span guard
+/// reads the start's parameter distance at the least speed, `2.84·10⁻⁴`
+/// m, against the region, `2.6·10⁻⁴` m: in metres the arc is `1.14r` from
+/// the crossing, inside the ball of `ℓ + e` (`Span::clear_by`).
+#[test]
+fn a_segment_over_an_arcs_far_side_in_the_zero_band_is_never_no_meeting() {
+    let r = 1e-4;
+    for escalate in [1.05e-9, 1.2e-9] {
+        let band = Band::new(1e-9, escalate).unwrap();
+        for got in over_an_arcs_far_side((1.15 * r, 1.3 * r), band) {
+            assert!(
+                !matches!(&got, Ok(m) if m.points.is_empty()),
+                "escalate {escalate}: no meeting read: {got:?}"
+            );
+        }
+    }
+}
+
+/// **A segment over an arc's far side inside the escalation band refuses
+/// or meets.** [`over_an_arcs_far_side`] at the shipping band `(10⁻⁹,
+/// 10⁻⁸)`, `d = 1.1r` and `ℓ = 1.3r`: the segment passes `8.46·10⁻⁹` m
+/// over the arc's middle, between the zero and the escalation, so the
+/// pair never reads no meeting. Red under the same guard as
+/// [`a_segment_over_an_arcs_far_side_in_the_zero_band_is_never_no_meeting`].
+#[test]
+fn a_segment_over_an_arcs_far_side_in_the_escalation_band_is_never_no_meeting() {
+    let r = 1e-4;
+    for got in over_an_arcs_far_side((1.1 * r, 1.3 * r), band()) {
+        assert!(
+            !matches!(&got, Ok(m) if m.points.is_empty()),
+            "no meeting read: {got:?}"
+        );
+    }
+}
+
+/// **A crossing whose foot on a thin ellipse lies far from it is read by
+/// the ball about the crossing.** The meet oracle's draw 1721 (seed
+/// `0x601115d67dc12df3`, effort 20, the shallow family): a segment
+/// passing within the zero band of an ellipse of semi-axes `0.369` and
+/// `0.0017`. The crossing's foot on the ellipse, where the polish starts,
+/// is at `0.416` rad, `1.36` rad past the ellipse's span; the ball of the
+/// window about that foot is clear of the span, but the meeting lies in
+/// the ball of `ℓ + e` about the crossing, which is not. The pair meets
+/// or the pose refuses, in either order; it never reads no meeting. Red
+/// where the guard reads the ball about the second carrier's start.
+#[test]
+fn a_crossing_whose_foot_on_a_thin_ellipse_is_far_is_read_by_the_ball_about_it() {
+    let segment = Curve3::line(
+        Point3::new(
+            -2.039_633_426_038_924,
+            -0.995_972_943_460_762_7,
+            -1.860_142_371_212_321_5,
+        ),
+        Vec3::new(
+            -0.887_113_993_102_562,
+            -0.019_566_488_067_895_276,
+            -0.461_135_463_596_454_13,
+        ),
+    );
+    let thin = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(
+                -0.828_141_776_510_814_9,
+                -1.080_527_770_428_637_1,
+                -1.220_265_462_034_935_4,
+            ),
+            Vec3::new(
+                0.461_126_207_144_500_64,
+                -0.080_406_063_711_237_68,
+                -0.883_684_041_953_339_4,
+            ),
+            Vec3::new(
+                -0.406_828_854_691_622_94,
+                0.865_888_628_586_523_3,
+                -0.291_079_312_000_788,
+            ),
+        ),
+        0.368_635_757_026_020_3,
+        0.001_683_987_557_222_959_5,
+    ));
+    let (a, b) = (
+        Span::new(
+            &segment,
+            (-1.857_733_710_570_704_8, -0.093_244_569_165_410_02),
+        ),
+        Span::new(&thin, (-1.775_551_102_998_633_3, -0.942_491_638_652_538_3)),
+    );
+    for got in [meet(&a, &b, band()), meet(&b, &a, band())] {
+        assert!(
+            !matches!(&got, Ok(m) if m.points.is_empty()),
+            "no meeting read: {got:?}"
+        );
+    }
+}
+
+/// **A shallow segment stopping short of a circle under its carrier is
+/// cleared by its held end's floor.** A segment rising `0.05` per metre
+/// along `x` through the origin, the `z = 0` plane's crossing, its span
+/// stopping at `x = 5·10⁻⁸`; and a unit circle in that plane passing
+/// `(1.5·10⁻⁷, 0, 0)` square to `x`. The circle passes `7.5·10⁻⁹` m under
+/// the segment's carrier, past the segment's end, so the polished pair
+/// holds the segment at its end: the gap there, `10⁻⁷` m, runs along the
+/// segment, and `|w·n̂|`, `7.5·10⁻⁹` m, is in the escalation band. The
+/// held end's floor reads it across the circle's tangent with the
+/// segment a half-line back into its span: `10⁻⁷` m less the bend, no
+/// meeting, in either order. Red with the first side's held floor off.
+#[test]
+fn a_shallow_segment_stopping_short_of_a_circle_is_cleared_by_its_held_ends_floor() {
+    let (rise, under_at, end): (f64, f64, f64) = (0.05, 1.5e-7, 5e-8);
+    let shallow = line([0.0; 3], [1.0, 0.0, rise]);
+    let under = circle([1.0 + under_at, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    let (a, b) = (
+        Span::new(&shallow, (-1.0, end * rise.hypot(1.0))),
+        Span::new(&under, (PI - 0.5, PI + 0.5)),
+    );
+    assert!((under.eval(PI) - Point3::new(under_at, 0.0, 0.0)).norm() < 1e-15);
+    for got in [meet(&a, &b, band()), meet(&b, &a, band())] {
+        let m = got.unwrap();
         assert!(m.points.is_empty(), "no meeting: {m:?}");
     }
 }
@@ -2891,10 +3041,12 @@ fn a_candidate_with_a_window_read_at_its_point_is_a_desync() {
 /// pose reads the line against the circle's plane, so its polished pair
 /// comes back flipped, its point the line's. Read as a pair, the gap is
 /// from the first carrier's point at its parameter to the second's, so
-/// the pair's point is the circle's: every meeting found lies on both
-/// carriers within the band's zero, in either order. Read at the line's
+/// the pair's point is the circle's. Their least distance is `3.42·10⁻⁹`
+/// m (a dense search), inside the escalation band, so the pair escalates
+/// in either order (`curve_pair_walk_pair_gap`), and any meeting found
+/// lies on both carriers within the band's zero. Read at the line's
 /// point, the pair's gap reads zero from that point to itself, and a
-/// meeting lies `3.4·10⁻⁹` off the circle.
+/// meeting `3.4·10⁻⁹` off the circle is answered.
 #[test]
 fn a_pose_read_with_the_spans_swapped_reads_the_pair_at_the_first_carriers_point() {
     let circle = Curve3::Circle(geom::Circle::new(
@@ -2937,6 +3089,10 @@ fn a_pose_read_with_the_spans_swapped_reads_the_pair_at_the_first_carriers_point
         ("circle first", meet(&a, &b, band())),
         ("line first", meet(&b, &a, band())),
     ] {
+        assert!(
+            matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
+            "{order}: not escalated: {got:?}"
+        );
         let found = match &got {
             Ok(m) => &m.points,
             Err(r) => &r.found,
