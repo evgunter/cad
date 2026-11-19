@@ -9,8 +9,8 @@ use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
     BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords, GlueVerdict,
-    NaryRun, ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult,
-    SweepStrategy, split,
+    ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult, SweepStrategy,
+    split,
 };
 
 use crate::verb::{Blend, Boolean, Members, Shell, Split, Sweep};
@@ -364,7 +364,7 @@ impl Members {
         bodies: &[topo::Placed<'m, F>],
         sweep: SweepStrategy,
         tol: Tol,
-    ) -> Result<(NaryRun<F::Scalar>, topo::NaryTaken<'m, F::Scalar>), (usize, topo::NotFinished)>
+    ) -> topo::NaryPlacedRun<'m, F::Scalar>
     where
         F::Scalar: DoorScalar,
     {

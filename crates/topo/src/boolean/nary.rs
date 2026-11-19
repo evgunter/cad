@@ -581,6 +581,11 @@ pub fn nary_boolean_apart<T: Decide + Bounds + AtRestPolicy>(
 /// member's reads them here, where the run read them.
 pub type NaryTaken<'m, T> = Vec<std::borrow::Cow<'m, <T as AtRestPolicy>::Finished>>;
 
+/// **What [`nary_placed`] returns**: the run and the members it read, or
+/// the first member, by its place, whose image past the session box
+/// refused its move.
+pub type NaryPlacedRun<'m, T> = Result<(NaryRun<T>, NaryTaken<'m, T>), (usize, crate::NotFinished)>;
+
 /// **[`nary_boolean_apart`] over placed members**: each taken into the
 /// run's computing frame by its placement ([`super::Placed::taken`], in
 /// member order), then the run over them, returned with the members it
@@ -603,7 +608,7 @@ pub fn nary_placed<'m, T: Decide + Bounds + AtRestPolicy>(
     apart: &Apart,
     sweep: SweepStrategy,
     tol: Tol,
-) -> Result<(NaryRun<T>, NaryTaken<'m, T>), (usize, crate::NotFinished)> {
+) -> NaryPlacedRun<'m, T> {
     let taken = members
         .iter()
         .enumerate()
@@ -617,31 +622,20 @@ pub fn nary_placed<'m, T: Decide + Bounds + AtRestPolicy>(
             inputs: m.inputs,
         })
         .collect();
-    let run = run_taken(op, &read, apart, sweep, tol);
-    Ok((run, taken))
-}
-
-/// [`nary_placed`]'s run, over members taken into the computing frame.
-fn run_taken<T: Decide + Bounds + AtRestPolicy>(
-    op: NaryOp,
-    members: &[NaryMember<'_, T>],
-    apart: &Apart,
-    sweep: SweepStrategy,
-    tol: Tol,
-) -> NaryRun<T> {
     // Two members are one pair: its one step is its judgement.
-    let pairwise = members.len() > 2;
+    let pairwise = read.len() > 2;
     let mut run = NaryRun {
         judgements: Vec::new(),
         steps: Vec::new(),
         pairwise,
         end: NaryEnd::Built,
     };
-    run.end = match run_members(op, members, apart, None, sweep, tol, &mut run) {
+    run.end = match run_members(op, &read, apart, None, sweep, tol, &mut run) {
         Ok(()) => NaryEnd::Built,
         Err(end) => end,
     };
-    run
+    drop(read);
+    Ok((run, taken))
 }
 
 /// [`nary_boolean`]'s body, filling `run`'s judgements and steps as it

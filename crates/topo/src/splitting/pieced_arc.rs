@@ -250,12 +250,12 @@ mod tests {
 
     /// An arc read as hand-placed leaves: each piece a ball of no
     /// reach, so every piece is a leaf and none is halved.
-    struct Placed {
+    struct StoodArc {
         ends: [Point3<f64>; 2],
         leaves: Vec<Point3<f64>>,
     }
 
-    impl PiecedArc<f64> for Placed {
+    impl PiecedArc<f64> for StoodArc {
         type Piece = usize;
         fn ends(&self) -> [Point3<f64>; 2] {
             self.ends
@@ -290,7 +290,7 @@ mod tests {
     #[test]
     fn an_end_in_band_blocks_the_walk_but_not_the_other_end() {
         let q = at(0.0);
-        let end_at = Placed {
+        let end_at = StoodArc {
             ends: [at(5e-9), at(0.0)],
             leaves: vec![at(10.0)],
         };
@@ -298,7 +298,7 @@ mod tests {
             matches!(end_at.contact(q, ROWS, band()), Ok(ArcHit::End)),
             "the second end at the point answers past the first in band"
         );
-        let piece_on = Placed {
+        let piece_on = StoodArc {
             ends: [at(5e-9), at(10.0)],
             leaves: vec![at(0.0)],
         };
@@ -309,7 +309,7 @@ mod tests {
             ),
             "an end in band refuses ahead of a piece through the point"
         );
-        let clear = Placed {
+        let clear = StoodArc {
             ends: [at(10.0), at(20.0)],
             leaves: vec![at(0.0)],
         };
@@ -324,7 +324,7 @@ mod tests {
     /// refuses with the poisoned reading.
     #[test]
     fn a_poisoned_leaf_outranks_an_earlier_leaf_in_band() {
-        let arc = Placed {
+        let arc = StoodArc {
             ends: [at(10.0), at(20.0)],
             leaves: vec![at(5e-9), at(f64::NAN)],
         };
