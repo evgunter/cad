@@ -760,3 +760,97 @@ fn an_asymmetric_fillet_moves_its_axis_along_the_side_that_holds() {
         "tier-3 valid"
     );
 }
+
+/// The rim-only cone cap (`tests/fixtures/rim-only-cap/conecap.step`):
+/// a cone of half-angle 0.05 (its apex about 100 mm above its 5 mm rim)
+/// stated by its rim alone on a flat base, its record moved to the end of
+/// the DATA section so it is the later one, its axis tilted by `tilt`.
+fn cone_cap(tilt: f64) -> String {
+    let text = std::fs::read_to_string(format!(
+        "{}/tests/fixtures/rim-only-cap/conecap.step",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap();
+    let cone = "#29 = CONICAL_SURFACE('',#28,5.,0.5);";
+    assert!(text.contains(cone), "the fixture states its cone");
+    let text = text.replacen(cone, "", 1);
+    let end = text.rfind("ENDSEC;").unwrap();
+    let text = format!(
+        "{}#29 = CONICAL_SURFACE('',#28,5.,0.05);\n{}",
+        &text[..end],
+        &text[end..]
+    );
+    let axis = "#26 = DIRECTION('',(0.,0.,1.));";
+    assert!(text.contains(axis), "the fixture states the cone's axis");
+    text.replacen(axis, &format!("#26 = DIRECTION('',({tilt:?},0.,1.));"), 1)
+}
+
+/// **A cone face reaching its apex is read to the apex.** The cap's face
+/// is bounded by its rim alone, but it reaches the apex 100 mm away: a
+/// tilt moves the apex by the tilt times that, not by the tilt times the
+/// rim's 5 mm. Tilted 5e-5 the apex moves 5 µm, inside the band's zero:
+/// the cone, the later record, turns onto the base's normal, its move the
+/// apex's. Tilted 5e-4 (50 µm, in the band) the relation is not read and
+/// the build refuses the file's ambiguity; tilted 2e-3 (200 µm) the two
+/// are apart and nothing moves, the tilted cone built as stated.
+#[test]
+fn a_cone_cap_is_read_to_its_apex() {
+    let apex = 5e-3 / 0.05_f64.tan();
+    let imported = import(&cone_cap(5e-5)).unwrap_or_else(|e| panic!("imports: {}", e.render()));
+    let moves = snaps(&imported);
+    assert_eq!(moves.len(), 1, "one move: {moves:?}");
+    let (surface, relation, moved_by) = moves[0];
+    assert_eq!((surface, relation), (29, SnapRelation::AxisNormal));
+    let want = 5e-5 * apex;
+    assert!(
+        (moved_by - want).abs() < 1e-2 * want,
+        "the apex's move, {want:e}: {moved_by:e}"
+    );
+    match import(&cone_cap(5e-4)) {
+        Err(StepImportError::Interpretation {
+            refusal: InterpretationRefusal::Ambiguous { reading, .. },
+            ..
+        }) => assert_eq!(reading, "step_edge_on_description"),
+        other => panic!("tilted 5e-4: the file's ambiguity, got {other:?}"),
+    }
+    let apart = import(&cone_cap(2e-3)).unwrap_or_else(|e| panic!("2e-3 imports: {}", e.render()));
+    assert!(
+        snaps(&apart).is_empty(),
+        "tilted 2e-3: apart, nothing moved"
+    );
+}
+
+/// **A tangency's offset is read where the faces are, never at the
+/// cylinder's stored axis point.** The fillet's axis stated through a
+/// point 1 km along it and turned 2e-10 toward the side `x = 2`: at the
+/// faces its tilt moves it under a nanometre, inside the run's band, but
+/// at its stored point 0.2 µm. Its radius stated 2 µm long, it snaps as
+/// the plain fillet does; an offset read at the stored point would leave
+/// the faces 0.2 µm off and refuse.
+#[test]
+fn a_fillets_offset_is_read_at_its_faces() {
+    let text = filleted();
+    let [cylinder] = records(&text, "CYLINDRICAL_SURFACE")[..] else {
+        panic!("one cylinder record")
+    };
+    let placement = surface_placement(&text, cylinder);
+    let (point, axis) = (
+        placement_point(&text, placement),
+        placement_axis(&text, placement),
+    );
+    let far = 1000.0;
+    let mut moved = nudge_point(&text, point, 2, far);
+    moved = nudge_point(&moved, point, 0, far * 2e-10);
+    moved = nudge_direction(&moved, axis, 0, 2e-10);
+    moved = nudge_last(&moved, cylinder, 2e-6);
+    let imported = import(&moved).unwrap_or_else(|e| panic!("imports: {}", e.render()));
+    let moves = snaps(&imported);
+    assert_eq!(moves.len(), 1, "one move: {moves:?}");
+    let (_, relation, moved_by) = moves[0];
+    assert_eq!(relation, SnapRelation::Tangent);
+    let want = 2e-6 * std::f64::consts::SQRT_2;
+    assert!(
+        (moved_by - want).abs() < 1e-3 * want,
+        "the plain fillet's move, {want:e}: {moved_by:e}"
+    );
+}

@@ -2949,8 +2949,18 @@ fn promoted_kind_tags_are_stable() {
 #[test]
 fn import_report_row_tags_are_stable() {
     use pncad::step_import::{
-        NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound,
+        NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation,
     };
+    // The snap relation's word is the kernel's own name for it, one
+    // spelling in both languages (the table keeps the literals the tag
+    // inventory reads).
+    for relation in [
+        SnapRelation::Coaxial,
+        SnapRelation::Tangent,
+        SnapRelation::AxisNormal,
+    ] {
+        assert_eq!(crate::tags::snap_relation_tag(&relation), relation.name());
+    }
     for (kind, word) in [
         (NormalizationKind::EdgeFreeSphere, "edge_free_sphere"),
         (

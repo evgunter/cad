@@ -102,3 +102,55 @@ impl Reach {
         geom_brep::points_diameter(&[corner(|(lo, _)| lo), corner(|(_, hi)| hi)])
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// **A face that bulges past its boundary is read to its bulge.** A
+    /// cap of the unit sphere bounded by its circle at `z = 0.9` reaches
+    /// the pole at `z = 1`, which its boundary's hull does not.
+    #[test]
+    fn a_sphere_cap_is_read_to_its_pole() {
+        let z = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let x = geom_core::Vec3::new(1.0, 0.0, 0.0);
+        let rim = crate::entities::EdgeSpec {
+            start: 1,
+            end: 1,
+            carrier: geom::Curve3::circle(Point3::new(0.0, 0.0, 0.9), z, 0.19_f64.sqrt(), x),
+            t0: 0.0,
+            t1: std::f64::consts::TAU,
+            reversed: false,
+        };
+        let solid = SolidSpec {
+            id: 1,
+            faces: vec![crate::entities::FaceSpec {
+                id: 2,
+                surface: geom::Surface::Sphere {
+                    center: Point3::origin(),
+                    radius: 1.0,
+                    axis: z,
+                    u_ref: x,
+                },
+                sense: true,
+                loops: vec![crate::entities::LoopSpec {
+                    outer: true,
+                    uses: vec![crate::entities::EdgeUse {
+                        edge: 10,
+                        forward: true,
+                    }],
+                }],
+                band: false,
+            }],
+            edges: [(10, rim)].into_iter().collect(),
+            vertices: [(1, Point3::new(0.19_f64.sqrt(), 0.0, 0.9))]
+                .into_iter()
+                .collect(),
+            band_seams: std::collections::BTreeSet::new(),
+        };
+        let reach = Reach::of(&solid, [0]).expect("the cap has a region");
+        let (_, top) = reach.along(z);
+        assert!(top >= 1.0 - 1e-12, "the pole is in the cap's region: {top}");
+    }
+}

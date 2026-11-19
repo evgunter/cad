@@ -1017,6 +1017,103 @@ mod tests {
         (solid, surface)
     }
 
+    /// **A move is measured over every face its record carries.** A plane
+    /// record worn by two disks, one about the origin and one 10 away,
+    /// turned 1e-6 onto the axis of a cylinder about `z` (the earlier
+    /// record): the far disk's rim, 11 from the pivot, moves the most.
+    #[test]
+    fn a_move_is_measured_over_every_face_its_record_carries() {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let circle = |at: Point3<f64>| crate::entities::EdgeSpec {
+            start: 1,
+            end: 1,
+            carrier: geom::Curve3::circle(at, z, 1.0, x),
+            t0: 0.0,
+            t1: std::f64::consts::TAU,
+            reversed: false,
+        };
+        let theta = 1e-6_f64;
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::new(theta.sin(), 0.0, theta.cos()),
+            u_ref: Vec3::new(theta.cos(), 0.0, -theta.sin()),
+        };
+        let cylinder = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: z,
+            radius: 1.0,
+            u_ref: x,
+        };
+        let face = |id: u64, surface: &Surface<f64>, edges: &[u64]| crate::entities::FaceSpec {
+            id,
+            surface: surface.clone(),
+            sense: true,
+            loops: edges
+                .iter()
+                .map(|&edge| crate::entities::LoopSpec {
+                    outer: true,
+                    uses: vec![crate::entities::EdgeUse {
+                        edge,
+                        forward: true,
+                    }],
+                })
+                .collect(),
+            band: false,
+        };
+        let solid = SolidSpec {
+            id: 1,
+            faces: vec![
+                face(2, &plane, &[10]),
+                face(3, &plane, &[11]),
+                face(4, &cylinder, &[10, 12]),
+            ],
+            edges: [
+                (10, circle(Point3::origin())),
+                (11, circle(Point3::new(10.0, 0.0, 0.0))),
+                (12, circle(Point3::new(0.0, 0.0, 1.0))),
+            ]
+            .into_iter()
+            .collect(),
+            vertices: [(1, Point3::new(1.0, 0.0, 0.0))].into_iter().collect(),
+            band_seams: std::collections::BTreeSet::new(),
+        };
+        let nodes = vec![
+            Node {
+                faces: vec![0, 1],
+                record: Record {
+                    position: 2,
+                    id: 20,
+                },
+                surface: plane,
+            },
+            Node {
+                faces: vec![2],
+                record: Record {
+                    position: 1,
+                    id: 21,
+                },
+                surface: cylinder,
+            },
+        ];
+        let relations = vec![Relation {
+            kind: SnapRelation::AxisNormal,
+            nodes: (0, 1),
+            edge: 10,
+            reach: Reach::of(&solid, [0, 2]).expect("the edge's faces have a region"),
+            exact: false,
+        }];
+        let moves = solve(&solid, &nodes, &relations, &[0], FileBand::test(1e-4)).unwrap();
+        let [Move { node, moved_by, .. }] = &moves[..] else {
+            panic!("one move")
+        };
+        assert_eq!(*node, 0, "the plane, the later record, turns");
+        assert!(
+            *moved_by >= theta * 11.0 * (1.0 - 1e-6) && *moved_by <= theta * 12.0,
+            "the far disk's rim, 11 from the pivot: {moved_by:e}"
+        );
+    }
+
     /// **A coaxial move reports its turn over the faces' reach.** The
     /// wall turned 1e-5 onto an axis through the origin moves its far rim
     /// by the turn times its reach from the pivot (√1.25 from the faces'

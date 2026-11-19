@@ -1043,22 +1043,22 @@ fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
 /// pin at its own ε_in: its [`CORPUS`] row, or for an `EpsSensitive` file
 /// its [`EPS_ROWS`] cell. `None` for a file not in the corpus, or an
 /// `EpsSensitive` one off the pinned ambient matrix, where its disposition
-/// is not known. The one statement other suites read a corpus file's
-/// disposition from.
-/// The refusal fragment `rel` is pinned to at the run's ε, at its own
-/// ε_in: its row's, or its cell's for an ε-sensitive file. `None` where it
-/// is pinned to no refusal there.
+/// is not known. With [`refusal_at_run_eps`], the one place other suites
+/// read a corpus file's disposition from.
+pub(crate) fn refuses_at_run_eps(rel: &str) -> Option<bool> {
+    let &(_, row) = CORPUS.iter().find(|(p, _)| *p == rel)?;
+    expected(rel, row, "file").map(|d| matches!(d, Refused(_)))
+}
+
+/// **The refusal fragment the corpus file `rel` is pinned to at the run's
+/// ε**, read off the same pin as [`refuses_at_run_eps`]. `None` where that
+/// pin is no refusal, or not known.
 pub(crate) fn refusal_at_run_eps(rel: &str) -> Option<&'static str> {
     let &(_, row) = CORPUS.iter().find(|(p, _)| *p == rel)?;
     match expected(rel, row, "file")? {
         Refused(fragment) => Some(fragment),
         _ => None,
     }
-}
-
-pub(crate) fn refuses_at_run_eps(rel: &str) -> Option<bool> {
-    let &(_, row) = CORPUS.iter().find(|(p, _)| *p == rel)?;
-    expected(rel, row, "file").map(|d| matches!(d, Refused(_)))
 }
 
 /// Every corpus file's disposition, and the positive tier-validity of
