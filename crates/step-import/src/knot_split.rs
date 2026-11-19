@@ -1195,6 +1195,7 @@ mod tests {
     use std::sync::Arc;
 
     use geom::{Curve3, NurbsSurface, Surface};
+    use geom_brep::PolygonOrientation;
     use geom_core::spline::KnotVector;
     use geom_core::{Point3, Vec3};
 
@@ -1622,7 +1623,7 @@ mod tests {
             split(&mut solid).expect("the C splits");
             let turned: Vec<_> = parts(&solid, sense)
                 .into_iter()
-                .map(|(n, a)| (n, if sense { a } else { -a }))
+                .map(|(n, a)| (n, PolygonOrientation::of_face(sense).to_interior(a)))
                 .collect();
             assert_eq!(
                 turned.iter().map(|p| p.0).collect::<Vec<_>>(),
