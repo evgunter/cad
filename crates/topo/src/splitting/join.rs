@@ -1931,7 +1931,15 @@ mod curved_section_rows {
                 branch: None,
             },
         };
-        for far in if eps < 1.0e-9 { [1.0e3, 2.0e3, 4.0e3] } else { [1.0e4, 1.0e5, 1.0e6] } {
+        // A far arc is an edge only where its points' spacing, about
+        // `u·far`, is under ε: past that its certification refuses it
+        // (`carrier_matches_mapped_source`), from `far = 1e4` at 1e-12.
+        let fars = if eps < 1.0e-9 {
+            [1.0e3, 2.0e3, 4.0e3]
+        } else {
+            [1.0e4, 1.0e5, 1.0e6]
+        };
+        for far in fars {
             for (widths, area) in [(0.25, false), (40.0, true)] {
                 let turn = (12.0 * widths * eps / far).sqrt();
                 let span = (-turn / 3.0, 2.0 * turn / 3.0);
