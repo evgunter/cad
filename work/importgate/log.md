@@ -98,3 +98,5 @@
   - TAIL_TURBINE #217 to NotYetSupported with its per-ε pin restored;
   - the catalogue stated once; the axis helpers through Surface::axis_line.
   The nist √(2rg) [ev] question waits until the snap unit merges.
+
+- 2026-11-19 05:55 — Snap fix pass green at 062dce9bfa. One reach instrument (`reach.rs`, plus a new geom door `Surface::face_region`); round one-record read at the faces; every listed mutant killed; #217 is NotYetSupported; the catalogue stated once. Delta review dispatched to R2, resumed in its lane.
