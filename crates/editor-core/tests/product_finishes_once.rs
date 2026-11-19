@@ -1,7 +1,7 @@
 //! **The gather finishes the aggregate once, and runs the census once.**
 //!
-//! The gather reads its sources and takes none. It computes in the
-//! nearest frame they share (`Framed::aggregate_frame`). A source in that
+//! The gather reads its sources and takes none. It computes in their
+//! computing frame (`Framed::computing_frame`). A source in that
 //! frame is grafted as its value holds it, and one standing under another
 //! is grafted as its image, its data moved into the product's frame and
 //! the session box asked of it (`Framed::graft_into`,
@@ -413,50 +413,208 @@ fn a_member_past_the_box_refuses_at_its_placement_before_the_product() {
     );
 }
 
-/// **Copies at `+900 m` and `−900 m` gather in their space**
-/// (`[placement.frame]`: an aggregate computes in the nearest frame its
-/// operands share, `Framed::aggregate_frame`). Each copy stands inside the
-/// session box. In either copy's frame the other stands 1800 m off, past
-/// the box; in their space the aggregate reaches about 900 m, and the
-/// product builds, its one finish asking the box of that.
-///
-/// *Breaks if* the aggregate computes in its first operand's frame: the
-/// graft and the finish then read the second copy 1800 m out, and the
-/// product refuses.
-#[test]
-fn copies_either_side_of_the_origin_gather_in_their_space() {
+/// An operation over two copies of a block.
+#[derive(Clone, Copy, Debug)]
+enum OverCopies {
+    /// `⊔`.
+    Assemble,
+    /// `∪`.
+    Union,
+    /// `⊖`, the first cut by the second.
+    Subtract,
+}
+
+/// Two copies of a block placed in the world under `at`, and `op` over
+/// them: the document, the copies and the operation's node.
+fn copies_under(
+    name: &str,
+    op: OverCopies,
+    at: [&editor_core::Frame; 2],
+) -> (ProfileDoc, [RecipeNodeId; 2], RecipeNodeId) {
+    use editor_core::Bodies;
     let tol = Tol::witness();
-    let doc = ProfileDoc::empty(DocumentId::derive("copies-either-side"), tol);
+    let doc = ProfileDoc::empty(DocumentId::derive(name), tol);
     let (doc, source) = block(doc);
-    let (doc, _) = editor_core::test_support::in_world(
+    let (doc, a) = editor_core::test_support::in_world(doc, source, at[0], tol);
+    let (doc, b) = editor_core::test_support::in_world(doc, source, at[1], tol);
+    let members = || Bodies::Spelled(vec![a.into(), b.into()]);
+    let node = match op {
+        OverCopies::Assemble => Node::Assemble { members: members() },
+        OverCopies::Union => Node::Union { members: members() },
+        OverCopies::Subtract => Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
+        },
+    };
+    let (doc, node) = fixture::insert(doc, node);
+    (doc, [a, b], node)
+}
+
+fn evaluated(doc: &ProfileDoc) -> Evaluation<f64> {
+    evaluate(
         doc,
-        source,
-        &editor_core::Frame::translation([900.0, 0.0, 0.0]),
-        tol,
-    );
-    let (doc, _) = editor_core::test_support::in_world(
-        doc,
-        source,
-        &editor_core::Frame::translation([-900.0, 0.0, 0.0]),
-        tol,
-    );
-    let doc = fixture::assemble_world_copies(doc);
-    let ev: Evaluation<f64> = evaluate(
-        &doc,
         None,
         &CancelToken::new(),
         &EvalOptions::default(),
-        tol,
-    );
-    let world = fixture::product_in_world(&doc, &ev, tol)
-        .unwrap_or_else(|e| panic!("the product builds: {e:?}"));
-    let reach = world
+        Tol::witness(),
+    )
+}
+
+/// The body value `node` built.
+fn built(ev: &Evaluation<f64>, node: RecipeNodeId) -> &editor_core::Framed<f64> {
+    match ev.nodes.get(&node) {
+        Some(editor_core::NodeResult::Ok(v)) => v.payload.output_body(0).expect("one body"),
+        other => panic!("{node:?} builds: {other:?}"),
+    }
+}
+
+/// Its largest world `|coordinate|`.
+fn world_reach(value: &editor_core::Framed<f64>) -> f64 {
+    fixture::in_space(value)
         .vertex_points()
         .map(|(_, p)| p.x.abs().max(p.y.abs()).max(p.z.abs()))
-        .fold(0.0_f64, f64::max);
+        .fold(0.0_f64, f64::max)
+}
+
+/// **Copies at `+900 m` and `−900 m` build under `⊔`, `∪` and `⊖`**
+/// (`[placement.frame]`: an operation computes in a frame "well
+/// conditioned near the geometry it builds, and never in the world's").
+/// Each copy stands inside the session box. In the first copy's frame
+/// the second stands 1800 m off, past the box, so that frame does not
+/// condition the arithmetic, and the operation computes in its rotation
+/// with its origin at the centre of the two copies' world reach
+/// (`Framed::computing_frame`). Each result builds and reaches its far
+/// corner, 901 m out, where it stands.
+///
+/// *Breaks if* the test is removed: each operation computes in the first
+/// copy's frame, reads the second 1800 m out, and refuses.
+fn copies_either_side_of_the_origin_build(op: OverCopies) {
+    let (doc, _, node) = copies_under(
+        &format!("copies-either-side-{op:?}"),
+        op,
+        [
+            &editor_core::Frame::translation([900.0, 0.0, 0.0]),
+            &editor_core::Frame::translation([-900.0, 0.0, 0.0]),
+        ],
+    );
+    let ev = evaluated(&doc);
     assert_eq!(
-        reach, 901.0,
-        "the aggregate reaches its far corner, 901 m out"
+        world_reach(built(&ev, node)),
+        901.0,
+        "{op:?} builds and reaches its far corner, 901 m out"
+    );
+}
+
+/// [`copies_either_side_of_the_origin_build`] under `⊔`.
+#[test]
+fn copies_either_side_of_the_origin_assemble() {
+    copies_either_side_of_the_origin_build(OverCopies::Assemble);
+}
+
+/// [`copies_either_side_of_the_origin_build`] under `∪`.
+#[test]
+fn copies_either_side_of_the_origin_unite() {
+    copies_either_side_of_the_origin_build(OverCopies::Union);
+}
+
+/// [`copies_either_side_of_the_origin_build`] under `⊖`.
+#[test]
+fn copies_either_side_of_the_origin_subtract() {
+    copies_either_side_of_the_origin_build(OverCopies::Subtract);
+}
+
+/// **Where the first copy's frame conditions the arithmetic, the
+/// operation computes in it, bit for bit**: copies at `400 m` and
+/// `402 m`, each 2 m from the other in either one's frame. `⊔`, `∪` and
+/// `⊖` compute in the first copy's frame, its map as placed, and the
+/// result's coordinates are the first block's own and the second's
+/// moved 2 m along `x`, exactly.
+///
+/// *Breaks if* the test always fires: the frame stands at the copies'
+/// centre, 401.5 m out, and every coordinate moves.
+#[test]
+fn copies_the_first_frame_conditions_compute_in_it_bit_for_bit() {
+    let near = editor_core::Frame::translation([400.0, 0.0, 0.0]);
+    let next = editor_core::Frame::translation([402.0, 0.0, 0.0]);
+    for op in [
+        OverCopies::Assemble,
+        OverCopies::Union,
+        OverCopies::Subtract,
+    ] {
+        let (doc, [a, _], node) = copies_under(&format!("copies-near-{op:?}"), op, [&near, &next]);
+        let ev = evaluated(&doc);
+        let first = built(&ev, a);
+        let value = built(&ev, node);
+        assert_eq!(
+            format!("{:?}", editor_core::in_space(value)),
+            format!("{:?}", editor_core::in_space(first)),
+            "{op:?} computes in the first copy's frame, its map as placed"
+        );
+        let sorted = |points: Vec<[f64; 3]>| {
+            let mut points = points;
+            points.sort_by(|p, q| p.partial_cmp(q).expect("finite"));
+            points.dedup();
+            points
+        };
+        let own: Vec<[f64; 3]> = first
+            .body()
+            .vertex_points()
+            .map(|(_, p)| [p.x, p.y, p.z])
+            .collect();
+        let mut expected = own.clone();
+        if !matches!(op, OverCopies::Subtract) {
+            expected.extend(own.iter().map(|p| [p[0] + 2.0, p[1], p[2]]));
+        }
+        let got: Vec<[f64; 3]> = value
+            .body()
+            .vertex_points()
+            .map(|(_, p)| [p.x, p.y, p.z])
+            .collect();
+        assert_eq!(
+            sorted(got),
+            sorted(expected),
+            "{op:?}'s coordinates, in the first copy's frame"
+        );
+    }
+}
+
+/// An eighth turn about `z`, then `by`.
+fn turned_an_eighth(by: [f64; 3]) -> editor_core::Frame {
+    let c = core::f64::consts::FRAC_1_SQRT_2;
+    editor_core::Frame {
+        columns: [[c, c, 0.0], [-c, c, 0.0], [0.0, 0.0, 1.0]],
+        translation: by,
+    }
+}
+
+/// **An aggregate that stands past the box about its recentred origin
+/// refuses at the door that places a copy there**: two copies turned an
+/// eighth about `z`, at `(900, 900, 0)` and `(−900, −900, 0)`. Each stands
+/// inside the box. The computing frame keeps the first copy's rotation,
+/// so the two stand about 2546 m apart along its first axis, and the
+/// second about 1273 m from the recentred origin, past the box: the `⊔`
+/// refuses at its graft of the second copy, with the session box's
+/// finding alone.
+#[test]
+fn copies_past_the_box_about_the_recentred_origin_refuse_at_the_graft() {
+    let (doc, _, node) = copies_under(
+        "copies-past-the-recentred-box",
+        OverCopies::Assemble,
+        [
+            &turned_an_eighth([900.0, 900.0, 0.0]),
+            &turned_an_eighth([-900.0, -900.0, 0.0]),
+        ],
+    );
+    let ev = evaluated(&doc);
+    let refused = ev.node_error(node).expect("the gather refuses");
+    assert!(
+        refused.node == node
+            && matches!(
+                &refused.kind,
+                editor_core::NodeErrorKind::NotFinished { findings }
+                    if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+            ),
+        "at the gather, with the session box's finding alone: {refused:?}"
     );
 }
 
@@ -550,8 +708,8 @@ fn turned(by: [f64; 3]) -> editor_core::Frame {
 /// across the planes `x = 0.7` and `x = 0.3` of its own coordinates,
 /// gathered by a `⊔` the product reads. A mirror keeps its operand's
 /// frame (`wire_mirror`), so all three hold one map: the product
-/// computes in that frame, not its space's
-/// ([`editor_core::eval::Framed::aggregate_frame`]). The block spans
+/// computes in that frame, not its space's, reading no copy through
+/// another's ([`editor_core::eval::Framed::computing_frame`]). The block spans
 /// `x ∈ [0, 1]` in its own coordinates and the mirrors `[0.4, 1.4]` and
 /// `[−0.4, 0.6]`, so every pair of the three overlaps.
 fn mirrors_in_one_turned_frame(name: &str) -> ProfileDoc {
@@ -645,11 +803,10 @@ fn a_product_in_one_shared_frame_localizes_in_it_moving_no_copy() {
 /// once**, however many interfering pairs it is in: a block placed in
 /// the world under a turned frame and a row of three copies of it 0.4
 /// apart, every pair of the four overlapping, so each copy is in several
-/// interfering pairs. The copies stand under four maps, so the product
-/// computes in their space and localization moves each copy into it, a
-/// moved leaf, which runs one finish ([`a_moved_leaf_runs_one_finish`]).
-/// The checks run 33 finishes, measured. *Breaks if* a copy is read per
-/// pair.
+/// interfering pairs. The product computes in the first copy's frame,
+/// and localization moves each other copy into it, a moved leaf, which
+/// runs one finish ([`a_moved_leaf_runs_one_finish`]). The checks run 31
+/// finishes, measured. *Breaks if* a copy is read per pair.
 #[cfg(debug_assertions)]
 #[test]
 fn localizing_reads_each_copy_into_the_products_frame_once() {
@@ -664,8 +821,8 @@ fn localizing_reads_each_copy_into_the_products_frame_once() {
     );
     let product = editor_core::product_recorded(&doc, &ev, tol).expect("the row gathers");
     assert!(
-        editor_core::in_space(&product).is_none(),
-        "the premise: the product computes in its space, the copies under maps"
+        editor_core::in_space(&product).is_some(),
+        "the premise: the product computes in the first copy's frame, not its space's"
     );
     let before = topo::finishes_on_this_thread();
     let report = editor_core::run_checks(
@@ -689,7 +846,7 @@ fn localizing_reads_each_copy_into_the_products_frame_once() {
         "and each overlap is bounded: {found:?}"
     );
     assert_eq!(
-        finishes, 33,
+        finishes, 31,
         "the checks' finishes, each copy read into the product's frame once"
     );
 }

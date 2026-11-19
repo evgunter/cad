@@ -92,15 +92,11 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
     /// still finished.
     pub(super) fn taken_in(
         &self,
-        into: &crate::eval::Framed<T>,
+        into: &crate::eval::Frame<T>,
         own: &Arc<T::Finished>,
         tol: Tol,
     ) -> Result<Arc<T::Finished>, NodeErrorKind> {
-        match self
-            .body
-            .moving_into(into.frame())
-            .map_err(NodeErrorKind::Motion)?
-        {
+        match self.body.moving_into(into).map_err(NodeErrorKind::Motion)? {
             None => Ok(Arc::clone(own)),
             Some(map) => topo::FinishedBody::moved(&**own, &map, tol)
                 .map(Arc::new)
@@ -207,13 +203,15 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
-    // Computed in the nearest frame its results share
-    // ([`crate::eval::Framed::aggregate_frame`]), each grafted into it
+    // Computed in its results' computing frame
+    // ([`crate::eval::Framed::computing_frame`]), each grafted into it
     // through its own placement ([`crate::eval::Framed::graft_into`]).
-    let frame = crate::eval::Framed::aggregate_frame(
+    let frame = crate::eval::Framed::computing_frame(
         outs.iter()
             .filter_map(|(_, out)| out.payload.one_body().flatten()),
-    );
+        tol,
+    )
+    .map_or(crate::eval::Frame::Own, |(_, frame)| frame);
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
     let mut pieces: Vec<Piece<T>> = Vec::new();
     let mut contacts = topo::ContactRecords::default();

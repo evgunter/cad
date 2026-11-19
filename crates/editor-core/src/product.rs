@@ -644,8 +644,8 @@ pub struct Product<T: topo::AtRestPolicy + Decide> {
     /// it and runs no census again.
     pub body: T::Finished,
     /// **The frame [`Self::body`] is in** (D10 `[placement.frame]`): the
-    /// frame the gather computed in, the nearest its sources share
-    /// ([`crate::eval::Framed::aggregate_frame`]). Export, the façade's
+    /// frame the gather computed in
+    /// ([`crate::eval::Framed::computing_frame`]). Export, the façade's
     /// read-outs and the viewer compose it into the world through
     /// [`crate::mate::in_space`] alone.
     pub(crate) frame: crate::eval::Frame<T>,
@@ -1314,16 +1314,17 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // over the source however many solids it spans, so the carries
     // below are the same code for N as for 1.
     let mut aggregate = Body::new();
-    // The gather computes in the nearest frame its non-empty sources
-    // share ([`crate::eval::Framed::aggregate_frame`]), and grafts each
-    // into it through its own placement
-    // ([`crate::eval::Framed::graft_into`]).
-    let frame = crate::eval::Framed::aggregate_frame(
+    // The gather computes in its non-empty sources' computing frame
+    // ([`crate::eval::Framed::computing_frame`]), and grafts each into it
+    // through its own placement ([`crate::eval::Framed::graft_into`]).
+    let frame = crate::eval::Framed::computing_frame(
         sources
             .iter()
             .map(|source| &source.body)
             .filter(|body| body.body().solids().next().is_some()),
-    );
+        tol,
+    )
+    .map_or(crate::eval::Frame::Own, |(_, frame)| frame);
     let mut grafted: Vec<Grafted<'_, T>> = Vec::with_capacity(sources.len());
     for source in &sources {
         let Source { node, body, .. } = source;

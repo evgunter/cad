@@ -18,21 +18,20 @@
 //! and every lane over a box decide in one frame. A reading within an
 //! operand that asks it about another's point
 //! ([`topo::Seat::into_own`]) does send that point through the inverse.
-//! Every operation over two operands of one space takes it — the
-//! booleans' fold and subtract, measure, clearance and its witness
-//! rebuild, the coincidence replay's carrier verdict — and reads the
-//! other through [`Framed::relative`], the one door between two operands
-//! of a space; its result is in the frame it computed in.
+//! Every reader over two operands of one space takes it — measure,
+//! clearance and its witness rebuild, the coincidence replay's carrier
+//! verdict — and reads the other through [`Framed::relative`], the one
+//! door between two operands of a space.
 //!
-//! **An aggregate computes in the nearest frame its operands share**
-//! ([`Framed::aggregate_frame`]; `[placement.frame]`: a relative motion
-//! "is composed through the nearest frame they share"). A gather of
-//! copies into one body (the `⊔`, a distribute's assembly, the product)
-//! computes in the one frame every operand holds, else in its space's
-//! coordinates, where every placement already stands inside the session
-//! box. It is not the first operand's: copies at `+900 m` and `−900 m`
-//! stand 1800 m apart in either one's frame, past the box, while in
-//! their space they reach 900 m.
+//! **An operation over copies computes in its first operand's frame
+//! where that frame conditions it** ([`Framed::computing_frame`]). The
+//! gathers (the `⊔`, a distribute's assembly, the product) and the
+//! Boolean fold and subtract take the operand [`Framed::computing_among`]
+//! chooses, and compute in its frame unless some operand's reach, read
+//! into it, stands past the session box; there they keep its rotation
+//! and stand the origin at the centre of the operands' world reach.
+//! Copies at `+900 m` and `−900 m` stand 1800 m apart in either one's
+//! frame and 900 m from their centre.
 //!
 //! **A reading moves no operand.** A reader that relates two operands
 //! (measure, clearance and its witness, the replay's carrier verdict,
@@ -79,7 +78,7 @@
 
 use std::sync::Arc;
 
-use geom_core::{Real, RigidMotion, RigidMotionError, Tol};
+use geom_core::{Point3, Real, RigidMotion, RigidMotionError, Tol};
 use topo::Body;
 
 /// **The map from a body's coordinates into its space's.**
@@ -446,36 +445,88 @@ impl<T: topo::AtRestPolicy> Framed<T> {
             .or_else(|| operands.into_iter().next())
     }
 
-    /// **The frame an aggregate over `operands` computes in**: the
-    /// nearest frame they all share (`[placement.frame]`: the relative
-    /// motion of two frames "is composed through the nearest frame they
-    /// share"). That is the one frame every operand holds ([`Frame::same`]:
-    /// all in their space's coordinates, or all under one shared map), and
-    /// otherwise the space's own coordinates ([`Frame::Own`]). Every
-    /// operand's placement was asked the session box where it stands by
-    /// the door that placed it, so the aggregate's coordinates lie in the
-    /// box in this frame, and its one finish asks the box of them.
+    /// **The frame an operation over copies computes in** — the gathers
+    /// (the `⊔`, a distribute's assembly, the product) and the Boolean
+    /// fold and subtract — with the operand whose rotation it keeps.
     ///
-    /// A value holds its frame as one composed map, not as a chain of the
-    /// frames it was placed through, so two operands placed under one
-    /// sub-assembly by different maps share no frame here but the space,
-    /// and their aggregate computes in the space's coordinates. Inside a
-    /// part's own document its copies stand in the part's space, which is
-    /// the sub-assembly's frame, and the instance that places the part
-    /// asks the box once, where it stands.
-    pub(crate) fn aggregate_frame<'a>(operands: impl IntoIterator<Item = &'a Self>) -> Frame<T>
+    /// `[placement.frame]`: an operation computes in a frame "chosen so
+    /// its arithmetic is well conditioned near the geometry it builds,
+    /// and never in the world's"; "where conditioning does not decide,
+    /// … an operation over copies in its first operand's". The first
+    /// operand here is [`Self::computing_among`]'s, and its frame is the
+    /// one computed in unless it does not condition the arithmetic: the
+    /// test is that some operand's reach, read into it, stands past the
+    /// session box (copies at `+900 m` and `−900 m` stand 1800 m apart
+    /// in either one's frame). Where the test fires, the frame keeps that
+    /// operand's rotation and stands its origin at the centre of the
+    /// operands' world reach: the midpoint of the hull of their vertices
+    /// where they stand, one function of the inputs, computed alike on
+    /// every lane. It is a centre, not a certificate: every image read
+    /// into it is still asked the box where it stands in it, so an
+    /// aggregate whose reach about that centre still passes the box
+    /// refuses at the door that places it there.
+    ///
+    /// The test is the session box's own ask of each image
+    /// ([`topo::session_box_at`]), bracketed and discarded so it logs no
+    /// decision; it fires only where that ask refuses. A lane that
+    /// disagrees computes in another frame and its decisions are
+    /// compared as every lane's are, so a disagreement refuses as a
+    /// flip, never certifies.
+    ///
+    /// `None` for no operands.
+    pub(crate) fn computing_frame<'a>(
+        operands: impl IntoIterator<Item = &'a Self> + Clone,
+        tol: Tol,
+    ) -> Option<(&'a Self, Frame<T>)>
     where
-        T: 'a,
+        T: 'a + geom_core::Decide,
     {
-        let mut operands = operands.into_iter();
-        let Some(first) = operands.next() else {
-            return Frame::Own;
-        };
-        if operands.all(|f| f.frame.same(&first.frame)) {
-            first.frame.clone()
-        } else {
-            Frame::Own
+        let chosen = Self::computing_among(operands.clone())?;
+        let conditions = operands.clone().into_iter().all(|o| {
+            let Ok(Some(motion)) = chosen.relative(o) else {
+                return true;
+            };
+            let scope = geom_core::k_stats::Bracket::open();
+            let asked = topo::session_box_at(o.body(), &motion, tol);
+            drop(scope);
+            !matches!(asked, Err(topo::MoveError::NotFinished(_)))
+        });
+        if conditions {
+            return Some((chosen, chosen.frame.clone()));
         }
+        let hull = operands
+            .into_iter()
+            .flat_map(|o| {
+                o.body()
+                    .vertex_points()
+                    .map(|(_, p)| o.frame.map().map_or(p, |m| m.transform_point(p)))
+            })
+            .fold(None, |hull: Option<(Point3<T>, Point3<T>)>, p| {
+                Some(hull.map_or((p, p), |(lo, hi)| {
+                    (
+                        Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
+                        Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
+                    )
+                }))
+            });
+        let Some((lo, hi)) = hull else {
+            return Some((chosen, chosen.frame.clone()));
+        };
+        let half = T::from_f64(0.5);
+        let centre = Point3::new(
+            (lo.x + hi.x) * half,
+            (lo.y + hi.y) * half,
+            (lo.z + hi.z) * half,
+        );
+        let turn = chosen
+            .frame
+            .map()
+            .copied()
+            .unwrap_or_else(RigidMotion::identity);
+        Some(match turn.standing_at(centre) {
+            Ok(motion) => (chosen, Frame::Map(Arc::new(motion))),
+            Err(_) => (chosen, chosen.frame.clone()),
+        })
     }
 
     /// **The one door between two operands of one space**: the map from
@@ -564,7 +615,7 @@ impl<T: topo::AtRestPolicy> Framed<T> {
 
 impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
     /// **`other` grafted into `dst`, an aggregate computed in `frame`**
-    /// ([`Self::aggregate_frame`], [`topo::boolean::graft_placed`]): its
+    /// ([`Self::computing_frame`], [`topo::boolean::graft_placed`]): its
     /// body as it stands where `other` is in that frame, else its data
     /// moved through its placement into it and the image asked the
     /// session box, as a move of what `other` holds asks and logs it. The
