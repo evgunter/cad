@@ -176,8 +176,14 @@
 //!
 //! **The gap between the roots along the curve decides only two definite
 //! crossings** (`curve_pair_pose_root_gap`): their chord in the zero band
-//! is one touch, the double root the band cannot split, and otherwise
-//! they are two crossings.
+//! is one touch, the double root the band cannot split, placed at a root,
+//! and otherwise they are two crossings. A root's point lies on both
+//! carriers (the residual is zero there), and the other root's within the
+//! zero of it. The extreme between them is no such touch: both extremes
+//! are decided past the band, and where a conic curves sharply enough to
+//! leave the band between two roots that close (a thin ellipse's vertex,
+//! its radius of curvature `b²/a`), its point lies the extreme's value off
+//! the other carrier, and read there the pair would read no meeting.
 //!
 //! **In one plane, a candidate admitted under a `Zero` reading is placed
 //! by the exactly degenerate formula**: a touch is the extreme's own
@@ -2096,7 +2102,7 @@ fn harmonic_roots<T: Decide>(
     let from_hi = past(r.cross_hi);
     let from_lo = T::pi() - past(r.cross_lo);
     let at_lo = r.at_hi + T::pi();
-    let (psi, at_near) = match (lo, hi) {
+    let psi = match (lo, hi) {
         (Sign::Positive, _) | (_, Sign::Negative) => return Ok(Harmonic::Apart),
         (Sign::Zero, Sign::Zero) => return Err(MeetFault::Unsettled(Unsettled::Tangency)),
         // An extreme in the zero band is a touch at the extreme (module
@@ -2106,17 +2112,18 @@ fn harmonic_roots<T: Decide>(
         // Two definite crossings: read from the extreme that has crossed
         // the less, to its own relative precision.
         (Sign::Negative, Sign::Positive) => {
-            let nearer_hi = r.cross_hi - r.cross_lo;
-            (
-                nearer_hi.select_le_zero(from_hi, from_lo),
-                nearer_hi.select_le_zero(r.at_hi, at_lo),
-            )
+            (r.cross_hi - r.cross_lo).select_le_zero(from_hi, from_lo)
         }
     };
     let roots = [r.at_hi + psi, r.at_hi - psi];
     let gap = Margin::norm3(k.point_at(r.at_hi + psi) - k.point_at(r.at_hi - psi));
+    // Two roots whose points the band cannot split are one touch, placed
+    // at a root: its point is on both carriers, the residual zero there.
+    // The extreme between them is decided past the band, and on a conic
+    // curved sharply enough to leave the band between two roots that
+    // close (a thin ellipse's vertex) its point is off the other carrier.
     Ok(match decide(row::ROOT_GAP, gap, band)? {
-        Sign::Zero => Harmonic::Touch(at_near),
+        Sign::Zero => Harmonic::Touch(roots[0]),
         Sign::Positive | Sign::Negative => Harmonic::Cross(roots.to_vec()),
     })
 }

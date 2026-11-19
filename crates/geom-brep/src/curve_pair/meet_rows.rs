@@ -3108,3 +3108,65 @@ fn a_pose_read_with_the_spans_swapped_reads_the_pair_at_the_first_carriers_point
         }
     }
 }
+
+/// **A segment across a thin ellipse's vertex meets it at a root, not at
+/// the extreme between its two.** Two ellipses of semi-axes `~10⁻⁴` and
+/// `~10⁻⁸` m, and a segment nearly in the ellipse's plane, `h` over it,
+/// crossing it near its major vertex, at the band `(10⁻⁹, 1.05·10⁻⁹)`
+/// (the delta review's cases 1410 and 1021, true distances `6.57·10⁻¹¹`
+/// and `2.95·10⁻¹⁰` m). In the plane the segment crosses both branches,
+/// whose points the band cannot split (`curve_pair_pose_root_gap` reads
+/// zero): one touch. Between the two roots the vertex, its radius of
+/// curvature `b²/a ≈ 10⁻¹²` m, takes the ellipse `~10⁻⁸` m off the line,
+/// past the band. So the touch is placed at a root, on both carriers,
+/// and the pair meets there once, in either order, within the band's
+/// zero of the segment (the point is the ellipse's own, at the root).
+/// Red where the touch is placed at the extreme: its point
+/// reads off the segment, and the pair is decided no meeting.
+#[test]
+fn a_segment_across_a_thin_ellipses_vertex_meets_it_at_a_root() {
+    let band = Band::new(1e-9, 1.05e-9).unwrap();
+    for (a, b, span_b, tp, h, psi, len, span_a) in [
+        (
+            1.237_105_813_627_213_6e-4_f64,
+            1.271_740_623_280_322_8e-8,
+            (-0.364_737_545_254_126_1, 0.113_832_612_465_155_19),
+            0.025_188_254_926_288_012_f64,
+            6.568_256_938_995_103e-11,
+            4.330_477_594_017_474_f64,
+            1.718_855_939_666_199_8e-6,
+            (-1.006_498_565_508_213_4e-6, 6.843_763_647_487_737e-7),
+        ),
+        (
+            3.253_973_551_187_656e-4,
+            3.445_361_057_969_92e-8,
+            (-0.735_646_227_281_412_5, 0.528_524_751_652_512_8),
+            0.009_417_137_441_319_778,
+            2.945_053_589_198_488_5e-10,
+            2.232_695_454_957_603,
+            2.768_962_141_790_441_3e-4,
+            (-0.000_115_225_579_162_314_02, 0.000_421_974_107_942_566_43),
+        ),
+    ] {
+        let thin = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+        let through = [a * tp.cos(), b * tp.sin(), h];
+        let dir = [psi.cos(), psi.sin(), h / len];
+        let seg = line(through, dir);
+        let (sa, sb) = (Span::new(&seg, span_a), Span::new(&thin, span_b));
+        for (order, got) in [
+            ("segment first", meet(&sa, &sb, band)),
+            ("ellipse first", meet(&sb, &sa, band)),
+        ] {
+            let Ok(m) = &got else {
+                panic!("a = {a:e}, {order}: refused: {got:?}");
+            };
+            assert_eq!(m.points.len(), 1, "a = {a:e}, {order}: {got:?}");
+            let p = m.points[0].point;
+            let off = distance(&seg, p);
+            assert!(
+                off <= band.zero(),
+                "a = {a:e}, {order}: the meeting {off:e} off the segment"
+            );
+        }
+    }
+}
