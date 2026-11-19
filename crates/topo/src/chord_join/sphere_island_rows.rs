@@ -622,7 +622,10 @@ fn a_winding_no_path_decides_escalates_with_the_first_reading() {
             let path = quadric.paths((w, q), band()).unwrap().remove(0);
             let lean = decide(
                 "split_ring_path_lean",
-                Margin::levered(-path.arrival.dot(left) / left.norm(), quadric.lever(q)),
+                Margin::levered(
+                    -path.arrival.dot(left) / left.norm(),
+                    quadric.lever(&surface, q),
+                ),
                 band(),
             )?;
             assert!(lean != Sign::Zero, "every path arrives across the chord");

@@ -3649,12 +3649,7 @@ mod tests {
             1.0,
             -bend,
         );
-        let extent = geom_brep::edge_extent_inf(
-            &carrier,
-            0.0,
-            span,
-            (carrier.eval(0.0), carrier.eval(span)),
-        );
+        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span);
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
         (
@@ -3890,8 +3885,7 @@ mod tests {
                         assert!(flat.deriv(0.0).normalize().dot(Vec3::new(1.0, 0.0, 0.0)) > 0.999);
                         let samples = 4000;
                         let param = |i: usize| span * i as f64 / samples as f64;
-                        let extent_lever =
-                            geom_brep::edge_extent_inf(&flat, 0.0, span, (flat.eval(span), base));
+                        let extent_lever = geom_brep::edge_extent_inf(&flat, 0.0, span);
                         let extent = extent_lever.length();
                         // The witness the derivation names, found
                         // independently: the sample at arc length
@@ -4032,12 +4026,7 @@ mod tests {
             chord > 1e4 * b.zero() && far < b.zero(),
             "the arc is long beside the band (chord {chord:e}) and its far end in it ({far:e})"
         );
-        let extent = geom_brep::edge_extent_inf(
-            &carrier,
-            0.0,
-            span,
-            (carrier.eval(span), geom_core::Point3::origin()),
-        );
+        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span);
         let bend = ConicBend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
         let dir = carrier.deriv(0.0).normalize() * extent.length();
         assert_eq!(

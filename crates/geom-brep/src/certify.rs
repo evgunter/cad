@@ -5510,7 +5510,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     // The spline lanes lever their transversality and size their
     // uniqueness tube at the edge's own extent, beside the analytic
     // arms' faces' `reach`.
-    let extent = crate::edge_extent_inf(&spec.carrier, t0, t1, (start, end));
+    let extent = crate::edge_extent_inf(&spec.carrier, t0, t1);
     // ---- Intersection, a residual × NURBS pair (a plane, sphere,
     // cylinder or torus beside a spline chart), over a carrier of
     // any kind: the whole declare-and-check certificate (C2's three

@@ -57,21 +57,23 @@ pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>
 
 /// **The coaxial test, in one home**: the two margins that are zero
 /// exactly when the circle `rim` is coaxial with the axis line
-/// `(origin, axis)` — the sine between the axes, levered by the circle's
-/// own radius (the distance the circle moves per radian of tilt), and
-/// the centre's distance off the axis in metres.
+/// `(origin, axis)` — the sine between the axes, levered by `arm`, the
+/// circle's own curvature arm (its radius, the distance the circle moves
+/// per radian of tilt), and the centre's distance off the axis in
+/// metres.
 ///
 /// Every site that asks it decides the margins under its own predicate
 /// name, because the names are its door's rows: [`WrapRims`]
 /// (`bool_wrap_rim`) and the sphere trim's latitude-rim class
 /// (`bool_sphere_iso_rim`).
-pub(super) fn coaxial_margins<T: Decide>(axis: geom::Line<T>, rim: &Rim<T>) -> [Margin<T>; 2] {
+pub(super) fn coaxial_margins<T: Decide>(
+    axis: geom::Line<T>,
+    rim: &Rim<T>,
+    arm: geom_core::Lever<T>,
+) -> [Margin<T>; 2] {
     let geom::Line { origin, dir: axis } = axis;
     [
-        Margin::levered(
-            rim.axis.cross(axis).norm(),
-            geom_core::Lever::curvature_radius(rim.radius),
-        ),
+        Margin::levered(rim.axis.cross(axis).norm(), arm),
         Margin::of(off_axis(origin, axis, rim.center)),
     ]
 }
@@ -92,17 +94,23 @@ pub(super) const BOOL_WRAP_RIM: &str = "bool_wrap_rim";
 impl<T: Decide> WrapRims<T> {
     /// Coaxial is an identity: either margin decided apart answers
     /// "not coaxial", whatever the other read ([`read_identity`]).
-    fn holds(self, rim: &Rim<T>, band: Band) -> Result<bool, Indeterminate> {
+    fn holds(
+        self,
+        rim: &Rim<T>,
+        arm: geom_core::Lever<T>,
+        band: Band,
+    ) -> Result<bool, Indeterminate> {
         read_identity(
-            coaxial_margins(self.axis, rim).map(|margin| (BOOL_WRAP_RIM, margin)),
+            coaxial_margins(self.axis, rim, arm).map(|margin| (BOOL_WRAP_RIM, margin)),
             band,
         )
         .holds()
     }
 }
 
-/// Each unmated boundary circle, with the member it bounds.
-type Unmated<T> = Vec<(FaceKey, Rim<T>)>;
+/// Each unmated boundary circle, with the member it bounds and the
+/// circle's curvature arm.
+type Unmated<T> = Vec<(FaceKey, Rim<T>, geom_core::Lever<T>)>;
 
 /// The walk: every member's unmated boundary edges, each of which must
 /// be a certified circle. `None` when a member has a ring, an outline
@@ -138,7 +146,14 @@ fn unmated_boundary<T: Decide>(
             if members.contains(&body.face_of_linked(hop.mate)) {
                 continue;
             }
-            let Some(geom::Curve3::Circle(geom::Circle {
+            let Some(geom::Curve3::Circle(circle)) = body
+                .edge_curve_linked(hop.edge, hop.edge_data)
+                .certified()
+                .map(|c| c.carrier().clone())
+            else {
+                return Ok(None);
+            };
+            let geom::Circle {
                 frame:
                     geom::Frame {
                         origin: center,
@@ -146,13 +161,7 @@ fn unmated_boundary<T: Decide>(
                         u_ref,
                     },
                 radius,
-            })) = body
-                .edge_curve_linked(hop.edge, hop.edge_data)
-                .certified()
-                .map(|c| c.carrier().clone())
-            else {
-                return Ok(None);
-            };
+            } = circle;
             found.push((
                 member,
                 Rim {
@@ -161,6 +170,7 @@ fn unmated_boundary<T: Decide>(
                     radius,
                     u_ref,
                 },
+                geom_brep::circle_curvature_arm(&circle),
             ));
         }
     }
@@ -244,9 +254,9 @@ pub(super) fn wrap_rims_within<T: Decide>(
     else {
         return Ok(None);
     };
-    for (member, rim) in &found {
+    for (member, rim, arm) in &found {
         if !rims
-            .holds(rim, band)
+            .holds(rim, *arm, band)
             .map_err(|diag| PointInSolidError::Escalated {
                 face: *member,
                 diag,
@@ -255,7 +265,7 @@ pub(super) fn wrap_rims_within<T: Decide>(
             return Ok(None);
         }
     }
-    Ok(Some(found.into_iter().map(|(_, rim)| rim).collect()))
+    Ok(Some(found.into_iter().map(|(_, rim, _)| rim).collect()))
 }
 
 /// **Does `face` ALONE wrap one coordinate of its chart?** The one
@@ -285,6 +295,7 @@ mod wrap_rims_holds_rows {
 
     use super::WrapRims;
     use crate::rim_wedge::Rim;
+    use geom_core::test_support::fixture_lever;
 
     #[test]
     fn a_centre_off_the_axis_answers_past_a_tilt_in_band() {
@@ -304,12 +315,13 @@ mod wrap_rims_holds_rows {
             u_ref: Vec3::unit_x(),
         };
         assert_eq!(
-            rims.holds(&rim(Point3::new(1.0, 0.0, 0.0)), band),
+            rims.holds(&rim(Point3::new(1.0, 0.0, 0.0)), fixture_lever(1.0), band),
             Ok(false),
             "a centre a unit off the axis is not coaxial, whatever the tilt read"
         );
         assert!(
-            rims.holds(&rim(Point3::origin()), band).is_err(),
+            rims.holds(&rim(Point3::origin()), fixture_lever(1.0), band)
+                .is_err(),
             "with the centre on the axis, the tilt in band refuses"
         );
     }

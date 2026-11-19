@@ -62,6 +62,7 @@ pub mod certify;
 pub mod chart_image;
 pub mod chart_singularity;
 pub mod conic_bend;
+pub mod curvature_arm;
 pub mod curve_face;
 pub mod curve_pair;
 pub(crate) mod descent;
@@ -138,6 +139,10 @@ pub use certify::{
     schedule_param, side_row_certifies,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side, curvature_vector};
+pub use curvature_arm::{
+    circle_curvature_arm, curvature_lever_arm, parallel_curvature_arm, uniform_curvature_arm,
+    within_carrier_bend,
+};
 pub use description::{
     ChartCurve, CurveSelector, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SharedRow,
     Structural, authority_of,
@@ -191,11 +196,10 @@ pub use implicit::{
     circle_sphere_harmonic, cone_elevation, conic_arc_residual_range, conic_cone_harmonics,
     conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual, conic_residual_extremes,
     conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit, conic_torus_jet,
-    conic_torus_residual, curvature_lever_arm, graph_acceleration, implicit_gradient,
-    implicit_graph_acceleration, implicit_hessian, implicit_hessian_form,
-    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
-    implicit_section_acceleration, min_radius_of_curvature, min_radius_of_curvature_toward,
-    ring_floor,
+    conic_torus_residual, graph_acceleration, implicit_gradient, implicit_graph_acceleration,
+    implicit_hessian, implicit_hessian_form, implicit_max_normal_curvature,
+    implicit_outward_normal, implicit_residual, implicit_section_acceleration,
+    min_radius_of_curvature, min_radius_of_curvature_toward, ring_floor,
 };
 pub use intersect::{
     ApexFansMeeting, ConeCylinderSection, ConeSphereSection, ConeTorusSection, ConicArcError,

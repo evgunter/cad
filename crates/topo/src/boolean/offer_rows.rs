@@ -1453,7 +1453,12 @@ fn recut(lean: f64) -> Result<(), BooleanError> {
         Vec3::new(0.0, 0.0, 1.0),
         Vec3::new(lean, 0.0, (1.0 - lean * lean).sqrt()),
     );
-    super::super::ops::recut_lean(axis, align, 1.0, band())
+    super::super::ops::recut_lean(
+        axis,
+        align,
+        geom_core::test_support::fixture_lever(1.0),
+        band(),
+    )
 }
 
 /// A point on a unit wall sheet's carrier well outside its trim, `D`

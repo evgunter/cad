@@ -751,8 +751,9 @@ impl Band {
 ///   payload `ExtentBall`, its `lever_from` and the two-sided
 ///   `LeverBounds`), the one place a length taken from consumed geometry
 ///   becomes an arm;
-/// - a curvature arm, [`Lever::curvature`] or
-///   [`Lever::curvature_radius`];
+/// - a curvature arm, read off the carrier it bends with
+///   (`geom_brep::curvature_arm`'s readers, which take the surface, the
+///   circle or the curve);
 /// - the session box, [`Lever::session_box`], where no geometry is in
 ///   hand.
 ///
@@ -761,16 +762,18 @@ impl Band {
 /// through [`Margin::levered_inv`].
 ///
 /// **What holds this, and what does not.** The type has no constructor
-/// that takes a bare length without naming a source, and
-/// `scripts/gates/lever-sources.sh` holds the doors that do take one:
-/// the extent's own door ([`Lever::of_consumed_extent`]) is read only in
+/// that takes a bare length without naming a source, and two gates hold
+/// the doors that do take one. `scripts/gates/lever-sources.sh`: the
+/// extent's own door ([`Lever::of_consumed_extent`]) is read only in
 /// the extent's home, and the escape hatch for an arm that fits no
 /// source ([`Lever::unsourced`]) and a test's fixture length
 /// (`test_support::fixture_lever`) are counted per file with their
-/// reasons. A geometric constructor takes its geometry's numbers (a
-/// sphere's radius, a box's corners, a curvature), so the type cannot
-/// tell a caller's honest radius from a length it calls one: that a
-/// named source is the true source of the arm is review's to hold.
+/// reasons. `scripts/gates/lever-doors.sh`: the bare curvature doors
+/// ([`Lever::curvature_radius`], [`Lever::within_curvature`]) are read
+/// only in the curvature home, and with the extent's doors that take a
+/// caller's point or number they stand elsewhere at pins that only
+/// fall. Geometry a caller builds by hand (a carrier, a span, a cover)
+/// and the pivot a lever is read from are review's to hold.
 ///
 /// Reading the arm back as a length ([`Lever::length`]) is the exit, not
 /// an entrance. [`Lever::max`] folds two reads into a read of their
@@ -780,21 +783,16 @@ impl Band {
 pub struct Lever<T>(pub(crate) T);
 
 impl<T: crate::real::Real> Lever<T> {
-    /// **A curvature arm**: `1 / κ_rel`, the reach at which a relative
-    /// curvature `κ_rel` (1/m) turns a direction through the angle it
-    /// levers (D4 ¶1's tangency lever). One operation, bit-identical to
-    /// the bare quotient.
-    #[must_use]
-    pub fn curvature(kappa_rel: T) -> Self {
-        Self(T::one() / kappa_rel)
-    }
-
     /// **A curvature arm read as its radius**: a principal radius of
     /// curvature `1/κ` the carrier states in closed form (a sphere's or a
     /// cylinder's radius, a torus tube's — its meridians' — radius, a
     /// cone's radial distance, `f64::MAX` for a plane). It is the arm of a
     /// turn along that principal section, not a bound on every curvature
-    /// (a fat torus bends harder along its inner equator).
+    /// (a fat torus bends harder along its inner equator). The curvature
+    /// home's door (`geom_brep::curvature_arm`), whose readers take the
+    /// carrier: `scripts/gates/lever-doors.sh` holds every other
+    /// reference.
+    #[doc(hidden)]
     #[must_use]
     pub fn curvature_radius(radius: T) -> Self {
         Self(radius)
@@ -802,7 +800,10 @@ impl<T: crate::real::Real> Lever<T> {
 
     /// **This arm, no longer than the curvature arm `1/κ`**: the lesser
     /// of the two, spelled `arm / max(1, κ·arm)` so a flat pair (`κ = 0`)
-    /// reads the arm and poison stays poison.
+    /// reads the arm and poison stays poison. Held as
+    /// [`Self::curvature_radius`] is: a caller reaches it through
+    /// `geom_brep::within_carrier_bend`.
+    #[doc(hidden)]
     #[must_use]
     pub fn within_curvature(self, kappa: T) -> Self {
         Self(self.0 / T::one().max(kappa * self.0))
