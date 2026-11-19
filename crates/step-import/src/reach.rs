@@ -3,16 +3,12 @@
 //! readings over faces take their extent from ([`crate::one_record`],
 //! [`crate::snap`]).
 //!
-//! A face of a plane, a cylinder or a cone lies in the convex hull of its
-//! boundary (a plane's region is that hull; a ruled face is swept by
-//! segments between boundary points), so its region is read off its edge
-//! carriers' covers over their spans ([`geom::Curve3::cover_over`]),
-//! hulled. A face of a sphere or a torus can bulge past that hull, so its
-//! surface's own cover joins the hull: a bound, never an under-read. A
-//! carrier with no cover leaves the faces with no region, and the reading
-//! that asked is not taken.
+//! A face's region is read off its edge carriers' covers over their spans
+//! ([`geom::Curve3::cover_over`]) by its surface's own reading of a face
+//! bounded so ([`geom::Surface::face_region`]): a bound, never narrower
+//! than the face. A carrier with no cover leaves the faces with no region,
+//! and the reading that asked is not taken.
 
-use geom::Surface;
 use geom::cover::{Cover, ParamWindow, Site};
 use geom_core::{Lever, Point3, Vec3};
 
@@ -28,6 +24,7 @@ impl Reach {
         let mut all: Option<Cover<f64>> = None;
         for fi in faces {
             let face = &solid.faces[fi];
+            let mut boundary: Option<Cover<f64>> = None;
             for lp in &face.loops {
                 for u in &lp.uses {
                     let spec = solid.edges.get(&u.edge)?;
@@ -35,27 +32,19 @@ impl Reach {
                         .carrier
                         .cover_over(ParamWindow::new(spec.t0, spec.t1))
                         .ok()?;
-                    all = Some(match all {
+                    boundary = Some(match boundary {
                         Some(c) => c.hull(piece),
                         None => piece,
                     });
                 }
             }
-            let bulge = match &face.surface {
-                Surface::Sphere { radius, .. } => Cover::sphere(&face.surface.frame()?, *radius),
-                Surface::Torus {
-                    major_radius,
-                    minor_radius,
-                    ..
-                } => Cover::torus(&face.surface.frame()?, *major_radius, *minor_radius),
-                _ => continue,
-            };
-            all = Some(match (all, bulge) {
-                (Some(c), Some(b)) => c.hull(b),
-                _ => return None,
+            let region = face.surface.face_region(boundary?).ok()?;
+            all = Some(match all {
+                Some(c) => c.hull(region),
+                None => region,
             });
         }
-        all.map(|c| Self(c.convex()))
+        all.map(Self)
     }
 
     /// The farthest a point of the region lies from `at`.

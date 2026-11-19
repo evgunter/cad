@@ -263,21 +263,65 @@ fn round(surface: &Surface<f64>) -> bool {
 /// locus).
 fn round_gap(a: &Surface<f64>, b: &Surface<f64>, reach: &crate::reach::Reach) -> Option<f64> {
     let (la, lb) = (a.axis_line()?.unit(), b.axis_line()?.unit());
-    let tilt = |pivot: Point3<f64>| la.dir.cross(lb.dir).norm() * reach.from(pivot);
-    Some(match (a, b) {
-        (&Surface::Cylinder { radius: r1, .. }, &Surface::Cylinder { radius: r2, .. }) => {
-            reach.axes_apart(la, lb) + (r1 - r2).abs()
-        }
-        (&Surface::Cone { half_angle: h1, .. }, &Surface::Cone { half_angle: h2, .. }) => {
-            if la.dir.dot(lb.dir) <= 0.0 {
-                return None;
+    let Datums {
+        radii,
+        on_axis,
+        turns,
+        half_angles,
+    } = datums(a, b)?;
+    if !on_axis && la.dir.dot(lb.dir) <= 0.0 && half_angles.is_some() {
+        return None;
+    }
+    let tilt = la.dir.cross(lb.dir).norm();
+    let apart = if on_axis {
+        reach.axes_apart(la, lb)
+    } else {
+        (lb.origin - la.origin).norm()
+            + if turns {
+                tilt * reach.from(la.origin)
+            } else {
+                0.0
             }
-            (lb.origin - la.origin).norm()
-                + tilt(la.origin)
-                + (h1 - h2).abs() * reach.from(la.origin)
-        }
+    };
+    Some(apart + radii + half_angles.map_or(0.0, |h| h * reach.from(la.origin)))
+}
+
+/// What two round records of one kind state beside their axes: whether
+/// the axis line is the datum (a cylinder's, whose stored point is
+/// arbitrary) or a point on it is (an apex, a centre), whether the axis
+/// turns the surface (not a sphere's, whose stored axis is only its
+/// chart's), the difference of their radii, and of two cones'
+/// half-angles.
+struct Datums {
+    radii: f64,
+    on_axis: bool,
+    turns: bool,
+    half_angles: Option<f64>,
+}
+
+/// [`Datums`] of `a` and `b`; `None` for two kinds.
+fn datums(a: &Surface<f64>, b: &Surface<f64>) -> Option<Datums> {
+    let point = |radii: f64, turns: bool| Datums {
+        radii,
+        on_axis: false,
+        turns,
+        half_angles: None,
+    };
+    Some(match (a, b) {
+        (&Surface::Cylinder { radius: r1, .. }, &Surface::Cylinder { radius: r2, .. }) => Datums {
+            radii: (r1 - r2).abs(),
+            on_axis: true,
+            turns: true,
+            half_angles: None,
+        },
+        (&Surface::Cone { half_angle: h1, .. }, &Surface::Cone { half_angle: h2, .. }) => Datums {
+            radii: 0.0,
+            on_axis: false,
+            turns: true,
+            half_angles: Some((h1 - h2).abs()),
+        },
         (&Surface::Sphere { radius: r1, .. }, &Surface::Sphere { radius: r2, .. }) => {
-            (lb.origin - la.origin).norm() + (r1 - r2).abs()
+            point((r1 - r2).abs(), false)
         }
         (
             &Surface::Torus {
@@ -290,9 +334,7 @@ fn round_gap(a: &Surface<f64>, b: &Surface<f64>, reach: &crate::reach::Reach) ->
                 minor_radius: r2,
                 ..
             },
-        ) => {
-            (lb.origin - la.origin).norm() + tilt(la.origin) + (big1 - big2).abs() + (r1 - r2).abs()
-        }
+        ) => point((big1 - big2).abs() + (r1 - r2).abs(), true),
         _ => return None,
     })
 }

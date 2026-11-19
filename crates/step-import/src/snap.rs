@@ -351,6 +351,14 @@ fn datum(s: &Surface<f64>) -> Option<Point3<f64>> {
     }
 }
 
+/// A cylinder's radius; `None` for any other surface.
+fn cylinder_radius(s: &Surface<f64>) -> Option<f64> {
+    match *s {
+        Surface::Cylinder { radius, .. } => Some(radius),
+        _ => None,
+    }
+}
+
 /// A plane's point and unit normal.
 fn plane_of(s: &Surface<f64>) -> Option<(Point3<f64>, Vec3<f64>)> {
     match *s {
@@ -378,8 +386,8 @@ fn gap(kind: SnapRelation, a: &Surface<f64>, b: &Surface<f64>, reach: &Reach) ->
     let far = f64::INFINITY;
     match kind {
         SnapRelation::Tangent => {
-            let (Some((p, n)), Some(line), Surface::Cylinder { radius, .. }) =
-                (plane_of(a), axis(b), b)
+            let (Some((p, n)), Some(line), Some(radius)) =
+                (plane_of(a), axis(b), cylinder_radius(b))
             else {
                 return far;
             };
@@ -593,7 +601,7 @@ fn tangent(
     let q = line.foot(faces.centre());
     // Each plane's normal and level along it, and the axis's offset at its
     // faces from where it stands its radius from the plane.
-    let need: Vec<(Vec3<f64>, f64, f64)> = planes
+    let need: Vec<Offset> = planes
         .iter()
         .filter_map(|r| plane_of(&nodes[r.nodes.0].surface))
         .map(|(p, normal)| {
@@ -636,6 +644,11 @@ fn tangent(
     ))
 }
 
+/// A plane a cylinder is tangent to, as [`two_planes`] reads it: its unit
+/// normal, its level along it, and the axis's offset from where it stands
+/// its radius from it.
+type Offset = (Vec3<f64>, f64, f64);
+
 /// **A cylinder tangent to two planes**, each as its unit normal, its
 /// level along it and the axis's offset `g` from where it stands its
 /// radius from it: the axis's translation and the radius it takes. The
@@ -646,7 +659,7 @@ fn tangent(
 /// the file's ambiguity, named at `record`. The inner error is the class
 /// the arm does not solve.
 fn two_planes(
-    ((n1, c1, g1), (n2, c2, g2)): ((Vec3<f64>, f64, f64), (Vec3<f64>, f64, f64)),
+    ((n1, c1, g1), (n2, c2, g2)): (Offset, Offset),
     (q, radius): (Point3<f64>, f64),
     lever: f64,
     file: FileBand,

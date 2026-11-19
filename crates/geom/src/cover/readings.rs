@@ -76,6 +76,28 @@ impl<T: Real> Surface<T> {
             Surface::Approx(approx) => net(entity, approx.fit().control()),
         }
     }
+
+    /// **The region a face of this carrier occupies, given its boundary's
+    /// region `boundary`**: a face of a plane, a cylinder or a cone lies in
+    /// the convex hull of its boundary (a plane's region is that hull; a
+    /// ruled face is swept by segments between boundary points); a face of
+    /// any other carrier can bulge past it, and is held with the carrier's
+    /// whole region ([`Surface::cover`]) as well. A bound, never narrower
+    /// than the face, for a reader that has the face's boundary and no
+    /// built face yet.
+    ///
+    /// # Errors
+    ///
+    /// As [`Surface::cover`], for a carrier other than a plane, a cylinder
+    /// or a cone.
+    pub fn face_region(&self, boundary: Cover<T>) -> Covered<T> {
+        match self {
+            Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => {
+                Ok(boundary.convex())
+            }
+            _ => Ok(boundary.hull(self.cover()?).convex()),
+        }
+    }
 }
 
 impl<T: SpanLocate> Curve3<T> {
