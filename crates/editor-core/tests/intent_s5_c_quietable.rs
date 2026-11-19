@@ -175,7 +175,7 @@ fn a_blind_bore_pin_is_quietable_and_refuses_until_quieted() {
 /// **The blind-bore pin quiets alike when both copies stand turned and
 /// off the origin**: the same plate and pin, each turned a quarter turn
 /// about `z` and moved off the origin. They stand under two maps, and
-/// the gather computes in the plate's frame (`Framed::computing_frame`),
+/// the gather computes in the plate's frame (`Framed::computing_among`),
 /// so the overlap is localized there, where the product's faces and
 /// carriers stand, the pin moved into it once; the rule holds as it does
 /// at rest. That a product in a shared frame localizes in it, moving no

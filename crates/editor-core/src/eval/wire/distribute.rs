@@ -203,15 +203,14 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
-    // Computed in its results' computing frame
-    // ([`crate::eval::Framed::computing_frame`]), each grafted into it
+    // Computed in its first result's frame
+    // ([`crate::eval::Framed::computing_among`]), each grafted into it
     // through its own placement ([`crate::eval::Framed::graft_into`]).
-    let frame = crate::eval::Framed::computing_frame(
+    let frame = crate::eval::Framed::computing_among(
         outs.iter()
             .filter_map(|(_, out)| out.payload.one_body().flatten()),
-        tol,
     )
-    .map_or(crate::eval::Frame::Own, |(_, frame)| frame);
+    .map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
     let mut pieces: Vec<Piece<T>> = Vec::new();
     let mut contacts = topo::ContactRecords::default();
@@ -299,7 +298,6 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
     let fused =
         T::finish(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
-
     let pieces = Arc::new(Pieces { by: id, pieces });
     // What it made is the `⊔` of what each piece's boolean made, so the
     // census of that `⊔` runs at this door, over the pieces made here

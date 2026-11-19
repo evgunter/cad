@@ -463,6 +463,14 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
         AtRestBody::into_body(self)
     }
 
+    /// The image's data ([`moved_body`]) finished as a leaf
+    /// ([`AtRestPolicy::leaf`]). It does not go through
+    /// [`moved_and_asked`]: where the leaf is an `AtRestBody` (`f64`,
+    /// `Probe`, the duals) the leaf is the full finish of the image,
+    /// which asks every family, the session box among them, so the
+    /// move-and-ask's ask would be asked twice. The finish holds its
+    /// decisions off the log as the leaf's rule says
+    /// ([`Self::MOVE_LOGS_ITS_ASK`]).
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         T::leaf(moved_body(self, iso, tol).map_err(MoveError::Map)?, tol)
             .map_err(MoveError::NotFinished)

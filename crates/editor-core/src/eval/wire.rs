@@ -2494,8 +2494,7 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
     // is read off its own body, the other's carrier taken through their
     // relative motion ([`super::Seat`]), a pose through its own relative
     // map. Two poses measure in their space's coordinates.
-    let computing = super::Framed::computing_among(cells.iter().map(|(.., framed)| *framed))
-        .or_else(|| cells.first().map(|(.., framed)| *framed));
+    let computing = super::Framed::computing_among(cells.iter().map(|(.., framed)| *framed));
     let bodies = cells
         .iter()
         .map(|(index, at, ent, kind, framed)| {
@@ -3552,8 +3551,8 @@ impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
     /// at the placement's door ([`super::Framed::read_in`]); taken as the
     /// Boolean takes it ([`super::Held::finished`]).
     ///
-    /// `frame_of` is the operand whose frame, or whose turn,
-    /// `computing` is ([`super::Framed::computing_frame`]): a refusal of
+    /// `frame_of` is the operand whose frame `computing` is
+    /// ([`super::Framed::computing_among`]): a refusal of
     /// an image the read moved names it beside this member
     /// ([`NodeErrorKind::UnfinishedLeaf`]'s `into`).
     fn taken_in(
@@ -3649,10 +3648,12 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         Some(body) => body,
         None => from.taken(tol)?,
     };
-    // It computes in the two seats' computing frame
-    // ([`super::Framed::computing_frame`]).
-    let computing = super::Framed::computing_frame([&from.body, &b.body], tol)
-        .map_or_else(|| from.body.frame().clone(), |(_, frame)| frame);
+    // It computes in `from`'s frame unless only the tool is in its space's
+    // coordinates ([`super::Framed::computing_among`]).
+    let computing = super::Framed::computing_among([&from.body, &b.body])
+        .unwrap_or(&from.body)
+        .frame()
+        .clone();
     let body_a = from.taken_in(&computing, &body_a, tol)?;
     let body_b = &*b.taken_in(&computing, body_b, tol)?;
     let inputs = BooleanInputs {
@@ -4155,18 +4156,17 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let empty = || Ok(OpOut::empty());
-    // It computes in its members' computing frame
-    // ([`super::Framed::computing_frame`]), reading every member not in
-    // it into it through `relative`.
+    // It computes in its first member's frame that is its space's, else
+    // its first's ([`super::Framed::computing_among`]), reading every
+    // other member into it through `relative`.
     let (members, apart) = match members {
         [] => return empty(),
         [one] => return lone_member(id, &one.taken_in((one.framed.frame(), one.node), tol)?),
         [first, ..] => {
-            let (chosen, computing) =
-                super::Framed::computing_frame(members.iter().map(|m| &m.framed), tol)
-                    .unwrap_or_else(|| (&first.framed, first.framed.frame().clone()));
-            // The member whose frame, or whose turn, it is, which a
-            // refused image names.
+            let chosen = super::Framed::computing_among(members.iter().map(|m| &m.framed))
+                .unwrap_or(&first.framed);
+            let computing = chosen.frame().clone();
+            // The member whose frame it is, which a refused image names.
             let frame_of = members
                 .iter()
                 .find(|m| core::ptr::eq(&m.framed, chosen))
@@ -4739,14 +4739,12 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
             Ok((read, value, bodies, family))
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-    // The frame it computes in ([`super::Framed::computing_frame`]);
-    // every body is grafted into it through its own placement
-    // ([`super::Framed::graft_into`]).
-    let frame = super::Framed::computing_frame(
-        operands.iter().flat_map(|(_, _, bodies, _)| bodies.iter()),
-        tol,
-    )
-    .map_or(super::Frame::Own, |(_, frame)| frame);
+    // The frame it computes in, its first operand's
+    // ([`super::Framed::computing_among`]); every body is grafted into it
+    // through its own placement ([`super::Framed::graft_into`]).
+    let frame =
+        super::Framed::computing_among(operands.iter().flat_map(|(_, _, bodies, _)| bodies.iter()))
+            .map_or(super::Frame::Own, |first| first.frame().clone());
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> =
         Vec::with_capacity(members.len());
     let mut pieces: Vec<super::Piece<T>> = Vec::with_capacity(members.len());

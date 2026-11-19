@@ -1,7 +1,7 @@
 //! **The gather finishes the aggregate once, and runs the census once.**
 //!
-//! The gather reads its sources and takes none. It computes in their
-//! computing frame (`Framed::computing_frame`). A source in that
+//! The gather reads its sources and takes none. It computes in its first
+//! source's frame (`Framed::computing_among`). A source in that
 //! frame is grafted as its value holds it, and one standing under another
 //! is grafted as its image, its data moved into the product's frame and
 //! the session box asked of it (`Framed::graft_into`,
@@ -468,27 +468,18 @@ fn built(ev: &Evaluation<f64>, node: RecipeNodeId) -> &editor_core::Framed<f64> 
     }
 }
 
-/// Its largest world `|coordinate|`.
-fn world_reach(value: &editor_core::Framed<f64>) -> f64 {
-    fixture::in_space(value)
-        .vertex_points()
-        .map(|(_, p)| p.x.abs().max(p.y.abs()).max(p.z.abs()))
-        .fold(0.0_f64, f64::max)
-}
-
-/// **Copies at `+900 m` and `−900 m` build under `⊔`, `∪` and `⊖`**
-/// (`[placement.frame]`: an operation computes in a frame "well
-/// conditioned near the geometry it builds, and never in the world's").
-/// Each copy stands inside the session box. In the first copy's frame
-/// the second stands 1800 m off, past the box, so that frame does not
-/// condition the arithmetic, and the operation computes in its rotation
-/// with its origin at the centre of the two copies' world reach
-/// (`Framed::computing_frame`). Each result builds and reaches its far
-/// corner, 901 m out, where it stands.
+/// **Copies at `+900 m` and `−900 m` refuse under `⊔`, `∪` and `⊖`, an
+/// over-refusal pinned** (`work/onehome/an-operation-over-far-apart-copies-has-no-conditioned-computing-frame.md`). Each copy stands inside the session box,
+/// but the operation computes in the first copy's frame
+/// (`Framed::computing_among`), where the second stands 1800 m off, past
+/// the box: the operation refuses at its read of the second, with the
+/// session box's finding alone. No frame `[placement.frame]` names
+/// conditions this: the space's is the world's, and a recentred one breaks
+/// the box's containment (the filed row).
 ///
-/// *Breaks if* the test is removed: each operation computes in the first
-/// copy's frame, reads the second 1800 m out, and refuses.
-fn copies_either_side_of_the_origin_build(op: OverCopies) {
+/// *Breaks if* the operation computes in the space's coordinates: the
+/// copies reach 901 m there, and it builds.
+fn copies_either_side_of_the_origin_refuse(op: OverCopies) {
     let (doc, _, node) = copies_under(
         &format!("copies-either-side-{op:?}"),
         op,
@@ -498,42 +489,47 @@ fn copies_either_side_of_the_origin_build(op: OverCopies) {
         ],
     );
     let ev = evaluated(&doc);
-    assert_eq!(
-        world_reach(built(&ev, node)),
-        901.0,
-        "{op:?} builds and reaches its far corner, 901 m out"
+    let refused = ev.node_error(node).expect("the operation refuses");
+    assert!(
+        refused.node == node
+            && matches!(
+                &refused.kind,
+                editor_core::NodeErrorKind::NotFinished { findings }
+                    if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+            ),
+        "{op:?} refuses at the operation, with the session box's finding alone: {refused:?}"
     );
 }
 
-/// [`copies_either_side_of_the_origin_build`] under `⊔`.
+/// [`copies_either_side_of_the_origin_refuse`] under `⊔`.
 #[test]
-fn copies_either_side_of_the_origin_assemble() {
-    copies_either_side_of_the_origin_build(OverCopies::Assemble);
+fn copies_either_side_of_the_origin_refuse_to_assemble() {
+    copies_either_side_of_the_origin_refuse(OverCopies::Assemble);
 }
 
-/// [`copies_either_side_of_the_origin_build`] under `∪`.
+/// [`copies_either_side_of_the_origin_refuse`] under `∪`.
 #[test]
-fn copies_either_side_of_the_origin_unite() {
-    copies_either_side_of_the_origin_build(OverCopies::Union);
+fn copies_either_side_of_the_origin_refuse_to_unite() {
+    copies_either_side_of_the_origin_refuse(OverCopies::Union);
 }
 
-/// [`copies_either_side_of_the_origin_build`] under `⊖`.
+/// [`copies_either_side_of_the_origin_refuse`] under `⊖`.
 #[test]
-fn copies_either_side_of_the_origin_subtract() {
-    copies_either_side_of_the_origin_build(OverCopies::Subtract);
+fn copies_either_side_of_the_origin_refuse_to_subtract() {
+    copies_either_side_of_the_origin_refuse(OverCopies::Subtract);
 }
 
-/// **Where the first copy's frame conditions the arithmetic, the
-/// operation computes in it, bit for bit**: copies at `400 m` and
-/// `402 m`, each 2 m from the other in either one's frame. `⊔`, `∪` and
-/// `⊖` compute in the first copy's frame, its map as placed, and the
-/// result's coordinates are the first block's own and the second's
-/// moved 2 m along `x`, exactly.
+/// **An operation over copies computes in its first operand's frame, bit
+/// for bit** (`[placement.frame]`: "an operation over copies in its first
+/// operand's"): copies at `400 m` and `402 m`. `⊔`, `∪` and `⊖` compute in
+/// the first copy's frame, its map as placed, and the result's
+/// coordinates are the first block's own and the second's moved 2 m along
+/// `x`, exactly.
 ///
-/// *Breaks if* the test always fires: the frame stands at the copies'
-/// centre, 401.5 m out, and every coordinate moves.
+/// *Breaks if* the operation computes in the space's coordinates: every
+/// coordinate moves 400 m.
 #[test]
-fn copies_the_first_frame_conditions_compute_in_it_bit_for_bit() {
+fn an_operation_over_copies_computes_in_its_first_operands_frame_bit_for_bit() {
     let near = editor_core::Frame::translation([400.0, 0.0, 0.0]);
     let next = editor_core::Frame::translation([402.0, 0.0, 0.0]);
     for op in [
@@ -578,69 +574,24 @@ fn copies_the_first_frame_conditions_compute_in_it_bit_for_bit() {
     }
 }
 
-/// An eighth turn about `z`, then `by`.
-fn turned_an_eighth(by: [f64; 3]) -> editor_core::Frame {
-    let c = core::f64::consts::FRAC_1_SQRT_2;
-    editor_core::Frame {
-        columns: [[c, c, 0.0], [-c, c, 0.0], [0.0, 0.0, 1.0]],
-        translation: by,
-    }
-}
-
-/// **An aggregate that stands past the box about its recentred origin
-/// refuses at the door that places a copy there**: two copies turned an
-/// eighth about `z`, at `(900, 900, 0)` and `(−900, −900, 0)`. Each stands
-/// inside the box. The computing frame keeps the first copy's rotation,
-/// so the two stand about 2546 m apart along its first axis, and the
-/// second about 1273 m from the recentred origin, past the box: the `⊔`
-/// refuses at its graft of the second copy, with the session box's
-/// finding alone.
+/// **A product over copies more than the box apart refuses as its
+/// aggregate, with the box's finding**: a row of two blocks at `+900 m`
+/// and `−900 m`, each placed inside the box, read by the product whole.
+/// The gather computes in the first's frame, where the second stands
+/// 1800 m off, so its graft of the second refuses, and the product
+/// refuses as its aggregate (`ProductError::ProductInvalid`, whose
+/// findings are the session box's alone), not as a frame no source could
+/// be read into (`ProductError::Frame`, the kernel-defect recourse). The
+/// over-refusal is `work/onehome/an-operation-over-far-apart-copies-has-no-conditioned-computing-frame.md`'s.
 #[test]
-fn copies_past_the_box_about_the_recentred_origin_refuse_at_the_graft() {
-    let (doc, _, node) = copies_under(
-        "copies-past-the-recentred-box",
-        OverCopies::Assemble,
-        [
-            &turned_an_eighth([900.0, 900.0, 0.0]),
-            &turned_an_eighth([-900.0, -900.0, 0.0]),
-        ],
-    );
-    let ev = evaluated(&doc);
-    let refused = ev.node_error(node).expect("the gather refuses");
-    assert!(
-        refused.node == node
-            && matches!(
-                &refused.kind,
-                editor_core::NodeErrorKind::NotFinished { findings }
-                    if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
-            ),
-        "at the gather, with the session box's finding alone: {refused:?}"
-    );
-}
-
-/// **A product whose sources stand past the box about its recentred
-/// origin refuses as its aggregate, with the box's finding**: a block
-/// turned an eighth about `z` at `(−900, −900, 0)` and a row of two copies
-/// of it 2546 m apart along the diagonal its own `x` points along, the
-/// second at about `(900, 900, 0)`, read by the product whole. Each member stands in the
-/// box; in the kept rotation they stand about 1273 m from the centre, so
-/// the gather's graft of the second refuses, and the product refuses as
-/// its aggregate (`ProductError::ProductInvalid`, whose findings are the
-/// session box's alone), not as a frame no source could be read into.
-#[test]
-fn a_product_past_the_box_about_its_recentred_origin_refuses_as_its_aggregate() {
+fn a_product_over_copies_past_the_box_apart_refuses_as_its_aggregate() {
     let tol = Tol::witness();
-    let doc = ProfileDoc::empty(DocumentId::derive("a-product-past-the-recentred-box"), tol);
-    let (doc, source) = block(doc);
-    let (doc, copy) = editor_core::test_support::in_world(
-        doc,
-        source,
-        &turned_an_eighth([-900.0, -900.0, 0.0]),
-        tol,
+    let (doc, row) = row_in_world(
+        "a-product-past-the-box-apart",
+        &editor_core::Frame::translation([-900.0, 0.0, 0.0]),
+        1800.0,
+        2,
     );
-    let c = core::f64::consts::FRAC_1_SQRT_2;
-    let (doc, _, row) = fixture::linear(doc, copy, [c, c, 0.0], 1800.0 / c, 2);
-    let doc = product_of_family(doc, row);
     let ev = evaluated(&doc);
     assert!(
         ev.node_error(row).is_none(),
@@ -750,7 +701,7 @@ fn turned(by: [f64; 3]) -> editor_core::Frame {
 /// gathered by a `⊔` the product reads. A mirror keeps its operand's
 /// frame (`wire_mirror`), so all three hold one map: the product
 /// computes in that frame, not its space's, reading no copy through
-/// another's ([`editor_core::eval::Framed::computing_frame`]). The block spans
+/// another's ([`editor_core::eval::Framed::computing_among`]). The block spans
 /// `x ∈ [0, 1]` in its own coordinates and the mirrors `[0.4, 1.4]` and
 /// `[−0.4, 0.6]`, so every pair of the three overlaps.
 fn mirrors_in_one_turned_frame(name: &str) -> ProfileDoc {

@@ -162,10 +162,11 @@ pub enum ProductError {
     /// source is one in its own frame: a graft defect (the graft
     /// transplants each source verbatim), an image moved into the
     /// product's frame whose rounding tips a fact its source held within
-    /// the band, or an image that stands past the session box about the
-    /// frame's origin ([`crate::eval::Framed::computing_frame`]: sources
-    /// each inside the box whose hull is not, in the kept rotation). The
-    /// findings are the aggregate's, in the aggregate's keys.
+    /// the band, or an image that stands past the session box in the
+    /// product's frame (sources each inside the box but more than it
+    /// apart:
+    /// `work/onehome/an-operation-over-far-apart-copies-has-no-conditioned-computing-frame.md`).
+    /// The findings are the aggregate's, in the aggregate's keys.
     ProductInvalid {
         /// The finish's findings.
         findings: topo::NotFinished,
@@ -311,7 +312,8 @@ impl ProductError {
             Self::ProductInvalid { findings } => {
                 // Every copy is finished in its own frame, so a refusal
                 // here is a graft defect, an image's rounding, or the
-                // aggregate past the box; the findings say which.
+                // aggregate past the box in its frame; the findings say
+                // which.
                 f.write_str("the product does not finish:")?;
                 list(f, findings.as_slice())
             }
@@ -647,8 +649,8 @@ pub struct Product<T: topo::AtRestPolicy + Decide> {
     /// it and runs no census again.
     pub body: T::Finished,
     /// **The frame [`Self::body`] is in** (D10 `[placement.frame]`): the
-    /// frame the gather computed in
-    /// ([`crate::eval::Framed::computing_frame`]). Export, the façade's
+    /// frame the gather computed in, its first source's
+    /// ([`crate::eval::Framed::computing_among`]). Export, the façade's
     /// read-outs and the viewer compose it into the world through
     /// [`crate::mate::in_space`] alone.
     pub(crate) frame: crate::eval::Frame<T>,
@@ -1317,17 +1319,16 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // over the source however many solids it spans, so the carries
     // below are the same code for N as for 1.
     let mut aggregate = Body::new();
-    // The gather computes in its non-empty sources' computing frame
-    // ([`crate::eval::Framed::computing_frame`]), and grafts each into it
+    // The gather computes in its first non-empty source's frame
+    // ([`crate::eval::Framed::computing_among`]), and grafts each into it
     // through its own placement ([`crate::eval::Framed::graft_into`]).
-    let frame = crate::eval::Framed::computing_frame(
+    let frame = crate::eval::Framed::computing_among(
         sources
             .iter()
             .map(|source| &source.body)
             .filter(|body| body.body().solids().next().is_some()),
-        tol,
     )
-    .map_or(crate::eval::Frame::Own, |(_, frame)| frame);
+    .map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let mut grafted: Vec<Grafted<'_, T>> = Vec::with_capacity(sources.len());
     for source in &sources {
         let Source { node, body, .. } = source;
