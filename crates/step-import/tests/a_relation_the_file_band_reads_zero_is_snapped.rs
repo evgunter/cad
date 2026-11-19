@@ -180,6 +180,8 @@ fn filleted() -> String {
 #[test]
 fn a_fillet_off_its_planes_moves_its_axis_to_both() {
     let text = filleted();
+    // The file as written moves nothing.
+    assert!(snaps_of(&text).is_empty(), "an exact fillet is not moved");
     let [cylinder] = records(&text, "CYLINDRICAL_SURFACE")[..] else {
         panic!("one cylinder record")
     };

@@ -2013,7 +2013,18 @@ fn rooted(
     let mut unsettled = None;
     let mut unsupported: Option<String> = None;
     let mut decided = false;
-    for &e in edges {
+    // A tangency's locus first: every other carrier through a vertex on
+    // it grazes one of the tangency's two surfaces there, where a root
+    // is square-root-conditioned on the tangency's gap.
+    let tangent_first = edges
+        .iter()
+        .filter(|e| matches!(chosen[e].description, Description::Tangent))
+        .chain(
+            edges
+                .iter()
+                .filter(|e| !matches!(chosen[e].description, Description::Tangent)),
+        );
+    for &e in tangent_first {
         let c = &chosen[&e];
         let Some(carrier) = c.carrier.as_ref().filter(|_| c.intrinsic) else {
             continue;
