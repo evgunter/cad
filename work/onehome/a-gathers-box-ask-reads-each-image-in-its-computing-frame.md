@@ -28,3 +28,7 @@ home `Framed::asked_where_it_stands` (on the composed motion, or the
 result's world reach), and not of its image relative to the computing
 frame. A row there pins the ±900 m document building, and a pair past the
 box still refusing at the placements.
+
+## The twist has the same shape (delta-4 review of PR 7088)
+
+Under `EvalOptions::computing_twist` only, `twisted` (`crates/editor-core/src/eval/wire.rs:646`) moves a construction's body by its node's twist. The move (`moved(&twist, tol)`, `wire.rs:661`) asks the session box of the image in twisted coordinates. It then gives the value the twist's inverse as its frame (`wire.rs:664`), so the body stands where it did. The box is asked of where the twist put the body, not of where it stands in its space. That is the gathers' frame-artefact shape: a body inside the box can refuse under a twist that carries it out, and the twist is a test lever that should change no verdict. The fix belongs with the gathers' in #7099: ask where the value stands through `asked_where_it_stands`, not the image in the computing frame.

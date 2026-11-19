@@ -25,7 +25,19 @@ use crate::validate::ValidationError;
 /// `|coordinate|` over its own span, every one a coordinate of a point
 /// of the body.
 pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
-    match reach_of::<T, core::convert::Infallible>(body, |p| p, |_| Ok(None), Covers::Read) {
+    unmoved_reach(body, edge_world_box)
+}
+
+/// [`reach_of`] over the body as it stands, each edge's world box read
+/// by `world_box`: no map, so nothing refuses.
+fn unmoved_reach<T: Decide>(
+    body: &Body<T>,
+    world_box: impl Fn(
+        &geom_brep::EdgeCurve<T>,
+        (Point3<T>, Point3<T>),
+    ) -> Option<(Point3<T>, Point3<T>)>,
+) -> T {
+    match reach_of::<T, core::convert::Infallible>(body, |p| p, |_| Ok(None), world_box) {
         Ok(reach) => reach,
         Err(never) => match never {},
     }
@@ -55,7 +67,7 @@ pub(crate) fn body_reach_at<T: Decide>(
         body,
         |p| map.transform_point(p),
         |curve| placed_edge(&iso, curve).map(Some),
-        Covers::Read,
+        edge_world_box,
     )
 }
 
@@ -78,49 +90,36 @@ fn placed_edge<T: Decide>(
     Ok(curve.carried(carrier, curve.description().clone(), curve.authority()))
 }
 
-/// **One edge's largest `|coordinate|` from below**, its ends as they
-/// stand: its carrier's cover over its span hulled with the ends
-/// (`cover::edge_cover_over`, the image's `Body::edge_cover`), read
-/// along the world axes, or its own sampled points where the cover
-/// refuses or is withheld (`geom_brep::edge_coordinate_reach_below`).
-fn edge_reach<T: Decide>(
+/// **One edge's world box**, its ends as they stand: its carrier's
+/// cover over its span hulled with the ends (`cover::edge_cover_over`,
+/// the image's `Body::edge_cover`), read along the world axes; `None`
+/// where the cover refuses.
+fn edge_world_box<T: Decide>(
     curve: &geom_brep::EdgeCurve<T>,
     ends: (Point3<T>, Point3<T>),
-    covers: Covers,
-) -> T {
-    let world_box = match covers {
-        Covers::Read => crate::cover::edge_cover_over(curve.carrier(), curve.params(), ends)
-            .ok()
-            .map(|cover| cover.box_in(&BoxAxes::World)),
-        #[cfg(test)]
-        Covers::Withheld => None,
-    };
-    geom_brep::edge_coordinate_reach_below(curve.carrier(), curve.params(), world_box)
-}
-
-/// Whether [`reach_of`] reads each edge's cover, or withholds it so the
-/// edge reads its own sampled points (a row's lever on the fallback).
-#[derive(Clone, Copy)]
-enum Covers {
-    Read,
-    #[cfg(test)]
-    Withheld,
+) -> Option<(Point3<T>, Point3<T>)> {
+    crate::cover::edge_cover_over(curve.carrier(), curve.params(), ends)
+        .ok()
+        .map(|cover| cover.box_in(&BoxAxes::World))
 }
 
 /// **The one reach fold**, over the body's data as `place` and
 /// `curve_of` carry it into the space it is read in: each vertex's
 /// placed point, and each certified edge's largest `|coordinate|` over
-/// its span, its world box its carrier's cover over the span hulled
-/// with its two placed ends (`cover::edge_cover_over`, the image's
-/// `Body::edge_cover`). `curve_of` gives the edge as it stands there, or
-/// `None` where it stands as stored. An edge whose cover refuses reads
-/// its own sampled points (`geom_brep::edge_coordinate_reach_below`), so
-/// one missing reading never silences the rest of the body.
+/// its span (`geom_brep::edge_coordinate_reach_below`), its world box
+/// `world_box` of the edge with its two placed ends ([`edge_world_box`] in
+/// every caller but a row's). `curve_of` gives the edge as it stands
+/// there, or `None` where it stands as stored. An edge with no world box
+/// reads its own sampled points, so one missing reading never silences
+/// the rest of the body.
 fn reach_of<T: Decide, E>(
     body: &Body<T>,
     place: impl Fn(Point3<T>) -> Point3<T>,
     curve_of: impl Fn(&geom_brep::EdgeCurve<T>) -> Result<Option<geom_brep::EdgeCurve<T>>, E>,
-    covers: Covers,
+    world_box: impl Fn(
+        &geom_brep::EdgeCurve<T>,
+        (Point3<T>, Point3<T>),
+    ) -> Option<(Point3<T>, Point3<T>)>,
 ) -> Result<T, E> {
     let origin = Point3::origin();
     let mut reach = body
@@ -135,7 +134,11 @@ fn reach_of<T: Decide, E>(
         let curve = moved.as_ref().unwrap_or(stored);
         let end = |he, which| place(crate::cover::edge_end_point(body, e, he, which));
         let ends = (end(data.he_plus, "he_plus"), end(data.he_minus, "he_minus"));
-        reach = reach.max(edge_reach(curve, ends, covers));
+        reach = reach.max(geom_brep::edge_coordinate_reach_below(
+            curve.carrier(),
+            curve.params(),
+            world_box(curve, ends),
+        ));
     }
     Ok(reach)
 }
@@ -282,22 +285,16 @@ mod tests {
     fn an_uncovered_edge_leaves_the_rest_of_the_reach() {
         let tol = Tol::witness();
         let far = brick::<f64>((1.1e3, 1.1e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-        let reach = match reach_of::<f64, core::convert::Infallible>(
-            &far,
-            |p| p,
-            |_| Ok(None),
-            Covers::Withheld,
-        ) {
-            Ok(reach) => reach,
-            Err(never) => match never {},
-        };
+        let reach = unmoved_reach(&far, |_, _| None);
         assert!(reach >= 1.1e3 + 1.0, "{reach}");
     }
 
     /// **A placement's reach is its image's, to the bit**
     /// ([`body_reach_at`] against [`body_reach`] of the moved body): a
     /// brick and a sphere cap (its rim a circle arc, read off its cover)
-    /// under a motion off every axis. *Breaks if* the placed reading
+    /// under a motion off every axis, and a brick 900 m out moved back to
+    /// the origin, where an edge's unmapped ends would hull its cover 900 m
+    /// out. *Breaks if* the placed reading
     /// reads other data than the image's ask (a vertex alone, an edge's
     /// cover without its mapped ends, an unmapped carrier). A periodic
     /// cubic edge, whose stored loop and clamped reading differ, is
@@ -321,28 +318,46 @@ mod tests {
                 .unwrap()
                 .compose(geom_core::RigidMotion::rotation(axis, 0.7).unwrap())
                 .unwrap();
-        let bodies = [
-            brick::<f64>((0.0, 1.0), (0.0, 2.0), (0.0, 0.5), tol),
-            crate::test_support_fixtures::sphere_cap(0.3, tol).0,
+        // A body far out moved in toward the origin: its unmapped ends,
+        // 900 m out, would set an edge's hull past everything the image
+        // reaches.
+        let home =
+            geom_core::RigidMotion::translation(geom_core::Vec3::new(-900.0, 0.0, 0.0)).unwrap();
+        let cases = [
+            (
+                brick::<f64>((0.0, 1.0), (0.0, 2.0), (0.0, 0.5), tol),
+                motion,
+            ),
+            (crate::test_support_fixtures::sphere_cap(0.3, tol).0, motion),
+            (
+                brick::<f64>((900.0, 901.0), (0.0, 2.0), (0.0, 0.5), tol),
+                home,
+            ),
         ];
-        for body in &bodies {
+        for (body, motion) in &cases {
             let image =
-                crate::transform::map_isometry(body, &crate::Isometry::Proper(motion)).unwrap();
+                crate::transform::map_isometry(body, &crate::Isometry::Proper(*motion)).unwrap();
             assert_eq!(
-                body_reach_at(body, &motion).unwrap().to_bits(),
+                body_reach_at(body, motion).unwrap().to_bits(),
                 body_reach(&image).to_bits(),
                 "the placement reads its image's reach"
             );
         }
+        assert!(
+            body_reach(
+                &crate::transform::map_isometry(&cases[2].0, &crate::Isometry::Proper(home))
+                    .unwrap()
+            ) < 10.0,
+            "the far brick moved home reaches a few metres"
+        );
     }
 
     /// **A periodic cubic edge is placed as the image re-reads it, to the
     /// bit**: forty edges, each a span of one closed periodic cubic in a
     /// plane, the spans straddling its knots, under a motion off every
     /// axis. Each edge's reach as the placement reads it ([`placed_edge`]
-    /// then [`edge_reach`]) is its image's, the carrier mapped from its
-    /// stored loop and the view re-taken (`EdgeCurve::carried`, what
-    /// `transform::map_isometry` writes). The body-level row cannot hold
+    /// then its world box, [`edge_world_box`]) is its image's: the edge planted
+    /// in a brick and the brick mapped by `transform::map_isometry`. The body-level row cannot hold
     /// one: no body fixture has periodic cubic edges. *Breaks if* the
     /// placement maps the edge's clamped view instead, which rounds off
     /// the image's on some of the spans; the row counts those, so the
@@ -410,17 +425,29 @@ mod tests {
                 map.transform_point(carrier.eval(t0)),
                 map.transform_point(carrier.eval(t1)),
             );
-            let image = curve.carried(
-                crate::transform::map_carrier(&iso, curve.stored_carrier()).unwrap(),
-                curve.description().clone(),
-                curve.authority(),
-            );
-            let placed = edge_reach(&placed_edge(&iso, &curve).unwrap(), ends, Covers::Read);
-            let imaged = edge_reach(&image, ends, Covers::Read);
+            // The image as the transform writes it: the edge planted in a
+            // brick's arena and the brick mapped (`map_isometry`).
+            let mut host = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+            let edge = host.edges().map(|(e, _)| e).next().unwrap();
+            let key = host.get_edge(edge).unwrap().curve;
+            *host.curves.get_mut(key).unwrap() = crate::null::CurveGeom::Certified(curve.clone());
+            let moved = crate::transform::map_isometry(&host, &iso).unwrap();
+            let Some(crate::null::CurveGeom::Certified(image)) = moved.curves.get(key) else {
+                panic!("span {k}: the image holds the edge's curve");
+            };
+            let reach = |c: &geom_brep::EdgeCurve<f64>| {
+                geom_brep::edge_coordinate_reach_below(
+                    c.carrier(),
+                    c.params(),
+                    edge_world_box(c, ends),
+                )
+            };
+            let placed = reach(&placed_edge(&iso, &curve).unwrap());
+            let imaged = reach(image);
             assert_eq!(placed.to_bits(), imaged.to_bits(), "span {k}");
             let viewed = crate::transform::map_carrier(&iso, curve.carrier()).unwrap();
             let viewed = curve.carried(viewed, curve.description().clone(), curve.authority());
-            if edge_reach(&viewed, ends, Covers::Read).to_bits() != imaged.to_bits() {
+            if reach(&viewed).to_bits() != imaged.to_bits() {
                 view_differs += 1;
             }
         }

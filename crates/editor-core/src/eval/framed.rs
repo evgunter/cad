@@ -40,19 +40,25 @@
 //! condition against.
 //!
 //! **Where a body stands is asked by the door that puts it there**
-//! ([`Framed::asked_where_it_stands`]). A copy's placement and a
-//! profile's sketch frame are such doors, and so is every one-input
-//! operation whose result can stand past its operand: the mirror, whose
-//! reflection can carry the image past the box while its source stands
-//! inside it. The other one-input operations stay inside their
-//! operand's reach. Blend and chamfer round or cut at its edges, a split
-//! keeps sides of it, and a shell is the operand less its inward offset.
-//! The twist moves its body whole and asks as a move does, and a tube is
-//! built in the world and finished there. A sweep of a profile stands
-//! in the profile's sketch frame, which asks, and a sweep lifted along
-//! its profile's `z` asks where the lift stands it. A gather builds one body
-//! out of its operands, read into its computing frame
-//! ([`Framed::read_in`]), and its finish asks of that.
+//! ([`Framed::asked_where_it_stands`]). The box is a cube about the
+//! space's origin, so it holds the convex hull of any body it holds, and
+//! a result that lies within its operand's hull stands where the box
+//! already admitted its operand. The doors that ask are those whose
+//! result need not lie within that hull:
+//! - a copy's placement and a profile's sketch frame, which stand a body
+//!   by a map;
+//! - a sweep lifted along its profile's `z`, which stands it by the lift;
+//! - the mirror, whose reflection can carry the image off the operand's
+//!   hull and past the box while its source stands inside it.
+//!
+//! Every other one-input operation's result lies within its operand's
+//! hull. A blend or chamfer removes material at a convex edge and adds it
+//! at a concave one, and what it adds lies between the two faces it joins,
+//! inside their hull. A split keeps pieces of the operand. A shell is the
+//! operand less its inward offset. The twist moves its body whole and
+//! asks as a move does, and a tube is built in the world and finished
+//! there. A gather builds one body out of its operands, read into its
+//! computing frame ([`Framed::read_in`]), and its finish asks of that.
 //!
 //! Nothing here composes a body into its space's coordinates for a
 //! reader outside the model: that is `crate::mate::in_space`'s, and only
