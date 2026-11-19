@@ -110,4 +110,4 @@ At the default ε, `CAD_FUZZ_EFFORT=20` reds
 PR 7137's head. Each red is an unringed `Recedes` on a conic of radius
 280–930 m. Three seeds replayed red on the merge base `3bddaf8a60` too:
 `0xf0018fd9fa4abc02`, `0x9fc6cc9735038399`, `0xc1ab1587225e7a95`.
-PR 7137 does not change `curve_pair/pose/window/`.
+PR 7137 changes only a comment in `curve_pair/pose/window.rs`.
