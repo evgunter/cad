@@ -7,7 +7,8 @@ opened: 2026-11-02
 priority: P1
 cost: M
 refs: [6349, 6329]
-branch: oneround/conic-vertex
+branch: oneround/anchored-conic
+parent: the-section-table-admits-a-curve-on-its-resolution
 ---
 
 From the delta review of PR 6349 (the conic frame unit), 2026-11-02.
@@ -102,7 +103,7 @@ the same whether the point is read from the centre, from the vertex,
 or from the vertex summed exactly. The loss is in the minted stored
 form. Ev decided that form on PR 4812 (a minted section conic stored
 anchored on its arc, the centre derived); the unit is
-`work/honepair/the-section-table-admits-a-curve-on-its-resolution.md`,
+`work/oneround/the-section-table-admits-a-curve-on-its-resolution.md`,
 which now carries these numbers.
 
 **(c) The uncharged margins.** Thirteen sites probed; eleven misread
