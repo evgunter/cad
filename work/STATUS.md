@@ -2353,7 +2353,7 @@ prefix `oneround/`; tag `(ONEROUND orchestrator)`.
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
 | P1 | `the-session-box-reach-misses-a-curved-faces-bulge` | issue | M +design | open | The session box reads a body's vertices and edges, so a curved face's far side no edge rides is missed |  |  |
-| P1 | `unsourced-levers-await-a-source` | issue | M +design | open | 74 lever arms fit none of the three sources and are pinned unsourced, awaiting Ev's ruling or a re-posing |  |  |
+| P1 | `unsourced-levers-await-a-source` | issue | M | open | 74 lever arms fit none of the three sources and are pinned unsourced, awaiting Ev's ruling or a re-posing |  | #7141 |
 | P1 | `a-chart-walks-area-clearing-its-bound-restates-rounded-room` | issue | E | dispatched | A chart walk's area clearing its error bound restates Rounded's room on a type of its own |  |  |
 | P1 | `a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex` | issue | M | dispatched | A near-graze conic point is summed from its far centre, so its rounding is ~u·ρ; evaluated from the arc's vertex it is ~u·ρ·θ² and certifies the near-gap poses PR 6349 now refuses |  |  |
 | P1 | `a-lever-carries-a-callers-length-through-its-geometric-constructors` | issue | M | dispatched | A Lever can carry any length a caller writes through its geometric constructors, against the README's 'never from a length a caller vouches for' |  |  |
