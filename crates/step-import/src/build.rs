@@ -429,12 +429,6 @@ fn pair_names(a: &Surface<f64>, b: &Surface<f64>) -> String {
     format!("its {} and its {}", a.kind().name(), b.kind().name())
 }
 
-/// The lane a relation the file band reads `Zero` and the run reads apart
-/// waits on.
-const SNAP_LANE: &str = "D7 step 3's snap catalogue, which makes a relation between surfaces \
-                         that reads Zero at the file's band exact \
-                         (`work/importgate/import-snaps-a-relation-the-file-band-reads-zero-and-the-run-reads-apart.md`)";
-
 /// The lane a pair with no section construction waits on.
 const SECTION_LANE: &str = "a section construction for this pair \
                             (`work/importgate/an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses.md`)";
@@ -657,7 +651,7 @@ fn spline_pair(
                      {verdict}",
                     pair_names(sa, sb)
                 ),
-                SNAP_LANE,
+                crate::snap::UNCATALOGUED_LANE,
             ));
         }
         Err(source) => return Err(escalated(file, id, source)),
@@ -708,7 +702,8 @@ fn analytic_pair(
     match at_file {
         // The file band builds the section; a run that builds another
         // verdict (a tangency, a pose it does not read coaxial) reads apart
-        // a relation the file states, which the snap catalogue makes exact.
+        // a relation the file states that the snap catalogue
+        // (`crate::snap`), run before this, did not make exact.
         Ok(_) => match read(eps_band) {
             Ok(Ok(carrier)) => {
                 on_description(id, spec, &carrier, file)?;
@@ -722,7 +717,7 @@ fn analytic_pair(
                      {verdict}",
                     pair_names(sa, sb)
                 ),
-                SNAP_LANE,
+                crate::snap::UNCATALOGUED_LANE,
             )),
             Err(source) => Err(escalated(file, id, source)),
         },
@@ -787,8 +782,7 @@ fn served_pair(
                      two records state twice",
                         sa.kind().name()
                     ),
-                    "one record of a non-planar surface \
-                 (`work/importgate/two-records-of-one-non-planar-surface-stay-two-at-import.md`)",
+                    crate::snap::UNCATALOGUED_LANE,
                 )),
                 Err(e) => Err(unbuilt(
                     file,
@@ -821,7 +815,7 @@ fn served_pair(
                 "the section of {} builds at the file's band and not at the run's",
                 pair_names(sa, sb)
             ),
-            SNAP_LANE,
+            crate::snap::UNCATALOGUED_LANE,
         ));
     };
     let mid = spec.carrier.mid_point(spec.t0, spec.t1);
@@ -886,7 +880,8 @@ fn served_pair(
 /// A tangency read at the file band: the tangent locus at the run, a
 /// ruling of a plane and a cylinder or of two parallel cylinders, or the
 /// parallel of a coaxial pair. A pair the run reads apart where the file
-/// reads it tangent waits on the snap catalogue.
+/// reads it tangent is one the snap catalogue (`crate::snap`), run before
+/// this, has no construction for.
 fn tangent(
     id: u64,
     spec: &EdgeSpec,
@@ -906,7 +901,7 @@ fn tangent(
                         "{} read tangent at the file's band and apart at the run's",
                         pair_names(sa, sb)
                     ),
-                    SNAP_LANE,
+                    crate::snap::UNCATALOGUED_LANE,
                 ));
             }
             Err(geom_brep::TangentLocusError::Escalated(source)) => {
@@ -941,7 +936,7 @@ fn tangent(
                             "{} read coaxial and tangent at the file's band and not at the run's",
                             pair_names(sa, sb)
                         ),
-                        SNAP_LANE,
+                        crate::snap::UNCATALOGUED_LANE,
                     )
                 } else {
                     (

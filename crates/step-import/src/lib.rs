@@ -269,6 +269,7 @@ mod interpret;
 mod knot_split;
 mod normalize;
 mod one_record;
+mod snap;
 mod parse;
 mod recognize;
 mod recognize_curve;
@@ -524,6 +525,21 @@ pub enum NormalizationKind {
         /// record lies from the other's surface.
         moved_by: f64,
     },
+    /// **A surface the snap catalogue moved** (`[import]`, D7 step 3): a
+    /// relation the file's band reads `Zero` between it and another
+    /// surface, made exact by the catalogue's construction for
+    /// `relation`, its class solved jointly (`step_import`'s `snap`).
+    /// Keyed by the surface record; its census pair is empty, since no
+    /// face, edge or vertex changes.
+    Snapped {
+        /// The surface record moved (the earliest of its faces' records).
+        surface: u64,
+        /// The relation whose construction moved it.
+        relation: SnapRelation,
+        /// The move (metres): the farthest a point of its faces moves,
+        /// read `Zero` at the file's band.
+        moved_by: f64,
+    },
     /// **A vertex the build put off its printed point** (`[import]`, D7
     /// step 2): where its description fixes it (a root of a surface around
     /// it along a carrier through it, a pole, an apex), or, where the
@@ -561,6 +577,36 @@ pub enum NormalizationKind {
         /// deviation from the promoted curve over its whole domain.
         residual: f64,
     },
+}
+
+/// **The snap catalogue's relations** (`[import]`, D7 step 3): each one
+/// construction that makes a relation the file's band reads `Zero`
+/// exact. Two records of one surface, the catalogue's fourth relation,
+/// are [`NormalizationKind::OneRecord`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SnapRelation {
+    /// Two round surfaces on one axis: the later record moved onto the
+    /// earlier one's axis.
+    Coaxial,
+    /// A plane and a cylinder tangent along their edge: the planes kept,
+    /// the cylinder's axis translated square to itself to stand its
+    /// radius from each.
+    Tangent,
+    /// A plane and a round surface whose axis runs along its normal: the
+    /// later record turned about where the axis meets the plane.
+    AxisNormal,
+}
+
+impl SnapRelation {
+    /// The relation's name, as a refusal states it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Coaxial => "coaxial",
+            Self::Tangent => "tangent",
+            Self::AxisNormal => "axis-normal",
+        }
+    }
 }
 
 /// The K row a placement frame's two directions are decided under where

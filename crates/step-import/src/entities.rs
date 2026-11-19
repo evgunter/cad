@@ -275,6 +275,9 @@ pub(crate) struct Resolver<'a> {
     /// one interpretation budget, spent by every reading that decides
     /// what the file means ([`interpret`]).
     budget: interpret::FileBand,
+    /// The run's tolerance, which the snap catalogue reads an exact
+    /// relation at ([`crate::snap`]).
+    tol: geom_core::Tol,
     /// The next unused entity id, for the structure normalizations that
     /// mint topology the file does not carry (Leg C's edge-free
     /// sphere). Seeded past every id in the file, so a minted vertex or
@@ -2097,6 +2100,15 @@ impl<'a> Resolver<'a> {
             self.budget,
             &mut self.normalizations.borrow_mut(),
         )?;
+        // Each relation the file band reads Zero between two surfaces,
+        // made exact by the snap catalogue.
+        crate::snap::snap(
+            &mut solid,
+            &records,
+            self.budget,
+            self.tol,
+            &mut self.normalizations.borrow_mut(),
+        )?;
         // The reported structure normalizations for periodic faces the
         // kernel cannot represent as stated (Leg C).
         normalize::normalize_shell(
@@ -3393,6 +3405,7 @@ fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
         length_scale: 1.0,
         angle_scale: 1.0,
         budget: interpret::FileBand::unread(),
+        tol: geom_core::Tol::witness(),
         next_id: std::cell::Cell::new(0),
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
@@ -3443,6 +3456,7 @@ pub(crate) fn resolve(
         // nothing to import, and `MissingUncertainty` is raised after
         // it, when a body really was on the table.
         budget: interpret::FileBand::of_import(eps_in, eps_override.is_some(), tol)?,
+        tol,
         // Past every stated id, so minted topology cannot collide.
         next_id: std::cell::Cell::new(
             file.data

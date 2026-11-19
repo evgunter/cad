@@ -101,6 +101,8 @@ mod mesh8r2_probes;
 mod nurbs_import;
 #[path = "onb_wild_normal_census.rs"]
 mod onb_wild_normal_census;
+#[path = "a_relation_the_file_band_reads_zero_is_snapped.rs"]
+mod a_relation_the_file_band_reads_zero_is_snapped;
 #[path = "two_records_of_one_round_surface_become_one.rs"]
 mod two_records_of_one_round_surface_become_one;
 #[path = "one_record_reads_facing_at_the_faces.rs"]
