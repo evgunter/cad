@@ -139,4 +139,4 @@ if base_path:
         if pin > was:
             out.append(f'RAISED {key}: {was} -> {pin}')
 
-print('\n'.join(out + [f'TOTAL {sum(counts.values())}']))
+print('\n'.join([*out, f'TOTAL {sum(counts.values())}']))
