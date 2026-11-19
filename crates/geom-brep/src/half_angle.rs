@@ -1322,6 +1322,138 @@ mod subdivision_guard_rows {
         );
     }
 
+    /// **The piece's slope is the lever, not the root's unbounded one.**
+    /// `F = sin(θ − 0.3)` read locally; within `10⁻⁶` of a root the jet
+    /// reads `F′` as `2.9 cos` under a bound of `3`, which holds the
+    /// true slope of `±1` and does not hold `F′` off zero. A residual bound
+    /// of `2·10⁻⁹` over the piece's least slope (about `0.96`) is an arc
+    /// of two zero bands, which is not inside the band, so the meter
+    /// refuses. Read on the root's own value (`2.9`) or its magnitude
+    /// (`5.9`), the arc is under one band and the roots are certified on
+    /// a slope the reading does not hold.
+    #[test]
+    fn a_root_slope_inside_its_bound_is_not_read_as_the_lever() {
+        let eps = 1e-9;
+        let a = 0.3;
+        let jet = |t: f64| {
+            let (s, c) = (t - a).sin_cos();
+            let (off, wide) = if s.abs() < 1e-6 {
+                (1.9 * c.signum(), 3.0)
+            } else {
+                (0.0, 0.0)
+            };
+            [(s, 0.0), (c + off, wide), (-s, 0.0), (-c, 0.0)]
+                .map(|(value, error)| Rounded { value, error })
+        };
+        let frame = SubdivisionFrame {
+            t0: -0.5,
+            t1: 0.5,
+            speed_hi: 1.0,
+            noise: 0.0,
+            f_per_metre: 1.0,
+            f_per_metre_hi: 1.0,
+            residual_reach: None,
+        };
+        let residual = |t: f64| Rounded {
+            value: (t - a).sin(),
+            error: 2e-9,
+        };
+        let got = certified_subdivision(
+            Terms::Local(Local {
+                at: &jet,
+                fourth: 1.0,
+                degree: 1,
+            }),
+            &|t: f64| (t - a).sin(),
+            &frame,
+            &ROWS,
+            Some(&RootSlack {
+                row: "half_angle_guard_root_slack",
+                residual: &residual,
+                f_per_metre_hi: 1.0,
+            }),
+            Band::new(eps, 10.0 * eps).unwrap(),
+        );
+        assert!(
+            matches!(
+                got,
+                Err(RootRefusal::Unsettled(Unsettled::Meter {
+                    row: "half_angle_guard_root_slack"
+                }))
+            ),
+            "{got:?}: a slack of two bands on the piece's slope is certified"
+        );
+    }
+
+    /// **At `Interval`, a root slope whose enclosure holds zero is
+    /// metered on the piece too.** `F = sin(θ − 0.3)` read locally, the
+    /// jet's `F′` an enclosure `cos ± 2` within `10⁻⁶` of a root: it holds
+    /// zero, so it is no divisor, though each piece's midpoint reads `F`
+    /// monotone. The slack is the residual's bound over the piece's least
+    /// slope: `10⁻¹²` is inside the band and the roots are certified;
+    /// `10⁻⁷` refuses the meter. Divided by that enclosure, the window's
+    /// width is the whole line and the first refuses too.
+    #[test]
+    fn at_interval_a_root_slope_holding_zero_is_metered_on_the_piece() {
+        use geom_core::{Bounds, Interval, Real};
+        let eps = 1e-9;
+        let a = Interval::from_f64(0.3);
+        let zero = Interval::zero();
+        let jet = |t: Interval| {
+            let (s, c) = (t - a).sin_cos();
+            let c = if s.abs().hi() < 1e-6 {
+                c + Interval::from_bounds(-2.0, 2.0)
+            } else {
+                c
+            };
+            [s, c, zero - s, zero - c].map(|value| Rounded { value, error: zero })
+        };
+        let metered = |bound: f64| {
+            let frame = SubdivisionFrame {
+                t0: Interval::from_f64(-0.5),
+                t1: Interval::from_f64(0.5),
+                speed_hi: Interval::one(),
+                noise: zero,
+                f_per_metre: Interval::one(),
+                f_per_metre_hi: Interval::one(),
+                residual_reach: None,
+            };
+            let residual = |t: Interval| Rounded {
+                value: (t - a).sin_cos().0,
+                error: Interval::from_f64(bound),
+            };
+            certified_subdivision(
+                Terms::Local(Local {
+                    at: &jet,
+                    fourth: Interval::one(),
+                    degree: 1,
+                }),
+                &|t: Interval| (t - a).sin_cos().0,
+                &frame,
+                &ROWS,
+                Some(&RootSlack {
+                    row: "half_angle_guard_root_slack",
+                    residual: &residual,
+                    f_per_metre_hi: Interval::one(),
+                }),
+                Band::new(eps, 10.0 * eps).unwrap(),
+            )
+        };
+        match metered(1e-12) {
+            Ok(Roots::Certified(found)) => assert_eq!(found.count(), 2, "{:?}", found.roots()),
+            other => panic!("{other:?} for a slack inside the band on the piece's slope"),
+        }
+        assert!(
+            matches!(
+                metered(1e-7),
+                Err(RootRefusal::Unsettled(Unsettled::Meter {
+                    row: "half_angle_guard_root_slack"
+                }))
+            ),
+            "a slack of ten bands on the piece's slope is certified"
+        );
+    }
+
     /// **An odd count is not certified.** The harmonics read `sin θ`; the
     /// residual is `−1` from `θ = −0.05` to `0.4` and `sin θ` elsewhere —
     /// a disagreement no declared noise covers — so its one sign change
