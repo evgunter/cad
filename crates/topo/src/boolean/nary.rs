@@ -87,6 +87,16 @@ pub struct NaryMember<'m, T: crate::props::AtRestPolicy> {
     pub inputs: &'m MemberInputs,
 }
 
+/// **A member of an n-ary Boolean where it stands** ([`nary_placed`]):
+/// its finished body placed in the run's computing frame
+/// ([`super::Placed`]), and its records and rank.
+pub struct NaryPlaced<'m, 'i, T: crate::props::AtRestPolicy> {
+    /// The member, placed.
+    pub placed: super::Placed<'m, T::Finished>,
+    /// Its records and rank.
+    pub inputs: &'i MemberInputs,
+}
+
 /// **The member pairs certified apart** before any judgement runs:
 /// each `(a, b)`, `a < b`, a pair whose two bodies are rigid images of
 /// one body that its separation certificate separates
@@ -547,6 +557,72 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
 ///
 /// As [`nary_boolean`].
 pub fn nary_boolean_apart<T: Decide + Bounds + AtRestPolicy>(
+    op: NaryOp,
+    members: &[NaryMember<'_, T>],
+    apart: &Apart,
+    sweep: SweepStrategy,
+    tol: Tol,
+) -> NaryRun<T> {
+    let placed: Vec<NaryPlaced<'_, '_, T>> = members
+        .iter()
+        .map(|m| NaryPlaced {
+            placed: super::Placed::own(m.body),
+            inputs: m.inputs,
+        })
+        .collect();
+    nary_placed(op, &placed, apart, sweep, tol)
+        .map(|(run, _)| run)
+        .unwrap_or_else(|_| unreachable!("a member in the computing frame is taken unmoved"))
+}
+
+/// **The members an n-ary run read**, each in the run's computing frame
+/// ([`nary_placed`]): a member in that frame as it is held, else its
+/// image there. A namer that compares the result's points with a
+/// member's reads them here, where the run read them.
+pub type NaryTaken<'m, T> = Vec<std::borrow::Cow<'m, <T as AtRestPolicy>::Finished>>;
+
+/// **[`nary_boolean_apart`] over placed members**: each taken into the
+/// run's computing frame by its placement ([`super::Placed::taken`], in
+/// member order), then the run over them, returned with the members it
+/// read ([`NaryTaken`]). The moves are the door's, so a member's data is
+/// read into another's frame here and nowhere in its caller;
+/// [`nary_boolean_apart`] is this door over members already in the
+/// computing frame.
+///
+/// # Panics
+///
+/// As [`nary_boolean`].
+///
+/// # Errors
+///
+/// The first member whose image past the session box refuses its move,
+/// by its place in `members`, with the box's finding.
+pub fn nary_placed<'m, T: Decide + Bounds + AtRestPolicy>(
+    op: NaryOp,
+    members: &[NaryPlaced<'m, '_, T>],
+    apart: &Apart,
+    sweep: SweepStrategy,
+    tol: Tol,
+) -> Result<(NaryRun<T>, NaryTaken<'m, T>), (usize, crate::NotFinished)> {
+    let taken = members
+        .iter()
+        .enumerate()
+        .map(|(i, m)| m.placed.taken(tol).map_err(|refusal| (i, refusal)))
+        .collect::<Result<Vec<_>, _>>()?;
+    let read: Vec<NaryMember<'_, T>> = taken
+        .iter()
+        .zip(members)
+        .map(|(body, m)| NaryMember {
+            body: &**body,
+            inputs: m.inputs,
+        })
+        .collect();
+    let run = run_taken(op, &read, apart, sweep, tol);
+    Ok((run, taken))
+}
+
+/// [`nary_placed`]'s run, over members taken into the computing frame.
+fn run_taken<T: Decide + Bounds + AtRestPolicy>(
     op: NaryOp,
     members: &[NaryMember<'_, T>],
     apart: &Apart,

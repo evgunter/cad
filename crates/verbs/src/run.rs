@@ -9,8 +9,8 @@ use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
     BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords, GlueVerdict,
-    NaryMember, NaryRun, ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart,
-    SplitResult, SweepStrategy, nary_boolean_apart, split,
+    NaryRun, ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult,
+    SweepStrategy, split,
 };
 
 use crate::verb::{Blend, Boolean, Members, Shell, Split, Sweep};
@@ -342,23 +342,29 @@ impl Members {
     /// **Run this union or intersect over its member bodies**, in list
     /// order, one body per member of the payload.
     ///
-    /// The bodies come in borrowed and finished, as at
-    /// [`Boolean::run_pair`]. What comes back is the kernel's own run
+    /// The bodies come in borrowed, finished and placed, as at
+    /// [`Boolean::run_pair`] (`topo::nary_placed` moves each one not in
+    /// the computing frame). What comes back is the kernel's own run
     /// (`topo::NaryRun`): every judgement and every fold step, each a
     /// pair boolean's body and record, which a consumer names from, and
-    /// how the operation ended. A refusal is carried there verbatim
-    /// (`NaryEnd::Refused`), after what ran before it, so this door has
-    /// no refusal of its own.
+    /// how the operation ended, with the members it read in its computing
+    /// frame (`topo::NaryTaken`). A refusal is carried there verbatim
+    /// (`NaryEnd::Refused`), after what ran before it.
     ///
     /// # Panics
     ///
     /// Where `bodies` does not hold one body per member: a wiring bug.
-    pub fn run_members<F: topo::FinishedBody>(
+    ///
+    /// # Errors
+    ///
+    /// The first member whose image past the session box refuses its
+    /// move, by its place, with the box's finding.
+    pub fn run_members<'m, F: topo::FinishedBody>(
         &self,
-        bodies: &[&F],
+        bodies: &[topo::Placed<'m, F>],
         sweep: SweepStrategy,
         tol: Tol,
-    ) -> NaryRun<F::Scalar>
+    ) -> Result<(NaryRun<F::Scalar>, topo::NaryTaken<'m, F::Scalar>), (usize, topo::NotFinished)>
     where
         F::Scalar: DoorScalar,
     {
@@ -370,12 +376,12 @@ impl Members {
                 bodies.len()
             );
         }
-        let members: Vec<NaryMember<'_, F::Scalar>> = bodies
+        let members: Vec<topo::NaryPlaced<'m, '_, F::Scalar>> = bodies
             .iter()
             .zip(members)
-            .map(|(&body, inputs)| NaryMember { body, inputs })
+            .map(|(&placed, inputs)| topo::NaryPlaced { placed, inputs })
             .collect();
-        nary_boolean_apart(*op, &members, apart, sweep, tol)
+        topo::nary_placed(*op, &members, apart, sweep, tol)
     }
 }
 

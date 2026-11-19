@@ -33,12 +33,15 @@
 //! the at-rest quieting rule) takes the other through
 //! [`Framed::seat`]: its body as it stands and the relative motion each
 //! datum it takes off it goes through ([`topo::Seat`]). An operation
-//! that builds one body out of its operands reads them into its frame
-//! whole: the fold and the cut through [`Framed::read_into`], each gather
-//! of copies into one aggregate (the `⊔`, a distribute's assembly, the
-//! product) through [`Framed::graft_into`], which moves the copy's data
-//! into the aggregate's and asks the session box of the image. Every
-//! such move is counted once, at [`Framed::moving_into`].
+//! that builds one body out of its operands hands them to the kernel's
+//! door where they stand, and the door moves each one not in its
+//! computing frame: the Boolean pair, the n-ary fold and the at-rest
+//! intersection through a placed operand ([`topo::Placed`],
+//! `topo::boolean_placed`, `topo::nary_placed`), each gather of copies
+//! into one aggregate (the `⊔`, a distribute's assembly, the product)
+//! through [`Framed::graft_into`], which moves the copy's data into the
+//! aggregate's and asks the session box of the image. Every such motion
+//! is counted once, at [`Framed::moving_into`].
 //!
 //! A construction computes in its own coordinates ([`Frame::Own`]). A
 //! one-input construction over a body — blend, shell, split, mirror —
@@ -508,7 +511,8 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     /// `None` where the two are one frame, counted as the one rigid map
     /// it costs where it is a motion (`counters::rigid_map`): the one
     /// home of that count, for every door that moves a body between
-    /// frames ([`Self::read_into`], [`Self::graft_into`]).
+    /// frames ([`Self::graft_into`], and every placed operand a
+    /// Boolean door is handed).
     ///
     /// # Errors
     ///
@@ -555,35 +559,5 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
             }
             topo::boolean::PlacedGraftError::Graft(e) => GraftIn::Graft(Box::new(e)),
         })
-    }
-}
-
-impl<T: topo::AtRestPolicy> Framed<T> {
-    /// **This body in `frame`'s coordinates**, for an operation that
-    /// builds one body out of several: what it holds, as it holds it,
-    /// where it is in that frame; else what it holds moved once
-    /// ([`Frame::relative`], [`Held::moved`]), of the same kind: a
-    /// finished body stays finished, its verdict carried. A reader that
-    /// only relates two operands takes [`Self::seat`] instead.
-    ///
-    /// # Errors
-    ///
-    /// The relative map's overflow, or the move's one refusal: the image
-    /// reaches past the session box.
-    pub(crate) fn read_into(
-        &self,
-        frame: &Frame<T>,
-        tol: Tol,
-    ) -> Result<Held<T>, super::NodeErrorKind> {
-        match self
-            .moving_into(frame)
-            .map_err(super::NodeErrorKind::Motion)?
-        {
-            None => Ok(self.body.clone()),
-            Some(map) => self
-                .body
-                .moved(&map, tol)
-                .map_err(|findings| super::NodeErrorKind::NotFinished { findings }),
-        }
     }
 }

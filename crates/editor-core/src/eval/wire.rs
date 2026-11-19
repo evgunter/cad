@@ -3532,14 +3532,14 @@ struct MemberRead<T: topo::AtRestPolicy + Decide> {
 }
 
 /// **One member of a union or an intersect, as the fold reads it**:
-/// a [`MemberRead`] read into the frame the fold computes in, its body
-/// finished there.
+/// a [`MemberRead`] taken, its body finished in its own frame; the fold
+/// places it in its computing frame.
 #[derive(Clone)]
 struct Member<T: topo::AtRestPolicy + Decide> {
     read: crate::VarId,
-    /// Where it stands, in the frame the fold computes in.
+    /// Where it stands: its body in its own frame.
     framed: super::Framed<T>,
-    /// Its finished body, in that frame.
+    /// Its finished body, in its own frame.
     body: Arc<T::Finished>,
     table: Arc<NameTable>,
     /// What its body carries ([`MemberRead::carry`]).
@@ -3547,31 +3547,17 @@ struct Member<T: topo::AtRestPolicy + Decide> {
 }
 
 impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
-    /// **This member read into `computing`'s frame and taken**: what it
-    /// holds where the two are one frame, else what it holds moved once
-    /// at the placement's door ([`super::Framed::read_into`]); taken as the
-    /// Boolean takes it ([`super::Held::finished`]).
-    ///
-    /// `frame_of` is the operand whose frame `computing` is
-    /// ([`super::Framed::computing_among`]): a refusal of
-    /// an image the read moved names it beside this member
-    /// ([`NodeErrorKind::UnfinishedLeaf`]'s `into`).
-    fn taken_in(
-        &self,
-        (computing, frame_of): (&super::Frame<T>, RecipeNodeId),
-        tol: Tol,
-    ) -> Result<Member<T>, NodeErrorKind> {
-        let read = self.framed.read_into(computing, tol)?;
-        let own = read.same(self.framed.holding());
-        let into = (!own).then_some(frame_of);
-        let body = read
+    /// **This member taken** as the Boolean takes it
+    /// ([`super::Held::finished`]), in its own frame: the fold places it
+    /// in its computing frame and the n-ary door moves it there
+    /// (`topo::nary_placed`), so its record is what is finished.
+    fn taken(&self, tol: Tol) -> Result<Member<T>, NodeErrorKind> {
+        let body = self
+            .framed
+            .holding()
             .finished(tol)
-            .map_err(NodeErrorKind::unfinished_in(self.node, into))?;
-        let framed = if own {
-            self.framed.clone()
-        } else {
-            super::Framed::in_frame(Arc::clone(&body), computing.clone())
-        };
+            .map_err(NodeErrorKind::unfinished(self.node))?;
+        let framed = self.framed.clone();
         Ok(Member {
             read: self.read,
             framed,
@@ -4158,33 +4144,28 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let empty = || Ok(OpOut::empty());
     // It computes in its first member's frame that is its space's, else
-    // its first's ([`super::Framed::computing_among`]), reading every
-    // other member into it through `relative`.
-    let (members, apart) = match members {
+    // its first's ([`super::Framed::computing_among`]), each other member
+    // placed in it through `relative` and moved there by the n-ary door.
+    let (members, apart, computing) = match members {
         [] => return empty(),
-        [one] => return lone_member(id, &one.taken_in((one.framed.frame(), one.node), tol)?),
+        [one] => return lone_member(id, &one.taken(tol)?),
         [first, ..] => {
-            let chosen = super::Framed::computing_among(members.iter().map(|m| &m.framed))
-                .unwrap_or(&first.framed);
-            let computing = chosen.frame().clone();
-            // The member whose frame it is, which a refused image names.
-            let frame_of = members
-                .iter()
-                .find(|m| core::ptr::eq(&m.framed, chosen))
-                .map_or(first.node, |m| m.node);
+            let computing = super::Framed::computing_among(members.iter().map(|m| &m.framed))
+                .unwrap_or(&first.framed)
+                .frame()
+                .clone();
             let apart = match op {
                 BooleanOp::Union => images_apart(members, &computing, tol)?,
                 BooleanOp::Intersect | BooleanOp::Subtract => topo::Apart::default(),
             };
             let finished = members
                 .iter()
-                .map(|m| m.taken_in((&computing, frame_of), tol))
+                .map(|m| m.taken(tol))
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-            (finished, apart)
+            (finished, apart, computing)
         }
     };
     let members = members.as_slice();
-    let first = &members[0];
     let own: Vec<(crate::VarId, &NameTable)> =
         members.iter().map(|m| (m.read, m.table.as_ref())).collect();
     // Every member's read-keyed view, taken once for the fold. The FIRST
@@ -4214,22 +4195,57 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             "union {id:?} lowers a subtract, though a subtract is a pair (`wire_subtract`)"
         ),
     };
-    let bodies: Vec<&T::Finished> = members.iter().map(|m| m.body.as_ref()).collect();
+    // Each member where it stands in the computing frame; the door moves
+    // each one not in it.
+    let bodies = members
+        .iter()
+        .map(|m| {
+            Ok(
+                match m
+                    .framed
+                    .moving_into(&computing)
+                    .map_err(NodeErrorKind::Motion)?
+                {
+                    None => topo::Placed::own(m.body.as_ref()),
+                    Some(map) => topo::Placed::at(m.body.as_ref(), map),
+                },
+            )
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     // The kernel runs every judgement and step first, and the run holds
     // what it ran before it stopped. Each is named here in the order it
     // ran, so the first defect in that order is the one announced: a
     // naming refusal of an earlier judgement or step comes before a
     // later one's refusal or empty result (`[failure.taxonomy]`).
-    let topo::NaryRun {
-        judgements,
-        steps,
-        pairwise,
-        end,
-    } = {
+    let (
+        topo::NaryRun {
+            judgements,
+            steps,
+            pairwise,
+            end,
+        },
+        taken,
+    ) = {
         let mut run = (verb.members)(nary, inputs);
         run.apart = apart;
         run.run_members(&bodies, boolean_sweep, tol)
+            .map_err(|(_, findings)| NodeErrorKind::NotFinished { findings })?
     };
+    // Each member as the run read it, in the computing frame, which the
+    // names below compare the result's points with.
+    let members: Vec<Member<T>> = members
+        .iter()
+        .zip(taken)
+        .map(|(m, read)| Member {
+            body: match read {
+                std::borrow::Cow::Borrowed(_) => Arc::clone(&m.body),
+                std::borrow::Cow::Owned(image) => Arc::new(image),
+            },
+            ..m.clone()
+        })
+        .collect();
+    let members = members.as_slice();
+    let first = &members[0];
     super::counters::judgements(judgements.len());
     // Two members are one pair: its one fold step IS its judgement, and
     // its refusals the pair's own. Three or more are judged pairwise
@@ -4267,7 +4283,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 &j.body.naming,
                 &j.body.body,
                 [members[j.a].read, members[j.b].read],
-                bodies[j.b],
+                bodies[j.b].body(),
             )
             .map_err(NodeErrorKind::Naming)?;
     }
@@ -4575,7 +4591,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     };
     Ok(OpOut::plain(
         ValuePayload::Boolean(BooleanValue::Body {
-            body: super::Framed::in_frame(Arc::new(body), first.framed.frame().clone()),
+            body: super::Framed::in_frame(Arc::new(body), computing.clone()),
             kind,
         }),
         table,

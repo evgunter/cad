@@ -317,7 +317,16 @@ fn members_both_ways(
         members: inputs.clone(),
         apart: topo::Apart::default(),
     }
-    .run_members(&bodies, SweepStrategy::Realized, tol());
+    .run_members(
+        &bodies
+            .iter()
+            .map(|&body| topo::Placed::own(body))
+            .collect::<Vec<_>>(),
+        SweepStrategy::Realized,
+        tol(),
+    )
+    .map(|(run, _)| run)
+    .unwrap_or_else(|(i, refusal)| panic!("member {i} is in the computing frame: {refusal}"));
     (door, via)
 }
 

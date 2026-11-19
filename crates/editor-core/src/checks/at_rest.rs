@@ -1473,14 +1473,22 @@ pub(crate) fn copy_rows<T: Decide + topo::AtRestPolicy>(
         .collect()
 }
 
-/// **Each copy of a product as the intersection takes it**, read once
-/// per localization however many interfering pairs it is in: a finished
-/// body in the product's frame. A copy in another frame is what its
-/// source holds, moved, its verdict carried (`Held::moved`); a finished
-/// copy is taken as it is, and a leaf is finished here, once.
+/// A copy as the intersection takes it: finished in its own frame, and
+/// the motion into the product's frame, `None` where it is in it.
+type Taken = (
+    Arc<topo::AtRestBody<f64>>,
+    Option<geom_core::RigidMotion<f64>>,
+);
+
+/// **Each copy of a product as the intersection takes it**, taken once
+/// per localization however many interfering pairs it is in: its body
+/// finished in its own frame (a finished copy as it is, a leaf finished
+/// here, once), and its motion into the product's frame. Each pair hands
+/// the two to the placed door, which moves them
+/// ([`topo::boolean_placed`]).
 struct Operands<'p> {
     product: &'p Product<f64>,
-    read: Vec<std::cell::OnceCell<Result<Arc<topo::AtRestBody<f64>>, String>>>,
+    read: Vec<std::cell::OnceCell<Result<Taken, String>>>,
 }
 
 impl<'p> Operands<'p> {
@@ -1495,16 +1503,28 @@ impl<'p> Operands<'p> {
         }
     }
 
-    /// Copy `i` in the product's frame, finished, or why it is not.
-    fn get(&self, i: usize, tol: Tol) -> &Result<Arc<topo::AtRestBody<f64>>, String> {
+    /// Copy `i` finished in its own frame with its motion into the
+    /// product's, or why it is not.
+    fn get(&self, i: usize, tol: Tol) -> &Result<Taken, String> {
         self.read[i].get_or_init(|| {
-            self.product.copies[i]
-                .body
-                .read_into(&self.product.frame, tol)
-                .map_err(|kind| kind.to_string())?
+            let copy = &self.product.copies[i].body;
+            let motion = copy
+                .moving_into(&self.product.frame)
+                .map_err(|motion| crate::eval::NodeErrorKind::Motion(motion).to_string())?;
+            let body = copy
+                .holding()
                 .finished(tol)
-                .map_err(|refused| refused.to_string())
+                .map_err(|refused| refused.to_string())?;
+            Ok((body, motion))
         })
+    }
+}
+
+/// `taken` placed in the product's frame.
+fn placed((body, motion): &Taken) -> topo::Placed<'_, topo::AtRestBody<f64>> {
+    match motion {
+        None => topo::Placed::own(&**body),
+        Some(motion) => topo::Placed::at(&**body, *motion),
     }
 }
 
@@ -1528,10 +1548,19 @@ fn intersection(
             });
         }
     };
-    match topo::intersect(&**body_a, &**body_b, tol) {
+    match topo::boolean_placed(
+        topo::BooleanOp::Intersect,
+        (placed(body_a), placed(body_b)),
+        &topo::BooleanInputs::default(),
+        topo::SweepStrategy::Realized,
+        tol,
+    ) {
         Ok(topo::BooleanResult::Body(result)) => Ok(Some(result)),
         Ok(topo::BooleanResult::Empty) => Ok(None),
-        Err(refusal) => Err(Unlocalized::Refused {
+        Err(topo::PlacedBooleanError::Placed(findings)) => Err(Unlocalized::Refused {
+            refusal: crate::eval::NodeErrorKind::NotFinished { findings }.to_string(),
+        }),
+        Err(topo::PlacedBooleanError::Boolean(refusal)) => Err(Unlocalized::Refused {
             refusal: refusal.render(geom_brep::recourse::Reading::Build),
         }),
     }

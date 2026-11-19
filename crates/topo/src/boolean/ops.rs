@@ -746,7 +746,9 @@ where
 /// the tree only changes candidate GENERATION, so both strategies
 /// produce bit-identical results; the differential suite runs full
 /// ops through both and pins exactly that. Production wrappers pass
-/// [`SweepStrategy::Realized`].
+/// [`SweepStrategy::Realized`]. It is the placed door
+/// ([`boolean_placed`]) over two operands already in the computing
+/// frame, so the two are one implementation.
 ///
 /// # Panics
 ///
@@ -768,24 +770,32 @@ pub fn boolean_op_with<F: crate::FinishedBody>(
 where
     F::Scalar: Decide + Bounds,
 {
-    if op == BooleanOp::Subtract
-        && let Some(result) = super::nary::cut_by_material(a, b, inputs, strategy, tol)?
-    {
-        return Ok(result);
-    }
-    boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
+    boolean_placed(op, (Placed::own(a), Placed::own(b)), inputs, strategy, tol).map_err(|refusal| {
+        match refusal {
+            PlacedBooleanError::Boolean(error) => error,
+            PlacedBooleanError::Placed(_) => {
+                unreachable!("an operand in the computing frame is taken unmoved")
+            }
+        }
+    })
 }
 
 /// **A finished operand where it stands** (`[placement.frame]`): its
-/// body as it is held, and the motion from its coordinates into the
-/// operation's computing frame, `None` where it is in that frame. The
-/// door that takes it is the one that moves it
-/// ([`Placed::taken`]), so a caller reads no operand into another's
-/// frame itself.
+/// seat ([`crate::Seat`]: its body untouched and the motion into the
+/// operation's computing frame, `None` where it is in that frame), and
+/// the finished body the seat reads. The door that takes it is the one
+/// that moves it ([`Placed::taken`]), so a caller reads no operand into
+/// another's frame itself.
+///
+/// The placement is the seat's: a seat holds the body as construction
+/// data (`&Body`), which a reader needs and a move does not carry, so
+/// the finished body whose verdicts the move carries
+/// ([`crate::FinishedBody::moved`]) rides beside it, the seat reading
+/// that same body.
 #[derive(Debug)]
 pub struct Placed<'a, F: crate::FinishedBody> {
-    body: &'a F,
-    motion: Option<geom_core::RigidMotion<F::Scalar>>,
+    held: &'a F,
+    seat: crate::Seat<'a, F::Scalar>,
 }
 
 impl<F: crate::FinishedBody> Clone for Placed<'_, F> {
@@ -797,45 +807,49 @@ impl<F: crate::FinishedBody> Clone for Placed<'_, F> {
 impl<F: crate::FinishedBody> Copy for Placed<'_, F> {}
 
 impl<'a, F: crate::FinishedBody> Placed<'a, F> {
-    /// `body` in the computing frame already.
+    /// `held` in the computing frame already.
     #[must_use]
-    pub fn own(body: &'a F) -> Self {
-        Self { body, motion: None }
-    }
-
-    /// `body` under `motion` into the computing frame.
-    #[must_use]
-    pub fn at(body: &'a F, motion: geom_core::RigidMotion<F::Scalar>) -> Self {
+    pub fn own(held: &'a F) -> Self {
         Self {
-            body,
-            motion: Some(motion),
+            held,
+            seat: crate::Seat::own(held),
         }
     }
 
-    /// The body as it is held.
+    /// `held` under `motion` into the computing frame.
     #[must_use]
-    pub fn body(&self) -> &'a F {
-        self.body
+    pub fn at(held: &'a F, motion: geom_core::RigidMotion<F::Scalar>) -> Self {
+        Self {
+            held,
+            seat: crate::Seat::at(held, motion),
+        }
     }
 
-    /// The motion into the computing frame, `None` where it is in it.
+    /// The finished body as it is held.
     #[must_use]
-    pub fn motion(&self) -> Option<&geom_core::RigidMotion<F::Scalar>> {
-        self.motion.as_ref()
+    pub fn body(&self) -> &'a F {
+        self.held
+    }
+
+    /// Its seat: the body as it stands and the motion into the computing
+    /// frame.
+    #[must_use]
+    pub fn seat(&self) -> crate::Seat<'a, F::Scalar> {
+        self.seat
     }
 
     /// **The operand in the computing frame**: its body as it is held
-    /// where it is in that frame, else moved once through its motion
-    /// ([`crate::FinishedBody::moved`]: its verdict carried, the
+    /// where it is in that frame, else moved once through its seat's
+    /// motion ([`crate::FinishedBody::moved`]: its verdict carried, the
     /// session box asked of the image).
     ///
     /// # Errors
     ///
     /// The move's refusal: the image reaches past the session box.
     pub fn taken(&self, tol: Tol) -> Result<std::borrow::Cow<'a, F>, crate::NotFinished> {
-        match &self.motion {
-            None => Ok(std::borrow::Cow::Borrowed(self.body)),
-            Some(motion) => self.body.moved(motion, tol).map(std::borrow::Cow::Owned),
+        match self.seat.motion() {
+            None => Ok(std::borrow::Cow::Borrowed(self.held)),
+            Some(motion) => self.held.moved(motion, tol).map(std::borrow::Cow::Owned),
         }
     }
 }
@@ -858,13 +872,17 @@ pub enum PlacedBooleanError {
 
 /// **The pair Boolean over two placed operands**: each taken into the
 /// computing frame by its placement ([`Placed::taken`], `a` first), then
-/// [`boolean_op_with`] over the two. The moves are the door's, so an
-/// operand's data is read into another's frame here and nowhere in
-/// its caller.
+/// the shared pipeline over the two (module docs; a subtract whose tool
+/// is cut by material first, `nary::cut_by_material`). The moves are the
+/// door's, so an operand's data is read into another's frame here and
+/// nowhere in its caller; [`boolean_op_with`] is this door over two
+/// operands in the computing frame.
 ///
 /// # Panics
 ///
-/// As [`boolean_op_with`].
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
 ///
 /// # Errors
 ///
@@ -882,7 +900,15 @@ where
 {
     let a = a.taken(tol).map_err(PlacedBooleanError::Placed)?;
     let b = b.taken(tol).map_err(PlacedBooleanError::Placed)?;
-    boolean_op_with(op, &*a, &*b, inputs, strategy, tol).map_err(PlacedBooleanError::Boolean)
+    let (a, b) = (&*a, &*b);
+    if op == BooleanOp::Subtract
+        && let Some(result) = super::nary::cut_by_material(a, b, inputs, strategy, tol)
+            .map_err(PlacedBooleanError::Boolean)?
+    {
+        return Ok(result);
+    }
+    boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
+        .map_err(PlacedBooleanError::Boolean)
 }
 
 /// [`boolean_op_with`], its coincidences `given` where they are a fold
