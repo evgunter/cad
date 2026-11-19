@@ -4,6 +4,7 @@ kind: issue
 title: step-import: a tangent edge the writer printed as a crossing line √(2·r·gap) from the ruling the snap makes exact refuses at the build
 status: open
 opened: 2026-11-19
+priority: P2
 ---
 
 

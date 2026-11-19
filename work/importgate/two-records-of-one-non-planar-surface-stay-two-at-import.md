@@ -2,11 +2,12 @@
 id: two-records-of-one-non-planar-surface-stay-two-at-import
 kind: issue
 title: step-import: two surface records of one non-planar locus (two CYLINDRICAL_SURFACE records of one cylinder) stay two records at import
-status: open
+status: closed
 opened: 2026-11-17
 parent: adoption-rebuilds-caches-at-eps-from-eps-in-interpretation
 priority: P3
 cost: M
+closed: 2026-11-19
 ---
 
 Found by the dual review of `importgate/interp-layer` (PR 7091), which
@@ -30,3 +31,5 @@ the faces both ways through a reading that bounds a face's distance from
 the other record's surface (the cover's `distance_range` about the
 surface's own site, or the kernel's carrier-pair coincidence reading), and
 join on Zero, refuse in band.
+
+- 2026-11-19 — Closed by PR 7135 (the snap catalogue, D7 step 3).

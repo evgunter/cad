@@ -4,6 +4,7 @@ kind: issue
 title: An imported smooth join the must-carry rule answers with the pair refuses not-yet-supported
 status: open
 opened: 2026-11-18
+priority: P3
 ---
 
 

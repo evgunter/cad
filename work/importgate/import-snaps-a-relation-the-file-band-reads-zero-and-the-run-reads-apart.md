@@ -2,8 +2,9 @@
 id: import-snaps-a-relation-the-file-band-reads-zero-and-the-run-reads-apart
 kind: issue
 title: An imported relation the file band reads Zero and the run reads apart refuses until the snap catalogue makes it exact
-status: open
+status: closed
 opened: 2026-11-18
+closed: 2026-11-19
 ---
 
 
@@ -37,3 +38,5 @@ the relation the file states. Until it lands,
 
 The catalogue's snaps, applied at interpretation and reported on the
 ledger, and the `SNAP_LANE` arms built rather than refused.
+
+- 2026-11-19 — Closed by PR 7135 (the snap catalogue, D7 step 3).

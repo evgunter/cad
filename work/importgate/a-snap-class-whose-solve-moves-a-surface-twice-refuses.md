@@ -4,6 +4,7 @@ kind: issue
 title: step-import: a snap class whose solve moves a surface twice refuses; a joint solve anchored at the class's earliest record would make it
 status: open
 opened: 2026-11-19
+priority: P3
 ---
 
 

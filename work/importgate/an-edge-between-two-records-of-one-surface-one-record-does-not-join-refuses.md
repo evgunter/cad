@@ -4,6 +4,7 @@ kind: issue
 title: step-import: an edge between two records of one surface that one_record does not join (a spline or spindle record, two records facing opposite ways) refuses at the build
 status: open
 opened: 2026-11-19
+priority: P3
 ---
 
 
