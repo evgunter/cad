@@ -1262,7 +1262,7 @@ fn second_order_verdict<T: Decide>(
 ) -> Result<Decided, Indeterminate> {
     decide_reported(
         TANGENT_SECOND_ORDER,
-        Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
+        Margin::sagitta(jet.kappa_rel.abs(), arm),
         band,
     )
 }

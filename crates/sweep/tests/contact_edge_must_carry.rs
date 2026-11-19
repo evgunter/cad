@@ -171,8 +171,7 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
                 let t = sample_param(t0, t1, i);
                 let reading =
                     tangent_second_order(s1, s2, carrier.eval(t), carrier.deriv(t), extent, band);
-                let margin =
-                    Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm.length()).value();
+                let margin = Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm).value();
                 let tag = match reading.verdict.map(|d| d.sign) {
                     Ok(Sign::Positive) => "+",
                     Ok(Sign::Zero) => "0",

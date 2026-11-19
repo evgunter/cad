@@ -985,7 +985,7 @@ pub(super) fn tangent_relative_side<T: Decide>(
     match geom_brep::parting_side(
         n_ref * (graph_accel(sector_surface) - graph_accel(other_surface)),
         geom_brep::ReferenceNormal::of_face_outward(other_outward),
-        arm.length(),
+        arm,
         band,
     ) {
         Ok(EntersMaterial::Enters) => Ok(SideCode::In),
@@ -2002,7 +2002,7 @@ pub(super) fn runs_into<T: Decide>(
             let m = s.middle();
             (m - d * m.dot(d)).normalize()
         };
-        let entered = geom_brep::parting(k - kb, u, l.min(lb).length());
+        let entered = geom_brep::parting(k - kb, u, l.min(lb));
         return Ok(
             decide("bool_sector_runs_into_bend", entered, band).map_err(|diag| {
                 BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
@@ -2221,7 +2221,7 @@ fn crescent<T: Decide>(
         let along = || parallel_same_as(da, db, l, BOUNDS_PARALLEL, band);
         let run = || any_holds([&off_run as &dyn Fn() -> _, &along]);
         let opened = || {
-            let opened = geom_brep::parting(kb - ka, u, l.length());
+            let opened = geom_brep::parting(kb - ka, u, l);
             decide("bool_sector_crescent", opened, band)
                 .map_err(escalate)
                 .map(|s| s == Sign::Positive)

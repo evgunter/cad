@@ -843,7 +843,9 @@ impl<T: crate::real::Real> Lever<T> {
         self.0
     }
 
-    /// The larger of two arms: a read of the union of their extents.
+    /// The larger of two arms: a read of the union of their extents
+    /// where both are read from one pivot. Read each from its own point
+    /// and the union's reach is across both, which this does not bound.
     /// Poison propagates ([`Real::max`](crate::real::Real::max)).
     #[must_use]
     pub fn max(self, other: Self) -> Self {
@@ -934,8 +936,8 @@ impl<T: crate::real::Real> Margin<T> {
     /// the half last) is the kernel's canonical osculation shape — the
     /// interval-square rule requires `powi(2)` — so wrapping the
     /// shipped sites is bit-identical.
-    pub fn sagitta(curvature_rel: T, arm: T) -> Self {
-        Self(curvature_rel * arm.powi(2) * T::from_f64(0.5))
+    pub fn sagitta(curvature_rel: T, arm: Lever<T>) -> Self {
+        Self(curvature_rel * arm.0.powi(2) * T::from_f64(0.5))
     }
 
     /// Levered door, reciprocal form: a quantity levered by the

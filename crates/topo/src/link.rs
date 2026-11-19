@@ -248,10 +248,9 @@ pub(crate) mod metric {
         pub(crate) fn departure(d: Departure<T>, n: Vec3<T>, arm: geom_core::Lever<T>) -> Self {
             Self(match d {
                 Departure::Rise(dir) => geom_brep::rise(dir, n, arm).value(),
-                Departure::Parted(bend) => geom_brep::parting(bend, n, arm.length()).value(),
+                Departure::Parted(bend) => geom_brep::parting(bend, n, arm).value(),
                 Departure::Jet(dir, bend) => {
-                    geom_brep::rise(dir, n, arm).value()
-                        + geom_brep::parting(bend, n, arm.length()).value()
+                    geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()
                 }
                 Departure::Charge { slope, lever } => {
                     crate::bound_side::sagitta_charge(slope, lever, arm.length())
@@ -7119,7 +7118,7 @@ mod tests {
         assert!(
             door[departure.start - metric.start..departure.end - metric.start].contains(
                 "Departure::Rise(dir) => geom_brep::rise(dir, n, arm).value(),\n                \
-                 Departure::Parted(bend) => geom_brep::parting(bend, n, arm.length()).value(),"
+                 Departure::Parted(bend) => geom_brep::parting(bend, n, arm).value(),"
             ),
             "`Distance::departure` is a first-order rise or a second-order parting, and \
              nothing else"
@@ -7127,8 +7126,7 @@ mod tests {
         assert!(
             door[departure.start - metric.start..departure.end - metric.start].contains(
                 "Departure::Jet(dir, bend) => {\n                    \
-                 geom_brep::rise(dir, n, arm).value()\n                        \
-                 + geom_brep::parting(bend, n, arm.length()).value()"
+                 geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()"
             ),
             "`Distance::departure`'s jet is the rise and the parting together, and nothing else"
         );

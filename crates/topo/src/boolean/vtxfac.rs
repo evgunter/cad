@@ -1824,13 +1824,7 @@ fn ring_struts<T: Decide>(
         let (Some(x), Some(y)) = (bends[from], bends[to]) else {
             return Ok(None);
         };
-        match geom_brep::tied_germ_turn(
-            normal,
-            germs[from].0.dir,
-            [x.bend, y.bend],
-            arm.length(),
-            band,
-        ) {
+        match geom_brep::tied_germ_turn(normal, germs[from].0.dir, [x.bend, y.bend], arm, band) {
             Ok(Sign::Zero) => Ok(None),
             Ok(sign) => Ok(Some(sign)),
             Err(geom_brep::TiedGermsError::Singular) => {
