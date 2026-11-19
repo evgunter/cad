@@ -502,3 +502,36 @@ pub(crate) fn frame_z<P: crate::ProfilePayload>(
         _ => None,
     }
 }
+
+/// **The line two planes meet in, by construction** (fork 288's claim
+/// rule): where one side is a spin of the other's plane about a line
+/// that is itself a meet of that plane, the spun plane holds the line
+/// (a spin keeps its axis), and so does the plane (a meet lies in each
+/// of its planes), so the two meet in it whatever the angle. The read
+/// of that line, or `None` where the sides are not of this shape. One
+/// plane is one construction ([`pose_at`], [`Key::plane`]), not one
+/// variable, so two reads of one face are one plane.
+pub(crate) fn meet_by_construction<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    a: crate::pose::RoleRead<crate::VarId>,
+    b: crate::pose::RoleRead<crate::VarId>,
+    tol: geom_core::Tol,
+) -> Option<crate::pose::RoleRead<crate::VarId>> {
+    use crate::pose::{PoseDef, RoleRead};
+    let def = |read: RoleRead<crate::VarId>| match doc.var(read.read).map(crate::Var::def) {
+        Some(crate::var::VarDef::Pose(def)) if read.role.is_none() => Some(def),
+        _ => None,
+    };
+    let plane = |read| pose_at(doc, read, tol).map(|(at, _)| Key::plane(&at));
+    [(a, b), (b, a)].into_iter().find_map(|(held, spun)| {
+        let PoseDef::Spin { pose, about, .. } = def(spun)? else {
+            return None;
+        };
+        let held = plane(held)?;
+        (plane(*pose)? == held).then_some(())?;
+        let PoseDef::Meet { a: x, b: y } = def(*about)? else {
+            return None;
+        };
+        (plane(*x).as_ref() == Some(&held) || plane(*y).as_ref() == Some(&held)).then_some(*about)
+    })
+}

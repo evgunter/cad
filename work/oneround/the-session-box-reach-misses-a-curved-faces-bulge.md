@@ -35,3 +35,7 @@ A sphere of `r = 50` centred at `(0, 0, 975)` has a true largest `|coordinate|` 
 - **Poled on `z`** (`ball_poled_z`): the gate refuses it, `OutsideSessionBox` at margin −25, because its pole is a vertex at the top.
 
 The box reads the cube since PR 6608 (`[tolerance.units]` bounds each coordinate). It still reads only vertices and edges, so whether a curved face's extreme is caught depends on where the body's seams fall.
+
+## A split or a concave fillet of a placed copy mints edges on the bulge (delta-4 review of PR 7088)
+
+Since PR 7088, a placed copy's box is asked once, at the door that places it (`Framed::asked_where_it_stands`), of the copy's vertices and edges. An operation that then mints edges on a curved face's interior leaves those edges unasked. A split of the copy through its face, or a concave fillet whose rail crosses the face's bulge, are both one-input operations whose result lies within the operand's hull, and no door re-asks them. Where the bulge reaches past the box, the new edges stand past it with no refusal. The reach that closes this row, a face's interior extreme read from below, closes this too, if it is asked at the placing door.
