@@ -242,3 +242,4 @@ body has the reasons):
   on the three `[ev]` PRs while it lives. On a ruling it updates the
   diff in place, merges on approval, and unparks the rows that wait on
   it. Whoever holds the track next dispatches them.
+- 2026-11-19 — (ONEROUND orchestrator) Nightly 97 is red on one probe-gated row that PR 7116's door move left pinned to the old behaviour: `m10_7_r1_census_probe::r1_collinear_walls_are_unauthorable_so_cosurface_stays_a_non_identity` expects the edit door to refuse a tangent junction, which now refuses at evaluation. Filed on GREEN: `work/green/main-red-the-collinear-walls-probe-expects-the-edit-door-to-refuse-a-tangent-junction.md`.
