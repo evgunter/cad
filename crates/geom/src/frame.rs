@@ -189,6 +189,19 @@ impl<T: Real> Frame<T> {
         Self::of_motion(&self.motion.reversed())
     }
 
+    /// **The same placement with its seam turned to `u_ref`**, about its
+    /// own axis: the axis kept bit for bit and `u_ref`'s part square to it
+    /// normalized ([`RigidMotion::squared_about`]), nothing decided. The
+    /// door a seam computed in the frame's own plane re-enters through.
+    #[must_use]
+    pub fn turned_to(&self, u_ref: Vec3<T>) -> Self {
+        Self::of_motion(&RigidMotion::squared_about(
+            self.origin(),
+            self.motion.w(),
+            u_ref,
+        ))
+    }
+
     /// The same placement turned a quarter turn about its axis: `u_ref`
     /// becomes the old `v_ref`, and `v_ref` the old `−u_ref`.
     #[must_use]

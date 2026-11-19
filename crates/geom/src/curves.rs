@@ -2495,6 +2495,48 @@ mod tests {
     /// axis, and a zero component points forward. The turned seam is
     /// renormalized: a frame whose `axis × u_ref` reads 4 ulp long turns
     /// to a seam unit to within one.
+    /// **A quarter turn of an ellipse's seam keeps the merge base's
+    /// bits**: the turned seam is `v_ref` renormalized, squared to the kept
+    /// axis with nothing decided (`Ellipse::quarter_turned_where`,
+    /// `Frame::turned_to`),
+    /// not the frame's own `v` carried over as an exact permutation. The
+    /// two part by a rounding wherever `axis × u_ref` is not unit to the
+    /// bit, and a section end read a rounding over the band (sweep's
+    /// `a_section_end_reads_the_same_wherever_the_part_sits`) moves with
+    /// it. Red under `Frame::quarter_turned()`.
+    #[test]
+    fn a_quarter_turned_seam_is_the_renormalized_v_ref_bit_for_bit() {
+        let bits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
+        let mut parted = 0;
+        for k in 0..64_u32 {
+            let t = f64::from(k) * 0.173 + 0.05;
+            let axis = Vec3::new(t.sin() * 0.31, t.cos() * 0.47, 1.0);
+            let u_ref = Vec3::new(1.0, 0.2 * t.cos(), -0.3 * t.sin());
+            let e = crate::Ellipse::new(
+                crate::Frame::new(Point3::new(1.0, -2.0, 0.5), axis, u_ref),
+                5.0,
+                2.0,
+            );
+            let f = e.frame;
+            let base = f.turned_to(f.v_ref().normalize());
+            let turned = e.quarter_turned_where(1.0);
+            assert_eq!(bits(turned.frame.u_ref()), bits(base.u_ref()), "k {k}");
+            assert_eq!(
+                bits(turned.frame.axis()),
+                bits(f.axis()),
+                "k {k}: the axis is kept"
+            );
+            assert_eq!((turned.semi_u, turned.semi_v), (2.0, 5.0), "k {k}");
+            if bits(base.u_ref()) != bits(f.v_ref()) {
+                parted += 1;
+            }
+        }
+        assert!(
+            parted > 0,
+            "no pose parts the two spellings: the row pins nothing"
+        );
+    }
+
     #[test]
     fn a_reseam_goes_to_the_vertex_its_direction_names() {
         let at = |axis: Vec3<f64>, u_ref: Vec3<f64>| {
