@@ -72,11 +72,22 @@ fn graze(
     tangent: Vec3<f64>,
     (rho, depth, b): (f64, f64, f64),
 ) -> geom::Curve3<f64> {
+    let (at, axis, toward) = graze_point(on, normal, tangent, (depth, b));
+    geom::Curve3::circle(at - toward * rho, axis, rho, toward)
+}
+
+/// [`graze`]'s point at `θ = 0`, its plane's normal and the direction
+/// from its centre to that point.
+fn graze_point(
+    on: Point3<f64>,
+    normal: Vec3<f64>,
+    tangent: Vec3<f64>,
+    (depth, b): (f64, f64),
+) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
     let toward = (normal * b.cos() + normal.cross(tangent) * b.sin()).normalize();
-    geom::Curve3::circle(
-        on + normal * depth - toward * rho,
+    (
+        on + normal * depth,
         toward.cross(tangent).normalize(),
-        rho,
         toward,
     )
 }
@@ -722,23 +733,45 @@ fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
 /// at ε = 1e-9: depths 0.5–2 µm into it, four tilts, each crossing twice.
 /// `ratio` makes the carrier at a pose an ellipse of semi-axes `ρ` and
 /// `ρ·ratio`, seamed at the vertex that grazes, or a circle at `None`.
-fn near_gap_family(ratio: Option<f64>) -> Vec<geom::Curve3<f64>> {
+/// `born` is the form each is stored in: with its centre, 1500 m from
+/// the wall, or anchored at the point that grazes it.
+fn near_gap_family(ratio: Option<f64>, born: Born) -> Vec<geom::Curve3<f64>> {
+    let rho = 1500.0;
     let mut out = Vec::new();
     for depth in [
         -0.5e-6, -0.6e-6, -0.7e-6, -0.8e-6, -0.9e-6, -1e-6, -1.1e-6, -1.2e-6, -1.5e-6, -2e-6,
     ] {
-        for (g, b) in [(1.2, 0.7), (1.1, 0.7), (1.2, 0.6), (1.3, 0.8)] {
-            let c = tangent_circle(1.0, 1500.0, depth, g, b);
-            out.push(match (ratio, c) {
-                (None, c) => c,
-                (Some(k), geom::Curve3::Circle(c)) => {
-                    geom::Curve3::Ellipse(geom::Ellipse::new(c.frame, c.radius, c.radius * k))
+        for (g, b) in [(1.2_f64, 0.7), (1.1, 0.7), (1.2, 0.6), (1.3, 0.8)] {
+            let (at, axis, toward) = graze_point(
+                Point3::new(1.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, g.cos(), g.sin()),
+                (depth, b),
+            );
+            out.push(match (ratio, born) {
+                (None, Born::Centred) => tangent_circle(1.0, rho, depth, g, b),
+                (None, Born::Anchored) => {
+                    geom::Curve3::Circle(geom::Circle::anchored(at, axis, toward, rho))
                 }
-                _ => unreachable!(),
+                (Some(k), Born::Centred) => geom::Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(at - toward * rho, axis, toward),
+                    rho,
+                    rho * k,
+                )),
+                (Some(k), Born::Anchored) => {
+                    geom::Curve3::Ellipse(geom::Ellipse::anchored(at, axis, toward, rho, rho * k))
+                }
             });
         }
     }
     out
+}
+
+/// The stored form a [`near_gap_family`] carrier is born in.
+#[derive(Clone, Copy, Debug)]
+enum Born {
+    Centred,
+    Anchored,
 }
 
 /// How many of `family` the door certifies at ε = 1e-9, each certified
@@ -769,27 +802,33 @@ fn certified_near_gap(family: &[geom::Curve3<f64>]) -> usize {
         .count()
 }
 
-/// **The near-gap ρ = 1500 families keep the answers they certify**: of
-/// the 40 poses of [`near_gap_family`], the circles and the ellipses at
-/// each ratio, the door answers at least the measured count, each root
-/// true, and refuses the rest `Meter`, typed. Floors on measured counts
-/// (circle 7, ellipse 1.25 / 0.999 / 1.001 each 7, ellipse 0.8 1); the
-/// walk and its running meter read each carrier's own point, whose bound
-/// is a little wider than the ellipse-form chain an earlier reading took
-/// (17, 17 and 7 there). Red if the root-slack meter's charge grows.
+/// **The near-gap ρ = 1500 families certify by the form they are stored
+/// in**: of the 40 poses of [`near_gap_family`], the circles and the
+/// ellipses at each ratio, the door answers at least the measured count,
+/// each root true, and refuses the rest `Meter`, typed.
+///
+/// Born anchored at the point that grazes the wall, every pose of every
+/// family certifies: the walk and its running meter read each carrier's
+/// own point, which stands at its anchor's scale. Born with their
+/// centre, 1500 m off, the same poses certify 7 (circle, ellipse 1.25 /
+/// 0.999 / 1.001) and 1 (ellipse 0.8): the point is summed from terms
+/// 1500 long and the meter's bound is theirs. Red if the root-slack
+/// meter's charge grows.
 #[test]
-fn the_near_gap_families_keep_their_certified_answers() {
-    for (ratio, floor) in [
-        (None, 7),
-        (Some(1.25), 7),
-        (Some(0.999), 7),
-        (Some(1.001), 7),
-        (Some(0.8), 1),
+fn the_near_gap_families_certify_by_their_stored_form() {
+    for (ratio, centred, anchored) in [
+        (None, 7, 40),
+        (Some(1.25), 7, 40),
+        (Some(0.999), 7, 40),
+        (Some(1.001), 7, 40),
+        (Some(0.8), 1, 40),
     ] {
-        let got = certified_near_gap(&near_gap_family(ratio));
-        assert!(
-            got >= floor,
-            "{ratio:?}: {got} of 40 certified, below the measured {floor}"
-        );
+        for (born, floor) in [(Born::Centred, centred), (Born::Anchored, anchored)] {
+            let got = certified_near_gap(&near_gap_family(ratio, born));
+            assert!(
+                got >= floor,
+                "{ratio:?} born {born:?}: {got} of 40 certified, below the measured {floor}"
+            );
+        }
     }
 }

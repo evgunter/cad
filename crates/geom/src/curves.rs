@@ -1412,7 +1412,10 @@ impl<T: Decide> Curve3<T> {
         if !(geom_core::is_finite_length(semi_u) && geom_core::is_finite_length(semi_v)) {
             return Err(EllipseInvalid::SemiAxisNotFinite);
         }
-        Self::ellipse_decided(Ellipse::anchored(anchor, axis, toward, semi_u, semi_v), band)
+        Self::ellipse_decided(
+            Ellipse::anchored(anchor, axis, toward, semi_u, semi_v),
+            band,
+        )
     }
 
     /// [`Curve3::ellipse`]'s one decision, the smaller semi-axis

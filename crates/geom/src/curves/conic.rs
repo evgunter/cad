@@ -704,9 +704,9 @@ impl<T: Real> Ellipse<T> {
             // An anchored ellipse stays anchored at its seam's vertex: the
             // stored one where the seam is kept, the turned seam's, read
             // off the derived centre, where it turns.
-            anchor: self.anchor.map(|p| {
-                select_point(turn, p, turned.origin() + turned.u_ref() * self.semi_v)
-            }),
+            anchor: self
+                .anchor
+                .map(|p| select_point(turn, p, turned.origin() + turned.u_ref() * self.semi_v)),
         }
     }
 
@@ -734,9 +734,9 @@ impl<T: Real> Ellipse<T> {
         let e = self.quarter_turned_where(turn);
         Self {
             frame: Frame::select_le_zero(back, e.frame, e.frame.half_turned()),
-            anchor: e.anchor.map(|p| {
-                select_point(back, p, e.frame.origin() - e.frame.u_ref() * e.semi_u)
-            }),
+            anchor: e
+                .anchor
+                .map(|p| select_point(back, p, e.frame.origin() - e.frame.u_ref() * e.semi_u)),
             ..e
         }
     }
@@ -1022,7 +1022,12 @@ mod tests {
                         Some(bits(vertex - o)),
                         "a turned seam re-anchors at its own vertex"
                     );
-                    assert!(Ellipse::new(e.frame, a, b).seamed_near(1.4).anchor().is_none());
+                    assert!(
+                        Ellipse::new(e.frame, a, b)
+                            .seamed_near(1.4)
+                            .anchor()
+                            .is_none()
+                    );
                 }
             }
         }

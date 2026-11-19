@@ -3479,7 +3479,17 @@ mod conic_tests {
             let zero = conic.anchor().expect("born anchored");
             let zero_q = q3(zero - Point3::origin());
             for t in [
-                0.0, 1e-9, -3e-7, 1e-4, -2.5e-3, 0.04, -0.7, 1.3, 2.0, -3.1, 3.141_592_6,
+                0.0,
+                1e-9,
+                -3e-7,
+                1e-4,
+                -2.5e-3,
+                0.04,
+                -0.7,
+                1.3,
+                2.0,
+                -3.1,
+                3.141_592_6,
             ] {
                 let got = conic.running_point(t);
                 let p = conic.point_at(t);
@@ -3500,9 +3510,7 @@ mod conic_tests {
                     // The sines' ulp, to first order: `d(−2·sh²) = 4|sh|·δ`.
                     let (uf, vf) = (f.u_ref(), f.v_ref());
                     let (ui, vi) = ([uf.x, uf.y, uf.z][i], [vf.x, vf.y, vf.z][i]);
-                    let sines = 2.0
-                        * u
-                        * (ui.abs() * a * 4.0 * sh * sh + vi.abs() * b * s.abs());
+                    let sines = 2.0 * u * (ui.abs() * a * 4.0 * sh * sh + vi.abs() * b * s.abs());
                     let room = got[i].error - sines;
                     assert!(
                         room >= 0.0 && Q::of(plain).sub(&exact).within(-room, room),
@@ -3512,9 +3520,7 @@ mod conic_tests {
                     );
                     // At the anchor's own scale: a far semi-axis enters
                     // only through the offset it multiplies.
-                    let terms = [zero.x, zero.y, zero.z][i].abs()
-                        + a * 2.0 * sh * sh
-                        + b * s.abs();
+                    let terms = [zero.x, zero.y, zero.z][i].abs() + a * 2.0 * sh * sh + b * s.abs();
                     assert!(
                         got[i].error <= 16.0 * u * terms,
                         "{conic:?} at {t}, coordinate {i}: the bound {:e} is past 16 u of its \
