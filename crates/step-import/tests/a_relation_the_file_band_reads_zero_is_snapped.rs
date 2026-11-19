@@ -822,11 +822,13 @@ fn a_cone_cap_is_read_to_its_apex() {
 
 /// **A tangency's offset is read where the faces are, never at the
 /// cylinder's stored axis point.** The fillet's axis stated through a
-/// point 1 km along it and turned 2e-10 toward the side `x = 2`: at the
-/// faces its tilt moves it under a nanometre, inside the run's band, but
-/// at its stored point 0.2 µm. Its radius stated 2 µm long, it snaps as
-/// the plain fillet does; an offset read at the stored point would leave
-/// the faces 0.2 µm off and refuse.
+/// point 100 m along it and turned a fifth of the run's ε (in radians)
+/// toward the side `x = 2`: across the faces its tilt moves it under half
+/// the run's ε, inside the run's band, but at its stored point twenty
+/// times ε, past it. Its radius stated 2 µm long, it snaps as the plain
+/// fillet does (its move within the tilt's reach of the plain one's); an
+/// offset read at the stored point would leave the faces that far off and
+/// refuse.
 #[test]
 fn a_fillets_offset_is_read_at_its_faces() {
     let text = filleted();
@@ -838,10 +840,10 @@ fn a_fillets_offset_is_read_at_its_faces() {
         placement_point(&text, placement),
         placement_axis(&text, placement),
     );
-    let far = 1000.0;
+    let (far, tilt) = (100.0, 0.2 * tol().eps());
     let mut moved = nudge_point(&text, point, 2, far);
-    moved = nudge_point(&moved, point, 0, far * 2e-10);
-    moved = nudge_direction(&moved, axis, 0, 2e-10);
+    moved = nudge_point(&moved, point, 0, far * tilt);
+    moved = nudge_direction(&moved, axis, 0, tilt);
     moved = nudge_last(&moved, cylinder, 2e-6);
     let imported = import(&moved).unwrap_or_else(|e| panic!("imports: {}", e.render()));
     let moves = snaps(&imported);
@@ -850,7 +852,7 @@ fn a_fillets_offset_is_read_at_its_faces() {
     assert_eq!(relation, SnapRelation::Tangent);
     let want = 2e-6 * std::f64::consts::SQRT_2;
     assert!(
-        (moved_by - want).abs() < 1e-3 * want,
+        (moved_by - want).abs() < 5e-2 * want,
         "the plain fillet's move, {want:e}: {moved_by:e}"
     );
 }
