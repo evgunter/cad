@@ -449,11 +449,13 @@ fn closed<T: Decide>(
     }
 }
 
-/// **A posed candidate read**: the pose's closest pair (one with a
-/// window) as that pair ([`Found::read_posed`]), any other at its point
-/// ([`Found::read`]). A pose read with the spans swapped gives back the
-/// other carrier's point, so the pair's point is the first carrier's at
-/// its parameter.
+/// **A posed candidate read**: the pose's closest pair, its window on the
+/// spans, as that pair ([`Found::read_posed`]); a slanted pair in one
+/// plane, whose stretch may reach past a span, as the walk's pair is
+/// ([`Found::read_pair`], `WindowBound::on_spans`); any other at its
+/// point ([`Found::read`]). A pose read with the spans swapped gives back
+/// the other carrier's point, so the pair's point is the first carrier's
+/// at its parameter.
 fn posed<T: Decide>(
     found: &mut Found<T>,
     a: &Span<'_, T>,
@@ -461,15 +463,20 @@ fn posed<T: Decide>(
     c: pose::Candidate<T>,
     band: Band,
 ) {
-    if c.bound.is_none() {
+    let Some(bound) = c.bound else {
         found.read(a, b, c, band);
         return;
-    }
+    };
     let c = pose::Candidate {
         point: a.carrier().eval(c.ta),
         ..c
     };
-    found.read_posed(a, b, c, band);
+    if bound.on_spans {
+        found.read_posed(a, b, c, band);
+    } else {
+        let places = (PlaceRead::of(a, c.ta, band), PlaceRead::of(b, c.tb, band));
+        found.read_pair(a, b, c, places, band);
+    }
 }
 
 /// A meeting as a candidate: its point and its parameter on each carrier.

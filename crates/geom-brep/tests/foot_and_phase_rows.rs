@@ -14,8 +14,11 @@ use geom_core::{Band, Interval, Point3, Real, Vec3};
 
 /// A line crossing a unit circle twice, its normal's angle within the
 /// band's gap of the angle window's cut at `−1`, read at `Interval`: the
-/// phase's formula choice is a heuristic's, so it records nothing and
-/// the pose reads its two crossings.
+/// phase's formula choice is a heuristic's, so it records nothing, and
+/// the pose reads its crossings. The one at `θ ≈ −3.09` lies `0.09` rad
+/// past the circle's span `(−3, 3)`, where its stretch's ball is clear of
+/// the span (`curve_pair::pose`'s module docs, "A slanted pair in one
+/// plane"), so it is no candidate: the pose offers the one on the span.
 #[test]
 fn a_phase_on_the_window_cut_records_no_escalation() {
     let band = Band::new(1e-9, 1e-8).unwrap();
@@ -40,7 +43,7 @@ fn a_phase_on_the_window_cut_records_no_escalation() {
         );
         let rec = bracket.finish();
         assert!(
-            matches!(got, Ok(Pose::Generic(ref cs)) if cs.len() == 2),
+            matches!(got, Ok(Pose::Generic(ref cs)) if cs.len() == 1),
             "{delta:e}: {got:?}"
         );
         let esc: Vec<_> = rec.escalations.iter().map(|e| e.predicate()).collect();

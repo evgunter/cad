@@ -642,6 +642,13 @@ pub struct WindowBound<T> {
     /// the candidate over `reach`, together, `K·m₋²/2`; `+∞` where
     /// undecided.
     pub bend: T,
+    /// Whether every pair of the window lies on the two spans: the
+    /// pose's closest pair, polished held to them (module docs, "Held to
+    /// the spans"), read as that pair with nothing read past a span
+    /// (`Found::read_posed`). A window that may reach past a span, a
+    /// slanted pair's stretch in one plane, is read as the walk's pair
+    /// is, its reach and run read past each span (`Found::read_pair`).
+    pub on_spans: bool,
 }
 
 /// The pose of two spans' carriers (module docs).
@@ -1106,6 +1113,10 @@ impl<T: Decide> Polish<'_, T> {
         let Some(bound) = super::polish::two_or_one_sided(two_sided, one) else {
             return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN }));
         };
+        let bound = WindowBound {
+            on_spans: true,
+            ..bound
+        };
         Ok(Some(Candidate {
             point: p,
             ta: s,
@@ -1437,6 +1448,7 @@ fn line_conic<T: Decide>(
                 floor,
                 reach,
                 bend: T::zero(),
+                on_spans: false,
             }),
         }))
     };

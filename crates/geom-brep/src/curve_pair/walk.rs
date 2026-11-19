@@ -1061,6 +1061,7 @@ mod tests {
             floor: f64::NEG_INFINITY,
             reach: 10.0,
             bend: 0.0,
+            on_spans: false,
         };
         for (crossing, cleared) in [(1.5, true), (0.5, false)] {
             let (x, cross) = axis_and_cross(crossing, 0.0);
