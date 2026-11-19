@@ -106,3 +106,5 @@
   - `face_region` exhaustive;
   - rows for N2, N6 and N7;
   - the tier_gate doc fix; the PR body's Sweep.
+
+- 2026-11-19 07:50 — Snap PR 7135 merged at 2b12b3388a. R2's confirmation pass: APPROVE; the cone apex is in its region, and N2, N6, N7 and N9 are killed; the census is unchanged except nist09 and TAIL_TURBINE. The topo README reword follows the code. Closed the unit, `import-snaps-a-relation-…` and `two-records-of-one-non-planar-…`. Triaged eleven unbanded rows: P2 for the marched-section edge (TAIL_TURBINE), the tangent edge printed as a crossing line (nist09, a candidate [ev] question) and the C5 section arms; P3 for the rest. The track now has no open P0/P1 rows except the parked `import-mints-the-wrap-tip-at-a-chart-singularity`.

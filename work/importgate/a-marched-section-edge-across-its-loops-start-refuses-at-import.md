@@ -4,6 +4,7 @@ kind: issue
 title: step-import: TAIL_TURBINE's cylinder × sphere section edges refuse once its two cylinder records are one (a built spline carrier whose end reads at or before its start)
 status: open
 opened: 2026-11-19
+priority: P2
 ---
 
 

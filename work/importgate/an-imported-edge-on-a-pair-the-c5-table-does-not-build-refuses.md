@@ -4,6 +4,7 @@ kind: issue
 title: An imported edge between two surfaces whose section the C5 table does not build refuses not-yet-supported
 status: open
 opened: 2026-11-18
+priority: P2
 ---
 
 
