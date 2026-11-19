@@ -174,24 +174,73 @@
 //!   zero band there, so the band has nothing open and the polish's
 //!   premise is what failed.
 //!
-//! **The gap between the roots along the curve decides only two definite
-//! crossings** (`curve_pair_pose_root_gap`): their chord in the zero band
-//! is one touch, the double root the band cannot split, placed at a root,
-//! and otherwise they are two crossings. A root's point lies on both
-//! carriers (the residual is zero there), and the other root's within the
-//! zero of it. The extreme between them is no such touch: both extremes
-//! are decided past the band, and where a conic curves sharply enough to
-//! leave the band between two roots that close (a thin ellipse's vertex,
-//! its radius of curvature `b²/a`), its point lies the extreme's value off
-//! the other carrier, and read there the pair would read no meeting.
+//! **Two definite crossings are both read, however near their roots**
+//! (`curve_pair_pose_root_gap`, read for its conditioning: undecided,
+//! the roots are placed past what the band reads, and it escalates).
+//! Where the band cannot split their points they ring as one meeting,
+//! the double root the band cannot split. They are not read as one touch
+//! at the extreme between them: both extremes are decided past the band,
+//! and where a conic curves sharply enough to leave the band between two
+//! roots that close (a thin ellipse's vertex, its radius of curvature
+//! `b²/a`), that point lies the extreme's value off the other carrier.
 //!
 //! **In one plane, a candidate admitted under a `Zero` reading is placed
 //! by the exactly degenerate formula**: a touch is the extreme's own
 //! point, `C(θ_hi)` or `C(θ_hi + π)`, on the first carrier exactly and
 //! within the extreme's value of the second. An extreme read zero whose
-//! value has not crossed (no real root) is that touch too. The residual
-//! there is the distance to the other carrier itself, so the reading of
-//! the candidate decides it.
+//! value has not crossed (no real root) is that touch too. Between two
+//! circles in one plane the residual there is the distance to the other
+//! carrier itself, so the reading of the candidate decides it. A line the
+//! tilt read level lies over the conic's plane by a slant, and is read as
+//! below.
+//!
+//! # A slanted pair in one plane
+//!
+//! **A line and a conic the router reads level are read with their
+//! slant.** With `m` the line's normal in the plane and `v = û × m` its
+//! other normal, `{û, m, v}` is orthonormal, so a conic point's distance
+//! from the line is `√(R² + H²)`: `R(θ) = (C(θ) − o)·m`, the residual in
+//! the plane, and `H(θ) = (C(θ) − o)·v`, both first harmonics in `θ`.
+//! In the plane `H` is zero, and a line the tilt read level holds a slant
+//! in it.
+//!
+//! - **The stretch.** A meeting needs `|R| ≤ √(R² + H²) ≤ e`, the band's
+//!   escalation: the arcs of `|R| ≤ e`, `φ₁ ≤ |θ − θ_hi| ≤ φ₂` with
+//!   `cos φ₁ = (e − c₀)/A` and `cos φ₂ = (−e − c₀)/A`. Off them the pair
+//!   is past the escalation. Each root, and each touch, lies on one of
+//!   them, its stretch, read alone. An arc of half a turn or more is not
+//!   read (`curve_pair_pose_level_arc`, a proof's inequality).
+//! - **The floor.** On the stretch the distance is at least `|H|`, and
+//!   `H` is a first harmonic on an arc short of half a turn: its least
+//!   `|H|` there is at an end, or at the one turn of `H` within it (where
+//!   `H′` changes sign), or zero where `H` changes sign. That least `|H|`
+//!   bounds every pair of the stretch from below, so it is the
+//!   candidate's window floor: past the band, the stretch holds no
+//!   meeting.
+//! - **The candidate.** Of the root or touch `θ` and the residual's root
+//!   on its side of the arc, the one read is `θ` where its own distance
+//!   is within the band's zero, and otherwise the one of least distance:
+//!   a choice between sound candidates, since a gap in the zero band at
+//!   either is a meeting, and its Off is read against the floor. So a
+//!   touch in the plane keeps its extreme, and a slanted touch is read at
+//!   the root, where `R` is zero and the distance is the slant alone.
+//! - **The read.** The candidate is read as a posed pair
+//!   (`Found::read_posed`): a gap in the zero band is a meeting; an Off
+//!   prunes only where the floor clears, and otherwise escalates. Its
+//!   pairs lie on the stretch, within the stretch's run at the conic's
+//!   greatest speed of the candidate's point, and within `e` of that on
+//!   the line: where the ball of that reach about the candidate is clear
+//!   of either span, by the span's walk ([`Span::clear_by`]), the stretch
+//!   holds no pair on the spans and no candidate is read.
+//!
+//! One candidate stands for its stretch, so a touch's roots and extreme
+//! are not read as two meetings of one run. Two stretches are two
+//! candidates, which ring as one meeting where the band cannot split
+//! them, and otherwise are two meetings, which escalate where the line
+//! between them is not decided off the conic (`curve_pair_meet_stretch`).
+//! Where the candidate's gap reads off and the floor does not clear, the
+//! least distance lies where neither the candidate nor the floor places
+//! it, and the pair refuses: the safe direction.
 //!
 //! # A touch in the subdivision
 //!
@@ -651,6 +700,7 @@ mod row {
     pub(super) const CLEAR: &str = "curve_pair_pose_clear";
     pub(super) const BASIN: &str = "curve_pair_pose_basin";
     pub(super) const BASIN_HELD: &str = "curve_pair_pose_basin_held";
+    pub(super) const LEVEL_ARC: &str = "curve_pair_pose_level_arc";
     pub(super) const HELD_ONE_PIECE: &str = "curve_pair_pose_held_one_piece";
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
@@ -1282,6 +1332,7 @@ fn line_conic<T: Decide>(
     let geom::Line { origin: o, dir: d } = line;
     let u = d.normalize();
     let unit = geom::Line { origin: o, dir: u };
+    let e = T::from_f64(band.escalate());
     let n = k.frame().axis;
     let den = u.dot(n);
     // Where they can meet (module docs): the line's span and the conic's
@@ -1323,7 +1374,6 @@ fn line_conic<T: Decide>(
             // landed, a distance, rather than charged for its rounding.
             let point = o + u * ((k.frame().origin - o).dot(n) / den);
             let height = (point - k.frame().origin).dot(n).abs();
-            let e = T::from_f64(band.escalate());
             let polish = Polish {
                 span_a: a,
                 span_b: b,
@@ -1354,24 +1404,144 @@ fn line_conic<T: Decide>(
         swing,
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
     );
-    let place = |theta: T| {
+    // The pair's distance is `√(R² + H²)`, `R` the residual above and `H`
+    // the conic's offset along `v = û × m`, the line's other normal: a
+    // line the tilt read level lies over the plane by a slant, which `H`
+    // holds (module docs, "A slanted pair in one plane").
+    let v = u.cross(m);
+    let (hc, hs) = k.along(v);
+    let level = Slant {
+        r: (c0, cp, sp),
+        h: ((k.frame().origin - o).dot(v), hc, hs),
+        range: &range,
+        e,
+        zero: T::from_f64(band.zero()),
+    };
+    // A window pair's conic point lies on the stretch, within its run at
+    // the greatest speed of the candidate's, and its line point within
+    // `e` of that: where the ball of that reach about the candidate's
+    // point is clear of either span, by the span's own walk, the stretch
+    // holds no pair on the spans.
+    let place = |theta: T| -> Result<Option<Candidate<T>>, MeetFault> {
+        let (theta, floor, run) = level.read(theta)?;
         let point = k.point_at(theta);
-        Candidate {
+        let reach = k.speed_hi() * run + level.e;
+        if a.clear_by(point, reach, band) || b.clear_by(point, reach, band) {
+            return Ok(None);
+        }
+        Ok(Some(Candidate {
             point,
             ta: line.param(point),
             tb: theta,
-            bound: None,
-        }
+            bound: Some(WindowBound {
+                floor,
+                reach,
+                bend: T::zero(),
+            }),
+        }))
     };
     let found: Vec<T> = known.iter().map(|c| c.tb).collect();
     Ok(match owed(&k, &range, &found, band)? {
         Harmonic::Apart => Pose::Apart,
-        Harmonic::Touch(theta) => {
-            spread_held(angle_spread(k.speed_hi(), theta), band)?;
-            Pose::Tangent(place(theta))
+        Harmonic::Touch(theta) => match place(theta)? {
+            Some(c) => {
+                spread_held(angle_spread(k.speed_hi(), c.tb), band)?;
+                Pose::Tangent(c)
+            }
+            None => Pose::Apart,
+        },
+        Harmonic::Cross(thetas) => {
+            let mut out = Vec::with_capacity(2);
+            for theta in thetas {
+                out.extend(place(theta)?);
+            }
+            Pose::Generic(out)
         }
-        Harmonic::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
     })
+}
+
+/// **A line and a conic in one plane, the line over it by a slant**
+/// (module docs, "A slanted pair in one plane"): the residual
+/// `R(θ) = r₀ + r_c·cos θ + r_s·sin θ` in the plane, `H(θ)` likewise
+/// along the line's other normal, so the distance is `√(R² + H²)`; `e`
+/// is the band's escalation.
+struct Slant<'r, T> {
+    r: (T, T, T),
+    h: (T, T, T),
+    range: &'r Range<T>,
+    e: T,
+    zero: T,
+}
+
+impl<T: Decide> Slant<'_, T> {
+    fn at((c0, c, s): (T, T, T), theta: T) -> T {
+        c0 + c * theta.cos() + s * theta.sin()
+    }
+
+    fn slope((_, c, s): (T, T, T), theta: T) -> T {
+        s * theta.cos() - c * theta.sin()
+    }
+
+    /// **A root's or a touch's stretch, its candidate and its floor**:
+    /// the arc of `|R| ≤ e` holding `theta`, the stretch outside which
+    /// the pair is past the band's escalation; on it the least `|H|`, a
+    /// lower bound on the distance (`|H| ≤ √(R² + H²)`); and of `theta`
+    /// and the residual's roots on it, the one of least distance. An arc
+    /// of half a turn or more is not read (`curve_pair_pose_level_arc`).
+    fn read(&self, theta: T) -> Result<(T, T, T), MeetFault> {
+        let (c0, _, _) = self.r;
+        let swing = (self.range.hi - self.range.lo) / T::from_f64(2.0);
+        let at = self.range.at_hi;
+        let acos = |x: T| x.max(-T::one()).min(T::one()).acos();
+        // `R = c₀ + A cos φ`, `φ = θ − at`: within `e` where
+        // `φ₁ ≤ |φ| ≤ φ₂`, and zero at `|φ| = φ₀`.
+        let (arg_near, arg_far) = ((self.e - c0) / swing, (-self.e - c0) / swing);
+        let (near, far, zero) = (acos(arg_near), acos(arg_far), acos(-c0 / swing));
+        let phi = (theta - at).reduce_periodic_centred(T::tau());
+        // The arc holding `θ`: one about `at` where `R ≤ e` all round it
+        // (`φ₁ = 0`), one about `at + π` where `R ≥ −e` all round that
+        // (`φ₂ = π`), and otherwise the one on `θ`'s side of `at`. The
+        // first two are read on the residual's own values, clear of the
+        // angles' cut at `±π`.
+        let pick =
+            |x: T, (a, b): (T, T), (c, d): (T, T)| (x.select_le_zero(a, c), x.select_le_zero(b, d));
+        let side = pick(phi, (at - far, at - near), (at + near, at + far));
+        let below = pick(T::one() + arg_far, (at + near, at + T::tau() - near), side);
+        let (from, to) = pick(T::one() - arg_near, (at - far, at + far), below);
+        let half = T::pi();
+        if geom_core::k_stats::prove(row::LEVEL_ARC, Margin::of(half - (to - from)))
+            != Ok(Sign::Positive)
+        {
+            return Err(MeetFault::Unsettled(Unsettled::Meter {
+                row: row::LEVEL_ARC,
+            }));
+        }
+        // The least `|H|` over the arc: at an end, at the one turn of `H`
+        // within it (the arc is short of half a turn), or zero where `H`
+        // changes sign.
+        let (h0, hc, hs) = self.h;
+        let amplitude = (hc.powi(2) + hs.powi(2)).sqrt();
+        let (h_from, h_to) = (Self::at(self.h, from), Self::at(self.h, to));
+        let (d_from, d_to) = (Self::slope(self.h, from), Self::slope(self.h, to));
+        let turn = d_from.select_le_zero(h0 - amplitude, h0 + amplitude);
+        let pair = |x: T, y: T| (x * y).select_le_zero(T::zero(), x.abs().min(y.abs()));
+        let floor = (d_from * d_to)
+            .select_le_zero(pair(h_from, turn).min(pair(turn, h_to)), pair(h_from, h_to));
+        // `θ` itself where it lies within the band's zero of the line,
+        // else the root of `R` on the arc where it is the nearer: a choice
+        // between sound candidates, each read on both spans under the
+        // floor. A touch in the plane keeps its extreme.
+        let distance = |t: T| Self::at(self.r, t).powi(2) + Self::at(self.h, t).powi(2);
+        let root = phi.select_le_zero(at - zero, at + zero);
+        let nearer = (distance(root) - distance(theta)).select_le_zero(root, theta);
+        let best = (distance(theta) - self.zero.powi(2)).select_le_zero(theta, nearer);
+        // The run read on the arc's own branch; the candidate keeps its
+        // angle as found.
+        let mid = (from + to) / T::from_f64(2.0);
+        let on_arc = mid + (best - mid).reduce_periodic_centred(T::tau());
+        let run = (on_arc - from).abs().max((to - on_arc).abs());
+        Ok((best, floor, run))
+    }
 }
 
 /// What two conics in one plane are, `a` the one parametrized: the arm's
@@ -2117,15 +2287,15 @@ fn harmonic_roots<T: Decide>(
     };
     let roots = [r.at_hi + psi, r.at_hi - psi];
     let gap = Margin::norm3(k.point_at(r.at_hi + psi) - k.point_at(r.at_hi - psi));
-    // Two roots whose points the band cannot split are one touch, placed
-    // at a root: its point is on both carriers, the residual zero there.
-    // The extreme between them is decided past the band, and on a conic
-    // curved sharply enough to leave the band between two roots that
-    // close (a thin ellipse's vertex) its point is off the other carrier.
-    Ok(match decide(row::ROOT_GAP, gap, band)? {
-        Sign::Zero => Harmonic::Touch(roots[0]),
-        Sign::Positive | Sign::Negative => Harmonic::Cross(roots.to_vec()),
-    })
+    // Two roots are read as two candidates, whatever their gap: where the
+    // band cannot split their points they ring as one meeting. Placed at
+    // the extreme between them, a touch's point would lie off the other
+    // carrier where a conic curves sharply enough to leave the band
+    // between two roots that close (a thin ellipse's vertex). An
+    // undecided gap is roots placed past what the band reads, and
+    // escalates.
+    decide(row::ROOT_GAP, gap, band)?;
+    Ok(Harmonic::Cross(roots.to_vec()))
 }
 
 #[cfg(test)]

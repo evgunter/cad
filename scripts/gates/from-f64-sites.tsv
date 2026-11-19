@@ -31,6 +31,7 @@ crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(WALK_SAMPLES)	a w
 crates/geom-brep/src/chart_singularity.rs	2	constant	f64::from(i)	a sample schedule's index (the sampled carrier's starting spans and a walk's stations)
 crates/geom-brep/src/curve_face/plane_crossing.rs	1	constant	band.zero()	the band's zero width, a tolerance: a graze's root spread
 crates/geom-brep/src/curve_pair/pose.rs	4	constant	band.escalate()	the band's escalation width, a tolerance
+crates/geom-brep/src/curve_pair/pose.rs	1	constant	band.zero()	the band's zero width, a tolerance: a slanted touch keeps its extreme within it
 crates/geom-brep/src/curve_pair/pose/window.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
 crates/geom-brep/src/curve_pair/pose/window.rs	4	constant	band.zero()	the band's zero width, a tolerance
 crates/geom-brep/src/curve_pair/span.rs	2	constant	band.escalate()	the band's escalation width, a tolerance (a refused member's window on a line, and off one)

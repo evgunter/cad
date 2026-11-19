@@ -2,10 +2,11 @@
 id: a-nearly-coplanar-segment-across-a-thin-ellipses-vertex-is-decided-no-meeting
 kind: issue
 title: A nearly coplanar segment across a thin ellipse's vertex, its branches within the zero band, is decided no meeting
-status: open
+status: closed
 opened: 2026-11-19
 priority: P1
 cost: M
+closed: 2026-11-19
 ---
 
 
@@ -93,3 +94,48 @@ fn o1_a_nearly_coplanar_segment_across_a_thin_ellipses_vertex() {
 ```
 
 **Scheduled** beside step 3d, after PR 7137.
+
+## Fixed (ONEHOME, `onehome/coplanar-thin`, 2026-11-19)
+
+**The step.** `pose::harmonic_roots`: two definite crossings whose
+roots' chord read zero (`curve_pair_pose_root_gap`) were made one touch
+at the extreme between them. Both extremes are decided past the band
+there, so at a thin ellipse's vertex (radius of curvature
+`b²/a ≈ 10⁻¹²` m) the extreme's point lies `~10⁻⁸` m off the line, and a
+touch read there always reads off. Both roots are now read; where the
+band cannot split them they ring as one meeting. The row above is in
+the suite as
+`meet_rows::a_segment_across_a_thin_ellipses_vertex_meets_it_at_a_root`
+(one meeting, in either order).
+
+## The second finding: a slanted touch
+
+A probe in the review's style, 50,000 draws × 2 orders at a tight band
+(escalation `1.0`–`1.2` or `10`–`10.2` of the zero): thin ellipses near
+their vertex, a segment `h < 0.9·zero` over a point of it. With the
+chord fixed, 46 draws were still decided no meeting. Each was a Level
+route touch at an extreme in the zero band (`9.9·10⁻¹⁰`, say), read at
+the extreme's point. The docs' premise, "the residual there is the
+distance to the other carrier itself", holds only in the plane. A line
+the tilt read level holds a slant, so at the extreme the distance is
+`√(R² + H²)` (`1.13·10⁻⁹`), past the escalation, while at the roots it is
+the slant alone.
+
+Fixed with it: a Level pair is read with its slant (`pose`'s module
+docs, "A slanted pair in one plane"). Each root or touch reads its
+stretch, the arc of `|R| ≤ e`, under a window floor of the least `|H|`
+there, at its candidate: `θ` where its own distance is within the zero,
+else the nearer root. Its Off prunes only where the floor clears, and
+otherwise escalates. Row:
+`meet_rows::a_segment_slanted_over_a_thin_ellipses_vertex_meets_it_at_a_root`
+(draw 7969, one meeting in either order).
+
+**Measured** (the same probe, two seeds):
+
+| head | decided no meeting | met | refused |
+|---|---|---|---|
+| main `9cfe1846e0` | 9538, 9672 | 24196, 23940 | 16266, 16388 |
+| the fix | 0, 0 | 30959, 30811 | 19041, 19189 |
+
+The coplanar circles' arm (`conic_conic`) reads its candidates at their
+points, as before; a slant there is not read by this fix.
