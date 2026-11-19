@@ -7,7 +7,8 @@ opened: 2026-11-02
 priority: P1
 cost: M
 refs: [6349, 6329]
-branch: oneround/conic-vertex
+branch: oneround/anchored-conic
+parent: the-section-table-admits-a-curve-on-its-resolution
 ---
 
 From the delta review of PR 6349 (the conic frame unit), 2026-11-02.
@@ -78,3 +79,76 @@ The margin-scale designers split on the far-centre ellipse: (A) mint a fitted sp
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
+
+## Measured (2026-11-19, phase 1 of `oneround/conic-vertex`)
+
+Taken locally on merge base `b80352cd9`; evidence, not committed
+measurements. The tables, the measurement patch, the probe sources and
+the commands that re-take each number are on the branch
+`analysis/oneround/conic-vertex-probes` (never merged), under
+`analysis/oneround/conic-vertex/`.
+
+**(a) The near-gap families.** Reading the point from the seam vertex,
+`(c + u·a) + u·a·(cos θ − 1) + v·b·sin θ`, with no stored form,
+certifies 40 of 40 in all five families (main: 7, 7, 7, 7, 1), every
+root within ε of the exact oracle's. The meter's bound falls from
+6.4e-13 (3.8 u·ρ) to 1.28e-13 with the vertex summed in f64, and to
+6.7e-16 with it summed exactly.
+
+**(b) The section tables' far-centre conics.** Evaluation recovers
+nothing. Ellipses minted by `plane_cylinder_section` and
+`plane_cone_section` with centres past the box miss their own two
+surfaces by 1–3.6 `u·a` at their in-box points (7e-10 m at `a ≈ 1e6`),
+the same whether the point is read from the centre, from the vertex,
+or from the vertex summed exactly. The loss is in the minted stored
+form. Ev decided that form on PR 4812 (a minted section conic stored
+anchored on its arc, the centre derived); the unit is
+`work/oneround/the-section-table-admits-a-curve-on-its-resolution.md`,
+which now carries these numbers.
+
+**(c) The uncharged margins.** Thirteen sites probed; eleven misread
+on main once the conic's terms are past the box. One reads wrong at
+the default ε (the conic excess of `split_section_area`, from far
+1e4); every other wrong verdict is at ε 1e-12 from far about 1e5, and
+at ε 1e-9 they are in-gap only, from far 1e6–1e7. Reading the point
+from the vertex fixes only the chords of one carrier. The rows:
+- `the-conic-excess-of-a-section-area-reads-wrong-on-a-far-centred-conic-at-the-default-eps`
+- `a-line-or-a-conic-nested-against-a-far-centred-conic-is-cleared-on-terms-that-cancel-at-the-far-scale`
+- `the-arc-cover-misses-a-far-centred-arc-by-its-centres-rounding-and-the-depth-gap-decides-on-it`
+- `a-chord-of-one-far-centred-conic-is-decided-on-two-points-each-summed-from-the-centre`
+- `a-far-centred-conics-point-is-decided-against-an-in-box-point-at-the-centres-rounding`
+- `a-far-circle-has-no-re-seaming-door`
+- `work/select/an-endpoint-pin-passes-on-a-far-centred-conics-own-rounded-point.md`
+- `work/charttail/row-interval-accepts-a-far-centred-conics-end-inside-the-bands-gap.md`
+- `work/pcert/the-plane-arms-harmonic-envelope-reads-zero-between-two-far-centres.md`
+
+**Corrections to this row.**
+- "which this row's vertex evaluation removes at the source" holds
+  only for the three chord sites. The others read `frame.origin` and
+  the semi-axes directly, or need the vertex exact (a plain `c + u·a`
+  rounds at `u·far` as the centre form does), or need neither centre
+  nor vertex.
+- "Bounds only … which rounding loosens": the arc cover's greatest
+  depth undershoots the true arc and its least overshoots, each by
+  about `u·far`, and `depth_gap` decides on them.
+- "Fail-closed only" for `row_interval` and `certify`'s endpoint
+  residuals: both can accept.
+- `carrier_harmonic`'s plane arm, "mostly widens": in the probe its
+  centre term reads 0 and the sampled schedule is the guard.
+- "Floor ~1–2 u·ρ" for the vertex term: 0.77 u·ρ summed in f64,
+  0.004 u·ρ summed exactly.
+- Sites that have moved: `conic_ring` and `edge_reach_of` (retired by
+  commit `f67931961`) and `axial_carrier` (`f097a63b8`) are now
+  `geom::cover::Cover::arc`; `census::depth_gap` is a module and no
+  longer reads `speed_hi − speed_lo`;
+  `pair_section::cylinders::conic_ball` (retired by `c35ec02aa`) is
+  now `placement(ExtentBall::of_covered(curve.cover()…), …)`, which
+  under-read only (fail-closed) in the one axis-aligned pose tried;
+  `Window::read`'s clearance is `Polish::closest`'s
+  `curve_pair_pose_clear`; `topo::pcurves::row_interval` is in
+  `pcurves/mint.rs`.
+- `the_near_gap_families_keep_their_certified_answers` fixes its own
+  ε at 1e-9, so its floors have no 1e-6 or 1e-12 row.
+
+**Not built.** The vertex chain was not landed: the stored form is
+what evaluates it, and it is a design question that leans on PR 7131.
