@@ -6,7 +6,7 @@ status: open
 opened: 2026-11-02
 priority: P1
 cost: M
-design: true
+pr: 7141
 ---
 
 
@@ -102,3 +102,21 @@ From the two designers weighing this row for Ev, each item checked in the tree b
 - **`editor_core::mate::coset::Arm(f64)` is a second lever type**, whose doc calls it "the one door a lever is formed through".
 - **`Lever::curvature` has no caller** under `crates`; `curvature_radius` and `levered_inv` carry its cases.
 - **"A sum of radii whose union read is a max" holds only from a shared pivot.** Where each region is read from its own reference point the honest read is across both, and a max under-states it.
+
+## Reconciled for Ev (2026-11-19, ONEROUND orchestrator)
+
+Two designers agree after four rounds (`docs/DESIGN-FORK-LOG.md` row 290): no fourth source, both `unsourced` doors and the pin deleted, each site re-posed by the role its length plays. The question to Ev is the `[ev]` PR this note rides.
+
+- **More exposure the pin cannot see, checked in the tree:** `geom_core::Margin::sagitta(curvature_rel, arm: T)` (12 production calls) and `Margin::over_lever(measure, lever: T)` with `over_lever_down` (43 calls outside `geom-core`) take a bare arm.
+- **Not needing a ruling, by both designers' read:** the seven test sites go to the fixture doors, and the arms whose honest read moves only last bits are re-read (`metering_arm`'s callers, the line parameter spans in `offset_axial`, `reduce` and `census`, `leaned_lever`, `intersect`'s quotient forms). `[simple.conditioned]` already covers them.
+- **For the unit that builds the answer:** classify each of about 34 `Lever`/`LeverBounds` struct fields outside the extent home (a regex count, a heuristic) by two questions: does the struct already hold what the lever is read from (then it is a method, never a field beside); if not, do all its readers pin their data at one point (then it may hold the lever; else it holds its region). `BoundSupport::Bisector.arm`, `BoundSupport::Conic.extent` and `star::walk::Sector.arm` are the three the designers left to it. `Lever::max`'s doc ("a read of the union of their extents") holds only from a shared pivot.
+- **Unsure, per both:** `pcurve_cache`'s focal β and `unit_sign`, `coincide::replay`'s power-of-two arm. About 35 to 40 of the 66 sites were classified from their comments, not read; nothing was built or measured, and "about 30 sites move verdicts by more than bits" is an estimate.
+
+## Ev's answer (2026-11-19, PR 7141)
+
+"sounds great! i am less sure about the records thing but it seems fine unless there's some kind of weird information flow that results". So: no fourth source; `Lever::unsourced`, `ExtentBall::unsourced` and `lever-sources.counts` go; each site is re-posed by the role its length plays and the moved verdicts are accepted; the point-level reads move to `geom-core` beside `Lever`; the README's text is as merged.
+
+**The records rule carries Ev's condition.** A unit that changes what a record holds (`SsiDomain`'s ball, a sector's `arm`, `SectionOval::extent`, `Piece::Segment`'s `lever`, editor-core's `Arm`, and whichever of the roughly 34 lever fields the two questions reach) says in its PR what now flows where: which readers gain a view of geometry they did not hold before, and whether any crate or module comes to read a region it had no business knowing. A flow that looks odd goes back to Ev before it lands, on that unit's PR.
+
+The design question is closed; what is left on this row is the build, cut into units at spec time.
+
