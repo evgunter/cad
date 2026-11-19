@@ -160,3 +160,92 @@ fn a_cylinder_restated_apart_is_never_joined() {
         ),
     }
 }
+
+/// The 40 mm cylinder's faces' axial middle, in the file's millimetres:
+/// the middle of the `z` its points on the cylinder span.
+fn faces_middle_z() -> f64 {
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for line in sg1().lines().filter(|l| l.contains("=CARTESIAN_POINT(")) {
+        let inner = &line[line.rfind('(').unwrap() + 1..line.find(')').unwrap()];
+        let xyz: Vec<f64> = inner
+            .split(',')
+            .filter_map(|c| c.trim().parse().ok())
+            .collect();
+        if xyz.len() == 3 && (xyz[0].hypot(xyz[1]) - 40.0).abs() < 1e-6 {
+            lo = lo.min(xyz[2]);
+            hi = hi.max(xyz[2]);
+        }
+    }
+    assert!(lo < hi, "the cylinder's faces have points");
+    0.5 * (lo + hi)
+}
+
+/// `sg1` with face `#146` on a 40 mm cylinder record `#9000` placed at
+/// `origin` along `dir` (millimetres; `dir` need not be unit).
+fn restated_on_axis(origin: [f64; 3], dir: [f64; 3]) -> String {
+    let text = restated("#146", "#94", "CYLINDRICAL_SURFACE('',#9001,40.)");
+    let data_end = text.rfind("ENDSEC;").unwrap();
+    let p = |v: [f64; 3]| format!("({:?},{:?},{:?})", v[0], v[1], v[2]);
+    format!(
+        "{}#9001=AXIS2_PLACEMENT_3D('',#9002,#9003,#9004) ;\n#9002=CARTESIAN_POINT('',{}) ;\n\
+         #9003=DIRECTION('',{}) ;\n#9004=DIRECTION('',(1.,0.,0.)) ;\n{}",
+        &text[..data_end],
+        p(origin),
+        p(dir),
+        &text[data_end..]
+    )
+}
+
+/// **Decided where the faces are, never at the stored axis point.** Each
+/// restatement places its axis point 1 m along the axis from the faces:
+///
+/// - the axis through a point 1 m along the old axis and 30 µm off it at
+///   the faces: in the band (5 µm, 50 µm) where the faces are, whatever it
+///   reads at its stored point, so the file's ambiguity; 54 µm off, apart;
+/// - the axis point 30 µm off the old axis 1 m along it, the two axes
+///   meeting at the faces: one locus there, joined;
+/// - the axis tilted 3e-4 about a point 1 m along the old axis: 300 µm
+///   apart at the faces. Apart is never joined and never the file's
+///   ambiguity.
+#[test]
+fn two_axes_are_read_apart_where_the_faces_are() {
+    let z = faces_middle_z();
+    let far = z + 1000.0;
+    for off in [0.03] {
+        match import(&restated_on_axis([0.0, 0.0, far], [-off, 0.0, 1000.0])) {
+            Err(StepImportError::Interpretation {
+                id,
+                refusal: InterpretationRefusal::Ambiguous { reading, gap, .. },
+                ..
+            }) => {
+                assert_eq!((id, reading), (9000, "step_one_record"), "{off} mm off");
+                assert!(
+                    (gap - off * 1e-3).abs() < 0.2 * off * 1e-3,
+                    "{off} mm off at the faces: {gap:e}"
+                );
+            }
+            other => panic!("{off} mm off at the faces: the file's ambiguity, got {other:?}"),
+        }
+    }
+    let imported = import(&restated_on_axis([0.03, 0.0, far], [0.03, 0.0, 1000.0]))
+        .unwrap_or_else(|e| panic!("meeting at the faces: imports: {}", e.render()));
+    let joined: Vec<_> = joins(&imported).iter().map(|j| (j.0, j.1)).collect();
+    assert_eq!(joined, [(94, 9000)], "meeting at the faces: one locus");
+    for (what, origin, dir) in [
+        (
+            "54 µm off at the faces",
+            [0.0, 0.0, far],
+            [-0.054, 0.0, 1000.0],
+        ),
+        ("tilted 3e-4", [0.0, 0.0, far], [0.3, 0.0, 1000.0]),
+    ] {
+        match import(&restated_on_axis(origin, dir)) {
+            Ok(imported) => assert!(joins(&imported).is_empty(), "{what}: never joined"),
+            Err(e) => assert!(
+                !e.render().contains("step_one_record"),
+                "{what}: apart, not the one-record reading: {}",
+                e.render()
+            ),
+        }
+    }
+}

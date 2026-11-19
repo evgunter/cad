@@ -485,3 +485,83 @@ fn a_tangency_its_construction_leaves_apart_refuses_as_unsolved() {
         other => panic!("an unsolved class refuses: {other:?}"),
     }
 }
+
+/// A coin: a disc of radius 50 mm and thickness `h`, revolved about `y`.
+fn coin(h: f64) -> String {
+    let outline = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(0.05, 0.0), 0.0),
+        (Point2::new(0.05, h), 0.0),
+        (Point2::new(0.0, h), 0.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![outline])
+        .validate(tol())
+        .expect("the profile validates");
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    write(
+        &revolve(&profile, axis, Revolution::Full, tol())
+            .expect("the profile revolves")
+            .body,
+    )
+}
+
+/// **A coin's cap tilted, read over the cap's reach.** A disc 50 mm in
+/// radius and 0.5 or 1 mm thick: its rim edges are whole circles with one
+/// vertex each, so the faces' vertices span no more than the thickness,
+/// while the cap's rim moves by the tilt times the radius. The later cap
+/// tilted 1e-4 moves its rim 5 µm, inside the band's zero: it turns onto
+/// the axis, its move the rim's. Tilted 4e-4 (20 µm, in the band) the
+/// relation is not read and the build refuses the rim as the file's
+/// ambiguity; tilted 4e-3 (200 µm) the rim lies past the band.
+#[test]
+fn a_coins_tilted_cap_is_read_over_its_rim() {
+    let radius = 0.05;
+    for h in [5e-4, 1e-3] {
+        let text = coin(h);
+        let cap = *records(&text, "PLANE").last().expect("two caps");
+        assert!(
+            records(&text, "CYLINDRICAL_SURFACE")[0] < cap,
+            "the tilted cap is the later record"
+        );
+        let axis = placement_axis(&text, surface_placement(&text, cap));
+        let tilted = |by: f64| import(&nudge_direction(&text, axis, 0, by));
+        let snapped = tilted(1e-4).unwrap_or_else(|e| panic!("h {h}: imports: {}", e.render()));
+        let moves = snaps(&snapped);
+        assert_eq!(moves.len(), 1, "h {h}: one move: {moves:?}");
+        let (surface, relation, moved_by) = moves[0];
+        assert_eq!(
+            (surface, relation),
+            (cap, SnapRelation::AxisNormal),
+            "h {h}"
+        );
+        let rim = 1e-4 * radius;
+        assert!(
+            moved_by >= rim * (1.0 - 1e-6) && moved_by <= rim * 1.01,
+            "h {h}: the move is the rim's, {rim:e}: {moved_by:e}"
+        );
+        for (by, in_band) in [(4e-4, true), (4e-3, false)] {
+            match tilted(by) {
+                Err(StepImportError::Interpretation { refusal, .. }) => match (refusal, in_band) {
+                    (
+                        InterpretationRefusal::Ambiguous {
+                            reading, gap: miss, ..
+                        },
+                        true,
+                    )
+                    | (InterpretationRefusal::EvidenceMiss { reading, miss }, false) => {
+                        assert_eq!(reading, "step_edge_on_description", "h {h} tilt {by}");
+                        assert!(
+                            miss >= by * radius * (1.0 - 1e-2) && miss <= 2.0 * by * radius * 1.01,
+                            "h {h} tilt {by}: the rim's miss, one to two of its move: {miss:e}"
+                        );
+                    }
+                    (other, _) => panic!("h {h} tilt {by}: the rim's reading, got {other:?}"),
+                },
+                other => panic!("h {h} tilt {by}: refuses as the file's, got {other:?}"),
+            }
+        }
+    }
+}
