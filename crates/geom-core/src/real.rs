@@ -584,6 +584,20 @@ pub trait Real:
         self.sin_cos().1
     }
 
+    /// **`self − sin(self)`, conditioned at every `self`**: twice the area
+    /// a unit circle's arc of that signed span cuts off its chord. The
+    /// difference as written cancels to `self³/6` for a small `self` and
+    /// keeps `self`'s rounding, so a scalar reads it there off the
+    /// alternating series `x³/3! − x⁵/5! + …`, whose terms only shrink
+    /// below [`LESS_SIN_SERIES_BELOW`], and past that as the difference,
+    /// which loses nothing there.
+    ///
+    /// Declared, never defaulted: the difference as written is the
+    /// ill-conditioned form, and each scalar says how it keeps its own
+    /// contract (an enclosure bounds the series' dropped tail, a
+    /// recording scalar keeps the difference as its structure).
+    fn less_sin(self) -> Self;
+
     /// **The sine of a twelfth of a turn**, exactly `1/2`. Defaults to
     /// the literal. A scalar that records structure keeps the sine of
     /// the angle instead, valued `1/2`, so what reads the structure sees
@@ -2026,6 +2040,31 @@ pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
 /// marginal predicate (D9). `sqrt` and `abs` use the std/hardware
 /// operations because IEEE 754 *requires* them to be exact/correctly
 /// rounded, so they are already bit-identical everywhere (and faster).
+/// The `|x|` up to which [`Real::less_sin`] reads the series. Past it
+/// the difference is more than half of `x`, so it keeps `x`'s digits; up
+/// to it each term of the series is at most a fifth of the one before.
+pub const LESS_SIN_SERIES_BELOW: f64 = 2.0;
+
+/// `(2k + 2)(2k + 3)` for `k = 1..=10`: the series of `x − sin x` is
+/// `x³/6 · (1 − x²/20 · (1 − x²/42 · (…)))`, each factor the ratio of
+/// one term to the one before.
+const LESS_SIN_RATIOS: [f64; 10] = [
+    20.0, 42.0, 72.0, 110.0, 156.0, 210.0, 272.0, 342.0, 420.0, 506.0,
+];
+
+/// The series of `x − sin x` through `x²³`, for `|x| ≤`
+/// [`LESS_SIN_SERIES_BELOW`]. `tail` stands for the factor the dropped
+/// terms would contribute, which lies in `[1 − x²/600, 1]`: within
+/// `4¹¹·6/25! < 2⁻⁵⁹` of the sum, so `1` rounds as the whole series
+/// does, and an enclosure passes that range.
+pub(crate) fn less_sin_series<T: Real>(x: T, tail: T) -> T {
+    let q = x.powi(2);
+    let nested = LESS_SIN_RATIOS.iter().rev().fold(tail, |inner, &ratio| {
+        T::one() - q / T::from_f64(ratio) * inner
+    });
+    x * q / T::from_f64(6.0) * nested
+}
+
 impl Real for f64 {
     /// **INEXACT**: `f64` compares one rounded number against another.
     /// Its [`Real::register_equal`] refuses with
@@ -2175,6 +2214,14 @@ impl Real for f64 {
         // fused `sincos`, but revisit only with evidence that a fused
         // override is both bit-identical and worth the audit burden.
         (libm::sin(self), libm::cos(self))
+    }
+
+    fn less_sin(self) -> Self {
+        if self.abs() <= LESS_SIN_SERIES_BELOW {
+            less_sin_series(self, 1.0)
+        } else {
+            self - libm::sin(self)
+        }
     }
 
     /// Overrides the [`Real::sin`] projection so scalar sine does not pay for

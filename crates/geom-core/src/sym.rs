@@ -5351,6 +5351,13 @@ impl<T: Real> Real for Sym<T> {
         (self.unary(s, SymOp::Sin, 0), self.unary(c, SymOp::Cos, 0))
     }
 
+    /// The difference `self − sin(self)` as structure, valued by `T`'s
+    /// door: the form is the function itself, never the series a value
+    /// is read off.
+    fn less_sin(self) -> Self {
+        self.binary(self.sin(), self.value.less_sin(), SymOp::Sub)
+    }
+
     /// The `Sin` node over `τ/12`, valued `1/2`: the tier folds a
     /// constant angle itself (`trig_at_rational_pi`, rule H's settle).
     fn sin_of_a_twelfth() -> Self {

@@ -117,9 +117,10 @@ fn arc_vector_area<T: SpanLocate>(
 /// `Δ − sin Δ` for the signed span `Δ`. Twice the area between a unit
 /// circle's arc and its chord; an arc of the conic `c + a·cos θ +
 /// b·sin θ` cuts off `(a × b)·(Δ − sin Δ)` of twice-area, for any
-/// signed `Δ` and any `a`, `b`.
+/// signed `Δ` and any `a`, `b`. It reads no centre and no point of the
+/// conic, and a short arc's keeps its digits ([`Real::less_sin`]).
 pub fn chord_bulge<T: Real>(span: T) -> T {
-    span - span.sin()
+    span.less_sin()
 }
 
 /// **Twice the vector area between a conic arc and its chord**:
