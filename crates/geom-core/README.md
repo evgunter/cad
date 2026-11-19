@@ -340,7 +340,17 @@ This section is where that rule's parts live.
   `Margin::levered`). It is built only from its sources: a read of the
   consumed extent, a curvature arm `1/κ_rel`, or the session box where
   no geometry is in hand. Rates are not levers: they go through
-  `levered_inv` and the metric doors.
+  `levered_inv` and the metric doors. A length that is the reading
+  itself (a residual, an offset, a stand-off) is the margin, and a
+  tolerance is the band's: neither is an arm. A dimensionless factor
+  belongs to the reading, not the arm. The point-level reads (two
+  points' distance, a point set's reach from a pivot) live beside
+  `Lever` in `geom-core`; covers and `Reach` stay in `geom_brep`. A
+  lever is never shorter than the region its verdict governs and no
+  longer than the site's own measure of it: a verdict that claims a
+  definite sign reads the extent from below, one that acts on its Zero
+  reads it from above, and one that acts on every sign reads both and
+  acts only where they agree.
 - **The consumed extent** (`geom_brep::Reach`): the region a verdict
   is used over. It is one type, built only from the geometry consumed
   (an edge over its span, a face's region, two faces' meet, a bounded
@@ -353,7 +363,8 @@ This section is where that rule's parts live.
   lever is the extent's far distance from that point; the least over
   all points is not owed. That point is the origin of a tilt bound,
   not a claim about the entity: any point is sound provided the datum
-  and its lever are read at the same one.
+  and its lever are read at the same one, so a record that verdicts
+  read from different points holds its region, not a lever.
 - **The session box** is one predicate over a body's largest
   `|coordinate|`, read from below off its vertices' and its edges' own
   points, never a carrier's stored terms: the box bounds each
