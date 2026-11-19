@@ -37,10 +37,9 @@
 //!    surface or carrier whose residual reads Zero is promoted; two
 //!    surface records of one locus become one
 //!    ([`NormalizationKind::OneRecord`]); a relation between two
-//!    surfaces the file's band reads `Zero` (coaxial, tangent,
-//!    axis-normal) is made exact by the snap catalogue's one construction
-//!    for it, each connected class of relations solved jointly
-//!    ([`SnapRelation`], [`NormalizationKind::Snapped`]); a value no
+//!    surfaces the file's band reads `Zero` is made exact by the snap
+//!    catalogue ([`SnapRelation`], which states it), each move reported
+//!    ([`NormalizationKind::Snapped`]); a value no
 //!    construction takes refuses ([`InterpretationRefusal`]).
 //! 3. **Topology assembly** ([`assemble`]): the shell's half-edge
 //!    structure is realized through `topo`'s public Euler operators
@@ -584,10 +583,12 @@ pub enum NormalizationKind {
     },
 }
 
-/// **The snap catalogue's relations** (`[import]`, D7 step 3): each one
-/// construction that makes a relation the file's band reads `Zero`
-/// exact. Two records of one surface, the catalogue's fourth relation,
-/// are [`NormalizationKind::OneRecord`].
+/// **The snap catalogue's relations** (`[import]`, D7 step 3), each one
+/// construction that makes a relation the file's band reads `Zero` exact:
+/// with the `snap` module's docs, the one statement of the catalogue,
+/// what each construction moves and what it refuses. Two records of one
+/// surface, the catalogue's fourth relation, are
+/// [`NormalizationKind::OneRecord`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SnapRelation {
     /// Two round surfaces on one axis: the later record moved onto the
@@ -596,8 +597,9 @@ pub enum SnapRelation {
     /// A plane and a cylinder tangent along their edge: the planes kept,
     /// the cylinder's axis translated square to itself to stand its
     /// radius from each (one plane, or two crossing); between two parallel
-    /// planes, its radius half their spacing and its axis on the
-    /// mid-plane.
+    /// planes, its axis between them, its radius half their spacing and
+    /// its axis on the mid-plane; two planes whose parallelism the file's
+    /// band does not read, the file's ambiguity.
     Tangent,
     /// A plane and a round surface whose axis runs along its normal: the
     /// later record turned about where the axis meets the plane.
@@ -605,7 +607,8 @@ pub enum SnapRelation {
 }
 
 impl SnapRelation {
-    /// The relation's name, as a refusal states it.
+    /// The relation's name, as a refusal states it and as the Python
+    /// binding's `relation` word spells it.
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {

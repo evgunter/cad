@@ -447,6 +447,11 @@ fn pair_names(a: &Surface<f64>, b: &Surface<f64>) -> String {
 const MARCHED_LANE: &str = "an edge's interval read across a marched section loop's start \
                             (`work/importgate/a-marched-section-edge-across-its-loops-start-refuses-at-import.md`)";
 
+/// The lane an edge between two records of one surface that
+/// `crate::one_record` does not join waits on.
+const ONE_LOCUS_LANE: &str = "one record of a surface stated twice that one_record does not join \
+     (`work/importgate/an-edge-between-two-records-of-one-surface-one-record-does-not-join-refuses.md`)";
+
 /// The lane a pair with no section construction waits on.
 const SECTION_LANE: &str = "a section construction for this pair \
                             (`work/importgate/an-imported-edge-on-a-pair-the-c5-table-does-not-build-refuses.md`)";
@@ -800,7 +805,7 @@ fn served_pair(
                      two records state twice",
                         sa.kind().name()
                     ),
-                    crate::snap::UNCATALOGUED_LANE,
+                    ONE_LOCUS_LANE,
                 )),
                 Err(e) => Err(unbuilt(
                     file,
@@ -1998,7 +2003,9 @@ enum Rooted {
 
 /// The first root, in edge then face order, of a face's surface along a
 /// built intrinsic carrier ending at the vertex that the surface does not
-/// hold. A reading the run's band does not decide is kept and the search
+/// hold, the vertex's tangent edges first: any other carrier through a
+/// vertex on a tangency grazes one of its two surfaces there, where a root
+/// is square-root-conditioned on the tangency's gap. A reading the run's band does not decide is kept and the search
 /// goes on, as a climb keeps what it passes over: the first definite root
 /// answers, and the first escalation refuses only where none does.
 ///
@@ -2018,9 +2025,6 @@ fn rooted(
     let mut unsettled = None;
     let mut unsupported: Option<String> = None;
     let mut decided = false;
-    // A tangency's locus first: every other carrier through a vertex on
-    // it grazes one of the tangency's two surfaces there, where a root
-    // is square-root-conditioned on the tangency's gap.
     let tangent_first = edges
         .iter()
         .filter(|e| matches!(chosen[e].description, Description::Tangent))

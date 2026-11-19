@@ -29,6 +29,16 @@
 //! naming what would decide it. A carrier with no cover keeps the two
 //! records.
 //!
+//! **A round surface** (a cylinder, cone, sphere or torus) stated in two
+//! records is asked the same question where its faces are
+//! ([`crate::reach::Reach`] of both groups): its normal is fixed by the
+//! locus, so two faces face one way exactly where their senses agree, and
+//! the gap is how far apart the two axes stand at the ends of the faces'
+//! extent along them, never at the records' stored axis points, with a
+//! centre's or an apex's offset, a tilt levered at the faces' reach, and
+//! the difference of the radii ([`round_gap`]). The faces take the earlier
+//! record as stated; their senses already agree.
+//!
 //! Each group is read against the groups kept so far, never through a
 //! third (`[verdicts.closeness]`). Faces of different solids are never
 //! asked: they stay two records, with the contact rows the at-rest gate

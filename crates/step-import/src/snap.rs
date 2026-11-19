@@ -607,42 +607,14 @@ fn tangent(
         .collect();
     let (delta, radius_to) = match need[..] {
         [(n1, _, g1)] => (n1 * g1, *radius),
-        [(n1, c1, g1), (n2, c2, g2)] => {
-            let parallel = n1.cross(n2).norm() * faces.lever().length();
-            match file.read(STEP_SNAP_PARALLEL, parallel) {
-                Read::Apart => {
-                    let c = n1.dot(n2);
-                    let det = n1.cross(n2).norm().powi(2);
-                    let x = (g1 - c * g2) / det;
-                    let y = (g2 - c * g1) / det;
-                    (n1 * x + n2 * y, *radius)
-                }
-                Read::InBand => {
-                    return Err(file.refused(
-                        nodes[n].record.id,
-                        file.ambiguous(STEP_SNAP_PARALLEL, parallel),
-                    ));
-                }
-                // Two parallel planes: their levels along the first's
-                // normal, the second's read the way its own normal points.
-                Read::Zero => {
-                    let at = n1.dot(q - Point3::origin());
-                    let c2 = if n1.dot(n2) < 0.0 { -c2 } else { c2 };
-                    let Some((shift, radius_to)) =
-                        between_planes(at, (c1, c2), file, nodes[n].record.id)?
-                    else {
-                        return Err(unsolved(
-                            file,
-                            planes[1].edge,
-                            "a cylinder tangent to two parallel planes whose axis does not lie \
-                             between them"
-                                .to_owned(),
-                        ));
-                    };
-                    (n1 * shift, radius_to)
-                }
-            }
-        }
+        [one, two] => two_planes(
+            (one, two),
+            (q, *radius),
+            faces.lever().length(),
+            file,
+            nodes[n].record.id,
+        )?
+        .map_err(|what| unsolved(file, planes[1].edge, what.to_owned()))?,
         _ => {
             return Err(unsolved(
                 file,
@@ -662,6 +634,49 @@ fn tangent(
         },
         delta.norm() + (radius_to - radius).abs(),
     ))
+}
+
+/// **A cylinder tangent to two planes**, each as its unit normal, its
+/// level along it and the axis's offset `g` from where it stands its
+/// radius from it: the axis's translation and the radius it takes. The
+/// two planes' parallelism is read at the file's band over `lever`, the
+/// cylinder's faces' reach ([`STEP_SNAP_PARALLEL`]): crossing, the axis
+/// moves to where the two offsets meet, its radius kept; parallel, the
+/// parallel arm ([`between_planes`]) about the axis point `q`; in band,
+/// the file's ambiguity, named at `record`. The inner error is the class
+/// the arm does not solve.
+fn two_planes(
+    ((n1, c1, g1), (n2, c2, g2)): ((Vec3<f64>, f64, f64), (Vec3<f64>, f64, f64)),
+    (q, radius): (Point3<f64>, f64),
+    lever: f64,
+    file: FileBand,
+    record: u64,
+) -> Result<Result<(Vec3<f64>, f64), &'static str>, StepImportError> {
+    let parallel = n1.cross(n2).norm() * lever;
+    Ok(match file.read(STEP_SNAP_PARALLEL, parallel) {
+        Read::Apart => {
+            let c = n1.dot(n2);
+            let det = n1.cross(n2).norm().powi(2);
+            let x = (g1 - c * g2) / det;
+            let y = (g2 - c * g1) / det;
+            Ok((n1 * x + n2 * y, radius))
+        }
+        Read::InBand => {
+            return Err(file.refused(record, file.ambiguous(STEP_SNAP_PARALLEL, parallel)));
+        }
+        // Their levels along the first's normal, the second's read the way
+        // its own normal points.
+        Read::Zero => {
+            let at = n1.dot(q - Point3::origin());
+            let c2 = if n1.dot(n2) < 0.0 { -c2 } else { c2 };
+            between_planes(at, (c1, c2), file, record)?
+                .map(|(shift, radius_to)| (n1 * shift, radius_to))
+                .ok_or(
+                    "a cylinder tangent to two parallel planes whose axis does not lie between \
+                     them",
+                )
+        }
+    })
 }
 
 /// **The parallel arm**: for an axis at level `at` between two parallel
@@ -875,6 +890,73 @@ mod tests {
                 ..
             }) => assert_eq!((id, reading), (7, STEP_SNAP_SIDE)),
             other => panic!("a side in the file's band is its ambiguity: {other:?}"),
+        }
+    }
+
+    /// **Two planes a cylinder is tangent to**: crossing, the axis moves to
+    /// where the two offsets meet, each plane's offset kept to its own
+    /// normal; parallel within the file's band's zero, the parallel arm;
+    /// parallel in the band, the file's ambiguity; parallel with the axis
+    /// beside both, no arm.
+    #[test]
+    fn two_planes_are_read_crossing_parallel_or_in_band() {
+        let file = FileBand::test(1e-5);
+        let (y, x) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let at = |y: f64| Point3::new(0.0, y, 0.0);
+        let (delta, radius) = two_planes(
+            ((y, 0.0, 3e-6), (x, 0.0, 0.0)),
+            (at(1.0), 1.0),
+            1.0,
+            file,
+            7,
+        )
+        .unwrap()
+        .unwrap();
+        assert!(
+            (delta - y * 3e-6).norm() < 1e-15 && radius == 1.0,
+            "crossing: the offset along its own plane's normal: {delta:?}"
+        );
+        let down = Vec3::new(0.0, -1.0, 0.0);
+        assert_eq!(
+            two_planes(
+                ((y, 0.0, 0.0), (down, -2.0, 0.0)),
+                (at(0.75), 1.0),
+                1.0,
+                file,
+                7
+            )
+            .unwrap()
+            .map(|(d, r)| (d.y, r)),
+            Ok((0.25, 1.0)),
+            "parallel, the axis between: the mid-plane and half the spacing"
+        );
+        assert!(
+            two_planes(
+                ((y, 0.0, 0.0), (down, -2.0, 0.0)),
+                (at(3.0), 1.0),
+                1.0,
+                file,
+                7
+            )
+            .unwrap()
+            .is_err(),
+            "parallel, the axis beside both: no arm"
+        );
+        let tilt = 5e-5_f64;
+        let near = Vec3::new(tilt.sin(), -tilt.cos(), 0.0);
+        match two_planes(
+            ((y, 0.0, 0.0), (near, -2.0, 0.0)),
+            (at(1.0), 1.0),
+            1.0,
+            file,
+            7,
+        ) {
+            Err(StepImportError::Interpretation {
+                id,
+                refusal: crate::interpret::Refusal::Ambiguous { reading, .. },
+                ..
+            }) => assert_eq!((id, reading), (7, STEP_SNAP_PARALLEL)),
+            other => panic!("parallel in the band: the file's ambiguity, got {other:?}"),
         }
     }
 
