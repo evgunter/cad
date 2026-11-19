@@ -5370,6 +5370,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "one_record",
             "placement_re_minted",
             "seamless_periodic_band",
+            "snapped",
             "surface_promotion",
             "vertex_built",
         ],
@@ -5897,6 +5898,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "value_spin",
         ],
         delegates: &["operand_slot_tag"],
+    },
+    TagEntry {
+        function: "snap_relation_tag",
+        values: &["axis_normal", "coaxial", "tangent"],
+        delegates: &[],
     },
     TagEntry {
         function: "snapshot_error_tag",
