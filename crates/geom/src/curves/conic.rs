@@ -357,6 +357,17 @@ fn offsets<T: Real>(theta: T) -> (T, T) {
     (-(T::from_f64(2.0) * sh.powi(2)), s)
 }
 
+/// `(sin θ, cos θ)` in running arithmetic, each charged an ulp.
+fn running_sin_cos<T: Real>(theta: T) -> (Rounded<T>, Rounded<T>) {
+    let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
+    let transcendental = |x: T| Rounded {
+        value: x,
+        error: ulp * x.abs(),
+    };
+    let (s, c) = theta.sin_cos();
+    (transcendental(s), transcendental(c))
+}
+
 /// [`offsets`] in running arithmetic: each sine charged an ulp, the
 /// square its rounding, the halving, the doubling and the negation
 /// exact.
@@ -469,9 +480,14 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 
     fn point_at(&self, theta: T) -> Point3<T> {
-        let (ku, kv) = offsets(theta);
-        let (u, v) = (self.frame.u_ref(), self.frame.v_ref());
-        self.zero_point() + (u * ku + v * kv) * self.radius
+        match self.anchor {
+            None => self.frame.origin() + self.azimuth(theta).radial.0 * self.radius,
+            Some(zero) => {
+                let (ku, kv) = offsets(theta);
+                let (u, v) = (self.frame.u_ref(), self.frame.v_ref());
+                zero + (u * ku + v * kv) * self.radius
+            }
+        }
     }
 
     fn derivative_at(&self, theta: T) -> Vec3<T> {
@@ -532,12 +548,17 @@ impl<T: Real> Conic<T> for Circle<T> {
     fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
         let (c, u, v) = running_frame(&self.frame);
         let r = Rounded::exact(self.radius);
-        let (ku, kv) = running_offsets(theta);
-        let zero: [Rounded<T>; 3] = match self.anchor {
-            Some(p) => exact_point(p),
-            None => core::array::from_fn(|i| c[i] + u[i] * r),
-        };
-        core::array::from_fn(|i| zero[i] + (u[i] * ku + v[i] * kv) * r)
+        match self.anchor {
+            None => {
+                let (sin, cos) = running_sin_cos(theta);
+                core::array::from_fn(|i| c[i] + (u[i] * cos + v[i] * sin) * r)
+            }
+            Some(zero) => {
+                let zero = exact_point(zero);
+                let (ku, kv) = running_offsets(theta);
+                core::array::from_fn(|i| zero[i] + (u[i] * ku + v[i] * kv) * r)
+            }
+        }
     }
 
     fn major_frame(&self) -> MajorFrame<T> {
@@ -736,9 +757,18 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     }
 
     fn point_at(&self, theta: T) -> Point3<T> {
-        let (ku, kv) = offsets(theta);
-        let (u, v) = (self.frame.u_ref(), self.frame.v_ref());
-        self.zero_point() + (u * (self.semi_u * ku) + v * (self.semi_v * kv))
+        match self.anchor {
+            None => {
+                let ((s, c), v_ref) = self.basis(theta);
+                self.frame.origin()
+                    + (self.frame.u_ref() * (self.semi_u * c) + v_ref * (self.semi_v * s))
+            }
+            Some(zero) => {
+                let (ku, kv) = offsets(theta);
+                let (u, v) = (self.frame.u_ref(), self.frame.v_ref());
+                zero + (u * (self.semi_u * ku) + v * (self.semi_v * kv))
+            }
+        }
     }
 
     fn derivative_at(&self, theta: T) -> Vec3<T> {
@@ -809,13 +839,19 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
         let (c, u, v) = running_frame(&self.frame);
         let (a, b) = (Rounded::exact(self.semi_u), Rounded::exact(self.semi_v));
-        let (ku, kv) = running_offsets(theta);
-        let (ku, kv) = (a * ku, b * kv);
-        let zero: [Rounded<T>; 3] = match self.anchor {
-            Some(p) => exact_point(p),
-            None => core::array::from_fn(|i| c[i] + u[i] * a),
-        };
-        core::array::from_fn(|i| zero[i] + (u[i] * ku + v[i] * kv))
+        match self.anchor {
+            None => {
+                let (sin, cos) = running_sin_cos(theta);
+                let (ac, bs) = (a * cos, b * sin);
+                core::array::from_fn(|i| c[i] + (u[i] * ac + v[i] * bs))
+            }
+            Some(zero) => {
+                let zero = exact_point(zero);
+                let (ku, kv) = running_offsets(theta);
+                let (ku, kv) = (a * ku, b * kv);
+                core::array::from_fn(|i| zero[i] + (u[i] * ku + v[i] * kv))
+            }
+        }
     }
 }
 

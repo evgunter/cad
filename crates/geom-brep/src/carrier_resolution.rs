@@ -23,22 +23,21 @@ use geom::carrier_speed::speed_hi;
 /// The roundings [`resolution`] charges per unit of its scale, `u`
 /// times the length of the terms a point of the carrier is summed from:
 ///
-/// - **evaluation**, at most 20: per coordinate, the half angle's
-///   `sin_cos` (1), the computed `v_ref = axis × u_ref` (2), the
-///   doubled sine's product, the size's and the frame's (3), the sum of
-///   the two terms (1), a zero point summed from a stored centre (2)
-///   and the last sum (1), at most 10 per term; the point's Euclidean
-///   miss is at most `√3 < 2` times that;
+/// - **evaluation**, at most 14: per coordinate, `sin_cos` (1), the
+///   computed `v_ref = axis × u_ref` (2), the two products and the
+///   frame scaling (3) and the two sums (1), at most 7 per term; the
+///   point's Euclidean miss is at most `√3 < 2` times that;
 /// - **construction**, fitted: the section tables build a carrier from
 ///   its two surfaces, and its points hold only to some multiple of `u`
 ///   times the length of those terms. No closed form is derived for
 ///   it. `the_resolution_bounds_each_section_tables_carrier` holds the
 ///   whole allowance (this bound plus the coordinates' `4ε·|p|`) at ten
 ///   times the exact miss on every kind the tables mint a conic or a line
-///   for. At 40 the worst miss is a sphere's circle's, which 32 leaves
-///   at `0.106` of the allowance, so the row reds there: 40 is fitted
-///   to that tenfold margin, not a derived count.
-const RESOLUTION_ROUNDINGS: f64 = 40.0;
+///   for. At 32 the worst miss is `0.080` of it (a sphere's circle; a
+///   cylinder's ellipses, far centres included, `0.023`); at 16 the
+///   sphere's reaches `0.119` and the row reds, so 32 is the smallest
+///   power of two that keeps that tenfold margin, not a derived count.
+const RESOLUTION_ROUNDINGS: f64 = 32.0;
 
 /// **`carrier`'s resolution over `t0 ..= t1`** (metres): the
 /// [`RESOLUTION_ROUNDINGS`] roundings of the terms its points are
