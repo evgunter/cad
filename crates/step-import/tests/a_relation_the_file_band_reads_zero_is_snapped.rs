@@ -316,7 +316,13 @@ fn nudge_direction(text: &str, id: u64, k: usize, by: f64) -> String {
         .map(|c| c.trim().parse().unwrap())
         .collect();
     xyz[k] += by;
-    let moved = format!("{head}{:?}, {:?}, {:?}{}", xyz[0], xyz[1], xyz[2], &line[close..]);
+    let moved = format!(
+        "{head}{:?}, {:?}, {:?}{}",
+        xyz[0],
+        xyz[1],
+        xyz[2],
+        &line[close..]
+    );
     text.replacen(line, &moved, 1)
 }
 

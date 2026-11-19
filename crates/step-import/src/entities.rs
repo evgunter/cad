@@ -3399,13 +3399,13 @@ fn resolve_shape(
 /// A resolver over `file` with no unit knowledge yet — the unit pass's
 /// own instrument (it reads enumerations and one uncertainty literal,
 /// never a coordinate, so a unit scale of 1 is honest there).
-fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
+fn unit_pass_resolver(file: &StepFile, tol: geom_core::Tol) -> Resolver<'_> {
     Resolver {
         file,
         length_scale: 1.0,
         angle_scale: 1.0,
         budget: interpret::FileBand::unread(),
-        tol: geom_core::Tol::witness(),
+        tol,
         next_id: std::cell::Cell::new(0),
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
@@ -3425,7 +3425,7 @@ pub(crate) fn resolve(
     eps_override: Option<f64>,
     tol: geom_core::Tol,
 ) -> Result<Model, StepImportError> {
-    let r = unit_pass_resolver(file);
+    let r = unit_pass_resolver(file, tol);
 
     // The header must declare a schema (Part 21's FILE_SCHEMA). The
     // subset does not pin the schema NAME — the entities themselves

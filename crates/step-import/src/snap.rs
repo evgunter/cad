@@ -346,8 +346,9 @@ fn gap(kind: SnapRelation, a: &Surface<f64>, b: &Surface<f64>, lever: f64, at: P
             let Some(line) = axis(b) else {
                 return f64::INFINITY;
             };
-            let near = foot(at, line);
-            normal.dot(line.1).abs() * lever + ((near - *origin).dot(*normal).abs() - radius).abs()
+            let on_axis = foot(at, line);
+            normal.dot(line.1).abs() * lever
+                + ((on_axis - *origin).dot(*normal).abs() - radius).abs()
         }
         SnapRelation::AxisNormal => {
             let (Surface::Plane { normal, .. }, Some((_, d))) = (a, axis(b)) else {
@@ -382,9 +383,9 @@ fn centre(solid: &SolidSpec, edge: u64) -> Point3<f64> {
         .collect();
     let (lo, hi) = bounds(solid, &faces);
     Point3::new(
-        (lo[0] + hi[0]) / 2.0,
-        (lo[1] + hi[1]) / 2.0,
-        (lo[2] + hi[2]) / 2.0,
+        geom::mid_param(lo[0], hi[0]),
+        geom::mid_param(lo[1], hi[1]),
+        geom::mid_param(lo[2], hi[2]),
     )
 }
 
@@ -634,7 +635,7 @@ fn tangent(
             ) {
                 Ok(false) => {
                     let c = n1.dot(n2);
-                    let det = 1.0 - c * c;
+                    let det = 1.0 - c.powi(2);
                     let x = (g1 - c * g2) / det;
                     let y = (g2 - c * g1) / det;
                     (n1 * x + n2 * y, radius)

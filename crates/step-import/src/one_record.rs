@@ -164,9 +164,9 @@ pub(crate) fn one_record(
 /// datum (an axis line, a centre, its radii) is the locus itself, unlike a
 /// plane's arbitrary origin, so the question is asked of the datum, at the
 /// faces' reach: a bound on the farthest a face of either group lies from
-/// the other record's surface, an axis's tilt levered at the farthest
-/// vertex of either group from the kept record's datum point
-/// ([`round_gap`]).
+/// the other record's surface, an axis's tilt levered at the farthest the
+/// boundary of either group lies from the kept record's datum point
+/// ([`reach_from`], [`round_gap`]).
 fn one_round_record(
     solid: &mut SolidSpec,
     records: &[Record],
@@ -193,7 +193,10 @@ fn one_round_record(
                 &solid.faces[keep_faces[0]].surface,
                 &solid.faces[faces[0]].surface,
             );
-            let lever = farthest_from(solid, keep_faces.iter().chain(faces), a);
+            let Some(at) = datum_point(a) else {
+                continue;
+            };
+            let lever = reach_from(solid, keep_faces.iter().chain(faces), at);
             let Some(gap) = round_gap(a, b, lever) else {
                 continue;
             };
@@ -242,31 +245,40 @@ fn round(surface: &Surface<f64>) -> bool {
     )
 }
 
-/// The farthest a vertex of the faces `faces` lies from the datum point
-/// of `surface` (its axis point, apex or centre): the lever an axis tilt
-/// is read at across them.
-fn farthest_from<'a>(
+/// A round surface's datum point: its axis point, apex or centre.
+fn datum_point(surface: &Surface<f64>) -> Option<Point3<f64>> {
+    match *surface {
+        Surface::Cylinder { origin, .. } => Some(origin),
+        Surface::Cone { apex, .. } => Some(apex),
+        Surface::Sphere { center, .. } | Surface::Torus { center, .. } => Some(center),
+        _ => None,
+    }
+}
+
+/// The farthest the boundary of the faces `faces` lies from `at`, read
+/// off each edge carrier's cover over its span
+/// ([`geom::Curve3::cover_over`]): the lever an axis tilt is read at
+/// across them. Infinite where a carrier has no cover.
+fn reach_from<'a>(
     solid: &SolidSpec,
     faces: impl Iterator<Item = &'a usize>,
-    surface: &Surface<f64>,
+    at: Point3<f64>,
 ) -> f64 {
-    let at = match *surface {
-        Surface::Cylinder { origin, .. } => origin,
-        Surface::Cone { apex, .. } => apex,
-        Surface::Sphere { center, .. } | Surface::Torus { center, .. } => center,
-        _ => return 0.0,
-    };
+    let site = geom::cover::Site::Point(at);
     let mut far = 0.0_f64;
     for &fi in faces {
         for lp in &solid.faces[fi].loops {
             for u in &lp.uses {
-                if let Some(edge) = solid.edges.get(&u.edge) {
-                    for v in [edge.start, edge.end] {
-                        if let Some(p) = solid.vertices.get(&v) {
-                            far = far.max((*p - at).norm());
-                        }
-                    }
-                }
+                let Some(spec) = solid.edges.get(&u.edge) else {
+                    return f64::INFINITY;
+                };
+                let Ok(cover) = spec
+                    .carrier
+                    .cover_over(geom::cover::ParamWindow::new(spec.t0, spec.t1))
+                else {
+                    return f64::INFINITY;
+                };
+                far = far.max(cover.distance_range(&site).1);
             }
         }
     }
