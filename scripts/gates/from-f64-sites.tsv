@@ -88,6 +88,7 @@ crates/geom-brep/src/tangent.rs	1	constant	f64::from(crate::certify::CERT_SAMPLE
 crates/geom-core/src/bisect.rs	1	constant	escalate	the band's escalation width, a tolerance
 crates/geom-core/src/dual.rs	1	constant	f64::from(n)	powi's exponent
 crates/geom-core/src/dual.rs	1	constant	x	the Real impl's own door: Dual::from_f64 embeds at its value scalar
+crates/geom-core/src/interval.rs	1	constant	<fn>	enclose_expansion: an exact expansion's components, each an f64 exactly (the expansion is their sum), entered as points at the concrete Interval (never Sym)
 crates/geom-core/src/interval.rs	1	constant	x	the Real impl's own door: Interval::from_computed is the point embed by design
 crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interval's point embed, the door itself: never Sym
 crates/geom-core/src/linalg/angle.rs	1	constant	(4 * den) as f64	the denominator of an octant's fraction of a turn, an exact integer at most 2^53
