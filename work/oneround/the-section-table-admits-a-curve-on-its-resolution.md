@@ -2,10 +2,11 @@
 id: the-section-table-admits-a-curve-on-its-resolution
 kind: unit
 title: A minted section conic is stored anchored on the arc its edge uses, its centre derived (Ev, PR 4812)
-status: open
+status: dispatched
 opened: 2026-10-12
-priority: P2
+priority: P1
 cost: H
+branch: oneround/anchored-conic
 ---
 
 Part 2 of the design on
@@ -130,3 +131,12 @@ miss in units of `u·a`, with the point read three ways:
   `work/select/an-endpoint-pin-passes-on-a-far-centred-conics-own-rounded-point.md`.
 - A circle has no re-seaming door:
   `work/oneround/a-far-circle-has-no-re-seaming-door.md`.
+
+## Claimed by ONEROUND (2026-11-19)
+
+Moved from HONEPAIR by `git mv`, id and body unchanged, and re-banded P2 → P1: `a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex` (P1) waits on it, and a blocker takes the band of what waits (`work/README.md`, Priority). HONEPAIR had no orchestrator and no lane on it.
+
+- **The spec is Ev's decision on PR 4812** (the seam note above and GERM's `conic-section-just-past-its-band-fails-certification-downstream`, "Decided"), not this file's `## Owed` list, which that decision supersedes: no refusal at the arm and no `UnsupportedConditioning`.
+- **What the phase-1 measurement adds** (the appended section above; tables on `analysis/oneround/conic-vertex-probes`): the anchor has to be allowed at a general point of the arc, since a cylinder's shallow cut has no principal vertex near its in-box arc; and the near-gap families, the chords of one carrier and the readings that compare a conic's point with an in-box point all recover once evaluators read a form anchored in the box.
+- **Unit:** `oneround/anchored-conic`, letter H, tier dual (a concurrent pair), as logged for `oneround/conic-vertex` on 2026-11-19, whose implementer keeps it. It is stacked on `onehome/carrier-frames` (PR 7131), which makes every carrier hold its frame as a `RigidMotion` (decided, fork 274) and still asks Ev how a stored frame is read at `Interval`.
+

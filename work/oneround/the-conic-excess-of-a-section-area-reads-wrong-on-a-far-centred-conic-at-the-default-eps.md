@@ -2,11 +2,12 @@
 id: the-conic-excess-of-a-section-area-reads-wrong-on-a-far-centred-conic-at-the-default-eps
 kind: issue
 title: split_section_area's conic excess is a sector about the far centre less a triangle: on a sliver loop of a far-centred conic it reads definitely positive where the true margin is inside the zero band, from far 1e4 at the default eps
-status: open
+status: dispatched
 opened: 2026-11-19
 priority: P2
 cost: M
 refs: [a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex]
+branch: oneround/section-area
 ---
 
 
