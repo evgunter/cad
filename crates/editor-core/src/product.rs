@@ -141,8 +141,9 @@ pub enum ProductError {
         read: crate::VarId,
     },
     /// **A source could not be read into the frame the gather computes
-    /// in** (D10 `[placement.frame]`): its relative map overflowed, or
-    /// its image there reaches past the session box.
+    /// in** (D10 `[placement.frame]`): its relative map overflowed. An
+    /// image that reaches past the session box there is the aggregate's
+    /// ([`Self::ProductInvalid`]).
     Frame {
         /// The piece whose body was being read.
         node: RecipeNodeId,
@@ -159,10 +160,12 @@ pub enum ProductError {
     },
     /// The gathered product is not a finished body, though every
     /// source is one in its own frame: a graft defect (the graft
-    /// transplants each source verbatim), or an image moved into the
+    /// transplants each source verbatim), an image moved into the
     /// product's frame whose rounding tips a fact its source held within
-    /// the band. The findings are the aggregate's, in the aggregate's
-    /// keys.
+    /// the band, or an image that stands past the session box about the
+    /// frame's origin ([`crate::eval::Framed::computing_frame`]: sources
+    /// each inside the box whose hull is not, in the kept rotation). The
+    /// findings are the aggregate's, in the aggregate's keys.
     ProductInvalid {
         /// The finish's findings.
         findings: topo::NotFinished,
@@ -307,8 +310,8 @@ impl ProductError {
             ),
             Self::ProductInvalid { findings } => {
                 // Every copy is finished in its own frame, so a refusal
-                // here is a graft defect or an image's rounding; the
-                // findings say which.
+                // here is a graft defect, an image's rounding, or the
+                // aggregate past the box; the findings say which.
                 f.write_str("the product does not finish:")?;
                 list(f, findings.as_slice())
             }
@@ -1342,7 +1345,10 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                     node: *node,
                     source,
                 },
-                read => ProductError::Frame {
+                // The image is the aggregate's data: past the box, it is
+                // the aggregate that stands there.
+                crate::eval::GraftIn::Moved(findings) => ProductError::ProductInvalid { findings },
+                read @ crate::eval::GraftIn::Motion(_) => ProductError::Frame {
                     node: *node,
                     kind: Box::new(read.into()),
                 },

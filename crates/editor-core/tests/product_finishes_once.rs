@@ -618,6 +618,47 @@ fn copies_past_the_box_about_the_recentred_origin_refuse_at_the_graft() {
     );
 }
 
+/// **A product whose sources stand past the box about its recentred
+/// origin refuses as its aggregate, with the box's finding**: a block
+/// turned an eighth about `z` at `(−900, −900, 0)` and a row of two copies
+/// of it 2546 m apart along the diagonal its own `x` points along, the
+/// second at about `(900, 900, 0)`, read by the product whole. Each member stands in the
+/// box; in the kept rotation they stand about 1273 m from the centre, so
+/// the gather's graft of the second refuses, and the product refuses as
+/// its aggregate (`ProductError::ProductInvalid`, whose findings are the
+/// session box's alone), not as a frame no source could be read into.
+#[test]
+fn a_product_past_the_box_about_its_recentred_origin_refuses_as_its_aggregate() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("a-product-past-the-recentred-box"), tol);
+    let (doc, source) = block(doc);
+    let (doc, copy) = editor_core::test_support::in_world(
+        doc,
+        source,
+        &turned_an_eighth([-900.0, -900.0, 0.0]),
+        tol,
+    );
+    let c = core::f64::consts::FRAC_1_SQRT_2;
+    let (doc, _, row) = fixture::linear(doc, copy, [c, c, 0.0], 1800.0 / c, 2);
+    let doc = product_of_family(doc, row);
+    let ev = evaluated(&doc);
+    assert!(
+        ev.node_error(row).is_none(),
+        "every member stands in the box where it is placed: {:?}",
+        ev.node_error(row)
+    );
+    let product = editor_core::product_recorded(&doc, &ev, tol);
+    assert!(
+        matches!(
+            &product,
+            Err(editor_core::ProductError::ProductInvalid { findings })
+                if matches!(findings.as_slice(), [topo::ValidationError::OutsideSessionBox { .. }])
+        ),
+        "the product refuses as its aggregate, with the session box's finding alone: {:?}",
+        product.as_ref().map(|_| ())
+    );
+}
+
 /// A part of two blocks, at `x = 0` and `x = 2` in its own world, its
 /// product their `⊔`, and a document instancing it once, pinned at `at`.
 fn a_sub_assembly_placed_at(
