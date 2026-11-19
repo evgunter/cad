@@ -72,3 +72,15 @@
   - Fork 1, (a): the tangent construction translates a fillet cylinder's axis perpendicular to itself, every plane kept. Conditions: the move itself reads Zero at the file band; the class is certified exact after the move; parallel planes, three or more tangencies, or a coaxial partner refuse unsolvable. The choice of mover is stated in the PR body for Ev.
   - Fork 2: nist_ftc_09 still refuses on cylinder C5139's 56.8 µm in-band gap, which is the file's ambiguity by D7. Its row stays open with that evidence; the six snapped tangencies are pinned by their own row.
   - Accepted: adjacent pairs only; exact relations as constraints; the `Snapped` ledger kind.
+
+- 2026-11-19 00:10 — PR 7132 merged (the tracker sync and the snap unit filed). Dispatched the remaining two P1s to one cloud Opus session (session_01BJC3B25yBjsWoDDirqxoaK), in order: `main-red-the-sense-fold-census-flags-knot-split-a` (E, branch importgate/knot-split-fold), then `step-import-cuts-faces-and-splits-edges-three-ways` (M, importgate/split-share). It is told to stay out of the snap lane's files (build.rs, interpret.rs, one_record.rs, the ledger).
+
+- 2026-11-19 00:20 — Snap: added a second tangent construction. Three of nist_ftc_09's fillet cylinders sit between parallel facing planes (slot and rib ends), which no axis translation solves. The cylinder takes half the planes' spacing as its radius, its axis moves to the mid-plane along the normal, and both planes stay; the same three conditions apply. Same-facing parallel planes, or a cylinder not between them, refuse unsolvable.
+
+- 2026-11-19 00:27 — Snap: all five nist movers solve, but five of the six tangent edges still refuse at the build. The file printed each one as a crossing line √(2·r·gap) off the tangent ruling, from 115 to 344 µm against a band of (33.8, 338) µm. Ruled (a): the snap applies and the file refuses as its own inconsistency; NIST09 is re-pinned to #4950's in-band reading, and its row stays open. The lane files a row for printed crossing lines on tangent edges. Its option (b), reading the printed edge against the two surfaces and reporting a move along the tangent, would relax D7's O(ε_in) healing bound, so it is a candidate `[ev]` question.
+
+- 2026-11-19 00:40 — PR 7133 merged (the knot_split sense fold, a one-line test-helper change; orchestrator read, CI green). Its row is closed.
+
+- 2026-11-19 02:00 — PR 7134 (split-share) reviewed by a single Opus reviewer: APPROVE. The claims reproduced: the corpus is byte-identical and the 93 rows unchanged; 13 mutants, with only an equivalent one surviving. Merged and closed. Filed two rows: no committed row pins the corpus re-export (P2); relink trusts its attachments, and the module's home (P3).
+
+- 2026-11-19 02:25 — Main went red on PR 7134's `# from knot_split.rs` citation in `cover-kind-match.counts`: once the split was in the base, every tree summed 4 against knot_split's base pin of 3. The snap lane reported it. Fixed in tracker PR 7136, which drops the citation. Lesson: a `# from` citation is for the PR that does the split; it comes out before merge, or the next PR inherits the red.
