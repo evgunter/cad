@@ -2,10 +2,11 @@
 id: the-section-table-admits-a-curve-on-its-resolution
 kind: unit
 title: A minted section conic is stored anchored on the arc its edge uses, its centre derived (Ev, PR 4812)
-status: open
+status: dispatched
 opened: 2026-10-12
-priority: P2
+priority: P1
 cost: H
+branch: oneround/anchored-conic
 ---
 
 Part 2 of the design on
@@ -92,3 +93,50 @@ measured on PR 4861. This unit's end state has to meet it there.
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to HONEPAIR (`work/honepair/`) by `git mv`, id and body unchanged: the P2 track opened for one verdict decided on one margin at its own reach: rows that decide two margins one at a time, compose two readings, or lever a reading at the wrong extent. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Evidence from ONEROUND (2026-11-19): the loss is in the stored form, measured
+
+From the phase-1 measurement of `oneround/conic-vertex`, on merge base
+`b80352cd9` (local runs; the probe `probe_far_centre_section_misses`
+and its commands are on the branch
+`analysis/oneround/conic-vertex-probes`, never merged, under
+`analysis/oneround/conic-vertex/`).
+
+Random planes against a tilted cylinder (1e-3…1e-6 off its axis) and a
+cone (1e-3…1e-7 short of parabolic), through `plane_cylinder_section`
+and `plane_cone_section`; carriers whose centre is past 1e3 with a
+part inside the box; seamed at the nearest principal vertex; 17 points
+over ±80 m of arc; the exact-rational miss off both surfaces. Worst
+miss in units of `u·a`, with the point read three ways:
+
+| kind, `a` | samples | from the centre (main) | from the seam vertex | from the vertex summed exactly |
+|---|---|---|---|---|
+| cone 1e3 / 1e4 / 1e5 / 1e6 | 680 each | 3.39 / 2.51 / 2.53 / 2.31 | 3.61 / 2.35 / 2.22 / 1.88 | 3.18 / 2.22 / 2.15 / 1.79 |
+| cylinder 1e4 / 1e5 / 1e6 | 527 / 680 / 680 | 0.94 / 1.04 / 1.12 | 1.16 / 0.86 / 1.16 | 1.16 / 0.85 / 1.16 |
+
+- In metres: 7e-10 at `a ≈ 1e6` (cone), 2e-10 (cylinder), in every
+  column. The stored curve, read exactly, is that far from the
+  surfaces it was cut from, so no evaluator recovers it: the anchored
+  mint is what does.
+- The cylinder's in-box part sits 0.42–0.50 rad from its nearest
+  principal vertex; the cone's within 1e-3–1e-2 rad of its major
+  vertex. So "anchored on the arc its edge uses" cannot mean a
+  principal vertex for the cylinder's shallow cuts: the anchor is a
+  general point of the arc, with conjugate semi-diameters there.
+- PR 7131 (carrier frames as `RigidMotion`, open on Ev) decides what a
+  conic's frame and its origin are; an anchored form changes what that
+  origin is.
+- Readers that need the anchor exact, measured on a far-centred conic:
+  `work/oneround/a-far-centred-conics-point-is-decided-against-an-in-box-point-at-the-centres-rounding.md`,
+  `work/select/an-endpoint-pin-passes-on-a-far-centred-conics-own-rounded-point.md`.
+- A circle has no re-seaming door:
+  `work/oneround/a-far-circle-has-no-re-seaming-door.md`.
+
+## Claimed by ONEROUND (2026-11-19)
+
+Moved from HONEPAIR by `git mv`, id and body unchanged, and re-banded P2 → P1: `a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex` (P1) waits on it, and a blocker takes the band of what waits (`work/README.md`, Priority). HONEPAIR had no orchestrator and no lane on it.
+
+- **The spec is Ev's decision on PR 4812** (the seam note above and GERM's `conic-section-just-past-its-band-fails-certification-downstream`, "Decided"), not this file's `## Owed` list, which that decision supersedes: no refusal at the arm and no `UnsupportedConditioning`.
+- **What the phase-1 measurement adds** (the appended section above; tables on `analysis/oneround/conic-vertex-probes`): the anchor has to be allowed at a general point of the arc, since a cylinder's shallow cut has no principal vertex near its in-box arc; and the near-gap families, the chords of one carrier and the readings that compare a conic's point with an in-box point all recover once evaluators read a form anchored in the box.
+- **Unit:** `oneround/anchored-conic`, letter H, tier dual (a concurrent pair), as logged for `oneround/conic-vertex` on 2026-11-19, whose implementer keeps it. It is stacked on `onehome/carrier-frames` (PR 7131), which makes every carrier hold its frame as a `RigidMotion` (decided, fork 274) and still asks Ev how a stored frame is read at `Interval`.
+
