@@ -354,14 +354,16 @@ This section is where that rule's parts live.
   all points is not owed. That point is the origin of a tilt bound,
   not a claim about the entity: any point is sound provided the datum
   and its lever are read at the same one.
-- **The session box** is one predicate over a body's largest
-  `|coordinate|`, read from below off its vertices' and its edges' own
-  points, never a carrier's stored terms: the box bounds each
-  coordinate (`[tolerance.units]`), so it is a cube. The finished-body
-  gate asks it, and the refusal names the operation. A body it refuses
-  has a point past the box; a curved face's interior extreme is not
-  read, so one it admits may still reach past it there
-  (`work/oneround/the-session-box-reach-misses-a-curved-faces-bulge.md`).
+- **The session box** is one predicate over the region a piece of
+  geometry occupies, never a carrier's stored terms. The region is read
+  from outside as its cover, and from inside off points known to lie on
+  it. The box bounds each coordinate (`[tolerance.units]`), so it is a
+  cube. A region is in the box only where its cover is. One with a point
+  past it is refused as past the box. One whose cover alone reaches past
+  it is refused as a limit. The door at which a region comes to exist
+  asks it, before anything is decided on that region: certification asks
+  it of an edge with its ends, the finished-body gate of a body's faces,
+  and the door that stands a body by a map of that body where it stands.
 - **The Interval lane** makes an ill-posed formula loud (its
   enclosure lands in the band, which is terminal); it does not certify
   around it.
