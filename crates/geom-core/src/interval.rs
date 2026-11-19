@@ -657,12 +657,41 @@ impl Real for Interval {
     /// certified positive, or whose `η` is not below one half, is
     /// answered poisoned (every entry NaI): it names no rotation this
     /// lift encloses.
+    ///
+    /// **Stated as points, the first-order term is exact.** Where every
+    /// entry of `m` is a finite point (a frame lifted from `f64`), `G` and
+    /// each entry's `M − ½·M·G` are formed as exact expansions
+    /// ([`crate::exact::Expansion`]) and enclosed once, so an entry's
+    /// width is the one rounding of an exact real plus `ρ`, not the
+    /// interval arithmetic's: about an ulp, where `G` read through
+    /// interval products is a few ulps of one wide and `M·G` carries that
+    /// width into every entry. Exactness needs no product below the
+    /// normal range; a stated entry under `2⁻⁴⁰⁰` in magnitude (zero
+    /// excepted) takes the interval path, which encloses too.
     fn enclose_rotation(m: [[Self; 3]; 3]) -> Option<[[Self; 3]; 3]> {
         let dot = |a: [Self; 3], b: [Self; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        let exact = stated_points(&m);
+        let gram: Option<[[crate::exact::Expansion; 3]; 3]> = exact.map(|a| {
+            core::array::from_fn(|i| {
+                core::array::from_fn(|j| {
+                    let mut e = crate::exact::Expansion::default();
+                    for (x, y) in a[i].iter().zip(&a[j]) {
+                        e.add_expansion(&crate::exact::Expansion::product(*x, *y));
+                    }
+                    if i == j {
+                        e.add(-1.0);
+                    }
+                    e
+                })
+            })
+        });
         let g: [[Self; 3]; 3] = core::array::from_fn(|i| {
-            core::array::from_fn(|j| {
-                let d = dot(m[i], m[j]);
-                if i == j { d - Self::one() } else { d }
+            core::array::from_fn(|j| match &gram {
+                Some(gram) => enclose_expansion(&gram[i][j], 0.0),
+                None => {
+                    let d = dot(m[i], m[j]);
+                    if i == j { d - Self::one() } else { d }
+                }
             })
         });
         let frobenius = g
@@ -695,9 +724,24 @@ impl Real for Interval {
         // `(M·G)` column `j` is `Σₗ M_l · G_lj`, `M_l` column `l`.
         Some(core::array::from_fn(|j| {
             core::array::from_fn(|r| {
-                let mg = m[0][r] * g[0][j] + m[1][r] * g[1][j] + m[2][r] * g[2][j];
                 let rho = (lever * reach[r] * sums[j]).hi();
-                m[j][r] - half * mg + Self::from_bounds(-rho, rho)
+                match (&gram, exact) {
+                    // `m[j][r] − ½ Σₗ m[l][r]·g[l][j]`, exact: `−½·m` is
+                    // exact (a power of two), and every product and sum an
+                    // expansion's.
+                    (Some(gram), Some(a)) => {
+                        let mut v = crate::exact::Expansion::default();
+                        v.add(a[j][r]);
+                        for l in 0..3 {
+                            v.add_expansion(&gram[l][j].scaled(-0.5 * a[l][r]));
+                        }
+                        enclose_expansion(&v, rho)
+                    }
+                    _ => {
+                        let mg = m[0][r] * g[0][j] + m[1][r] * g[1][j] + m[2][r] * g[2][j];
+                        m[j][r] - half * mg + Self::from_bounds(-rho, rho)
+                    }
+                }
             })
         }))
     }
@@ -708,8 +752,24 @@ impl Real for Interval {
     /// so each component `vᵢ` lies within `ρᵢ = |vᵢ|·(3/8)·η²/(1 − η)` of
     /// `(v − ½·g·v)ᵢ`, answered so with outward rounding (a zero component
     /// stays zero); poisoned where `η` is not below one half.
+    ///
+    /// Stated as points (a direction lifted from `f64`), `g` and each
+    /// `vᵢ − ½·g·vᵢ` are exact expansions enclosed once, as in
+    /// [`Interval::enclose_rotation`]'s exact arm.
     fn enclose_unit(v: [Self; 3]) -> Option<[Self; 3]> {
-        let g = v[0] * v[0] + v[1] * v[1] + v[2] * v[2] - Self::one();
+        let exact = stated_points(&[v, v, v]).map(|a| a[0]);
+        let gram = exact.map(|a| {
+            let mut e = crate::exact::Expansion::default();
+            for c in a {
+                e.add_expansion(&crate::exact::Expansion::product(c, c));
+            }
+            e.add(-1.0);
+            e
+        });
+        let g = match &gram {
+            Some(gram) => enclose_expansion(gram, 0.0),
+            None => v[0].powi(2) + v[1].powi(2) + v[2].powi(2) - Self::one(),
+        };
         let eta = Real::abs(g).hi();
         if eta.is_nan() || eta >= 0.5 {
             return Some([Self::from_bounds(f64::NAN, f64::NAN); 3]);
@@ -717,9 +777,18 @@ impl Real for Interval {
         let e = Self::from_bounds(eta, eta);
         let lever = Self::from_f64(0.375) * e.powi(2) / (Self::one() - e);
         let half = Self::from_f64(0.5);
-        Some(v.map(|x| {
+        Some(core::array::from_fn(|i| {
+            let x = v[i];
             let rho = (Real::abs(x) * lever).hi();
-            x - half * g * x + Self::from_bounds(-rho, rho)
+            match (&gram, exact) {
+                (Some(gram), Some(a)) => {
+                    let mut w = crate::exact::Expansion::default();
+                    w.add(a[i]);
+                    w.add_expansion(&gram.scaled(-0.5 * a[i]));
+                    enclose_expansion(&w, rho)
+                }
+                _ => x - half * g * x + Self::from_bounds(-rho, rho),
+            }
         }))
     }
 
@@ -1480,6 +1549,40 @@ impl KinkJacobian for Interval {
             chosen,
             self.0.decoration().min(other.0.decoration()),
         ))
+    }
+}
+
+/// The stated entries of `m` as `f64`s, where every one is a certified
+/// finite point no product of two of which leaves the normal range
+/// ([`Interval::enclose_rotation`]'s exact arm); `None` otherwise.
+fn stated_points(m: &[[Interval; 3]; 3]) -> Option<[[f64; 3]; 3]> {
+    let tiny = 2f64.powi(-400);
+    let mut out = [[0.0; 3]; 3];
+    for (j, col) in m.iter().enumerate() {
+        for (r, x) in col.iter().enumerate() {
+            let (lo, hi) = (x.0.lo(), x.0.hi());
+            if !x.is_certified() || lo.to_bits() != hi.to_bits() || !lo.is_finite() {
+                return None;
+            }
+            if lo != 0.0 && lo.abs() < tiny {
+                return None;
+            }
+            out[j][r] = lo;
+        }
+    }
+    Some(out)
+}
+
+/// An exact expansion's value, widened by `±slack`, enclosed: every
+/// component but the largest, and the slack, summed outward first at
+/// their own small scale, then the largest added once, so the one
+/// rounding at the value's scale is the last (about an ulp wide).
+fn enclose_expansion(e: &crate::exact::Expansion, slack: f64) -> Interval {
+    let from = <Interval as Real>::from_f64;
+    let small = Interval::from_bounds(-slack, slack);
+    match e.components().split_last() {
+        None => small,
+        Some((&head, rest)) => rest.iter().fold(small, |acc, &c| acc + from(c)) + from(head),
     }
 }
 
