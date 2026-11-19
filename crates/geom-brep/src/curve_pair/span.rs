@@ -910,8 +910,8 @@ impl<'a, T: Decide> Span<'a, T> {
 
     /// **Whether the window's run lies past the span**
     /// (`curve_pair::pose`'s module docs, "The gap's lower bound", and
-    /// `curve_pair::walk`'s, "The reach and the run, past a span"), `q` a point of the carrier at about `near`, the polished
-    /// pair's, and every pair of the window within the band's escalation
+    /// `curve_pair::walk`'s, "The reach and the run, past a span"), `q` a
+    /// point of the carrier at about `near`, the polished pair's, and every pair of the window within the band's escalation
     /// within `reach` metres of `q` along it. The span's own place reading
     /// says `q` is past it ([`Self::place`]); then each end is one the run
     /// cannot reach or cannot cross:

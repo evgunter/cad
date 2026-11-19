@@ -427,6 +427,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "curve_carrier_straddle"
         | "curve_carrier_piece_clear"
         | "curve_carrier_piece" => "whether a point lies on an edge's carrier",
+        // The same walk with a radius, read by the pose alone: whether the
+        // window about a crossing misses an edge's span.
+        "curve_carrier_piece_clear_by" => "how two edges' carriers meet",
         // Every row of `geom_brep::curve_pair::pose`, by its prefix.
         p if p.starts_with("curve_pair_pose_") => "how two edges' carriers meet",
         "curve_pair_meet_same" | "curve_pair_meet_stretch" => "how two edges' carriers meet",

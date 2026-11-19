@@ -2854,10 +2854,11 @@ fn a_segment_over_an_arcs_far_side_in_the_zero_band_is_never_no_meeting() {
     let r = 1e-4;
     for escalate in [1.05e-9, 1.2e-9] {
         let band = Band::new(1e-9, escalate).unwrap();
-        for got in over_an_arcs_far_side((1.15 * r, 1.3 * r), band) {
+        let [first, second] = over_an_arcs_far_side((1.15 * r, 1.3 * r), band);
+        for (order, got) in [("segment first", first), ("arc first", second)] {
             assert!(
                 !matches!(&got, Ok(m) if m.points.is_empty()),
-                "escalate {escalate}: no meeting read: {got:?}"
+                "escalate {escalate}, {order}: no meeting read: {got:?}"
             );
         }
     }
@@ -2872,10 +2873,11 @@ fn a_segment_over_an_arcs_far_side_in_the_zero_band_is_never_no_meeting() {
 #[test]
 fn a_segment_over_an_arcs_far_side_in_the_escalation_band_is_never_no_meeting() {
     let r = 1e-4;
-    for got in over_an_arcs_far_side((1.1 * r, 1.3 * r), band()) {
+    let [first, second] = over_an_arcs_far_side((1.1 * r, 1.3 * r), band());
+    for (order, got) in [("segment first", first), ("arc first", second)] {
         assert!(
             !matches!(&got, Ok(m) if m.points.is_empty()),
-            "no meeting read: {got:?}"
+            "{order}: no meeting read: {got:?}"
         );
     }
 }

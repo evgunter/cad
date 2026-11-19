@@ -73,7 +73,7 @@
 //! run would cross can be read off the other carrier:
 //!
 //! - Every pair of the run lies within `m₋` of `(p, q)` along both
-//!   carriers (the move, above).
+//!   carriers (`pose`'s module docs, "The move").
 //! - Take a pair of the run at arc parameters `(α, β)` from `(p, q)`, and
 //!   the pairs `(tα, tβ)`, `t ∈ [0, 1]`, between it and the polished
 //!   pair. Their difference is `L(t) + r(t)`, with

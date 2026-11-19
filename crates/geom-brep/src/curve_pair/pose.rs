@@ -279,7 +279,13 @@
 //! band's escalation `e` has its first point within `ℓ` of the crossing
 //! along the first carrier, so within `ℓ` of it in metres, and its second
 //! within `e` of the first: both lie in the ball of `ℓ + e` about the
-//! crossing. Where that ball is clear of either span, by the span's own
+//! crossing. The crossing is the start's point on the first carrier, a
+//! seed computed in `f64` (`line_conic`'s `o + d̂·t`, `transverse`'s
+//! plane root), and `ℓ` is read from it: `line_conic` widens `ℓ` by a
+//! stated bound on the seed's along-line rounding (`geom_core`'s
+//! `rounding_charge` and `running::direction_rounding`, the rounding
+//! rule's homes), and by `d̂·n̂`'s own rounding in the division. Where
+//! that ball is clear of either span, by the span's own
 //! piece walk in metres ([`Span::clear_by`],
 //! `curve_carrier_piece_clear_by`), the window holds no such pair and the
 //! pose reads none. A parameter's distance along a carrier is no such
@@ -300,8 +306,9 @@
 //! round to within the window of its other end holds the window in two
 //! pieces, one each side of the gap, and reads it two-sided. No pair of
 //! the window lies past either span, so an Off at the pair prunes only
-//! by the floor, and otherwise escalates: the reach and the run, below, are read past a
-//! span for the walk's pair, never for the pose's.
+//! by the floor, and otherwise escalates. The reach and the run are read
+//! past a span for the walk's pair (`walk`'s module docs, "The reach and
+//! the run, past a span"), never for the pose's.
 //!
 //! # The gap's lower bound
 //!
@@ -986,10 +993,7 @@ impl<T: Decide> Polish<'_, T> {
         // and its second within the escalation of that: both within
         // `ℓ + e` of the crossing, in metres. Where the ball of that
         // radius about the crossing is clear of either span, by the span's
-        // own walk, the window on the spans holds no such pair. The first
-        // span's arm is the window's premise read whole: a crossing off it
-        // is routed apart (`line_conic`, the line's ends) or read off by
-        // the window over the first span (`transverse`) before here.
+        // own walk, the window on the spans holds no such pair.
         let crossing = self.a.ders(s0).0;
         let ball = self.reach + e;
         if self.span_a.clear_by(crossing, ball, band) || self.span_b.clear_by(crossing, ball, band)
@@ -1308,8 +1312,24 @@ fn line_conic<T: Decide>(
         Route::Crossing => {
             // The line's height above the plane runs `|d̂·n̂|` per metre,
             // so it is within the band's escalation `e/|d̂·n̂|` either side
-            // of the crossing.
-            let point = o + u * ((k.frame().origin - o).dot(n) / den);
+            // of the crossing. The crossing is the seed `o + d̂·t`, `t =
+            // (c − o)·n̂ / d̂·n̂` in `f64`, off the true crossing along the
+            // line by `along` at most (module docs, "Held to the spans"),
+            // and `ℓ` is read from the seed, so it is widened by that, and
+            // by `d̂·n̂`'s own rounding in the division.
+            let num = (k.frame().origin - o).dot(n);
+            let t = num / den;
+            let point = o + u * t;
+            let origin_metres = |p: Point3<T>| (p - Point3::origin()).norm();
+            // `d̂` and `n̂` each carry a unit direction's charge per
+            // component, so their dot `√3` of each, and its own rounding.
+            let den_err = geom_core::running::direction_rounding(T::from_f64(2.0 * 3f64.sqrt()))
+                + geom_core::rounding_charge(T::one());
+            let den_lo = (den.abs() - den_err).max(T::zero());
+            let num_err =
+                geom_core::rounding_charge(origin_metres(k.frame().origin) + origin_metres(o));
+            let along = (num_err + t.abs() * den_err) / den_lo
+                + geom_core::rounding_charge(origin_metres(o) + t.abs());
             let e = T::from_f64(band.escalate());
             let polish = Polish {
                 span_a: a,
@@ -1317,7 +1337,7 @@ fn line_conic<T: Decide>(
                 a: Side::Line(line),
                 b: Side::Conic(&k),
                 start: (line.param(point), foot(b, point)),
-                reach: e / den.abs(),
+                reach: e / den_lo + along,
                 clear: clearance(b.carrier(), point),
                 lever: arm,
             };
