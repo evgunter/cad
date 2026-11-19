@@ -274,6 +274,7 @@ mod knot_split;
 mod normalize;
 mod one_record;
 mod parse;
+mod reach;
 mod recognize;
 mod recognize_curve;
 mod signed_zero;

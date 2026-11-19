@@ -2,67 +2,79 @@
 //! between two surfaces that reads `Zero` at the file's band is made exact
 //! by one construction from a closed catalogue, before anything is built.
 //!
-//! **The catalogue** ([`SnapRelation`], the one place it is stated):
+//! **The catalogue**, stated here and in [`SnapRelation`] alone:
 //!
 //! - **coaxial**: two round surfaces (cylinder, cone, sphere, torus) whose
 //!   axes, or a sphere's centre, read one line. The later record in the
-//!   file moves onto the earlier one's axis: its axis takes the earlier
-//!   one's direction and its datum point the foot on that line (a sphere's
-//!   centre the foot; a sphere kept, the moved axis through its centre;
-//!   two spheres, one centre).
-//! - **tangent**: a plane and a cylinder the file band reads tangent along
-//!   their edge, the axis parallel to the plane. The planes stay and the
+//!   file moves onto the earlier one's axis: turned onto its direction and
+//!   moved onto the line about the point of its own axis at its faces (a
+//!   moved sphere's centre to its foot on the line; a sphere kept, the
+//!   moved axis translated through its centre; two spheres, one centre).
+//! - **tangent, one plane or two crossing planes**: a plane and a cylinder
+//!   the file band reads tangent along their edge. The planes stay; the
 //!   cylinder's axis is translated square to itself, its radius kept, to
-//!   where it stands its radius from each plane it is tangent to, on the
-//!   side it stands: one plane moves it along the plane's normal, two
-//!   crossing planes to where their two offsets meet.
-//! - **tangent, between two parallel planes**: a cylinder tangent to two
-//!   planes the file band reads parallel, its axis between them (a slot's
-//!   or a rib's end). The planes stay; the radius becomes half their
-//!   spacing and the axis moves along their normal to the mid-plane.
-//!
-//!   A cylinder tangent to three or more planes, to two parallel planes
-//!   its axis does not lie between, or coaxial with another surface while
-//!   its tangency moves it, is a class the catalogue does not solve.
+//!   stand its radius from each plane it is tangent to, on the side it
+//!   stands: along the normal for one plane, to where the two offsets meet
+//!   for two crossing planes.
+//! - **tangent, between two parallel planes** (a slot's or a rib's end):
+//!   the planes stay; the radius becomes half their spacing and the axis
+//!   moves along their normal to the mid-plane. The rule is that the axis
+//!   lies between the planes ([`STEP_SNAP_SIDE`]); which way the planes
+//!   face is not read, since a cylinder tangent to both and between them
+//!   leaves no other facing.
+//! - **tangent, two planes neither parallel nor crossing**: their
+//!   parallelism read in the file's band ([`STEP_SNAP_PARALLEL`]), the
+//!   file's ambiguity.
 //! - **axis-normal**: a plane and a cylinder, cone or torus whose axis
-//!   reads along the plane's normal. The later record turns: a plane's
-//!   normal takes the axis, a round surface's axis takes the normal, about
-//!   the point where the axis meets the plane.
+//!   reads along the plane's normal. The later record turns about the
+//!   point where the axis meets the plane: a plane's normal onto the axis,
+//!   or a round surface's axis onto the normal.
 //! - **one locus**: two records of one surface become one
-//!   ([`crate::one_record`], run before this, `[topo.one-record]`).
+//!   ([`crate::one_record`], run before this).
+//!
+//! A cylinder tangent to three or more planes, or to two parallel planes
+//! its axis does not lie between, or coaxial with another surface while
+//! its tangency moves it, refuses as a class the catalogue does not solve.
 //!
 //! **Read at the faces.** A relation is read only between the two faces of
-//! an edge, at the extent the two faces' vertices span: a distance in
-//! metres, an angle levered at that extent ([`gap`]). Read at the file's
-//! band ([`STEP_SNAP_RELATION`]), `Zero` is a relation; at the run's band,
-//! `Zero` is a relation already exact. A reading in the file's band is no
-//! relation here: the build reads that pair and refuses it as the file's
-//! ambiguity.
+//! an edge, over the region they occupy ([`crate::reach::Reach`]): a
+//! distance in metres where the faces are, an angle levered at their
+//! reach ([`gap`]). Read at the file's band ([`STEP_SNAP_RELATION`]),
+//! `Zero` is a relation; at the run's band, `Zero` is a relation already
+//! exact. A reading in the file's band is no relation here: the build
+//! reads that pair and refuses it as the file's ambiguity.
 //!
-//! **One construction per class, solved jointly.** The relations form a
-//! graph over the surfaces; a connected class all of whose relations are
-//! already exact moves nothing. Otherwise each relation not yet exact
-//! names its mover (the tangent's cylinder, the coaxial or axis-normal
-//! pair's later record), and every move is computed from inputs no
-//! construction moves, so no order decides the result: a surface two
-//! constructions would move, or one whose construction would read a
-//! moved surface, is a class the catalogue does not solve, and refuses.
-//! Each move is read at the file's band ([`STEP_SNAP_MOVE`]): `Zero`
-//! applies it, in band refuses as the file's ambiguity, apart refuses as
-//! unsolved. Then every relation of the class, the exact ones among them,
-//! is read again at the run's band, and one that is not `Zero` refuses as
-//! unsolved. Each moved surface is reported
-//! ([`NormalizationKind::Snapped`]).
+//! **One construction per class.** The relations form a graph over the
+//! surfaces; a connected class all of whose relations are already exact
+//! moves nothing. Otherwise each relation not yet exact names its mover
+//! (the tangent's cylinder, the coaxial or axis-normal pair's later
+//! record), and every move is computed from inputs no construction moves,
+//! so no order decides the result. Each move is measured over every face
+//! its record carries, as the farthest a point of them moves, and read at
+//! the file's band ([`STEP_SNAP_MOVE`]): `Zero` applies it, in band
+//! refuses as the file's ambiguity, apart refuses as unsolved. Then every
+//! relation of the class, the exact ones among them, is read again at the
+//! run's band, and one that is not `Zero` refuses as unsolved. Each moved
+//! surface is reported ([`NormalizationKind::Snapped`]).
+//!
+//! **A known limit: the solve is anchored at each relation's earlier
+//! record, not at the class's.** A surface two constructions would move,
+//! or a construction that would read a surface another one moves (a chain
+//! A–B–C of coaxial records, a plate later in the file than two bosses it
+//! is normal to), refuses loudly, naming
+//! `work/importgate/a-snap-class-whose-solve-moves-a-surface-twice-refuses.md`:
+//! whether such a file imports turns on which record it states first.
 
 use std::collections::BTreeMap;
 
-use geom::Surface;
+use geom::{Line, Surface};
 use geom_core::{Point3, Tol, Vec3};
 
 use crate::entities::SolidSpec;
 use crate::error::{BuiltEntity, StepImportError};
 use crate::interpret::{FileBand, Read};
 use crate::one_record::Record;
+use crate::reach::Reach;
 use crate::{FaceCensus, NormalizationKind, SnapRelation, StructureNormalization};
 
 /// A catalogue relation's gap between two surfaces, in metres: at the
@@ -74,6 +86,11 @@ pub(crate) const STEP_SNAP_RELATION: &str = "step_snap_relation";
 /// between the two where its sides differ.
 pub(crate) const STEP_SNAP_SIDE: &str = "step_snap_side";
 
+/// Whether the two planes a cylinder is tangent to are parallel: the sine
+/// between their normals levered at the cylinder's faces' reach, read at
+/// the file's band.
+pub(crate) const STEP_SNAP_PARALLEL: &str = "step_snap_parallel";
+
 /// How far a catalogue construction moves a surface, in metres, read at
 /// the file's band: only `Zero` is applied.
 pub(crate) const STEP_SNAP_MOVE: &str = "step_snap_move";
@@ -83,6 +100,11 @@ pub(crate) const STEP_SNAP_MOVE: &str = "step_snap_move";
 /// a relation outside it, or a class its constructions do not solve.
 pub(crate) const UNCATALOGUED_LANE: &str = "a snap catalogue construction that makes this \
      relation exact (`work/importgate/a-relation-the-snap-catalogue-does-not-make-exact-refuses.md`)";
+
+/// The lane a class whose solve, anchored at each relation's earlier
+/// record, would move a surface twice waits on.
+pub(crate) const ANCHOR_LANE: &str = "a joint solve anchored at the class's earliest record \
+     (`work/importgate/a-snap-class-whose-solve-moves-a-surface-twice-refuses.md`)";
 
 /// One surface of the shell: the faces that wear it bit for bit, and the
 /// earliest record they state.
@@ -99,10 +121,20 @@ struct Relation {
     /// first.
     nodes: (usize, usize),
     edge: u64,
-    /// The extent its two faces span.
-    lever: geom_core::Lever<f64>,
+    /// The region the edge's two faces occupy, which the relation is read
+    /// over.
+    reach: Reach,
     /// Read `Zero` at the run's band.
     exact: bool,
+}
+
+/// One construction's move: the surface it moves, where to, how far, and
+/// the relation whose construction it is.
+struct Move {
+    node: usize,
+    surface: Surface<f64>,
+    moved_by: f64,
+    relation: SnapRelation,
 }
 
 /// **Makes each relation the file band reads `Zero` exact** (module docs).
@@ -124,7 +156,7 @@ pub(crate) fn snap(
         if class.iter().all(|&r| relations[r].exact) {
             continue;
         }
-        let moves = solve(&nodes, &relations, &class, file)?;
+        let moves = solve(solid, &nodes, &relations, &class, file)?;
         for m in &moves {
             nodes[m.node].surface = m.surface.clone();
         }
@@ -134,15 +166,14 @@ pub(crate) fn snap(
                 rel.kind,
                 &nodes[rel.nodes.0].surface,
                 &nodes[rel.nodes.1].surface,
-                rel.lever.length(),
-                centre(solid, rel.edge),
+                &rel.reach,
             );
             if !run_zero(run, g) {
                 return Err(unsolved(
                     file,
                     rel.edge,
                     format!(
-                        "a {} relation its class's constructions leave {g:e} m from exact",
+                        "the {} relation its class's constructions leave {g:e} m from exact",
                         rel.kind.name()
                     ),
                 ));
@@ -230,38 +261,36 @@ fn relations(
             }
         }
     }
-    let mut found = Vec::new();
+    let mut found: Vec<Relation> = Vec::new();
     for (&edge, faces) in &sides {
         let [fa, fb] = faces[..] else { continue };
         let (na, nb) = (of[fa], of[fb]);
         if na == nb {
             continue;
         }
-        let lever = reach(solid, [fa, fb]);
-        let at = centre(solid, edge);
+        let Some(reach) = Reach::of(solid, [fa, fb]) else {
+            continue;
+        };
         let (sa, sb) = (&nodes[na].surface, &nodes[nb].surface);
         for (kind, pair) in candidates(sa, sb, (na, nb)) {
             let (s1, s2) = (&nodes[pair.0].surface, &nodes[pair.1].surface);
-            let g = gap(kind, s1, s2, lever.length(), at);
+            let g = gap(kind, s1, s2, &reach);
             if file.read(STEP_SNAP_RELATION, g) == Read::Zero {
                 let exact = run_zero(run, g);
                 // One relation per pair, over every edge it is read along:
-                // exact only where it is along each, at the widest lever.
-                match found
-                    .iter_mut()
-                    .find(|r: &&mut Relation| r.kind == kind && r.nodes == pair)
-                {
+                // exact only where it is along each, over the widest reach.
+                match found.iter_mut().find(|r| r.kind == kind && r.nodes == pair) {
                     Some(same) => {
                         same.exact &= exact;
-                        if lever.length() > same.lever.length() {
-                            (same.lever, same.edge) = (lever, edge);
+                        if reach.lever().length() > same.reach.lever().length() {
+                            (same.reach, same.edge) = (reach, edge);
                         }
                     }
                     None => found.push(Relation {
                         kind,
                         nodes: pair,
                         edge,
-                        lever,
+                        reach,
                         exact,
                     }),
                 }
@@ -302,124 +331,82 @@ fn candidates(
     }
 }
 
-/// A round surface's axis: its datum point and unit direction (a sphere
-/// has none of its own).
-fn axis(s: &Surface<f64>) -> Option<(Point3<f64>, Vec3<f64>)> {
-    match *s {
-        Surface::Cylinder { origin, axis, .. } => Some((origin, axis)),
-        Surface::Cone { apex, axis, .. } => Some((apex, axis)),
-        Surface::Torus { center, axis, .. } => Some((center, axis)),
+/// A cylinder's, cone's or torus's axis, its direction unit
+/// ([`Surface::axis_line`]); a sphere's centre has no axis of its own.
+fn axis(s: &Surface<f64>) -> Option<Line<f64>> {
+    match s {
+        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Torus { .. } => {
+            s.axis_line().map(Line::unit)
+        }
         _ => None,
     }
 }
 
-/// A round surface's datum point: an axis point, an apex, a centre.
+/// A round surface's datum point, as its axis line places it: an axis
+/// point, an apex, a centre.
 fn datum(s: &Surface<f64>) -> Option<Point3<f64>> {
-    match *s {
-        Surface::Sphere { center, .. } => Some(center),
-        _ => axis(s).map(|(o, _)| o),
+    match s {
+        Surface::Sphere { center, .. } => Some(*center),
+        _ => axis(s).map(|l| l.origin),
     }
 }
 
-/// `q`'s distance from the line through `o` along unit `d`.
-fn off_line(q: Point3<f64>, (o, d): (Point3<f64>, Vec3<f64>)) -> f64 {
-    let v = q - o;
-    (v - d * v.dot(d)).norm()
+/// A plane's point and unit normal.
+fn plane_of(s: &Surface<f64>) -> Option<(Point3<f64>, Vec3<f64>)> {
+    match *s {
+        Surface::Plane { origin, normal, .. } => Some((origin, normal)),
+        _ => None,
+    }
 }
 
-/// `q`'s foot on the line through `o` along unit `d`.
-fn foot(q: Point3<f64>, (o, d): (Point3<f64>, Vec3<f64>)) -> Point3<f64> {
-    o + d * (q - o).dot(d)
+/// Where `line` meets the plane through `p` with normal `n`; `None` where
+/// the line runs nearer along the plane than across it.
+fn meets(line: Line<f64>, (p, n): (Point3<f64>, Vec3<f64>)) -> Option<Point3<f64>> {
+    let across = n.dot(line.dir);
+    (across.abs() > std::f64::consts::FRAC_1_SQRT_2)
+        .then(|| line.at(n.dot(p - line.origin) / across))
 }
 
-/// **A relation's gap, in metres**, read at the faces around `at` (the
-/// middle of the box their vertices span) over `lever` (its diagonal): a
-/// direction's sine levered, and a distance read where the faces are.
-/// The pair is in the relation's order.
-fn gap(kind: SnapRelation, a: &Surface<f64>, b: &Surface<f64>, lever: f64, at: Point3<f64>) -> f64 {
+/// **A relation's gap, in metres**, read where the faces are (`reach`):
+/// a tangency's offset from the radius at the ends of the faces' extent
+/// along the axis; an axis's tilt off a plane's normal levered at the
+/// faces' reach from where the axis meets the plane; two axes'
+/// separation at the ends of the faces' extent along one of them. The
+/// pair is in the relation's order. Infinite for a pair the relation does
+/// not hold of.
+fn gap(kind: SnapRelation, a: &Surface<f64>, b: &Surface<f64>, reach: &Reach) -> f64 {
+    let far = f64::INFINITY;
     match kind {
         SnapRelation::Tangent => {
-            let (Surface::Plane { origin, normal, .. }, Surface::Cylinder { radius, .. }) = (a, b)
+            let (Some((p, n)), Some(line), Surface::Cylinder { radius, .. }) =
+                (plane_of(a), axis(b), b)
             else {
-                return f64::INFINITY;
+                return far;
             };
-            let Some(line) = axis(b) else {
-                return f64::INFINITY;
-            };
-            let on_axis = foot(at, line);
-            normal.dot(line.1).abs() * lever
-                + ((on_axis - *origin).dot(*normal).abs() - radius).abs()
+            reach
+                .ends_on(line)
+                .into_iter()
+                .map(|q| (n.dot(q - p).abs() - radius).abs())
+                .fold(0.0, f64::max)
         }
         SnapRelation::AxisNormal => {
-            let (Surface::Plane { normal, .. }, Some((_, d))) = (a, axis(b)) else {
-                return f64::INFINITY;
+            let (Some(plane), Some(line)) = (plane_of(a), axis(b)) else {
+                return far;
             };
-            normal.cross(d).norm() * lever
+            meets(line, plane).map_or(far, |pivot| {
+                plane.1.cross(line.dir).norm() * reach.from(pivot)
+            })
         }
         SnapRelation::Coaxial => match (axis(a), axis(b)) {
-            (Some(la), Some(lb)) => la.1.cross(lb.1).norm() * lever + off_line(foot(at, lb), la),
-            (Some(l), None) => datum(b).map_or(f64::INFINITY, |c| off_line(c, l)),
-            (None, Some(l)) => datum(a).map_or(f64::INFINITY, |c| off_line(c, l)),
+            (Some(la), Some(lb)) => reach.axes_apart(la, lb),
+            (Some(l), None) => datum(b).map_or(far, |c| l.distance(c)),
+            (None, Some(l)) => datum(a).map_or(far, |c| l.distance(c)),
             (None, None) => match (datum(a), datum(b)) {
                 (Some(c1), Some(c2)) => (c2 - c1).norm(),
-                _ => f64::INFINITY,
+                _ => far,
             },
         },
     }
-}
-
-/// The middle of the box an edge's two faces' vertices span.
-fn centre(solid: &SolidSpec, edge: u64) -> Point3<f64> {
-    let faces: Vec<usize> = solid
-        .faces
-        .iter()
-        .enumerate()
-        .filter(|(_, f)| {
-            f.loops
-                .iter()
-                .any(|l| l.uses.iter().any(|u| u.edge == edge))
-        })
-        .map(|(fi, _)| fi)
-        .collect();
-    let (lo, hi) = bounds(solid, &faces);
-    Point3::new(
-        geom::mid_param(lo[0], hi[0]),
-        geom::mid_param(lo[1], hi[1]),
-        geom::mid_param(lo[2], hi[2]),
-    )
-}
-
-/// The diagonal of the box the faces' vertices span, as a lever
-/// ([`geom_brep::points_diameter`] of its two far corners).
-fn reach(solid: &SolidSpec, faces: [usize; 2]) -> geom_core::Lever<f64> {
-    let (lo, hi) = bounds(solid, &faces);
-    geom_brep::points_diameter(&[
-        Point3::new(lo[0], lo[1], lo[2]),
-        Point3::new(hi[0], hi[1], hi[2]),
-    ])
-}
-
-/// The box the faces' printed vertices span.
-fn bounds(solid: &SolidSpec, faces: &[usize]) -> ([f64; 3], [f64; 3]) {
-    let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
-    for &f in faces {
-        for l in &solid.faces[f].loops {
-            for u in &l.uses {
-                let Some(e) = solid.edges.get(&u.edge) else {
-                    continue;
-                };
-                for v in [e.start, e.end] {
-                    if let Some(p) = solid.vertices.get(&v) {
-                        for (i, c) in [p.x, p.y, p.z].into_iter().enumerate() {
-                            lo[i] = lo[i].min(c);
-                            hi[i] = hi[i].max(c);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    (lo, hi)
 }
 
 /// The connected classes of the relation graph, each as its relations'
@@ -449,15 +436,6 @@ fn classes(nodes: usize, relations: &[Relation]) -> Vec<Vec<usize>> {
     out
 }
 
-/// One construction's move: the surface it moves, where to, how far, and
-/// the relation whose construction it is.
-struct Move {
-    node: usize,
-    surface: Surface<f64>,
-    moved_by: f64,
-    relation: SnapRelation,
-}
-
 /// A symmetric relation's pair as (kept, moved): the earlier record
 /// stays.
 fn later(nodes: &[Node], r: &Relation) -> (usize, usize) {
@@ -472,6 +450,7 @@ fn later(nodes: &[Node], r: &Relation) -> (usize, usize) {
 /// **The class's constructions** (module docs): each mover's new surface
 /// and its move, every one computed from surfaces no construction moves.
 fn solve(
+    solid: &SolidSpec,
     nodes: &[Node],
     relations: &[Relation],
     class: &[usize],
@@ -479,7 +458,7 @@ fn solve(
 ) -> Result<Vec<Move>, StepImportError> {
     // Which surface each relation not yet exact moves, and from what.
     let mut movers: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-    let mut fixed: Vec<(usize, u64)> = Vec::new();
+    let mut fixed: Vec<(usize, usize)> = Vec::new();
     for &r in class {
         let rel = &relations[r];
         if rel.exact {
@@ -490,51 +469,51 @@ fn solve(
             SnapRelation::Coaxial | SnapRelation::AxisNormal => later(nodes, rel),
         };
         movers.entry(moved).or_default().push(r);
-        fixed.push((keep, rel.edge));
+        fixed.push((keep, r));
     }
-    for &(keep, edge) in &fixed {
+    for &(keep, r) in &fixed {
         if movers.contains_key(&keep) {
-            return Err(unsolved(
+            return Err(anchored(
                 file,
-                edge,
-                "a relation whose kept surface another of its class's constructions moves"
-                    .to_owned(),
+                relations[r].edge,
+                format!(
+                    "the {} relation whose kept surface another of its class's constructions \
+                     moves",
+                    relations[r].kind.name()
+                ),
             ));
         }
     }
     let mut out = Vec::new();
     for (&n, rs) in &movers {
         let first = &relations[rs[0]];
-        let kinds: Vec<SnapRelation> = rs.iter().map(|&r| relations[r].kind).collect();
-        if kinds.iter().any(|&k| k != first.kind)
+        if rs.iter().any(|&r| relations[r].kind != first.kind)
             || (first.kind != SnapRelation::Tangent && rs.len() > 1)
         {
+            return Err(anchored(
+                file,
+                first.edge,
+                "a surface two of its class's constructions would move".to_owned(),
+            ));
+        }
+        // The region every face the moved record carries occupies: the
+        // move is measured over it.
+        let Some(faces) = Reach::of(solid, nodes[n].faces.iter().copied()) else {
             return Err(unsolved(
                 file,
                 first.edge,
-                format!(
-                    "a {} whose surface two of its class's constructions would move",
-                    first.kind.name()
-                ),
+                "a surface to move whose faces' region does not read".to_owned(),
             ));
-        }
+        };
         let (surface, moved_by) = match first.kind {
-            SnapRelation::Tangent => tangent(nodes, relations, class, n, file)?,
+            SnapRelation::Tangent => tangent(nodes, relations, class, n, &faces, file)?,
             SnapRelation::Coaxial => {
                 let (keep, _) = later(nodes, first);
-                coaxial(
-                    &nodes[keep].surface,
-                    &nodes[n].surface,
-                    first.lever.length(),
-                )
+                coaxial(&nodes[keep].surface, &nodes[n].surface, &faces)
             }
             SnapRelation::AxisNormal => {
                 let (keep, _) = later(nodes, first);
-                axis_normal(
-                    &nodes[keep].surface,
-                    &nodes[n].surface,
-                    first.lever.length(),
-                )
+                axis_normal(&nodes[keep].surface, &nodes[n].surface, &faces)
             }
         };
         match file.read(STEP_SNAP_MOVE, moved_by) {
@@ -549,8 +528,8 @@ fn solve(
                     file,
                     first.edge,
                     format!(
-                        "a {} whose construction moves its surface {moved_by:e} m, past the \
-                         file's band",
+                        "the {} relation's construction moving its surface {moved_by:e} m, past \
+                         the file's band",
                         first.kind.name()
                     ),
                 ));
@@ -566,14 +545,17 @@ fn solve(
     Ok(out)
 }
 
-/// **The tangent construction** for cylinder `n`: its axis translated
-/// square to itself to stand its radius from each plane it is tangent to
-/// in `class`, on the side it stands.
+/// **The tangent construction** for cylinder `n`, whose faces occupy
+/// `faces`: its axis translated square to itself to stand its radius from
+/// each plane it is tangent to in `class`, on the side it stands, read at
+/// its faces; between two parallel planes, its radius half their spacing
+/// and its axis on the mid-plane.
 fn tangent(
     nodes: &[Node],
     relations: &[Relation],
     class: &[usize],
     n: usize,
+    faces: &Reach,
     file: FileBand,
 ) -> Result<(Surface<f64>, f64), StepImportError> {
     let mine: Vec<&Relation> = class
@@ -586,7 +568,8 @@ fn tangent(
         return Err(unsolved(
             file,
             other.edge,
-            "a cylinder tangent to a plane and coaxial with another surface".to_owned(),
+            "a cylinder whose tangency moves it while it is coaxial with another surface"
+                .to_owned(),
         ));
     }
     let planes: Vec<&Relation> = mine
@@ -594,93 +577,70 @@ fn tangent(
         .copied()
         .filter(|r| r.kind == SnapRelation::Tangent)
         .collect();
-    let Surface::Cylinder {
-        origin,
-        axis: a,
-        radius,
-        u_ref,
-    } = nodes[n].surface
+    let (
+        Surface::Cylinder {
+            origin,
+            axis: a,
+            radius,
+            u_ref,
+        },
+        Some(line),
+    ) = (&nodes[n].surface, axis(&nodes[n].surface))
     else {
         return Err(unsolved(file, edge, "a tangency off a cylinder".to_owned()));
     };
-    // Each plane's normal and origin, and the axis's signed offset to its
-    // tangency.
-    let need: Vec<(Vec3<f64>, Point3<f64>, f64)> = planes
+    // The axis's point where its faces are.
+    let q = line.foot(faces.centre());
+    // Each plane's normal and level along it, and the axis's offset at its
+    // faces from where it stands its radius from the plane.
+    let need: Vec<(Vec3<f64>, f64, f64)> = planes
         .iter()
-        .map(|r| {
-            let Surface::Plane {
-                origin: p, normal, ..
-            } = nodes[r.nodes.0].surface
-            else {
-                unreachable!("a tangent relation's first surface is its plane")
-            };
-            let s = normal.dot(origin - p);
-            (normal, p, s.signum() * radius - s)
+        .filter_map(|r| plane_of(&nodes[r.nodes.0].surface))
+        .map(|(p, normal)| {
+            let s = normal.dot(q - p);
+            (
+                normal,
+                normal.dot(p - Point3::origin()),
+                s.signum() * radius - s,
+            )
         })
         .collect();
     let (delta, radius_to) = match need[..] {
-        [(n1, _, g1)] => (n1 * g1, radius),
-        [(n1, p1, g1), (n2, p2, g2)] => {
-            let lever = if planes[0].lever.length() >= planes[1].lever.length() {
-                planes[0].lever
-            } else {
-                planes[1].lever
-            };
-            match geom_brep::directions_parallel(
-                geom_brep::Directions::PlaneNormals,
-                n1,
-                n2,
-                lever,
-                file.band(),
-            ) {
-                Ok(false) => {
+        [(n1, _, g1)] => (n1 * g1, *radius),
+        [(n1, c1, g1), (n2, c2, g2)] => {
+            let parallel = n1.cross(n2).norm() * faces.lever().length();
+            match file.read(STEP_SNAP_PARALLEL, parallel) {
+                Read::Apart => {
                     let c = n1.dot(n2);
-                    let det = 1.0 - c.powi(2);
+                    let det = n1.cross(n2).norm().powi(2);
                     let x = (g1 - c * g2) / det;
                     let y = (g2 - c * g1) / det;
-                    (n1 * x + n2 * y, radius)
+                    (n1 * x + n2 * y, *radius)
                 }
-                // Two parallel planes: the radius is half their spacing and
-                // the axis moves along their normal to the mid-plane, where
-                // the axis lies between them.
-                Ok(true) => {
-                    let (c1, c2, at) = (
-                        n1.dot(p1 - Point3::origin()),
-                        n1.dot(p2 - Point3::origin()),
-                        n1.dot(origin - Point3::origin()),
-                    );
-                    // Which side of each plane the axis lies, along the
-                    // one normal: between them where the two sides differ.
-                    let side = |c: f64| {
-                        geom_core::k_stats::decide(
-                            STEP_SNAP_SIDE,
-                            geom_core::Margin::of(at - c),
-                            file.band(),
-                        )
-                        .map_err(|_| {
-                            file.refused(nodes[n].record.id, file.ambiguous(STEP_SNAP_SIDE, at - c))
-                        })
-                    };
-                    let (s1, s2) = (side(c1)?, side(c2)?);
-                    if s1.is_zero() || s1 == s2 {
-                        return Err(unsolved(
-                            file,
-                            planes[1].edge,
-                            "a cylinder tangent to two parallel planes whose axis does not lie \
-                             between them"
-                                .to_owned(),
-                        ));
-                    }
-                    (n1 * ((c1 + c2) / 2.0 - at), (c2 - c1).abs() / 2.0)
-                }
-                Err(_) => {
-                    return Err(unsolved(
-                        file,
-                        planes[1].edge,
-                        "a cylinder tangent to two planes the file's band does not read \
-                         parallel or crossing"
-                            .to_owned(),
+                Read::InBand => {
+                    return Err(file.refused(
+                        nodes[n].record.id,
+                        file.ambiguous(STEP_SNAP_PARALLEL, parallel),
                     ));
+                }
+                // Two parallel planes: their levels along the first's
+                // normal, the second's read the way its own normal points.
+                Read::Zero => {
+                    let at = n1.dot(q - Point3::origin());
+                    let c2 = if n1.dot(n2) < 0.0 { -c2 } else { c2 };
+                    between(at, (c1, c2), file, nodes[n].record.id).and_then(|inside| {
+                        if inside {
+                            Ok((n1 * (geom::mid_param(c1, c2) - at), (c2 - c1).abs() / 2.0))
+                        } else {
+                            Err(unsolved(
+                                file,
+                                planes[1].edge,
+                                "a cylinder tangent to two parallel planes whose axis does not \
+                                 lie between them"
+                                    .to_owned(),
+                            ))
+                        }
+                    })?
                 }
             }
         }
@@ -693,102 +653,133 @@ fn tangent(
         }
     };
     // Square to the axis, so the move is a translation across it.
-    let delta = delta - a * delta.dot(a);
+    let delta = delta - line.dir * delta.dot(line.dir);
     Ok((
         Surface::Cylinder {
-            origin: origin + delta,
-            axis: a,
+            origin: *origin + delta,
+            axis: *a,
             radius: radius_to,
-            u_ref,
+            u_ref: *u_ref,
         },
         delta.norm() + (radius_to - radius).abs(),
     ))
 }
 
-/// **The coaxial construction**: `moved` onto `kept`'s axis.
-fn coaxial(kept: &Surface<f64>, moved: &Surface<f64>, lever: f64) -> (Surface<f64>, f64) {
-    let mut out = moved.clone();
-    let mut moved_by = 0.0_f64;
-    match (axis(kept), axis(moved)) {
-        (Some(line), Some((o, d))) => {
-            let dir = if d.dot(line.1) < 0.0 { -line.1 } else { line.1 };
-            let at = foot(o, line);
-            moved_by = (at - o).norm() + (dir - d).norm() * lever;
-            set_axis(&mut out, at, dir);
-        }
-        (Some(line), None) => {
-            if let Some(c) = datum(moved) {
-                let at = foot(c, line);
-                moved_by = (at - c).norm();
-                set_centre(&mut out, at);
-            }
-        }
-        (None, Some((o, d))) => {
-            if let Some(c) = datum(kept) {
-                let at = o + (c - foot(c, (o, d)));
-                moved_by = (at - o).norm();
-                set_axis(&mut out, at, d);
-            }
-        }
-        (None, None) => {
-            if let (Some(c), Some(m)) = (datum(kept), datum(moved)) {
-                moved_by = (c - m).norm();
-                set_centre(&mut out, c);
-            }
-        }
-    }
-    (out, moved_by)
+/// Whether the level `at` lies between the levels `c1` and `c2`, each side
+/// read at the file's band ([`STEP_SNAP_SIDE`]); a side the band does not
+/// read is the file's ambiguity, named at `record`.
+fn between(
+    at: f64,
+    (c1, c2): (f64, f64),
+    file: FileBand,
+    record: u64,
+) -> Result<bool, StepImportError> {
+    let side = |c: f64| {
+        geom_core::k_stats::decide(STEP_SNAP_SIDE, geom_core::Margin::of(at - c), file.band())
+            .map_err(|_| file.refused(record, file.ambiguous(STEP_SNAP_SIDE, at - c)))
+    };
+    let (s1, s2) = (side(c1)?, side(c2)?);
+    Ok(!s1.is_zero() && !s2.is_zero() && s1 != s2)
 }
 
-/// **The axis-normal construction**: `moved` turned about where the axis
-/// meets the plane, a plane's normal onto the axis or an axis onto the
-/// normal.
-fn axis_normal(kept: &Surface<f64>, moved: &Surface<f64>, lever: f64) -> (Surface<f64>, f64) {
+/// **The coaxial construction**: `moved`, whose faces occupy `faces`,
+/// onto `kept`'s axis, and the farthest a point of its faces moves.
+fn coaxial(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Surface<f64>, f64) {
+    let mut out = moved.clone();
+    match (axis(kept), axis(moved)) {
+        (Some(onto), Some(from)) => {
+            // Turned onto the kept direction about the moved axis's point
+            // at its faces, and carried onto the kept line there.
+            let pivot = from.foot(faces.centre());
+            let dir = if from.dir.dot(onto.dir) < 0.0 {
+                -onto.dir
+            } else {
+                onto.dir
+            };
+            let to = onto.foot(pivot);
+            carry(&mut out, from, (pivot, to), dir);
+            (
+                out,
+                (to - pivot).norm() + (dir - from.dir).norm() * faces.from(pivot),
+            )
+        }
+        (Some(onto), None) => {
+            let Some(c) = datum(moved) else {
+                return (out, f64::INFINITY);
+            };
+            let to = onto.foot(c);
+            set_centre(&mut out, to);
+            (out, (to - c).norm())
+        }
+        (None, Some(from)) => {
+            let Some(c) = datum(kept) else {
+                return (out, f64::INFINITY);
+            };
+            let delta = c - from.foot(c);
+            carry(&mut out, from, (from.origin, from.origin + delta), from.dir);
+            (out, delta.norm())
+        }
+        (None, None) => {
+            let (Some(c), Some(m)) = (datum(kept), datum(moved)) else {
+                return (out, f64::INFINITY);
+            };
+            set_centre(&mut out, c);
+            (out, (c - m).norm())
+        }
+    }
+}
+
+/// **The axis-normal construction**: `moved`, whose faces occupy `faces`,
+/// turned about where the axis meets the plane, a plane's normal onto the
+/// axis or an axis onto the normal, and the farthest a point of its faces
+/// moves.
+fn axis_normal(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Surface<f64>, f64) {
     let (plane, round) = if matches!(kept, Surface::Plane { .. }) {
         (kept, moved)
     } else {
         (moved, kept)
     };
-    let (
-        Surface::Plane {
-            origin: p,
-            normal: n,
-            u_ref,
-        },
-        Some((o, d)),
-    ) = (plane, axis(round))
+    let (Some((p, n)), Some(line), Surface::Plane { u_ref, .. }) =
+        (plane_of(plane), axis(round), plane)
     else {
         return (moved.clone(), f64::INFINITY);
     };
-    let (p, n, u_ref) = (*p, *n, *u_ref);
-    // Where the axis meets the plane: the two read along one another, so
-    // the axis's cosine against the normal is near one.
-    let pivot = o + d * (n.dot(p - o) / n.dot(d));
+    let Some(pivot) = meets(line, (p, n)) else {
+        return (moved.clone(), f64::INFINITY);
+    };
     if matches!(moved, Surface::Plane { .. }) {
-        let normal = if n.dot(d) < 0.0 { -d } else { d };
-        let u_ref = geom::Frame::new(pivot, normal, u_ref).square().u_ref;
-        let moved_by = (normal - n).norm() * lever + n.dot(pivot - p).abs();
+        let normal = if n.dot(line.dir) < 0.0 {
+            -line.dir
+        } else {
+            line.dir
+        };
+        let u_ref = geom::Frame::new(pivot, normal, *u_ref).square().u_ref;
         (
             Surface::Plane {
                 origin: pivot,
                 normal,
                 u_ref,
             },
-            moved_by,
+            (normal - n).norm() * faces.from(pivot),
         )
     } else {
-        let dir = if d.dot(n) < 0.0 { -n } else { n };
-        let h = (pivot - o).dot(d);
-        let at = pivot - dir * h;
+        let dir = if line.dir.dot(n) < 0.0 { -n } else { n };
         let mut out = moved.clone();
-        set_axis(&mut out, at, dir);
-        (out, (dir - d).norm() * lever + (at - o).norm())
+        carry(&mut out, line, (pivot, pivot), dir);
+        (out, (dir - line.dir).norm() * faces.from(pivot))
     }
 }
 
-/// `s`'s axis set to run through `at` along unit `dir`, its seam squared
-/// to it.
-fn set_axis(s: &mut Surface<f64>, at: Point3<f64>, dir: Vec3<f64>) {
+/// `s`, whose axis is `from`, moved rigidly: turned to run along unit
+/// `dir` about the axis point `pivot`, and carried so `pivot` lands at
+/// `to`. Its datum keeps its place along the axis from `pivot`; its seam
+/// is squared to the new axis.
+fn carry(
+    s: &mut Surface<f64>,
+    from: Line<f64>,
+    (pivot, to): (Point3<f64>, Point3<f64>),
+    dir: Vec3<f64>,
+) {
     match s {
         Surface::Cylinder {
             origin,
@@ -808,11 +799,13 @@ fn set_axis(s: &mut Surface<f64>, at: Point3<f64>, dir: Vec3<f64>) {
             u_ref,
             ..
         } => {
+            let along = from.dir.dot(*origin - pivot);
+            let at = to + dir * along;
             *u_ref = geom::Frame::new(at, dir, *u_ref).square().u_ref;
             *origin = at;
             *axis = dir;
         }
-        Surface::Sphere { center, .. } => *center = at,
+        Surface::Sphere { center, .. } => *center = *center + (to - pivot),
         _ => {}
     }
 }
@@ -831,6 +824,18 @@ fn unsolved(file: FileBand, edge: u64, what: String) -> StepImportError {
         id: edge,
         what,
         lane: UNCATALOGUED_LANE,
+        file: geom_core::FileCoincidence::new(file.eps_in()),
+    }
+}
+
+/// The refusal of a class whose solve, anchored at each relation's earlier
+/// record, would move a surface twice (module docs, the known limit).
+fn anchored(file: FileBand, edge: u64, what: String) -> StepImportError {
+    StepImportError::NotYetSupported {
+        entity: BuiltEntity::Edge,
+        id: edge,
+        what,
+        lane: ANCHOR_LANE,
         file: geom_core::FileCoincidence::new(file.eps_in()),
     }
 }

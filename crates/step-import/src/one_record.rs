@@ -160,13 +160,11 @@ pub(crate) fn one_record(
 
 /// **Two records of one round surface become one**: a cylinder, cone,
 /// sphere or torus stated twice. Its normal is fixed by the locus, so two
-/// faces on one locus face one way exactly where their senses agree. Its
-/// datum (an axis line, a centre, its radii) is the locus itself, unlike a
-/// plane's arbitrary origin, so the question is asked of the datum, at the
-/// faces' reach: a bound on the farthest a face of either group lies from
-/// the other record's surface, an axis's tilt levered at the farthest the
-/// boundary of either group lies from the kept record's datum point
-/// ([`reach_from`], [`round_gap`]).
+/// faces on one locus face one way exactly where their senses agree. The
+/// question is asked where the faces are ([`crate::reach::Reach`] of both
+/// groups): how far apart the two axes stand at the ends of the faces'
+/// extent, never at the records' stored axis points, with the difference
+/// of their radii ([`round_gap`]).
 fn one_round_record(
     solid: &mut SolidSpec,
     records: &[Record],
@@ -193,11 +191,10 @@ fn one_round_record(
                 &solid.faces[keep_faces[0]].surface,
                 &solid.faces[faces[0]].surface,
             );
-            let Some(at) = datum_point(a) else {
-                continue;
-            };
-            let lever = reach_from(solid, keep_faces.iter().chain(faces), at);
-            let Some(gap) = round_gap(a, b, lever) else {
+            let Some(gap) =
+                crate::reach::Reach::of(solid, keep_faces.iter().chain(faces.iter()).copied())
+                    .and_then(|reach| round_gap(a, b, &reach))
+            else {
                 continue;
             };
             match file.read(STEP_ONE_RECORD, gap) {
@@ -245,119 +242,47 @@ fn round(surface: &Surface<f64>) -> bool {
     )
 }
 
-/// A round surface's datum point: its axis point, apex or centre.
-fn datum_point(surface: &Surface<f64>) -> Option<Point3<f64>> {
-    match *surface {
-        Surface::Cylinder { origin, .. } => Some(origin),
-        Surface::Cone { apex, .. } => Some(apex),
-        Surface::Sphere { center, .. } | Surface::Torus { center, .. } => Some(center),
-        _ => None,
-    }
-}
-
-/// The farthest the boundary of the faces `faces` lies from `at`, read
-/// off each edge carrier's cover over its span
-/// ([`geom::Curve3::cover_over`]): the lever an axis tilt is read at
-/// across them. Infinite where a carrier has no cover.
-fn reach_from<'a>(
-    solid: &SolidSpec,
-    faces: impl Iterator<Item = &'a usize>,
-    at: Point3<f64>,
-) -> f64 {
-    let site = geom::cover::Site::Point(at);
-    let mut far = 0.0_f64;
-    for &fi in faces {
-        for lp in &solid.faces[fi].loops {
-            for u in &lp.uses {
-                let Some(spec) = solid.edges.get(&u.edge) else {
-                    return f64::INFINITY;
-                };
-                let Ok(cover) = spec
-                    .carrier
-                    .cover_over(geom::cover::ParamWindow::new(spec.t0, spec.t1))
-                else {
-                    return f64::INFINITY;
-                };
-                far = far.max(cover.distance_range(&site).1);
-            }
-        }
-    }
-    far
-}
-
 /// **How far two round records of one kind are from one locus**, in
-/// metres: the sum of their datums' differences, an axis's tilt and a
-/// half-angle levered at `lever`, which bounds the farthest a point of
-/// either within `lever` of the datum point lies from the other. `None` for two kinds, or two cones whose axes point
-/// opposite ways (two nappes, never one locus).
-fn round_gap(a: &Surface<f64>, b: &Surface<f64>, lever: f64) -> Option<f64> {
-    let off = |o: Point3<f64>, at: Point3<f64>, dir: Vec3<f64>| {
-        let d = at - o;
-        (d - dir * d.dot(dir)).norm()
-    };
-    let tilt = |a1: Vec3<f64>, a2: Vec3<f64>| a1.cross(a2).norm() * lever;
+/// metres, read over the region `reach` their faces occupy: two axes'
+/// separation there ([`crate::reach::Reach::axes_apart`]), a centre's or
+/// an apex's offset with an axis's tilt levered at the faces' reach from
+/// it, and the difference of their radii, a cone's half-angles levered at
+/// the faces' reach from its apex. It bounds the farthest a point of
+/// either group's faces lies from the other surface. `None` for two kinds,
+/// or two cones whose axes point opposite ways (two nappes, never one
+/// locus).
+fn round_gap(a: &Surface<f64>, b: &Surface<f64>, reach: &crate::reach::Reach) -> Option<f64> {
+    let (la, lb) = (a.axis_line()?.unit(), b.axis_line()?.unit());
+    let tilt = |pivot: Point3<f64>| la.dir.cross(lb.dir).norm() * reach.from(pivot);
     Some(match (a, b) {
-        (
-            &Surface::Cylinder {
-                origin: o1,
-                axis: a1,
-                radius: r1,
-                ..
-            },
-            &Surface::Cylinder {
-                origin: o2,
-                axis: a2,
-                radius: r2,
-                ..
-            },
-        ) => tilt(a1, a2) + off(o1, o2, a1) + (r1 - r2).abs(),
-        (
-            &Surface::Cone {
-                apex: p1,
-                axis: a1,
-                half_angle: h1,
-                ..
-            },
-            &Surface::Cone {
-                apex: p2,
-                axis: a2,
-                half_angle: h2,
-                ..
-            },
-        ) => {
-            if a1.dot(a2) <= 0.0 {
+        (&Surface::Cylinder { radius: r1, .. }, &Surface::Cylinder { radius: r2, .. }) => {
+            reach.axes_apart(la, lb) + (r1 - r2).abs()
+        }
+        (&Surface::Cone { half_angle: h1, .. }, &Surface::Cone { half_angle: h2, .. }) => {
+            if la.dir.dot(lb.dir) <= 0.0 {
                 return None;
             }
-            tilt(a1, a2) + (p2 - p1).norm() + (h1 - h2).abs() * lever
+            (lb.origin - la.origin).norm()
+                + tilt(la.origin)
+                + (h1 - h2).abs() * reach.from(la.origin)
+        }
+        (&Surface::Sphere { radius: r1, .. }, &Surface::Sphere { radius: r2, .. }) => {
+            (lb.origin - la.origin).norm() + (r1 - r2).abs()
         }
         (
-            &Surface::Sphere {
-                center: c1,
-                radius: r1,
-                ..
-            },
-            &Surface::Sphere {
-                center: c2,
-                radius: r2,
-                ..
-            },
-        ) => (c2 - c1).norm() + (r1 - r2).abs(),
-        (
             &Surface::Torus {
-                center: c1,
-                axis: a1,
                 major_radius: big1,
                 minor_radius: r1,
                 ..
             },
             &Surface::Torus {
-                center: c2,
-                axis: a2,
                 major_radius: big2,
                 minor_radius: r2,
                 ..
             },
-        ) => tilt(a1, a2) + (c2 - c1).norm() + (big1 - big2).abs() + (r1 - r2).abs(),
+        ) => {
+            (lb.origin - la.origin).norm() + tilt(la.origin) + (big1 - big2).abs() + (r1 - r2).abs()
+        }
         _ => return None,
     })
 }
