@@ -1,0 +1,305 @@
+diff --git a/crates/topo/src/pcurves/mint.rs b/crates/topo/src/pcurves/mint.rs
+index 514c7315d..346201d48 100644
+--- a/crates/topo/src/pcurves/mint.rs
++++ b/crates/topo/src/pcurves/mint.rs
+@@ -2179,3 +2179,63 @@ pub(super) fn derive_image<T: AtRestPolicy>(
+     };
+     Ok((carrier, image))
+ }
++
++#[cfg(test)]
++#[allow(clippy::all, clippy::pedantic, clippy::unwrap_used)]
++mod vertex_probe_a4 {
++    use super::*;
++    use geom_core::{Point3, Vec3};
++
++    struct Lcg(u64);
++    impl Lcg {
++        fn f(&mut self) -> f64 {
++            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
++            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
++        }
++        fn s(&mut self) -> f64 {
++            2.0 * self.f() - 1.0
++        }
++    }
++    fn hx(x: f64) -> String {
++        format!("{:016x}", x.to_bits())
++    }
++
++    /// `row_interval`'s decision at one end: the carrier at `r` against `p`.
++    #[test]
++    fn probe_dump() {
++        let mut rng = Lcg(0xa4ea_5eed);
++        let n = Vec3::new(0.0, 0.0, 1.0);
++        for &eps in &[1e-9, 1e-12] {
++            let band = Band::new(eps, 10.0 * eps).unwrap();
++            for &far in &[1e4, 1e5, 1e6, 1e7] {
++                for &ratio in &[0.01, 1.0] {
++                    for _ in 0..1500 {
++                        let phi = 3.2 * rng.s();
++                        let u = Vec3::new(phi.cos(), phi.sin(), 0.0);
++                        let v = Vec3::new(-u.y, u.x, 0.0);
++                        let v0 = Point3::new(10.0 * rng.s(), 10.0 * rng.s(), 0.0);
++                        let (sa, sb) = (far, far * ratio);
++                        let c = v0 - u * sa;
++                        let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(c, n, u), sa, sb));
++                        let r = rng.s() / sb;
++                        let h = (r * 0.5).sin();
++                        let w = (10.0 * eps).max(8.0 * f64::EPSILON * far);
++                        let scale = if rng.f() < 0.5 { 12.0 * eps } else { 3.0 * w };
++                        let psi = 3.2 * rng.s();
++                        let off = Vec3::new(psi.cos(), psi.sin(), 0.0) * (scale * rng.f());
++                        let p = v0 + (u * (sa * (-2.0 * h * h)) + v * (sb * r.sin())) + off;
++                        let got = match decide("pcurve_row_interval", Margin::of(carrier.eval(r).distance(p)), band) {
++                            Ok(Sign::Zero) => 0,
++                            Ok(_) => 1,
++                            Err(_) => 2,
++                        };
++                        println!(
++                            "S4 {eps:e} {far:e} {ratio} {} {} {} {} {} {} {} {} {} {got}",
++                            hx(c.x), hx(c.y), hx(u.x), hx(u.y), hx(sa), hx(sb), hx(r), hx(p.x), hx(p.y)
++                        );
++                    }
++                }
++            }
++        }
++    }
++}
+diff --git a/crates/topo/src/splitting/join.rs b/crates/topo/src/splitting/join.rs
+index 4e9344548..b2e41f509 100644
+--- a/crates/topo/src/splitting/join.rs
++++ b/crates/topo/src/splitting/join.rs
+@@ -1875,3 +1875,78 @@ mod curved_section_rows {
+         );
+     }
+ }
++
++#[cfg(test)]
++#[allow(clippy::all, clippy::pedantic, clippy::unwrap_used)]
++mod vertex_probe_a3 {
++    use super::*;
++    use geom::Conic;
++    use geom_core::Vec3;
++
++    struct Lcg(u64);
++    impl Lcg {
++        fn f(&mut self) -> f64 {
++            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
++            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
++        }
++        fn s(&mut self) -> f64 {
++            2.0 * self.f() - 1.0
++        }
++    }
++    fn hx(x: f64) -> String {
++        format!("{:016x}", x.to_bits())
++    }
++    fn less_sin(d: f64) -> f64 {
++        let q = d * d;
++        d * q / 6.0 * (1.0 - q / 20.0 * (1.0 - q / 42.0 * (1.0 - q / 72.0)))
++    }
++
++    /// The site's arithmetic for a loop of one chord and one conic arc
++    /// from `a_pt` to `b_pt`, the origin at `a_pt`.
++    #[test]
++    fn probe_dump() {
++        let mut rng = Lcg(0xa3ea_5eed);
++        let n = Vec3::new(0.0, 0.0, 1.0);
++        for &eps in &[1e-9, 1e-12] {
++            let band = Band::new(eps, 10.0 * eps).unwrap();
++            for &far in &[1e4, 1e5, 1e6, 1e7] {
++                for &ratio in &[0.01, 1.0] {
++                    for _ in 0..1500 {
++                        let phi = 3.2 * rng.s();
++                        let u = Vec3::new(phi.cos(), phi.sin(), 0.0);
++                        let v0 = Point3::new(10.0 * rng.s(), 10.0 * rng.s(), 0.0);
++                        let (sa, sb) = (far, far * ratio);
++                        let c = v0 - u * sa;
++                        let e = geom::Ellipse::new(geom::Frame::new(c, n, u), sa, sb);
++                        let w = (10.0 * eps).max(8.0 * f64::EPSILON * far);
++                        let scale = if rng.f() < 0.5 { 12.0 * eps } else { 3.0 * w };
++                        let m = scale * rng.f();
++                        let delta = (12.0 * m / sa).sqrt();
++                        let t0 = -delta * rng.f();
++                        let t1 = t0 + delta;
++                        let (a_pt, b_pt) = (e.point_at(t0), e.point_at(t1));
++                        let origin = a_pt;
++                        let dt = t1 - t0;
++                        let chord = (b_pt - a_pt).norm();
++                        let perimeter = chord + chord + (e.speed_hi() * dt.abs() - chord);
++                        let excess = (c - origin).cross(b_pt - a_pt).dot(n) + sa * sb * e.frame().axis.dot(n) * dt;
++                        let read = |twice: f64| {
++                            match decide("split_section_area", Margin::over_lever(twice.abs(), perimeter), band) {
++                                Ok(Sign::Positive) => 1,
++                                Ok(_) => 0,
++                                Err(_) => 2,
++                            }
++                        };
++                        let main = read(excess);
++                        let posed = read(sa * sb * e.frame().axis.dot(n) * less_sin(dt));
++                        println!(
++                            "S3 {eps:e} {far:e} {ratio} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {main} {posed}",
++                            hx(c.x), hx(c.y), hx(u.x), hx(u.y), hx(sa), hx(sb), hx(t0), hx(t1),
++                            hx(a_pt.x), hx(a_pt.y), hx(b_pt.x), hx(b_pt.y), hx(perimeter), hx(excess), hx(dt)
++                        );
++                    }
++                }
++            }
++        }
++    }
++}
+diff --git a/crates/topo/src/splitting/section_loops.rs b/crates/topo/src/splitting/section_loops.rs
+index e9b817d3b..278100c76 100644
+--- a/crates/topo/src/splitting/section_loops.rs
++++ b/crates/topo/src/splitting/section_loops.rs
+@@ -513,3 +513,149 @@ mod torn_hop_rows {
+         );
+     }
+ }
++
++#[cfg(test)]
++#[allow(clippy::all, clippy::pedantic, clippy::unwrap_used)]
++mod vertex_probe_a {
++    use super::*;
++    use geom_core::Band;
++    use geom_core::exact::{two_product, two_sum};
++
++    struct Lcg(u64);
++    impl Lcg {
++        fn f(&mut self) -> f64 {
++            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
++            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
++        }
++        fn s(&mut self) -> f64 {
++            2.0 * self.f() - 1.0
++        }
++    }
++    fn hx(x: f64) -> String {
++        format!("{:016x}", x.to_bits())
++    }
++    fn hv(v: [f64; 3]) -> String {
++        format!("{} {} {}", hx(v[0]), hx(v[1]), hx(v[2]))
++    }
++
++    /// `c + u·k − p` per coordinate: naive, or summed exactly.
++    fn vertex_less(c: Point3<f64>, u: Vec3<f64>, k: f64, p: Point3<f64>, exact: bool) -> Vec3<f64> {
++        let f = |c: f64, u: f64, p: f64| {
++            if exact {
++                let (pr, pe) = two_product(u, k);
++                let (s, se) = two_sum(c, pr);
++                let (d, de) = two_sum(s, -p);
++                d + (de + se + pe)
++            } else {
++                (c + u * k) - p
++            }
++        };
++        Vec3::new(f(c.x, u.x, p.x), f(c.y, u.y, p.y), f(c.z, u.z, p.z))
++    }
++
++    fn line_vertex(p: Point3<f64>, q: Point3<f64>, c: &dyn Conic<f64>, band: Band, exact: bool) -> bool {
++        let along = q - p;
++        let m = c.frame().axis.cross(along.normalize());
++        let (a_m, b_m) = c.along(m);
++        let hyp = (a_m.powi(2) + b_m.powi(2)).sqrt();
++        let s = m.dot(c.frame().origin - p).signum();
++        let k = -(s * a_m.signum()) * c.semi_axes().0;
++        let w = vertex_less(c.frame().origin, c.frame().u_ref, k, p, exact);
++        positive(
++            "split_nest_line_conic",
++            s * m.dot(w) - b_m.powi(2) / (a_m.abs() + hyp),
++            band,
++        )
++    }
++
++    fn conics_vertex(e: &dyn Conic<f64>, h: &dyn Conic<f64>, band: Band, exact: bool) -> bool {
++        let lever = e.speed_lo();
++        let (ha, hb) = h.semi_axis_vectors();
++        let (cx0, _) = e.unit_in_plane(h.frame().origin);
++        let sg = cx0.signum();
++        let (a, _) = e.semi_axes();
++        let f = e.frame();
++        let w = -vertex_less(f.origin, f.u_ref, sg * a, h.frame().origin, exact);
++        let (x, y) = e.unit_of(w);
++        // u·u − 1, exactly summed.
++        let u = f.u_ref;
++        let (p0, e0) = two_product(u.x, u.x);
++        let (p1, e1) = two_product(u.y, u.y);
++        let (p2, e2) = two_product(u.z, u.z);
++        let (s01, t01) = two_sum(p0, p1);
++        let (s, t) = two_sum(s01, p2);
++        let d = (s - 1.0) + (t + t01 + e0 + e1 + e2);
++        let uu = 1.0 + d;
++        // centre² − 1 with cx = sg·uu + x.
++        let c2m1 = d * (uu + 1.0) + 2.0 * sg * uu * x + x * x + y * y;
++        let centre = (1.0 + c2m1).sqrt();
++        let cm1 = c2m1 / (centre + 1.0);
++        let (ax, ay) = e.unit_of(ha);
++        let (bx, by) = e.unit_of(hb);
++        let (aa, bb, ab) = (ax.powi(2) + ay.powi(2), bx.powi(2) + by.powi(2), ax * bx + ay * by);
++        let spread = ((aa - bb).powi(2) + 4.0 * ab.powi(2)).sqrt();
++        let reach = ((aa + bb + spread) * 0.5).sqrt() * (1.0 + 8.0 * f64::EPSILON);
++        positive("split_nest_conic_conic", (-cm1 - reach) * lever, band)
++            || positive("split_nest_conic_conic", (cm1 - reach) * lever, band)
++    }
++
++    #[test]
++    fn probe_dump() {
++        let mut rng = Lcg(0x5eed_c0de);
++        for &eps in &[1e-9, 1e-12] {
++            let band = Band::new(eps, 10.0 * eps).unwrap();
++            for &far in &[1e4, 1e5, 1e6, 1e7] {
++                for &ratio in &[0.01, 1.0, 2.0] {
++                    for _ in 0..1500 {
++                        let phi = 3.2 * rng.s();
++                        let u = Vec3::new(phi.cos(), phi.sin(), 0.0);
++                        let v = Vec3::new(-u.y, u.x, 0.0);
++                        let v0 = Point3::new(10.0 * rng.s(), 10.0 * rng.s(), 0.0);
++                        let (a, b) = (far, far * ratio);
++                        let c = v0 - u * a;
++                        let e = geom::Ellipse::new(
++                            geom::Frame::new(c, Vec3::new(0.0, 0.0, 1.0), u),
++                            a,
++                            b,
++                        );
++                        let w = (10.0 * eps).max(8.0 * f64::EPSILON * far);
++                        // Site 1.
++                        let scale = if rng.f() < 0.5 { 12.0 * eps } else { 3.0 * w };
++                        let g = scale * rng.s();
++                        let tau = (2.0 * a * w).sqrt() / b * rng.s();
++                        let d = v * tau.cos() + u * tau.sin();
++                        let mid = v0 + u * (g + (b * tau).powi(2) / (2.0 * a));
++                        let (p, q) = (mid - d, mid + d);
++                        let main = line_clears_conic(p, q, &e, band);
++                        let vn = line_vertex(p, q, &e, band, false);
++                        let vx = line_vertex(p, q, &e, band, true);
++                        println!(
++                            "S1 {eps:e} {far:e} {ratio} {} {} {} {} {} {} {} {} {}",
++                            hv([c.x, c.y, c.z]), hv([u.x, u.y, u.z]), hx(a), hx(b),
++                            hv([p.x, p.y, p.z]), hv([q.x, q.y, q.z]),
++                            u8::from(main), u8::from(vn), u8::from(vx)
++                        );
++                        // Site 2: a small circle beside the vertex.
++                        let r = 0.05 + 0.4 * rng.f();
++                        let scale = if rng.f() < 0.5 { 12.0 * eps } else { 3.0 * w };
++                        let g = scale * rng.s();
++                        let side = if rng.f() < 0.5 { 1.0 } else { -1.0 };
++                        let hc = v0 + u * (side * (r + g)) + v * ((2.0 * a * w).sqrt() * rng.s());
++                        let psi = 3.2 * rng.s();
++                        let hu = Vec3::new(psi.cos(), psi.sin(), 0.0);
++                        let h = geom::Circle::new(geom::Frame::new(hc, Vec3::new(0.0, 0.0, 1.0), hu), r);
++                        let main = conics_clear(&e, &h, band);
++                        let vn = conics_vertex(&e, &h, band, false);
++                        let vx = conics_vertex(&e, &h, band, true);
++                        println!(
++                            "S2 {eps:e} {far:e} {ratio} {} {} {} {} {} {} {} {} {} {}",
++                            hv([c.x, c.y, c.z]), hv([u.x, u.y, u.z]), hx(a), hx(b),
++                            hv([hc.x, hc.y, hc.z]), hv([hu.x, hu.y, hu.z]), hx(r),
++                            u8::from(main), u8::from(vn), u8::from(vx)
++                        );
++                    }
++                }
++            }
++        }
++    }
++}

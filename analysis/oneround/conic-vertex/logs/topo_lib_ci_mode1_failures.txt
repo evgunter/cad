@@ -1,0 +1,48 @@
+        FAIL [   0.560s] (2446/2942) topo ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation
+  stdout ───
+
+--
+    thread 'ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation' (10744) panicked at crates/topo/src/ruled_region_rows.rs:883:5:
+    assertion `left == right` failed: queries a frame answers at the escalation
+      left: 38
+--
+        FAIL [   0.153s] (2600/2942) topo splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size
+  stdout ───
+
+--
+    thread 'splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size' (11132) panicked at crates/topo/src/splitting/containment.rs:3316:13:
+    the arc's point at -0.00045 lies 0.5062501916684449 out, past 0.5062501912455183
+    stack backtrace:
+--
+        FAIL [   0.574s] (2815/2942) topo torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation
+  stdout ───
+
+--
+    thread 'torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation' (11717) panicked at crates/topo/src/torus_region.rs:1223:9:
+    assertion `left == right` failed: queries a frame answers at the escalation
+      left: 27
+--
+     Summary [  33.669s] 2942 tests run: 2939 passed, 3 failed, 268 skipped
+        FAIL [   0.560s] (2446/2942) topo ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation
+  stdout ───
+
+--
+    thread 'ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation' (10744) panicked at crates/topo/src/ruled_region_rows.rs:883:5:
+    assertion `left == right` failed: queries a frame answers at the escalation
+      left: 38
+--
+        FAIL [   0.153s] (2600/2942) topo splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size
+  stdout ───
+
+--
+    thread 'splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size' (11132) panicked at crates/topo/src/splitting/containment.rs:3316:13:
+    the arc's point at -0.00045 lies 0.5062501916684449 out, past 0.5062501912455183
+    stack backtrace:
+--
+        FAIL [   0.574s] (2815/2942) topo torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation
+  stdout ───
+
+--
+    thread 'torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation' (11717) panicked at crates/topo/src/torus_region.rs:1223:9:
+    assertion `left == right` failed: queries a frame answers at the escalation
+      left: 27

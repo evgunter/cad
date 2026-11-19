@@ -1,0 +1,250 @@
+diff --git a/crates/topo/src/boolean/factored_crossing.rs b/crates/topo/src/boolean/factored_crossing.rs
+index 9b78d56c9..438e630b7 100644
+--- a/crates/topo/src/boolean/factored_crossing.rs
++++ b/crates/topo/src/boolean/factored_crossing.rs
+@@ -228,3 +228,11 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
+         .map(Some)
+         .ok_or_else(frontier)
+ }
++
++#[cfg(test)]
++mod vertex_probe {
++    #[test]
++    fn factored_crossings_apart_on_a_far_centred_conic() {
++        crate::census::vertex_probe::run("bool_factored_crossings_apart");
++    }
++}
+diff --git a/crates/topo/src/census.rs b/crates/topo/src/census.rs
+index a47e08d02..708355202 100644
+--- a/crates/topo/src/census.rs
++++ b/crates/topo/src/census.rs
+@@ -23265,3 +23265,77 @@ mod line_pass_rows {
+         );
+     }
+ }
++
++#[cfg(test)]
++#[allow(clippy::all, clippy::pedantic, clippy::unwrap_used, clippy::print_stdout)]
++pub(crate) mod vertex_probe {
++    use geom_core::{Band, Margin, Point3, Sign, Vec3};
++
++    /// The chord decision `decide(row, norm3(eval(t) − eval(s)))` on a
++    /// far-centred conic's short arc, against the chord read off the
++    /// semi-axis vectors (the centre cancels in ℝ).
++    pub(crate) fn run(row: &'static str) {
++        let mode = geom::curves::conic::vertex_mode();
++        let n = Vec3::new(0.3, 0.4, 0.5).normalize();
++        let u = n.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
++        let vertex = Point3::new(37.3, -12.1, 5.7);
++        let mut seed = 0x9E37_79B9_7F4A_7C15_u64;
++        let mut rnd = || {
++            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
++            (seed >> 11) as f64 / (1u64 << 53) as f64
++        };
++        for eps in [1e-9, 1e-12] {
++            let band = Band::new(eps, 10.0 * eps).unwrap();
++            for far in [1e3, 1e4, 1e5, 1e6, 1e7] {
++                for ratio in [1.0, 0.8] {
++                    let (a, b) = (far, far * ratio);
++                    let frame = geom::Frame::new(vertex - u * a, n, u);
++                    let carrier = if ratio == 1.0 {
++                        geom::Curve3::Circle(geom::Circle::new(frame, a))
++                    } else {
++                        geom::Curve3::Ellipse(geom::Ellipse::new(frame, a, b))
++                    };
++                    let v = frame.v_ref();
++                    let (mut total, mut wrong, mut edge, mut worst) = (0, 0, 0, 0.0_f64);
++                    for _ in 0..4000 {
++                        let t = (2.0 * rnd() - 1.0) / far;
++                        let d = [0.1, 0.5, 0.9, 1.1, 3.0, 9.0, 11.0, 30.0][(rnd() * 8.0) as usize] * eps;
++                        let s = t + d / b;
++                        let (h, m) = (0.5 * (s - t), 0.5 * (s + t));
++                        let chord = (u * (a * (-2.0 * m.sin() * h.sin()))
++                            + v * (b * (2.0 * m.cos() * h.sin())))
++                        .norm();
++                        let w = carrier.eval(t) - carrier.eval(s);
++                        worst = worst.max((w.norm() - chord).abs());
++                        total += 1;
++                        match crate::validate::decide(row, Margin::norm3(w), band) {
++                            Ok(Sign::Positive) => {
++                                if chord <= band.zero() {
++                                    wrong += 1;
++                                } else if chord < band.escalate() {
++                                    edge += 1;
++                                }
++                            }
++                            Ok(_) => {
++                                if chord >= band.escalate() {
++                                    wrong += 1;
++                                } else if chord > band.zero() {
++                                    edge += 1;
++                                }
++                            }
++                            Err(_) => {}
++                        }
++                    }
++                    println!(
++                        "CHORD {row} mode {mode} eps {eps:e} far {far:e} ratio {ratio}: wrong {wrong} in-gap-definite {edge} of {total}, worst |read - true| {worst:.3e}"
++                    );
++                }
++            }
++        }
++    }
++
++    #[test]
++    fn arc_piece_on_a_far_centred_conic() {
++        run("pm_census_arc_piece");
++    }
++}
+diff --git a/crates/topo/src/census/depth_gap.rs b/crates/topo/src/census/depth_gap.rs
+index 4ddf4e64f..4ad46e462 100644
+--- a/crates/topo/src/census/depth_gap.rs
++++ b/crates/topo/src/census/depth_gap.rs
+@@ -821,3 +821,147 @@ mod tests {
+         );
+     }
+ }
++
++#[cfg(test)]
++#[allow(clippy::all, clippy::pedantic, clippy::unwrap_used, clippy::print_stdout)]
++mod vertex_probe {
++    use super::*;
++    use geom::cover::ParamWindow;
++    use geom_core::exact::{two_product, two_sum};
++
++    fn z_axis() -> Around<f64> {
++        Around::Line(geom::Line {
++            origin: Point3::new(0.0, 0.0, 0.0),
++            dir: Vec3::new(0.0, 0.0, 1.0),
++        })
++    }
++
++    /// A: a far-centred arc's cover read about an in-box axis, against a
++    /// segment parallel to the axis a known gap past the arc's true
++    /// greatest depth.
++    #[test]
++    fn a_far_centred_arcs_depth_about_an_in_box_axis() {
++        for eps in [1e-9, 1e-12] {
++            let band = Band::new(eps, 10.0 * eps).unwrap();
++            let pad = 2.0 * sweep_pad(band);
++            for far in [1e3, 1e4, 1e5, 1e6, 1e7] {
++                for ratio in [1.0, 0.8] {
++                    let (mut total, mut wrong, mut edge) = (0, 0, 0);
++                    let (mut under, mut over) = (f64::NEG_INFINITY, f64::NEG_INFINITY);
++                    for k in 0..200 {
++                        let phi = 0.1 + 0.031 * f64::from(k);
++                        let u = Vec3::new(phi.cos(), phi.sin(), 0.0);
++                        let vertex = Point3::new(40.0 + 0.37 * f64::from(k), 7.0 - 0.11 * f64::from(k), 3.0);
++                        let (a, b) = (far, far * ratio);
++                        let frame = geom::Frame::new(vertex - u * a, Vec3::new(0.0, 0.0, 1.0), u);
++                        let v = frame.v_ref();
++                        // The stored centre's own vertex, exactly.
++                        let exact = |c: f64, ui: f64| {
++                            let (p, pe) = two_product(ui, a);
++                            let (s, se) = two_sum(c, p);
++                            s + (se + pe)
++                        };
++                        let vx = Point3::new(
++                            exact(frame.origin.x, u.x),
++                            exact(frame.origin.y, u.y),
++                            exact(frame.origin.z, u.z),
++                        );
++                        let w = 1.0 / far;
++                        let cover = Cover::arc(&frame, (a, b), ParamWindow::new(-w, w)).unwrap();
++                        let (lo_read, hi_read) = cover.range_about(&z_axis());
++                        let (mut lo_true, mut hi_true) = (f64::INFINITY, 0.0_f64);
++                        for i in 0..=2000 {
++                            let t = -w + 2.0 * w * f64::from(i) / 2000.0;
++                            let h = (0.5 * t).sin();
++                            let pt = vx + (u * (a * (-2.0 * h * h)) + v * (b * t.sin()));
++                            let d = pt.x.hypot(pt.y);
++                            lo_true = lo_true.min(d);
++                            hi_true = hi_true.max(d);
++                        }
++                        under = under.max(hi_true - hi_read);
++                        over = over.max(lo_read - lo_true);
++                        for m in [-5.0, -1.0, 0.0, 0.5, 2.0, 5.0, 9.0] {
++                            // Outside: a segment `pad + m·eps` past the true greatest depth.
++                            let d = hi_true + pad + m * eps;
++                            let seg = Cover::segment(Point3::new(d, 0.0, -1.0), Point3::new(d, 0.0, 1.0)).unwrap();
++                            let exact_margin = d - hi_true - pad;
++                            total += 1;
++                            if clears(hi_read, seg.range_about(&z_axis()).0, band) {
++                                if exact_margin <= 0.0 {
++                                    wrong += 1;
++                                } else if exact_margin < band.escalate() {
++                                    edge += 1;
++                                }
++                            }
++                            // Inside: a segment `pad + m·eps` below the true least depth.
++                            let d = lo_true - pad - m * eps;
++                            let seg = Cover::segment(Point3::new(d, 0.0, -1.0), Point3::new(d, 0.0, 1.0)).unwrap();
++                            let exact_margin = lo_true - d - pad;
++                            total += 1;
++                            if clears(seg.range_about(&z_axis()).1, lo_read, band) {
++                                if exact_margin <= 0.0 {
++                                    wrong += 1;
++                                } else if exact_margin < band.escalate() {
++                                    edge += 1;
++                                }
++                            }
++                        }
++                    }
++                    println!(
++                        "DEPTH-A eps {eps:e} far {far:e} ratio {ratio}: wrong {wrong} in-gap-clear {edge} of {total}; cover's greatest undershoots truth by {under:.3e}, least overshoots by {over:.3e}"
++                    );
++                }
++            }
++        }
++    }
++
++    /// B: the depth a far-centred conic PROPOSES (its axis line, at the
++    /// stored centre) read on two in-box segments parallel to it a known
++    /// gap apart.
++    #[test]
++    fn a_far_axis_proposed_by_a_far_centred_conic() {
++        for eps in [1e-9, 1e-12] {
++            let band = Band::new(eps, 10.0 * eps).unwrap();
++            let pad = 2.0 * sweep_pad(band);
++            for far in [1e3, 1e4, 1e5, 1e6, 1e7] {
++                let (mut total, mut wrong, mut edge, mut worst) = (0, 0, 0, 0.0_f64);
++                for k in 0..400 {
++                    let phi = 0.1 + 0.031 * f64::from(k);
++                    let u = Vec3::new(phi.cos(), phi.sin(), 0.0);
++                    let vertex = Point3::new(40.0 + 0.37 * f64::from(k), 7.0 - 0.11 * f64::from(k), 3.0);
++                    let c = vertex - u * far;
++                    let axis = Around::Line(geom::Line { origin: c, dir: Vec3::new(0.0, 0.0, 1.0) });
++                    for m in [-5.0, -1.0, 0.0, 0.5, 2.0, 5.0, 9.0] {
++                        let p1 = vertex + Vec3::new(0.3, -0.2, 0.0);
++                        let p2 = p1 + u * (pad + m * eps);
++                        // |p2 − c| − |p1 − c|, factored.
++                        let (d1, d2) = ((p1 - c).norm(), (p2 - c).norm());
++                        let sum = Vec3::new(
++                            (p1.x - c.x) + (p2.x - c.x),
++                            (p1.y - c.y) + (p2.y - c.y),
++                            0.0,
++                        );
++                        let gap = (p2 - p1).dot(sum) / (d1 + d2);
++                        let up = Vec3::new(0.0, 0.0, 1.0);
++                        let s1 = Cover::segment(p1 - up, p1 + up).unwrap();
++                        let s2 = Cover::segment(p2 - up, p2 + up).unwrap();
++                        let (hi, lo) = (s1.range_about(&axis).1, s2.range_about(&axis).0);
++                        worst = worst.max(((lo - hi) - gap).abs());
++                        let exact_margin = gap - pad;
++                        total += 1;
++                        if clears(hi, lo, band) {
++                            if exact_margin <= 0.0 {
++                                wrong += 1;
++                            } else if exact_margin < band.escalate() {
++                                edge += 1;
++                            }
++                        }
++                    }
++                }
++                println!(
++                    "DEPTH-B eps {eps:e} far {far:e}: wrong {wrong} in-gap-clear {edge} of {total}, worst |read gap - true| {worst:.3e}"
++                );
++            }
++        }
++    }
++}

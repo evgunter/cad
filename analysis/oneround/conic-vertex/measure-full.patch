@@ -1,0 +1,426 @@
+diff --git a/crates/geom-brep/src/carrier_resolution.rs b/crates/geom-brep/src/carrier_resolution.rs
+index c9bf56485..a704c22c7 100644
+--- a/crates/geom-brep/src/carrier_resolution.rs
++++ b/crates/geom-brep/src/carrier_resolution.rs
+@@ -193,6 +193,10 @@ mod tests {
+                 }
+             }
+             worst = worst.max(hi);
++            if t.abs() <= 1e-4 {
++                let c = carrier.conic().map(|c| ((c.frame().origin - p).norm(), c.speed_hi()));
++                eprintln!("MISS {:?} t {t:e} |c-p|,a {c:?} |p| {:.2} miss {:e}", carrier.kind(), (p - Point3::origin()).norm(), hi * bound);
++            }
+         }
+         worst
+     }
+@@ -378,6 +382,125 @@ mod tests {
+         }
+     }
+ 
++    /// EXPERIMENT: the exact miss (metres) of the carrier's point at `t`
++    /// off the worse of `surfaces`.
++    fn miss_m(carrier: &Curve3<f64>, t: f64, surfaces: [&Surface<f64>; 2]) -> f64 {
++        let p = carrier.eval(t);
++        let mut worst = 0.0_f64;
++        for s in surfaces {
++            let (q, rate) = residual(s, p);
++            let (mut lo, mut hi) = (0.0_f64, 1e-3_f64);
++            for _ in 0..60 {
++                let mid = 0.5 * (lo + hi);
++                if q.within(-mid * rate, mid * rate) {
++                    hi = mid;
++                } else {
++                    lo = mid;
++                }
++            }
++            worst = worst.max(hi);
++        }
++        worst
++    }
++
++    #[test]
++    fn probe_far_centre_section_misses() {
++        let mut rng = 0x9E37_79B9_7F4A_7C15_u64;
++        let mut next = || {
++            rng ^= rng << 13;
++            rng ^= rng >> 7;
++            rng ^= rng << 17;
++            (rng >> 11) as f64 / (1u64 << 53) as f64
++        };
++        let u = f64::EPSILON * 0.5;
++        // (label, decade of a) -> (count, worst miss/(u·a), worst miss, worst param)
++        let mut table: std::collections::BTreeMap<(String, i32), (usize, f64, f64, f64)> =
++            std::collections::BTreeMap::new();
++        let mut record = |label: &str, c: &Curve3<f64>, surfaces: [&Surface<f64>; 2]| {
++            let Some(conic) = c.conic() else { return };
++            let a = conic.speed_hi();
++            // The in-box part: the parameter nearest the origin among a fine sample, then a
++            // window about it that stays within 100 m.
++            let mut best = (f64::INFINITY, 0.0);
++            for k in 0..200_000 {
++                let t = core::f64::consts::TAU * f64::from(k) / 200_000.0;
++                let d = (c.eval(t) - Point3::origin()).norm();
++                if d < best.0 {
++                    best = (d, t);
++                }
++            }
++            if best.0 > 500.0 || (conic.frame().origin - Point3::origin()).norm() < 1e3 {
++                return;
++            }
++            // Seam at the nearest principal vertex, as the join does.
++            let seamed = c.seamed_near(best.1).unwrap_or_else(|| c.clone());
++            let sc = seamed.conic().unwrap();
++            let t0 = sc.param_in(c.eval(best.1), (-1.0, 1.0));
++            let e = table
++                .entry((label.to_string(), a.log10().floor() as i32))
++                .or_insert((0, 0.0, 0.0, 0.0));
++            for k in -8..=8 {
++                let t = t0 + f64::from(k) * 10.0 / a;
++                let m = miss_m(&seamed, t, surfaces);
++                e.0 += 1;
++                if m / (u * a) > e.1 {
++                    *e = (e.0, m / (u * a), m, t);
++                }
++            }
++        };
++        let cyl = Surface::Cylinder {
++            origin: Point3::new(0.3, -0.2, 0.1),
++            axis: Vec3::new(1.0, 2.0, 2.0).normalize(),
++            radius: 1.7,
++            u_ref: Vec3::new(2.0, -1.0, 0.0).normalize(),
++        };
++        let reach = |at| Reach::of_frame(at, (1.0, 1.0));
++        for tilt in [1e-3, 1e-4, 1e-5, 1e-6] {
++            for _ in 0..40 {
++                // A plane `tilt` off the wall's axis, passing within the wall near the origin.
++                let axis = Vec3::new(1.0, 2.0, 2.0).normalize();
++                let side = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5);
++                let side = (side - axis * side.dot(axis)).normalize();
++                let n = (side + axis * (tilt * (0.5 + next()))).normalize();
++                let cut = plane(Point3::new(0.3, -0.2, 0.1) + side * (1.7 * (next() - 0.5)), n);
++                if let Ok(PlaneCylinderSection::TiltedEllipse(c)) =
++                    plane_cylinder_section(&cut, &cyl, &reach(Point3::origin()), band())
++                {
++                    record("cylinder", &c, [&cut, &cyl]);
++                }
++            }
++        }
++        let half = 0.4_f64;
++        let cone = Surface::Cone {
++            apex: Point3::new(0.2, 0.1, 2.0),
++            axis: Vec3::new(0.1, -0.2, -1.0).normalize(),
++            half_angle: half,
++            u_ref: Vec3::new(1.0, 0.0, 0.1).normalize(),
++        };
++        let parabolic = core::f64::consts::FRAC_PI_2 - half;
++        for off in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7] {
++            for _ in 0..40 {
++                let axis = Vec3::new(0.1, -0.2, -1.0).normalize();
++                let side = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5);
++                let side = (side - axis * side.dot(axis)).normalize();
++                let tilt = parabolic * (1.0 - off * (0.5 + next()));
++                let n = axis * tilt.cos() + side * tilt.sin();
++                let at = Point3::new(0.2, 0.1, 2.0) + axis * (1.0 + next());
++                let cut = plane(at, n);
++                if let Ok(PlaneConeSection::TiltedEllipse(c)) =
++                    plane_cone_section(&cut, &cone, &reach(at), band())
++                {
++                    record("cone", &c, [&cut, &cone]);
++                }
++            }
++        }
++        for ((label, decade), (n, ratio, miss, t)) in table {
++            eprintln!(
++                "FARMISS {label} a~1e{decade}: {n} samples, worst miss {miss:.2e} = {ratio:.2} u·a at seamed θ {t:.3e}"
++            );
++        }
++    }
++
+     /// **The resolution is the same wherever the part sits.** A carrier
+     /// moved across the model reads the same bound, and a far centre is
+     /// charged its distance from the arc.
+diff --git a/crates/geom-brep/src/half_angle.rs b/crates/geom-brep/src/half_angle.rs
+index f94ce8a66..cca24100f 100644
+--- a/crates/geom-brep/src/half_angle.rs
++++ b/crates/geom-brep/src/half_angle.rs
+@@ -938,6 +938,16 @@ fn subdivision<T: Decide>(
+                 let lever =
+                     (reach - window * w).select_le_zero(window.max(least_slope), least_slope);
+                 let arc = speed_hi * reach / lever;
++                if std::env::var("CAD_ARC_PRINT").is_ok() {
++                    let r = (meter.residual)(root);
++                    if let (Some(a), Some(v), Some(e)) = (
++                        (&arc as &dyn core::any::Any).downcast_ref::<f64>(),
++                        (&r.value as &dyn core::any::Any).downcast_ref::<f64>(),
++                        (&r.error as &dyn core::any::Any).downcast_ref::<f64>(),
++                    ) {
++                        eprintln!("ARC {a:e} res {v:e} err {e:e}");
++                    }
++                }
+                 match decide(meter.row, Margin::of(arc), band) {
+                     Ok(Sign::Zero | Sign::Negative) => {}
+                     Ok(Sign::Positive) | Err(_) => {
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 1e645800f..c331c3fc7 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -312,6 +312,84 @@ fn running_frame<T: Real>(f: &Frame<T>) -> RunningFrame<T> {
+     (c, u, cross(n, u))
+ }
+ 
++
++/// EXPERIMENT: 0 centre form, 1 vertex form charged, 2 vertex form with
++/// the vertex taken as exact.
++pub fn vertex_mode() -> u8 {
++    static M: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
++    *M.get_or_init(|| {
++        std::env::var("CAD_CONIC_VERTEX")
++            .ok()
++            .and_then(|s| s.parse().ok())
++            .unwrap_or(0)
++    })
++}
++
++/// EXPERIMENT: `cos θ − 1` from `sin θ` and `cos θ`, `−sin²/(1 + cos)`
++/// where `cos > 0`, else the plain difference.
++fn cos_less_one<T: Real>(sin: T, cos: T) -> T {
++    let near = T::zero() - sin * sin / (T::one() + cos);
++    cos.select_le_zero(cos - T::one(), near)
++}
++
++fn running_cos_less_one<T: Real>(sin: Rounded<T>, cos: Rounded<T>) -> Rounded<T> {
++    let u = T::from_f64(geom_core::UNIT_ROUNDOFF);
++    let d = T::one() + cos.value;
++    let value = T::zero() - sin.value * sin.value / d;
++    let near = Rounded {
++        value,
++        error: T::from_f64(2.0) * sin.value.abs() * sin.error / d
++            + value.abs() * (cos.error + u * d.abs()) / d
++            + T::from_f64(3.0) * u * value.abs(),
++    };
++    let far = cos - Rounded::exact(T::one());
++    Rounded::select_le_zero(cos.value, far, near)
++}
++
++/// EXPERIMENT: `c + u·a`, exactly rounded in mode 3 where all are points.
++fn vertex_coord<T: Real>(c: T, u: T, a: T) -> T {
++    if vertex_mode() == 3
++        && let (Some(&c0), Some(&u0), Some(&a0)) = (
++            (&c as &dyn core::any::Any).downcast_ref::<f64>(),
++            (&u as &dyn core::any::Any).downcast_ref::<f64>(),
++            (&a as &dyn core::any::Any).downcast_ref::<f64>(),
++        )
++    {
++        let (p, e) = geom_core::exact::two_product(u0, a0);
++        let (s, t) = geom_core::exact::two_sum(c0, p);
++        return T::from_f64(s + (t + e));
++    }
++    c + u * a
++}
++
++fn vertex_of<T: Real>(c: Point3<T>, u: Vec3<T>, a: T) -> Point3<T> {
++    Point3::new(
++        vertex_coord(c.x, u.x, a),
++        vertex_coord(c.y, u.y, a),
++        vertex_coord(c.z, u.z, a),
++    )
++}
++
++fn running_vertex3<T: Real>(c: Rounded<T>, u: Rounded<T>, a: Rounded<T>) -> Rounded<T> {
++    if vertex_mode() == 3 {
++        let value = vertex_coord(c.value, u.value, a.value);
++        return Rounded {
++            value,
++            error: T::from_f64(geom_core::UNIT_ROUNDOFF) * value.abs(),
++        };
++    }
++    running_vertex(c, u * a)
++}
++
++fn running_vertex<T: Real>(c: Rounded<T>, ua: Rounded<T>) -> Rounded<T> {
++    let v = c + ua;
++    if vertex_mode() == 2 {
++        Rounded::exact(v.value)
++    } else {
++        v
++    }
++}
++
+ /// A frame in running arithmetic: centre, `u_ref`, `v_ref`.
+ type RunningFrame<T> = ([Rounded<T>; 3], [Rounded<T>; 3], [Rounded<T>; 3]);
+ 
+@@ -354,6 +432,12 @@ impl<T: Real> Conic<T> for Circle<T> {
+     }
+ 
+     fn point_at(&self, theta: T) -> Point3<T> {
++        if vertex_mode() != 0 {
++            let ((s, c), v_ref) = azimuth::basis(&self.frame, theta);
++            let u = self.frame.u_ref;
++            let vertex = vertex_of(self.frame.origin, u, self.radius);
++            return vertex + (u * cos_less_one(s, c) + v_ref * s) * self.radius;
++        }
+         self.point_on(&self.azimuth(theta))
+     }
+ 
+@@ -363,6 +447,9 @@ impl<T: Real> Conic<T> for Circle<T> {
+ 
+     fn jet_at(&self, theta: T) -> (Point3<T>, Vec3<T>) {
+         let at = self.azimuth(theta);
++        if vertex_mode() != 0 {
++            return (self.point_at(theta), at.tangential.0 * self.radius);
++        }
+         (self.point_on(&at), at.tangential.0 * self.radius)
+     }
+ 
+@@ -393,6 +480,12 @@ impl<T: Real> Conic<T> for Circle<T> {
+     fn running_point(&self, (sin, cos): (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3] {
+         let (c, u, v) = running_frame(&self.frame);
+         let r = Rounded::exact(self.radius);
++        if vertex_mode() != 0 {
++            let cm1 = running_cos_less_one(sin, cos);
++            return core::array::from_fn(|i| {
++                running_vertex3(c[i], u[i], r) + (u[i] * cm1 + v[i] * sin) * r
++            });
++        }
+         core::array::from_fn(|i| c[i] + (u[i] * cos + v[i] * sin) * r)
+     }
+ 
+@@ -527,6 +620,11 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+ 
+     fn point_at(&self, theta: T) -> Point3<T> {
+         let ((s, c), v_ref) = self.basis(theta);
++        if vertex_mode() != 0 {
++            let u = self.frame.u_ref;
++            let vertex = vertex_of(self.frame.origin, u, self.semi_u);
++            return vertex + (u * (self.semi_u * cos_less_one(s, c)) + v_ref * (self.semi_v * s));
++        }
+         self.frame.origin + (self.frame.u_ref * (self.semi_u * c) + v_ref * (self.semi_v * s))
+     }
+ 
+@@ -538,6 +636,12 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+     fn jet_at(&self, theta: T) -> (Point3<T>, Vec3<T>) {
+         let ((s, c), v_ref) = self.basis(theta);
+         let u_ref = self.frame.u_ref;
++        if vertex_mode() != 0 {
++            return (
++                self.point_at(theta),
++                u_ref * (-(self.semi_u * s)) + v_ref * (self.semi_v * c),
++            );
++        }
+         (
+             self.frame.origin + (u_ref * (self.semi_u * c) + v_ref * (self.semi_v * s)),
+             u_ref * (-(self.semi_u * s)) + v_ref * (self.semi_v * c),
+@@ -577,6 +681,16 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+ 
+     fn running_point(&self, (sin, cos): (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3] {
+         let (c, u, v) = running_frame(&self.frame);
++        if vertex_mode() != 0 {
++            let a = Rounded::exact(self.semi_u);
++            let (ac, bs) = (
++                a * running_cos_less_one(sin, cos),
++                Rounded::exact(self.semi_v) * sin,
++            );
++            return core::array::from_fn(|i| {
++                running_vertex3(c[i], u[i], a) + (u[i] * ac + v[i] * bs)
++            });
++        }
+         let (ac, bs) = (
+             Rounded::exact(self.semi_u) * cos,
+             Rounded::exact(self.semi_v) * sin,
+diff --git a/crates/topo/src/boolean/conic_quadric/cone_rows.rs b/crates/topo/src/boolean/conic_quadric/cone_rows.rs
+index 054074ad6..0ae726491 100644
+--- a/crates/topo/src/boolean/conic_quadric/cone_rows.rs
++++ b/crates/topo/src/boolean/conic_quadric/cone_rows.rs
+@@ -976,3 +976,62 @@ fn the_nightly_1115_ellipse_root_is_certified_past_the_band() {
+         "PINNED: a certified root lies past the zero band along the arc: {along:?}"
+     );
+ }
++
++/// EXPERIMENT: the apex rung on a far-centred ellipse whose vertex lies
++/// an exactly known distance from the apex.
++#[test]
++fn probe_apex_rung_far_centre() {
++    use geom_core::exact::{two_product, two_sum};
++    let mut rng = 0x1234_5678_9ABC_DEF1_u64;
++    let mut next = || {
++        rng ^= rng << 13;
++        rng ^= rng >> 7;
++        rng ^= rng << 17;
++        (rng >> 11) as f64 / (1u64 << 53) as f64
++    };
++    for eps in [1e-9, 1e-12] {
++        let b = Band::new(eps, 10.0 * eps).unwrap();
++        for far in [1e3, 1e4, 1e5, 1e6, 1e7] {
++            let (mut total, mut passed_at, mut refused_off) = (0, 0, 0);
++            for _ in 0..4000 {
++                let u = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5).normalize();
++                let n = u.cross(Vec3::new(0.3, -0.5, 0.8)).normalize();
++                let v0 = Point3::new(next() * 10.0, next() * 10.0, next() * 10.0);
++                let c = v0 - u * far;
++                let frame = geom::Frame::new(c, n, u);
++                let e = geom::Curve3::Ellipse(geom::Ellipse::new(frame, far, far * 0.01));
++                let conic = e.conic().unwrap();
++                let (c, u) = (conic.frame().origin, conic.frame().u_ref);
++                // The stored curve's vertex, exactly: head and tail per coordinate.
++                let vertex = [(c.x, u.x), (c.y, u.y), (c.z, u.z)].map(|(c, u)| {
++                    let (p, e) = two_product(u, far);
++                    let (s, t) = two_sum(c, p);
++                    two_sum(s, t + e)
++                });
++                // The apex `d` off it along a generic direction; the exact gap is `d` to
++                // within the tails and the offset's own rounding, a few 1e-15.
++                let d = eps * 40.0 * next();
++                let dir = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5).normalize();
++                let apex = Point3::new(
++                    vertex[0].0 + dir.x * d,
++                    vertex[1].0 + dir.y * d,
++                    vertex[2].0 + dir.z * d,
++                );
++                let exact = ((vertex[0].0 - apex.x + vertex[0].1).powi(2)
++                    + (vertex[1].0 - apex.y + vertex[1].1).powi(2)
++                    + (vertex[2].0 - apex.z + vertex[2].1).powi(2))
++                .sqrt();
++                let got = off_the_apex(&conic, apex, CircleRoots::of(&[0.0]).unwrap(), b);
++                total += 1;
++                match got {
++                    Ok(_) if exact <= b.zero() => passed_at += 1,
++                    Err(_) if exact > 2.0 * b.escalate() => refused_off += 1,
++                    _ => {}
++                }
++            }
++            eprintln!(
++                "APEX eps {eps:e} far {far:e}: {total} poses, passed a root within ε of the apex {passed_at}, refused one past 2Kε {refused_off}"
++            );
++        }
++    }
++}
+diff --git a/crates/topo/src/boolean/conic_quadric/in_band_sweep.rs b/crates/topo/src/boolean/conic_quadric/in_band_sweep.rs
+index dc9eee7a9..eb829a20a 100644
+--- a/crates/topo/src/boolean/conic_quadric/in_band_sweep.rs
++++ b/crates/topo/src/boolean/conic_quadric/in_band_sweep.rs
+@@ -559,6 +559,17 @@ fn a_root_whose_slack_reads_in_the_gap_is_refused() {
+         "the pose crosses the wall twice"
+     );
+     let got = conic_quadric_roots(&c, -1.0, 1.0, &wall(1.0), band);
++    if let Ok(Ok(CircleRoots::Certified(found))) = &got {
++        let truth = exact::truth(&c, &wall(1.0));
++        for &t in found.roots() {
++            let off = truth
++                .roots
++                .iter()
++                .map(|&x| arc_between(t, x, 1500.0))
++                .fold(f64::INFINITY, f64::min);
++            eprintln!("GAPROOT {t:e} lies {off:e} from truth {:?}", truth.roots);
++        }
++    }
+     assert!(matches!(got, Ok(Err(_))), "refused, got {got:?}");
+ }
+ 
+@@ -783,6 +794,7 @@ fn the_near_gap_families_keep_their_certified_answers() {
+         (Some(0.8), 1),
+     ] {
+         let got = certified_near_gap(&near_gap_family(ratio));
++        eprintln!("NEARGAP {ratio:?}: {got} of 40");
+         assert!(
+             got >= floor,
+             "{ratio:?}: {got} of 40 certified, below the measured {floor}"

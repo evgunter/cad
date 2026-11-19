@@ -1,0 +1,396 @@
+diff --git a/crates/geom-brep/src/certify.rs b/crates/geom-brep/src/certify.rs
+index fe3bc30f5..c3c3f73a9 100644
+--- a/crates/geom-brep/src/certify.rs
++++ b/crates/geom-brep/src/certify.rs
+@@ -10845,3 +10845,71 @@ mod general_arm_rows {
+         );
+     }
+ }
++
++#[cfg(test)]
++#[allow(clippy::all, clippy::pedantic, clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
++mod conic_vertex_probe {
++    use super::*;
++    use geom_core::exact::{two_product, two_sum};
++    use geom_core::Vec3;
++
++    /// Check 3's reading, `|carrier.eval(t0) − start|`, at the seam vertex
++    /// of a far ellipse: `start` stands an exactly known `target` from
++    /// the true vertex `c + u·a`.
++    #[test]
++    fn probe_endpoint_pin() {
++        let u = Vec3::new(-0.6, -0.8, 0.0);
++        let n = Vec3::new(0.0, 0.0, 1.0);
++        let w = n.cross(u);
++        for eps in [1e-9, 1e-12] {
++            let band = Band::new(eps, 10.0 * eps).unwrap();
++            for far in [1e4, 1e5, 1e6, 1e7] {
++                let (mut pass_wrong, mut refuse_wrong, mut esc, mut maxerr) = (0, 0, 0, 0.0f64);
++                let (mut minted_wrong, mut minted_worst) = (0, 0.0f64);
++                let total = 4000;
++                for i in 0..total {
++                    let fi = f64::from(i);
++                    let c = Point3::new(0.6 * far + 0.31 + 1.3e-4 * fi, 0.8 * far - 0.2 + 0.917e-4 * fi, 0.0);
++                    let ex = |ci: f64, ui: f64| {
++                        let (p, pe) = two_product(ui, far);
++                        let (s, se) = two_sum(ci, p);
++                        (s, se + pe)
++                    };
++                    let (vx, lx) = ex(c.x, u.x);
++                    let (vy, ly) = ex(c.y, u.y);
++                    let target = eps * (0.05 + 30.0 * f64::from(i % 97) / 97.0);
++                    let start = Point3::new(vx, vy, 0.0) + (Vec3::new(lx, ly, 0.0) + w * target);
++                    let carrier = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(c, n, u), far, far / 100.0));
++                    {
++                        // a start minted from the carrier's own point
++                        let m = carrier.eval(0.0);
++                        let d = (m - Point3::new(vx, vy, 0.0)) - Vec3::new(lx, ly, 0.0);
++                        let truth = d.norm();
++                        minted_worst = minted_worst.max(truth);
++                        if truth > 10.0 * eps
++                            && geom_core::k_stats::decide("carrier_endpoint_start", Margin::of(carrier.eval(0.0).distance(m)), band) == Ok(Sign::Zero)
++                        {
++                            minted_wrong += 1;
++                        }
++                    }
++                    let read = carrier.eval(0.0).distance(start);
++                    maxerr = maxerr.max((read - target).abs());
++                    match geom_core::k_stats::decide("carrier_endpoint_start", Margin::of(read), band) {
++                        Ok(Sign::Zero) => {
++                            if target > 10.0 * eps {
++                                pass_wrong += 1;
++                            }
++                        }
++                        Ok(_) => {
++                            if target < eps {
++                                refuse_wrong += 1;
++                            }
++                        }
++                        Err(_) => esc += 1,
++                    }
++                }
++                println!("ENDPIN eps {eps:e} far {far:e} of {total}: pinned with the true gap > 10eps {pass_wrong}, refused with the true gap < eps {refuse_wrong}, escalated {esc}, max |read − true| {maxerr:e}; start minted from eval: pinned with the true gap > 10eps {minted_wrong}, worst true gap {minted_worst:e}");
++            }
++        }
++    }
++}
+diff --git a/crates/geom-brep/src/curve_pair/pose.rs b/crates/geom-brep/src/curve_pair/pose.rs
+index 5c9062c21..cebe7d3b3 100644
+--- a/crates/geom-brep/src/curve_pair/pose.rs
++++ b/crates/geom-brep/src/curve_pair/pose.rs
+@@ -2216,3 +2216,175 @@ mod one_line_rows {
+         assert_eq!(one_line((a, la), (b, lb), band), Ok(false));
+     }
+ }
++
++#[cfg(test)]
++#[allow(clippy::all, clippy::pedantic, clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
++mod conic_vertex_probe {
++    use super::*;
++    /// The ellipse arm of `Curve3::clearance`, in-plane, read about the
++    /// vertex `v` (`lo` its exact tail): `F = x′(2a + x′)/a² + y²/b²`.
++    fn vertex_clearance(q: Point3<f64>, v: Point3<f64>, lo: Vec3<f64>, u: Vec3<f64>, w: Vec3<f64>, (a, b): (f64, f64)) -> f64 {
++        let d = (q - v) - lo;
++        let (x, y) = (d.dot(u), d.dot(w));
++        let f = x * (2.0 * a + x) / (a * a) + (y / b).powi(2);
++        let (uu, vv) = ((a + x) / a, y / b);
++        let g2 = (2.0 * uu / a).powi(2) + (2.0 * vv / b).powi(2);
++        let small = a.min(b);
++        (2.0 * f / (g2.sqrt() + (g2 + 4.0 * f.abs() / small.powi(2)).sqrt())).abs()
++    }
++
++    #[test]
++    fn probe_clear_tilted() {
++        use geom_core::exact::two_product;
++        let u = Vec3::new(-0.6, -0.8, 0.0);
++        let n = Vec3::new(0.0, 0.0, 1.0);
++        let w = n.cross(u);
++        for eps in [1e-9, 1e-12] {
++            let band = Band::new(eps, 10.0 * eps).unwrap();
++            let e = band.escalate();
++            for far in [1e4, 1e5, 1e6, 1e7] {
++                let mut wrong = [0u32; 3];
++                let mut skip = [0u32; 3];
++                let mut err = [0.0f64; 3];
++                let total = 4000;
++                for i in 0..total {
++                    let fi = f64::from(i);
++                    let c = Point3::new(0.6 * far + 0.31 + 1.3e-4 * fi, 0.8 * far - 0.2 + 0.917e-4 * fi, 0.0);
++                    let (a, b) = (far, far / 100.0);
++                    // exact vertex per coordinate
++                    let ex = |ci: f64, ui: f64| {
++                        let (p, pe) = two_product(ui, a);
++                        let (s, se) = two_sum(ci, p);
++                        (s, se + pe)
++                    };
++                    let (vx, lx) = ex(c.x, u.x);
++                    let (vy, ly) = ex(c.y, u.y);
++                    let vhi = Point3::new(vx, vy, 0.0);
++                    let vlo = Vec3::new(lx, ly, 0.0);
++                    let vnaive = c + u * a;
++                    let scale = e;
++                    let target = scale * (f64::from(i % 61) - 20.0) * 0.1;
++                    let q = vhi + (vlo + u * target);
++                    let truth = (((q - vhi) - vlo).dot(u)).abs();
++                    let carrier = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(c, n, u), a, b));
++                    let reads = [
++                        clearance(&carrier, q),
++                        vertex_clearance(q, vnaive, Vec3::zero(), u, w, (a, b)),
++                        vertex_clearance(q, vhi, vlo, u, w, (a, b)),
++                    ];
++                    for (k, clear) in reads.into_iter().enumerate() {
++                        err[k] = err[k].max(clear - truth);
++                        if decide(row::CLEAR, Margin::of(clear - e), band) == Ok(Sign::Positive) {
++                            skip[k] += 1;
++                            if truth <= e {
++                                wrong[k] += 1;
++                            }
++                        }
++                    }
++                }
++                println!("CLEART eps {eps:e} far {far:e} of {total} [site, vertex naive, vertex exact]: skipped {skip:?}, wrongly {wrong:?}, max over-read {err:?}");
++            }
++        }
++    }
++
++    use geom_core::exact::two_sum;
++
++    /// `Polish::closest`'s `curve_pair_pose_clear` reading: `clearance(b, q)
++    /// − reach` definitely positive answers "no meeting here". `q` stands
++    /// an exactly known `d` outside the near vertex on the major axis (the
++    /// true distance); `reach` is the band's escalation, its least value.
++    #[test]
++    fn probe_clear() {
++        for circle in [false, true] {
++            for eps in [1e-9, 1e-12] {
++                let band = Band::new(eps, 10.0 * eps).unwrap();
++                let e = band.escalate();
++                for far in [1e4, 1e5, 1e6, 1e7] {
++                    let (mut total, mut skip, mut wrong, mut over, mut under) = (0, 0, 0, 0.0f64, 0.0f64);
++                    for i in 0..4000 {
++                        let fi = f64::from(i);
++                        let cx = far + 0.731 + 1.3e-4 * fi + 0.917e-7 * fi;
++                        let (vh, vl) = two_sum(cx, -far);
++                        let target = e * (f64::from(i % 61) - 20.0) * 0.1;
++                        let qx = vh - target;
++                        let (d, de) = two_sum(vh, -qx);
++                        let truth = d + (de + vl);
++                        let frame = geom::Frame::new(
++                            Point3::new(cx, 0.0, 0.0),
++                            Vec3::new(0.0, 0.0, 1.0),
++                            Vec3::new(-1.0, 0.0, 0.0),
++                        );
++                        let c = if circle {
++                            Curve3::Circle(geom::Circle::new(frame, far))
++                        } else {
++                            Curve3::Ellipse(geom::Ellipse::new(frame, far, far / 100.0))
++                        };
++                        let clear = clearance(&c, Point3::new(qx, 0.0, 0.0));
++                        over = over.max(clear - truth.abs());
++                        under = under.min(clear - truth.abs());
++                        total += 1;
++                        if decide(row::CLEAR, Margin::of(clear - e), band) == Ok(Sign::Positive) {
++                            skip += 1;
++                            if truth.abs() <= e {
++                                wrong += 1;
++                            }
++                        }
++                    }
++                    println!("CLEAR circle {circle} eps {eps:e} far {far:e}: of {total}: skipped {skip}, skipped with the true distance within the escalation {wrong}; clear − true: max {over:e}, min {under:e}");
++                }
++            }
++        }
++    }
++
++
++    /// `harmonic_roots`' ROOT_GAP reading, `|P(at+ψ) − P(at−ψ)|`, on a far
++    /// ellipse seamed at the vertex in the box; the true chord is
++    /// `2 sin ψ·|P′(at)|`.
++    #[test]
++    fn probe_root_gap() {
++        for eps in [1e-9, 1e-12] {
++            let band = Band::new(eps, 10.0 * eps).unwrap();
++            for far in [1e4, 1e5, 1e6, 1e7] {
++                let (a, b) = (far, far / 100.0);
++                let e = geom::Ellipse::new(
++                    geom::Frame::new(
++                        Point3::new(0.3 - far * 0.6, 0.2 - far * 0.8, 0.1),
++                        Vec3::new(0.0, 0.0, 1.0),
++                        Vec3::new(0.6, 0.8, 0.0),
++                    ),
++                    a,
++                    b,
++                );
++                let k: &dyn Conic<f64> = &e;
++                let (mut total, mut wrong_cross, mut wrong_touch, mut gap_undecided, mut maxerr) = (0, 0, 0, 0, 0.0f64);
++                for i in 0..2000 {
++                    let fi = f64::from(i);
++                    let at = (f64::from(i % 21) - 10.0) * 0.3 / far;
++                    let chord = eps * (0.05 + 30.0 * fi / 2000.0);
++                    let (s, c) = at.sin_cos();
++                    let speed = (a * s).hypot(b * c);
++                    let psi = (chord / (2.0 * speed)).asin();
++                    let truth = 2.0 * psi.sin() * speed;
++                    let got = (k.point_at(at + psi) - k.point_at(at - psi)).norm();
++                    maxerr = maxerr.max((got - truth).abs());
++                    let gap = Margin::norm3(k.point_at(at + psi) - k.point_at(at - psi));
++                    total += 1;
++                    match decide(row::ROOT_GAP, gap, band) {
++                        Ok(Sign::Zero) => {
++                            if truth > 10.0 * eps {
++                                wrong_touch += 1;
++                            }
++                        }
++                        Ok(_) => {
++                            if truth < eps {
++                                wrong_cross += 1;
++                            }
++                        }
++                        Err(_) => gap_undecided += 1,
++                    }
++                }
++                println!("ROOTGAP eps {eps:e} far {far:e}: of {total}: Cross where true chord < eps {wrong_cross}, Touch where true chord > 10eps {wrong_touch}, escalated {gap_undecided}, max |read − true| {maxerr:e}");
++            }
++        }
++    }
++}
+diff --git a/crates/geom-brep/src/pair_section/cylinders.rs b/crates/geom-brep/src/pair_section/cylinders.rs
+index 49022dc14..b84d4e35b 100644
+--- a/crates/geom-brep/src/pair_section/cylinders.rs
++++ b/crates/geom-brep/src/pair_section/cylinders.rs
+@@ -1062,3 +1062,61 @@ pub(super) fn cylinder_cylinder<T: Decide>(
+         components,
+     })
+ }
++
++#[cfg(test)]
++#[allow(clippy::all, clippy::pedantic, clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
++mod conic_vertex_probe {
++    use super::*;
++    use geom_core::exact::two_sum;
++
++    /// A far ellipse along x̂ whose near major vertex stands `gap` (exact,
++    /// by two_sum) from a region ball on its axis; the listing filter's
++    /// `Outside` is wrong where the vertex is in or within eps of the ball.
++    #[test]
++    fn probe_listing_filter() {
++        for eps in [1e-9, 1e-12] {
++            let band = Band::new(eps, 10.0 * eps).unwrap();
++            for far in [1e4, 1e5, 1e6, 1e7] {
++                let (mut outside, mut wrong, mut total, mut worst) = (0, 0, 0, 0.0f64);
++                let (mut err, mut under) = (0.0f64, 0.0f64);
++                for k in 0..2000 {
++                    let kf = f64::from(k);
++                    let cx = far + 0.731 + 1.3e-3 * kf + 0.917e-7 * kf;
++                    let radius = 0.4 + 1e-4 * kf;
++                    // vertex x = cx - far, exactly (hi, lo)
++                    let (vh, vl) = two_sum(cx, -far);
++                    // region centre left of the vertex by radius + target
++                    let target = (f64::from(k % 41) - 20.0) * (eps * 2.0).max(far * 2e-17);
++                    let xr = vh - radius - target;
++                    // exact clearance: (vertex - xr) - radius
++                    let (d, de) = two_sum(vh, -xr);
++                    let (g, ge) = two_sum(d, -radius);
++                    let truth = g + (ge + de + vl);
++                    let e = Curve3::Ellipse(geom::Ellipse::new(
++                        geom::Frame::new(
++                            Point3::new(cx, 0.0, 0.0),
++                            Vec3::new(0.0, 0.0, 1.0),
++                            Vec3::new(-1.0, 0.0, 0.0),
++                        ),
++                        far,
++                        far / 100.0,
++                    ));
++                    let ball = ExtentBall::of_covered(e.cover().as_ref().ok());
++                    let region = ExtentBall::fixture(Point3::new(xr, 0.0, 0.0), radius);
++                    total += 1;
++                    let m = (ball.center() - region.center()).norm() - (region.radius() + ball.radius());
++                    err = err.max((m - truth).abs());
++                    under = under.min(m - truth);
++                    if placement(ball, region, band) == RegionPlacement::Outside {
++                        outside += 1;
++                        if truth < eps {
++                            wrong += 1;
++                            worst = worst.min(truth);
++                        }
++                    }
++                }
++                println!("LISTING eps {eps:e} far {far:e}: Outside {outside}/{total}, wrong (true clearance < eps) {wrong}, worst true clearance {worst:e}; margin-truth max abs {err:e}, most negative {under:e}");
++            }
++        }
++    }
++}
+diff --git a/crates/geom-brep/src/pcurve_cache.rs b/crates/geom-brep/src/pcurve_cache.rs
+index 685df7d53..d5357aa3b 100644
+--- a/crates/geom-brep/src/pcurve_cache.rs
++++ b/crates/geom-brep/src/pcurve_cache.rs
+@@ -17460,3 +17460,69 @@ mod general_arm_rows {
+         let _ = envelope_verdict(1.0_f64, band, || PcurveCheck::ChartIncidence);
+     }
+ }
++
++#[cfg(test)]
++#[allow(clippy::all, clippy::pedantic, clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
++mod conic_vertex_probe {
++    use super::*;
++    use geom_core::exact::{two_product, two_sum};
++
++    /// origin + u*x + v*y per coordinate, truth as (hi, lo).
++    fn exact_coord(ux: f64, x: f64, vy: f64, y: f64) -> (f64, f64) {
++        let (p, pe) = two_product(ux, x);
++        let (q, qe) = two_product(vy, y);
++        let (s, se) = two_sum(p, q);
++        (s, se + pe + qe)
++    }
++
++    #[test]
++    fn probe_plane_arm() {
++        let normal = Vec3::new(0.0, 0.0, 1.0);
++        let u_ref = Vec3::new(0.6, 0.8, 0.0);
++        let v_ref = normal.cross(u_ref);
++        let surface = Surface::Plane { origin: Point3::origin(), normal, u_ref };
++        for eps in [1e-9, 1e-12] {
++            let band = Band::new(eps, 10.0 * eps).unwrap();
++            for far in [1e4, 1e5, 1e6, 1e7] {
++                let (mut ok, mut wrong, mut refused, mut worst) = (0, 0, 0, 0.0f64);
++                let mut kinds = std::collections::BTreeMap::<String, u32>::new();
++                for k in 0..400 {
++                    let p0x = -far + 1.0 + 0.37 * f64::from(k) / 400.0 + 0.123_456_789e-3 * f64::from(k);
++                    let p0y = 0.3 + 0.211 * f64::from(k) / 400.0;
++                    let u = Channel::Free { c: p0x, a: far, b: 0.0, l: 0.0 };
++                    let v = Channel::Free { c: p0y, a: 0.0, b: far / 100.0, l: 0.0 };
++                    let img = plane_image(harmonic_form_of(u, v), Point3::origin(), normal, u_ref);
++                    let carrier = Curve3::Ellipse(geom::Ellipse::new(
++                        geom::Frame::new(img.c, normal, u_ref),
++                        far,
++                        far / 100.0,
++                    ));
++                    // true image centre less the stored one
++                    let mut d2 = 0.0;
++                    for (uu, vv, c) in [(u_ref.x, v_ref.x, img.c.x), (u_ref.y, v_ref.y, img.c.y), (u_ref.z, v_ref.z, img.c.z)] {
++                        let (hi, lo) = exact_coord(uu, p0x, vv, p0y);
++                        let d = (hi - c) + lo;
++                        d2 += d * d;
++                    }
++                    let truth = d2.sqrt();
++                    worst = worst.max(truth);
++                    let span = 10.0 / far;
++                    match run_harmonic_checks((u, v), -span, span, &carrier, &surface, band, None) {
++                        Ok(_) => {
++                            ok += 1;
++                            if truth > eps {
++                                wrong += 1;
++                            }
++                        }
++                        Err(e) => {
++                            refused += 1;
++                            let s = format!("{e:?}");
++                            *kinds.entry(s.chars().take(60).collect()).or_default() += 1;
++                        }
++                    }
++                }
++                println!("PLANEARM eps {eps:e} far {far:e}: certified {ok} (true centre gap > eps: {wrong}), refused {refused}, worst true gap {worst:e} {kinds:?}");
++            }
++        }
++    }
++}

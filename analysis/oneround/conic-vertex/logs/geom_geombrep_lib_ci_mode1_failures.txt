@@ -1,0 +1,80 @@
+        FAIL [   0.365s] (  58/1589) geom curves::conic::tests::the_conic_readings_are_the_carriers_own
+  stdout ───
+
+--
+    thread 'curves::conic::tests::the_conic_readings_are_the_carriers_own' (28115) panicked at crates/geom/src/curves/conic.rs:786:17:
+    assertion `left == right` failed: Circle(Circle { frame: Frame { origin: Point3 { x: 0.5, y: -1.0, z: 2.0 }, axis: Vec3 { x: 0.6666666666666666, y: 0.6666666666666666, z: 0.3333333333333333 }, u_ref: Vec3 { x: 0.3333333333333333, y: -0.6666666666666666, z: 0.6666666666666666 } }, radius: 0.7 }) at -2.5
+      left: [4585028958463987168, 13825807472120228872, 4611260067884528934]
+--
+        FAIL [   0.931s] ( 318/1589) geom-brep carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier
+  stdout ───
+
+--
+    thread 'carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier' (28528) panicked at crates/geom-brep/src/carrier_resolution.rs:381:13:
+    sphere: a miss at 0.1063547134399414 of the bound
+    stack backtrace:
+--
+        FAIL [   0.276s] ( 363/1589) geom-brep curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term
+  stdout ───
+
+--
+    thread 'curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term' (28769) panicked at crates/geom-brep/src/curve_face/ellipse_torus.rs:1016:13:
+    the top speed: the meter refuses the root it cannot place, got Ok(Certified(Found { count: 2, roots: [-0.7855827968304363, 0.32682681121253265, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] }))
+    stack backtrace:
+--
+        FAIL [   0.414s] ( 594/1589) geom-brep curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates
+  stdout ───
+
+--
+    thread 'curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates' (29237) panicked at crates/geom-brep/src/curve_pair/touch_spread_rows.rs:158:9:
+    1e0 out, (1.98, 0.99) inside, ε 2e-13: Spread, read Ok(Meetings { shared: None, points: [Meeting { point: Point3 { x: 1.0000000000000124, y: 2.0, z: 0.0 }, on_a: On { t: 1.5707963267948903, margin: MarginDiag(Value(0.0, None, ZeroWord(0))) }, on_b: On { t: 1.5707963267948903, margin: MarginDiag(Value(2.220446049250313e-16, None, ZeroWord(0))) } }] })
+    stack backtrace:
+--
+        FAIL [   0.130s] ( 678/1589) geom-brep edge_nurbs::tests::a_parameter_derived_circle_on_its_cylinder_certifies_the_box_in_one_leaf
+  stdout ───
+
+--
+    thread 'edge_nurbs::tests::a_parameter_derived_circle_on_its_cylinder_certifies_the_box_in_one_leaf' (29414) panicked at crates/geom-brep/src/edge_nurbs.rs:4713:9:
+    assertion `left == right` failed
+      left: Err(Stalled { operand: Cylinder, cause: Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 2.4190077316801535, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_hull_sup") } })
+--
+     Summary [  87.089s] 1589 tests run: 1584 passed, 5 failed, 210 skipped
+        FAIL [   0.365s] (  58/1589) geom curves::conic::tests::the_conic_readings_are_the_carriers_own
+  stdout ───
+
+--
+    thread 'curves::conic::tests::the_conic_readings_are_the_carriers_own' (28115) panicked at crates/geom/src/curves/conic.rs:786:17:
+    assertion `left == right` failed: Circle(Circle { frame: Frame { origin: Point3 { x: 0.5, y: -1.0, z: 2.0 }, axis: Vec3 { x: 0.6666666666666666, y: 0.6666666666666666, z: 0.3333333333333333 }, u_ref: Vec3 { x: 0.3333333333333333, y: -0.6666666666666666, z: 0.6666666666666666 } }, radius: 0.7 }) at -2.5
+      left: [4585028958463987168, 13825807472120228872, 4611260067884528934]
+--
+        FAIL [   0.931s] ( 318/1589) geom-brep carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier
+  stdout ───
+
+--
+    thread 'carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier' (28528) panicked at crates/geom-brep/src/carrier_resolution.rs:381:13:
+    sphere: a miss at 0.1063547134399414 of the bound
+    stack backtrace:
+--
+        FAIL [   0.276s] ( 363/1589) geom-brep curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term
+  stdout ───
+
+--
+    thread 'curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term' (28769) panicked at crates/geom-brep/src/curve_face/ellipse_torus.rs:1016:13:
+    the top speed: the meter refuses the root it cannot place, got Ok(Certified(Found { count: 2, roots: [-0.7855827968304363, 0.32682681121253265, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] }))
+    stack backtrace:
+--
+        FAIL [   0.414s] ( 594/1589) geom-brep curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates
+  stdout ───
+
+--
+    thread 'curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates' (29237) panicked at crates/geom-brep/src/curve_pair/touch_spread_rows.rs:158:9:
+    1e0 out, (1.98, 0.99) inside, ε 2e-13: Spread, read Ok(Meetings { shared: None, points: [Meeting { point: Point3 { x: 1.0000000000000124, y: 2.0, z: 0.0 }, on_a: On { t: 1.5707963267948903, margin: MarginDiag(Value(0.0, None, ZeroWord(0))) }, on_b: On { t: 1.5707963267948903, margin: MarginDiag(Value(2.220446049250313e-16, None, ZeroWord(0))) } }] })
+    stack backtrace:
+--
+        FAIL [   0.130s] ( 678/1589) geom-brep edge_nurbs::tests::a_parameter_derived_circle_on_its_cylinder_certifies_the_box_in_one_leaf
+  stdout ───
+
+--
+    thread 'edge_nurbs::tests::a_parameter_derived_circle_on_its_cylinder_certifies_the_box_in_one_leaf' (29414) panicked at crates/geom-brep/src/edge_nurbs.rs:4713:9:
+    assertion `left == right` failed
+      left: Err(Stalled { operand: Cylinder, cause: Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 2.4190077316801535, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_hull_sup") } })
