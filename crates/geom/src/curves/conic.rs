@@ -189,6 +189,10 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// `center + u_ref·semi_u`.
     fn zero_point(&self) -> Point3<T>;
 
+    /// **The stored anchor**: the point at parameter zero where the
+    /// conic was born anchored, `None` where it was born with a centre.
+    fn anchor(&self) -> Option<Point3<T>>;
+
     /// **The centre**: the frame's origin. Stored where the conic was
     /// born with one; derived from the anchor where it was born
     /// anchored, and then rounded at the semi-axes' own scale.
@@ -303,6 +307,9 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     }
     fn center(&self) -> Point3<T> {
         (**self).center()
+    }
+    fn anchor(&self) -> Option<Point3<T>> {
+        (**self).anchor()
     }
     fn along(&self, n: Vec3<T>) -> (T, T) {
         (**self).along(n)
@@ -427,12 +434,6 @@ impl<T: Real> Circle<T> {
         }
     }
 
-    /// The stored anchor, where the circle was born anchored.
-    #[must_use]
-    pub fn anchor(&self) -> Option<Point3<T>> {
-        self.anchor
-    }
-
     /// **This circle with its placement and its anchor carried by
     /// `frame` and `point`**: the image of the circle under whatever map
     /// took its frame to `frame`, which `point` applies to a point. A
@@ -533,6 +534,10 @@ impl<T: Real> Conic<T> for Circle<T> {
         }
     }
 
+    fn anchor(&self) -> Option<Point3<T>> {
+        self.anchor
+    }
+
     fn speed_lo(&self) -> T {
         self.radius
     }
@@ -616,12 +621,6 @@ impl<T: Real> Ellipse<T> {
             semi_v,
             anchor: Some(anchor),
         }
-    }
-
-    /// The stored anchor, where the ellipse was born anchored.
-    #[must_use]
-    pub fn anchor(&self) -> Option<Point3<T>> {
-        self.anchor
     }
 
     /// **This ellipse with its placement and its anchor carried by
@@ -816,6 +815,10 @@ impl<T: Real> Conic<T> for Ellipse<T> {
         }
     }
 
+    fn anchor(&self) -> Option<Point3<T>> {
+        self.anchor
+    }
+
     fn speed_lo(&self) -> T {
         self.semi_axes_by_size().1
     }
@@ -929,6 +932,99 @@ mod tests {
                 ]
             }
             _ => unreachable!(),
+        }
+    }
+
+    /// **A conic born anchored reads from its anchor.** Its point at
+    /// `θ = 0` is the anchor bit for bit, its centre is the anchor less
+    /// the semi-axis along the seam, and round the turn it is the conic
+    /// of that centre to the centre's own rounding. Its derivatives are
+    /// that centre-born conic's bit for bit, a point's parameter reads
+    /// back, and the anchor rides a reversal, a translation and a
+    /// re-seam that keeps the seam; a re-seam that turns it re-anchors at
+    /// the turned seam's vertex. A conic born with a centre has no
+    /// anchor, and the two are not the same content.
+    #[test]
+    fn an_anchored_conic_reads_from_its_anchor() {
+        use super::{Circle, Conic, Ellipse};
+        let bits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
+        let o = Point3::origin();
+        let (at, n) = (Point3::new(3.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0));
+        let toward = Vec3::new(1.0, -2.0, 2.0);
+        for far in [0.7, 30.0, 1500.0, 1e6] {
+            let anchored = [
+                Curve3::Circle(Circle::anchored(at, n, toward, far)),
+                Curve3::Ellipse(Ellipse::anchored(at, n, toward, far, far * 0.01)),
+            ];
+            for carrier in anchored {
+                let k = carrier.conic().unwrap();
+                assert_eq!(k.anchor().map(|p| bits(p - o)), Some(bits(at - o)));
+                assert_eq!(bits(k.point_at(0.0) - o), bits(at - o), "{carrier:?}");
+                assert_eq!(bits(carrier.eval(0.0) - o), bits(at - o), "{carrier:?}");
+                let (a, b) = k.semi_axes();
+                let f = *k.frame();
+                assert_eq!(bits(k.center() - o), bits((at - f.u_ref() * a) - o));
+                // The same conic born with that centre: no anchor, and
+                // not the same content.
+                let centred = match &carrier {
+                    Curve3::Circle(_) => Curve3::Circle(Circle::new(f, a)),
+                    _ => Curve3::Ellipse(Ellipse::new(f, a, b)),
+                };
+                let c = centred.conic().unwrap();
+                assert!(c.anchor().is_none() && !carrier.same_content(&centred));
+                assert!(carrier.same_content(&carrier.clone()));
+                let scale = (f.origin() - o).norm() + 2.0 * a;
+                for t in [-3.0, -1.2, -2e-3, 1e-7, 0.4, 1.5707, 2.9] {
+                    let gap = (k.point_at(t) - c.point_at(t)).norm();
+                    assert!(
+                        gap <= 8.0 * f64::EPSILON * scale,
+                        "{carrier:?} at {t}: {gap:e} off its centre's conic"
+                    );
+                    assert_eq!(bits(k.derivative_at(t)), bits(c.derivative_at(t)));
+                    assert_eq!(
+                        bits(k.second_derivative_at(t)),
+                        bits(c.second_derivative_at(t))
+                    );
+                    let (jp, jd) = k.jet_at(t);
+                    assert_eq!(bits(jp - o), bits(k.point_at(t) - o));
+                    assert_eq!(bits(jd), bits(k.derivative_at(t)));
+                    // The parameter reads back at the arc's own scale,
+                    // whatever the semi-axis: to the rounding of the
+                    // point's offset from the anchor, over the smaller
+                    // semi-axis it is divided by.
+                    let back = k.param_in(k.point_at(t), (t - 0.3, t + 0.3));
+                    assert!(
+                        (back - t).abs() <= 8.0 * f64::EPSILON * (1.0 + t.abs()) * (a / b),
+                        "{carrier:?}: {t} reads back as {back}"
+                    );
+                    // Run back, the point at `−t` is this one's at `t`.
+                    let reversed = carrier.reversed().unwrap();
+                    assert_eq!(
+                        bits(reversed.eval(-t) - o),
+                        bits(carrier.eval(t) - o),
+                        "{carrier:?} reversed at {t}"
+                    );
+                }
+                let by = Vec3::new(0.25, -4.0, 1.5);
+                let moved = carrier.translated(by).unwrap();
+                assert_eq!(
+                    moved.conic().unwrap().anchor().map(|p| bits(p - o)),
+                    Some(bits((at + by) - o)),
+                    "{carrier:?}: a translation carries the anchor"
+                );
+                if let Curve3::Ellipse(e) = &carrier {
+                    let kept = e.seamed_near(0.3);
+                    assert_eq!(kept.anchor().map(|p| bits(p - o)), Some(bits(at - o)));
+                    let turned = e.seamed_near(1.4);
+                    let vertex = turned.frame.origin() + turned.frame.u_ref() * turned.semi_u;
+                    assert_eq!(
+                        turned.anchor().map(|p| bits(p - o)),
+                        Some(bits(vertex - o)),
+                        "a turned seam re-anchors at its own vertex"
+                    );
+                    assert!(Ellipse::new(e.frame, a, b).seamed_near(1.4).anchor().is_none());
+                }
+            }
         }
     }
 

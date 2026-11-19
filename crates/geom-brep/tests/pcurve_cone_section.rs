@@ -893,15 +893,14 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
 }
 
 /// How many `u` of a flat cone's section `size` its image's envelope may
-/// read: three times the 16 `u` (`RESOLUTION_ULPS`) that
-/// `flat_cone_tilted_ellipse.rs` allows the carrier itself off the cut,
-/// on the same `size`, `max(larger semi-axis, |centre|, |apex|)`.
-const FLAT_IMAGE_ULPS: f64 = 48.0;
+/// read, on the `size` `flat_cone_tilted_ellipse.rs` holds the carrier
+/// itself to (16 `u`, `RESOLUTION_ULPS`): `max(larger semi-axis,
+/// |centre|, |apex|)`. Fitted to the readings below, not derived.
+const FLAT_IMAGE_ULPS: f64 = 104.0;
 
 /// **A flat cone's section images and certifies at its own resolution**
-/// (`work/pcert/focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor`,
-/// fixed by #5043's `K = −D·M` and its apex-foot centre; this row guards
-/// both halves). The item's own frustum pose, [`skew_section`], at
+/// (`work/pcert/focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor`).
+/// The item's own frustum pose, [`skew_section`], at
 /// half-angle 1.55 (`1/cos²α ≈ 2300`), height 0.1, the plane leaning
 /// `f·(π/2 − α)` off square to the axis for `f` of 0.5, 0.8 and 0.9.
 /// Each section's `FocalSection` image certifies over a whole turn on a
@@ -910,13 +909,14 @@ const FLAT_IMAGE_ULPS: f64 = 48.0;
 ///
 /// The ceiling binds at every pose: the band's zero is 700 `u` of the
 /// largest `size` here and more of the others, so the ceiling, not the
-/// band, decides. Today's envelopes read 37, 27 and 31 `u`. What reds the
-/// row:
-/// - the arm's old `K = c² − sin²α`, at every pose;
-/// - the arm's old centre `apex − (c·a − sin²α·n)·δ/K`, at every pose
-///   (465 `u` at `f = 0.8`, a refusal at the others);
-/// - the centre moved 30 `u` of the semi-axis back along the major axis,
-///   which reads 54, 63 and 70 `u`.
+/// band, decides. The envelopes read 50, 81 and 95 `u`. The section is
+/// born anchored at its near vertex, where it stands on both surfaces
+/// to its own coordinates' rounding, and the image is still built from
+/// the derived centre and the semi-axis, each read through the small
+/// `K`; the envelope is their disagreement
+/// (`work/pcert/the-cone-sections-image-is-built-from-its-derived-centre.md`).
+/// What reds the row: the anchor moved 30 `u` of the semi-axis back
+/// along the major axis, which reads 42, 160 and 82 `u`.
 #[test]
 fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
     let band = geom_core::Band::new(1e-12, 1e-11).unwrap();

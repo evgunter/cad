@@ -257,13 +257,13 @@ impl<T: SpanLocate> Curve3<T> {
             (Self::Circle(c), Self::Circle(d)) => {
                 frame(&c.frame, &d.frame)
                     && same(c.radius, d.radius)
-                    && anchor(c.anchor(), d.anchor())
+                    && anchor(Conic::anchor(c), Conic::anchor(d))
             }
             (Self::Ellipse(e), Self::Ellipse(g)) => {
                 frame(&e.frame, &g.frame)
                     && same(e.semi_u, g.semi_u)
                     && same(e.semi_v, g.semi_v)
-                    && anchor(e.anchor(), g.anchor())
+                    && anchor(Conic::anchor(e), Conic::anchor(g))
             }
             (
                 Self::Spiric {
@@ -1155,7 +1155,7 @@ impl<T: Real> Curve3<T> {
                     (D::Radius, Scalar(radius)),
                     (D::URef, Direction(frame.u_ref())),
                 ];
-                match c.anchor() {
+                match Conic::anchor(&c) {
                     None => AnalyticData::new(stored),
                     Some(p) => {
                         let [a, b, c, d] = stored;
@@ -1177,7 +1177,7 @@ impl<T: Real> Curve3<T> {
                     (D::SemiV, Scalar(semi_v)),
                     (D::URef, Direction(frame.u_ref())),
                 ];
-                match e.anchor() {
+                match Conic::anchor(&e) {
                     None => AnalyticData::new(stored),
                     Some(p) => {
                         let [a, b, c, d, f] = stored;

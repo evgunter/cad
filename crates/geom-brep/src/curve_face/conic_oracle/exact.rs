@@ -328,7 +328,15 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
     let u = dd3(u_ref);
     let big_a = scaled(u, Dd::of(a));
     let big_b = scaled(cross(dd3(axis), u), Dd::of(b));
-    let w = offset(center, anchor);
+    // A carrier born anchored is its anchor less `A`, exactly: the
+    // centre its frame holds is that difference rounded.
+    let w = match carrier.conic().and_then(geom::Conic::anchor) {
+        None => offset(center, anchor),
+        Some(zero) => {
+            let from = offset(zero, anchor);
+            core::array::from_fn(|i| from[i].sub(big_a[i]))
+        }
+    };
     let one_plus = vec![Dd::of(1.0), Dd::ZERO, Dd::of(1.0)];
     // `q̃(t)` about the anchor `φ₀ = k·π/2`: the quarter turns carry
     // `(A, B)` to `(B, −A)`, exactly.
