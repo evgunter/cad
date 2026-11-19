@@ -49,9 +49,14 @@ pub(crate) const WILD_IMPORTS: [&str; 8] = [
     "occ-oss/cq_red_cube_blue_cylinder.step",
 ];
 
+/// A refusal class pinned not here but by ε, in `tier_gate`'s cells
+/// ([`crate::tier_gate::refusal_at_run_eps`]).
+const TAIL_TURBINE_BY_EPS: &str = "tier_gate's cell at this ε";
+
 /// The refusal corpus: files whose typed refusal is itself the
 /// contract being pinned. Each entry is the fixture and the substring
-/// its message must carry — the class, not the prose.
+/// its message must carry — the class, not the prose — or, for a file
+/// that refuses by ε, [`TAIL_TURBINE_BY_EPS`].
 const WILD_REFUSALS: [(&str, &str); 5] = [
     // **Two refusals retired under this row, and it is still a
     // refusal.** The M7-4 Leg D instancing gate went in M8 (all seven
@@ -82,20 +87,18 @@ const WILD_REFUSALS: [(&str, &str); 5] = [
     // weights 1 and 2), and the bolts and nuts sit on the bracket, so
     // two instances share vertex positions the gate finds unrecorded.
     ("stepcode/dm1-id-214.stp", "is an unrecorded contact"),
-    // Its half-cylinder faces state one cylinder in two records, and
-    // the edges between them are curves inside one surface: the build
-    // has no construction for them until one record reaches non-planar
-    // surfaces, and says so at every ε.
+    // Its two records of one cylinder are one; its cylinder × sphere
+    // section edges then refuse by ε, each pinned in its `tier_gate` cell.
+    ("stepcode/TAIL_TURBINE.stp", TAIL_TURBINE_BY_EPS),
+    // Its five fillets read tangent at the file's band (ε_in ≈ 34 µm) and
+    // crossing at the run's; the snap catalogue makes each tangency
+    // exact, and the edges the writer printed as crossing lines,
+    // √(2·r·gap) off the ruling, then read off their description in the
+    // file's band: the file's ambiguity, at every ε.
     (
-        "stepcode/TAIL_TURBINE.stp",
-        "an edge between two records of one cylinder",
+        "nist/nist_ftc_09_asme1_rd.stp",
+        "(step_edge_on_description), in the band",
     ),
-    // Its plane × cylinder pairs read tangent at the file's band
-    // (ε_in ≈ 34 µm) and crossing at the run's: the relation is a
-    // tangency the file states to its own precision, which D7 step 3's
-    // snap catalogue makes exact. Until that lane, the build has no
-    // construction for the edge, and the file refuses at every ε.
-    ("nist/nist_ftc_09_asme1_rd.stp", "snap catalogue"),
     // A `\X2\` string control directive (Japanese annotation text).
     ("stepcode/io1-cm-214.stp", r"\X2\"),
     // Open CASCADE's `SURFACE_CURVE` edge geometry: a curve stated
@@ -591,6 +594,12 @@ fn wild_refusals_are_typed_and_name_their_class() {
             .err()
             .unwrap_or_else(|| panic!("{name}: this fixture must refuse"));
         let message = err.render();
+        let class = if class == TAIL_TURBINE_BY_EPS {
+            crate::tier_gate::refusal_at_run_eps(&format!("tests/fixtures/wild/{name}"))
+                .unwrap_or_else(|| panic!("{name}: pinned by ε to a refusal at this ε"))
+        } else {
+            class
+        };
         assert!(
             message.contains(class),
             "{name}: refusal must name {class:?}, got: {message}"
@@ -603,6 +612,7 @@ fn wild_refusals_are_typed_and_name_their_class() {
             | StepImportError::Topology { id, .. }
             | StepImportError::Adoption { id, .. }
             | StepImportError::NotYetSupported { id, .. }
+            | StepImportError::Interpretation { id, .. }
             | StepImportError::Structure { id, .. }
             | StepImportError::UnsupportedUnit { id, .. } => *id > 0,
             // The shared at-rest gate's verdict names the
@@ -815,11 +825,11 @@ fn eps_in_scales_through_the_conversion_factor_and_the_override_wins() {
         text.contains("LENGTH_MEASURE(1.331353158630E-3),#5778"),
         "and whose uncertainty is stated in that inch"
     );
-    // The file refuses at the build (its tangencies wait on the snap
-    // catalogue, `WILD_REFUSALS`), and the refusal is read at the ε_in
-    // the import door resolved.
+    // The file refuses at the build (a tangent edge printed off the
+    // tangency the snap made exact, `WILD_REFUSALS`), and the refusal is
+    // read at the ε_in the import door resolved.
     let eps_in = match import_step(&text, &ImportOptions::default(), Tol::witness()) {
-        Err(StepImportError::NotYetSupported { file, .. }) => file.eps_in(),
+        Err(StepImportError::Interpretation { file, .. }) => file.eps_in(),
         other => panic!("{name}: refuses at the build, got {other:?}"),
     };
     // 1.331353158630e-3 inch x 2.54e1 mm/inch x 1e-3 m/mm, in the

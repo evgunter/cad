@@ -185,7 +185,7 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
     }
 }
 
-/// **The ε-row pins.** Eleven corpus files' dispositions are a function
+/// **The ε-row pins.** The `EpsSensitive` corpus files' dispositions are a function
 /// of the ambient ε, and hiding that behind one row per file would make
 /// the suite either red for an honest reason or green for a wrong one.
 /// Each cell is `(file, ambient ε, eps_in row, disposition)`; the
@@ -215,7 +215,29 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   precondition read the two walls' angle at the 1.6e-6 m edge's own
 ///   length, where they read as one ("tangent planes coincide"); at the
 ///   walls' extent they cross clearly.
-const EPS_ROWS: [(&str, f64, &str, Disposition); 33] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
+    // -- tests/fixtures/wild/stepcode/TAIL_TURBINE.stp -----------------
+    // Its cylinder × sphere section, at its own ε_in: the edge across the
+    // marched loop's start at the default and fine bands, its sibling's
+    // certificate at 1e-6.
+    (
+        TAIL_TURBINE,
+        1e-9,
+        "file",
+        Refused(TAIL_TURBINE_SECTION_ENDS),
+    ),
+    (
+        TAIL_TURBINE,
+        1e-6,
+        "file",
+        Refused(TAIL_TURBINE_SECTION_UNCERTIFIED),
+    ),
+    (
+        TAIL_TURBINE,
+        1e-12,
+        "file",
+        Refused(TAIL_TURBINE_SECTION_ENDS),
+    ),
     // -- tests/fixtures/cert1-r1/nearpolar_*.step ---------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). At ambient 1e-6 both
@@ -336,11 +358,15 @@ const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
 /// FTC11's rim vertex beside the seam azimuth, read in the file's band.
 const FTC11_SEAM_VERTEX_IN_BAND: &str = "(step_band_seam_vertex) lies in the";
 pub(crate) const TAIL_TURBINE: &str = "tests/fixtures/wild/stepcode/TAIL_TURBINE.stp";
-/// TAIL_TURBINE's refusal at every band: its half-cylinder faces state
-/// one cylinder in two records, and the edges between them are curves
-/// inside one surface, which waits on one record for a non-planar
-/// surface.
-const TAIL_TURBINE_TWO_RECORDS: &str = "an edge between two records of one cylinder";
+/// TAIL_TURBINE's refusal at the default and fine bands: its two records
+/// of one cylinder are one, and the cylinder × sphere section edge `#217`
+/// reads its built end before its start
+/// (`work/importgate/a-marched-section-edge-across-its-loops-start-refuses-at-import.md`).
+const TAIL_TURBINE_SECTION_ENDS: &str = "edge #217: a built spline carrier whose end reads at or \
+     before its start";
+/// TAIL_TURBINE's refusal at ambient 1e-6: the other edge of that
+/// section, `#170`, does not certify.
+const TAIL_TURBINE_SECTION_UNCERTIFIED: &str = "edge #170: no intensional description certifies";
 pub(crate) const NEARPOLAR_SPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_split.step";
 const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step";
 /// The nearpolar twins' coarse-band reason: at ambient 1e-6 the file is
@@ -392,14 +418,17 @@ const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or
      vertex, onto that point or clear of it, or, if this distance is intended, tighten \
      the tolerance below 1.0000000011961913e-10 m";
 
-/// `nist_ftc_09`'s refusal at every band: its plane × cylinder pairs read
-/// tangent at the file's band (ε_in ≈ 34 µm, the inch translator's ~12
-/// digits) and crossing at the run's, a relation D7 step 3's snap
-/// catalogue makes exact. Until that lane the build has no construction
-/// for the edge, and says so rather than certifying a crossing the file
-/// does not state.
-const NIST09_SNAP: &str = "read tangent at the file's band and apart at the run's, which the \
-     kernel does not yet construct";
+/// `nist_ftc_09`'s refusal at every band. Its five fillet cylinders bite
+/// into their planes by 1.5 to 13 µm, tangent at the file's band
+/// (ε_in ≈ 34 µm) and crossing at the run's, and the snap catalogue makes
+/// each tangency exact (`snap.rs`'s
+/// `nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them`).
+/// The writer printed each of those edges as a crossing line of the pair
+/// as it wrote it, `√(2·r·gap)` from the ruling, so the first, `#4950`,
+/// lies 180 µm off its description: in the file's band, the file's
+/// ambiguity.
+const NIST09_PRINTED_OFF_ITS_TANGENCY: &str = "entity #4950: the file's statements miss each \
+     other by 0.0001802051876711938 m (step_edge_on_description), in the band it is read at";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
@@ -709,7 +738,7 @@ const CORPUS: &[(&str, Disposition)] = &[
     ),
     (
         "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp",
-        Refused(NIST09_SNAP),
+        Refused(NIST09_PRINTED_OFF_ITS_TANGENCY),
     ),
     (
         "tests/fixtures/wild/nist/nist_ftc_11_asme1_rb.stp",
@@ -723,7 +752,7 @@ const CORPUS: &[(&str, Disposition)] = &[
         "tests/fixtures/wild/occ-oss/cq_red_cube_blue_cylinder.step",
         Pass(2, 2, 9, 15, 10),
     ),
-    (TAIL_TURBINE, Refused(TAIL_TURBINE_TWO_RECORDS)),
+    (TAIL_TURBINE, EpsSensitive),
     (
         // **Two halves of this refusal are now retired.** M8
         // instancing took the placement half (dm1's seven occurrences
@@ -1014,11 +1043,22 @@ fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
 /// pin at its own ε_in: its [`CORPUS`] row, or for an `EpsSensitive` file
 /// its [`EPS_ROWS`] cell. `None` for a file not in the corpus, or an
 /// `EpsSensitive` one off the pinned ambient matrix, where its disposition
-/// is not known. The one statement other suites read a corpus file's
-/// disposition from.
+/// is not known. With [`refusal_at_run_eps`], the one place other suites
+/// read a corpus file's disposition from.
 pub(crate) fn refuses_at_run_eps(rel: &str) -> Option<bool> {
     let &(_, row) = CORPUS.iter().find(|(p, _)| *p == rel)?;
     expected(rel, row, "file").map(|d| matches!(d, Refused(_)))
+}
+
+/// **The refusal fragment the corpus file `rel` is pinned to at the run's
+/// ε**, read off the same pin as [`refuses_at_run_eps`]. `None` where that
+/// pin is no refusal, or not known.
+pub(crate) fn refusal_at_run_eps(rel: &str) -> Option<&'static str> {
+    let &(_, row) = CORPUS.iter().find(|(p, _)| *p == rel)?;
+    match expected(rel, row, "file")? {
+        Refused(fragment) => Some(fragment),
+        _ => None,
+    }
 }
 
 /// Every corpus file's disposition, and the positive tier-validity of
