@@ -490,7 +490,7 @@ fn asking_for_the_examination_changes_nothing_about_acceptance() {
 /// examination asked for: the flag is read after the gate, on a body
 /// that exists, so a refusing file never reaches it. The file is the
 /// first of two that refuse at adoption by their `tier_gate` pins at the
-/// run's ε: `TAIL_TURBINE`'s spline edge where it misses, else the
+/// run's ε: `TAIL_TURBINE`'s section edge, else the
 /// near-polar twin's rim, whose wedge escalates at a coarse ε.
 #[test]
 fn a_refusing_file_refuses_identically_with_the_examination_asked_for() {
@@ -515,7 +515,9 @@ fn a_refusing_file_refuses_identically_with_the_examination_asked_for() {
     assert!(
         matches!(
             off,
-            StepImportError::Adoption { .. } | StepImportError::NotYetSupported { .. }
+            StepImportError::Adoption { .. }
+                | StepImportError::NotYetSupported { .. }
+                | StepImportError::Topology { .. }
         ),
         "{rel} refuses at the build or at adoption: {off:?}"
     );

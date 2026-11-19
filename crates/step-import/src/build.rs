@@ -344,6 +344,19 @@ impl IsoMap {
     }
 }
 
+/// [`choose`] of edge `id` alone: a unit test's reading of one edge's
+/// selection and carrier.
+#[cfg(test)]
+pub(crate) fn choose_edge(
+    solid: &SolidSpec,
+    id: u64,
+    tol: Tol,
+    file: FileBand,
+) -> Result<(), StepImportError> {
+    let sides = edge_faces(solid)?;
+    choose(solid, id, &solid.edges[&id], sides[&id], tol, file).map(|_| ())
+}
+
 /// Each edge's two faces, by index: the forward use's, then the reverse
 /// use's.
 fn edge_faces(solid: &SolidSpec) -> Result<BTreeMap<u64, (usize, usize)>, StepImportError> {

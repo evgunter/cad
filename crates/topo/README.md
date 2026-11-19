@@ -1896,9 +1896,9 @@ already and reads no extent.
   it to consume, so it re-points the file's faces on its own reading of
   them, the file's band's Zero, and restates `[topo.one-record.act]`'s
   rule (each sense restated so its material side is unchanged) rather
-  than calling `Body::one_record`. Two records of one non-planar locus
-  stay two, filed
-  (`work/importgate/two-records-of-one-non-planar-surface-stay-two-at-import.md`).
+  than calling `Body::one_record`. Two records of one cylinder, cone,
+  sphere or torus become one by the same act, their faces' senses
+  agreeing, read at the records' datums over the faces' reach.
 - **`[topo.one-record.rest]` At rest no edge's locus reads values.**
   Where an edge rests is read off its sides by key (`rest_locus`): one
   record is its chart, two records are their pair. Two distinct records at rest

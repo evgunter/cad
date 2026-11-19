@@ -36,8 +36,12 @@
 //!    cone placed at its base circle is moved to its apex; a NURBS
 //!    surface or carrier whose residual reads Zero is promoted; two
 //!    surface records of one locus become one
-//!    ([`NormalizationKind::OneRecord`]); a value no construction takes
-//!    refuses ([`InterpretationRefusal`]).
+//!    ([`NormalizationKind::OneRecord`]); a relation between two
+//!    surfaces the file's band reads `Zero` (coaxial, tangent,
+//!    axis-normal) is made exact by the snap catalogue's one construction
+//!    for it, each connected class of relations solved jointly
+//!    ([`SnapRelation`], [`NormalizationKind::Snapped`]); a value no
+//!    construction takes refuses ([`InterpretationRefusal`]).
 //! 3. **Topology assembly** ([`assemble`]): the shell's half-edge
 //!    structure is realized through `topo`'s public Euler operators
 //!    (`mvfs`/`mev`/`mef`, the ring vocabulary, scaffold struts killed
@@ -590,7 +594,9 @@ pub enum SnapRelation {
     Coaxial,
     /// A plane and a cylinder tangent along their edge: the planes kept,
     /// the cylinder's axis translated square to itself to stand its
-    /// radius from each.
+    /// radius from each (one plane, or two crossing); between two parallel
+    /// planes, its radius half their spacing and its axis on the
+    /// mid-plane.
     Tangent,
     /// A plane and a round surface whose axis runs along its normal: the
     /// later record turned about where the axis meets the plane.

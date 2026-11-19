@@ -69,6 +69,11 @@ use crate::{FaceCensus, NormalizationKind, SnapRelation, StructureNormalization}
 /// file's band `Zero` is a relation; at the run's, an exact one.
 pub(crate) const STEP_SNAP_RELATION: &str = "step_snap_relation";
 
+/// Which side of a plane a cylinder's axis lies, signed along one of two
+/// parallel planes' normals, read at the file's band: the axis lies
+/// between the two where its sides differ.
+pub(crate) const STEP_SNAP_SIDE: &str = "step_snap_side";
+
 /// How far a catalogue construction moves a surface, in metres, read at
 /// the file's band: only `Zero` is applied.
 pub(crate) const STEP_SNAP_MOVE: &str = "step_snap_move";
@@ -623,7 +628,23 @@ fn tangent(
                         n1.dot(p2 - Point3::origin()),
                         n1.dot(origin - Point3::origin()),
                     );
-                    if (at - c1) * (at - c2) >= 0.0 {
+                    // Which side of each plane the axis lies, along the
+                    // one normal: between them where the two sides differ.
+                    let side = |c: f64| {
+                        geom_core::k_stats::decide(
+                            STEP_SNAP_SIDE,
+                            geom_core::Margin::of(at - c),
+                            file.band(),
+                        )
+                        .map_err(|_| {
+                            file.refused(
+                                nodes[n].record.id,
+                                file.ambiguous(STEP_SNAP_SIDE, at - c),
+                            )
+                        })
+                    };
+                    let (s1, s2) = (side(c1)?, side(c2)?);
+                    if s1.is_zero() || s1 == s2 {
                         return Err(unsolved(
                             file,
                             planes[1].edge,
@@ -793,5 +814,100 @@ fn unsolved(file: FileBand, edge: u64, what: String) -> StepImportError {
         what,
         lane: UNCATALOGUED_LANE,
         file: geom_core::FileCoincidence::new(file.eps_in()),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// **`nist_ftc_09`'s five tangent snaps, and the build's reading of
+    /// its six tangent edges after them.** The file (ε_in ≈ 33.8 µm)
+    /// states five fillet cylinders biting into their planes by 1.5 to
+    /// 13 µm: three between two parallel planes (a slot's end, the
+    /// radius made half the spacing), two between crossing planes (the
+    /// axis translated). Every one snaps. The writer printed each
+    /// tangent edge as a crossing line of the pair as it wrote it,
+    /// `√(2·r·gap)` from the ruling the snap makes exact, so the build
+    /// reads five of the six printed carriers off their description in
+    /// or past the file's band and refuses them as the file's; the
+    /// sixth, 35 µm off, builds
+    /// (`work/importgate/a-tangent-edge-printed-as-a-crossing-line-refuses-at-the-build.md`).
+    #[test]
+    fn nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them() {
+        let tol = geom_core::Tol::witness();
+        let text = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp"
+        ))
+        .unwrap();
+        let parsed = crate::parse::parse_file(&text).unwrap();
+        let model = crate::entities::resolve(&parsed, None, tol).unwrap();
+        let mut snapped: Vec<(u64, SnapRelation)> = model
+            .normalizations
+            .iter()
+            .filter_map(|n| match n.kind {
+                NormalizationKind::Snapped {
+                    surface,
+                    relation,
+                    moved_by,
+                } => {
+                    assert!(
+                        moved_by > 0.0 && moved_by < model.uncertainty_m,
+                        "#{surface}: a move inside ε_in: {moved_by:e}"
+                    );
+                    Some((surface, relation))
+                }
+                _ => None,
+            })
+            .collect();
+        snapped.sort_unstable_by_key(|&(s, _)| s);
+        assert_eq!(
+            snapped,
+            [4962, 4990, 5102, 5231, 5336].map(|s| (s, SnapRelation::Tangent)),
+            "the five fillets snap, each by the tangent construction"
+        );
+        let crate::entities::Shape::Solids(solids) = &model.shape else {
+            panic!("a solid file")
+        };
+        let solid = &solids[0].outer;
+        let file = FileBand::of_import(model.uncertainty_m, false, tol).unwrap();
+        // Each tangent edge whose pair moved: how far its printed carrier
+        // lies from the ruling (`None`: it builds).
+        for (edge, off) in [
+            (4950, Some(1.802e-4)),
+            (4964, Some(1.227e-4)),
+            (4978, Some(3.439e-4)),
+            (5090, Some(1.150e-4)),
+            (5233, Some(2.329e-4)),
+            (5338, None),
+        ] {
+            match (crate::build::choose_edge(solid, edge, tol, file), off) {
+                (Ok(()), None) => {}
+                (
+                    Err(StepImportError::Interpretation {
+                        id,
+                        refusal:
+                            crate::interpret::Refusal::MissInBand {
+                                reading, miss: gap, ..
+                            }
+                            | crate::interpret::Refusal::EvidenceMiss {
+                                reading, miss: gap, ..
+                            },
+                        ..
+                    }),
+                    Some(off),
+                ) => {
+                    assert_eq!(id, edge);
+                    assert_eq!(reading, crate::build::STEP_EDGE_ON_DESCRIPTION);
+                    assert!(
+                        (gap - off).abs() < 1e-7,
+                        "#{edge}: the printed carrier lies √(2rg) off the ruling: {gap:e}"
+                    );
+                }
+                (other, off) => panic!("#{edge}: expected {off:?}, got {other:?}"),
+            }
+        }
     }
 }
