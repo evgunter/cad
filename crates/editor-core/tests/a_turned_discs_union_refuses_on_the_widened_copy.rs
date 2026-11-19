@@ -1,15 +1,22 @@
-//! **A union whose member does not finish at its take names that member**
-//! (`NodeErrorKind::UnfinishedLeaf`), at a box scalar: a disc extruded
-//! and turned in the world by a boxed angle (`theta` = 30° ± 1° about
-//! `y`), united with an unturned copy standing clear of it.
+//! **A union over a member carried through a boxed turn refuses in the
+//! Boolean, on the member's widened data**, at a box scalar: a disc
+//! extruded and turned in the world by a boxed angle (`theta` = 30° ± 1°
+//! about `y`), united with an unturned copy standing clear of it.
 //!
-//! The union is built in its first member's frame, the turned copy's, so
-//! the member carried through the boxed turn is the CLEAR copy. Its
-//! cylinder's axis, read through the turn, is the datum left undecided.
-//! The refusal names that copy as its input, the subject whose image
-//! does not finish, and the turned copy as the operand whose frame it was
-//! read into, so the person is told both halves
-//! (`work/onehome/an-unfinished-leaf-names-the-copy-that-was-not-turned.md`).
+//! The union computes in its first member's frame, the turned copy's, so
+//! the clear copy is the one carried through the boxed turn. Each member
+//! is finished in its own frame, where the clear copy's cylinder decides
+//! exactly, and the n-ary door moves it into the turned frame
+//! (`topo::nary_placed`), carrying that verdict: every finding family but
+//! the session box is a fact of the shape, which a rigid motion keeps.
+//! The image's data is the source's widened by the boxed turn, and the
+//! Boolean's ray against the cylinder's disc does not decide on it: the
+//! union refuses `ShellWitnessExhausted` at `bool_ray_cylinder_disc`.
+//! Before members were placed, the clear copy's image was finished in the
+//! turned frame, and its cylinder's datum, read through the turn,
+//! refused at the member's take (`UnfinishedLeaf`). The refusal no longer
+//! names the member
+//! (`work/onehome/a-boolean-refusing-on-a-boxed-members-widened-data-does-not-name-the-member.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -69,7 +76,7 @@ fn turned_disc_union() -> (ProfileDoc, [RecipeNodeId; 3]) {
 }
 
 #[test]
-fn a_turned_discs_union_names_the_member_carried_through_the_turn() {
+fn a_turned_discs_union_refuses_on_the_widened_copy_in_the_boolean() {
     let (doc, [turned, clear, union]) = turned_disc_union();
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let opts = EvalOptions {
@@ -80,43 +87,18 @@ fn a_turned_discs_union_names_the_member_carried_through_the_turn() {
     assert!(ev.node_error(turned).is_none(), "the turned copy builds");
     assert!(ev.node_error(clear).is_none(), "the clear copy builds");
     let refusal = ev.node_error(union).expect("the union refuses");
-    let editor_core::NodeErrorKind::UnfinishedLeaf {
-        input,
-        into,
-        findings,
-    } = &refusal.kind
+    let editor_core::NodeErrorKind::Boolean(
+        error @ topo::BooleanError::ShellWitnessExhausted { .. },
+    ) = &refusal.kind
     else {
         panic!(
-            "the union refuses its unfinished member: {:?}",
+            "the union refuses in the Boolean, every member taken: {:?}",
             refusal.kind
         );
     };
-    assert_eq!(
-        *input, clear,
-        "the refusal names the member carried through the boxed turn"
-    );
-    assert_eq!(
-        *into,
-        Some(turned),
-        "and the member whose frame it was read into"
-    );
+    let said = format!("{error:?}");
     assert!(
-        findings.as_slice().iter().any(|f| matches!(
-            f,
-            topo::ValidationError::SurfaceDatumUndecided {
-                kind: geom::SurfaceKind::Cylinder,
-                ..
-            }
-        )),
-        "its finding is the turned cylinder's datum: {findings:?}"
-    );
-    let text = refusal.kind.to_string();
-    assert!(
-        text.contains("read into") && text.contains("frame, does not finish there"),
-        "the text says which frame the input was read into: {text}"
-    );
-    assert!(
-        !text.contains("extru"),
-        "the text names the input, not how it was made: {text}"
+        said.contains("bool_ray_cylinder_disc"),
+        "at the ray against the carried copy's cylinder disc: {said}"
     );
 }

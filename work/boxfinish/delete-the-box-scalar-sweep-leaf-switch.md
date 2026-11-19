@@ -111,7 +111,7 @@ derived-frame row's `frozen == 0` (192 as built); the largest-form pin
 (17 terms against 4); the washer's `(501, 461)`; the far-placement
 table in `sym11_far_placement_rows.rs` (with the leaf finished at the
 door the session box answers first: `OutsideSessionBox` where the
-table says `built`, at `Sym<f64>` too); the `UnfinishedLeaf` fixture
-(`a_turned_discs_union_names_its_unfinished_member`); and two sweep
+table says `built`, at `Sym<f64>` too); the turned-disc union fixture
+(`a_turned_discs_union_refuses_on_the_widened_copy`); and two sweep
 files that name `topo::Replay` as the leaf
 (`an_aimed_ray_keeps_its_line_over_a_box.rs` among them).
