@@ -1484,7 +1484,7 @@ pub fn traced_in_r3(a: SurfaceKind, b: SurfaceKind) -> bool {
 /// coaxial tube or wall row reads `Zero` (the contact parallel in the
 /// meridian half-plane), and a plane normal to a torus's axis touching
 /// its tube ([`crate::plane_torus_section`]'s tangent circle, read at
-/// `extent`). The section value lists the same tangency as classification
+/// `extent`, its axis rows structural here: an in-band tilt escalates). The section value lists the same tangency as classification
 /// data ([`NoCarrier::Tangent`]) for its crossing readers; this is the
 /// construction of its locus, for a `TangentIntersection` edge, whose own
 /// certification decides the contact.
@@ -1516,7 +1516,7 @@ pub fn coaxial_tangent_circle<T: Decide>(
         },
         (Plane, Torus) | (Torus, Plane) => {
             let (plane, torus) = if a.kind() == Plane { (a, b) } else { (b, a) };
-            match crate::plane_torus_section(plane, torus, extent, band)? {
+            match crate::intersect::plane_torus_tangency(plane, torus, extent, band)? {
                 crate::PlaneTorusSection::TangentCircle(c) => Ok(Some(c)),
                 _ => Ok(None),
             }

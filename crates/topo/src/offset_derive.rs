@@ -770,7 +770,7 @@ fn nearest<T: Decide>(
 /// ([`geom_brep::edge_extent_inf`]), which the plane pair's parallelism
 /// reads: its Zero refuses and its Positive certifies the crossing. The
 /// torus's axis fork (`pt_axis_in_plane`) acts on its Zero (a meridian
-/// or spiric pose) and refuses on a definite tilt, so it reads the old
+/// or spiric pose) and refuses on any other tilt, so it reads the old
 /// edge's extent from above ([`geom_brep::edge_extent_sup`]). The cone
 /// and cylinder are handed both bounds ([`geom_brep::LeverBounds`]):
 /// their parallelism and coaxial swing act on a Zero and read the bound

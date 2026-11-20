@@ -41,6 +41,6 @@ arc `[−0.5, 0.5]`, which holds the touch.
 A piece of the turn that no part of `[t0, t1]` reaches decides nothing
 the caller reads. The side decision can be skipped there, or charged
 against its distance from the arc, as the line × cone lane does for root
-slack (`bool_line_cone_root_slack`).
+slack (`line_quadric_cone_root_slack`).
 
 Moved from HONEROOT to GERM on 2026-11-20, by `git mv`, when HONEROOT merged into GERM: HONEROOT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one GERM carries.

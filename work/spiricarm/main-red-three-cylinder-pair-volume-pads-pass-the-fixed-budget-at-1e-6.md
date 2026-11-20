@@ -30,3 +30,10 @@ No volume is wrong: each body passes its four checks and its enclosure holds the
 **Owed.** Decide which side is wrong, as that row did: if the rotational lane's pad on these chorded walls is ε-scaled by construction, the three rows read a ceiling stated from the resolution (`judged_at_resolution`) with a measured guard; if not, the pad is too wide. Do not move the budget to fit the number. Say why the pads doubled between 11-04 and 11-13.
 
 **Pinned** (`green/eps-1e-6`): each row is under `test_utils::pinned_red::row` at ε 1e-6, on its whole first line, the pad's printed digits included, so the pin reds if the pad moves either way. Take the pins off with the fix.
+
+Another pair on the same pad (GERM's sector-order2 lane, 2026-11-20):
+`a_near_right_angle_drum_pair::a_turn_a_microradian_short_of_square_builds_at_its_sliced_volume`
+(two `cyl(0.5, 1.0)` drums, B turned `π/2 − 1e-6` about `x` and moved
+by `(0.3, 0.2, 0.1)`) builds both unions at the closed form 2.660151791
+with pads 2.5e-7 and 3.2e-7 at 1e-6, pinned there; at the default band
+and 1e-12 the pads are 4e-10 and 3e-12.
