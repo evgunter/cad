@@ -228,7 +228,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
 /// caller branches on the reason without parsing the sentence. Over
 /// `CornerReason`'s arms rather than `..`, so a new one stops this
 /// build instead of acquiring a silent tag.
-pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
+pub fn corner_reason_tag(reason: &CornerReason) -> &'static str {
     match reason {
         CornerReason::OutsideAnchors(window) => match window {
             CornerWindow::BehindIncomingRay => "behind_incoming_ray",
@@ -2515,6 +2515,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
         TessellateError::PinchWedge { .. } => "pinch_wedge",
+        TessellateError::BoundaryBoundsNoRegion { .. } => "boundary_bounds_no_region",
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
         TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
         TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",

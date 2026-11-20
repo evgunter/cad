@@ -29,7 +29,7 @@ crates/geom-brep/src/curve_face/circle_roots.rs	test	3	oracle
 crates/geom-brep/src/curve_face/circle_torus.rs	prod	3	re-pose
 crates/geom-brep/src/curve_face/ellipse_torus.rs	prod	1	re-pose
 crates/geom-brep/src/curve_face/ellipse_torus.rs	test	1	oracle
-crates/geom-brep/src/curve_face/line_quadric.rs	prod	6	re-pose
+crates/geom-brep/src/curve_face/line_quadric.rs	prod	5	re-pose
 crates/geom-brep/src/curve_face/line_quadric.rs	test	1	oracle
 crates/geom-brep/src/curve_pair/one_curve_rows.rs	test	2	oracle
 crates/geom-brep/src/curve_pair/pose.rs	prod	4	re-pose,far-centre
