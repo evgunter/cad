@@ -233,3 +233,13 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
     its names are bound to.** Inline captures (`{verb:?}`) make the
     pinned text independent of the value formatted. A gate's header
     must state what its pin holds.
+
+- 2026-11-20 — **PR 7159 merges**: the second fix pass took all six
+  items (head `07451c1117e7`, green run 44813916029); read by the
+  orchestrator, no third review. Every position a refusal locates is
+  now told as derived, and the seven `{:?}` sites go through
+  `identifier()`, so the gate holds no pins. The comparison row is
+  `docs/model-compare-log/rows/PR-7159.md`. Unit 1 of
+  `patherror-display-renders-float-noise` is closed; units 2 and 3+
+  (the per-crate sweeps) are next on it, their briefs asking for the
+  provenance of each number told as given.
