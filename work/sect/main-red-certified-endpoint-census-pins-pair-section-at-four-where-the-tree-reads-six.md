@@ -25,3 +25,9 @@ Two merges touched `pair_section.rs` since 2026-11-18:
 ## Owed
 
 Bisect between the two, then give the two new endpoint reads their disposition (counted with a reason, or read through a certified door) and correct the roster line. The lane that caused it owes the fix (`memories/agent-lane-operations.md`).
+
+## Bisected (EXCH triage, 2026-11-20)
+
+The cause is PR 7112 (`onehome/span-foot`, merge `7ad94ddffb`), commit `63f9e2ae97`. It added `let side = |i: geom_core::Interval| i.is_certified().then(|| (i.lo(), i.hi()));` (now `crates/geom-brep/src/pair_section.rs:2985`), which is two reads, both asking. The census row passes on `7ad94ddffb^1` and reads `pair_section.rs` at (6, 6) on `7ad94ddffb`. PR 7128 is not involved. The row is still red on main `bd8b2c9bb5`. By `work/README.md` the fix is owed by ONEHOME's lane. The row stays here for SECT or ONEHOME to re-home.
+
+    cargo nextest run -p geom-core --ignore-default-filter -E 'test(every_production_endpoint_read)'
