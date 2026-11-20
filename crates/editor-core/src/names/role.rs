@@ -2924,6 +2924,7 @@ mod tests {
     /// on the name's own path and inside a name it carries.
     #[test]
     fn each_locator_segment_denotes_its_run_its_corner_or_its_piece() {
+        #![allow(clippy::expect_used)]
         use super::{CapEnd, MeridianEnd as M, PieceRun, Referent};
         let piece = |step: u64| ProfileEdgeRef::Piece {
             step: StepId::new(0, step),

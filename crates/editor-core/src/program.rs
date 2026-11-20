@@ -2486,24 +2486,11 @@ impl ProfileProgram {
     /// [`ProgramRefusal::Unminted`], [`ProgramRefusal::StepIds`], and
     /// [`ProfileProgram::lattice`]'s.
     pub fn structure(&self) -> Result<Vec<Vec<crate::ProfileEdgeRef>>, ProgramRefusal> {
-        if !self.carries_step_ids() {
-            return Err(ProgramRefusal::Unminted);
-        }
-        self.check_id_shape().map_err(ProgramRefusal::StepIds)?;
-        self.shape()?
+        Ok(self
+            .drawn()?
             .into_iter()
-            .zip(&self.ids)
-            .map(|(shape, ids)| {
-                Ok(shape
-                    .pieces
-                    .into_iter()
-                    .map(|p| crate::ProfileEdgeRef::Piece {
-                        step: ids[p.step],
-                        role: p.role,
-                    })
-                    .collect())
-            })
-            .collect()
+            .map(|drawn| drawn.into_iter().map(|(piece, _)| piece).collect())
+            .collect())
     }
 
     /// **The partition this program's structure draws at generic
@@ -2514,13 +2501,36 @@ impl ProfileProgram {
     ///
     /// [`ProfileProgram::structure`]'s.
     pub fn partition(&self) -> Result<ProfilePartition, ProgramRefusal> {
-        let pieces = self.structure()?;
         let mut partition = ProfilePartition::default();
-        for (shape, pieces) in self.shape()?.into_iter().zip(pieces) {
-            let drawn: Vec<_> = pieces.into_iter().zip(shape.continues).collect();
+        for drawn in self.drawn()? {
             partition.add_loop(&drawn);
         }
         Ok(partition)
+    }
+
+    /// Per loop, the pieces its structure draws in drawing order, each
+    /// with whether it continues the one before by construction.
+    fn drawn(&self) -> Result<Vec<Vec<(crate::ProfileEdgeRef, bool)>>, ProgramRefusal> {
+        if !self.carries_step_ids() {
+            return Err(ProgramRefusal::Unminted);
+        }
+        self.check_id_shape().map_err(ProgramRefusal::StepIds)?;
+        Ok(self
+            .shape()?
+            .into_iter()
+            .zip(&self.ids)
+            .map(|(shape, ids)| {
+                shape
+                    .pieces
+                    .into_iter()
+                    .map(|p| crate::ProfileEdgeRef::Piece {
+                        step: ids[p.step],
+                        role: p.role,
+                    })
+                    .zip(shape.continues)
+                    .collect()
+            })
+            .collect())
     }
 
     /// Every loop's shape, in loop order.

@@ -313,17 +313,15 @@ enum Compared {
 /// a coincidence, not a construction.
 fn straight(steps: &[Step<f64>], piece: profile::Piece) -> bool {
     use profile::PieceRole as R;
-    let form = steps[piece.step].form();
-    match (piece.role, form) {
+    matches!(
+        (piece.role, steps[piece.step].form()),
         (
             R::Leg,
             StepForm::Line | StepForm::LineTo(_) | StepForm::ContinueTo(_) | StepForm::FarEndTo,
-        )
-        | (R::RunIn, StepForm::Fillet | StepForm::FilletArc(_))
-        | (R::RunOut, StepForm::Fillet | StepForm::ArcFillet(_))
-        | (R::Piece(_), StepForm::Rectangle) => true,
-        _ => false,
-    }
+        ) | (R::RunIn, StepForm::Fillet | StepForm::FilletArc(_))
+            | (R::RunOut, StepForm::Fillet | StepForm::ArcFillet(_))
+            | (R::Piece(_), StepForm::Rectangle)
+    )
 }
 
 /// The joint at the start of piece `k` of a generic closed chain, its
@@ -658,7 +656,8 @@ fn each_continuation_the_shape_reads_is_the_replays_construction() {
         steps.extend_from_slice(&close);
         steps
     };
-    let rows: Vec<(&str, Vec<Step<f64>>, Vec<bool>)> = vec![
+    type Row = (&'static str, Vec<Step<f64>>, Vec<bool>);
+    let rows: Vec<Row> = vec![
         (
             "a station kept on a side",
             side(&[Step::Line(1.0)]),
