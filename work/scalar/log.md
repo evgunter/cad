@@ -123,3 +123,30 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
   - **Friction**: both reviewers lost 25 to 35 minutes at a stretch to
     the width-one build mutex and ran fewer mutants than they meant
     to; neither was narrowed by the orchestrator, so the pair is fair.
+
+- 2026-11-20 — **Ev on PR 7176**: "this broadly sounds good", then
+  "how are these used downstream, more concretely? it seems like it
+  would be confusing for something running at interval to have some
+  of its values be exact in a way that, taken literally, would
+  constrain the others." Round 15 went to both designers to trace each
+  solved value forward. They agree: three or four functions store the
+  value in the body (a split parameter, a re-anchored edge end), five
+  only evaluate at it (places under DL5.2, no door), and
+  `editor-core::drive` runs these at `Interval` in production. One
+  found that the proposal conflicts with DESIGN `[scalars]` ("a
+  continuous value that varies over the box is no choice ... so the
+  lane builds it") and that a split parameter already means two things
+  by carrier kind. Put to Ev on the PR as: the point stays and
+  `[scalars]` is amended, or the lane builds an enclosure; both lean
+  the first. The orchestrator's sketch overcounted the door's users
+  (nine; it is three or four) and said so there.
+- 2026-11-20 — **Ev asked, in chat, what note would have made the
+  illegitimate lifts visible without his pokes**, and said the text
+  about types being semantically correct is not landing. Answered,
+  and proposed as PR 7189 (`[ev]`, own PR since it binds future work):
+  a paragraph in DESIGN `[unrepresentable]` that a signature is a
+  claim (a bound says where code has a meaning; a conversion says what
+  makes its result true; one sentence per admitted type; no gate
+  taxes the narrower bound), and three rules in
+  `docs/prompts/designer.md` (need before safety; count before ruling;
+  the per-type sentence). No designer round, stated in the body.
