@@ -6,7 +6,7 @@ status: review
 opened: 2026-11-15
 priority: P0
 cost: M
-pr: TBD
+pr: 7183
 branch: germ/ellipse-speed-magnitudes
 ---
 
