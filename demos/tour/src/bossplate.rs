@@ -115,10 +115,10 @@ fn assert_seam_chords_shared(body: &Body<f64>, delta: f64, tol: Tol) -> usize {
         let Some(curve) = body.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        let Curve3::Circle(pncad::geom::Circle { frame, radius }) = *curve.carrier() else {
+        let Curve3::Circle(circle) = *curve.carrier() else {
             continue;
         };
-        let center = frame.origin();
+        let (center, radius) = (circle.frame().origin(), circle.radius);
         if (center.z - 1.0).abs() > 1e-9 || (radius - 0.5).abs() > 1e-9 {
             continue;
         }
