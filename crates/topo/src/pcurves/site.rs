@@ -280,8 +280,7 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
             // new vertex is read at the carrier's point there, where the
             // split puts that vertex.
             let parent = super::decision::singular_ends(body, half_edge, &carrier, &surface, band);
-            let at_split = geom_brep::reads_singular_ends(&carrier, &surface)
-                && super::decision::on_a_pole(&surface, carrier.eval(t), band);
+            let at_split = super::decision::on_a_pole(&carrier, &surface, carrier.eval(t), band);
             let child = |a: T, b: T, ends| {
                 geom_brep::chart_pcurve_over_ends(&carrier, a, b, ends, &surface, band)
                     .map_err(refused)
@@ -1031,10 +1030,18 @@ pub(crate) fn site_rows<T: Decide>(
                         // read at the carrier's, the points this walk decides
                         // its joints at (`traversal`'s `vertex`).
                         SiteHalf::NewPlus | SiteHalf::NewMinus => geom_brep::SingularEnds {
-                            start: geom_brep::reads_singular_ends(&carrier, surface)
-                                && super::decision::on_a_pole(surface, carrier.eval(t0), band),
-                            end: geom_brep::reads_singular_ends(&carrier, surface)
-                                && super::decision::on_a_pole(surface, carrier.eval(t1), band),
+                            start: super::decision::on_a_pole(
+                                &carrier,
+                                surface,
+                                carrier.eval(t0),
+                                band,
+                            ),
+                            end: super::decision::on_a_pole(
+                                &carrier,
+                                surface,
+                                carrier.eval(t1),
+                                band,
+                            ),
                         },
                     };
                     let pcurve = chart_pcurve_over_ends(&carrier, t0, t1, ends, surface, band)?;

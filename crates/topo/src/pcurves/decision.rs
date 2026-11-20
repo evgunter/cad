@@ -949,29 +949,31 @@ pub(crate) fn singular_ends<T: Decide>(
     }
     let (start, end) = super::mint::edge_vertex_points(body, half_edge);
     geom_brep::SingularEnds {
-        start: on_a_pole(surface, start, band),
-        end: on_a_pole(surface, end, band),
+        start: on_a_pole(carrier, surface, start, band),
+        end: on_a_pole(carrier, surface, end, band),
     }
 }
 
-/// Whether `point` is decided on one of `surface`'s singular points, for
-/// an end a producer states to an image that reads it
-/// ([`geom_brep::reads_singular_ends`]; its caller asks that first). The
-/// point is an end's vertex, or for an edge an Euler operator has yet to
-/// mint its carrier's end: the point the site walk decides that edge's
-/// joint at ([`super::site::site_rows`]), so the end and its joint read
-/// one point.
+/// Whether `point` is decided on one of `carrier`'s chart's poles, where
+/// `carrier`'s image on `surface` reads a stated end
+/// ([`geom_brep::reads_singular_ends`]: a conic's on a sphere); `false`,
+/// deciding nothing, for every other pair. The point is an end's vertex,
+/// or for an edge an Euler operator has yet to mint, or a split's new
+/// vertex, the carrier's point there: the point the site walk decides
+/// that joint at ([`super::site::site_rows`]), so the end and its joint
+/// read one point.
 pub(crate) fn on_a_pole<T: Decide>(
+    carrier: &geom::Curve3<T>,
     surface: &Surface<T>,
     point: geom_core::Point3<T>,
     band: Band,
 ) -> bool {
     use geom_brep::chart_singularity::{singular_points, vertex_at_singular_point};
+    if !geom_brep::reads_singular_ends(carrier, surface) {
+        return false;
+    }
     let Ok(inverse) = geom::ChartInverse::of(surface) else {
-        unreachable!(
-            "on_a_pole: only a sphere's image reads a stated end, and a sphere's chart has a \
-             closed inverse"
-        )
+        unreachable!("on_a_pole: a sphere's chart has a closed inverse")
     };
     singular_points(&inverse)
         .iter()

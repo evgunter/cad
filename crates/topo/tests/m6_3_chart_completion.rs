@@ -361,15 +361,16 @@ fn an_arc_ending_on_the_pole_certifies_at_the_interval_scalar() {
 /// then moves the image's point by up to `2δ` (the factor is attained:
 /// near the end the image's azimuth and the carrier's are a half-turn
 /// apart across a circle of radius `δ`). The certificate charges `2δ`, so
-/// at `δ = 0.3·ε` every arc certifies and at `δ = 0.75·ε`, whose true miss
-/// is past the band, every arc refuses, at both scalars (red if the term
-/// is halved, or if the interval lane trusts a broken sign).
+/// at `δ = 0.3·ε` every arc certifies, and at `δ = 0.55·ε` and `0.75·ε`,
+/// just past `ε/2` and well past it, every arc refuses, at both scalars
+/// (red if the factor falls to 1.5 or below, or if the interval lane
+/// trusts a broken sign).
 #[test]
 fn the_pole_term_charges_a_stated_end_its_distance_from_the_pole() {
     use geom_core::interval::Interval;
     let eps = Tol::witness().eps();
     for (span, ends) in pole_ended_arcs() {
-        for (k, certifies) in [(0.3, true), (0.75, false)] {
+        for (k, certifies) in [(0.3, true), (0.55, false), (0.75, false)] {
             let delta = k * eps;
             for (scalar, got) in [
                 ("f64", pole_verdict::<f64>(delta, span, ends)),

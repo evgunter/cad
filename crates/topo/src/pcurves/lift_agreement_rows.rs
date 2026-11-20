@@ -541,3 +541,33 @@ fn a_spur_leaving_the_pole_mints_its_rows() {
     }
     assert_eq!(crate::pcurves::validate_pcurves(&body, band), vec![]);
 }
+
+/// **A re-described edge ending on the pole keeps its rows.** On
+/// [`pole_cap`], whose faces are complete, the circle is restated under
+/// its own description (`restate_stored_edge`, the door the Boolean's
+/// `describe_edges` restates its section edges through): the site mint
+/// re-derives the described halves' images, each read off the pole end,
+/// and writes them. Red if the described halves' ends go unstated: their
+/// derivation then refuses at the piece holding the pole, and the site
+/// mint leaves the faces rowless (`SiteRows::Clear`) for a later pass.
+#[test]
+fn a_re_described_edge_ending_on_the_pole_keeps_its_rows() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let mut body = pole_cap();
+    let edge = body.edges().map(|(edge, _)| edge).next().unwrap();
+    let description = body.stored_curve(edge).unwrap().restated_spec().description;
+    body.restate_stored_edge(edge, description, tol)
+        .unwrap_or_else(|e| panic!("the circle restates: {e:?}"));
+    let record = body.get_edge(edge).unwrap();
+    for half in [record.he_plus, record.he_minus] {
+        let row = body
+            .pcurve(half)
+            .unwrap_or_else(|| panic!("the site mint re-derived {half:?}'s row"));
+        assert!(
+            matches!(row.pcurve(), geom_brep::Pcurve::Projected(p) if p.pole().is_some()),
+            "the re-described row reads its pole end: {row:?}"
+        );
+    }
+    assert_eq!(crate::pcurves::validate_pcurves(&body, band), vec![]);
+}
