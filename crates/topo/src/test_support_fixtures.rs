@@ -228,7 +228,9 @@ pub fn cone_cap(alpha: f64, z: f64, tol: Tol) -> (Body<f64>, FaceKey) {
 /// **A sphere cap**: the face on the unit sphere about the origin
 /// (axis `+z`) bounded by its one circle at height `z`, two half-circle
 /// edges with no seam, built as [`cone_cap`] builds its cap: the rim
-/// plane is the seed face and the cap the face `mef` mints.
+/// plane is the seed face and the cap the face `mef` mints. The cap is
+/// the sphere BELOW the rim, holding the south pole, and the body the
+/// unit ball below the plane `z`: the plane's outward normal is `+z`.
 ///
 /// # Panics
 ///
