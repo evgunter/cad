@@ -2439,6 +2439,145 @@ mod tests {
         }
     }
 
+    /// Two unit discs folded by `fold` along a chord `2w` long that each
+    /// is cut back to: face 0 in the plane `z = 0`, face 1 in the plane
+    /// turned `fold` about the chord, and edge 1, the chord. The faces'
+    /// only vertices are the chord's two ends; each face runs a whole
+    /// disc past them.
+    fn folded_discs(fold: f64) -> SolidSpec {
+        let w = 0.01_f64;
+        let c0 = (1.0 - w * w).sqrt();
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let (low, high) = (Point3::new(c0, -w, 0.0), Point3::new(c0, w, 0.0));
+        let phi = w.asin();
+        let pi = core::f64::consts::PI;
+        // The folded plane's normal, and its direction away from the chord.
+        let n = Vec3::new(fold.sin(), 0.0, fold.cos());
+        let away = Vec3::new(fold.cos(), 0.0, -fold.sin());
+        let disc = |centre: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>| {
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame::new(centre, axis, u_ref),
+                1.0,
+            ))
+        };
+        let edges = [
+            (1, (1, 2), Curve3::line(low, y), (0.0, 2.0 * w)),
+            (
+                2,
+                (2, 1),
+                disc(Point3::origin(), z, x),
+                (phi, 2.0 * pi - phi),
+            ),
+            (
+                3,
+                (1, 2),
+                disc(Point3::new(c0, 0.0, 0.0) + away * c0, n, away),
+                (phi - pi, pi - phi),
+            ),
+        ]
+        .into_iter()
+        .map(|(id, (start, end), carrier, (t0, t1))| {
+            (
+                id,
+                EdgeSpec {
+                    start,
+                    end,
+                    carrier,
+                    t0,
+                    t1,
+                    reversed: false,
+                },
+            )
+        })
+        .collect();
+        let face = |id: u64, normal: Vec3<f64>, arc: u64| FaceSpec {
+            id,
+            surface: Surface::Plane {
+                origin: Point3::new(c0, 0.0, 0.0),
+                normal,
+                u_ref: y,
+            },
+            sense: true,
+            loops: vec![crate::entities::LoopSpec {
+                outer: true,
+                uses: [1, arc]
+                    .into_iter()
+                    .map(|edge| crate::entities::EdgeUse {
+                        edge,
+                        forward: true,
+                    })
+                    .collect(),
+            }],
+            band: false,
+        };
+        SolidSpec {
+            id: 1,
+            faces: vec![face(10, z, 2), face(11, n, 3)],
+            edges,
+            vertices: BTreeMap::from([(1, low), (2, high)]),
+            band_seams: std::collections::BTreeSet::new(),
+        }
+    }
+
+    /// **A crease between two faces is read over the faces' run, not
+    /// their vertices' box.** Two unit discs folded along a 2 cm chord
+    /// have the chord's ends for their only vertices, and run 4.47 m
+    /// corner to corner. Folded by `1e-5` they stand `2e-5` apart at
+    /// their far side, twenty times the file's `1e-6`: two planes, and
+    /// the chord is their crease. Folded by `1e-7` they are one plane to
+    /// the file over that run, and the refusal's gap is the fold over it.
+    /// Red against the vertices' box or the edge's own length for the
+    /// reach (the `1e-5` fold then refuses as parallel planes), and
+    /// against one face's region for both (a gap of `2.8e-7`).
+    #[test]
+    fn a_crease_is_read_over_its_faces_run() {
+        let read = |fold: f64| {
+            let solid = folded_discs(fold);
+            choose(
+                &solid,
+                1,
+                &solid.edges[&1],
+                (0, 1),
+                Tol::witness(),
+                FileBand::test(1e-6),
+            )
+        };
+        match read(1e-5) {
+            Ok(Chosen {
+                description: Description::Intersection,
+                carrier: Some(Curve3::Line(line)),
+                ..
+            }) => assert!(
+                line.dir.cross(Vec3::new(0.0, 1.0, 0.0)).norm() < 1e-12,
+                "the crease runs along the chord: {line:?}"
+            ),
+            other => panic!(
+                "two planes the faces' run tells apart meet in their crease: {:?}",
+                other.map(|c| c.carrier)
+            ),
+        }
+        match read(1e-7) {
+            Err(StepImportError::Interpretation {
+                refusal: crate::interpret::Refusal::Touching { reading, gap, .. },
+                ..
+            }) => {
+                assert_eq!(reading, STEP_PLANES_CROSS);
+                assert!(
+                    (4.4e-7..4.5e-7).contains(&gap),
+                    "the fold over the two discs' run, 4.47 m: {gap:e}"
+                );
+            }
+            other => panic!(
+                "one plane to the file over the faces' run: {:?}",
+                other.map(|c| c.carrier)
+            ),
+        }
+    }
+
     /// **A wrap edge is the surface's own generator through the printed
     /// seam**: a cylinder's ruling at the printed azimuth (not its chart's
     /// `u = 0`), and a torus's two isos through a point, each on the torus.

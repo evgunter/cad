@@ -101,3 +101,24 @@ topo:
 **A caller's point.** `lever_from(p)` reads from any pivot. The curvature home's `curvature_lever_arm(cone, p)` and `parallel_curvature_arm(s, p)` read `p`'s distance from the surface's axis, so a far point is a long arm.
 
 **Other spellings.** A door called through a macro's expansion; `Self::door(…)` in a trait impl for `geom_brep::Reach` written in another crate; generics nested three deep in a turbofish or a qualified path; and, inside geom-brep, a variant reached by `use crate::Reach::*`.
+
+## Added 2026-11-20 (`oneround/lever-sites-brep`)
+
+The geom-brep, step-import and sweep sites under "Geometry in the function" (16 references), each checked against the tree. 14 references are gone and their pins with them (59 to 45); 2 stay.
+
+Converted, by what the site reads now:
+
+- `carrier_eq::at_consumed_extent` and `reading` (3): `ExtentBall::lever_from_either(p, q)`, the ball's reach from the farther of the two pivots the datum is read between (two cones' apexes; a point of the second axis and its foot on the first). Shorter than the widened reach wherever the pivots stand apart.
+- `dihedral::seam_face_reading`: `chart_curvature_arm(lane, chart, p, reach)` in the curvature home. `classify_seam` takes the scalar's certification lane (`Option<NurbsLane<T>>`) in place of a closure, so the wrapper `classify_seam(.., chart_arm, ..)` in the list above is gone too; topo's scalar policy gained `nurbs_lane()`. Same bits.
+- `intersect::ruled_frame`: `Reach::ruled_pivot_lever(&PlaneCylinder)`, which returns the pivot with its lever. Same bits.
+- `intersect::pair_bound`: `Reach::cone_generator_lever(&cone)`. Same bits.
+- `pair_section::cylinders::decide_stance`: `ExtentBall::of_cylinders_crossing([&first, &second], &reach)`, called where the pose holds both surfaces; the common perpendicular has one reader, `Reach::common_perpendicular`. Same bits.
+- `pair_section::cylinders::region_span`, `bisector_nodes`, `cylinder_cylinder` (3): no ball is built; a point is placed against the region by `point_placement`, the arithmetic `placement` has with no radius. Same bits.
+- `props::curved::cone_boundary`: `uniform_curvature_arm(cone)`. **A correction to the line above**: the lever built there was never read. A cone's rim levels are lengths (`RimLevel::Length`), and `RimArms::level` is read for `Unit` levels only; the rim radius is read as the azimuth's rate, a `T`, which stays. The level arm is now the cone's own answer with no point to read at, poison.
+- `step_import::reach::Reach::lever`: `geom_brep::cover_diameter(&cover)`. Same bits.
+- `step_import::build::faces_reach` (2): gone; `choose` reads `Reach::of(solid, [plus, minus]).lever()`, the two faces' region, where it read the box about their vertices. Longer in 22% of the suite's reads, by up to 83 times, where a face runs past its vertices. A pair of faces with no region refuses.
+
+Left:
+
+- `pair_section::CylinderSpherePose::sweep_ball` (`of_cover_within`): the widening is the ruling sweep's clearance, the sphere's own scale floored at 64 escalation widths, and no extent of anything consumed. A door that takes no number would own the sweep's constant or take the band and hide the multiple. Whether that ball is an extent at all is the question to settle first.
+- `sweep::blend::battery::extent_of` (`points_diameter`): its honest door, `edge_extent_inf`, reads a circular arc past a half turn shorter than the site's own nine samples do, and a sweep row pins the difference (`edge-extent-inf-reads-a-circular-arc-past-a-half-turn-short-of-its-diameter`).
