@@ -52,3 +52,14 @@ half-angle enters as an exact rational, its tangent, or an enclosure,
 and what that does to the "exactly" the other kinds' conversions claim.
 That is why `design` is set. Weigh it with the designer pair before a
 lane builds it.
+
+## 2026-11-20 — a cone on a torus's meridian stops at the interior-loop guard (SECT)
+
+Measured on `sect/closed-edge-on-torus` (main `d44f46d3`), at the
+default ε, 1e-6 and 1e-12, every op in both orders: the torus `R = 2,
+r = 1` about `y`, against the triangle `(1,0), (1.5,0.5), (0.5,0.5)`
+revolved about the line through `(2, 0, 0)` along `z`. Its vertex
+sweeps the torus's meridian circle in the `xy` plane, and its two cones
+cross the tube there. The join builds. `ops.rs` `interior_loop_verdict`
+then refuses `CurvedPairUnsupported { site: InteriorLoopGuard }` on the
+torus × cone pair: a cone × torus pair in general pose, this row's.

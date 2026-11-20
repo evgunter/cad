@@ -519,17 +519,15 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
     }
 }
 
-/// **A section passing near a chart pole images at every band.** Two
+/// **A section passing near a chart pole, or through it, builds.** Two
 /// unit balls whose centre line leans `s = 0.7 + δ` toward `y`, so the
 /// radical circle passes within about `δ` of the first ball's north
 /// pole. Its rows are projected images whose pieces refine toward the
 /// pole until each piece's azimuth sector holds, so δ down to 1e-5
-/// builds and certifies whole. Through the pole (δ = 0) azimuth names
-/// no point, and the row refuses "not yet" on the azimuth sector (the
-/// projected lane's own gap where the lane choice sent the circle,
-/// `NoGeneralLane { gap: LaneGap::Pose }`); splitting
-/// such an arc at the pole is the join's
-/// (`work/charttail/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`).
+/// builds and certifies whole. Through the pole (δ = 0) the pole is a
+/// vertex of the section, so the arc there ends on it, and its image reads
+/// the azimuth at that end off the reduced radial (`geom_brep::PoleEnd`);
+/// that body meshes too, at each δ [`assert_body`] reads.
 ///
 /// **What the mesher answers** (measured in release, PR 5920's second
 /// fix pass; `work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
@@ -539,26 +537,7 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
 /// triangle beside the pole (`FoldedTriangle`, 0.2 s in release), which
 /// is not meshed here.
 #[test]
-fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
-    // Pinned red at 1e-6: the arc through the pole escalates the general
-    // lane's sector reading in band, where the row wants the lane's own
-    // azimuth gap
-    // (`work/gauge/the-in-arc-pairing-turns-the-pole-arcs-lane-gap-into-an-indeterminate-at-eps-1e-6.md`).
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &[1e-6],
-        "the section through the pole",
-        &[
-            "δ 0: the arc through the pole refuses not yet on its azimuth sector",
-            "error: Escalated { check: GeneralLane, sample: 0, cause: Indeterminate { margin: MarginDiag(Value(-2.1396",
-            "band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some(\"pcurve_projected_sector\")",
-        ],
-        a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed_row,
-    );
-}
-
-/// The row [`a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`] runs, under its pin.
-fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed_row() {
+fn a_section_passing_near_a_pole_or_through_it_builds() {
     let c = Vec3::new(2.0, 2.0, 0.5);
     let pair = |d: f64| {
         let s = 0.7 + d;
@@ -566,13 +545,17 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed_row() {
         (ball(1.0, c), ball(1.0, c + lean))
     };
     let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.4);
-    for d in [1e-5, 1e-4, 3e-4] {
+    for d in [0.0, 1e-5, 1e-4, 3e-4] {
         let (a, b) = pair(d);
         let out = run(BooleanOp::Union, &a, &b)
-            .unwrap_or_else(|e| panic!("δ {d}: the near-pole section refused: {e:?}"));
+            .unwrap_or_else(|e| panic!("δ {d}: the section refused: {e:?}"));
         let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
-        assert_solid(&format!("δ {d}"), body, expected);
-        if d < 2e-4 {
+        if d == 0.0 {
+            assert_body(&format!("δ {d}"), body, expected);
+        } else {
+            assert_solid(&format!("δ {d}"), body, expected);
+        }
+        if d > 0.0 && d < 2e-4 {
             let drawn = mesh::tessellate(body, 1e-2, Tol::witness());
             assert!(
                 matches!(
@@ -587,27 +570,6 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed_row() {
             );
         }
     }
-    let (a, b) = pair(0.0);
-    let out = run(BooleanOp::Union, &a, &b);
-    assert!(
-        matches!(
-            &out,
-            Err(topo::BooleanError::Pcurves {
-                source: topo::PcurveMintError::Certify {
-                    error: geom_brep::PcurveCertifyError::NoGeneralLane {
-                        gap: geom_brep::LaneGap::Pose {
-                            channel: geom_brep::SectorChannel::Azimuth,
-                            ..
-                        },
-                        ..
-                    },
-                    ..
-                },
-            })
-        ),
-        "δ 0: the arc through the pole refuses not yet on its azimuth sector (the general \
-         lane's own gap, PCERT E1's P3), got {out:?}"
-    );
 }
 
 /// **The nearest of those sections builds on its own.** The section
@@ -664,7 +626,7 @@ fn a_section_near_a_pole_meshes_at_every_delta() {
 
 /// **A circle 1e-3 from the pole meshes at δ 1e-2 and 4e-2.**
 /// The near-pole pair of
-/// [`a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`]
+/// [`a_section_passing_near_a_pole_or_through_it_builds`]
 /// at `d = 1e-3`: the sphere arm meshes it at both δ, enclosing the body
 /// and wound outward. At 4e-2 a triangle beside the pole stands on three
 /// boundary points, one of its sides joining two points of the circle
