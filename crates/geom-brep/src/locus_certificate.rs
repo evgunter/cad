@@ -15,13 +15,18 @@
 //! is not.
 //!
 //! "The same" is decided here, never on a door's word. A spline carrier
-//! is the same when it is the same allocation (`Arc::ptr_eq`): a door
-//! that keeps an edge's carrier clones the handle, and one that builds
-//! another net, even a bitwise twin, derives again. A closed-form
-//! carrier and every surface compare kind and scalar by scalar through
-//! [`CertifiedEnclosure::same_value`]: bits at a value scalar, the
-//! enclosure and its decoration at `Interval`, the expression node at
-//! `Sym`. The interval and the band compare exactly.
+//! is the same allocation (`Arc::ptr_eq`), the cheap and
+//! common case, since a door that keeps an edge's carrier clones the
+//! handle; failing that, it is the same data, read whole through its
+//! `Debug` form, which prints every field that defines the net (knots,
+//! control points, weights; a periodic loop's data and sense) and none
+//! of the memos derived from them. A closed-form carrier and an
+//! analytic surface compare kind and scalar by scalar through
+//! [`CertifiedEnclosure::same_value`]. Either way a scalar is the same
+//! when it has the same bits at a value scalar, the same enclosure and
+//! decoration at `Interval`, and the same expression node at `Sym`
+//! (whose `Debug` prints the node). The interval and the band compare
+//! exactly.
 //!
 //! Only [`crate::EdgeCurve`]'s certification constructs one, right
 //! after the limbs it records returned on that support; its fields are
@@ -118,12 +123,17 @@ fn same_scalars<T: CertifiedEnclosure>(a: &[T], b: &[T]) -> bool {
     a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.same_value(*y))
 }
 
-/// One carrier: a spline by its allocation, a closed form by kind and
+/// One spline: the same allocation, or the same data.
+fn same_spline<S: core::fmt::Debug>(x: &Arc<S>, y: &Arc<S>) -> bool {
+    Arc::ptr_eq(x, y) || format!("{x:?}") == format!("{y:?}")
+}
+
+/// One carrier: a spline by [`same_spline`], a closed form by kind and
 /// scalars.
 fn same_curve<T: Real + CertifiedEnclosure>(a: &Curve3<T>, b: &Curve3<T>) -> bool {
     match (a, b) {
-        (Curve3::Nurbs(x), Curve3::Nurbs(y)) => Arc::ptr_eq(x, y),
-        (Curve3::Periodic(x), Curve3::Periodic(y)) => Arc::ptr_eq(x, y),
+        (Curve3::Nurbs(x), Curve3::Nurbs(y)) => same_spline(x, y),
+        (Curve3::Periodic(x), Curve3::Periodic(y)) => same_spline(x, y),
         (Curve3::Nurbs(_) | Curve3::Periodic(_), _)
         | (_, Curve3::Nurbs(_) | Curve3::Periodic(_)) => false,
         _ => {
@@ -133,8 +143,9 @@ fn same_curve<T: Real + CertifiedEnclosure>(a: &Curve3<T>, b: &Curve3<T>) -> boo
     }
 }
 
-/// One surface: a spline or approximating one by its allocation, an
-/// analytic one by kind and scalars.
+/// One surface: an analytic one by kind and scalars; a spline or
+/// approximating one, which the limbs never read (they take two
+/// analytic operands), by its allocation alone.
 fn same_surface<T: Real + CertifiedEnclosure>(a: &Surface<T>, b: &Surface<T>) -> bool {
     match (a, b) {
         (Surface::Nurbs(x), Surface::Nurbs(y)) => Arc::ptr_eq(x, y),
