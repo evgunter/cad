@@ -29,6 +29,8 @@
 //! - a plug in the bore of an annulus standing on a plate;
 //! - rods tangent inside one another along a ruling, a rim lying flush
 //!   in the partner's top or floor, at rest and turned;
+//! - a triangle revolved straddling a cylinder's or a cone's wall, and
+//!   a torus's outer or inner equator, its vertex on the circle;
 //! - two equal coaxial cylinders stacked end to end;
 //! - a tube whose rim lies inside one face of a ball;
 //! - a puck and the quarter-disc ring revolved round it.
@@ -1874,6 +1876,50 @@ fn a_closed_edge_in_a_cylinder_or_cone_face_holds_every_op() {
         ("cone", &cone, 13.0 * PI / 6.0, 3.0 * PI / 32.0),
     ] {
         every_op(what, wall, &straddle, (v_wall, PI / 2.0, v_in));
+    }
+}
+
+/// **A closed edge on a torus's equator**: the torus `R = 2, r = 1`
+/// revolved about `y` from two semicircles, so its two faces meet along
+/// the outer and the inner equator, and a triangle revolved about the
+/// same axis straddling the tube, its vertex sweeping one equator. The
+/// straddle's circle is the torus's own edge there, and every op holds
+/// its closed form. By Pappus: the torus `4π²`; the straddle at the
+/// outer equator `3π/2`, holding `π²/3 + √3π/2 − 4π/3` of it; at the
+/// inner `π/2`, holding `π²/3 + √3π/2 − 5π/3`.
+#[test]
+fn a_closed_edge_on_a_torus_equator_holds_every_op() {
+    let revolved = |what: &str, verts: &[(f64, f64, f64)]| {
+        fin(
+            what,
+            revolved_about_y(
+                verts
+                    .iter()
+                    .map(|&(x, y, bulge)| (Point2::new(x, y), bulge))
+                    .collect(),
+                Revolution::Full,
+                tol(),
+            ),
+        )
+    };
+    let torus = revolved("the torus", &[(1.0, 0.0, 1.0), (3.0, 0.0, 1.0)]);
+    let lens = PI * PI / 3.0 + 3f64.sqrt() * PI / 2.0;
+    for (what, verts, v_straddle, v_in) in [
+        (
+            "outer equator",
+            [(3.0, 0.0, 0.0), (3.5, 0.5, 0.0), (2.5, 0.5, 0.0)],
+            1.5 * PI,
+            lens - 4.0 * PI / 3.0,
+        ),
+        (
+            "inner equator",
+            [(1.0, 0.0, 0.0), (1.5, 0.5, 0.0), (0.5, 0.5, 0.0)],
+            PI / 2.0,
+            lens - 5.0 * PI / 3.0,
+        ),
+    ] {
+        let straddle = revolved("the straddle", &verts);
+        every_op(what, &torus, &straddle, (4.0 * PI * PI, v_straddle, v_in));
     }
 }
 
