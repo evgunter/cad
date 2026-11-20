@@ -2,12 +2,13 @@
 id: sphere-region-refuses-null-scaffolding-the-torus-and-ruled-doors-step-over
 kind: issue
 title: The sphere region's gather refuses a face holding null scaffolding, which the torus and ruled gathers step over
-status: review
+status: closed
 priority: P1
 cost: E
 opened: 2026-10-24
 branch: charttail/sphere-scaffolding
 pr: 7169
+closed: 2026-11-20
 ---
 
 ## What
@@ -87,3 +88,7 @@ stays for the loop lift, whose strict reads (`Lift::read`,
 `Lift::read_from`, the public `loop_lift`) pass `Scaffolding::Refused`,
 so the Owed text's "then retire `Scaffolding`" holds for the gather's
 argument only.
+
+## Closed (2026-11-20)
+
+By PR 7169: every region reader steps over a placeholder (`crate::null::is_placeholder`), the sphere's included. `region::boundary` no longer takes a `Scaffolding` argument; the enum stays for the strict public lift. A parted null edge is still a gap and leaves no region. Pinned by `sphere_region`'s five rows, including a placeholder between two faces.
