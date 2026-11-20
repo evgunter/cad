@@ -7431,15 +7431,12 @@ mod frame_dispatch_tests {
             for sign in [1.0_f64, -1.0] {
                 let pinch = p + n * (sign * r);
                 for (name, e) in [("e1", &e1), ("e2", &e2)] {
-                    let geom::Curve3::Ellipse(geom::Ellipse {
-                        frame: carrier_frame,
-                        semi_u,
-                        semi_v,
-                        ..
-                    }) = *e
+                    let geom::Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) =
+                        *e
                     else {
                         panic!("{deg}°, {name}: the section carried a non-ellipse");
                     };
+                    let carrier_frame = the_ellipse.frame();
                     let (center, axis, u_ref) = (
                         carrier_frame.origin(),
                         carrier_frame.axis(),

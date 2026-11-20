@@ -2510,7 +2510,8 @@ mod tests {
             .edges()
             .filter_map(
                 |(_, e)| match body.get_curve_geom(e.curve)?.certified()?.carrier() {
-                    Curve3::Circle(geom::Circle { frame, .. }) => {
+                    Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+                        let frame = the_circle.frame();
                         let axis = frame.axis();
                         Some(axis.to_array())
                     }

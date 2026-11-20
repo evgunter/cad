@@ -2755,7 +2755,7 @@ mod tests {
             let LoopArc::Conic(conic) = LoopArc::of(&edge.carrier, edge.params).unwrap() else {
                 panic!("a meridian is a conic");
             };
-            let frame = *conic.conic().frame();
+            let frame = conic.conic().frame();
             let (centre, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let on = |span| CircleArc {
                 circle: geom::Circle::new(frame, small),
@@ -2792,7 +2792,10 @@ mod tests {
                     misses_in_plane(
                         &piece,
                         &conic,
-                        resolution(&[piece.circle.frame.origin(), conic.conic().frame().origin()]),
+                        resolution(&[
+                            piece.circle.frame().origin(),
+                            conic.conic().frame().origin()
+                        ]),
                         band()
                     )
                     .unwrap(),
@@ -2839,7 +2842,7 @@ mod tests {
             );
             assert!(
                 ((x - conic.conic().frame().origin()).norm() - f.s).abs() < 1e-6 * f.s
-                    && ((x - piece.circle.frame.origin()).norm() - 2.0 * f.s).abs() < 1e-6 * f.s,
+                    && ((x - piece.circle.frame().origin()).norm() - 2.0 * f.s).abs() < 1e-6 * f.s,
                 "the crossing lies on both circles"
             );
             assert!(
@@ -2851,7 +2854,10 @@ mod tests {
                 !misses_in_plane(
                     &piece,
                     &conic,
-                    resolution(&[piece.circle.frame.origin(), conic.conic().frame().origin()]),
+                    resolution(&[
+                        piece.circle.frame().origin(),
+                        conic.conic().frame().origin()
+                    ]),
                     band()
                 )
                 .unwrap(),
@@ -3064,7 +3070,7 @@ mod tests {
                 span: (0.0, 6.0),
             };
             let n = unit(&mut rng);
-            let frame = &piece.circle.frame;
+            let frame = &piece.circle.frame();
             let rho = (n.dot(frame.u_ref()).powi(2) + n.dot(frame.v_ref()).powi(2)).sqrt();
             let w = n.cross(unit(&mut rng)).normalize();
             let gap = rng.range(-2.0, 2.0) * band.escalate();
@@ -3183,7 +3189,7 @@ mod tests {
         let own = geom_brep::carrier_resolution::resolution(&conic.carrier, span.0, span.1)
             .expect("an ellipse has a resolution");
         let points = [
-            piece.circle.frame.origin(),
+            piece.circle.frame().origin(),
             piece.at(span.0),
             piece.at(span.1),
         ];

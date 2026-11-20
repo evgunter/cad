@@ -382,9 +382,10 @@ fn the_apex_rung_refuses_a_root_at_the_apex() {
     let b = band();
     // A circle through the apex at `θ = 0`: `C(0) = c + ρ·û` is the apex.
     let e = circle([0.5, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
-    let geom::Curve3::Circle(geom::Circle { frame, .. }) = e else {
+    let geom::Curve3::Circle(the_circle @ geom::Circle { .. }) = e else {
         unreachable!("a circle")
     };
+    let frame = the_circle.frame();
     let u_ref = frame.u_ref();
     let conic = e.conic().unwrap();
     // `θ` placing `C(θ)` about `shift` metres along the circle from `C(0)`.
@@ -454,9 +455,10 @@ fn a_root_the_slack_meter_cannot_place_refuses() {
     };
     for d in [1e-6, 1e-5] {
         let e = crossing(d);
-        let geom::Curve3::Circle(geom::Circle { frame, .. }) = e else {
+        let geom::Curve3::Circle(the_circle @ geom::Circle { .. }) = e else {
             unreachable!("a circle")
         };
+        let frame = the_circle.frame();
         let center = frame.origin();
         let farthest = (center - Point3::origin()).norm() + rho;
         let slope = 2.0 * alpha.cos().powi(2) * d * alpha.sin() * rho;

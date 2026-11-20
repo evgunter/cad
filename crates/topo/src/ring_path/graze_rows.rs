@@ -376,15 +376,10 @@ fn split_ellipse(
     (dir, jitter): (Vec3<f64>, f64),
     size: f64,
 ) -> [LoopArc<f64>; 2] {
-    let geom::Curve3::Ellipse(geom::Ellipse {
-        frame: carrier_frame,
-        semi_u,
-        semi_v,
-        ..
-    }) = *c
-    else {
+    let geom::Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) = *c else {
         panic!("a tilted section is an ellipse")
     };
+    let carrier_frame = the_ellipse.frame();
     let (center, axis, u_ref) = (
         carrier_frame.origin(),
         carrier_frame.axis(),

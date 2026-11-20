@@ -394,7 +394,8 @@ impl<'a> Writer<'a> {
             // for field, including the seam at `u_ref` (θ = 0) and the
             // right-hand winding about `axis`. Exact, native, no
             // parameter remapping.
-            Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+            Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
+                let frame = the_circle.frame();
                 let placement =
                     self.axis2_placement(&frame, ["circle centre", "circle axis", "circle u_ref"])?;
                 let r = fmt_real(radius, "circle radius")?;
@@ -410,12 +411,8 @@ impl<'a> Writer<'a> {
             // be an equally exact but strictly worse encoding, hiding
             // the axes every reader wants and reparameterizing the
             // curve for nothing.
-            Curve3::Ellipse(geom::Ellipse {
-                frame,
-                semi_u,
-                semi_v,
-                ..
-            }) => {
+            Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
+                let frame = the_ellipse.frame();
                 // STEP's `semi_axis_1` lies along the placement's
                 // reference direction, in either order with `semi_axis_2`.
                 let placement = self.axis2_placement(

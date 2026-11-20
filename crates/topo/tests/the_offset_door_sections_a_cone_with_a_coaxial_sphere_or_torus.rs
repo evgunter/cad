@@ -77,7 +77,7 @@ fn a_cone_and_a_coaxial_torus_derive_their_circle() {
     on_both(&c, &cone, &torus);
     assert!(
         matches!(&c, Curve3::Circle(k) if (k.radius - 0.140625).abs() < 1e-12
-            && (k.frame.origin().y - 0.1875).abs() < 1e-12),
+            && (k.frame().origin().y - 0.1875).abs() < 1e-12),
         "the torus's top parallel, which the cone passes through: {c:?}"
     );
 }

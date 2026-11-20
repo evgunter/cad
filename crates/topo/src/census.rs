@@ -18736,13 +18736,10 @@ mod tests {
             (t0, t1): (f64, f64),
         ) -> (Body<f64>, FaceKey) {
             use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-            let geom::Curve3::Ellipse(geom::Ellipse {
-                frame: carrier_frame,
-                ..
-            }) = carrier
-            else {
+            let geom::Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) = carrier else {
                 panic!("an ellipse carrier")
             };
+            let carrier_frame = the_ellipse.frame();
             let tol = Tol::witness();
             let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
             let mut body = Body::<f64>::new();
@@ -21505,7 +21502,7 @@ mod curved_edge_edge {
                         .and_then(|d| body.get_curve_geom(d.curve))
                         .and_then(|g| g.certified())
                         .is_some_and(|c| {
-                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z == 0.0)
+                            matches!(c.carrier(), Curve3::Circle(circle @ geom::Circle { .. }) if circle.frame().origin().z == 0.0)
                         })
             })
             .expect("the sheet's bottom rim");

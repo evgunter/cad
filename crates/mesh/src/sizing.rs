@@ -603,7 +603,8 @@ pub(crate) fn sphere_face_widest_cos(
     let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
     for (hek, ek, curve) in outer_loop_curves(body, fk)? {
         let (z0, z1) = match *curve.carrier() {
-            geom::Curve3::Circle(geom::Circle { frame, .. }) => {
+            geom::Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+                let frame = the_circle.frame();
                 let cc = frame.origin();
                 let height = |p: geom_core::Point3<f64>| (p - center).dot(axis);
                 let c = height(cc);
