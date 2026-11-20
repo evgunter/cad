@@ -22,8 +22,8 @@ use geom_core::{Bounds, Interval};
 use test_utils::fuzz;
 
 use super::circle_lane_rows::{
-    certifies_projected, cone, cone_coefficient_excess, cylinder, derived, lemma_envelopes,
-    other_charts_within, torus, world, world_dir,
+    certifies_projected, certifies_projected_at, cone, cone_coefficient_excess, cylinder, derived,
+    lemma_envelopes, other_charts_within, torus, world, world_dir,
 };
 use super::harmonic_sup_rows::{band, sampled_residual, zero};
 use super::*;
@@ -214,6 +214,15 @@ fn takes_the_general_lane(
 /// speed `b` the interval meter decides has its orientation within
 /// `b − zero` of the escalation band. A minor semi-axis inside the band
 /// takes the lane too, and ends at the meter, as on every lane.
+///
+/// At ε 1e-12 the needle certifies at `f64` and its `Interval`
+/// certificate escalates `pcurve_envelope`, margin in `(1.0e-12,
+/// 1.05e-12]` (measured 1.023e-12 and 1.029e-12, on either nappe and
+/// span). It has both causes: a stored frame read as its polar enclosure
+/// (decision 1, #7131), and a frame built at Interval from bracket
+/// inputs, a rigid-motion claim (fork 274). Neither mutation alone
+/// certifies it; mutation A with F1 on the bracket path does, and turns
+/// this pin red. It certifies at ε 1e-9 and 1e-6.
 #[test]
 fn an_in_band_cone_section_certifies_through_the_projected_lane() {
     let cone = cone(0.5);
@@ -222,7 +231,8 @@ fn an_in_band_cone_section_certifies_through_the_projected_lane() {
         for span in [(0.3, 2.5), (-1.0, TAU - 1.0)] {
             let what = format!("nappe {sigma}, span {span:?}");
             takes_the_general_lane(&what, &needle, span, &cone, true);
-            certifies_projected(&what, &needle, span, &cone);
+            // Both causes of the frame cost at ε 1e-12 (PR 7131).
+            certifies_projected_at(&what, &needle, span, &cone, Some((1.0e-12, 1.05e-12)));
         }
         let thin = cone_needle(&cone, sigma, 1.2, (0.3, 0.5 * band().escalate(), 0.0), 0.0);
         let (image, image_i) = derived(&thin, (0.3, 2.5), &cone);

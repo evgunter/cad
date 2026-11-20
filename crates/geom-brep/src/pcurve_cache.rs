@@ -13777,6 +13777,8 @@ mod cylinder_line_rows;
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod ellipse_lane_rows;
 #[cfg(test)]
+mod frame_cost;
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod general_climb_rows;
 #[cfg(test)]
