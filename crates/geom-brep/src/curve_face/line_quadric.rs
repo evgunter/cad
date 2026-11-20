@@ -686,7 +686,7 @@ fn line_cone_roots<T: Decide>(
         origin: apex,
         dir: axis,
     } = cone;
-    let escalate = DoorRefusal::Escalated;
+    let refuse = DoorRefusal::Escalated;
     let w0 = origin - apex;
     let dd = dir.norm_squared();
     let at = |t: T| w0 + dir * t;
@@ -695,7 +695,7 @@ fn line_cone_roots<T: Decide>(
     // Unsourced lever: a length read off the parameter span, not the
     // edge's end points; the end points' distance rounds differently.
     let length = geom_core::Lever::unsourced(dir.norm() * (t1 - t0).abs());
-    match decide("line_quadric_cone_apex", Margin::norm3(at(foot)), band).map_err(escalate)? {
+    match decide("line_quadric_cone_apex", Margin::norm3(at(foot)), band).map_err(refuse)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
             // An edge that reaches the apex: the cone's form is
@@ -715,8 +715,7 @@ fn line_cone_roots<T: Decide>(
             // escalation refuses.
             let mut at_apex = foot;
             for end in [t0, t1] {
-                if decide("line_quadric_cone_apex", Margin::norm3(at(end)), band)
-                    .map_err(escalate)?
+                if decide("line_quadric_cone_apex", Margin::norm3(at(end)), band).map_err(refuse)?
                     == Sign::Zero
                 {
                     at_apex = end;
@@ -729,7 +728,7 @@ fn line_cone_roots<T: Decide>(
                 Margin::levered(lead, length),
                 band,
             )
-            .map_err(escalate)?
+            .map_err(refuse)?
                 == Sign::Zero
             {
                 return Ok(Err(Unsettled::Degenerate));
@@ -754,7 +753,7 @@ fn line_cone_roots<T: Decide>(
         Margin::levered(a2 / dd, length),
         band,
     )
-    .map_err(escalate)?
+    .map_err(refuse)?
     {
         Sign::Positive | Sign::Negative => {}
         Sign::Zero => return Ok(Err(Unsettled::Degenerate)),
@@ -767,7 +766,7 @@ fn line_cone_roots<T: Decide>(
         Margin::of(disc / (a2.abs() * reach)),
         band,
     )
-    .map_err(escalate)?
+    .map_err(refuse)?
     {
         Sign::Positive => {}
         Sign::Zero => return Ok(Err(Unsettled::Tangency)),
