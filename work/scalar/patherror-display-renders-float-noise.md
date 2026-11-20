@@ -8,6 +8,8 @@ refs: [1267]
 priority: P1
 cost: M
 design: true
+pr: 7154
+branch: scalar/told-quantity
 ---
 
 ## From GitHub issue 1282
