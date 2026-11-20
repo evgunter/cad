@@ -15,15 +15,17 @@ promotion: the patch stays NURBS and imports as it did before.
 ## A cone patch reaching its apex
 
 `geom_brep::patch_distance_sup` (`crates/geom-brep/src/patch_carrier.rs`)
-converts the cone's `|f|` to metres through `Meters::certified`
-(`pcurve_cache/projected.rs`), whose lever is `ρ cos α + z sin α` over the
-cell's control box. On a cell holding the apex the lever's lower bound is
-zero, so the cell reads the apex root `√|f|`. On exact geometry `|f|` is
+converts the cone's `|f|` to metres through `Meters::part_bound`
+(`pcurve_cache/projected.rs`) read against the DOUBLE cone: the lesser of
+the generator-lever reading (`|f|` over `ρ cos α + z sin α`) and the apex
+root `√|f|`. On the cell holding the apex the lever's lower bound is zero,
+so that cell reads the root alone. On exact geometry `|f|` there is
 rounding-width, about `1e-16·L²`, so the root is about `1e-8·L`: a
-metre-scale cone that runs to its apex (a cone cap, a countersink to its
-point) does not certify at ε_in = 1e-9 or finer. Refining the apex cell (a
-sub-cell whose box keeps off the apex reads the lever) or a bound in which
-`|f|/|Q|` stays finite at the apex would close it.
+unit-scale cone that runs to its apex promotes at ε_in = 1e-6
+(`recognize.rs` P14) and stays NURBS at 1e-9 and finer. Refining the apex
+cell (sub-cells whose box keeps off the apex read the lever, and the root
+over a shrinking cell shrinks with it), or a bound in which `|f|/|Q|`
+stays finite at the apex, would close the fine rows.
 
 ## A torus with `R < 2r` sampled near its inner equator
 

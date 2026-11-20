@@ -8,13 +8,12 @@
 //! * the QUASI_UNIFORM vocabulary reads the SAME surface as the
 //!   stated-knots form (bit-identical import — the knot synthesis is
 //!   the committed corpus's own `[0,1]` clamped shape);
-//! * the cylinder track under the honest between-samples envelope
-//!   (R1 M-1): even an EXACT cylinder patch stays NURBS — the
-//!   first-order envelope's slack is patch-scale — and the resulting
-//!   mixed promoted/stays-NURBS body now imports FIRST-CLASS, its
-//!   wall–wall seam carrying a certified plane × NURBS intersection
-//!   (M7-8 retired the seam-orphan refusal class; the flip and its
-//!   planted falsifier are pinned here);
+//! * the cylinder track: an EXACT cylinder patch promotes (the straight
+//!   arc prism's arc wall), and a mixed promoted/stays-NURBS body — the
+//!   arc prism lofted through an offset place, whose rational arc wall
+//!   no kind is — imports FIRST-CLASS, its cap rims carrying a certified
+//!   plane × NURBS intersection (M7-8 retired the seam-orphan refusal
+//!   class; the planted falsifier is pinned here);
 //! * the ill-conditioned-estimator typed row: D7's
 //!   `RecognitionAmbiguous` fires exactly where promotion was the
 //!   face's only door AND the estimator cannot answer at ε_in;
@@ -167,6 +166,33 @@ fn straight_arc_prism() -> topo::Body<f64> {
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the straight arc prism builds")
+        .body
+        .into_body()
+}
+
+/// The arc prism lofted through a middle place offset `+x`: its arc wall
+/// is a rational surface bowed along the loft — an arc across, a
+/// parabola along — which no analytic kind is, so it stays NURBS, and
+/// its `y = ±1` walls stay exactly planar and promote. The straight arc
+/// prism's arc wall is an exact cylinder, which promotes.
+fn offset_arc_prism() -> topo::Body<f64> {
+    let arc_section = || -> sweep::Section {
+        let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+        vec![bulge_loop(vec![
+            v(-1.0, -1.0, 0.0),
+            v(1.0, -1.0, 0.4142135623730951),
+            v(1.0, 1.0, 0.0),
+            v(-1.0, 1.0, 0.0),
+        ])]
+    };
+    let sections = vec![arc_section(), arc_section(), arc_section()];
+    let places = vec![
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
+    ];
+    sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
+        .expect("the offset arc prism builds")
         .body
         .into_body()
 }
@@ -377,43 +403,50 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     }
 }
 
-/// **The RATIONAL mixed body, first-class end to end** — the cylinder
-/// track under the honest envelope, and the seam it produces.
+/// **The straight arc prism's arc wall is an exact cylinder, and it
+/// promotes**: the import keeps no spline wall, and the wall is a
+/// [`geom::Surface::Cylinder`] of the section's radius.
+#[test]
+fn the_straight_arc_prisms_arc_wall_promotes_to_a_cylinder() {
+    let text = step_export::step_string(
+        &crate::common::at_rest(&straight_arc_prism()),
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the arc prism exports");
+    let (body, promos) = solid(&text, "straight_arc_prism");
+    assert!(
+        promos.iter().any(|&(_, k, _)| k == PromotedKind::Cylinder),
+        "the arc wall promotes to a cylinder: {promos:?}"
+    );
+    assert!(
+        body.surfaces()
+            .all(|(_, s)| !matches!(s, geom::Surface::Nurbs(n) if !n.is_placeholder())),
+        "no spline wall is left"
+    );
+}
+
+/// **The RATIONAL mixed body, first-class end to end.**
 ///
-/// The exact-cylinder rational wall's grid residual is the
-/// extrusion's own rounding (~1e-16), but the certificate is the
-/// grid PLUS the first-order between-samples envelope, whose slack is
-/// patch-scale over the sample count (~1e-1 m here) — orders of
-/// magnitude past any real ε_in. So the wall honestly STAYS NURBS:
-/// under the derivative-hull envelope NO cylinder patch certifies at
-/// fine ε, exact geometry included (the algebraic spline-product hull
-/// certificate that would restore the cylinder track is banked).
-///
-/// That is what puts the UNPERTURBED body on the intrinsic rung: the
-/// three exactly-planar walls promote and the arc wall stays NURBS.
-/// Both arc-wall seams carry the wall's boundary columns in their
-/// bits: the skin's `segment_curve` places the first column at the
-/// vertex the section stores and the last at `eval(1)`, the start
-/// turned through the stored sweep, never at a point re-derived from a
-/// radius. `eval(1)` is the stored end vertex bit for bit in THIS
-/// fixture, not on every chord, so here each seam's carrier IS the
-/// wall's boundary column and the bitwise `IsoCurve` rung answers. Declare-and-check is not reached on this body; the planted
-/// falsifier below forces it by moving the file's carrier off the
-/// column.
+/// The arc prism lofted through a middle place offset `+x`
+/// ([`offset_arc_prism`]): its arc wall is rational and bowed, no
+/// analytic kind, so it stays NURBS, while its `y = ±1` walls are exactly
+/// planar and promote (the straight prism's arc wall is a cylinder,
+/// which promotes: the row above). Both arc-wall seams carry the wall's
+/// boundary columns in their bits: the skin's `segment_curve` places the
+/// first column at the vertex the section stores and the last at
+/// `eval(1)`, so each seam's carrier IS the wall's boundary column and
+/// the bitwise `IsoCurve` rung answers. The bowed walls' cap rims are no
+/// iso row a cap states, so they take the certified plane × NURBS
+/// intersection.
 ///
 /// The RATIONAL wall completes the picture the integral twin starts:
-/// its arc rims chart through the rational-quadratic iso image and its
-/// seams through the boundary-column one, so the whole mixed body
-/// imports first-class — rational patch flux and all.
-///
-/// **First-class at every ε row, ε-fine included.** No envelope sits
-/// between the seam and its chart, so nothing here has a bound for ε
-/// to undercut. Two postures remain and both are pinned: at a coarse
-/// ε_in the straight corner carriers also promote to LINE (#388), and
-/// the fixed schedule's quadrature-budget frontier.
+/// its arc rims and its seams chart, so the whole mixed body imports
+/// first-class — rational patch flux and all — or, at the fixed
+/// schedule's quadrature-budget frontier, refuses typed at the wall.
 #[test]
 fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
-    let native = straight_arc_prism();
+    let native = offset_arc_prism();
     let text = step_export::step_string(
         &crate::common::at_rest(&native),
         &step_export::StepOptions::default(),
@@ -423,56 +456,50 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
     let eps = geom_core::Tol::witness().get().eps;
 
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
-        // **First-class, end to end, at every ε.** The three
-        // exactly-planar walls promote, the arc wall stays NURBS under
-        // the honest envelope, every face charts, and both arc-wall
-        // seams take the bitwise `IsoCurve` rung: no seam is left for
-        // declare-and-check. At a coarser ε_in the straight corner
-        // carriers additionally promote to LINE (#388 — their Greville
-        // map fold is ~1.3e-7 at unit scale, between the two bands);
-        // the seams chart the same way either side of it.
-        Ok(imported @ StepImport::Solid { .. }) => {
-            let curve_promotions = imported.curve_promotions();
-            let StepImport::Solid { body, .. } = imported else {
-                unreachable!("matched as a solid")
-            };
+        // **First-class, end to end.** The two exactly-planar walls
+        // promote, the arc wall stays NURBS, every face charts, and both
+        // arc-wall seams take the bitwise `IsoCurve` rung: no seam is
+        // left for declare-and-check.
+        Ok(StepImport::Solid { body, .. }) => {
             topo::validate_geometric(&*body, Tol::witness())
                 .expect("first-class at rest: the rational wall's flux reaches its target");
+            // The bowed walls' cap rims are no iso row of a cap, so they
+            // take the plane × NURBS intersection; no seam does.
             let taken = plane_nurbs_intersections(&body);
-            assert!(
-                taken.is_empty(),
-                "both seams are the arc wall's own columns, bit for bit; the \
-                 declare-and-check rung has no takers, seam or cap rim: {taken:?}"
-            );
-            let line_promotions: Vec<_> = curve_promotions
+            let seams: Vec<_> = taken
                 .iter()
-                .filter(|p| p.kind == step_import::PromotedCurveKind::Line)
+                .filter(|(_, plane, _)| match plane {
+                    geom::Surface::Plane { normal, .. } => normal.z.abs() < 0.5,
+                    _ => true,
+                })
                 .collect();
-            if !line_promotions.is_empty() {
-                assert_eq!(
-                    line_promotions.len(),
-                    4,
-                    "the four straight corner carriers promote: {line_promotions:?}"
-                );
-                for p in &line_promotions {
-                    assert!(
-                        p.residual <= eps && p.residual > 1e-9,
-                        "the corner promotion is the coarse band's own fold: {:e}",
-                        p.residual
-                    );
+            assert!(
+                seams.is_empty(),
+                "both seams are the arc wall's own columns, bit for bit; the \
+                 declare-and-check rung has no seam takers: {seams:?}"
+            );
+            // The arc wall is the rational one; the bowed `x = −1`
+            // wall is integral.
+            let rational = |s: &geom::Surface<f64>| match s {
+                geom::Surface::Nurbs(n) if !n.is_placeholder() && n.constant_weight().is_none() => {
+                    Some((**n).clone())
                 }
-            }
+                _ => None,
+            };
             let wall = body
                 .surfaces()
-                .find_map(|(_, s)| match s {
-                    geom::Surface::Nurbs(n) if !n.is_placeholder() => Some((**n).clone()),
-                    _ => None,
-                })
+                .find_map(|(_, s)| rational(s))
                 .expect("the arc wall stays NURBS at every band");
             let (du0, du1) = wall.knots_u_f64_interim().domain();
             let images: Vec<_> = body
                 .edges()
                 .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+                .filter(|&he| {
+                    body.face_of_half_edge(he)
+                        .and_then(|f| body.face_surface(f))
+                        .and_then(rational)
+                        .is_some()
+                })
                 .filter_map(|he| body.pcurve(he).map(|c| c.pcurve().clone()))
                 .filter_map(|p| match p {
                     topo::Pcurve::IsoLine { p0, pl, .. } if pl.x == 0.0 => Some(p0),
@@ -491,11 +518,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                     p0.x
                 );
             }
-            println!(
-                "M8-4 seams @ eps={eps:e}: {} LINE corners; both seams charted on their \
-                 boundary columns",
-                line_promotions.len()
-            );
+            println!("M8-4 seams @ eps={eps:e}: both seams charted on their boundary columns");
         }
         // The honest frontier: where the seam certifies but the
         // rational wall's sign is still open at its work wall, check 7

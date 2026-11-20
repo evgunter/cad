@@ -1008,11 +1008,7 @@ fn join(
             // A later join may kill this one's kept edge (a chain of
             // joins along one carrier): the record is keyed by the edge
             // that survives them all.
-            let survivor =
-                joins[i + 1..].iter().fold(
-                    j.kept,
-                    |e, later| if later.gone == e { later.kept } else { e },
-                );
+            let survivor = topo::joined_edge(&joins[i + 1..], j.kept);
             let face = body
                 .get_edge(survivor)
                 .into_iter()

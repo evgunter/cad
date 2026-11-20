@@ -417,9 +417,9 @@ fn faces_where(body: &topo::AtRestBody<f64>, kind: impl Fn(&geom::Surface<f64>) 
 }
 
 /// `body` measured under a resolution of 1.024e-6 m: the bracket holds
-/// Pappus's `pappus` to within `moved` — what the import moved the walls
-/// by, as a volume — and the oracle's own `f64` rounding, and every face
-/// meets the resolution.
+/// Pappus's `pappus` to within `moved` — the most the import may move the
+/// walls by, as a volume — and the oracle's own `f64` rounding, and every
+/// face meets the resolution.
 fn measures_pappus(body: &topo::AtRestBody<f64>, pappus: f64, moved: f64, what: &str, tol: Tol) {
     let measured = body
         .measure(topo::Settle::Resolution(Length::from_meters(1.024e-6)))
@@ -448,7 +448,8 @@ fn measures_pappus(body: &topo::AtRestBody<f64>, pappus: f64, moved: f64, what: 
 }
 
 /// **The conic quarter torus imports with two torus walls, promoted on
-/// the whole patch, and its bracket holds Pappus**, at every ε: each
+/// the whole patch, and its bracket holds Pappus**, at the run's ε (each
+/// eps row CI runs, `CAD_TOLERANCE_EPS`): each
 /// wall's 81 conic spans become one analytic face, which the C⁰-knot
 /// split never cuts, and each promotion is reported with the certified
 /// residual it moved the geometry by, within ε_in.
@@ -495,10 +496,11 @@ fn the_conic_quarter_torus_imports_as_two_torus_walls_holding_pappus() {
             imported.eps_in()
         );
     }
-    // The promoted walls lie within the certified residual of the
-    // file's, so the volume moves by at most that times the walls' area,
-    // `(2πr)(2πR)/4` on the quarter torus.
-    let moved = promoted.iter().copied().fold(0.0, f64::max) * PI * PI * MINOR * R;
+    // D7 lets the import move the walls by at most ε_in, so the volume
+    // moves by at most ε_in times the walls' area, `(2πr)(2πR)/4` on the
+    // quarter torus — a cap fixed by the file's band, not by the residual
+    // the promotion reports.
+    let moved = imported.eps_in() * PI * PI * MINOR * R;
     measures_pappus(
         &body,
         PI * MINOR * MINOR * R * FRAC_PI_2,
@@ -509,7 +511,8 @@ fn the_conic_quarter_torus_imports_as_two_torus_walls_holding_pappus() {
 }
 
 /// **The conic quarter elliptic tube answers a bracket at the wall that
-/// holds Pappus** under a resolution of 1.024e-6 m, at every ε: no kind
+/// holds Pappus** under a resolution of 1.024e-6 m, at the run's ε (each
+/// eps row CI runs, `CAD_TOLERANCE_EPS`): no kind
 /// promotes it, so the import splits each wall at its C⁰ knots, and every
 /// one-span wall meets the resolution.
 #[test]

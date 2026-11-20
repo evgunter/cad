@@ -2,11 +2,12 @@
 id: surface-promotion-claims-a-certificate-from-a-round-to-nearest-bound
 kind: issue
 title: recognize's whole-patch surface promotion calls its f64 residual bound a certificate, but sums it in round-to-nearest throughout; should it re-check at Interval?
-status: open
+status: closed
 opened: 2026-10-14
 priority: P3
 cost: M
 refs: [curve-recognition-roots-its-certified-sups-to-nearest]
+closed: 2026-11-20
 ---
 
 Found by PCERT while closing `nurbs-stretch-bounds-round-to-nearest`. It
@@ -63,3 +64,11 @@ plane arm's control-net hull, `geom::plane_offset(...).abs()` folded with
 the same door (`CanonicalSurface::Plane`), which would make every surface
 certificate one mechanism; that arm is being reworked by unit C
 (`exch/plane-normal-witness`), so it was left to land on it.
+
+## Closed (EXCH, whole-patch promotion, 2026-11-20)
+
+The plane arm moved onto the same door in the fix pass of the same PR:
+`try_plane` reads `geom_brep::patch_distance_sup` through
+`CanonicalSurface::Plane`, so every surface certificate is the one
+interval-arithmetic bound, its reading the upper end of an enclosure. The
+f64 control-net hull is gone.
