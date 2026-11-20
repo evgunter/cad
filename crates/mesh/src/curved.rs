@@ -180,6 +180,16 @@ use crate::walk::{Chart, UvPoint, gap_is_noise, loop_polygon};
 pub(crate) const RINGED_FACE_ROUTED_HERE: &str =
     "a ringed face reached the curved lane, which reads the outer loop only (router defect)";
 
+/// What [`tessellate_curved`] refuses a face with whose outer loop passes
+/// one point record at two vertices ([`crate::walk::pinches`]): the walk
+/// places junctions by position, and cannot put two copies of one point
+/// on two sides of a slit. Such a face is the trimmed lane's
+/// (`tessellate::route_of`'s pinch fact), and one here is the router's
+/// defect.
+pub(crate) const PINCHED_FACE_ROUTED_HERE: &str = "a face whose outer loop passes one point at \
+     two vertices reached the curved lane, whose walk places junctions by position (router \
+     defect)";
+
 /// What [`tessellate_curved`] refuses a ruled face with when a chord
 /// point lies inside one of its straight sides, as
 /// [`TessellateError::UnsupportedCurve`] on that side's edge. A vertex
@@ -217,6 +227,11 @@ pub(crate) fn tessellate_curved(
     if !face.rings.is_empty() {
         return Err(TessellateError::MissingEntity {
             what: RINGED_FACE_ROUTED_HERE,
+        });
+    }
+    if crate::walk::pinches(body, face.outer, fk)? {
+        return Err(TessellateError::MissingEntity {
+            what: PINCHED_FACE_ROUTED_HERE,
         });
     }
     // Questions 1 and 2 (module docs) are the route's: a face reaches
@@ -1173,7 +1188,7 @@ mod tests {
     /// chord point inside a ruling (a spline neighbour's lattice would), so
     /// the call is made by hand, on a cylinder wall whose seam is split:
     /// the route sends that face to the trimmed lane
-    /// (`tessellate::route_of`'s fifth fact), dropping the doors'
+    /// (`tessellate::route_of`'s `walk::splits_a_straight_side` fact), dropping the doors'
     /// [`Rectangle`] unspent, and the row spends it here, its split vertex
     /// standing in for the chord point. Without the refusal the lane
     /// meshes the face on its ruled arm's `(nu, 1)` grid.
@@ -1309,6 +1324,141 @@ mod tests {
                 Err(TessellateError::MissingEntity { what }) if what == RINGED_FACE_ROUTED_HERE
             ),
             "a ringed face refuses at the curved lane's door"
+        );
+    }
+
+    /// **A pinched face handed to this lane refuses as the router's
+    /// defect.** The block `[−2, 4] × [−2, 2] × [0, 4]` with a full bore of
+    /// radius 1 about z, built as the union of its two sides of a slit
+    /// along the bore's ruling through `(1, 0)`: the bore's face is one
+    /// full-turn wall whose seam is the slit's two edges, its outer loop
+    /// passing each end of the slit at two vertices on one point record.
+    /// The doors certify it a rectangle, and `tessellate::route_of` sends
+    /// it to the trimmed lane on its pinch; called here anyway, the lane
+    /// refuses before its walk, which cannot place the two copies of one
+    /// point on the slit's two sides.
+    #[test]
+    fn a_pinched_face_here_refuses_as_a_routing_defect() {
+        let tol = Tol::witness();
+        let prism = |pts: &[(f64, f64)]| {
+            sweep::test_support::finished(
+                "a prism",
+                sweep::test_support::extruded(
+                    SketchPlane::xy_at(Point3::new(0.0, 0.0, -1.0)),
+                    vec![ProfileLoop::polygon(
+                        pts.iter()
+                            .map(|&(x, y)| Point2::new(x, y))
+                            .collect::<Vec<_>>(),
+                    )],
+                    6.0,
+                    tol,
+                ),
+                tol,
+            )
+        };
+        let block = sweep::test_support::finished(
+            "the bored block",
+            sweep::test_support::extruded(
+                SketchPlane::xy(),
+                vec![
+                    ProfileLoop::polygon([
+                        Point2::new(-2.0, -2.0),
+                        Point2::new(4.0, -2.0),
+                        Point2::new(4.0, 2.0),
+                        Point2::new(-2.0, 2.0),
+                    ]),
+                    bulge_loop(vec![
+                        (Point2::new(-1.0, 0.0), 1.0),
+                        (Point2::new(1.0, 0.0), 1.0),
+                    ]),
+                ],
+                4.0,
+                tol,
+            ),
+            tol,
+        );
+        let side = |tool: &[(f64, f64)]| {
+            topo::intersect(&block, &prism(tool), tol)
+                .unwrap()
+                .body()
+                .expect("a side")
+                .body
+                .clone()
+        };
+        let body = topo::union(
+            &side(&[
+                (1.0, 0.0),
+                (3.0, 1.0),
+                (3.0, -5.0),
+                (5.0, -5.0),
+                (5.0, 5.0),
+                (-5.0, 5.0),
+                (-5.0, 0.0),
+            ]),
+            &side(&[
+                (1.0, 0.0),
+                (-5.0, 0.0),
+                (-5.0, -5.0),
+                (3.0, -5.0),
+                (3.0, -1.0),
+            ]),
+            tol,
+        )
+        .unwrap()
+        .body()
+        .expect("the two sides")
+        .body
+        .clone()
+        .into_body();
+        let sizing = crate::sizing::tests::witness_tols(0.05);
+        let mut positions = Vec::new();
+        let mut vids = HashMap::new();
+        for (vk, p) in body.vertex_points() {
+            #[allow(clippy::cast_possible_truncation)]
+            vids.insert(vk, positions.len() as u32);
+            positions.push(p);
+        }
+        let routes = crate::tessellate::Routes::witness(&body);
+        let chords = crate::chords::compute_chords(
+            &body,
+            sizing.delta,
+            &routes,
+            &vids,
+            &mut positions,
+            &mut crate::nurbs_cert::FaceBounds::new(),
+        )
+        .unwrap();
+        let (fk, surface) = body
+            .faces()
+            .find(|&(fk, _)| matches!(body.face_surface(fk), Some(Surface::Cylinder { .. })))
+            .and_then(|(fk, _)| Some((fk, body.face_surface(fk)?)))
+            .expect("the bore");
+        let outer = body.get_face(fk).unwrap().outer;
+        assert!(
+            crate::walk::pinches(&body, outer, fk).unwrap(),
+            "the bore's loop passes the slit's ends twice"
+        );
+        let Ok(Shape::Rectangle(rectangle)) =
+            iso_rectangle_shape(&body, fk, outer, surface, sizing.band)
+        else {
+            panic!("the doors certify the full-turn wall a rectangle");
+        };
+        let answer = tessellate_curved(
+            &body,
+            fk,
+            surface,
+            rectangle,
+            &chords.ids,
+            &positions,
+            &sizing,
+        );
+        assert!(
+            matches!(
+                answer,
+                Err(TessellateError::MissingEntity { what }) if what == PINCHED_FACE_ROUTED_HERE
+            ),
+            "a pinched face refuses at the curved lane's door: {:?}",
+            answer.map(|p| p.triangles.len())
         );
     }
 

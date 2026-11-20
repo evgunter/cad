@@ -448,3 +448,74 @@ fn the_slit_block_meshes() {
     mesh::validate::check_volume(&m, whole(), props.enclosure.surface_area, delta)
         .expect("the mesh holds the body's volume");
 }
+
+/// **A slit run the full height of a full bore meshes.** The block
+/// `[−2, 4] × [−2, 2] × [0, 4]` with a full bore of radius 1 about z, as
+/// the union of its two sides of a slit along the bore's ruling through
+/// `(1, 0)`: the bore is one full-turn wall whose seam is the slit's two
+/// edges, its loop passing each end of the slit at two vertices on one
+/// point record. It has no tip, and its domain is an iso rectangle; the
+/// pinch alone routes it to the chart lane.
+#[test]
+fn a_full_height_slit_in_a_full_bore_meshes() {
+    let block = finished(
+        "the bored block",
+        extruded(
+            SketchPlane::xy(),
+            vec![
+                polygon(&[(-2.0, -2.0), (4.0, -2.0), (4.0, 2.0), (-2.0, 2.0)]),
+                bulge_loop(vec![
+                    (Point2::new(-1.0, 0.0), 1.0),
+                    (Point2::new(1.0, 0.0), 1.0),
+                ]),
+            ],
+            4.0,
+            tol(),
+        ),
+        tol(),
+    );
+    let upper = prism(
+        &[
+            (1.0, 0.0),
+            (3.0, 1.0),
+            (3.0, -5.0),
+            (5.0, -5.0),
+            (5.0, 5.0),
+            (-5.0, 5.0),
+            (-5.0, 0.0),
+        ],
+        -1.0,
+        6.0,
+    );
+    let lower = prism(
+        &[
+            (1.0, 0.0),
+            (-5.0, 0.0),
+            (-5.0, -5.0),
+            (3.0, -5.0),
+            (3.0, -1.0),
+        ],
+        -1.0,
+        6.0,
+    );
+    let body = body_of(
+        union(
+            &body_of(intersect(&block, &upper, tol()), "the upper side"),
+            &body_of(intersect(&block, &lower, tol()), "the lower side"),
+            tol(),
+        ),
+        "the two sides",
+    );
+    let delta = 5e-3;
+    let m = mesh::tessellate(&body, delta, tol()).expect("the full-height slit meshes");
+    mesh::validate::check_mesh(&m).expect("the mesh closes");
+    let props = topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
+        .expect("the bored block's props");
+    mesh::validate::check_volume(
+        &m,
+        96.0 - 4.0 * PI - 8.0,
+        props.enclosure.surface_area,
+        delta,
+    )
+    .expect("the mesh holds the body's volume");
+}
