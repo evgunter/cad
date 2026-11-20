@@ -41,8 +41,10 @@
 //! distance in metres where the faces are, an angle levered at their
 //! reach ([`gap`]). Read at the file's band ([`STEP_SNAP_RELATION`]),
 //! `Zero` is a relation; at the run's band, `Zero` is a relation already
-//! exact. A reading in the file's band is no relation here: the build
-//! reads that pair and refuses it as the file's ambiguity.
+//! exact. A pair no candidate reads `Zero` and one reads in the file's
+//! band refuses here as the file's ambiguity (D7): a snap is a
+//! structural act, so in band it refuses on its own reading, whatever
+//! the build would read of the pair.
 //!
 //! **One construction per class.** The relations form a graph over the
 //! surfaces; a connected class all of whose relations are already exact
@@ -151,7 +153,7 @@ pub(crate) fn snap(
         what: "the run's tolerance makes no band to build at",
     })?;
     let mut nodes = nodes(solid, records);
-    let relations = relations(solid, &nodes, file, run);
+    let relations = relations(solid, &nodes, file, run)?;
     for class in classes(nodes.len(), &relations) {
         if class.iter().all(|&r| relations[r].exact) {
             continue;
@@ -245,13 +247,14 @@ fn node_of(nodes: &[Node], faces: usize) -> Vec<usize> {
 }
 
 /// The relations the file band reads `Zero` between the two faces of each
-/// edge.
+/// edge; a pair one reads in the band, and none `Zero`, refuses (module
+/// docs).
 fn relations(
     solid: &SolidSpec,
     nodes: &[Node],
     file: FileBand,
     run: geom_core::Band,
-) -> Vec<Relation> {
+) -> Result<Vec<Relation>, StepImportError> {
     let of = node_of(nodes, solid.faces.len());
     let mut sides: BTreeMap<u64, Vec<usize>> = BTreeMap::new();
     for (fi, face) in solid.faces.iter().enumerate() {
@@ -272,10 +275,18 @@ fn relations(
             continue;
         };
         let (sa, sb) = (&nodes[na].surface, &nodes[nb].surface);
+        let mut in_band = None;
+        let mut read = false;
         for (kind, pair) in candidates(sa, sb, (na, nb)) {
             let (s1, s2) = (&nodes[pair.0].surface, &nodes[pair.1].surface);
             let g = gap(kind, s1, s2, &reach);
-            if file.read(STEP_SNAP_RELATION, g) == Read::Zero {
+            let reading = file.read(STEP_SNAP_RELATION, g);
+            if reading == Read::InBand && in_band.is_none() {
+                let later = nodes[pair.0].record.max(nodes[pair.1].record);
+                in_band = Some((later.id, g));
+            }
+            if reading == Read::Zero {
+                read = true;
                 let exact = run_zero(run, g);
                 // One relation per pair, over every edge it is read along:
                 // exact only where it is along each, over the widest reach.
@@ -297,8 +308,11 @@ fn relations(
                 break;
             }
         }
+        if let (false, Some((id, g))) = (read, in_band) {
+            return Err(file.refused(id, file.ambiguous(STEP_SNAP_RELATION, g)));
+        }
     }
-    found
+    Ok(found)
 }
 
 /// The catalogue relations a pair of surfaces can stand in, each with the

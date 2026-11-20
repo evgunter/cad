@@ -126,6 +126,8 @@ mod a_plane_holding_a_conic_tangent_at_a_vertex;
 mod a_plane_moved_to_a_cone_apex;
 #[path = "a_plane_through_a_cones_apex.rs"]
 mod a_plane_through_a_cones_apex;
+#[path = "a_plane_through_a_pole_cuts_a_cap.rs"]
+mod a_plane_through_a_pole_cuts_a_cap;
 #[path = "a_point_past_a_spline_solids_reach.rs"]
 mod a_point_past_a_spline_solids_reach;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
@@ -1402,6 +1404,8 @@ mod a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses;
 mod a_mirrored_body_is_its_image;
 #[path = "a_moved_body_keeps_its_verdict.rs"]
 mod a_moved_body_keeps_its_verdict;
+#[path = "a_near_right_angle_drum_pair.rs"]
+mod a_near_right_angle_drum_pair;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]
