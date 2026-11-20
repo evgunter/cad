@@ -58,13 +58,15 @@
 //!
 //! **The stretch** is `Γ` inside the carrier's control hulls padded by
 //! `T`: each span the edge's interval meets has its Bernstein net read
-//! off its homogeneous coefficients by the blossom and is cut into
-//! pieces by de Casteljau splits, in certification arithmetic, and a
-//! piece lies in the box of its Cartesian control points, so a point of
+//! off its homogeneous coefficients by the blossom and, where its box
+//! could set a floor, is cut into pieces by de Casteljau splits, in
+//! certification arithmetic, and a span or a piece lies in the box of
+//! its Cartesian control points, so a point of
 //! the carrier and its nearest point on `Γ_c` within `T` both lie in one
-//! of the padded boxes. Each floor is the least over the boxes. **The one point within `T`** is the
-//! carrier's point at an interior parameter, enclosed by evaluating the
-//! carrier in certification arithmetic, beside which Poincaré–Miranda
+//! of the padded boxes. Each floor is the least over the boxes. **The
+//! one point within `T`** is the carrier's point at an interior
+//! parameter, enclosed by evaluating the carrier in certification
+//! arithmetic, beside which Poincaré–Miranda
 //! finds a common zero of `Q₁` and `Q₂` on a square whose sides are
 //! preconditioned by the two gradients: `Qᵢ` takes opposite certified
 //! signs on its two opposite sides (each side's value enclosed by `Qᵢ`'s
@@ -185,32 +187,55 @@ pub fn tube_bounds<T: CertifiedBounds>(
         (q, p @ Quadric::Plane { .. }) if !matches!(q, Quadric::Plane { .. }) => (p, q),
         ab => ab,
     };
-    if !classified(a, b) {
+    if !classified(a, b, pair) {
         return Err(pair);
     }
     let eps = band.zero();
-    let hulls = control_hulls(carrier, params).ok_or(Unstated::Pose(
-        "the carrier's control hull over the edge's interval is not certified",
-    ))?;
+    let unread =
+        Unstated::Pose("the carrier's control hull over the edge's interval is not certified");
+    let spans = control_hulls(carrier, params).ok_or(unread)?;
     // The stretch is the section inside the hulls padded by `T = 16ε/s`,
     // and `s` is the floor over that stretch, so the pad is fixed first:
     // the floor `s₀` over the bare hulls pads them by `32ε/s₀`, and the
     // floor `s` over those padded boxes fits `T` inside the pad exactly
     // when `16ε/s ≤ 32ε/s₀`, that is `s ≥ s₀/2`.
+    //
+    // Each span is read whole, and cut into its pieces only where its
+    // whole box could lower the floors read so far or states none. A span
+    // left whole is read at its whole box, which holds it, so the floors
+    // stay floors; and that box's floors bound its pieces' from below
+    // (the pieces lie in it, up to the splits' rounding), so the floors
+    // are those of every span cut. The spans are read least first, so
+    // that few are cut.
     let over = |pad: f64| -> Result<Floors, Unstated> {
-        hulls.iter().try_fold(
-            Floors {
-                sin: f64::INFINITY,
-                m: [f64::INFINITY; 2],
-            },
-            |acc, h| {
-                let f = floors(a, b, h.pad(pad), pair)?;
-                Ok(Floors {
-                    sin: acc.sin.min(f.sin),
-                    m: [acc.m[0].min(f.m[0]), acc.m[1].min(f.m[1])],
-                })
-            },
-        )
+        let whole: Vec<Result<Floors, Unstated>> = spans
+            .iter()
+            .map(|span| floors(a, b, span.whole.pad(pad), pair))
+            .collect();
+        let mut order: Vec<usize> = (0..spans.len()).collect();
+        order.sort_by(|&i, &j| {
+            let least =
+                |f: &Result<Floors, Unstated>| f.as_ref().map_or(f64::NEG_INFINITY, |f| f.sin);
+            least(&whole[i]).total_cmp(&least(&whole[j]))
+        });
+        let mut least = Floors {
+            sin: f64::INFINITY,
+            m: [f64::INFINITY; 2],
+        };
+        for i in order {
+            let read = match whole[i] {
+                Ok(f) if !f.below(&least) => f,
+                _ => spans[i].pieces().ok_or(unread)?.iter().try_fold(
+                    Floors {
+                        sin: f64::INFINITY,
+                        m: [f64::INFINITY; 2],
+                    },
+                    |acc, h| Ok(acc.min(&floors(a, b, h.pad(pad), pair)?)),
+                )?,
+            };
+            least = least.min(&read);
+        }
+        Ok(least)
     };
     let first = over(0.0)?;
     let floor = over(32.0 * eps / first.sin)?;
@@ -408,9 +433,25 @@ impl Quadric {
 }
 
 /// The floors over a stretch: `sin θ` and each surface's `m` on `Γ`.
+#[derive(Clone, Copy)]
 struct Floors {
     sin: f64,
     m: [f64; 2],
+}
+
+impl Floors {
+    /// The least of each floor.
+    fn min(&self, o: &Self) -> Self {
+        Self {
+            sin: self.sin.min(o.sin),
+            m: [self.m[0].min(o.m[0]), self.m[1].min(o.m[1])],
+        }
+    }
+
+    /// Whether any floor is below `o`'s.
+    fn below(&self, o: &Self) -> bool {
+        self.sin < o.sin || self.m[0] < o.m[0] || self.m[1] < o.m[1]
+    }
 }
 
 /// **The pair's closed forms over `region`** (module docs, each pair's
@@ -537,17 +578,19 @@ fn floors(a: Quadric, b: Quadric, region: Box3, pair: Unstated) -> Result<Floors
     finish(square.sqrt(), m)
 }
 
-/// Whether [`floors`] has a closed form for the pair, the plane first:
-/// read before the carrier's hulls are composed, so a pair with none
-/// costs nothing.
-fn classified(a: Quadric, b: Quadric) -> bool {
-    matches!(
-        (a, b),
-        (Quadric::Plane { .. }, _)
-            | (Quadric::Cylinder { .. }, Quadric::Cylinder { .. })
-            | (Quadric::Sphere { .. }, Quadric::Cylinder { .. })
-            | (Quadric::Cylinder { .. }, Quadric::Sphere { .. })
-    )
+/// Whether [`floors`] has a closed form for the pair, read before the
+/// carrier's hulls are composed so that a pair with none costs nothing.
+/// It is `floors`' own answer: the pair refusal is its fallback arm, read
+/// whatever the region, so `floors` at any one region names exactly the
+/// pairs it has no arm for.
+fn classified(a: Quadric, b: Quadric, pair: Unstated) -> bool {
+    let origin = Interval::point(0.0);
+    let region = Box3 {
+        x: origin,
+        y: origin,
+        z: origin,
+    };
+    !matches!(floors(a, b, region, pair), Err(Unstated::Pair { .. }))
 }
 
 /// `cos θ = v̂·ρ̂` of a sphere `(C, Rₛ)` and a cylinder `(O, â, R_c)` at
@@ -579,31 +622,64 @@ fn finish(sin: Interval, m: [Interval; 2]) -> Result<Floors, Unstated> {
     Ok(Floors { sin, m: [m0, m1] })
 }
 
-/// How many pieces the carrier's stretch is cut into, at least, for its
-/// hulls, spread evenly over the spans the edge's interval meets. A
-/// piece's control net stands off its arc by an amount that falls with
-/// the square of the piece's length (a quadratic's middle control point
-/// stands off its arc by half its sagitta), so eight pieces of a span
-/// take the hulls' overshoot down about 64-fold — enough that each floor
-/// reads the carrier rather than its net on the rows of
-/// `tests/section_bounds.rs`. A fitted carrier's spans are short already
-/// (hundreds over a loop), and a span met among eight or more is one
-/// piece.
-const PIECES: u32 = 8;
+/// How many pieces a span is cut into where its whole box could set a
+/// floor ([`tube_bounds`]). A piece's control net stands off its arc by
+/// an amount that falls with the square of the piece's length (a
+/// quadratic's middle control point stands off its arc by half its
+/// sagitta), and its box is what the floors are read over, so cutting
+/// buys floors that read the carrier rather than its net: the rows of
+/// `tests/section_bounds.rs` pin how close they come.
+const PIECES: u8 = 8;
 
-/// **The hulls of the carrier over `params`**: each span the edge's
+/// One span's Bernstein rows: the homogeneous points `w·P` and the
+/// weights `w`.
+type Rows = (Vec<V3>, Vec<Interval>);
+
+/// A span the edge's interval meets: its rows, the box of its whole net,
+/// and its [`PIECES`] pieces' boxes, cut when first asked for.
+struct Span {
+    rows: Rows,
+    whole: Box3,
+    pieces: core::cell::OnceCell<Option<Vec<Box3>>>,
+}
+
+impl Span {
+    /// The boxes of the span's [`PIECES`] pieces, cut by de Casteljau
+    /// splits ([`split`]) at equal steps of its parameter; `None` where
+    /// a piece's box is not certified.
+    fn pieces(&self) -> Option<&[Box3]> {
+        self.pieces
+            .get_or_init(|| {
+                let mut rest = self.rows.clone();
+                let mut boxes = Vec::with_capacity(usize::from(PIECES));
+                for j in 0..PIECES - 1 {
+                    // The piece is the first `1/(PIECES − j)` of what is left.
+                    let at = Interval::point(1.0 / f64::from(PIECES - j));
+                    let (points, rest_points) = split(&rest.0, at);
+                    let (masses, rest_masses) = split(&rest.1, at);
+                    boxes.push(hull_of(&(points, masses))?);
+                    rest = (rest_points, rest_masses);
+                }
+                boxes.push(hull_of(&rest)?);
+                Some(boxes)
+            })
+            .as_deref()
+    }
+}
+
+/// **The spans of the carrier over `params`**: each span the edge's
 /// interval meets has its Bernstein net read off its homogeneous
 /// coefficients `(w·P, w)` by the blossom
-/// ([`geom_core::spline::pieces::span_row`]) over the held knots, and is
-/// cut by de Casteljau splits ([`split`]) into its share of [`PIECES`],
-/// all in certification arithmetic. A piece lies in the convex hull of its
-/// Cartesian control points `w·P/w` where every weight is certified
-/// positive, so the box of those points holds it for every member of the
-/// box.
+/// ([`geom_core::spline::pieces::span_row`]) over the held knots, in
+/// certification arithmetic. A span or a piece of it lies in the convex
+/// hull of its Cartesian control points `w·P/w` where every weight is
+/// certified positive, so the box of those points holds it for every
+/// member of the box. `None` where a span's box is not certified or the
+/// interval meets none.
 fn control_hulls<T: CertifiedBounds>(
     carrier: &NurbsCurve3<T>,
     params: (T, T),
-) -> Option<Vec<Box3>> {
+) -> Option<Vec<Span>> {
     let (lo, hi) = (Bounds::lo(params.0), Bounds::hi(params.1));
     let p = carrier.degree();
     let weights: Vec<Interval> = carrier
@@ -627,62 +703,63 @@ fn control_hulls<T: CertifiedBounds>(
     // ends at the last knot of the first run.
     let runs: Vec<(T, usize)> = carrier.knot_values().runs().collect();
     let mut last = 0_usize;
-    let mut met = Vec::new();
+    let mut spans = Vec::new();
     for pair in runs.windows(2) {
         let ((a, ma), (b, _)) = (pair[0], pair[1]);
         last += ma;
         let s = last - 1;
-        if Bounds::hi(b) >= lo && Bounds::lo(a) <= hi && s >= p {
-            met.push(s);
+        if !(Bounds::hi(b) >= lo && Bounds::lo(a) <= hi) || s < p {
+            continue;
         }
-    }
-    let pieces = u32::try_from(met.len()).map_or(1, |n| PIECES.div_ceil(n.max(1)));
-    let mut hulls = Vec::new();
-    for s in met {
         let ends = (*knots.get(s)?, *knots.get(s + 1)?);
         let window = s - p..=s;
-        let mut rest = (
+        let rows = (
             span_row(lifted.get(window.clone())?, &knots, s - p, ends)?,
             span_row(weights.get(window.clone())?, &knots, s - p, ends)?,
         );
-        for j in 0..pieces {
-            // The piece is the first `1/(pieces − j)` of what is left.
-            let (points, masses) = if j + 1 == pieces {
-                core::mem::take(&mut rest)
-            } else {
-                let at = Interval::point(1.0 / f64::from(pieces - j));
-                let (points, rest_points) = split(&rest.0, at);
-                let (masses, rest_masses) = split(&rest.1, at);
-                rest = (rest_points, rest_masses);
-                (points, masses)
-            };
-            let mut hull: Option<Box3> = None;
-            for (pw, w) in points.into_iter().zip(masses) {
-                if !certainly_positive(&[w]) {
-                    return None;
-                }
-                let c = pw / w;
-                let corner = Box3 {
-                    x: c.x,
-                    y: c.y,
-                    z: c.z,
-                };
-                hull = Some(hull.map_or(corner, |h| h.hull(corner)));
-            }
-            let hull = hull?;
-            if ![hull.x, hull.y, hull.z].iter().all(|i| i.is_certified()) {
-                return None;
-            }
-            hulls.push(hull);
-        }
+        spans.push(Span {
+            whole: hull_of(&rows)?,
+            rows,
+            pieces: core::cell::OnceCell::new(),
+        });
     }
-    (!hulls.is_empty()).then_some(hulls)
+    (!spans.is_empty()).then_some(spans)
+}
+
+/// The box of a piece's Cartesian control points, `None` where a weight
+/// is not certified positive or a bound is not certified.
+fn hull_of((points, masses): &Rows) -> Option<Box3> {
+    let mut hull: Option<Box3> = None;
+    for (&pw, &w) in points.iter().zip(masses) {
+        if !certainly_positive(&[w]) {
+            return None;
+        }
+        let c = pw / w;
+        let corner = Box3 {
+            x: c.x,
+            y: c.y,
+            z: c.z,
+        };
+        hull = Some(hull.map_or(corner, |h| h.hull(corner)));
+    }
+    let hull = hull?;
+    [hull.x, hull.y, hull.z]
+        .iter()
+        .all(|i| i.is_certified())
+        .then_some(hull)
 }
 
 /// A Bernstein row split at `at` by de Casteljau: the rows of the piece
 /// before `at` and of the piece after it. Each is the exact split's at
 /// the stored `at`, enclosed, and the two pieces meet there, so together
 /// they hold the row's whole curve.
+///
+/// Not `geom_core`'s `split_restrict`: that one restricts a scalar row to
+/// one sub-range by two splits, crate-private to `geom_core`, where a
+/// span here is cut whole into its pieces, a vector row and its weights,
+/// one split per piece. Its width caution (a split row read unmet is
+/// wider than the blossom's) holds here too, and the tightness rows of
+/// `tests/section_bounds.rs` pin what the floors lose to it.
 fn split<V>(row: &[V], at: Interval) -> (Vec<V>, Vec<V>)
 where
     V: Copy

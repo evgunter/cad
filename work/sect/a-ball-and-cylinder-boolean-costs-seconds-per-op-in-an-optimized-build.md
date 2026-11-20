@@ -160,9 +160,10 @@ the rung-3 time, 1.39 of 2.81 s. The rest: the result gate's volume
 **The lever** (`geom_brep::intersect::section_bounds`): sphere ×
 cylinder states its crossing-angle floor in closed form, so the tube is
 retired on every one of those calls; an unclassified pair is refused
-before its hulls are composed; and a span's hull pieces are cut from
-one Bernstein row by de Casteljau, at least `PIECES` over the stretch
-rather than per span. `tube_bounds` in ball ∪ rod: 1.27 s of refusals →
+before its hulls are composed; and each span is read whole first and
+cut into its `PIECES` pieces (by de Casteljau, from one Bernstein row)
+only where its whole box could lower the floors, so the floors are those
+every span cut gives. `tube_bounds` in ball ∪ rod: 1.27 s of refusals →
 0.15 s of certificates, and `certify_branch` no longer runs.
 
 **Where the time goes now** (ball ∪ rod, 2.43 s, 150 samples): the
