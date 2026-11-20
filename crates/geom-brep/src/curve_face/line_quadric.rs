@@ -10,8 +10,8 @@
 //! ([`super::circle_roots::CircleRoots`]), with the one answer that
 //! shape has no word for, a line parallel to a wall's axis
 //! ([`LineRoots::Constant`]), beside it. It refuses in its own words
-//! ([`LineQuadricRefusal`]): the arm that refused and that arm's
-//! [`DoorRefusal`], which the caller names a decision of its own.
+//! ([`LineQuadricRefusal`]): the arm that refused and what that arm's
+//! finder can refuse with, which the caller names a decision of its own.
 
 use super::circle_roots::{CircleRoots, DoorRefusal, door_refusal};
 use crate::quartic::{QuarticRoots, depressed_quartic_roots, quadratic_roots};
@@ -31,27 +31,33 @@ pub enum LineRoots<T: geom_core::Real> {
     Constant,
 }
 
-/// **Why [`line_quadric_roots`] refused**: the arm, and its refusal.
+/// **Why [`line_quadric_roots`] refused**: the arm, and what its finder
+/// refused with. The wall, sphere and cone arms only escalate; the torus
+/// arm reads [`RootRefusal`], whose fault is a kernel defect
+/// ([`DoorRefusal::Invariant`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LineQuadricRefusal {
     /// A wall's rung in band ([`line_wall_roots`]), with the rung.
     Wall(WallRootFault),
     /// The sphere's discriminant in band ([`line_sphere_roots`]).
-    Sphere(DoorRefusal),
+    Sphere(Indeterminate),
     /// The torus's quartic ladder ([`line_torus_roots`]).
     Torus(DoorRefusal),
-    /// The cone's rungs (the edge × cone quadratic over the run).
-    Cone(DoorRefusal),
+    /// A cone rung in band (the edge × cone quadratic over the run).
+    Cone(Indeterminate),
 }
 
 impl LineQuadricRefusal {
     /// The refusal without its arm, for a reader that names no decision
-    /// per arm.
+    /// per arm, in any door's refusal shape.
     #[must_use]
-    pub const fn door_refusal(self) -> DoorRefusal {
+    pub const fn door_refusal<X>(self) -> DoorRefusal<X> {
         match self {
-            Self::Wall(fault) => DoorRefusal::Escalated(fault.diag),
-            Self::Sphere(refusal) | Self::Torus(refusal) | Self::Cone(refusal) => refusal,
+            Self::Wall(WallRootFault { diag, .. }) | Self::Sphere(diag) | Self::Cone(diag) => {
+                DoorRefusal::Escalated(diag)
+            }
+            Self::Torus(DoorRefusal::Escalated(diag)) => DoorRefusal::Escalated(diag),
+            Self::Torus(DoorRefusal::Invariant(what)) => DoorRefusal::Invariant(what),
         }
     }
 }
@@ -125,7 +131,7 @@ pub fn line_quadric_roots<T: Decide>(
         .map(Roots::widen),
         geom::Surface::Sphere { center, radius, .. } => {
             match line_sphere_roots(line, center, radius, band, About::Start)
-                .map_err(|diag| LineQuadricRefusal::Sphere(DoorRefusal::Escalated(diag)))?
+                .map_err(LineQuadricRefusal::Sphere)?
             {
                 WallRoots::Two(ts, _) => two(ts),
                 WallRoots::Tangent => Err(Unsettled::Tangency),
@@ -149,7 +155,7 @@ pub fn line_quadric_roots<T: Decide>(
             (t0, t1),
             band,
         )
-        .map_err(|diag| LineQuadricRefusal::Cone(DoorRefusal::Escalated(diag)))?
+        .map_err(LineQuadricRefusal::Cone)?
         .map(ConeRoots::edge),
         geom::Surface::Plane { .. }
         | geom::Surface::Spindle { .. }
@@ -1061,7 +1067,7 @@ mod line_cone_rows {
         origin: [f64; 3],
         dir: [f64; 3],
         span: (f64, f64),
-    ) -> Result<Result<CircleRoots<f64>, Unsettled>, DoorRefusal> {
+    ) -> Result<Result<CircleRoots<f64>, Unsettled>, Indeterminate> {
         let tip = Point3::new(APEX.0, APEX.1, APEX.2);
         let found = line_cone_roots(
             geom::Line {
@@ -1077,8 +1083,7 @@ mod line_cone_rows {
             ),
             span,
             band(),
-        )
-        .map_err(DoorRefusal::Escalated)?;
+        )?;
         Ok(found.map(ConeRoots::edge))
     }
 
@@ -1434,34 +1439,63 @@ mod line_cone_rows {
     }
 }
 
-#[cfg(test)]
-#[allow(clippy::panic)]
-mod door_rows {
-    //! [`line_quadric_roots`] names the arm that refused.
+/// **Poses the line × quadric rows share**, here and in `topo`'s.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod fixtures {
+    use geom_core::{Point3, Vec3};
 
-    use super::*;
+    /// A unit ring's tube `10⁻⁴` thick: a hundred tolerances at
+    /// `ε = 10⁻⁶`, where a line through it reads its quartic's count in
+    /// the band ([`oblique_through_the_tube`]).
+    pub const THIN_TUBE: (f64, f64) = (1.0, 1e-4);
 
-    /// **A line through a thin tube escalates as the torus arm.** A tube
-    /// `10⁻⁴` thick on a unit ring is a hundred tolerances at `ε = 10⁻⁶`,
-    /// and an oblique line through it puts the quartic's count in the
-    /// band: the door's refusal is the torus arm's, under one of the
-    /// quartic's own rows.
-    #[test]
-    fn a_line_through_a_thin_tube_escalates_as_the_torus_arm() {
-        let (rr, rm) = (1.0, 1e-4);
-        let torus = geom::Surface::Torus {
+    /// The torus of major radius `rr` and minor radius `rm` about `+y`,
+    /// centred on the origin.
+    #[must_use]
+    pub fn torus_about_y(rr: f64, rm: f64) -> geom::Surface<f64> {
+        geom::Surface::Torus {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 1.0, 0.0),
             major_radius: rr,
             minor_radius: rm,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
-        let line = geom::Line {
+        }
+    }
+
+    /// A generic oblique line through [`torus_about_y`]'s tube near
+    /// azimuth 0, with a unit direction and a nonzero odd coefficient
+    /// (`e ≠ 0`, `n ≠ 0`): the quartic's cube-root branch.
+    #[must_use]
+    pub fn oblique_through_the_tube(rr: f64, rm: f64) -> geom::Line<f64> {
+        geom::Line {
             origin: Point3::new(rr + 3.0 * rm, 2.0 * rm, -0.7 * rm),
             dir: Vec3::new(-0.8, -0.33, 0.31).normalize(),
-        };
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod door_rows {
+    //! [`line_quadric_roots`] names the arm that refused.
+
+    use super::fixtures::{THIN_TUBE, oblique_through_the_tube, torus_about_y};
+    use super::*;
+
+    /// **A line through a thin tube escalates as the torus arm**
+    /// ([`THIN_TUBE`]): the door's refusal is the torus arm's, under one
+    /// of the quartic's own rows.
+    #[test]
+    fn a_line_through_a_thin_tube_escalates_as_the_torus_arm() {
+        let (rr, rm) = THIN_TUBE;
         let band = Band::new(1e-6, 1e-5).unwrap_or_else(|e| panic!("the band: {e:?}"));
-        let got = line_quadric_roots(line, (-1.0, 1.0), &torus, band);
+        let got = line_quadric_roots(
+            oblique_through_the_tube(rr, rm),
+            (-1.0, 1.0),
+            &torus_about_y(rr, rm),
+            band,
+        );
         let Err(LineQuadricRefusal::Torus(DoorRefusal::Escalated(diag))) = got else {
             panic!("the torus arm escalates: {got:?}");
         };

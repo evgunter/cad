@@ -4823,15 +4823,17 @@ impl BooleanError {
                 decision: BooleanDecision::WallRoots(fault.rung),
                 diag: fault.diag,
             },
-            LineQuadricRefusal::Sphere(refusal) => {
-                Self::of_door_refusal(BooleanDecision::SphereRoots)(refusal)
-            }
+            LineQuadricRefusal::Sphere(diag) => Self::Escalated {
+                decision: BooleanDecision::SphereRoots,
+                diag,
+            },
             LineQuadricRefusal::Torus(refusal) => {
                 Self::of_door_refusal(BooleanDecision::TorusRoots)(refusal)
             }
-            LineQuadricRefusal::Cone(refusal) => {
-                Self::of_door_refusal(BooleanDecision::ConeRoots)(refusal)
-            }
+            LineQuadricRefusal::Cone(diag) => Self::Escalated {
+                decision: BooleanDecision::ConeRoots,
+                diag,
+            },
         }
     }
 
