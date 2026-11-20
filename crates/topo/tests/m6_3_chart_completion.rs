@@ -296,9 +296,10 @@ fn pole_ended_arcs() -> [((f64, f64), geom_brep::SingularEnds); 3] {
 /// **An arc that ends on the pole images and certifies, at every
 /// scalar.** Leaving the pole, arriving at it, or both, the image reads
 /// its azimuth off the reduced radial and certifies against the sphere
-/// alone. The same arc derived with no end stated still refuses at the
-/// piece holding the pole: what images it is the end's statement, not
-/// a wider sector (red if the plain lane starts reading the axis).
+/// alone. The same arc derived with no end stated still stops at the
+/// piece holding the pole, refused or (at a tight ε) read in band: what
+/// images it is the end's statement, not a wider sector (red if the plain
+/// lane starts reading the axis).
 fn an_arc_ending_on_the_pole_certifies<T: geom_core::Decide>() {
     let band = Band::linear(Tol::witness()).unwrap();
     let circle = pole_circle_at::<T>();
@@ -320,9 +321,13 @@ fn an_arc_ending_on_the_pole_certifies<T: geom_core::Decide>() {
                 Err(geom_brep::PcurveCertifyError::NoGeneralLane {
                     gap: geom_brep::LaneGap::Pose { .. },
                     ..
+                }) | Err(geom_brep::PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::GeneralLane,
+                    ..
                 })
             ),
-            "({a}, {b}): with no end stated the pole piece refuses, got {plain:?}"
+            "({a}, {b}): with no end stated the pole piece refuses, or reads its sector in \
+             band, got {plain:?}"
         );
     }
 }
