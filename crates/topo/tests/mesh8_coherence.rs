@@ -894,3 +894,189 @@ fn an_oblique_circle_on_a_sphere_is_misread_as_a_meridian() {
         );
     }
 }
+
+/// **One fact row per boundary traversal of every chart-bearing face**
+/// of `body`, as a markdown table row: what the carrier is, how far it
+/// and its two vertices sit from the face's surface, how far it strays
+/// from the iso curve the examination reads it as and from the other
+/// iso family, and what the examination reports on it.
+///
+/// Distances are maxima over 65 evenly spaced carrier parameters of
+/// the edge's own span, each measured to the surface point the chart's
+/// inversion names for it (`Chart::uv_of`, then `Surface::eval`).
+/// Deviation from a meridian is `radial · separation(u, u_ref)`; from a
+/// rim, `v_lever · |v − v_ref|`, wrapped where v wraps. The door's
+/// family takes the reference the examination reads (`classify_kind`'s
+/// `u_raw` or `v_raw`); the other family takes the carrier's
+/// mid-parameter point. A DECLARED COPY in three test crates (topo,
+/// mesh, step-import), which cannot share a test helper; the copies
+/// are print-only and assert nothing.
+fn iso_fact_rows(label: &str, built: &str, body: &Body<f64>, tol: Tol) -> Vec<String> {
+    let report = topo::examine_chart_coherence(body, tol);
+    let mut rows = Vec::new();
+    for (fk, _) in body.faces() {
+        let Some(surface) = body.face_surface(fk) else {
+            continue;
+        };
+        let Some(chart) = topo::Chart::of(surface) else {
+            continue;
+        };
+        let off = |p: Point3<f64>| {
+            let uv = chart.uv_of(p);
+            (p - surface.eval(uv.x, uv.y)).norm()
+        };
+        let v_gap = |a: f64, b: f64| {
+            if chart.v_domain_wraps() {
+                geom::separation(a, b)
+            } else {
+                (a - b).abs()
+            }
+        };
+        let view = body.face(fk).expect("a live face");
+        for (_, lp, _) in view.loops() {
+            let topo::LoopBoundary::Cycle { first } = lp.boundary else {
+                continue;
+            };
+            for h in body.loop_cycle(first).expect("a cycle") {
+                let he = body.get_half_edge(h).expect("a half-edge");
+                let edge = body.get_edge(he.edge).expect("an edge");
+                let Some(curve) = body.get_curve_geom(edge.curve).and_then(|g| g.certified())
+                else {
+                    rows.push(format!(
+                        "| {label} | {built} | {fk:?} | scaffold | | | | | | |"
+                    ));
+                    continue;
+                };
+                let carrier = curve.carrier();
+                let kind = format!("{carrier:?}");
+                let kind = kind.split(['(', ' ', '{']).next().unwrap_or("?").to_owned();
+                let (t0, t1) = curve.params();
+                let samples: Vec<Point3<f64>> = (0..=64)
+                    .map(|i| carrier.eval(t0 + (t1 - t0) * f64::from(i) / 64.0))
+                    .collect();
+                let mid = carrier.eval(0.5 * (t0 + t1));
+                let max = |f: &dyn Fn(Point3<f64>) -> f64| {
+                    samples.iter().map(|&p| f(p)).fold(0.0_f64, f64::max)
+                };
+                let meridian_dev =
+                    |u_ref: f64| max(&|p| chart.radial(p) * geom::separation(chart.u_of(p), u_ref));
+                let rim_dev = |v_ref: f64| max(&|p| chart.v_lever() * v_gap(chart.v_of(p), v_ref));
+                let (class, door_dev, other_dev) = match topo::classify_kind(&chart, curve) {
+                    Some(topo::TravKind::Meridian { u_raw }) => (
+                        "Meridian",
+                        format!("{:.3e}", meridian_dev(u_raw)),
+                        format!("rim {:.3e}", rim_dev(chart.v_of(mid))),
+                    ),
+                    Some(topo::TravKind::Rim { v_raw }) => (
+                        "Rim",
+                        format!("{:.3e}", rim_dev(v_raw)),
+                        format!("meridian {:.3e}", meridian_dev(chart.u_of(mid))),
+                    ),
+                    None => (
+                        "none (run boundary)",
+                        "—".to_owned(),
+                        format!(
+                            "meridian {:.3e}, rim {:.3e}",
+                            meridian_dev(chart.u_of(mid)),
+                            rim_dev(chart.v_of(mid))
+                        ),
+                    ),
+                };
+                let ends = [Some(he.start), body.half_edge_end(h)]
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|v| body.get_vertex(v).and_then(|x| body.get_point(x.point)))
+                    .map(|&p| off(p))
+                    .fold(0.0_f64, f64::max);
+                let found: Vec<String> = report
+                    .findings
+                    .iter()
+                    .filter(|f| f.face == fk && f.edge == he.edge)
+                    .map(|f| {
+                        let what = match f.condition {
+                            topo::CoherenceCondition::MeridianClosure { .. } => "closure",
+                            topo::CoherenceCondition::RimContinuation { .. } => "rim-cont",
+                            topo::CoherenceCondition::MeridianContinuation { .. } => "mer-cont",
+                        };
+                        format!("{what} {:.3e}", f.metres)
+                    })
+                    .collect();
+                rows.push(format!(
+                    "| {label} | {built} | {fk:?} | {kind} | {:.3e} | {ends:.3e} | {class} | {door_dev} | {other_dev} | {} |",
+                    max(&off),
+                    if found.is_empty() { "—".to_owned() } else { found.join(", ") }
+                ));
+            }
+        }
+    }
+    rows
+}
+
+/// The table header [`iso_fact_rows`] fills.
+const ISO_FACT_HEADER: &str = "| body | built by, ε | face | carrier | max dist. from surface (m) | vertices' max dist. from surface (m) | door reads it as | deviation from that iso curve (m) | deviation from the other family (m) | door reports on this edge (m) |\n|---|---|---|---|---|---|---|---|---|---|";
+
+/// **The neutral fact table for the exact-iso question**
+/// (`work/tesslie/chart-coherence-reads-a-non-iso-circle-as-an-iso-side.md`;
+/// `docs/tesslie-coherence-iso-facts.md`): every witness in this file,
+/// one row per boundary traversal of a chart-bearing face. Prints and
+/// asserts nothing:
+///
+/// ```text
+/// cargo nextest run -p topo --test all tesslie_iso_facts --run-ignored only --no-capture
+/// ```
+#[test]
+#[ignore = "measurement; run command in the doc"]
+fn tesslie_iso_facts_over_the_witnesses() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let euler = format!("Euler doors, ε = {eps:e}");
+    let want = 1024.0 * eps;
+    let mut bodies: Vec<(String, Body<f64>)> = vec![
+        (
+            "pole_crossing_half_cap (issue 1571)".into(),
+            pole_crossing_half_cap().0,
+        ),
+        (
+            "pole_crossing_half_cap, arc split (issue 723's shape)".into(),
+            {
+                let (mut body, arc) = pole_crossing_half_cap();
+                let e = body.get_edge(arc).unwrap();
+                let (t0, t1) = body
+                    .get_curve_geom(e.curve)
+                    .unwrap()
+                    .certified()
+                    .unwrap()
+                    .params();
+                body.split_edge(arc, t0 + (t1 - t0) * 0.75, tol).unwrap();
+                body
+            },
+        ),
+        ("chord_wobble(1024 ε)".into(), chord_wobble(want)),
+        (
+            "two_circle_rim_cap(c for 1024 ε)".into(),
+            two_circle_rim_cap((want * 2.0 * rim_r() / RIM_Z).sqrt()),
+        ),
+        (
+            "split_meridian_wobble(1024 ε)".into(),
+            split_meridian_wobble(want),
+        ),
+        (
+            "tilted_lune(R 1, θ 1, poles 0.5 ε off)".into(),
+            tilted_lune(1.0, 1.0, 0.5 * eps).unwrap(),
+        ),
+    ];
+    for tilt in [0.0_f64, 30.0, 59.0, 61.0, 75.0, 90.0] {
+        for offset in [0.3, 0.0] {
+            bodies.push((
+                format!("oblique_cap(tilt {tilt}°, offset {offset})"),
+                oblique_cap(tilt.to_radians(), offset),
+            ));
+        }
+    }
+    println!("{ISO_FACT_HEADER}");
+    for (label, body) in &bodies {
+        for row in iso_fact_rows(label, &euler, body, tol) {
+            println!("{row}");
+        }
+    }
+}

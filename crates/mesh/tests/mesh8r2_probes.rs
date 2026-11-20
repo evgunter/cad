@@ -113,7 +113,7 @@ fn r2r_independent_byte_digest() {
 /// halves mesh through the pcurve-driven trimmed lane rather than
 /// through the iso walk. `m5_pr11_trimmed` pins that they tessellate
 /// watertight at every δ.
-fn tilted_halves() -> (Body<f64>, Body<f64>) {
+pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
     let lp = bulge_loop(vec![
         (Point2::new(-1.0, 0.0), 1.0),
         (Point2::new(1.0, 0.0), 1.0),
@@ -182,21 +182,11 @@ fn r2r_the_examination_on_bodies_outside_the_units_corpus() {
     }
 }
 
-/// **An ellipse-trimmed face's iso edges are examined.** The tilted
-/// half's cylinder face is bounded by [ellipse, ruling, rim, ruling].
-/// A vertex dropped on the rim near one end and a straight CHORD back
-/// to that end cut a sliver off, and the chord now bounds the trimmed
-/// face too: a line, so it reads as a meridian, whose mid-parameter
-/// azimuth sits halfway between its two endpoints' — `chord_wobble`'s
-/// shape on a face whose loop also carries the ellipse. The ellipse
-/// bounds the runs either side of it and is not measured; the chord's
-/// closure gap is reported at both ends, on the trimmed face as on the
-/// sliver, and on the trimmed face the chord also CONTINUES the ruling
-/// it meets, whose column it misstates by the same arc.
-#[test]
-fn an_ellipse_trimmed_faces_iso_edges_are_examined() {
+/// The body [`an_ellipse_trimmed_faces_iso_edges_are_examined`] reads:
+/// a tilted half with a chord sliver cut off its rim, the chord's
+/// closure gap `want` on the cylinder's unit radius.
+pub(crate) fn ellipse_trimmed_with_a_rim_chord(want: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let want = 1024.0 * tol.eps();
     let (mut body, _) = tilted_halves();
     let ellipse_face = |body: &Body<f64>, fk: topo::FaceKey| {
         let face = body.get_face(fk).unwrap();
@@ -286,6 +276,43 @@ fn an_ellipse_trimmed_faces_iso_edges_are_examined() {
         tol,
     )
     .unwrap();
+    body
+}
+
+/// **An ellipse-trimmed face's iso edges are examined.** The tilted
+/// half's cylinder face is bounded by [ellipse, ruling, rim, ruling].
+/// A vertex dropped on the rim near one end and a straight CHORD back
+/// to that end cut a sliver off, and the chord now bounds the trimmed
+/// face too: a line, so it reads as a meridian, whose mid-parameter
+/// azimuth sits halfway between its two endpoints' — `chord_wobble`'s
+/// shape on a face whose loop also carries the ellipse. The ellipse
+/// bounds the runs either side of it and is not measured; the chord's
+/// closure gap is reported at both ends, on the trimmed face as on the
+/// sliver, and on the trimmed face the chord also CONTINUES the ruling
+/// it meets, whose column it misstates by the same arc.
+#[test]
+fn an_ellipse_trimmed_faces_iso_edges_are_examined() {
+    let tol = Tol::witness();
+    let want = 1024.0 * tol.eps();
+    let body = ellipse_trimmed_with_a_rim_chord(want);
+    let ellipse_face = |body: &Body<f64>, fk: topo::FaceKey| {
+        let face = body.get_face(fk).unwrap();
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary
+        else {
+            return false;
+        };
+        body.loop_cycle(first).unwrap().into_iter().any(|h| {
+            let e = body.get_edge(body.get_half_edge(h).unwrap().edge).unwrap();
+            matches!(
+                body.get_curve_geom(e.curve)
+                    .unwrap()
+                    .certified()
+                    .unwrap()
+                    .carrier(),
+                Curve3::Ellipse(..)
+            )
+        })
+    };
     let report = topo::examine_chart_coherence(&body, tol);
     assert!(
         report.unexamined.is_empty(),
@@ -333,24 +360,11 @@ fn an_ellipse_trimmed_faces_iso_edges_are_examined() {
     }
 }
 
-/// **The edge after a conic is examined, and opens its own side.** On
-/// a tilted half's cylinder face the ellipse is split near the end the
-/// loop leaves it by, and a straight CHORD closes the short piece off,
-/// so on the trimmed face the traversal immediately after the conic is
-/// that chord: a line, read as a meridian, whose mid-parameter azimuth
-/// sits halfway between its two endpoints'. Every finding is that
-/// half-arc: the chord's closure at both ends on the trimmed face and
-/// on the sliver, and the ruling after it on the trimmed face, which
-/// continues the side the CHORD opens and not the one before the
-/// conic.
-///
-/// Skipping the traversal after a conic drops the closures; letting
-/// the run bridge the conic re-opens the chord's side at the ruling
-/// before the ellipse and adds a continuation; and dropping the rule
-/// that a conic's successor opens hands the chord a kindless opening.
-/// Each changes the tally asserted here.
-#[test]
-fn the_edge_after_a_conic_is_examined_and_opens_its_own_side() {
+/// The body [`the_edge_after_a_conic_is_examined_and_opens_its_own_side`]
+/// reads, and the half-arc its chord opens: a tilted half whose ellipse
+/// is split near the end the loop leaves it by, the short piece closed
+/// off by a chord.
+pub(crate) fn ellipse_trimmed_with_a_conic_chord() -> (Body<f64>, f64) {
     let tol = Tol::witness();
     let eps = tol.eps();
     let (mut body, _) = tilted_halves();
@@ -424,6 +438,30 @@ fn the_edge_after_a_conic_is_examined_and_opens_its_own_side() {
     // so the half-arc is the lever-one gap the chord opens.
     let az = |p: Point3<f64>| p.y.atan2(p.x);
     let want = 0.5 * geom::separation(az(p1), az(p2));
+    (body, want)
+}
+
+/// **The edge after a conic is examined, and opens its own side.** On
+/// a tilted half's cylinder face the ellipse is split near the end the
+/// loop leaves it by, and a straight CHORD closes the short piece off,
+/// so on the trimmed face the traversal immediately after the conic is
+/// that chord: a line, read as a meridian, whose mid-parameter azimuth
+/// sits halfway between its two endpoints'. Every finding is that
+/// half-arc: the chord's closure at both ends on the trimmed face and
+/// on the sliver, and the ruling after it on the trimmed face, which
+/// continues the side the CHORD opens and not the one before the
+/// conic.
+///
+/// Skipping the traversal after a conic drops the closures; letting
+/// the run bridge the conic re-opens the chord's side at the ruling
+/// before the ellipse and adds a continuation; and dropping the rule
+/// that a conic's successor opens hands the chord a kindless opening.
+/// Each changes the tally asserted here.
+#[test]
+fn the_edge_after_a_conic_is_examined_and_opens_its_own_side() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let (body, want) = ellipse_trimmed_with_a_conic_chord();
     assert!(want > 4.0 * eps, "the chord opens a reportable arc: {want}");
     let report = topo::examine_chart_coherence(&body, tol);
     assert!(report.unexamined.is_empty(), "{:?}", report.unexamined);
@@ -457,7 +495,7 @@ fn the_edge_after_a_conic_is_examined_and_opens_its_own_side() {
 ///
 /// Same construction as the unit's `chord_wobble`, re-derived here so
 /// the two are independent instruments over one shape.
-fn wobbled_sliver(metres: f64) -> Option<Body<f64>> {
+pub(crate) fn wobbled_sliver(metres: f64) -> Option<Body<f64>> {
     let tol = Tol::witness();
     let rr = 0.05_f64;
     let theta = 2.0 * metres / rr;

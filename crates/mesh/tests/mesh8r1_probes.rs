@@ -263,7 +263,7 @@ fn the_pole_crossing_body_at_delta_half_is_not_announced_by_the_deleted_assertio
 ///
 /// The arc is long (~53° of a radius-1.118 circle), so its span
 /// certifies at any band, and the gap is set by `phi` alone.
-fn tilted_meridian_sliver(phi: f64) -> Body<f64> {
+pub(crate) fn tilted_meridian_sliver(phi: f64) -> Body<f64> {
     let tol = Tol::witness();
     let on = |theta: f64, z: f64| Point3::new(theta.cos(), theta.sin(), z);
     let rim = |z: f64| {

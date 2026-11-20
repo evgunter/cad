@@ -171,6 +171,8 @@ mod spiric_roundtrip;
 mod split_iso_side;
 #[path = "tcost_k3_import_certificate.rs"]
 mod tcost_k3_import_certificate;
+#[path = "tesslie_iso_facts.rs"]
+mod tesslie_iso_facts;
 #[path = "the_interpretation_layer_reads_the_file_at_its_band.rs"]
 mod the_interpretation_layer_reads_the_file_at_its_band;
 #[path = "tier_gate.rs"]
