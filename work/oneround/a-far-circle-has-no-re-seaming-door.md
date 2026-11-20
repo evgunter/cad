@@ -34,7 +34,7 @@ probed: a finding by reading.
 What to weigh: re-seaming a circle moves every parameter on it, so it
 is a re-mint of the edges that hold spans on it, not a reading. It
 belongs with the stored-form design
-(`work/honepair/the-section-table-admits-a-curve-on-its-resolution.md`:
+(`work/oneround/the-section-table-admits-a-curve-on-its-resolution.md`:
 "anchored on the arc its edge uses: parameter zero there").
 
 Not established: which mints hand a far circle to a reader with its

@@ -97,7 +97,7 @@ y by θ ± δ, united with a second copy standing clear.
   definite-sounding finding over a 1° box.
 - **Not refused by check 1,** though as wide: the caps' normals and the
   seam lines' directors (no plane or line finding exists:
-  `work/restdatum/unlevered-frame-conventions-are-uncertified-at-rest.md`).
+  `work/restfront/unlevered-frame-conventions-are-uncertified-at-rest.md`).
 - **Through the doors on a turned plane** (`sweep::extrude` on
   `SketchPlane::from_frame(RigidMotion::rotation(y, θ ± δ))`), the build
   refuses before check 1 at every width where check 1 would:

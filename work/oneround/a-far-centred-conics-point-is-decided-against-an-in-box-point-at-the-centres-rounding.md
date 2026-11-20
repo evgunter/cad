@@ -91,7 +91,7 @@ Evaluating the point from the vertex is not enough at either site:
 the vertex constant has to be exact, which at f64 is an error-free
 sum from the stored centre and under a stored form anchored in the
 box is simply the stored point
-(`work/honepair/the-section-table-admits-a-curve-on-its-resolution.md`).
+(`work/oneround/the-section-table-admits-a-curve-on-its-resolution.md`).
 PR 7131's reading of a stored frame bears on the first: if the true
 frame is the polar factor of the stored entries, the exact sum of the
 stored entries is no longer the true vertex at the far scale.

@@ -46,4 +46,4 @@ Found by the PR 6491 takeover lane (`onecopy/meet-pose`). It is red at `CAD_TOLE
 
 **Sibling.** `tang_circle_cylinder::a_tilted_rod_through_a_rim_builds_at_its_sliced_volume` is red at 1e-12 on main for the same cause: every op stops at the wall, with `∖` and `∩` at pad `1.49e-6` and `∪` at `1.26e-7`. It was red there before `6adc5fdd` too, whose parent held it to `1024·ε` (`1.02e-9` at 1e-12). It passes here.
 
-**Left as found.** The work wall at 1e-12 on chorded walls is a cost frontier, not a wrong number: every enclosure holds its closed form. Its home is `work/quadtail/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`.
+**Left as found.** The work wall at 1e-12 on chorded walls is a cost frontier, not a wrong number: every enclosure holds its closed form. Its home is `work/quad/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`.
