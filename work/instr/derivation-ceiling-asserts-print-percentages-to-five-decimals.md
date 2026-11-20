@@ -37,7 +37,7 @@ three asserts are named above.
 
 The sweep that found these read only one class of assert outside
 `crates/mesh`; the unread remainder and the extraction's blind spot are
-`work/tint/ordering-asserts-outside-mesh-unswept-for-illegible-domination-messages.md`.
+`work/ciw/ordering-asserts-outside-mesh-unswept-for-illegible-domination-messages.md`.
 
 ## Closed (2026-10-26, easy-fixes lane)
 

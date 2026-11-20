@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-20
 priority: P2
 cost: H
-refs: [a-bore-tangent-to-a-plates-face-mints-a-face-face-record-the-census-contradicts, revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet, census-passes-a-face-inside-an-edges-material-wedge]
+refs: [a-bore-tangent-to-a-plates-face-mints-a-face-face-record-the-census-contradicts, revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet]
 ---
 
 
