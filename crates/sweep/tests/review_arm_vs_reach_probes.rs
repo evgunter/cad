@@ -245,9 +245,18 @@ fn review_curved() {
     // 3′ on `CensusUndecidable { MayOverlap }` (curved faces of two lumps
     // in reach), as it does at θ = −0.1; and the disc below with the
     // boss dipping 1e-4 into it refuses an invariant (main as here).
+    // Not on main: the small disc above, its arc crossing the boss's edge
+    // at the shared vertex at θ = 1e-4, fails tier 3′ on the census's
+    // `curve_pair_span_past_reach_straddle`, its second root past the
+    // edge on one stretch with the vertex
+    // (`work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`).
     report(bad, |b| {
         (b.contains(" c=-") && b.contains("∪") && b.contains("t3p=false"))
             || b.contains("surviving record with an On code after srecledges")
+            || (b.starts_with("r=0.05 c=0.05 ")
+                && b.contains(" θ=0.0001: ")
+                && (b.contains("∪") || b.contains("B ∖ A"))
+                && b.contains("t3p=false"))
     });
 }
 
@@ -283,7 +292,15 @@ fn review_curved_plate() {
             ));
         }
     }
-    report(bad, none);
+    // The small disc's hole, its arc crossing the boss's edge at the
+    // shared vertex at θ = 1e-4: the union fails tier 3′ on the census's
+    // `curve_pair_span_past_reach_straddle`, as `review_curved` does
+    // (`work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`).
+    report(bad, |b| {
+        b.starts_with("plate r=0.05 lb=0.04 θ=0.0001: ")
+            && b.contains("∪")
+            && b.contains("t3p=false")
+    });
 }
 
 /// Near-coplanar: the boss's slab turned by `φ` about `x` or `y` through

@@ -224,9 +224,11 @@
 //!   either is a meeting, and its Off is read against the floor. So a
 //!   touch in the plane keeps its extreme, and a slanted touch is read at
 //!   the root, where `R` is zero and the distance is the slant alone.
-//! - **The read.** The candidate is read as a posed pair
-//!   (`Found::read_posed`): a gap in the zero band is a meeting; an Off
-//!   prunes only where the floor clears, and otherwise escalates. Its
+//! - **The read.** The candidate is read as the walk's pair is
+//!   (`Found::read_pair`, its window not held to the spans,
+//!   [`WindowBound::on_spans`]): a gap in the zero band is a meeting; an
+//!   Off prunes where the floor clears, or where the stretch's reach and
+//!   run lie past a span ([`Span::past_by`]), and otherwise escalates. Its
 //!   pairs lie on the stretch, within the stretch's run at the conic's
 //!   greatest speed of the candidate's point, and within `e` of that on
 //!   the line: where the ball of that reach about the candidate is clear
