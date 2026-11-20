@@ -392,8 +392,8 @@ fn a_door_in_band_refuses_with_its_cause() {
 /// wall of [`a_door_in_band_refuses_with_its_cause`] with its seam ruling
 /// split at its middle first: a one-face full-turn wall whose straight
 /// side holds a point, which the route sends to the chart lane once the
-/// doors pass it (`tessellate::route_of`'s fourth fact,
-/// `walk::splits_a_straight_side`). Here they cannot decide, so the
+/// doors pass it (`tessellate::route_of`'s
+/// `walk::splits_a_straight_side` fact). Here they cannot decide, so the
 /// face refuses with their escalation, as the unsplit wall does. Read
 /// the split side before the doors and the face is the chart lane's on a
 /// door that never answered.

@@ -606,8 +606,8 @@ fn profile_payloads_are_matchable(
             radius,
             angular_margin,
         } => {
-            named::<f64>(radius);
-            named::<f64>(angular_margin);
+            named::<pncad::geom_core::Told>(radius);
+            named::<pncad::geom_core::Told>(angular_margin);
             "arc"
         }
     };
@@ -772,8 +772,11 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             ),
             FilletLeg::Outgoing,
             FilletLegCarrier::Arc {
-                radius: 2.0,
-                angular_margin: -0.5,
+                radius: pncad::geom_core::Told::computed(&2.0, pncad::geom_core::Dimension::Length),
+                angular_margin: pncad::geom_core::Told::computed(
+                    &-0.5,
+                    pncad::geom_core::Dimension::Angle,
+                ),
             },
             NoCornerReason::OffsetCarriersDisjoint,
         ),

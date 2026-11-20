@@ -196,6 +196,7 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         | T::Triangulation { .. }
         | T::SelfTouchingTrimLoop { .. }
         | T::PinchWedge { .. }
+        | T::BoundaryBoundsNoRegion { .. }
         | T::TrimLoopOrientation { .. }
         | T::FoldedTriangle { .. }
         | T::UnclearedSharedSide { .. } => Ok(()),

@@ -136,7 +136,7 @@ use geom::SurfaceKind;
 use geom_brep::{OutwardNormal, PolygonOrientation};
 use geom_core::Band;
 use geom_core::{Point3, Vec3};
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, PointKey, VertexKey};
 
 use crate::sizing::Eps;
 use crate::types::TessellateError;
@@ -678,6 +678,41 @@ fn iso_side_starts(
     topo::chart_iso::iso_side_starts(&kinds, &separated)
 }
 
+/// **Whether loop `lk` of face `fk` passes one point record at two
+/// distinct vertices** — a pinch of the loop: on an at-rest body a slit's
+/// parted end, the two vertices the material parts there sharing the
+/// point the slit's two edges end on (`crates/topo/README.md`, tier 3, "a
+/// slit of that loop"), and a slit run the full height of a full turn
+/// pinches at both ends.
+///
+/// The walk below places a junction by inverting its position, so it
+/// cannot place two vertices at one position on two sides of a slit; the
+/// route sends a pinched face to the chart lane, which places each vertex
+/// by its own stored image (`tessellate::route_of`'s pinch fact), and the
+/// curved lane refuses one that reaches it otherwise
+/// (`curved::PINCHED_FACE_ROUTED_HERE`).
+///
+/// The point record is what the body states, so this reads no distance.
+/// One vertex visited twice (a seam walked both ways) is one vertex, not
+/// a pinch.
+pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey, fk: FaceKey) -> Result<bool, TessellateError> {
+    let mut seen: HashMap<PointKey, VertexKey> = HashMap::new();
+    for (half_edge, _, _) in loop_half_edges(body, lk, fk)? {
+        let start = body
+            .get_half_edge(half_edge)
+            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
+            .start;
+        let point = body
+            .get_vertex(start)
+            .ok_or(TessellateError::MissingEntity { what: "vertex" })?
+            .point;
+        if *seen.entry(point).or_insert(start) != start {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 /// **Whether a straight side of face `fk`'s outer loop holds a point
 /// between its ends**, on a cylinder or a cone: a side carried by more
 /// than one edge, or a cone's side through its apex.
@@ -694,11 +729,11 @@ fn iso_side_starts(
 /// The rectangle lane's theorem for a ruled face holds every triangle
 /// between two neighbouring rulings, and such a point is a boundary
 /// point off its grid, so the route sends such a face to the chart lane
-/// (`tessellate::route_of`'s fourth fact). The route asks this only of a
-/// face the doors certified a rectangle (`curved::iso_rectangle_shape`),
-/// so it decides nothing about shape and reads no band: a face that is
-/// no rectangle has been routed, or refused with the doors' cause,
-/// before it is asked.
+/// (`tessellate::route_of`'s `splits_a_straight_side` fact). The route
+/// asks this only of a face the doors certified a rectangle
+/// (`curved::iso_rectangle_shape`), so it decides nothing about shape and
+/// reads no band: a face that is no rectangle has been routed, or refused
+/// with the doors' cause, before it is asked.
 pub(crate) fn splits_a_straight_side(
     body: &Body<f64>,
     fk: FaceKey,

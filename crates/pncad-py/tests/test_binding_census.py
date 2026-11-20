@@ -4026,6 +4026,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::PinchWedge": "TessellateError.variant",
+    "TessellateError::BoundaryBoundsNoRegion": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedDomain": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedShape": "TessellateError.variant",
     "TessellateError::MeridianFreeCurvedFace": "TessellateError.variant",
