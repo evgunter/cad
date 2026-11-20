@@ -67,7 +67,7 @@ use crate::rows::{SpiricReader, SpiricRegimeSites};
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use conic::{Born, Circle, Conic, Ellipse, MajorFrame};
+pub use conic::{Circle, Conic, Ellipse, MajorFrame};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
@@ -250,13 +250,10 @@ impl<T: SpanLocate> Curve3<T> {
                 point(*origin, *o) && vec(*dir, *d)
             }
             (Self::Circle(c), Self::Circle(d)) => {
-                c.born() == d.born() && frame(c.stored(), d.stored()) && same(c.radius, d.radius)
+                c.same_placement(d, frame) && same(c.radius, d.radius)
             }
             (Self::Ellipse(e), Self::Ellipse(g)) => {
-                e.born() == g.born()
-                    && frame(e.stored(), g.stored())
-                    && same(e.semi_u, g.semi_u)
-                    && same(e.semi_v, g.semi_v)
+                e.same_placement(g, frame) && same(e.semi_u, g.semi_u) && same(e.semi_v, g.semi_v)
             }
             (
                 Self::Spiric {
@@ -1136,32 +1133,28 @@ impl<T: Real> Curve3<T> {
         use crate::AnalyticData;
         use crate::DatumValue::{Direction, Point, Scalar};
         use CurveDatum as D;
-        let placed = |born| match born {
-            conic::Born::Centred => D::Center,
-            conic::Born::Anchored => D::Anchor,
-        };
         CurveData::Analytic(match *self {
             Curve3::Line(Line { origin, dir }) => {
                 AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
             }
-            // The one point a conic stores is named by its birth.
+            // The one point a conic stores, named for what it is.
             Curve3::Circle(c) => {
-                let at = c.stored();
+                let (datum, at, axis, u_ref) = c.stored();
                 AnalyticData::new([
-                    (placed(c.born()), Point(at.origin())),
-                    (D::Axis, Direction(at.axis())),
+                    (datum, Point(at)),
+                    (D::Axis, Direction(axis)),
                     (D::Radius, Scalar(c.radius)),
-                    (D::URef, Direction(at.u_ref())),
+                    (D::URef, Direction(u_ref)),
                 ])
             }
             Curve3::Ellipse(e) => {
-                let at = e.stored();
+                let (datum, at, axis, u_ref) = e.stored();
                 AnalyticData::new([
-                    (placed(e.born()), Point(at.origin())),
-                    (D::Axis, Direction(at.axis())),
+                    (datum, Point(at)),
+                    (D::Axis, Direction(axis)),
                     (D::SemiU, Scalar(e.semi_u)),
                     (D::SemiV, Scalar(e.semi_v)),
-                    (D::URef, Direction(at.u_ref())),
+                    (D::URef, Direction(u_ref)),
                 ])
             }
             Curve3::Spiric {

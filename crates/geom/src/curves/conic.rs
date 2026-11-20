@@ -59,9 +59,10 @@
 //! [`Conic::running_point`] is that evaluation operation for operation
 //! with its bound. The derivatives read no position and are the same in
 //! both forms. A re-seam that keeps the seam keeps the anchor, and one
-//! that turns the seam re-anchors at the turned seam's vertex, read off
-//! the derived centre: the turned ellipse is a new statement of the
-//! curve, as a re-seamed centre-born one is.
+//! that turns the seam re-anchors at the turned seam's vertex, summed
+//! from the anchor: that vertex lies a semi-axis away, so the turned
+//! ellipse holds only to the semi-axis's rounding, a new statement of
+//! the curve, as a re-seamed centre-born one is.
 //!
 //! # Conventions
 //!
@@ -121,7 +122,7 @@ pub struct Circle<T: Real> {
 /// **The point a conic stores** ([module docs](self), "The two stored
 /// forms"): its centre, or its point at `θ = 0`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Born {
+enum Born {
     /// Born with a centre: the placement stands at it.
     Centred,
     /// Born anchored: the placement stands at the point at `θ = 0`.
@@ -506,16 +507,36 @@ impl<T: Real> Circle<T> {
         }
     }
 
-    /// Which point the circle stores.
-    #[must_use]
-    pub fn born(&self) -> Born {
-        self.born
+    /// **The stored point and what it is**, with the stored axis and
+    /// seam: for the walk of the stored data alone
+    /// ([`Curve3::data`]).
+    pub(super) fn stored(&self) -> (super::CurveDatum, Point3<T>, Vec3<T>, Vec3<T>) {
+        let datum = match self.born {
+            Born::Centred => super::CurveDatum::Center,
+            Born::Anchored => super::CurveDatum::Anchor,
+        };
+        (datum, self.at.origin(), self.at.axis(), self.at.u_ref())
     }
 
-    /// The stored placement, standing at the point [`Self::born`]
-    /// names: for the walks of the stored data alone.
-    pub(super) fn stored(&self) -> &Frame<T> {
-        &self.at
+    /// Whether `other` stores the same kind of point on a placement
+    /// `same` reads as this one's ([`Curve3::same_content`]).
+    pub(super) fn same_placement(
+        &self,
+        other: &Self,
+        same: impl Fn(&Frame<T>, &Frame<T>) -> bool,
+    ) -> bool {
+        self.born == other.born && same(&self.at, &other.at)
+    }
+
+    /// **This circle moved so that its centre stands at `center`**: a
+    /// translation of its one placement, exact on a circle born with a
+    /// centre.
+    #[must_use]
+    pub fn centred_at(&self, center: Point3<T>) -> Self {
+        self.placed(|at| match self.born {
+            Born::Centred => at.with_origin(center),
+            Born::Anchored => at.translated(center - Conic::center(self)),
+        })
     }
 
     /// The principal frame at the centre ([`Conic::frame`]).
@@ -723,16 +744,36 @@ impl<T: Real> Ellipse<T> {
         }
     }
 
-    /// Which point the ellipse stores.
-    #[must_use]
-    pub fn born(&self) -> Born {
-        self.born
+    /// **The stored point and what it is**, with the stored axis and
+    /// seam: for the walk of the stored data alone
+    /// ([`Curve3::data`]).
+    pub(super) fn stored(&self) -> (super::CurveDatum, Point3<T>, Vec3<T>, Vec3<T>) {
+        let datum = match self.born {
+            Born::Centred => super::CurveDatum::Center,
+            Born::Anchored => super::CurveDatum::Anchor,
+        };
+        (datum, self.at.origin(), self.at.axis(), self.at.u_ref())
     }
 
-    /// The stored placement, standing at the point [`Self::born`]
-    /// names: for the walks of the stored data alone.
-    pub(super) fn stored(&self) -> &Frame<T> {
-        &self.at
+    /// Whether `other` stores the same kind of point on a placement
+    /// `same` reads as this one's ([`Curve3::same_content`]).
+    pub(super) fn same_placement(
+        &self,
+        other: &Self,
+        same: impl Fn(&Frame<T>, &Frame<T>) -> bool,
+    ) -> bool {
+        self.born == other.born && same(&self.at, &other.at)
+    }
+
+    /// **This ellipse moved so that its centre stands at `center`**: a
+    /// translation of its one placement, exact on a ellipse born with a
+    /// centre.
+    #[must_use]
+    pub fn centred_at(&self, center: Point3<T>) -> Self {
+        self.placed(|at| match self.born {
+            Born::Centred => at.with_origin(center),
+            Born::Anchored => at.translated(center - Conic::center(self)),
+        })
     }
 
     /// The principal frame at the centre ([`Conic::frame`]).
@@ -805,13 +846,15 @@ impl<T: Real> Ellipse<T> {
             at: match self.born {
                 Born::Centred => at,
                 // An anchored ellipse stays anchored at its seam's
-                // vertex: the stored one where the seam is kept, the
-                // turned seam's, read off the derived centre, where it
-                // turns.
+                // vertex: the stored one where the seam is kept, and
+                // where it turns the turned seam's, summed from the
+                // anchor. That vertex lies a semi-axis away, so it holds
+                // only to the semi-axis's rounding whatever sums it.
                 Born::Anchored => at.with_origin(select_point(
                     turn,
                     self.at.origin(),
-                    turned.origin() + turned.u_ref() * self.semi_v,
+                    self.at.origin()
+                        + (turned.u_ref() * self.semi_v - self.at.u_ref() * self.semi_u),
                 )),
             },
             born: self.born,
@@ -850,7 +893,7 @@ impl<T: Real> Ellipse<T> {
                 Born::Anchored => at.with_origin(select_point(
                     back,
                     e.at.origin(),
-                    f.origin() - f.u_ref() * e.semi_u,
+                    e.at.origin() - e.at.u_ref() * (T::from_f64(2.0) * e.semi_u),
                 )),
             },
             ..e

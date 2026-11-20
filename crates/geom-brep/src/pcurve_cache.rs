@@ -13174,19 +13174,8 @@ mod incidence {
                 let k = geom_core::Vec3::new(kx.value, ky.value, kz.value);
                 let mut moved = carrier.translated(-k)?;
                 match &mut moved {
-                    // A conic born with a centre stands at the origin
-                    // exactly; one born anchored keeps its translated
-                    // anchor, its centre derived from it.
-                    Curve3::Circle(c) => {
-                        if c.born() == geom::Born::Centred {
-                            *c = c.placed(|f| f.with_origin(geom_core::Point3::origin()));
-                        }
-                    }
-                    Curve3::Ellipse(e) => {
-                        if e.born() == geom::Born::Centred {
-                            *e = e.placed(|f| f.with_origin(geom_core::Point3::origin()));
-                        }
-                    }
+                    Curve3::Circle(c) => *c = c.centred_at(geom_core::Point3::origin()),
+                    Curve3::Ellipse(e) => *e = e.centred_at(geom_core::Point3::origin()),
                     Curve3::Spiric { frame, .. } => {
                         *frame = frame.with_origin(geom_core::Point3::origin());
                     }

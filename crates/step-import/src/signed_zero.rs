@@ -73,6 +73,15 @@ pub(crate) fn plus_zero_point(p: Point3<f64>) -> Point3<f64> {
     )
 }
 
+/// A placement with its signed zeros made positive, squared again.
+fn plus_zero_frame(at: &geom::Frame<f64>) -> geom::Frame<f64> {
+    geom::Frame::new(
+        plus_zero_point(at.origin()),
+        plus_zero(at.axis()),
+        plus_zero(at.u_ref()),
+    )
+}
+
 /// A minted carrier with its signed zeros made positive
 /// (this module's docs state why): a line's, a circle's or an ellipse's
 /// placed fields, anything else as it is.
@@ -82,28 +91,10 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(plus_zero_point(origin), plus_zero(dir))
         }
-        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-            let frame = the_circle.frame();
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-            Curve3::circle(
-                plus_zero_point(center),
-                plus_zero(axis),
-                radius,
-                plus_zero(u_ref),
-            )
-        }
-        Curve3::Ellipse(ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
-            let frame = ellipse.frame();
-            Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame::new(
-                    plus_zero_point(frame.origin()),
-                    plus_zero(frame.axis()),
-                    plus_zero(frame.u_ref()),
-                ),
-                semi_u,
-                semi_v,
-            ))
-        }
+        // The placement is the one thing a conic stores of where it
+        // is, so it is re-stated in place and the conic keeps its form.
+        Curve3::Circle(circle) => Curve3::Circle(circle.map_scalar(plus_zero_frame, |x| x)),
+        Curve3::Ellipse(ellipse) => Curve3::Ellipse(ellipse.map_scalar(plus_zero_frame, |x| x)),
         other => other,
     }
 }
