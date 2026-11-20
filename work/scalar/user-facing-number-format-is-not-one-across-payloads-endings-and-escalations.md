@@ -2,10 +2,11 @@
 id: user-facing-number-format-is-not-one-across-payloads-endings-and-escalations
 kind: issue
 title: geom-core: the user-facing number format is not yet one across refusal payloads, sized endings, Indeterminate payloads and the blend payload
-status: open
+status: parked
 opened: 2026-10-14
 priority: P4
 cost: E
+blocked_on: [patherror-display-renders-float-noise]
 ---
 
 (Filed by the ENCL implementer of `zero-arm-payload-wording-doubles-words-and-hedges-a-definite-verdict`, PR 5157, at the ENCL orchestrator's direction.)
