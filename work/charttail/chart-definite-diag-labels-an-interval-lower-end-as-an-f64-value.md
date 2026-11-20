@@ -2,11 +2,14 @@
 id: chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value
 kind: issue
 title: topo: chart_region's definite_diag reports an interval margin's lower end as a point Value, the wrong lane's reading
-status: open
+status: closed
 priority: P1
 cost: E
 opened: 2026-09-29
+branch: charttail/decided-gates
 rides_with: chart-region-mints-indeterminates-after-a-definite-sign
+pr: 7168
+closed: 2026-11-20
 ---
 
 
@@ -31,3 +34,26 @@ that, where before it claimed the margin "lies inside the ambiguity band
 band": a margin below `−e`, which that band does not hold. Carrying the
 `Decided` (the fix shape above) lets the escalation say which verdict
 the conservative deduction could not certify.
+
+## Fixed through `decide_positive`, not `decide_reported` (CHARTTAIL, 2026-11-20, branch `charttail/decided-gates`)
+
+`definite_diag` is deleted. Its three callers (`chart_region_area`,
+`chart_region_cyl_band_area`, `chart_region_cross_order`) pass only
+`Positive`, so they are `k_stats::decide_positive` sites, through
+`validate::decide_positive`. The fix shape above, `decide_reported`,
+would carry the lane's own reading, but the caller would still build
+the escalation itself, off the frame's log. That is the carrying row's
+defect. `decide_positive` mints the rejection inside the funnel and
+records it. The margin is the lane's own reading (an enclosure at
+`Interval`), tagged with the decided sign. A decided Negative now reads
+"lies past the ambiguity band — a decided sign this decision cannot
+use", and a decided Zero reads "lies within the zero band". The
+`reporting-margin-door.sh` mint list drops `chart_region.rs`.
+
+Pinned by `chart_region::tests::a_swallowed_overlap_refuses_its_decided_negative_area_at_both_lanes`.
+It goes red on the old echo, because that echo's reading carries no
+rejected sign (checked by reverting the area site).
+
+## Closed (2026-11-20)
+
+By PR 7168: every definite-sign escalation in `chart_region.rs` goes through the funnel's gates (`decide_positive` at the area, band-area and cross-order rows, `decide_nonzero` at the axis sense), `definite_diag` is deleted, and each refusal names the sign it could not use. Each of the four sites is pinned by `tests::gate_rejected`.

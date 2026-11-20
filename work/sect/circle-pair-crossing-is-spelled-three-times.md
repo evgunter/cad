@@ -61,7 +61,7 @@ read it, each keeping its row names and its across-the-slack reading:
   concentric row reads `d()`). The corner keeps the squared-radius form:
   `Circles`' placement reads the radii themselves, which LB4 rules out,
   and the site says so. That fork is
-  `work/profilerest/arc-fillet-corner-circle-pair-cancels-at-unequal-radii.md`;
+  `work/profile/arc-fillet-corner-circle-pair-cancels-at-unequal-radii.md`;
 - `profile/src/sugar.rs` `offset_circles`, the
   `fillet_offset_circles_external` and `_internal` margins.
 

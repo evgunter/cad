@@ -415,7 +415,7 @@ pub fn documents() -> Vec<CorpusDoc> {
 /// `shaft_and_bearing::with_a_ball` is green at `f64` and certifies at
 /// `Interval` at every ε; `shaft_and_bearing::rounded_mouth` is green at
 /// every lane and ε
-/// (`work/tint/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry.md`);
+/// (`work/ciw/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry.md`);
 /// the others' unions refuse at `f64`.
 /// The per-row door census reads them beside [`documents`], so the rows
 /// they reach are counted.
@@ -534,7 +534,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 /// The node kinds a document exercises (the coverage tally's domain).
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
-/// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
+/// or `Mate`: `work/ciw/corpus-node-kinds-roster-is-hand-written`.
 pub const NODE_KINDS: [&str; 21] = [
     "Profile",
     "Extrude",
