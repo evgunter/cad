@@ -243,3 +243,14 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
   `patherror-display-renders-float-noise` is closed; units 2 and 3+
   (the per-crate sweeps) are next on it, their briefs asking for the
   provenance of each number told as given.
+
+- 2026-11-20 — **Unit 2 of the told quantity is specced and
+  dispatched**: `a-refusal-is-told-in-the-readers-notation` (letter M,
+  tier dual, so its reviews run in sequence), into the lane PR 7159
+  freed, branch of the same name. Chosen over a per-crate sweep
+  because it touches `viewer`, `quantity` and `told.rs`, none of which
+  the two DL5 units in flight touch, and because the sweeps should
+  build on the notation door rather than be revisited by it. It also
+  measures, without changing, how many error types would cross
+  clippy's size line with an inline `Told` (the boxing row). The
+  positions row and the per-crate sweeps stay open behind it.
