@@ -1,18 +1,18 @@
 //! **M10-7 R1: the census, attacked with a profile the PR never built.**
 //! Two COLLINEAR consecutive walls — an edge split by a vertex whose
 //! coordinates are the same expression of the parameter — so
-//! `side_planes_cosurface` is a true identity, and the tier should
-//! discharge it. Evidence-only rows print; the one gate asserts the
-//! drive certifies the macroscopic box.
+//! `side_planes_cosurface` would be a true identity for the tier to
+//! discharge. Evidence-only rows print; the one gate asserts that the
+//! `LineTo` spelling of such walls cannot be built.
 //!
-//! NO TEST IN THIS FILE IS EXECUTED BY CI — every test here is behind the whole-file
-//! `#![cfg(feature = "probe")]`, and two of
-//! the three are `#[ignore]`d besides. They are a reviewer's
-//! counter-fixture: a profile the unit never built, run to check what
-//! the census claims about it. The claim they check is recorded in
-//! `work/sym/symbolic-tier-census.md`; the rows are how it was
-//! reached, kept so the next lane can re-run them rather than re-derive
-//! them.
+//! Every test here is behind the whole-file `#![cfg(feature = "probe")]`,
+//! so the per-PR gate does not run them; the nightly's all-features job
+//! does, and two of the three are `#[ignore]`d besides. They are a
+//! reviewer's counter-fixture: a profile the unit never built, run to
+//! check what the census claims about it. The claim they check is
+//! recorded in `work/tier/symbolic-tier-census.md`; the rows are how it
+//! was reached, kept so the next lane can re-run them rather than
+//! re-derive them.
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -21,22 +21,21 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
-use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
-    Node, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, UnitSym, VarName, evaluate,
+    Node, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, UnitSym, VarName,
+    evaluate,
 };
 use fixture::{Recorder, len, scl};
 use geom_core::Tol;
 use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
 
 /// A rectangle `[0, w] × [0, 1]` whose bottom edge is split at `w/2`,
-/// extruded by 1: the two bottom walls WOULD be cosurface for every
-/// `w` — but the profile door refuses a collinear `LineTo` junction as
-/// `JunctionTangent` ("spell it line(len) off the directed point — no
-/// junction exists there"), so the identity is unauthorable through
-/// the chain vocabulary. `Err` carries the door's refusal.
-fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
+/// extruded by 1: the two bottom walls would be cosurface for every
+/// `w`. The edit door reads no value, so it admits the document; the
+/// collinear `LineTo` junction is refused when the profile evaluates.
+/// Returns the document and the profile's id.
+fn split_rectangle(half: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("w"),
@@ -72,15 +71,15 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
         },
         Tol::witness(),
     )
-    .map_err(|e| format!("{e:?}"))?;
-    let profile = applied.record.minted.unwrap();
+    .expect("the door reads no value");
+    let profile = applied.record.minted.expect("the insert mints the profile");
     let mut r = Recorder::new();
     r.doc = applied.doc;
     r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
     });
-    Ok(r.doc)
+    (r.doc, profile)
 }
 
 fn split_at_point(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static str, (u64, u64)> {
@@ -114,49 +113,36 @@ fn split_at_point(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static 
     out
 }
 
-/// **The census's `side_planes_cosurface` 0/8 claim, attacked and
-/// upheld**: two collinear consecutive walls are the one profile on
-/// which the predicate is a true identity, and the chain door refuses
-/// to author them (`JunctionTangent`). If the door ever admits them,
-/// this row reds and the tier's discharge of the predicate becomes
-/// measurable.
+/// Two collinear consecutive walls are the one profile on which
+/// `side_planes_cosurface` is a true identity. Spelled with `LineTo`,
+/// the junction refuses as `JunctionTangent` at evaluation; the declared
+/// spelling, `ContinueTo`, builds them, and
+/// `m10_7_r2_probes_interval::r2_collinear_walls_should_discharge_side_planes_cosurface`
+/// measures the tier there. If the `LineTo` spelling ever builds, this
+/// row reds.
 #[test]
 fn r1_collinear_walls_are_unauthorable_so_cosurface_stays_a_non_identity() {
-    let tol = Tol::witness();
-    match split_rectangle(0.5) {
-        Err(e) => {
-            println!(
-                "the chain door refused the collinear junction: {}",
-                &e[..e.len().min(300)]
-            );
-            assert!(e.contains("JunctionTangent"), "{e}");
-        }
-        Ok(doc) => {
-            let rows = split_at_point(&doc, tol);
-            for (pred, (s, n)) in &rows {
-                println!("   {pred:<40} symbolic={s:<6} numeric={n}");
-            }
-            let cos = rows.get("side_planes_cosurface").copied().unwrap_or((0, 0));
-            let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-            let v = drive(
-                &doc,
-                &analyzed,
-                &DriveConfig {
-                    max_leaves: 64,
-                    symbolic: SymbolicDials::default(),
-                    ..DriveConfig::default()
+    let (doc, id) = split_rectangle(0.5);
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    match ev.node_error(id).map(|e| &e.kind) {
+        Some(editor_core::NodeErrorKind::ProfileReplay {
+            loop_: 0,
+            error:
+                profile::ReplayError {
+                    step: 2,
+                    kind: profile::ReplayErrorKind::Path(e),
                 },
-                &editor_core::Stop::default(),
-                tol,
-            )
-            .unwrap();
-            panic!(
-                "the door now admits collinear junctions: side_planes_cosurface {cos:?}, \
-                 drive certified={} refused={} — re-measure the census",
-                v.receipt().certified,
-                v.receipt().refused
-            );
-        }
+        }) if e.kind() == profile::PathErrorKind::JunctionTangent => {}
+        other => panic!(
+            "the collinear junction refuses as tangent at step 2; got {other:?}: \
+             if the walls now build, re-measure the census"
+        ),
     }
 }
 
