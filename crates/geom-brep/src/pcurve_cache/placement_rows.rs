@@ -15,14 +15,14 @@ fn band() -> Band {
 }
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
+    Curve3::Circle(geom::Circle::new(
+        geom::Frame {
             origin: center,
             axis,
             u_ref,
         },
         radius,
-    })
+    ))
 }
 
 /// A named arm: its chart, its carrier, and an edge's span on it.
@@ -342,20 +342,25 @@ fn line_arms() -> Vec<Arm> {
 /// carrier at `t − by` is the first at `t`.
 fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
     match *carrier {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => circle(
-            center,
-            axis,
-            radius,
-            u_ref * by.cos() + axis.cross(u_ref) * by.sin(),
-        ),
+        Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let radius = conic_k.radius();
+            circle(
+                center,
+                axis,
+                radius,
+                u_ref * by.cos() + axis.cross(u_ref) * by.sin(),
+            )
+        }
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(origin + dir * by, dir),
         _ => unreachable!("only circles and lines are restarted here"),
     }
