@@ -22,9 +22,7 @@ use crate::sym::{Sym, SymBudget, with_session};
 use crate::test_support::fixture_lever;
 use crate::{Dual, k_stats};
 
-#[path = "../../tests/exact_q/mod.rs"]
-mod exact_q;
-use exact_q::Q;
+use crate::spline::compose::exact_q::Q;
 
 const ZERO: f64 = 1e-9;
 const ESCALATE: f64 = 1e-8;
