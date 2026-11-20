@@ -439,7 +439,7 @@ pub fn require_iso_rectangle<T: Decide>(
             ..
         } => {
             let (sin_a, cos_a) = half_angle.sin_cos();
-            let b = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
+            let b = cone_boundary(surface, apex, axis, sin_a, cos_a, outer, band)?;
             linear_rims_at_extremes(&b, band)
         }
         Surface::Sphere {
@@ -3473,6 +3473,7 @@ fn cone_loop_winding<T: Decide>(
 /// that does not close around the apex ([`require_rim_only_closed`])
 /// rather than folding and leaving the check to whoever asked.
 fn cone_boundary<T: Decide>(
+    cone: &Surface<T>,
     apex: Point3<T>,
     axis: Vec3<T>,
     sin_a: T,
@@ -3545,9 +3546,10 @@ fn cone_boundary<T: Decide>(
         }
     }
     // Cone levels are the signed SLANT arc length — `Length`, bare —
-    // and the arm is the first rim's own radius ([`cone_arm`]).
-    let rim_radius = cone_arm(&rims, sin_a);
-    let arms = RimArms::uniform(rim_radius, Lever::curvature_radius(rim_radius));
+    // so the level arm is never consumed, and is the cone's own answer
+    // with no point to read at ([`crate::uniform_curvature_arm`]). The
+    // azimuth is metered at the first rim's own radius ([`cone_arm`]).
+    let arms = RimArms::uniform(cone_arm(&rims, sin_a), crate::uniform_curvature_arm(cone));
     let mut b = LinearBoundary {
         rims,
         levels,

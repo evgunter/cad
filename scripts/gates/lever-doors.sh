@@ -25,10 +25,9 @@
 #  - an extent widened, scaled or measured by the caller's number:
 #    `ExtentBall::of_cover_within`, `lever_from_point_and_plane` (its
 #    normal is the caller's, unit or not), `Reach::of_face`, a
-#    `Reach::Measured` or `Reach::Face` literal, and geom-brep's
-#    crate-private `lever_from_within`, `of_crossing_cylinders`,
-#    `hinge_lever`, `turn_lever`, `ruled_lever`, `generator_lever`:
-#    home, geom-brep's `extent.rs`.
+#    `Reach::Measured` or `Reach::Face` literal, and the extent
+#    home's own `hinge_lever` and `turn_lever`: home, geom-brep's
+#    `extent.rs`.
 #
 # `Lever`'s own field is private to its module, so no gate holds it.
 # `lever-sources.sh` holds the doors that name no source at all

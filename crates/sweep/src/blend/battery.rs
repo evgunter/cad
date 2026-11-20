@@ -574,29 +574,6 @@ fn chain_sample_at<T: Decide>(t0: T, t1: T, i: u32) -> T {
     geom_brep::schedule_param(t0, t1, i, CHAIN_SAMPLES)
 }
 
-/// The lever arm of a link's edge — the curvature-free straight
-/// extent every angular predicate folds against: the **maximum
-/// pairwise chord** over the battery's own per-link schedule
-/// ([`chain_sample_at`], all [`CHAIN_SAMPLES`] samples) — the same
-/// places the other chain predicates look, on purpose.
-///
-/// Every chord lower-bounds arc length, so the lever never
-/// over-reports the edge's extent — a margin in meters folded
-/// against it stays conservative. On a collinear carrier the
-/// endpoint pair dominates every other pair and the schedule's ends
-/// are `t0`/`t1` exactly, so a straight edge meters bit-identically
-/// to its endpoint chord. On a CLOSED edge, where that endpoint
-/// chord is structurally zero, the interior pairs meter the rim —
-/// the schedule spans diametral pairs, so a full circular rim meters
-/// its diameter — and the dihedral is judged at an honest lever
-/// rather than a collapsed one.
-fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> Lever<T> {
-    let pts: Vec<Point3<T>> = (0..CHAIN_SAMPLES)
-        .map(|i| carrier.eval(chain_sample_at(t0, t1, i)))
-        .collect();
-    geom_brep::points_diameter(&pts)
-}
-
 // ---------------------------------------------------------------
 // Predicate 1 — radius vs curvature headroom.
 // ---------------------------------------------------------------
@@ -1099,10 +1076,10 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (face_a, face_b) = sides.faces();
     let (start, end) = body.edge_vertices(edge).ok_or_else(broken)?;
     let (carrier, t0, t1) = carrier_of(body, edge)?;
-    // The edge's own extent levers what is read ALONG the edge: the
-    // chain's G1 at a shared vertex ([`Link::arm_len`]) and a ruled
-    // pair's co-ruling.
-    let extent = extent_of(&carrier, t0, t1);
+    // The edge's own extent, from below, levers what is read ALONG the
+    // edge: the chain's G1 at a shared vertex ([`Link::arm_len`]) and a
+    // ruled pair's co-ruling.
+    let extent = geom_brep::edge_extent_inf(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
     let sa = body.face_surface(face_a).ok_or_else(broken)?.clone();

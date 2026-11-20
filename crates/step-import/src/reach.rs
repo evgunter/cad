@@ -89,17 +89,11 @@ impl Reach {
         )
     }
 
-    /// The region's diameter as a lever: an angle between two directions
+    /// The region's diameter as a lever, from above
+    /// ([`geom_brep::cover_diameter`]): an angle between two directions
     /// moves a point of the region by at most the angle times it.
     pub(crate) fn lever(&self) -> Lever<f64> {
-        let corner = |pick: fn((f64, f64)) -> f64| {
-            Point3::new(
-                pick(self.along(Vec3::new(1.0, 0.0, 0.0))),
-                pick(self.along(Vec3::new(0.0, 1.0, 0.0))),
-                pick(self.along(Vec3::new(0.0, 0.0, 1.0))),
-            )
-        };
-        geom_brep::points_diameter(&[corner(|(lo, _)| lo), corner(|(_, hi)| hi)])
+        geom_brep::cover_diameter(&self.0)
     }
 }
 

@@ -888,10 +888,11 @@ pub enum SeamEscalation {
 /// may be spline faces (module docs, "A seam with a spline face"): the
 /// wedge between `faces` at the seam's point `p`, over the same arm
 /// gate and wedge decision, with each face's normal and curvature arm
-/// read by its kind. `chart_arm` reads a certified lower bound on a
-/// spline chart's arm at the seam's point over the reach, at this scalar
-/// ([`crate::NurbsLane::chart_arm`] where the scalar certifies); where it
-/// reads none, that lower end is poison.
+/// read by its kind. `lane` is this scalar's certification lane, `None`
+/// where the scalar does not certify: it reads a certified lower bound on
+/// a spline chart's arm at the seam's point over the reach
+/// ([`crate::chart_curvature_arm`]); where it reads none, that lower end
+/// is poison.
 ///
 /// A spline face's arm is bracketed rather than read: it lies between
 /// that lower bound and the reach, the fold's own ceiling. The seam reads
@@ -912,12 +913,12 @@ pub fn classify_seam<T: Decide>(
     faces: [SeamFace<'_, T>; 2],
     p: Point3<T>,
     reach: geom_core::Lever<T>,
-    chart_arm: impl Fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Option<f64>,
+    lane: Option<crate::NurbsLane<T>>,
     band: Band,
 ) -> Result<DihedralClass, SeamEscalation> {
     let [a, b] = [
-        seam_face_reading(faces[0], p, reach, &chart_arm, band)?,
-        seam_face_reading(faces[1], p, reach, &chart_arm, band)?,
+        seam_face_reading(faces[0], p, reach, lane, band)?,
+        seam_face_reading(faces[1], p, reach, lane, band)?,
     ];
     let class = wedge_of(a.normal, b.normal, fold_arms(a.hi, b.hi, reach), band)
         .map(|(class, _)| class)
@@ -947,7 +948,7 @@ fn seam_face_reading<T: Decide>(
     face: SeamFace<'_, T>,
     p: Point3<T>,
     reach: geom_core::Lever<T>,
-    chart_arm: &impl Fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Option<f64>,
+    lane: Option<crate::NurbsLane<T>>,
     band: Band,
 ) -> Result<SeamFaceReading<T>, SeamEscalation> {
     let (chart, uv) = match face {
@@ -976,10 +977,7 @@ fn seam_face_reading<T: Decide>(
         .map_err(SeamEscalation::Crease)?;
     Ok(SeamFaceReading {
         normal: normal.vec(),
-        lo: geom_core::Lever::curvature_radius(
-            chart_arm(chart, p, reach.length())
-                .map_or_else(crate::implicit::poison, T::from_computed),
-        ),
+        lo: crate::chart_curvature_arm(lane, chart, p, reach),
         hi: reach,
         bracketed: true,
     })
@@ -3858,7 +3856,13 @@ mod seam_rows {
         b: SeamFace<'_, f64>,
         reach: f64,
     ) -> Result<DihedralClass, SeamEscalation> {
-        classify_seam([a, b], ORIGIN, fixture_lever(reach), chart_arm, band())
+        classify_seam(
+            [a, b],
+            ORIGIN,
+            fixture_lever(reach),
+            Some(NurbsLane::certified()),
+            band(),
+        )
     }
 
     /// A plane through the seam point with normal `n`.
@@ -4247,7 +4251,7 @@ mod seam_rows {
                         [SeamFace::Analytic(a), SeamFace::Analytic(b)],
                         ORIGIN,
                         fixture_lever(1.0),
-                        chart_arm,
+                        Some(NurbsLane::certified()),
                         band()
                     ),
                     wedge_decided(a, b, ORIGIN, fixture_lever(1.0), band())
@@ -4276,7 +4280,7 @@ mod seam_rows {
                 [SeamFace::Analytic(&wall), SeamFace::Analytic(&flat)],
                 ORIGIN,
                 fixture_lever(1.0),
-                chart_arm,
+                Some(NurbsLane::certified()),
                 band()
             ),
             Err(SeamEscalation::SplineReadAsAnalytic)

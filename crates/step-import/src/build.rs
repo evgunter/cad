@@ -502,11 +502,13 @@ fn choose(
             what: "an edge whose printed carrier has no region over its interval",
         })?;
     // The pose readings are levered at how far the edge's two faces run,
-    // as a wedge between them is (`topo::wedge_reach`): the farthest two
-    // of their vertices stand apart, and the edge's own extent where that
-    // is longer (a closed edge's whole turn).
-    let extent = geom_brep::edge_extent_inf(&spec.carrier, spec.t0, spec.t1)
-        .max(faces_reach(solid, [plus, minus]));
+    // their region's diameter from above, and the edge's own extent where
+    // that is longer.
+    let faces = crate::reach::Reach::of(solid, [plus, minus]).ok_or(StepImportError::Topology {
+        id,
+        what: "an edge whose faces have no region to read their reach from",
+    })?;
+    let extent = geom_brep::edge_extent_inf(&spec.carrier, spec.t0, spec.t1).max(faces.lever());
     // A cone's pose readings are levered from its apex (the station of a
     // coaxial cylinder's circles is a distance from it): the edge's own
     // diameter is no reach from there.
@@ -527,35 +529,6 @@ fn choose(
         );
     }
     analytic_pair(id, spec, (sa, sb), &region, extent, (file, eps_band))
-}
-
-/// The diameter of the box about the vertices the faces `faces` bound,
-/// as a lever: how far the two faces of an edge run. Read through the
-/// extent's own door ([`geom_brep::points_diameter`]) on the box's two
-/// far corners, whose distance is its diagonal.
-fn faces_reach(solid: &SolidSpec, faces: [usize; 2]) -> geom_core::Lever<f64> {
-    let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
-    for f in faces {
-        for l in &solid.faces[f].loops {
-            for u in &l.uses {
-                let e = &solid.edges[&u.edge];
-                for v in [e.start, e.end] {
-                    let p = solid.vertices[&v];
-                    for (i, c) in [p.x, p.y, p.z].into_iter().enumerate() {
-                        lo[i] = lo[i].min(c);
-                        hi[i] = hi[i].max(c);
-                    }
-                }
-            }
-        }
-    }
-    if !lo.iter().chain(&hi).all(|c| c.is_finite()) {
-        return geom_brep::points_diameter(&[]);
-    }
-    geom_brep::points_diameter(&[
-        Point3::new(lo[0], lo[1], lo[2]),
-        Point3::new(hi[0], hi[1], hi[2]),
-    ])
 }
 
 /// [`topo::section_near`] of the pair at `band`, through the printed

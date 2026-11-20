@@ -1268,16 +1268,11 @@ pub(crate) struct RuledFrame<T: Real> {
 
 /// [`RuledFrame`] of the pair at `reach`.
 pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame<T> {
-    let &PlaneCylinder { q, n, o, a, .. } = pc;
-    let o = reach.foot_on(geom::Line { origin: o, dir: a });
+    let &PlaneCylinder { q, n, a, .. } = pc;
+    // The gap and the lever share the reach's pivot on the axis.
+    let (o, lever) = reach.ruled_pivot_lever(pc);
     let c = a.dot(n);
     let gap_signed = (o - q).dot(n);
-    // The rulings this lane mints stand on the hinge through `o − n·gap`,
-    // `−gap·c` along the axis from the foot; the reach is levered from
-    // there (`geom_brep::extent`'s module docs).
-    let hinge = o - n * gap_signed;
-    let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
-    let lever = reach.ruled_lever((o, -(gap_signed * c)), hinge, (n, a), (c, cos));
     RuledFrame {
         o,
         c,
@@ -2433,6 +2428,7 @@ pub fn plane_cone_section<T: Decide>(
                 PN_APEX_PAIR_REACH,
                 pair_bound(
                     reach,
+                    cone,
                     (apex, a, cos_a, sin_a, seam_width),
                     (discr, steep, s),
                     (apex_gap, gap_err),
@@ -2658,6 +2654,7 @@ pub fn plane_cone_section<T: Decide>(
 #[allow(clippy::many_single_char_names)] // the derivation's own symbols
 fn pair_bound<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
+    cone: &Surface<T>,
     (apex, a, cos_a, sin_a, seam_width): (Point3<T>, Vec3<T>, T, T, T),
     (d, m, s): (T, T, T),
     (gap, gap_err): (T, T),
@@ -2708,7 +2705,7 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
         + T::from_f64(4.0);
     let azimuth = Margin::levered(
         T::from_f64(0.5 * f64::EPSILON) * turn,
-        reach.generator_lever(apex, a, cos_a),
+        reach.cone_generator_lever(cone),
     )
     .value();
     Margin::of(far.min(start + offset) + azimuth)

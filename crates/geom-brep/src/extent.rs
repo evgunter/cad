@@ -65,7 +65,7 @@
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
 
-use geom::cover::{Cover, ParamWindow, Site, Uncovered};
+use geom::cover::{BoxAxes, Cover, ParamWindow, Site, Uncovered};
 use geom::{Conic, Curve3, Line};
 use geom_core::spline::SpanLocate;
 use geom_core::{Lever, Point3, Real, Vec3, is_finite_length, poison};
@@ -88,6 +88,16 @@ pub fn points_lever_from<T: Real>(
 /// diameter ([`farthest_pair`]), zero for fewer than two.
 pub fn points_diameter<T: Real>(points: &[Point3<T>]) -> Lever<T> {
     Lever::of_consumed_extent(farthest_pair(points))
+}
+
+/// **The farthest two points of the region `cover` holds stand apart,
+/// from above**: the diagonal of the cover's box along the world axes
+/// ([`Cover::box_in`]), which holds the region. The lever of a tilt
+/// between two directions over the whole region, from any pivot in it.
+#[must_use]
+pub fn cover_diameter<T: Real>(cover: &Cover<T>) -> Lever<T> {
+    let (lo, hi) = cover.box_in(&BoxAxes::World);
+    Lever::of_consumed_extent((hi - lo).norm())
 }
 
 /// **What a stored datum's kind forgets**: the orbit its symmetry lets
@@ -222,13 +232,16 @@ impl<T: Real> ExtentBall<T> {
         (pivot - self.center).norm() + self.radius
     }
 
-    /// **The farthest the ball reaches from any point within `apart` of
-    /// `pivot`**: its lever from `pivot` plus `apart`. A reading whose
-    /// pivot is known only to stand within `apart` of `pivot` (a second
-    /// carrier's apex, the other axis's offset) levers here.
+    /// **The farthest the ball reaches from either of two pivots**: the
+    /// larger of its reaches from `p` and from `q`. A reading whose
+    /// position datum is the two pivots' separation (two cones' apexes;
+    /// a point of one axis and its foot on the other) and whose tilt
+    /// turns either carrier about its own pivot levers here: a consumed
+    /// point of either carrier stands no farther from that carrier's
+    /// pivot.
     #[must_use]
-    pub(crate) fn lever_from_within(self, pivot: Point3<T>, apart: T) -> Lever<T> {
-        Lever::of_consumed_extent(self.reach_from(pivot) + apart)
+    pub(crate) fn lever_from_either(self, p: Point3<T>, q: Point3<T>) -> Lever<T> {
+        Lever::of_consumed_extent(self.reach_from(p).max(self.reach_from(q)))
     }
 
     /// **The farthest the ball reaches from `pivot` and from the plane
@@ -351,19 +364,52 @@ impl<T: Real> ExtentBall<T> {
         Self::new(center, radius)
     }
 
-    /// **The ball holding two cylinders' crossing**, radii `[r₁, r₂]`,
-    /// axes crossing at sine `sin` with the common perpendicular from
-    /// `foot` along unit `normal`, `gap` long: a point within `r₁` of
-    /// the first axis and `r₂` of the second stands within
-    /// `(r₁ + r₂)/sin` of the perpendicular's midpoint across it, and
-    /// within `min r + |gap|/2` along it.
+    /// **The ball holding two cylinders' crossing**, the meet of the
+    /// walls `first` and `second`, whose axes are decided to cross: with
+    /// radii `r₁`, `r₂`, the axes' sine `sin` and their common
+    /// perpendicular `gap` long from `foot` along the unit `normal`
+    /// ([`Reach::common_perpendicular`], read at `reach`'s pivots), a
+    /// point within `r₁` of the first axis and `r₂` of the second stands
+    /// within `(r₁ + r₂)/sin` of the perpendicular's midpoint across it,
+    /// and within `min r + |gap|/2` along it. Poison where either
+    /// surface is no cylinder.
     #[must_use]
-    pub(crate) fn of_crossing_cylinders(
-        (foot, normal): (Point3<T>, Vec3<T>),
-        sin: T,
-        gap: T,
-        [r1, r2]: [T; 2],
+    pub(crate) fn of_cylinders_crossing(
+        [first, second]: [&geom::Surface<T>; 2],
+        reach: &Reach<T>,
     ) -> Self {
+        let (
+            &geom::Surface::Cylinder {
+                origin: o1,
+                axis: a1,
+                radius: r1,
+                ..
+            },
+            &geom::Surface::Cylinder {
+                origin: o2,
+                axis: a2,
+                radius: r2,
+                ..
+            },
+        ) = (first, second)
+        else {
+            return Self::of_covered(None);
+        };
+        let CommonPerpendicular {
+            foot,
+            normal,
+            sin,
+            gap,
+        } = reach.common_perpendicular(
+            Line {
+                origin: o1,
+                dir: a1,
+            },
+            Line {
+                origin: o2,
+                dir: a2,
+            },
+        );
         let half = T::from_f64(0.5);
         let across = (r1 + r2) / sin;
         let along = r1.min(r2) + gap.abs() * half;
@@ -372,6 +418,21 @@ impl<T: Real> ExtentBall<T> {
             (across.powi(2) + along.powi(2)).sqrt(),
         )
     }
+}
+
+/// **Two crossing lines' common perpendicular**
+/// ([`Reach::common_perpendicular`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CommonPerpendicular<T: Real> {
+    /// The perpendicular's foot on the first line.
+    pub(crate) foot: Point3<T>,
+    /// Its unit direction, `a₁ × a₂` normalized.
+    pub(crate) normal: Vec3<T>,
+    /// The lines' sine, `|a₁ × a₂|`.
+    pub(crate) sin: T,
+    /// Its signed length along `normal`, from the first line to the
+    /// second.
+    pub(crate) gap: T,
 }
 
 impl ExtentBall<f64> {
@@ -955,7 +1016,7 @@ impl<T: Real> Reach<T> {
     /// `max(|above − shift|, |below + shift|)`; every other reach adds
     /// `|shift|` to its lever from the foot.
     #[must_use]
-    pub(crate) fn hinge_lever(&self, pivot: Point3<T>, shift: T) -> Lever<T> {
+    fn hinge_lever(&self, pivot: Point3<T>, shift: T) -> Lever<T> {
         Lever::of_consumed_extent(match self {
             Self::Face { below, above, .. } => (*above - shift).abs().max((*below + shift).abs()),
             Self::Ball(_) | Self::Measured { .. } | Self::Region(_) => {
@@ -976,13 +1037,7 @@ impl<T: Real> Reach<T> {
     /// where `cos` read from `c` is not). Returned as a lever,
     /// `(1 − cos)/|c| = |c|/(1 + cos)`, so nothing divides by `c`.
     #[must_use]
-    pub(crate) fn turn_lever(
-        &self,
-        hinge: Point3<T>,
-        (n, a): (Vec3<T>, Vec3<T>),
-        c: T,
-        cos: T,
-    ) -> Lever<T> {
+    fn turn_lever(&self, hinge: Point3<T>, (n, a): (Vec3<T>, Vec3<T>), c: T, cos: T) -> Lever<T> {
         Lever::of_consumed_extent(match self {
             Self::Face { at, across, .. } => {
                 let off_perp = Line {
@@ -1001,31 +1056,72 @@ impl<T: Real> Reach<T> {
         })
     }
 
-    /// **The plane×cylinder row's whole lever**: its lever from the
-    /// rulings' hinge ([`Self::hinge_lever`]) plus the tilt's turn across
-    /// the wall ([`Self::turn_lever`]), each read as there.
+    /// **The plane×cylinder row's pivot and its whole lever** for the
+    /// pair `pc`: the reach's pivot on the cylinder's axis
+    /// ([`Self::foot_on`]), where the row reads its gap, and from there
+    /// the lever from the rulings' hinge ([`Self::hinge_lever`]) plus the
+    /// tilt's turn across the wall ([`Self::turn_lever`]), each read as
+    /// there. The hinge stands on the plane under the pivot, `−gap·c`
+    /// along the axis from it (`gap` the pivot's signed height over the
+    /// plane, `c` the axis's normal component).
     #[must_use]
-    pub(crate) fn ruled_lever(
+    pub(crate) fn ruled_pivot_lever(
         &self,
-        (foot, shift): (Point3<T>, T),
-        hinge: Point3<T>,
-        (n, a): (Vec3<T>, Vec3<T>),
-        (c, cos): (T, T),
-    ) -> Lever<T> {
-        Lever::of_consumed_extent(
-            self.hinge_lever(foot, shift).length()
+        pc: &crate::intersect::PlaneCylinder<T>,
+    ) -> (Point3<T>, Lever<T>) {
+        let &crate::intersect::PlaneCylinder { q, n, o, a, .. } = pc;
+        let foot = self.foot_on(Line { origin: o, dir: a });
+        let c = a.dot(n);
+        let gap = (foot - q).dot(n);
+        let hinge = foot - n * gap;
+        let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
+        let lever = Lever::of_consumed_extent(
+            self.hinge_lever(foot, -(gap * c)).length()
                 + self.turn_lever(hinge, (n, a), c, cos).length(),
-        )
+        );
+        (foot, lever)
     }
 
-    /// **The farthest a consumed point of a cone stands from its apex
-    /// along a generator**: the reach's window along the unit axis `a`
-    /// from `apex` ([`Self::range_along`]), its larger end over the
-    /// half-angle's cosine `cos_a`.
+    /// **The farthest a consumed point of `cone` stands from its apex
+    /// along a generator**: the reach's window along the cone's unit
+    /// axis from the apex ([`Self::range_along`]; the axis is the stored
+    /// frame's, squared, [`geom::Frame::square`]), its larger end over
+    /// the half-angle's cosine. Poison where `cone` is no cone.
     #[must_use]
-    pub(crate) fn generator_lever(&self, apex: Point3<T>, a: Vec3<T>, cos_a: T) -> Lever<T> {
-        let (lo, hi) = self.range_along(apex, a);
-        Lever::of_consumed_extent(lo.abs().max(hi.abs()) / cos_a)
+    pub(crate) fn cone_generator_lever(&self, cone: &geom::Surface<T>) -> Lever<T> {
+        let (
+            &geom::Surface::Cone {
+                apex, half_angle, ..
+            },
+            Some(frame),
+        ) = (cone, cone.frame())
+        else {
+            return Lever::of_consumed_extent(poison());
+        };
+        let (lo, hi) = self.range_along(apex, frame.square().axis);
+        Lever::of_consumed_extent(lo.abs().max(hi.abs()) / half_angle.sin_cos().1)
+    }
+
+    /// **The common perpendicular of two crossing lines**, read at the
+    /// reach's pivots on them ([`Self::foot_on`]): its unit direction
+    /// `a₁ × a₂`, the lines' sine, its signed length, and its foot on
+    /// `l1`, stepped along `l1` from the pivot there. For lines decided
+    /// to cross: it divides by the sine's square.
+    #[must_use]
+    pub(crate) fn common_perpendicular(&self, l1: Line<T>, l2: Line<T>) -> CommonPerpendicular<T> {
+        let (a1, a2) = (l1.dir, l2.dir);
+        let cross = a1.cross(a2);
+        let (normal, sin) = cross.direction_and_length();
+        let f1 = self.foot_on(l1);
+        let w = self.foot_on(l2) - f1;
+        let gap = w.dot(normal);
+        let foot = f1 + a1 * (w.cross(a2).dot(cross) / sin.powi(2));
+        CommonPerpendicular {
+            foot,
+            normal,
+            sin,
+            gap,
+        }
     }
 
     /// **The pivot on the line `axis` the reach is read at**: the origin

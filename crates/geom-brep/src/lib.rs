@@ -140,8 +140,8 @@ pub use certify::{
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side, curvature_vector};
 pub use curvature_arm::{
-    circle_curvature_arm, curvature_lever_arm, parallel_curvature_arm, uniform_curvature_arm,
-    within_carrier_bend,
+    chart_curvature_arm, circle_curvature_arm, curvature_lever_arm, parallel_curvature_arm,
+    uniform_curvature_arm, within_carrier_bend,
 };
 pub use description::{
     ChartCurve, CurveSelector, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SharedRow,
@@ -181,9 +181,9 @@ pub use enters::{
     tied_germ_turn,
 };
 pub use extent::{
-    ExtentBall, Forgets, LeverBounds, Reach, anchored_at, edge_coordinate_reach_below,
-    edge_extent_inf, edge_extent_sup, edge_reach_bounds, points_diameter, points_lever_from,
-    surface_anchored_at,
+    ExtentBall, Forgets, LeverBounds, Reach, anchored_at, cover_diameter,
+    edge_coordinate_reach_below, edge_extent_inf, edge_extent_sup, edge_reach_bounds,
+    points_diameter, points_lever_from, surface_anchored_at,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so

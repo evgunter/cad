@@ -9,7 +9,7 @@
 //! `scripts/gates/lever-doors.sh` pins the references that still stand
 //! elsewhere, each a site with a number where a carrier belongs.
 
-use geom::{Circle, Curve3, Surface};
+use geom::{Circle, Curve3, NurbsSurface, Surface};
 use geom_core::spline::SpanLocate;
 use geom_core::{Lever, Point3, Real, poison};
 
@@ -84,4 +84,22 @@ pub fn uniform_curvature_arm<T: Real>(s: &Surface<T>) -> Lever<T> {
 #[must_use]
 pub fn parallel_curvature_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> Lever<T> {
     Lever::curvature_radius(s.axis_line().map_or_else(poison, |axis| axis.distance(p)))
+}
+
+/// **A spline chart's curvature arm at `p` over `reach`, from below**:
+/// the certified lower bound `lane` reads on the chart's length scale
+/// there ([`crate::NurbsLane::chart_arm`]). Poison where the scalar has
+/// no lane (`None`) or the lane reads no bound, which a reading levered
+/// at it escalates.
+#[must_use]
+pub fn chart_curvature_arm<T: Real>(
+    lane: Option<crate::NurbsLane<T>>,
+    chart: &NurbsSurface<T>,
+    p: Point3<T>,
+    reach: Lever<T>,
+) -> Lever<T> {
+    Lever::curvature_radius(
+        lane.and_then(|lane| lane.chart_arm(chart, p, reach.length()).ok())
+            .map_or_else(poison, T::from_computed),
+    )
 }

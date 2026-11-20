@@ -797,8 +797,9 @@ pub fn consumed_arm<T: geom_core::Real>(
 ///   face's measure takes too);
 /// - torus — the pair's coincidence reads no extent
 ///   ([`crate::tori_coincide`]), and the pair passes through;
-/// - cone — the angular data are read from the first apex, widened by
-///   the apexes' separation so the arm holds from either.
+/// - cone — the angular data are levered at the extent's reach from
+///   either apex ([`crate::ExtentBall::lever_from_either`]), so the arm
+///   holds whichever cone is turned about its own.
 ///
 /// Sphere pairs and mixed kinds carry no angular datum; they pass
 /// through with the arm read from the extent's centre.
@@ -831,7 +832,7 @@ fn at_consumed_extent<T: geom_core::Real>(
             )
         }
         (CarrierDesc::Cone { apex: p1, .. }, CarrierDesc::Cone { apex: p2, .. }) => {
-            return (*c1, *c2, reach.lever_from_within(p1, (p1 - p2).norm()));
+            return (*c1, *c2, reach.lever_from_either(p1, p2));
         }
         (c1, c2) => (c1, c2, centre),
     };
@@ -859,11 +860,12 @@ fn at_consumed_extent<T: geom_core::Real>(
 ///   plus `|n̂₁ − σ·n̂₂|·R`; σ is the decided orientation;
 /// - sphere — the centre separation plus the radius difference;
 /// - cylinder — the axis offset at `p` (the foot of `c` on the second
-///   axis) plus `t` times the reach from `p` (widened by that offset,
-///   so it holds from either axis), plus the radius difference;
+///   axis) plus `t` times the reach from `p` or from its foot on the
+///   first axis, whichever is farther (so it holds from either axis),
+///   plus the radius difference;
 /// - cone — the apexes' separation plus `t` and the half-angles'
-///   difference, times the reach from the first apex widened by that
-///   separation: a point at distance `s` from one apex has a partner on
+///   difference, times the reach from either apex, whichever is
+///   farther: a point at distance `s` from one apex has a partner on
 ///   the other cone at the same distance from its apex, on the nappe
 ///   `t` turns its own to, its generator turned by no more than those
 ///   two angles;
@@ -959,9 +961,14 @@ fn reading<T: Decide>(
             });
             // The datum's offset and radius ([`cylinder_offset`],
             // [`cylinder_radius`]); the tilt is the chord [`line_tilt`] at
-            // the reach widened by that offset, not the datum's sine.
+            // the reach from the offset's two ends, `pivot` and its foot on
+            // the first axis, not the datum's sine.
             let apart = cylinder_offset(o1, a1, pivot).value();
-            let arm = reach.lever_from_within(pivot, apart);
+            let first = geom::Line {
+                origin: o1,
+                dir: a1,
+            };
+            let arm = reach.lever_from_either(pivot, first.foot(pivot));
             let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
             (CYL_REACH, cylinder_radius(r1, r2).value().abs() + core)
         }
@@ -980,7 +987,7 @@ fn reading<T: Decide>(
             },
         ) => {
             let apart = (p1 - p2).norm();
-            let arm = reach.lever_from_within(p1, apart);
+            let arm = reach.lever_from_either(p1, p2);
             let core = apart + Margin::levered(line_tilt(a1, a2) + (t1 - t2).abs(), arm).value();
             (CONE_REACH, core)
         }

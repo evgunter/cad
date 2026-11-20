@@ -274,14 +274,24 @@ impl<T: Decide> CylinderCylinderPose<T> {
         ];
         let region = reach.ball();
         Some(
-            Self::decide_stance(lines, [r1, r2], reach, band).map(|(stance, placed)| Self {
-                first: a.clone(),
-                second: b.clone(),
-                lines,
-                radii: [r1, r2],
-                region,
-                stance,
-                placed,
+            Self::decide_stance(lines, [r1, r2], reach, band).map(|stance| {
+                let placed = match stance {
+                    CcStance::Parallel { .. } => RegionPlacement::Straddles,
+                    CcStance::Crossing { .. } => placement(
+                        ExtentBall::of_cylinders_crossing([a, b], reach),
+                        region,
+                        band,
+                    ),
+                };
+                Self {
+                    first: a.clone(),
+                    second: b.clone(),
+                    lines,
+                    radii: [r1, r2],
+                    region,
+                    stance,
+                    placed,
+                }
             }),
         )
     }
@@ -291,7 +301,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
         [r1, r2]: [T; 2],
         reach: &Reach<T>,
         band: Band,
-    ) -> Result<(CcStance<T>, RegionPlacement), SectionError> {
+    ) -> Result<CcStance<T>, SectionError> {
         for r in [r1, r2] {
             match geom_core::k_stats::decide_reported(
                 CcDecision::Radius.name(),
@@ -352,17 +362,14 @@ impl<T: Decide> CylinderCylinderPose<T> {
                 gap,
                 nest,
             };
-            return Ok((stance, RegionPlacement::Straddles));
+            return Ok(stance);
         }
-        let (a1, a2) = (l1.dir, l2.dir);
-        let cross = a1.cross(a2);
-        let (normal, sin) = cross.direction_and_length();
-        let f1 = reach.foot_on(l1);
-        let w = reach.foot_on(l2) - f1;
-        let gap = w.dot(normal);
-        // The common perpendicular's foot on the first axis, from the
-        // reach's pivot there.
-        let foot = f1 + a1 * (w.cross(a2).dot(cross) / sin.powi(2));
+        let crate::extent::CommonPerpendicular {
+            foot,
+            normal,
+            sin,
+            gap,
+        } = reach.common_perpendicular(l1, l2);
         let e = gap.abs();
         let reach_d = read(CcDecision::CrossingGap, e - (r1 + r2), band)?;
         let nest = match reach_d.sign {
@@ -410,12 +417,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
             node,
             thinner,
         };
-        let placed = placement(
-            ExtentBall::of_crossing_cylinders((foot, normal), sin, gap, [r1, r2]),
-            reach.ball(),
-            band,
-        );
-        Ok((stance, placed))
+        Ok(stance)
     }
 
     /// The two surfaces in the order the pose was asked of.
@@ -613,7 +615,21 @@ impl<T: Decide> CylinderCylinderPose<T> {
 /// not a decision about the pair, so it reads the margins' signs without
 /// recording them.
 fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) -> RegionPlacement {
-    let apart = (ball.center() - region.center()).norm();
+    stands((ball.center(), ball.radius()), region, band)
+}
+
+/// [`placement`] of the single point `p`.
+fn point_placement<T: Decide>(p: Point3<T>, region: ExtentBall<T>, band: Band) -> RegionPlacement {
+    stands((p, T::zero()), region, band)
+}
+
+/// Where the points within `radius` of `center` stand against `region`.
+fn stands<T: Decide>(
+    (center, radius): (Point3<T>, T),
+    region: ExtentBall<T>,
+    band: Band,
+) -> RegionPlacement {
+    let apart = (center - region.center()).norm();
     let positive = |m: T| {
         matches!(
             // NO-DECISION: which listing of the pair to take, each sound.
@@ -624,9 +640,9 @@ fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) 
             })
         )
     };
-    if positive(region.radius() - (apart + ball.radius())) {
+    if positive(region.radius() - (apart + radius)) {
         RegionPlacement::Inside
-    } else if positive(apart - (region.radius() + ball.radius())) {
+    } else if positive(apart - (region.radius() + radius)) {
         RegionPlacement::Outside
     } else {
         RegionPlacement::Straddles
@@ -647,8 +663,7 @@ fn region_span<T: Decide>(
     let to = region.center() - origin;
     let t = to.dot(dir);
     let off = (to.norm_squared() - t.powi(2)).max(T::zero()).sqrt();
-    let foot = ExtentBall::point(origin + dir * t);
-    if placement(foot, region, band) == RegionPlacement::Outside {
+    if point_placement(origin + dir * t, region, band) == RegionPlacement::Outside {
         return None;
     }
     let half = (region.radius().powi(2) - off.powi(2))
@@ -735,7 +750,7 @@ fn bisector_nodes<T: Decide>(
     pose: &CylinderCylinderPose<T>,
     normal: Vec3<T>,
     [e1, e2]: [&Curve3<T>; 2],
-    against: &dyn Fn(ExtentBall<T>) -> RegionPlacement,
+    holds: &dyn Fn(Point3<T>) -> RegionPlacement,
     band: Band,
 ) -> (Vec<SectionNode<T>>, [NodeEnds; 4]) {
     let u = |e: &Curve3<T>| match e {
@@ -760,7 +775,7 @@ fn bisector_nodes<T: Decide>(
             }),
             "both walls' outward radials at a bisector node are its common normal"
         );
-        if against(ExtentBall::point(point)) == RegionPlacement::Outside {
+        if holds(point) == RegionPlacement::Outside {
             continue;
         }
         index[i] = Some(nodes.len());
@@ -862,6 +877,13 @@ pub(super) fn cylinder_cylinder<T: Decide>(
         RegionPlacement::Inside => RegionPlacement::Inside,
         RegionPlacement::Outside | RegionPlacement::Straddles => placement(ball, pose.region, band),
     };
+    // A point of a closed form against the region, likewise.
+    let holds = |p: Point3<T>| match pose.placed {
+        RegionPlacement::Inside => RegionPlacement::Inside,
+        RegionPlacement::Outside | RegionPlacement::Straddles => {
+            point_placement(p, pose.region, band)
+        }
+    };
     // A ruling through `p`, cut to the region, where it reaches it.
     let ruling = |p: Point3<T>| {
         let line = geom::Line {
@@ -916,7 +938,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
             (Sign::Positive, _) => Components::Counted(Vec::new()),
             (Sign::Zero, _) => {
                 let at = pose.touch(foot, normal, gap);
-                Components::Counted(match against(ExtentBall::point(at)) {
+                Components::Counted(match holds(at) {
                     RegionPlacement::Outside => Vec::new(),
                     RegionPlacement::Inside | RegionPlacement::Straddles => vec![component(
                         ComponentShape::Point,
@@ -938,8 +960,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         });
                     }
                     let [e1, e2] = bisector_ellipses(foot, (axis, pose.lines[1].dir), r1, band)?;
-                    let (bisector, ends) =
-                        bisector_nodes(&pose, normal, [&e1, &e2], &against, band);
+                    let (bisector, ends) = bisector_nodes(&pose, normal, [&e1, &e2], &holds, band);
                     nodes = bisector;
                     let half = T::pi() * T::from_f64(0.5);
                     let arcs = [
