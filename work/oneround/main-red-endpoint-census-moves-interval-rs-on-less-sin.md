@@ -2,11 +2,12 @@
 id: main-red-endpoint-census-moves-interval-rs-on-less-sin
 kind: issue
 title: Main red: certified_endpoint_census gains one geom-core interval.rs endpoint read (less_sin's series test) unrostered, since PR 7146
-status: open
+status: dispatched
 opened: 2026-11-20
 priority: P1
 cost: E
 refs: [7146]
+branch: oneround/less-sin-census
 ---
 
 
