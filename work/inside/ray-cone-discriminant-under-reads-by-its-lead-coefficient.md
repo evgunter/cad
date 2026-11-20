@@ -31,7 +31,7 @@ the cone reads a margin of 5e-11, so it reads Zero and grazes. At
 `α = 1.5` a ray square to the generator and 1e-6 m clear reads 7e-10.
 
 The cylinder's discriminant had the same missing division and was
-corrected (the audit's F2: `bool_ray_cylinder_disc` is
+corrected (the audit's F2: `line_quadric_cylinder_disc` is
 `disc/|d⊥|²` over `2r`); the cone's was not.
 
 ## Cost

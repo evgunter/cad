@@ -1311,7 +1311,8 @@ tangent touch and an end on a crease included, and the walk does not
 read past that end. A spiric
 span against a spline face is unbuilt. Of the analytic arms, the
 plane-crossing door (`curve_face::plane_crossing`: a line's endpoints,
-a conic's roots against the plane) and the conic × torus doors
+a conic's roots against the plane), the line × quadric door
+(`curve_face::line_quadric`) and the conic × torus doors
 (`curve_face::circle_torus`, `curve_face::ellipse_torus`, over the
 shared half-angle root cores `curve_face::circle_roots`) are built
 here. A meeting inside a spline
