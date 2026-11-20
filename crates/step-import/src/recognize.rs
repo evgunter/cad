@@ -1374,20 +1374,36 @@ mod review_probes {
         /// The true distance from the COMPLETE locus, closed form.
         fn true_dist(s: &Surface<f64>, p: Point3<f64>) -> f64 {
             match *s {
-                Surface::Cylinder { origin, axis, radius, .. } => {
+                Surface::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                    ..
+                } => {
                     let d = p - origin;
                     let w = d - axis * d.dot(axis);
                     (w.norm() - radius).abs()
                 }
                 Surface::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
-                Surface::Cone { apex, axis, half_angle, .. } => {
+                Surface::Cone {
+                    apex,
+                    axis,
+                    half_angle,
+                    ..
+                } => {
                     let d = p - apex;
                     let h = d.dot(axis);
                     let rho = (d - axis * h).norm();
                     let (s, c) = half_angle.sin_cos();
                     (rho * c - h * s).abs().min((rho * c + h * s).abs())
                 }
-                Surface::Torus { center, axis, major_radius, minor_radius, .. } => {
+                Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    ..
+                } => {
                     let d = p - center;
                     let h = d.dot(axis);
                     let rho = (d - axis * h).norm();
@@ -1421,7 +1437,11 @@ mod review_probes {
                 .enumerate()
                 .map(|(k, p)| {
                     let k = k as f64;
-                    *p + Vec3::new((1.3 * k + 0.2).sin(), (2.1 * k + 0.5).cos(), (0.7 * k + 1.1).sin()) * delta
+                    *p + Vec3::new(
+                        (1.3 * k + 0.2).sin(),
+                        (2.1 * k + 0.5).cos(),
+                        (0.7 * k + 1.1).sin(),
+                    ) * delta
                 })
                 .collect();
             let weights: Vec<f64> = patch
@@ -1439,7 +1459,10 @@ mod review_probes {
             .unwrap()
         }
 
-        fn moved(patch: &NurbsSurface<f64>, m: &dyn Fn(Point3<f64>) -> Point3<f64>) -> NurbsSurface<f64> {
+        fn moved(
+            patch: &NurbsSurface<f64>,
+            m: &dyn Fn(Point3<f64>) -> Point3<f64>,
+        ) -> NurbsSurface<f64> {
             NurbsSurface::new(
                 patch.knots_u_f64_interim().clone(),
                 patch.knots_v_f64_interim().clone(),
@@ -1449,28 +1472,86 @@ mod review_probes {
             .unwrap()
         }
 
-        fn y_axis() -> Vec3<f64> { Vec3::new(0.0, 1.0, 0.0) }
-        fn x_axis() -> Vec3<f64> { Vec3::new(1.0, 0.0, 0.0) }
+        fn y_axis() -> Vec3<f64> {
+            Vec3::new(0.0, 1.0, 0.0)
+        }
+        fn x_axis() -> Vec3<f64> {
+            Vec3::new(1.0, 0.0, 0.0)
+        }
 
         /// (name, patch, the exact carrier it lies on)
         fn shapes() -> Vec<(&'static str, NurbsSurface<f64>, Surface<f64>)> {
             let torus = |major: f64, minor: f64| Surface::Torus {
-                center: Point3::origin(), axis: y_axis(), major_radius: major, minor_radius: minor, u_ref: x_axis() };
-            let cone45 = Surface::Cone { apex: Point3::new(0.0, -1.0, 0.0), axis: y_axis(),
-                half_angle: core::f64::consts::FRAC_PI_4, u_ref: x_axis() };
+                center: Point3::origin(),
+                axis: y_axis(),
+                major_radius: major,
+                minor_radius: minor,
+                u_ref: x_axis(),
+            };
+            let cone45 = Surface::Cone {
+                apex: Point3::new(0.0, -1.0, 0.0),
+                axis: y_axis(),
+                half_angle: core::f64::consts::FRAC_PI_4,
+                u_ref: x_axis(),
+            };
             let w = core::f64::consts::FRAC_1_SQRT_2;
             vec![
-                ("cyl", revolved(&[(1.0, 0.0), (1.0, 1.0)], &[1.0, 1.0], 1, (0, 0.0)),
-                    Surface::Cylinder { origin: Point3::origin(), axis: y_axis(), radius: 1.0, u_ref: x_axis() }),
-                ("torus-outer", revolved(&tube_profile(3.0, 1.0, 1.0), &QUARTER_W, 2, (0, 0.0)), torus(3.0, 1.0)),
+                (
+                    "cyl",
+                    revolved(&[(1.0, 0.0), (1.0, 1.0)], &[1.0, 1.0], 1, (0, 0.0)),
+                    Surface::Cylinder {
+                        origin: Point3::origin(),
+                        axis: y_axis(),
+                        radius: 1.0,
+                        u_ref: x_axis(),
+                    },
+                ),
+                (
+                    "torus-outer",
+                    revolved(&tube_profile(3.0, 1.0, 1.0), &QUARTER_W, 2, (0, 0.0)),
+                    torus(3.0, 1.0),
+                ),
                 // The inner quarter, R close to r: (R − r, 0) up to (R, r).
-                ("torus-inner-R1.05", revolved(&[(0.05, 0.0), (0.05, 1.0), (1.05, 1.0)], &[1.0, w, 1.0], 2, (0, 0.0)), torus(1.05, 1.0)),
-                ("sphere", revolved(&tube_profile(0.0, 2.0, 1.0), &QUARTER_W, 2, (0, 0.0)),
-                    Surface::Sphere { center: Point3::origin(), radius: 2.0, axis: y_axis(), u_ref: x_axis() }),
-                ("cone", revolved(&[(1.0, 0.0), (2.0, 1.0)], &[1.0, 1.0], 1, (0, 0.0)), cone45.clone()),
-                ("cone-near-apex", revolved(&[(1e-3, -0.999), (2.0, 1.0)], &[1.0, 1.0], 1, (0, 0.0)), cone45.clone()),
-                ("cone-through-apex", revolved(&[(-0.1, -1.1), (2.0, 1.0)], &[1.0, 1.0], 1, (0, 0.0)), cone45.clone()),
-                ("cone-other-nappe", revolved(&[(1.0, -2.0), (2.0, -3.0)], &[1.0, 1.0], 1, (0, 0.0)), cone45),
+                (
+                    "torus-inner-R1.05",
+                    revolved(
+                        &[(0.05, 0.0), (0.05, 1.0), (1.05, 1.0)],
+                        &[1.0, w, 1.0],
+                        2,
+                        (0, 0.0),
+                    ),
+                    torus(1.05, 1.0),
+                ),
+                (
+                    "sphere",
+                    revolved(&tube_profile(0.0, 2.0, 1.0), &QUARTER_W, 2, (0, 0.0)),
+                    Surface::Sphere {
+                        center: Point3::origin(),
+                        radius: 2.0,
+                        axis: y_axis(),
+                        u_ref: x_axis(),
+                    },
+                ),
+                (
+                    "cone",
+                    revolved(&[(1.0, 0.0), (2.0, 1.0)], &[1.0, 1.0], 1, (0, 0.0)),
+                    cone45.clone(),
+                ),
+                (
+                    "cone-near-apex",
+                    revolved(&[(1e-3, -0.999), (2.0, 1.0)], &[1.0, 1.0], 1, (0, 0.0)),
+                    cone45.clone(),
+                ),
+                (
+                    "cone-through-apex",
+                    revolved(&[(-0.1, -1.1), (2.0, 1.0)], &[1.0, 1.0], 1, (0, 0.0)),
+                    cone45.clone(),
+                ),
+                (
+                    "cone-other-nappe",
+                    revolved(&[(1.0, -2.0), (2.0, -3.0)], &[1.0, 1.0], 1, (0, 0.0)),
+                    cone45,
+                ),
             ]
         }
 
@@ -1481,13 +1562,29 @@ mod review_probes {
         fn rev2_bound_dominates_dense_truth() {
             let mut failures = Vec::new();
             for (name, patch, carrier) in shapes() {
-                for (delta, wd) in [(0.0, 0.0), (1e-13, 0.0), (1e-10, 0.0), (1e-7, 0.0), (1e-4, 0.0), (0.0, 1e-6), (1e-3, 1e-3), (0.3, 0.0)] {
+                for (delta, wd) in [
+                    (0.0, 0.0),
+                    (1e-13, 0.0),
+                    (1e-10, 0.0),
+                    (1e-7, 0.0),
+                    (1e-4, 0.0),
+                    (0.0, 1e-6),
+                    (1e-3, 1e-3),
+                    (0.3, 0.0),
+                ] {
                     let p = perturbed(&patch, delta, wd);
                     let bound = geom_brep::patch_distance_sup(&p, &carrier);
                     let truth = dense_sup(&p, &carrier);
                     let ok = bound.is_nan() || bound >= truth - 1e-15 * (1.0 + truth);
-                    println!("REV2 sound {name:>18} δ={delta:e} wδ={wd:e}: bound {bound:e} truth {truth:e} ratio {:.3}", bound / truth);
-                    if !ok { failures.push(format!("{name} δ={delta:e} wδ={wd:e}: {bound:e} < {truth:e}")); }
+                    println!(
+                        "REV2 sound {name:>18} δ={delta:e} wδ={wd:e}: bound {bound:e} truth {truth:e} ratio {:.3}",
+                        bound / truth
+                    );
+                    if !ok {
+                        failures.push(format!(
+                            "{name} δ={delta:e} wδ={wd:e}: {bound:e} < {truth:e}"
+                        ));
+                    }
                 }
             }
             // Far-off nets: shrunk toward the torus core, the sphere centre,
@@ -1498,16 +1595,30 @@ mod review_probes {
                 let sphere = s[3].2.clone();
                 let cone = s[4].2.clone();
                 vec![
-                    ("torus-near-core", revolved(&tube_profile(3.0, 0.05, 1.0), &QUARTER_W, 2, (0, 0.0)), torus),
-                    ("sphere-near-centre", revolved(&tube_profile(0.0, 0.02, 1.0), &QUARTER_W, 2, (0, 0.0)), sphere),
-                    ("cone-near-axis", revolved(&[(1e-3, 0.5), (1e-3, 2.0)], &[1.0, 1.0], 1, (0, 0.0)), cone),
+                    (
+                        "torus-near-core",
+                        revolved(&tube_profile(3.0, 0.05, 1.0), &QUARTER_W, 2, (0, 0.0)),
+                        torus,
+                    ),
+                    (
+                        "sphere-near-centre",
+                        revolved(&tube_profile(0.0, 0.02, 1.0), &QUARTER_W, 2, (0, 0.0)),
+                        sphere,
+                    ),
+                    (
+                        "cone-near-axis",
+                        revolved(&[(1e-3, 0.5), (1e-3, 2.0)], &[1.0, 1.0], 1, (0, 0.0)),
+                        cone,
+                    ),
                 ]
             };
             for (name, patch, carrier) in far {
                 let bound = geom_brep::patch_distance_sup(&patch, &carrier);
                 let truth = dense_sup(&patch, &carrier);
                 println!("REV2 sound {name:>18}: bound {bound:e} truth {truth:e}");
-                if !(bound.is_nan() || bound >= truth) { failures.push(format!("{name}: {bound:e} < {truth:e}")); }
+                if !(bound.is_nan() || bound >= truth) {
+                    failures.push(format!("{name}: {bound:e} < {truth:e}"));
+                }
             }
             assert!(failures.is_empty(), "UNSOUND: {failures:#?}");
         }
@@ -1524,14 +1635,28 @@ mod review_probes {
                     for eps in [1e-6, 1e-9, 1e-12] {
                         let r = recognize(&p, crate::interpret::FileBand::test(eps));
                         match r {
-                            Recognition::Promoted { ref surface, residual, kind } => {
+                            Recognition::Promoted {
+                                ref surface,
+                                residual,
+                                kind,
+                            } => {
                                 let truth = dense_sup(&p, surface);
                                 let flipped = chart_flipped(&p, surface);
-                                println!("REV2 eps {name:>18} δ={delta:e} ε={eps:e}: {kind:?} residual {residual:e} truth {truth:e} flipped {flipped}");
-                                if truth > residual * (1.0 + 1e-9) + 1e-15 { failures.push(format!("{name} δ={delta:e} ε={eps:e}: residual {residual:e} < truth {truth:e}")); }
-                                if truth > eps { failures.push(format!("{name} δ={delta:e} ε={eps:e}: truth {truth:e} > eps")); }
+                                println!(
+                                    "REV2 eps {name:>18} δ={delta:e} ε={eps:e}: {kind:?} residual {residual:e} truth {truth:e} flipped {flipped}"
+                                );
+                                if truth > residual * (1.0 + 1e-9) + 1e-15 {
+                                    failures.push(format!("{name} δ={delta:e} ε={eps:e}: residual {residual:e} < truth {truth:e}"));
+                                }
+                                if truth > eps {
+                                    failures.push(format!(
+                                        "{name} δ={delta:e} ε={eps:e}: truth {truth:e} > eps"
+                                    ));
+                                }
                             }
-                            ref other => println!("REV2 eps {name:>18} δ={delta:e} ε={eps:e}: {other:?}"),
+                            ref other => {
+                                println!("REV2 eps {name:>18} δ={delta:e} ε={eps:e}: {other:?}")
+                            }
                         }
                     }
                 }
@@ -1547,7 +1672,11 @@ mod review_probes {
             let c = 1e-5;
             let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
             let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
-            let arc = [((1.0, 0.0), 1.0), ((1.0, 1.0), core::f64::consts::FRAC_1_SQRT_2), ((0.0, 1.0), 1.0)];
+            let arc = [
+                ((1.0, 0.0), 1.0),
+                ((1.0, 1.0), core::f64::consts::FRAC_1_SQRT_2),
+                ((0.0, 1.0), 1.0),
+            ];
             let scale = [1.0, 1.0 + c / 6.0, 1.0 - c / 6.0, 1.0];
             let (mut control, mut weights) = (Vec::new(), Vec::new());
             for &((x, y), w) in &arc {
@@ -1557,16 +1686,26 @@ mod review_probes {
                 }
             }
             let patch = NurbsSurface::new(ku, kv, control, weights).unwrap();
-            let cyl = Surface::Cylinder { origin: Point3::origin(), axis: Vec3::new(0.0, 0.0, 1.0), radius: 1.0, u_ref: x_axis() };
+            let cyl = Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 1.0,
+                u_ref: x_axis(),
+            };
             let truth = dense_sup(&patch, &cyl);
             let bound = geom_brep::patch_distance_sup(&patch, &cyl);
             let refuted = refuted_at_samples(&patch, &cyl, crate::interpret::FileBand::test(1e-9));
             let r = recognize(&patch, crate::interpret::FileBand::test(1e-9));
-            println!("REV2 between-samples: truth {truth:e} bound {bound:e} refuted-at-samples {refuted} → {r:?}");
+            println!(
+                "REV2 between-samples: truth {truth:e} bound {bound:e} refuted-at-samples {refuted} → {r:?}"
+            );
             assert!(truth > 1e-7, "the fixture bulges: {truth:e}");
             assert!(!refuted, "the fixture is exact at the refutation's samples");
             assert!(bound >= truth, "{bound:e} < {truth:e}");
-            assert!(!matches!(r, Recognition::Promoted { .. }), "promoted a bulged patch: {r:?}");
+            assert!(
+                !matches!(r, Recognition::Promoted { .. }),
+                "promoted a bulged patch: {r:?}"
+            );
         }
 
         /// D10: a rigid motion of the net carries every kept frame.
@@ -1575,8 +1714,16 @@ mod review_probes {
             let (a, b) = (0.7_f64, -1.9_f64);
             let rot = |v: Vec3<f64>| {
                 // about x by a, then about z by b
-                let v1 = Vec3::new(v.x, a.cos() * v.y - a.sin() * v.z, a.sin() * v.y + a.cos() * v.z);
-                Vec3::new(b.cos() * v1.x - b.sin() * v1.y, b.sin() * v1.x + b.cos() * v1.y, v1.z)
+                let v1 = Vec3::new(
+                    v.x,
+                    a.cos() * v.y - a.sin() * v.z,
+                    a.sin() * v.y + a.cos() * v.z,
+                );
+                Vec3::new(
+                    b.cos() * v1.x - b.sin() * v1.y,
+                    b.sin() * v1.x + b.cos() * v1.y,
+                    v1.z,
+                )
             };
             let t = Vec3::new(12.5, -3.25, 7.0);
             let m = |p: Point3<f64>| Point3::origin() + rot(p - Point3::origin()) + t;
@@ -1585,26 +1732,67 @@ mod review_probes {
                 let eps = 1e-6;
                 let r0 = recognize(&patch, crate::interpret::FileBand::test(eps));
                 let r1 = recognize(&moved(&patch, &m), crate::interpret::FileBand::test(eps));
-                let (Recognition::Promoted { surface: s0, kind: k0, .. }, Recognition::Promoted { surface: s1, kind: k1, .. }) = (&r0, &r1) else {
+                let (
+                    Recognition::Promoted {
+                        surface: s0,
+                        kind: k0,
+                        ..
+                    },
+                    Recognition::Promoted {
+                        surface: s1,
+                        kind: k1,
+                        ..
+                    },
+                ) = (&r0, &r1)
+                else {
                     println!("REV2 rigid {name}: {r0:?} / {r1:?}");
-                    if std::mem::discriminant(&r0) != std::mem::discriminant(&r1) { failures.push(format!("{name}: outcome differs")); }
+                    if std::mem::discriminant(&r0) != std::mem::discriminant(&r1) {
+                        failures.push(format!("{name}: outcome differs"));
+                    }
                     continue;
                 };
                 let frame = |s: &Surface<f64>| -> Option<(Point3<f64>, Vec3<f64>, Vec3<f64>)> {
                     match *s {
-                        Surface::Cylinder { origin, axis, u_ref, .. } => Some((origin, axis, u_ref)),
-                        Surface::Cone { apex, axis, u_ref, .. } => Some((apex, axis, u_ref)),
-                        Surface::Sphere { center, axis, u_ref, .. } | Surface::Torus { center, axis, u_ref, .. } => Some((center, axis, u_ref)),
+                        Surface::Cylinder {
+                            origin,
+                            axis,
+                            u_ref,
+                            ..
+                        } => Some((origin, axis, u_ref)),
+                        Surface::Cone {
+                            apex, axis, u_ref, ..
+                        } => Some((apex, axis, u_ref)),
+                        Surface::Sphere {
+                            center,
+                            axis,
+                            u_ref,
+                            ..
+                        }
+                        | Surface::Torus {
+                            center,
+                            axis,
+                            u_ref,
+                            ..
+                        } => Some((center, axis, u_ref)),
                         _ => None,
                     }
                 };
-                let (Some((o0, a0, u0)), Some((o1, a1, u1))) = (frame(s0), frame(s1)) else { continue };
+                let (Some((o0, a0, u0)), Some((o1, a1, u1))) = (frame(s0), frame(s1)) else {
+                    continue;
+                };
                 let da = (rot(a0) - a1).norm();
                 let du = (rot(u0) - u1).norm();
                 // cylinder origin may slide along the axis
-                let doff = { let d = m(o0) - o1; (d - a1 * d.dot(a1)).norm() };
-                println!("REV2 rigid {name:>18}: {k0:?}/{k1:?} |Δaxis| {da:e} |Δu_ref| {du:e} |Δorigin⊥| {doff:e}");
-                if k0 != k1 || da > 1e-9 || du > 1e-9 || doff > 1e-9 { failures.push(format!("{name}: {da:e} {du:e} {doff:e}")); }
+                let doff = {
+                    let d = m(o0) - o1;
+                    (d - a1 * d.dot(a1)).norm()
+                };
+                println!(
+                    "REV2 rigid {name:>18}: {k0:?}/{k1:?} |Δaxis| {da:e} |Δu_ref| {du:e} |Δorigin⊥| {doff:e}"
+                );
+                if k0 != k1 || da > 1e-9 || du > 1e-9 || doff > 1e-9 {
+                    failures.push(format!("{name}: {da:e} {du:e} {doff:e}"));
+                }
             }
             assert!(failures.is_empty(), "{failures:#?}");
         }
