@@ -34,7 +34,21 @@ its fields:
   `(a + b + a * b - c.square()).magnitude()` expanded by hand, without
   each operation's own `u·|result|`.
 
-Fix: read each through the door. None divides by the room, so none is
+- `geom_brep::half_angle` (the touch's fall, in `subdivision`):
+  `g0.error - toward * g0.value`, an upper bound on `−G` at the touch.
+  It stays by hand because `Rounded` has no door for it: `room` and
+  `magnitude` are unsigned, and `toward_zero` moves a value toward zero,
+  which is the wrong way for an upper end.
+
+That is the missing door, and it is this row's fix: `Rounded` has no
+enclosure-end doors (`value − error`, `value + error`). The fall above,
+`conic_quadric`'s `side`, the pole-plane read and `implicit`'s end reads
+(`h.lo - h.lo_error - h.frame_error`, `h.hi + h.hi_error +
+h.frame_error`, listed on
+`value-error-pairs-are-carried-beside-rounded-in-four-modules`) all
+want one.
+
+Then read each through the door. None divides by the room, so none is
 the unguarded-division defect. The first two change which band the room
 is read at only if they move to `divisor`; `toward_zero` under the
 site's own band keeps it.

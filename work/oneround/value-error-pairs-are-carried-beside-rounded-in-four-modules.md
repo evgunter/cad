@@ -37,6 +37,28 @@ bound as two names of its own, a vocabulary parallel to
   `(f(theta).abs() + noise) / least`, the division guarded by
   `least.select_le_zero(unbounded, …)`.
 
+Two more, found by the review of PR 7145, the first inside the blind
+spot stated below (so the title's "four" undercounts):
+
+- `geom_brep::implicit` (the sphere × circle harmonic,
+  `CircleSphereHarmonic`): two `Rounded`s are unpacked into `lo` /
+  `lo_error` and `hi` / `hi_error` fields, and the ends are read by hand
+  (`h.lo - h.lo_error - h.frame_error`, `h.hi + h.hi_error +
+  h.frame_error`).
+- `topo::vertex_section` (`read_sections`): a `Rounded` is rebuilt off
+  another's fields, `Rounded { value: offset.value.value, error:
+  offset.value.error + skew(…) }`, to add a charge before the quotient.
+
+The same review saw three restatements beside them, of one class with
+this row (one logic written out per module):
+
+- the bisection count: `half_angle`'s `BISECTIONS = 64` and
+  `pair_section::gap`'s `GAP_BISECTIONS = 64`;
+- the Taylor ladder's factorials (2, 6, 24), written out in
+  `half_angle`'s `subdivision`, `pose::window` and `pair_section::gap`;
+- `pair_section::gap` building a throwaway `Rounded { … }` to borrow
+  `toward_zero`.
+
 Not read, and where this row's sweep is blind: a bound held under a
 field or variable of another name and subtracted through an
 intermediate (`noise`, `rounding`, `lo_error` / `hi_error` fields in
