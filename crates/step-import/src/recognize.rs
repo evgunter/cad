@@ -1460,3 +1460,394 @@ mod plane_frame {
         }
     }
 }
+
+/// Reviewer probes (exch-a-rev1): soundness of `patch_distance_sup`
+/// against dense sampling for arbitrary candidates, frame covariance
+/// under a rigid motion, cone nappe orientation.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
+mod rev1_probes {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> f64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 >> 11) as f64 / (1u64 << 53) as f64
+        }
+        fn sym(&mut self) -> f64 {
+            2.0 * self.next() - 1.0
+        }
+    }
+
+    fn revolved(
+        profile: &[(f64, f64)],
+        profile_w: &[f64],
+        degree: usize,
+        lifts: &[(usize, f64)],
+    ) -> NurbsSurface<f64> {
+        let mut knots = vec![0.0; degree + 1];
+        knots.extend(vec![1.0; degree + 1]);
+        let ku = KnotVector::clamped(knots, degree).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let turn = [((1.0, 0.0), 1.0), ((1.0, 1.0), w), ((0.0, 1.0), 1.0)];
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        let mut k = 0;
+        for (&(rho, y), &wp) in profile.iter().zip(profile_w) {
+            for &((c, s), wt) in &turn {
+                let lift: f64 = lifts.iter().filter(|l| l.0 == k).map(|l| l.1).sum();
+                control.push(Point3::new(rho * c, y + lift, -rho * s));
+                weights.push(wp * wt);
+                k += 1;
+            }
+        }
+        NurbsSurface::new(ku, kv, control, weights).unwrap()
+    }
+
+    const QW: [f64; 3] = [1.0, core::f64::consts::FRAC_1_SQRT_2, 1.0];
+
+    fn torus_patch(lifts: &[(usize, f64)]) -> NurbsSurface<f64> {
+        revolved(&[(4.0, 0.0), (4.0, 1.0), (3.0, 1.0)], &QW, 2, lifts)
+    }
+    fn torus_inner_patch(lifts: &[(usize, f64)]) -> NurbsSurface<f64> {
+        // the inner quarter of the tube: from the top circle to the inner equator
+        revolved(&[(3.0, 1.0), (2.0, 1.0), (2.0, 0.0)], &QW, 2, lifts)
+    }
+    fn sphere_patch(lifts: &[(usize, f64)]) -> NurbsSurface<f64> {
+        revolved(&[(2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], &QW, 2, lifts)
+    }
+    fn cone_patch(lifts: &[(usize, f64)]) -> NurbsSurface<f64> {
+        revolved(&[(1.0, 0.0), (1.5, 0.5), (2.0, 1.0)], &[1.0; 3], 2, lifts)
+    }
+    fn cone_patch_reversed(lifts: &[(usize, f64)]) -> NurbsSurface<f64> {
+        revolved(&[(2.0, 1.0), (1.5, 0.5), (1.0, 0.0)], &[1.0; 3], 2, lifts)
+    }
+    fn apex_cone_patch() -> NurbsSurface<f64> {
+        revolved(&[(0.0, 0.0), (1.0, 1.0)], &[1.0; 2], 1, &[])
+    }
+
+    fn true_distance(s: &Surface<f64>, p: Point3<f64>) -> f64 {
+        let axial = |o: Point3<f64>, a: Vec3<f64>| {
+            let a = a / a.norm();
+            let d = p - o;
+            let h = d.dot(a);
+            (h, (d - a * h).norm())
+        };
+        match *s {
+            Surface::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => (axial(origin, axis).1 - radius).abs(),
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                ..
+            } => {
+                let (h, rho) = axial(apex, axis);
+                let (s, c) = half_angle.sin_cos();
+                (rho * c - h * s).abs().min((rho * c + h * s).abs())
+            }
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            } => {
+                let (h, rho) = axial(center, axis);
+                (((rho - major_radius).powi(2) + h * h).sqrt() - minor_radius).abs()
+            }
+            _ => f64::NAN,
+        }
+    }
+
+    fn sampled_sup(patch: &NurbsSurface<f64>, s: &Surface<f64>, n: usize) -> f64 {
+        let (u0, u1) = patch.knot_values_u().domain();
+        let (v0, v1) = patch.knot_values_v().domain();
+        let mut worst = 0.0f64;
+        for i in 0..=n {
+            for j in 0..=n {
+                let u = u0 + (u1 - u0) * i as f64 / n as f64;
+                let v = v0 + (v1 - v0) * j as f64 / n as f64;
+                worst = worst.max(true_distance(s, patch.eval(u, v)));
+            }
+        }
+        worst
+    }
+
+    fn unit(v: Vec3<f64>) -> Vec3<f64> {
+        v / v.norm()
+    }
+
+    /// Random candidates of every kind around each patch: the bound
+    /// must never be below the dense-sampled true distance.
+    #[test]
+    fn r1_bound_is_never_below_the_sampled_distance() {
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let patches: Vec<(&str, NurbsSurface<f64>)> = vec![
+            ("torus", torus_patch(&[])),
+            ("torus_inner", torus_inner_patch(&[])),
+            ("sphere", sphere_patch(&[])),
+            ("cone", cone_patch(&[])),
+            ("apex_cone", apex_cone_patch()),
+            ("lifted_torus", torus_patch(&[(4, 1e-3), (2, -2e-4)])),
+        ];
+        let mut checked = 0usize;
+        let mut finite = 0usize;
+        let mut tightest = f64::INFINITY;
+        for (name, patch) in &patches {
+            for trial in 0..400 {
+                let scale = [1e-9, 1e-6, 1e-3, 1e-1, 1.0][trial % 5];
+                let centre = Point3::new(
+                    rng.sym() * scale,
+                    rng.sym() * scale,
+                    rng.sym() * scale,
+                );
+                let axis = unit(Vec3::new(rng.sym() * scale, 1.0, rng.sym() * scale));
+                let u_ref = unit(Vec3::new(1.0, 0.0, 0.0) - axis * axis.x);
+                let kind = trial / 5 % 4;
+                let s = match kind {
+                    0 => Surface::Torus {
+                        center: centre,
+                        axis,
+                        major_radius: 3.0 + rng.sym() * scale,
+                        minor_radius: 1.0 + rng.sym() * scale,
+                        u_ref,
+                    },
+                    1 => Surface::Sphere {
+                        center: centre,
+                        radius: 2.0 + rng.sym() * scale,
+                        axis,
+                        u_ref,
+                    },
+                    2 => Surface::Cone {
+                        apex: centre + Vec3::new(0.0, -1.0, 0.0),
+                        axis,
+                        half_angle: core::f64::consts::FRAC_PI_4 + rng.sym() * scale,
+                        u_ref,
+                    },
+                    _ => Surface::Cylinder {
+                        origin: centre,
+                        axis,
+                        radius: 2.0 + rng.sym() * scale,
+                        u_ref,
+                    },
+                };
+                let bound = geom_brep::patch_distance_sup(patch, &s);
+                checked += 1;
+                if !bound.is_finite() {
+                    continue;
+                }
+                finite += 1;
+                let truth = sampled_sup(patch, &s, 60);
+                tightest = tightest.min(bound - truth);
+                assert!(
+                    truth <= bound + 1e-14,
+                    "{name} trial {trial}: sampled {truth:e} > bound {bound:e} for {s:?}"
+                );
+            }
+        }
+        println!("R1 checked {checked}, finite {finite}, least slack {tightest:e}");
+    }
+
+    /// Candidates whose singular sets run through the patch: a sphere
+    /// centred on it, a torus core circle through it, a cone axis and
+    /// apex in it. The bound must stay above the sampled distance.
+    #[test]
+    fn r2_singular_sets_through_the_patch_stay_sound() {
+        let patch = torus_patch(&[]);
+        let p = patch.eval(0.5, 0.5);
+        let y = Vec3::new(0.0, 1.0, 0.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let cands = [
+            Surface::Sphere {
+                center: p,
+                radius: 0.3,
+                axis: y,
+                u_ref: x,
+            },
+            Surface::Sphere {
+                center: p,
+                radius: 1e-3,
+                axis: y,
+                u_ref: x,
+            },
+            Surface::Torus {
+                center: Point3::new(0.0, p.y, 0.0),
+                axis: y,
+                major_radius: (p.x * p.x + p.z * p.z).sqrt(),
+                minor_radius: 0.25,
+                u_ref: x,
+            },
+            Surface::Torus {
+                center: Point3::new(0.0, p.y, 0.0),
+                axis: y,
+                major_radius: (p.x * p.x + p.z * p.z).sqrt(),
+                minor_radius: (p.x * p.x + p.z * p.z).sqrt() * 0.999,
+                u_ref: x,
+            },
+            Surface::Cone {
+                apex: p,
+                axis: y,
+                half_angle: 0.3,
+                u_ref: x,
+            },
+            Surface::Cone {
+                apex: p,
+                axis: unit(p - Point3::origin()),
+                half_angle: 1.5,
+                u_ref: unit(Vec3::new(0.0, 0.0, 1.0)),
+            },
+        ];
+        for s in &cands {
+            let bound = geom_brep::patch_distance_sup(&patch, s);
+            let truth = sampled_sup(&patch, s, 120);
+            println!("R2 {s:?}: bound {bound:e}, sampled {truth:e}");
+            if bound.is_finite() {
+                assert!(truth <= bound + 1e-14, "unsound: {truth:e} > {bound:e}");
+            }
+        }
+    }
+
+    /// Lifted conics at the three eps rows: wherever one promotes, the
+    /// promoted carrier is within the reported residual of dense samples.
+    #[test]
+    fn r3_perturbed_promotions_hold_their_residual() {
+        let mut report = Vec::new();
+        for eps in [1e-6, 1e-9, 1e-12] {
+            for lift in [0.0, 1e-13, 1e-10, 1e-8, 1e-7, 1e-6] {
+                let cases: Vec<(&str, NurbsSurface<f64>)> = vec![
+                    ("torus", torus_patch(&[(4, lift)])),
+                    ("torus_inner", torus_inner_patch(&[(4, lift)])),
+                    ("sphere", sphere_patch(&[(4, lift)])),
+                    ("cone", cone_patch(&[(4, lift)])),
+                    ("cone_rev", cone_patch_reversed(&[(4, lift)])),
+                    ("apex_cone", apex_cone_patch()),
+                ];
+                for (name, patch) in cases {
+                    let r = recognize(&patch, crate::interpret::FileBand::test(eps));
+                    if let Recognition::Promoted {
+                        surface,
+                        residual,
+                        kind,
+                    } = r
+                    {
+                        let truth = sampled_sup(&patch, &surface, 100);
+                        report.push(format!(
+                            "eps {eps:e} lift {lift:e} {name}: {kind:?} residual {residual:e} sampled {truth:e}"
+                        ));
+                        assert!(truth <= residual + 1e-14, "{name}: {truth:e} > {residual:e}");
+                        if let Surface::Cone { apex, axis, .. } = surface {
+                            let (u0, u1) = patch.knot_values_u().domain();
+                            let mid = patch.eval(0.5 * (u0 + u1), 0.5);
+                            assert!(
+                                (mid - apex).dot(axis) > 0.0,
+                                "{name}: the patch on the opening nappe"
+                            );
+                        }
+                    } else {
+                        report.push(format!("eps {eps:e} lift {lift:e} {name}: {r:?}"));
+                    }
+                }
+            }
+        }
+        for l in report {
+            println!("R3 {l}");
+        }
+    }
+
+    fn rotate(p: Vec3<f64>) -> Vec3<f64> {
+        // rotation by 0.7 rad about unit (1,2,3)/sqrt14 (Rodrigues)
+        let k = unit(Vec3::new(1.0, 2.0, 3.0));
+        let (s, c) = 0.7f64.sin_cos();
+        p * c + k.cross(p) * s + k * (k.dot(p) * (1.0 - c))
+    }
+
+    fn moved(patch: &NurbsSurface<f64>) -> NurbsSurface<f64> {
+        let t = Vec3::new(10.5, -3.25, 7.0);
+        patch.map_points(|p| Point3::origin() + rotate(p - Point3::origin()) + t)
+    }
+
+    /// A rigid motion of the file carries every kept frame.
+    #[test]
+    fn r4_a_rigid_motion_carries_the_frames() {
+        let t = Vec3::new(10.5, -3.25, 7.0);
+        let mp = |p: Point3<f64>| Point3::origin() + rotate(p - Point3::origin()) + t;
+        for (name, patch) in [
+            ("torus", torus_patch(&[])),
+            ("sphere", sphere_patch(&[])),
+            ("cone", cone_patch(&[])),
+        ] {
+            let band = crate::interpret::FileBand::test(1e-9);
+            let Recognition::Promoted { surface: a, .. } = recognize(&patch, band) else {
+                panic!("{name} promotes")
+            };
+            let Recognition::Promoted { surface: b, .. } = recognize(&moved(&patch), band) else {
+                panic!("moved {name} promotes")
+            };
+            let (pa, aa, ra) = match a {
+                Surface::Torus { center, axis, u_ref, .. }
+                | Surface::Sphere { center, axis, u_ref, .. } => (center, axis, u_ref),
+                Surface::Cone { apex, axis, u_ref, .. } => (apex, axis, u_ref),
+                _ => panic!(),
+            };
+            let (pb, ab, rb) = match b {
+                Surface::Torus { center, axis, u_ref, .. }
+                | Surface::Sphere { center, axis, u_ref, .. } => (center, axis, u_ref),
+                Surface::Cone { apex, axis, u_ref, .. } => (apex, axis, u_ref),
+                _ => panic!(),
+            };
+            let dp = (mp(pa) - pb).norm();
+            let da = (rotate(aa) - ab).norm();
+            let dr = (rotate(ra) - rb).norm();
+            println!("R4 {name}: origin {dp:e} axis {da:e} u_ref {dr:e}");
+            assert!(dp < 1e-12 && da < 1e-12 && dr < 1e-12, "{name}");
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
+mod rev1_apex {
+    use super::*;
+    use geom_core::spline::KnotVector;
+    #[test]
+    fn r5_apex_cone_diagnosis() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let turn = [((1.0, 0.0), 1.0), ((1.0, 1.0), w), ((0.0, 1.0), 1.0)];
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for &(rho, y) in &[(0.0, 0.0), (1.0, 1.0)] {
+            for &((c, s), wt) in &turn {
+                control.push(Point3::new(rho * c, y, -rho * s));
+                weights.push(wt);
+            }
+        }
+        let patch = NurbsSurface::new(ku, kv, control, weights).unwrap();
+        let est = estimate_cone(&patch);
+        println!("R5 estimate {est:?}");
+        let exact = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        println!("R5 exact bound {:e}", geom_brep::patch_distance_sup(&patch, &exact));
+        if let Some(c) = est {
+            println!("R5 est bound {:e}", geom_brep::patch_distance_sup(&patch, &c));
+            println!(
+                "R5 refuted@1e-6 {}",
+                refuted_at_samples(&patch, &c, crate::interpret::FileBand::test(1e-6))
+            );
+        }
+    }
+}
