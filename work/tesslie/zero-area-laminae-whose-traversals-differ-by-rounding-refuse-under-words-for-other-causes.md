@@ -53,8 +53,28 @@ through the Euler doors):
   sense. It does not come from the `None` arm. I confirmed this with a
   trace.
 
-The review also recorded its own probe-C and probe-D measurements of this
-class. Those are to be added here when they reach this row.
+The review of PR 7196 measured the same class. Its measurements, as
+relayed (no exact tilts or offsets were given beyond these):
+
+- **Probe C (analytic sphere, trimmed lane).** A lamina traced twice on
+  the SAME carrier gets two pcurves whose UVs differ by rounding.
+  - Tilted great circle and tilted small circle, identical carriers:
+    `BoundaryBoundsNoRegion` at coarse δ, `TrimLoopOrientation` at
+    δ ≤ 1e-2.
+  - Re-framed carrier: `PinchWedge`, `Triangulation`,
+    `TrimLoopOrientation`.
+
+  The `TrimLoopOrientation` misses come from the sphere arm's sense check
+  (above), not from the `None` arm.
+- **Probe D (planar).** Re-framed laminae at δ 2e-2 … 2e-3 reproduce
+  `PinchWedge`, `Triangulation` and `UnresolvedWinding`.
+- **Outside the class, for the record.**
+  - A NURBS hemisphere meridian lamina (a zero-width UV polygon) refuses
+    `BoundaryBoundsNoRegion` at every δ. Its zero-width bounding box
+    passed the lattice without a panic.
+  - NURBS rim and latitude laminae refuse `UnsupportedCurve` upstream.
+  - Analytic cylinder, sphere and cone laminae along iso circles route to
+    the curved lane and refuse `MeridianFreeCurvedFace`.
 
 ## What closing it takes
 
