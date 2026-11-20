@@ -1051,7 +1051,6 @@ pub(crate) mod tests {
         for &r in &[0.001, 1.0, 250.0] {
             for span_deg in [10.0_f64, 90.0, 179.0, 181.0, 300.0, 359.0] {
                 for phi_deg in [0.0_f64, 45.0, 137.0] {
-                    let phi = phi_deg.to_radians();
                     let span = span_deg.to_radians();
                     let Some((body, face)) = sector_at_its_band(r, span, phi_deg) else {
                         continue;
