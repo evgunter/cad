@@ -105,7 +105,7 @@ pub fn cover_reach<T: Decide>(cover: &Cover<T>) -> T {
 /// # Errors
 ///
 /// The [`BoxRefusal`]; [`BoxRefusal::Uncovered`] where the carrier or an
-/// end is no finite cover.
+/// end is no finite cover, which certification leaves to its checks.
 pub fn edge_in_box<T: Decide>(
     carrier: &Curve3<T>,
     (t0, t1): (T, T),
