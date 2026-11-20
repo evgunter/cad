@@ -1564,3 +1564,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - PR 7179 (U1, line roots door moved): STYLE review dispatched.
 
   **U1b** (one line × cone rule set) runs as its own cloud session (`session_01BJC3B3GPYCWx9d4Mgoqfzx`), stacked on U1's branch, because of the disk-friction rule above.
+- 2026-11-20 — **PR 7179 (U1) style review: APPROVE.** A line-for-line multiset comparison shows the move is verbatim; no correctness MAJOR or MINOR. I took four cheap findings as a fix pass, continued in the implementer's own agent:
+  - one home for the thin-tube fixture, which is written three times;
+  - `offer_rows`' hand mapping reads `of_line_quadric_refusal`;
+  - Sphere and Cone refusal-arm rows, since a swap mutant stays green today;
+  - `LineQuadricRefusal` narrowed per producer, so the trace's twin mappers become one.
+
+  **Recorded for U3a, not U1:** `pub fn line_quadric_roots` takes an untyped `&geom::Surface`, answers `Ok(None)` for whole kinds, and returns `LineRoots::Constant`, a pose answer. The cone apex rung, a `Through`, also stays inside the door. That is the old shape made public. U3a reshapes it, with typed operands, the pose moved out, and an unbuilt kind as a window. It also brings the topo census rows for the moved predicates (`torus_predicate_rows`, `torus_landing_rows`) next to their finder, and resolves the `LineRoots` door-name clash.
