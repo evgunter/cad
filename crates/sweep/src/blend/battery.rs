@@ -1373,6 +1373,10 @@ fn classify_arm<T: Decide + Bounds>(
                 other => other,
             })
         };
+        // The frustum's plane trim against the rim (`frustum_arm`), on
+        // whichever support is the plane.
+        let plane = if sa.kind() == Plane { faces.0 } else { faces.1 };
+        let room = |trim: T, rim: T| face_clearance_margin(plane, trim, rim, false, band);
         return match (sa.kind(), sb.kind(), carrier.as_circle()) {
             (Plane, Plane, _) => Ok((
                 BlendArm::PlanePlaneStrip,
@@ -1382,22 +1386,17 @@ fn classify_arm<T: Decide + Bounds>(
             // A circle where a cylinder meets a plane: the frustum, once
             // the two are decided to share the circle's axis (the plane
             // square to it), as the fillet's coaxial rows decide it.
-            (Plane, Cylinder, Some(circle)) | (Cylinder, Plane, Some(circle)) => {
-                let plane = if sa.kind() == Plane { faces.0 } else { faces.1 };
-                let room =
-                    |trim: T| face_clearance_margin(plane, trim, circle.radius(), false, band);
-                frustum_arm(
-                    (sa, sb),
-                    (n_a, n_b),
-                    senses,
-                    circle,
-                    (p, tau),
-                    radius,
-                    convexity,
-                    (coaxial, room),
-                    unsupported,
-                )
-            }
+            (Plane, Cylinder, Some(circle)) | (Cylinder, Plane, Some(circle)) => frustum_arm(
+                (sa, sb),
+                (n_a, n_b),
+                senses,
+                circle,
+                (p, tau),
+                radius,
+                convexity,
+                (coaxial, room),
+                unsupported,
+            ),
             _ => Err(unsupported()),
         };
     }
@@ -1504,7 +1503,7 @@ fn frustum_arm<T: Real>(
     // caller's `fillet3_face_clearance` on the plane face).
     (coaxial, room): (
         impl FnOnce(T) -> Result<MarginDiag, BlendError>,
-        impl FnOnce(T) -> Result<(), BlendError>,
+        impl FnOnce(T, T) -> Result<(), BlendError>,
     ),
     unsupported: impl Fn() -> BlendError,
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
@@ -1526,7 +1525,10 @@ fn frustum_arm<T: Real>(
     } else {
         foot_b
     };
-    room((foot - sheet.axis.origin).dot(sheet.radial()))?;
+    room(
+        (foot - sheet.axis.origin).dot(sheet.radial()),
+        circle.radius(),
+    )?;
     Ok((
         BlendArm::CylinderPlaneCone,
         chamfer_frustum(&sheet, tau, n_a, n_b, radius),
