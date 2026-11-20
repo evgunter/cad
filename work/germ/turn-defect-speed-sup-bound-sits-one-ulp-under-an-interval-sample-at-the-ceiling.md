@@ -91,3 +91,15 @@ branches that touch no `carrier_speed::turn_defect_*` code. Neither run
 kept the seed (the log line was filtered out), and six re-runs passed.
 
 - 2026-11-16 — **a seed at the default eps, from TESSLANE's PR 6965** (a diff that touches no `geom` source): hosted `test (kernel)` on its head `8f585255cf` (2026-11-14) drew `0x19eec72bea96df53` and `r2_turn_probes::turn_defect_speeds_bound_the_speed_on_the_true_defect_at_f64_and_interval` failed at the default eps, the sup bound one ulp under an interval sample at the ceiling. The rows above have it at 10⁻⁶ and 10⁻¹² only.
+
+## The floor's mirror (2026-11-20, GERM's PR 7183)
+
+The same fuzz row failed on the **inf** side at ε 1e-6:
+`CAD_FUZZ_SEED=0x4d073e89924408a0`, effort 1. `turn_defect_speed_lo`
+reads 0.04921567327106361, both at `f64` and as the Interval lower end.
+That is the floor `a`, and it sits above an Interval sample of the
+speed, 0.04921567327106356, at sample 56/64 (`b` 0.0588, `t0` 10.997,
+gap 1.33e-3). The excess is about 7 ulps. This reproduces on
+`origin/main` `818092d44a`
+(`CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p geom -E 'test(/turn_defect_speeds_bound_the_speed_on_the_true_defect/)'`),
+so the PR did not cause it.
