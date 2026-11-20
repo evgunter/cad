@@ -1086,3 +1086,33 @@ pub(super) fn cylinder_cylinder<T: Decide>(
         components,
     })
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// **A point stands against a region as a ball of no radius does**:
+    /// inside the unit ball at half its radius, outside at twice, and
+    /// neither on its boundary. Red against a point read with a radius of
+    /// its own (the half-radius point then straddles at any radius of a
+    /// half or more), and against the two definite arms exchanged.
+    #[test]
+    fn a_point_is_placed_against_the_region_by_its_distance_alone() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let frame = geom::Frame::new(
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let region = ExtentBall::of_cover(&geom::cover::Cover::sphere(&frame, 1.0).unwrap());
+        let at = |x: f64| Point3::new(1.0 + x, 2.0, 3.0);
+        for (x, want) in [
+            (0.5, RegionPlacement::Inside),
+            (2.0, RegionPlacement::Outside),
+            (1.0, RegionPlacement::Straddles),
+        ] {
+            assert_eq!(point_placement(at(x), region, band), want, "at {x}");
+        }
+    }
+}

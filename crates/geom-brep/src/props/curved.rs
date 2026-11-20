@@ -1282,9 +1282,10 @@ struct RimArms<T> {
 }
 
 impl<T: Real> RimArms<T> {
-    /// The three surfaces whose level and azimuth turn about the same
-    /// radius: the cylinder and sphere (`R`) and the cone (its first
-    /// rim's own radius, [`cone_arm`]).
+    /// The cylinder and sphere, whose level and azimuth turn about the
+    /// same radius `R`; and the cone, whose azimuth is metered at its
+    /// first rim's own radius ([`cone_arm`]) and whose levels, lengths,
+    /// read no arm.
     fn uniform(r: T, arm: Lever<T>) -> Self {
         Self {
             level: arm,

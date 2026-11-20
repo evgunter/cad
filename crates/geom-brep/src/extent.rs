@@ -2048,3 +2048,177 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod geometry_door_rows {
+    use super::*;
+    use geom::Surface;
+
+    const X: Vec3<f64> = Vec3::new(1.0, 0.0, 0.0);
+    const Y: Vec3<f64> = Vec3::new(0.0, 1.0, 0.0);
+    const Z: Vec3<f64> = Vec3::new(0.0, 0.0, 1.0);
+
+    fn segment(a: Point3<f64>, b: Point3<f64>) -> Reach<f64> {
+        Reach::Region(Cover::segment(a, b).expect("a segment's cover"))
+    }
+
+    fn cylinder(
+        origin: Point3<f64>,
+        axis: Vec3<f64>,
+        u_ref: Vec3<f64>,
+        radius: f64,
+    ) -> Surface<f64> {
+        Surface::Cylinder {
+            origin,
+            axis,
+            u_ref,
+            radius,
+        }
+    }
+
+    /// **A ball's lever from two pivots is its reach from the farther**,
+    /// whichever is named first: the unit ball about the origin stands 4
+    /// from `(3, 0, 0)` and 6 from `(0, 5, 0)`. Red against the reach from
+    /// the first pivot alone (4), against the lesser of the two (4), and
+    /// against the first pivot's reach widened by the pivots' distance
+    /// (`4 + √34`).
+    #[test]
+    fn a_ball_levered_from_two_pivots_reaches_from_the_farther() {
+        let ball = ExtentBall::new(Point3::origin(), 1.0);
+        let (p, q) = (Point3::new(3.0, 0.0, 0.0), Point3::new(0.0, 5.0, 0.0));
+        assert_eq!(ball.lever_from_either(p, q).length(), 6.0);
+        assert_eq!(ball.lever_from_either(q, p).length(), 6.0);
+        assert_eq!(
+            ball.lever_from_either(p, p).length(),
+            ball.lever_from(p).length(),
+            "one pivot named twice is that pivot's lever"
+        );
+    }
+
+    /// **The plane×cylinder row's pivot is the reach's own on the axis,
+    /// and its lever is read from there.** The plane `z = 0`, a cylinder
+    /// whose axis runs along `(cos β, 0, sin β)` through a stored origin
+    /// 100 m back along it, and an edge `[4, 6]` along the axis: the
+    /// pivot is the edge's middle, wherever the stored origin sits, and
+    /// the lever is the edge's half-length plus the hinge's shift
+    /// `|gap·c|` (`gap` the pivot's height, `c = sin β`). Red against a
+    /// pivot at the stored origin (a lever of about 106), and against the
+    /// shift dropped.
+    #[test]
+    fn the_ruled_rows_lever_is_read_at_the_reachs_pivot_on_the_axis() {
+        let beta = 0.3_f64;
+        let a = Vec3::new(beta.cos(), 0.0, beta.sin());
+        let on_axis = |s: f64| Point3::new(1.0, 2.0, 0.5) + a * s;
+        let pc = crate::intersect::PlaneCylinder {
+            q: Point3::origin(),
+            n: Z,
+            o: on_axis(-100.0),
+            a,
+            r: 1.0,
+        };
+        let reach = segment(on_axis(4.0), on_axis(6.0));
+        let (pivot, lever) = reach.ruled_pivot_lever(&pc);
+        let middle = on_axis(5.0);
+        assert!((pivot - middle).norm() < 1e-12, "{pivot:?}");
+        let gap = middle.z;
+        let want = 1.0 + (gap * beta.sin()).abs();
+        assert!(
+            (lever.length() - want).abs() < 1e-12,
+            "lever {}, the half-length and the hinge's shift {want}",
+            lever.length()
+        );
+    }
+
+    /// **A cone's generator lever is read from its apex along its own
+    /// axis**: a cone with its apex at `(0, 0, 10)` opening along `−z` at
+    /// half-angle 0.4, and a reach over the heights `z ∈ [1, 3]`, whose
+    /// consumed points stand 7 to 9 along the axis from the apex, so no
+    /// farther than `9/cos 0.4` along a generator. Red against a window
+    /// read from the world origin (`3/cos`), against the window's near
+    /// end (`7/cos`), and against the cosine dropped. A surface that is
+    /// no cone reads poison.
+    #[test]
+    fn a_cones_generator_lever_is_read_from_its_apex() {
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 10.0),
+            axis: -Z,
+            half_angle: 0.4,
+            u_ref: X,
+        };
+        let reach = segment(Point3::new(0.5, 0.0, 1.0), Point3::new(0.5, 0.0, 3.0));
+        let lever = reach.cone_generator_lever(&cone).length();
+        let want = 9.0 / 0.4_f64.cos();
+        assert!((lever - want).abs() < 1e-12, "{lever} against {want}");
+        let wall = cylinder(Point3::origin(), Z, X, 1.0);
+        assert!(reach.cone_generator_lever(&wall).length().is_nan());
+    }
+
+    /// **Two crossing cylinders' ball is the pair's, whatever reach it is
+    /// read across.** Radius 1 along `x` through the origin and radius 2
+    /// along `y` through `(0, 0, 3)`: the common perpendicular runs 3 up
+    /// `z` from the origin, so the ball is centred at `(0, 0, 1.5)` out
+    /// to `√(3² + 2.5²)`. Read across an edge near the crossing and one
+    /// 40 m along the first axis, it is the same ball. Red against the
+    /// perpendicular's foot left at the reach's pivot (a centre 40 m
+    /// off), and against the radii's larger for their lesser along the
+    /// perpendicular.
+    #[test]
+    fn two_crossing_cylinders_ball_does_not_move_with_the_reach() {
+        let first = cylinder(Point3::new(-7.0, 0.0, 0.0), X, Y, 1.0);
+        let second = cylinder(Point3::new(0.0, 9.0, 3.0), Y, Z, 2.0);
+        let want_r = (3.0_f64.powi(2) + 2.5_f64.powi(2)).sqrt();
+        for reach in [
+            segment(Point3::new(-1.0, 0.0, 1.0), Point3::new(1.0, 1.0, 2.0)),
+            segment(Point3::new(40.0, 0.0, 1.0), Point3::new(41.0, 1.0, 1.0)),
+        ] {
+            let ball = ExtentBall::of_cylinders_crossing([&first, &second], &reach);
+            assert!(
+                (ball.center() - Point3::new(0.0, 0.0, 1.5)).norm() < 1e-12,
+                "{:?}",
+                ball.center()
+            );
+            assert!((ball.radius() - want_r).abs() < 1e-12, "{}", ball.radius());
+            let perp = reach.common_perpendicular(
+                Line {
+                    origin: Point3::new(-7.0, 0.0, 0.0),
+                    dir: X,
+                },
+                Line {
+                    origin: Point3::new(0.0, 9.0, 3.0),
+                    dir: Y,
+                },
+            );
+            assert!((perp.foot - Point3::origin()).norm() < 1e-12);
+            assert!((perp.gap - 3.0).abs() < 1e-12 && (perp.sin - 1.0).abs() < 1e-12);
+        }
+        let reach = segment(Point3::origin(), Point3::new(1.0, 0.0, 0.0));
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Z,
+            u_ref: X,
+        };
+        assert!(
+            ExtentBall::of_cylinders_crossing([&first, &plane], &reach)
+                .readable()
+                .is_none(),
+            "a pair that is not two cylinders has no crossing ball"
+        );
+    }
+
+    /// **A cover's diameter is read from above**: a segment's box
+    /// diagonal is its length, and a unit sphere's, `2√3`, is no shorter
+    /// than the 2 its farthest two points stand apart. Red against the
+    /// cover's ball's radius (1) and against one box side (2 on the
+    /// segment `(0,0,0)–(1,2,2)`, whose length is 3).
+    #[test]
+    fn a_covers_diameter_is_its_boxs_diagonal() {
+        let seg = Cover::segment(Point3::origin(), Point3::new(1.0, 2.0, 2.0)).unwrap();
+        assert!((cover_diameter(&seg).length() - 3.0).abs() < 1e-12);
+        let sphere =
+            Cover::sphere(&geom::Frame::new(Point3::new(5.0, 5.0, 5.0), Z, X), 1.0).unwrap();
+        let d = cover_diameter(&sphere).length();
+        assert!(d >= 2.0, "never short of the region's diameter: {d}");
+        assert!((d - 2.0 * 3.0_f64.sqrt()).abs() < 1e-9, "{d}");
+    }
+}

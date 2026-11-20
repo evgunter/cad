@@ -1500,6 +1500,67 @@ mod tests {
         );
     }
 
+    /// The unit ball about `center`, read off a sphere's cover.
+    fn unit_ball(center: [f64; 3]) -> crate::ExtentBall<f64> {
+        let frame = geom::Frame::new(
+            Point3::new(center[0], center[1], center[2]),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        crate::ExtentBall::of_cover(&geom::cover::Cover::sphere(&frame, 1.0).unwrap())
+    }
+
+    /// **Two cones' angular data are levered at the extent's reach from
+    /// the farther apex.** Apexes at `(3, 0, 0)` and `(0, 5, 0)` and the
+    /// unit ball about the origin: the reach is 4 from the first and 6
+    /// from the second, so the arm is 6 in either order, and the
+    /// displacement bound is the apexes' separation plus the half-angles'
+    /// difference over it. Red against the first apex's reach alone (4)
+    /// and against that reach widened by the separation (`4 + √34`).
+    #[test]
+    fn two_cones_are_levered_from_the_farther_apex() {
+        let ball = unit_ball([0.0, 0.0, 0.0]);
+        let axis = [0.0, 0.0, 1.0];
+        let (one, other) = (
+            cone([3.0, 0.0, 0.0], axis, 0.5, true),
+            cone([0.0, 5.0, 0.0], axis, 0.51, true),
+        );
+        for (a, b) in [(&one, &other), (&other, &one)] {
+            let arm = consumed_arm(a, b, ball).length();
+            assert!((arm - 6.0).abs() < 1e-9, "{arm}");
+            let (_, upper) = reading(a, b, ball, 1.0).expect("two cones");
+            let want = 34.0_f64.sqrt() + 0.01 * 6.0;
+            assert!((upper - want).abs() < 1e-9, "{upper} against {want}");
+        }
+    }
+
+    /// **Two cylinders' tilt is levered at the extent's reach from the
+    /// farther end of their offset.** The second axis is `z`; the unit
+    /// ball about `(0, −2, 0)` puts the pivot at the origin, 3 from the
+    /// ball's far side. The first axis passes through `(1, 0, 0)`, the
+    /// pivot's foot on it, `√5 + 1` from the ball's far side: the arm.
+    /// Red against the pivot's reach alone (3) and against it widened by
+    /// the offset (4).
+    #[test]
+    fn two_cylinders_tilt_is_levered_from_the_offsets_farther_end() {
+        let ball = unit_ball([0.0, -2.0, 0.0]);
+        let first = cyl(
+            [1.0, 0.0, 0.0],
+            [0.0, 0.1_f64.sin(), 0.1_f64.cos()],
+            2.0,
+            true,
+        );
+        let second = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 2.0, true);
+        let (CarrierDesc::Cylinder { axis: a1, .. }, CarrierDesc::Cylinder { axis: a2, .. }) =
+            (first, second)
+        else {
+            unreachable!("two cylinders")
+        };
+        let (_, upper) = reading(&first, &second, ball, 1.0).expect("two cylinders");
+        let want = 1.0 + line_tilt(a1, a2) * (5.0_f64.sqrt() + 1.0);
+        assert!((upper - want).abs() < 1e-9, "{upper} against {want}");
+    }
+
     /// The toroidal peg-in-bore row: one carrier, opposed material
     /// sides — the `Rest` verdict its margins decide, the torus arm's
     /// version of the sphere and cylinder rows above.

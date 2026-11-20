@@ -4023,6 +4023,43 @@ mod seam_rows {
         );
     }
 
+    /// **A spline face's lower arm is the lane's bound on its own chart,
+    /// and poison with no lane.** The wall that bends 0.05 m out reads
+    /// the lane's arm, at most that far; with no lane it reads poison,
+    /// so a seam transverse over the lane's arm cannot be read
+    /// transverse, and escalates at the arm. Red against a lane-less arm
+    /// read as the reach.
+    #[test]
+    fn a_charts_arm_is_its_lanes_bound_and_poison_with_no_lane() {
+        let wall = bent(0.05, 1.0, 0.0);
+        let unit = geom::cover::Cover::segment(ORIGIN, Point3::new(1.0, 0.0, 0.0)).unwrap();
+        let reach = crate::ExtentBall::of_cover_from(Some(&unit), ORIGIN).lever();
+        let lane = Some(NurbsLane::certified());
+        assert_eq!(
+            Some(crate::chart_curvature_arm(lane, &wall, ORIGIN, reach).length()),
+            chart_arm(&wall, ORIGIN, reach.length()),
+        );
+        assert!(
+            crate::chart_curvature_arm(None, &wall, ORIGIN, reach)
+                .length()
+                .is_nan(),
+            "no lane, no bound"
+        );
+        let steep = bent(0.05, 0.6, 0.8);
+        let ground = floor();
+        let faces = || [at(&steep, 0.0), at(&ground, 0.0)];
+        assert_eq!(
+            classify_seam(faces(), ORIGIN, reach, lane, band()),
+            Ok(DihedralClass::Transverse)
+        );
+        let unread = classify_seam(faces(), ORIGIN, reach, None, band());
+        assert!(
+            matches!(unread, Err(SeamEscalation::Lever(e))
+                if e.rung() == crate::LeverRung::Arm),
+            "with no lane the lower arm is poison: {unread:?}"
+        );
+    }
+
     /// **Smooth stays reachable**: a wall leaving the floor along it and
     /// bending hard 0.05 m out has a short lower arm, and its seam still
     /// reads smooth, Zero over the reach.
