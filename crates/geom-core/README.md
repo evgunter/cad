@@ -13,7 +13,7 @@ did not ask it to.
 |---|---|
 | The ring and its instantiations | `src/real.rs`, `src/dual.rs`, `src/interval.rs`, `src/sym.rs`, `src/k_stats.rs` (the `Probe` recorder) |
 | Decisions and tolerance | `src/predicate.rs`, `src/tolerance.rs`, `src/bit_identity.rs` |
-| Refusal text | `src/readable.rs` (`Readable`, the one rendering of an `f64` a refusal message interpolates) |
+| Refusal text | `src/told.rs` (`Told`, the told quantity a refusal's payload holds and a sentence quotes, and `Compared`, two of them told in their order: "A number told to a person" below), `src/readable.rs` (`Readable`, an `f64` spelled exactly, for text that must read back) |
 | Exact arithmetic | `src/exact.rs` (`two_sum`, the error-free transform a structural door decides a real identity with) |
 | Linear algebra | `src/linalg.rs`, `src/linalg/` |
 | The planar arc carrier | `src/arc.rs` (`Arc2`: centre, radius and signed sweep, the one arc value `profile` and `geom-brep` share, and its one evaluation) |

@@ -409,14 +409,14 @@ const HALFCAP_EPS6_POLE: &str = "step import: face #56: whether a sphere pole or
      one of its vertices is undecided: margin 9.999999999789241e-9 \
      lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
      vertex, onto that point or clear of it, or, if this distance is intended, tighten \
-     the tolerance below 9.999999999789241e-10 m";
+     the tolerance below 9.999e-10 m";
 /// As [`HALFCAP_EPS6_POLE`], for the twin a decade nearer the pole.
 const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or cone apex, \
      or where a meridian minted from one meets a face's boundary, lies on that boundary or at \
      one of its vertices is undecided: margin 1.0000000011961913e-9 \
      lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
      vertex, onto that point or clear of it, or, if this distance is intended, tighten \
-     the tolerance below 1.0000000011961913e-10 m";
+     the tolerance below 1e-10 m";
 
 /// `nist_ftc_09`'s refusal at every band. Its five fillet cylinders bite
 /// into their planes by 1.5 to 13 µm, tangent at the file's band
