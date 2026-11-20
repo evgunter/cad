@@ -351,8 +351,7 @@ fn joint_agrees(
             continues == (constructed && a.x * b.x + a.y * b.y > 0.0)
         }
         (Segment::Arc(a), Segment::Arc(b)) => {
-            !continues
-                || (constructed && a.centre.distance(b.centre) == 0.0 && a.radius == b.radius)
+            !continues || (constructed && a.centre.equals_exactly(b.centre) && a.radius == b.radius)
         }
         _ => !continues,
     }
