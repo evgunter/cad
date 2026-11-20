@@ -6,6 +6,7 @@ status: closed
 closed: 2026-11-20
 opened: 2026-10-20
 priority: P1
+cost: E
 ---
 
 
