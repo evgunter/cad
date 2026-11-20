@@ -212,6 +212,8 @@ pub mod readback;
 pub mod replace_face;
 #[cfg(test)]
 pub(crate) mod revalue_pin;
+#[cfg(test)]
+mod review_delta_pins;
 pub mod revert;
 #[cfg(test)]
 mod review_d18;
