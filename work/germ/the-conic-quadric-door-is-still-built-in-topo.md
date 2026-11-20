@@ -23,3 +23,7 @@ What the move needs that the torus doors did not: the door picks its escalation'
 crossing reading (`curve-surface-crossing-has-no-kind-pair-table`): the
 door moves into `geom_brep::curve_face::conic_quadric` with no
 behaviour change, ahead of the first-harmonic arm's Part 2.
+`trace.rs` stays in topo: it now reads this door through
+`ConicQuadricRefusal::door_refusal` and names no `BooleanError`, and
+its own move is `the-trace-still-reads-the-root-doors-in-topo`
+(ONEDOOR).
