@@ -433,3 +433,18 @@ fn a_slab_tilted_about_x_through_the_tip_cuts_both_blocks() {
         }
     }
 }
+
+/// **The slit block meshes**: the bore's face passes the slit's top at
+/// two vertices on one point, which routes it to the chart lane, and the
+/// mesh closes and holds the body's volume.
+#[test]
+fn the_slit_block_meshes() {
+    let body = slit_block();
+    let delta = 5e-3;
+    let m = mesh::tessellate(&body, delta, tol()).expect("the slit block meshes");
+    mesh::validate::check_mesh(&m).expect("the mesh closes");
+    let props = topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
+        .expect("the slit block's props");
+    mesh::validate::check_volume(&m, whole(), props.enclosure.surface_area, delta)
+        .expect("the mesh holds the body's volume");
+}

@@ -136,7 +136,7 @@ use geom::SurfaceKind;
 use geom_brep::{OutwardNormal, PolygonOrientation};
 use geom_core::Band;
 use geom_core::{Point3, Vec3};
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, PointKey, VertexKey};
 
 use crate::sizing::Eps;
 use crate::types::TessellateError;
@@ -164,7 +164,8 @@ pub(crate) struct Trav {
     pub edge: EdgeKey,
     /// The half-edge this traversal walks, read by [`wrap_strip`].
     pub half_edge: HalfEdgeKey,
-    /// The vertex this traversal starts at, read by the wrap strip.
+    /// The vertex this traversal starts at, read by the wrap strip and
+    /// by the declared-vertex guard in [`loop_polygon`].
     pub start: VertexKey,
     /// Chord ids, traversal order (endpoints included).
     pub ids: Vec<u32>,
@@ -669,6 +670,36 @@ fn iso_side_starts(
     topo::chart_iso::iso_side_starts(&kinds, &separated)
 }
 
+/// **Whether loop `lk` of face `fk` passes one point at two of its
+/// vertices**: two distinct junction vertices on one point record. That
+/// is a pinch of the loop, and on an at-rest body a slit's parted end,
+/// the two vertices the material parts there sharing the point the
+/// slit's two edges end on (`crates/topo/README.md`, tier 3, "a slit of
+/// that loop"). The slit's tip lies inside the domain, so the loop is no
+/// rectangle; the route sends the face to the chart lane
+/// (`tessellate::route_of`'s second fact).
+///
+/// The point record is what the body states, so this reads no distance.
+/// One vertex visited twice (a seam walked both ways) is one vertex, not
+/// a pinch.
+pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey, fk: FaceKey) -> Result<bool, TessellateError> {
+    let mut seen: HashMap<PointKey, VertexKey> = HashMap::new();
+    for (half_edge, _, _) in loop_half_edges(body, lk, fk)? {
+        let start = body
+            .get_half_edge(half_edge)
+            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
+            .start;
+        let point = body
+            .get_vertex(start)
+            .ok_or(TessellateError::MissingEntity { what: "vertex" })?
+            .point;
+        if *seen.entry(point).or_insert(start) != start {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 /// **Whether a straight side of face `fk`'s outer loop holds a point
 /// between its ends**, on a cylinder or a cone: a side carried by more
 /// than one edge, or a cone's side through its apex.
@@ -685,7 +716,7 @@ fn iso_side_starts(
 /// The rectangle lane's theorem for a ruled face holds every triangle
 /// between two neighbouring rulings, and such a point is a boundary
 /// point off its grid, so the route sends such a face to the chart lane
-/// (`tessellate::route_of`'s fourth fact). The route asks this only of a
+/// (`tessellate::route_of`'s fifth fact). The route asks this only of a
 /// face the doors certified a rectangle (`curved::iso_rectangle_shape`),
 /// so it decides nothing about shape and reads no band: a face that is
 /// no rectangle has been routed, or refused with the doors' cause,
@@ -1197,14 +1228,18 @@ pub(crate) fn loop_polygon(
     // beside `pole_v` below (issue 896), scoped to junctions the
     // classification does NOT identify with a pole.
     //
-    // Equal ids are skipped rather than compared: one declared vertex
-    // visited twice by one loop (a seam walked both ways) is that
-    // vertex at distance 0, and is legal.
+    // What is declared is a POINT RECORD, not a vertex: two junctions
+    // on one point record are one declared point, at distance 0 and
+    // legal — one vertex visited twice (a seam walked both ways), or two
+    // vertices the body states on one point (a slit's parted end, which
+    // the route sends to the chart lane, [`pinches`]). So pairs are
+    // compared only across distinct point records.
+    let point_of = |v: VertexKey| body.get_vertex(v).map(|vertex| vertex.point);
     let coincident_declared = || -> Option<(u32, u32, f64)> {
         for (i, a) in travs.iter().enumerate() {
             for b in &travs[i + 1..] {
                 let (ja, jb) = (a.ids[0], b.ids[0]);
-                if ja == jb {
+                if point_of(a.start) == point_of(b.start) {
                     continue;
                 }
                 let d = (positions[ja as usize] - positions[jb as usize]).norm();

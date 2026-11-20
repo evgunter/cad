@@ -1173,7 +1173,7 @@ mod tests {
     /// chord point inside a ruling (a spline neighbour's lattice would), so
     /// the call is made by hand, on a cylinder wall whose seam is split:
     /// the route sends that face to the trimmed lane
-    /// (`tessellate::route_of`'s fourth fact), dropping the doors'
+    /// (`tessellate::route_of`'s fifth fact), dropping the doors'
     /// [`Rectangle`] unspent, and the row spends it here, its split vertex
     /// standing in for the chord point. Without the refusal the lane
     /// meshes the face on its ruled arm's `(nu, 1)` grid.

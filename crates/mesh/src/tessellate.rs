@@ -243,17 +243,23 @@ pub(crate) enum Lane {
 /// pass makes the plain one.
 ///
 /// **An analytic curved face is routed on its domain**, by the first of
-/// four facts that answers:
+/// five facts that answers:
 ///
 /// 1. A face holding a ring is no rectangle: the trimmed lane's, which
 ///    reads every loop of its domain.
-/// 2. A face whose outer loop stores a chart image of a form no iso line
+/// 2. A face whose outer loop passes one point at two of its vertices
+///    (`crate::walk::pinches`) is no rectangle either: a slit's parted
+///    end, whose tip lies inside the domain. The body states the two
+///    vertices one point by giving them one point record, so the route
+///    reads that and no distance, and the doors, which place rims and
+///    not columns, cannot see it.
+/// 3. A face whose outer loop stores a chart image of a form no iso line
 ///    takes ([`geom_brep::Pcurve::is_non_iso_form`]: a projected circle,
 ///    a focal section, a spiric, a fitted or general spline) is no iso
 ///    rectangle either, and is the trimmed lane's. The form is what the
 ///    mint chose when its class reading showed none of the chart's iso
 ///    classes, so the route reads that stored fact and asks no door.
-/// 3. Every other face is routed by the curved lane's two doors
+/// 4. Every other face is routed by the curved lane's two doors
 ///    ([`crate::curved::iso_rectangle_shape`]). A face they certify an
 ///    iso-parameter rectangle on one chart branch is the curved lane's,
 ///    and carries their answer as a value
@@ -265,7 +271,7 @@ pub(crate) enum Lane {
 ///    or whose stored data contradicts itself, refuses
 ///    [`TessellateError::UnsupportedCurvedShape`] with their cause: no
 ///    lane is taken because a door could not answer.
-/// 4. A rectangle the doors certify on a ruled chart (a cylinder or a
+/// 5. A rectangle the doors certify on a ruled chart (a cylinder or a
 ///    cone) whose straight side holds a point between its ends — a ruling
 ///    split into several edges, or a cone side run through its apex —
 ///    is the trimmed lane's ([`crate::walk::splits_a_straight_side`]): the
@@ -302,7 +308,7 @@ pub(crate) fn route_of(
             let face = body
                 .get_face(fk)
                 .ok_or(TessellateError::MissingEntity { what: "face" })?;
-            if !face.rings.is_empty() {
+            if !face.rings.is_empty() || crate::walk::pinches(body, face.outer, fk)? {
                 return Ok((Route::Trimmed(Trim::Structural), None));
             }
             let off_iso = crate::walk::loop_half_edges(body, face.outer, fk)?
@@ -317,7 +323,7 @@ pub(crate) fn route_of(
             match crate::curved::iso_rectangle_shape(body, fk, face.outer, surface, band)? {
                 Shape::Rectangle(rectangle) => {
                     if crate::walk::splits_a_straight_side(body, fk, surface)? {
-                        // Fact 4: the token goes unspent.
+                        // Fact 5: the token goes unspent.
                         (Route::Trimmed(Trim::Structural), None)
                     } else {
                         (Route::Curved(rectangle), None)
