@@ -775,8 +775,9 @@ fn a_single_cap_just_past_the_band_builds_as_the_parting_leaves_it() {
 /// plane.** With every recorded branch forgotten
 /// ([`topo::forget_branches`]), A's cap `30·escalate` off the station
 /// reads its pierces' sides as before the record, on the pierced wall's
-/// tangent plane, where the sagitta charge refuses
-/// `CurvedSectorSideUnsupported`; with the record it builds.
+/// tangent plane, where the sagitta charge ties them and their jet reads
+/// them, and the boolean stops at A's wall, which no branch is recorded
+/// to build (`CurvedBooleanUnsupported`); with the record it builds.
 #[test]
 fn a_pierce_with_no_recorded_branch_reads_the_tangent_plane() {
     let tol = Tol::witness();
@@ -792,9 +793,13 @@ fn a_pierce_with_no_recorded_branch_reads_the_tangent_plane() {
     assert!(
         matches!(
             forgotten,
-            Err(topo::BooleanError::CurvedSectorSideUnsupported { .. })
+            Err(topo::BooleanError::CurvedBooleanUnsupported {
+                operand: topo::Operand::A,
+                kind: geom::SurfaceKind::Cylinder,
+                ..
+            })
         ),
-        "no record: the tangent plane's sagitta, got {forgotten:?}"
+        "no record: A's wall is unbuilt, got {forgotten:?}"
     );
     let recorded = topo::intersect(&a, &b, tol);
     assert!(

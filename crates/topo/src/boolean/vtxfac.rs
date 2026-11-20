@@ -4024,8 +4024,10 @@ mod tests {
             "a bound in band beside two decided across"
         );
         // A bound rising at a slope whose side a unit radius of curvature
-        // bends back within the band: off a plane, and undecided on the
-        // bent face, where the lever charges it.
+        // could bend back within the band: off a plane, and on a bent face,
+        // where the lever charges it, read by its jet: a ball bending away
+        // leaves it off, a hollow bending toward it takes it back across,
+        // against the two steep bounds.
         let slope = (2.0 * z).sqrt();
         let rays = [[1.0, 0.0, slope], [0.0, 1.0, 1.0], [0.0, -1.0, 1.0]];
         assert_eq!(
@@ -4033,15 +4035,21 @@ mod tests {
             Side { along: false },
             "on a plane"
         );
-        let bent = PierceDatum {
-            normal,
-            bend: crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, 1.0), 1.0),
-            lever: PierceLever::Everywhere(1.0),
-        };
-        assert!(
-            read(&rays, bent, false).is_err(),
-            "on a face bent at a unit radius"
-        );
+        for (gradient, want, what) in [
+            (1.0, Side { along: false }, "on a ball"),
+            (-1.0, Across, "on a hollow"),
+        ] {
+            let bent = PierceDatum {
+                normal,
+                bend: crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, gradient), 1.0),
+                lever: PierceLever::Everywhere(1.0),
+            };
+            assert_eq!(
+                read(&rays, bent, false).unwrap(),
+                want,
+                "{what} of unit radius"
+            );
+        }
     }
 
     /// **A pierce germ is the section line's ray its transition names,
