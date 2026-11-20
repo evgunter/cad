@@ -834,8 +834,8 @@ impl Tell for CornerReason {
                         f,
                         "the fillet trim would eat the {side}'s anchor (setback {setback}, \
                              {available} available)",
-                        setback = fit.first(),
-                        available = fit.second()
+                        setback = fit.first().told_in(notation),
+                        available = fit.second().told_in(notation)
                     )
                 }
                 OverrunLegs::Both => {
@@ -844,10 +844,10 @@ impl Tell for CornerReason {
                         f,
                         "the fillet trim would eat both legs' anchors (incoming setback {s0}, \
                          {a0} available; outgoing {s1}, {a1})",
-                        s0 = incoming.first(),
-                        a0 = incoming.second(),
-                        s1 = outgoing.first(),
-                        a1 = outgoing.second(),
+                        s0 = incoming.first().told_in(notation),
+                        a0 = incoming.second().told_in(notation),
+                        s1 = outgoing.first().told_in(notation),
+                        a1 = outgoing.second().told_in(notation),
                     )
                 }
             },
@@ -2279,8 +2279,8 @@ impl<T: Real> Tell for PathError<T> {
                      at the run's tolerance (margin {margin}), so the fillet's tangent point \
                      cannot be placed. Recourse: move the fillet radius away from that side's \
                      carrier radius, or bring the corner's carriers closer together",
-                    rho = levers.first(),
-                    least = levers.second(),
+                    rho = levers.first().told_in(notation),
+                    least = levers.second().told_in(notation),
                     carrier_radius = carrier_radius.told_in(notation),
                     margin = margin.told_in(notation)
                 )
@@ -2437,8 +2437,8 @@ impl<T: Real> Tell for PathError<T> {
                      three authored points contradict each other. Nothing is re-projected — \
                      an authored point is never moved to make a construction work; fix \
                      whichever of the three is wrong",
-                    tip = radii.first(),
-                    end = radii.second(),
+                    tip = radii.first().told_in(notation),
+                    end = radii.second().told_in(notation),
                 )
             }
             Self::DegenerateArcCenter { radius } => write!(
