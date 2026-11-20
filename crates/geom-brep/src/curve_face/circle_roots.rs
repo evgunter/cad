@@ -424,6 +424,7 @@ pub fn door_answer<T: geom_core::Real, X: core::fmt::Debug>(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
