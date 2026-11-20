@@ -1066,11 +1066,13 @@ BOUNDS_ALLOWLIST=(
   # geom-brep README's C2): the certification doors' impl block and the
   # engine they share (`run_checks`), at the lane's bound, so a scalar
   # that may not certify cannot name them.
-  # certify.rs 4 -> 5 (the lanes over `Certifies`): `SplineFoot`'s
-  # constructor block. The type is declared over `Certifies`, so the
-  # block that was a sole `CertifiedBounds` names it; its one read is
-  # the seed's bracket midpoint, as before, and it decides nothing.
-  'crates/geom-brep/src/certify.rs 5 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound; 2026-10-25, the edge door split as a BOUND, the certifying doors and their engine (which reads limb 2 for a net stated on an analytic chart, PR 6826)'
+  # certify.rs 4 -> 6 (the lanes over `Certifies`): `SplineFoot`'s
+  # constructor block, and `wiring_rows::holds_the_certified_spline_foot`,
+  # which forms that constructor and so restates its bound. The type is
+  # declared over `Certifies`, so the two that were a sole
+  # `CertifiedBounds` name it; the block's one read is the seed's bracket
+  # midpoint, as before, and neither decides anything.
+  'crates/geom-brep/src/certify.rs 6 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound; 2026-10-25, the edge door split as a BOUND, the certifying doors and their engine (which reads limb 2 for a net stated on an analytic chart, PR 6826)'
   # 2026-10-25, the edge door split as a BOUND (PR 5689): the certifying
   # scalars' edge door bodies their policies run, at the certifying
   # doors' own bound, and nothing else in the file.
