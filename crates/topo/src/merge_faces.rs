@@ -170,12 +170,12 @@ impl MergeCoplanarOutcome {
     /// # Errors
     ///
     /// As [`crate::ContactRecords::carried_through`].
-    pub fn carry_contacts<T: geom_core::Decide>(
+    pub fn carry_contacts<T: crate::props::AtRestPolicy>(
         &self,
         records: &crate::boolean::ContactRecords,
         result: &Body<T>,
         band: geom_core::Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
         records.carried_through(0, &self.lineage(), result, band, region)
     }

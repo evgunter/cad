@@ -403,7 +403,7 @@ impl BlendNaming {
         records: &topo::ContactRecords,
         body: &topo::Body<T>,
         band: geom_core::Band,
-        region: Option<topo::RegionLane<T>>,
+        region: Option<impl topo::RegionLaneOf<T>>,
     ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
         records.carried_through(0, &self.lineage(), body, band, region)
     }

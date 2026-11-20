@@ -133,9 +133,9 @@ pub use carrier_pose::{
 };
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
-    EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, RowRefusal,
-    SplineFoot, StatedImage, StatedSpan, WindingReading, folded_parallelism, sample_param,
-    schedule_param, side_row_certifies,
+    EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane,
+    NurbsLaneOf, RowRefusal, SplineFoot, SplineFootOf, StatedImage, StatedSpan, WindingReading,
+    folded_parallelism, sample_param, schedule_param, side_row_certifies,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side, curvature_vector};
 pub use description::{
@@ -180,7 +180,7 @@ pub use extent::{
     edge_extent_inf, edge_extent_sup, edge_reach_bounds, points_diameter, points_lever_from,
     surface_anchored_at,
 };
-pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
+pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane, FittedLaneOf};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the
 /// doors above read it by the name they already use.
@@ -226,7 +226,7 @@ pub use offset_fit::{
     approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,
     certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
-pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
+pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, OffsetFitLaneOf, ScalarList};
 pub use offset_meters::ChartArmRefusal;
 pub use pair_section::{
     ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CarryRefusal, CcDecision,
@@ -236,7 +236,7 @@ pub use pair_section::{
     NodeEnd, NodeEnds, NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PoseRefusal,
     RaySense, Reached, RegionPlacement, Ring, SectionComponent, SectionDecision, SectionNode,
     SectionPick, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose,
-    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
+    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT,
     TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
     TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
     ZeroKind, ZeroVerdict, axis_pose, coaxial_tangent_circle, line_tilt, pair_section,

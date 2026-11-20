@@ -440,7 +440,7 @@ pub(super) struct NullPlan<T: geom_core::Real> {
 /// direction and each run's direction (module docs), touching neither
 /// body.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn plan_null_pairs<T: Decide>(
+pub(super) fn plan_null_pairs<T: crate::props::AtRestPolicy>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     contact: VvContact,
@@ -2617,7 +2617,7 @@ pub(super) fn strut_order<T: Decide>(
 /// against a face the locus lies in, name no ray of it. Membership in
 /// both sectors is the one datum that names its ray. The fan's meeting
 /// rays are rulings, each a ray of its own, singled out the same way.
-fn record_germ_dir<T: Decide>(
+fn record_germ_dir<T: crate::props::AtRestPolicy>(
     (a_body, a_vertex): (&Body<T>, VertexKey),
     (b_body, b_vertex): (&Body<T>, VertexKey),
     (sa, codes_a): (&BoolSector<T>, (SideCode, SideCode)),

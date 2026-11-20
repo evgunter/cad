@@ -1925,6 +1925,14 @@ pub trait CertifiedEnclosure: Copy {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Uncertified;
 
+/// **What a scalar that does not certify holds where a certifying one
+/// holds a lane**: a type with no values (the crate README, DL5.3). A
+/// pass that runs at every scalar takes its lane as a type that is the
+/// lane at a scalar that [`Certifies`] and this at a dual, so the arm
+/// that enters certification is not reachable there by type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoLane {}
+
 /// **A scalar that transports tangents and never certifies** — the
 /// dual's side of [`Real::Carries`]' partition: its doors construct and
 /// never check, and what they hold in a record's place is
@@ -1995,6 +2003,62 @@ pub trait CertifiedBounds: Bounds + CertifiedEnclosure {}
 /// Every scalar with both doors has the pair; the alias adds no obligation
 /// an implementor must opt into.
 impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}
+
+/// **A scalar that certifies**, and nothing else: the bound code writes
+/// to say it has no meaning at a tangent-transport scalar (the crate
+/// README, DL5.3).
+///
+/// It grants no bracket read and no method, so it is free to write: no
+/// list, no ratification, and `scripts/gates/bounds-allowlist.sh` does
+/// not read it. A body that also reads a bracket names the bracket door
+/// beside it, and that read is what the [`Bounds`] scope rule asks about.
+///
+/// Sealed: `f64`, [`crate::Interval`], `k_stats::Probe` (feature
+/// `probe`) and [`crate::Sym`] over a scalar that certifies. A
+/// [`crate::Dual`] is absent for [`CertifiedEnclosure`]'s reason
+/// (`docs/DUAL-DESIGN.md` DL1), over any base:
+///
+/// ```compile_fail,E0277
+/// fn certifies<T: geom_core::Certifies>() {}
+/// certifies::<geom_core::Dual64>();
+/// ```
+///
+/// ```compile_fail,E0277
+/// fn certifies<T: geom_core::Certifies>() {}
+/// certifies::<geom_core::DualInterval>();
+/// ```
+///
+/// ```compile_fail,E0277
+/// fn certifies<T: geom_core::Certifies>() {}
+/// certifies::<geom_core::Sym<geom_core::Dual64>>();
+/// ```
+///
+/// ```
+/// fn certifies<T: geom_core::Certifies>() {}
+/// certifies::<f64>();
+/// certifies::<geom_core::Interval>();
+/// certifies::<geom_core::Sym<f64>>();
+/// certifies::<geom_core::Sym<geom_core::Interval>>();
+/// ```
+pub trait Certifies: crate::predicate::Decide + certifies_seal::Sealed {}
+
+mod certifies_seal {
+    pub trait Sealed {}
+}
+
+impl certifies_seal::Sealed for f64 {}
+impl Certifies for f64 {}
+
+impl certifies_seal::Sealed for crate::Interval {}
+impl Certifies for crate::Interval {}
+
+#[cfg(feature = "probe")]
+impl certifies_seal::Sealed for crate::k_stats::Probe {}
+#[cfg(feature = "probe")]
+impl Certifies for crate::k_stats::Probe {}
+
+impl<T: Certifies> certifies_seal::Sealed for crate::Sym<T> {}
+impl<T: Certifies> Certifies for crate::Sym<T> {}
 
 /// Exponentiation by squaring over any [`Real`], the shared implementation
 /// of [`Real::powi`]: `n < 0` via the reciprocal of `base.powi(|n|)`,

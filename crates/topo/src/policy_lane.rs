@@ -190,7 +190,7 @@ pub(crate) fn recertify_stated<T: AtRestPolicy>(
 /// the mint and every check of the certificate, C2's limbs through the
 /// certification lane.
 #[allow(clippy::too_many_arguments)] // the door's own inputs
-pub(crate) fn certifying_attach<T: Decide + geom_core::CertifiedBounds>(
+pub(crate) fn certifying_attach<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     spec: EdgeCurveSpec<T>,
     start: Point3<T>,
     end: Point3<T>,
@@ -206,7 +206,7 @@ pub(crate) fn certifying_attach<T: Decide + geom_core::CertifiedBounds>(
 /// **A certifying scalar's edge door at rest**
 /// ([`AtRestPolicy::reattach_edge`]): the certificate re-derived in full.
 #[allow(clippy::too_many_arguments)] // the door's own inputs
-pub(crate) fn certifying_reattach<T: Decide + geom_core::CertifiedBounds>(
+pub(crate) fn certifying_reattach<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     curve: &EdgeCurve<T>,
     start: Point3<T>,
     end: Point3<T>,

@@ -364,7 +364,7 @@ impl Settling {
     }
 }
 
-impl<T: geom_core::Real> super::GluedPairs<T> {
+impl<T: crate::props::AtRestPolicy> super::GluedPairs<T> {
     /// **What a door read of the declaration ahead of `question`**,
     /// looked up for the face pairs it asks about, in order: the first
     /// declared pair's class is [`DeclarationRead::Spent`] (the question

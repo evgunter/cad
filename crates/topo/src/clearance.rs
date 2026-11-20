@@ -4565,7 +4565,7 @@ fn split_self<T: Real>(pair: CellPair, w: &Window<'_, T>) -> Option<[CellPair; 3
 /// [`crate::QuadLane`]'s paragraph.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct ClearanceLane<T: Decide> {
+pub struct ClearanceLane<T: geom_core::Certifies> {
     /// [`Side::windows`] (`wiring_rows` pins the pointer).
     windows: for<'b> fn(
         &Side<'b, T>,
@@ -4585,7 +4585,7 @@ pub struct ClearanceLane<T: Decide> {
     face_stations: fn(Candidate<'_, '_, T>) -> (Stations, Stations),
 }
 
-impl<T: Decide + CertifiedBounds> ClearanceLane<T> {
+impl<T: geom_core::Certifies + CertifiedBounds> ClearanceLane<T> {
     /// The certified engine: the whole inventory of this door, and the
     /// only constructor there is.
     #[must_use]
@@ -4620,7 +4620,7 @@ impl<T: Decide + CertifiedBounds> ClearanceLane<T> {
     }
 }
 
-impl<T: Decide> ClearanceLane<T> {
+impl<T: geom_core::Certifies> ClearanceLane<T> {
     /// [`Side::windows`], at this lane.
     ///
     /// # Errors
@@ -4699,6 +4699,101 @@ impl<T: Decide> ClearanceLane<T> {
     }
 }
 
+/// **A [`ClearanceLane`] as a pass that runs at every scalar holds it**:
+/// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
+/// values) at one that does not (`geom-core` README, DL5.3).
+pub trait ClearanceLaneOf<T: Decide>: Copy + Send + Sync {
+    /// [`ClearanceLane::windows`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn windows<'b>(self, side: &Side<'b, T>, which: Which) -> Result<Windows<'b, T>, EngineRefusal>;
+
+    /// [`ClearanceLane::windows_at`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn windows_at<'b>(
+        self,
+        side: &Side<'b, T>,
+        which: Which,
+        at: Option<&RigidMotion<T>>,
+    ) -> Result<Windows<'b, T>, EngineRefusal>;
+
+    /// [`ClearanceLane::sweep`].
+    fn sweep<W>(
+        self,
+        sweep: &Sweep,
+        wa: &Windows<'_, T>,
+        wb: &Windows<'_, T>,
+        same_body: bool,
+        verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
+    ) -> BoundReport<W>;
+
+    /// [`ClearanceLane::on_face_stations`].
+    fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations);
+}
+
+impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
+    fn windows<'b>(self, side: &Side<'b, T>, which: Which) -> Result<Windows<'b, T>, EngineRefusal> {
+        ClearanceLane::windows(self, side, which)
+    }
+
+    fn windows_at<'b>(
+        self,
+        side: &Side<'b, T>,
+        which: Which,
+        at: Option<&RigidMotion<T>>,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
+        ClearanceLane::windows_at(self, side, which, at)
+    }
+
+    fn sweep<W>(
+        self,
+        sweep: &Sweep,
+        wa: &Windows<'_, T>,
+        wb: &Windows<'_, T>,
+        same_body: bool,
+        verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
+    ) -> BoundReport<W> {
+        ClearanceLane::sweep(self, sweep, wa, wb, same_body, verify)
+    }
+
+    fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
+        ClearanceLane::on_face_stations(self, candidate)
+    }
+}
+
+impl<T: Decide> ClearanceLaneOf<T> for geom_core::NoLane {
+    fn windows<'b>(self, _side: &Side<'b, T>, _which: Which) -> Result<Windows<'b, T>, EngineRefusal> {
+        match self {}
+    }
+
+    fn windows_at<'b>(
+        self,
+        _side: &Side<'b, T>,
+        _which: Which,
+        _at: Option<&RigidMotion<T>>,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
+        match self {}
+    }
+
+    fn sweep<W>(
+        self,
+        _sweep: &Sweep,
+        _wa: &Windows<'_, T>,
+        _wb: &Windows<'_, T>,
+        _same_body: bool,
+        _verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
+    ) -> BoundReport<W> {
+        match self {}
+    }
+
+    fn on_face_stations(self, _candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
+        match self {}
+    }
+}
+
 /// **What the verdict door answers** ([`embedded`]): the yes and the no
 /// of E7's self-intersection question, and the typed refusal that is
 /// neither.
@@ -4765,7 +4860,7 @@ pub struct EmbeddingReport {
 /// candidate's carriers ([`Candidate::enclosure`]), is least at its
 /// upper end, decided at the strict site, where a separation in the band
 /// is a coincidence.
-pub fn embedded<T: Decide + CertifiedBounds>(
+pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
     side: &Side<'_, T>,
     band: Band,
     budgets: Budgets,
@@ -4927,7 +5022,7 @@ mod wiring_rows {
     #[allow(clippy::expect_used)]
     fn the_verdict_door_on_a_cube<T>() -> (bool, bool)
     where
-        T: super::Decide + geom_core::CertifiedBounds + crate::AtRestPolicy,
+        T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
     {
         let tol = geom_core::Tol::witness();
         let cube: crate::Body<T> =

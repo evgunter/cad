@@ -1424,7 +1424,7 @@ pub(super) fn germ_locus<T: Decide>(
 /// where an open edge's far end is read from the records. Two closed
 /// edges both on the partner's boundary are one segment
 /// ([`one_segment`]).
-pub(super) fn germ_loci<T: Decide>(
+pub(super) fn germ_loci<T: crate::props::AtRestPolicy>(
     a: GermSide<'_, T>,
     b: GermSide<'_, T>,
     contacts: &super::ReductionContacts,
@@ -1533,7 +1533,7 @@ fn germ_curve<T: Decide>(
 /// Two closed edges (each one vertex, both its ends) pair their far
 /// ends, the site, always: [`germ_loci`] asks [`closed_reach`] first,
 /// and comes here where both run along the partner's boundary.
-fn one_segment<T: Decide>(
+fn one_segment<T: crate::props::AtRestPolicy>(
     a: GermSide<'_, T>,
     ea: Along,
     b: GermSide<'_, T>,
@@ -1574,7 +1574,7 @@ fn one_segment<T: Decide>(
 ///
 /// [`BooleanError::ClassificationInvariant`] where a germ edge's half
 /// has no mate or no face, or a face's carrier does not read.
-fn same_construction<T: Decide>(
+fn same_construction<T: crate::props::AtRestPolicy>(
     a: GermSide<'_, T>,
     ea: Along,
     b: GermSide<'_, T>,

@@ -513,13 +513,13 @@ impl ContactRecords {
     /// [`CarryRefusal::Stale`] for a record that lands nowhere with no
     /// removal to consume it, and [`CarryRefusal::Pair`] for one whose
     /// every pair of images is one cell or incident.
-    pub fn carried_through<T: geom_core::Decide>(
+    pub fn carried_through<T: crate::props::AtRestPolicy>(
         &self,
         input: u32,
         lineage: &crate::Lineage,
         result: &Body<T>,
         band: geom_core::Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<Self, CarryRefusal> {
         let [out] = <[Self; 1]>::try_from(self.carried_onto(
             input,
@@ -542,13 +542,13 @@ impl ContactRecords {
     ///
     /// As [`landings`]; [`CarryRefusal::MintedMeeting`] for a minted
     /// meeting where the lineage is not one cut's.
-    pub(crate) fn carried_onto<T: geom_core::Decide>(
+    pub(crate) fn carried_onto<T: crate::props::AtRestPolicy>(
         &self,
         input: u32,
         lineage: &crate::Lineage,
         sides: &[&Body<T>],
         band: geom_core::Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
         parted: Option<&mut Vec<Parting>>,
     ) -> Result<Vec<Self>, CarryRefusal> {
         let rows: Vec<[Cell; 2]> = self.rows.iter().map(|r| r.cells()).collect();
@@ -705,11 +705,11 @@ pub(crate) struct Landing {
 }
 
 /// Each side's census confirm, read at most once per side.
-pub(crate) struct Confirms<'b, T: geom_core::Decide>(
+pub(crate) struct Confirms<'b, T: crate::props::AtRestPolicy>(
     Vec<Option<crate::census::RecordConfirm<'b, T>>>,
 );
 
-impl<T: geom_core::Decide> Confirms<'_, T> {
+impl<T: crate::props::AtRestPolicy> Confirms<'_, T> {
     pub(crate) fn new(sides: usize) -> Self {
         Self((0..sides).map(|_| None).collect())
     }
@@ -744,13 +744,13 @@ impl<T: geom_core::Decide> Confirms<'_, T> {
 /// images are held by different sides only (listed in `parted` instead
 /// where it is given), and
 /// [`CarryRefusal::Unmapped`] for a cell with no image held anywhere.
-pub(crate) fn landings<'b, T: geom_core::Decide>(
+pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
     rows: &[[Cell; 2]],
     lineage: &crate::Lineage,
     sides: &[&'b Body<T>],
     confirms: &mut Confirms<'b, T>,
     band: geom_core::Band,
-    region: Option<crate::RegionLane<T>>,
+    region: Option<T::RegionLane>,
     mut parted: Option<&mut Vec<Parting>>,
 ) -> Result<Vec<Landing>, CarryRefusal> {
     let mut out = Vec::new();

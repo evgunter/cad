@@ -73,7 +73,7 @@
 //! is the per-scalar policy that cut leaves standing.
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
-use geom_core::{Band, Decide, Point2, Point3, Real};
+use geom_core::{Band, Point2, Point3, Real};
 
 use crate::PcurveCertifyError;
 use crate::pcurve_cache::projected::ProjectedHull;
@@ -110,7 +110,7 @@ pub const FITTED_DOOR_HOLDERS: &[&str] = &[
 /// private and no other constructor exists.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct FittedLane<T: Real> {
+pub struct FittedLane<T: geom_core::Certifies> {
     /// [`FittedLane::fitted_certificate`]'s body.
     fitted_lane: fn(
         &Curve3<T>,
@@ -138,7 +138,7 @@ pub struct FittedLane<T: Real> {
     ) -> Result<ProjectedHull, PcurveCertifyError>,
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> FittedLane<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> FittedLane<T> {
     /// The certified fitted-pcurve door — the whole inventory of this
     /// door, and the only constructor there is. Every field holds the
     /// one shared body the tree has for its derivation, instantiated at
@@ -154,7 +154,7 @@ impl<T: Decide + geom_core::CertifiedBounds> FittedLane<T> {
     }
 }
 
-impl<T: Real> FittedLane<T> {
+impl<T: geom_core::Certifies> FittedLane<T> {
     /// The hull bound of a fitted chart image against its own chart —
     /// check 4 of the fitted lane's four checks, reached only from
     /// inside this crate's fitted doors: a certified bound on
@@ -264,6 +264,143 @@ impl<T: Real> FittedLane<T> {
         wall: &NurbsSurface<T>,
     ) -> Result<Point2<f64>, PcurveCertifyError> {
         (self.chart_foot_lane)(point, wall)
+    }
+}
+
+/// **A [`FittedLane`] as a pass that runs at every scalar holds it**:
+/// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
+/// values) at one that does not (`geom-core` README, DL5.3).
+pub trait FittedLaneOf<T: Real>: Copy + Send + Sync {
+    /// [`FittedLane::fitted_certificate`].
+    #[allow(private_interfaces)]
+    fn fitted_certificate(
+        self,
+        carrier: &Curve3<T>,
+        image: &NurbsCurve2<T>,
+        chart: crate::pcurve_cache::FittedChart<'_, T>,
+        params: (T, T),
+        band: Band,
+    ) -> Result<T, PcurveCertifyError>;
+
+    /// [`FittedLane::general_image`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn general_image(
+        self,
+        carrier: &Curve3<T>,
+        params: (T, T),
+        wall: &NurbsSurface<T>,
+        band: Band,
+    ) -> Result<NurbsCurve2<T>, PcurveCertifyError>;
+
+    /// [`FittedLane::projected_hull`].
+    #[allow(private_interfaces)]
+    fn projected_hull(
+        self,
+        image: &crate::ProjectedImage<T>,
+        twin_net: &NurbsCurve3<T>,
+        twin: &Surface<T>,
+        parts: crate::pcurve_cache::Parts,
+        cuts: &[f64],
+    ) -> Result<ProjectedHull, PcurveCertifyError>;
+
+    /// [`FittedLane::chart_foot`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn chart_foot(
+        self,
+        point: Point3<T>,
+        wall: &NurbsSurface<T>,
+    ) -> Result<Point2<f64>, PcurveCertifyError>;
+}
+
+impl<T: geom_core::Certifies> FittedLaneOf<T> for FittedLane<T> {
+    #[allow(private_interfaces)]
+    fn fitted_certificate(
+        self,
+        carrier: &Curve3<T>,
+        image: &NurbsCurve2<T>,
+        chart: crate::pcurve_cache::FittedChart<'_, T>,
+        params: (T, T),
+        band: Band,
+    ) -> Result<T, PcurveCertifyError> {
+        FittedLane::fitted_certificate(self, carrier, image, chart, params, band)
+    }
+
+    fn general_image(
+        self,
+        carrier: &Curve3<T>,
+        params: (T, T),
+        wall: &NurbsSurface<T>,
+        band: Band,
+    ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
+        FittedLane::general_image(self, carrier, params, wall, band)
+    }
+
+    #[allow(private_interfaces)]
+    fn projected_hull(
+        self,
+        image: &crate::ProjectedImage<T>,
+        twin_net: &NurbsCurve3<T>,
+        twin: &Surface<T>,
+        parts: crate::pcurve_cache::Parts,
+        cuts: &[f64],
+    ) -> Result<ProjectedHull, PcurveCertifyError> {
+        FittedLane::projected_hull(self, image, twin_net, twin, parts, cuts)
+    }
+
+    fn chart_foot(
+        self,
+        point: Point3<T>,
+        wall: &NurbsSurface<T>,
+    ) -> Result<Point2<f64>, PcurveCertifyError> {
+        FittedLane::chart_foot(self, point, wall)
+    }
+}
+
+impl<T: Real> FittedLaneOf<T> for geom_core::NoLane {
+    #[allow(private_interfaces)]
+    fn fitted_certificate(
+        self,
+        _carrier: &Curve3<T>,
+        _image: &NurbsCurve2<T>,
+        _chart: crate::pcurve_cache::FittedChart<'_, T>,
+        _params: (T, T),
+        _band: Band,
+    ) -> Result<T, PcurveCertifyError> {
+        match self {}
+    }
+
+    fn general_image(
+        self,
+        _carrier: &Curve3<T>,
+        _params: (T, T),
+        _wall: &NurbsSurface<T>,
+        _band: Band,
+    ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
+        match self {}
+    }
+
+    #[allow(private_interfaces)]
+    fn projected_hull(
+        self,
+        _image: &crate::ProjectedImage<T>,
+        _twin_net: &NurbsCurve3<T>,
+        _twin: &Surface<T>,
+        _parts: crate::pcurve_cache::Parts,
+        _cuts: &[f64],
+    ) -> Result<ProjectedHull, PcurveCertifyError> {
+        match self {}
+    }
+
+    fn chart_foot(
+        self,
+        _point: Point3<T>,
+        _wall: &NurbsSurface<T>,
+    ) -> Result<Point2<f64>, PcurveCertifyError> {
+        match self {}
     }
 }
 

@@ -111,7 +111,7 @@ use geom_core::{Band, Bounds, Decide, Interval, Margin, Point3, Real, Sign, Vec2
 
 use super::{
     ChartReach, ClassCarrier, ComponentEnds, ComponentShape, Components, NodeEnd, NodeSet,
-    PairPose, PairSection, PairSide, SectionComponent, SectionNode, SsiLane, node_joined,
+    PairPose, PairSection, PairSide, SectionComponent, SectionNode, SsiLaneOf, node_joined,
 };
 use crate::ExtentBall;
 use crate::intersect::SectionError;
@@ -1009,7 +1009,7 @@ fn bracket(
 pub(super) fn classified<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
-    lane: Option<SsiLane<T>>,
+    lane: Option<impl SsiLaneOf<T>>,
     band: Band,
 ) -> Result<PairSection<T>, SectionError> {
     let pose = SplineImplicitPose::served(a, b)?;
@@ -1020,7 +1020,7 @@ pub(super) fn classified<T: Decide>(
         pose.door(band)?;
     }
     let lane = lane.ok_or(SectionError::NoMarch { scalar: T::NAME })?;
-    (lane.spline)(pose, band)
+    lane.spline(pose, band)
 }
 
 /// **The pair's classification, the march door's arm**: for a curved

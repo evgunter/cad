@@ -1873,12 +1873,12 @@ impl OffsetOutcome {
     /// # Errors
     ///
     /// As [`crate::ContactRecords::carried_through`].
-    pub fn carry_contacts<T: Decide>(
+    pub fn carry_contacts<T: crate::props::AtRestPolicy>(
         &self,
         records: &crate::boolean::ContactRecords,
         result: &Body<T>,
         band: Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
         records.carried_through(0, &self.lineage(), result, band, region)
     }
@@ -2383,7 +2383,7 @@ fn mint_offset<T: Decide>(
     d: T,
     band: Band,
     tol: Tol,
-    offset_fit: Option<geom_brep::OffsetFitLane<T>>,
+    offset_fit: Option<impl geom_brep::OffsetFitLaneOf<T>>,
 ) -> Result<Surface<T>, ReplaceFaceError<T>> {
     if let Surface::Nurbs(base) = old {
         if base.is_placeholder() {
@@ -2648,7 +2648,7 @@ fn plan_edge<'s, T: Decide>(
     band: Band,
     tol: Tol,
     (section_lane, walls): (
-        Option<crate::offset_derive::SectionLane<T>>,
+        Option<impl crate::SectionLaneOf<T>>,
         Option<&crate::offset_derive::WallCharts<'s>>,
     ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
@@ -3217,7 +3217,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
     band: Band,
     tol: Tol,
     (section_lane, slots): (
-        Option<crate::offset_derive::SectionLane<T>>,
+        Option<impl crate::SectionLaneOf<T>>,
         (WallSlot<'w, 's>, WallSlot<'w, 's>),
     ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
@@ -3402,7 +3402,7 @@ fn derive_edge<'w, 's, T: Decide>(
     (extent, reach): (geom_core::Lever<T>, geom_core::Lever<T>),
     band: Band,
     (section_lane, (new_slot, neighbour_slot)): (
-        Option<crate::offset_derive::SectionLane<T>>,
+        Option<impl crate::SectionLaneOf<T>>,
         (WallSlot<'w, 's>, WallSlot<'w, 's>),
     ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
@@ -3830,7 +3830,7 @@ fn plan_reanchors<T: Decide>(
     corners: &Corners<T>,
     band: Band,
     tol: Tol,
-    spline_foot: Option<geom_brep::SplineFoot<T>>,
+    spline_foot: Option<impl geom_brep::SplineFootOf<T>>,
 ) -> Result<Vec<Reanchored<T>>, ReplaceFaceError<T>> {
     let moved = corners.moved_points();
     let on_boundary: std::collections::BTreeSet<EdgeKey> = boundary.iter().copied().collect();
@@ -4305,7 +4305,7 @@ fn gap_within_eps_margin<T: Decide>(gap: T, tol: Tol) -> Margin<T> {
 /// at an end, where it is the carrier's held end knot (the value
 /// `corner_of_root`'s short root enters too).
 fn carrier_foot<T: Decide>(
-    foot: geom_brep::SplineFoot<T>,
+    foot: impl geom_brep::SplineFootOf<T>,
     carrier: &NurbsCurve3<T>,
     point: Point3<T>,
     seed: T,
@@ -4340,7 +4340,7 @@ fn carrier_foot<T: Decide>(
 /// verdict refuses the corner.
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn spline_corner_root<T: Decide>(
-    lane: crate::offset_derive::SectionLane<T>,
+    lane: impl crate::offset_derive::SectionLaneOf<T>,
     surface: &Surface<T>,
     spline: &NurbsCurve3<T>,
     (seed, extent): (T, geom_core::Lever<T>),
@@ -4434,7 +4434,7 @@ fn solve_corners<T: Decide>(
     charts: &[MovedChart<'_, T>],
     band: Band,
     tol: Tol,
-    section_lane: Option<crate::offset_derive::SectionLane<T>>,
+    section_lane: Option<impl crate::SectionLaneOf<T>>,
 ) -> Result<Corners<T>, ReplaceFaceError<T>> {
     use crate::offset_derive::CornerVerdict;
     let esc = |source| ReplaceFaceError::Escalated { source };
@@ -4826,7 +4826,7 @@ fn read_ends<T: Decide>(
     seeds: Option<(T, T)>,
     band: Band,
     tol: Tol,
-    spline_foot: Option<geom_brep::SplineFoot<T>>,
+    spline_foot: Option<impl geom_brep::SplineFootOf<T>>,
 ) -> Result<(), ReplaceFaceError<T>> {
     let edge = plan.edge;
     let at = |v: VertexKey| {

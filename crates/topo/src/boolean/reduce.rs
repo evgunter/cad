@@ -608,7 +608,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 ///
 /// [`BooleanError::CurvedPairUnsupported`] for a germ pair with no arm;
 /// [`first_unsupported_pair`]'s.
-pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
+pub(super) fn gate_operand_pairs<T: crate::props::AtRestPolicy + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     declared: &super::GluedPairs<T>,
@@ -878,7 +878,7 @@ fn face_tree<T: Decide + Bounds>(
 /// edge is one a declaration settles (the declared cover spends the
 /// declaration, and an undeclared pair's refusal is the same pose's),
 /// so the door admits no class that would.
-fn edge_face_read<T: geom_core::Real>(
+fn edge_face_read<T: crate::props::AtRestPolicy>(
     x: &Body<T>,
     x_is: Operand,
     edge: &crate::entity::Edge,
@@ -2083,7 +2083,7 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
 
 /// The one-sided covers an edge's parent faces hold against `face`
 /// ([`super::GluedPairs::cover`]), one per covering parent.
-fn edge_covers<T: Decide>(
+fn edge_covers<T: crate::props::AtRestPolicy>(
     x: &Body<T>,
     x_is: Operand,
     edge: &crate::entity::Edge,
@@ -3314,7 +3314,7 @@ fn conic_clearance<T: Decide>(
 /// that carrier lies on it. `Tangent` licenses nothing of the kind — a
 /// tangent pair shares a locus, not a carrier — and an undeclared pair
 /// is never read as coincident by value (CONTACT-DESIGN C2/C4).
-fn on_declared_shared_carrier<T: Decide>(
+fn on_declared_shared_carrier<T: crate::props::AtRestPolicy>(
     x: &Body<T>,
     x_is: Operand,
     edge: &crate::entity::Edge,
@@ -3771,7 +3771,7 @@ impl<T: geom_core::Real> Interior<T> {
 /// to either side there. There both edges are split, as a vertex there
 /// would split them.
 #[allow(clippy::too_many_arguments)]
-fn interior<T: Decide>(
+fn interior<T: crate::props::AtRestPolicy>(
     on_carrier: bool,
     (x, edge_key, edge): (&Body<T>, EdgeKey, &crate::entity::Edge),
     y: &Body<T>,
@@ -3886,7 +3886,7 @@ fn interior<T: Decide>(
 /// a cone's apex, on a degenerate torus or a spline crease, or `p` off
 /// the face's surface); the [`Coincide::Sectors`] coincidence where the
 /// cosine is in band.
-fn sheets_part<T: Decide>(
+fn sheets_part<T: crate::props::AtRestPolicy>(
     (x, x_is, edge): (&Body<T>, Operand, &crate::entity::Edge),
     (y, face, at): (&Body<T>, FaceKey, FaceContainment),
     declared: &super::GluedPairs<T>,

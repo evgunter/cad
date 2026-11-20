@@ -372,11 +372,11 @@ fn pairs_among(
 /// face box refused here would refuse there, and the door only meets it
 /// first.
 #[allow(clippy::type_complexity)] // (table, rows) — one door's reading
-pub(crate) fn section_door<T: Decide + Bounds>(
+pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &Glue<T>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Result<(SectionTable<T>, Vec<crate::Coincidence>), BooleanError> {
     let recorded = decls.verdicts != super::Verdicts::Given;

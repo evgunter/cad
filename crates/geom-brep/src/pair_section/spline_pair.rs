@@ -47,7 +47,7 @@ use geom_core::{Band, Decide, Real};
 
 use super::{
     ChartReach, ClassCarrier, ComponentEnds, ComponentShape, Components, PairPose, PairSection,
-    SectionComponent, SsiLane,
+    SectionComponent, SsiLaneOf,
 };
 use crate::ExtentBall;
 use crate::Pcurve;
@@ -159,7 +159,7 @@ pub(super) fn classified<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
     known: KnownPair<T>,
-    lane: Option<SsiLane<T>>,
+    lane: Option<impl SsiLaneOf<T>>,
     band: Band,
 ) -> Result<PairSection<T>, SectionError> {
     let pose = SplinePairPose::of(a, b)
@@ -168,7 +168,7 @@ pub(super) fn classified<T: Decide>(
         })?
         .with_known(known);
     let lane = lane.ok_or(SectionError::NoMarch { scalar: T::NAME })?;
-    (lane.spline_pair)(pose, band)
+    lane.spline_pair(pose, band)
 }
 
 /// **The section read whole** (module docs).

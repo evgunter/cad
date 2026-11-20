@@ -4,7 +4,7 @@
 
 use geom::Surface;
 use geom_brep::{
-    CertifyingDoor, ChartImage, Pcurve, PcurveCache, PcurveCertifyError, Period, chart_pcurve_over,
+    CertifyingDoor, ChartImage, FittedLaneOf, Pcurve, PcurveCache, PcurveCertifyError, Period, chart_pcurve_over,
     probe_pick,
 };
 use geom_core::k_stats::decide;

@@ -9,7 +9,7 @@ use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
     BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords, GlueVerdict,
-    NaryMember, NaryRun, ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart,
+    NaryMember, NaryRun, ShellDoorOf, ShellError, ShellNaming, Shelled, SplitError, SplitPart,
     SplitResult, SweepStrategy, boolean_op_with, nary_boolean_apart, split,
 };
 
@@ -479,7 +479,7 @@ impl<T: DoorScalar> Shell<T> {
         &self,
         operand: &T::Finished,
         tol: Tol,
-        door: ShellDoor<T>,
+        door: T::ShellDoor,
     ) -> Result<VerbOut<T>, VerbError<T>> {
         let Self { thickness, open } = self;
         // Exhaustive destructure, deliberately: a field grown onto

@@ -50,7 +50,7 @@ use std::collections::BTreeMap;
 
 use geom_brep::{
     CarriedComponent, CarriedSection, CarryError, ExtentBall, PairSection, SectionError, SiteFoot,
-    SiteRefusal, SsiLane,
+    SiteRefusal,
 };
 use geom_core::{Band, Indeterminate, Real};
 
@@ -93,7 +93,7 @@ enum Classified<T: Real> {
     },
 }
 
-impl<T: geom_core::Decide> Held<T> {
+impl<T: crate::props::AtRestPolicy> Held<T> {
     fn new(read: Classified<T>, band: Band) -> Self {
         Self {
             read,
@@ -107,7 +107,7 @@ impl<T: geom_core::Decide> Held<T> {
     /// **The pair's classification**, through `lane`: the door's, or,
     /// for a pair held unread ([`SectionReader::hold`]), read now on the
     /// first ask and kept.
-    fn read(&self, lane: Option<SsiLane<T>>) -> &Result<PairSection<T>, SectionError> {
+    fn read(&self, lane: Option<T::SsiLane>) -> &Result<PairSection<T>, SectionError> {
         match &self.read {
             Classified::Read(read) => read,
             Classified::Deferred {
@@ -186,9 +186,9 @@ struct FootKey {
 
 /// **The section table** (module docs).
 #[derive(Debug)]
-pub(crate) struct SectionTable<T: Real> {
+pub(crate) struct SectionTable<T: crate::props::AtRestPolicy> {
     pairs: BTreeMap<PairKey, Held<T>>,
-    lane: Option<SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     region: Option<ExtentBall<T>>,
     feet: RefCell<BTreeMap<FootKey, Result<GermFoot<T>, FootRefusal>>>,
     /// Whether a glue door read the table ([`Self::reader`]), not a
@@ -205,12 +205,12 @@ pub(super) type PlaneCone<T> = Result<super::join::PkSection<T>, super::join::Fr
 /// it was made with, so one table holds one band
 /// ([`SectionTable::reader`]); [`Self::finish`] hands the table on.
 #[derive(Debug)]
-pub(crate) struct SectionReader<T: Real> {
+pub(crate) struct SectionReader<T: crate::props::AtRestPolicy> {
     table: SectionTable<T>,
     band: Band,
 }
 
-impl<T: Real> Default for SectionTable<T> {
+impl<T: crate::props::AtRestPolicy> Default for SectionTable<T> {
     fn default() -> Self {
         Self {
             pairs: BTreeMap::new(),
@@ -223,7 +223,7 @@ impl<T: Real> Default for SectionTable<T> {
     }
 }
 
-impl<T: geom_core::Decide> SectionReader<T> {
+impl<T: crate::props::AtRestPolicy> SectionReader<T> {
     /// Reads surface `ka` of A against `kb` of B at the reader's band,
     /// the band the pair is classified and carried at, through the
     /// table's march door: the section on the pair's first read, the held
@@ -304,11 +304,11 @@ impl<T: geom_core::Decide> SectionReader<T> {
     }
 }
 
-impl<T: geom_core::Decide> SectionTable<T> {
+impl<T: crate::props::AtRestPolicy> SectionTable<T> {
     /// The reader of a table that classifies every pair at `band`, the
     /// operation's, and carries through `lane`.
     pub(crate) fn reader(
-        lane: Option<SsiLane<T>>,
+        lane: Option<T::SsiLane>,
         region: Option<ExtentBall<T>>,
         band: Band,
     ) -> SectionReader<T> {

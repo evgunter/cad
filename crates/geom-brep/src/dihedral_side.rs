@@ -93,7 +93,7 @@ use geom::{NurbsSurface, RunSide, SpanBeside, Surface, SurfaceJet};
 use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Real, Vec3};
 
-use crate::certify::NurbsLane;
+use crate::certify::NurbsLaneOf;
 
 use crate::enters::{EntersMaterial, LeverEscalation, OutwardNormal, enters_material_reported};
 use crate::implicit::{curvature_lever_arm, implicit_outward_normal};
@@ -238,7 +238,7 @@ pub fn dihedral_side<T: Decide>(
     p: Point3<T>,
     walk: EdgeWalk<T>,
     reach: Lever<T>,
-    lane: Option<NurbsLane<T>>,
+    lane: Option<impl NurbsLaneOf<T>>,
     band: Band,
 ) -> Result<(FaceSide, MarginDiag), SideEscalation> {
     let normal = |face, role| normal_at(face, role, p, reach, lane, band);
@@ -260,7 +260,7 @@ fn normal_at<T: Decide>(
     role: SideRole,
     p: Point3<T>,
     reach: Lever<T>,
-    lane: Option<NurbsLane<T>>,
+    lane: Option<impl NurbsLaneOf<T>>,
     band: Band,
 ) -> Result<(OutwardNormal<T>, Lever<T>), SideEscalation> {
     match face.surface.spline_chart() {
@@ -283,7 +283,7 @@ fn spline_normal<T: Decide>(
     role: SideRole,
     p: Point3<T>,
     reach: Lever<T>,
-    lane: NurbsLane<T>,
+    lane: impl NurbsLaneOf<T>,
     band: Band,
 ) -> Result<(OutwardNormal<T>, Lever<T>), SideEscalation> {
     if chart.is_placeholder() {

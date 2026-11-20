@@ -344,7 +344,7 @@ struct SegmentPair<T: geom_core::Real> {
     site_loop: Option<SectionLoop<T>>,
 }
 
-impl<T: Decide> SegmentPair<T> {
+impl<T: crate::props::AtRestPolicy> SegmentPair<T> {
     /// The pair `seg`'s germ was recorded against, read in `red`.
     fn read(
         red: &BooleanReduction<T>,
@@ -685,7 +685,7 @@ fn of_join(refusal: JoinError) -> BooleanError {
 }
 
 impl SolidJoin {
-    fn new<T: Decide>(red: &BooleanReduction<T>, operand: Operand, band: Band) -> Self {
+    fn new<T: crate::props::AtRestPolicy>(red: &BooleanReduction<T>, operand: Operand, band: Band) -> Self {
         Self {
             joiner: ChordJoiner::new(band),
             sides: Sides::new(red, operand),
@@ -704,7 +704,7 @@ struct Sides {
 }
 
 impl Sides {
-    fn new<T: Decide>(red: &BooleanReduction<T>, operand: Operand) -> Self {
+    fn new<T: crate::props::AtRestPolicy>(red: &BooleanReduction<T>, operand: Operand) -> Self {
         let mut in_set = SecondaryMap::new();
         let mut out_set = SecondaryMap::new();
         for r in red.null_edges_of(operand) {
@@ -817,7 +817,7 @@ impl SegmentLane {
 
 /// Every pair record with its germs, none consumed, in `red.null_pairs`
 /// order.
-fn open_records<T: Decide>(red: &BooleanReduction<T>) -> Result<Vec<OpenRecord<T>>, BooleanError> {
+fn open_records<T: crate::props::AtRestPolicy>(red: &BooleanReduction<T>) -> Result<Vec<OpenRecord<T>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     // Per-operand germ maps (edge keys are body-lineage-scoped — one
     // map across both bodies would collide).
@@ -851,7 +851,7 @@ fn open_records<T: Decide>(red: &BooleanReduction<T>) -> Result<Vec<OpenRecord<T
 /// **Every segment the join builds**: the matched ones
 /// ([`matched_records`]), then each one-site loop
 /// ([`one_site_segments`]).
-pub(super) fn join_segments<T: Decide>(
+pub(super) fn join_segments<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     band: Band,
 ) -> Result<Vec<SectionSegment<T>>, BooleanError> {
@@ -868,7 +868,7 @@ pub(super) fn join_segments<T: Decide>(
 /// Reads the records and the annotated clones' site points; the surgery
 /// changes neither.
 #[allow(clippy::type_complexity)] // (segments, records)
-fn matched_records<T: Decide>(
+fn matched_records<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     band: Band,
 ) -> Result<(Vec<SectionSegment<T>>, Vec<OpenRecord<T>>), BooleanError> {
@@ -897,7 +897,7 @@ fn matched_records<T: Decide>(
 /// names, `None` for a pair the join reads by its carried components
 /// and not by a frame ([`rides_carried`]).
 #[allow(clippy::type_complexity)] // (germ, its loop)
-fn one_site<T: Decide>(
+fn one_site<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     rec: &OpenRecord<T>,
     band: Band,
@@ -916,7 +916,7 @@ fn one_site<T: Decide>(
 }
 
 /// The site of an A germ.
-fn germ_site<T: Decide>(
+fn germ_site<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
 ) -> Result<Point3<T>, BooleanError> {
@@ -965,7 +965,7 @@ fn germ_site<T: Decide>(
 /// loop's records); B germs whose loci are not the A germs'; and two
 /// germs that agree in sense or turn one way round the loop (insertion
 /// mints a null edge's two germs facing apart).
-fn one_site_segments<T: Decide>(
+fn one_site_segments<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     open: &[OpenRecord<T>],
     band: Band,
@@ -1042,7 +1042,7 @@ fn one_site_segments<T: Decide>(
 /// ([`crate::chord_join::ChordJoiner`]'s lone ring), on the face's
 /// [`RimSide`]; the transverse section's conic is the wall's, not a
 /// plane section, so only a planar face takes it.
-fn closes_at_its_site<T: Decide>(
+fn closes_at_its_site<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     g0: &HalfGerm<T>,
     b_he: HalfEdgeKey,
@@ -1085,7 +1085,7 @@ fn closes_at_its_site<T: Decide>(
 /// face the rim walls off is bounded by the copy's half that runs
 /// against the rim's own
 /// (`work/tang/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
-fn stands_on<T: Decide>(
+fn stands_on<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     (x_is, e): (Operand, EdgeKey),
     f: FaceKey,
@@ -2289,7 +2289,7 @@ type Met<T> = (usize, PartnerDistance<T>, (Slot, Slot));
 /// equally near refuse ([`BooleanError::JoinPartnersTied`],
 /// [`own_nearest`]); a tie between two germs' pairs is free only where
 /// the round is all mutual, and refuses elsewhere ([`first_pair`]).
-fn find_match<T: Decide>(
+fn find_match<T: crate::props::AtRestPolicy>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
     sa: &Sides,
@@ -2298,7 +2298,7 @@ fn find_match<T: Decide>(
 ) -> Result<Option<(Slot, Slot)>, BooleanError> {
     // Unused germ slots of one record side (half tied to germ slot —
     // the mint facing is honest data for every lane, struts included).
-    fn slots<T: geom_core::Real>(side: &[(HalfGerm<T>, bool); 2]) -> Vec<usize> {
+    fn slots<T: crate::props::AtRestPolicy>(side: &[(HalfGerm<T>, bool); 2]) -> Vec<usize> {
         (0..2).filter(|&g| !side[g].1).collect()
     }
     // Each germ's partners along its own line, kept with the scan
@@ -2463,7 +2463,7 @@ fn first_pair<T: Decide>(
 /// same loci, opposed senses — or the join has desynced. `Some(reach)`
 /// when they are partners — how far the partner is along the germ's
 /// line ([`PartnerDistance`]). Two slots of one record never are.
-fn partners<T: Decide>(
+fn partners<T: crate::props::AtRestPolicy>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
     sa: &Sides,
@@ -2567,7 +2567,7 @@ fn partners<T: Decide>(
 /// **Whether `germ`'s face pair is two cones through one apex**
 /// ([`KindArm::Apex`]): their section is two rulings through it, each a
 /// straight line of its own ([`partners`]).
-fn two_rulings<T: Decide>(
+fn two_rulings<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
     band: Band,
@@ -2670,7 +2670,7 @@ fn along_edge_conic<T: Decide>(
 /// ([`pair_reading`]): the line pair is straight, a loop its frame, and
 /// a section with no frame refuses as the frame does. Nothing re-reads
 /// the pair here, so the join and the mint cannot disagree.
-fn germ_loops<T: Decide>(
+fn germ_loops<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
     band: Band,
@@ -2714,7 +2714,7 @@ fn germ_loops<T: Decide>(
 /// Section escalations propagate; non-escalation classification
 /// failures at match time are a desync (the germ was minted FROM this
 /// pair's crossing).
-fn germ_section_loops<T: Decide>(
+fn germ_section_loops<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (a, b): (&Body<T>, &Body<T>),
     germ: &HalfGerm<T>,
@@ -2753,7 +2753,7 @@ fn germ_section_loops<T: Decide>(
 /// consumed ([`frame_reading`]) and levered at the consumed region's
 /// measure ([`frame_extent`]): [`germ_section_loops`] for a germ lying
 /// inside a face of each operand.
-pub(super) fn face_pair_section_loops<T: Decide>(
+pub(super) fn face_pair_section_loops<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (body_a, face_a): (&Body<T>, FaceKey),
     (body_b, face_b): (&Body<T>, FaceKey),
@@ -2797,7 +2797,7 @@ fn frame_lever<T: Decide>(
 
 /// **The germ's own loop** of its pair's section
 /// ([`germ_section_loops`]), the one its branch names.
-fn germ_section_frame<T: Decide>(
+fn germ_section_frame<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
     band: Band,
@@ -3364,7 +3364,7 @@ impl<T: Decide> SectionLoops<T> {
 /// section, which names no arc: an operand's edge through the node. The
 /// section's own refusals ([`frame_refusal`]), the split's escalation
 /// and desync; [`apex_line`]'s, for a germ on the apex line pair.
-pub(super) fn germ_branch<T: Decide>(
+pub(super) fn germ_branch<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (body_a, face_a): (&Body<T>, FaceKey),
     (body_b, face_b): (&Body<T>, FaceKey),
@@ -3466,7 +3466,7 @@ pub(super) fn germ_branch<T: Decide>(
 /// along both or neither, is a desync: the pair was decided the line
 /// pair, its lines a definite angle apart, and the germ was minted on
 /// it, along a line.
-fn apex_line<T: Decide>(
+fn apex_line<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     a: (&Body<T>, FaceKey),
     b: (&Body<T>, FaceKey),
@@ -3489,7 +3489,7 @@ fn apex_line<T: Decide>(
 ///
 /// The reading's refusal ([`frame_refusal`]); a face that does not
 /// resolve, and [`frame_lever`]'s desync.
-fn pair_reading<T: Decide>(
+fn pair_reading<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (body_a, face_a): (&Body<T>, FaceKey),
     (body_b, face_b): (&Body<T>, FaceKey),
@@ -3596,7 +3596,7 @@ pub(super) fn line_of<T: Decide>(
 ///
 /// [`section_unbuilt`]: the pair's section refused at the glue door, or
 /// it did not carry.
-fn germ_section<'r, T: Decide>(
+fn germ_section<'r, T: crate::props::AtRestPolicy>(
     red: &'r BooleanReduction<T>,
     germ: &HalfGerm<T>,
 ) -> Result<Option<&'r geom_brep::CarriedSection<T>>, BooleanError> {
@@ -3623,7 +3623,7 @@ fn germ_section<'r, T: Decide>(
 /// [`section_unbuilt`] and the site's reading ([`site_refusal`]); a
 /// desync where a carried segment's germ pair holds no section, or an
 /// end of it lies on another component than its germ's branch names.
-fn carried_seats<T: Decide>(
+fn carried_seats<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     open: &[OpenRecord<T>],
     segments: &[SectionSegment<T>],
@@ -3709,7 +3709,7 @@ struct SeatedCarried<T: geom_core::Real> {
 ///
 /// [`section_unbuilt`] for a section that did not carry or a component
 /// that did not seat; a desync where the germ's pair holds no section.
-fn carried_component<T: Decide>(
+fn carried_component<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
     k: usize,
@@ -3786,7 +3786,7 @@ pub(super) fn section_unbuilt(
 /// The pair's section refused at the glue door ([`faces_section_unbuilt`]);
 /// a desync for a cylinder pair the table does not hold, since the table
 /// holds every pair of overlapping faces the join meets.
-pub(super) fn cylinder_read<T: Decide>(
+pub(super) fn cylinder_read<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     a: (&Body<T>, FaceKey),
     b: (&Body<T>, FaceKey),
@@ -3825,7 +3825,7 @@ pub(super) fn cylinder_read<T: Decide>(
 /// edge of one solid where its mint named a component of the pair's
 /// section ([`germ_branch`], which read the pair the same way); one along
 /// an edge of both solids never.
-fn germ_rides_carried<T: Decide>(
+fn germ_rides_carried<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     a: (&Body<T>, FaceKey),
     b: (&Body<T>, FaceKey),
@@ -3845,7 +3845,7 @@ fn germ_rides_carried<T: Decide>(
 /// every pose, so a pose added to the value decides here before any of
 /// its components rides. A held refusal rides too: the join reads it
 /// where it carries the pair ([`faces_section_unbuilt`]).
-fn rides_carried<T: Decide>(
+fn rides_carried<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     a: (&Body<T>, FaceKey),
     b: (&Body<T>, FaceKey),
@@ -4428,7 +4428,7 @@ enum Faced<T: geom_core::Real> {
 ///
 /// A site's escalation or desync; a germ with no heading along its
 /// component, a desync.
-fn along_facing<T: Decide>(
+fn along_facing<T: crate::props::AtRestPolicy>(
     (table, a, b): (&super::section_table::SectionTable<T>, &Body<T>, &Body<T>),
     section: &geom_brep::CarriedSection<T>,
     (g1, p1): (&HalfGerm<T>, Point3<T>),
@@ -4588,7 +4588,7 @@ type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 /// record's), are each other's: its segment ([`one_site_segments`])
 /// runs from one round the loop to the other. A loose half with no
 /// partner maps to `None` (conservatively separated wherever captured).
-fn loose_partners<T: Decide>(
+fn loose_partners<T: crate::props::AtRestPolicy>(
     open: &[OpenRecord<T>],
     segments: &[SectionSegment<T>],
     red: &BooleanReduction<T>,
@@ -5049,7 +5049,7 @@ fn run_spline_edge<T: Decide>(
 /// ring vertex, refused
 /// [`BooleanError::SlitFaceGlued`]. Every other error, and a degenerate
 /// run that passes neither, is returned as it is.
-fn pinch_ray_refusal<T: geom_core::Real>(
+fn pinch_ray_refusal<T: crate::props::AtRestPolicy>(
     e: BooleanError,
     red: &BooleanReduction<T>,
     side: Operand,
@@ -5109,7 +5109,7 @@ fn pinch_ray_refusal<T: geom_core::Real>(
 /// `side`'s own at the vertex, else the other's at a vertex the other
 /// holds there, a vertex pair's partner or a pierce the vertex's ring
 /// serves. A null edge's copy of a vertex reads as the vertex.
-fn slit_tip_on<T: geom_core::Real>(
+fn slit_tip_on<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     side: Operand,
     vertices: impl IntoIterator<Item = VertexKey>,
@@ -5158,7 +5158,7 @@ fn slit_tip_on<T: geom_core::Real>(
 /// it. A run both of whose arcs separate a pending pair refuses
 /// [`BooleanError::SlitFaceGlued`] ([`super::SlitFaceGap::ArcsSeparate`]);
 /// every other refusal is [`pinch_ray_refusal`]'s.
-fn glued_slit_roles<T: Decide>(
+fn glued_slit_roles<T: crate::props::AtRestPolicy>(
     e: BooleanError,
     red: &BooleanReduction<T>,
     side: Operand,
@@ -5197,7 +5197,7 @@ fn glued_slit_roles<T: Decide>(
 /// counterclockwise where the chord leaves `start(h1)` along the first
 /// germ, or reaches `end(h2)` along the second. `None` where neither end
 /// faces a tied germ, or the two ends read different ties that disagree.
-fn tie_winding<T: geom_core::Real>(
+fn tie_winding<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     side: Operand,
     (h1, h2): (HalfEdgeKey, HalfEdgeKey),
@@ -5365,7 +5365,7 @@ fn best_arc<T: Decide>(
 /// Cut the corresponding null edges in both solids; completions must
 /// coincide (lockstep). Roles stay UNRESOLVED here (resolved at
 /// quiescence — see `bool_connect`).
-fn cut_pair<T: Decide>(
+fn cut_pair<T: crate::props::AtRestPolicy>(
     red: &mut BooleanReduction<T>,
     sa: &mut SolidJoin,
     sb: &mut SolidJoin,
@@ -5503,7 +5503,7 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
 /// one slit or ring of the other operand's: both its ends are tips of
 /// that operand's slits in one face ([`slit_tip_on`]), so its one
 /// segment is the slit's line.
-fn sliver_along_a_slit<T: Decide>(
+fn sliver_along_a_slit<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     side: Operand,
     face: FaceKey,

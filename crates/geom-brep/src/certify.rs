@@ -2434,7 +2434,7 @@ impl<T: geom_core::TangentTransport> EdgeCurve<T> {
     }
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// Certifies `spec` against the edge's endpoint points and the
     /// owning body's surfaces, returning the certified carrier: the
     /// mint ([`EdgeCurve::mint`]'s steps, in its order) and every check
@@ -2771,7 +2771,7 @@ pub struct StatedImage<T: Real> {
 /// ```
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct NurbsLane<T: Real> {
+pub struct NurbsLane<T: geom_core::Certifies> {
     /// The residual × NURBS lanes' one door at `T`
     /// (`edge_nurbs::residual_nurbs_limbs`): [`crate::plane_nurbs_limbs`]
     /// for a plane, [`crate::curved_nurbs_limbs`] for a sphere, cylinder
@@ -2845,7 +2845,7 @@ pub struct NurbsLane<T: Real> {
     chart_arm: fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Result<f64, crate::ChartArmRefusal>,
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLane<T> {
     /// The certification lane, and the only constructor there is: the
     /// limbs' free functions instantiated at `T`.
     #[must_use]
@@ -2924,7 +2924,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
 /// holds none.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct SplineFoot<T: Real> {
+pub struct SplineFoot<T: geom_core::Certifies> {
     foot: fn(
         &geom::NurbsCurve3<T>,
         Point3<T>,
@@ -2932,7 +2932,7 @@ pub struct SplineFoot<T: Real> {
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
 }
 
-impl<T: geom_core::CertifiedBounds> SplineFoot<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> SplineFoot<T> {
     /// The foot, instantiated at `T`.
     #[must_use]
     pub const fn certified() -> Self {
@@ -2953,7 +2953,7 @@ impl<T: geom_core::CertifiedBounds> SplineFoot<T> {
     }
 }
 
-impl<T: Real> NurbsLane<T> {
+impl<T: geom_core::Certifies> NurbsLane<T> {
     /// The foot of `point` on a NURBS surface ([`geom::NurbsSurface::project`]):
     /// the projection carries its own distance and certifies nothing;
     /// the caller decides that distance.
@@ -3094,7 +3094,7 @@ impl<T: Real> NurbsLane<T> {
     }
 }
 
-impl<T: Real> SplineFoot<T> {
+impl<T: geom_core::Certifies> SplineFoot<T> {
     /// The foot of `point` on a NURBS `carrier`, by Newton from `seed`:
     /// the parameter of a point moved along the carrier, read on the
     /// branch it was moved from. The foot carries its own residuals and
@@ -3112,6 +3112,78 @@ impl<T: Real> SplineFoot<T> {
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
         (self.foot)(carrier, point, seed)
+    }
+}
+
+/// **A [`NurbsLane`] as a pass that runs at every scalar holds it**: the
+/// lane at a scalar that certifies, [`geom_core::NoLane`] (no values)
+/// at one that does not (`geom-core` README, DL5.3).
+pub trait NurbsLaneOf<T: Real>: Copy + Send + Sync {
+    /// [`NurbsLane::surface_foot`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn surface_foot(
+        self,
+        surface: &geom::NurbsSurface<T>,
+        point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>;
+}
+
+impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
+    fn surface_foot(
+        self,
+        surface: &geom::NurbsSurface<T>,
+        point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        NurbsLane::surface_foot(self, surface, point)
+    }
+}
+
+impl<T: Real> NurbsLaneOf<T> for geom_core::NoLane {
+    fn surface_foot(
+        self,
+        _surface: &geom::NurbsSurface<T>,
+        _point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        match self {}
+    }
+}
+
+/// **A [`SplineFoot`] as a pass that runs at every scalar holds it**
+/// ([`NurbsLaneOf`]'s shape).
+pub trait SplineFootOf<T: Real>: Copy + Send + Sync {
+    /// [`SplineFoot::carrier_foot`].
+    ///
+    /// # Errors
+    /// The door's own.
+    fn carrier_foot(
+        self,
+        carrier: &geom::NurbsCurve3<T>,
+        point: Point3<T>,
+        seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>;
+}
+
+impl<T: geom_core::Certifies> SplineFootOf<T> for SplineFoot<T> {
+    fn carrier_foot(
+        self,
+        carrier: &geom::NurbsCurve3<T>,
+        point: Point3<T>,
+        seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
+        SplineFoot::carrier_foot(self, carrier, point, seed)
+    }
+}
+
+impl<T: Real> SplineFootOf<T> for geom_core::NoLane {
+    fn carrier_foot(
+        self,
+        _carrier: &geom::NurbsCurve3<T>,
+        _point: Point3<T>,
+        _seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
+        match self {}
     }
 }
 
@@ -4660,7 +4732,7 @@ impl<'a, T: Real> StatedChart<'a, T> {
 /// has the one constructor, so it is the door the mint takes through the
 /// scalar's `AtRestPolicy::fitted_lane` too, and both certify one image
 /// alike. `outer` is the span's outer ends, `f64` structure (C6).
-fn stated_bound<T: Decide>(
+fn stated_bound<T: geom_core::Certifies>(
     spec: &EdgeCurveSpec<T>,
     (surface, door): (&Surface<T>, StatedDoor<'_, T>),
     outer: (f64, f64),
@@ -5088,7 +5160,7 @@ impl<T: Real> ReadSpec<T> {
 /// between check 2 and the canonical description, then the sampled
 /// checks and C2's limbs through `lane`.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
-fn run_checks<T: Decide + geom_core::CertifiedBounds>(
+fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     spec: &EdgeCurveSpec<T>,
     start: Point3<T>,
     end: Point3<T>,

@@ -143,7 +143,7 @@ pub(super) type InResult<'a> = &'a dyn Fn(VertexKey) -> Option<VertexKey>;
 /// the result keeps (`kept`, read on each of its null-edge copies), or
 /// where it keeps none, the one vertex of the other operand it meets
 /// there (a vertex–vertex contact, read through `theirs`).
-pub(super) fn own_in_result<T: geom_core::Real>(
+pub(super) fn own_in_result<T: crate::props::AtRestPolicy>(
     red: &super::BooleanReduction<T>,
     operand: Operand,
     (kept, theirs): (InResult<'_>, InResult<'_>),

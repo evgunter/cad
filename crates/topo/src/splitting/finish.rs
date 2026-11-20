@@ -225,7 +225,7 @@ impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
         &self,
         records: &crate::boolean::ContactRecords,
         band: geom_core::Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<SplitContacts, CarryRefusal> {
         self.carried(records, band, region, None)
     }
@@ -246,7 +246,7 @@ impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
         &self,
         records: &crate::boolean::ContactRecords,
         band: geom_core::Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<(SplitContacts, Vec<u32>), CarryRefusal> {
         let mut parted = Vec::new();
         let carried = self.carried(records, band, region, Some(&mut parted))?;
@@ -304,7 +304,7 @@ impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
         &self,
         records: &crate::boolean::ContactRecords,
         band: geom_core::Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
         parted: Option<&mut Vec<crate::boolean::Parting>>,
     ) -> Result<SplitContacts, CarryRefusal> {
         let sides = self.sides();

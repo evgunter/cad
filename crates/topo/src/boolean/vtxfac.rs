@@ -2988,7 +2988,7 @@ type Germ<T> = (
 /// A pierce germ's branch ([`super::join::germ_branch`]), read at the
 /// pierce point `p` along the germ's direction `dir`, with the piercing
 /// and pierced bodies in that order.
-fn germ_branch<T: Decide>(
+fn germ_branch<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (piercing_body, pierced_body): (&Body<T>, &Body<T>),
     piercing: Operand,

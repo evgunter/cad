@@ -1361,7 +1361,7 @@ pub fn pair_section<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
     region: Option<ExtentBall<T>>,
-    lane: Option<SsiLane<T>>,
+    lane: Option<impl SsiLaneOf<T>>,
     band: Band,
 ) -> Result<SectionRead<T>, SectionError> {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
@@ -1435,7 +1435,7 @@ pub fn spline_pair_section<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
     known: spline_pair::KnownPair<T>,
-    lane: Option<SsiLane<T>>,
+    lane: Option<impl SsiLaneOf<T>>,
     band: Band,
 ) -> Result<PairSection<T>, SectionError> {
     spline_pair::classified(a, b, known, lane, band)
@@ -1809,14 +1809,14 @@ impl<T: Decide> PairSection<T> {
     /// [`CarryError`].
     pub fn carry(
         &self,
-        lane: Option<SsiLane<T>>,
+        lane: Option<impl SsiLaneOf<T>>,
         band: Band,
     ) -> Result<CarriedSection<T>, CarryError> {
         let marched = || {
             let lane = lane.ok_or(CarryError::Refused(CarryRefusal::NoLane {
                 scalar: T::NAME,
             }))?;
-            (lane.march)(self, band)
+            lane.march(self, band)
         };
         self.listed(marched, band)
     }
@@ -1830,7 +1830,11 @@ impl<T: Decide> PairSection<T> {
     ///
     /// [`SectionError::NoMarch`] with no `lane`, and the whole reading's
     /// refusal ([`spline_implicit`]).
-    pub fn read_whole(&self, lane: Option<SsiLane<T>>, band: Band) -> Result<Self, SectionError> {
+    pub fn read_whole(
+        &self,
+        lane: Option<impl SsiLaneOf<T>>,
+        band: Band,
+    ) -> Result<Self, SectionError> {
         if !matches!(self.components, Components::Reaching(_)) {
             return Ok(self.clone());
         }
@@ -1838,7 +1842,7 @@ impl<T: Decide> PairSection<T> {
             unreachable!("only a spline × implicit pose's classification reaches")
         };
         let lane = lane.ok_or(SectionError::NoMarch { scalar: T::NAME })?;
-        (lane.whole)(pose, band)
+        lane.whole(pose, band)
     }
 
     /// **The components listed from the march's branches** as
@@ -2264,7 +2268,7 @@ impl<T: Decide> FittedCarrier<T> {
 /// written at `f64`. Holding one is the statement that the scalar may
 /// march; [`SsiLane::marched`], at `f64`, is its one constructor.
 #[derive(Clone, Copy, Debug)]
-pub struct SsiLane<T: Real> {
+pub struct SsiLane<T: geom_core::Certifies> {
     /// One march of a classified section's pose, each branch's winding
     /// read.
     march: fn(&PairSection<T>, Band) -> Marched<T>,
@@ -2294,6 +2298,119 @@ impl SsiLane<f64> {
             whole: spline_implicit::whole,
             spline_pair: spline_pair::section,
         }
+    }
+}
+
+/// **An [`SsiLane`] as a pass that runs at every scalar holds it**: the
+/// lane at a scalar that certifies, [`geom_core::NoLane`] (no values)
+/// at one that does not (`geom-core` README, DL5.3).
+pub trait SsiLaneOf<T: Real>: Copy + Send + Sync + core::fmt::Debug {
+    /// The march over a section's ball.
+    ///
+    /// # Errors
+    /// The march's own.
+    fn march(
+        self,
+        section: &PairSection<T>,
+        band: Band,
+    ) -> Result<Vec<FittedCarrier<T>>, CarryError>;
+
+    /// A spline × implicit pose's section.
+    ///
+    /// # Errors
+    /// The section's own.
+    fn spline(
+        self,
+        pose: SplineImplicitPose<T>,
+        band: Band,
+    ) -> Result<PairSection<T>, SectionError>;
+
+    /// A spline × implicit pose's section, read whole.
+    ///
+    /// # Errors
+    /// The section's own.
+    fn whole(
+        self,
+        pose: &SplineImplicitPose<T>,
+        band: Band,
+    ) -> Result<PairSection<T>, SectionError>;
+
+    /// A spline × spline pose's section.
+    ///
+    /// # Errors
+    /// The section's own.
+    fn spline_pair(
+        self,
+        pose: SplinePairPose<T>,
+        band: Band,
+    ) -> Result<PairSection<T>, SectionError>;
+}
+
+impl<T: geom_core::Certifies> SsiLaneOf<T> for SsiLane<T> {
+    fn march(
+        self,
+        section: &PairSection<T>,
+        band: Band,
+    ) -> Result<Vec<FittedCarrier<T>>, CarryError> {
+        (self.march)(section, band)
+    }
+
+    fn spline(
+        self,
+        pose: SplineImplicitPose<T>,
+        band: Band,
+    ) -> Result<PairSection<T>, SectionError> {
+        (self.spline)(pose, band)
+    }
+
+    fn whole(
+        self,
+        pose: &SplineImplicitPose<T>,
+        band: Band,
+    ) -> Result<PairSection<T>, SectionError> {
+        (self.whole)(pose, band)
+    }
+
+    fn spline_pair(
+        self,
+        pose: SplinePairPose<T>,
+        band: Band,
+    ) -> Result<PairSection<T>, SectionError> {
+        (self.spline_pair)(pose, band)
+    }
+}
+
+impl<T: Real> SsiLaneOf<T> for geom_core::NoLane {
+    fn march(
+        self,
+        _section: &PairSection<T>,
+        _band: Band,
+    ) -> Result<Vec<FittedCarrier<T>>, CarryError> {
+        match self {}
+    }
+
+    fn spline(
+        self,
+        _pose: SplineImplicitPose<T>,
+        _band: Band,
+    ) -> Result<PairSection<T>, SectionError> {
+        match self {}
+    }
+
+    fn whole(
+        self,
+        _pose: &SplineImplicitPose<T>,
+        _band: Band,
+    ) -> Result<PairSection<T>, SectionError> {
+        match self {}
+    }
+
+    fn spline_pair(
+        self,
+        _pose: SplinePairPose<T>,
+        _band: Band,
+    ) -> Result<PairSection<T>, SectionError> {
+        match self {}
     }
 }
 

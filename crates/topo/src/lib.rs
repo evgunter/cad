@@ -1524,10 +1524,10 @@ pub use sweep_trace::SweepPairs;
 pub use chart::{Chart, ChartKind};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth};
 pub use chart_region::{
-    CarrierPremise, ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP,
+    CarrierPremise, ChartOverlap, ChartRegionError, RegionLane, RegionLaneOf, WITNESS_CELL_CAP,
     WITNESS_SEGMENT_CAP, chart_region_overlap, glued_pair_overlap,
 };
-pub use clearance::ClearanceLane;
+pub use clearance::{ClearanceLane, ClearanceLaneOf};
 pub use coherence::{
     CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
     examine_chart_coherence, gap_is_noise,
@@ -1552,7 +1552,9 @@ pub use merge_faces::{
 };
 pub use null::CurveGeom;
 pub use offset_axial::{is_axial, offset_charts_together};
-pub use offset_derive::{CornerVerdict, SectionLane, SectionVerdict, root_along, section_near};
+pub use offset_derive::{
+    CornerVerdict, SectionLane, SectionLaneOf, SectionVerdict, root_along, section_near,
+};
 pub use offset_general::offset_surfaces_together;
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
@@ -1561,8 +1563,10 @@ pub use pcurves::{
     pcurve_of,
 };
 pub use props::{
-    AtRestPolicy, MassMeasurement, MassProperties, MassPropsError, QuadLane, RoleNames, Settle,
+    AtRestPolicy, CertifiedPolicy, MassMeasurement, MassProperties, MassPropsError, QuadLane, QuadLaneOf, RoleNames,
+    Settle,
     SettleVerdict, ShellClassification, ShellClassifyError, ShellClassifyPayload, ShellDoor,
+    ShellDoorOf,
     ShellRole, SignCertificate, SignLimit, SignNames, Stop, Unmet, VolumeEnclosure,
     classify_shells, classify_shells_of, classify_shells_structural, mass_properties,
     mass_properties_structural,

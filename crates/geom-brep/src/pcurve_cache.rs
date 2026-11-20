@@ -5244,9 +5244,15 @@ impl<T: Decide> PcurveCache<T> {
                 // A circle's projected row certifies here at every scalar; a
                 // net's needs the fitted door, which this door does not
                 // hold ([`PcurveCache::certify_projected`]).
-                projected @ Pcurve::Projected(_) => {
-                    projected::run_projected_checks(projected, t0, t1, carrier, surface, band, None)
-                }
+                projected @ Pcurve::Projected(_) => projected::run_projected_checks(
+                    projected,
+                    t0,
+                    t1,
+                    carrier,
+                    surface,
+                    band,
+                    None::<geom_core::NoLane>,
+                ),
             },
         )?;
         Ok(Self {
@@ -5297,7 +5303,7 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         band: Band,
-        lane: crate::FittedLane<T>,
+        lane: impl crate::FittedLaneOf<T>,
     ) -> Result<Self, PcurveCertifyError> {
         let span = (t0, t1);
         let certificate = incidence_ended(
@@ -5366,7 +5372,7 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         band: Band,
-        lane: Option<crate::FittedLane<T>>,
+        lane: Option<impl crate::FittedLaneOf<T>>,
     ) -> Result<Self, PcurveCertifyError> {
         let span = (t0, t1);
         let certificate = incidence_ended(
@@ -5405,7 +5411,7 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         band: Band,
-        lane: Option<crate::FittedLane<T>>,
+        lane: Option<impl crate::FittedLaneOf<T>>,
     ) -> Result<Self, PcurveCertifyError> {
         let pcurve = Pcurve::Projected(Box::new(image));
         let certificate =
@@ -5454,7 +5460,7 @@ impl<T: Decide> PcurveCache<T> {
         (t0, t1): (T, T),
         surface: &Surface<T>,
         band: Band,
-        lane: Option<crate::FittedLane<T>>,
+        lane: Option<impl crate::FittedLaneOf<T>>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
         let row = (self.param_start, self.param_end);
         incidence_ended(
@@ -8635,7 +8641,7 @@ fn run_fitted_checks<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-    lane: Option<crate::FittedLane<T>>,
+    lane: Option<impl crate::FittedLaneOf<T>>,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the lane. ----
     if surface.is_placeholder_chart() {

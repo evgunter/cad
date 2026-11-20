@@ -113,9 +113,10 @@
 //!
 //! **The chart-region door is a parameter of the pass, not a bound on
 //! its scalar.** Every pass here takes
-//! `region: Option<`[`RegionLane<T>`]`>` — the two chart-region doors
-//! as one `Copy` value, constructible only at a scalar holding
-//! `CertifiedBounds` — and the `pub` doors carry it to their callers:
+//! `region: Option<T::RegionLane>` ([`crate::AtRestPolicy::RegionLane`])
+//! — the two chart-region doors as one `Copy` value,
+//! [`crate::RegionLane`] at a scalar that certifies and a type with no
+//! values at a dual — and the `pub` doors carry it to their callers:
 //! [`census_and_certify`] and, under `sweep-testing`, [`census_traces`]
 //! / [`census_traces_planted`]. It is read at three sites, and `None`
 //! is the same typed non-answer at each, at whatever scalar the pass
@@ -324,7 +325,9 @@ use geom_core::{
 use crate::body::Body;
 use crate::boolean::{ContactKind, ContactRecords};
 use crate::boxes::{edge_box, face_box, sweep_pad};
-use crate::chart_region::{ChartRegionError, RegionLane};
+#[cfg(test)]
+use crate::chart_region::RegionLane;
+use crate::chart_region::{ChartRegionError, RegionLaneOf};
 use crate::contain::{ContainError, FaceContainment, contfp};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::face_normal::NormalAbort;
@@ -834,7 +837,7 @@ pub(crate) fn census_and_certify<T: Decide + crate::props::AtRestPolicy + Bounds
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> Vec<ValidationError> {
     census_with(
         body,
@@ -863,7 +866,7 @@ pub fn census_traces<T: Decide + crate::props::AtRestPolicy + Bounds>(
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     strategy: CensusStrategy,
 ) -> (Vec<ValidationError>, CensusTrace) {
     let mut trace = CensusTrace::default();
@@ -890,7 +893,7 @@ pub fn census_traces_planted<T: Decide + crate::props::AtRestPolicy + Bounds>(
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     strategy: CensusStrategy,
     plant: crate::boolean::PlantedDegradation,
 ) -> (Vec<ValidationError>, CensusTrace) {
@@ -917,7 +920,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     strategy: CensusStrategy,
     plant: Option<FaceKey>,
     mut trace: Option<&mut CensusTrace>,
@@ -1131,12 +1134,12 @@ impl Declared {
     /// pass's own reading of it ([`confirm_face_pair`]: the patch, a
     /// point touch, or the tangent line two carriers derive) finds
     /// nothing; each is the pair's verified interface.
-    fn confirm<'a, T: Decide>(
+    fn confirm<'a, T: crate::props::AtRestPolicy>(
         &mut self,
         body: &Body<T>,
         geo: &Geo<T>,
         band: Band,
-        region: Option<RegionLane<T>>,
+        region: Option<T::RegionLane>,
         found: impl IntoIterator<Item = &'a FoundPair>,
     ) {
         let confirms = |fa, fb| {
@@ -1671,7 +1674,7 @@ fn pair_holds_edges<T: Decide>(
 /// itself answers through the SAME two doors the confirm pass runs —
 /// Door 1 (`rest_pair_verdict`: carrier identity
 /// through the kind ladder, senses opposed) and Door 2 (the
-/// chart-region overlap through the [`RegionLane`] the pass holds, the
+/// chart-region overlap through the [`crate::RegionLane`] the pass holds, the
 /// verdict carried between them, `interior_witness`'s rescue included) — and
 /// the overlap region is definitely positive. Anything else is a
 /// non-answer HERE, deliberately unreported — a door ERROR included,
@@ -1698,12 +1701,12 @@ fn pair_holds_edges<T: Decide>(
 /// held no region door; replay through the certified door* from *this
 /// pair's geometry is outside the lane* without knowing which arm
 /// swallowed what.
-fn pair_region_verified<T: Decide>(
+fn pair_region_verified<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     fa: FaceKey,
     fb: FaceKey,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> bool {
     if !matches!(
         crate::boolean::rest_pair_verdict(body, fa, body, fb, band),
@@ -1727,12 +1730,12 @@ fn pair_region_verified<T: Decide>(
 /// [`pair_region_verified`] in either frame order: the certified
 /// answers are frame-invariant (`world_carrier`'s lemma), and trying
 /// both keeps a rung total over how the record spells the pair.
-fn pair_verified<T: Decide>(
+fn pair_verified<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     fa: FaceKey,
     fb: FaceKey,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> bool {
     pair_region_verified(body, fa, fb, band, region)
         || pair_region_verified(body, fb, fa, band, region)
@@ -6441,7 +6444,7 @@ pub(crate) fn unread_sample(a: FaceKey, b: FaceKey, reason: Undecidable) -> Vali
 ///   a margin decided Zero, and which way the senses lie.
 /// - **Opposed**, the material on either side of the carrier: Door 2,
 ///   the declared-pair overlap door on Door 1's premise
-///   ([`RegionLane::declared_overlap`], in either frame order as
+///   ([`crate::RegionLane::declared_overlap`], in either frame order as
 ///   [`pair_verified`] reads it), decides a definitely positive area,
 ///   and the pair is a rest.
 /// - **Aligned**, the material on one side: the faces share interior
@@ -6483,11 +6486,11 @@ pub(crate) fn unread_sample(a: FaceKey, b: FaceKey, reason: Undecidable) -> Vali
 /// ([`Declared::holds`]) whether or not it is recorded. The caller
 /// reports each opposed pair no record names ([`report_found_pairs`]);
 /// arm 2 reports each aligned one.
-fn planar_face_pairs<T: Decide>(
+fn planar_face_pairs<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     cands: &Candidates,
 ) -> FacePairs {
     let Some(lane) = region else {
@@ -6715,7 +6718,7 @@ enum InBand {
 fn in_band_reading<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
-    lane: RegionLane<T>,
+    lane: impl crate::RegionLaneOf<T>,
     (fa, fb): (&FaceGeo<T>, &FaceGeo<T>),
     door_one: geom_brep::CarrierEqError,
     band: Band,
@@ -6830,7 +6833,7 @@ enum SameSideUnread {
 fn same_side_overlap<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
-    lane: RegionLane<T>,
+    lane: impl crate::RegionLaneOf<T>,
     fa: &FaceGeo<T>,
     fb: &FaceGeo<T>,
     premise: crate::chart_region::CarrierPremise,
@@ -6913,7 +6916,7 @@ fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec
 fn one_record_overlap<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
-    lane: RegionLane<T>,
+    lane: impl crate::RegionLaneOf<T>,
     (fa, fb): (FaceKey, FaceKey),
     band: Band,
 ) -> Result<crate::chart_region::ChartOverlap, ChartRegionError> {
@@ -6962,12 +6965,12 @@ fn one_record_overlap<T: Decide>(
 /// refusal so the recourse can quote exactly what would verify —
 /// and, unbacked by a face-granularity record, refuses as
 /// `UnrecordedContact` (discovery is never declaration, F1).
-fn sweep_conformal_patches<T: Decide>(
+fn sweep_conformal_patches<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     errors: &mut Vec<ValidationError>,
 ) {
     // The scope is the WHOLE body's curved faces, deliberately: a
@@ -11011,12 +11014,12 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
 /// The confirmation direction of the certification diff: every
 /// declaration must have a geometric witness — dead keys, equal keys,
 /// and coincidence-free records are stale, typed.
-fn confirm_records<T: Decide>(
+fn confirm_records<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     contacts: &ContactRecords,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     errors: &mut Vec<ValidationError>,
 ) {
     for kind in contacts.kinds() {
@@ -11158,13 +11161,13 @@ fn confirm_edge_face<T: Decide>(
 ///   table along it, sides included
 ///   ([`crate::boolean::tangent_table_at_rest`]), which confirms or
 ///   contradicts the record. Refused typed where no line derives.
-fn confirm_face_pair<T: Decide>(
+fn confirm_face_pair<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     a: FaceKey,
     b: FaceKey,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     errors: &mut Vec<ValidationError>,
 ) {
     let stale = ValidationError::StaleContactDeclaration {
@@ -11603,15 +11606,15 @@ pub(crate) fn line_passes<T: Real>(
 /// the census confirms. The body is read once, at [`Self::of`]. The
 /// chart-region door is the caller's, as at every census door: without
 /// it a face–face pair is outside the confirm's lanes.
-pub(crate) struct RecordConfirm<'b, T: Decide> {
+pub(crate) struct RecordConfirm<'b, T: crate::props::AtRestPolicy> {
     body: &'b Body<T>,
     geo: Geo<T>,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 }
 
-impl<'b, T: Decide> RecordConfirm<'b, T> {
-    pub(crate) fn of(body: &'b Body<T>, band: Band, region: Option<RegionLane<T>>) -> Self {
+impl<'b, T: crate::props::AtRestPolicy> RecordConfirm<'b, T> {
+    pub(crate) fn of(body: &'b Body<T>, band: Band, region: Option<T::RegionLane>) -> Self {
         Self {
             body,
             geo: snapshot(body),
@@ -12016,11 +12019,11 @@ const FLUSH_UNREAD: &str = "they lie on one surface facing the same way with the
 /// `group` partitions the solids as [`record_at_rest`]'s does; a pair
 /// inside one group, or with a solid in none, is not read. `region` is
 /// the scalar's region doors ([`crate::AtRestPolicy::flush_at_rest`]).
-pub(crate) fn flush_at_rest<T: Decide + Bounds>(
+pub(crate) fn flush_at_rest<T: crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     group: &dyn Fn(crate::SolidKey) -> Option<u32>,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> FlushAtRest {
     let geo = snapshot(body);
     let pad = sweep_pad(band);
@@ -12046,13 +12049,13 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
 }
 
 /// [`flush_at_rest`] over its candidates, `faces` and their box tree.
-fn flush_pairs<T: Decide>(
+fn flush_pairs<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     (faces, boxes): (&[FaceKey], &Class),
     group: &dyn Fn(crate::SolidKey) -> Option<u32>,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> FlushAtRest {
     let kind = |f: FaceKey| Some(body.face(f)?.surface().kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
@@ -12965,12 +12968,12 @@ pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidenc
 /// A mate's record lands in the product body's `ContactRecords` — the
 /// boolean 3′ currency, same type, no adapter — and THIS is the at-rest
 /// evidence door those records certify through.
-fn confirm_patch<T: Decide>(
+fn confirm_patch<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     face_a: FaceKey,
     face_b: FaceKey,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     errors: &mut Vec<ValidationError>,
 ) {
     let stale = ValidationError::StaleContactDeclaration {

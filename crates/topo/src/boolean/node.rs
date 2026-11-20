@@ -191,7 +191,7 @@ pub(super) type Bisector<T> = (geom_core::Point3<T>, geom_core::Vec3<T>);
 /// two planes' distances (`reduce::factored_crossing`). `None` where the
 /// pair's section, held by the operation's table, is not the bisector
 /// pose, or refused.
-pub(super) fn bisectors<T: Decide>(
+pub(super) fn bisectors<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (x, x_is, wall): (&Body<T>, Operand, crate::entity::FaceKey),
     (y, face): (&Body<T>, crate::entity::FaceKey),

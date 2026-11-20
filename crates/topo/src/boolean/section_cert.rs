@@ -724,7 +724,7 @@ pub(crate) fn classify<T: Decide>(
     g: &geom::Surface<T>,
     reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Section<T> {
     classify_known(
@@ -740,12 +740,12 @@ pub(crate) fn classify<T: Decide>(
 
 /// [`classify`] with what the boolean knows of a spline pair handed in
 /// (`known`, read by the spline pair's arm alone).
-pub(crate) fn classify_known<T: Decide>(
+pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
     known: geom_brep::KnownPair<T>,
 ) -> Section<T> {
@@ -756,7 +756,7 @@ pub(crate) fn classify_known<T: Decide>(
         | (S::Torus { .. }, S::Sphere { .. } | S::Cylinder { .. })
         | (S::Sphere { .. } | S::Cylinder { .. }, S::Cylinder { .. })
         | (S::Cylinder { .. }, S::Sphere { .. }) => {
-            match geom_brep::pair_section(f, g, region, None, band) {
+            match geom_brep::pair_section(f, g, region, None::<geom_core::NoLane>, band) {
                 Ok(geom_brep::SectionRead::Built(section)) => {
                     of_pair_section(&Ok(section), band, marched)
                 }
@@ -817,11 +817,11 @@ pub(crate) fn classify_known<T: Decide>(
 /// `Corner` region reaching the sides they end on, cleared by W1′ where
 /// one bounds its face), its refusals mapped by name. With no lane it is
 /// R-lane.
-fn spline_pair<T: Decide>(
+fn spline_pair<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     known: geom_brep::KnownPair<T>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Section<T> {
     let read = geom_brep::spline_pair_section(f, g, known, lane, band);
@@ -838,10 +838,10 @@ fn spline_pair<T: Decide>(
 /// whole; any other pose is C3's whole reading, which a curved partner
 /// does not have (intractable). With no lane a plane's pose the hull
 /// does not decide, and every curved partner's, is R-lane.
-fn spline_implicit<T: Decide>(
+fn spline_implicit<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Section<T> {
     let whole = |s: &geom_brep::PairSection<T>| Some(s.read_whole(lane, band));

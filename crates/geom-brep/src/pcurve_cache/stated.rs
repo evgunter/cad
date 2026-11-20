@@ -129,7 +129,7 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         band: Band,
-        fitted: Option<crate::FittedLane<T>>,
+        fitted: Option<impl crate::FittedLaneOf<T>>,
     ) -> Result<Self, PcurveCertifyError> {
         let door = image.certifying_door();
         if door == CertifyingDoor::ClosedForm {
@@ -216,7 +216,7 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         band: Band,
-        lane: crate::FittedLane<T>,
+        lane: impl crate::FittedLaneOf<T>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
         #[cfg(test)]
         if let Some(image) = sampled_mutant(door, surface) {
