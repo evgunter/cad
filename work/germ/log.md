@@ -1630,3 +1630,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   Fix pass continued in the implementer's agent.
 - 2026-11-20 — **Main-red (EXCH):** filed `main-red-axis-normal-snap-refuses-nist-ftc-09` (P1) on this slate. Since PR 7171's `c25c174105`, `nist_ftc_09` refuses at the snap, and three step-import slow-set rows are red on main. The nightly will catch it. (EXCH orchestrator)
 - 2026-11-20 — **PR 7183 (P0) merged** (`6d58cebdcf`). The P0 row is closed. The fix pass added rows that red their mutants: the circle straddle, the pinned row on the root-slack meter, and the literal builders through the constructor. The per-axis accessors stay, because dropping `semi_axes` from `cover-kind-match` would blind it to box-building reads; the gate's lexical limit is filed on CIW. `conic-constructions-from-computed-sizes-unaudited` is banded **P1/H**: about 240 computed-size sites can now panic on a verb, a fail-loud trade. **GERM has no P0 row left.** **U2 dispatched** (the ConicQuadric door moves into geom-brep, no behaviour change; tier single STYLE). It claims ONEDOOR's `the-conic-quadric-door-is-still-built-in-topo`.
+- 2026-11-20 — **PR 7184 (U1b) merged** (`4d2d994295`). Line × cone now has one reading, and the ray reads the door. The fix pass added rows:
+  - the far near-tangent row, which reds with the charge removed;
+  - two slack rows, which red with `slack_at` zeroed;
+  - a ray-level INSIDE witness, which reds under `disc/v`.
+
+  I accepted that the halved-charge mutant stays green: across about 490k exact-arithmetic poses the real discriminant error reached at most 34% of the charge, so a row that reds on halving would only pin the charge's conservatism. The uncharged rounding of `A` and of `cos²α` is filed P3: `the-line-cone-depth-charge-leaves-the-lead-and-cos2-rounding-uncharged`. The U1b cloud session is archived. **Next:** U2 (PR 7209) is in CI; U3a dispatches when U2 merges.
