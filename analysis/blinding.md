@@ -7,3 +7,5 @@ This fork is the two designers of `scalar-dl5-selection` continued on the questi
 Models, as each designer's transcript reports them: A = Fable 5.2 (`claude-fable-5-2`), B = Opus 5.5 (`claude-opus-5-5`).
 Rounds (this fork's): first reports are the two reports written on Ev's comment of 12:33Z (files dl5-*-r12.md), then two reconciliation rounds (r13, r14).
 Tokens, cumulative per agent across both forks at each return: Fable 382443 / 403373 / 409114; Opus 352555 / 365094 / 372034. Before this fork's first report: Fable 345132, Opus 325346.
+
+Round 15 (Ev's question on PR 7176: how the values are used downstream), 2026-11-20, fresh agents, same models under the same row labels: Fable 5.2 (row label A) 145140 tokens, 35 tool uses; Opus 5.5 (row label B) 148803 tokens, 53 tool uses. Ev ruled after this round; the row's last cells were written then.
