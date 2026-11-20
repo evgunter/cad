@@ -1892,8 +1892,7 @@ fn a_ring_stored_a_period_away_meshes_where_the_door_moves_it() {
 /// ε `10⁻⁶` and `10⁻¹²` as at the default. Some poses are past what the
 /// boolean builds there, and refuse to: at `10⁻⁶`, the cone at
 /// `s = 0.01` (`Escalated`, on `PierceCurvature`) and `10⁻³`
-/// (`CurvedPierceUnsupported`) and the torus pose (`Escalated`); at
-/// `10⁻¹²`, the cone at `s ≤ 0.03` (`CurvedPierceUnsupported`).
+/// (`CurvedPierceUnsupported`) and the torus pose (`Escalated`).
 #[test]
 fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
     let ringed = |want: [Got; 3]| -> Vec<(&'static str, f64, Got)> {
@@ -1911,15 +1910,11 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
     let unsupported = "CurvedPierceUnsupported";
     for (s, refuses, want) in [
         (0.1, refused_at(&[]), meshed()),
-        (0.03, refused_at(&[(1e-12, unsupported)]), meshed()),
-        (
-            0.01,
-            refused_at(&[(1e-6, "Escalated"), (1e-12, unsupported)]),
-            meshed(),
-        ),
+        (0.03, refused_at(&[]), meshed()),
+        (0.01, refused_at(&[(1e-6, "Escalated")]), meshed()),
         (
             1e-3,
-            refused_at(&[(1e-6, unsupported), (1e-12, unsupported)]),
+            refused_at(&[(1e-6, unsupported)]),
             core::array::from_fn(|_| Got::Unread(SurfaceKind::Cone, "undecided")),
         ),
     ] {
@@ -1993,8 +1988,7 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
 /// edge of four triangles in a mesh `tessellate` returned; the arm's
 /// shared-side cure keeps the cone face off it
 /// ([`a_cone_face_keeps_no_side_its_plane_neighbour_can_make`] holds the
-/// family). The same at ε `10⁻⁶`; at `10⁻¹²` the boolean refuses the
-/// pose (`CurvedPierceUnsupported`).
+/// family). The same at ε `10⁻⁶` and `10⁻¹²`.
 #[test]
 fn a_ringless_cone_face_near_its_apex_meshes_sound() {
     let (a, b) = t1_toward_the_apex(0.03);
@@ -2002,7 +1996,7 @@ fn a_ringless_cone_face_near_its_apex_meshes_sound() {
         "T1's box at s = 0.03",
         &a,
         &b,
-        refused_at(&[(1e-12, "CurvedPierceUnsupported")]),
+        refused_at(&[]),
         &[("A ∩ B", 5e-3, Got::Meshed), ("B ∩ A", 5e-3, Got::Meshed)],
     );
 }
