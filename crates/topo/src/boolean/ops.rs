@@ -1965,7 +1965,9 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     evented: bool,
     charts: &mut ChartCache,
 ) -> Result<Result<Vec<super::section_cert::Cleared>, SectionRefusal>, BooleanError> {
-    use super::section_cert::{Side, certify, classify_known, of_carried, of_pair_section};
+    use super::section_cert::{
+        Side, certify_section_pair, classify_known, of_carried, of_pair_section,
+    };
     use super::section_table::Uncarried;
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
         return Ok(Err(SectionRefusal::LoneVertex));
@@ -2011,7 +2013,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         ),
     };
     let torn = core::cell::RefCell::new(None);
-    let verdict = certify(
+    let verdict = certify_section_pair(
         &section,
         evented,
         band,

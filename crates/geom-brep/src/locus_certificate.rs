@@ -254,7 +254,12 @@ mod tests {
             "a closed form's own"
         );
         assert!(
-            !round.reads(&circle(1.0 + f64::EPSILON), params, [&p, &c], band()),
+            !round.reads(
+                &circle(f64::from_bits(1.0_f64.to_bits() + 1)),
+                params,
+                [&p, &c],
+                band()
+            ),
             "a closed form's radius"
         );
     }

@@ -1342,7 +1342,7 @@ pub mod test_support {
         ball: geom_brep::ExtentBall<f64>,
         band: geom_core::Band,
     ) -> String {
-        use crate::boolean::section_cert::{Sheet, certify, classify};
+        use crate::boolean::section_cert::{Sheet, certify_section_pair, classify};
         let section = classify(
             f,
             g,
@@ -1353,7 +1353,7 @@ pub mod test_support {
         );
         format!(
             "{:?}",
-            certify(&section, false, band, |_| Sheet::Not, |_, _| [None, None])
+            certify_section_pair(&section, false, band, |_| Sheet::Not, |_, _| [None, None])
         )
     }
 
