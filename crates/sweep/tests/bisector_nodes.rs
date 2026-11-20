@@ -1469,7 +1469,7 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
 ///   tilt's plane (turned `0` or `π`) or a quarter turn off it;
 /// - at `1e-7°` both orders escalate on one margin, but at two
 ///   decisions, which this row does not hold alike
-///   (`work/tangtail/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`).
+///   (`work/tang/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`).
 ///
 /// At `1e-12` every pose but the rod along `y` at `1e-9°` escalates
 /// `Coincidence(Section, Moot)` on `curve_carrier_straddle`, its margin

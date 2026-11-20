@@ -2371,7 +2371,7 @@ impl<T: Decide> Cone<T> {
         // Every reference reads one material where the cone closes, so any
         // reference that reads would answer alike. That is a premise about
         // the input, not a theorem of the rule
-        // (`work/oneread/a-cones-parity-reference-is-off-its-sectors-plane-by-the-tie.md`
+        // (`work/honeone/a-cones-parity-reference-is-off-its-sectors-plane-by-the-tie.md`
         // shows it failing), so the ladder climbs under
         // [`Answering::First`]: a reference refused ahead of the answer
         // stays live on the record, pending 6592's `Alike`

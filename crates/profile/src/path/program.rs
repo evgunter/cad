@@ -156,7 +156,7 @@ use geom_core::Tol;
 /// `PathError`, `verbs`'s `VerbKind` beside `Verb` — onto a single
 /// declaration. For the error/kind pairs that was declined (Ev,
 /// 2026-09-12), and what survives the decline is carried by
-/// `work/census/a-new-kind-pair-arrives-unguarded-by-default.md`.
+/// `work/bind/a-new-kind-pair-arrives-unguarded-by-default.md`.
 /// This macro serves the macros that already declare a vocabulary
 /// from one list.
 ///

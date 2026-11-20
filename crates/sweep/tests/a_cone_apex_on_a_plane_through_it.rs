@@ -284,7 +284,7 @@ fn a_tilted_plane_through_the_apex_cuts_each_revolved_cone_at_its_closed_form() 
 /// the two rulings in that plane, leaving one face whose loop is two
 /// lobes meeting only at the apex. The body is well formed, but props
 /// cannot yet measure such a loop
-/// (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`),
+/// (`work/spiricarm/props-measures-a-cone-loop-pinched-at-its-apex.md`),
 /// so the Boolean refuses `ResultPinchedAtConeApex` before the gate. On
 /// the revolved cone the seam parts the lobes into two faces, and every
 /// op builds: the box holds half the cone's tip of height `0.05`.

@@ -99,7 +99,7 @@ argument is `first_pair`'s doc comment). There an in-band
 `bool_join_nearest` reading keeps scan order instead of escalating.
 This row's own poses are curved. The steep-ellipse `k = 10` pose (the
 2026-10-09 note above) has conic germs and still escalates; FLUSH
-carries it as `work/flush/conic-germs-pair-order-is-unargued.md`.
+carries it as `work/honejoin/conic-germs-pair-order-is-unargued.md`.
 Everywhere else the order is still read in absolute metres, so this
 row's scale question stands.
 
