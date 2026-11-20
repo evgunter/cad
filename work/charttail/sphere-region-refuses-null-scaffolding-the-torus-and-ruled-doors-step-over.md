@@ -69,14 +69,21 @@ reader that refuses a placeholder: `sphere_face_region` passes
 
 ## Decided: the sphere region steps over it (2026-11-20)
 
-`sphere_face_region` passes `Scaffolding::Skipped`. Nothing in the sphere
-reading depends on a placeholder: it reads the face's arcs, and a
-placeholder is no arc, and the half-edges either side of it meet at its
-one point, so the arcs left are the face's boundary. Pinned by
-`sphere_region.rs`'s
-`a_sphere_faces_strut_reads_as_inside_and_its_null_edge_as_nothing`,
-which replaces `a_zones_null_edge_leaves_no_region`.
+`sphere_face_region` steps over a placeholder, as the torus and ruled
+regions do. Nothing in the sphere reading depends on one: it reads the
+face's arcs, a placeholder is no arc, and the half-edges either side of
+it meet at its one point, so the arcs left are the face's boundary.
+Pinned by `sphere_region.rs`'s rows: a placeholder at a strut's tip
+(`a_placeholder_at_a_struts_tip_bounds_nothing`), one on a rim vertex
+between the sphere face and its plane neighbour, which the surface
+boundary keeps and only the gather's skip drops
+(`a_placeholder_between_two_faces_bounds_nothing`), `point_in_solid`
+and the pierce door through them, and a parted null edge as a gap.
+These replace `a_zones_null_edge_leaves_no_region`.
 
-`Scaffolding` stays: the strict lift (`Lift::read`, `Lift::read_from`,
-the public `loop_lift`) still passes `Scaffolding::Refused`, so the
-"then retire `Scaffolding`" in Owed no longer holds.
+With every region door skipping, `region::boundary` takes no
+`Scaffolding` argument: it always leaves a placeholder out. The enum
+stays for the loop lift, whose strict reads (`Lift::read`,
+`Lift::read_from`, the public `loop_lift`) pass `Scaffolding::Refused`,
+so the Owed text's "then retire `Scaffolding`" holds for the gather's
+argument only.

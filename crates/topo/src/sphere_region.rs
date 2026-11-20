@@ -136,7 +136,6 @@ use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
-use crate::null::Scaffolding;
 use crate::ray_walk::{self, RayFault};
 use crate::region::{
     self, End, Fault, Leg, Legs, Path, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
@@ -188,9 +187,9 @@ fn tangent<T: Decide>(a: Vec3<T>, raw: Vec3<T>) -> Vec3<T> {
 /// `face`'s region on its own sphere, or `None` when an
 /// edge of it is not a circle arc — a spline or spiric carrier, whose
 /// crossings with a great circle have no closed form here, or an edge
-/// with no certified carrier between two points. Null scaffolding (an
-/// edge with no curve whose two ends are one point) bounds nothing and
-/// is left out ([`Scaffolding::Skipped`]).
+/// with no certified carrier that is no placeholder
+/// ([`crate::null::is_placeholder`]). A placeholder bounds nothing and
+/// is left out ([`region::boundary`]).
 ///
 /// # Errors
 ///
@@ -211,7 +210,7 @@ pub(crate) fn sphere_face_region<T: Decide>(
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     let circles = [geom::CurveKind::Circle];
-    let Some(edges) = region::boundary(body, face, Scaffolding::Skipped, &circles)? else {
+    let Some(edges) = region::boundary(body, face, &circles)? else {
         return Ok(None);
     };
     // Read after the boundary, so a torn curve panics whatever the face's
@@ -889,92 +888,102 @@ mod tests {
         }
     }
 
-    /// The unit ball below the plane `z = 0.3`
-    /// ([`crate::test_support_fixtures::sphere_cap`]): its sphere face,
-    /// the sphere below the rim, carries a strut down the meridian at
-    /// azimuth `0` from the rim vertex to `z = −0.5`, which the face's
-    /// loop runs both ways, and a null edge at the strut's tip.
-    fn a_struck_ball() -> (Body<f64>, FaceKey, EdgeKey) {
+    /// The rim's height on the unit sphere in [`ball`]: the face is the
+    /// sphere below it.
+    const RIM_Z: f64 = 0.3;
+
+    /// The unit ball below the plane `z = RIM_Z`
+    /// ([`crate::test_support_fixtures::sphere_cap`]), its sphere face
+    /// and its plane face.
+    fn ball() -> (Body<f64>, FaceKey, FaceKey) {
+        let (body, face) =
+            crate::test_support_fixtures::sphere_cap(RIM_Z, geom_core::Tol::witness());
+        let plane = body.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
+        (body, face, plane)
+    }
+
+    /// The half-edge of `face`'s loops leaving the one vertex at `p`.
+    fn leaving(body: &Body<f64>, face: FaceKey, p: Point3<f64>) -> crate::entity::HalfEdgeKey {
+        let (v, _) = body
+            .vertex_points()
+            .find(|&(_, q)| (q - p).norm() < 1e-12)
+            .unwrap();
+        body.proven_face(face)
+            .edges()
+            .into_iter()
+            .find(|e| e.ends[0] == v)
+            .unwrap()
+            .half
+    }
+
+    /// The rim vertex at azimuth `0`.
+    fn rim_vertex() -> Point3<f64> {
+        at(RIM_Z.acos(), 0.0)
+    }
+
+    /// The tip of [`struck`]'s strut, at `z = −0.5` on the meridian at
+    /// azimuth `0`.
+    fn strut_tip() -> Point3<f64> {
+        at((-0.5f64).acos(), 0.0)
+    }
+
+    /// [`ball`] with a strut on its sphere face down the meridian at
+    /// azimuth `0`, from the rim vertex to [`strut_tip`], and a
+    /// placeholder hung at the tip; and the strut.
+    fn struck() -> (Body<f64>, FaceKey, EdgeKey) {
         use crate::construction::{MevSite, NewVertexSide};
         let tol = geom_core::Tol::witness();
-        let (mut body, face) = crate::test_support_fixtures::sphere_cap(0.3, tol);
-        let leaving = |body: &Body<f64>, p: Point3<f64>| {
-            let crate::entity::LoopBoundary::Cycle { first } = body
-                .get_loop(body.get_face(face).unwrap().outer)
-                .unwrap()
-                .boundary
-            else {
-                unreachable!("the cap's loop is a cycle")
-            };
-            body.loop_cycle(first)
-                .unwrap()
-                .into_iter()
-                .find(|&h| {
-                    let v = body.get_half_edge(h).unwrap().start;
-                    let at = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-                    (at - p).norm() < 1e-12
-                })
-                .unwrap()
-        };
-        let (rim, tip) = (-0.3f64.asin(), 0.5f64.asin());
+        let (mut body, face, _) = ball();
         // The meridian at azimuth 0: `cos t·x − sin t·z`.
         let meridian = geom::Curve3::circle(Point3::origin(), Vec3::unit_y(), 1.0, Vec3::unit_x());
-        let foot = meridian.eval(rim);
+        let (t0, t1) = (-RIM_Z.asin(), 0.5f64.asin());
         assert!(
-            (foot - Point3::new(0.91f64.sqrt(), 0.0, 0.3)).norm() < 1e-12,
-            "the premise: the strut leaves the rim vertex"
+            (meridian.eval(t0) - rim_vertex()).norm() < 1e-12,
+            "the premise: the foot"
         );
-        let he = leaving(&body, foot);
+        assert!(
+            (meridian.eval(t1) - strut_tip()).norm() < 1e-12,
+            "the premise: the tip"
+        );
+        let he = leaving(&body, face, rim_vertex());
         let strut = body
             .mev(
                 MevSite::Fan { he1: he, he2: he },
-                meridian.eval(tip),
-                geom_brep::EdgeCurveSpec::arc_of_circle(meridian.clone(), rim, tip).unwrap(),
+                strut_tip(),
+                geom_brep::EdgeCurveSpec::arc_of_circle(meridian, t0, t1).unwrap(),
                 tol,
             )
             .unwrap();
-        let he = leaving(&body, meridian.eval(tip));
-        assert_eq!(
-            body.get_half_edge(he).unwrap().start,
-            strut.vertex,
-            "the premise: the tip"
-        );
+        let he = leaving(&body, face, strut_tip());
         body.mev_null(MevSite::Fan { he1: he, he2: he }, NewVertexSide::Above)
             .unwrap();
         (body, face, strut.edge)
     }
 
-    /// The point of the unit sphere at polar angle `polar` and azimuth
-    /// `az`.
-    fn on_unit(polar: f64, az: f64) -> Point3<f64> {
-        Point3::new(polar.sin() * az.cos(), polar.sin() * az.sin(), polar.cos())
+    /// [`ball`] with a placeholder on its rim vertex at azimuth `0`,
+    /// between its two faces: fanned from the sphere face's loop to the
+    /// plane face's, so it is a boundary edge of both.
+    fn rim_held() -> (Body<f64>, FaceKey) {
+        use crate::construction::{MevSite, NewVertexSide};
+        let (mut body, face, plane) = ball();
+        let he1 = leaving(&body, face, rim_vertex());
+        let he2 = leaving(&body, plane, rim_vertex());
+        let null = body
+            .mev_null(MevSite::Fan { he1, he2 }, NewVertexSide::Above)
+            .unwrap();
+        assert!(
+            crate::null::is_placeholder(&body, null.edge),
+            "the premise: a placeholder"
+        );
+        (body, face)
     }
 
-    /// **A sphere face reads its strut as inside and its null edge as
-    /// nothing**, as the torus and ruled faces do: the struck face
-    /// ([`a_struck_ball`]) has the plain face's region at every point of
-    /// a lattice clear of its rim, on its strut and beside its null
-    /// edge; `point_in_solid` reads the solid it bounds, and the pierce
-    /// door places points of the sphere against it. A null edge whose
-    /// far end has parted is a gap in the boundary, and leaves no
-    /// region.
-    #[test]
-    fn a_sphere_faces_strut_reads_as_inside_and_its_null_edge_as_nothing() {
-        use crate::contain::{FaceContainment, curved_face_containment};
-        use crate::solid_contain::{SolidContainment, point_in_solid};
-        let tol = geom_core::Tol::witness();
-        let band = Band::new(1e-9, 1e-8).unwrap();
-        let (plain, plain_face) = crate::test_support_fixtures::sphere_cap(0.3, tol);
-        let (mut body, face, strut) = a_struck_ball();
-        let region = sphere_face_region(&body, face).unwrap().expect("a region");
-        let plain_region = sphere_face_region(&plain, plain_face).unwrap().unwrap();
-        assert_eq!(
-            region.edges.len(),
-            plain_region.edges.len(),
-            "the rim's arcs alone"
-        );
-        let rim = 0.3f64.acos();
-        let mut queries: Vec<(Point3<f64>, bool)> = Vec::new();
+    /// Points of the unit sphere off the rim, each with whether it lies
+    /// below the rim, in the face: a lattice and four points beside
+    /// the rim.
+    fn sphere_points() -> Vec<(Point3<f64>, bool)> {
+        let rim = RIM_Z.acos();
+        let mut points = Vec::new();
         for i in 1..12 {
             let polar = core::f64::consts::PI * f64::from(i) / 12.0;
             if (polar - rim).abs() < 0.02 {
@@ -982,75 +991,137 @@ mod tests {
             }
             for j in 0..8 {
                 let az = core::f64::consts::TAU * (f64::from(j) + 0.3) / 8.0;
-                queries.push((on_unit(polar, az), polar > rim));
+                points.push((at(polar, az), polar > rim));
             }
         }
-        let tip = (-0.5f64).acos();
-        queries.push((on_unit(tip + 0.01, 0.0), true));
-        queries.push((on_unit(tip, 0.01), true));
-        let on_strut: Vec<Point3<f64>> = [0.1, -0.15, -0.4]
-            .map(|z: f64| on_unit(z.acos(), 0.0))
-            .into();
-        let at_tip = on_unit(tip, 0.0);
-        let read = queries
-            .iter()
-            .copied()
-            .chain(on_strut.iter().chain([&at_tip]).map(|&q| (q, true)));
-        for (q, inside) in read {
-            assert_eq!(
-                plain_region.contains(q, band),
-                Ok(Some(inside)),
-                "the plain face at {q:?}"
-            );
+        for (off, az) in [(0.01, 0.5), (0.01, 0.02)] {
+            points.push((at(rim + off, az), true));
+            points.push((at(rim - off, az), false));
+        }
+        points
+    }
+
+    /// Each body's sphere face reads every point of [`sphere_points`] as
+    /// the truth, by its region and through the pierce door.
+    fn reads_as_the_ball(what: &str, body: &Body<f64>, face: FaceKey) {
+        use crate::contain::{FaceContainment, curved_face_containment};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let region = sphere_face_region(body, face).unwrap().expect("a region");
+        for (q, inside) in sphere_points() {
             assert_eq!(
                 region.contains(q, band),
                 Ok(Some(inside)),
-                "the region at {q:?}"
+                "{what}: the region at {q:?}"
             );
-        }
-        let solid = |body: &Body<f64>, q: Point3<f64>| point_in_solid(body, q, band, tol);
-        for (q, truth) in [
-            (Point3::new(0.0, 0.0, 0.0), SolidContainment::In),
-            (Point3::new(0.6, 0.0, -0.2), SolidContainment::In),
-            (Point3::new(0.2, -0.3, 0.1), SolidContainment::In),
-            (Point3::new(0.0, 0.0, 0.5), SolidContainment::Out),
-            (Point3::new(0.0, 0.0, -1.1), SolidContainment::Out),
-            (Point3::new(0.95, 0.0, -0.5), SolidContainment::Out),
-            (on_unit(2.0, 2.0), SolidContainment::OnBoundary),
-        ] {
-            assert_eq!(solid(&plain, q), Ok(truth), "the plain solid at {q:?}");
-            assert_eq!(solid(&body, q), Ok(truth), "the struck solid at {q:?}");
-        }
-        for &(q, inside) in &queries {
             let truth = if inside {
                 FaceContainment::In
             } else {
                 FaceContainment::Out
             };
             assert_eq!(
-                curved_face_containment(&body, face, q, band),
+                curved_face_containment(body, face, q, band),
                 Ok(Some(truth)),
-                "the pierce door at {q:?}"
+                "{what}: the pierce door at {q:?}"
             );
         }
-        for &q in &on_strut {
+    }
+
+    /// `point_in_solid` reads the ball below the rim: points inside,
+    /// outside and on its sphere face.
+    fn solid_reads_as_the_ball(what: &str, body: &Body<f64>) {
+        use crate::solid_contain::{SolidContainment, point_in_solid};
+        let tol = geom_core::Tol::witness();
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for (q, truth) in [
+            (Point3::new(0.0, 0.0, 0.0), SolidContainment::In),
+            (Point3::new(0.6, 0.0, -0.2), SolidContainment::In),
+            (Point3::new(0.2, -0.3, 0.29), SolidContainment::In),
+            (Point3::new(0.0, 0.0, 0.31), SolidContainment::Out),
+            (Point3::new(0.0, 0.0, -1.1), SolidContainment::Out),
+            (Point3::new(0.95, 0.0, -0.5), SolidContainment::Out),
+            (at(2.0, 2.0), SolidContainment::OnBoundary),
+        ] {
+            assert_eq!(
+                point_in_solid(body, q, band, tol),
+                Ok(truth),
+                "{what}: the solid at {q:?}"
+            );
+        }
+    }
+
+    /// **A placeholder on a sphere face bounds nothing**: the ball with
+    /// a placeholder at its strut's tip has the plain ball's region and
+    /// pierce answers everywhere off its edges, and the strut's tip and
+    /// a point beside it read inside. (The strut itself is no boundary:
+    /// the face lies on both its sides, so the surface boundary walks
+    /// through it.)
+    #[test]
+    fn a_placeholder_at_a_struts_tip_bounds_nothing() {
+        let (plain, plain_face, _) = ball();
+        reads_as_the_ball("the plain ball", &plain, plain_face);
+        let (body, face, _) = struck();
+        let region = sphere_face_region(&body, face).unwrap().expect("a region");
+        assert_eq!(region.edges.len(), 2, "the rim's two arcs alone");
+        reads_as_the_ball("the struck ball", &body, face);
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let tip = (-0.5f64).acos();
+        for q in [strut_tip(), at(tip + 0.01, 0.0), at(tip, 0.01)] {
+            assert_eq!(
+                region.contains(q, band),
+                Ok(Some(true)),
+                "at the tip: {q:?}"
+            );
+        }
+    }
+
+    /// **A placeholder between a sphere face and its neighbour bounds
+    /// neither**: hung on the rim vertex from the sphere face's loop to
+    /// the plane face's, it is a boundary edge of the sphere face, which
+    /// the region gather leaves out where the surface boundary keeps it.
+    /// The face reads as the plain ball's.
+    #[test]
+    fn a_placeholder_between_two_faces_bounds_nothing() {
+        let (body, face) = rim_held();
+        let region = sphere_face_region(&body, face).unwrap().expect("a region");
+        assert_eq!(region.edges.len(), 2, "the rim's two arcs alone");
+        reads_as_the_ball("the rim-held ball", &body, face);
+        solid_reads_as_the_ball("the rim-held ball", &body);
+    }
+
+    /// **`point_in_solid` reads a ball whose sphere face holds a
+    /// placeholder** as it reads the plain ball.
+    #[test]
+    fn point_in_solid_reads_through_a_placeholder() {
+        let (plain, _, _) = ball();
+        solid_reads_as_the_ball("the plain ball", &plain);
+        let (body, _, _) = struck();
+        solid_reads_as_the_ball("the struck ball", &body);
+    }
+
+    /// **The pierce door places a point on the strut on it**: the
+    /// boundary walk finds it on the strut, an edge to split, before
+    /// the region is read.
+    #[test]
+    fn the_pierce_door_places_a_point_on_the_strut_on_it() {
+        use crate::contain::{FaceContainment, curved_face_containment};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (body, face, strut) = struck();
+        for z in [0.1f64, -0.15, -0.4] {
+            let q = at(z.acos(), 0.0);
             assert_eq!(
                 curved_face_containment(&body, face, q, band),
                 Ok(Some(FaceContainment::OnEdge(strut))),
-                "the pierce door on the strut at {q:?}"
+                "on the strut at {q:?}"
             );
         }
-        let null = body
-            .edges()
-            .find(|&(e, d)| body.edge_curve_linked(e, d).null_scaffold().is_some())
-            .map(|(e, _)| e)
-            .unwrap();
-        let far = body
-            .get_half_edge(body.get_edge(null).unwrap().he_minus)
-            .unwrap()
-            .start;
-        let moved = body.add_point(on_unit(0.4, 1.0));
-        body.get_vertex_mut(far).unwrap().point = moved;
+    }
+
+    /// **A null edge whose ends have parted is a gap**: the struck
+    /// ball's placeholder with its far end moved leaves no region.
+    #[test]
+    fn a_parted_null_edge_leaves_no_region() {
+        let (mut body, face, _) = struck();
+        crate::region::part_null_edge(&mut body, at(0.4, 1.0));
         assert!(
             matches!(sphere_face_region(&body, face), Ok(None)),
             "a parted null edge is a gap in the boundary"
