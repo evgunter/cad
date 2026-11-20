@@ -577,10 +577,18 @@ fn a_curves_cover_over_a_span_holds_it() {
             }
             ts
         };
-        let r = scale * rng.range(0.2, 1.0) * if rng.unit() < 0.2 { -1.0 } else { 1.0 };
+        let radius = scale * rng.range(0.2, 1.0);
+        // One in five seamed a half turn on, at `−u_ref`: the points a
+        // signed radius `−radius` would place, at the same parameters.
+        let turned = rng.unit() < 0.2;
+        let (r, seam) = if turned {
+            (-radius, -u_ref)
+        } else {
+            (radius, u_ref)
+        };
         let circle = Curve3::Circle(crate::Circle::new(
-            crate::Frame::new(center, axis, u_ref),
-            r,
+            crate::Frame::new(center, axis, seam),
+            radius,
         ));
         run("circle", circle, conic_extremes(r, r));
         let (a, b) = (scale, scale * rng.range(0.1, 1.0));
