@@ -1386,6 +1386,8 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "a_near_right_angle_drum_pair.rs"]
+mod a_near_right_angle_drum_pair;
 #[path = "a_body_built_turned_is_the_body_turned.rs"]
 mod a_body_built_turned_is_the_body_turned;
 #[path = "a_boxed_motion_moves_a_finished_body.rs"]

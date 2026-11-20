@@ -380,6 +380,8 @@ not (
   (binary_id(step-import::all) & (test(=parser::truncations_refuse_without_panicking) | test(=r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit) | test(=recognize_pins::a_displaced_seam_carrier_refuses_with_the_measured_residual) | test(=review_probes::g7_full_truncation_sweep) | test(=review_probes_m7_3::probe_arc_loft_weights_snapped_to_one_refuses))) |
   (binary_id(stl::all) & (test(=export::the_acceptance_exports_agree_are_honest_and_are_byte_identical))) |
   (binary_id(sweep) & (test(=offer_rows::every_sphere_offer_passes_just_below_it))) |
+  (binary_id(sweep::all) & test(=a_near_right_angle_drum_pair::a_turn_a_microradian_short_of_square_builds_at_its_sliced_volume)) |
+  (binary_id(sweep::all) & test(=a_near_right_angle_drum_pair::the_filed_turn_escalates_its_first_order_at_the_default_band)) |
   (binary_id(sweep::all) & test(=a_mirrored_body_is_its_image::a_spline_loft_mirrors_to_its_image)) |
   (binary_id(sweep::all) & test(=a_moved_body_keeps_its_verdict::every_surface_class_keeps_its_verdict_under_a_move)) |
   (binary_id(sweep::all) & test(=a_moved_body_keeps_its_verdict::an_offset_cap_keeps_its_verdict_under_a_move)) |
@@ -498,6 +500,7 @@ filter = '''(binary_id(sweep::all) & (
   test(=cylinder_sphere_frame::a_ball_across_a_cylinder_wall_in_two_loops_turned) |
   test(=cylinder_sphere_frame::a_ball_across_a_cylinder_wall_turned_chart) |
   test(=cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall) |
+  test(=a_near_right_angle_drum_pair::a_turn_a_microradian_short_of_square_builds_at_its_sliced_volume) |
   test(=germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs) |
   test(=germ_torus_components::a_drum_against_a_moved_donut_passes_the_germ_mint) |
   test(=germ_torus_components::two_donuts_in_general_pose_pass_the_germ_mint) |

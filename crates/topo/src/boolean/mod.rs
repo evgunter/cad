@@ -1607,7 +1607,7 @@ fn unglued_corner(on: CornerOn, band: Band) -> BooleanError {
         CornerOn::Tie(sectors::OnReading {
             predicate,
             decided,
-            by: TiedBy::Band,
+            by: TiedBy::Band | TiedBy::Charge,
         }) => geom_core::k_stats::gate_rejection(
             predicate,
             decided,
@@ -2998,29 +2998,27 @@ pub enum BooleanError {
         /// Its decided verdict.
         verdict: geom_brep::recourse::Refused,
     },
-    /// A pierce sector's FIRST-ORDER material verdict could not be
-    /// resolved against the pierced face's curvature: the bound leaves
-    /// the face within about `2·sqrt(band/R)` radians of tangent (`R`
-    /// the face's smallest radius of curvature), or its reach is too
-    /// short to witness its slope, so the largest separation from the
-    /// face the first-order term certifies past the sagitta does not
-    /// clear the band (`boolean::sectors::side_code` carries the
-    /// argument and the witness). The **definite** half of a
-    /// two-tolerance pair on `bool_pierce_sector_side_curved`; an
-    /// in-band charge escalates as [`BooleanError::Escalated`] on the
+    /// A pierce's FIRST-ORDER material verdict could not be resolved
+    /// against the pierced face's curvature, and no second-order reading
+    /// stands in for it: a held pierce's face leaves the pierced face
+    /// within about `2·sqrt(band/R)` radians of tangent (`R` the curved
+    /// face's smallest radius of curvature), so the largest separation
+    /// its run certifies past the sagitta does not clear the band
+    /// (`bool_held_pierce_curved`, `vtxfac::faces_holding_pierce`); or a
+    /// sector bound's charge was decided negative
+    /// (`bool_pierce_sector_side_curved`, whose Zero ties the bound and
+    /// is read one order down instead, `bound_side::TiedBy::Charge`).
+    /// The **definite** half of a two-tolerance pair on the predicate;
+    /// an in-band charge escalates as [`BooleanError::Escalated`] on the
     /// same predicate instead.
     ///
     /// A refusal, never a guess: the slope's sign is one the band
     /// cannot resolve, and a side read from it would be a guess at the
-    /// topology. The side of a near-tangent bound is second order, so
-    /// the kernel's own way through is the second-order sector trilean
-    /// (`geom_brep::enters_material_order2`), which the declared-
-    /// `Tangent` lump already consumes and which no lane wires into
-    /// this verdict yet; the user's is the decision's lever
+    /// topology. The user's way through is the decision's lever
     /// ([`refusal_routes::PIERCE_CURVATURE`], shared with the in-band
     /// arm, [`BooleanDecision::PierceCurvature`]).
     ///
-    /// A limit: the second-order side not built (row 2).
+    /// A limit: the held pierce's second-order side not built (row 2).
     CurvedSectorSideUnsupported {
         /// The charge's decided verdict at the sector's arm.
         verdict: geom_brep::recourse::Refused,

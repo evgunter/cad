@@ -469,8 +469,9 @@ pub(crate) fn NO_CURVATURE<T: Decide>() -> T {
 /// `vtxfac`'s on-edge resolution and `recl::resolve_bisector_graze`
 /// refuse it.
 ///
-/// A charge that does not clear the band is a typed refusal, never a
-/// first-order guess.
+/// A charge decided Zero ties the bound, and the tie is read one order
+/// down by its jet ([`crate::bound_side::TiedBy::Charge`]); a charge in
+/// the band escalates. Neither is a first-order guess.
 pub(super) fn datum_code<T: Decide>(
     dir: Vec3<T>,
     reach: BoundSupport<T>,
@@ -4160,9 +4161,12 @@ mod tests {
     /// length where it should read `sqrt(band/R)` (or the reverse)
     /// lands on the wrong arm. The rows, and the slip each pins:
     ///
-    /// - `Q = 0.3·zero`, a long reach: the near-tangent residue refuses
-    ///   `CurvedSectorSideUnsupported`, although the first-order reading
-    ///   is definite at the reach;
+    /// - `Q = 0.3·zero`, a long reach: the near-tangent residue is tied
+    ///   on the charge's Zero, although the first-order reading is
+    ///   definite at the reach, and read one order down: a face bending
+    ///   toward the bound (a hollow) takes it back in (`In`), one
+    ///   bending away (a ball) leaves it out (`Out`); a first-order
+    ///   reading reads `Out` for both;
     /// - `Q = 0.7·escalate`: the separation is in the band and escalates;
     ///   a charge without the sagitta reads `2Q` and certifies;
     /// - `Q = 1.2·escalate`, a long reach: certifies; a charge read at
@@ -4198,18 +4202,33 @@ mod tests {
             };
             // The residue: the reach is long enough that the first-order
             // reading itself is definite (`s·reach ≥ escalate`).
-            let (_, peak) = at(0.3 * zero);
+            let (d, peak) = at(0.3 * zero);
             let long = 2.0 * esc / (4.0 * 0.3 * zero / r).sqrt() / peak;
             assert!(
                 long > 1.0,
                 "R = {r}: the residue row's reach is past the peak"
             );
-            assert!(
-                matches!(
-                    code(0.3 * zero, long),
-                    Err(BooleanError::CurvedSectorSideUnsupported { .. })
-                ),
-                "R = {r}: a slope inside 2·sqrt(zero/R) refuses"
+            let residue = |gradient: Vec3<f64>| {
+                datum_code(
+                    d,
+                    BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(
+                        peak * long,
+                    )),
+                    FaceDatum::of_face(n, FaceBend::ball(gradient, r), r),
+                    b,
+                )
+            };
+            assert_eq!(
+                residue(-n.vec()).unwrap(),
+                SideCode::In,
+                "R = {r}: a slope inside 2·sqrt(zero/R) is read one order down: a hollow \
+                 takes the bound back in"
+            );
+            assert_eq!(
+                residue(n.vec()).unwrap(),
+                SideCode::Out,
+                "R = {r}: a slope inside 2·sqrt(zero/R) is read one order down: a ball \
+                 leaves the bound out"
             );
             assert!(
                 charge_escalated(code(0.7 * esc, 4.0)),
