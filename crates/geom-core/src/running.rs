@@ -408,8 +408,16 @@ mod tests {
             d.components().iter().sum::<f64>()
         };
         assert!(exact(r.value) < 0.0, "the fixture rounds up: {r:?}");
-        assert!(exact(r.lower_end()) > 0.0, "the lower end {} is below the exact sum", r.lower_end());
-        assert!(exact(r.upper_end()) < 0.0, "the upper end {} is above the exact sum", r.upper_end());
+        assert!(
+            exact(r.lower_end()) > 0.0,
+            "the lower end {} is below the exact sum",
+            r.lower_end()
+        );
+        assert!(
+            exact(r.upper_end()) < 0.0,
+            "the upper end {} is above the exact sum",
+            r.upper_end()
+        );
         let n = -r;
         assert_eq!(n.error, r.error, "negation is exact");
         assert!(
