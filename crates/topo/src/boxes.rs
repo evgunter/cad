@@ -467,28 +467,95 @@ pub(crate) mod tests {
         circle_sector(r, 0.0, span, phi)
     }
 
+    /// [`arc_sector_from`] at the witness band, or `None` where the
+    /// sector is pinned to refuse its rim's certification.
+    ///
+    /// **At ε ≤ 1e-12 the sector of radius 250 whose seam is off the
+    /// world axes (`u_ref` at 45° or 137°) and whose span is 90° or more
+    /// refuses**, as `AnalyticRung3Refusal::KernelLimit` against the
+    /// cylinder, bound in `(1.0e-12, 1.1e-12]` over an extent of 353 to
+    /// 707 m (measured 1.019e-12 to 1.062e-12). Cause: a stored frame
+    /// read as its polar enclosure (decision 1, #7131). The seam
+    /// `(cos φ, sin φ, 0)` is a rounding off unit, so the carrier's frame
+    /// is about an ulp wide per entry at `Interval`, and limb 2 reads that
+    /// width at the arc's extent. With the stored entries read as points
+    /// (mutation A) every one of these builds, which turns this pin red.
+    /// At ε 1e-9 and 1e-6 every sector builds.
+    fn sector_at_its_band(r: f64, span: f64, phi_deg: f64) -> Option<(Body<f64>, FaceKey)> {
+        let pinned = Tol::witness().eps() <= 1e-12
+            && r >= 250.0
+            && phi_deg != 0.0
+            && span >= 90.0_f64.to_radians();
+        match (try_arc_sector_from(r, span, phi_deg.to_radians()), pinned) {
+            (Ok(built), false) => Some(built),
+            (
+                Err(crate::euler::EulerOpError::Certification {
+                    error:
+                        geom_brep::certify::CertifyError::AnalyticRung3(
+                            geom_brep::edge_nurbs::AnalyticRung3Refusal::KernelLimit {
+                                operand: geom::SurfaceKind::Cylinder,
+                                bound,
+                                ..
+                            },
+                        ),
+                }),
+                true,
+            ) if bound > 1.0e-12 && bound <= 1.1e-12 => None,
+            (got, pinned) => panic!(
+                "r {r}, span {span} rad, u_ref at {phi_deg}°: pinned to refuse \
+                 KernelLimit (bound in (1e-12, 1.1e-12]): {pinned}; got {:?}",
+                got.map(|_| ())
+            ),
+        }
+    }
+
+    /// [`arc_sector_from`], answering the closing face's refusal.
+    fn try_arc_sector_from(
+        r: f64,
+        span: f64,
+        phi: f64,
+    ) -> Result<(Body<f64>, FaceKey), crate::euler::EulerOpError> {
+        let (sector, carrier, run, witness, corners) = circle_sector_parts(r, 0.0, span, phi);
+        try_conic_sector(sector.0, sector.1, carrier, run, witness, corners)
+    }
+
     /// [`arc_sector_from`] with the arc's world run `[start, start +
     /// span]` rather than `[0, span]`: the extrema a run crosses are
     /// chosen by where it starts, and the adopted-arm rows below need
     /// runs that cross one strictly inside.
     fn circle_sector(r: f64, start: f64, span: f64, phi: f64) -> (Body<f64>, FaceKey) {
+        let (sector, carrier, run, witness, corners) = circle_sector_parts(r, start, span, phi);
+        conic_sector(sector.0, sector.1, carrier, run, witness, corners)
+    }
+
+    /// [`circle_sector`]'s parts: its plane and cylinder, the rim's
+    /// carrier, run and witness, and the three corners.
+    #[allow(clippy::type_complexity)]
+    fn circle_sector_parts(
+        r: f64,
+        start: f64,
+        span: f64,
+        phi: f64,
+    ) -> (
+        (Surface<f64>, Surface<f64>),
+        Curve3<f64>,
+        (f64, f64),
+        Point3<f64>,
+        (Point3<f64>, Point3<f64>, Point3<f64>),
+    ) {
         let on = |t: f64| Point3::new(r * t.cos(), r * t.sin(), 0.0);
-        let (a, b, c) = (on(start), on(start + span), Point3::origin());
-        let plane_surface = plane_z0();
-        let cyl_surface = cyl_r(r);
         let carrier = Curve3::circle(
             Point3::origin(),
             Vec3::unit_z(),
             r,
             Vec3::new(phi.cos(), phi.sin(), 0.0),
         );
-        conic_sector(
-            plane_surface,
-            cyl_surface,
+        (
+            (plane_z0(), cyl_r(r)),
             carrier,
             (start - phi, start + span - phi),
             on(start + span * 0.5),
-            (a, b, c),
+            (on(start), on(start + span), Point3::origin()),
         )
     }
 
@@ -530,12 +597,25 @@ pub(crate) mod tests {
         plane_surface: Surface<f64>,
         cyl_surface: Surface<f64>,
         carrier: Curve3<f64>,
+        run: (f64, f64),
+        witness: Point3<f64>,
+        corners: (Point3<f64>, Point3<f64>, Point3<f64>),
+    ) -> (Body<f64>, FaceKey) {
+        try_conic_sector(plane_surface, cyl_surface, carrier, run, witness, corners).unwrap()
+    }
+
+    /// [`conic_sector`], answering the closing face's refusal: the rim
+    /// is certified there, against both surfaces.
+    fn try_conic_sector(
+        plane_surface: Surface<f64>,
+        cyl_surface: Surface<f64>,
+        carrier: Curve3<f64>,
         (param_start, param_end): (f64, f64),
         witness: Point3<f64>,
         (a, b, c): (Point3<f64>, Point3<f64>, Point3<f64>),
-    ) -> (Body<f64>, FaceKey) {
+    ) -> Result<(Body<f64>, FaceKey), crate::euler::EulerOpError> {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(a, true).unwrap();
+        let seed = body.mvfs(a, true)?;
         let plane = body.add_surface(plane_surface);
         let cyl = body.add_surface(cyl_surface);
         let arc = EdgeCurveSpec {
@@ -547,29 +627,25 @@ pub(crate) mod tests {
             param_start,
             param_end,
         };
-        let e_ab = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                b,
-                arc,
-                Tol::witness(),
-            )
-            .unwrap();
-        let e_bc = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: e_ab.he_minus,
-                    he2: e_ab.he_minus,
-                },
-                c,
-                Tol::witness(),
-            )
-            .unwrap();
+        let e_ab = body.mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            b,
+            arc,
+            Tol::witness(),
+        )?;
+        let e_bc = body.mev_line(
+            MevSite::Fan {
+                he1: e_ab.he_minus,
+                he2: e_ab.he_minus,
+            },
+            c,
+            Tol::witness(),
+        )?;
         let he = body
             .find_half_edge(seed.face, e_bc.vertex, e_ab.vertex)
-            .unwrap();
+            .expect("the fan's chord closes on the arc");
         let face = body
             .mef(
                 MefSite::Chords {
@@ -582,10 +658,9 @@ pub(crate) mod tests {
                     sense: true,
                 },
                 Tol::witness(),
-            )
-            .unwrap()
+            )?
             .face;
-        (body, face)
+        Ok((body, face))
     }
 
     /// **The reported defect.** A planar face's rim bulges past its
@@ -604,7 +679,9 @@ pub(crate) mod tests {
             for span_deg in [10.0_f64, 90.0, 179.0, 181.0, 300.0, 359.0] {
                 for phi_deg in [0.0_f64, 45.0, 137.0] {
                     let span = span_deg.to_radians();
-                    let (body, face) = arc_sector_from(r, span, phi_deg.to_radians());
+                    let Some((body, face)) = sector_at_its_band(r, span, phi_deg) else {
+                        continue;
+                    };
                     let b = face_box(&body, face, pad(), witness_band());
                     // The locus is the convex hull of its boundary and
                     // the box is convex, so sampling the boundary
@@ -976,7 +1053,9 @@ pub(crate) mod tests {
                 for phi_deg in [0.0_f64, 45.0, 137.0] {
                     let phi = phi_deg.to_radians();
                     let span = span_deg.to_radians();
-                    let (body, face) = arc_sector_from(r, span, phi);
+                    let Some((body, face)) = sector_at_its_band(r, span, phi_deg) else {
+                        continue;
+                    };
                     let b = face_box(&body, face, pad, witness_band());
                     // World angles, NOT `u_ref`-relative: the fixture's
                     // φ renames the carrier's reference direction and

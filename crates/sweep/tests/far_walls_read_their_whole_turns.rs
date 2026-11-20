@@ -8,15 +8,25 @@
 //!
 //! - **An arc-topped block on a tilted sketch**: a `1 × 1` loop whose top
 //!   side is an arc of radius [`R`], extruded `0.7`, measures
-//!   `0.7·(1 + segment)` at every ε.
+//!   `0.7·(1 + segment)` at ε 1e-9 and 1e-6. At ε 1e-12 it escalates
+//!   `props_meridian_on_surface`, margin in `(1.0e-12, 1.15e-12]`
+//!   (measured 1.080e-12): a stored frame read as its polar enclosure
+//!   (decision 1, #7131). The sketch's frame is a rounding off rigid,
+//!   so its walls' frames read an ulp wide per entry at `Interval`, at
+//!   the block's distance from the origin; with the entries read as
+//!   points (mutation A) it measures.
 //! - **A tilted hollow tube** (axis `(1, 1, 1)/√3`, outer radius `2.5`,
-//!   wall `1 mm`, a full period) measures its shell at majors 300 and 600
-//!   at every ε, and at majors 990 and 1100 above ε = 1e-12. There it
-//!   still escalates `props_chart_loop_whole`: a carried arc is charged
-//!   its ends' enclosure width, which grows with their distance from the
-//!   origin
-//!   (`work/nearpoint/a-carried-arcs-miss-is-charged-its-ends-enclosure-width-at-the-interval-scalar.md`).
-//!   That arm is pinned, typed, and turns red when that row lands.
+//!   wall `1 mm`, a full period) measures its shell at every major at
+//!   ε 1e-9 and 1e-6, and at major 300 at ε 1e-12. At ε 1e-12 major 600
+//!   escalates `props_chart_loop_whole`, and majors 990 and 1100
+//!   escalate `props_rim_axis_parallel` first: a carried arc is charged
+//!   its ends' enclosure width, and a rim its axis's, each growing with
+//!   the distance from the origin
+//!   (`work/nearpoint/a-carried-arcs-miss-is-charged-its-ends-enclosure-width-at-the-interval-scalar.md`),
+//!   and that width is a stored frame read as its polar enclosure
+//!   (decision 1, #7131): with the entries read as points (mutation A)
+//!   every major builds. That arm is pinned, typed, with each major's
+//!   margin band, and turns red when either moves.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
@@ -68,8 +78,25 @@ fn an_arc_topped_block_on_a_tilted_sketch_measures() {
             side: ExtrudeSide::Along,
         },
         tol,
-    )
-    .unwrap_or_else(|e| panic!("the block refused: {e:?}"));
+    );
+    if crate::common::frame_cost::at_the_least_band() {
+        // A stored frame read as its polar enclosure (decision 1, #7131).
+        let pinned = matches!(
+            &e,
+            Err(sweep::ExtrudeError::NotFinished { findings })
+                if crate::common::frame_cost::volume_escalates(
+                    findings.as_slice(),
+                    "props_meridian_on_surface",
+                    (1.0e-12, 1.15e-12),
+                )
+        );
+        assert!(
+            pinned,
+            "pinned to escalate props_meridian_on_surface in (1e-12, 1.15e-12] at ε 1e-12: {e:?}"
+        );
+        return;
+    }
+    let e = e.unwrap_or_else(|e| panic!("the block refused: {e:?}"));
     let got = topo::test_support::pinned_volume("the block", &e.body, tol).volume;
     let want = 0.7 * (1.0 + 0.5 * R * R * (theta - theta.sin()));
     assert!(
@@ -92,29 +119,31 @@ fn a_tilted_hollow_tube_measures() {
             tol,
         );
         let got = tube_along_arc_hollow::<f64>(frame, major, TubeWindow::Full, outer, wall, tol);
-        if major > 900.0 && tol.eps() <= 1e-12 {
-            let pinned = match &got {
-                Err(TubeError::Revolve(RevolveError::NotFinished { findings })) => {
-                    !findings.as_slice().is_empty()
-                        && findings.as_slice().iter().all(|f| {
-                            matches!(
-                                f,
-                                topo::ValidationError::VolumeUncomputable {
-                                    source: topo::MassPropsError::Face {
-                                        source: PropsError::Escalated { cause, .. },
-                                        ..
-                                    },
-                                    ..
-                                } if cause.predicate == Some("props_chart_loop_whole")
-                            )
-                        })
-                }
-                _ => false,
-            };
+        // Each major's refusal and margin band at ε 1e-12 (measured
+        // 1.598e-12 at 600, 1.424e-12 at 990, 1.583e-12 at 1100): a
+        // stored frame read as its polar enclosure (decision 1, #7131).
+        let pin = match major {
+            600.0 => Some(("props_chart_loop_whole", (1.5e-12, 1.7e-12))),
+            990.0 => Some(("props_rim_axis_parallel", (1.35e-12, 1.5e-12))),
+            1100.0 => Some(("props_rim_axis_parallel", (1.5e-12, 1.65e-12))),
+            _ => None,
+        };
+        if let Some((predicate, band)) =
+            pin.filter(|_| crate::common::frame_cost::at_the_least_band())
+        {
+            let pinned = matches!(
+                &got,
+                Err(TubeError::Revolve(RevolveError::NotFinished { findings }))
+                    if crate::common::frame_cost::volume_escalates(
+                        findings.as_slice(),
+                        predicate,
+                        band,
+                    )
+            );
             assert!(
                 pinned,
-                "major {major}: pinned to escalate props_chart_loop_whole at ε 1e-12; \
-                 if it built, the carried-arc row landed and this arm lifts: {got:?}"
+                "major {major}: pinned to escalate {predicate} in {band:?} at ε 1e-12; \
+                 if it built, the carried-arc row or decision 1's read moved: {got:?}"
             );
             continue;
         }
