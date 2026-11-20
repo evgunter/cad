@@ -813,8 +813,8 @@ impl Compared {
                 ) == Some(held)
             })
         };
-        let one_unit = first.dimension == second.dimension
-            && first.unit(notation) == second.unit(notation);
+        let one_unit =
+            first.dimension == second.dimension && first.unit(notation) == second.unit(notation);
         one_unit
             .then(|| reads_in_order_at(notation))
             .flatten()
@@ -1802,20 +1802,41 @@ mod tests {
         let in_ = |told: &Told, notation| told.told_in(notation).to_string();
         assert_eq!(in_(&length(0.008_000_000_000_000_002), mm_deg), "8 mm");
         // A tenth of the tolerance is 1e-7 mm and 1e-9 in.
-        assert_eq!(in_(&length(0.361_629_480_311_458), mm_deg), "361.6294803 mm");
-        assert_eq!(in_(&length(0.025_4 * 1.234_567_891_234), in_pi), "1.234567891 in");
+        assert_eq!(
+            in_(&length(0.361_629_480_311_458), mm_deg),
+            "361.6294803 mm"
+        );
+        assert_eq!(
+            in_(&length(0.025_4 * 1.234_567_891_234), in_pi),
+            "1.234567891 in"
+        );
         assert_eq!(in_(&length(1.234_567_89e-7), mm_deg), "0.0001235 mm");
-        assert_eq!(in_(&length(1_234.500_000_000_4), mm_deg), "1234500.0000004 mm");
+        assert_eq!(
+            in_(&length(1_234.500_000_000_4), mm_deg),
+            "1234500.0000004 mm"
+        );
         assert_eq!(in_(&angle(core::f64::consts::FRAC_PI_2), mm_deg), "90 deg");
         assert_eq!(in_(&angle(1.0), mm_deg), "57.3 deg");
-        assert_eq!(in_(&angle(core::f64::consts::PI / 3.0), in_pi), "0.3333 pi rad");
+        assert_eq!(
+            in_(&angle(core::f64::consts::PI / 3.0), in_pi),
+            "0.3333 pi rad"
+        );
         let ratio = Told::computed(&(0.1 + 0.2), Dimension::Dimensionless);
         assert_eq!(in_(&ratio, mm_deg), "0.3");
-        assert_eq!(in_(&Told::given(&0.025, Dimension::Length), mm_deg), "25 mm");
-        assert_eq!(in_(&Told::given(&0.0254, Dimension::Length), in_pi), "1 in");
-        assert_eq!(in_(&Told::at_most(&0.300_04, Dimension::Length), mm_deg), "300.04 mm");
         assert_eq!(
-            in_(&Told::at_least(&0.300_000_000_04, Dimension::Length), mm_deg),
+            in_(&Told::given(&0.025, Dimension::Length), mm_deg),
+            "25 mm"
+        );
+        assert_eq!(in_(&Told::given(&0.0254, Dimension::Length), in_pi), "1 in");
+        assert_eq!(
+            in_(&Told::at_most(&0.300_04, Dimension::Length), mm_deg),
+            "300.04 mm"
+        );
+        assert_eq!(
+            in_(
+                &Told::at_least(&0.300_000_000_04, Dimension::Length),
+                mm_deg
+            ),
             "300.0000001 mm"
         );
         let enclosure = Told::computed(&Interval::from_bounds(0.1, 0.2), Dimension::Length);
@@ -1850,7 +1871,10 @@ mod tests {
                 );
                 // Beside a length it keeps the pair in metres.
                 let pair = length.beside(&tolerance);
-                assert_eq!(pair.first().told_in(notation).to_string(), pair.first().to_string());
+                assert_eq!(
+                    pair.first().told_in(notation).to_string(),
+                    pair.first().to_string()
+                );
             }
         }
         let tolerance = Told::at_most(&2e-10, Dimension::Length).of_the_tolerance();
@@ -1877,7 +1901,9 @@ mod tests {
                         let q = x / asked.factor();
                         let near = core::iter::successors(Some(q), |y| Some(y.next_up()))
                             .take(5)
-                            .chain(core::iter::successors(Some(q), |y| Some(y.next_down())).take(5));
+                            .chain(
+                                core::iter::successors(Some(q), |y| Some(y.next_down())).take(5),
+                            );
                         for y in near {
                             assert_ne!(
                                 (y * asked.factor()).to_bits(),
@@ -1931,17 +1957,26 @@ mod tests {
                         let (numbers, unit) = said(text);
                         let q = x / unit.factor();
                         let reach = step(q, 4) + 2.0 * spacing(x) / unit.factor();
-                        assert!((numbers[0] - q).abs() <= reach, "{x:e} is offered as {text}");
+                        assert!(
+                            (numbers[0] - q).abs() <= reach,
+                            "{x:e} is offered as {text}"
+                        );
                     }
                 }
                 for reach in [1e-3, 1e-9, 1e-13, 0.0] {
                     let width = x.abs() * reach;
                     let within = Told::at_least_within(&x, &(x + width), Dimension::Length);
                     let y = typed_back(&within.told_in(notation).to_string())[0];
-                    assert!(x <= y && y <= x + width, "{x:e} within {reach:e} types {y:e}");
+                    assert!(
+                        x <= y && y <= x + width,
+                        "{x:e} within {reach:e} types {y:e}"
+                    );
                     let within = Told::at_most_within(&x, &(x - width), Dimension::Length);
                     let y = typed_back(&within.told_in(notation).to_string())[0];
-                    assert!(x - width <= y && y <= x, "{x:e} within {reach:e} types {y:e}");
+                    assert!(
+                        x - width <= y && y <= x,
+                        "{x:e} within {reach:e} types {y:e}"
+                    );
                 }
             }
         }
@@ -2053,11 +2088,20 @@ mod tests {
                 }
             }
         }
-        assert!(in_the_notation > 1_000, "{in_the_notation} pairs read in their notation");
+        assert!(
+            in_the_notation > 1_000,
+            "{in_the_notation} pairs read in their notation"
+        );
         let by_size = Told::computed(&-1.000_01e-9, Dimension::Length)
             .beside_by_magnitude(&Told::computed(&1.000_04e-9, Dimension::Length));
-        assert_eq!(by_size.first().told_in(NOTATIONS[1]).to_string(), "-1.00001e-6 mm");
-        assert_eq!(by_size.second().told_in(NOTATIONS[1]).to_string(), "1.00004e-6 mm");
+        assert_eq!(
+            by_size.first().told_in(NOTATIONS[1]).to_string(),
+            "-1.00001e-6 mm"
+        );
+        assert_eq!(
+            by_size.second().told_in(NOTATIONS[1]).to_string(),
+            "1.00004e-6 mm"
+        );
     }
 
     /// A value a unit's factor carries out of the format is told in
@@ -2069,7 +2113,9 @@ mod tests {
         let huge = Told::computed(&1e306, Dimension::Length);
         assert_eq!(huge.told_in(mm_deg).to_string(), "1e306 m");
         assert_eq!(
-            Told::at_least(&1e306, Dimension::Length).told_in(mm_deg).to_string(),
+            Told::at_least(&1e306, Dimension::Length)
+                .told_in(mm_deg)
+                .to_string(),
             "1e306 m"
         );
         let least = Told::computed(&f64::from_bits(1), Dimension::Angle);
