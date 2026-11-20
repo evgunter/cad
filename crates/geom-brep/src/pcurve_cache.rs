@@ -5041,7 +5041,7 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         fitted: bool,
     ) -> Option<PcurveCertificate<T>> {
-        let support = self.support.as_ref()?;
+        let support = self.support.as_ref().filter(|_| T::READS_BY_SUPPORT)?;
         (support.band == band
             && support.fitted == (fitted && self.pcurve.needs_fitted_door())
             && crate::locus_certificate::same_curve(&support.carrier, carrier)

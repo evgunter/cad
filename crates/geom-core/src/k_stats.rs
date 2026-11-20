@@ -1987,6 +1987,8 @@ impl core::ops::Neg for Probe {
 
 #[cfg(feature = "probe")]
 impl Real for Probe {
+    const READS_BY_SUPPORT: bool = true;
+
     fn same_value(self, other: Self) -> bool {
         self.0.same_value(other.0)
     }

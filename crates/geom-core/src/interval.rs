@@ -496,6 +496,8 @@ impl Neg for Interval {
 /// deterministic per D9 (bit-identical enclosures across platforms at
 /// pinned dependency versions).
 impl Real for Interval {
+    const READS_BY_SUPPORT: bool = true;
+
     fn same_value(self, other: Self) -> bool {
         self.same_enclosure(other)
     }

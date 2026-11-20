@@ -22,11 +22,12 @@
 //! control points, weights; a periodic loop's data and sense) and none
 //! of the memos derived from them. A closed-form carrier and an
 //! analytic surface compare kind and scalar by scalar through
-//! [`Real::same_value`]. Either way a scalar is the same
-//! when it has the same bits at a value scalar, the same enclosure and
-//! decoration at `Interval`, and the same expression node at `Sym`
-//! (whose `Debug` prints the node). The interval and the band compare
-//! exactly.
+//! [`Real::same_value`]: the same bits at a value scalar, the same
+//! enclosure and decoration at `Interval`. The interval and the band
+//! compare exactly. Nothing is read at a scalar whose derivations are
+//! not a pure function of their support down to the bits
+//! ([`Real::READS_BY_SUPPORT`] false: a dual, and `Sym`, whose
+//! derivations mint fresh unknowns and write its decision record).
 //!
 //! Only [`crate::EdgeCurve`]'s certification constructs one, right
 //! after the limbs it records returned on that support; its fields are
@@ -90,7 +91,8 @@ impl<T: Real> LocusCertificate<T> {
             pair: [h1, h2],
             band: held_band,
         } = &*self.0;
-        *held_band == band
+        T::READS_BY_SUPPORT
+            && *held_band == band
             && p0.same_value(params.0)
             && p1.same_value(params.1)
             && same_curve(held, carrier)
@@ -264,25 +266,31 @@ mod tests {
         );
     }
 
-    /// **At `Sym` one value is one expression**: a literal read twice is
-    /// one node and the same value, while two unknowns with equal
-    /// numeric channels are not. At `f64` the bits decide, so `0.0` and
-    /// `-0.0` differ. Red under a comparison that reads `Sym`'s numeric
-    /// channel alone.
+    /// **Nothing is read at `Sym`**: the same support, the same `Arc`
+    /// included, does not read there, while at `f64` it does; and at
+    /// `f64` the bits decide, so `0.0` and `-0.0` differ. Red under a
+    /// read at a scalar whose derivations mint fresh unknowns.
     #[test]
-    fn a_symbolic_value_is_the_same_only_as_its_own_expression() {
+    fn nothing_is_read_at_the_symbolic_tier() {
+        let lift = |c: &Curve3<f64>| c.map_scalar(Sym::<f64>::from_f64);
+        let lift_s = |s: &Surface<f64>| s.map_scalar(Sym::<f64>::from_f64);
         let budget = geom_core::SymBudget {
             max_terms: 64,
             max_degree: 8,
         };
-        let (verdicts, _) = geom_core::sym::with_session(budget, || {
-            let one = Sym::<f64>::from_f64(1.0);
-            (
-                one.same_value(Sym::from_f64(1.0)),
-                Sym::opaque(1.0).same_value(Sym::opaque(1.0)),
-            )
+        let (read, _) = geom_core::sym::with_session(budget, || {
+            let (carrier, p, c) = (lift(&net()), lift_s(&plane(0.0)), lift_s(&cylinder(1.0)));
+            let params = (Sym::from_f64(0.0), Sym::from_f64(1.0));
+            let held = LocusCertificate::derived(&carrier, params, [&p, &c], band());
+            held.reads(&carrier, params, [&p, &c], band())
         });
-        assert_eq!(verdicts, (true, false), "(a literal twice, two unknowns)");
+        assert!(!read, "Sym reads its own support");
+        let (p, c, carrier) = (plane(0.0), cylinder(1.0), net());
+        let held = LocusCertificate::derived(&carrier, (0.0, 1.0), [&p, &c], band());
+        assert!(
+            held.reads(&carrier, (0.0, 1.0), [&p, &c], band()),
+            "f64 reads its own"
+        );
         assert!(!0.0_f64.same_value(-0.0), "f64 compares bits");
     }
 }

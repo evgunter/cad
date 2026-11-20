@@ -310,14 +310,20 @@ pub trait Real:
     /// own name rather than composing its base's.
     const NAME: &'static str;
 
+    /// **Whether a certificate derived at this scalar may be read by
+    /// its support** (`geom_brep::LocusCertificate`) rather than
+    /// derived again: true where a derivation is a pure function of its
+    /// support down to the bits of what it returns. `false`, the
+    /// default, makes every certificate derived where it is asked: a
+    /// dual holds none, and the symbolic tier's derivations mint fresh
+    /// unknowns and write the decision record that is its purpose
+    /// ([`crate::Sym`]'s impl).
+    const READS_BY_SUPPORT: bool = false;
+
     /// **Whether `other` is this value**, as a certificate's support is
-    /// compared (`geom_brep::LocusCertificate`): the same bits at a
-    /// value scalar, the same enclosure and decoration at an interval,
-    /// and the same expression node at the symbolic tier, where equal
-    /// bits in the numeric channel do not make two expressions one.
-    /// `false` is always sound, since the reader then derives the
-    /// certificate again, and is the default: a scalar that holds no
-    /// certificate (a dual) never reads one.
+    /// compared where [`Real::READS_BY_SUPPORT`] holds: the same bits at
+    /// a value scalar, the same enclosure and decoration at an interval.
+    /// `false`, the default, is always sound: the reader derives again.
     fn same_value(self, other: Self) -> bool {
         let _ = (self, other);
         false
@@ -2042,6 +2048,8 @@ pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
 /// operations because IEEE 754 *requires* them to be exact/correctly
 /// rounded, so they are already bit-identical everywhere (and faster).
 impl Real for f64 {
+    const READS_BY_SUPPORT: bool = true;
+
     fn same_value(self, other: Self) -> bool {
         self.to_bits() == other.to_bits()
     }
