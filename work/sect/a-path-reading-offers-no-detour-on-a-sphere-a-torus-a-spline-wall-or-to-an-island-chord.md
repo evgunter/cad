@@ -4,7 +4,7 @@ kind: issue
 title: A path reading offers no detour round run vertices on a sphere, a torus or a spline wall, nor from an outer-loop point to an island's closing chord
 status: open
 opened: 2026-11-20
-priority: P3
+priority: P2
 cost: E
 refs: [a-union-of-two-axis-placed-revolves-refuses-ring-homing-ambiguous-since-rehome-by-path]
 ---
@@ -50,3 +50,13 @@ winding, chain `Carrier::detours` after each reference's plain paths in
 onward path's, so the lean reading is unchanged. A test needs an island
 whose every outer-loop point is aligned with a run vertex on the way to
 `q`.
+
+## Re-banded P2 (PR 7181's review, 2026-11-20)
+
+`sect/rimside-retires` puts every one-site loop that is not on a plane
+onto the island reader's paths. Those paths have no detour, and on a
+sphere there is one great-circle path per reference. On a coaxial
+sphere, a closed loop can have every reference aligned through the
+site vertex. That is the same shape as the P0 this row was filed
+from. The review judged it likely reachable, but no body has been
+seen to hit it.

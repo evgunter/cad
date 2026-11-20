@@ -47,11 +47,11 @@ crates/topo/src/census.rs wedges_overlap 2 pin a_pair_whose_wedge_does_not_read_
 crates/topo/src/chord_join.rs lone_ring_outer_side 1 pin a_point_in_band_of_a_lone_rings_plane_hands_the_side_to_the_next
 # path_ring_side: cone_ring_rows reads the outer reader at every offset,
 # among them offsets whose first path is in band, and holds its answer; a
-# first-refusal ladder refuses there. paths_reading (paths_rung's ladder)
-# is read on the rung itself: through read_paths, the agreeing ladder over
-# the outer references answers from another reference past it.
+# first-refusal ladder refuses there. paths_rung is read on the rung
+# itself: through read_paths, the agreeing ladder over the outer
+# references answers from another reference past it.
 crates/topo/src/chord_join.rs path_ring_side 1 pin a_path_escalating_by_a_corner_hands_re_homing_to_the_next
-crates/topo/src/chord_join.rs paths_reading 1 pin a_path_in_band_hands_the_rung_to_the_next_path
+crates/topo/src/chord_join.rs paths_rung 1 pin a_path_in_band_hands_the_rung_to_the_next_path
 crates/topo/src/chord_join.rs ring_side 1 pin a_planar_ring_vertex_escalating_hands_re_homing_to_the_next
 crates/topo/src/link.rs place 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 # face_nappe_reading: no input reaches past a kept rung (min <= max).

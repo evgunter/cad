@@ -4080,7 +4080,9 @@ fn outer_references<T: Decide>(
     Ok(points)
 }
 
-/// The midpoints of `edges` that have a length (a null edge has none).
+/// The midpoints of those of `edges` whose curve is certified; a null
+/// edge, which has no length, has none, and an edge whose curve is not
+/// yet certified is passed over.
 fn edge_midpoints<T: Decide>(
     body: &Body<T>,
     edges: &[EdgeKey],
@@ -4338,7 +4340,7 @@ impl<T: Decide> IslandReading<T> {
         let references = outer_references(body, face, &[])?;
         climb_agreeing(
             references,
-            |w| paths_rung(&self.carrier, (w, self.q), band, &mut read),
+            |w| paths_rung(self.carrier.paths((w, self.q), band), &mut read),
             |a, b| a == b,
         )
         .map(Climb::into_reading)
@@ -4378,10 +4380,11 @@ impl<T: Decide> IslandReading<T> {
     }
 }
 
-/// The paths [`Carrier::paths`] offers between two points, read by
-/// `read` as one rung of a **side ladder**: the first path that decides
-/// answers ([`Rung::of_reading`]); an escalation choosing the paths is
-/// the rung's kept reading.
+/// The paths offered between two points ([`Carrier::paths`], or a
+/// detour's [`Carrier::detours`]), read by `read` as one rung of a
+/// **side ladder**: the first path that decides answers
+/// ([`Rung::of_reading`]); an escalation choosing the paths is the
+/// rung's kept reading.
 ///
 /// **The premise**, which makes every side ladder [`Answering::Any`]:
 /// the decided readings agree. Every reading answers one question —
@@ -4414,16 +4417,6 @@ impl<T: Decide> IslandReading<T> {
 ///
 /// Under it, which decided reading is taken changes nothing.
 fn paths_rung<T: Decide, R>(
-    carrier: &Carrier<T>,
-    ends: (Point3<T>, Point3<T>),
-    band: Band,
-    read: impl FnMut(Path<T>) -> Result<Option<R>, Indeterminate>,
-) -> Rung<R, Indeterminate> {
-    paths_reading(carrier.paths(ends, band), read)
-}
-
-/// [`paths_rung`] over paths already offered.
-fn paths_reading<T: Decide, R>(
     paths: Result<Vec<Path<T>>, Indeterminate>,
     mut read: impl FnMut(Path<T>) -> Result<Option<R>, Indeterminate>,
 ) -> Rung<R, Indeterminate> {
@@ -4445,15 +4438,17 @@ fn paths_reading<T: Decide, R>(
 /// copy of a run vertex ([`crate::ring_path::path_parity`]). A path with
 /// a reading in the zero band says nothing and the next path or pair is
 /// asked: one ending on the run does, so a ring vertex on the run never
-/// decides. After every pair, each pair's detours are asked, steered by
-/// the midpoint of each run edge with a length ([`Carrier::detours`]):
-/// where a ring vertex and the outer loop share every azimuth and height
-/// with run vertices, as on coaxial revolves' walls, every plain path
-/// runs through one. One with a reading in the escalation band says nothing
-/// either; the first escalation escalates only where no pair decides.
-/// The decided pairs agree because the ring does not cross the run
-/// ([`paths_rung`]'s premise). A ring no pair decides otherwise is
-/// [`RingSide::Undecided`]. The parity does not depend on the path on any
+/// decides. A path with a reading in the escalation band says nothing
+/// either; the first escalation escalates only where nothing decides.
+///
+/// After every pair, each pair's detours are asked
+/// ([`Carrier::detours`]), steered by the midpoint of each run edge with
+/// a certified curve: where a ring vertex and the outer loop share every
+/// azimuth and height with run vertices, as on coaxial revolves' walls,
+/// every plain path runs through one. The decided readings agree because
+/// the ring does not cross the run ([`paths_rung`]'s premise), so a
+/// detour may decide a ring whose plain pairs only escalated. A ring
+/// nothing decides otherwise is [`RingSide::Undecided`]. The parity does not depend on the path on any
 /// of these kinds (`crate::ring_path`'s module docs: on a cylinder, an
 /// annulus, two closed curves cross an even number of times), so a run
 /// edge of any carrier the lane reads, a spline chord's included, is read
@@ -4485,11 +4480,11 @@ fn path_ring_side<T: Decide>(
     let detours = pairs().flat_map(|ends| {
         guides
             .iter()
-            .map(move |&guide| carrier.detours(ends, guide, band))
+            .flat_map(move |&guide| carrier.detours(ends, guide, band))
     });
     let offered = pairs().map(|ends| carrier.paths(ends, band)).chain(detours);
     match climb(Answering::Any, offered, |paths| {
-        paths_reading(paths, |path| path_parity(&path, &arcs, None, band))
+        paths_rung(paths, |path| path_parity(&path, &arcs, None, band))
     })
     .into_reading()
     {
@@ -6059,7 +6054,7 @@ mod side_ladder_rows {
         );
         let rung = |margins: [f64; 2]| {
             let mut next = margins.into_iter();
-            super::paths_rung(&super::Carrier::Quadric(quadric), ends, band, |_| {
+            super::paths_rung(super::Carrier::Quadric(quadric).paths(ends, band), |_| {
                 let m = next.next().unwrap();
                 crate::validate::decide("test_side", Margin::of(m), band)
                     .map(|sign| (sign != Sign::Zero).then_some(sign))
