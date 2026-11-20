@@ -315,3 +315,19 @@ body has the reasons):
   branch `doctail/a-node-whose-runs-part-names-where`. It files and
   closes its own row (P1 M) in its PR, and stops if N5 does not settle
   whether non-mark partings also become `Parted`.
+- 2026-11-20 03:00 — **7122 merged** (`b2773f6`). Dispatched the lever
+  build to cloud session session_013QoYWWFRVbRqY77i1GeAoV, on branch
+  `doctail/a-face-charts-band-is-decided-at-each-carriage`.
+  - It closes both face-chart P1 rows (the turn lever and arm-zero).
+  - The face chart is decided at each carriage by the placement's own
+    fold: the profile over its loops, each sweep over its body, and the
+    traced faces.
+  - The pose door admits a face chart only in a frame seat.
+  - The lane stops if a reader has no body reach in hand.
+
+  Review tier: FULL. All of Ev's `[ev]` PRs from this sitting are now
+  merged. Lanes running:
+  - runwall (local);
+  - probe re-pin (cloud, session_013QoYWVmwm4WtoHdkSGBfrD);
+  - Parted (cloud, session_013QoYWVcCsWVSnYYEjaUwmq);
+  - lever (cloud).
