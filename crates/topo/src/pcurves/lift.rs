@@ -665,7 +665,7 @@ impl<T: Decide> Lift<T> {
             .collect();
         let item = |i: usize| -> Result<WalkItem<T, DerivedRow<T>>, LiftRefusal> {
             let (he, carrier, t0, t1, _) = &charted[i];
-            let ends = super::mint::singular_ends(body, *he, surface, band);
+            let ends = super::decision::singular_ends(body, *he, carrier, surface, band);
             let pcurve = geom_brep::chart_pcurve_over_ends(carrier, *t0, *t1, ends, surface, band)
                 .map_err(LiftRefusal::Image)?;
             Ok(walk_item(

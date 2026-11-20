@@ -2,7 +2,7 @@
 //! carried rows and a kill's turn.
 
 use geom::Surface;
-use geom_brep::{ChartImage, Pcurve, PcurveCache, PcurveCertifyError};
+use geom_brep::{ChartImage, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve_over_ends};
 use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Real, Sign};
@@ -276,19 +276,22 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         // (fail-loud): the parent's image is not the child's row there.
         let placed_again = image.is_placed();
         let (first, second) = if placed_again {
-            // A child keeps the parent's end on the singular set, and its
-            // end at the split's new vertex is off it.
-            let parent = super::mint::singular_ends(body, half_edge, &surface, band);
+            // A child keeps the parent's ends, and its end at the split's
+            // new vertex is read at the carrier's point there, where the
+            // split puts that vertex.
+            let parent = super::decision::singular_ends(body, half_edge, &carrier, &surface, band);
+            let at_split = geom_brep::reads_singular_ends(&carrier, &surface)
+                && super::decision::on_a_pole(&surface, carrier.eval(t), band);
             let child = |a: T, b: T, ends| {
                 geom_brep::chart_pcurve_over_ends(&carrier, a, b, ends, &surface, band)
                     .map_err(refused)
             };
             let first_ends = geom_brep::SingularEnds {
                 start: parent.start,
-                end: false,
+                end: at_split,
             };
             let second_ends = geom_brep::SingularEnds {
-                start: false,
+                start: at_split,
                 end: parent.end,
             };
             (child(t0, t, first_ends)?, child(t, t1, second_ends)?)
@@ -1019,24 +1022,22 @@ pub(crate) fn site_rows<T: Decide>(
                 }
                 (_, at) => {
                     let (carrier, t0, t1, plus, vertex) = traversal(at);
+                    let surface = &face.surface;
                     let ends = match at {
                         SiteHalf::Existing(he) | SiteHalf::Described(he) => {
-                            super::mint::singular_ends(body, he, &face.surface, band)
+                            super::decision::singular_ends(body, he, &carrier, surface, band)
                         }
-                        SiteHalf::NewPlus | SiteHalf::NewMinus => super::mint::singular_ends_at(
-                            &face.surface,
-                            (carrier.eval(t0), carrier.eval(t1)),
-                            band,
-                        ),
+                        // The new edge is not in the body yet: its ends are
+                        // read at the carrier's, the points this walk decides
+                        // its joints at (`traversal`'s `vertex`).
+                        SiteHalf::NewPlus | SiteHalf::NewMinus => geom_brep::SingularEnds {
+                            start: geom_brep::reads_singular_ends(&carrier, surface)
+                                && super::decision::on_a_pole(surface, carrier.eval(t0), band),
+                            end: geom_brep::reads_singular_ends(&carrier, surface)
+                                && super::decision::on_a_pole(surface, carrier.eval(t1), band),
+                        },
                     };
-                    let pcurve = geom_brep::chart_pcurve_over_ends(
-                        &carrier,
-                        t0,
-                        t1,
-                        ends,
-                        &face.surface,
-                        band,
-                    )?;
+                    let pcurve = chart_pcurve_over_ends(&carrier, t0, t1, ends, surface, band)?;
                     Ok(WalkItem {
                         image: SiteImage::Derived((carrier, ChartImage::Image { pcurve, t0, t1 })),
                         t0,
