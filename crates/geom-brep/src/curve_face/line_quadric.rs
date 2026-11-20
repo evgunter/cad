@@ -1172,6 +1172,45 @@ mod line_cone_rows {
         );
     }
 
+    /// **A line a micrometre off the cone, a centiradian off its
+    /// generator, is decided**: in the tangent plane at `(1, 0, 1)`,
+    /// turned `0.01` rad off the generator there and moved `10⁻⁶` m off
+    /// the cone along its normal, it misses outward and crosses twice
+    /// inward, read over two metres about its closest approach to the
+    /// apex. Its discriminant is about `|A|` times the depth it reaches,
+    /// `|A| ≈ 5·10⁻⁵` here, so a depth that did not divide by `|A|` would
+    /// read both in the zero band and decide neither.
+    #[test]
+    fn a_line_near_a_generator_and_just_off_the_cone_is_decided() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let s = core::f64::consts::FRAC_1_SQRT_2;
+        let (g, n) = (Vec3::new(s, 0.0, s), Vec3::new(s, 0.0, -s));
+        let dir = g * 0.01f64.cos() + Vec3::new(0.0, 1.0, 0.0) * 0.01f64.sin();
+        let cone = (
+            geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(0.0, 0.0, 1.0),
+            },
+            core::f64::consts::FRAC_PI_4,
+        );
+        for (label, off, two) in [("outward", 1e-6, false), ("inward", -1e-6, true)] {
+            let line = geom::Line {
+                origin: Point3::new(1.0, 0.0, 1.0) + n * off,
+                dir,
+            };
+            let near = line.param(cone.0.origin);
+            let got = line_cone_roots(line, cone, (near - 1.0, near + 1.0), band);
+            assert!(
+                if two {
+                    matches!(got, Ok(Ok(ConeRoots::Two(..))))
+                } else {
+                    matches!(got, Ok(Ok(ConeRoots::Miss)))
+                },
+                "{label}: got {got:?}"
+            );
+        }
+    }
+
     /// **An edge through the apex has its one double root there**, as one
     /// passing within the band of it: the cone's form is homogeneous about
     /// the apex, so the caller places the root on the face's apex vertex.

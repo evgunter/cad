@@ -128,13 +128,12 @@
 //!   Zero ⇒ a tangent ray — graze, retry; Negative ⇒ definite miss.
 //!   The outward sign at each root is read off the SAME decided
 //!   discriminant (`d·(p − c)/r = ±√disc/r`), never re-decided.
-//! - **`bool_ray_cone_lead`**: the ray×cone quadratic's leading
-//!   coefficient `(d·â)² − cos²α`, levered by the face's slant extent.
-//!   Zero ⇒ the ray runs parallel to a generator, where the quadratic
-//!   degenerates and no certified crossing PAIR exists — graze, retry.
-//! - **`bool_ray_cone_disc`**: that quadratic's discriminant over the
-//!   same extent (a length). Zero ⇒ the ray grazes a generator —
-//!   graze, retry; Negative ⇒ definite miss.
+//! - **`line_quadric_cone_{apex, apex_spread, lead, depth, root_slack}`**:
+//!   the line × cone door's rungs (`line_cone_roots`), the one reading
+//!   of a line against a cone, read over the run of the ray's line
+//!   inside the ball holding the face. A run at the apex, a ray parallel
+//!   to a generator, a tangency or a root the meter cannot place grazes,
+//!   retry; a definite miss is a miss.
 //! - **`bool_ray_cone_nappe`**: the hit's height over the apex along
 //!   the axis, which says the nappe whose outward normal the hit is read
 //!   by. Zero ⇒ the hit is at the apex, where the SURFACE (not merely
