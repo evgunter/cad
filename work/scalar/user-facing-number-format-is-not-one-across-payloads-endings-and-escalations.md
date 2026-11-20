@@ -2,10 +2,11 @@
 id: user-facing-number-format-is-not-one-across-payloads-endings-and-escalations
 kind: issue
 title: geom-core: the user-facing number format is not yet one across refusal payloads, sized endings, Indeterminate payloads and the blend payload
-status: open
+status: parked
 opened: 2026-10-14
 priority: P4
 cost: E
+blocked_on: [patherror-display-renders-float-noise]
 ---
 
 (Filed by the ENCL implementer of `zero-arm-payload-wording-doubles-words-and-hedges-a-definite-verdict`, PR 5157, at the ENCL orchestrator's direction.)
@@ -21,7 +22,7 @@ So one refusal sentence now prints one format. Two sibling renderings of the sam
 - **geom-core `predicate.rs`, `impl Display for IndeterminatePayload`** (SCALAR): every arm prints `{margin:e}` and the band's `({zero:e}, {escalate:e})`. Every undecided arm's payload goes through it.
 - **sweep `blend/mod.rs`, `impl Display for ClassifiedMargin`** (owner: BAND / CARVE, per `work.py territory`): it prints `margin {reading:e} m` and `band ({zero:e}, {escalate:e})`. It does so on purpose, to match `IndeterminatePayload` (its doc comment cites the E3 review), so it moves with that payload, not on its own.
 
-The bare-`{}` population is the separate row `work/reroute/refusal-floats-outside-the-spline-stack-render-through-f64-display.md`, which also notes the `{:e}` sites as a second spelling.
+The bare-`{}` population is the separate row `work/comb/refusal-floats-outside-the-spline-stack-render-through-f64-display.md`, which also notes the `{:e}` sites as a second spelling.
 
 ## Ask
 

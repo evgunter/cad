@@ -87,10 +87,12 @@
 //!   sphere face, the linearized radial residual `(|q − c|² − r²)/2r`
 //!   (metres).
 //! - **`bool_point_in_solid_denom`**: the parallel-ray gate, a length:
-//!   `d·n` per planar face, and a wall's `|d⊥|`, each levered by how far
-//!   from `q` the selection reaches (`selection_reach`), so the margin is
-//!   how far the ray rises off the plane, or drifts off its distance
-//!   from the axis, over every length at which it could meet the face.
+//!   `d·n` per planar face, and a wall's `|d⊥|` (the line × quadric
+//!   door's `line_quadric_cylinder_axis_parallel`), each levered by how
+//!   far from `q` the selection reaches (`selection_reach`), so the
+//!   margin is how far the ray rises off the plane, or drifts off its
+//!   distance from the axis, over every length at which it could meet
+//!   the face.
 //!   Zero ⇒ the ray runs along the carrier: it skips the face where `q`
 //!   is definitely off the carrier (`bool_point_in_solid_clearance`) or,
 //!   on a plane, the face lies definitely beside the ray
@@ -121,7 +123,7 @@
 //!   the closest ⇒ graze, retry). The winning crossing's
 //!   already-decided `denom` sign is the In/Out verdict — no second
 //!   decision on the same margin.
-//! - **`bool_ray_sphere_disc`**: the ray/sphere discriminant, metered
+//! - **`line_quadric_sphere_disc`**: the ray/sphere discriminant, metered
 //!   as a length (`disc / 2r`; `√disc` is the half-chord in metres).
 //!   Zero ⇒ a tangent ray — graze, retry; Negative ⇒ definite miss.
 //!   The outward sign at each root is read off the SAME decided
@@ -142,15 +144,15 @@
 //!   the face, its region read from its edges ([`crate::ruled_region`]).
 //! - **`bool_ray_cone_incidence`**: `d·n̂` at a cone hit, levered by the
 //!   local radius — the cone's analogue of the plane arm's `denom`.
-//! - **`bool_ray_torus_disc`**: the ray×torus QUARTIC's discriminant,
+//! - **`line_quadric_torus_disc`**: the ray×torus QUARTIC's discriminant,
 //!   metered over `(R + r)¹¹` (a length: for a monic quartic the
 //!   discriminant is the squared product of root gaps). Zero ⇒ a
 //!   repeated root — graze, retry. Its two companions
-//!   **`bool_ray_torus_shape`** and **`bool_ray_torus_depth`** split the
+//!   **`line_quadric_torus_shape`** and **`line_quadric_torus_depth`** split the
 //!   positive-discriminant case into four real roots and none; a Zero on
 //!   either leaves the count uncertain, which this door never answers
-//!   on. **`bool_ray_torus_odd`** selects the biquadratic closed form,
-//!   **`bool_ray_torus_split_lead`** and **`bool_ray_torus_split`** are
+//!   on. **`line_quadric_torus_odd`** selects the biquadratic closed form,
+//!   **`line_quadric_torus_split_lead`** and **`line_quadric_torus_split`** are
 //!   the factorization's own certifications. A constructed root set
 //!   that disagrees with the certified count
 //!   ([`Unsettled::CountDisagrees`]) blocks the ray, carrying both
@@ -223,7 +225,10 @@ use crate::splitting::containment::{
 };
 use crate::validate::decide;
 use geom_brep::PlaneDesc;
-use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
+use geom_brep::curve_face::line_quadric::{
+    About, WallRoots, line_cone_quadratic, line_sphere_roots, line_torus_roots, line_wall_roots,
+};
+use geom_brep::quartic::QuarticRoots;
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
 use crate::region::RegionRefusal;
@@ -350,7 +355,8 @@ pub enum PointInSolidError {
     /// a circle arc is the root of a first harmonic. An edge on any other
     /// carrier — a spline, or the quartic a torus, a cylinder or a cone
     /// whose axis misses the sphere's centre leaves on it — has no such
-    /// crossing here, and neither has an edge with no certified carrier.
+    /// crossing here, and neither has an edge with no certified carrier
+    /// that is no placeholder ([`crate::null::is_placeholder`]).
     PartialSphereFace {
         /// The sphere face whose outline the region reading cannot cross.
         face: FaceKey,
@@ -2430,458 +2436,6 @@ const fn oriented(sign: Sign, sense: bool) -> Sign {
     }
 }
 
-/// What [`line_wall_roots`] found. The three non-root answers are kept
-/// APART rather than collapsed into one "no roots": each caller owes a
-/// different thing to each of them — a ray retries a tangent and skips
-/// a miss, an edge sweep refuses a tangent and clears a miss — and a
-/// merged variant would let one caller silently inherit the other's
-/// posture.
-#[derive(Debug, Clone, Copy)]
-pub(super) enum WallRoots<T> {
-    /// The line is parallel to the axis: its residual is constant, so
-    /// the quadratic degenerates and there is no root to report.
-    AxisParallel,
-    /// The discriminant is in the zero band — the line is TANGENT to
-    /// the wall, and a tangency is not a crossing at any order this
-    /// function can see.
-    Tangent,
-    /// A definitely negative discriminant: no real root.
-    Miss,
-    /// Two definite roots of the carrier's own parameter, ascending,
-    /// and a bound on either's rounding in that parameter
-    /// ([`Centred::roots`]).
-    Two([T; 2], T),
-}
-
-/// **Where a line × quadric quadratic is read from** ([`Centred`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum About {
-    /// The line's own origin, for a line given at the body's own scale
-    /// (an edge's carrier line): its residual there is already of that
-    /// scale, and the move buys nothing. It costs: at `Interval` the
-    /// shift is itself an enclosure, and the moved offset `w₀ + d·shift`
-    /// and the root `s + shift` each carry its width, so a root read
-    /// about the shift is wider than one read where the line starts. It
-    /// is also the reading every edge-sweep margin was measured on.
-    Start,
-    /// The line's closest approach to the quadric's axis or centre, for
-    /// a ray whose line's origin may lie far from the quadric.
-    Nearest,
-}
-
-/// The certified roots of the LINE `q + d·t` against the INFINITE
-/// cylinder wall `(origin, axis, radius)` — the quadratic in metres
-/// that the ray lane has solved since M5 PR 9, factored out so the
-/// edge-sweep lane solves the same one.
-///
-/// **Roots, not hits.** Trimming to a face, ordering by advance and
-/// counting them are the RAY's concerns and stay in
-/// [`cast_ray`]; a line-edge span needs both roots, unordered by sign,
-/// and folding them here would have made this the ray's function with
-/// a second caller rather than a shared primitive.
-///
-/// **Both trileans are lengths.**
-///
-/// - **`bool_point_in_solid_denom`**, the axis-parallel rung: `|d⊥|`,
-///   the line's speed off the axis, levered by `span`, the run of the
-///   line's own parameter over which the caller reads roots. Their
-///   product is how far the line drifts off its distance from the axis
-///   over that run. Zero ⇒ it drifts less than the band, so the residual
-///   is constant there and no root lands in the run.
-/// - **`bool_ray_cylinder_disc`**: the discriminant over `|d⊥|²` is
-///   the squared half-chord in the plane across the axis, `r² − p²` for
-///   a line passing `p` from it, and over `2r` it is the depth the line
-///   reaches inside the circle, the sphere arm's form
-///   ([`line_sphere_roots`]). Positive ⇒ two definite roots; Zero ⇒
-///   tangent; Negative ⇒ definite miss.
-///
-/// # Errors
-///
-/// [`WallRootFault`] — an in-band axis-parallel test or an in-band
-/// discriminant, with the rung that escalated. The caller wraps it in
-/// its own error type.
-#[allow(clippy::too_many_arguments)] // the line, the wall, the run and the band, each named
-pub(super) fn line_wall_roots<T: Decide>(
-    line: geom::Line<T>,
-    wall: geom::Line<T>,
-    radius: T,
-    span: T,
-    band: Band,
-    about: About,
-) -> Result<WallRoots<T>, WallRootFault> {
-    let geom::Line { origin: q, dir: d } = line;
-    let geom::Line { origin, dir: axis } = wall;
-    let w0 = q - origin;
-    let w0p = wall.offset(q);
-    let dp = d - axis * d.dot(axis);
-    let a2 = dp.norm_squared();
-    let two_r = T::from_f64(2.0) * radius;
-    match decide(
-        "bool_point_in_solid_denom",
-        Margin::metered(span, geom_core::InfSpeed::new(dp.norm())),
-        band,
-    )
-    .map_err(|diag| WallRootFault {
-        rung: WallRung::AxisParallel,
-        diag,
-    })? {
-        Sign::Positive => {}
-        _ => return Ok(WallRoots::AxisParallel),
-    }
-    // Read from the line's closest approach to the axis, held to the run.
-    let shift = match about {
-        About::Start => T::zero(),
-        About::Nearest => ((T::zero() - w0p.dot(dp)) / a2)
-            .max(T::zero() - span)
-            .min(span),
-    };
-    let w = w0p + dp * shift;
-    let centred = Centred::new(
-        (w0, d, shift, w),
-        [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],
-        radius,
-        T::one(),
-    );
-    let disc = centred.disc();
-    match decide(
-        "bool_ray_cylinder_disc",
-        Margin::over_lever(centred.charged(disc, about) / a2, two_r),
-        band,
-    )
-    .map_err(|diag| WallRootFault {
-        rung: WallRung::Discriminant,
-        diag,
-    })? {
-        Sign::Positive => {}
-        Sign::Zero => return Ok(WallRoots::Tangent),
-        Sign::Negative => return Ok(WallRoots::Miss),
-    }
-    let (roots, slack) = centred.roots(disc);
-    Ok(WallRoots::Two(roots, slack))
-}
-
-/// **A line × quadric quadratic read where the line passes the
-/// quadric**: `a·s² + 2b·s + c` in `s = t − shift`, the line's parameter
-/// moved to `shift` ([`About`]). Read about the line's start, `c` is the
-/// residual there, the square of the start's distance less the body's
-/// own squares: a start `D` out loses `u·D²` of it, which moves a root by
-/// about `u·D²/(2√disc)`, the body's scale squared over a root's
-/// sensitivity (`D = 4·10⁵` m and a unit wall: `10⁻⁵` m). About the
-/// closest approach, `c` is read at the body's own scale, and what the
-/// start's distance leaves is the rounding of the shift itself, linear
-/// in `D` ([`Self::roots`], [`Self::charged`]). The discriminant and the
-/// lead are the same quantities either way, so each margin metered on
-/// them is.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct Centred<T> {
-    /// Where the parameter is read from.
-    pub(super) shift: T,
-    /// `[a, b, c]`.
-    pub(super) coeffs: [T; 3],
-    /// A bound on the lengths the moved residual was formed from:
-    /// `|w₀| + |d|·|shift|`, `w₀` the start's offset from the quadric.
-    far: T,
-    /// The moved offset's length, with the quadric's radius where it
-    /// has one.
-    near: T,
-    /// The residual's gradient against the offset, over `2|w|`: `1` for
-    /// a wall or a sphere, `2` for a cone.
-    gradient: T,
-    /// `|d|`.
-    speed: T,
-}
-
-impl<T: Decide> Centred<T> {
-    /// The quadratic `coeffs`, read `shift` along `d` from a start
-    /// offset `w0` from the quadric, at the moved offset `w` (across the
-    /// axis, for a wall), of a quadric of `radius` (`0` for a cone) whose
-    /// residual's gradient is `gradient·2|w|`.
-    fn new(
-        (w0, d, shift, w): (Vec3<T>, Vec3<T>, T, Vec3<T>),
-        coeffs: [T; 3],
-        radius: T,
-        gradient: T,
-    ) -> Self {
-        Self {
-            shift,
-            coeffs,
-            far: w0.norm() + d.norm() * shift.abs(),
-            near: w.norm() + radius,
-            gradient,
-            speed: d.norm(),
-        }
-    }
-
-    /// `b² − a·c`.
-    pub(super) fn disc(&self) -> T {
-        let [a, b, c] = self.coeffs;
-        b.powi(2) - a * c
-    }
-
-    /// **`disc` held to its rounding from the shift**, for a decision
-    /// on it: moved toward zero by that rounding, and zero within it,
-    /// where the line passes too near tangency for its sign to be read.
-    /// The residual `c` read about the shift is off by
-    /// [`geom_core::rounding_charge`] of `far·gradient·near` (as at a
-    /// root, [`Self::roots`]), and `b` by that of `far·|d|`, so `disc` by
-    /// `|a|` and `2|b|` times them. Read about the start
-    /// ([`About::Start`]) it is the plain `disc`, as it always was.
-    pub(super) fn charged(&self, disc: T, about: About) -> T {
-        if about == About::Start {
-            return disc;
-        }
-        let [a, b, _] = self.coeffs;
-        let e = a.abs() * geom_core::rounding_charge(self.far * self.gradient * self.near)
-            + T::from_f64(2.0) * b.abs() * geom_core::rounding_charge(self.far * self.speed);
-        geom_core::Rounded {
-            value: disc,
-            error: e,
-        }
-        .toward_zero()
-    }
-
-    /// **Both roots in the line's own parameter, and a bound on either's
-    /// rounding there**, for a definitely positive `disc`. The residual
-    /// at a root `s` is read off offsets of length at most `far + |d|·|s|`
-    /// (each rounded by `u` of that), against a gradient of at most
-    /// `2·gradient·(near + |d|·|s|)`: so it is off by at most
-    /// [`geom_core::rounding_charge`] of their product, and the root by
-    /// that over the residual's slope there ([`over_root_slope`]).
-    /// Moving the root back by `shift` rounds it once more.
-    pub(super) fn roots(&self, disc: T) -> ([T; 2], T) {
-        let [a, b, c] = self.coeffs;
-        let roots = quadratic_roots(a, b, c, disc);
-        let s = roots[0].abs().max(roots[1].abs());
-        let run = self.speed * s;
-        let residual =
-            geom_core::rounding_charge((self.far + run) * (self.gradient * (self.near + run)));
-        let slack =
-            over_root_slope(residual, disc) + geom_core::rounding_charge(self.shift.abs() + s);
-        (roots.map(|r| r + self.shift), slack)
-    }
-}
-
-/// **A quadratic's root moved by a residual's error**: `error` over the
-/// residual's slope at the root, `2√disc` for `a·s² + 2b·s + c`. The one
-/// home of a line × quadric root's sensitivity, the ray's
-/// ([`Centred::roots`]) and the edge sweep's cone arm's.
-pub(super) fn over_root_slope<T: Decide>(error: T, disc: T) -> T {
-    error / (T::from_f64(2.0) * disc.sqrt())
-}
-
-/// **Which rung of [`line_wall_roots`] escalated**: the two questions
-/// the line × wall quadratic asks before it has roots. Both margins are
-/// lengths ([`line_wall_roots`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(test, derive(strum::EnumIter))]
-pub enum WallRung {
-    /// Whether the line runs parallel to the wall's axis
-    /// (`bool_point_in_solid_denom`, `|d⊥|` levered by the run the
-    /// caller reads): a positive margin has roots to find, a zero one a
-    /// residual constant over that run.
-    AxisParallel,
-    /// Whether the line crosses the wall, grazes it or misses it
-    /// (`bool_ray_cylinder_disc`, `disc/|d⊥|²` over `2r`).
-    Discriminant,
-}
-
-/// An escalation of [`line_wall_roots`], with the rung that raised it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct WallRootFault {
-    /// The rung that could not decide.
-    pub rung: WallRung,
-    /// Its diagnostics.
-    pub diag: Indeterminate,
-}
-
-/// **The line × cone quadratic**: the cone's quadric form along the
-/// line `q + d·t`, negated, `(w·â)² − |w|²·cos²α = A t² + 2B t + C` with
-/// `w = q + d·t − apex` — `A` in `d`'s units squared, `B` in metres
-/// times them, `C` in m² — read `about` the line's start or its closest
-/// approach to the apex ([`Centred`]). Its zero set is the DOUBLE cone;
-/// which nappe a root lands on is the caller's question.
-/// `A = (d·â)² − |d|²cos²α` vanishes exactly when the line runs parallel
-/// to a generator. Each square straddling zero is a `powi(2)`, the tight
-/// square.
-pub(super) fn line_cone_quadratic<T: Decide>(
-    line: geom::Line<T>,
-    cone: geom::Line<T>,
-    half_angle: T,
-    about: About,
-) -> Centred<T> {
-    let geom::Line { origin: q, dir: d } = line;
-    let geom::Line {
-        origin: apex,
-        dir: axis,
-    } = cone;
-    let w0 = q - apex;
-    let shift = match about {
-        About::Start => T::zero(),
-        About::Nearest => line.param(apex),
-    };
-    let w = w0 + d * shift;
-    let cos2 = half_angle.cos().powi(2);
-    let (da, wa) = (d.dot(axis), w.dot(axis));
-    let coeffs = [
-        da.powi(2) - d.norm_squared() * cos2,
-        da * wa - w.dot(d) * cos2,
-        wa.powi(2) - w.norm_squared() * cos2,
-    ];
-    Centred::new((w0, d, shift, w), coeffs, T::zero(), T::from_f64(2.0))
-}
-
-/// The certified roots of the LINE `q + d·t` against the sphere
-/// `(center, radius)`: `|d|²t² + 2(w·d)t + (|w|² − r²) = 0`, `w = q − c`.
-/// `d` need not be unit — a ray's is, and a `Line` carrier's is by a
-/// convention nothing checks — so the roots are in `d`'s own parameter.
-///
-/// The discriminant is metered as a LENGTH: `disc/|d|²` is the squared
-/// half-chord in metres, so `disc/(|d|²·2r)` is the D4 ¶1-honest
-/// margin, the form [`line_wall_roots`] takes across the axis too.
-///
-/// A line is never parallel to a sphere in the sense a wall's ruling
-/// is, so [`WallRoots::AxisParallel`] is never answered, and no line
-/// lies on a sphere: two distinct roots certify the line is off it.
-///
-/// # Errors
-///
-/// [`geom_core::Indeterminate`] — an in-band discriminant decision the
-/// band cannot call, or a zero-length `d` (no line at all). The caller
-/// wraps it in its own error type.
-pub(super) fn line_sphere_roots<T: Decide>(
-    line: geom::Line<T>,
-    center: Point3<T>,
-    radius: T,
-    band: Band,
-    about: About,
-) -> Result<WallRoots<T>, geom_core::Indeterminate> {
-    let geom::Line { origin: q, dir: d } = line;
-    let w0 = q - center;
-    let a2 = d.norm_squared();
-    let shift = match about {
-        About::Start => T::zero(),
-        About::Nearest => (T::zero() - w0.dot(d)) / a2,
-    };
-    let w = w0 + d * shift;
-    let centred = Centred::new(
-        (w0, d, shift, w),
-        [a2, w.dot(d), w.norm_squared() - radius.powi(2)],
-        radius,
-        T::one(),
-    );
-    let disc = centred.disc();
-    let two_r = T::from_f64(2.0) * radius;
-    match decide(
-        "bool_ray_sphere_disc",
-        Margin::over_lever(centred.charged(disc, about) / a2, two_r),
-        band,
-    )? {
-        Sign::Positive => {}
-        Sign::Zero => return Ok(WallRoots::Tangent),
-        Sign::Negative => return Ok(WallRoots::Miss),
-    }
-    let (roots, slack) = centred.roots(disc);
-    Ok(WallRoots::Two(roots, slack))
-}
-
-/// The certified real roots of the LINE `q + d·t` (with `d` a UNIT
-/// direction) against the torus `(center, axis, R, r)`.
-///
-/// # The quartic, and why its leading coefficient is not a posture
-///
-/// With `w = q − c + d·t`, `h = w·â` and `ρ² = |w|² − h²`, the torus is
-/// the zero set of `F = (|w|² + R² − r²)² − 4R²ρ²`. Substituting the ray
-/// and depressing by `t → y − b` (with `b = (q−c)·d`) gives the DEPRESSED
-/// MONIC quartic `y⁴ + p y² + q̂ y + s` with, writing `u` for the
-/// component of `q − c` perpendicular to `d`, `m = |u|²`, `n = u·â`,
-/// `e = d·â` and `M = m + R² − r²`:
-///
-/// ```text
-/// p = 2M − 4R²(1 − e²)      q̂ = 8R²·e·n      s = M² − 4R²(m − n²)
-/// ```
-///
-/// **The ladder that solves it is [`depressed_quartic_roots`]**, whose
-/// docs state its count, its band and its rungs; what is the RAY's is
-/// stated here. A reader arriving from the cone arm will look for the
-/// vanishing leading coefficient that arm makes a posture of, and there
-/// is none to find: `d` is a unit direction, so the leading coefficient
-/// is `|d|⁴` and the degree cannot drop. At `f64` that is exactly 1; at
-/// the `Interval` scalar it is an enclosure of 1, a few ulps wide, since
-/// `normalize` cannot round to a unit vector exactly — **bounded away
-/// from zero either way**, which is all the monic form needs. The lever
-/// is `ext = R + r`.
-///
-/// What the ray's symmetry alignments degrade is the root structure,
-/// and they land on the ladder's rungs (rows `bool_ray_torus_*`):
-///
-/// * a ray along the axis (`e = ±1`, where `1 − e² = 0` and the `t²`
-///   coefficient loses its `R²` term) and a ray in the midplane
-///   (`n = 0`, `q̂ = 0`) each merge roots for the poses that touch the
-///   tube: rung 1, `bool_ray_torus_disc` Zero. Uncertain count — graze,
-///   retry.
-/// * every axis-parallel ray (`n = 0`) and every midplane ray (`e = 0`)
-///   has `q̂ = 8R²·e·n` zero, the biquadratic arm (rung 2,
-///   `bool_ray_torus_odd`); the four-root ray through the hole is in it.
-/// * a ray all but perpendicular to the axis has a resolvent root
-///   `≈ q̂²/c1` that can fall in rung 3's band (`bool_ray_torus_split_lead`).
-/// * an [`Unsettled::CountDisagrees`] blocks that ray
-///   ([`PointInSolidError::RootCountDisagrees`]) and another may settle.
-///
-/// **So this door refuses over a BAND around a tangency, and the band is
-/// wide.** A caller reading "a tangent ray grazes" will assume a
-/// measure-zero nuisance; it is not, for the same reason the cone arm's
-/// apex refusal is not. Where the band surrounds a feature of the BODY —
-/// the tube's top and bottom circles, whose tangent plane is
-/// perpendicular to the axis — a near-horizontal ray from any point
-/// within a few tenths of a millimetre of that circle on a unit-sized
-/// torus reads in it at the default ε. `point_in_solid` sets such a ray
-/// aside and another answers, so the band leaves no shell about the body
-/// (`bool3_torus_doors::the_clamp_floor_clears_the_shell_about_the_top_circle`).
-///
-/// # Errors
-///
-/// [`RootRefusal::Escalated`] — an in-band classifying sign, which the
-/// caller wraps in its own error type — and [`RootRefusal::Unsettled`],
-/// a count the ladder does not certify.
-pub(super) fn line_torus_roots<T: Decide>(
-    line: geom::Line<T>,
-    torus: geom::Line<T>,
-    major_radius: T,
-    minor_radius: T,
-    band: Band,
-) -> Result<QuarticRoots<T>, RootRefusal> {
-    let geom::Line { origin: q, dir: d } = line;
-    let geom::Line {
-        origin: center,
-        dir: axis,
-    } = torus;
-    let two = T::from_f64(2.0);
-    let four = T::from_f64(4.0);
-    let ext = major_radius + minor_radius;
-    let w0 = q - center;
-    let e = d.dot(axis);
-    let b = w0.dot(d);
-    // The component of `q − c` perpendicular to the ray: its norm is the
-    // line's distance from the centre and its axial part is the height
-    // at the line's closest approach.
-    let perp = w0 - d * b;
-    let m = perp.norm_squared();
-    let n = perp.dot(axis);
-    let rr = major_radius.powi(2);
-    let big_m = m + rr - minor_radius.powi(2);
-    let p = two * big_m - four * rr * (T::one() - e.powi(2));
-    let q_hat = T::from_f64(8.0) * rr * e * n;
-    let s = big_m.powi(2) - four * rr * (m - n.powi(2));
-    match depressed_quartic_roots(p, q_hat, s, ext, &RAY_TORUS_ROWS, band)? {
-        // Undo the depression: `t = y − b`.
-        Roots::Certified(ys) => Ok(Roots::Certified(ys.map(|y| y - b))),
-        Roots::Miss => Ok(Roots::Miss),
-    }
-}
-
-/// The ray × torus lane's rows ([`line_torus_roots`]).
-const RAY_TORUS_ROWS: QuarticRows = geom_brep::rows::RAY_TORUS;
-
 /// **What the torus arm reads off a ray's quartic** ([`line_torus_roots`]):
 /// `None` a certified miss, `Some` the certified crossings. An uncertain
 /// count grazes; a constructed count that disagrees with the certified
@@ -3042,7 +2596,7 @@ pub(crate) struct RayHit<T> {
     /// The rounding a face's crossing read off its carrier is charged:
     /// `pair` orders two crossings only past both. For a plane's
     /// ([`PlaneCross`]) and a wall's, sphere's or cone's root
-    /// ([`Centred::roots`]) it bounds `at`'s rounding to first order. For
+    /// ([`geom_brep::curve_face::line_quadric::Centred::roots`]) it bounds `at`'s rounding to first order. For
     /// a torus's root it is the moving back of the depressed quartic's
     /// root alone: the quartic's own root error is not in it. Zero for an
     /// edge's passage, which its span holds, and for a mark.
@@ -5696,242 +5250,6 @@ mod pair_margin_rows {
             near.pair_as(&body, &same, "bool_point_in_solid_order", band)
                 .is_ok(),
             "one face's two crossings within each other's slack are summed"
-        );
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::panic)]
-mod wall_root_rows {
-    //! [`line_wall_roots`]' two rungs are lengths: the axis-parallel
-    //! rung reads the line's drift off its distance from the axis over
-    //! the run its caller reads, so a wall's size does not decide it.
-
-    use super::*;
-    use geom_core::{Band, Tol};
-
-    fn band() -> Band {
-        Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("the witness band: {e:?}"))
-    }
-
-    /// The roots of the line `q + d·t` on the wall of radius `r` about
-    /// the `z` axis, over a run of `span`.
-    fn roots(q: Point3<f64>, d: Vec3<f64>, r: f64, span: f64) -> WallRoots<f64> {
-        let z = Vec3::new(0.0, 0.0, 1.0);
-        line_wall_roots(
-            geom::Line { origin: q, dir: d },
-            geom::Line {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                dir: z,
-            },
-            r,
-            span,
-            band(),
-            About::Start,
-        )
-        .unwrap_or_else(|f| panic!("the rungs decide: {f:?}"))
-    }
-
-    /// **A ray straight across a wide wall's axis has its two roots.**
-    /// The radius is `1/ε`, so the retired `|d⊥|²/2r` read `ε/2` here,
-    /// in the zero band, and the wall arm skipped every ray of the
-    /// schedule: a point on the axis of a rod that wide read `Out`
-    /// (a scaled oblique rod at ε = 1e-6).
-    #[test]
-    fn a_ray_across_a_wide_walls_axis_has_both_roots() {
-        let r = 1.0 / Tol::witness().eps();
-        let got = roots(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            r,
-            4.0 * r,
-        );
-        let WallRoots::Two([t0, t1], _) = got else {
-            panic!("both roots: {got:?}");
-        };
-        assert!(
-            (t0 + r).abs() <= r * 1e-15 && (t1 - r).abs() <= r * 1e-15,
-            "the roots are the radius either side: {t0}, {t1}"
-        );
-    }
-
-    /// **A near-axis ray's in-span exit root is right to its row's ε.**
-    /// Each line runs all but parallel to the axis, so the lead
-    /// `|d⊥|²` is tiny, and its exit root's numerator `−b + √disc`
-    /// cancels: spelled that way, the root is off by `1.1e-11` (against
-    /// ε = 1e-12) and `8.4e-8` (against ε = 1e-9), where
-    /// [`quadratic_roots`]' `c/(−b − √disc)` is off by `4.5e-14` and
-    /// `4.5e-11`. Each expected root is the exact root of the row's own
-    /// `f64` data, rounded once.
-    #[test]
-    fn a_near_axis_rays_exit_root_is_right_to_the_band() {
-        let tol = Tol::witness();
-        let z = Vec3::new(0.0, 0.0, 1.0);
-        let rows = [
-            // ε, radius, q, d⊥, span, the exit root
-            (
-                1e-12,
-                0.5,
-                (0.484_375, 0.0625),
-                (2f64.powi(-18), 2f64.powi(-19)),
-                4096.0,
-                2_878.535_214_595_601,
-            ),
-            (1e-9, 1e3, (999.0, 0.0), (1e-6, 0.0), 2e6, 1e6),
-        ];
-        let mut off = Vec::new();
-        for (eps, r, (qx, qy), (dx, dy), span, exit) in rows {
-            let band =
-                Band::linear_at(tol, eps).unwrap_or_else(|e| panic!("the band at {eps}: {e:?}"));
-            let d = Vec3::new(dx, dy, (1.0 - dx * dx - dy * dy).sqrt());
-            for about in [About::Start, About::Nearest] {
-                let got = line_wall_roots(
-                    geom::Line {
-                        origin: Point3::new(qx, qy, 0.0),
-                        dir: d,
-                    },
-                    geom::Line {
-                        origin: Point3::new(0.0, 0.0, 0.0),
-                        dir: z,
-                    },
-                    r,
-                    span,
-                    band,
-                    about,
-                )
-                .unwrap_or_else(|f| panic!("the rungs decide at {eps}: {f:?}"));
-                let WallRoots::Two([_, t1], _) = got else {
-                    panic!("both roots at {eps}, {about:?}: {got:?}");
-                };
-                if (t1 - exit).abs() > eps {
-                    off.push(format!(
-                        "at ε = {eps}, {about:?}: {t1} against {exit}, off by {:e}",
-                        (t1 - exit).abs()
-                    ));
-                }
-            }
-        }
-        assert!(off.is_empty(), "the exit roots: {off:?}");
-    }
-
-    /// **A ray started far from a thin wall keeps its roots.** A ray
-    /// `D` out from the axis of a wall of radius `r`, across it `x0` off
-    /// the axis, crosses it at `D ∓ √(r² − x0²)`. Read about the ray's
-    /// start, the residual `D² + x0² − r²` loses `u·D²` against `r²`:
-    /// the duplicate row's unit wall `4·10⁵` m out lost `10⁻⁵` m of its
-    /// root, and a 1 mm wall 2 km out loses `10⁻⁷` m. Read about the
-    /// closest approach, each is right to `10⁻¹²` m, and the slack holds
-    /// the error that is left, linear in the start's distance.
-    #[test]
-    fn a_ray_from_far_keeps_a_walls_roots() {
-        for (big, r, x0) in [(4e5, 1.0_f64, 0.6), (2e3, 1e-3, 6e-4)] {
-            let half = (r * r - x0 * x0).sqrt();
-            let (q, d) = (Point3::new(x0, -big, 0.3), Vec3::new(0.0, 1.0, 0.0));
-            let z = Vec3::new(0.0, 0.0, 1.0);
-            let o = Point3::new(0.0, 0.0, 0.0);
-            let read = |about| {
-                line_wall_roots(
-                    geom::Line { origin: q, dir: d },
-                    geom::Line { origin: o, dir: z },
-                    r,
-                    4.0 * big,
-                    band(),
-                    about,
-                )
-            };
-            let Ok(WallRoots::Two([s0, s1], _)) = read(About::Start) else {
-                panic!("both roots {big} out, read about the start");
-            };
-            let start_off = (s0 - (big - half)).abs().max((s1 - (big + half)).abs());
-            assert!(
-                start_off > 1e-8,
-                "{big} out, read about the start, the roots lose {start_off:e}"
-            );
-            let got = read(About::Nearest);
-            let Ok(WallRoots::Two([t0, t1], slack)) = got else {
-                panic!("both roots {big} out: {got:?}");
-            };
-            let off = (t0 - (big - half)).abs().max((t1 - (big + half)).abs());
-            assert!(
-                off <= 1e-12 && off <= slack && slack <= 1e-13 * big,
-                "{big} out: the roots {t0}, {t1} are off by {off:e}, the slack {slack:e}"
-            );
-        }
-    }
-
-    /// **The sphere's and the cone's quadratics keep their roots from
-    /// far too**: a 1 mm ball 2 km out, and the right cone about `z`
-    /// (`x² + y² = z²`) crossed at height 1, `x0 = 0.6` off its axis,
-    /// `4·10⁵` m out.
-    #[test]
-    fn a_ray_from_far_keeps_a_spheres_and_a_cones_roots() {
-        let d = Vec3::new(0.0, 1.0, 0.0);
-        let (big, r, x0) = (2e3, 1e-3_f64, 6e-4);
-        let half = (r * r - x0 * x0).sqrt();
-        let got = line_sphere_roots(
-            geom::Line {
-                origin: Point3::new(x0, -big, 0.0),
-                dir: d,
-            },
-            Point3::new(0.0, 0.0, 0.0),
-            r,
-            band(),
-            About::Nearest,
-        )
-        .unwrap_or_else(|e| panic!("the sphere's disc decides: {e:?}"));
-        let WallRoots::Two([t0, t1], slack) = got else {
-            panic!("both of the sphere's roots: {got:?}");
-        };
-        let off = (t0 - (big - half)).abs().max((t1 - (big + half)).abs());
-        assert!(
-            off <= 1e-12 && off <= slack && slack <= 1e-13 * big,
-            "the sphere's roots {t0}, {t1} are off by {off:e}, the slack {slack:e}"
-        );
-        let big = 4e5;
-        let half = (1.0 - 0.36_f64).sqrt();
-        let cone = line_cone_quadratic(
-            geom::Line {
-                origin: Point3::new(0.6, -big, 1.0),
-                dir: d,
-            },
-            geom::Line {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
-            },
-            core::f64::consts::FRAC_PI_4,
-            About::Nearest,
-        );
-        let (ts, slack) = cone.roots(cone.disc());
-        let (t0, t1) = (ts[0].min(ts[1]), ts[0].max(ts[1]));
-        let off = (t0 - (big - half)).abs().max((t1 - (big + half)).abs());
-        assert!(
-            off <= 1e-12 && off <= slack && slack <= 1e-13 * big,
-            "the cone's roots {t0}, {t1} are off by {off:e}, the slack {slack:e}"
-        );
-    }
-
-    /// **The axis-parallel rung reads the drift over the run.** A ray
-    /// from the axis of a unit wall, tilted off it so that over a unit
-    /// run it drifts `ε/4` from the axis, stays inside the band there and
-    /// is axis-parallel; tilted to drift `4Kε`, it is not, and has its
-    /// roots far beyond the run.
-    #[test]
-    fn the_axis_parallel_rung_reads_the_drift_over_the_run() {
-        let tol = Tol::witness();
-        let ray = |drift: f64| Vec3::new(drift, 0.0, 1.0).normalize();
-        let q = Point3::new(0.0, 0.0, 0.0);
-        let near = roots(q, ray(tol.eps() / 4.0), 1.0, 1.0);
-        assert!(
-            matches!(near, WallRoots::AxisParallel),
-            "a drift of ε/4 over the run: {near:?}"
-        );
-        let clear = roots(q, ray(4.0 * tol.k() * tol.eps()), 1.0, 1.0);
-        let WallRoots::Two([t0, t1], _) = clear else {
-            panic!("a drift of 4Kε over the run has roots: {clear:?}");
-        };
-        assert!(
-            t0 < -1.0 && t1 > 1.0,
-            "the roots lie beyond the unit run: {t0}, {t1}"
         );
     }
 }

@@ -28,7 +28,7 @@
 //! Two members are NOT refused by the guard, and each is rowed for what
 //! answers instead: a slit bounded by two COINCIDENT edges satisfies the
 //! premise and still walks to zero width
-//! (`work/tesswalk/two-coincident-edges-open-two-columns-that-are-one.md`),
+//! (`work/tesslie/two-coincident-edges-open-two-columns-that-are-one.md`),
 //! and the sphere cut along a whole great circle is taken by a door in
 //! front of the walk. The second one first:
 //!
@@ -379,7 +379,7 @@ fn the_one_seam_sphere_meshes_as_the_wrap_strip() {
 /// `u_raw` bitwise would do it and would need no ε, but it is a
 /// coordinate comparison and not the loop's incidence, so it is not this
 /// guard's shape. Rowed and filed:
-/// `work/tesswalk/two-coincident-edges-open-two-columns-that-are-one.md`.
+/// `work/tesslie/two-coincident-edges-open-two-columns-that-are-one.md`.
 ///
 /// The cylinder twin is NOT in this state: with no pole, both junctions
 /// are continuations, the loop opens one iso side, and the guard refuses

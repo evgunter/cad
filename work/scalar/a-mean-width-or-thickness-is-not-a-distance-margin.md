@@ -4,6 +4,8 @@ kind: issue
 title: Margins metered as a mean width (2A/P) or mean thickness (V/A) are not distances within which a point is right to ε
 status: open
 opened: 2026-10-16
+priority: P2
+cost: H
 ---
 
 

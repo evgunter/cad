@@ -46,7 +46,7 @@ against `work/view/` on this tree: **26 citations are stale, in 13
 files across 5 crates**, and only 6 still resolve. This is not one
 rotted path; it is the 2026-09-17 re-scope's `git mv`s and the
 `props` cut leaving every in-tree pointer behind. The class has its own
-row, `work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`,
+row, `work/chrome/crates-cite-work-view-rows-that-moved-in-the-rescope`,
 with the full hit list. This row is the one instance on VSEAM's ground,
 kept separate because the instance is a live pointer in a doc comment
 that states a rule a census just ruled against.
