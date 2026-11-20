@@ -31,7 +31,6 @@
 
 use core::f64::consts::PI;
 
-use geom_brep::props::PropsError;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, test_support::bulge_loop};
 use sweep::test_support::{sketch_from_axes, tube_frame};
