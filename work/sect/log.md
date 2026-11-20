@@ -480,3 +480,4 @@ two Opus reviewers recorded nowhere but here.
   `sect/closed-edge-on-torus`. The cylinder and cone halves build
   (SPLITDOOR, 2026-10-29); the torus straddle and the disc on a torus
   parallel are re-measured first. Tier: **single FULL**.
+- 2026-11-20 — The closed-edge lane measured the torus and stopped on a design question: an off-equator parallel lying in a half-tube face refuses `SingleSiteSectionLoop` (`RimSide::of(Torus)` is None; the crossing layer already takes it), and the plane/sphere siding premise (the conic's plane meets the surface in the conic alone) fails on a torus. Two Opus designers dispatched on the problem statement (how and at what layer an in-face closed edge is sided), no options handed; the lane holds and meanwhile files its residue (a plane tangent to a torus along a parallel at `vtxfac.rs` `unglued_flat_sector`; torus ∖ an off-top disc `EdgeInFace{gap: Curved}`).
