@@ -278,7 +278,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
                 let placed = match stance {
                     CcStance::Parallel { .. } => RegionPlacement::Straddles,
                     CcStance::Crossing { .. } => placement(
-                        ExtentBall::of_cylinders_crossing([a, b], reach),
+                        ExtentBall::of_cylinders_crossing(lines, [r1, r2], reach),
                         region,
                         band,
                     ),

@@ -364,52 +364,26 @@ impl<T: Real> ExtentBall<T> {
         Self::new(center, radius)
     }
 
-    /// **The ball holding two cylinders' crossing**, the meet of the
-    /// walls `first` and `second`, whose axes are decided to cross: with
-    /// radii `r₁`, `r₂`, the axes' sine `sin` and their common
-    /// perpendicular `gap` long from `foot` along the unit `normal`
-    /// ([`Reach::common_perpendicular`], read at `reach`'s pivots), a
-    /// point within `r₁` of the first axis and `r₂` of the second stands
-    /// within `(r₁ + r₂)/sin` of the perpendicular's midpoint across it,
-    /// and within `min r + |gap|/2` along it. Poison where either
-    /// surface is no cylinder.
+    /// **The ball holding two cylinders' crossing**, the meet of two
+    /// walls about the axes `l1` and `l2` (each direction unit), decided
+    /// to cross, with radii `r₁` and `r₂`: with the axes' sine `sin` and
+    /// their common perpendicular `gap` long from `foot` along the unit
+    /// `normal` ([`Reach::common_perpendicular`], read at `reach`'s
+    /// pivots), a point within `r₁` of the first axis and `r₂` of the
+    /// second stands within `(r₁ + r₂)/sin` of the perpendicular's
+    /// midpoint across it, and within `min r + |gap|/2` along it.
     #[must_use]
     pub(crate) fn of_cylinders_crossing(
-        [first, second]: [&geom::Surface<T>; 2],
+        [l1, l2]: [Line<T>; 2],
+        [r1, r2]: [T; 2],
         reach: &Reach<T>,
     ) -> Self {
-        let (
-            &geom::Surface::Cylinder {
-                origin: o1,
-                axis: a1,
-                radius: r1,
-                ..
-            },
-            &geom::Surface::Cylinder {
-                origin: o2,
-                axis: a2,
-                radius: r2,
-                ..
-            },
-        ) = (first, second)
-        else {
-            return Self::of_covered(None);
-        };
         let CommonPerpendicular {
             foot,
             normal,
             sin,
             gap,
-        } = reach.common_perpendicular(
-            Line {
-                origin: o1,
-                dir: a1,
-            },
-            Line {
-                origin: o2,
-                dir: a2,
-            },
-        );
+        } = reach.common_perpendicular(l1, l2);
         let half = T::from_f64(0.5);
         let across = (r1 + r2) / sin;
         let along = r1.min(r2) + gap.abs() * half;
@@ -1082,23 +1056,14 @@ impl<T: Real> Reach<T> {
         (foot, lever)
     }
 
-    /// **The farthest a consumed point of `cone` stands from its apex
-    /// along a generator**: the reach's window along the cone's unit
-    /// axis from the apex ([`Self::range_along`]; the axis is the stored
-    /// frame's, squared, [`geom::Frame::square`]), its larger end over
-    /// the half-angle's cosine. Poison where `cone` is no cone.
+    /// **The farthest a consumed point of a cone stands from its apex
+    /// along a generator**, for the cone about `axis` (its origin the
+    /// apex, its direction unit) of half-angle `half_angle`: the reach's
+    /// window along the axis from the apex ([`Self::range_along`]), its
+    /// larger end over the half-angle's cosine.
     #[must_use]
-    pub(crate) fn cone_generator_lever(&self, cone: &geom::Surface<T>) -> Lever<T> {
-        let (
-            &geom::Surface::Cone {
-                apex, half_angle, ..
-            },
-            Some(frame),
-        ) = (cone, cone.frame())
-        else {
-            return Lever::of_consumed_extent(poison());
-        };
-        let (lo, hi) = self.range_along(apex, frame.square().axis);
+    pub(crate) fn cone_generator_lever(&self, axis: Line<T>, half_angle: T) -> Lever<T> {
+        let (lo, hi) = self.range_along(axis.origin, axis.dir);
         Lever::of_consumed_extent(lo.abs().max(hi.abs()) / half_angle.sin_cos().1)
     }
 
@@ -2053,7 +2018,6 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod geometry_door_rows {
     use super::*;
-    use geom::Surface;
 
     const X: Vec3<f64> = Vec3::new(1.0, 0.0, 0.0);
     const Y: Vec3<f64> = Vec3::new(0.0, 1.0, 0.0);
@@ -2061,20 +2025,6 @@ mod geometry_door_rows {
 
     fn segment(a: Point3<f64>, b: Point3<f64>) -> Reach<f64> {
         Reach::Region(Cover::segment(a, b).expect("a segment's cover"))
-    }
-
-    fn cylinder(
-        origin: Point3<f64>,
-        axis: Vec3<f64>,
-        u_ref: Vec3<f64>,
-        radius: f64,
-    ) -> Surface<f64> {
-        Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            radius,
-        }
     }
 
     /// **A ball's lever from two pivots is its reach from the farther**,
@@ -2136,22 +2086,17 @@ mod geometry_door_rows {
     /// consumed points stand 7 to 9 along the axis from the apex, so no
     /// farther than `9/cos 0.4` along a generator. Red against a window
     /// read from the world origin (`3/cos`), against the window's near
-    /// end (`7/cos`), and against the cosine dropped. A surface that is
-    /// no cone reads poison.
+    /// end (`7/cos`), and against the cosine dropped.
     #[test]
     fn a_cones_generator_lever_is_read_from_its_apex() {
-        let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 10.0),
-            axis: -Z,
-            half_angle: 0.4,
-            u_ref: X,
+        let axis = Line {
+            origin: Point3::new(0.0, 0.0, 10.0),
+            dir: -Z,
         };
         let reach = segment(Point3::new(0.5, 0.0, 1.0), Point3::new(0.5, 0.0, 3.0));
-        let lever = reach.cone_generator_lever(&cone).length();
+        let lever = reach.cone_generator_lever(axis, 0.4).length();
         let want = 9.0 / 0.4_f64.cos();
         assert!((lever - want).abs() < 1e-12, "{lever} against {want}");
-        let wall = cylinder(Point3::origin(), Z, X, 1.0);
-        assert!(reach.cone_generator_lever(&wall).length().is_nan());
     }
 
     /// **Two crossing cylinders' ball is the pair's, whatever reach it is
@@ -2165,45 +2110,32 @@ mod geometry_door_rows {
     /// perpendicular.
     #[test]
     fn two_crossing_cylinders_ball_does_not_move_with_the_reach() {
-        let first = cylinder(Point3::new(-7.0, 0.0, 0.0), X, Y, 1.0);
-        let second = cylinder(Point3::new(0.0, 9.0, 3.0), Y, Z, 2.0);
+        let axes = [
+            Line {
+                origin: Point3::new(-7.0, 0.0, 0.0),
+                dir: X,
+            },
+            Line {
+                origin: Point3::new(0.0, 9.0, 3.0),
+                dir: Y,
+            },
+        ];
         let want_r = (3.0_f64.powi(2) + 2.5_f64.powi(2)).sqrt();
         for reach in [
             segment(Point3::new(-1.0, 0.0, 1.0), Point3::new(1.0, 1.0, 2.0)),
             segment(Point3::new(40.0, 0.0, 1.0), Point3::new(41.0, 1.0, 1.0)),
         ] {
-            let ball = ExtentBall::of_cylinders_crossing([&first, &second], &reach);
+            let ball = ExtentBall::of_cylinders_crossing(axes, [1.0, 2.0], &reach);
             assert!(
                 (ball.center() - Point3::new(0.0, 0.0, 1.5)).norm() < 1e-12,
                 "{:?}",
                 ball.center()
             );
             assert!((ball.radius() - want_r).abs() < 1e-12, "{}", ball.radius());
-            let perp = reach.common_perpendicular(
-                Line {
-                    origin: Point3::new(-7.0, 0.0, 0.0),
-                    dir: X,
-                },
-                Line {
-                    origin: Point3::new(0.0, 9.0, 3.0),
-                    dir: Y,
-                },
-            );
+            let perp = reach.common_perpendicular(axes[0], axes[1]);
             assert!((perp.foot - Point3::origin()).norm() < 1e-12);
             assert!((perp.gap - 3.0).abs() < 1e-12 && (perp.sin - 1.0).abs() < 1e-12);
         }
-        let reach = segment(Point3::origin(), Point3::new(1.0, 0.0, 0.0));
-        let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Z,
-            u_ref: X,
-        };
-        assert!(
-            ExtentBall::of_cylinders_crossing([&first, &plane], &reach)
-                .readable()
-                .is_none(),
-            "a pair that is not two cylinders has no crossing ball"
-        );
     }
 
     /// **A cover's diameter is read from above**: a segment's box

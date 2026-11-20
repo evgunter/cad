@@ -118,12 +118,14 @@ Converted, by what the site reads now:
 - `carrier_eq::at_consumed_extent` and `reading` (3): `ExtentBall::lever_from_either(p, q)`, the ball's reach from the farther of the two pivots the datum is read between (two cones' apexes; a point of the second axis and its foot on the first). Shorter than the widened reach wherever the pivots stand apart.
 - `dihedral::seam_face_reading`: `chart_curvature_arm(lane, chart, p, reach)` in the curvature home. `classify_seam` takes the scalar's certification lane (`Option<NurbsLane<T>>`) in place of a closure, so the wrapper `classify_seam(.., chart_arm, ..)` in the list above is gone too; topo's scalar policy gained `nurbs_lane()`. Same bits.
 - `intersect::ruled_frame`: `Reach::ruled_pivot_lever(&PlaneCylinder)`, which returns the pivot with its lever. Same bits.
-- `intersect::pair_bound`: `Reach::cone_generator_lever(&cone)`. Same bits.
-- `pair_section::cylinders::decide_stance`: `ExtentBall::of_cylinders_crossing([&first, &second], &reach)`, called where the pose holds both surfaces; the common perpendicular has one reader, `Reach::common_perpendicular`. Same bits.
+- `intersect::pair_bound`: `Reach::cone_generator_lever(axis, half_angle)`, the cone's axis as a `Line` from its apex and its half-angle; the door reads the window and takes the cosine. Same bits.
+- `pair_section::cylinders::decide_stance`: `ExtentBall::of_cylinders_crossing(lines, radii, &reach)`, the pose's two axis `Line`s and radii; the door reads the common perpendicular itself, which has one reader, `Reach::common_perpendicular`. Same bits.
 - `pair_section::cylinders::region_span`, `bisector_nodes`, `cylinder_cylinder` (3): no ball is built; a point is placed against the region by `point_placement`, the arithmetic `placement` has with no radius. Same bits.
 - `props::curved::cone_boundary`: `uniform_curvature_arm(cone)`. **A correction to the line above**: the lever built there was never read. A cone's rim levels are lengths (`RimLevel::Length`), and `RimArms::level` is read for `Unit` levels only; the rim radius is read as the azimuth's rate, a `T`, which stays. The level arm is now the cone's own answer with no point to read at, poison.
 - `step_import::reach::Reach::lever`: `geom_brep::cover_diameter(&cover)`. Same bits.
 - `step_import::build::faces_reach` (2): gone; `choose` reads `Reach::of(solid, [plus, minus]).lever()`, the two faces' region, where it read the box about their vertices. Longer in 22% of the suite's reads, by up to 83 times, where a face runs past its vertices. A pair of faces with no region refuses.
+
+The last two take the carriers' axes and sizes as the lane's pose holds them, as `ruled_pivot_lever` takes a `PlaneCylinder`, and not a `Surface`: a `Surface` kind matched in the extent home to build a ball or a reach is a region read outside the cover, which `scripts/gates/cover-kind-match.sh` holds at its pin. Read as covers (`Cover::cone` within the reach; a cover of two walls' meet) they would be different readings, and nobody has chosen those.
 
 Left:
 

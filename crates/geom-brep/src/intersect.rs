@@ -2428,7 +2428,7 @@ pub fn plane_cone_section<T: Decide>(
                 PN_APEX_PAIR_REACH,
                 pair_bound(
                     reach,
-                    cone,
+                    half_angle,
                     (apex, a, cos_a, sin_a, seam_width),
                     (discr, steep, s),
                     (apex_gap, gap_err),
@@ -2654,7 +2654,7 @@ pub fn plane_cone_section<T: Decide>(
 #[allow(clippy::many_single_char_names)] // the derivation's own symbols
 fn pair_bound<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
-    cone: &Surface<T>,
+    half_angle: T,
     (apex, a, cos_a, sin_a, seam_width): (Point3<T>, Vec3<T>, T, T, T),
     (d, m, s): (T, T, T),
     (gap, gap_err): (T, T),
@@ -2705,7 +2705,13 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
         + T::from_f64(4.0);
     let azimuth = Margin::levered(
         T::from_f64(0.5 * f64::EPSILON) * turn,
-        reach.cone_generator_lever(cone),
+        reach.cone_generator_lever(
+            geom::Line {
+                origin: apex,
+                dir: a,
+            },
+            half_angle,
+        ),
     )
     .value();
     Margin::of(far.min(start + offset) + azimuth)
