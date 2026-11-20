@@ -50,3 +50,13 @@ quadric first reads wrong, at which ε, and through which door.
 
 P3 by `work/README.md` Priority (latent unsoundness, on the conic's
 measured precedent); the probe may raise it.
+
+**Where to look first (the FULL review of PR 7146, 2026-11-20, likely).**
+The same cancellation, two terms of a far datum's size summing to a
+small one, was found in three places by that unit: the split's section
+area (fixed there), `geom_brep::extent`'s fold
+(`the-extent-folds-sagitta-is-read-as-r-times-one-less-cos`) and
+`props::curved`'s cylinder face
+(`work/boxfinish/a-cylinder-faces-flux-sums-two-terms-of-its-far-axis-origins-size.md`).
+The reviewer names the cone, sphere and torus lanes of
+`props/curved.rs` and `props/quad/rotational` as the next to read.
