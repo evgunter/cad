@@ -266,3 +266,12 @@ body has the reasons):
   The awkward case is an un-swept profile on a face, which nothing
   carries. That changed the orchestrator's lean on residue 2: count the
   profile's loops as carried. The PR waits on Ev's answer to that.
+- 2026-11-20 02:45 — **Ev on `[ev]` 7129:** asked how the existing
+  "where" differs from `Parted`'s. Answered on the PR:
+  - `PredicateFlip` names a decision that came out with the other sign,
+    which is a cause;
+  - `Parted` names the query whose candidate list differed, which is the
+    point where the runs stopped being comparable, not a cause;
+  - today such edits fall to `GroupResized`, a count of the result.
+
+  Waiting on Ev.
