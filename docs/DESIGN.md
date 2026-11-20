@@ -270,6 +270,7 @@ of them is a defect.
 | f64 rounding, a verdict's lever arm, and the extent it is consumed over | `crates/geom-core/README.md`, "Float rounding" | [simple.conditioned] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
+| A number told to a person | the told quantity a payload field holds; no sentence formats a scalar | [units.told] |
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
@@ -2039,6 +2040,45 @@ quantity. A value crossing into a document carries the unit it was
 written in, never a bare number — which is why a GUI creation op mints
 a free variable carrying the written unit ([variables]), and what `quantity::WrittenLength`/`WrittenAngle` are the
 library spelling of.
+
+### A number told to a person `[units.told]`
+
+*From:* [loud-failure], [unrepresentable], [one-way].
+
+**A number a sentence quotes is a told quantity, and the told quantity
+says it.** A refusal, a recourse or a readout never formats a scalar
+itself. The payload field that carries the number is one opaque type
+in `geom-core`, built where the payload is built, while the scalar is
+in hand. It holds the *reading* (a value, an enclosure, or unreadable),
+the *dimension* (length, angle, dimensionless) and the *role*, and it
+renders the number and its unit word. It offers no arithmetic, no
+ordering and no way to read a computed number back, so nothing decides
+on a payload ([verdicts]). A refusal type declares no bare `f64` or `T`
+field.
+
+The role is where the number came from, and it fixes how the number is
+spelled:
+
+| Role | What the person reads |
+|---|---|
+| **Given**: the caller's or the file's own number | exactly what was received: the shortest digits that read back |
+| **Computed** length | the shortest spelling within the finer of ε/10 and four significant figures, and never finer than the spacing of adjacent floats at that value |
+| **Computed** angle or ratio | four significant figures; ε is a length and caps neither ([tolerance.epsilon]) |
+| **Compared**: two numbers whose order the sentence states, or a reading beside its own threshold | each to the first precision at which they read in the stated order |
+| **Offered**: a bound the person is asked to type back | the shortest spelling on the computed grid that lies on the side that works when typed |
+
+An enclosure reads `[lo, hi]` with each end rounded outward, a scalar
+that is not an `f64` reads as its value or its enclosure, and a zero of
+either sign reads `0`. Text that must be exact (an editable field, a
+serialized form a content key hashes, a dump) is not told text and is
+spelled exactly.
+
+**A refusal is said in the notation of whoever reads it.** Its
+rendering takes a notation, and `Display` is that rendering in metres
+and radians; the GUI passes the working notation, so a person working
+in millimetres reads a refusal in millimetres beside fields that show
+millimetres. The tolerance is set in metres, and a recourse that names
+it says it in metres.
 
 ## Failure, determinism and engineering
 
