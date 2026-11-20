@@ -310,6 +310,7 @@ use geom::Surface;
 use geom_brep::{OutwardNormal, Pcurve, PolygonOrientation};
 use geom_core::Point3;
 use geom_core::period::Period;
+use geom_core::predicate::{Band, Margin};
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::pcurves::{FaceLift, Lift};
@@ -549,11 +550,13 @@ pub(crate) fn tessellate_trimmed(
             // The other half of #678's shape on the cylinder, checked
             // where the count is: the fan needs ONE interior column
             // between two boundary entries that share a mesh vertex,
-            // which is `nu == 2`. A cylinder has no singular point, so
-            // after `one_location_per_branch` a repeated id at two
-            // DISTINCT UVs is one vertex on two branches a whole turn
-            // apart: `u1 - u0` is at least 2π against an `hu` the sagitta
-            // cap holds at ≤ π/4, so `nu >= 8` and the two never meet.
+            // which is `nu == 2`. A cylinder has no singular point, and
+            // `one_location_per_branch` holds each vertex at one UV per
+            // branch, so a repeated id at two DISTINCT UVs is one vertex
+            // on two branches, a whole turn apart (or, where no mark
+            // decided its branch, at a half-period mark): `u1 - u0` is
+            // at least π against an `hu` the sagitta cap holds at ≤ π/4,
+            // so `nu >= 4` and the two never meet.
             debug_assert!(
                 !matches!(a.kind(), Analytic::Cylinder { .. })
                     || nu != 2
@@ -1061,10 +1064,11 @@ impl TrimmedFace<'_> {
         // incident to a vertex this walk placed at two distinct UV
         // locations, used more than twice inside ONE patch, is the
         // non-manifold state the duplicate-id drop in `emit` is claimed
-        // never to produce. This lane's sources of such a vertex are a
-        // full-2π seam's double traversal (a vertex met again on one
-        // branch is one location, `one_location_per_branch`) and a
-        // singular point's copies — the sphere's and the spindle's pole sides, and the
+        // never to produce. On an analytic chart this lane's sources of
+        // such a vertex are one vertex on two branches, a seam's double
+        // traversal (on one branch it is one location,
+        // `one_location_per_branch`; a spline chart's entries are read
+        // as walked), and a singular point's copies — the sphere's and the spindle's pole sides, and the
         // cone's apex, which its development holds as one CDT vertex, so
         // its fan's edges are used twice at most — so on every other face
         // the set is empty and the census returns on one branch.
@@ -1123,7 +1127,8 @@ impl TrimmedFace<'_> {
         // floored points, so two inputs share a vertex exactly when they
         // are one UV location ([`crate::cdt::ids_at_two_uvs`]'s reading):
         // a pinch's vertices, or a vertex the walk meets again on one
-        // branch (`one_location_per_branch`). The
+        // branch, which `one_location_per_branch` puts at its first
+        // entry's UV on that branch. The
         // development rounds, and puts every copy of the apex at one
         // point on purpose: there the copies of the singular vertex share
         // one, and so do the points of a run ([`Run`]), which enters the
@@ -2417,18 +2422,20 @@ fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
 }
 
 /// **A vertex the walk meets again on one chart branch is one UV
-/// location**: each later entry of a mesh id whose every angle channel
-/// names its first entry's copy ([`Period::near`] renames it by no
-/// whole period) takes the first entry's `(u, v)`, bit for bit. A
-/// length channel has one copy. The polygon reads each entry off its
+/// location**: each entry of a mesh id takes the `(u, v)` of that id's
+/// first entry on its branch, bit for bit. Its branch is the whole
+/// number of periods, per angle channel, between it and the id's first
+/// entry, decided by [`Period::decide`] at the half-period marks; a
+/// length channel has one branch. The polygon reads each entry off its
 /// own traversal's pcurve, and two images of one vertex agree only to
-/// rounding; pinned, the CDT holds the vertex as one handle, the
-/// boundary pinch [`Pinches`] meshes. So a mesh id at two UV locations
-/// is a singular vertex's copies or one vertex on two branches, a
-/// whole turn apart.
+/// rounding; pinned, the CDT holds the vertex as one handle per branch,
+/// the boundary pinch [`Pinches`] meshes. So a mesh id at two UV
+/// locations is a singular vertex's copies or one vertex on two
+/// branches, a whole period apart.
 ///
-/// A spline chart (`periods` `None`) is read as walked: its periods are
-/// its knot domains' and are decided at a band, which this pass has not.
+/// An entry whose branch no mark decides is read as walked, as is every
+/// entry on a spline chart (`periods` `None`): its periods are its knot
+/// domains' and are decided at a band, which this pass has not.
 fn one_location_per_branch(
     mut trim: TrimPolygon,
     periods: Option<geom::AnglePeriods<f64>>,
@@ -2437,17 +2444,23 @@ fn one_location_per_branch(
     let Some((pu, pv)) = periods else {
         return trim;
     };
-    #[allow(clippy::float_cmp)] // `near` answers `t` itself, bit for bit, on its own copy
-    let own_copy =
-        |p: Option<Period<f64>>, t: f64, first: f64| p.is_none_or(|p| p.near(t, first) == t);
+    let branch = |p: Option<Period<f64>>, t: f64, first: f64| match p {
+        None => Some(0),
+        Some(p) => p
+            .decide("trim_vertex_branch", first - t, Margin::of, Band::least())
+            .ok(),
+    };
     let mut first: HashMap<u32, (f64, f64)> = HashMap::new();
+    let mut located: HashMap<(u32, i32, i32), (f64, f64)> = HashMap::new();
     for point in &mut trim.points {
         if singular.contains(&point.2) {
             continue;
         }
         let (u, v) = *first.entry(point.2).or_insert((point.0, point.1));
-        if own_copy(pu, point.0, u) && own_copy(pv, point.1, v) {
-            (point.0, point.1) = (u, v);
+        if let (Some(ku), Some(kv)) = (branch(pu, point.0, u), branch(pv, point.1, v)) {
+            (point.0, point.1) = *located
+                .entry((point.2, ku, kv))
+                .or_insert((point.0, point.1));
         }
     }
     trim
@@ -3958,6 +3971,48 @@ pub(super) mod tests {
             read(&v_seam, torus, &[]),
             v_seam,
             "a whole turn away in v is the other branch"
+        );
+    }
+
+    /// Each branch has its own first entry. A vertex met at `u = 0` and
+    /// then twice a turn on, the two later entries rounding apart, is
+    /// two UV locations, not three, in either walk order.
+    #[test]
+    fn a_vertex_met_twice_on_its_second_branch_is_one_location_there() {
+        let tau = std::f64::consts::TAU;
+        let up = |x: f64| f64::from_bits(x.to_bits() + 1);
+        let cylinder = Some((Some(geom_core::period::Period::angle()), None));
+        let read = |outer: &[(f64, f64, u32)]| {
+            one_location_per_branch(TrimPolygon::of_loops(outer, &[]), cylinder, &HashSet::new())
+                .points
+        };
+        let zero_first = [
+            (0.0, 1.0, 7u32),
+            (1.0, 0.5, 8),
+            (tau, 1.0, 7),
+            (5.0, 2.0, 9),
+            (up(tau), up(1.0), 7),
+            (3.0, 3.0, 10),
+        ];
+        let pinned = read(&zero_first);
+        assert_eq!(
+            (pinned[0], pinned[4]),
+            ((0.0, 1.0, 7), (tau, 1.0, 7)),
+            "the first branch keeps its entry; the third entry takes the second's UV"
+        );
+        let tau_first = [
+            (tau, 1.0, 7u32),
+            (1.0, 0.5, 8),
+            (0.0, 1.0, 7),
+            (5.0, 2.0, 9),
+            (up(tau), up(1.0), 7),
+            (3.0, 3.0, 10),
+        ];
+        let pinned = read(&tau_first);
+        assert_eq!(
+            (pinned[2], pinned[4]),
+            ((0.0, 1.0, 7), (tau, 1.0, 7)),
+            "walked from the second branch: the same two locations"
         );
     }
 

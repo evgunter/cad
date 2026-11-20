@@ -4,13 +4,14 @@
 //! keeps a quarter turn, and its boundary passes `v` twice, once on each
 //! side of the notch: the trimmed lane reads `v` off two pcurves, which
 //! agree only to rounding. At δ = 1 that face has one interior lattice
-//! column. Pinned: the face meshes, and the mesh is closed and manifold.
+//! column. Pinned: the face meshes, and the mesh is closed, manifold
+//! and holds the union's volume, there and at δ = 0.1.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point2, RigidMotion, UnitVec3, Vec3};
 use topo::test_support as fixtures;
-use topo::{AtRestBody, BooleanError};
+use topo::{AtRestBody, BooleanError, mass_properties};
 
 use crate::join_pierce_runs_sweep::{finished, tol};
 
@@ -96,23 +97,39 @@ fn a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta() {
         z,
     ]);
     let cylinder = cylinder_through([2.0, 1.0, 0.0], m, 0.9, 0.9);
-    // The pierce's curvature side reads a margin of 1.47e-6: inside the
-    // band at the 1e-6 row, where the union escalates, typed, and there
-    // is no body to mesh; clear of it at the finer rows.
-    let union = match topo::union(&prism, &cylinder, tol()) {
-        Err(BooleanError::Escalated {
-            decision: topo::BooleanDecision::PierceCurvature,
-            ..
-        }) if eps() >= 1e-6 => {
-            println!(
-                "eps {}: the union escalates its pierce curvature, no mesh",
-                eps()
-            );
-            return;
-        }
-        r => r.unwrap_or_else(|e| panic!("the union builds at eps {}: {e:?}", eps())),
-    };
+    // At the 1e-6 row the pierce's curvature side reads inside the
+    // band: the union escalates, typed, and there is no body to mesh.
+    let union = topo::union(&prism, &cylinder, tol());
+    if eps() >= 1e-6 {
+        assert!(
+            matches!(
+                union,
+                Err(BooleanError::Escalated {
+                    decision: topo::BooleanDecision::PierceCurvature,
+                    ..
+                })
+            ),
+            "at eps {} the union escalates its pierce curvature, got {:?}",
+            eps(),
+            union.as_ref().err()
+        );
+        return;
+    }
+    let union = union.unwrap_or_else(|e| panic!("the union builds at eps {}: {e:?}", eps()));
     let body = &union.body().expect("the union is a body").body;
-    let mesh = mesh::tessellate(body, 1.0, tol()).expect("the union meshes at delta 1");
-    mesh::validate::check_mesh(&mesh).expect("the mesh is closed and manifold");
+    let props = mass_properties(body, tol(), fixtures::pinned_resolution(tol()))
+        .expect("the union's mass properties");
+    for delta in [1.0, 0.1] {
+        let mesh = mesh::tessellate(body, delta, tol())
+            .unwrap_or_else(|e| panic!("the union meshes at {delta}: {e:?}"));
+        mesh::validate::check_mesh(&mesh)
+            .unwrap_or_else(|e| panic!("closed and manifold at {delta}: {e:?}"));
+        mesh::validate::check_volume(
+            &mesh,
+            props.enclosure.volume,
+            props.enclosure.surface_area,
+            delta,
+        )
+        .unwrap_or_else(|e| panic!("the mesh holds the union's volume at {delta}: {e:?}"));
+    }
 }

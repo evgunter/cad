@@ -470,18 +470,27 @@ fn stretches_on_shared_ends(bb: &topo::BooleanBody<f64>) -> usize {
 /// The curved notch less the corner pinch at `(3, 1, 0)`: its curved
 /// wall's boundary passes the pinch vertex twice, read off two pcurves
 /// that agree only to rounding, and at δ = 0.02 that face has one
-/// interior lattice column. Pinned: the body meshes closed and manifold
-/// at every δ of the probe.
+/// interior lattice column. Pinned: the body meshes closed and manifold,
+/// holding its volume, at δ 0.05, 0.02 and 5e-3.
 #[test]
 fn the_curved_notch_less_a_corner_pinch_meshes() {
     let x = curved_notch_body(bulge());
     let (y, _) = corner_pinch(3, 1, 0).expect("the pinch builds");
     let res = topo::subtract(&x, &y, tol()).expect("the subtraction builds");
     let body = &res.body().expect("a body").body;
-    for delta in [0.05, 0.02] {
+    let props = mass_properties(body, tol(), topo::test_support::pinned_resolution(tol()))
+        .expect("the body's mass properties");
+    for delta in [0.05, 0.02, 5e-3] {
         let mesh = mesh::tessellate(body, delta, tol())
             .unwrap_or_else(|e| panic!("meshes at {delta}: {e:?}"));
         mesh::validate::check_mesh(&mesh)
             .unwrap_or_else(|e| panic!("closed and manifold at {delta}: {e:?}"));
+        mesh::validate::check_volume(
+            &mesh,
+            props.enclosure.volume,
+            props.enclosure.surface_area,
+            delta,
+        )
+        .unwrap_or_else(|e| panic!("holds the body's volume at {delta}: {e:?}"));
     }
 }

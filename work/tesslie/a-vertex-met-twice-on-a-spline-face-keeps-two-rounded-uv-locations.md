@@ -16,9 +16,9 @@ Found by `tesslie/nu-2-repeat`'s sweep.
 `crates/mesh/src/trimmed.rs` reads each trim-polygon entry off its own
 traversal's pcurve (`loop_polygon`), so a vertex the loop meets twice
 gets two images that agree only to rounding. On an analytic chart,
-`one_location_per_branch` now pins the later entry to the first one's
-UV wherever `Period::near` puts it on the same branch, using
-`Surface::angle_periods`. The CDT then holds the vertex as one handle,
+`one_location_per_branch` now gives each entry the UV of its id's
+first entry on the same branch. The branch is decided by `Period::decide`
+at the half-period marks, using `Surface::angle_periods`. The CDT then holds the vertex as one handle,
 which `Pinches` meshes. Before the pin, the cylinder bodies in
 `a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta` and
 `curved_notch_pinch::the_curved_notch_less_a_corner_pinch_meshes`
