@@ -662,30 +662,33 @@ fn a_section_near_a_pole_meshes_at_every_delta() {
     }
 }
 
-/// **A circle 1e-3 from the pole meshes at δ 1e-2 and folds at 4e-2.**
+/// **A circle 1e-3 from the pole meshes at δ 1e-2 and 4e-2.**
 /// The near-pole pair of
 /// [`a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`]
-/// at `d = 1e-3`: at δ 1e-2 the sphere arm meshes it, enclosing the body
-/// and wound outward; at 4e-2 a triangle beside the pole folds over the
-/// chord with no grid corner to drop (its three corners are boundary
-/// points), and it refuses `FoldedTriangle`
-/// (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
+/// at `d = 1e-3`: the sphere arm meshes it at both δ, enclosing the body
+/// and wound outward. At 4e-2 a triangle beside the pole stands on three
+/// boundary points, one of its sides joining two points of the circle
+/// that are not neighbours on it and that the other ball's face holds
+/// too; the trimmed lane's shared-side cure splits it, which also takes
+/// it off the chord it folded over.
 #[test]
-fn a_circle_near_the_pole_folds_at_a_coarse_delta() {
+fn a_circle_near_the_pole_meshes_at_a_coarse_delta() {
     let c = Vec3::new(2.0, 2.0, 0.5);
     let s = 0.7f64 + 1e-3;
     let lean = Vec3::new(1.4 * (1.0 - s * s).sqrt(), 1.4 * s, 0.0);
     let out = run(BooleanOp::Union, &ball(1.0, c), &ball(1.0, c + lean)).expect("the pair unions");
     let body = &out.body().expect("a body").body;
     let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.4);
-    let m = mesh::tessellate(body, 1e-2, Tol::witness()).expect("δ 1e-2 meshes");
-    mesh::validate::check_mesh(&m).expect("and checks");
-    crate::common::differential::assert_meshed_geometry("d 1e-3, δ 1e-2", body, &m, 1e-2);
     assert!((expected - crate::common::differential::body_volume(body)).abs() < 1e-9 * expected);
-    let coarse = mesh::tessellate(body, 4e-2, Tol::witness());
-    assert!(
-        matches!(&coarse, Err(mesh::TessellateError::FoldedTriangle { .. })),
-        "δ 4e-2: the boundary-only fold refuses typed, got {:?}",
-        coarse.map(|m| m.positions.len())
-    );
+    for delta in [1e-2, 4e-2] {
+        let m = mesh::tessellate(body, delta, Tol::witness())
+            .unwrap_or_else(|e| panic!("δ {delta:e}: meshes, got {e:?}"));
+        mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("δ {delta:e}: {e:?}"));
+        crate::common::differential::assert_meshed_geometry(
+            &format!("d 1e-3, δ {delta:e}"),
+            body,
+            &m,
+            delta,
+        );
+    }
 }
