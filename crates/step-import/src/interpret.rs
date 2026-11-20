@@ -47,6 +47,16 @@ pub(crate) const STEP_RECOGNIZED_RESIDUAL: &str = "step_recognized_residual";
 /// the certificate, which does not rest on the answer.
 pub(crate) const STEP_RECOGNIZED_CONDITIONING: &str = "step_recognized_conditioning";
 
+/// A promoted plane's frame: its estimated normal and its roll (the
+/// patch's `∂u`), each length read at the least band — the certificate,
+/// not this, decides the plane.
+pub(crate) const STEP_RECOGNIZED_PLANE_FRAME: &str = "step_recognized_plane_frame";
+
+/// A Nurbs-adjacent line rim's `PlacedSegment` frame: the line's
+/// direction and its residual completion, each length read at the least
+/// band.
+pub(crate) const STEP_RIM_LINE_FRAME: &str = "step_rim_line_frame";
+
 /// Whether a carrier closes on itself (its end on its start): Zero is the
 /// closed class.
 pub(crate) const STEP_RECOGNIZED_CLOSURE: &str = "step_recognized_closure";
