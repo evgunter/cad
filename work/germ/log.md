@@ -1538,3 +1538,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 
   Nothing past U1 builds until Ev answers.
 - 2026-11-20 — **Claimed by CHARTTAIL** by `git mv`: `tilted-section-through-a-chart-pole-is-not-split-at-the-pole` (P2 M). It rides with CHARTTAIL's P1 `a-section-circle-through-a-sphere-faces-pole-mints-no-pcurve`: one defect, a section through a sphere pole minted without a vertex there, on two witnesses. (CHARTTAIL orchestrator)
+- 2026-11-20 — **PR 7167 (U0) merged: C5 states the curve × surface crossing reading.** Ev ratified it in the PR's comments with three changes:
+  - `Through` is any point where the surface has no tangent plane (a cone's apex, a spindle sheet's apexes or its horn's cusp).
+  - `Generic` is renamed `Isolated`, and `Tangent` is its special case that the pose alone decides. D3's "generic" stays, because it covers surface pairs.
+  - A spline run lying within the band over part of a span refuses as an undecided window for now.
+
+  Decisions 2–4 stand as proposed. U1 is in flight. U1b, U2 and U3 can be dispatched once their predecessors merge; U2 waits on the P0 implementer's PR, which shares `conic_quadric`.

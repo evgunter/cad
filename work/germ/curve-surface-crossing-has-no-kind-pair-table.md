@@ -54,6 +54,7 @@ with an exhaustive `(CurveKind, SurfaceKind)` match, the wildcards
 turned into typed arms, the fallback ladders retired or shown total,
 and every consumer moved onto the reading — about two hard rows of
 work, staged by a spec before any lane builds.
+
 ## Ratified (Ev, PR 7167, 2026-11-20)
 
 C5's curve × face paragraph (`crates/geom-brep/README.md`) states the
