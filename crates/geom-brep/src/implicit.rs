@@ -1998,15 +1998,16 @@ pub fn circle_sphere_harmonic<T: Real>(
     s_center: Point3<T>,
     s_radius: T,
 ) -> CircleSphereHarmonic<T> {
-    let geom::Circle {
+    let conic_k @ geom::Circle {
         frame:
             geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
-        radius,
+        ..
     } = *circle;
+    let radius = conic_k.radius();
     use geom_core::running::{cross, dot, exact_vec, unit_defect};
     let two = T::from_f64(2.0);
     let [cx, cy, cz] = exact_vec(Vec3::new(center.x, center.y, center.z));

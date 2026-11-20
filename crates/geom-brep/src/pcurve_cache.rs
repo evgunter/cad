@@ -8936,21 +8936,24 @@ fn run_iso_arc_checks<T: Decide>(
     if surface.is_placeholder_chart() {
         return Err(PcurveCertifyError::PlaceholderChart);
     }
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        radius,
-    }) = carrier
+    let Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
+            ..
+        },
+    ) = carrier
     else {
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "an arc-rim iso over a non-Circle carrier — the class IS the circle's \
                    rational-quadratic reparameterization",
         });
     };
+    let radius = conic_k.radius();
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     //
@@ -11501,16 +11504,18 @@ fn derive_class_zero<T: Decide>(
                         Derivation::ConeRim { nappe, beta },
                     ))
                 }
-                Curve3::Ellipse(geom::Ellipse {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis: e_axis,
-                            u_ref: seam,
-                        },
-                    semi_u,
-                    semi_v,
-                }) => {
+                Curve3::Ellipse(
+                    conic_k @ geom::Ellipse {
+                        frame:
+                            geom::Frame {
+                                origin: center,
+                                axis: e_axis,
+                                u_ref: seam,
+                            },
+                        ..
+                    },
+                ) => {
+                    let (semi_u, semi_v) = conic_k.semi_axes();
                     // The tilted-section class: the exact
                     // [`Pcurve::FocalSection`] image (variant docs for
                     // the derivation). The slant is the axial height
@@ -12658,12 +12663,12 @@ fn torus_oblique_circle<T: Decide>(
     shown: incidence::Incident,
 ) -> Result<(Pcurve<T>, Derivation), Underived> {
     let (
-        &Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        &Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: c, axis: n, ..
             },
             radius,
-        }),
+        )),
         &Surface::Torus {
             center,
             axis,

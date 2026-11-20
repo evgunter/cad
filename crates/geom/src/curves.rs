@@ -262,25 +262,13 @@ impl<T: SpanLocate> Curve3<T> {
             (Self::Line(Line { origin, dir }), Self::Line(Line { origin: o, dir: d })) => {
                 point(*origin, *o) && vec(*dir, *d)
             }
-            (
-                Self::Circle(Circle { frame: f, radius }),
-                Self::Circle(Circle {
-                    frame: g,
-                    radius: r,
-                }),
-            ) => frame(f, g) && same(*radius, *r),
-            (
-                Self::Ellipse(Ellipse {
-                    frame: f,
-                    semi_u,
-                    semi_v,
-                }),
-                Self::Ellipse(Ellipse {
-                    frame: g,
-                    semi_u: su,
-                    semi_v: sv,
-                }),
-            ) => frame(f, g) && same(*semi_u, *su) && same(*semi_v, *sv),
+            (Self::Circle(c), Self::Circle(k)) => {
+                frame(&c.frame, &k.frame) && same(c.radius(), k.radius())
+            }
+            (Self::Ellipse(e), Self::Ellipse(k)) => {
+                let ((semi_u, semi_v), (su, sv)) = (e.semi_axes(), k.semi_axes());
+                frame(&e.frame, &k.frame) && same(semi_u, su) && same(semi_v, sv)
+            }
             (
                 Self::Spiric {
                     center,
@@ -1172,35 +1160,18 @@ impl<T: Real> Curve3<T> {
             Curve3::Line(Line { origin, dir }) => {
                 AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
             }
-            Curve3::Circle(Circle {
-                frame:
-                    Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }) => AnalyticData::new([
-                (D::Center, Point(center)),
-                (D::Axis, Direction(axis)),
-                (D::Radius, Scalar(radius)),
-                (D::URef, Direction(u_ref)),
+            Curve3::Circle(c) => AnalyticData::new([
+                (D::Center, Point(c.frame.origin)),
+                (D::Axis, Direction(c.frame.axis)),
+                (D::Radius, Scalar(c.radius())),
+                (D::URef, Direction(c.frame.u_ref)),
             ]),
-            Curve3::Ellipse(Ellipse {
-                frame:
-                    Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                semi_u,
-                semi_v,
-            }) => AnalyticData::new([
-                (D::Center, Point(center)),
-                (D::Axis, Direction(axis)),
-                (D::SemiU, Scalar(semi_u)),
-                (D::SemiV, Scalar(semi_v)),
-                (D::URef, Direction(u_ref)),
+            Curve3::Ellipse(e) => AnalyticData::new([
+                (D::Center, Point(e.frame.origin)),
+                (D::Axis, Direction(e.frame.axis)),
+                (D::SemiU, Scalar(e.semi_axes().0)),
+                (D::SemiV, Scalar(e.semi_axes().1)),
+                (D::URef, Direction(e.frame.u_ref)),
             ]),
             Curve3::Spiric {
                 center,
@@ -1262,12 +1233,12 @@ impl<T: Real> Curve3<T> {
             frame_margins(axis, u_ref, arm, band, CurveDatum::Axis, CurveDatum::URef)
         };
         match self {
-            Curve3::Circle(c) => core::iter::once(lower(CurveDatum::Radius, c.radius))
-                .chain(frame(c.frame.axis, c.frame.u_ref, c.radius))
+            Curve3::Circle(c) => core::iter::once(lower(CurveDatum::Radius, c.radius()))
+                .chain(frame(c.frame.axis, c.frame.u_ref, c.radius()))
                 .collect(),
             Curve3::Ellipse(e) => [
-                lower(CurveDatum::SemiU, e.semi_u),
-                lower(CurveDatum::SemiV, e.semi_v),
+                lower(CurveDatum::SemiU, e.semi_axes().0),
+                lower(CurveDatum::SemiV, e.semi_axes().1),
             ]
             .into_iter()
             .chain(frame(e.frame.axis, e.frame.u_ref, e.speed_hi()))
@@ -1368,9 +1339,11 @@ impl<T: Decide> Curve3<T> {
     }
 
     /// The one deciding door into [`Curve3::Ellipse`]: refuses a
-    /// non-finite semi-axis ([`EllipseInvalid::SemiAxisNotFinite`], a
-    /// value-channel read, no band) and a non-positive minor semi-axis
-    /// through a named Q1 trilean, and nothing else. Equal or near-equal semi-axes are a genuine
+    /// semi-axis that is not bounded ([`EllipseInvalid::SemiAxisNotFinite`],
+    /// [`Real::is_bounded`], no band) and a non-positive minor semi-axis
+    /// through a named Q1 trilean, both before it builds the ellipse
+    /// ([`Ellipse::new`] panics on a definitely negative one), and nothing
+    /// else. Equal or near-equal semi-axes are a genuine
     /// `Ellipse`: the caller's pose decides the kind once (a square
     /// section is its `Circle`, a definitely-off-square one this door's
     /// `Ellipse`, however near-circular). The semi-axes come in either
@@ -1398,17 +1371,20 @@ impl<T: Decide> Curve3<T> {
         u_ref: Vec3<T>,
         band: Band,
     ) -> Result<Self, EllipseInvalid> {
-        if !(geom_core::is_finite_length(semi_u) && geom_core::is_finite_length(semi_v)) {
+        if !(semi_u.is_bounded() && semi_v.is_bounded()) {
             return Err(EllipseInvalid::SemiAxisNotFinite);
         }
-        let e = Ellipse::new(Frame::new(center, axis, u_ref), semi_u, semi_v);
-        let minor = e.semi_axes_by_size().1;
+        let minor = semi_u.min(semi_v);
         match geom_core::k_stats::decide("ellipse_minor_positive", Margin::of(minor), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(EllipseInvalid::MinorNotPositive),
             Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
         }
-        Ok(Curve3::Ellipse(e))
+        Ok(Curve3::Ellipse(Ellipse::new(
+            Frame::new(center, axis, u_ref),
+            semi_u,
+            semi_v,
+        )))
     }
 
     /// The one deciding door into [`Curve3::Spiric`]: refuses a
@@ -1527,14 +1503,8 @@ impl<T: Real> Curve3<T> {
     pub fn reversed(&self) -> Option<Self> {
         Some(match self.clone() {
             Curve3::Line(Line { origin, dir }) => Curve3::line(origin, -dir),
-            Curve3::Circle(c) => Curve3::Circle(Circle {
-                frame: c.frame.reversed(),
-                ..c
-            }),
-            Curve3::Ellipse(e) => Curve3::Ellipse(Ellipse {
-                frame: e.frame.reversed(),
-                ..e
-            }),
+            Curve3::Circle(c) => Curve3::Circle(c.with_frame(c.frame.reversed())),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(e.frame.reversed())),
             Curve3::Spiric {
                 center,
                 axis,
@@ -1566,14 +1536,8 @@ impl<T: Real> Curve3<T> {
     pub fn translated(&self, by: Vec3<T>) -> Option<Self> {
         Some(match self.clone() {
             Curve3::Line(Line { origin, dir }) => Curve3::line(origin + by, dir),
-            Curve3::Circle(c) => Curve3::Circle(Circle {
-                frame: c.frame.translated(by),
-                ..c
-            }),
-            Curve3::Ellipse(e) => Curve3::Ellipse(Ellipse {
-                frame: e.frame.translated(by),
-                ..e
-            }),
+            Curve3::Circle(c) => Curve3::Circle(c.with_frame(c.frame.translated(by))),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(e.frame.translated(by))),
             Curve3::Spiric {
                 center,
                 axis,
@@ -2335,7 +2299,7 @@ mod tests {
         fn circle_point_lies_on_locus(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::Frame { origin: center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(k) => (k.frame.origin, k.frame.axis, k.radius()),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2351,7 +2315,7 @@ mod tests {
         fn circle_derivative_geometry(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::Frame { origin: center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(k) => (k.frame.origin, k.frame.axis, k.radius()),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2559,11 +2523,11 @@ mod tests {
             (-0.0, 0.0, x, 5.0),
             (0.0, -0.0, x, 5.0),
         ] {
-            let Ellipse {
+            let ellipse @ Ellipse {
                 frame: Frame { u_ref, .. },
-                semi_u: u,
-                semi_v: v,
+                ..
             } = e.as_ellipse().unwrap().seamed_toward(cos, sin);
+            let (u, v) = ellipse.semi_axes();
             assert_eq!(
                 ((u_ref - seam).norm(), u, u + v),
                 (0.0, semi_u, 7.0),
@@ -2664,7 +2628,7 @@ mod tests {
         ] {
             let c = mk(u, v).unwrap_or_else(|e| panic!("semi-axes ({u}, {v}) refused: {e}"));
             assert!(
-                matches!(c, Curve3::Ellipse(crate::Ellipse { semi_u, semi_v, .. }) if semi_u == u && semi_v == v),
+                matches!(c, Curve3::Ellipse(e) if e.semi_axes() == (u, v)),
                 "({u}, {v}): {c:?}"
             );
         }
@@ -2695,9 +2659,13 @@ mod tests {
         #[test]
         fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { origin: center, axis, u_ref }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(ellipse @ crate::Ellipse {
+                frame: crate::Frame { origin: center, axis, u_ref },
+                ..
+            }) = e else {
                 panic!("fixture is an ellipse");
             };
+            let (semi_u, semi_v) = ellipse.semi_axes();
             let v_ref = axis.cross(u_ref);
             let p = e.eval(theta);
             let d = p - center;
@@ -2713,9 +2681,13 @@ mod tests {
         #[test]
         fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { origin: center, axis, .. }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(ellipse @ crate::Ellipse {
+                frame: crate::Frame { origin: center, axis, .. },
+                ..
+            }) = e else {
                 panic!("fixture is an ellipse");
             };
+            let (semi_u, semi_v) = ellipse.semi_axes();
             let p = e.eval(theta);
             let d1 = e.deriv(theta);
             let d2 = e.deriv2(theta);
@@ -3210,19 +3182,21 @@ mod tests {
         fn ellipse_residuals_enclose_zero() {
             let e = super::tilted_ellipse();
             let ei = e.map_scalar(geom_core::Interval::from_f64);
-            let Curve3::Ellipse(crate::Ellipse {
-                frame:
-                    crate::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                semi_u,
-                semi_v,
-            }) = ei
+            let Curve3::Ellipse(
+                ellipse @ crate::Ellipse {
+                    frame:
+                        crate::Frame {
+                            origin: center,
+                            axis,
+                            u_ref,
+                        },
+                    ..
+                },
+            ) = ei
             else {
                 panic!("fixture is an ellipse");
             };
+            let (semi_u, semi_v) = ellipse.semi_axes();
             let v_ref = axis.cross(u_ref);
             for theta in [0.0, 0.7, 2.9, -14.6, 300.0] {
                 let p = ei.eval(Interval::from_f64(theta));
@@ -3586,15 +3560,20 @@ mod tests {
             let c = super::tilted_circle();
             let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
-                Curve3::Circle(crate::Circle {
-                    frame:
-                        crate::Frame {
-                            origin: center,
-                            axis,
-                            ..
-                        },
-                    radius,
-                }) => (center, axis, radius),
+                Curve3::Circle(
+                    circle @ crate::Circle {
+                        frame:
+                            crate::Frame {
+                                origin: center,
+                                axis,
+                                ..
+                            },
+                        ..
+                    },
+                ) => {
+                    let radius = circle.radius();
+                    (center, axis, radius)
+                }
                 _ => panic!("fixture is a circle"),
             };
             for theta in [0.0, 0.7, 2.9, -14.6, 300.0] {

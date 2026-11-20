@@ -71,15 +71,24 @@ pub fn loop_vector_area<T: SpanLocate>(
                 let b = e.p1() - ref_point;
                 a.cross(b) * half
             }
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis, .. },
-                radius,
-            }) => arc_vector_area(e, ref_point, axis, radius.powi(2)) * half,
-            Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { axis, .. },
-                semi_u,
-                semi_v,
-            }) => arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half,
+            Curve3::Circle(
+                circle @ geom::Circle {
+                    frame: geom::Frame { axis, .. },
+                    ..
+                },
+            ) => {
+                let radius = circle.radius();
+                arc_vector_area(e, ref_point, axis, radius.powi(2)) * half
+            }
+            Curve3::Ellipse(
+                ellipse @ geom::Ellipse {
+                    frame: geom::Frame { axis, .. },
+                    ..
+                },
+            ) => {
+                let (semi_u, semi_v) = ellipse.semi_axes();
+                arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half
+            }
             Curve3::Nurbs(ref payload) => nurbs_vector_area(payload, e.t0, e.t1, ref_point)?,
             // The spiric's sector integral `∫ P × P′ dv` carries
             // `√((R + r cos v)² − d²)` against `sin v` and `cos v` — an

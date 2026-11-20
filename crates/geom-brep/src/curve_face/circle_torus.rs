@@ -186,15 +186,14 @@ pub fn circle_torus_roots<T: Decide>(
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
     let (
         &geom::Curve3::Circle(
-            circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+            circle @ geom::Circle::new(
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
                 radius,
-            },
+            ),
         ),
         &geom::Surface::Torus {
             center: t_center,
@@ -541,15 +540,14 @@ fn parallel_axes_roots<T: Decide>(
 ) -> Result<CircleRoots<T>, RootRefusal> {
     let &ParallelPose {
         circle:
-            geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        u_ref,
-                        ..
-                    },
+            geom::Circle::new(
+                geom::Frame {
+                    origin: center,
+                    u_ref,
+                    ..
+                },
                 radius,
-            },
+            ),
         w_perp,
         offset,
         h0,

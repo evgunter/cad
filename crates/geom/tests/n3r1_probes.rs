@@ -290,52 +290,69 @@ mod interval_support {
                         for kt in 0..3 {
                             let (t0f, t1f) = (pick(t0, kt), pick(t1, 2 - kt));
                             let real: Curve3<f64> = match iv_carrier {
-                                Curve3::Circle(geom::Circle {
-                                    frame:
-                                        geom::Frame {
-                                            origin: center,
-                                            axis,
-                                            u_ref,
-                                        },
-                                    radius,
-                                }) => circle(
-                                    Point3::new(
-                                        pick(center.x, kc),
-                                        pick(center.y, kc),
-                                        pick(center.z, kc),
-                                    ),
-                                    Vec3::new(pick(axis.x, ka), pick(axis.y, ka), pick(axis.z, ka)),
-                                    pick(*radius, kr),
-                                    Vec3::new(
-                                        pick(u_ref.x, ku),
-                                        pick(u_ref.y, 2 - ku),
-                                        pick(u_ref.z, ku),
-                                    ),
-                                ),
-                                Curve3::Ellipse(geom::Ellipse {
-                                    frame:
-                                        geom::Frame {
-                                            origin: center,
-                                            axis,
-                                            u_ref,
-                                        },
-                                    semi_u,
-                                    semi_v,
-                                }) => ellipse(
-                                    Point3::new(
-                                        pick(center.x, kc),
-                                        pick(center.y, kc),
-                                        pick(center.z, kc),
-                                    ),
-                                    Vec3::new(pick(axis.x, ka), pick(axis.y, ka), pick(axis.z, ka)),
-                                    pick(*semi_u, kr),
-                                    pick(*semi_v, 2 - kr),
-                                    Vec3::new(
-                                        pick(u_ref.x, ku),
-                                        pick(u_ref.y, 2 - ku),
-                                        pick(u_ref.z, ku),
-                                    ),
-                                ),
+                                Curve3::Circle(
+                                    conic_k @ geom::Circle {
+                                        frame:
+                                            geom::Frame {
+                                                origin: center,
+                                                axis,
+                                                u_ref,
+                                            },
+                                        ..
+                                    },
+                                ) => {
+                                    let radius = conic_k.radius();
+                                    circle(
+                                        Point3::new(
+                                            pick(center.x, kc),
+                                            pick(center.y, kc),
+                                            pick(center.z, kc),
+                                        ),
+                                        Vec3::new(
+                                            pick(axis.x, ka),
+                                            pick(axis.y, ka),
+                                            pick(axis.z, ka),
+                                        ),
+                                        pick(radius, kr),
+                                        Vec3::new(
+                                            pick(u_ref.x, ku),
+                                            pick(u_ref.y, 2 - ku),
+                                            pick(u_ref.z, ku),
+                                        ),
+                                    )
+                                }
+                                Curve3::Ellipse(
+                                    conic_k @ geom::Ellipse {
+                                        frame:
+                                            geom::Frame {
+                                                origin: center,
+                                                axis,
+                                                u_ref,
+                                            },
+                                        ..
+                                    },
+                                ) => {
+                                    let (semi_u, semi_v) = conic_k.semi_axes();
+                                    ellipse(
+                                        Point3::new(
+                                            pick(center.x, kc),
+                                            pick(center.y, kc),
+                                            pick(center.z, kc),
+                                        ),
+                                        Vec3::new(
+                                            pick(axis.x, ka),
+                                            pick(axis.y, ka),
+                                            pick(axis.z, ka),
+                                        ),
+                                        pick(semi_u, kr),
+                                        pick(semi_v, 2 - kr),
+                                        Vec3::new(
+                                            pick(u_ref.x, ku),
+                                            pick(u_ref.y, 2 - ku),
+                                            pick(u_ref.z, ku),
+                                        ),
+                                    )
+                                }
                                 _ => unreachable!(),
                             };
                             let who = format!("{what} realization c{kc} a{ka} u{ku} r{kr} t{kt}");
