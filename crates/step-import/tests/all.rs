@@ -51,6 +51,8 @@
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
 
+#[path = "zz_review_ledger.rs"]
+mod zz_review_ledger;
 #[path = "a_carrier_the_kernel_builds_is_reported_where_it_is_not_the_printed_one.rs"]
 mod a_carrier_the_kernel_builds_is_reported_where_it_is_not_the_printed_one;
 #[path = "a_certified_body_measures_only_itself.rs"]

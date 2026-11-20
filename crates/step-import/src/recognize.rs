@@ -1571,3 +1571,206 @@ mod plane_frame {
         }
     }
 }
+
+/// Review probes (PR 7172 fix pass), not shipped rows.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod zz_review_conditioning {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    /// A frustum of half-angle `alpha` about `+z`, its apex at the origin,
+    /// over heights `[z0, z1]`, as a half turn (two quarter spans) in `v`
+    /// and a line in `u`, then moved by `shift`.
+    fn frustum(alpha: f64, z0: f64, z1: f64, shift: Vec3<f64>) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let turn = [
+            ((1.0, 0.0), 1.0),
+            ((1.0, 1.0), w),
+            ((0.0, 1.0), 1.0),
+            ((-1.0, 1.0), w),
+            ((-1.0, 0.0), 1.0),
+        ];
+        let t = alpha.tan();
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for z in [z0, z1] {
+            let rho = z * t;
+            for &((c, s), wt) in &turn {
+                control.push(Point3::new(rho * c, rho * s, z) + shift);
+                weights.push(wt);
+            }
+        }
+        NurbsSurface::new(ku, kv, control, weights).unwrap()
+    }
+
+    fn outcome(p: &NurbsSurface<f64>, eps: f64) -> String {
+        match recognize(p, crate::interpret::FileBand::test(eps)) {
+            Recognition::Promoted { kind, residual, .. } => {
+                format!("Promoted {kind:?} {residual:e}")
+            }
+            Recognition::StaysNurbs => "StaysNurbs".into(),
+            Recognition::IllConditioned { kind, margin } => {
+                format!("IllConditioned {kind:?} {margin:e}")
+            }
+        }
+    }
+
+    /// A draft-angle cone whose apex lies past the session box, every
+    /// point of the patch well inside it; and the same in-box cone moved
+    /// rigidly so its apex leaves the box while the patch stays in.
+    #[test]
+    fn review_shallow_cones_and_the_box() {
+        // 0.05° draft, radius ~1 m at z ≈ 1146 m from the apex: the patch
+        // spans z ∈ [1146, 1147] from the apex, so put the apex at
+        // z = −1146 and the patch around z ∈ [0, 1].
+        let alpha = 0.05_f64.to_radians();
+        let z0 = 1.0 / alpha.tan();
+        let p = frustum(alpha, z0, z0 + 1.0, Vec3::new(0.0, 0.0, -z0));
+        for eps in [1e-6, 1e-9] {
+            eprintln!(
+                "shallow draft cone (apex at z=-{z0:.0}) @ {eps:e}: {}",
+                outcome(&p, eps)
+            );
+        }
+        // 0.1 rad cone, apex in box: 600 m from patch.
+        let alpha = 0.1_f64;
+        let z0 = 1.0 / alpha.tan();
+        let base = frustum(alpha, z0, z0 + 1.0, Vec3::new(0.0, 0.0, -z0));
+        for shift in [0.0, -500.0, -995.0, -999.0] {
+            let p = base.map_points(|q| q + Vec3::new(0.0, 0.0, shift));
+            eprintln!(
+                "cone α=0.1, apex at z={:.1}, patch z∈[{:.1},{:.1}]: {}",
+                -z0 + shift,
+                shift,
+                shift + 1.0,
+                outcome(&p, 1e-9)
+            );
+        }
+        let alpha = 0.002_f64;
+        let z0 = 1.0 / alpha.tan();
+        let base = frustum(alpha, z0, z0 + 1.0, Vec3::new(0.0, 0.0, -z0));
+        for shift in [400.0, 0.0, -100.0] {
+            let p = base.map_points(|q| q + Vec3::new(0.0, 0.0, shift));
+            eprintln!(
+                "cone α=0.002, apex at z={:.1}, patch z∈[{:.1},{:.1}]: {} / transposed {}",
+                -z0 + shift,
+                shift,
+                shift + 1.0,
+                outcome(&p, 1e-9),
+                outcome(&p.transposed(), 1e-9)
+            );
+        }
+    }
+
+    /// The headline's conic torus wall: 9 conic spans each way, R = 24,
+    /// r = 6, about +y; its certificate and recognition at 1e-9 / 1e-12.
+    #[test]
+    fn review_headline_torus_wall_at_fine_eps() {
+        let arc = |a0: f64, a1: f64, n: usize| -> (Vec<((f64, f64), f64)>, Vec<f64>) {
+            let mut pts = Vec::new();
+            let mut knots = vec![0.0; 3];
+            for k in 0..n {
+                let (b0, b1) = (
+                    a0 + (a1 - a0) * (k as f64) / (n as f64),
+                    a0 + (a1 - a0) * ((k + 1) as f64) / (n as f64),
+                );
+                let half = 0.5 * (b1 - b0);
+                let (bm, w) = (0.5 * (b0 + b1), half.cos());
+                if k == 0 {
+                    pts.push(((b0.cos(), b0.sin()), 1.0));
+                }
+                pts.push(((bm.cos() / w, bm.sin() / w), w));
+                pts.push(((b1.cos(), b1.sin()), 1.0));
+                if k + 1 < n {
+                    knots.push((k + 1) as f64);
+                    knots.push((k + 1) as f64);
+                }
+            }
+            knots.extend([n as f64; 3]);
+            (pts, knots)
+        };
+        let (big_r, r) = (24.0, 6.0);
+        let (minor, ku) = arc(0.0, core::f64::consts::PI, 9);
+        let (major, kv) = arc(0.0, core::f64::consts::FRAC_PI_2, 9);
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for &((cx, sx), wm) in &minor {
+            for &((ca, sa), wa) in &major {
+                let d = big_r + r * cx;
+                control.push(Point3::new(d * ca, r * sx, -d * sa));
+                weights.push(wm * wa);
+            }
+        }
+        let patch = NurbsSurface::new(
+            KnotVector::clamped(ku, 2).unwrap(),
+            KnotVector::clamped(kv, 2).unwrap(),
+            control,
+            weights,
+        )
+        .unwrap();
+        let exact = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            major_radius: big_r,
+            minor_radius: r,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        eprintln!(
+            "headline wall: certificate vs the exact torus {:e}",
+            geom_brep::patch_distance_sup(&patch, &exact)
+        );
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let band = crate::interpret::FileBand::test(eps);
+            let est = estimate_torus(&patch, band);
+            let cert = est
+                .as_ref()
+                .map(|s| geom_brep::patch_distance_sup(&patch, s));
+            let refuted = est.as_ref().map(|s| refuted_at_samples(&patch, s, band));
+            eprintln!(
+                "headline wall @ {eps:e}: {} | estimate cert {cert:?} refuted {refuted:?}",
+                outcome(&patch, eps)
+            );
+        }
+    }
+
+    /// A closed freeform revolution (a non-conic profile, `v` the full
+    /// turn) and its transpose: the refusal class each orientation reports.
+    #[test]
+    fn review_closed_freeform_refusal_under_transposition() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let mut kv = vec![0.0; 3];
+        for t in 1..4 {
+            kv.push(f64::from(t));
+            kv.push(f64::from(t));
+        }
+        kv.extend([4.0; 3]);
+        let kv = KnotVector::clamped(kv, 2).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let dirs = [
+            (1.0, 0.0, 1.0),
+            (1.0, 1.0, w),
+            (0.0, 1.0, 1.0),
+            (-1.0, 1.0, w),
+            (-1.0, 0.0, 1.0),
+            (-1.0, -1.0, w),
+            (0.0, -1.0, 1.0),
+            (1.0, -1.0, w),
+            (1.0, 0.0, 1.0),
+        ];
+        let profile = [(1.0, 0.0), (1.6, 0.4), (0.7, 0.8), (1.2, 1.3)];
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for &(rho, z) in &profile {
+            for &(c, s, wt) in &dirs {
+                control.push(Point3::new(rho * c, rho * s, z));
+                weights.push(wt);
+            }
+        }
+        let p = NurbsSurface::new(ku, kv, control, weights).unwrap();
+        eprintln!(
+            "closed vase: as stated {} / transposed {}",
+            outcome(&p, 1e-6),
+            outcome(&p.transposed(), 1e-6)
+        );
+    }
+}
