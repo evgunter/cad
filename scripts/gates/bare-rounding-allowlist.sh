@@ -89,7 +89,7 @@
 #
 # The counts are compared with the tree, not with the merge base, so a
 # change may raise a row beside the site it adds; only review holds that
-# (`work/guard/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
+# (`work/ciw/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
 #
 # KNOWN GAPS. A token scan sees spellings, not values: a literal
 # `2.220446049250313e-16`, `2f64.powi(-52)`, `f64::EPSILON` re-exported

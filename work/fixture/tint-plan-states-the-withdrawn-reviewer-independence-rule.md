@@ -13,12 +13,12 @@ closed: 2026-10-26
 
 ## Finding
 
-- **Where**: `work/tint/plan.md`, in the reading list, in one bullet:
+- **Where**: `work/ciw/plan.md`, in the reading list, in one bullet:
 
   > `memories/review-and-dependency-policy.md` — retirement is always
   > permitted, and a reviewer suite's **independence is worth keeping**
   > where it pulls its weight; **reviewer tests are ordinary tests**
-  > (Ev's ruling of 2026-09-04, in `work/tcost/log.md`'s seam).
+  > (Ev's ruling of 2026-09-04, in `docs/doc-ledger/tcost-merges-into-green.md`'s seam).
 
 - **Why it is wrong**: the bullet states the withdrawn reading and the
   ruling that withdrew it as though they were two compatible clauses of
@@ -57,7 +57,7 @@ because one file is one item.
 ## Closed (2026-10-26, tracker sweep)
 
 **Fixed on main.** `7816627606` ("work: score and cut TINT", 2026-09-20)
-rewrote `work/tint/plan.md` and dropped the bullet. The plan no longer
+rewrote `work/ciw/plan.md` and dropped the bullet. The plan no longer
 says "independence" anywhere, and it no longer cites
 `memories/review-and-dependency-policy.md` at all. That was checked
 against the file at `2e58f877b6`, which still carried the bullet at

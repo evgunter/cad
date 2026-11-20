@@ -272,7 +272,7 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
 /// crossings path, and the join chords the section it meets there —
 /// the great circle `z = 0`, along the ball's seam edges. Every witness
 /// of both hemispheres lies on the slab's bottom face
-/// (`work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`),
+/// (`work/cleavetail/the-uncut-shell-witness-reads-no-curved-face-interior.md`),
 /// and the join reads which section loop bounds the result at the seam
 /// instead (`boolean::join`'s `seam_germ_side`). The op stops at the
 /// top face, which meets the ball EXACTLY at its point `(0, 0, 1)`: the
@@ -284,7 +284,7 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
 /// and above the ball (height 1.3) every op builds
 /// ([`the_die_slab_above_the_ball_builds_at_its_closed_form`]). The
 /// interior loop waits on
-/// `work/germtail/interior-loop-cut-in.md`. (Nudge the ball off both
+/// `work/germ/interior-loop-cut-in.md`. (Nudge the ball off both
 /// coincidences and the S13 lanes cut it — the pips suite.)
 #[test]
 fn the_die_pips_shape_stops_typed_at_its_tangent_top() {
