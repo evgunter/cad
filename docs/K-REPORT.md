@@ -1273,7 +1273,7 @@ scenes' spine frames. The tour's axis-aligned sketch planes are written
 turns (`RigidMotion::turned`), which decide nothing, so the Klein
 bottle's and the lily's exact planes no longer sample it. The tube
 scenes' `axis_frame` still decides an exact (axis, reference) pair
-under it (`work/frame/exact-axis-and-reference-frames-still-decide.md`).
+under it (`work/scalar/exact-axis-and-reference-frames-still-decide.md`).
 The two names the sweep's corpus does
 NOT reach — `sketch_plane_frame_norm`, which is production code, and
 `fixture_frame_axis` — are filed at

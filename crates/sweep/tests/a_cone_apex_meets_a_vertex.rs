@@ -109,7 +109,7 @@ fn four_ops(what: &str, a: Operand, b: Operand, share: f64, lattice: (Point3<f64
 /// `ResultPinchedAtConeApex` by name, and every other op builds and is
 /// held: a cone face cut along two rulings on both sides of its wrap seam
 /// is two lobes meeting only at the apex, which props cannot yet measure
-/// (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
+/// (`work/spiricarm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
 fn four_ops_pinching(
     what: &str,
     (a, ra, va): Operand,

@@ -28,7 +28,7 @@ than mentioned because a residue disclosed only in prose dies with the
 directory it was disclosed in.
 
 `crates/mesh/tests` holds five more and is
-`work/helper/the-half-edge-to-face-walk-is-spelled-per-test-file.md`.
+`work/fixture/the-half-edge-to-face-walk-is-spelled-per-test-file.md`.
 
 ## What the instrument could not see
 

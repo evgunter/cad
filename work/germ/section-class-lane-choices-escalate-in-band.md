@@ -4,6 +4,8 @@ kind: issue
 title: Four section-class readings in intersect.rs (pc_rim_alignment, pn_axis_normal, pt_axis_normal, pt_axis_in_plane) escalate in band where D3 takes the general lane
 status: open
 opened: 2026-10-20
+priority: P1
+cost: M
 ---
 
 Filed by PCERT unit E1 (`pcert/lane-choices`), from its sweep of lane
