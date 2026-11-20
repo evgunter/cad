@@ -767,13 +767,14 @@ pub struct CornerRefusal<T: Real> {
     pub reason: CornerReason,
 }
 
-/// A point of the sketch plane as a sentence tells it: `(x m, y m)`.
+/// A point of the sketch plane as a sentence locates it, `(x, y)`, its
+/// coordinates lengths told in the role `told` builds.
 fn told_point<T: Real>(at: &Point2<T>, told: fn(&T, Dimension) -> Told) -> impl core::fmt::Display {
     let (x, y) = (
         told(&at.x, Dimension::Length),
         told(&at.y, Dimension::Length),
     );
-    core::fmt::from_fn(move |f| write!(f, "({x}, {y})"))
+    core::fmt::from_fn(move |f| core::fmt::Display::fmt(&Told::position(&x, &y), f))
 }
 
 impl<T: Real> core::fmt::Display for CornerRefusal<T> {
@@ -6789,7 +6790,7 @@ mod tests {
             leg(carrier, radius, angular_margin),
             leg(FilletLegCarrier::Line, radius, 1.0),
         ]);
-        assert!(s.starts_with("at corner (0.25 m, 0.3 m): "), "{s}");
+        assert!(s.starts_with("at corner (0.25, 0.3): "), "{s}");
         assert!(s.contains("(setback 0.008 m, 0.0035 m available)"), "{s}");
         // A setback that overruns by less than the grid still reads
         // larger than the extent it overruns.

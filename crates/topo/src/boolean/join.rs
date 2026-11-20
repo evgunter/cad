@@ -7216,13 +7216,12 @@ mod frame_dispatch_tests {
                 && test_utils::refusal::stage_prefixes(&text, &[]).is_empty(),
             "{text}"
         );
-        let k = b.escalate() / b.zero();
         assert!(
             text.starts_with("whether a cylinder's radius is positive is undecided: ")
                 && text.contains(&format!(
                     "Recourse: make the cylinder's radius clearly larger than the tolerance, \
                      or, if this radius is intended, tighten the tolerance below {:e} m",
-                    mid / k
+                    b.offer_deciding(mid).expect("an offer above the floor")
                 ))
                 && !text.contains("declare"),
             "{text}"

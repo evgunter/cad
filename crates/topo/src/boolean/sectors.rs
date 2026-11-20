@@ -4357,7 +4357,8 @@ mod tests {
                 "Recourse: make the edges at the corner where the two faces meet span clearly \
                  more than the tolerance, or, if this edge's length or rise is intended, tighten \
                  the tolerance below {:e} m",
-                departure(mid) / (e / z)
+                b.offer_deciding(departure(mid))
+                    .expect("an offer above the floor")
             )) && !text.contains("declare"),
             "{text}"
         );

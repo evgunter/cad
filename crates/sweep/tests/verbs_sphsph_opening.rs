@@ -84,13 +84,12 @@ fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> AtRestBody<f64> {
 fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
-    let k = band.escalate() / band.zero();
     const LEVER: &str = "Recourse: move the spheres so they clearly stand apart, or so one lies \
                          clearly inside the other";
     let offer = |m: f64| {
         format!(
             "{LEVER}, or, if this clearance is intended, tighten the tolerance below {:e} m",
-            m / k
+            band.offer_deciding(m).unwrap_or(f64::NAN)
         )
     };
     let union = |d: f64| {

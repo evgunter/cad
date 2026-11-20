@@ -533,7 +533,6 @@ impl Band {
     /// ([`Band::tolerance_deciding`]) is no larger than [`EPS_MIN`](crate::tolerance::EPS_MIN): "below
     /// it" would ask for an ε no run admits (D4 ¶4). The one home of the
     /// floor rule for a point margin a decision passes on; readers that
-    /// predict an ending ask this rather than restating the comparison.
     #[must_use]
     ///
     /// The value is the one the sentence names: the deciding tolerance

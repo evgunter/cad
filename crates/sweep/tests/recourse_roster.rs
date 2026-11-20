@@ -658,7 +658,7 @@ fn the_convexity_sign_offer_names_the_wedge_opening() {
             "Recourse: {}, or, if this wedge opening is intended, tighten the tolerance below \
              {:e} m",
             sweep::blend::FILLET3_WEDGE_RECOURSE,
-            mid / (b.escalate() / b.zero())
+            b.offer_deciding(mid).expect("an offer above the floor")
         )),
         "{text}"
     );
@@ -673,7 +673,7 @@ fn the_convexity_sign_offer_names_the_wedge_opening() {
 fn the_material_side_offer_names_the_margin_it_carries() {
     let b = Band::linear(Tol::witness()).expect("the run's band forms");
     let mid = (b.zero() + b.escalate()) / 2.0;
-    let below = mid / (b.escalate() / b.zero());
+    let below = b.offer_deciding(mid).expect("an offer above the floor");
     for (name, size) in [
         (BlendDecision::MaterialSide.predicate(), "length"),
         ("material_pairing_wedge", "wedge opening"),
@@ -731,7 +731,9 @@ fn the_split_param_escalation_reads_whole_through_the_blend_door() {
     assert!(subjectless_escalations(&text).is_empty(), "{text}");
     assert!(stage_prefixes(&text, &[]).is_empty(), "{text}");
     let band = Band::linear(Tol::witness()).expect("the run's band forms");
-    let below = (band.zero() + band.escalate()) / 2.0 / (band.escalate() / band.zero());
+    let below = band
+        .offer_deciding((band.zero() + band.escalate()) / 2.0)
+        .expect("an offer above the floor");
     assert!(
         text.contains("whether a crossing lands strictly inside its edge is undecided: margin ")
             && text.ends_with(&format!(

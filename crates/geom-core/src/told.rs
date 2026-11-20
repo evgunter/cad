@@ -231,6 +231,21 @@ impl Told {
         }
     }
 
+    /// **A position in a plane's chart**, `(x, y)`: each coordinate a
+    /// length told as this one is, the pair written without a unit
+    /// word, as a sentence that locates something writes it.
+    #[must_use]
+    pub fn position(x: &Self, y: &Self) -> impl fmt::Display {
+        let (x, y) = (*x.0, *y.0);
+        fmt::from_fn(move |f| {
+            f.write_str("(")?;
+            x.write_number(f, 0)?;
+            f.write_str(", ")?;
+            y.write_number(f, 0)?;
+            f.write_str(")")
+        })
+    }
+
     /// The pair `(self, other)` as a sentence that states their order
     /// tells them.
     #[must_use]
@@ -934,6 +949,21 @@ mod tests {
         assert_eq!(
             Told::computed(&f64::NEG_INFINITY, Dimension::Length).to_string(),
             "-inf m"
+        );
+    }
+
+    /// A position is its two coordinates as lengths, without a unit
+    /// word.
+    #[test]
+    fn a_position_reads_as_its_two_coordinates() {
+        let at = |x: f64| Told::computed(&x, Dimension::Length);
+        assert_eq!(
+            Told::position(&at(0.25), &at(-0.0)).to_string(),
+            "(0.25, 0)"
+        );
+        assert_eq!(
+            Told::position(&at(1.234_567), &at(0.1 + 0.2)).to_string(),
+            "(1.234567, 0.3)"
         );
     }
 
