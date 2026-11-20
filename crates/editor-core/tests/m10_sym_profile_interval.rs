@@ -315,27 +315,22 @@ fn eps_row(eps: f64) -> usize {
 /// start, half the segment's length along its direction, half the sweep):
 /// `Plain/Decision` 7778 → 8308 forms over the same calls, the forms of
 /// that middle, and its digest; nothing else moves.
-///
-/// **A curvature arm is a magnitude** (`geom_brep::curvature_arm`'s one
-/// mint): the absolute value is one more form where an arm is read on
-/// an assertion walk, so `Plain/Assertion` 2572 → 2573 and
-/// `Early/Assertion` 3001 → 3002, calls unchanged.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 936 forms 8308 frozen 0 digest ebddfff107d3206a0c4b78d656c9b7ba\n\
-     Plain/Assertion calls 992 forms 2573 frozen 0 digest bd549b0083042f60bbb49113081b5d53\n\
+     Plain/Assertion calls 992 forms 2572 frozen 0 digest 05926a76790cbf1f6b2eb3d922f4a4b5\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3002 frozen 0 digest 31124c68c52749c66da06466b7b8dd8e",
+     Early/Assertion calls 992 forms 3001 frozen 0 digest 88997ebd42bafb7f7281f34aa07cc09d",
     "\
      Plain/Decision calls 936 forms 8308 frozen 0 digest 45b5180c8276b923878b23c0a88dd5b6\n\
-     Plain/Assertion calls 992 forms 2573 frozen 0 digest 68cbb61a411694721eee92ab99eba9b2\n\
+     Plain/Assertion calls 992 forms 2572 frozen 0 digest c2778ce893923cc5baf928828a4a5e5a\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3002 frozen 0 digest b32682ac6a627a10f61ed169597f33d8",
+     Early/Assertion calls 992 forms 3001 frozen 0 digest 12694967b282815a08535eab2eff4e8c",
     "\
      Plain/Decision calls 936 forms 8308 frozen 0 digest 9af3c2a47bf454282f13404027438701\n\
-     Plain/Assertion calls 992 forms 2573 frozen 0 digest f9846783e79320ec415bac53aa217c46\n\
+     Plain/Assertion calls 992 forms 2572 frozen 0 digest 3886f7e664853234cb584c3502b1732d\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3002 frozen 0 digest 1eb8d8e4c63706c237b2b81b18e79441",
+     Early/Assertion calls 992 forms 3001 frozen 0 digest a8c5c56f6a96335393e0ed723dda6b81",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -579,16 +574,12 @@ const PLATE_MAX_TERMS: usize = 38;
 /// 11571 forms, `Door/Decision` 548 calls 11668 forms).
 ///
 /// Besides the session box's asks, every walk makes the calls it made.
-///
-/// **A curvature arm is a magnitude** ([`SLAB_LEDGER`]'s note): one more
-/// form on each assertion walk (14592 → 14593, 15162 → 15163) and two on
-/// `Door/Decision` (15356 → 15358), calls unchanged.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 979 forms 39703 frozen 54 digest 7efda4b66066a94e596eb7fa2f430a65\n\
-     Plain/Assertion calls 1047 forms 14593 frozen 0 digest 48121fa5ebdb8b392cfad90421922910\n\
+     Plain/Assertion calls 1047 forms 14592 frozen 0 digest e6c6e5c3cd56ef78f91f2c7626f73670\n\
      Early/Decision calls 308 forms 28232 frozen 0 digest 10ed8def872f6c15f2ccd18ea920e1f7\n\
-     Early/Assertion calls 1047 forms 15163 frozen 0 digest 23596f4fa65e3982ca3bfe0aa8461188\n\
-     Door/Decision calls 550 forms 15358 frozen 0 digest 1310b88244afd035384674e5f3362e65";
+     Early/Assertion calls 1047 forms 15162 frozen 0 digest c7fd707ed0a699ee0a5d3f1d55c1fa69\n\
+     Door/Decision calls 550 forms 15356 frozen 0 digest 032cdcf5efa6396ea7a39bf7b7a8f1ab";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

@@ -531,20 +531,17 @@ pub(crate) struct RuledCylinderSphere<T: Real> {
     pub(crate) n: Vec3<T>,
     pub(crate) v: Vec3<T>,
     pub(crate) axis: Vec3<T>,
+    /// The cylinder's radius.
+    pub(crate) r: T,
     /// The centre's distance from the axis.
     pub(crate) d: T,
     /// The sphere's radius.
     pub(crate) big_r: T,
-    /// The cylinder's curvature arm, whose length is its radius.
+    /// The cylinder's curvature arm.
     pub(crate) lever: geom_core::Lever<T>,
 }
 
 impl<T: Real> RuledCylinderSphere<T> {
-    /// The cylinder's radius.
-    fn r(&self) -> T {
-        self.lever.length()
-    }
-
     /// `1 − cos φ` over the cell, read where it keeps its relative
     /// precision: as `sin²φ / (1 + cos φ)` on a cell inside the half turn
     /// about `φ = 0`, where `1 − cos φ` would cancel, else directly. A
@@ -562,7 +559,7 @@ impl<T: Real> RuledCylinderSphere<T> {
     /// to their own relative precision, so `ρ` stays well-conditioned
     /// where it is least.
     fn reach_sq(&self, cell: &Cell<T>) -> Iv<T> {
-        let (r, d) = (self.r(), self.d);
+        let (r, d) = (self.r, self.d);
         Self::versine(cell)
             .scale(T::from_f64(2.0) * r * d)
             .shift((r - d).powi(2))
@@ -587,20 +584,20 @@ impl<T: Real> Ruled<T> for RuledCylinderSphere<T> {
     /// its sign, and equal to it at a branch point, where `ρ = R`. It
     /// does not divide by `ρ`, which vanishes on a centre on the wall.
     fn discriminant_slope(&self, cell: &Cell<T>) -> Iv<T> {
-        cell.sin.scale(T::zero() - self.r() * self.d / self.big_r)
+        cell.sin.scale(T::zero() - self.r * self.d / self.big_r)
     }
 
     fn meeting(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T> {
         V3::at(self.foot)
-            .plus(V3::along(self.n, cell.cos.scale(self.r())))
-            .plus(V3::along(self.v, cell.sin.scale(self.r())))
+            .plus(V3::along(self.n, cell.cos.scale(self.r)))
+            .plus(V3::along(self.v, cell.sin.scale(self.r)))
             .plus(V3::along(self.axis, self.root(cell).scale(sheet.sign())))
     }
 
     fn velocity(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T> {
         // `t′ = ∓ρρ′/√(R² − ρ²)`, `ρρ′ = rd·sin φ`, read only where `Δ` is
         // decided positive, so the root is away from zero.
-        let (r, d) = (self.r(), self.d);
+        let (r, d) = (self.r, self.d);
         let dt = cell
             .sin
             .scale(T::zero() - r * d * sheet.sign::<T>())

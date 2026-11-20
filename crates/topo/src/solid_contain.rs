@@ -1579,7 +1579,9 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             south: None,
         }));
     };
-    let Some((north, south)) = latitude_extremes(first, rest, arm, band).map_err(escalate)? else {
+    let Some((north, south)) =
+        latitude_extremes(first, rest, (radius, arm), band).map_err(escalate)?
+    else {
         return Ok(None);
     };
     Ok(Some(SphereChartTrim { az, north, south }))
@@ -1637,12 +1639,12 @@ fn latitude_sine<T: geom_core::Real>(a: (T, T), b: (T, T), r: T) -> T {
 fn latitude_after<T: Decide>(
     a: (T, T),
     b: (T, T),
-    arm: Lever<T>,
+    (radius, arm): (T, Lever<T>),
     band: Band,
 ) -> Result<bool, Indeterminate> {
     match decide(
         "bool_sphere_trim_latitude",
-        Margin::levered(latitude_sine(a, b, arm.length()), arm),
+        Margin::levered(latitude_sine(a, b, radius), arm),
         band,
     )? {
         Sign::Positive => Ok(true),
@@ -1675,15 +1677,15 @@ fn latitude_after<T: Decide>(
 fn latitude_extremes<T: Decide>(
     first: (T, T),
     rest: &[(T, T)],
-    arm: Lever<T>,
+    (radius, arm): (T, Lever<T>),
     band: Band,
 ) -> Result<Option<(Option<(T, T)>, Option<(T, T)>)>, Indeterminate> {
     let (mut lo, mut hi) = (first, first);
     for &e in rest {
-        if latitude_after(e, lo, arm, band)? {
+        if latitude_after(e, lo, (radius, arm), band)? {
             lo = e;
         }
-        if latitude_after(hi, e, arm, band)? {
+        if latitude_after(hi, e, (radius, arm), band)? {
             hi = e;
         }
     }
@@ -1714,7 +1716,7 @@ fn latitude_extremes<T: Decide>(
     if matches!(
         decide(
             "bool_sphere_trim_latitude",
-            Margin::levered(latitude_sine(lo, hi, arm.length()), arm),
+            Margin::levered(latitude_sine(lo, hi, radius), arm),
             band,
         )?,
         Sign::Zero

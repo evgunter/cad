@@ -36,8 +36,8 @@ enum Surface<T: Real> {
     },
     Sphere {
         center: Point3<T>,
-        /// The sphere's curvature arm, read off the face's carrier; its
-        /// length is the radius.
+        radius: T,
+        /// The sphere's curvature arm, read off the face's carrier.
         arm: geom_core::Lever<T>,
     },
 }
@@ -71,8 +71,9 @@ fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
     let carrier = body.face(f)?.surface();
     match *carrier {
         geom::Surface::Plane { origin, normal, .. } => Some(Surface::Plane { origin, normal }),
-        geom::Surface::Sphere { center, .. } => Some(Surface::Sphere {
+        geom::Surface::Sphere { center, radius, .. } => Some(Surface::Sphere {
             center,
+            radius,
             arm: geom_brep::uniform_curvature_arm(carrier),
         }),
         _ => None,
@@ -118,12 +119,11 @@ fn coincident<T: Decide>(
 /// A sphere `(c, r)` against a line or a plane whose nearest point to
 /// `c` is `foot` (`κ_rel = 1/r`).
 fn on_sphere<T: Decide>(
-    (c, arm): (Point3<T>, geom_core::Lever<T>),
+    (c, r, arm): (Point3<T>, T, geom_core::Lever<T>),
     foot: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Touch<T>> {
-    let r = arm.length();
     if !separates(T::one() / r, arm, band, errors)? {
         return Some(Touch::Apart);
     }
@@ -198,12 +198,11 @@ fn plane_across<T: Real>(a: Vec3<T>, n: Vec3<T>) -> Vec3<T> {
 /// (`κ_rel = 1/r₁ + 1/r₂`), or one inside the other at
 /// `|c₂ − c₁| = |r₁ − r₂|` (`κ_rel = 1/r_small − 1/r_big`).
 fn sphere_sphere<T: Decide>(
-    (c1, arm1): (Point3<T>, geom_core::Lever<T>),
-    (c2, arm2): (Point3<T>, geom_core::Lever<T>),
+    (c1, r1, arm1): (Point3<T>, T, geom_core::Lever<T>),
+    (c2, r2, arm2): (Point3<T>, T, geom_core::Lever<T>),
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Touch<T>> {
-    let (r1, r2) = (arm1.length(), arm2.length());
     let v = c2 - c1;
     let (u, dist) = v.direction_and_length();
     if decided_as("pm_census_point_centre", Margin::of(dist), band, errors)? != Sign::Positive {
@@ -321,9 +320,14 @@ pub(super) fn edge_face<T: Decide>(
                 }
             }
         }
-        (geom::Curve3::Line(line), Some(Surface::Sphere { center, arm })) => {
-            on_sphere((center, arm), line.foot(center), band, errors)
-        }
+        (
+            geom::Curve3::Line(line),
+            Some(Surface::Sphere {
+                center,
+                radius,
+                arm,
+            }),
+        ) => on_sphere((center, radius, arm), line.foot(center), band, errors),
         _ => {
             errors.push(refused(
                 subject,
@@ -357,21 +361,37 @@ pub(super) fn face_face<T: Decide>(
 ) -> Option<Read> {
     use Surface::{Plane, Sphere};
     let touch = match surface(body, a).zip(surface(body, b))? {
-        (Plane { origin, normal }, Sphere { center, arm })
-        | (Sphere { center, arm }, Plane { origin, normal }) => {
+        (
+            Plane { origin, normal },
+            Sphere {
+                center,
+                radius,
+                arm,
+            },
+        )
+        | (
+            Sphere {
+                center,
+                radius,
+                arm,
+            },
+            Plane { origin, normal },
+        ) => {
             let foot = center - normal * geom::plane_offset(origin, normal, center);
-            on_sphere((center, arm), foot, band, errors)
+            on_sphere((center, radius, arm), foot, band, errors)
         }
         (
             Sphere {
                 center: c1,
+                radius: r1,
                 arm: arm1,
             },
             Sphere {
                 center: c2,
+                radius: r2,
                 arm: arm2,
             },
-        ) => sphere_sphere((c1, arm1), (c2, arm2), band, errors),
+        ) => sphere_sphere((c1, r1, arm1), (c2, r2, arm2), band, errors),
         (Plane { .. }, Plane { .. }) => return None,
     };
     Some(read(

@@ -204,9 +204,15 @@ pub fn boundary_material_sign_holding<T: Decide>(
             what: "boundary_material_sign called on a plane (planar orientation is the \
                    check-6 Newell winding, not a props derivation)",
         }),
-        Surface::Cylinder { origin, axis, .. } => cylinder_material_sign(
+        Surface::Cylinder {
             origin,
             axis,
+            radius,
+            ..
+        } => cylinder_material_sign(
+            origin,
+            axis,
+            radius,
             crate::uniform_curvature_arm(surface),
             loops,
             band,
@@ -217,8 +223,14 @@ pub fn boundary_material_sign_holding<T: Decide>(
             half_angle,
             ..
         } => cone_material_sign(surface, apex, axis, half_angle, loops, band),
-        Surface::Sphere { center, axis, .. } => sphere_loop_side(
+        Surface::Sphere {
             center,
+            radius,
+            axis,
+            ..
+        } => sphere_loop_side(
+            center,
+            radius,
             crate::uniform_curvature_arm(surface),
             axis,
             loops,
@@ -231,11 +243,13 @@ pub fn boundary_material_sign_holding<T: Decide>(
             center,
             axis,
             major_radius,
+            minor_radius,
             ..
         } => torus_material_sign(
             center,
             axis,
             major_radius,
+            minor_radius,
             crate::uniform_curvature_arm(surface),
             loops,
             band,
@@ -244,11 +258,13 @@ pub fn boundary_material_sign_holding<T: Decide>(
             center,
             axis,
             major_radius,
+            minor_radius,
             ..
         } => sheet_material_sign(
             center,
             axis,
             major_radius,
+            minor_radius,
             crate::uniform_curvature_arm(surface),
             loops,
             band,
@@ -400,10 +416,16 @@ pub fn require_iso_rectangle<T: Decide>(
         Surface::Plane { .. } => Err(PropsError::Defect {
             what: "require_iso_rectangle called on a plane (a planar loop is not a chart rectangle)",
         }),
-        Surface::Cylinder { origin, axis, .. } => {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => {
             let b = cylinder_boundary(
                 origin,
                 axis,
+                radius,
                 crate::uniform_curvature_arm(surface),
                 outer,
                 band,
@@ -420,9 +442,15 @@ pub fn require_iso_rectangle<T: Decide>(
             let b = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
             linear_rims_at_extremes(&b, band)
         }
-        Surface::Sphere { center, axis, .. } => {
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            ..
+        } => {
             let b = sphere_boundary(
                 center,
+                radius,
                 crate::uniform_curvature_arm(surface),
                 axis,
                 outer,
@@ -434,17 +462,27 @@ pub fn require_iso_rectangle<T: Decide>(
             center,
             axis,
             major_radius,
+            minor_radius,
             ..
         }
         | Surface::Spindle {
             center,
             axis,
             major_radius,
+            minor_radius,
             ..
         } => {
             let tube_arm = crate::uniform_curvature_arm(surface);
-            let p = torus_parse(center, axis, major_radius, tube_arm, outer, band)?;
-            torus_rims_at_extremes(&p, center, axis, major_radius, tube_arm, band)
+            let p = torus_parse(
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                tube_arm,
+                outer,
+                band,
+            )?;
+            torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, tube_arm, band)
         }
         // As `curved_face`: no rim inventory for a spline or for an
         // offset description over one.
@@ -978,12 +1016,12 @@ fn torus_parse<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
+    minor: T,
     tube_arm: Lever<T>,
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<TorusParse<T>, PropsError> {
-    let minor = tube_arm.length();
-    let (rims, mut meridians) = torus_boundary(center, axis, major, tube_arm, edges, band)?;
+    let (rims, mut meridians) = torus_boundary(center, axis, major, minor, tube_arm, edges, band)?;
     if meridians.is_empty() {
         return Err(PropsError::NotIsoRectangle {
             what: "torus face without a meridian",
@@ -1006,10 +1044,10 @@ fn torus_rims_at_extremes<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
+    minor: T,
     tube_arm: Lever<T>,
     band: Band,
 ) -> Result<(), PropsError> {
-    let minor = tube_arm.length();
     let (s0, c0, s1, c1) = torus_ends(&p.anchor, center, axis, major, minor, p.orient);
     require_rims_at_extremes(
         &p.rims,
@@ -1247,10 +1285,10 @@ impl<T: Real> RimArms<T> {
     /// The three surfaces whose level and azimuth turn about the same
     /// radius: the cylinder and sphere (`R`) and the cone (its first
     /// rim's own radius, [`cone_arm`]).
-    fn uniform(arm: Lever<T>) -> Self {
+    fn uniform(r: T, arm: Lever<T>) -> Self {
         Self {
             level: arm,
-            azimuth: arm.length(),
+            azimuth: r,
         }
     }
 
@@ -1569,12 +1607,12 @@ fn unanimous_rim_side<T: Decide>(
 fn cylinder_face<T: Decide>(
     origin: Point3<T>,
     axis: Vec3<T>,
+    radius: T,
     arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let radius = arm.length();
-    let chart = cylinder_chart(origin, axis, arm, loops, band)?;
+    let chart = cylinder_chart(origin, axis, radius, arm, loops, band)?;
     let mut va = Vec3::new(T::zero(), T::zero(), T::zero());
     for edges in loops {
         va = va + loop_vector_area(edges, origin)?;
@@ -1630,11 +1668,11 @@ struct CylinderChart<T> {
 fn cylinder_chart<T: Decide>(
     origin: Point3<T>,
     axis: Vec3<T>,
+    radius: T,
     arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<CylinderChart<T>, PropsError> {
-    let radius = arm.length();
     let mut rims = Vec::new();
     let mut levels = Vec::new();
     let mut length = T::zero();
@@ -1645,7 +1683,7 @@ fn cylinder_chart<T: Decide>(
         let length_before = length;
         // The carriers first: an edge off the surface, or one this
         // closed form has no arm for, refuses as itself.
-        let b = cylinder_boundary(origin, axis, arm, edges, band)?;
+        let b = cylinder_boundary(origin, axis, radius, arm, edges, band)?;
         for e in edges.iter() {
             if !e.carrier.is_curved() {
                 length = length + (e.p1() - e.p0()).norm();
@@ -1875,12 +1913,12 @@ fn mean_width_side<T: Decide>(
 fn cylinder_material_sign<T: Decide>(
     origin: Point3<T>,
     axis: Vec3<T>,
+    radius: T,
     arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
-    let radius = arm.length();
-    let chart = cylinder_chart(origin, axis, arm, loops, band)?;
+    let chart = cylinder_chart(origin, axis, radius, arm, loops, band)?;
     chart_area_side(radius * chart.area, chart.length, band)
 }
 
@@ -1936,9 +1974,15 @@ pub fn curved_face_holding<T: Decide>(
         Surface::Plane { .. } => Err(PropsError::Defect {
             what: "curved_face called on a plane (planar faces take the loop route)",
         }),
-        Surface::Cylinder { origin, axis, .. } => cylinder_face(
+        Surface::Cylinder {
             origin,
             axis,
+            radius,
+            ..
+        } => cylinder_face(
+            origin,
+            axis,
+            radius,
             crate::uniform_curvature_arm(surface),
             loops,
             band,
@@ -1949,8 +1993,14 @@ pub fn curved_face_holding<T: Decide>(
             half_angle,
             ..
         } => cone_face_closed_form(surface, apex, axis, half_angle, loops, band),
-        Surface::Sphere { center, axis, .. } => sphere_face(
+        Surface::Sphere {
             center,
+            radius,
+            axis,
+            ..
+        } => sphere_face(
+            center,
+            radius,
             crate::uniform_curvature_arm(surface),
             axis,
             loops,
@@ -1962,11 +2012,13 @@ pub fn curved_face_holding<T: Decide>(
             center,
             axis,
             major_radius,
+            minor_radius,
             ..
         } => torus_face(
             center,
             axis,
             major_radius,
+            minor_radius,
             crate::uniform_curvature_arm(surface),
             loops,
             Tube::Ring,
@@ -1978,6 +2030,7 @@ pub fn curved_face_holding<T: Decide>(
             center,
             axis,
             major_radius,
+            minor_radius,
             ..
         } => {
             let side = if sense {
@@ -1989,6 +2042,7 @@ pub fn curved_face_holding<T: Decide>(
                 center,
                 axis,
                 major_radius,
+                minor_radius,
                 crate::uniform_curvature_arm(surface),
                 loops,
                 Tube::Sheet(side),
@@ -2095,11 +2149,11 @@ pub fn closed_surface<T: Real>(
 fn cylinder_boundary<T: Decide>(
     origin: Point3<T>,
     axis: Vec3<T>,
+    radius: T,
     arm: Lever<T>,
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<LinearBoundary<T>, PropsError> {
-    let radius = arm.length();
     let mut rims: Vec<Rim<T>> = Vec::new();
     let mut levels: Vec<T> = Vec::new();
     for e in edges {
@@ -2239,7 +2293,7 @@ fn cylinder_boundary<T: Decide>(
     Ok(LinearBoundary {
         rims,
         levels,
-        arms: RimArms::uniform(arm),
+        arms: RimArms::uniform(radius, arm),
         cosines: Vec::new(),
     })
 }
@@ -3475,7 +3529,8 @@ fn cone_boundary<T: Decide>(
     }
     // Cone levels are the signed SLANT arc length — `Length`, bare —
     // and the arm is the first rim's own radius ([`cone_arm`]).
-    let arms = RimArms::uniform(Lever::curvature_radius(cone_arm(&rims, sin_a)));
+    let rim_radius = cone_arm(&rims, sin_a);
+    let arms = RimArms::uniform(rim_radius, Lever::curvature_radius(rim_radius));
     let mut b = LinearBoundary {
         rims,
         levels,
@@ -3681,6 +3736,7 @@ fn cone_arm<T: Real>(rims: &[Rim<T>], sin_a: T) -> T {
 #[allow(clippy::too_many_arguments)]
 fn sphere_face<T: Decide>(
     center: Point3<T>,
+    radius: T,
     arm: Lever<T>,
     axis: Vec3<T>,
     loops: &[&[LoopEdge<T>]],
@@ -3688,15 +3744,14 @@ fn sphere_face<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let radius = arm.length();
-    let gauss = sphere_loops(center, arm, loops, band)?;
+    let gauss = sphere_loops(center, radius, arm, loops, band)?;
     let Some((outer, rings)) = gauss.split_first() else {
         return Err(PropsError::SphereLoop {
             what: "sphere face with an empty boundary",
         });
     };
     if let MaterialSign::Encoded(side) =
-        side_of_sphere_loops(center, arm, axis, &gauss, held, band)?
+        side_of_sphere_loops(center, radius, arm, axis, &gauss, held, band)?
         && (side == Sign::Positive) != sense
     {
         // A holed face's side is its area's sign, which no pole enters.
@@ -3813,9 +3868,9 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
         // The carrier plane's offset along its (unit) axis, over the
         // sphere's radius as the carrier states it, and `ρ²/R²`.
         let offset = (arc.centre - center).dot(arc.axis);
-        let reach = offset.powi(2) + arc.radius().powi(2);
+        let reach = offset.powi(2) + arc.radius.powi(2);
         let d = offset / reach.sqrt();
-        let fit = arc.radius().powi(2) / reach;
+        let fit = arc.radius.powi(2) / reach;
         // `1 − d`, accurate for either sign of `d`.
         let one_less = |d: T| {
             let below = d.min(T::zero());
@@ -3947,7 +4002,8 @@ impl<T: Real> SphereLoop<T> {
 struct SphereArc<T: Real> {
     centre: Point3<T>,
     axis: Vec3<T>,
-    /// The arc's circle's curvature arm, whose length is its radius.
+    radius: T,
+    /// The arc's circle's curvature arm.
     arm: Lever<T>,
     start: Point3<T>,
     extent: Extent<T>,
@@ -3958,23 +4014,17 @@ struct SphereArc<T: Real> {
     arrive: Vec3<T>,
 }
 
-impl<T: Real> SphereArc<T> {
-    /// The arc's circle's radius.
-    fn radius(&self) -> T {
-        self.arm.length()
-    }
-}
-
 /// [`sphere_loop`] over every loop of a face.
 fn sphere_loops<T: Decide>(
     center: Point3<T>,
+    radius: T,
     arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<Vec<SphereLoop<T>>, PropsError> {
     loops
         .iter()
-        .map(|edges| sphere_loop(center, arm, edges, band, Cusp::Band))
+        .map(|edges| sphere_loop(center, radius, arm, edges, band, Cusp::Band))
         .collect()
 }
 
@@ -4011,12 +4061,12 @@ fn sphere_loops<T: Decide>(
 /// at a point), answers the formula's value for it.
 fn sphere_loop<T: Decide>(
     center: Point3<T>,
+    radius: T,
     arm: Lever<T>,
     edges: &[LoopEdge<T>],
     band: Band,
     cusp: Cusp,
 ) -> Result<SphereLoop<T>, PropsError> {
-    let radius = arm.length();
     if edges.is_empty() {
         return Err(PropsError::SphereLoop {
             what: "sphere face with an empty boundary",
@@ -4085,6 +4135,7 @@ fn sphere_loop<T: Decide>(
         arcs.push(SphereArc {
             centre: c_c,
             axis: n_c,
+            radius: r_c,
             arm: crate::circle_curvature_arm(circle),
             start: e.p0(),
             extent,
@@ -4213,20 +4264,22 @@ fn require_cusp_free<T: Decide>(
 /// face of positive area under neither reading.
 fn sphere_loop_side<T: Decide>(
     center: Point3<T>,
+    radius: T,
     arm: Lever<T>,
     axis: Vec3<T>,
     loops: &[&[LoopEdge<T>]],
     held: &[Point3<T>],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
-    let gauss = sphere_loops(center, arm, loops, band)?;
-    side_of_sphere_loops(center, arm, axis, &gauss, held, band)
+    let gauss = sphere_loops(center, radius, arm, loops, band)?;
+    side_of_sphere_loops(center, radius, arm, axis, &gauss, held, band)
 }
 
 /// [`sphere_loop_side`] over loops already read, the face holding the
 /// points `held` ([`boundary_material_sign_holding`]).
 fn side_of_sphere_loops<T: Decide>(
     center: Point3<T>,
+    radius: T,
     arm: Lever<T>,
     axis: Vec3<T>,
     gauss: &[SphereLoop<T>],
@@ -4237,7 +4290,7 @@ fn side_of_sphere_loops<T: Decide>(
         [] => Err(PropsError::SphereLoop {
             what: "sphere face with an empty boundary",
         }),
-        [one] => pole_free_side(center, arm, axis, one, held, band),
+        [one] => pole_free_side(center, radius, arm, axis, one, held, band),
         [_, _, ..] => {
             for (left, side) in [(true, Sign::Positive), (false, Sign::Negative)] {
                 if classify_as(
@@ -4297,13 +4350,13 @@ fn claimed_area<T: Decide>(center: Point3<T>, loops: &[SphereLoop<T>], left: boo
 /// to refuse ([`MaterialSign`]).
 fn pole_free_side<T: Decide>(
     center: Point3<T>,
+    radius: T,
     arm: Lever<T>,
     axis: Vec3<T>,
     lp: &SphereLoop<T>,
     held: &[Point3<T>],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
-    let radius = arm.length();
     agreed_side(axis, |pole| {
         let p = center + pole * radius;
         let mut own = false;
@@ -4313,7 +4366,7 @@ fn pole_free_side<T: Decide>(
                 Err(_) => return Ok(None),
             }
         }
-        let side = pole_side(center, arm, pole, lp, band)?;
+        let side = pole_side(center, radius, arm, pole, lp, band)?;
         Ok(if own { side.map(Sign::flip) } else { side })
     })
 }
@@ -4355,7 +4408,7 @@ fn agreed_side<T: Decide>(
 /// parsed by [`sphere_loop`] against the sphere's chart.
 pub struct SeamLoops<T: Real> {
     center: Point3<T>,
-    /// The sphere's curvature arm, whose length is its radius.
+    radius: T,
     arm: Lever<T>,
     axis: Vec3<T>,
     boundary: Vec<SphereLoop<T>>,
@@ -4375,22 +4428,36 @@ pub fn seam_loops<T: Decide>(
     members: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<SeamLoops<T>, PropsError> {
-    let Surface::Sphere { center, axis, .. } = *surface else {
+    let Surface::Sphere {
+        center,
+        radius,
+        axis,
+        ..
+    } = *surface
+    else {
         return Err(PropsError::SphereLoop {
             what: "a seam region read on a surface that is not a sphere",
         });
     };
     Ok(SeamLoops {
         center,
+        radius,
         arm: crate::uniform_curvature_arm(surface),
         axis,
         boundary: sphere_loops(
             center,
+            radius,
             crate::uniform_curvature_arm(surface),
             boundary,
             band,
         )?,
-        members: sphere_loops(center, crate::uniform_curvature_arm(surface), members, band)?,
+        members: sphere_loops(
+            center,
+            radius,
+            crate::uniform_curvature_arm(surface),
+            members,
+            band,
+        )?,
     })
 }
 
@@ -4428,14 +4495,17 @@ pub fn sphere_region_material_sign<T: Decide>(
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
     let SeamLoops {
-        center, arm, axis, ..
+        center,
+        radius,
+        arm,
+        axis,
+        ..
     } = *region;
-    let radius = arm.length();
     let [one] = region.boundary.as_slice() else {
         return if region.boundary.is_empty() {
             Ok(MaterialSign::Unencoded)
         } else {
-            side_of_sphere_loops(center, arm, axis, &region.boundary, &[], band)
+            side_of_sphere_loops(center, radius, arm, axis, &region.boundary, &[], band)
         };
     };
     agreed_side(axis, |pole| {
@@ -4458,7 +4528,7 @@ pub fn sphere_region_material_sign<T: Decide>(
         match held {
             Climb::Answered { answer, .. } => {
                 answer?;
-                Ok(pole_side(center, arm, pole, one, band)?.map(Sign::flip))
+                Ok(pole_side(center, radius, arm, pole, one, band)?.map(Sign::flip))
             }
             Climb::Passed => Ok(None),
             Climb::Undecided(e) => Err(e),
@@ -4672,12 +4742,12 @@ fn pole_against_arc<T: Decide>(
 /// sphere analogue to check.
 fn pole_side<T: Decide>(
     center: Point3<T>,
+    radius: T,
     arm: Lever<T>,
     pole: Vec3<T>,
     lp: &SphereLoop<T>,
     band: Band,
 ) -> Result<Option<Sign>, PropsError> {
-    let radius = arm.length();
     let p = center + pole * radius;
     let mut circulations = Vec::with_capacity(lp.arcs.len());
     // The pole on any arc leaves its side unread ([`climb`],
@@ -4769,7 +4839,7 @@ fn pole_turning<T: Decide>(
     };
     let mut turning = lp.corners;
     for (arc, c) in lp.arcs.iter().zip(circulations) {
-        let full = pole_arc_full(arc.extent, arc.radius(), band)?;
+        let full = pole_arc_full(arc.extent, arc.radius, band)?;
         let sweep = match (full, *c) {
             // Whole circulations of a turning, an angle by construction.
             (true, Some(c)) => c * Period::<T>::angle().length(),
@@ -4844,13 +4914,13 @@ pub(crate) enum PoleLeft {
 /// leaves the pole right of the loop.
 pub(crate) fn sphere_pole_left<T: Decide>(
     center: Point3<T>,
+    radius: T,
     arm: Lever<T>,
     p: Point3<T>,
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> PoleLeft {
-    let radius = arm.length();
-    let Ok(lp) = sphere_loop(center, arm, edges, band, Cusp::Rounding) else {
+    let Ok(lp) = sphere_loop(center, radius, arm, edges, band, Cusp::Rounding) else {
         return PoleLeft::NoClosedForm;
     };
     let pole = (p - center) / radius;
@@ -4924,7 +4994,7 @@ fn pole_arc_full<T: Decide>(extent: Extent<T>, radius: T, band: Band) -> Result<
 /// radius).
 fn arc_point_margin<T: Decide>(arc: &SphereArc<T>, p: Point3<T>) -> Margin<T> {
     let w0 = arc.start - arc.centre;
-    let rr = arc.radius().powi(2);
+    let rr = arc.radius.powi(2);
     let q = p - arc.centre;
     let (ps, pc) = (q.dot(w0) / rr, q.dot(arc.axis.cross(w0)) / rr);
     Margin::levered(span_membership(ps, pc, arc.extent.get()), arc.arm)
@@ -5173,13 +5243,13 @@ fn span_membership<T: Real>(ps: T, pc: T, dt: T) -> T {
 fn sphere_meridian_span_levels<T: Decide>(
     e: &LoopEdge<T>,
     center: Point3<T>,
+    radius: T,
     arm: Lever<T>,
     axis: Vec3<T>,
     n_c: Vec3<T>,
     (levels, cosines): (&mut Vec<T>, &mut Vec<T>),
     band: Band,
 ) -> Result<(), PropsError> {
-    let radius = arm.length();
     for (m, extreme) in sphere_meridian_pole_margins(e, center, radius, axis, n_c, band)? {
         // Decided through the funnel — the margin is RECORDED like
         // any other — but the indeterminate outcome FOLDS instead of
@@ -5211,12 +5281,12 @@ fn sphere_meridian_span_levels<T: Decide>(
 /// Gauss–Bonnet instead ([`sphere_face`]) and do not parse.
 fn sphere_boundary<T: Decide>(
     center: Point3<T>,
+    radius: T,
     arm: Lever<T>,
     axis: Vec3<T>,
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<LinearBoundary<T>, PropsError> {
-    let radius = arm.length();
     let mut rims: Vec<Rim<T>> = Vec::new();
     let (mut levels, mut cosines): (Vec<T>, Vec<T>) = (Vec::new(), Vec::new());
     // A point's latitude, its sine and cosine each off its own offset
@@ -5330,6 +5400,7 @@ fn sphere_boundary<T: Decide>(
                 sphere_meridian_span_levels(
                     e,
                     center,
+                    radius,
                     arm,
                     axis,
                     n_c,
@@ -5346,7 +5417,7 @@ fn sphere_boundary<T: Decide>(
     Ok(LinearBoundary {
         rims,
         levels,
-        arms: RimArms::uniform(arm),
+        arms: RimArms::uniform(radius, arm),
         cosines,
     })
 }
@@ -5607,12 +5678,12 @@ fn torus_chart<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
+    minor: T,
     tube_arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
     tube: Tube,
     band: Band,
 ) -> Result<TorusChart<T>, PropsError> {
-    let minor = tube_arm.length();
     let (big, r) = (major, minor);
     let half = T::from_f64(0.5);
     let f = |v: T| {
@@ -5633,7 +5704,7 @@ fn torus_chart<T: Decide>(
         // Every edge is certified rim or meridian first, so a face this
         // inventory has no arm for refuses as itself.
         let mut pieces: Vec<TorusPiece<T>> = Vec::with_capacity(edges.len());
-        let classified = torus_classify(center, axis, major, tube_arm, edges, band)?;
+        let classified = torus_classify(center, axis, major, minor, tube_arm, edges, band)?;
         for (edge, e) in classified.into_iter().zip(edges.iter()) {
             let step = match edge {
                 TorusEdge::Rim(rim) => {
@@ -5962,12 +6033,13 @@ fn torus_face<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
+    minor: T,
     tube_arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
     tube: Tube,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let chart = torus_chart(center, axis, major, tube_arm, loops, tube, band)?;
+    let chart = torus_chart(center, axis, major, minor, tube_arm, loops, tube, band)?;
     let mut va = Vec3::new(T::zero(), T::zero(), T::zero());
     for edges in loops {
         va = va + loop_vector_area(edges, center)?;
@@ -5984,11 +6056,21 @@ fn torus_material_sign<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
+    minor: T,
     tube_arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
-    let chart = torus_chart(center, axis, major, tube_arm, loops, Tube::Ring, band)?;
+    let chart = torus_chart(
+        center,
+        axis,
+        major,
+        minor,
+        tube_arm,
+        loops,
+        Tube::Ring,
+        band,
+    )?;
     chart_area_side(chart.area, chart.length, band)
 }
 
@@ -6015,6 +6097,7 @@ fn sheet_material_sign<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
+    minor: T,
     tube_arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
     band: Band,
@@ -6024,6 +6107,7 @@ fn sheet_material_sign<T: Decide>(
             center,
             axis,
             major,
+            minor,
             tube_arm,
             loops,
             Tube::Sheet(side),
@@ -6191,13 +6275,13 @@ fn torus_boundary<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
+    minor: T,
     tube_arm: Lever<T>,
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<TorusParts<T>, PropsError> {
-    let minor = tube_arm.length();
     fold_torus_meridians(
-        torus_classify(center, axis, major, tube_arm, edges, band)?,
+        torus_classify(center, axis, major, minor, tube_arm, edges, band)?,
         minor,
         band,
     )
@@ -6209,11 +6293,11 @@ fn torus_classify<'a, T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
+    minor: T,
     tube_arm: Lever<T>,
     edges: &'a [LoopEdge<T>],
     band: Band,
 ) -> Result<Vec<TorusEdge<'a, T>>, PropsError> {
-    let minor = tube_arm.length();
     let mut classified: Vec<TorusEdge<T>> = Vec::with_capacity(edges.len());
     for e in edges {
         let Curve3::Circle(geom::Circle {
@@ -6616,7 +6700,7 @@ mod rim_level_review_probe {
         let got = level_coincides_as(
             RimLevel::Length(1.0_f64),
             (unit, unit),
-            RimArms::uniform(unit_sphere_arm()),
+            RimArms::uniform(1.0, unit_sphere_arm()),
             band,
         );
         assert!(got.is_err(), "mixed kinds must refuse typed: {got:?}");
@@ -6640,7 +6724,7 @@ mod rim_level_review_probe {
         let got = require_rims_at_extremes(
             std::slice::from_ref(&rim),
             (RimLevel::Length(0.0), RimLevel::Length(1.0)),
-            RimArms::uniform(unit_sphere_arm()),
+            RimArms::uniform(1.0, unit_sphere_arm()),
             band,
         );
         assert!(got.is_err(), "mixed rim/ends must not measure: {got:?}");
@@ -6653,7 +6737,7 @@ mod rim_level_review_probe {
         let got = require_rims_at_extremes(
             std::slice::from_ref(&rim),
             (RimLevel::Unit(0.0, 1.0), RimLevel::Unit(1.0, 0.0)),
-            RimArms::uniform(unit_sphere_arm()),
+            RimArms::uniform(1.0, unit_sphere_arm()),
             band,
         );
         assert!(got.is_err(), "mixed ends/rim must not measure: {got:?}");
@@ -6688,7 +6772,7 @@ mod rim_level_review_probe {
         let got = require_rims_at_extremes(
             std::slice::from_ref(&rim),
             (RimLevel::Unit(0.0, 0.0), RimLevel::Unit(1.0, 0.0)),
-            RimArms::uniform(unit_sphere_arm()),
+            RimArms::uniform(1.0, unit_sphere_arm()),
             band,
         );
         assert!(
@@ -6709,7 +6793,7 @@ mod rim_level_review_probe {
             level_coincides_as(
                 RimLevel::Unit(0.0, 0.0),
                 (RimLevel::Unit(d, d), RimLevel::Unit(d, d)),
-                RimArms::uniform(unit_sphere_arm()),
+                RimArms::uniform(1.0, unit_sphere_arm()),
                 band,
             )
             .expect("decides"),
@@ -7059,6 +7143,7 @@ mod pole_climb_rows {
         SphereArc {
             centre,
             axis,
+            radius,
             arm: crate::circle_curvature_arm(&geom::Circle {
                 frame: geom::Frame::new(centre, axis, (start - centre) / radius),
                 radius,
@@ -7110,11 +7195,11 @@ mod pole_climb_rows {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let lp = in_band_then_through_the_pole();
-        assert_eq!(pole_side(o, unit_sphere_arm(), z, &lp, band), Ok(None));
+        assert_eq!(pole_side(o, 1.0, unit_sphere_arm(), z, &lp, band), Ok(None));
         let alone = sphere_loop(vec![in_band_then_through_the_pole().arcs.remove(0)]);
         assert!(
             matches!(
-                pole_side(o, unit_sphere_arm(), z, &alone, band),
+                pole_side(o, 1.0, unit_sphere_arm(), z, &alone, band),
                 Err(PropsError::Escalated { .. })
             ),
             "the arc in band alone refuses"
@@ -7141,6 +7226,7 @@ mod pole_climb_rows {
         )]);
         let region = SeamLoops {
             center: o,
+            radius: 1.0,
             arm: unit_sphere_arm(),
             axis: z,
             boundary: vec![equator],
