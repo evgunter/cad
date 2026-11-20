@@ -750,6 +750,18 @@ impl<T: Real> NewCurve<T> {
         }
     }
 
+    /// The caller's spec, held with the locus certificate of the edge it
+    /// copies where the caller holds one.
+    pub(crate) fn keeping(
+        spec: EdgeCurveSpec<T>,
+        locus: Option<geom_brep::LocusCertificate<T>>,
+    ) -> Self {
+        match locus {
+            Some(locus) => Self::Kept(spec, locus),
+            None => Self::Given(spec),
+        }
+    }
+
     /// The locus certificate the caller holds for the spec, where it
     /// holds one.
     pub(crate) fn kept(&self) -> Option<geom_brep::LocusCertificate<T>> {
@@ -2343,7 +2355,12 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        self.mef_kept(site, curve, None, surface, tol)
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mef_with(site, NewCurve::Given(curve), surface, tol)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::MEF, "mef");
+        Ok(created)
     }
 
     /// [`Body::mef`] minting a copy of an edge whose locus certificate
@@ -2361,11 +2378,7 @@ impl<T: Decide> Body<T> {
     {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let curve = match kept {
-            Some(locus) => NewCurve::Kept(curve, locus),
-            None => NewCurve::Given(curve),
-        };
-        let created = self.mef_with(site, curve, surface, tol)?;
+        let created = self.mef_with(site, NewCurve::keeping(curve, kept), surface, tol)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::MEF, "mef");
         Ok(created)
@@ -3748,7 +3761,8 @@ impl<T: Decide> Body<T> {
             .and_then(|edge| self.edges.get(edge))
             .and_then(|data| self.get_curve_geom(data.curve))
             .and_then(|curve| curve.certified())
-            .and_then(geom_brep::EdgeCurve::locus);
+            .and_then(geom_brep::EdgeCurve::locus_certificate);
+        let kept: Vec<_> = kept.into_iter().chain(own).collect();
         crate::policy_lane::certify_stated(
             origin,
             spec,
@@ -3758,7 +3772,7 @@ impl<T: Decide> Body<T> {
             reach,
             band,
             stated.as_ref(),
-            kept.or(own),
+            &kept,
         )
         .map_err(|error| EulerOpError::Certification { error })
     }

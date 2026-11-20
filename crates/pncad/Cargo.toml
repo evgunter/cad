@@ -87,6 +87,9 @@ getrandom = { workspace = true }
 # that file, which admits `test_utils` as a `use` root and no kernel
 # crate.
 [dev-dependencies]
+# The agreement pin of a certificate read by its support (geom-brep's
+# `read-pins-testing`), on in this crate's tests only.
+geom-brep = { path = "../geom-brep", features = ["read-pins-testing"] }
 test-utils = { path = "../test-utils" }
 # Self dev-dependency: turns `test-support` on for this crate's own
 # suite, which reads `topo`'s test vocabulary through the façade

@@ -2535,14 +2535,14 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
         lane: NurbsLane<T>,
         stated: Option<&StatedImage<T>>,
     ) -> Result<Self, CertifyError> {
-        Self::certify_carrying(spec, start, end, surfaces, reach, band, lane, stated, None)
+        Self::certify_carrying(spec, start, end, surfaces, reach, band, lane, stated, &[])
     }
 
     /// [`EdgeCurve::certify_stated`] for a door that keeps an edge's
-    /// locus: `locus` is that edge's [`EdgeCurve::locus`], which check 6
-    /// reads where its support is this spec's carrier, interval,
-    /// surface pair and band, and derives again where it is not. Every
-    /// other check runs.
+    /// locus: `kept` are the locus certificates the door holds for it
+    /// ([`EdgeCurve::locus_certificate`]), of which check 6 reads one
+    /// whose support is this spec's carrier, interval, surface pair and
+    /// band, and derives again where none is. Every other check runs.
     ///
     /// # Errors
     ///
@@ -2557,7 +2557,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
         band: Band,
         lane: NurbsLane<T>,
         stated: Option<&StatedImage<T>>,
-        locus: Option<&LocusCertificate<T>>,
+        kept: &[&LocusCertificate<T>],
     ) -> Result<Self, CertifyError> {
         let Checked {
             certificate,
@@ -2566,7 +2566,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
             reading,
             locus,
         } = run_checks(
-            &spec, start, end, &surfaces, reach, lane, stated, band, locus,
+            &spec, start, end, &surfaces, reach, lane, stated, band, kept,
         )
         .map_err(StatedSpan::at_a_door)?;
         Ok(Self {
@@ -2589,7 +2589,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// [`CertifyError::StatedInterval`] — an arc minted at a coarser band,
     /// whose headroom to a full turn that band read as zero, reads past
     /// one at a finer band. Check 6 reads the edge's own
-    /// [`EdgeCurve::locus`] where its support is the edge's as it stands
+    /// [`EdgeCurve::locus_certificate`] where its support is the edge's as it stands
     /// at `band`, and derives it again otherwise; every other check runs.
     ///
     /// # Errors
@@ -2638,7 +2638,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
             lane,
             stated,
             band,
-            self.locus.as_ref(),
+            self.locus.as_ref().as_slice(),
         )
         .map(|checked| checked.certificate)
         .map_err(StatedSpan::at_a_door)
@@ -3176,7 +3176,7 @@ impl<T: Real> EdgeCurve<T> {
     /// derived over ([`LocusCertificate`]), where check 6 ran. A door
     /// that keeps this edge's carrier, interval and surfaces hands it to
     /// [`EdgeCurve::certify_carrying`].
-    pub fn locus(&self) -> Option<&LocusCertificate<T>> {
+    pub fn locus_certificate(&self) -> Option<&LocusCertificate<T>> {
         self.locus.as_ref()
     }
 
@@ -5052,7 +5052,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     lane: NurbsLane<T>,
     stated: Option<&StatedImage<T>>,
     band: Band,
-    carried: Option<&LocusCertificate<T>>,
+    kept: &[&LocusCertificate<T>],
 ) -> Result<Checked<T>, CertifyError> {
     let stored = &spec.carrier;
     let read = ReadSpec::of(spec, band)?;
@@ -5633,21 +5633,27 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             ..
         } => {
             let pair = [surf1, surf2];
-            let derive = || lane.analytic_limbs(&spec.carrier, (t0, t1), surf1, surf2, band);
+            let held = kept
+                .iter()
+                .find(|c| c.reads(stored, (t0, t1), pair, band))
+                .map(|&c| c.clone());
+            let derive = || {
+                lane.analytic_limbs(&spec.carrier, (t0, t1), surf1, surf2, band)
+                    .map(|()| LocusCertificate::derived(stored, (t0, t1), pair, band))
+            };
+            // The limbs return no number, so a certificate derived again
+            // agrees by holding on its support.
+            let agree = |_: &LocusCertificate<T>, again: &LocusCertificate<T>| {
+                again.reads(stored, (t0, t1), pair, band)
+            };
             Some(
-                match carried.filter(|c| c.reads(stored, (t0, t1), pair, band)) {
-                    Some(held) => {
-                        debug_assert!(
-                            derive().is_ok(),
-                            "a carried locus certificate derives to a refusal on its own support"
-                        );
-                        held.clone()
-                    }
-                    None => {
-                        derive().map_err(CertifyError::AnalyticRung3)?;
-                        LocusCertificate::derived(stored, (t0, t1), pair, band)
-                    }
-                },
+                crate::locus_certificate::read_or_derive(
+                    crate::locus_certificate::Certified::Locus,
+                    held,
+                    derive,
+                    agree,
+                )
+                .map_err(CertifyError::AnalyticRung3)?,
             )
         }
         _ => None,

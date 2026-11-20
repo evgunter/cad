@@ -60,6 +60,9 @@ profile = { path = "../profile" }
 topo = { path = "../topo" }
 
 [dev-dependencies]
+# The agreement pin of a certificate read by its support (geom-brep's
+# `read-pins-testing`), on in this crate's tests only.
+geom-brep = { path = "../geom-brep", features = ["read-pins-testing"] }
 # The symbolic tier's re-valuation instrument (`geom_core::sym::revalue`,
 # test-only), for the rows that pin a computed value entered through
 # `Real::from_computed` rather than as a constant. `test-support` for

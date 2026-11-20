@@ -78,6 +78,9 @@ quantity = { path = "../quantity" }
 slotmap = { workspace = true }
 
 [dev-dependencies]
+# The agreement pin of a certificate read by its support (geom-brep's
+# `read-pins-testing`), on in this crate's tests only.
+geom-brep = { path = "../geom-brep", features = ["read-pins-testing"] }
 # The symbolic tier's re-valuation instrument (`geom_core::sym::revalue`,
 # test-only), for the rows that pin a value kept in `T` rather than
 # re-entered as a constant (`chart_region`'s wrap band). `test-support`

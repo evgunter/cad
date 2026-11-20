@@ -731,3 +731,105 @@ fn a_dense_interpolant_of_a_section_certifies_its_tube() {
     let got = certify(&spline, oblique, wall).map(|_| ());
     assert_eq!(got, Ok(()));
 }
+
+/// [`certify`] through [`EdgeCurve::certify_carrying`] with `kept`, on
+/// `f64`, the plane and the cylinder.
+fn certify_kept(
+    carrier: &NurbsCurve3<f64>,
+    kept: &[&geom_brep::LocusCertificate<f64>],
+) -> Result<EdgeCurve<f64>, CertifyError> {
+    let c = Curve3::Nurbs(Arc::new(carrier.clone()));
+    let (t0, t1) = carrier.domain();
+    let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
+    let (k1, k2) = (arena.insert(cylinder_z()), arena.insert(plane()));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(k1, k2),
+            selector: geom_brep::CurveSelector::Witness(c.eval(0.5 * (t0 + t1))),
+        },
+        carrier: c.clone(),
+        param_start: t0,
+        param_end: t1,
+    };
+    EdgeCurve::certify_carrying(
+        spec,
+        c.eval(t0),
+        c.eval(t1),
+        |k| arena.get(k).cloned(),
+        geom_core::test_support::fixture_lever(1.0),
+        band(),
+        NurbsLane::certified(),
+        None,
+        kept,
+    )
+}
+
+/// **A kept locus certificate is read only by its own support**: the
+/// flat quarter's certificate, handed to a door certifying the same
+/// quarter as another allocation of the same net, reads (the edge
+/// certifies); handed to a door certifying the quarter bulged off the
+/// plane between its samples, it is not read, and the bulge refuses on
+/// limb 2 as it does with nothing kept. Red under a door that takes the
+/// kept certificate on its word, which would admit the bulge.
+#[test]
+fn a_kept_locus_is_read_by_its_own_support_and_not_by_a_moved_carrier() {
+    let flat = certify(&bulged(8, 0.0), cylinder_z(), plane()).expect("the flat quarter");
+    let locus = flat.locus_certificate().expect("an intersection's locus");
+    certify_kept(&bulged(8, 0.0), &[locus]).expect("the same net, another allocation, reads");
+    let moved = certify_kept(&bulged(8, 1e-3), &[locus]);
+    assert!(
+        matches!(moved, Err(CertifyError::AnalyticRung3(_))),
+        "the bulged quarter with the flat one's locus: {moved:?}"
+    );
+    assert_eq!(
+        format!("{moved:?}"),
+        format!("{:?}", certify_kept(&bulged(8, 1e-3), &[])),
+        "the kept certificate changes nothing about a moved carrier's refusal"
+    );
+}
+
+/// **The rest door reads an edge's locus at the band and surfaces it was
+/// derived at, and derives it at any other**: re-certifying the flat
+/// quarter at its own band reads (one read, no derivation); at another
+/// band, and against the cylinder an ulp wider, each derives once. Red
+/// under a support compare that leaves the band or a surface out, which
+/// the agreement pin cannot see (the limbs return no number to compare).
+#[test]
+fn rest_reads_a_locus_only_at_its_own_band_and_surfaces() {
+    use geom_brep::Certified;
+    use geom_brep::locus_certificate::counts;
+    let carrier = bulged(8, 0.0);
+    let edge = certify(&carrier, cylinder_z(), plane()).expect("the flat quarter");
+    let at = |s1: Surface<f64>, b: Band| {
+        let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
+        let _ = (arena.insert(s1), arena.insert(plane()));
+        let (t0, t1) = carrier.domain();
+        let c = Curve3::Nurbs(Arc::new(carrier.clone()));
+        let before = counts::of(Certified::Locus);
+        edge.recertify(
+            c.eval(t0),
+            c.eval(t1),
+            |k| arena.get(k).cloned(),
+            geom_core::test_support::fixture_lever(1.0),
+            b,
+            NurbsLane::certified(),
+        )
+        .expect("the flat quarter certifies");
+        let after = counts::of(Certified::Locus);
+        (after.0 - before.0, after.1 - before.1)
+    };
+    assert_eq!(
+        at(cylinder_z(), band()),
+        (1, 0),
+        "its own band and surfaces read"
+    );
+    let other = Band::new(band().zero(), 2.0 * band().escalate()).unwrap();
+    assert_eq!(at(cylinder_z(), other), (0, 1), "another band derives");
+    let wider = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0 + f64::EPSILON,
+        u_ref: Vec3::unit_x(),
+    };
+    assert_eq!(at(wider, band()), (0, 1), "a surface an ulp off derives");
+}

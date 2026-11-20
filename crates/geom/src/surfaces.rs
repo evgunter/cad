@@ -358,6 +358,124 @@ pub enum SurfaceKind {
 }
 
 impl<T: Real> Surface<T> {
+    /// **Whether `other` is this surface by content, each value read by
+    /// `same`**: one kind, and every value that states an analytic
+    /// surface one by `same`. A spline or approximating surface is the
+    /// same allocation (`Arc::ptr_eq`): no reader compares their content
+    /// today. The one home of the walk, beside
+    /// [`crate::Curve3::same_content_by`].
+    #[must_use]
+    pub fn same_content_by(&self, other: &Self, same: impl Fn(T, T) -> bool) -> bool {
+        let point = |p: Point3<T>, q: Point3<T>| same(p.x, q.x) && same(p.y, q.y) && same(p.z, q.z);
+        let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
+        match (self, other) {
+            (
+                Self::Plane {
+                    origin,
+                    normal,
+                    u_ref,
+                },
+                Self::Plane {
+                    origin: o,
+                    normal: n,
+                    u_ref: u,
+                },
+            ) => point(*origin, *o) && vec(*normal, *n) && vec(*u_ref, *u),
+            (
+                Self::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                    u_ref,
+                },
+                Self::Cylinder {
+                    origin: o,
+                    axis: a,
+                    radius: r,
+                    u_ref: u,
+                },
+            ) => point(*origin, *o) && vec(*axis, *a) && same(*radius, *r) && vec(*u_ref, *u),
+            (
+                Self::Cone {
+                    apex,
+                    axis,
+                    half_angle,
+                    u_ref,
+                },
+                Self::Cone {
+                    apex: o,
+                    axis: a,
+                    half_angle: h,
+                    u_ref: u,
+                },
+            ) => point(*apex, *o) && vec(*axis, *a) && same(*half_angle, *h) && vec(*u_ref, *u),
+            (
+                Self::Sphere {
+                    center,
+                    radius,
+                    axis,
+                    u_ref,
+                },
+                Self::Sphere {
+                    center: c,
+                    radius: r,
+                    axis: a,
+                    u_ref: u,
+                },
+            ) => point(*center, *c) && same(*radius, *r) && vec(*axis, *a) && vec(*u_ref, *u),
+            (
+                Self::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    u_ref,
+                },
+                Self::Torus {
+                    center: c,
+                    axis: a,
+                    major_radius: big,
+                    minor_radius: small,
+                    u_ref: u,
+                },
+            )
+            | (
+                Self::Spindle {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    u_ref,
+                },
+                Self::Spindle {
+                    center: c,
+                    axis: a,
+                    major_radius: big,
+                    minor_radius: small,
+                    u_ref: u,
+                },
+            ) => {
+                point(*center, *c)
+                    && vec(*axis, *a)
+                    && same(*major_radius, *big)
+                    && same(*minor_radius, *small)
+                    && vec(*u_ref, *u)
+            }
+            (Self::Nurbs(x), Self::Nurbs(y)) => Arc::ptr_eq(x, y),
+            (Self::Approx(x), Self::Approx(y)) => Arc::ptr_eq(x, y),
+            (
+                Self::Plane { .. }
+                | Self::Cylinder { .. }
+                | Self::Cone { .. }
+                | Self::Sphere { .. }
+                | Self::Torus { .. }
+                | Self::Spindle { .. }
+                | Self::Nurbs(_)
+                | Self::Approx(_),
+                _,
+            ) => false,
+        }
+    }
     /// Which variant this surface is.
     ///
     /// **No wildcard arm**: a new [`Surface`] variant is a compile error

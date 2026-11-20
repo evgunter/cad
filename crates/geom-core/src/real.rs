@@ -310,20 +310,20 @@ pub trait Real:
     /// own name rather than composing its base's.
     const NAME: &'static str;
 
-    /// **Whether a certificate derived at this scalar may be read by
-    /// its support** (`geom_brep::LocusCertificate`) rather than
-    /// derived again: true where a derivation is a pure function of its
-    /// support down to the bits of what it returns. `false`, the
-    /// default, makes every certificate derived where it is asked: a
-    /// dual holds none, and the symbolic tier's derivations mint fresh
-    /// unknowns and write the decision record that is its purpose
-    /// ([`crate::Sym`]'s impl).
-    const READS_BY_SUPPORT: bool = false;
-
-    /// **Whether `other` is this value**, as a certificate's support is
-    /// compared where [`Real::READS_BY_SUPPORT`] holds: the same bits at
-    /// a value scalar, the same enclosure and decoration at an interval.
-    /// `false`, the default, is always sound: the reader derives again.
+    /// **Whether `other` is this value, so that a certificate whose
+    /// support holds it may be read rather than derived again** — the
+    /// one knob of reading by support (`geom_brep::LocusCertificate`,
+    /// a pcurve row's support): every comparison of a support reads its
+    /// values through this, so a scalar that answers `false` reads no
+    /// certificate and derives each where it is asked.
+    ///
+    /// `true` only where a derivation is a pure function of its support
+    /// down to the bits of what it returns and records nothing a read
+    /// would drop: the same bits at a value scalar, the same enclosure
+    /// and decoration at an interval. `false`, the default, is always
+    /// sound: a dual holds no certificate, and a scalar whose
+    /// derivations are its record (the symbolic tier's decision log, the
+    /// recording scalar's K samples) answers `false` by its own impl.
     fn same_value(self, other: Self) -> bool {
         let _ = (self, other);
         false
@@ -2095,8 +2095,6 @@ pub(crate) fn less_sin_series<T: Real>(x: T, tail: T) -> T {
 /// operations because IEEE 754 *requires* them to be exact/correctly
 /// rounded, so they are already bit-identical everywhere (and faster).
 impl Real for f64 {
-    const READS_BY_SUPPORT: bool = true;
-
     fn same_value(self, other: Self) -> bool {
         self.to_bits() == other.to_bits()
     }

@@ -254,7 +254,8 @@ impl Interval {
     /// back one operand in place of an expression of both — the de
     /// Casteljau step's equal neighbours (`spline::blossom`) — where
     /// either answer is a sound enclosure and the operand is the
-    /// narrower. Never a coincidence decision (the no-`PartialEq`
+    /// narrower; and this scalar's [`Real::same_value`], where a
+    /// certificate's support is compared. Never a coincidence decision (the no-`PartialEq`
     /// rationale on the type stands): it picks between two sound
     /// enclosures and decides nothing. The decoration is in the
     /// comparison so the fast path cannot hand back a stronger claim
@@ -496,8 +497,6 @@ impl Neg for Interval {
 /// deterministic per D9 (bit-identical enclosures across platforms at
 /// pinned dependency versions).
 impl Real for Interval {
-    const READS_BY_SUPPORT: bool = true;
-
     fn same_value(self, other: Self) -> bool {
         self.same_enclosure(other)
     }

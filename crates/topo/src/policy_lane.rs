@@ -139,7 +139,7 @@ pub(crate) fn certify_stated<T: AtRestPolicy>(
     reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
-    locus: Option<&LocusCertificate<T>>,
+    locus: &[&LocusCertificate<T>],
 ) -> Result<EdgeCurve<T>, CertifyError> {
     T::attach_edge(spec, start, end, surfaces, reach, band, stated, locus)
         .map_err(|error| origin.read(error))
@@ -188,7 +188,7 @@ pub(crate) fn certifying_attach<T: Decide + geom_core::CertifiedBounds>(
     reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
-    locus: Option<&LocusCertificate<T>>,
+    locus: &[&LocusCertificate<T>],
 ) -> Result<EdgeCurve<T>, CertifyError> {
     let lane = NurbsLane::certified();
     EdgeCurve::certify_carrying(spec, start, end, surfaces, reach, band, lane, stated, locus)

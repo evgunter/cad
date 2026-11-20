@@ -1987,10 +1987,12 @@ impl core::ops::Neg for Probe {
 
 #[cfg(feature = "probe")]
 impl Real for Probe {
-    const READS_BY_SUPPORT: bool = true;
-
+    /// **Never the same**: the recording scalar's K samples are its
+    /// purpose, so no certificate is read by its support here; each is
+    /// derived where it is asked, and records its margins.
     fn same_value(self, other: Self) -> bool {
-        self.0.same_value(other.0)
+        let _ = (self, other);
+        false
     }
 
     /// **INEXACT**, `f64`'s verbatim: the recording scalar's value

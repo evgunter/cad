@@ -192,6 +192,7 @@ pub use geom::{ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START};
 use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::ladder::{IdentityLadder, read_identity};
+use crate::locus_certificate::Certified;
 #[cfg(test)]
 use crate::recourse::Reading;
 use crate::recourse::{
@@ -1246,15 +1247,21 @@ impl<T: Real> Pcurve<T> {
 
     /// **Whether only the fitted door derives this image's certificate**:
     /// a fitted or general image, and a projected image of a spline
-    /// carrier's net, whose check 4 reads the net's hull terms through
-    /// the fitted door ([`PcurveCache::certify_projected`]). A pass that
-    /// holds no fitted door certifies none of these, rather than run
-    /// checks 1–3 to a refusal check 4 would end it in anyway.
+    /// carrier's net on a curved chart, whose check 4 reads the net's
+    /// hull terms through the fitted door
+    /// (`projected::projected_envelope`). A projected net on a plane is
+    /// certified without it (the mapped net's difference, exactly), as
+    /// is every closed-form image. A pass that holds no fitted door
+    /// certifies none of these, rather than run checks 1–3 to the
+    /// refusal check 4 would end it in.
     #[must_use]
     pub fn needs_fitted_door(&self) -> bool {
         match self {
             Pcurve::Fitted(_) | Pcurve::General(_) => true,
-            Pcurve::Projected(image) => matches!(image.carrier, projected::FramedCarrier::Net(_)),
+            Pcurve::Projected(image) => {
+                matches!(image.carrier, projected::FramedCarrier::Net(_))
+                    && !matches!(image.chart, projected::ProjectedChart::Plane)
+            }
             Pcurve::Harmonic { .. }
             | Pcurve::FocalSection(_)
             | Pcurve::Spiric { .. }
@@ -5009,15 +5016,15 @@ pub struct PcurveCache<T: Real> {
 }
 
 /// **What a row's checks read besides the row**: the edge's carrier,
-/// the chart's surface, the band, and whether the fitted door was held,
-/// which decides how check 4 reads a net (recorded only for an image
-/// whose check 4 reads it, [`Pcurve::needs_fitted_door`]). With the row's image and span
-/// this is the whole input of the checks ([`PcurveCache::certify`]'s
-/// four), so a certificate whose support compares the same
-/// ([`crate::LocusCertificate`]'s comparison) is the one deriving it
-/// again would return. A harmonic row records none: its check 4 reads the
-/// incidence read's witness, taken over the span its door was asked
-/// about.
+/// the chart's surface, the band, and whether check 4 read the image
+/// through the fitted door ([`RowSupport::fitted_read`]). With the row's
+/// image and span this is the whole input of the checks
+/// ([`PcurveCache::certify`]'s four), so a certificate whose support
+/// compares the same, by the comparison [`crate::LocusCertificate`]
+/// reads ([`Curve3::same_content_by`], [`Surface::same_content_by`] with
+/// [`Real::same_value`]), is the one deriving it again would return. A
+/// harmonic row records none: its check 4 reads the incidence read's
+/// witness, taken over the span its door was asked about.
 #[derive(Clone, Debug)]
 struct RowSupport<T: Real> {
     carrier: Curve3<T>,
@@ -5027,6 +5034,14 @@ struct RowSupport<T: Real> {
 }
 
 impl<T: Decide> RowSupport<T> {
+    /// Whether check 4 of `pcurve` reads it through the fitted door, the
+    /// door held as `fitted` says: only an image that needs the door
+    /// ([`Pcurve::needs_fitted_door`]) reads it, so for any other whether
+    /// a pass held the door is no part of the support.
+    fn fitted_read(pcurve: &Pcurve<T>, fitted: bool) -> bool {
+        fitted && pcurve.needs_fitted_door()
+    }
+
     /// The support of checks that read `carrier` on `surface` at `band`,
     /// `fitted` whether they held the fitted door; `None` for a harmonic
     /// row (the type's docs).
@@ -5041,8 +5056,24 @@ impl<T: Decide> RowSupport<T> {
             carrier: carrier.clone(),
             surface: surface.clone(),
             band,
-            fitted: fitted && pcurve.needs_fitted_door(),
+            fitted: Self::fitted_read(pcurve, fitted),
         })
+    }
+
+    /// Whether these checks would read `pcurve` as they did: `carrier`
+    /// on `surface` at `band`, the fitted door held as `fitted` says.
+    fn holds(
+        &self,
+        pcurve: &Pcurve<T>,
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+        band: Band,
+        fitted: bool,
+    ) -> bool {
+        self.band == band
+            && self.fitted == Self::fitted_read(pcurve, fitted)
+            && self.carrier.same_content_by(carrier, T::same_value)
+            && self.surface.same_content_by(surface, T::same_value)
     }
 }
 
@@ -5057,12 +5088,10 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         fitted: bool,
     ) -> Option<PcurveCertificate<T>> {
-        let support = self.support.as_ref().filter(|_| T::READS_BY_SUPPORT)?;
-        (support.band == band
-            && support.fitted == (fitted && self.pcurve.needs_fitted_door())
-            && crate::locus_certificate::same_curve(&support.carrier, carrier)
-            && crate::locus_certificate::same_surface(&support.surface, surface))
-        .then_some(self.certificate)
+        self.support
+            .as_ref()
+            .filter(|support| support.holds(&self.pcurve, carrier, surface, band, fitted))
+            .map(|_| self.certificate)
     }
 
     /// **This row, certified again by a door that keeps it**: its own
@@ -5081,26 +5110,34 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         fitted: Option<crate::FittedLane<T>>,
     ) -> Result<Self, PcurveCertifyError> {
+        let held = self
+            .held_for(carrier, surface, band, fitted.is_some())
+            .map(|_| self.clone());
         let derive = || {
             Self::certify_stated_image(&self.pcurve, self.params(), carrier, surface, band, fitted)
         };
-        match self.held_for(carrier, surface, band, fitted.is_some()) {
-            Some(held) => {
-                debug_assert!(
-                    derive().is_ok_and(|again| same_certificate(&again.certificate, &held)),
-                    "a row's certificate read by its support differs from the one derived again"
-                );
-                Ok(self.clone())
-            }
-            None => derive(),
-        }
+        crate::locus_certificate::read_or_derive(Certified::Row, held, derive, |held, again| {
+            held.certificate.same_as(&again.certificate)
+        })
     }
 }
 
-/// Whether two row certificates are the same bits: every field, read
-/// whole through its `Debug` form.
-fn same_certificate<T: Real>(a: &PcurveCertificate<T>, b: &PcurveCertificate<T>) -> bool {
-    format!("{a:?}") == format!("{b:?}")
+impl<T: Real> PcurveCertificate<T> {
+    /// Whether `other` is this certificate: every field, each scalar by
+    /// [`Real::same_value`].
+    #[must_use]
+    pub fn same_as(&self, other: &Self) -> bool {
+        let Self {
+            samples,
+            max_residual,
+            envelope,
+            statement,
+        } = *self;
+        samples == other.samples
+            && max_residual.same_value(other.max_residual)
+            && envelope.same_value(other.envelope)
+            && statement == other.statement
+    }
 }
 
 /// **The door that certifies a kind of image** ([`Pcurve::certifying_door`]).
@@ -5681,17 +5718,12 @@ impl<T: Decide> PcurveCache<T> {
                         shown,
                     ),
                 };
-                match self.held_for(carrier, surface, band, lane.is_some()) {
-                    Some(held) => {
-                        debug_assert!(
-                            derive().is_ok_and(|again| same_certificate(&again, &held)),
-                            "a row's certificate read by its support differs from the one \
-                             derived again"
-                        );
-                        Ok(held)
-                    }
-                    None => derive(),
-                }
+                crate::locus_certificate::read_or_derive(
+                    Certified::Row,
+                    self.held_for(carrier, surface, band, lane.is_some()),
+                    derive,
+                    PcurveCertificate::same_as,
+                )
             },
         )
     }
@@ -17659,5 +17691,194 @@ mod general_arm_rows {
     fn a_general_arm_minted_with_the_incidence_check_panics() {
         let band = Band::linear(Tol::witness()).expect("the witness band");
         let _ = envelope_verdict(1.0_f64, band, || PcurveCheck::ChartIncidence);
+    }
+}
+
+/// A row's certificate is read by its support and only by it.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod row_support_rows {
+    use std::sync::Arc;
+
+    use geom::{Curve3, NurbsCurve2, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point2, Point3, Vec2, Vec3};
+
+    use super::{Pcurve, PcurveCache, RowSupport};
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// The ruled wall of the seam-class rows (`tests::ruled_wall`): its
+    /// `u = 0` column is the unit ruling `(1,0,0)`–`(1,0,1)`.
+    fn wall() -> Surface<f64> {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ];
+        Surface::Nurbs(Arc::new(
+            geom::NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap(),
+        ))
+    }
+
+    /// The wall's ruling at `u = 0`, its origin `y` off it.
+    fn line(y: f64) -> Curve3<f64> {
+        Curve3::Line(geom::Line {
+            origin: Point3::new(1.0, y, 0.0),
+            dir: Vec3::unit_z(),
+        })
+    }
+
+    /// **A row reads its own support and misses each input changed
+    /// alone**: an iso row of a ruled wall's `u = 0` column reads where
+    /// carrier, surface and band are its own, and through a door held or
+    /// not (its check 4 reads no fitted door); the carrier a ulp off,
+    /// another allocation of the wall (a spline surface is compared by
+    /// allocation) and another band each miss; `restated` on its own
+    /// support returns its own certificate.
+    /// A fitted image's support misses where the door is held one way
+    /// and asked the other. Red under a support compare that leaves out
+    /// an input the checks read.
+    #[test]
+    fn a_row_reads_its_own_support_and_misses_each_changed_input() {
+        let ulp = f64::from_bits(1);
+        let iso = Pcurve::IsoLine {
+            p0: Point2::new(0.0, 0.0),
+            pl: Vec2::new(0.0, 1.0),
+            ends: None,
+        };
+        let surface = wall();
+        let cache = PcurveCache::certify(iso, 0.0, 1.0, &line(0.0), &surface, band())
+            .expect("the ruling on its column certifies");
+        let held = |c: &Curve3<f64>, s: &Surface<f64>, b: Band, fitted: bool| {
+            cache.held_for(c, s, b, fitted).is_some()
+        };
+        assert!(held(&line(0.0), &surface, band(), false), "its own support");
+        assert!(
+            held(&line(0.0), &surface, band(), true),
+            "a door the row does not read"
+        );
+        assert!(!held(&line(ulp), &surface, band(), false), "the carrier");
+        assert!(
+            !held(&line(0.0), &wall(), band(), false),
+            "another allocation of the wall"
+        );
+        let other = Band::new(1e-9, 2e-8).unwrap();
+        assert!(!held(&line(0.0), &surface, other, false), "the band");
+        let again = cache
+            .restated(&line(0.0), &surface, band(), None)
+            .expect("its own support reads");
+        assert!(
+            again.certificate().same_as(cache.certificate()),
+            "a read is the certificate"
+        );
+
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let net = NurbsCurve2::new(
+            kv,
+            vec![Point2::new(0.0, 0.0), Point2::new(1.0, 0.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let fitted = Pcurve::Fitted(Arc::new(net));
+        let support = RowSupport::of(&fitted, &line(0.0), &surface, band(), true).unwrap();
+        assert!(
+            support.holds(&fitted, &line(0.0), &surface, band(), true),
+            "the fitted image with the door"
+        );
+        assert!(
+            !support.holds(&fitted, &line(0.0), &surface, band(), false),
+            "the fitted image without it"
+        );
+    }
+
+    /// **A projected net needs the fitted door on a curved chart and not
+    /// on a plane**: a spline in the plane `z = 0` images on the plane as
+    /// a projected net, which the lane-free closed-form door (the site
+    /// mint's) certifies; the quarter circle as a rational spline on the
+    /// unit cylinder images as a projected net that only the fitted door
+    /// reads. Red under a predicate that sends a plane's net to the fitted
+    /// door (the site then clears a row it can mint) or a curved chart's
+    /// to the closed-form door.
+    #[test]
+    fn a_projected_net_needs_the_fitted_door_on_a_curved_chart_alone() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let flat = Curve3::Nurbs(Arc::new(
+            geom::NurbsCurve3::new(
+                kv,
+                vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0)],
+                vec![1.0, 1.0],
+            )
+            .unwrap(),
+        ));
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let image = super::chart_pcurve_over(&flat, 0.0, 1.0, &plane, band()).expect("the image");
+        assert!(
+            matches!(image, Pcurve::Projected(_)),
+            "a plane's net image: {image:?}"
+        );
+        assert!(
+            !image.needs_fitted_door(),
+            "a plane's net needs no fitted door"
+        );
+        PcurveCache::certify(image, 0.0, 1.0, &flat, &plane, band())
+            .expect("the lane-free door certifies a plane's net");
+
+        let h = core::f64::consts::FRAC_1_SQRT_2;
+        let quarter = Curve3::Nurbs(Arc::new(
+            geom::NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+                vec![
+                    Point3::new(1.0, 0.0, 0.0),
+                    Point3::new(1.0, 1.0, 0.0),
+                    Point3::new(0.0, 1.0, 0.0),
+                ],
+                vec![1.0, h, 1.0],
+            )
+            .unwrap(),
+        ));
+        let cylinder = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let image =
+            super::chart_pcurve_over(&quarter, 0.0, 1.0, &cylinder, band()).expect("the image");
+        assert!(
+            matches!(image, Pcurve::Projected(_)),
+            "a cylinder's net image: {image:?}"
+        );
+        assert!(
+            image.needs_fitted_door(),
+            "a curved chart's net needs the fitted door"
+        );
+    }
+
+    /// **An interval is the same only with its decoration**: one
+    /// enclosure, `Def` against the `Trv` a domain clamp leaves, is not
+    /// one value. Red under a comparison of the bounds alone.
+    #[test]
+    fn an_interval_of_another_decoration_is_not_the_same_value() {
+        use geom_core::{Bounds as _, Interval, Real};
+        let clamped = Interval::from_bounds(-1.0, 4.0).sqrt();
+        let plain = Interval::from_bounds(0.0, 2.0);
+        assert!(plain.same_value(plain), "itself");
+        assert!(
+            (clamped.lo(), clamped.hi()) == (plain.lo(), plain.hi()) && !plain.same_value(clamped),
+            "one enclosure, two decorations: {clamped:?} against {plain:?}"
+        );
     }
 }

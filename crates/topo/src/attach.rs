@@ -401,7 +401,8 @@ impl<T: Decide> Body<T> {
                 None,
                 self.edge_curve_linked(edge, edge_data)
                     .certified()
-                    .and_then(geom_brep::EdgeCurve::locus),
+                    .and_then(geom_brep::EdgeCurve::locus_certificate)
+                    .as_slice(),
             )
             .map_err(|error| EulerOpError::RechartFalsifies {
                 door: RechartDoor::SetFaceSurfacesDescribing,
@@ -959,7 +960,7 @@ impl<T: Decide> Body<T> {
             let kept = self
                 .stored_curve_as(edge, Arg("redescriptions"))
                 .ok()
-                .and_then(geom_brep::EdgeCurve::locus);
+                .and_then(geom_brep::EdgeCurve::locus_certificate);
             let curve = crate::policy_lane::certify_stated(
                 origin,
                 spec,
@@ -969,7 +970,7 @@ impl<T: Decide> Body<T> {
                 reach,
                 band()?,
                 None,
-                kept,
+                kept.as_slice(),
             )
             .map_err(|error| EulerOpError::RechartFalsifies { door, edge, error })?;
             written.push((edge, sides, curve));

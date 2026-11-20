@@ -115,6 +115,9 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
+# The agreement pin of a certificate read by its support (geom-brep's
+# `read-pins-testing`), on in this crate's tests only.
+geom-brep = { path = "../geom-brep", features = ["read-pins-testing"] }
 # Self dev-dependency: turns `test-support` on for THIS crate's own
 # test targets without exposing the raw pick mints to production
 # dependents. Same shape and same argument as `profile`'s and `topo`'s:

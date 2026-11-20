@@ -24,6 +24,12 @@ test-support = ["dep:strum", "geom/test-support", "geom-core/test-support"]
 # monomorphizes every generic-over-`Real` body, and only the K
 # experiment consumes it).
 probe = ["geom-core/probe"]
+# Turns on the agreement pin of every certificate read by its support
+# (`locus_certificate::read_or_derive`): a read is derived again and must
+# agree. On in every workspace crate's tests through its dev-dependency
+# on this crate, and off in every normal build, release included, where
+# a read costs its comparison alone.
+read-pins-testing = []
 
 [dependencies]
 # Optional: `test-support` above.
@@ -56,7 +62,7 @@ geom-core = { path = "../geom-core", features = ["test-support", "sym-revalue-te
 geom = { path = "../geom", features = ["test-support"] }
 # Self dev-dependency: turns `test-support` on for THIS crate's own
 # integration tests under `cargo test -p` (scripts/gates/test-support-self-edge.sh).
-geom-brep = { path = ".", features = ["test-support"] }
+geom-brep = { path = ".", features = ["test-support", "read-pins-testing"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

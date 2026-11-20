@@ -1,6 +1,7 @@
 //! **An edge's locus certificate**: C2's limbs 2 and 3 over an
 //! `Intersection` carrier between two analytic surfaces, held with the
-//! support it was derived over.
+//! support it was derived over; and the one rule every certificate read
+//! by its support follows ([`read_or_derive`]).
 //!
 //! The edge certificate reads two kinds of data. Its locus part (the
 //! carrier over its interval lies within the band of both surfaces, and
@@ -14,28 +15,28 @@
 //! it is read wherever that support is the same and derived wherever it
 //! is not.
 //!
-//! "The same" is decided here, never on a door's word. A spline carrier
-//! is the same allocation (`Arc::ptr_eq`), the cheap and
-//! common case, since a door that keeps an edge's carrier clones the
-//! handle; failing that, it is the same data, read whole through its
-//! `Debug` form, which prints every field that defines the net (knots,
-//! control points, weights; a periodic loop's data and sense) and none
-//! of the memos derived from them. A closed-form carrier and an
-//! analytic surface compare kind and scalar by scalar through
-//! [`Real::same_value`]: the same bits at a value scalar, the same
-//! enclosure and decoration at `Interval`. The interval and the band
-//! compare exactly. Nothing is read at a scalar whose derivations are
-//! not a pure function of their support down to the bits
-//! ([`Real::READS_BY_SUPPORT`] false: a dual, and `Sym`, whose
-//! derivations mint fresh unknowns and write its decision record).
+//! "The same" is decided here, never on a door's word: the carrier and
+//! each surface by content ([`Curve3::same_content_by`],
+//! [`Surface::same_content_by`]), and the interval, each value through
+//! [`Real::same_value`]; the band exactly. That one method is the knob:
+//! a scalar whose values are never the same (a dual, `Sym`, `Probe`)
+//! reads no certificate and derives each where it is asked.
 //!
 //! Only [`crate::EdgeCurve`]'s certification constructs one, right
 //! after the limbs it records returned on that support; its fields are
 //! private, so a certificate no derivation produced is unrepresentable.
 //! Under D9 the limbs are a pure function of the support, so reading a
 //! certificate whose support compares equal returns what deriving it
-//! again would. The test profile derives it again at every read and
-//! asserts the two agree (`certify::run_checks`).
+//! again would.
+//!
+//! **The agreement pin.** In every test build — this crate's, and every
+//! dependent's, whose dev-dependencies turn on this crate's
+//! `read-pins-testing` feature — [`read_or_derive`] derives a certificate
+//! it reads again and asserts the two agree. A release build (the
+//! viewer's, debug assertions and all) carries no pin, so a read costs
+//! the comparison alone there. The pin's derivation runs detached from
+//! the decision record (`k_stats::detached`, `sym::aside`), so a run
+//! with it and one without record the same decisions.
 
 use std::sync::Arc;
 
@@ -91,74 +92,98 @@ impl<T: Real> LocusCertificate<T> {
             pair: [h1, h2],
             band: held_band,
         } = &*self.0;
-        T::READS_BY_SUPPORT
-            && *held_band == band
+        let surface = |a: &Surface<T>, b: &Surface<T>| a.same_content_by(b, T::same_value);
+        *held_band == band
             && p0.same_value(params.0)
             && p1.same_value(params.1)
-            && same_curve(held, carrier)
-            && ((same_surface(h1, s1) && same_surface(h2, s2))
-                || (same_surface(h1, s2) && same_surface(h2, s1)))
+            && held.same_content_by(carrier, T::same_value)
+            && ((surface(h1, s1) && surface(h2, s2)) || (surface(h1, s2) && surface(h2, s1)))
     }
 }
 
-/// A curve's scalars, in its lift's order.
-fn curve_scalars<T: Real>(c: &Curve3<T>) -> Vec<T> {
-    let out = core::cell::RefCell::new(Vec::new());
-    let _ = c.map_scalar(|x| {
-        out.borrow_mut().push(x);
-        x
-    });
-    out.into_inner()
+/// Which certificate [`read_or_derive`] is asked for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Certified {
+    /// An edge's locus certificate (check 6).
+    Locus,
+    /// A pcurve row's certificate.
+    Row,
 }
 
-/// A surface's scalars, in its lift's order.
-fn surface_scalars<T: Real>(s: &Surface<T>) -> Vec<T> {
-    let out = core::cell::RefCell::new(Vec::new());
-    let _ = s.map_scalar(|x| {
-        out.borrow_mut().push(x);
-        x
-    });
-    out.into_inner()
-}
+/// **How often each certificate was read and derived on this thread**,
+/// at [`read_or_derive`], in a test build: the witness a row reads to
+/// tell that the doors read what they keep (`(reads, derivations)` per
+/// [`Certified`]).
+#[cfg(any(test, feature = "read-pins-testing"))]
+pub mod counts {
+    use super::Certified;
+    use core::cell::Cell;
 
-fn same_scalars<T: Real>(a: &[T], b: &[T]) -> bool {
-    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.same_value(*y))
-}
+    std::thread_local! {
+        static COUNTS: Cell<[(u64, u64); 2]> = const { Cell::new([(0, 0); 2]) };
+    }
 
-/// One spline: the same allocation, or the same data.
-fn same_spline<S: core::fmt::Debug>(x: &Arc<S>, y: &Arc<S>) -> bool {
-    Arc::ptr_eq(x, y) || format!("{x:?}") == format!("{y:?}")
-}
+    pub(super) fn tally(kind: Certified, read: bool) {
+        COUNTS.with(|c| {
+            let mut all = c.get();
+            let slot = &mut all[kind as usize];
+            if read {
+                slot.0 += 1;
+            } else {
+                slot.1 += 1;
+            }
+            c.set(all);
+        });
+    }
 
-/// One carrier: a spline by [`same_spline`], a closed form by kind and
-/// scalars.
-pub(crate) fn same_curve<T: Real>(a: &Curve3<T>, b: &Curve3<T>) -> bool {
-    match (a, b) {
-        (Curve3::Nurbs(x), Curve3::Nurbs(y)) => same_spline(x, y),
-        (Curve3::Periodic(x), Curve3::Periodic(y)) => same_spline(x, y),
-        (Curve3::Nurbs(_) | Curve3::Periodic(_), _)
-        | (_, Curve3::Nurbs(_) | Curve3::Periodic(_)) => false,
-        _ => {
-            core::mem::discriminant(a) == core::mem::discriminant(b)
-                && same_scalars(&curve_scalars(a), &curve_scalars(b))
-        }
+    /// This thread's `(reads, derivations)` of `kind` so far.
+    #[must_use]
+    pub fn of(kind: Certified) -> (u64, u64) {
+        COUNTS.with(|c| c.get()[kind as usize])
     }
 }
 
-/// One surface: an analytic one by kind and scalars; a spline or
-/// approximating one, which the limbs never read (they take two
-/// analytic operands), by its allocation alone.
-pub(crate) fn same_surface<T: Real>(a: &Surface<T>, b: &Surface<T>) -> bool {
-    match (a, b) {
-        (Surface::Nurbs(x), Surface::Nurbs(y)) => Arc::ptr_eq(x, y),
-        (Surface::Approx(x), Surface::Approx(y)) => Arc::ptr_eq(x, y),
-        (Surface::Nurbs(_) | Surface::Approx(_), _)
-        | (_, Surface::Nurbs(_) | Surface::Approx(_)) => false,
-        _ => {
-            core::mem::discriminant(a) == core::mem::discriminant(b)
-                && same_scalars(&surface_scalars(a), &surface_scalars(b))
-        }
+/// **A certificate read by its support, or derived** (module docs): the
+/// held one where a reader's comparison found one, `derive`'s otherwise.
+/// In a test build a held one is derived again, detached from the
+/// decision record, and must `agree`.
+///
+/// # Errors
+///
+/// `derive`'s, where nothing is held.
+///
+/// # Panics
+///
+/// In a test build, where the certificate derived again refuses or does
+/// not agree with the held one: a door read a certificate its support
+/// does not give.
+#[cfg_attr(
+    not(any(test, feature = "read-pins-testing")),
+    allow(unused_variables, clippy::needless_pass_by_value)
+)]
+pub(crate) fn read_or_derive<R, E>(
+    kind: Certified,
+    held: Option<R>,
+    derive: impl FnOnce() -> Result<R, E>,
+    agree: impl FnOnce(&R, &R) -> bool,
+) -> Result<R, E> {
+    #[cfg(any(test, feature = "read-pins-testing"))]
+    counts::tally(kind, held.is_some());
+    let Some(held) = held else {
+        return derive();
+    };
+    #[cfg(any(test, feature = "read-pins-testing"))]
+    {
+        let ((again, recording), decisions) =
+            geom_core::sym::aside(|| geom_core::k_stats::detached(derive));
+        drop(recording);
+        decisions.discard();
+        assert!(
+            again.is_ok_and(|again| agree(&held, &again)),
+            "a certificate read by its support differs from the one derived again"
+        );
     }
+    Ok(held)
 }
 
 #[cfg(test)]

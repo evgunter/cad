@@ -717,7 +717,12 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        self.mekr_kept(site, curve, None, tol)
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mekr_with(site, NewCurve::Given(curve), tol)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::MEKR, "mekr");
+        Ok(created)
     }
 
     /// [`Body::mekr`] minting a copy of an edge whose locus certificate
@@ -734,11 +739,7 @@ impl<T: Decide> Body<T> {
     {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let curve = match kept {
-            Some(locus) => NewCurve::Kept(curve, locus),
-            None => NewCurve::Given(curve),
-        };
-        let created = self.mekr_with(site, curve, tol)?;
+        let created = self.mekr_with(site, NewCurve::keeping(curve, kept), tol)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::MEKR, "mekr");
         Ok(created)

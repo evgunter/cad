@@ -213,7 +213,7 @@ pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{
     TangentLocus, TangentLocusError, tangent_locus, tangent_locus_kinds, tangent_locus_of_faces,
 };
-pub use locus_certificate::LocusCertificate;
+pub use locus_certificate::{Certified, LocusCertificate};
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
 #[cfg(any(test, feature = "test-support"))]
 pub use newell::{NewellError, newell_plane};

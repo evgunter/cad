@@ -1894,7 +1894,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             red.a
                 .stored_curve_as(chord, crate::live::Arg("chord"))
                 .ok()
-                .and_then(|curve| curve.locus().cloned())
+                .and_then(|curve| curve.locus_certificate().cloned())
         }));
         sb.join(&mut red.b, b_roles, &plan_b, &curve_b, seg_b, tol)?;
         for (r, slot) in seg.ends {
