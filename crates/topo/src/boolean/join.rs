@@ -649,7 +649,7 @@ impl SolidJoin {
         curve: &SegmentCurve<T>,
         segment: Option<EdgeKey>,
         tol: Tol,
-    ) -> Result<(), BooleanError> {
+    ) -> Result<Vec<EdgeKey>, BooleanError> {
         let reordered;
         let plan = if roles == plan.halves() {
             plan
@@ -659,10 +659,9 @@ impl SolidJoin {
         };
         let minted = self.joiner.join(body, plan, curve, tol).map_err(of_join)?;
         if let Some(edge) = segment {
-            self.along
-                .extend(minted.into_iter().map(|chord| (edge, chord)));
+            self.along.extend(minted.iter().map(|&chord| (edge, chord)));
         }
-        Ok(())
+        Ok(minted)
     }
 }
 
@@ -1765,7 +1764,17 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 band,
             )
             .or_else(|e| glued_slit_roles(e, red, Operand::B, (eb, rb), &b_loose))?;
-        sa.join(&mut red.a, a_roles, &plan_a, &curve_a, seg_a, tol)?;
+        let minted = sa.join(&mut red.a, a_roles, &plan_a, &curve_a, seg_a, tol)?;
+        // B's chords are copies of A's first on the same section: the
+        // edge door reads its locus certificate where the support is a
+        // chord's of B's (`Body::certify_edge_spec`).
+        let mut curve_b = curve_b;
+        curve_b.keep(minted.first().and_then(|&chord| {
+            red.a
+                .stored_curve_as(chord, crate::live::Arg("chord"))
+                .ok()
+                .and_then(|curve| curve.locus().cloned())
+        }));
         sb.join(&mut red.b, b_roles, &plan_b, &curve_b, seg_b, tol)?;
         for (r, slot) in seg.ends {
             open[r].a[slot].1 = true;

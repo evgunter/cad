@@ -222,7 +222,9 @@ pub(crate) fn graft_solid<T: crate::props::AtRestPolicy>(
 }
 
 /// The scalar's edge door as a graft's re-certifying bridge runs it,
-/// under the graft's [`crate::policy_lane::Origin`].
+/// under the graft's [`crate::policy_lane::Origin`], reading the source
+/// edge's `locus` where the copy keeps its support.
+#[allow(clippy::too_many_arguments)] // the door's inputs, plus the source's locus
 fn graft_door<T: crate::props::AtRestPolicy>(
     spec: geom_brep::EdgeCurveSpec<T>,
     start: Point3<T>,
@@ -230,9 +232,10 @@ fn graft_door<T: crate::props::AtRestPolicy>(
     surfaces: &dyn Fn(SurfaceKey) -> Option<geom::Surface<T>>,
     reach: geom_core::Lever<T>,
     band: geom_core::Band,
+    locus: Option<&geom_brep::LocusCertificate<T>>,
 ) -> Result<geom_brep::EdgeCurve<T>, geom_brep::CertifyError> {
     let origin = crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::Graft);
-    crate::policy_lane::certify(origin, spec, start, end, surfaces, reach, band)
+    crate::policy_lane::certify_stated(origin, spec, start, end, surfaces, reach, band, None, locus)
 }
 
 /// [`Bridge::Recertify`]'s door: the scalar's edge door, monomorphised.
@@ -243,6 +246,7 @@ pub(crate) type GraftDoor<T> = fn(
     &dyn Fn(SurfaceKey) -> Option<geom::Surface<T>>,
     geom_core::Lever<T>,
     geom_core::Band,
+    Option<&geom_brep::LocusCertificate<T>>,
 ) -> Result<geom_brep::EdgeCurve<T>, geom_brep::CertifyError>;
 
 #[cfg(any(test, feature = "test-support"))]
@@ -968,8 +972,8 @@ fn graft_solids_impl<T: geom_core::Decide>(
             curve.params(),
         );
         let surfaces = |sk| dst.surfaces.get(sk).cloned();
-        let recert =
-            door(spec, start, end, &surfaces, reach, band).map_err(BooleanError::GraftRecertify)?;
+        let recert = door(spec, start, end, &surfaces, reach, band, curve.locus())
+            .map_err(BooleanError::GraftRecertify)?;
         *proven_mut(&mut dst.curves, dk, GeomRef::Curve) = CurveGeom::Certified(recert);
     }
 

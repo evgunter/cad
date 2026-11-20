@@ -321,7 +321,7 @@ impl<T: Decide> Body<T> {
         let origin =
             crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::SplitChild);
         let child = |spec, start, end| {
-            self.certify_edge_spec(origin, Some(edge), spec, start, end, faces, tol)
+            self.certify_edge_spec(origin, Some(edge), None, spec, start, end, faces, tol)
         };
         let cert1 = child(spec1, p_u, p_new)?;
         let cert2 = child(spec2, p_new, p_v)?;

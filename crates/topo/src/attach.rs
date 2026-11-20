@@ -1312,7 +1312,7 @@ impl<T: Decide> Body<T> {
 
         let faces = crate::edge_faces(self, edge);
         let certified =
-            self.certify_edge_spec(origin, Some(edge), curve, p_start, p_end, faces, tol)?;
+            self.certify_edge_spec(origin, Some(edge), None, curve, p_start, p_end, faces, tol)?;
         let rows = self.description_rows(&[(edge, &certified)], |_| Ok(Vec::new()), tol)?;
 
         // ---- Mutation (infallible from here on). ----

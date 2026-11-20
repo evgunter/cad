@@ -124,9 +124,8 @@ fn same_curve<T: Real + CertifiedEnclosure>(a: &Curve3<T>, b: &Curve3<T>) -> boo
     match (a, b) {
         (Curve3::Nurbs(x), Curve3::Nurbs(y)) => Arc::ptr_eq(x, y),
         (Curve3::Periodic(x), Curve3::Periodic(y)) => Arc::ptr_eq(x, y),
-        (Curve3::Nurbs(_) | Curve3::Periodic(_), _) | (_, Curve3::Nurbs(_) | Curve3::Periodic(_)) => {
-            false
-        }
+        (Curve3::Nurbs(_) | Curve3::Periodic(_), _)
+        | (_, Curve3::Nurbs(_) | Curve3::Periodic(_)) => false,
         _ => {
             core::mem::discriminant(a) == core::mem::discriminant(b)
                 && same_scalars(&curve_scalars(a), &curve_scalars(b))
@@ -140,9 +139,8 @@ fn same_surface<T: Real + CertifiedEnclosure>(a: &Surface<T>, b: &Surface<T>) ->
     match (a, b) {
         (Surface::Nurbs(x), Surface::Nurbs(y)) => Arc::ptr_eq(x, y),
         (Surface::Approx(x), Surface::Approx(y)) => Arc::ptr_eq(x, y),
-        (Surface::Nurbs(_) | Surface::Approx(_), _) | (_, Surface::Nurbs(_) | Surface::Approx(_)) => {
-            false
-        }
+        (Surface::Nurbs(_) | Surface::Approx(_), _)
+        | (_, Surface::Nurbs(_) | Surface::Approx(_)) => false,
         _ => {
             core::mem::discriminant(a) == core::mem::discriminant(b)
                 && same_scalars(&surface_scalars(a), &surface_scalars(b))

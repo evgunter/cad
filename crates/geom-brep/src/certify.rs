@@ -2628,8 +2628,10 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
             turn,
             reading,
             locus,
-        } = run_checks(&spec, start, end, &surfaces, reach, lane, stated, band, locus)
-            .map_err(StatedSpan::at_a_door)?;
+        } = run_checks(
+            &spec, start, end, &surfaces, reach, lane, stated, band, locus,
+        )
+        .map_err(StatedSpan::at_a_door)?;
         Ok(Self {
             authority: authority_of(&spec.description),
             description: canonical,

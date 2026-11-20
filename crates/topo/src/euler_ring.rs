@@ -717,9 +717,28 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
+        self.mekr_kept(site, curve, None, tol)
+    }
+
+    /// [`Body::mekr`] minting a copy of an edge whose locus certificate
+    /// `kept` the caller holds ([`NewCurve::Kept`]).
+    pub(crate) fn mekr_kept(
+        &mut self,
+        site: MekrSite,
+        curve: EdgeCurveSpec<T>,
+        kept: Option<geom_brep::LocusCertificate<T>>,
+        tol: Tol,
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let created = self.mekr_with(site, NewCurve::Given(curve), tol)?;
+        let curve = match kept {
+            Some(locus) => NewCurve::Kept(curve, locus),
+            None => NewCurve::Given(curve),
+        };
+        let created = self.mekr_with(site, curve, tol)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::MEKR, "mekr");
         Ok(created)
@@ -1503,6 +1522,7 @@ impl<T: Decide> Body<T> {
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
             None,
+            curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
             p_u,
             p_w,
@@ -1603,6 +1623,7 @@ impl<T: Decide> Body<T> {
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
             None,
+            curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
             p_u,
             p_w,
@@ -1693,6 +1714,7 @@ impl<T: Decide> Body<T> {
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
             None,
+            curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
             p_u,
             p_w,
@@ -1792,6 +1814,7 @@ impl<T: Decide> Body<T> {
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
             None,
+            curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
             p_u,
             p_w,

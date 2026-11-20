@@ -22,7 +22,9 @@
 //! policy does not, or omit the certificate at one whose policy does.
 
 use geom::Surface;
-use geom_brep::{Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, NurbsLane, StatedImage};
+use geom_brep::{
+    Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, LocusCertificate, NurbsLane, StatedImage,
+};
 use geom_core::{Band, Decide, Point3, TangentTransport};
 
 use crate::geometry::SurfaceKey;
@@ -134,13 +136,14 @@ pub(crate) fn certify<T: AtRestPolicy>(
     reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<EdgeCurve<T>, CertifyError> {
-    certify_stated(origin, spec, start, end, surfaces, reach, band, None)
+    certify_stated(origin, spec, start, end, surfaces, reach, band, None, None)
 }
 
 /// [`AtRestPolicy::attach_edge`] with a chart image the body already
-/// holds for the edge on one of its surfaces, the wedge levered at
-/// `reach` ([`fn@crate::wedge_reach`]).
-#[allow(clippy::too_many_arguments)] // `certify`'s, plus the stated image
+/// holds for the edge on one of its surfaces and the locus certificate
+/// of an edge whose carrier, interval and surfaces the door keeps, the
+/// wedge levered at `reach` ([`fn@crate::wedge_reach`]).
+#[allow(clippy::too_many_arguments)] // `certify`'s, plus the stated image and kept locus
 pub(crate) fn certify_stated<T: AtRestPolicy>(
     origin: Origin,
     spec: EdgeCurveSpec<T>,
@@ -150,8 +153,9 @@ pub(crate) fn certify_stated<T: AtRestPolicy>(
     reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
+    locus: Option<&LocusCertificate<T>>,
 ) -> Result<EdgeCurve<T>, CertifyError> {
-    T::attach_edge(spec, start, end, surfaces, reach, band, stated)
+    T::attach_edge(spec, start, end, surfaces, reach, band, stated, locus)
         .map_err(|error| origin.read(error))
 }
 
@@ -198,9 +202,10 @@ pub(crate) fn certifying_attach<T: Decide + geom_core::CertifiedBounds>(
     reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
+    locus: Option<&LocusCertificate<T>>,
 ) -> Result<EdgeCurve<T>, CertifyError> {
     let lane = NurbsLane::certified();
-    EdgeCurve::certify_stated(spec, start, end, surfaces, reach, band, lane, stated)
+    EdgeCurve::certify_carrying(spec, start, end, surfaces, reach, band, lane, stated, locus)
 }
 
 /// **A certifying scalar's edge door at rest**

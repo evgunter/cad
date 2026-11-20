@@ -3340,6 +3340,10 @@ pub(crate) struct SegmentCurve<T: Real> {
     /// ([`SplineArc::of_section`]): the closing a ring-lane island on the
     /// carried lane reads.
     arc: Option<SplineArc<T>>,
+    /// The locus certificate of a chord the partner operand already
+    /// minted on this curve ([`Self::keep`]), which the edge door reads
+    /// where its support is a chord's here.
+    kept: Option<geom_brep::LocusCertificate<T>>,
 }
 
 #[cfg(test)]
@@ -3352,6 +3356,7 @@ impl<T: Real> SegmentCurve<T> {
             spec,
             ends: None,
             arc: None,
+            kept: None,
         }
     }
 }
@@ -3367,6 +3372,12 @@ impl<T: Real> SegmentCurve<T> {
     /// where the curve is one.
     pub(crate) fn carried_arc(&self) -> Option<&SplineArc<T>> {
         self.arc.as_ref()
+    }
+
+    /// Hands the curve the locus certificate of a chord the partner
+    /// operand minted on the same section, for this operand's chords.
+    pub(crate) fn keep(&mut self, locus: Option<geom_brep::LocusCertificate<T>>) {
+        self.kept = locus;
     }
 }
 
@@ -5291,6 +5302,7 @@ impl ChordJoiner {
             halves: (chord.from, to),
             spec,
             ends,
+            kept: None,
         }))
     }
 
@@ -5336,7 +5348,7 @@ impl ChordJoiner {
                     let created = match spec {
                         None => body.mef_chord(site, tol)?,
                         Some(spec) => body
-                            .mef(site, spec, FaceSurface::Inherit, tol)
+                            .mef_kept(site, spec, curve.kept.clone(), FaceSurface::Inherit, tol)
                             .map_err(refused)?,
                     };
                     self.slivers.insert(created.face, ());
@@ -5349,7 +5361,9 @@ impl ChordJoiner {
                 ChordSite::Mekr(site) => {
                     let made = match spec {
                         None => body.mekr_chord(site, tol)?,
-                        Some(spec) => body.mekr(site, spec, tol).map_err(refused)?,
+                        Some(spec) => body
+                            .mekr_kept(site, spec, curve.kept.clone(), tol)
+                            .map_err(refused)?,
                     };
                     minted.push(made.edge);
                 }
@@ -5372,7 +5386,7 @@ impl ChordJoiner {
             let created = match spec {
                 None => body.mef_chord(site, tol)?,
                 Some(spec) => body
-                    .mef(site, spec, FaceSurface::Inherit, tol)
+                    .mef_kept(site, spec, curve.kept.clone(), FaceSurface::Inherit, tol)
                     .map_err(refused)?,
             };
             self.slivers.insert(created.face, ());
