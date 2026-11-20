@@ -49,7 +49,7 @@ failed.
 ## Blind spot
 
 Same extraction as
-`work/tint/ordering-asserts-outside-mesh-unswept-for-illegible-domination-messages.md`:
+`work/ciw/ordering-asserts-outside-mesh-unswept-for-illegible-domination-messages.md`:
 `assert!` / `debug_assert!` with an ordering operator in the condition.
 Message-less `assert_eq!` rows and bare `assert!(flag)` rows were not
 counted.
