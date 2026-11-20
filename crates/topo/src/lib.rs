@@ -212,8 +212,6 @@ pub mod readback;
 pub mod replace_face;
 #[cfg(test)]
 pub(crate) mod revalue_pin;
-#[cfg(test)]
-mod review_delta_pins;
 pub mod revert;
 #[cfg(test)]
 mod review_d18;
@@ -241,6 +239,8 @@ mod seat;
 pub use seat::Seat;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
+#[cfg(test)]
+mod segment_term_revalue_pins;
 pub(crate) mod separating;
 pub mod separation;
 #[cfg(test)]

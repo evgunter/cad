@@ -1,5 +1,9 @@
-//! Reviewer pins (delta review of PR 7146): the revalue pin over every
-//! door that reaches `less_sin` for a conic arc.
+//! **Every door that reads a conic arc's segment term re-values to its
+//! own bits** ([`crate::revalue_pin`]): `closed_segment_term` on a
+//! circle and on an ellipse, each way round, and `arc_segment_term`.
+//! The term is `Δ − sin Δ` ([`geom_core::Real::less_sin`]), which a
+//! recording scalar keeps as one node and re-values through the door
+//! that valued it.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use crate::revalue_pin::{S, revalued};
 use geom_core::{Point3, Real, Vec3};
@@ -22,7 +26,7 @@ fn circle(r: S) -> geom::Curve3<S> {
 }
 
 #[test]
-fn review_every_segment_door_revalues_to_its_own_bits() {
+fn every_segment_door_revalues_to_its_own_bits() {
     for fwd in [true, false] {
         let found = revalued([0.5, 0.5 + 1.0e-3], |_, p| {
             let t1 = p * S::from_f64(1.0e-4);

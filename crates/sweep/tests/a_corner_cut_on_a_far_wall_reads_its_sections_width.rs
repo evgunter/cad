@@ -3,11 +3,12 @@
 //! 10 km outside the session box, split by a plane `12ε` inside the
 //! corner where the arc wall, a flat wall and the top meet. The section
 //! is a triangle about `30ε` across with one side an arc of an ellipse
-//! whose centre is as far off as the wall's. Its mean width `2A/P` is in
-//! `(ε, 10ε)`, so the split escalates at `split_section_area`, and the
-//! margin it reports is the triangle's: at most its geometric width, and
-//! no less than that over the ellipse's axis ratio (the predicate counts
-//! the arc side at its carrier's greatest speed).
+//! whose centre is as far off as the wall's. The margin
+//! `split_section_area` reads for it is in `(ε, 10ε)`, so the split
+//! escalates there. That margin is `2A/P` with the arc side counted at
+//! its carrier's greatest speed: at most the triangle's geometric width
+//! (which for the second cut is itself past `10ε`), and no less than
+//! that over the ellipse's axis ratio.
 //!
 //! A reading of the arc's segment about its far centre is off by four
 //! orders here: it certified one of these sections and passed the other
