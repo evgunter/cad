@@ -1154,7 +1154,7 @@ fn closes_at_its_site<T: crate::props::AtRestPolicy>(
 
 /// **The face a one-site record's site pierces**, and its operand:
 /// `None` where neither germ's cell is a pierce ([`site_cell`]).
-fn pierced_face<T: Decide>(
+fn pierced_face<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     g0: &HalfGerm<T>,
     b_he: HalfEdgeKey,
@@ -1175,7 +1175,7 @@ fn pierced_face<T: Decide>(
 /// surface** (A's, then B's): its node-joined set's claim where it is an
 /// arc of one ([`geom_brep::PairSection::node_sets`]), its own otherwise
 /// ([`geom_brep::CarriedComponent::winds`]).
-fn component_winds<T: Decide>(
+fn component_winds<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     g0: &HalfGerm<T>,
     section: &geom_brep::CarriedSection<T>,
@@ -4637,7 +4637,7 @@ fn carried_foot<T: crate::props::AtRestPolicy>(
 ///
 /// A site's escalation or desync; a germ with no heading along its
 /// component, a desync.
-fn along_facing<T: Decide>(
+fn along_facing<T: crate::props::AtRestPolicy>(
     (table, a, b): (&super::section_table::SectionTable<T>, &Body<T>, &Body<T>),
     section: &geom_brep::CarriedSection<T>,
     (g1, p1): (&HalfGerm<T>, Point3<T>),
