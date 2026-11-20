@@ -378,7 +378,8 @@ fn pole_azimuth_speed(image: &ProjectedImage<f64>) -> Result<f64, NoSpeedBound> 
     let (ax, ay, bx, by) = (i(ga.x), i(ga.y), i(gb.x), i(gb.y));
     let (aa, bb, ab) = (ax.sqr() + ay.sqr(), bx.sqr() + by.sqr(), ax * bx + ay * by);
     let sigma_max_sq = i(0.5) * (aa + bb) + hyp(i(0.5) * (aa - bb), ab);
-    let det = geom_core::Real::abs(ax * by - ay * bx);
+    let det = ax * by - ay * bx;
+    let det = if det.hi() < 0.0 { i(0.0) - det } else { det };
     if det.lo() > 0.0 {
         finite((sigma_max_sq / (i(2.0) * det)).hi())
     } else {

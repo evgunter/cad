@@ -3196,7 +3196,7 @@ pub(super) fn projected_envelope<T: Decide>(
     if let Some(pole) = image.pole {
         terms.add(
             EnvelopeTerm::Fidelity,
-            pole_term(image, pole, (t0, t1), surface, lipschitz)
+            pole_term(image, pole, (t0, t1), lipschitz)
                 .ok_or_else(|| refuse("an image with a pole end is a conic's on a sphere chart"))?,
         );
     }
@@ -3295,11 +3295,10 @@ fn pole_term<T: Decide>(
     image: &ProjectedImage<T>,
     pole: PoleEnd<T>,
     (t0, t1): (T, T),
-    surface: &Surface<T>,
     lipschitz: T,
 ) -> Option<T> {
-    let (FramedCarrier::Conic { centre, a, b, .. }, Surface::Sphere { .. }) =
-        (&image.carrier, surface)
+    let (FramedCarrier::Conic { centre, a, b, .. }, ProjectedChart::Sphere) =
+        (&image.carrier, &image.chart)
     else {
         return None;
     };
