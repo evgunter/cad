@@ -75,7 +75,6 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
             && (circle.frame().origin().z - seam_z).abs() < 1e-9
             && (radius - 0.35).abs() < 1e-9
         {
-            let frame = circle.frame();
             arcs += 1;
             assert!(
                 matches!(

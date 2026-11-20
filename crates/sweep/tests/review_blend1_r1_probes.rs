@@ -492,7 +492,6 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
                     geom::Curve3::Circle(circle @ geom::Circle { .. })
                         if circle.frame().origin().z > 0.5 =>
                     {
-                        let frame = circle.frame();
                         Some(k)
                     }
                     _ => None,

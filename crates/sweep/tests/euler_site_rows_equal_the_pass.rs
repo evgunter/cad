@@ -112,7 +112,6 @@ fn rims(body: &Body<f64>, face: FaceKey) -> Vec<EdgeKey> {
         if let Curve3::Circle(the_circle @ geom::Circle { .. }) = curve_of(body, e).carrier()
             && the_circle.frame().axis().y.abs() > 0.999
         {
-            let frame = the_circle.frame();
             out.push(e);
         }
     }

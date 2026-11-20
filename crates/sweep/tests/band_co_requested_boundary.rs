@@ -293,7 +293,6 @@ fn carved_clearance(body: &Body<f64>, rod: Rod, r: f64) -> f64 {
                     < 1e-12
                     && radius < 2.0 =>
             {
-                let frame = the_circle.frame();
                 circles.push(radius);
             }
             _ => {}

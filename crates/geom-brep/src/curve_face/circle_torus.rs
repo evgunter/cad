@@ -556,10 +556,7 @@ fn parallel_axes_roots<T: Decide>(
     // ring. The graze's own refusal stands only where it does.
     let graze: Option<RootRefusal> =
         match crate::roots::spread_signs("circle_torus_plane_height", depth, charge_h, band) {
-            Ok((Sign::Positive, _)) => {
-                let carrier_frame = the_circle.frame();
-                None
-            }
+            Ok((Sign::Positive, _)) => None,
             // Definitely past the top or bottom of the tube, even charged.
             Ok((_, Sign::Negative)) => return Ok(CircleRoots::Miss),
             Ok(_) => Some(Unsettled::Tangency.into()),

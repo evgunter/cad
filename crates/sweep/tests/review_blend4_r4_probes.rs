@@ -80,7 +80,6 @@ fn hits_station_radius(body: &Body<f64>, y: f64, r: f64, win: f64) -> Vec<EdgeKe
                 Curve3::Circle(circle @ geom::Circle { radius, .. })
                     if (circle.frame().origin().y - y).abs() < win && (radius - r).abs() < win =>
                 {
-                    let frame = circle.frame();
                     Some(k)
                 }
                 _ => None,

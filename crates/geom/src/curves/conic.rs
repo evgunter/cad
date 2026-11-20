@@ -1094,7 +1094,7 @@ mod tests {
                 assert!(c.anchor().is_none() && !carrier.same_content(&centred));
                 assert!(carrier.same_content(&carrier.clone()));
                 let scale = (f.origin() - o).norm() + 2.0 * a;
-                for t in [-3.0, -1.2, -2e-3, 1e-7, 0.4, 1.5707, 2.9] {
+                for t in [-3.0, -1.2, -2e-3, 1e-7, 0.4, 1.55, 2.9] {
                     let gap = (k.point_at(t) - c.point_at(t)).norm();
                     assert!(
                         gap <= 8.0 * f64::EPSILON * scale,

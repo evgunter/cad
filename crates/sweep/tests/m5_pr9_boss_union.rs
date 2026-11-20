@@ -52,7 +52,6 @@ fn the_boss_union_lands_end_to_end() {
             && (the_circle.frame().origin().z - 1.0).abs() < 1e-9
             && (radius - 0.5).abs() < 1e-9
         {
-            let frame = the_circle.frame();
             seam_arcs += 1;
             assert!(
                 matches!(

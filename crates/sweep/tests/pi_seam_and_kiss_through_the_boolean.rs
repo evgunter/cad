@@ -746,7 +746,6 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                 geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. })
                     if (the_circle.frame().origin().z - H).abs() < 1e-9 =>
                 {
-                    let frame = the_circle.frame();
                     Some(radius)
                 }
                 _ => None,
