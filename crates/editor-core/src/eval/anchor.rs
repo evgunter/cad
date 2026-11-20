@@ -395,11 +395,46 @@ pub struct ProfileValue<T: geom_core::Real> {
 impl<T: topo::AtRestPolicy + geom_core::Decide> ProfileValue<T> {
     /// **A body swept from this profile**, built in the profile's own
     /// coordinates: in the frame the profile is drawn on, or its own.
-    pub(crate) fn framed(&self, body: std::sync::Arc<T::Leaf>) -> super::Framed<T> {
+    ///
+    /// # Errors
+    ///
+    /// Where it stands in its space past the session box
+    /// ([`super::Framed::asked_where_it_stands`]).
+    pub(crate) fn framed(
+        &self,
+        body: std::sync::Arc<T::Leaf>,
+        tol: geom_core::Tol,
+    ) -> Result<super::Framed<T>, super::NodeErrorKind> {
         match &self.frame {
-            Some(frame) => super::Framed::in_frame_leaf(body, frame.clone()),
-            None => super::Framed::own_leaf(body),
+            Some(frame) => {
+                super::Framed::in_frame_leaf(body, frame.clone()).asked_where_it_stands(tol)
+            }
+            None => Ok(super::Framed::own_leaf(body)),
         }
+    }
+
+    /// **A body swept from this profile, lifted `by` along its `z`**:
+    /// built in the profile's own coordinates, and standing `by` along
+    /// the profile's `z` in the frame it is drawn on, or its own.
+    ///
+    /// # Errors
+    ///
+    /// The lift's or the composition's overflow.
+    pub(crate) fn lifted(
+        &self,
+        body: std::sync::Arc<T::Leaf>,
+        by: T,
+    ) -> Result<super::Framed<T>, geom_core::RigidMotionError> {
+        let lift =
+            geom_core::RigidMotion::translation(geom_core::Vec3::new(T::zero(), T::zero(), by))?;
+        let map = match self.frame.as_ref().and_then(super::Frame::map) {
+            Some(on) => on.compose(lift)?,
+            None => lift,
+        };
+        Ok(super::Framed::in_frame_leaf(
+            body,
+            super::Frame::Map(std::sync::Arc::new(map)),
+        ))
     }
 }
 

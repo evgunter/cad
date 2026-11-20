@@ -69,7 +69,8 @@ use topo::{Body, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use topo::construction::{MefSite, MekrSite, MevSite};
 
 use crate::adopt;
-use crate::entities::SolidSpec;
+use crate::build::Shell;
+use crate::entities::{SolidRecord, SolidSpec};
 use crate::error::StepImportError;
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 use geom_core::{FileCoincidence, Tol};
@@ -153,11 +154,11 @@ pub(crate) struct Target {
 impl Target {
     /// Flattens a `SolidSpec` (module docs). The manifold two-use
     /// precondition was checked at resolution.
-    fn build(solid: &SolidSpec) -> Result<Self, StepImportError> {
+    fn build(solid: &Shell<'_>) -> Result<Self, StepImportError> {
         let mut uses = Vec::new();
         let mut loops = Vec::new();
         let mut face_loops = Vec::new();
-        for face in &solid.faces {
+        for face in solid.faces {
             let mut ring_ids = Vec::new();
             let mut outer_id = 0;
             for lp in &face.loops {
@@ -265,7 +266,7 @@ pub(crate) struct Assembled {
 struct Builder<'a> {
     body: &'a mut Body<f64>,
     target: Target,
-    solid: &'a SolidSpec,
+    solid: &'a Shell<'a>,
     /// The file's ε_in, for the refusals assembly reports.
     file: FileCoincidence,
     /// `Some(he)` once a use is realized.
@@ -801,8 +802,9 @@ impl<'a> Builder<'a> {
 /// adoption phases (rings, surfaces, senses, edge descriptions).
 fn assemble_solid(
     body: &mut Body<f64>,
-    solid: &SolidSpec,
+    solid: &Shell<'_>,
     tol: Tol,
+    band: geom_core::Band,
     file: FileCoincidence,
 ) -> Result<BTreeMap<FaceKey, u64>, StepImportError> {
     let target = Target::build(solid)?;
@@ -892,28 +894,71 @@ fn assemble_solid(
     let assembled = Assembled { target, use_he };
     // Each body face's `ADVANCED_FACE`: the join the build ends with
     // reports against the file's faces.
-    let keys = adopt::finish(body, solid, &assembled, tol, file)?;
+    let keys = adopt::finish(body, solid, &assembled, tol, band, file)?;
     Ok(keys
         .into_iter()
         .zip(solid.faces.iter().map(|f| f.id))
         .collect())
 }
 
-/// The assembly proper: one `MANIFOLD_SOLID_BREP` into a body of its
-/// OWN (phase A + verification + adoption), then one pcurve mint over
-/// that body.
+/// The assembly proper: one solid record into a body of its OWN. Its
+/// outer shell and each void shell are assembled alike (phase A +
+/// verification + adoption, then one pcurve mint), each into a body of
+/// its own, and each void's solid is folded into the outer's, so the
+/// body holds one solid of every shell the record names; the join
+/// records of every shell are returned together.
 ///
 /// A body per solid is what lets the shared at-rest gate be asked
 /// about that solid alone: the whole-body invariants the gate checks
 /// include summed ones (the +V flux sum over every shell), which
 /// cannot see a single inside-out solid whose neighbours cancel it.
-/// Nothing assembles two specs into one arena — each instance is
+/// Nothing assembles two records into one arena — each instance is
 /// built into a body of its own and the copies are grafted (`lib.rs`).
 pub(crate) fn build_one_solid(
+    record: &SolidRecord,
+    tol: Tol,
+    file: FileCoincidence,
+) -> Result<(Body<f64>, Vec<StructureNormalization>), StepImportError> {
+    let (mut body, mut joins) = build_one_shell(&record.outer, tol, file)?;
+    let Some((keeper, _)) = body.solids().next() else {
+        unreachable!("an assembled shell stands under the solid its mvfs minted")
+    };
+    for void in &record.voids {
+        let (cavity, void_joins) = build_one_shell(void, tol, file)?;
+        joins.extend(void_joins);
+        let donor = topo::graft_disjoint(&mut body, &cavity).unwrap_or_else(|e| {
+            unreachable!(
+                "a one-solid source grafts: the disjoint graft refuses only a source \
+                 without exactly one solid ({e:?})"
+            )
+        });
+        body.fold_solid_into(donor, keeper).unwrap_or_else(|e| {
+            unreachable!("both solids were just minted in this body and resolve ({e:?})")
+        });
+    }
+    Ok((body, joins))
+}
+
+/// One shell into a body of its own.
+fn build_one_shell(
     solid: &SolidSpec,
     tol: Tol,
     file: FileCoincidence,
 ) -> Result<(Body<f64>, Vec<StructureNormalization>), StepImportError> {
+    // A tolerance that makes no band (an ε within K of `f64::MAX`) reads
+    // neither a smooth join nor whether a vertex is joinable, so the
+    // solid refuses here, once, rather than at each edge.
+    let band = geom_core::Band::linear(tol).map_err(|e| StepImportError::Join {
+        solid: solid.id,
+        refusal: topo::JoinRefusal::of(&topo::BooleanError::Band(e)),
+        file,
+    })?;
+    // The build (D7 step 2): every edge's description chosen at the
+    // file's band and its caches built, before any topology exists, so
+    // the body is assembled on built vertex points.
+    let file_band = crate::interpret::FileBand::of_import(file.eps_in(), false, tol)?;
+    let mut moves = Vec::new();
+    let shell = crate::build::build(solid, tol, file_band, &mut moves)?;
     let mut body = Body::new();
     // The import IS a door: it runs the operator sequence a foreign
     // file describes, and D1's whole-body tier-1 postcondition is paid
@@ -922,12 +967,12 @@ pub(crate) fn build_one_solid(
     // it used to cost one per mint. The guard owns the borrow, so a
     // refusal part-way closes the scope by dropping it.
     let mut door = body.begin_surgery();
-    let faces = assemble_solid(&mut door, solid, tol, file)?;
+    let faces = assemble_solid(&mut door, &shell, tol, band, file)?;
     topo::mint_pcurves(&mut door, tol)
         .map_err(|source| StepImportError::Pcurves { source, file })?;
     door.sweep_and_close();
-    let joins = join(&mut body, solid.id, &faces, tol, file)?;
-    Ok((body, joins))
+    moves.extend(join(&mut body, solid.id, &faces, tol, band, file)?);
+    Ok((body, moves))
 }
 
 /// **The import ends with the join** every finisher ends with
@@ -947,6 +992,7 @@ fn join(
     solid: u64,
     faces: &BTreeMap<FaceKey, u64>,
     tol: Tol,
+    band: geom_core::Band,
     file: FileCoincidence,
 ) -> Result<Vec<StructureNormalization>, StepImportError> {
     let refused = |refusal: &topo::BooleanError| StepImportError::Join {
@@ -954,10 +1000,6 @@ fn join(
         refusal: topo::JoinRefusal::of(refusal),
         file,
     };
-    // A tolerance that makes no band (an ε within K of `f64::MAX`) cannot
-    // read whether a vertex is joinable, so the join refuses here rather
-    // than leave one unread for the gate behind it.
-    let band = geom_core::Band::linear(tol).map_err(|e| refused(&topo::BooleanError::Band(e)))?;
     let joins = body.join_edges(band, tol).map_err(|e| refused(&e))?;
     joins
         .iter()
@@ -1084,7 +1126,6 @@ mod tests {
     /// everything reds here.
     #[test]
     fn the_tied_selfloop_door_refuses_a_strut_it_cannot_mint() {
-        use crate::entities::EdgeSpec;
         use geom::Curve3;
         use geom_core::{Point3, Tol, Vec3};
 
@@ -1097,22 +1138,21 @@ mod tests {
         const SWALLOWED: f64 = 9_007_199_254_740_992.0;
 
         let tol = Tol::witness();
-        let solid_at = |x: f64| SolidSpec {
+        let solid_at = |x: f64| Shell {
             id: 1,
-            faces: Vec::new(),
+            faces: &[],
             edges: BTreeMap::from([(
                 SELF_LOOP,
-                EdgeSpec {
+                crate::build::Edge {
                     start: VERTEX,
                     end: VERTEX,
+                    description: crate::build::Description::Wrap,
                     carrier: Curve3::line(Point3::new(x, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
                     t0: 0.0,
                     t1: 1.0,
-                    reversed: false,
                 },
             )]),
             vertices: BTreeMap::from([(VERTEX, Point3::new(x, 0.0, 0.0))]),
-            band_seams: std::collections::BTreeSet::new(),
         };
         // Use 0 is the self-loop's forward use, 1 its reversed use, 2
         // the built neighbour. `sigma(0) = next[mate[0]] = next[1] =

@@ -78,8 +78,9 @@ fn unit_square() -> LoopProgram<Formula> {
 }
 
 /// **The slab**: a unit square extruded by a document parameter. A
-/// depth is a size, so below zero the extrude refuses: the slab's
-/// field has one boundary, a half-line floor at depth zero.
+/// depth is signed, and refuses at zero and in the band about it: the
+/// slab's field has one boundary, a point floor at depth zero, which a
+/// seed about `1.0` does not reach.
 fn slab(depth: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     declare(&mut r, "depth", depth);
@@ -392,7 +393,7 @@ fn a_branch_change_is_a_decision_flip_and_names_the_predicate() {
         .verdicts
         .nodes
         .values()
-        .flat_map(|d| &d.flips)
+        .flat_map(|d| d.flip)
         .map(|f| (f.predicate, f.from, f.to))
         .collect();
     assert!(
@@ -477,7 +478,7 @@ fn a_gap_between_two_lines_is_a_decision_flip_below_the_crossing() {
         .verdicts
         .nodes
         .values()
-        .flat_map(|d| &d.flips)
+        .flat_map(|d| d.flip)
         .map(|f| (f.predicate, f.from, f.to))
         .collect();
     assert!(
@@ -625,7 +626,7 @@ fn the_first_boundary_stops_the_walk_and_a_seed_on_the_island_certifies_it() {
 fn the_query_does_not_touch_the_input_document() {
     let (doc, node) = slab_slot(1.0);
     let before = doc.clone();
-    let before_text = editor_core::persist::save(&doc, &[], tol()).expect("the fixture saves");
+    let before_text = editor_core::persist::save(&doc, tol()).expect("the fixture saves");
     let _ = certified_range(
         &doc,
         &RangeField::Slot {
@@ -640,7 +641,7 @@ fn the_query_does_not_touch_the_input_document() {
     .expect("the slot widens");
     assert!(doc.bit_eq(&before));
     assert_eq!(
-        editor_core::persist::save(&doc, &[], tol()).expect("the fixture saves"),
+        editor_core::persist::save(&doc, tol()).expect("the fixture saves"),
         before_text
     );
 }

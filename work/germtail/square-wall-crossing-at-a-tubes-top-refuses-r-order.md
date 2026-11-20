@@ -59,3 +59,29 @@ PR 7052's reviewers):
     tilt 0.00000000000644107827255586: R-tan at
     Degeneracy { tangent: 0.00024737568798874343, top: 1.4351601400341973e-9 }:
     Tangent("section_torus_square_wall_fold_half")
+
+A second seed, `CAD_FUZZ_SEED=0xf833f1903ca13458` (`CAD_FUZZ_EFFORT=1`),
+reds with three mismatches of the same shape (`R 4.528…, r 0.5539…`;
+`R 0.04898…, r 0.007838…`; `R 37.93…, r 8.648…`), each `R-tan at
+Degeneracy { … top: ~1e-9 }`, on embed/graph-piece's local run of topo
+(2026-11-17); that branch does not touch the section code.
+
+- 2026-11-18 — **another draw of the family, from the nightly slow set** (ONEHOME's PR 7088 lane, local run): `boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section` drew `CAD_FUZZ_SEED=0xe0950175e9cd5888` at `CAD_FUZZ_EFFORT=1` and found 1 mismatch, "a strip crossing at a tube circle's top": `R 24.455411074718242, r 14.679004457317978, (e, z0, rc) (25.867814796788632, 14.064956615358236, 1.5401100768027751)`, tilt `9.894e-17`, refused `R-tan at Degeneracy { tangent: 0.9968011759838724, top: 7.2513461901735354e-9 }`. It reproduces with main's `topo` and `geom-brep` (`1b8712e48`) with that seed and effort.
+- 2026-11-18 — **another seed of the same search**, `CAD_FUZZ_SEED=0xcd6fb650afffa55c` (`CAD_FUZZ_EFFORT=1`), reported by PR 7088's delta reviewer from the nightly slow set, on `boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`. The branch does not touch the section code; the mismatch is not replayed here.
+- 2026-11-18 — **another seed from the slow set**, `CAD_FUZZ_SEED=0xa853a4936c699bbf` (`CAD_FUZZ_EFFORT=1`), on PR 7088's head `0e4a88b3b` (a local run), on `boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`. It found 2 mismatches, both "a strip crossing at a tube circle's top" at tilt 0, refused `Tangent("section_torus_square_wall_fold_half")`:
+  - `R 1.7431386315133757, r 0.5301515634601375, (e, z0, rc) (-1.779863039014376, 0.5140418444666239, 0.04010242868703958)`, `Degeneracy { tangent: 0.025302880813285522, top: 4.560202028491833e-9 }`;
+  - `R 0.15708184039820414, r 0.03233924842649333, (e, z0, rc) (-0.16267172524735657, -0.040157338658700345, 0.009610900698025776)`, `Degeneracy { tangent: 0.0014056222339962066, top: 3.367093825978884e-9 }`.
+
+  The branch does not touch the section code.
+- 2026-11-18 — **another seed of the same `Tangent("section_torus_square_wall_fold_half")` family**, `CAD_FUZZ_SEED=0x80d159b76d7315df` (`CAD_FUZZ_EFFORT=1`), on `boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`. PR 7088's delta-3 reviewer drew it from the slow set; it is not replayed here.
+- 2026-11-18 — **another seed from the slow set**, `CAD_FUZZ_SEED=0x55e1793adeb1c7e3` (`CAD_FUZZ_EFFORT=1`), on PR 7088's head `343514f92` (a local run). It found 1 mismatch, "a strip crossing at a tube circle's top": `R 0.019909668948330725, r 0.003584650030920035, (e, z0, rc) (0.0522248658400246, 0.011720238237453275, 0.033323555767347746)`, tilt `8.64e-10`, refused `Tangent("section_torus_square_wall_fold_half")` at `Degeneracy { tangent: 0.0025332740334559137, top: 5.644358709588904e-9 }`.
+
+A third seed, `CAD_FUZZ_SEED=0x838f6bb8bc006541` (`CAD_FUZZ_EFFORT=1`),
+reds with two mismatches of the same shape (`R 0.08967…, r 0.009745…`;
+`R 7.828…, r 5.006…`), each `R-tan at Degeneracy { … top: ~1e-9 }:
+Tangent("section_torus_square_wall_fold_half")`, at ε = 1e-9 on
+importgate/build's local run of topo (2026-11-18); that branch does not
+touch the section-certificate code.
+- 2026-11-19 — **another seed from the slow set**, `CAD_FUZZ_SEED=0x2a3bc317ec000517` (`CAD_FUZZ_EFFORT=1`), on PR 7099's merge of main (`bb3030aed`, a local run). It found 3 mismatches of the same `Tangent("section_torus_square_wall_fold_half")` shape, "a strip crossing at a tube circle's top", at tilt 0 (the first: `R 0.03718180571997164, r 0.026862353293602703, (e, z0, rc) (0.013995399530219547, -0.03597452314082404, 0.02491266790414395)`). The branch does not touch the section code.
+- 2026-11-19 — **another seed from the slow set**, `CAD_FUZZ_SEED=0x339a0ffc371059d8` (`CAD_FUZZ_EFFORT=1`), on PR 7099's head `d51b45838` (a local run), on `boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`: 2 mismatches of the same family. The branch does not touch the section code.
+- 2026-11-19 — **another seed from the slow set**, `CAD_FUZZ_SEED=0x1d6e16a1245acf31` (`CAD_FUZZ_EFFORT=1`), on PR 7099's head `1efd4c4df` (a local run), on the same row: 3 mismatches of the same family, "a strip crossing at a tube circle's top", at tilt 0 (the first: `R 26.979895739936712, r 24.905971927878202, (e, z0, rc) (-30.689145667498128, -27.7322030360061, 4.663273232846134)`). The branch does not touch the section code.

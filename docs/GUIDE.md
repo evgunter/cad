@@ -504,7 +504,7 @@ that one `set_var_value` moves — at degree 1 the same three sections
 enclose 8.75 m³ rather than 9.
 
 ```python
-from pncad import Doc, EditError, Formula, Node, StationMove, evaluate, m, Settle
+from pncad import Doc, EvaluationError, Formula, Node, StationMove, evaluate, m, Settle
 
 SQUARE = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 TRAPEZOID = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]
@@ -533,15 +533,16 @@ assert abs(props.volume - 9.0) <= props.volume_pad + 1e-9
 assert props.volume_pad < 1e-6
 
 # The kernel's rule, not the binding's: 1 <= v_degree <= n - 1. Three
-# sections cannot carry degree 3, and nothing here pre-checks that —
-# the kernel's edit door refuses it, typed.
+# sections cannot carry degree 3, and nothing here pre-checks that. The
+# degree is a value, so the edit door admits it and the evaluation
+# refuses the loft, typed.
+steep = doc.insert(Node.loft(first, then, Formula.count(3)))
 try:
-    doc.insert(Node.loft(first, then, Formula.count(3)))
-except EditError as refused:
-    assert refused.variant == "loft_shape"
-    assert refused.inner_variant == "degree_out_of_range"
+    evaluate(doc).value(steep)
+except EvaluationError as refused:
+    assert refused.kind == "count_out_of_range"
 else:
-    raise AssertionError("degree 3 through three sections inserted")
+    raise AssertionError("degree 3 through three sections evaluated")
 ```
 
 A profile becomes usable by turning it into a body. `validated` is
@@ -934,12 +935,13 @@ the geometry survived.
 `step_string` takes a finished body (`AtRestBody`), so a body the
 at-rest gate refuses never reaches the writer. Past the gate, STEP
 export is one of the few places the kernel refuses for a reason you
-should *expect* rather than fix: `UnsupportedSurface`,
-`UnsupportedCurve` and `VoidShellUnsupported` mean the AP214
-writer has no representation for a surface or a cavity the modeller
-can build.
-The tour treats exactly those three as tolerated, per scene, and
-panics on anything else.
+should *expect* rather than fix: `UnsupportedSurface` and
+`UnsupportedCurve` mean the AP214 writer has no representation for a
+surface or a curve the modeller can build. A solid with cavities is
+not one of them: it leaves as one `BREP_WITH_VOIDS` and re-imports as
+one solid with the same cavities.
+The tour's bodies reach neither refusal, and it panics on any refusal
+at all.
 
 ### 2.8 The same journey in Python
 
@@ -1106,7 +1108,7 @@ measures agree at rounding level. On a curved body they differ by the
 budget, and the difference shrinks with it — `docs/guide/meshing.md`
 runs that convergence.
 
-Python's document also persists and replays bit-identically:
+Python's document also saves and loads bit-identically:
 
 ```python
 from pncad import Doc, Formula, Node, evaluate, load, mm
@@ -1120,8 +1122,8 @@ profile = doc.insert(Node.polygon([
 doc.insert(Node.extrude(profile, Formula.length_in(1, mm)))
 
 text = doc.save()
-replayed = load(text).doc
-assert doc.bit_eq(replayed), "replay is bit-identical, not merely close"
+loaded = load(text)
+assert doc.bit_eq(loaded), "the load is bit-identical, not merely close"
 ```
 
 Bit-identity is a real guarantee, not a hope: the kernel uses pure
@@ -1143,7 +1145,7 @@ at `insert`, not as a guess.
 ```python
 import math
 
-from pncad import Doc, EditError, Formula, Node, Open, Start, circle, evaluate, m, Settle
+from pncad import Doc, EvaluationError, Formula, Node, Open, Start, circle, evaluate, m, Settle
 
 # The tour's `plate` stop: a 6 x 3 slab, 0.6 deep, with two holes.
 outer = (
@@ -1165,17 +1167,19 @@ area = 6.0 * 3.0 - 2.0 * math.pi * 0.7 * 0.7
 assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - 0.6 * area) < 1e-12
 
 # Two disjoint circles are not an outline and its hole. The kernel
-# says so; the binding does not pre-empt it.
-try:
-    other = Doc()
-    other.insert(
-        Node.profile(
-            [circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)],
-        )
+# says so when the profile evaluates; neither the binding nor the edit
+# door, which reads no value, pre-empts it.
+other = Doc()
+pair = other.insert(
+    Node.profile(
+        [circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)],
     )
+)
+try:
+    evaluate(other).value(pair)
     raise AssertionError("that profile should not have validated")
-except EditError as refusal:
-    assert refusal.variant == "profile_program_refused"
+except EvaluationError as refusal:
+    assert refusal.kind == "profile"
 ```
 
 ### Filleting edges you name

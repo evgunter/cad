@@ -240,13 +240,16 @@ fn both_witnesses_build_under_every_boolean() {
 fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar() {
     // Pinned red at ε 1e-12: the Interval union escalates a pcurve envelope
     // (`work/onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`).
+    // Since PR 6988 (the re-cut's least-turn mint) the check that escalates
+    // is the aggregate `Envelope`, at half-edge 3v1, sample 0, not the
+    // per-term `EnvelopeTerm(Radius)`.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the plain witness",
         &[
             "Interval a ∪ b: wanted a body",
-            "EnvelopeTerm(Radius)",
+            "half_edge: HalfEdgeKey(3v1), error: Escalated { check: Envelope, sample: 0",
             "pcurve_envelope",
         ],
         the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar_row,

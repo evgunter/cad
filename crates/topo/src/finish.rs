@@ -61,6 +61,12 @@ pub trait FinishedBody:
     /// [`MoveError::NotFinished`] holding the session box's finding.
     fn moved_by(&self, iso: &crate::Isometry<Self::Scalar>, tol: Tol) -> Result<Self, MoveError>;
 
+    /// **Whether [`Self::moved_by`]'s ask reaches the node's verdict
+    /// log** ([`moved_and_asked`]): at `AtRestBody` always, the finish
+    /// carried and nothing else asking the image; at a replay as
+    /// [`Replay::moved_by`] says.
+    const MOVE_LOGS_ITS_ASK: bool;
+
     /// **This finished body under a rigid motion** ([`Self::moved_by`]).
     ///
     /// # Errors
@@ -136,6 +142,7 @@ impl std::error::Error for MoveError {}
 
 impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
     type Scalar = T;
+    const MOVE_LOGS_ITS_ASK: bool = true;
 
     fn into_body(self) -> Body<T> {
         AtRestBody::into_body(self)
@@ -184,7 +191,8 @@ impl<T: Real> Replay<T> {
     ///
     /// Tier 2's findings.
     pub(crate) fn of(body: Body<T>) -> Result<Self, NotFinished> {
-        crate::validate::validate_closed(&body).map_err(NotFinished::new)?;
+        geom_core::k_stats::checking(|| crate::validate::validate_closed(&body))
+            .map_err(NotFinished::new)?;
         Ok(Self { body })
     }
 
@@ -231,16 +239,63 @@ impl<T: AtRestPolicy> Replay<T> {
     /// [`MoveError::Map`] where the data map refuses ([`moved_body`]);
     /// [`MoveError::NotFinished`] holding the session box's finding.
     pub fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
-        let body = moved_body(&self.body, iso, tol).map_err(MoveError::Map)?;
-        let scope = geom_core::k_stats::Bracket::open();
-        let asked = asked_after_isometry(&body, tol);
-        let record = scope.finish();
-        if asked.is_err() || !T::TAKE_FINISHES {
-            geom_core::k_stats::relog(&record);
-        }
-        asked.map_err(MoveError::NotFinished)?;
+        let body = moved_and_asked(&self.body, iso, !T::TAKE_FINISHES, tol)?;
         Ok(Self { body })
     }
+}
+
+/// **Which kind of value a body is held as** ([`AtRestPolicy::Finished`]
+/// or [`AtRestPolicy::Leaf`]): what decides whether its move's ask
+/// reaches the verdict log ([`HeldKind::move_logs_its_ask`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeldKind {
+    /// A finished body ([`FinishedBody`]).
+    Finished,
+    /// A sweep door's leaf ([`LeafBody`]).
+    Leaf,
+}
+
+impl HeldKind {
+    /// **Whether a move of a body held this way logs its ask** on the
+    /// node's verdict log, at `T` ([`FinishedBody::MOVE_LOGS_ITS_ASK`],
+    /// [`LeafBody::MOVE_LOGS_ITS_ASK`]).
+    #[must_use]
+    pub fn move_logs_its_ask<T: AtRestPolicy>(self) -> bool {
+        match self {
+            Self::Finished => <T::Finished as FinishedBody>::MOVE_LOGS_ITS_ASK,
+            Self::Leaf => <T::Leaf as LeafBody>::MOVE_LOGS_ITS_ASK,
+        }
+    }
+}
+
+/// **The one move-and-ask**: `body`'s data under `iso` ([`moved_body`])
+/// and every family not up to isometry asked of the image
+/// ([`asked_after_isometry`]), the ask bracketed and relogged onto the
+/// node's verdict log where `logged`, and on a refusal always (a refusal
+/// has no taker to log it). Every move of a finished value, and every
+/// graft of a placed copy ([`crate::boolean::graft_placed`]), asks
+/// through it, each passing the rule of the kind it moves
+/// ([`HeldKind::move_logs_its_ask`]).
+///
+/// # Errors
+///
+/// [`MoveError::Map`] where the data map refuses; [`MoveError::NotFinished`]
+/// holding the session box's finding, or the band's.
+pub(crate) fn moved_and_asked<T: AtRestPolicy>(
+    body: &Body<T>,
+    iso: &crate::Isometry<T>,
+    logged: bool,
+    tol: Tol,
+) -> Result<Body<T>, MoveError> {
+    let body = moved_body(body, iso, tol).map_err(MoveError::Map)?;
+    let scope = geom_core::k_stats::Bracket::open();
+    let asked = asked_after_isometry(&body, tol);
+    let record = scope.finish();
+    if asked.is_err() || logged {
+        geom_core::k_stats::relog(&record);
+    }
+    asked.map_err(MoveError::NotFinished)?;
+    Ok(body)
 }
 
 /// **Every family not up to isometry, asked of `image`**
@@ -257,12 +312,48 @@ pub(crate) fn asked_after_isometry<T: geom_core::Decide>(
         .map_err(|error| NotFinished::new(vec![ValidationError::Band { error }]))?;
     let findings: Vec<ValidationError> = FindingFamily::ALL
         .into_iter()
-        .filter_map(|family| family.asked_again(image, band).err())
+        .filter_map(|family| geom_core::k_stats::checking(|| family.asked_again(image, band)).err())
         .collect();
     if findings.is_empty() {
         Ok(())
     } else {
         Err(NotFinished::new(findings))
+    }
+}
+
+/// **Every family not up to isometry, asked of `own` where it stands
+/// under `motion`** ([`FindingFamily::asked_at`]): what
+/// [`asked_after_isometry`] asks of the moved image, asked of the
+/// image's own data with no body moved. The door a copy is placed by
+/// asks it of the copy's placement (`[placement.frame]`: a copy's world
+/// placement is asked by the door that places it, not by the readers
+/// that read it).
+///
+/// # Errors
+///
+/// [`MoveError::Map`] where the motion does not map a carrier;
+/// [`MoveError::NotFinished`] holding each such family's finding, or the
+/// band's.
+pub fn session_box_at<T: geom_core::Decide>(
+    own: &Body<T>,
+    motion: &geom_core::RigidMotion<T>,
+    tol: Tol,
+) -> Result<(), MoveError> {
+    let band = geom_core::Band::linear(tol).map_err(|error| {
+        MoveError::NotFinished(NotFinished::new(vec![ValidationError::Band { error }]))
+    })?;
+    let mut findings = Vec::new();
+    for family in FindingFamily::ALL {
+        match family.asked_at(own, motion, band) {
+            Ok(()) => {}
+            Err(MoveError::NotFinished(found)) => findings.extend(found.into_findings()),
+            Err(map) => return Err(map),
+        }
+    }
+    if findings.is_empty() {
+        Ok(())
+    } else {
+        Err(MoveError::NotFinished(NotFinished::new(findings)))
     }
 }
 
@@ -287,6 +378,7 @@ pub(crate) fn moved_body<T: AtRestPolicy>(
 
 impl<T: AtRestPolicy<Finished = Self>> FinishedBody for Replay<T> {
     type Scalar = T;
+    const MOVE_LOGS_ITS_ASK: bool = !T::TAKE_FINISHES;
 
     fn into_body(self) -> Body<T> {
         Replay::into_body(self)
@@ -327,6 +419,13 @@ pub trait LeafBody:
     /// the session box among them.
     fn moved_by(&self, iso: &crate::Isometry<Self::Scalar>, tol: Tol) -> Result<Self, MoveError>;
 
+    /// **Whether a move of this leaf logs its session-box ask** on the
+    /// node's verdict log, where the move asks alone
+    /// ([`moved_and_asked`]): at `f64` and `Probe` never, the image's
+    /// leaf finish being held off the log ([`AtRestPolicy::leaf`]); at a
+    /// replay as [`Replay::moved_by`] says.
+    const MOVE_LOGS_ITS_ASK: bool;
+
     /// **This leaf under a rigid motion** ([`Self::moved_by`]).
     ///
     /// # Errors
@@ -358,11 +457,20 @@ pub trait LeafBody:
 
 impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
     type Scalar = T;
+    const MOVE_LOGS_ITS_ASK: bool = false;
 
     fn into_body(self) -> Body<T> {
         AtRestBody::into_body(self)
     }
 
+    /// The image's data ([`moved_body`]) finished as a leaf
+    /// ([`AtRestPolicy::leaf`]). It does not go through
+    /// [`moved_and_asked`]: where the leaf is an `AtRestBody` (`f64`,
+    /// `Probe`, the duals) the leaf is the full finish of the image,
+    /// which asks every family, the session box among them, so the
+    /// move-and-ask's ask would be asked twice. The finish holds its
+    /// decisions off the log as the leaf's rule says
+    /// ([`Self::MOVE_LOGS_ITS_ASK`]).
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         T::leaf(moved_body(self, iso, tol).map_err(MoveError::Map)?, tol)
             .map_err(MoveError::NotFinished)
@@ -371,6 +479,7 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
 
 impl<T: AtRestPolicy<Leaf = Self>> LeafBody for Replay<T> {
     type Scalar = T;
+    const MOVE_LOGS_ITS_ASK: bool = !T::TAKE_FINISHES;
 
     fn into_body(self) -> Body<T> {
         Replay::into_body(self)
@@ -673,6 +782,24 @@ impl FindingFamily {
         match self.under_isometry() {
             None => Ok(()),
             Some(AskedAgain::SessionBox) => crate::session_box::in_session_box(image, band),
+        }
+    }
+
+    /// **This family's question, asked of `own` where it stands under
+    /// `motion`**, the body unmoved: what [`Self::asked_again`] asks of
+    /// the image, read off the image's data as the placement holds it
+    /// ([`crate::session_box::in_session_box_at`]).
+    pub(crate) fn asked_at<T: geom_core::Decide>(
+        self,
+        own: &Body<T>,
+        motion: &geom_core::RigidMotion<T>,
+        band: geom_core::Band,
+    ) -> Result<(), MoveError> {
+        match self.under_isometry() {
+            None => Ok(()),
+            Some(AskedAgain::SessionBox) => {
+                crate::session_box::in_session_box_at(own, motion, band)
+            }
         }
     }
 

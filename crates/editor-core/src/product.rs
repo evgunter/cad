@@ -36,10 +36,15 @@
 //!
 //! Validation is the kernel's F8/D7 shape, gated once: the graft is a
 //! door that returns a body, so the aggregate is finished at its end
-//! ([`topo::AtRestPolicy::finish`]). Every source is a finished body
-//! (an evaluation's value is, and its read into the computing frame is
-//! finished at the placement's door), so an aggregate the finish refuses
-//! is a graft defect ([`ProductError::ProductInvalid`]). At a dual the
+//! ([`topo::AtRestPolicy::finish`]). Every source is an evaluation's
+//! value, finished in its own frame; one in another frame is grafted as
+//! its image, its data moved into the computing frame and the session
+//! box asked of it ([`crate::eval::Framed::graft_into`]), every other fact
+//! of it left to the aggregate's finish. So an aggregate the finish
+//! refuses ([`ProductError::ProductInvalid`]) is a graft defect, or an
+//! image whose rounding under its motion tips a fact its source held
+//! within the band: a defect of the model's placement, said by its
+//! findings, not of the kernel's. At a dual the
 //! finish is tier 2 alone, a replay carrying no verdict: the base-scalar
 //! evaluation beside it, whose value channel is bit-identical, is the
 //! validation of record (`docs/DUAL-DESIGN.md` DL3). Disjoint
@@ -122,8 +127,8 @@ pub enum ProductError {
     /// wrong. The reading is [`ProductErrorKind::means_no_body`]'s.
     EmptyProduct,
     /// **A product read whose body is gone** (D10): the slot reads what
-    /// no live operation defines, which the gather refuses rather than
-    /// skip.
+    /// no live operation defines, or a pick whose path reaches no piece
+    /// of its copy, which the gather refuses rather than skip.
     StrandedProduct {
         /// The read.
         read: crate::VarId,
@@ -136,8 +141,9 @@ pub enum ProductError {
         read: crate::VarId,
     },
     /// **A source could not be read into the frame the gather computes
-    /// in** (D10 `[placement.frame]`): its relative map overflowed, or
-    /// the kernel refused the mapped body.
+    /// in** (D10 `[placement.frame]`): its relative map overflowed. An
+    /// image that reaches past the session box there is the aggregate's
+    /// ([`Self::ProductInvalid`]).
     Frame {
         /// The piece whose body was being read.
         node: RecipeNodeId,
@@ -153,9 +159,14 @@ pub enum ProductError {
         source: Box<topo::BooleanError>,
     },
     /// The gathered product is not a finished body, though every
-    /// source is one — a graft defect: the graft transplants each
-    /// source verbatim, so every finding is about entities the transplant
-    /// changed. The findings are the aggregate's, in the aggregate's keys.
+    /// source is one in its own frame: a graft defect (the graft
+    /// transplants each source verbatim), an image moved into the
+    /// product's frame whose rounding tips a fact its source held within
+    /// the band, or an image that stands past the session box in the
+    /// product's frame (sources each inside the box but more than it
+    /// apart:
+    /// `work/onehome/an-operation-over-far-apart-copies-has-no-conditioned-computing-frame.md`).
+    /// The findings are the aggregate's, in the aggregate's keys.
     ProductInvalid {
         /// The finish's findings.
         findings: topo::NotFinished,
@@ -299,8 +310,10 @@ impl ProductError {
                 source.render(geom_brep::recourse::Reading::Build)
             ),
             Self::ProductInvalid { findings } => {
-                // Every copy is finished, so a refusal here is a graft
-                // defect; the findings say which.
+                // Every copy is finished in its own frame, so a refusal
+                // here is a graft defect, an image's rounding, or the
+                // aggregate past the box in its frame; the findings say
+                // which.
                 f.write_str("the product does not finish:")?;
                 list(f, findings.as_slice())
             }
@@ -636,8 +649,8 @@ pub struct Product<T: topo::AtRestPolicy + Decide> {
     /// it and runs no census again.
     pub body: T::Finished,
     /// **The frame [`Self::body`] is in** (D10 `[placement.frame]`): the
-    /// frame the gather computed in, its first source in its space's
-    /// coordinates, else its first source's. Export, the façade's
+    /// frame the gather computed in, its first source's
+    /// ([`crate::eval::Framed::computing_among`]). Export, the façade's
     /// read-outs and the viewer compose it into the world through
     /// [`crate::mate::in_space`] alone.
     pub(crate) frame: crate::eval::Frame<T>,
@@ -760,11 +773,10 @@ pub struct GatheredCopy<T: Decide + topo::AtRestPolicy> {
     /// The output-body index within the piece's value, which is
     /// also its name rows' index.
     pub output: u32,
-    /// The placed body, in the frame the product computed in
-    /// ([`Product::body`]'s): its source's own where the two are one
-    /// frame, else what its source holds, moved
-    /// ([`crate::eval::Held::moved`]).
-    pub body: crate::eval::Held<T>,
+    /// The copy where it stands in its space: its source's body and the
+    /// frame it is placed in. A reader that takes it in the product's
+    /// frame reads it into [`Product::body`]'s frame.
+    pub body: crate::eval::Framed<T>,
     /// The bridge from `body`'s arena to the aggregate's.
     pub keys: Arc<topo::GraftKeys>,
 }
@@ -853,6 +865,14 @@ pub fn product_recorded<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     if doc.operation_of(var).is_some() && doc.space_of(var) != Some(crate::VarId::WORLD) {
         return Err(ProductError::ProductOutsideWorld { read: var });
     }
+    // A source is read as the body it reads (VR4). One member of a family
+    // this gather does not read, and the edit and load doors refuse the
+    // slot that reads one ([`crate::edit::ProductReadFault::Member`]), so
+    // no door leaves a slot this arm answers.
+    let var = match doc.through_sources(var) {
+        read if read.is_indexed() => return Err(ProductError::StrandedProduct { read: var }),
+        read => read.read,
+    };
     let mut product = gather(doc, evaluation, tol, var)?;
     product.assembles = assemble_gathers(doc, evaluation, tol, Some(var));
     Ok(product)
@@ -1094,6 +1114,9 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     if let Some(m) = crate::ident::mispaired(doc.id(), evaluation.document) {
         return Err(m.into());
     }
+    if doc.pick(var).is_some() {
+        return gather_pick(doc, evaluation, tol, var);
+    }
     // The recipe's own refusal, before any value is read: a read whose
     // body is gone is absent, which is never skipped.
     let Some((node, port)) = doc
@@ -1173,9 +1196,108 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     Ok(product)
 }
 
-/// One grafted source: the source, its graft's key bridge, and its body
-/// read into the gather's computing frame.
-type Grafted<'s, T> = (&'s Source<T>, Arc<topo::GraftKeys>, crate::eval::Held<T>);
+/// **The product a pick reads** ([`crate::VarDef::Pick`]): the piece its
+/// path reaches in its copy's value, standing where its holder stands,
+/// gathered as a body read whole is — its bodies (a family's each at its
+/// place), its names, and what it carries. A pick whose copy is gone, or
+/// whose path reaches no piece (a path into an instance's part, which the
+/// edit door does not walk), reads no body.
+fn gather_pick<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    tol: Tol,
+    var: crate::VarId,
+) -> Result<Product<T>, ProductError> {
+    if doc.space_of(var).is_none() {
+        return Err(ProductError::StrandedProduct { read: var });
+    }
+    let piece = picked(doc, evaluation, var)?;
+    let carry = &piece.carry;
+    let kept = carry
+        .census
+        .as_ref()
+        .and_then(|census| census.records(doc, tol));
+    let node = doc
+        .operation_of(var)
+        .unwrap_or_else(|| unreachable!("a pick that reached a piece reads a live copy"));
+    let sources = piece
+        .bodies
+        .iter()
+        .enumerate()
+        .map(|(i, body)| {
+            let ix = crate::names::narrow(i, crate::names::Numbered::OutputBody)
+                .unwrap_or_else(|e| unreachable!("piece body {i} outlived its place refusal: {e}"));
+            let member = carry.member(i);
+            let kept = match &carry.members {
+                Some(_) => member
+                    .census
+                    .as_ref()
+                    .and_then(|census| census.records(doc, tol)),
+                None => kept.clone(),
+            };
+            Source {
+                node,
+                var,
+                ix,
+                body: body.clone(),
+                table: Arc::clone(&piece.table),
+                contacts: kept.unwrap_or_else(|| Arc::clone(&member.contacts)),
+                rows: Arc::clone(&member.findings),
+                censused: member.censused,
+            }
+        })
+        .collect();
+    let mut product = gather_sources(doc, tol, sources)?;
+    product.pieces = carry.pieces.clone();
+    product.parts = carry.parts;
+    product.document = doc.id();
+    product.gap_assertions = crate::checks::at_rest::gap_assertions(
+        doc,
+        evaluation,
+        &product.body,
+        &product.names,
+        &product.copies,
+        tol,
+    );
+    Ok(product)
+}
+
+/// **The piece the pick `var` reads**, walked from its copy's value by
+/// the path it reaches ([`Doc::pick_path`], a pick of a pick's composed)
+/// ([`crate::eval::Pieces::piece`]).
+fn picked<'e, P, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    evaluation: &'e Evaluation<T>,
+    var: crate::VarId,
+) -> Result<&'e crate::eval::Piece<T>, ProductError> {
+    let stranded = || ProductError::StrandedProduct { read: var };
+    let Some((copy, path)) = doc.pick_path(var) else {
+        unreachable!("asked of a pick")
+    };
+    let node = doc
+        .defined_by(copy)
+        .map(|(node, _)| node)
+        .filter(|&node| doc.node(node).is_some())
+        .ok_or_else(stranded)?;
+    let mut pieces = evaluation
+        .usable(node)
+        .map_err(ProductError::Read)?
+        .carry
+        .pieces
+        .as_deref();
+    let mut reached = None;
+    for &step in &path {
+        let piece = pieces
+            .and_then(|held| held.piece(step))
+            .ok_or_else(stranded)?;
+        pieces = piece.carry.pieces.as_deref();
+        reached = Some(piece);
+    }
+    reached.ok_or_else(stranded)
+}
+
+/// One grafted source: the source, and its graft's key bridge.
+type Grafted<'s, T> = (&'s Source<T>, Arc<topo::GraftKeys>);
 
 /// Why a grafted source's position among a product's inputs fits a `u32`
 /// ([`crate::names::to_u32`]): each grafts at least one solid into the
@@ -1197,16 +1319,16 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // over the source however many solids it spans, so the carries
     // below are the same code for N as for 1.
     let mut aggregate = Body::new();
-    // The gather computes in its first non-empty source's frame whose
-    // frame is its space's (`Own`), else its first's
-    // ([`crate::eval::Framed::computing_among`]), and reads every other
-    // into it through `relative`.
-    let mut computing: Option<&crate::eval::Framed<T>> = crate::eval::Framed::computing_among(
+    // The gather computes in its first non-empty source's frame
+    // ([`crate::eval::Framed::computing_among`]), and grafts each into it
+    // through its own placement ([`crate::eval::Framed::graft_into`]).
+    let frame = crate::eval::Framed::computing_among(
         sources
             .iter()
             .map(|source| &source.body)
             .filter(|body| body.body().solids().next().is_some()),
-    );
+    )
+    .map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let mut grafted: Vec<Grafted<'_, T>> = Vec::with_capacity(sources.len());
     for source in &sources {
         let Source { node, body, .. } = source;
@@ -1218,22 +1340,23 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         // A source is read, not taken: its body as it stands, or mapped
         // into the product's frame as construction state. The aggregate
         // is what finishes, once, below.
-        let read = computing
-            .get_or_insert(body)
-            .read_in(body, tol)
-            .map_err(|kind| ProductError::Frame {
-                node: *node,
-                kind: Box::new(kind),
-            })?;
-        let keys = topo::graft_disjoint_all_keyed(&mut aggregate, &read).map_err(|source| {
-            ProductError::Graft {
-                node: *node,
-                source: Box::new(source),
-            }
-        })?;
-        grafted.push((source, Arc::new(keys), read));
+        let keys = crate::eval::Framed::graft_into(&frame, &mut aggregate, body, tol).map_err(
+            |e| match e {
+                crate::eval::GraftIn::Graft(source) => ProductError::Graft {
+                    node: *node,
+                    source,
+                },
+                // The image is the aggregate's data: past the box, it is
+                // the aggregate that stands there.
+                crate::eval::GraftIn::Moved(findings) => ProductError::ProductInvalid { findings },
+                read @ crate::eval::GraftIn::Motion(_) => ProductError::Frame {
+                    node: *node,
+                    kind: Box::new(read.into()),
+                },
+            },
+        )?;
+        grafted.push((source, Arc::new(keys)));
     }
-    let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());
 
     // The graft's finish, ONCE, on the aggregate — before any name is
     // carried, so a product that is not a finished body refuses as that
@@ -1258,14 +1381,13 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             node,
             var,
             ix,
-            body: _,
+            body,
             table,
             contacts: records,
             rows,
             censused: _,
         },
         keys,
-        body,
     ) in &grafted
     {
         solid_copies.extend(keys.solids().iter().map(|&solid| SolidOrigin {

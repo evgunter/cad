@@ -151,7 +151,7 @@ pub use dihedral::{
     SmoothJoin, Station, TANGENT_SECOND_ORDER, Tangency, WedgeEnd, WedgeEscalation, WedgeRung,
     classify_dihedral, classify_dihedral_reported, classify_seam, folded_lever_arm,
     gradient_alignment, material_kappa_rel, must_carry_description, must_carry_over_edge,
-    reask_chart, reask_pair, rest_locus, tangent_second_order,
+    must_carry_reads, reask_chart, reask_pair, rest_locus, tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
@@ -166,7 +166,7 @@ pub use edge_nurbs::{
     probe_pick, sub_arc_joint,
 };
 pub use edge_wedge::{
-    Bend, FoldNames, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over, edge_wedge_over_as,
+    Bend, WedgeClass, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over, edge_wedge_over_as,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
@@ -198,14 +198,15 @@ pub use implicit::{
     ring_floor,
 };
 pub use intersect::{
-    ApexFansMeeting, ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection,
-    OpenConic, OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection,
-    PlaneSite, PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane,
-    SectionRadius, SphereSphereSection, cone_cone_apex_meeting, cone_cylinder_section,
-    cone_plane_apex_extrema, cylinder_axes_coplanar, cylinder_axes_parallel,
-    cylinder_cylinder_section, parallel_axes_at, plane_cone_apex_extrema, plane_cone_section,
-    plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section, plane_torus_section,
-    route, route_pose, sphere_sphere_section, tilted_section_major,
+    ApexFansMeeting, ConeCylinderSection, ConeSphereSection, ConeTorusSection, ConicArcError,
+    ConicBranch, EqualCylinderSection, OpenConic, OpenConicSection, PairRoute, ParallelAxes,
+    PlaneConeSection, PlaneCylinderSection, PlaneSite, PlaneSphereSection, PlaneTorusSection, Rung,
+    SectionError, SectionPlane, SectionRadius, SphereSphereSection, cone_cone_apex_meeting,
+    cone_cylinder_section, cone_plane_apex_extrema, cone_sphere_section, cone_torus_section,
+    cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section, parallel_axes_at,
+    plane_cone_apex_extrema, plane_cone_section, plane_cylinder_section,
+    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
+    sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{
@@ -238,8 +239,8 @@ pub use pair_section::{
     SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
     TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
     TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
-    ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section, square_part,
-    tori_coincide,
+    ZeroKind, ZeroVerdict, axis_pose, coaxial_tangent_circle, line_tilt, pair_section,
+    spline_pair_section, square_part, tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.

@@ -26,7 +26,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use geom::Surface;
 use geom_core::{Bounds, CertifiedBounds, Decide, Point2, Point3, Tol};
 use sweep::blend::build::{Blended, fillet_edges};
-use sweep::blend::{BlendError, CornerConfig};
+use sweep::blend::{BlendError, UnbuiltEnd};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
     assert_naming_totality, at_rest, corners, cylinder_of_arcs_at, prism_at, realized,
@@ -99,7 +99,7 @@ fn point<T: Scalar>(body: &Body<T>, v: topo::VertexKey) -> P {
 }
 
 /// [`realized`] at any scalar: the boolean `op` of `a` and `b`.
-fn realized_at<T: Scalar>(op: BooleanOp, a: &Body<T>, b: &Body<T>) -> Body<T> {
+pub(crate) fn realized_at<T: Scalar>(op: BooleanOp, a: &Body<T>, b: &Body<T>) -> Body<T> {
     let finished = |what: &str, x: &Body<T>| sweep::test_support::finished(what, x.clone(), tol());
     boolean_op_with(
         op,
@@ -234,7 +234,7 @@ pub(crate) fn inset_at<T: Scalar>(phi: f64) -> (Body<T>, [EdgeKey; 3]) {
 /// and the pair `y` and `z`: the odd run's section
 /// `A_φ = r²(cot(φ/2) − (π − φ)/2)`, the pair's lines from the link's
 /// ends `r·cot(φ/2)` out, and the link's piece by Pappus over `π − φ`.
-fn fillet_flush(phi: f64, r: f64, (l, y, z): (f64, f64, f64)) -> f64 {
+pub(crate) fn fillet_flush(phi: f64, r: f64, (l, y, z): (f64, f64, f64)) -> f64 {
     let (a, d) = section(r);
     let cot = 1.0 / (phi / 2.0).tan();
     let a_phi = r * r * (cot - (PI - phi) / 2.0);
@@ -243,7 +243,7 @@ fn fillet_flush(phi: f64, r: f64, (l, y, z): (f64, f64, f64)) -> f64 {
 
 /// The flush corner's chamfer at plan angle `φ`, the odd edge `l` long
 /// and the pair `y` and `z`.
-fn chamfer_flush(phi: f64, s: f64, (l, y, z): (f64, f64, f64)) -> f64 {
+pub(crate) fn chamfer_flush(phi: f64, s: f64, (l, y, z): (f64, f64, f64)) -> f64 {
     let half = s * s / 2.0;
     half * phi.sin() * l
         - half * (y + z - 2.0 * s + 2.0 * s * (phi / 2.0).sin())
@@ -395,7 +395,7 @@ fn corner_residual(out: &Blended<f64>) -> (f64, usize) {
 
 /// The requested edges whose two faces are both cylinders: a bore's
 /// smooth seams, which the blend leaves as they are.
-fn seams(body: &Body<f64>, edges: &[EdgeKey]) -> Vec<EdgeKey> {
+pub(crate) fn seams(body: &Body<f64>, edges: &[EdgeKey]) -> Vec<EdgeKey> {
     edges
         .iter()
         .copied()
@@ -628,39 +628,61 @@ pub(crate) fn bowed_corner() -> Body<f64> {
     ])
 }
 
-/// **What the mixed corner does not build refuses typed**: a curved link
-/// at the corner (a quarter-disc boss's base arc, the odd edge there), an
-/// `E` oblique to the odd edge (the fillet's link would be a canal
-/// surface; the chamfer's is not built), and an odd edge no longer than
-/// the blend's size.
+/// **What the mixed corner does not build refuses typed**: a link at
+/// the corner not between two planes refuses the chain frontier on that
+/// link, word for word as the open-chain door refuses it requested alone
+/// (the quarter-disc boss's base arc, the odd edge there; the bowed base
+/// edge, not the ruled odd edge beside it); an `E` oblique to the odd
+/// edge refuses `ObliqueMixedCorner` for both verbs (the fillet's link
+/// would be a canal surface; the chamfer's is not built); and an odd
+/// edge no longer than the blend's size refuses its clearance.
 #[test]
 fn a_mixed_corner_the_carve_does_not_build_refuses_typed() {
+    let same_as_alone = |body: &Body<f64>, edges: &[EdgeKey], what: &str| {
+        let got = Verb::Fillet
+            .run(body, edges, R)
+            .map(|_| ())
+            .expect_err("the corner refuses");
+        let BlendError::UnsupportedChain { edge, detail } = &got else {
+            panic!("{what}: the chain frontier, got {got:?}");
+        };
+        assert!(
+            topo::query::edge_carrier_kind(body, *edge) != Some(geom::CurveKind::Line),
+            "{what}: the refused link is the curved one, got {got:?}"
+        );
+        let alone = Verb::Fillet
+            .run(body, &[*edge], R)
+            .map(|_| ())
+            .expect_err("the link alone refuses");
+        assert!(
+            matches!(&alone, BlendError::UnsupportedChain { edge: e, detail: d }
+                if e == edge && d == detail),
+            "{what}: the link alone refuses the same, got {alone:?} against {got:?}"
+        );
+        let shown = |e: &BlendError| e.render(geom_brep::recourse::Reading::Build);
+        assert_eq!(shown(&got), shown(&alone), "{what}: the same text");
+        assert!(
+            shown(&got).contains(sweep::blend::FILLET3_ASSEMBLY_RECOURSE),
+            "{what}: closed by the chain roster: {}",
+            shown(&got)
+        );
+        (*edge, shown(&alone))
+    };
     let body = disc_corner();
-    let got = Verb::Fillet.run(&body, &at(&body, (0.0, -1.0, 0.0)), R);
+    let (arc, text) = same_as_alone(&body, &at(&body, (0.0, -1.0, 0.0)), "the disc corner");
+    // Chamfered alone, the arc (a frustum's, which the chamfer's arms
+    // cover) refuses the same: a neighbour at its end the chamfer cannot
+    // resolve is not read as an end that did not classify.
+    let bevel = Verb::Chamfer.run(&body, &[arc], R).map(|_| ());
     assert!(
-        matches!(
-            got,
-            Err(BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { convex: 2 },
-                ..
-            })
-        ),
-        "a curved odd link at a mixed corner, got {got:?}"
+        matches!(&bevel, Err(e @ BlendError::UnsupportedChain { .. })
+            if e.render(geom_brep::recourse::Reading::Build) == text),
+        "the disc corner's arc chamfered alone, got {bevel:?}"
     );
     let body = bowed_corner();
     let edges = at(&body, (0.0, 0.0, 0.0));
     assert_eq!(edges.len(), 3, "the bowed corner's three edges");
-    let got = Verb::Fillet.run(&body, &edges, R);
-    assert!(
-        matches!(
-            got,
-            Err(BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { convex: 1 },
-                ..
-            })
-        ),
-        "a fillet's curved pair link at a mixed corner, got {got:?}"
-    );
+    same_as_alone(&body, &edges, "the bowed corner");
     let got = Verb::Chamfer.run(&body, &edges, R);
     assert!(
         matches!(got, Err(BlendError::ChamferArmUnsupported { .. })),
@@ -668,24 +690,29 @@ fn a_mixed_corner_the_carve_does_not_build_refuses_typed() {
     );
 
     let body = leaning();
+    let corner = crate::band_mixed_vertex::vertex_at(&body, [0.5, 0.0, 0.0]);
+    let odd = leaning_odd_and_one(&body)[0];
     let edges = at(&body, (0.5, 0.0, 0.0));
     assert_eq!(edges.len(), 3, "the leaning corner's three edges");
-    let got = Verb::Fillet.run(&body, &edges, R);
-    assert!(
-        matches!(got, Err(BlendError::SpineUnsupported { .. })),
-        "a fillet's link on an oblique E is a canal surface, got {got:?}"
-    );
-    let got = Verb::Chamfer.run(&body, &edges, R);
-    assert!(
-        matches!(
-            got,
-            Err(BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { convex: 2 },
-                ..
-            })
-        ),
-        "a chamfer's link on an oblique E is not built, got {got:?}"
-    );
+    for verb in [Verb::Fillet, Verb::Chamfer] {
+        let got = verb.run(&body, &edges, R).map(|_| ());
+        assert!(
+            matches!(got, Err(BlendError::ObliqueMixedCorner { vertex, odd: o })
+                if vertex == corner && o == odd),
+            "{verb:?}: the link on an oblique E is not built, got {got:?}"
+        );
+        let err = got.expect_err("refused");
+        assert_eq!(err.edge(), Some(odd), "{verb:?}: names the odd edge");
+        assert_eq!(
+            err.render(geom_brep::recourse::Reading::Build),
+            format!(
+                "the corner's shared face leans off square to the edge rounding oppositely. \
+                 Recourse: {}",
+                sweep::blend::FILLET3_MIXED_CORNER_RECOURSE
+            ),
+            "{verb:?}: the detail and its recourse, exactly"
+        );
+    }
 
     // The flush corner with its odd edge shorter than the size: the
     // support screen reads the pair's trimlines `r` up the odd edge's
@@ -760,8 +787,8 @@ fn a_pair_edge_too_short_for_its_two_ends_feet_refuses_at_them() {
         assert!(
             matches!(
                 got,
-                Err(BlendError::UnsupportedRunOut { detail, .. })
-                    if detail.contains("shorter than its two ends' feet need")
+                Err(BlendError::UnbuiltEnd(UnbuiltEnd::FeetCross { edge }))
+                    if edge == edges[1]
             ),
             "the pair edge 0.3 long ({verb:?}), got {got:?}",
             got = got.as_ref().map(|_| ())
@@ -866,38 +893,4 @@ fn a_bore_wholly_behind_a_pair_edges_line_clears_its_ring_meter() {
             );
         }
     }
-}
-
-/// **The reach meters a mixed corner as a uniform corner's** and so
-/// refuses `FaceClearance` where the corner would clear
-/// (`work/band/the-reach-meters-a-mixed-corner-as-a-uniform-one-and-refuses-short-edges.md`):
-/// the flush L 0.25 tall chamfered at `0.1` (it builds from 0.26), the
-/// bore-less bracket chamfered all round at `0.14`, and the bracket
-/// filleted all round at `0.149`. Each is pinned as it refuses today.
-#[test]
-fn a_mixed_corner_reach_metered_as_a_uniform_corner_refuses_typed() {
-    let bounded = |got: &Result<Blended<f64>, BlendError>| {
-        matches!(got, Err(BlendError::FaceClearance { bounded: true, .. }))
-    };
-    let short = l_prism(0.25);
-    let got = Verb::Chamfer.run(&short, &l_corner(&short, 0.25), R);
-    assert!(
-        bounded(&got),
-        "the flush L 0.25 tall, chamfered at 0.1, got {got:?}",
-        got = got.as_ref().map(|_| ())
-    );
-    let body = bracket(false);
-    let got = Verb::Chamfer.run(&body, &every_edge(&body), 0.14);
-    assert!(
-        bounded(&got),
-        "the bore-less bracket chamfered at 0.14, got {got:?}",
-        got = got.as_ref().map(|_| ())
-    );
-    let body = bracket(true);
-    let got = Verb::Fillet.run(&body, &every_edge(&body), 0.149);
-    assert!(
-        bounded(&got),
-        "the bracket filleted at 0.149, got {got:?}",
-        got = got.as_ref().map(|_| ())
-    );
 }

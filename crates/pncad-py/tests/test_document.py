@@ -247,9 +247,10 @@ class TestEvaluation(unittest.TestCase):
             evaluate(doc).value(profile_node).body()
         self.assertEqual(caught.exception.reason, "wrong_kind")
 
-    def test_an_extrude_goes_up_its_own_z_and_a_depth_is_a_size(self):
-        # An extrude lies in its own coordinates, from its profile's xy
-        # up its own +z; a depth is a size, so no sign turns it over.
+    def test_an_extrude_goes_along_its_own_z_by_a_signed_depth(self):
+        # An extrude lies in its own coordinates, between its profile's
+        # xy and the depth along its own z: a + depth above the plane, a
+        # - depth below it, and a zero depth refuses.
         doc = Doc()
         profile = doc.insert(
             Node.polygon(
@@ -266,11 +267,14 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual({p[2].meters for p in body.tessellate(1 * m).positions}, {0.0, 2.0})
 
         doc.apply(DocEdit.set_param(block, "distance", Formula.literal(-2 * m)))
+        body = evaluate(doc).value(block).body()
+        self.assertEqual({p[2].meters for p in body.tessellate(1 * m).positions}, {-2.0, 0.0})
+
+        doc.apply(DocEdit.set_param(block, "distance", Formula.literal(0 * m)))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(block)
         self.assertEqual(caught.exception.kind, "extrude")
-        self.assertEqual(caught.exception.inner_kind, "negative_depth")
-        self.assertIn("a depth is a size", str(caught.exception))
+        self.assertEqual(caught.exception.inner_kind, "degenerate_extrusion")
 
     def test_boolean_union_through_the_document(self):
         # The post is strictly interior in x and y and pokes out of the
@@ -522,7 +526,7 @@ class TestDocumentIdentity(unittest.TestCase):
     def test_a_loaded_document_keeps_the_id_it_was_saved_under(self):
         doc = Doc()
         unit_box(doc, 1 * m, 1 * m, 1 * m)
-        self.assertEqual(load(doc.save()).doc.id, doc.id)
+        self.assertEqual(load(doc.save()).id, doc.id)
 
 
 class TestPersistence(unittest.TestCase):
@@ -540,9 +544,8 @@ class TestPersistence(unittest.TestCase):
         )
 
         loaded = load(text)
-        self.assertEqual(loaded.edit_count, 0)  # snapshot-only file
-        self.assertTrue(loaded.doc.bit_eq(doc), "load replays to the SAME document")
-        after = pinned(evaluate(loaded.doc).value(box).body()).volume
+        self.assertTrue(loaded.bit_eq(doc), "load answers the SAME document")
+        after = pinned(evaluate(loaded).value(box).body()).volume
         # D9: the same recipe replays to the same bits.
         self.assertEqual(struct.pack(">d", before), struct.pack(">d", after))
 
@@ -557,8 +560,8 @@ class TestPersistence(unittest.TestCase):
         self.assertEqual(refusal.found, "not a document")
         for absent in (
             "inner_variant", "site", "node", "name", "unit", "declared",
-            "detail", "header", "snapshot", "line", "column", "index",
-            "process", "document",
+            "detail", "header", "snapshot", "line", "column", "process",
+            "document",
         ):
             self.assertIsNone(getattr(refusal, absent), absent)
 
@@ -566,7 +569,7 @@ class TestPersistence(unittest.TestCase):
         """The format carries no schema version: a document a build
         cannot read refuses on the deserializer's own rejection, naming
         the vocabulary it could not place, with the regenerate recourse."""
-        body = '{"snapshot": {"no_such_field": 1}, "edits": []}'
+        body = '{"snapshot": {"no_such_field": 1}}'
         with self.assertRaises(pncad.PersistError) as caught:
             load(f"id: {'0' * 32}\n{body}")
         refusal = caught.exception
@@ -771,10 +774,12 @@ class TestStepExport(unittest.TestCase):
         and each record row spells out its own payload.
 
         The exported box states no assembly and needs no re-minting, so
-        two of the three lists are empty and the third is not: the
-        assembly record is kept whether or not the file states one,
-        which is what makes `instances` an answer rather than a
-        leftover.
+        its promotions are empty and its ledger holds only the lines the
+        build anchors at their own point nearest the origin where the
+        file printed another point of the same line (`carrier_built`,
+        moved by nothing); the assembly record is kept whether or not the
+        file states one, which is what makes `instances` an answer rather
+        than a leftover.
         """
         doc = Doc()
         box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
@@ -782,7 +787,9 @@ class TestStepExport(unittest.TestCase):
         self.assertIsInstance(report.body, pncad.Body)
         self.assertIsInstance(report.measure(PINNED), pncad.MassMeasurement)
         self.assertGreater(report.eps_in, 0.0)
-        self.assertEqual(report.normalizations, [])
+        for row in report.normalizations:
+            self.assertEqual(row.kind, "carrier_built", row)
+            self.assertEqual(row.moved_by, 0.0, row)
         self.assertEqual(report.promotions, [])
         self.assertEqual(len(report.instances), 1, "one row per solid")
 
@@ -1099,6 +1106,46 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         self.assertEqual(angle.kind, across.kind)
         self.assertNotEqual(angle.inner_kind, across.inner_kind)
 
+    def test_a_blend_refusal_names_why_its_end_is_not_built(self):
+        # An L prism filleted on every edge but one: leaving out a top
+        # edge at the reflex corner asks that corner's odd edge with one
+        # other, whose fillet stops where its edge runs into the cut-off
+        # arc, and the inner word says so rather than a bare
+        # `unbuilt_end`.
+        doc = Doc()
+        chain = (
+            Open.at((0 * m, 0 * m))
+            .line_to((2 * m, 0 * m))
+            .line_to((2 * m, 1 * m))
+            .line_to((1 * m, 1 * m))
+            .line_to((1 * m, 2 * m))
+            .line_to((0 * m, 2 * m))
+            .line_to(Start)
+        )
+        prism = doc.insert(
+            Node.extrude(doc.insert(Node.profile(chain)), Formula.length_in(1, m))
+        )
+        edges = evaluate(doc).all_edges(prism)
+        self.assertEqual(len(edges), 18)
+        fillets = [
+            doc.insert(
+                Node.fillet(
+                    prism,
+                    Formula.length_in(0.1, m),
+                    [e for e in edges if e != left_out],
+                )
+            )
+            for left_out in edges
+        ]
+        ev = evaluate(doc)
+        words = set()
+        for node in fillets:
+            try:
+                ev.value(node)
+            except EvaluationError as refused:
+                words.add((refused.kind, refused.inner_kind))
+        self.assertIn(("fillet", "unbuilt_end_run_out"), words)
+
     def test_a_second_op_speaks_its_own_arms(self):
         doc = Doc()
         flat = doc.insert(Node.extrude(self.square(doc), Formula.length_in(0, m)))
@@ -1288,14 +1335,11 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         self.assertEqual(evaluate(doc).resolve(box, rim).status, "resolved")
         self.assertEqual(doc.step(profile, 0, new[4]), s[3], "the kept step keeps its id")
         self.assertNotIn(doc.step(profile, 0, new[2]), s, "the new leg mints fresh")
-        # `Doc.save` writes the document as a SNAPSHOT with no log
-        # (the binding holds a value, not a history), so the reshaped
-        # program crosses in the snapshot and the loaded document
-        # re-saves to the same bytes.
+        # `Doc.save` writes the document's state, so the reshaped
+        # program crosses in it and the loaded document re-saves to the
+        # same bytes.
         text = doc.save()
-        loaded = load(text)
-        self.assertEqual(loaded.edit_count, 0)
-        self.assertEqual(loaded.doc.save(), text)
+        self.assertEqual(load(text).save(), text)
 
     def test_a_step_the_edit_drops_strands_the_fillets_name(self):
         """The same program with the wall's step left out of `keep`:
@@ -1683,7 +1727,7 @@ class TestNodeLabels(unittest.TestCase):
     def test_a_label_round_trips_through_save_and_load(self):
         doc = Doc("node-labels-save")
         sketch = self.sketch(doc, "floor plan")
-        loaded = load(doc.save()).doc
+        loaded = load(doc.save())
         self.assertEqual(loaded.label(sketch), "floor plan")
 
     def test_a_sentence_names_a_labelled_node_by_kind_label_and_tag(self):

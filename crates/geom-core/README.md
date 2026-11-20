@@ -204,11 +204,11 @@ governs interpretation — what the file's data is evidence of, where
 healing may move geometry by up to O(ε_in) — and its refusals are
 the import door's, named in ε_in with the value the margin gives; a
 size below ε_in is not one the file intends, so no refusal offers to
-keep it. Until adoption rebuilds its caches from the file's
-descriptions ([import]), a certification refusal whose miss lies within
-ε_in but beyond ε (the file's data agrees to its own declared
-coincidence distance, not to this run's) names setting ε to ε_in as
-a stopgap, beside re-exporting the file more precisely. A change to
+keep it. A certification refusal whose miss lies within ε_in but
+beyond ε names re-exporting the file more precisely and offers no
+tolerance: adoption builds every cache at ε from what the file is read
+to describe at ε_in ([import]), so ε_in is never a setting to certify
+at instead. A change to
 a document's ε reports what it flips at the change itself. The
 three-arm sentence (make them one construction / move the geometry
 / tighten the tolerance) is thus the recourse of a decision whose
@@ -246,7 +246,7 @@ import door past ε_in it names the file: a bad file reaches every
 defect ending there, whether the reading compares a value the file
 stored or one adoption derives from it (an edge's carrier parameters,
 a carrier the import mints, the witness at the carrier's mid-parameter,
-a chart image, a fit, the adoption ladder's description candidate). A
+a chart image, a fit, the description the build chose). A
 sound file such an ending reaches is a kernel bug to fix, not a reason
 for the words to hedge. An unreadable margin's note follows the same
 chooser (`geom_brep::recourse::unreadable_margin_note`):
@@ -340,7 +340,17 @@ This section is where that rule's parts live.
   `Margin::levered`). It is built only from its sources: a read of the
   consumed extent, a curvature arm `1/κ_rel`, or the session box where
   no geometry is in hand. Rates are not levers: they go through
-  `levered_inv` and the metric doors.
+  `levered_inv` and the metric doors. A length that is the reading
+  itself (a residual, an offset, a stand-off) is the margin, and a
+  tolerance is the band's: neither is an arm. A dimensionless factor
+  belongs to the reading, not the arm. The point-level reads (two
+  points' distance, a point set's reach from a pivot) live beside
+  `Lever` in `geom-core`; covers and `Reach` stay in `geom_brep`. A
+  lever is never shorter than the region its verdict governs and no
+  longer than the site's own measure of it: a verdict that claims a
+  definite sign reads the extent from below, one that acts on its Zero
+  reads it from above, and one that acts on every sign reads both and
+  acts only where they agree.
 - **The consumed extent** (`geom_brep::Reach`): the region a verdict
   is used over. It is one type, built only from the geometry consumed
   (an edge over its span, a face's region, two faces' meet, a bounded
@@ -353,7 +363,8 @@ This section is where that rule's parts live.
   lever is the extent's far distance from that point; the least over
   all points is not owed. That point is the origin of a tilt bound,
   not a claim about the entity: any point is sound provided the datum
-  and its lever are read at the same one.
+  and its lever are read at the same one, so a record that verdicts
+  read from different points holds its region, not a lever.
 - **The session box** is one predicate over a body's largest
   `|coordinate|`, read from below off its vertices' and its edges' own
   points, never a carrier's stored terms: the box bounds each

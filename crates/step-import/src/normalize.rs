@@ -89,9 +89,13 @@ use geom::Surface;
 
 use crate::entities::{EdgeSpec, EdgeUse, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
+use crate::interpret::{FileBand, Read, STEP_BAND_RIM_COAXIAL, STEP_BAND_SEAM_VERTEX};
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
 mod singularity;
+pub(crate) mod surgery;
+
+use surgery::{CutLine, boundary_census, split_at_point, use_start};
 
 /// The shell's vertex valences: how many edge ENDS meet each vertex (a
 /// self-loop contributes two).
@@ -102,97 +106,6 @@ fn valences(solid: &SolidSpec) -> BTreeMap<u64, usize> {
         *out.entry(spec.end).or_insert(0) += 1;
     }
     out
-}
-
-/// Replaces every use of `edge` in the shell, EXCEPT inside
-/// `skip_faces`, by the two halves it was split into.
-///
-/// `first` runs from the split edge's own start to the new midpoint
-/// vertex; `second` runs from the midpoint back to the end. A forward
-/// use therefore walks `first` then `second`; a reversed use walks
-/// `second` then `first`, each reversed.
-fn expand_split_uses(
-    solid: &mut SolidSpec,
-    edge: u64,
-    first: u64,
-    second: u64,
-    skip_faces: &[usize],
-) {
-    for (fi, face) in solid.faces.iter_mut().enumerate() {
-        if skip_faces.contains(&fi) {
-            continue;
-        }
-        for lp in &mut face.loops {
-            let mut out = Vec::with_capacity(lp.uses.len() + 1);
-            for u in &lp.uses {
-                if u.edge == edge {
-                    let (a, b) = if u.forward {
-                        (first, second)
-                    } else {
-                        (second, first)
-                    };
-                    out.push(EdgeUse {
-                        edge: a,
-                        forward: u.forward,
-                    });
-                    out.push(EdgeUse {
-                        edge: b,
-                        forward: u.forward,
-                    });
-                } else {
-                    out.push(*u);
-                }
-            }
-            lp.uses = out;
-        }
-    }
-}
-
-/// Splits `edge` at the interior carrier parameter `tm` (the caller
-/// guarantees `t0 < tm < t1`), minting the new vertex and the two
-/// halves. Answers `(first, second, new vertex)`, at an arbitrary
-/// parameter (M7-5: the band mint splits rims at the seam azimuth, not
-/// the midpoint).
-fn split_at_param(
-    solid: &mut SolidSpec,
-    edge: u64,
-    tm: f64,
-    mint: &mut dyn FnMut() -> u64,
-) -> (u64, u64, u64) {
-    let spec = &solid.edges[&edge];
-    let (t0, t1, start, end) = (spec.t0, spec.t1, spec.start, spec.end);
-    let carrier = spec.carrier.clone();
-    let mid_v = mint();
-    solid.vertices.insert(mid_v, carrier.eval(tm));
-    let (first, second) = (mint(), mint());
-    solid.edges.insert(
-        first,
-        EdgeSpec {
-            start,
-            end: mid_v,
-            carrier: carrier.clone(),
-            t0,
-            t1: tm,
-            // A minted edge: the importer states its own
-            // start → end, so there is no sense to compose.
-            reversed: false,
-        },
-    );
-    solid.edges.insert(
-        second,
-        EdgeSpec {
-            start: mid_v,
-            end,
-            carrier,
-            t0: tm,
-            t1,
-            // A minted edge: the importer states its own
-            // start → end, so there is no sense to compose.
-            reversed: false,
-        },
-    );
-    solid.edges.remove(&edge);
-    (first, second, mid_v)
 }
 
 /// Whether traversing `carrier` in its increasing parameter raises the
@@ -225,26 +138,22 @@ fn chart_direction(
     (step.abs() > 0.1).then_some(step > 0.0)
 }
 
-/// Runs the shell normalizations (module docs). `eps_in` is the
-/// file's own declared uncertainty in kernel metres — the band mint's
-/// budget for recognizing an existing rim vertex as already sitting
-/// at the seam azimuth. `run_band` is the run's own linear band, which
-/// the singularity pass reads a pole or apex against beside the file's.
+/// Runs the shell normalizations (module docs), reading the file at
+/// its band (`file`, floored at the run's).
 pub(crate) fn normalize_shell(
     solid: &mut SolidSpec,
-    eps_in: f64,
-    chart_band: Option<geom_core::Band>,
-    run_band: Option<geom_core::Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
-    crate::knot_split::split_c0_knots(solid, eps_in, mint, sink)?;
-    band_seam(solid, eps_in, chart_band, mint, sink)?;
+    let chart_band = Some(file.band());
+    crate::knot_split::split_c0_knots(solid, file, mint, sink)?;
+    band_seam(solid, file, mint, sink)?;
     // The walls' orientation is read first: an inverted cone wall holds
     // its apex on the side its bit claims, and is refused as inverted,
     // not cut.
     wall_inversion(solid, chart_band)?;
-    singularity::singularity_vertices(solid, eps_in, chart_band, run_band, mint, sink)
+    singularity::singularity_vertices(solid, file, mint, sink)
 }
 
 /// **The seamless periodic band** (M7-5): a cylinder/torus face whose
@@ -260,8 +169,8 @@ pub(crate) fn normalize_shell(
 /// imported surface as stated, where re-charting `u_ref` to dodge a
 /// split would mutate imported geometry beyond need. Where a rim
 /// has no vertex at that azimuth, the rim is split there
-/// ([`split_at_param`]) and the split propagates to EVERY face
-/// sharing the rim ([`expand_split_uses`]) — load-bearing for shared
+/// ([`split_at_point`]) and the split propagates to EVERY face
+/// sharing the rim — load-bearing for shared
 /// rims between adjacent bands.
 ///
 /// The winding is derived, never assumed (spec D2, the module's
@@ -296,51 +205,28 @@ pub(crate) fn normalize_shell(
 /// license as the edge-free sphere's minted meridians (module docs).
 fn band_seam(
     solid: &mut SolidSpec,
-    eps_in: f64,
-    chart_band: Option<geom_core::Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
     for fi in 0..solid.faces.len() {
         if solid.faces[fi].band {
-            mint_band(solid, fi, eps_in, chart_band, mint, sink)?;
+            mint_band(solid, fi, file, mint, sink)?;
             solid.faces[fi].band = false;
         }
     }
     Ok(())
 }
 
-/// The vertex a use STARTS at.
-fn use_start(solid: &SolidSpec, use_: EdgeUse) -> u64 {
-    let spec = &solid.edges[&use_.edge];
-    if use_.forward { spec.start } else { spec.end }
-}
-
-/// The boundary census of one face's loops as they stand: distinct
-/// edges and distinct endpoint vertices.
-fn face_boundary_census(solid: &SolidSpec, fi: usize) -> (usize, usize) {
-    let mut edges = std::collections::BTreeSet::new();
-    let mut vertices = std::collections::BTreeSet::new();
-    for lp in &solid.faces[fi].loops {
-        for u in &lp.uses {
-            edges.insert(u.edge);
-            let spec = &solid.edges[&u.edge];
-            vertices.insert(spec.start);
-            vertices.insert(spec.end);
-        }
-    }
-    (edges.len(), vertices.len())
-}
-
 /// One tagged band face's re-mint ([`band_seam`] docs).
 fn mint_band(
     solid: &mut SolidSpec,
     fi: usize,
-    eps_in: f64,
-    chart_band: Option<geom_core::Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
+    let chart_band = Some(file.band());
     let face_id = solid.faces[fi].id;
     let surface = solid.faces[fi].surface.clone();
     let sense = solid.faces[fi].sense;
@@ -372,7 +258,7 @@ fn mint_band(
             });
         }
     };
-    let (entry_edges, entry_vertices) = face_boundary_census(solid, fi);
+    let (entry_edges, entry_vertices) = boundary_census(solid, &[fi]);
     if solid.faces[fi].loops.len() != 2 {
         return Err(StepImportError::Topology {
             id: face_id,
@@ -404,10 +290,10 @@ fn mint_band(
     // refusal on a valid solid). The structural read has neither
     // failure mode and is exact on the class the mint admits.
     //
-    // The coaxiality that licenses it is GATED within the file's own
-    // ε_in budget, not a loose classifier: a tilt moves rim points
-    // off the iso-v circle by ~radius·|n × axis| and an off-axis
-    // centre by its offset, so both are held to ε_in — a
+    // The coaxiality that licenses it is read at the file's band, not
+    // a loose classifier: a tilt moves rim points off the iso-v circle
+    // by ~radius·|n × axis| and an off-axis centre by its offset, so
+    // both must read Zero — a
     // Villarceau-tilted rim takes the typed band refusal here rather
     // than a generic certification message downstream.
     let mut rim = Vec::with_capacity(2);
@@ -435,7 +321,13 @@ fn mint_band(
                     if ui == 0 {
                         raises = Some(u.forward == (n.dot(s_axis) > 0.0));
                     }
-                    tilt <= eps_in && off_axis <= eps_in
+                    // Coaxial is a lane choice (`[verdicts]`): Zero
+                    // takes the re-mint, whose winding read, splits and
+                    // seam endpoints are exact only on coaxial rims; in
+                    // band and apart take the general lane, which is not
+                    // written, so both refuse below with the closed
+                    // form's pose as the lever and no tolerance offer.
+                    file.read(STEP_BAND_RIM_COAXIAL, tilt.max(off_axis)) == Read::Zero
                 }
                 _ => false,
             };
@@ -443,11 +335,11 @@ fn mint_band(
                 return Err(StepImportError::Topology {
                     id: face_id,
                     what: "a seamless periodic band whose rim chain is not made of \
-                           circles coaxial with the surface within the file's own \
-                           interpretation budget — outside the band re-mint's \
-                           minted class (its winding read, splits and seam endpoints \
-                           are exact only on coaxial rims); extending the band \
-                           re-mint to this rim shape is the recourse",
+                           circles coaxial with the surface at the file's band — outside the \
+                           band re-mint's minted class (its winding read, splits and seam \
+                           endpoints are exact only on coaxial rims). Recourse: pose each rim \
+                           as a circle centred on the surface's axis in a plane normal to it, \
+                           or extend the band re-mint to this rim shape",
                 });
             }
         }
@@ -499,26 +391,18 @@ fn mint_band(
     let mut splits = 0usize;
     let mut seam_v = [0u64; 2];
     for li in [ls, le] {
-        seam_v[li] = seam_vertex_on_loop(
-            solid,
-            fi,
-            li,
-            &surface,
-            eps_in,
-            chart_band,
-            mint,
-            &mut splits,
-        )?;
+        seam_v[li] = seam_vertex_on_loop(solid, fi, li, &surface, file, mint, &mut splits)?;
     }
     let (p_start, p_end) = (solid.vertices[&seam_v[ls]], solid.vertices[&seam_v[le]]);
-    if (p_end - p_start).norm() <= eps_in {
-        return Err(StepImportError::Topology {
-            id: face_id,
-            what: "a seamless periodic band whose two rims meet at the seam azimuth — \
-                   the seam generator would be a point, so the band is degenerate and \
-                   the re-mint refuses",
-        });
-    }
+    // The minted seam generator's length: a positive length, which the
+    // band reads apart from zero or refuses as the file's (two rims that
+    // meet at the seam azimuth leave the band degenerate).
+    file.positive_length(
+        face_id,
+        "a seamless periodic band's seam generator (its two rims' distance at the seam \
+         azimuth)",
+        (p_end - p_start).norm(),
+    )?;
     // ---- The minted seam generator (band_seam docs) ---------------
     let gen_id = mint();
     let carrier = match torus {
@@ -559,30 +443,41 @@ fn mint_band(
     // seam vertex round its whole period, up the seam generator, round
     // the end rim, and back down the generator — both rims keep their
     // FILE-stated uses verbatim (the derived winding above is what
-    // certifies they already run the right way), merely rotated to
-    // start at their seam vertex.
-    let rotate = |solid: &SolidSpec, li: usize, at: u64| -> Result<Vec<EdgeUse>, StepImportError> {
+    // certifies they already run the right way): the face cut along
+    // the seam ([`surgery::relink`]), traced from the start rim's seam
+    // vertex.
+    let leaving = |li: usize| -> Result<(usize, usize), StepImportError> {
         let uses = &solid.faces[fi].loops[li].uses;
-        let k = uses.iter().position(|u| use_start(solid, *u) == at).ok_or(
-            StepImportError::Topology {
+        let k = uses
+            .iter()
+            .position(|u| use_start(solid, *u) == seam_v[li])
+            .ok_or(StepImportError::Topology {
                 id: face_id,
                 what: "internal: a band rim lost its seam vertex during the re-mint",
-            },
-        )?;
-        let mut out = uses.clone();
-        out.rotate_left(k);
-        Ok(out)
+            })?;
+        Ok((li, k))
     };
-    let mut uses = rotate(solid, ls, seam_v[ls])?;
-    uses.push(EdgeUse {
-        edge: gen_id,
-        forward: true,
-    });
-    uses.extend(rotate(solid, le, seam_v[le])?);
-    uses.push(EdgeUse {
-        edge: gen_id,
-        forward: false,
-    });
+    let (at_s, at_e) = (leaving(ls)?, leaving(le)?);
+    let loops: Vec<Vec<EdgeUse>> = solid.faces[fi]
+        .loops
+        .iter()
+        .map(|l| l.uses.clone())
+        .collect();
+    let seam = CutLine {
+        first: EdgeUse {
+            edge: gen_id,
+            forward: true,
+        },
+        ends: [Some(at_s), Some(at_e)],
+    };
+    let Ok(Ok([uses])) =
+        surgery::relink(solid, &loops, &[seam], &[at_s]).map(<[Vec<EdgeUse>; 1]>::try_from)
+    else {
+        return Err(StepImportError::Topology {
+            id: face_id,
+            what: "internal: a band's rims and seam did not close into one loop",
+        });
+    };
     solid.faces[fi].loops = vec![LoopSpec { outer: true, uses }];
     sink.push(StructureNormalization {
         face: face_id,
@@ -615,8 +510,7 @@ fn seam_vertex_on_loop(
     fi: usize,
     li: usize,
     surface: &Surface<f64>,
-    eps_in: f64,
-    chart_band: Option<geom_core::Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     splits: &mut usize,
 ) -> Result<u64, StepImportError> {
@@ -637,10 +531,15 @@ fn seam_vertex_on_loop(
     for u in &solid.faces[fi].loops[li].uses {
         let vid = use_start(solid, *u);
         let p = solid.vertices[&vid];
-        if let Some(uv) = crate::chart::uv_of(surface, p, chart_band)
-            && (surface.eval(0.0, uv.y) - p).norm() <= eps_in
-        {
-            return Ok(vid);
+        if let Some(uv) = crate::chart::uv_of(surface, p, Some(file.band())) {
+            let gap = (surface.eval(0.0, uv.y) - p).norm();
+            match file.read(STEP_BAND_SEAM_VERTEX, gap) {
+                Read::Zero => return Ok(vid),
+                Read::InBand => {
+                    return Err(file.refused(vid, file.ambiguous(STEP_BAND_SEAM_VERTEX, gap)));
+                }
+                Read::Apart => {}
+            }
         }
     }
     // No vertex there: split the rim arc whose parameter interval
@@ -667,41 +566,14 @@ fn seam_vertex_on_loop(
         }
     }
     if let Some((edge, t, q)) = crossing {
-        let (first, second, mid_v) = split_at_param(solid, edge, t, mint);
-        // The split vertex must be the EXACT crossing point `q` (rim
-        // centre + radius · u_ref, no trigonometry), not the carrier's
-        // trig evaluation at `t` — the evaluation carries up-to-a-ulp
-        // dust off the half-plane, and the dust would shift the
-        // re-derived parameters of a re-import (the writer round-trip
-        // must be a fixed point). For the same reason both halves'
-        // parameter intervals are re-derived from their endpoint
-        // POSITIONS through the exact convention a re-import applies
-        // (`geometry::endpoint_params`): a half whose minted interval
-        // crossed the period boundary would otherwise carry a
-        // parameter representative shifted by 2π from the one the
-        // re-import derives — the same arc, but not bit-identical
-        // under evaluation.
-        solid.vertices.insert(mid_v, q);
-        for half in [first, second] {
-            // ONE lookup serves both the reads and the load-bearing
-            // interval write (the comment above) — `edges` and
-            // `vertices` are disjoint fields, so the vertex reads
-            // borrow beside the spec. The half cannot miss: both were
-            // minted into `solid.edges` by `split_at_param` above.
-            let Some(spec) = solid.edges.get_mut(&half) else {
-                unreachable!("a split half minted by `split_at_param` is in `solid.edges`")
-            };
-            let self_loop = spec.start == spec.end;
-            let (ps, pe) = (solid.vertices[&spec.start], solid.vertices[&spec.end]);
-            let (t0, t1) =
-                crate::geometry::endpoint_params(half, &spec.carrier, ps, pe, self_loop)?;
-            spec.t0 = t0;
-            spec.t1 = t1;
-        }
-        // Patch EVERY face — including this band's own loops (the rim
-        // may be shared with the neighbouring face, or with another
-        // band whose mint runs later).
-        expand_split_uses(solid, edge, first, second, &[]);
+        // The split vertex is the EXACT crossing point `q` (rim centre
+        // + radius · u_ref, no trigonometry), and both halves' intervals
+        // are re-derived from their endpoints as a re-import derives
+        // them: the writer round-trip must be a fixed point. The split
+        // reaches EVERY face, this band's own loops included (the rim may
+        // be shared with the neighbouring face, or with another band
+        // whose mint runs later).
+        let mid_v = split_at_point(solid, edge, t, q, mint)?;
         *splits += 1;
         return Ok(mid_v);
     }
@@ -894,9 +766,7 @@ mod tests {
         let mut sink = Vec::new();
         singularity::singularity_vertices(
             &mut solid,
-            1e-9,
-            crate::chart::file_band(1e-9, geom_core::Tol::witness()),
-            geom_core::Band::linear(geom_core::Tol::witness()).ok(),
+            crate::interpret::FileBand::new(1e-9, geom_core::Tol::witness()).unwrap(),
             &mut || {
                 minted += 1;
                 1000 + minted

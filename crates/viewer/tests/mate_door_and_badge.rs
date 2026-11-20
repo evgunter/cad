@@ -14,8 +14,8 @@ use viewer::session::SessionOp;
 /// between post_b, in a space of its own, and the shelf writes post_b's
 /// bundle and leaves the shelf's as it was; undo
 /// restores the document, redo commits it again, and the mate's edit
-/// log replays to the same document with no store — the load path a
-/// file that still carries a log takes.
+/// log replays to the same document with no store, and the document
+/// saves and loads.
 #[test]
 fn the_mate_door_commits_through_undo_redo_and_replay() {
     let tol = Tol::witness();
@@ -48,13 +48,20 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
         .into_iter()
         .flat_map(|id| h.entry(id).edits().to_vec())
         .collect();
-    let text = pncad::document::save(h.entry(h.root()).doc(), &edits, tol)
-        .expect("a file carrying the log saves");
-    let loaded = pncad::document::load(&text, tol).expect("and loads, replaying with no store");
+    let replayed = edits
+        .iter()
+        .fold(h.entry(h.root()).doc().clone(), |doc, edit| {
+            pncad::document::apply(&doc, edit, tol)
+                .expect("the log replays with no store")
+                .doc
+        });
     assert!(
-        loaded.doc.bit_eq(&after),
+        replayed.bit_eq(&after),
         "the log replays to the same document"
     );
+    let text = pncad::document::save(&after, tol).expect("the document saves");
+    let loaded = pncad::document::load(&text, tol).expect("and loads with no store");
+    assert!(loaded.bit_eq(&after), "the load is the same document");
 }
 
 /// **The at-rest badge checks a `⊔` the product does not read** — the
@@ -73,7 +80,7 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
     let tol = Tol::witness();
     let bench = asm::bench("r2badge", tol);
     let text = std::fs::read_to_string(&bench.asm_path).unwrap();
-    let mut doc = load(&text, tol).unwrap().doc;
+    let mut doc = load(&text, tol).unwrap();
     let opts = EvalOptions {
         resolver: Some(std::sync::Arc::new(
             pncad::workspace::Workspace::open(&bench.dir).unwrap(),
@@ -159,7 +166,7 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
         "the at-rest check reads the shelf's `⊔` by itself: {:?}",
         kernel.err()
     );
-    std::fs::write(&bench.asm_path, save(&doc, &[], tol).unwrap()).unwrap();
+    std::fs::write(&bench.asm_path, save(&doc, tol).unwrap()).unwrap();
     let session = asm::open_bench(&bench, tol);
     let badge = session.at_rest().cloned();
     assert_eq!(

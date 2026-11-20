@@ -9,8 +9,9 @@ use core::fmt;
 use geom_brep::recourse::{LeverOnly, RefusedArm, SizedDecision};
 use geom_core::{FileCoincidence, Indeterminate};
 
-/// One rung of the D7 edge-adoption ladder, as data: which intensional
-/// interpretation was attempted, and the kernel gate's typed refusal.
+/// One certification of an edge's built description, as data: which
+/// intensional interpretation was stated, and the kernel gate's typed
+/// refusal.
 #[derive(Debug)]
 pub struct AdoptionAttempt {
     /// The interpretation attempted.
@@ -20,7 +21,7 @@ pub struct AdoptionAttempt {
     pub refusal: topo::EulerOpError,
 }
 
-/// The intensional interpretations the edge-adoption ladder can try
+/// The intensional interpretations an edge's built description can state
 /// (D7 stage 2's vocabulary — `geom_brep::EdgeDescription`'s variants,
 /// named as data for future remedy flows).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,6 +54,23 @@ impl fmt::Display for AdoptionCandidate {
     }
 }
 
+/// What [`StepImportError::BuildEscalated`] asks.
+pub(crate) const BUILD_SUBJECT: &str =
+    "where an edge's surfaces meet, read while building its carrier or its ends";
+
+/// **Where an edge's surfaces meet, read at the run's band**, the build's
+/// sized decision of it: a reading of the run's ε that the band does not
+/// call (two surfaces nearly tangent, an end nearly at a third surface)
+/// refuses, and moving the geometry clear of it, or a smaller tolerance
+/// that decides it, passes ([tolerance.recourse]).
+pub(crate) const BUILD_READING: SizedDecision = SizedDecision {
+    lever: "move the edge's surfaces so they clearly cross, clearly part, or touch",
+    size: "distance",
+    passes: geom_brep::recourse::SizedPass::AnySign,
+    side: geom_brep::recourse::RefusedSide::Lever,
+    no_size: None,
+};
+
 /// What [`StepImportError::SingularityUndecided`] asks.
 pub(crate) const SINGULARITY_SUBJECT: &str = "whether a sphere pole or cone apex, or where a meridian minted from one meets a face's \
      boundary, lies on that boundary or at one of its vertices";
@@ -69,14 +87,20 @@ pub(crate) const SINGULARITY_ON_BOUNDARY: SizedDecision = geom_brep::chart_singu
 
 /// The same decision where the FILE's band could not call it (`(ε_in,
 /// K·ε_in)`, coarser than the run's): no smaller tolerance decides it,
-/// so it ends in its lever alone, which names the file's coincidence
-/// distance.
+/// so it ends in its lever and the ε_in that would decide it
+/// ([`crate::interpret::Refusal::Ambiguous`]), or in its lever alone where
+/// the margin is no point value.
 pub(crate) const SINGULARITY_IN_FILE_BAND: LeverOnly = LeverOnly {
     lever: "move the face's boundary, or its vertex, onto that point or clear of it, or, if \
             this distance is intended, re-export the file with a smaller declared \
             uncertainty (or pass a smaller ε_in override): the distance lies in the band past \
             the file's coincidence distance, which no tolerance of this run decides",
 };
+
+/// The singularity decision's move, which its file-band ending names
+/// beside the ε_in that decides it.
+const SINGULARITY_MOVE: &str =
+    "move the face's boundary, or its vertex, onto that point or clear of it";
 
 /// Which band a [`StepImportError::SingularityUndecided`] could not call
 /// its distance in.
@@ -97,6 +121,38 @@ pub enum SingularityBand {
     Run,
     /// The file's band, `(ε_in, K·ε_in)`: a finer ε_in decides it.
     File,
+}
+
+/// **Which kind of entity a build refusal names** (`[import]`, D7 step
+/// 2): an edge whose carrier, or a vertex whose point, the build does not
+/// construct.
+///
+/// **Not carried by the `pncad` façade, argued.** It picks the word the
+/// rendered message names the entity by ("edge #id", "vertex #id"), and
+/// the message is the whole of what it changes for a caller: the id is
+/// carried, and the recourse (the lane, or the run's tolerance) does not
+/// depend on the kind. The façade carries the variants (and Python their
+/// words, `not_yet_supported`, `build_escalated`), which is what a caller
+/// routes on. The falsifier: a caller that must act on WHICH kind of
+/// entity refused without reading the message (a GUI highlighting the
+/// vertex rather than the edge) — then the carry is `pncad::prelude`'s
+/// export, the façade's matchability row, and a Python attribute beside
+/// `variant`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BuiltEntity {
+    /// An `EDGE_CURVE`.
+    Edge,
+    /// A `VERTEX_POINT`.
+    Vertex,
+}
+
+impl core::fmt::Display for BuiltEntity {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Edge => "edge",
+            Self::Vertex => "vertex",
+        })
+    }
 }
 
 /// Typed import failure. `#id` fields are Part 21 entity instance
@@ -190,6 +246,17 @@ pub enum StepImportError {
         /// The rejected value.
         value: f64,
     },
+    /// The import's ε_in (the file's declared uncertainty, or the
+    /// override) makes no band the file can be read at: `K·ε_in` is no
+    /// finite length.
+    UnbandedUncertainty {
+        /// ε_in, in metres.
+        eps_in: f64,
+        /// Whether ε_in is the caller's override
+        /// ([`crate::ImportOptions::eps_in`]) rather than the file's
+        /// declaration.
+        overridden: bool,
+    },
     /// A real token failed to parse as an f64.
     MalformedReal {
         /// The entity instance carrying the token.
@@ -217,36 +284,19 @@ pub enum StepImportError {
         /// refusal's ending (D4 ¶1).
         file: FileCoincidence,
     },
-    /// The D7 adoption ladder could not certify any intensional
-    /// description for an edge: every candidate tried and its typed
-    /// refusal, in ladder order — **structured data, not prose**, so a
-    /// future remedy flow (GUI-offered healing, M7-2+) can act on what
+    /// The edge's built description does not certify: the description
+    /// stated and its typed refusal — **structured data, not prose**, so
+    /// a future remedy flow (GUI-offered healing, M7-2+) can act on what
     /// failed without re-parsing messages.
     Adoption {
         /// The `EDGE_CURVE` entity instance.
         id: u64,
-        /// The candidates tried and their refusals, in ladder order.
+        /// The description stated and its refusal (one attempt: the build
+        /// chooses one description per edge).
         attempts: Vec<AdoptionAttempt>,
         /// The file's ε_in, which picks the words of each refusal's
         /// ending (D4 ¶1).
         file: FileCoincidence,
-    },
-    /// An ARC cap rim adjacent to a NURBS wall failed the import-side
-    /// residual gate (M7-3 fix pass, review F1): sampled against the
-    /// wall's own boundary column, the rim's circle does not carry it
-    /// at the ambient tolerance. On a RATIONAL wall this gate IS the
-    /// certification -- nothing else checks the rim there (no pcurve
-    /// mint, dihedral kind-exempt, the conventional description
-    /// certifies only against itself) -- so a rim that fails it is
-    /// refused rather than laundered into a t1/t2-valid body
-    /// indistinguishable from a correct one.
-    RimOffWallBoundary {
-        /// The `EDGE_CURVE` entity instance.
-        id: u64,
-        /// The worst sampled deviation (meters): boundary-sample
-        /// distance to the rim's circle locus, or arc-length excess
-        /// outside the rim's parameter range, whichever is larger.
-        residual: f64,
     },
     /// A described NURBS wall's own boundary column would not re-wrap
     /// as a curve while an edge was being adopted against it: a weight
@@ -336,6 +386,8 @@ pub enum StepImportError {
         band: SingularityBand,
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
+        /// The run's ε (metres), which floors the band the file is read at.
+        run_eps: f64,
     },
     /// Which side of a face's boundary a sphere pole or cone apex lies on,
     /// the point being off that boundary, cannot be read: its reading does
@@ -352,6 +404,35 @@ pub enum StepImportError {
         id: u64,
         /// Why the side is unread.
         side: geom_brep::chart_singularity::SideUnread,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
+    },
+    /// Where a pole-form meridian minted from a sphere pole or cone apex
+    /// meets a face's boundary did not run to an answer: the kernel's
+    /// meeting reading ([`geom_brep::curve_pair::meet`]) of the meridian
+    /// and a boundary edge stopped at a limit with no margin to rank it
+    /// (a root finder or a walk that did not settle, or a pose with no
+    /// closed form). Where the meridian ends is unread, so the
+    /// normalization that makes the point a vertex
+    /// ([`crate::NormalizationKind::ChartSingularityVertex`]) refuses
+    /// rather than guess; the refusal ends as the reading's own standing
+    /// does ([`geom_brep::curve_pair::MeetUnread::recourse`]).
+    SingularityMeetUnread {
+        /// The `ADVANCED_FACE` the meridian is minted in.
+        id: u64,
+        /// The reading that did not run to an answer.
+        why: geom_brep::curve_pair::MeetUnread,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
+    },
+    /// **An interpretation reading refused** (`[import]`, D7): what the
+    /// file's statements at `id` are evidence of is no description at
+    /// its band, or more than one, or a value no construction takes.
+    Interpretation {
+        /// The file entity the reading is of.
+        id: u64,
+        /// The reading, the distance and which way it refused.
+        refusal: crate::interpret::Refusal,
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
     },
@@ -396,6 +477,36 @@ pub enum StepImportError {
         knot: f64,
         /// What the split lacks (static description).
         what: &'static str,
+    },
+    /// **An edge or vertex whose description the kernel cannot yet
+    /// construct** (`[import]`, D7 step 3): the description the file's
+    /// statements are evidence of has no construction in this kernel, so
+    /// no cache can be built from it, and no value the file printed stands
+    /// in.
+    NotYetSupported {
+        /// Which kind of entity `id` is.
+        entity: BuiltEntity,
+        /// The `EDGE_CURVE` entity instance, or the `VERTEX_POINT` the
+        /// build does not construct.
+        id: u64,
+        /// What has no construction: the pair or kind and why.
+        what: String,
+        /// The lane that would construct it.
+        lane: &'static str,
+        /// The file's ε_in, the import door the refusal is read at.
+        file: FileCoincidence,
+    },
+    /// A reading the build takes at the run's band escalated: the run's
+    /// tolerance does not decide the construction of edge or vertex `id`.
+    BuildEscalated {
+        /// Which kind of entity `id` is.
+        entity: BuiltEntity,
+        /// The `EDGE_CURVE` or `VERTEX_POINT` entity instance.
+        id: u64,
+        /// The escalated reading.
+        source: Indeterminate,
+        /// The file's ε_in, the import door the refusal is read at.
+        file: FileCoincidence,
     },
     /// The adopted body failed the kernel's shared at-rest validation
     /// gate (M7-7, the #260 ruling (a)): `topo::validate_geometric` —
@@ -500,6 +611,26 @@ impl StepImportError {
                 f,
                 "step import: ε_in override {value} is not finite and strictly positive"
             ),
+            Self::UnbandedUncertainty { eps_in, overridden } => {
+                let (whose, recourse) = if *overridden {
+                    ("the ε_in override", "pass a smaller ε_in override")
+                } else {
+                    (
+                        "the file's declared uncertainty",
+                        "re-export the file with a smaller declared uncertainty, or pass a \
+                         smaller ε_in override",
+                    )
+                };
+                write!(
+                    f,
+                    "step import: {whose} (the coincidence distance ε_in = {eps_in:e} m) makes \
+                     no band the file can be read at: K·ε_in is no finite length"
+                )?;
+                if ended {
+                    write!(f, ". Recourse: {recourse}")?;
+                }
+                Ok(())
+            }
             Self::MalformedReal { id, token } => write!(
                 f,
                 "step import: entity #{id}: token '{token}' is not a Part 21 real"
@@ -532,15 +663,6 @@ impl StepImportError {
                 }
                 Ok(())
             }
-            Self::RimOffWallBoundary { id, residual } => write!(
-                f,
-                "step import: edge #{id}: an ARC cap rim does not lie on its adjacent \
-                 NURBS wall's boundary — the wall's own boundary column, sampled at the \
-                 certification schedule, deviates from the rim's circle by up to \
-                 {residual:e} m (ambient tolerance exceeded). On a rational wall this \
-                 residual gate is the rim's only certification, so the file is refused \
-                 rather than adopted wrong"
-            ),
             Self::WallColumnStructure { id, source } => write!(
                 f,
                 "step import: edge #{id}: an adjacent NURBS wall's control net, or the \
@@ -576,6 +698,32 @@ impl StepImportError {
                  carries a crease, and the split cannot be placed: {what} \
                  (work/importgate/the-c0-knot-split-refuses-what-it-cannot-place.md)"
             ),
+            Self::NotYetSupported {
+                entity,
+                id,
+                what,
+                lane,
+                ..
+            } => write!(
+                f,
+                "step import: {entity} #{id}: {what}, which the kernel does not yet construct \
+                 (no value the file printed stands in for a construction); the lane that \
+                 would: {lane}"
+            ),
+            Self::BuildEscalated {
+                entity,
+                id,
+                source,
+                file,
+            } => {
+                let ending =
+                    door(file).map(|at| BUILD_READING.recourse(RefusedArm::Undecided(source), at));
+                write!(
+                    f,
+                    "step import: {entity} #{id}: {}",
+                    geom_brep::recourse::undecided_at(source, BUILD_SUBJECT, ending)
+                )
+            }
             Self::TierInvalid { solid, errors } => {
                 // Both forms of each verdict: the Debug shape names
                 // the failing CHECK and its entity keys structurally
@@ -619,11 +767,24 @@ impl StepImportError {
                 cause,
                 band,
                 file,
+                run_eps,
             } => {
+                use crate::interpret::Refusal;
                 let arm = RefusedArm::Undecided(cause);
-                let ending = door(file).map(|at| match band {
-                    SingularityBand::Run => SINGULARITY_ON_BOUNDARY.recourse(arm, at),
-                    SingularityBand::File => SINGULARITY_IN_FILE_BAND.recourse(arm, at),
+                // The ending that names every lever that decides it; the
+                // run's own sized ending where a smaller tolerance alone
+                // does (ε_in already below the distance over K).
+                let ending = door(file).map(|at| {
+                    match (band, Refusal::in_band(SINGULARITY_SUBJECT, cause, *run_eps)) {
+                        (SingularityBand::Run, Some(Refusal::Ambiguous { gap, k, .. }))
+                            if !crate::interpret::lever_decides(file.eps_in(), gap / k) =>
+                        {
+                            SINGULARITY_ON_BOUNDARY.recourse(arm, at)
+                        }
+                        (_, Some(refusal)) => refusal.ending_with(SINGULARITY_MOVE, file.eps_in()),
+                        (SingularityBand::Run, None) => SINGULARITY_ON_BOUNDARY.recourse(arm, at),
+                        (SingularityBand::File, None) => SINGULARITY_IN_FILE_BAND.recourse(arm, at),
+                    }
                 });
                 write!(
                     f,
@@ -647,6 +808,29 @@ impl StepImportError {
                         ending.map(|e| format!(". {e}")).unwrap_or_default()
                     ),
                 }
+            }
+            Self::SingularityMeetUnread { id, why, file } => {
+                write!(
+                    f,
+                    "step import: face #{id}: where a meridian minted from a sphere pole or \
+                     cone apex meets the face's boundary is unread: {}",
+                    why.sentence()
+                )?;
+                if door(file).is_some() {
+                    write!(f, ". {}", why.recourse().render())?;
+                }
+                Ok(())
+            }
+            Self::Interpretation { id, refusal, file } => {
+                write!(
+                    f,
+                    "step import: entity #{id}: {}",
+                    refusal.payload(file.eps_in())
+                )?;
+                if ended {
+                    write!(f, ". {}", refusal.ending(file.eps_in()))?;
+                }
+                Ok(())
             }
             Self::Placement {
                 transform,
@@ -828,7 +1012,7 @@ mod nested_at_the_door {
     /// the import door, with no margin or with the pose height it may
     /// quote (`OffMargin::Past`, within ε_in here), is the file's, whoever
     /// declared the curve; its margin is no reading of the miss, so the
-    /// door's "set ε to ε_in" stopgap is not offered.
+    /// door's within-ε_in sentence is not offered.
     #[test]
     fn an_adopted_curve_off_its_face_names_the_damaged_file() {
         for margin in [
@@ -855,5 +1039,45 @@ mod nested_at_the_door {
                 assert!(!text.contains(word), "{margin:?}: {word}: {text}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod meet_unread_text {
+    //! **A meridian's meeting that did not run to an answer ends as its
+    //! own standing does**: a pose with no closed form is no way through
+    //! yet, at the import door, and the bare text carries no ending.
+    #![allow(clippy::unwrap_used)]
+
+    use geom_brep::curve_pair::{MeetFault, MeetUnread};
+    use geom_core::FileCoincidence;
+
+    use super::StepImportError;
+
+    #[test]
+    fn an_unread_meeting_ends_as_its_standing() {
+        let why = MeetUnread::of(MeetFault::Unsupported {
+            pose: "a pose this row names",
+        })
+        .unwrap();
+        let error = StepImportError::SingularityMeetUnread {
+            id: 7,
+            why,
+            file: FileCoincidence::new(1e-6),
+        };
+        let ended = error.render();
+        assert!(
+            ended.contains("face #7") && ended.contains("a pose this row names"),
+            "the payload names the face and the pose: {ended}"
+        );
+        assert!(
+            ended.ends_with(&*why.recourse().render()),
+            "the door's ending is the reading's own: {ended}"
+        );
+        let bare = error.to_string();
+        assert!(
+            !bare.contains(&*why.recourse().render()),
+            "the bare text ends at its payload: {bare}"
+        );
     }
 }

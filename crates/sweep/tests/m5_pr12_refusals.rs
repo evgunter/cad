@@ -3,9 +3,8 @@
 //! predicate (§1's D4 ¶1 addendum obligation, on every arm including
 //! the definite ones).
 //!
-//! `UnsupportedCorner` has zero constructor surface: the run-out policy
-//! it carries is only NAMED, and the rows below are what keeps that
-//! vocabulary from being decorative.
+//! `UnbuiltEnd` names only ends that are not built, and the rows below
+//! are what keeps that vocabulary from being decorative.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -15,9 +14,9 @@ use geom_core::{Point2, Point3, Sign, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::battery::{
-    BlendRequest, chain_g1, corner_config, face_clearance, run_battery, spine_regularity,
+    BlendRequest, chain_g1, corner_independence, face_clearance, run_battery, spine_regularity,
 };
-use sweep::blend::{BlendDecision, BlendError, BlendSite, CornerConfig, RunOutPolicy};
+use sweep::blend::{BlendDecision, BlendError, BlendSite, UnbuiltEnd};
 use sweep::test_support::cube;
 use sweep::test_support::disc_of_arcs;
 use sweep::{Extrusion, extrude};
@@ -53,36 +52,60 @@ fn keys(body: &Body<f64>) -> (FaceKey, VertexKey, EdgeKey) {
 }
 
 // ---------------------------------------------------------------------
-// §3 — every `CornerConfig` tag `corner_config` itself can reach, and
-// the run-out policy each names. The one tag that is NOT reachable here is
-// `SeamVertex`: it is recognized from the vertex's own structure before
-// any valence is read as a corner configuration, so it is pinned
-// through the front door instead (`verbs_arms3`).
+// §3 — `UnbuiltEnd` tags, each at its own site: the valence through the
+// battery, the independence decision at its own predicate. The others
+// are read from the end's request and shape, and pinned through the
+// front door.
 // ---------------------------------------------------------------------
 
-/// A valence-four vertex: no spherical triangle, so no octant patch.
-/// The policy named is stop-at-vertex — a general corner patch is
-/// exactly what such a vertex would need.
+/// A valence-four vertex: a chamfered cube's patch vertex, where a
+/// trimline of the chamfer ends. No spherical triangle, so no octant
+/// patch; the refusal carries the vertex and its valence.
 #[test]
-fn corner_tag_n_edge_vertex_names_stop_at_vertex() {
-    let body = cube(1.0, Tol::witness());
-    let (_, v, _) = keys(&body);
-    match corner_config(v, 4, 4, [Vec3::new(0.0, 0.0, 1.0); 3], 0.1, band()) {
-        Err(BlendError::UnsupportedCorner {
-            corner: CornerConfig::NEdgeVertex { valence },
-            policy,
-            ..
-        }) => {
+fn corner_tag_valence_carries_its_vertex_and_valence() {
+    let cube_body = cube::<f64>(1.0, Tol::witness());
+    let chamfered: Body<f64> = sweep::chamfer::chamfer_edges(
+        &sweep::test_support::at_rest(&cube_body, Tol::witness()),
+        &topo::query::all_edges(&cube_body),
+        0.1,
+        Tol::witness(),
+    )
+    .expect("the cube chamfers")
+    .body
+    .into_body();
+    let edge = topo::query::all_edges(&chamfered)
+        .into_iter()
+        .find(|&e| {
+            let he = chamfered.get_edge(e).expect("a live edge").he_plus;
+            let s = chamfered.get_half_edge(he).expect("a live half").start;
+            chamfered.edges_of_vertex(s).is_some_and(|es| es.len() == 4)
+        })
+        .expect("a valence-four vertex");
+    let req = BlendRequest {
+        body: &chamfered,
+        edges: vec![edge],
+        size: 0.02,
+    };
+    match run_battery(&req, band()) {
+        Err(BlendError::UnbuiltEnd(UnbuiltEnd::Valence { vertex, valence })) => {
             assert_eq!(valence, 4);
-            assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex));
+            let (a, b) = chamfered.edge_vertices(edge).expect("the edge's ends");
+            assert!(
+                vertex == a || vertex == b,
+                "the refusal is at an end of the edge"
+            );
+            assert_eq!(
+                chamfered.edges_of_vertex(vertex).map(|es| es.len()),
+                Some(4)
+            );
         }
-        other => panic!("expected an N-edge corner refusal, got {other:?}"),
+        other => panic!("expected a valence refusal, got {other:?}"),
     }
 }
 
-/// Three convex edges but a DEPENDENT trihedron (two of the three
-/// normals parallel): the ball centre is not determined by the three
-/// distance conditions, so there is no corner ball to mint.
+/// A DEPENDENT trihedron (two of the three normals parallel): the ball
+/// centre is not determined by the three distance conditions, so there
+/// is no corner ball to mint.
 #[test]
 fn corner_tag_dependent_normals_refuses_definitely() {
     let body = cube(1.0, Tol::witness());
@@ -92,20 +115,20 @@ fn corner_tag_dependent_normals_refuses_definitely() {
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
     ];
-    match corner_config(v, 3, 3, normals, 0.1, band()) {
-        Err(BlendError::UnsupportedCorner {
-            corner: CornerConfig::DependentNormals,
-            policy,
-            ..
-        }) => assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex)),
+    match corner_independence(v, normals, 0.1, band()) {
+        Err(BlendError::UnbuiltEnd(UnbuiltEnd::DependentNormals { vertex })) => {
+            assert_eq!(vertex, v);
+        }
         other => panic!("expected a dependent-normals refusal, got {other:?}"),
     }
 }
 
-/// Mixed convexity names no run-out policy: its own rule, the odd band
-/// cut off and the other two carried through, is none of them.
+/// **The classifier reads the CORNER, with no verb and no convexity in
+/// it**: a trivalent vertex with independent normals passes, which is
+/// what lets one predicate serve two bands on either side of the
+/// material.
 #[test]
-fn corner_tag_mixed_convexity_names_no_policy() {
+fn corner_independence_admits_an_independent_trihedron() {
     let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     let normals = [
@@ -113,67 +136,7 @@ fn corner_tag_mixed_convexity_names_no_policy() {
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
     ];
-    match corner_config(v, 3, 1, normals, 0.1, band()) {
-        Err(BlendError::UnsupportedCorner {
-            corner: CornerConfig::MixedConvexity { convex },
-            policy,
-            ..
-        }) => {
-            assert_eq!(convex, 1);
-            assert_eq!(policy, None);
-        }
-        other => panic!("expected a mixed-convexity refusal, got {other:?}"),
-    }
-}
-
-/// **The classifier reads the CORNER, and a uniform trihedron is one
-/// configuration on either side of the material.** It admits both and
-/// refuses only the mixed signs, with no verb anywhere in it — which
-/// is what lets one predicate serve two bands, both of which now
-/// carve both uniform sides (the concave-chamfer and concave-fillet
-/// suites each carve the all-concave corner through their own front
-/// door).
-#[test]
-fn corner_config_admits_either_uniform_trihedron() {
-    let body = cube(1.0, Tol::witness());
-    let (_, v, _) = keys(&body);
-    let normals = [
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-    ];
-    for convex in [0, 3] {
-        corner_config(v, 3, convex, normals, 0.1, band())
-            .unwrap_or_else(|e| panic!("a uniform trihedron is a configuration, got {e:?}"));
-    }
-    for convex in [1, 2] {
-        match corner_config(v, 3, convex, normals, 0.1, band()) {
-            Err(BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { convex: got },
-                ..
-            }) => assert_eq!(got, convex),
-            other => panic!("a mixed trihedron has no corner patch, got {other:?}"),
-        }
-    }
-}
-
-/// The three-convex-edge trihedron with independent normals is the
-/// ONE configuration that passes for BOTH verbs — the convex tag that
-/// is not a refusal.
-#[test]
-fn corner_tag_three_convex_edges_is_the_one_that_passes() {
-    let body = cube(1.0, Tol::witness());
-    let (_, v, _) = keys(&body);
-    let normals = [
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-    ];
-    corner_config(v, 3, 3, normals, 0.1, band()).expect("the octant corner is in scope");
-    assert_eq!(
-        format!("{}", CornerConfig::ThreeConvexEdges),
-        "three convex edges (the built corner configuration)"
-    );
+    corner_independence(v, normals, 0.1, band()).expect("the octant corner is in scope");
 }
 
 /// A **same-surface smooth split** (the cylinder's two wall faces meet
@@ -237,7 +200,7 @@ fn a_same_surface_smooth_split_is_a_smooth_seam_left_as_it_is() {
 /// where the TORUS wall's meridian arrives. Its end face is that wall,
 /// and the end face's SHAPE is read before the neighbours are resolved
 /// as links, so the refusal is the run-out the end owes — a curved end
-/// face — and not `CornerConfig::Indeterminate` for the neighbour no
+/// face — and not the indeterminate end for the neighbour no
 /// arm resolves, which this body used to witness (work item
 /// `corner-config-indeterminate-has-no-real-body-witness`).
 #[test]
@@ -263,9 +226,7 @@ fn a_planar_chain_ending_at_a_curved_neighbour_refuses_its_curved_end_face() {
             size: 0.05,
         };
         match run_battery(&req, band()) {
-            Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-                assert_eq!(detail, sweep::blend::battery::END_FACE_CURVED);
-            }
+            Err(BlendError::UnbuiltEnd(UnbuiltEnd::CurvedEndFace { .. })) => {}
             other => panic!("a planar cap edge ends at the torus wall, got {other:?}"),
         }
     }
@@ -530,7 +491,7 @@ fn plane_wedge(na: Vec3<f64>, nb: Vec3<f64>) -> geom_brep::WedgeVerdict {
 /// **Predicate 5's trio**: the fold reads a definite corner by its sign,
 /// coplanar faces by their material, and a wedge too small to call
 /// escalates. A cube's edge resolves a convex link whose margin is the
-/// blend's `fillet3_convexity_sign`; the in-band corner refuses as the unsettled
+/// fold's `dihedral_sign`, read as a choice; the in-band corner refuses as the unsettled
 /// wedge, with the tangential sentence.
 #[test]
 fn trio_convexity_sign() {
@@ -548,26 +509,26 @@ fn trio_convexity_sign() {
     let recorded = bracket.finish();
     let link = verdict.chains[0].first();
     assert_eq!(link.convexity, Convexity::Convex);
-    assert_eq!(link.convexity_margin.predicate, "fillet3_convexity_sign");
+    assert_eq!(link.convexity_margin.predicate, geom_brep::DIHEDRAL_SIGN);
     assert_eq!(link.convexity_margin.sign, Sign::Positive);
-    // The sign decides which body the blend builds, so the fold records
-    // it under the blend's own name, which the flip lane reads, and not
-    // under the shape reading's, which it passes over.
-    let named = |name| {
+    // The sign decides which body the blend builds, so the blend records
+    // it as a choice, which the flip lane reads, and none of it as a
+    // check, which the lane does not.
+    let named = |role| {
         recorded
             .verdicts
             .iter()
-            .filter(|v| v.predicate == name)
+            .filter(|v| v.predicate == geom_brep::DIHEDRAL_SIGN && v.role == role)
             .count()
     };
     assert!(
-        named("fillet3_convexity_sign") > 0,
-        "the blend's sign is on the verdict log under its own name"
+        named(geom_core::k_stats::Role::Choice) > 0,
+        "the blend's sign is on the verdict log as a choice"
     );
     assert_eq!(
-        named(geom_brep::DIHEDRAL_SIGN),
+        named(geom_core::k_stats::Role::Check),
         0,
-        "and not as a shape reading"
+        "and not as a check"
     );
     let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
     let sign = |v| match v {
@@ -600,10 +561,8 @@ fn trio_corner_independence() {
     let (_, v, _) = keys(&body);
     let b = band();
     // Definitely independent: the orthonormal trihedron.
-    corner_config(
+    corner_independence(
         v,
-        3,
-        3,
         [
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
@@ -614,10 +573,8 @@ fn trio_corner_independence() {
     )
     .expect("|det| · r = 1 m");
     // Exactly dependent.
-    let exact = corner_config(
+    let exact = corner_independence(
         v,
-        3,
-        3,
         [
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
@@ -629,17 +586,12 @@ fn trio_corner_independence() {
     .unwrap_err();
     assert!(matches!(
         exact,
-        BlendError::UnsupportedCorner {
-            corner: CornerConfig::DependentNormals,
-            ..
-        }
+        BlendError::UnbuiltEnd(UnbuiltEnd::DependentNormals { .. })
     ));
     // In band: a trihedron that is nearly flat.
     let t = in_band();
-    let escalated = corner_config(
+    let escalated = corner_independence(
         v,
-        3,
-        3,
         [
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
@@ -655,7 +607,7 @@ fn trio_corner_independence() {
         }
         other => panic!("an in-band determinant must escalate, got {other:?}"),
     }
-    assert_same_recourse(&exact, &escalated, "clearly not all parallel to one line");
+    assert_same_recourse(&exact, &escalated, "tilt the faces meeting at the corner");
 }
 
 /// A cylinder whose top cap sits on a plane tilted off the rim

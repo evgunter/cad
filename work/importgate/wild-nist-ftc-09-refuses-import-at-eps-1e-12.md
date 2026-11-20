@@ -36,3 +36,38 @@ Reproduce: `cd demos/wild && cargo build --release` then
 `CAD_TOLERANCE_EPS=1e-12 <target>/release/wild-montage /tmp/wild`.
 
 - 2026-11-02 — moved from INTERP to IMPORTGATE by `git mv` when INTERP merged into IMPORTGATE, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and INTERP had fallen far under it).
+- 2026-11-18 — `importgate/build` (the import builds every cache from the
+  description it interprets) moves this file from refusing at 1e-12 to
+  refusing at every ε, the default 1e-9 included: its plane × cylinder
+  edges read tangent at the file's band (ε_in ≈ 34 µm) and apart at the
+  run's, and refuse not-yet-supported naming the snap catalogue's lane (`tests/tier_gate.rs`'s `NIST09_SNAP`,
+  `tests/wild.rs`'s refusal row, and `demos/wild`'s refusal pin, the cell
+  leaving the montage until it imports). The snap unit, which makes a relation that reads Zero at the file's
+  band exact, closes this row.
+
+## After the snap catalogue (`importgate/snap`, 2026-11-19)
+
+The catalogue makes all five of the file's tangent fillets exact
+(`snap.rs`'s `nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them`):
+
+- `#4962`, `#4990`, `#5102` each sit between two parallel planes: radius
+  set to half the spacing, axis moved to the mid-plane;
+- `#5231`, `#5336` each sit between two crossing planes: axis translated
+  to where the two offsets meet.
+
+Every move reads Zero at the file's band, and every relation of the
+class re-reads exact at the run's. Plane `#4976` is shared by `#4962`
+and `#4990` and moved by neither.
+
+The file still refuses, at every ε:
+
+- the five tangent edges its writer printed as crossing lines lie
+  `√(2·r·gap)` off the ruling now exact: 115–344 µm against the band
+  (33.8 µm, 338 µm). `#4950` (180 µm, in band) is the first, pinned by
+  `tier_gate`'s `NIST09_PRINTED_OFF_ITS_TANGENCY`. Filed:
+  `a-tangent-edge-printed-as-a-crossing-line-refuses-at-the-build`.
+- behind it, cylinder `#5139` stands 56.8 µm off planes `#5125` and
+  `#5153`, in the file's band: no relation, and edges `#5118` / `#5132`
+  refuse as the file's ambiguity, whatever the snap does.
+
+The `demos/wild` cell stays out.

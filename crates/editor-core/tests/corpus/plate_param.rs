@@ -23,9 +23,9 @@
 //! - `hole_r` → large enough that the holes overlap each other and the
 //!   plate wall → the VALIDATE ladder refuses (a different door from
 //!   the replay one);
-//! - the §4d authoring door: an edit that writes a refusing radius
-//!   INTO the program is refused at the door, while `DefineVar` — by
-//!   design — is not.
+//! - a refusing radius written INTO the program passes the door, which
+//!   judges only what is wrong at every value, and the evaluation
+//!   names the loop and the step, as for `hole_r` → 0.
 
 use super::PlacePart;
 use editor_core::{
@@ -138,7 +138,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "plate_param",
         about: "the parametric scene: a plate whose two hole radii are one FreeVar",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(union),
         pin: None,

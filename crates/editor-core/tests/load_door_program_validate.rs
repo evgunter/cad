@@ -1,6 +1,6 @@
 //! **A profile program whose replayed loops fail `Profile::validate`
 //! is legal at rest: the load door passes it and evaluation refuses it
-//! typed** (`ProgramFault`'s doc, the validate class).
+//! typed** (`PersistError::ProfileProgram`'s doc, the validate class).
 //!
 //! The load door rebuilds a profile program by its derive and re-checks
 //! it with one walk, which refuses the lattice class alone
@@ -10,19 +10,17 @@
 //! own `ProfileError`.
 //!
 //! The witness is the sharpest case of the class: a bowtie drawn in
-//! LITERALS, which no binding rescues and the insert door refuses. So
-//! the only way to write it is a hand-edited file, and this row makes
-//! one by surgery on a saved square.
+//! LITERALS, which no binding rescues. The insert door admits it as the
+//! load door does (`[recipe.doors]`: the doors judge the document, never
+//! one evaluation of it), and the file is made by surgery on a saved
+//! square.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::eval;
 use crate::fixture::{desc, on_frame, square};
 use crate::wire::doctored;
-use editor_core::{
-    DocEdit, EditError, Node, NodeErrorKind, NodeResult, ProfileDoc, ProgramRefusal, apply, load,
-    save,
-};
+use editor_core::{DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, apply, load, save};
 use geom_core::Tol;
 use profile::{ContactKind, ProfileError, SegmentRef};
 
@@ -56,29 +54,35 @@ fn a_program_failing_validate_loads_clean_and_refuses_typed_at_evaluation() {
         vec![square(0.5, 0.5, 0.5)],
     );
 
-    // The witness is the VALIDATE class: the insert door's check
-    // replays it cleanly and refuses the assembled loop.
-    match apply(
+    // The insert door admits the bowtie, and evaluation refuses it as
+    // the validate class.
+    let inserted = apply(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(desc(vec![BOWTIE.to_vec()]))),
             fresh: Vec::new(),
         },
         Tol::witness(),
-    ) {
-        Err(EditError::ProfileProgramRefused { refusal, .. }) => match *refusal {
-            ProgramRefusal::Validate(e) => assert!(
-                is_the_bowtie_crossing(&e),
-                "the insert door names the crossing: {e:?}"
+    )
+    .expect("the insert door reads no value");
+    let id = inserted
+        .record
+        .minted
+        .expect("the insert mints the profile");
+    match eval::<f64>(&inserted.doc).nodes.get(&id) {
+        Some(NodeResult::Failed(err)) => match &err.kind {
+            NodeErrorKind::Profile(e) => assert!(
+                is_the_bowtie_crossing(e),
+                "evaluation names the crossing: {e:?}"
             ),
-            other => panic!("the witness must be the validate class, got {other:?}"),
+            other => panic!("expected the validate class at evaluation, got {other:?}"),
         },
-        other => panic!("the insert door must refuse the bowtie, got {other:?}"),
+        other => panic!("the inserted bowtie must refuse at evaluation, got {other:?}"),
     }
 
     // The same program in a file: the square's second and third
     // corners trade y, which is the bowtie.
-    let text = save(&doc, &[], Tol::witness()).expect("the square saves");
+    let text = save(&doc, Tol::witness()).expect("the square saves");
     let bowtie = doctored(&text, |v| {
         for (step, from, to) in [(1, 0.0, 1.0), (2, 1.0, 0.0)] {
             let y = &mut crate::wire::slot_var_def(v, |v| {
@@ -99,7 +103,7 @@ fn a_program_failing_validate_loads_clean_and_refuses_typed_at_evaluation() {
         Err(e) => panic!("a validate refusal is legal at rest; the load door refused {e:?}"),
     };
 
-    let ev = eval::<f64>(&loaded.doc);
+    let ev = eval::<f64>(&loaded);
     match ev
         .nodes
         .iter()

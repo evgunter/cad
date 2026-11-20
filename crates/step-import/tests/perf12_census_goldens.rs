@@ -79,7 +79,7 @@ fn row(label: &str, text: &str, options: &ImportOptions, out: &mut String) {
 
 fn census_text() -> String {
     let mut out = String::new();
-    for name in SOLID_FIXTURES {
+    for &name in SOLID_FIXTURES {
         row(
             name,
             &fixture(name, "step"),

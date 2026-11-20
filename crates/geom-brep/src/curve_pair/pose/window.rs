@@ -327,6 +327,16 @@ impl<T: Decide> Window<'_, T> {
                 }
             }
         }
+        // The on reading is an upper bound on `d`, the distance to `b`'s
+        // carrier, so any point of the carrier serves as its anchor, and
+        // the foot is the whole carrier's, not the span's
+        // ([`Span::foot`]): the window asks whether a point lies within
+        // the zero of `b`'s carrier ("No second meeting" reads its chain
+        // on the carrier), and a point on the carrier past `b`'s span is
+        // one whose foot leaves the span, which the ends, read first, met
+        // or escalated. The span's foot gap is never below the carrier's
+        // distance, so it could only lose on readings, and answers the
+        // span's question, which (i) off and the span walk ask.
         let foot = self.span_b.carrier().foot(q, self.foot_seed(q));
         let gap = foot.gap() + reach;
         let close = (h.hi.powi(2) + d_hi.powi(2)).sqrt();

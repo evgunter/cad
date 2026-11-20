@@ -20,7 +20,10 @@ fn a_director_is_the_heading_and_a_leg_end_its_incoming_tangent() {
         .expect("a positioned tip");
     assert_eq!((pen.at.x, pen.at.y), (1.0, 2.0));
     let h = pen.heading.expect("a director binds a heading");
-    assert_eq!((h.x, h.y, pen.directed), (0.0, 1.0, true));
+    assert_eq!(
+        (h.x, h.y, pen.state.pen()),
+        (0.0, 1.0, profile::PenAt::Heading { directed: true })
+    );
 
     let line = Step::Line(3.0);
     let pen = profile::pen(&[at, toward, line], None, tol())
@@ -28,7 +31,10 @@ fn a_director_is_the_heading_and_a_leg_end_its_incoming_tangent() {
         .expect("a positioned tip");
     assert_eq!((pen.at.x, pen.at.y), (1.0, 5.0));
     let h = pen.heading.expect("a leg end carries its tangent");
-    assert_eq!((h.x, h.y, pen.directed), (0.0, 1.0, false));
+    assert_eq!(
+        (h.x, h.y, pen.state.pen()),
+        (0.0, 1.0, profile::PenAt::Heading { directed: false })
+    );
 }
 
 #[test]

@@ -1179,8 +1179,10 @@ fn a_later_fillet_of_l_refuses_where_it_runs_on_into_the_overrun_arc() {
             .expect("L's piece runs from the turn foot to the origin");
         match fillet_edges(&at_rest(b, tol()), &[l], 0.1 * D, tol()) {
             Err(e) => assert!(
-                matches!(&e.error, BlendError::UnsupportedRunOut { detail, .. }
-                    if *detail == sweep::blend::battery::PARTIAL_TANGENT_RUN),
+                matches!(
+                    &e.error,
+                    BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::RunOut { odd: None, .. })
+                ),
                 "{what}: L later refuses where it runs on into the overrun arc, got {}",
                 e.error.render(geom_brep::recourse::Reading::Build)
             ),
@@ -1237,7 +1239,7 @@ fn a_short_near_edge_refuses_foot_inside_a_face_for_the_fillet_too() {
         match filleted(&p.body, &p.edges(&TURN), D, &what) {
             Err(e) => assert!(
                 foot_inside_a_face(&e),
-                "{what}: refuses FOOT_INSIDE_A_FACE, got {e_at}",
+                "{what}: refuses FootInsideAFace, got {e_at}",
                 e_at = e.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(_) => panic!(
@@ -1295,9 +1297,11 @@ fn the_needle_builds_then_refuses_at_the_turn_as_it_flattens() {
                 assert_delta(&body, &out.body, want, 1e-11, &what);
                 "builds"
             }
-            Err(e @ BlendError::UnsupportedRunOut { at, .. }) => {
+            Err(
+                e @ BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::FootInsideAFace { vertex }),
+            ) => {
                 assert!(
-                    foot_inside_a_face(&e) && at == topo::EntityId::Vertex(v) && eps < 1.0,
+                    foot_inside_a_face(&e) && vertex == v && eps < 1.0,
                     "{what}: refuses at the turn's far foot, got {e_at}",
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 );

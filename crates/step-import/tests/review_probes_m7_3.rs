@@ -15,7 +15,6 @@ use profile::SketchPlane;
 use common::{arena_census, fixture};
 use geom_core::Point2;
 use geom_core::Tol;
-use geom_core::test_support::upper;
 use profile::{RawLoop, test_support::bulge_loop};
 use step_import::{ImportOptions, StepImport, import_step};
 
@@ -57,7 +56,7 @@ fn native_loft_prism() -> topo::Body<f64> {
 ///
 /// The plant moves one seam control point by 1e-7 m, and whether that
 /// is a falsification is an ε question: at ε_in ≤ 1e-9 the displacement
-/// is OUTSIDE tolerance and the seam must refuse TYPED — the probe's
+/// is OUTSIDE tolerance and the seam must refuse TYPED, at interpretation — the probe's
 /// original teeth, and where the bitwise `IsoCurve` rung's absence must
 /// not become a silent adoption. At ε_in = 1e-6 the displacement is
 /// INSIDE tolerance: the file's carrier is honest evidence at the
@@ -85,54 +84,34 @@ fn probe_refit_seam_refuses_typed() {
                 PLANT > eps,
                 "a displacement INSIDE ε_in must not be refused: {msg}"
             );
-            // The refusal is the ADOPTION verdict on the plant, and it
-            // carries the number that caught it: the declare-and-check
-            // lane's measured on-locus residual, which must exceed ε_in
-            // and be the plant's own order. A refusal from any later
-            // stage would mean the seam was adopted and something
-            // downstream objected — a different fact, and not this
-            // probe's.
-            let step_import::StepImportError::Adoption { attempts, file, .. } = &e else {
-                panic!("the plant must be caught at ADOPTION, not downstream: {msg}");
+            // The refusal is interpretation's verdict on the plant, and it
+            // carries the number that caught it: the seam the build makes
+            // from the two walls, read against the printed one at the
+            // file's band, misses it by the plant's own order. A refusal
+            // from any later stage would mean the seam was built and
+            // something downstream objected — a different fact, and not
+            // this probe's.
+            let step_import::StepImportError::Interpretation {
+                refusal: step_import::InterpretationRefusal::EvidenceMiss { reading, miss },
+                file,
+                ..
+            } = &e
+            else {
+                panic!("the plant must be caught at interpretation, not downstream: {msg}");
             };
-            // The limb attempt's measured bound, and that same attempt's
-            // text as the import door renders it.
-            let limb = attempts.iter().find_map(|a| match a.refusal {
-                topo::EulerOpError::Certification {
-                    error:
-                        geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                            margin,
-                            ..
-                        }),
-                } => Some((upper(margin), a.refusal.render(*file))),
-                _ => None,
-            });
-            let Some((measured, rendered)) = limb else {
-                panic!("the refusal must carry the lane's measured bound: {attempts:?}");
-            };
-            assert!(
-                measured > eps && measured < 1e-6,
-                "the refusal's own number explains it: on-locus residual {measured:e} m \
-                 past ε_in {eps:e}, and of the plant's own order ({PLANT:e} m)"
+            assert_eq!(
+                *reading, "step_edge_on_description",
+                "the seam's own reading"
             );
-            // The import door reads the limb's own miss against the
-            // file's ε_in: past it, no stopgap is named and the refusal
-            // names the file, at every tolerance it refuses at.
             assert!(
-                measured > file.eps_in(),
-                "the plant is past the file's ε_in {:e}: {measured:e}",
+                *miss > eps && *miss < 1e-6,
+                "the refusal's own number explains it: a miss of {miss:e} m past ε {eps:e}, \
+                 of the plant's own order ({PLANT:e} m)"
+            );
+            assert!(
+                *miss > file.eps_in(),
+                "the plant is past the file's ε_in {:e}: {miss:e}",
                 file.eps_in()
-            );
-            assert!(
-                rendered.ends_with(
-                    "the carrier is not on both surfaces. There is no way through: the file is \
-                     damaged; report it to the program that wrote it"
-                ),
-                "a miss past ε_in names the file at the import door: {rendered}"
-            );
-            assert!(
-                msg.contains(&rendered),
-                "the door's message carries the limb attempt's own text: {msg}"
             );
         }
         Ok(StepImport::Solid { body, .. }) => {
@@ -266,10 +245,10 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
 /// reviewed NOTHING certified an ARC rim against its rational wall —
 /// this probe originally executed exactly that (the mutated file
 /// imported t1/t2-valid with the verbatim native t3 refusal,
-/// indistinguishable from correct). The fix is the import-side
-/// residual gate (`adopt::arc_rim_on_wall_boundary`): the wall's own
-/// boundary column, sampled at the certification schedule, must lie
-/// on the rim's circle within the ambient tolerance. The plant —
+/// indistinguishable from correct). The build reads it: a cap's rim
+/// must lie on its wall at the file's band (`build::STEP_RIM_ON_WALL`),
+/// and the vertices the rim's neighbours meet at are where the build
+/// puts them. The plant —
 /// the z=0 cap's quarter arc (center ~(0,0,0), r = √2) replaced by a
 /// DIFFERENT circle through the same two endpoints
 /// (center (1−√24, 0, 0), r = 5) — must now REFUSE, typed, naming
@@ -281,7 +260,7 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
 /// UNMUTATED file clears this same residual gate and imports (or, at
 /// a tight enough ε, stops only at the quadrature budget, with the
 /// verdict list pinned structurally). The discrimination this probe
-/// exists for — the plant refuses `RimOffWallBoundary`, the true arc
+/// exists for — the plant refuses at interpretation, the true arc
 /// does not — is therefore stated across the two rows, and the true
 /// arc's rational quadrature is paid once instead of twice.
 #[test]
@@ -346,16 +325,21 @@ fn probe_arm_b_rim_off_wall_arc() {
         .replace(&center_line, &new_center)
         .replace(&circle_line, &new_circle);
     match import(&mutated) {
-        Err(step_import::StepImportError::RimOffWallBoundary { id, residual }) => {
-            eprintln!("PROBE rim-off-wall arc refused typed: edge #{id}, residual {residual:e}");
+        Err(step_import::StepImportError::Interpretation {
+            id,
+            refusal: step_import::InterpretationRefusal::EvidenceMiss { reading, miss },
+            ..
+        }) => {
+            eprintln!("PROBE rim-off-wall arc refused typed: #{id}, {reading} misses by {miss:e}");
             assert!(
-                residual > 1e-3,
-                "the r=5 plant misses the wall boundary by a macroscopic margin, got {residual:e}"
+                miss > 1e-3,
+                "the r=5 plant misses the wall by a macroscopic margin, got {miss:e}"
             );
         }
         Err(other) => {
             panic!(
-                "the plant must refuse AT THE RESIDUAL GATE (RimOffWallBoundary), got: {other_at}",
+                "the plant must refuse at interpretation, its miss past the file's band, got: \
+                 {other_at}",
                 other_at = other.render()
             )
         }
@@ -576,18 +560,13 @@ fn probe_reexport_promotion_divergence() {
         "re-export: the two promoted walls state their planes"
     );
     // The promoted fixed point. At an ambient band coarser than the
-    // committed fixture's declared 1e-9, the re-import reads OUR
-    // re-export header's ε_in and D7 additionally promotes the two
-    // straight ruling seam carriers to LINE (`roundtrip.rs`'s
-    // `fixed_point` row carries the corpus-wide re-pin and the
-    // spline-record retirement count); the byte fixed point then
-    // starts one cycle later.
-    let StepImport::Solid {
-        body: body2,
-        curve_promotions,
-        ..
-    } = import(&out).expect("the first re-export re-imports")
-    else {
+    // two straight ruling seams' map fold, the FIRST import already
+    // reads their splines as lines and builds the lines, so the
+    // re-import promotes nothing and the byte fixed point starts at the
+    // first re-export, at every band.
+    let reimported = import(&out).expect("the first re-export re-imports");
+    let curve_promotions = reimported.curve_promotions();
+    let StepImport::Solid { body: body2, .. } = reimported else {
         panic!("the first re-export must re-import as a solid");
     };
     let line_promos = curve_promotions
@@ -598,11 +577,7 @@ fn probe_reexport_promotion_divergence() {
     // straight seams carry the measured map fold
     // 1.2644054553268222e-7, so the count is a pinned function of the
     // ambient band, never read back from the import it checks.
-    let expected_line_promos = if Tol::witness().get().eps >= 1.264_405_455_326_822_2e-7 {
-        2
-    } else {
-        0
-    };
+    let expected_line_promos = 0;
     assert_eq!(
         line_promos, expected_line_promos,
         "the re-import's Line promotions are loft_prism's own straight seams"

@@ -281,8 +281,8 @@ pub enum TessellateError {
     /// A curved face's boundary walk does not trace its own UV
     /// bounding rectangle: some walk entry lies strictly inside the
     /// box, by more than the band, on a face whose domain the SHAPE
-    /// door ([`Self::UnsupportedCurvedShape`]) has already certified
-    /// as an iso-rectangle.
+    /// door (`curved::iso_rectangle_shape`) has already certified as an
+    /// iso-rectangle.
     ///
     /// **This is the WALK-CONSISTENCY question, and only that.** The
     /// shape question is asked first, on rim structure, through
@@ -343,39 +343,39 @@ pub enum TessellateError {
         /// kept rectangular, and is a bug report.
         max_distance: f64,
     },
-    /// A curved face's domain is not an iso-parameter rectangle, by
-    /// props' named shape predicates — `geom_brep::props::
-    /// require_iso_rectangle`, the S58 single home of `props_rim_level`
-    /// and of the per-kind rim/meridian classification under it, and
-    /// the sense-free residue it carries beside that one: every rim
-    /// must encode the SAME material side (`props_rim_side`), which a
-    /// door handed no face can still ask because it compares the rims
-    /// with each other rather than with a sense bit. The `source` is
-    /// props' own refusal, carrying the deciding predicate's `what`.
+    /// **No lane meshes a curved face**, by the curved lane's two doors —
+    /// `geom_brep::props::require_iso_rectangle`, the S58 single home of
+    /// `props_rim_level` and of the per-kind rim/meridian classification
+    /// under it, and `require_one_chart_branch`. The `source` is props'
+    /// own refusal, carrying the deciding predicate's `what` and its own
+    /// recourse.
     ///
-    /// **This is the SHAPE question**, asked on the face's rim structure
-    /// BEFORE the boundary walk runs. The swept-rectangle lane cites the
-    /// predicate itself (issue 727): the line that changes when the
-    /// certified-quadrature lane learns notched domains is
-    /// `curved::require_iso_rectangle_face`'s call in this crate, not a
-    /// floor in the boolean or in tier 3 that could vanish without a
-    /// line of `mesh` moving. [`Self::UnsupportedCurvedDomain`] is the
-    /// other question — did the walk trace the rectangle the door
-    /// certified — and is asked after.
+    /// **This is the ROUTE's refusal**, raised once per face before any
+    /// lane runs (`tessellate::route_of`, by
+    /// `curved::iso_rectangle_shape`), on a ringless face whose stored
+    /// images are of iso forms. Three states reach it:
     ///
-    /// Valid input, unbuilt lane (D2 addendum row 2): a keyway or a
-    /// milled flat on a cylinder is iso-bounded and not a rectangle,
-    /// and the lane that would mesh it is the one that would measure
-    /// it, the certified-quadrature lane. An `Escalated` source is the
-    /// same refusal one band-width away (D4: escalate, never guess).
+    /// - the doors decide the face is no iso rectangle (an arc through a
+    ///   pole or the apex, rims that encode different sides, a torus face
+    ///   with no meridian) and the trimmed lane has no reading of its
+    ///   loops in one sheet of the chart either: valid input no lane is
+    ///   built for, and the verdict's recourse is the caller's (D2
+    ///   addendum row 2);
+    /// - a door decides in band (an `Escalated` source: D4, escalate,
+    ///   never guess);
+    /// - the stored boundary contradicts its surface or its
+    ///   certification (`OffSurface`, `SpanUncertified`, `Defect`, among
+    ///   props' fault arms).
     ///
-    /// Naming: this arm is the SHAPE question and
-    /// [`Self::UnsupportedCurvedDomain`] the WALK question, though
-    /// "domain" would read as the shape. The older arm keeps its name
-    /// because it is public API with a stable python tag
-    /// (`unsupported_curved_domain`) and pinned rows in three crates;
-    /// renaming it would move all of that for a word. The two docs
-    /// carry the distinction instead.
+    /// No lane is taken on a door that could not answer.
+    /// [`Self::UnsupportedCurvedDomain`] is the other question — did the
+    /// walk trace the rectangle the doors certified — and is asked
+    /// after, by the curved lane.
+    ///
+    /// Naming: the arm keeps the name it had when it was the shape
+    /// door's refusal of a notch, because it is public API with a stable
+    /// python tag (`unsupported_curved_shape`) and pinned rows in three
+    /// crates.
     UnsupportedCurvedShape {
         /// The offending face.
         face: FaceKey,
@@ -405,9 +405,9 @@ pub enum TessellateError {
     /// count or ε is read. The kinds themselves are
     /// `topo::chart_iso::classify_kind`'s, which splits circle carriers
     /// on `|axis · chart.axis| > 0.5`; that split is structural only
-    /// because the shape door (`curved::require_iso_rectangle_face`) has
+    /// because the shape door (`curved::iso_rectangle_shape`) has
     /// certified every carrier as a rim or a meridian carrier before the
-    /// walk runs.
+    /// route hands the face to the walk.
     ///
     /// **Reachable by input, and invalid (D2 addendum row 1).** A chart
     /// singularity inside a face is a vertex of it: a loop of rims only
@@ -438,8 +438,8 @@ pub enum TessellateError {
     /// pins that the revolved dome and a plane-cut ball are stated that
     /// way and mesh watertight. A cylinder face with one rim is
     /// unbounded and has no restatement: it needs its other rim. A torus
-    /// loop of rims only is refused earlier, by the shape door
-    /// ([`Self::UnsupportedCurvedShape`]), so this arm names a torus
+    /// loop of rims only is decided no rectangle earlier, by the shape
+    /// door, and routed to the trimmed lane, so this arm names a torus
     /// only if that door moves.
     ///
     /// Not [`Self::UnsupportedCurvedShape`]: that arm's `source` is
@@ -685,11 +685,15 @@ pub enum SphereTrimCause {
     /// chart: a cone face on both nappes, through its apex. The lane
     /// triangulates a cone face in its development, which is one nappe's.
     BothNappes,
-    /// Two vertices of a cone face's loop at two chart locations develop
-    /// to one point: a vertex so near the apex, or two so near each other,
-    /// that the development the lane triangulates the face in (`trimmed`,
-    /// "The development") rounds them together, and the lane does not hold
-    /// two mesh vertices as one CDT vertex.
+    /// Points of a cone face's loop at two chart locations develop to one
+    /// point, and the lane cannot tell them apart again: the development
+    /// it triangulates the face in (`trimmed`, "The development") rounds
+    /// them together, and it re-splits only a run (`trimmed::Run`):
+    /// consecutive points along one ruling, beside a neighbour further
+    /// along it and a triangle with a corner off the ruling. So: a point
+    /// so near the apex, points of two sides, a ruling side so short that
+    /// all of it is one point, or two runs and their neighbour as the
+    /// three corners of one triangle.
     DevelopedMerge,
     /// A vertex of the loop lies within the run's band of a singular
     /// point, undecided: the lane cannot say whether the loop turns the
@@ -900,12 +904,10 @@ impl TessellateError {
             ),
             Self::UnsupportedCurvedShape { source, .. } => write!(
                 f,
-                "tessellate: a curved face's domain is not an iso-parameter \
-                 rectangle by props' shape predicate ({}) — the \
-                 swept-rectangle lane meshes chart rectangles only, and a \
-                 notched or L-shaped iso domain waits for the certified-\
-                 quadrature lane; split the face into rectangles or re-author \
-                 it",
+                "tessellate: no lane meshes this curved face — the curved lane \
+                 meshes an iso-parameter rectangle its doors certify, the \
+                 trimmed lane a domain it reads in one sheet of the chart, \
+                 and props' doors answer: {}",
                 geom_brep::recourse::read_at(source, at),
             ),
             Self::MeridianFreeCurvedFace { surface, .. } => {
@@ -1033,9 +1035,11 @@ impl TessellateError {
                          the trimmed lane meshes a cone face on one nappe"
                     }
                     SphereTrimCause::DevelopedMerge => {
-                        "two vertices of its loop lie so near each other, or one so near \
-                         the cone's apex, that the cone's development rounds them to one \
-                         point, and the trimmed lane does not merge two vertices"
+                        "points of its loop lie so near each other, or one so near the \
+                         cone's apex, that the cone's development rounds them to one point, \
+                         and the trimmed lane cannot tell them apart again: it re-splits \
+                         only consecutive points along one ruling, beside a neighbour \
+                         further along it and a triangle with a corner off the ruling"
                     }
                     SphereTrimCause::SingularUndecided => {
                         "a vertex of its loop lies so near a chart pole or apex that this \

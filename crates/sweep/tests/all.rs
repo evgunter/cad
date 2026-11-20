@@ -130,8 +130,8 @@ mod a_plane_through_a_cones_apex;
 mod a_point_past_a_spline_solids_reach;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
-#[path = "a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside.rs"]
-mod a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside;
+#[path = "a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk.rs"]
+mod a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk;
 #[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]
 mod a_ray_meets_a_curved_edge_once_for_both_faces;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
@@ -232,6 +232,8 @@ mod band_closed_mixed_chain_shapes;
 mod band_mixed_corner;
 #[path = "band_mixed_corner_odd_plus_one.rs"]
 mod band_mixed_corner_odd_plus_one;
+#[path = "band_mixed_corner_reach.rs"]
+mod band_mixed_corner_reach;
 #[path = "band_mixed_rim_shared_supports.rs"]
 mod band_mixed_rim_shared_supports;
 #[path = "band_subdivided_side_walls.rs"]

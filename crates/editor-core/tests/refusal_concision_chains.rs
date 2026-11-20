@@ -875,9 +875,9 @@ mod kernel {
         pub(super) const BLEND_ERROR: BlendError = [
             Band, ChainNotConnected, RadiusHeadroom, FaceClearanceUncertified,
             FaceClearance, KnifeEdge, BallDoesNotFit, SpineIrregular, ChainNotG1,
-            ConvexitySignFlip, UnsupportedCorner, SpineUnsupported,
+            ConvexitySignFlip, UnbuiltEnd, ObliqueMixedCorner, SpineUnsupported,
             ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
-            UnsupportedChain, UnsupportedRunOut, UnsupportedGeometry, BodyNotIntact,
+            UnsupportedChain, UnsupportedGeometry, BodyNotIntact,
             NotFinished, SurgeryInvariant,
             RingClearance, WhollyInside, Certify, Op, Join,
         ];
@@ -3707,7 +3707,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     use sweep::blend::{
         BlendDecision, BlendError as E, BlendKind, BlendSite, Breach, ClassifiedMargin,
-        CornerConfig, KnifeRefusal,
+        KnifeRefusal, OddEdge, UnbuiltEnd,
     };
     use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
     let (face, edge, vertex) = (FaceKey::default(), EdgeKey::default(), VertexKey::default());
@@ -3810,33 +3810,60 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "ConvexitySignFlip",
             E::ConvexitySignFlip {
                 edge,
-                margin: decided("fillet3_convexity_sign", -1e-3, Sign::Negative),
+                margin: decided("dihedral_sign", -1e-3, Sign::Negative),
                 chain: sweep::blend::Convexity::Convex,
             },
         ),
         (
-            "UnsupportedCorner(policy)",
-            E::UnsupportedCorner {
-                vertex,
-                corner: CornerConfig::NEdgeVertex { valence: 4 },
-                policy: CornerConfig::NEdgeVertex { valence: 4 }.policy(),
-            },
+            "UnbuiltEnd(Valence)",
+            E::UnbuiltEnd(UnbuiltEnd::Valence { vertex, valence: 4 }),
         ),
         (
-            "UnsupportedCorner(seam)",
-            E::UnsupportedCorner {
-                vertex,
-                corner: CornerConfig::SeamVertex,
-                policy: CornerConfig::SeamVertex.policy(),
-            },
+            "UnbuiltEnd(DependentNormals)",
+            E::UnbuiltEnd(UnbuiltEnd::DependentNormals { vertex }),
         ),
         (
-            "UnsupportedCorner(mixed)",
-            E::UnsupportedCorner {
+            "UnbuiltEnd(Seam)",
+            E::UnbuiltEnd(UnbuiltEnd::Seam { vertex }),
+        ),
+        (
+            "UnbuiltEnd(Indeterminate)",
+            E::UnbuiltEnd(UnbuiltEnd::Indeterminate { vertex }),
+        ),
+        (
+            "UnbuiltEnd(CurvedEndFace)",
+            E::UnbuiltEnd(UnbuiltEnd::CurvedEndFace { vertex }),
+        ),
+        (
+            "UnbuiltEnd(FootInsideAFace)",
+            E::UnbuiltEnd(UnbuiltEnd::FootInsideAFace { vertex }),
+        ),
+        (
+            "UnbuiltEnd(FeetCross)",
+            E::UnbuiltEnd(UnbuiltEnd::FeetCross { edge }),
+        ),
+        (
+            "UnbuiltEnd(RunOut)",
+            E::UnbuiltEnd(UnbuiltEnd::RunOut {
                 vertex,
-                corner: CornerConfig::MixedConvexity { convex: 1 },
-                policy: CornerConfig::MixedConvexity { convex: 1 }.policy(),
-            },
+                unrequested: edge,
+                odd: None,
+            }),
+        ),
+        (
+            "UnbuiltEnd(RunOut(mixed))",
+            E::UnbuiltEnd(UnbuiltEnd::RunOut {
+                vertex,
+                unrequested: edge,
+                odd: Some(OddEdge {
+                    edge,
+                    convexity: sweep::blend::Convexity::Concave,
+                }),
+            }),
+        ),
+        (
+            "ObliqueMixedCorner",
+            E::ObliqueMixedCorner { vertex, odd: edge },
         ),
         (
             "SpineUnsupported",
@@ -3927,13 +3954,6 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 // `every_blend_detail_renders_within_the_budget`.
                 detail: "a curved support does not carry exactly its own rim arc, as the band \
                          replacement needs",
-            },
-        ),
-        (
-            "UnsupportedRunOut",
-            E::UnsupportedRunOut {
-                at: EntityId::Vertex(vertex),
-                detail: sweep::blend::battery::END_FACE_CURVED,
             },
         ),
         (
@@ -6594,12 +6614,12 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
 }
 
 /// **Every detail a blend refusal is raised with fits its chain.** The
-/// `UnsupportedChain`, `UnsupportedRunOut`, `UnsupportedGeometry` and
-/// `BodyNotIntact` arms each render a raise site's `detail` in front of
+/// `UnsupportedChain`, `UnsupportedGeometry` and `BodyNotIntact` arms
+/// each render a raise site's `detail` in front of
 /// their recourse, and the rows above render one representative detail
 /// apiece. So this reads every detail the blend module raises those arms
 /// with — the second argument of each `unbuilt_chain`,
-/// `unbuilt_run_out`, `unbuilt_geometry`, `unresolved`, `unwalked`,
+/// `unbuilt_geometry`, `unresolved`, `unwalked`,
 /// `disagrees`, `scaffolding` and `degenerate` call in
 /// `sweep/src/blend`, and the `detail:` of each of those arms built
 /// directly, a literal or a `const` resolved in the same tree — and
@@ -6619,7 +6639,6 @@ fn every_blend_detail_renders_within_the_budget() {
                 edge: EdgeKey::default(),
                 detail,
             },
-            "unbuilt_run_out" => E::UnsupportedRunOut { at, detail },
             "unbuilt_geometry" => E::UnsupportedGeometry { at, detail },
             "unresolved" => E::BodyNotIntact {
                 at,
@@ -6660,7 +6679,6 @@ fn every_blend_detail_renders_within_the_budget() {
     // floor that a real removal crosses is lowered with it.
     for helper in [
         "unbuilt_chain",
-        "unbuilt_run_out",
         "unbuilt_geometry",
         "unresolved",
         "unwalked",
@@ -6741,7 +6759,6 @@ fn blend_details() -> Vec<(&'static str, String, String)> {
     for (path, code, view) in &files {
         for helper in [
             "unbuilt_chain",
-            "unbuilt_run_out",
             "unbuilt_geometry",
             "unresolved",
             "unwalked",
@@ -6781,7 +6798,6 @@ fn blend_details() -> Vec<(&'static str, String, String)> {
         // longest breach, so its detail is measured at the worst case.
         for (arm, helper) in [
             ("UnsupportedChain", "unbuilt_chain"),
-            ("UnsupportedRunOut", "unbuilt_run_out"),
             ("UnsupportedGeometry", "unbuilt_geometry"),
             ("BodyNotIntact", longest_breach()),
         ] {

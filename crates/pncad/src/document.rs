@@ -96,7 +96,8 @@ pub use editor_core::{
     apply_replayed, slot_admits,
 };
 pub use editor_core::{
-    ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
+    ArcShape, AuthoredStep, PenRun, PenStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
+    pen_run, shape_of_recorded, step_kernel,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -106,6 +107,13 @@ pub use editor_core::cascade_delete_order;
 // on the face and the union, as one action (`Recording::sketch_on_face`
 // composes it into a longer one).
 pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
+// A profile drawn on a face (DM1): one profile node on the face's chart,
+// in the face's body's space, where the library and the viewer draw on a
+// face (`Recording::draw_on_face` composes it into a longer action), and
+// the chart it draws on, for a reader that reads it before drawing there.
+pub use editor_core::{
+    DrawnOnFace, FaceUnread, OnFace, chart_on_face, draw_on_face, nearest_to_face,
+};
 // A takeover (A10): copies of a body re-pointed to a result that
 // replaces it, each reference the result carries uniquely rebound by a
 // `Rebind`, as one action (`Recording::take_over` composes it).
@@ -349,15 +357,15 @@ pub use editor_core::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recor
 pub use editor_core::{Carry, Piece, Pieces};
 
 // Persistence: the doors, verbatim.
-// `save`/`load` speak `ProfileDoc` + `DocEdit` — exactly this module's
-// vocabulary — and every refusal is a typed `PersistError`, whose
+// `save`/`load` speak `ProfileDoc` — this module's vocabulary — and
+// every refusal is a typed `PersistError`, whose
 // payload types ride along so each arm is matchable from here (all
 // crate-root re-exports in `editor_core`). The format carries no
 // schema version (the persist module docs say why), so there is no
 // version constant to carry either.
 pub use editor_core::{
-    Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
-    SectionIdBreak, SelectionBodyFault, SnapshotError, load, save,
+    NonFiniteSite, OutputFault, PersistError, REGENERATE_RECOURSE, SectionIdBreak,
+    SelectionBodyFault, SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as
@@ -513,7 +521,8 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord,
-    NodeMap, SectionMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten, inline, split,
+    NamedUncarried, NodeMap, SectionMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten,
+    inline, split,
 };
 
 // The pin-update door. `DocEdit`'s
@@ -610,5 +619,5 @@ pub use editor_core::{
     CanonicalSegment, DrawnOn, LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData,
     ProgramResolveFault, ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError,
     StepArg, StepSegmentsError, TraceCrossing, TracePassage, TraceRefusal, TraceSense,
-    TraceStepFault, WrittenLoopFault, resolve_loops, resolve_written_loops,
+    TraceStepFault, WrittenLoopFault, pen_fault, resolve_loops, resolve_written_loops,
 };

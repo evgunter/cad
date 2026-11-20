@@ -11,7 +11,10 @@
 //! the mesher refuses them (the face at its crease, the edges at their
 //! kink). `seam_edge` states the knot on one edge carrier alone, where
 //! nothing else meets it; `half_cone` is a rational wall whose CIRCLE
-//! rims carry no knot.
+//! rims carry no knot. `c_prism` and `half_ridge` lie under a smooth
+//! paraboloid stated with a double knot: a C-shaped trim the knot line
+//! crosses four times, and a face whose boundary runs along the curved
+//! knot line.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -29,6 +32,20 @@ fn fixture(name: &str) -> String {
     std::fs::read_to_string(p).unwrap()
 }
 
+/// Asserts every spline face of `body` (the file's wall and the pieces
+/// its split made) keeps the wall's stated `same_sense`.
+fn walls_keep_sense(body: &topo::Body<f64>, sense: bool, name: &str) {
+    for (fk, _) in body.faces() {
+        if let Some(geom::Surface::Nurbs(_)) = body.face_surface(fk) {
+            assert_eq!(
+                body.face(fk).map(|f| f.sense()),
+                Some(sense),
+                "{name}: a wall piece keeps the wall's sense"
+            );
+        }
+    }
+}
+
 /// Whether a carrier's knots hold an interior run of multiplicity at
 /// least the degree.
 fn creased(knots: &geom_core::spline::Knots<f64>) -> bool {
@@ -43,7 +60,7 @@ fn creased(knots: &geom_core::spline::Knots<f64>) -> bool {
 #[test]
 fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
     let tol = Tol::witness();
-    for name in ["ridge_u.step", "ridge_v.step"] {
+    for (name, sense) in [("ridge_u.step", true), ("ridge_v.step", false)] {
         let imported = import_step(&fixture(name), &ImportOptions::default(), tol)
             .unwrap_or_else(|e| panic!("{name} imports: {e_at}", e_at = e.render()));
         let StepImport::Solid {
@@ -54,6 +71,7 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
         else {
             panic!("{name} is a solid");
         };
+        let normalizations = crate::common::structural(normalizations);
         let b = &*body;
         assert_eq!(
             (b.faces().count(), b.edges().count(), b.vertices().count()),
@@ -75,6 +93,7 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
             }
         }
         assert_eq!(walls, 2, "{name}: the top is two sub-patches");
+        walls_keep_sense(b, sense, name);
         let mut spline_edges = 0;
         for (_, c) in b.curves() {
             if let CurveGeom::Certified(c) = c
@@ -195,6 +214,7 @@ fn a_knot_vertex_nothing_else_meets_survives_the_closing_join() {
     else {
         panic!("seam_edge is a solid");
     };
+    let normalizations = crate::common::structural(normalizations);
     let b = &*body;
     assert_eq!(
         (b.faces().count(), b.edges().count(), b.vertices().count()),
@@ -238,6 +258,7 @@ fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
     else {
         panic!("the half cone is a solid");
     };
+    let normalizations = crate::common::structural(normalizations);
     let b = &*body;
     assert_eq!(
         (b.faces().count(), b.edges().count(), b.vertices().count()),
@@ -266,6 +287,7 @@ fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
         ),
         "the wall become two faces, its two rims four arcs, and one new edge between them"
     );
+    walls_keep_sense(b, true, "half_cone");
     let rim_points: Vec<_> = b
         .points()
         .map(|(_, p)| *p)
@@ -300,5 +322,129 @@ fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
         "volume {} ± {:e}, the half frustum's {frustum}",
         v.volume,
         v.volume_pad
+    );
+}
+
+/// `∫∫ (1 + x²/8 + y²/4) dx dy` over `[x0, x1] × [y0, y1]`: the volume
+/// under `generate.py`'s paraboloid top.
+fn under_top((x0, x1): (f64, f64), (y0, y1): (f64, f64)) -> f64 {
+    (x1 - x0) * (y1 - y0)
+        + (x1.powi(3) - x0.powi(3)) / 24.0 * (y1 - y0)
+        + (y1.powi(3) - y0.powi(3)) / 12.0 * (x1 - x0)
+}
+
+/// Imports `name`, holds it to the shared tier gate (valid at rest,
+/// the reading `tier_gate::every_corpus_import_passes_the_shared_gate`
+/// applies), its census, its wall pieces' `sense` and a watertight
+/// mesh, and measures its volume against `volume`. Answers the import's
+/// normalizations.
+fn gated(
+    name: &str,
+    sense: bool,
+    census: (usize, usize, usize),
+    volume: f64,
+) -> Vec<step_import::StructureNormalization> {
+    let tol = Tol::witness();
+    let imported = import_step(&fixture(name), &ImportOptions::default(), tol)
+        .unwrap_or_else(|e| panic!("{name} imports: {e_at}", e_at = e.render()));
+    let StepImport::Solid {
+        body,
+        normalizations,
+        ..
+    } = imported
+    else {
+        panic!("{name} is a solid");
+    };
+    let b = &*body;
+    assert_eq!(
+        topo::validate_geometric(b, tol),
+        Ok(()),
+        "{name}: the shipped body passes the shared gate"
+    );
+    assert_eq!(
+        (b.faces().count(), b.edges().count(), b.vertices().count()),
+        census,
+        "{name}: census (faces, edges, vertices)"
+    );
+    walls_keep_sense(b, sense, name);
+    let m = tessellate(b, 1e-2, tol).unwrap_or_else(|e| panic!("{name} meshes: {e:?}"));
+    check_mesh(&m).unwrap_or_else(|e| panic!("{name}: the mesh is watertight: {e:?}"));
+    let v = body
+        .measure(topo::Settle::Resolution(quantity::Length::from_meters(
+            1e-6,
+        )))
+        .unwrap_or_else(|e| panic!("{name} measures: {e:?}"))
+        .enclosure;
+    assert!(
+        (v.volume - volume).abs() <= v.volume_pad.max(1e-9),
+        "{name}: volume {} ± {:e}, the file's {volume}",
+        v.volume,
+        v.volume_pad
+    );
+    normalizations
+}
+
+/// A C-shaped plan under a top whose chart holds a double knot at
+/// `x = 1` where its locus is smooth, and whose top edges carry no
+/// knot: the knot line crosses the trim four times, twice inside edges
+/// away from the chart's boundary rows. The split places a vertex at
+/// each crossing and parts the top into the C's back and its two arms,
+/// with the two runs of the line inside the face as edges between them.
+#[test]
+fn a_trim_crossing_the_knot_line_four_times_imports_in_three_pieces() {
+    let normalizations = gated(
+        "c_prism.step",
+        true,
+        // The file's 10 faces, 24 edges and 16 vertices; four top edges
+        // split at a crossing each, two runs of the line minted, and the
+        // top three faces.
+        (12, 30, 20),
+        under_top((0.0, 2.0), (0.0, 1.0)) - under_top((0.5, 2.0), (0.25, 0.75)),
+    );
+    let faces: Vec<_> = normalizations
+        .iter()
+        .filter(|n| n.kind == NormalizationKind::FaceSplitAtC0Knot)
+        .collect();
+    assert_eq!(
+        faces.len(),
+        1,
+        "one record, for the top: {normalizations:?}"
+    );
+    assert_eq!(
+        (faces[0].file_census, faces[0].kernel_census),
+        (
+            FaceCensus {
+                faces: 1,
+                edges: 8,
+                vertices: 8
+            },
+            FaceCensus {
+                faces: 3,
+                edges: 14,
+                vertices: 12
+            }
+        ),
+        "the top become three faces, its eight edges twelve and two runs of the line"
+    );
+}
+
+/// The same chart trimmed to `x ≤ 1`: the face's right edge is the
+/// chart's own iso curve at the knot, a parabola, so no chord holds it
+/// on the line and the selection keeps the line. The split certifies the
+/// edge along it by its iso pcurve and leaves the face whole, the crease
+/// on its boundary.
+#[test]
+fn a_face_bounded_by_a_curved_knot_line_imports_whole() {
+    let normalizations = gated(
+        "half_ridge.step",
+        true,
+        (6, 12, 8),
+        under_top((0.0, 1.0), (0.0, 1.0)),
+    );
+    assert!(
+        normalizations
+            .iter()
+            .all(|n| n.kind != NormalizationKind::FaceSplitAtC0Knot),
+        "no face split: {normalizations:?}"
     );
 }

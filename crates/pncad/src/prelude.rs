@@ -327,7 +327,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 //
 // The reach is worse here than for a payload at `topo`'s root, which
 // `pncad::topo::` names; `sweep` re-exports NOTHING from `blend`, so before this line the
-// only spelling was `pncad::sweep::blend::CornerConfig` — and
+// only spelling was `pncad::sweep::blend::CornerConfig` (since retired) — and
 // `pncad::sweep::blend::battery::Convexity`, three submodules deep.
 // Contract clause 1 was met (one crate, a longer path); what was not
 // met is that a caller holding a prelude-curated `BlendError` could
@@ -336,14 +336,17 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // What each one decides, which is why matchability is worth carrying
 // each:
 //
-// - `CornerConfig` is `UnsupportedCorner`'s whole content (the OQ6
-//   vocabulary, decided at #85). A valence-4 vertex says "request the
-//   other edges"; a `SeamVertex` says "ask for the rim whole", a door
-//   that EXISTS — and `CornerConfig::policy` is the map that keeps a
-//   refusal from disagreeing with its own tag. Different recourses,
-//   so a caller branches, which is exactly CUR3's test.
-// - `RunOutPolicy` is that arm's second field, and `None` is a fact
-//   of its own: a seam vertex is not a corner, so no run-out helps.
+// - `UnbuiltEnd` is `BlendError::UnbuiltEnd`'s whole content: why a
+//   band's end is not built, one tag per reason, each carrying its own
+//   site. A valence-4 vertex says "end the band at a flat-faced
+//   trivalent corner"; a seam says "ask for the rim whole", a door that
+//   EXISTS; a tangent run-out names the edge the run goes on into, whose
+//   request carries the band on. Different recourses, so a caller
+//   branches, which
+//   is exactly CUR3's test. What a built end IS stays the blend's own:
+//   no end-kind type is public.
+// - `OddEdge` is the run-out's payload at a vertex whose edges round
+//   both ways: the edge that rounds the other way, and its convexity.
 // - `BlendSite` is `Escalated`'s: link, joint, or the chain whole —
 //   the payload half of the two-tolerance shape (D4 ¶1 addendum).
 // - `BlendDecision` is `Escalated`'s too: the question that could not
@@ -368,9 +371,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // here to split and none to pin. That the blend door is unprojected
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
-pub use sweep::blend::{
-    BlendDecision, BlendSite, Breach, CornerConfig, RunOutPolicy, UnsettledWedge,
-};
+pub use sweep::blend::{BlendDecision, BlendSite, Breach, OddEdge, UnbuiltEnd, UnsettledWedge};
 // **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
 // value over: the payloads above are what a carried REFUSAL says, this
 // is what a carried RESULT says, and a curated list owes matchability
@@ -652,13 +653,16 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `StructureNormalization` is the re-minted boundary graph (its
 // `NormalizationKind` and the `FaceCensus` pair it maps between),
 // `CurvePromotion` the analytic carrier a NURBS one certified as (its
-// `PromotedCurveKind`), and `PlacedInstance` the A7 assembly record.
+// `PromotedCurveKind`), read off that ledger, and `PlacedInstance` the
+// A7 assembly record.
+// `SnapRelation` is `NormalizationKind::Snapped`'s discriminant: which
+// catalogue construction moved a surface.
 // `PromotedKind` was already here as the refusal's discriminant and
 // is `NormalizationKind::SurfacePromotion`'s too — one type, two
 // carriers, and the entry above says what it means on the refusal.
 // The `Wireframe` arm's payload needs nothing new: its carriers are
 // `Curve3`, on this list at group 2's `topo` re-export, and its
-// promotions are the same `CurvePromotion`.
+// ledger is the same `StructureNormalization`.
 //
 // The Python half follows the carrier rule again, and lands on the
 // opposite side from `ImportOptions`. `StepImport::Solid` crosses as
@@ -712,7 +716,7 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `NotBound` row with its reason.
 pub use step_import::{
     CurvePromotion, FaceCensus, ImportOptions, NormalizationKind, PlacedInstance,
-    PromotedCurveKind, PromotedKind, SingularityFound, StepImport, StepImportError,
+    PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation, StepImport, StepImportError,
     StructureNormalization, import_step,
 };
 pub use topo::{CoherenceCondition, CoherenceFinding, CoherenceReport, Unexaminable, Unexamined};
