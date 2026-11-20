@@ -298,7 +298,7 @@ fn a_plane_tilted_against_the_balls_chart_builds_under_every_boolean() {
 /// circle in the plane `z = 1`, so every section segment runs along a
 /// seam edge of the ball, and both section loops' regions are the ball's
 /// two hemispheres, every witness of which lies on the cube's top face
-/// (`work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
+/// (`work/cleavetail/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
 /// The join reads their sides at the seam instead, each hemisphere
 /// leaving the top face to its own side at first order
 /// (`boolean::join`'s `seam_germ_side`), so every op builds: `∪` the cube

@@ -30,7 +30,9 @@ crates/geom-brep 221
 crates/geom-core 18
 crates/mesh 29
 crates/step-export 9
-crates/step-import 39
+# step-import 39 -> 37: recognize.rs's chart_flipped reads the patch's
+# midpoint jet through patch_jet_mid, the plane arm's one reader (EXCH).
+crates/step-import 37
 crates/sweep 139
 crates/topo 36
 demos/tour 2

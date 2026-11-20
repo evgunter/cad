@@ -80,7 +80,7 @@ Moved from `work/meter/` to `work/tcost/` by `git mv` as METER's exit walk
 disposed of its residue (`docs/METER-EXIT-WALK.md` §5, ratified by Ev on
 2026-09-08 at PR #2212). Id and body unchanged.
 
-`work/tcost/program.md`'s `paths` carries `crates/test-utils/*`, and the
+`work/green/program.md`'s `paths` carries `crates/test-utils/*`, and the
 whole fix is in `crates/test-utils/tests/reader_census.rs` and
 `crates/test-utils/src/source.rs`. The walk's alternative candidate was
 CIW, whose `paths` names no `crates/test-utils` path and whose `keep_out`
@@ -94,7 +94,7 @@ Moved by `git mv` from `work/tcost/` at S-TINT's opening. Id, title and
 body are unchanged; the directory is the claim (`work/README.md`).
 
 **Why it moved.** S-TCOST's board was re-sorted on 2026-09-11 against the
-repository going public on 2026-09-03 (`work/tcost/log.md`, the
+repository going public on 2026-09-03 (`docs/doc-ledger/tcost-merges-into-green.md`, the
 2026-09-11 seam). That sort found this row is not a cost lever in either
 currency — it neither shortens the gate's critical path nor saves a
 billed minute, and it was never argued on one. It reached S-TCOST by the

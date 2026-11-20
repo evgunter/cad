@@ -112,9 +112,9 @@ const KERNEL_KEYED: &[&str] = &[
 /// renders today and filed with its owner: a row over its ceiling, or
 /// under it with the ceiling standing, is red.
 const OVER_BUDGET: &[(&str, usize)] = &[
-    // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/profile/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Profile/ArcBelowSceneResolution", 85),
-    // work/round/a-valued-anchor-fit-recourse-puts-two-corner-sentences-over-budget.md
+    // work/profile/a-valued-anchor-fit-recourse-puts-two-corner-sentences-over-budget.md
     ("ProfileReplay/Path/NoCornerOfPair(two)", 80),
     ("ProfileReplay/Path/NoCornerOfPair(swallow and anchor)", 83),
     ("ProfileReplay/Path/NoCornerForFillet(turn, leg)", 77),
@@ -157,7 +157,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Revolve/VoidInsertion",
         "inserting the cavity of hole loop 1 refused",
     ),
-    // work/profilerest/paths-refusals-short-of-the-shape-guard.md
+    // work/profile/paths-refusals-short-of-the-shape-guard.md
     (
         "ProfileReplay/Path/CircleSplitCount",
         "circle_split needs between 2 and 4294967295 arcs",
@@ -182,7 +182,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     ),
     // work/lathe/carve-refusals-short-of-the-shape-guard.md
     ("Blend/SurgeryInvariant", "at face FaceKey"),
-    // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/cleavetail/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/Merge", "merge_coplanar_faces"),
     // work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md
     (
@@ -220,7 +220,7 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     Admission {
         row: "Split/Finish/Merge",
         span: "EdgeKey(null)",
-        filed: "work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+        filed: "work/cleavetail/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
     },
     // A document named by its hex id: the reference loop.
     Admission {
@@ -244,7 +244,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureRefUnreadable/Readback",
     // `NodeStanding`'s failed and poisoned repairs, which a mate
     // cluster's refusal makes false:
-    // work/wirehold/kernel-standing-names-a-cluster-refused-node-as-its-own-failure.md
+    // work/doctail/kernel-standing-names-a-cluster-refused-node-as-its-own-failure.md
     "MeasureRefUnreadable/NodeFailed",
     "MeasureRefUnreadable/NodePoisoned",
     "MeasureUnsupported",
@@ -256,7 +256,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ToleranceConflict",
     "UnschedulableCycle",
     "WrongOperand",
-    // work/profilerest/paths-refusals-short-of-the-shape-guard.md
+    // work/profile/paths-refusals-short-of-the-shape-guard.md
     "Profile/DegenerateSegment",
     "Profile/EmptyLoop",
     "Profile/MultipleOuterLoops",
@@ -284,9 +284,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/SeamRetrimsArcFirstSide",
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
-    // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/profile/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
-    // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/cleavetail/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Split/Finish/Merge",
     // work/lathe/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Revolve/PinnedRunStation",
@@ -627,7 +627,7 @@ mod payloads {
 /// recourse is addressed to the driver's call, not to the person at
 /// the GUI — on [`payloads::euler`] it reads "describe it against the
 /// surfaces its faces wear" — which is
-/// `work/honeword/a-driver-carried-operation-refusal-shows-the-user-the-drivers-recourse.md`.
+/// `work/cleavetail/a-driver-carried-operation-refusal-shows-the-user-the-drivers-recourse.md`.
 const DRIVER_CARRIED: &[&str] = &[
     "Blend/Op",
     "Boolean/Join/Euler",
@@ -1117,10 +1117,10 @@ enum Forward {
     Own,
 }
 
-const UNWELDED_HELD: &str = "work/wirehold/mate-and-pose-forwarders-the-census-does-not-weld.md";
+const UNWELDED_HELD: &str = "work/doctail/mate-and-pose-forwarders-the-census-does-not-weld.md";
 const UNWELDED_PLACEMENT: &str =
-    "work/wirehold/placement-and-part-forwarders-the-census-does-not-weld.md";
-const UNWELDED_BOOLEAN: &str = "work/tint/boolean-refusal-concision-list-is-kept-by-hand.md";
+    "work/doctail/placement-and-part-forwarders-the-census-does-not-weld.md";
+const UNWELDED_BOOLEAN: &str = "work/ciw/boolean-refusal-concision-list-is-kept-by-hand.md";
 
 /// The one classification of every `NodeErrorKind` arm, and of each
 /// level below it: `match`es with no wildcard, so a new arm at any

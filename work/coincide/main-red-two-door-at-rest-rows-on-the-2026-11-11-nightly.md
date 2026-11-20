@@ -41,4 +41,4 @@ findings on `die_composed` and main reports 2.
   shows that job past them. The row is left open for its owner to close
   on that.
 - The count is a hand-kept copy and will go stale again:
-  `work/tint/the-viewers-door-at-rest-rows-keep-by-hand-a-count-editor-core-owns.md`.
+  `work/ciw/the-viewers-door-at-rest-rows-keep-by-hand-a-count-editor-core-owns.md`.
