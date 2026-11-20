@@ -57,3 +57,7 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 ## Two more lanes retired (ONECOPY, 2026-11-06)
 
 ONECOPY's `harmonic-phases-pick-their-cut-side-by-hand` read `plane_crossing_phase_frame` (`conic_plane_candidates`, now near the span's middle) and `props_torus_lift_branch` (`torus_angle`, now near `0`) through `geom::Azimuth::near` (F31). Both rows are gone from the log. Still this row's: editor-core's `solve_atan2`, and the reference-relative cousins.
+
+## Narrowed (2026-11-20, CHARTTAIL triage)
+
+On main `131457c3` the two reference-relative cousins are gone as well. ONECOPY PR 6482 deleted `on_carrier.rs`'s `angle_near`; its job is now `Curve3::branch_near` / `param_near` and `Conic::param_in`. Pose's `separation` is now `geom::separation`, `atan2(|sin(θ−at)|, cos(θ−at))`, with no branch. **All that remains is editor-core's `solve_atan2` / `atan2_branch`**: the `Interval` impl in `eval/mod.rs`, with `Sym` and `Dual` following it, and `Atan2Branch` in `mate/solve.rs`. When `x.hi() < 0` and `y` straddles zero it still picks `π + atan2(−y, −x)` on raw bounds, so its one jump sits on the landmark `±π` and is chosen per call. Its gate row is `scripts/gates/atan2-sites.tsv`'s `eval/mod.rs solve_atan2`. The open check is whether `geom::Azimuth`, which keeps `Sym` folding, serves `Atan2Branch`'s contract, so that the enum can retire. The paths are also TALLY's, WIREREST's and MSOLVE's. MSOLVE's `the-mate-solve-reads-the-platform-atan2` is adjacent but a different defect: libm against the platform `atan2` at f64.

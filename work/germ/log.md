@@ -1537,3 +1537,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - ends are dropped by the consumer, not the plane door.
 
   Nothing past U1 builds until Ev answers.
+- 2026-11-20 — **Claimed by CHARTTAIL** by `git mv`: `tilted-section-through-a-chart-pole-is-not-split-at-the-pole` (P2 M). It rides with CHARTTAIL's P1 `a-section-circle-through-a-sphere-faces-pole-mints-no-pcurve`: one defect, a section through a sphere pole minted without a vertex there, on two witnesses. (CHARTTAIL orchestrator)
