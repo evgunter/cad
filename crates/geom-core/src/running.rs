@@ -16,7 +16,7 @@
 //! enclosure: at `Interval` the value is already an enclosure of the
 //! chain and the bound rides along as a second one.
 
-use core::ops::{Add, Mul, Sub};
+use core::ops::{Add, Mul, Neg, Sub};
 
 use crate::{Band, Decide, Real, Sign, Vec3};
 
@@ -159,6 +159,31 @@ impl<T: Real> Rounded<T> {
         (self.value.abs() - self.error).max(T::zero())
     }
 
+    /// The lower end of the enclosure `value ± error`: a lower bound on
+    /// the exact value, signed.
+    #[must_use]
+    pub fn lower_end(self) -> T {
+        self.value - self.error
+    }
+
+    /// The upper end of the enclosure `value ± error`: an upper bound on
+    /// the exact value, signed.
+    #[must_use]
+    pub fn upper_end(self) -> T {
+        self.value + self.error
+    }
+
+    /// This value with `charge` added to its bound: a further bound on
+    /// its distance from what the caller reads it as, beside its own
+    /// rounding.
+    #[must_use]
+    pub fn widened(self, charge: T) -> Self {
+        Self {
+            value: self.value,
+            error: self.error + charge,
+        }
+    }
+
     /// The value moved toward zero by its bound, and no further: the
     /// [`Rounded::room`] with the value's sign, zero where the bound
     /// holds zero. A sign decided on it is the exact value's.
@@ -213,6 +238,18 @@ impl<T: Real> Sub for Rounded<T> {
 
     fn sub(self, o: Self) -> Self {
         Self::charged(self.value - o.value, self.error + o.error)
+    }
+}
+
+impl<T: Real> Neg for Rounded<T> {
+    type Output = Self;
+
+    /// Exact: the bound is unchanged.
+    fn neg(self) -> Self {
+        Self {
+            value: T::zero() - self.value,
+            error: self.error,
+        }
     }
 }
 

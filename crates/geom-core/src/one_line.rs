@@ -100,6 +100,17 @@ impl<T: Real> OnOneLine<T> {
         self.hi() - self.lo()
     }
 
+    /// The overlap's signed length with the rounding it carries: the
+    /// enclosure its ends ([`crate::Rounded::lower_end`],
+    /// [`crate::Rounded::upper_end`]) bound it by.
+    #[must_use]
+    pub fn overlap(&self) -> crate::Rounded<T> {
+        crate::Rounded {
+            value: self.extent(),
+            error: self.noise,
+        }
+    }
+
     /// The overlap's middle (between the intervals where they are
     /// apart).
     #[must_use]
@@ -123,15 +134,18 @@ impl<T: Real> OnOneLine<T> {
     /// reader that keeps a screen's escalation sees the difference.
     #[must_use]
     pub fn apart(&self) -> T {
-        self.gap() - self.noise
+        self.gap().lower_end()
     }
 
-    /// The signed gap between the intervals, before the charge
+    /// The signed gap between the intervals, with the charge
     /// ([`Self::apart`]).
-    fn gap(&self) -> T {
+    fn gap(&self) -> crate::Rounded<T> {
         let (a_lo, a_hi) = (self.a.0.min(self.a.1), self.a.0.max(self.a.1));
         let (b_lo, b_hi) = (self.b.0.min(self.b.1), self.b.0.max(self.b.1));
-        (b_lo - a_hi).max(a_lo - b_hi)
+        crate::Rounded {
+            value: (b_lo - a_hi).max(a_lo - b_hi),
+            error: self.noise,
+        }
     }
 }
 
@@ -245,7 +259,7 @@ mod rows {
             ("lo", got.lo(), real.lo()),
             ("hi", got.hi(), real.hi()),
             ("extent", got.extent(), real.extent()),
-            ("gap", got.gap(), real.gap()),
+            ("gap", got.gap().value, real.gap().value),
         ] {
             assert!(
                 v - got.noise <= e.lo() && e.hi() <= v + got.noise,

@@ -93,7 +93,7 @@ use crate::half_angle::{
 use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled, extreme_sign, spread_signs};
 pub use crate::rows::FirstHarmonicRows;
 use geom_core::period::Period;
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Rounded, Sign};
 
 use geom_core::Indeterminate;
 use geom_core::k_stats::decide;
@@ -225,7 +225,7 @@ pub type FirstHarmonicRoots<T> = Roots<T, 2, OnCarrier>;
 /// `c₀` and `A₁` read off it — and the phase's two components.
 ///
 /// Each comes with a bound on its error as the door evaluated it:
-/// `lo_noise` and `hi_noise` in metres of residual (their rounding, and
+/// the extremes' in metres of residual (their rounding, and
 /// any term the caller dropped to reach this form, which must bound the
 /// residual's error at every `θ` where it is not specific to one
 /// extreme), and `phase_noise` in the units of `(cos_part, sin_part)`.
@@ -234,18 +234,14 @@ pub type FirstHarmonicRoots<T> = Roots<T, 2, OnCarrier>;
 /// already moves the roots by no more than that over `|R′|`, the
 /// phase's share included.
 pub struct FirstHarmonic<T> {
-    /// The least residual, `c₀ − A₁`.
-    pub lo: T,
-    /// The greatest residual, `c₀ + A₁`.
-    pub hi: T,
+    /// The least residual, `c₀ − A₁`, with the bound on its error.
+    pub lo: Rounded<T>,
+    /// The greatest residual, `c₀ + A₁`, with the bound on its error.
+    pub hi: Rounded<T>,
     /// The phase's cosine component.
     pub cos_part: T,
     /// The phase's sine component.
     pub sin_part: T,
-    /// The bound on `lo`'s error, in metres of residual.
-    pub lo_noise: T,
-    /// The bound on `hi`'s error, in metres of residual.
-    pub hi_noise: T,
     /// The bound on the phase components' error, in their units.
     pub phase_noise: T,
 }
@@ -314,18 +310,17 @@ fn harmonic_crossing<T: Decide>(
     band: Band,
 ) -> Result<Harmonic<T>, RootRefusal> {
     let FirstHarmonic {
-        lo: lo_value,
-        hi: hi_value,
+        lo,
+        hi,
         cos_part,
         sin_part,
-        lo_noise,
-        hi_noise,
         phase_noise,
     } = *h;
+    let (lo_value, hi_value) = (lo.value, hi.value);
     let two = T::from_f64(2.0);
     // The extremes are what every decision below reads, so their error
     // is what the representation must resolve.
-    let noise = lo_noise.max(hi_noise);
+    let noise = lo.error.max(hi.error);
     match decide(rows.noise(), Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => return Err(Unsettled::Meter { row: rows.noise() }.into()),
@@ -340,15 +335,15 @@ fn harmonic_crossing<T: Decide>(
             },
         );
     }
-    let lo = extreme_sign(rows.extreme(), lo_value, lo_noise, band)?;
-    if lo == Sign::Positive {
+    let lo_sign = extreme_sign(rows.extreme(), lo, band)?;
+    if lo_sign == Sign::Positive {
         return Ok(Harmonic::Miss);
     }
-    let hi = extreme_sign(rows.extreme(), hi_value, hi_noise, band)?;
-    if hi == Sign::Negative {
+    let hi_sign = extreme_sign(rows.extreme(), hi, band)?;
+    if hi_sign == Sign::Negative {
         return Ok(Harmonic::Miss);
     }
-    if (lo, hi) != (Sign::Negative, Sign::Positive) {
+    if (lo_sign, hi_sign) != (Sign::Negative, Sign::Positive) {
         return Err(Unsettled::Tangency.into());
     }
     // At either root `R = lo·(1 − cos ψ)/2 + hi·(1 + cos ψ)/2` with
@@ -357,7 +352,7 @@ fn harmonic_crossing<T: Decide>(
     // moves the root itself; `|R′| = √(−lo·hi)` at both roots.
     let swing = hi_value - lo_value;
     let slope = ((T::zero() - lo_value) * hi_value).max(T::zero()).sqrt();
-    let at_root = (hi_value * lo_noise - lo_value * hi_noise) / swing;
+    let at_root = (hi_value * lo.error - lo_value * hi.error) / swing;
     let phase = phase_noise / (cos_part.powi(2) + sin_part.powi(2)).sqrt();
     let slack = speed * (at_root / slope + phase + geom_core::rounding_charge(T::tau()));
     match decide(rows.root_slack(), Margin::of(slack), band) {

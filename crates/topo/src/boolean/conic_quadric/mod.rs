@@ -168,7 +168,7 @@
 //! layer places it on the face's apex vertex, the carrier's incidence
 //! with it, which the vertex pair reads.
 
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Rounded, Sign};
 
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
@@ -244,12 +244,10 @@ pub(super) fn conic_quadric_roots<T: Decide>(
             let h = geom_brep::circle_sphere_harmonic(&circle, s_center, s_radius);
             return first_harmonic_roots(
                 &FirstHarmonic {
-                    lo: h.lo,
-                    hi: h.hi,
+                    lo: h.lo.widened(h.frame_error),
+                    hi: h.hi.widened(h.frame_error),
                     cos_part: h.e_u,
                     sin_part: h.e_v,
-                    lo_noise: h.lo_error + h.frame_error,
-                    hi_noise: h.hi_error + h.frame_error,
                     phase_noise: h.phase_error,
                 },
                 conic.speed_hi(),
@@ -369,13 +367,15 @@ fn first_harmonic_arm<T: Decide>(
         return None;
     };
     let (a1, noise) = (hypot(h.c1, h.s1), noise + second);
+    let extreme = |value: T| Rounded {
+        value,
+        error: noise,
+    };
     Some(FirstHarmonic {
-        lo: h.c0 - a1,
-        hi: h.c0 + a1,
+        lo: extreme(h.c0 - a1),
+        hi: extreme(h.c0 + a1),
         cos_part: h.c1,
         sin_part: h.s1,
-        lo_noise: noise,
-        hi_noise: noise,
         phase_noise: T::zero(),
     })
 }
@@ -444,7 +444,7 @@ fn cone_roots<T: Decide>(
             // `|res| ≤ |F| / floor`: a constant `F` in the band certifies
             // the carrier on the cone only once its whole reach, read
             // through the floor, is in the band too.
-            let reach = (first.lo.abs().max(first.hi.abs()) + first.lo_noise) / h.floor;
+            let reach = first.lo.magnitude().max(first.hi.magnitude()) / h.floor;
             return Ok(match decide(CONE_ON_SURFACE, Margin::of(reach), band) {
                 Ok(Sign::Zero) => Ok(Roots::On(OnCarrier)),
                 Ok(Sign::Positive | Sign::Negative) | Err(_) => Err(Unsettled::Meter {
@@ -597,32 +597,31 @@ fn through_the_apex<T: Decide>(
             theta,
         )
     };
+    // `F` and `F′` off the rounded harmonics, each with its rounding.
     let f = |theta: T| {
         let (s, c) = theta.sin_cos();
         let (s2, c2) = (two * theta).sin_cos();
-        h.c0 + h.c1 * c + h.s1 * s + h.c2 * c2 + h.s2 * s2
+        Rounded {
+            value: h.c0 + h.c1 * c + h.s1 * s + h.c2 * c2 + h.s2 * s2,
+            error: noise,
+        }
     };
     let slope = |theta: T| {
         let (s, c) = theta.sin_cos();
         let (s2, c2) = (two * theta).sin_cos();
-        h.s1 * c - h.c1 * s + two * (h.s2 * c2 - h.c2 * s2)
+        Rounded {
+            value: h.s1 * c - h.c1 * s + two * (h.s2 * c2 - h.c2 * s2),
+            error: two * noise,
+        }
     };
     let bend = (h.c1.powi(2) + h.s1.powi(2)).sqrt()
         + T::from_f64(4.0) * (h.c2.powi(2) + h.s2.powi(2)).sqrt();
-    let side = |res: geom_core::Rounded<T>| {
-        let clear = decide(
-            CONE_DEFLATED_SIDE,
-            Margin::of(res.value.abs() - res.error),
-            band,
-        );
-        match (
-            decide(CONE_DEFLATED_SIDE, Margin::of(res.value), band),
-            clear,
-        ) {
-            (Ok(sign @ (Sign::Positive | Sign::Negative)), Ok(Sign::Positive)) => Some(sign),
+    // The residual's side past its own rounding.
+    let side =
+        |res: Rounded<T>| match decide(CONE_DEFLATED_SIDE, Margin::of(res.toward_zero()), band) {
+            Ok(sign @ (Sign::Positive | Sign::Negative)) => Some(sign),
             _ => None,
-        }
-    };
+        };
     let mut found = [theta_a; 4];
     for (slot, phi) in [beta + spin, beta - spin].into_iter().enumerate() {
         let theta = near_mid(theta_a + phi);
@@ -639,11 +638,9 @@ fn through_the_apex<T: Decide>(
             (Some(a), Some(b)) if a != b => {}
             _ => return Read(Err(Unsettled::Tangency)),
         }
-        let least = slope(theta).abs() - two * noise - width * bend;
-        let slack = least.select_le_zero(
-            unbounded,
-            conic.speed_hi() * (f(theta).abs() + noise) / least,
-        );
+        let least = slope(theta).room() - width * bend;
+        let slack =
+            least.select_le_zero(unbounded, conic.speed_hi() * f(theta).magnitude() / least);
         match decide(CONE_ROOT_SLACK, Margin::of(slack), band) {
             Ok(Sign::Zero) => found[2 + slot] = theta,
             Ok(Sign::Positive | Sign::Negative) | Err(_) => {

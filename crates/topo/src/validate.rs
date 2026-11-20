@@ -10214,12 +10214,12 @@ fn lines_meet<T: Decide>(
                    p1: geom_core::Point3<T>| {
         const ROW: &str = "ring_outer_meet_overlap";
         let along = on_one_line(e, (o0, o1), (p0, p1), T::zero());
-        let lower = match decide_reported(ROW, Margin::of(along.extent() - along.noise), band) {
+        let lower = match decide_reported(ROW, Margin::of(along.overlap().lower_end()), band) {
             Ok(d) if matches!(d.sign, Sign::Positive | Sign::Zero) => return EdgePair::Meet,
             Ok(d) => d,
             Err(source) => return EdgePair::Unsure(source),
         };
-        match decide_reported(ROW, Margin::of(along.extent() + along.noise), band) {
+        match decide_reported(ROW, Margin::of(along.overlap().upper_end()), band) {
             Ok(d) if d.sign == Sign::Negative => EdgePair::Apart,
             Ok(upper) => EdgePair::Unsure(geom_core::k_stats::straddle(ROW, lower, upper, band)),
             Err(source) => EdgePair::Unsure(source),

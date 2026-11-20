@@ -4849,21 +4849,12 @@ pub(crate) fn sphere_pole_left<T: Decide>(
             let (pp, cc) = (exact(p), exact(arc.centre));
             let w = [pp[0] - cc[0], pp[1] - cc[1], pp[2] - cc[2]];
             let reading = geom_core::running::dot(geom_core::running::exact_vec(arc.axis), w);
-            let (height, rounding) = (reading.value, reading.error);
-            let clear = decide(
+            match decide(
                 "chart_singularity_pole_plane",
-                Margin::sign_of(height.abs() - rounding),
+                Margin::sign_of(reading.toward_zero()),
                 Band::enclosure_sign(),
-            );
-            let side = decide(
-                "chart_singularity_pole_plane",
-                Margin::sign_of(height),
-                Band::enclosure_sign(),
-            );
-            match (clear, side) {
-                (Ok(Sign::Positive), Ok(plane @ (Sign::Positive | Sign::Negative))) => {
-                    Some(circulation(arc, plane))
-                }
+            ) {
+                Ok(plane @ (Sign::Positive | Sign::Negative)) => Some(circulation(arc, plane)),
                 _ => None,
             }
         })
