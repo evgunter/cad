@@ -7,6 +7,7 @@ opened: 2026-08-30
 refs: [1267]
 priority: P1
 cost: M
+design: true
 ---
 
 ## From GitHub issue 1282

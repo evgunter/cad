@@ -4,6 +4,8 @@ kind: issue
 title: scalar: SymRegistration::handle says a Disputed answer is counted in the session's receipt, but at bare f64 there is no session, so an inexact witness's refusal of a registered identity is dropped uncounted
 status: open
 opened: 2026-10-20
+priority: P3
+cost: E
 ---
 
 
