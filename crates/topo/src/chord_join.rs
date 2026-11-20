@@ -826,11 +826,10 @@ impl JoinError {
             ),
             Self::SingleSiteSectionLoop { count } => write!(
                 f,
-                "{count} section loop(s) close through a single vertex where neither a wrap \
-                 edge nor a closed edge pierces a face whose side of a closed loop is read, \
-                 nor a wrap edge meets a vertex of its boundary, nor a closed edge lies on a \
-                 wall's wrap edge or along another closed edge, and such a loop joined at one \
-                 site is not built. {}",
+                "{count} section loop(s) close through a single vertex, which the join closes \
+                 only where a wrap edge or a closed edge pierces or touches a face it sides a \
+                 loop in, or a closed edge runs on a wrap edge or along another closed edge; \
+                 this one is not built. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SectionLoopUndecided { .. } => write!(
