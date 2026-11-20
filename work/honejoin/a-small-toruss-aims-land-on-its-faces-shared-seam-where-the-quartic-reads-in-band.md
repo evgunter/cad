@@ -20,7 +20,7 @@ Filed by the edge-meeting ray unit
 `side_reader::aim_at` aims both at the torus chart's fixed point
 (π, π), `(−8e-11, 0, 0)`, which is that equator: the faces' shared seam.
 Each ray is set aside in band of the ray's quartic ladder:
-`bool_ray_torus_split` (8.0e-12) on main, `bool_ray_torus_odd`
+`line_quadric_torus_split` (8.0e-12) on main, `line_quadric_torus_odd`
 (7.2e-12) with the near-normal aims of the edge-meeting ray. The volume
 reads the torus, which validates at rest either way. The tori at R 2e-8
 and 2e-9 read by ray.

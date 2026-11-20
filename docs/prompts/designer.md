@@ -80,6 +80,19 @@ there, so the class cannot recur, over one that makes this instance stop
 showing. Two descriptions of one thing that disagree usually point at a deeper
 design issue; say so rather than reconciling them locally.
 
+**Ask whether a thing is needed before asking when it is safe.** A
+conversion, a special case or a door that already has callers is not
+thereby needed: for each use, say what breaks without it. A rule for
+when something is valid, put forward before anyone has asked whether
+it is necessary, answers the wrong question. Where you are not sure
+what a value or an operation means, find out where it comes from and
+how it is used before ruling on it.
+
+**A signature is a claim** (DESIGN `[unrepresentable]`). For generic
+code, write one sentence per type the signature admits, saying what
+the result means there. Where a type has no sentence, the answer
+excludes it by the bound, not by a run-time check.
+
 ## 4. Weigh only the final state of the code
 
 **Disregard the cost of the change**: re-baselining, changed behaviour,

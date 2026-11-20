@@ -20,10 +20,10 @@ witness is `verbs_germarms2_interval`'s skew pair at 1e-12, whose
 re-posed twin then escalated on `pcurve_map_residual` instead of
 `carrier_matches_mapped_source`.
 
-The edge sweep's door (`boolean/reduce.rs` `line_wall_roots_of`, the
+The edge sweep's door (`boolean/reduce.rs` `line_quadric_roots`, the
 two `WallRoots::Two(ts, _) => two(ts)` arms) drops the slack: a line
 edge's wall and sphere roots go on as exact. Its cone arm does meter its
-roots (`line_cone_roots`, `bool_line_cone_root_slack`).
+roots (`line_cone_roots`, `line_quadric_cone_root_slack`).
 
 **The start form's discriminant carries its start's rounding too**
 (PR 6174's review). Read `About::Start` from far starts, 7 line × sphere

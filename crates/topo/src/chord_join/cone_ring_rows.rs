@@ -17,7 +17,7 @@
 use super::*;
 use crate::construction::MevSite;
 use crate::ring_path::cone_islands::{
-    Frame, Island, IslandEdge, cone, frames, lune, on_nappe, plane, sector,
+    Frame, Island, IslandEdge, cone, frames, lune, on_nappe, plane, ruling, sector,
 };
 use crate::ring_path::cone_islands::{band, scales};
 use core::f64::consts::FRAC_PI_6;
@@ -667,6 +667,89 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
         [121, 242],
         "the ring's side, In and Out, at every offset"
     );
+}
+
+/// The island between the rims at heights 1 and 2 and the rulings at
+/// azimuths ±0.6, each rim split at azimuth 0 and each ruling at height
+/// 1.5, as coaxial revolves leave their seam and section vertices: on
+/// [`aligned_sheet`], every outer edge's midpoint lies at azimuth 0 or
+/// height 1.5, as the island's middle does.
+fn aligned_island(f: Frame) -> Island {
+    let corners: Vec<_> = [
+        (1.0, -0.6),
+        (1.0, 0.0),
+        (1.0, 0.6),
+        (1.5, 0.6),
+        (2.0, 0.6),
+        (2.0, 0.0),
+        (2.0, -0.6),
+        (1.5, -0.6),
+    ]
+    .into_iter()
+    .map(|(h, t)| on_nappe(f, h, t))
+    .collect();
+    let edges = vec![
+        rim(f, 1.0, (-0.6, 0.0)),
+        rim(f, 1.0, (0.0, 0.6)),
+        ruling(f.o, (corners[2], corners[3])),
+        ruling(f.o, (corners[3], corners[4])),
+        rim(f, 2.0, (0.6, 0.0)),
+        rim(f, 2.0, (0.0, -0.6)),
+        ruling(f.o, (corners[6], corners[7])),
+        ruling(f.o, (corners[7], corners[0])),
+    ];
+    Island {
+        corners,
+        edges,
+        inside: Box::new(move |p| {
+            let (h, t) = height_azimuth(f, p);
+            h > 1.0 && h < 2.0 && t > -0.6 && t < 0.6
+        }),
+    }
+}
+
+/// The sheet between the rulings at ±1.2 and the rims at heights 0.05
+/// and 2.95, whose edges' midpoints lie at azimuth 0 or height 1.5.
+fn aligned_sheet(f: Frame, cone: geom::Surface<f64>) -> (Body<f64>, FaceKey, SurfaceKey) {
+    sheet_up_to(f, cone, true, ((-1.2, 1.2), 2.95))
+}
+
+/// **A cone ring vertex every ruled path from which runs through a run
+/// vertex reads its side by a detour.** The island's middle, and points
+/// inside it at a run vertex's azimuth or height, read In; points
+/// outside at those azimuths and heights read Out; a ring at a run
+/// vertex reads Undecided. Both nappes, in three frames.
+#[test]
+fn a_cone_ring_vertex_aligned_with_run_vertices_reads_its_side() {
+    for f in frames() {
+        for mirror in [false, true] {
+            let surface = cone(f, mirror);
+            let carrier = crate::ring_path::Carrier::Quadric(Quadric::of(&surface).unwrap());
+            let island = aligned_island(f);
+            let (mut body, face, key) = aligned_sheet(f, surface.clone());
+            let (run, closing) = run_from(&mut body, (face, key), (&island, false), 0);
+            let (newf, _) = wall_off(&mut body, key, run, closing);
+            for (t, h, want) in [
+                (0.0, 1.5, RingSide::In),
+                (0.3, 1.5, RingSide::In),
+                (0.0, 1.25, RingSide::In),
+                (0.0, 0.5, RingSide::Out),
+                (0.0, 2.5, RingSide::Out),
+                (0.9, 1.5, RingSide::Out),
+                (-0.9, 1.5, RingSide::Out),
+                (0.0, 1.0, RingSide::Undecided),
+                (0.6, 1.5, RingSide::Undecided),
+            ] {
+                let ring = empty_ring(&mut body, face, on_nappe(f, h, t));
+                assert_eq!(
+                    path_ring_side(&body, (&surface, &carrier), (face, newf), ring, band())
+                        .unwrap(),
+                    want,
+                    "mirror {mirror}: the ring vertex at azimuth {t}, height {h}"
+                );
+            }
+        }
+    }
 }
 
 /// **The arrival arc reads the closing chord's second meeting with it.**
