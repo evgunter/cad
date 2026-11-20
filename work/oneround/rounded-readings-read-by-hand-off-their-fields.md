@@ -18,7 +18,7 @@ or `.abs() + <error>` read off a value/error pair), which routed
 `geom_core::running::Rounded` already and restates one of its doors on
 its fields:
 
-- `topo::boolean::conic_quadric` (`mod.rs`, the cone arm's `side`
+- `geom_brep::curve_face::conic_quadric` (`conic_quadric.rs`, the cone arm's `side`
   closure, row `CONE_DEFLATED_SIDE`): `Margin::of(res.value.abs() -
   res.error)` is `res.room()`, less its clamp at zero. It is decided at
   the caller's `band`, not at `Band::enclosure_sign()` as

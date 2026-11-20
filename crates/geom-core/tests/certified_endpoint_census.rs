@@ -357,7 +357,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "the mignitude, the curvature join and `cell_distance` refuse by name: a cell whose \
          partial does not certify is read at distance `0`, the vacuous lower bound",
     ),
-    ("crates/geom-brep/src/pair_section.rs", 4, 4, ""),
+    (
+        "crates/geom-brep/src/pair_section.rs",
+        6,
+        6,
+        "`farthest`'s 4, each side read only once both `is_certified()`, else `NaN`; and \
+         `TubeRun::of`'s 2, a side's ends read through `is_certified().then`, so a piece with a \
+         side that does not certify has no run",
+    ),
     ("crates/geom-brep/src/pair_section/ruling.rs", 3, 3, ""),
     (
         "crates/geom-brep/src/pair_section/spline_implicit.rs",
