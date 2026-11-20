@@ -1523,6 +1523,10 @@ pub fn chamfer_strip<T: Real>(
 /// half at equal setbacks). The axis is signed so the feet lie on the
 /// `v > 0` nappe. Exact, nothing fitted.
 ///
+/// Each trim circle's radius is its foot's distance from the axis, so
+/// the caller decides the plane foot's definitely positive before it
+/// asks for the band (`battery::frustum_arm`).
+///
 /// The cone's chart normal is radially outward on that nappe, whichever
 /// side the material is, so the band's sense is not this constructor's
 /// to fix: its caller derives it from [`frustum_rim_side`], as the

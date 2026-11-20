@@ -1151,7 +1151,8 @@ fn line_net(end: Point3<f64>) -> geom::Curve3<f64> {
 /// **The carrier poison read reads every scalar**: each scalar of each
 /// analytic kind ([`geom::test_support::analytic_curves`]), made NaN
 /// alone, is named by [`crate::validate::poisoned_curve_datums`] as the
-/// datum the walk ([`geom::Curve3::data`]) says owns it. The walk's
+/// datum the walk ([`geom::Curve3::data`]) says owns it, except a
+/// conic's size, which its constructor refuses. The walk's
 /// scalars must be exactly the builder's, so a walk that drops a field
 /// reds on the count, and a fold that skips a datum reds on that
 /// datum's rows.
@@ -1180,6 +1181,24 @@ fn the_carrier_poison_read_reads_every_scalar() {
         for (i, &(datum, _)) in walked.iter().enumerate() {
             let mut poisoned = base.clone();
             poisoned[i] = f64::NAN;
+            // A conic's size is no stored datum when it is NaN: its
+            // constructor refuses it (`geom::Circle::new`,
+            // `geom::Ellipse::new`), so no carrier at rest holds one.
+            let size = match at_rest {
+                geom::Curve3::Circle(_) => datum == geom::CurveDatum::Radius,
+                geom::Curve3::Ellipse(_) => {
+                    matches!(datum, geom::CurveDatum::SemiU | geom::CurveDatum::SemiV)
+                }
+                _ => false,
+            };
+            if size {
+                assert!(
+                    std::panic::catch_unwind(|| (kind.build)(&poisoned)).is_err(),
+                    "{at_rest:?}: a NaN {} is refused at construction",
+                    datum.name()
+                );
+                continue;
+            }
             assert_eq!(
                 poisoned_curve_datums(&(kind.build)(&poisoned)),
                 vec![datum],

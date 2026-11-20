@@ -338,7 +338,7 @@ fn stored_size<T: Real>(x: T, door: &str, name: &str) -> T {
     assert!(
         x.is_bounded() && !negative,
         "{door}: {name} {x:?} is not a finite non-negative length \
-         (reflect the frame instead: negate `axis`, and `u_ref` for `semi_u`)"
+         (the other placement is the frame's)"
     );
     x
 }

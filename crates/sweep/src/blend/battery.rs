@@ -45,9 +45,9 @@ use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, S
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_frustum,
-    chamfer_setback_point, chamfer_strip, inward_unit, line_meet, offset_room, plane_plane_blend,
-    plane_sphere_blend, plane_sphere_room,
+    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_feet,
+    chamfer_frustum, chamfer_setback_point, chamfer_strip, inward_unit, line_meet, offset_room,
+    plane_plane_blend, plane_sphere_blend, plane_sphere_room,
 };
 use super::build::fan_at;
 use super::junction::JUNCTION_NO_HOST;
@@ -781,35 +781,6 @@ pub(crate) fn face_clearance_margin<T: Decide + Bounds>(
     }
 }
 
-/// **A frustum's plane trim stays off the axis**: the plane support of
-/// a frustum link is a face reaching from the rim to the axis at most
-/// where the plane runs inward (a post's or a boss's top), so the band's
-/// setback there must be shorter than the rim's radius. The margin is the
-/// plane trim circle's own radius, `R − s` inward (`R + s` outward,
-/// always clear), and the gap it is read against the rim's radius `R`:
-/// the screen's own reading of a face too narrow for its setback, which
-/// the caller classifies under `fillet3_face_clearance` before any band
-/// is minted. `None` for a link of any other arm.
-fn frustum_plane_room<T: Decide>(
-    body: &Body<T>,
-    link: &Link<T>,
-) -> Result<Option<(FaceKey, T, T)>, BlendError> {
-    if link.arm != BlendArm::CylinderPlaneCone {
-        return Ok(None);
-    }
-    let (carrier, _, _) = carrier_of(body, link.edge)?;
-    let Some(rim) = carrier.as_circle() else {
-        return Ok(None);
-    };
-    Ok([link.face_a, link.face_b].into_iter().find_map(|face| {
-        let planar = body
-            .face_surface(face)
-            .is_some_and(|s| s.kind() == geom::SurfaceKind::Plane);
-        let trim = link.trim_on(face).and_then(|(c, _)| c.as_circle())?;
-        planar.then_some((face, trim.radius(), rim.radius()))
-    }))
-}
-
 // ---------------------------------------------------------------
 // Predicate 3 — spine regularity.
 // ---------------------------------------------------------------
@@ -1210,8 +1181,21 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         }
     };
     let (arm, blend, axis) = classify_arm(
-        &sa, n_a, &sb, n_b, senses, &carrier, p, tau, extent, radius, convexity, branch, edge,
-        kind, band,
+        &sa,
+        n_a,
+        &sb,
+        n_b,
+        senses,
+        &carrier,
+        p,
+        tau,
+        extent,
+        radius,
+        convexity,
+        branch,
+        (edge, (face_a, face_b)),
+        kind,
+        band,
     )?;
     let support_axis = axis.map(|(relation, margin)| {
         row(
@@ -1372,7 +1356,8 @@ fn classify_arm<T: Decide + Bounds>(
     radius: T,
     convexity: Convexity,
     branch: Branch<T>,
-    edge: EdgeKey,
+    // The edge and its two support faces, in `(sa, sb)` order.
+    (edge, faces): (EdgeKey, (FaceKey, FaceKey)),
     kind: BlendKind,
     band: Band,
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
@@ -1399,6 +1384,7 @@ fn classify_arm<T: Decide + Bounds>(
             // square to it), as the fillet's coaxial rows decide it.
             (Plane, Cylinder, Some(circle)) | (Cylinder, Plane, Some(circle)) => frustum_arm(
                 (sa, sb),
+                faces,
                 (n_a, n_b),
                 senses,
                 circle,
@@ -1407,6 +1393,7 @@ fn classify_arm<T: Decide + Bounds>(
                 convexity,
                 coaxial,
                 unsupported,
+                band,
             ),
             _ => Err(unsupported()),
         };
@@ -1491,9 +1478,19 @@ fn classify_arm<T: Decide + Bounds>(
 /// theirs), and the frustum through the strip's feet minted
 /// ([`chamfer_frustum`]). A support the sheet does not trace is a pair
 /// the chamfer's table does not cover (`unsupported`).
+///
+/// **The plane trim stays off the axis, decided before the band is
+/// minted**: the plane support is a face reaching from the rim to the
+/// axis at most where it runs inward (a post's or a boss's top), so its
+/// trim circle's radius, the foot's distance from the axis along the
+/// sheet's radial (`R − s` inward, `R + s` outward), is the margin
+/// `fillet3_face_clearance` reads against the rim's radius `R`. Only a
+/// definitely positive one is a circle; zero is a cap consumed to a
+/// point and negative one consumed past the axis, and both refuse typed.
 #[allow(clippy::too_many_arguments)]
-fn frustum_arm<T: Real>(
+fn frustum_arm<T: Decide + Bounds>(
     (sa, sb): (&Surface<T>, &Surface<T>),
+    (face_a, face_b): (FaceKey, FaceKey),
     (n_a, n_b): (Vec3<T>, Vec3<T>),
     senses: (bool, bool),
     circle: &geom::Circle<T>,
@@ -1502,6 +1499,7 @@ fn frustum_arm<T: Real>(
     convexity: Convexity,
     coaxial: impl FnOnce(T) -> Result<MarginDiag, BlendError>,
     unsupported: impl Fn() -> BlendError,
+    band: Band,
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
     let sheet = Meridian {
         axis: circle.frame.axis_line(),
@@ -1514,9 +1512,18 @@ fn frustum_arm<T: Real>(
         return Err(unsupported());
     };
     let margin = coaxial(da.max(db))?;
+    let tau = tau.normalize();
+    let (foot_a, foot_b) = chamfer_feet(p, tau, n_a, n_b, radius);
+    let (plane, foot) = if sa.kind() == geom::SurfaceKind::Plane {
+        (face_a, foot_a)
+    } else {
+        (face_b, foot_b)
+    };
+    let trim = (foot - sheet.axis.origin).dot(sheet.radial());
+    face_clearance_margin(plane, trim, circle.radius(), false, band)?;
     Ok((
         BlendArm::CylinderPlaneCone,
-        chamfer_frustum(&sheet, tau.normalize(), n_a, n_b, radius),
+        chamfer_frustum(&sheet, tau, n_a, n_b, radius),
         Some((topo::Relation::Coaxial, margin)),
     ))
 }
@@ -2233,13 +2240,6 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // `face_clearance`), over every pair of boundary edges of every
     // support face the request touches. The setbacks are the ARM's, so
     // the chamfer's screen runs on the chamfer's own setbacks.
-    for chain in &chains {
-        for link in chain.links() {
-            if let Some((face, trim, rim)) = frustum_plane_room(body, link)? {
-                face_clearance_margin(face, trim, rim, false, band)?;
-            }
-        }
-    }
     consumption_sweep(body, &chains, band)?;
 
     // --- 3. spine regularity, per link. A ball fact: not metered for
@@ -4074,7 +4074,14 @@ mod coaxial_spine_rows {
                         at(rho).abs() < 1e-9,
                         "r = {r}: the trimline holds the contact"
                     );
-                    let signed = Curve3::circle(c.frame.origin, axis, rho, radial);
+                    // The signed circle at `rho` is the circle of `|rho|`
+                    // seamed a half turn on: `(u·cos θ + v·sin θ)·(−r)` is
+                    // `((−u)·cos θ + (axis × −u)·sin θ)·r`.
+                    let signed = if rho > 0.0 {
+                        Curve3::circle(c.frame.origin, axis, rho, radial)
+                    } else {
+                        Curve3::circle(c.frame.origin, axis, -rho, -radial)
+                    };
                     for k in 0..8 {
                         let t = f64::from(k) * 0.8;
                         let gap = (trim.eval(t) - signed.eval(t)).norm();

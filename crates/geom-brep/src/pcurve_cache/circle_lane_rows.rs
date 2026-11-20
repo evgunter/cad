@@ -87,6 +87,16 @@ pub(super) fn cylinder(radius: f64) -> Surface<f64> {
 /// semi-axes. At `tau = 0` the rim at `h`; tilted, it leaves the cone to
 /// second order in `tau`.
 fn cone_section_circle(surface: &Surface<f64>, alpha: f64, h: f64, tau: f64) -> Curve3<f64> {
+    let Some(circle) = section_circle(surface, alpha, h, tau) else {
+        panic!("the plane cuts the cone in an ellipse")
+    };
+    circle
+}
+
+/// [`cone_section_circle`], or `None` where the plane cuts no ellipse
+/// (a wide cone tilted past its opening cuts a hyperbola, whose minor
+/// semi-axis reads NaN).
+fn section_circle(surface: &Surface<f64>, alpha: f64, h: f64, tau: f64) -> Option<Curve3<f64>> {
     let (sa, ca) = alpha.sin_cos();
     let (st, ct) = tau.sin_cos();
     let n = Vec3::new(0.0, -st, ct);
@@ -103,7 +113,8 @@ fn cone_section_circle(surface: &Surface<f64>, alpha: f64, h: f64, tau: f64) -> 
     let semi_minor = ((m.z * sa / ca).powi(2) - m.y.powi(2)).sqrt();
     let u = Vec3::unit_x();
     let v = (p - q).normalize();
-    framed_circle(surface, m, u, v, 0.5 * (semi_major + semi_minor))
+    let r = 0.5 * (semi_major + semi_minor);
+    r.is_finite().then(|| framed_circle(surface, m, u, v, r))
 }
 
 /// The cone's frame distance `|ρ cos α − σ z sin α|` of a world point.
@@ -846,10 +857,7 @@ fn a_cone_sections_coefficients_stay_within_their_charge() {
         } else {
             s.log_uniform(1e-9, 1e-2)
         };
-        let carrier = cone_section_circle(&surface, alpha, h, tau);
-        // A wide cone tilted past its opening cuts a hyperbola: no
-        // section circle.
-        if carrier.conic().is_some_and(|c| c.semi_axes().0.is_finite()) {
+        if let Some(carrier) = section_circle(&surface, alpha, h, tau) {
             rows.push((
                 format!("draw {i}: α {alpha:e}, far {far:e}, h {h:e}, τ {tau:e}"),
                 surface,

@@ -4283,17 +4283,32 @@ mod limb2_memo {
     }
 
     /// The carrier and the surface rendered whole, each scalar as its
-    /// certified bracket's two ends beside the scalar's witness kind.
+    /// certified bracket's two ends beside the scalar's witness kind. An
+    /// analytic carrier is rendered datum by datum ([`Curve3::data`]),
+    /// never rebuilt at a bracket's end: an end is no stored size (a
+    /// straddling semi-axis's lower end is negative, an uncertified
+    /// one's NaN), and a conic built at one would not be a conic.
     pub(super) fn rendered<T: CertifiedBounds>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
     ) -> String {
         let (lo, hi) = (|x: T| end(x, false), |x: T| end(x, true));
+        let carrier = match carrier.data() {
+            geom::CurveData::Analytic(data) => {
+                let ends = |end: &dyn Fn(T) -> f64| {
+                    data.into_iter()
+                        .map(|(datum, value)| {
+                            (datum, value.scalars().map(end).collect::<Vec<f64>>())
+                        })
+                        .collect::<Vec<_>>()
+                };
+                format!("{:?}|{:?}|{:?}", carrier.kind(), ends(&lo), ends(&hi))
+            }
+            _ => format!("{:?}|{:?}", carrier.map_scalar(lo), carrier.map_scalar(hi)),
+        };
         format!(
-            "{:?}|{:?}|{:?}|{:?}|{:?}",
+            "{:?}|{carrier}|{:?}|{:?}",
             T::WITNESS,
-            carrier.map_scalar(lo),
-            carrier.map_scalar(hi),
             surface.map_scalar(lo),
             surface.map_scalar(hi),
         )
