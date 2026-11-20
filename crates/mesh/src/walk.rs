@@ -136,7 +136,7 @@ use geom::SurfaceKind;
 use geom_brep::{OutwardNormal, PolygonOrientation};
 use geom_core::Band;
 use geom_core::{Point3, Vec3};
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, PointKey, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 
 use crate::sizing::Eps;
 use crate::types::TessellateError;

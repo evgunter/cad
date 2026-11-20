@@ -156,6 +156,7 @@ pub fn loop_pinches<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Result<bool, Un
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use crate::construction::MevSite;
