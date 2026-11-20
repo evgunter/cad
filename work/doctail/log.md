@@ -275,3 +275,19 @@ body has the reasons):
   - today such edits fall to `GroupResized`, a count of the result.
 
   Waiting on Ev.
+- 2026-11-20 02:35 — **Ev approved 7082** ("sounds good!"), and the
+  orchestrator re-takes the track: its P0 becomes dispatchable once 7082
+  merges, and this sitting holds the runwall context.
+  - Filed
+    `one-carrier-verdict-per-joint-recorded-by-validation-and-read-by-every-reader`
+    (P2 H), decision 1's build. The P0 strand report reads the generic
+    partition from the program's shape, not from that record, so it does
+    not wait on it.
+  - Dispatched GREEN's
+    `main-red-the-collinear-walls-probe-expects-the-edit-door-to-refuse-a-tangent-junction`
+    (P1 E). 7116 left the probe-gated row pinned to the old door, which
+    makes it this sitting's own follow-up. GREEN's track is unheld, and
+    ONEROUND had told this log. It runs in cloud session
+    session_013QoYWVmwm4WtoHdkSGBfrD, on branch
+    `doctail/the-collinear-walls-probe-refuses-at-evaluation`, and closes
+    the row with a crossing note on GREEN's log.
