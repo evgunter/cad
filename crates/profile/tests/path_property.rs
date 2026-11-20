@@ -783,6 +783,10 @@ fn the_center_mode_refuses_a_definite_equidistance_mismatch() {
             tip_radius,
             end_radius,
         }) => {
+            let (tip_radius, end_radius) = (
+                crate::common::told(&tip_radius),
+                crate::common::told(&end_radius),
+            );
             assert!((tip_radius - 1.0).abs() < 1e-12);
             assert!((end_radius - 2.0).abs() < 1e-12);
         }
@@ -1196,7 +1200,6 @@ fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
     let PathError::NoCornerOfPair { radius, .. } = &err else {
         panic!("expected a NoCornerOfPair envelope, got {err:?}")
     };
-    let radius = *radius;
     let Some((_, carrier_radius, offset_radius, largest_tangent_radius)) =
         crate::common::enclosing(&err)
     else {
@@ -1218,7 +1221,7 @@ fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
         (offset_radius + 4.0).abs() < 1e-12,
         "rho = R - sigma*tau*r = 1 - 5 = -4, got {offset_radius}"
     );
-    assert_eq!(radius, 5.0);
+    assert_eq!(radius.as_given(), Some(5.0));
     // **The endorsed radius BUILDS.** The message names the largest
     // circle tangent to both lobes at this corner — (R1 + R2 - d)/2 with
     // unit lobes 1 m apart, so 1/2 — and a radius below it rounds the

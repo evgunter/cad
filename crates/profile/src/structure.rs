@@ -952,14 +952,26 @@ impl core::fmt::Display for Decision {
     }
 }
 
+/// A list of indices as a sentence writes it: `[0, 2, 5]`.
+pub(crate) fn index_list(indices: &[usize]) -> impl core::fmt::Display {
+    core::fmt::from_fn(move |f| {
+        f.write_str("[")?;
+        for (k, index) in indices.iter().enumerate() {
+            if k > 0 {
+                f.write_str(", ")?;
+            }
+            write!(f, "{index}")?;
+        }
+        f.write_str("]")
+    })
+}
+
 // A payload that has a vocabulary reaches prose through that
 // vocabulary's own `Display`, never through `Debug`: a refusal sentence
 // is read by a person, and a fieldless variant's `Debug` spelling is the
-// type's identifier, not a word. `Set` is the exception and keeps a
-// `Debug` list — its members are loop indices, identifiers-as-location,
-// which have no prose form to reach for — but a noun introduces it, so
-// the list reads as the value it is rather than as a dump that leaked
-// into a sentence.
+// type's identifier, not a word. `Set`'s members are loop indices,
+// identifiers-as-location with no prose form to reach for, so it is a
+// bracketed list a noun introduces.
 impl core::fmt::Display for DecisionValue {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -969,7 +981,7 @@ impl core::fmt::Display for DecisionValue {
             Self::Count(n) => write!(f, "{n} of them"),
             Self::Shape(s) => write!(f, "{s}"),
             Self::Inside(b) => write!(f, "inside = {b}"),
-            Self::Set(v) => write!(f, "indices {v:?}"),
+            Self::Set(v) => write!(f, "indices {}", index_list(v)),
             Self::Role(r) => write!(f, "{r}"),
             Self::Span(s) => write!(f, "{s}"),
             Self::Emission(e) => write!(f, "{e}"),

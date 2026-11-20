@@ -46,3 +46,4 @@ Units, branch, tier and its reason:
   `unexamined`), reported before any code. Re-priced `D` → `M`,
   `design: true` until the door question is read. Tier set after the
   measurements.
+- 2026-11-20 22:30 — (GERM orchestrator, seam note) **Main is red on `scripts/gates/pin-cites-an-open-row.sh`.** `crates/sweep/tests/a_cylinder_through_a_hole_tangent_to_its_wall.rs` (around line 134) pins on `work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`, which is now closed. Every PR's lint job fails on it, GERM's log-only state PR 7216 included. Owed by the lane that closed the row: lift the pin, or point it at the open row that owns the fix.
