@@ -1035,7 +1035,11 @@ fn one_site_segments<T: Decide>(
 /// side ([`stands_on`]), against a wrap edge, or against another closed
 /// circle or ellipse. Against a wrap edge the closed edge's side copies
 /// it whole and the wall's side runs from the site round the wall back
-/// to it, as a transverse section's does: the wall's kind is not read.
+/// to it, as a transverse section's does, whatever the wall's kind: that
+/// holds for a loop that winds round the wall, crossing its wrap edge at
+/// the site. A loop that only touches the wrap edge there, winding round
+/// nothing, never reaches this table: the crossing layer escalates the
+/// tangent touch first.
 /// At a boundary vertex the germ's cell is the face, so the loop leaves
 /// the vertex into the face and
 /// returns to it; the joiner mints it in that face as one chord from the
@@ -1066,8 +1070,9 @@ fn closes_at_its_site<T: Decide>(
             }
             (SiteCell::Closed(Some(_)), SiteCell::Pierce(f)) => rim(&red.b, f).is_some(),
             (SiteCell::Pierce(f), SiteCell::Closed(Some(_))) => rim(&red.a, f).is_some(),
-            (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_)) | SiteCell::Wrap)
-            | (SiteCell::Wrap, SiteCell::Closed(Some(_))) => true,
+            (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_))) => true,
+            (SiteCell::Closed(Some(_)), SiteCell::Wrap) => true,
+            (SiteCell::Wrap, SiteCell::Closed(Some(_))) => true,
             (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
                 rim(&red.b, f) == Some(RimSide::Plane) && stands_on(red, (Operand::A, e), f, band)?
             }

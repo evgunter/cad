@@ -29,9 +29,15 @@
 //! - a plug in the bore of an annulus standing on a plate;
 //! - rods tangent inside one another along a ruling, a rim lying flush
 //!   in the partner's top or floor, at rest and turned;
-//! - a triangle revolved straddling a cylinder's or a cone's wall, a
-//!   torus's tube at five parallels, or a tube's wall, its vertex on the
-//!   circle, on the wall's wrap edge and turned off it;
+//! - a triangle revolved straddling a cylinder's or a cone's wall, each
+//!   two half-turn faces, its vertex on the azimuth-0 seam (the loop has
+//!   two sites);
+//! - the same triangle straddling a torus's tube at five parallels, and
+//!   a revolved tube, an extruded cylinder and a frustum clear of the
+//!   axis, each wall one face wrapping the axis: the vertex on the wall's
+//!   wrap edge, and turned off it; a puck resting on a torus's parallel,
+//!   alike; and a boss whose rim touches a bead's wrap edge without
+//!   winding round it, which escalates before the join;
 //! - two equal coaxial cylinders stacked end to end;
 //! - a tube whose rim lies inside one face of a ball;
 //! - a puck and the quarter-disc ring revolved round it.
@@ -99,7 +105,7 @@ fn extruded<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     };
     let body = extrude(&profile, depth, tol()).unwrap().body;
     let up = Affine3::translation(Vec3::new(f(0.0), f(0.0), f(z0)));
-    topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol())).unwrap()
+    moved(&body, &up)
 }
 
 fn fin<T: AtRestPolicy<Finished = topo::AtRestBody<T>>>(
@@ -690,10 +696,7 @@ fn poses() -> [Pose; 16] {
 fn by_pose((pose, hx, hr, hole_az, boss_az, cells): Pose, turn: Option<&Affine3<f64>>) {
     let placed = |what: &str, body: Body<f64>| match turn {
         None => fin(what, body),
-        Some(turn) => fin(
-            what,
-            topo::transform_rigid(&body, &geom_core::test_support::rigid(turn, tol())).unwrap(),
-        ),
+        Some(turn) => fin(what, moved(&body, turn)),
     };
     let vb = 0.09 * PI;
     for form in [true, false] {
@@ -1022,11 +1025,7 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
         for one in [true, false] {
             let place = |what: &str, body: Body<f64>| match &placed {
                 None => fin(what, body),
-                Some(m) => fin(
-                    what,
-                    topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()))
-                        .unwrap(),
-                ),
+                Some(m) => fin(what, moved(&body, m)),
             };
             let boss = place(
                 "the boss",
@@ -1083,11 +1082,7 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit
         for (a_az, b_az) in [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (PI, 0.0)] {
             let place = |what: &str, body: Body<f64>| match &placed {
                 None => fin(what, body),
-                Some(m) => fin(
-                    what,
-                    topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()))
-                        .unwrap(),
-                ),
+                Some(m) => fin(what, moved(&body, m)),
             };
             let a = place(
                 "the inner rod",
@@ -1170,10 +1165,7 @@ fn a_kept_rim_leaving_along_the_dropped_faces_boundary_cuts_where_it_bends() {
     for (turn, placed) in [("at rest", None), ("turned", Some(torax_pose()))] {
         let place = |what: &str, body: Body<f64>| match &placed {
             None => fin(what, body),
-            Some(m) => fin(
-                what,
-                topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol())).unwrap(),
-            ),
+            Some(m) => fin(what, moved(&body, m)),
         };
         let poses = [
             (
@@ -1291,9 +1283,7 @@ fn ellipse_rims_tangent_inside_build_every_op() {
 /// `at_touch` vertices at the touch, where given.
 fn ellipse_rims(hole_cx: f64, poses: &[(&str, bool, f64, f64)], at_touch: Option<usize>) {
     let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 0.3);
-    let tilted = |body: Body<f64>| {
-        topo::transform_rigid(&body, &geom_core::test_support::rigid(&tilt, tol())).unwrap()
-    };
+    let tilted = |body: Body<f64>| moved(&body, &tilt);
     let slab = fin(
         "the slab",
         brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
@@ -1360,10 +1350,7 @@ fn ellipse_rims(hole_cx: f64, poses: &[(&str, bool, f64, f64)], at_touch: Option
         for (turn, pose_m) in [("at rest", None), ("turned", Some(torax_pose()))] {
             let place = |what: &str, b: &AtRestBody<f64>| match &pose_m {
                 None => b.clone(),
-                Some(m) => fin(
-                    what,
-                    topo::transform_rigid(b, &geom_core::test_support::rigid(m, tol())).unwrap(),
-                ),
+                Some(m) => fin(what, moved(b, m)),
             };
             let moved = |p: Point3<f64>| pose_m.as_ref().map_or(p, |m| m.transform_point(p));
             let (a, b) = (place("the boss", &boss), place("the plate", &holed));
@@ -1841,7 +1828,10 @@ fn short_arcs_at_a_crescents_tip() {
 
 /// **A closed edge lying in a cylinder or a cone face**: a triangle
 /// revolved about the axis straddling the wall, its vertex on the wall
-/// sweeping a circle in the wall's face. The carrier ladder decides the
+/// sweeping a circle in the wall's face. Both walls are revolved from a
+/// profile touching the axis, so each is two half-turn faces: the
+/// straddle's circle has its vertex on the azimuth-0 seam and crosses
+/// the π seam inside its span, two sites. The carrier ladder decides the
 /// straddle's cones distinct from the wall, so the crossing layer reads
 /// the circle as an edge lying on the wall's carrier, and every op holds
 /// its closed form. The straddle is `π/2`; the cylinder (`r = 1` over
@@ -1850,27 +1840,24 @@ fn short_arcs_at_a_crescents_tip() {
 /// `3π/32`.
 #[test]
 fn a_closed_edge_in_a_cylinder_or_cone_face_holds_every_op() {
-    let revolved = |what: &str, verts: &[(f64, f64)]| {
-        fin(
-            what,
-            revolved_about_y(
-                verts
-                    .iter()
-                    .map(|&(x, y)| (Point2::new(x, y), 0.0))
-                    .collect(),
-                Revolution::Full,
-                tol(),
-            ),
-        )
-    };
-    let straddle = revolved("the straddle", &[(1.0, 0.0), (1.5, 0.5), (0.5, 0.5)]);
+    let straddle = revolved("the straddle", &STRADDLE);
     let cylinder = revolved(
         "the cylinder",
-        &[(0.0, -1.0), (1.0, -1.0), (1.0, 1.0), (0.0, 1.0)],
+        &[
+            (0.0, -1.0, 0.0),
+            (1.0, -1.0, 0.0),
+            (1.0, 1.0, 0.0),
+            (0.0, 1.0, 0.0),
+        ],
     );
     let cone = revolved(
         "the cone",
-        &[(0.0, -1.0), (1.5, -1.0), (0.5, 1.0), (0.0, 1.0)],
+        &[
+            (0.0, -1.0, 0.0),
+            (1.5, -1.0, 0.0),
+            (0.5, 1.0, 0.0),
+            (0.0, 1.0, 0.0),
+        ],
     );
     for (what, wall, v_wall, v_in) in [
         ("cylinder", &cylinder, 2.0 * PI, 5.0 * PI / 24.0),
@@ -1880,59 +1867,30 @@ fn a_closed_edge_in_a_cylinder_or_cone_face_holds_every_op() {
     }
 }
 
-/// One piece of a closed path in the `xy` half-plane: a segment to a
-/// point, or the shorter circular arc about a centre to a point.
-enum Piece {
-    Seg((f64, f64)),
-    Arc((f64, f64), (f64, f64)),
-}
-
-/// Pappus's volume of the region a closed path of [`Piece`]s from
-/// `start` bounds, revolved about `y`: `2π ∮ x²/2 dy`, each piece in
-/// closed form.
-fn pappus(start: (f64, f64), pieces: &[Piece]) -> f64 {
-    let mut at = start;
-    let mut sum = 0.0;
-    for piece in pieces {
-        match *piece {
-            Piece::Seg(to) => {
-                sum += (to.1 - at.1) / 6.0 * (at.0 * at.0 + at.0 * to.0 + to.0 * to.0);
-                at = to;
-            }
-            Piece::Arc(c, to) => {
-                let r = (at.0 - c.0).hypot(at.1 - c.1);
-                let t0 = (at.1 - c.1).atan2(at.0 - c.0);
-                let d = ((to.1 - c.1).atan2(to.0 - c.0) - t0 + PI).rem_euclid(TAU) - PI;
-                let f = |t: f64| {
-                    0.5 * r
-                        * (c.0 * c.0 * t.sin()
-                            + c.0 * r * (t + (2.0 * t).sin() / 2.0)
-                            + r * r * (t.sin() - t.sin().powi(3) / 3.0))
-                };
-                sum += f(t0 + d) - f(t0);
-                at = to;
-            }
-        }
-    }
-    TAU * sum.abs()
-}
+/// The straddle of the cylinder and cone rows: the triangle
+/// `(1, 0), (1.5, 0.5), (0.5, 0.5)`, its vertex at `(1, 0)`.
+const STRADDLE: [(f64, f64, f64); 3] = [(1.0, 0.0, 0.0), (1.5, 0.5, 0.0), (0.5, 0.5, 0.0)];
 
 /// **A closed edge on a torus's parallel**: the torus `R = 2, r = 1`
 /// revolved about `y` from two semicircles, so its two faces each wrap
 /// the axis once and meet along the outer and the inner equator, and a
 /// triangle revolved about the same axis straddling the tube, its vertex
 /// `p` sweeping a parallel: one edge runs into the tube to `q_in`, one
-/// out to `q_out`, and the third, a plane, leaves the tube at `x`. At the
-/// equators the straddle's circle is the torus's own edge; at the other
-/// parallels it lies in a face, its vertex on that face's wrap edge at
-/// azimuth 0, or turned 1 rad off it. Every op holds its closed form by
-/// Pappus ([`pappus`]): the torus `4π²`, the straddle its triangle's, the
-/// overlap the region `p → q_in → x`, back round the tube to `p`.
+/// out to `q_out`, and the third, a plane at `y1 = cos 15°` (or the
+/// equators' `0.5`), leaves the tube at `x`. At the equators the
+/// straddle's circle is the torus's own edge; at the other parallels it
+/// lies in a face, its vertex on that face's wrap edge (checked,
+/// [`on_a_wrap_edge`]), or turned 1 rad off it. Every op holds its closed
+/// form by Pappus: the torus `4π²`, the straddle its triangle's, the
+/// overlap the triangle `p, q_in, x` and the circular segment between
+/// `x`, `p` and the tube.
 #[test]
 fn a_closed_edge_on_a_torus_parallel_holds_every_op() {
-    let torus = revolved_bulged("the torus", &[(1.0, 0.0, 1.0), (3.0, 0.0, 1.0)]);
+    use sweep::test_support::pappus::{pappus_volume, segment, triangle};
+    let torus = revolved("the torus", &[(1.0, 0.0, 1.0), (3.0, 0.0, 1.0)]);
     let h = |y: f64| (1.0 - y * y).sqrt();
-    let (s3, y1) = (3f64.sqrt() / 2.0, 0.966);
+    let s3 = 3f64.sqrt() / 2.0;
+    let y1 = (PI / 12.0).cos();
     let poses = [
         (
             "outer equator",
@@ -1960,23 +1918,21 @@ fn a_closed_edge_on_a_torus_parallel_holds_every_op() {
     ];
     for turn in [0.0, 1.0] {
         for (what, p, q_in, q_out, x) in poses {
-            let twice_area = (q_in.0 - p.0) * (q_out.1 - p.1) - (q_out.0 - p.0) * (q_in.1 - p.1);
-            let v_straddle = PI * twice_area.abs() * (p.0 + q_in.0 + q_out.0) / 3.0;
-            let v_in = pappus(
-                p,
-                &[Piece::Seg(q_in), Piece::Seg(x), Piece::Arc((2.0, 0.0), p)],
-            );
-            let straddle = turned_about_y(
-                revolved_bulged(
-                    "the straddle",
-                    &[
-                        (p.0, p.1, 0.0),
-                        (q_in.0, q_in.1, 0.0),
-                        (q_out.0, q_out.1, 0.0),
-                    ],
-                ),
-                turn,
-            );
+            let v_straddle = pappus_volume(&[(1.0, triangle(p, q_in, q_out))]);
+            let v_in = pappus_volume(&[
+                (1.0, triangle(p, q_in, x)),
+                (1.0, segment((2.0, 0.0), 1.0, x, p)),
+            ]);
+            let profile = [p, q_in, q_out].map(|(x, y)| (x, y, 0.0));
+            let straddle = turned_about_y(&revolved("the straddle", &profile), turn);
+            if !what.contains("equator") {
+                let vertex = turned_point(p, turn);
+                assert_eq!(
+                    on_a_wrap_edge(&torus, vertex),
+                    turn == 0.0,
+                    "{what}, turned {turn}: the vertex on the torus face's wrap edge"
+                );
+            }
             every_op(
                 &format!("{what}, turned {turn}"),
                 &torus,
@@ -1987,42 +1943,163 @@ fn a_closed_edge_on_a_torus_parallel_holds_every_op() {
     }
 }
 
-/// **A closed edge on a tube's wrap edge**: the tube `ρ ∈ [0.25, 1]`
-/// over `y ∈ [−1, 1]` revolved off the axis, so its outer wall is one
-/// face wrapping the axis once, and the cylinder row's straddle
-/// ([`a_closed_edge_in_a_cylinder_or_cone_face_holds_every_op`]), its
-/// vertex on the wall's wrap edge at azimuth 0, or turned 1 rad off it.
-/// The tube is `15π/8` and holds `5π/24` of the straddle's `π/2`.
+/// **A closed edge on a one-face wall's wrap edge**, the straddle of the
+/// cylinder row ([`STRADDLE`]) against three walls, each one face
+/// wrapping the axis once: the tube `ρ ∈ [0.25, 1]` revolved off the
+/// axis (`15π/8`); the cylinder `r = 1` extruded from a one-segment
+/// circle, the kernel's commonest cylinder (`2π`); and the frustum
+/// `ρ ∈ [0.25, 1.5 → 0.5]` revolved off the axis (`49π/24`). Each wall
+/// spans `y ∈ [−1, 1]`; the straddle (`π/2`) has its vertex on the wall's
+/// wrap edge (checked, [`on_a_wrap_edge`]), or turned off it. Every wall
+/// holds the straddle's part inside `ρ = 1` (`5π/24`), or inside the
+/// frustum's wall (`3π/32`).
 #[test]
-fn a_closed_edge_on_a_tubes_wrap_edge_holds_every_op() {
-    let tube = revolved_bulged(
-        "the tube",
-        &[
-            (0.25, -1.0, 0.0),
-            (1.0, -1.0, 0.0),
-            (1.0, 1.0, 0.0),
-            (0.25, 1.0, 0.0),
-        ],
+fn a_closed_edge_on_a_walls_wrap_edge_holds_every_op() {
+    let straddle = revolved("the straddle", &STRADDLE);
+    let up_y = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), -FRAC_PI_2);
+    let extruded_cylinder = fin(
+        "the extruded cylinder",
+        moved(
+            &extruded(vec![circle(0.0, 0.0, 1.0, 0.0)], -1.0, 2.0),
+            &up_y,
+        ),
     );
-    for turn in [0.0, 1.0] {
-        let straddle = turned_about_y(
-            revolved_bulged(
-                "the straddle",
-                &[(1.0, 0.0, 0.0), (1.5, 0.5, 0.0), (0.5, 0.5, 0.0)],
+    let walls = [
+        (
+            "the tube",
+            revolved(
+                "the tube",
+                &[
+                    (0.25, -1.0, 0.0),
+                    (1.0, -1.0, 0.0),
+                    (1.0, 1.0, 0.0),
+                    (0.25, 1.0, 0.0),
+                ],
             ),
-            turn,
+            15.0 * PI / 8.0,
+            5.0 * PI / 24.0,
+            &[0.0, 1.0][..],
+        ),
+        (
+            "the extruded cylinder",
+            extruded_cylinder,
+            2.0 * PI,
+            5.0 * PI / 24.0,
+            &[0.0, 1.0, PI][..],
+        ),
+        (
+            "the frustum",
+            revolved(
+                "the frustum",
+                &[
+                    (0.25, -1.0, 0.0),
+                    (1.5, -1.0, 0.0),
+                    (0.5, 1.0, 0.0),
+                    (0.25, 1.0, 0.0),
+                ],
+            ),
+            49.0 * PI / 24.0,
+            3.0 * PI / 32.0,
+            &[0.0, 1.0][..],
+        ),
+    ];
+    for (what, wall, v_wall, v_in, turns) in &walls {
+        for &turn in *turns {
+            assert_eq!(
+                on_a_wrap_edge(wall, turned_point((1.0, 0.0), turn)),
+                turn == 0.0,
+                "{what}, turned {turn}: the vertex on the wall's wrap edge"
+            );
+            every_op(
+                &format!("{what}, turned {turn}"),
+                wall,
+                &turned_about_y(&straddle, turn),
+                (*v_wall, PI / 2.0, *v_in),
+            );
+        }
+    }
+}
+
+/// **A puck resting on a torus's parallel**: the torus of
+/// [`a_closed_edge_on_a_torus_parallel_holds_every_op`] and the cylinder
+/// `r = 2.5` extruded from a one-segment circle over
+/// `y ∈ [√3/2, √3/2 + 1]`, whose bottom rim is the torus's parallel at
+/// tube angle `π/3`, its vertex on the torus face's wrap edge, or turned
+/// 1 rad off it. The puck `6.25π` holds the tube's segment above the rim's
+/// plane, `2π(π/3 − √3/2)`.
+#[test]
+fn a_puck_on_a_torus_parallel_holds_every_op() {
+    use sweep::test_support::pappus::{pappus_volume, segment};
+    let torus = revolved("the torus", &[(1.0, 0.0, 1.0), (3.0, 0.0, 1.0)]);
+    let s3 = 3f64.sqrt() / 2.0;
+    let up_y = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), -FRAC_PI_2);
+    let puck = moved(&extruded(vec![circle(0.0, 0.0, 2.5, 0.0)], s3, 1.0), &up_y);
+    let v_in = pappus_volume(&[(1.0, segment((2.0, 0.0), 1.0, (1.5, s3), (2.5, s3)))]);
+    for turn in [0.0, 1.0] {
+        assert_eq!(
+            on_a_wrap_edge(&torus, turned_point((2.5, s3), turn)),
+            turn == 0.0,
+            "turned {turn}: the rim's vertex on the torus face's wrap edge"
         );
+        let puck = turned_about_y(&fin("the puck", puck.clone()), turn);
         every_op(
-            &format!("the tube, turned {turn}"),
-            &tube,
-            &straddle,
-            (15.0 * PI / 8.0, PI / 2.0, 5.0 * PI / 24.0),
+            &format!("the puck, turned {turn}"),
+            &torus,
+            &puck,
+            (4.0 * PI * PI, 6.25 * PI, v_in),
+        );
+    }
+}
+
+/// **A boss whose rim touches a bead's wrap edge refuses before the
+/// join**: the bead, the unit ball less the bore `ρ < 0.3`, its outer wall
+/// one sphere-zone face wrapping the axis once, and a boss whose rim is
+/// the small circle of angular radius `0.4` tangent to that wall's wrap
+/// edge (its meridian at azimuth 0) at `(1, 0, 0)`, the rim's vertex
+/// there. The rim does not wind round the sphere, so it must not reach
+/// the join's one-site table as a loop on the wrap edge: the crossing
+/// layer escalates the tangent touch first, in every op.
+#[test]
+fn a_boss_rim_tangent_to_a_beads_wrap_edge_escalates_before_the_join() {
+    let alpha = 0.4f64;
+    let rim = (1.0f64 - 0.09).sqrt();
+    let sweep_angle = 2.0 * 0.3f64.acos();
+    let bead = revolved(
+        "the bead",
+        &[(0.3, rim, 0.0), (0.3, -rim, (sweep_angle / 4.0).tan())],
+    );
+    let toward = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2 - alpha);
+    let boss = fin(
+        "the boss",
+        moved(
+            &extruded(vec![circle(0.0, 0.0, alpha.sin(), 0.0)], alpha.cos(), 1.0),
+            &toward,
+        ),
+    );
+    for (op, got) in [
+        ("A ∪ B", topo::union(&bead, &boss, tol())),
+        ("B ∪ A", topo::union(&boss, &bead, tol())),
+        ("A ∩ B", topo::intersect(&bead, &boss, tol())),
+        ("B ∩ A", topo::intersect(&boss, &bead, tol())),
+        ("A ∖ B", topo::subtract(&bead, &boss, tol())),
+        ("B ∖ A", topo::subtract(&boss, &bead, tol())),
+    ] {
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::CurvedPierceEscalated {
+                    decision: topo::BooleanDecision::ArcCylinderRoots,
+                    ..
+                })
+            ),
+            "{op}: {:?}",
+            got.map(|_| "a body")
         );
     }
 }
 
 /// The profile `(x, y, bulge)` revolved a full turn about `y`.
-fn revolved_bulged(what: &str, verts: &[(f64, f64, f64)]) -> AtRestBody<f64> {
+fn revolved(what: &str, verts: &[(f64, f64, f64)]) -> AtRestBody<f64> {
     fin(
         what,
         revolved_about_y(
@@ -2036,13 +2113,36 @@ fn revolved_bulged(what: &str, verts: &[(f64, f64, f64)]) -> AtRestBody<f64> {
     )
 }
 
+/// `body` moved rigidly by `m`.
+fn moved<T: Decide + AtRestPolicy>(body: &Body<T>, m: &Affine3<T>) -> Body<T> {
+    topo::transform_rigid(body, &geom_core::test_support::rigid(m, tol())).unwrap()
+}
+
 /// `body` turned `angle` about `y`.
-fn turned_about_y(body: AtRestBody<f64>, angle: f64) -> AtRestBody<f64> {
+fn turned_about_y(body: &AtRestBody<f64>, angle: f64) -> AtRestBody<f64> {
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), angle);
-    fin(
-        "turned",
-        topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol())).unwrap(),
-    )
+    fin("turned", moved(body, &turn))
+}
+
+/// The meridian half-plane's point `p` turned `angle` about `y`.
+fn turned_point(p: (f64, f64), angle: f64) -> Point3<f64> {
+    Point3::new(p.0 * angle.cos(), p.1, -p.0 * angle.sin())
+}
+
+/// Whether `p` lies on a wrap edge of `wall` (an edge both of whose
+/// halves bound one face), within `1e-3` of a dense sampling of its
+/// carrier.
+fn on_a_wrap_edge(wall: &Body<f64>, p: Point3<f64>) -> bool {
+    wall.edges().any(|(k, e)| {
+        wall.face_of_half_edge(e.he_plus) == wall.face_of_half_edge(e.he_minus)
+            && wall.stored_curve(k).is_ok_and(|c| {
+                let (t0, t1) = c.params();
+                (0..=4096).any(|i| {
+                    let t = t0 + (t1 - t0) * f64::from(i) / 4096.0;
+                    (c.carrier().eval(t) - p).norm() < 1e-3
+                })
+            })
+    })
 }
 
 /// **Equal coaxial cylinders stacked end to end**: `r = 1` over
@@ -2086,11 +2186,7 @@ fn a_rim_inside_a_ball_face() {
     for turn in [0.0, 0.4] {
         let place = Affine3::rotation_about_axis(o, Vec3::unit_z(), turn)
             * Affine3::rotation_about_axis(o, Vec3::unit_x(), 1.2);
-        let tube = topo::transform_rigid(
-            &extruded(vec![circle(0.0, 0.0, 1.0, 0.0)], z0, 2.0),
-            &geom_core::test_support::rigid(&place, tol()),
-        )
-        .unwrap();
+        let tube = moved(&extruded(vec![circle(0.0, 0.0, 1.0, 0.0)], z0, 2.0), &place);
         let tube = fin("the tube", tube);
         let v = (
             2.0 * PI,
@@ -2124,8 +2220,7 @@ fn a_puck_and_its_rounding_ring_unite() {
         tol(),
     );
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), FRAC_PI_2);
-    let mut ring =
-        topo::transform_rigid(&ring, &geom_core::test_support::rigid(&turn, tol())).unwrap();
+    let mut ring = moved(&ring, &turn);
     ring.merge_coplanar_faces(tol()).unwrap();
     let ring = fin("the ring", ring);
     let puck = fin("the puck", extruded(vec![circle(0.0, 0.0, a, 0.0)], 0.0, r));
