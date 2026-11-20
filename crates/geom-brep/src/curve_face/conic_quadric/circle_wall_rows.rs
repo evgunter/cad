@@ -10,7 +10,7 @@
 use core::f64::consts::TAU;
 
 use super::*;
-use geom_brep::curve_face::conic_oracle::{crossings, extremes};
+use crate::curve_face::conic_oracle::{crossings, extremes};
 use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
 
 fn band() -> Band {
@@ -260,7 +260,7 @@ fn the_second_harmonic_band_reaches_past_the_tilt_band() {
                 rho: r,
             };
             assert!(tilt > band.escalate(), "{label}: the tilt is definite");
-            let h = geom_brep::conic_cylinder_harmonics(
+            let h = crate::conic_cylinder_harmonics(
                 pose.carrier::<f64>().conic().unwrap(),
                 geom::Line {
                     origin: Point3::origin(),
@@ -326,7 +326,7 @@ fn a_near_square_circle_inside_the_band_by_its_second_harmonic_is_not_on_the_wal
             u: [1.0, 0.0, 0.0],
             rho: r,
         };
-        let h = geom_brep::conic_cylinder_harmonics(
+        let h = crate::conic_cylinder_harmonics(
             pose.carrier::<f64>().conic().unwrap(),
             geom::Line {
                 origin: Point3::origin(),
