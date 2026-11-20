@@ -25,6 +25,34 @@
 //! direction takes it from the surface the ellipse is a section of
 //! ([`Ellipse::section_frame`]).
 //!
+//! # The two stored forms
+//!
+//! A conic is stored in the form it was born in.
+//!
+//! - **Born with a centre** ([`Circle::new`], [`Ellipse::new`], and the
+//!   doors over them): the frame's origin is the centre as given, and a
+//!   point is `center + u_ref·(a·cos θ) + v_ref·(b·sin θ)`. Every bit a
+//!   file or a caller stated is kept, and a point at a quarter turn is
+//!   the centre moved by one semi-axis exactly.
+//! - **Born anchored** ([`Circle::anchored`], [`Ellipse::anchored`]): the
+//!   stored datum is the **anchor**, the conic's point at `θ = 0` (its
+//!   vertex on `u_ref`), and a point is summed from it,
+//!   `anchor + u_ref·a·(cos θ − 1) + v_ref·b·sin θ`, with `cos θ − 1`
+//!   read as `−2·sin²(θ/2)`. A point near the anchor then holds to the
+//!   rounding of its own coordinates, however long the semi-axes: a
+//!   section whose centre lies a megametre off the arc it serves is
+//!   stored at the arc. The centre in the frame's origin is derived from
+//!   the anchor, `anchor − u_ref·a`, rounded at the semi-axis's scale; a
+//!   reader that wants a centre as a datum reads that.
+//!
+//! Each conic evaluates one way, [`Conic::point_at`], and
+//! [`Conic::running_point`] is that evaluation operation for operation
+//! with its bound. The derivatives never read the centre or the anchor
+//! and are the same in both forms. The anchor rides every map of the
+//! conic (a motion, a reversal, another scalar); a re-seam that keeps the
+//! seam keeps it, and one that turns the seam re-anchors at the turned
+//! seam's vertex, read off the derived centre.
+//!
 //! # Conventions
 //!
 //! - **The parameter** `θ` is in radians, domain ℝ, period 2π, and winds
@@ -178,15 +206,13 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// **The point at the parameter `theta` with a first-order running
     /// bound on its rounding** ([`Rounded`]): [`Self::point_at`]
     /// operation for operation, so its value is that point bit for bit.
-    /// `theta`, the frame, the sizes and a stored anchor are taken as
-    /// exact; the half-angle's sine and cosine are charged an ulp each,
-    /// and a zero point summed from the centre its sum.
+    /// `theta`, the frame, the sizes and the stored centre or anchor are
+    /// taken as exact; each sine and cosine read is charged an ulp.
     fn running_point(&self, theta: T) -> [Rounded<T>; 3];
 
-    /// **The point at parameter zero**, which every point of the conic
-    /// is summed from ([module docs](self), "The two stored forms"): the
-    /// vertex on `u_ref`, the stored anchor of a conic born anchored, else
-    /// `center + u_ref·semi_u`.
+    /// **The point at parameter zero**, the vertex on `u_ref`: the
+    /// stored anchor of a conic born anchored ([module docs](self), "The
+    /// two stored forms"), else `center + u_ref·semi_u`.
     fn zero_point(&self) -> Point3<T>;
 
     /// **The stored anchor**: the point at parameter zero where the
