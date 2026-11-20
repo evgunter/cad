@@ -1558,3 +1558,46 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   Sequencing: U3 splits into U3a (types, `pose`, `cross`, trace, census; tier dual) and U3b (ring path, classify, `on_surface`, region; tier single FULL). `slit` and `factored_crossing` go to U4. Local windows are a prerequisite of U4. None of the questions is Ev's.
 - 2026-11-20 13:45 — **Friction: the container's disk filled** (264 MB free, writable allowance about 70 GB) with four implementer lanes live. Two lanes' targets had reached 24 GB and 19 GB; their local ε-row and profile rebuilds each grow their own target. I reclaimed the finished measurement lane's 4.1 GB target and the three finished doc and spec clones, which brought free space to 7 GB. The live lanes were warned that results from 13:20 to 13:45 are suspect. Going forward, a sitting with more than two concurrent build lanes runs the extras as their own cloud sessions (`memories/orchestration-model.md`, "Lanes may run in their own cloud sessions").
 - 2026-11-20 — **U3 spec final** (`germ/crossing-u3-spec` at `0e3cf52`): §U3a and §U3b, with every question answered in the body. It cites seven rows that arrived from GERMTAIL and HONEROOT and that U3 touches; it closes none of them. U3a dispatches once U1 and U2 merge, and U2 waits on the P0 lane's PR. PRs 7171 (section-class) and 7174 (sector side) are open.
+- 2026-11-20 14:45 — **Three PRs in review, all green on the PR gate:**
+  - PR 7171 (section-class): FULL review dispatched. The step-import snap change is the claim to watch, and seam notes are on EXCH's and IMPORTGATE's logs.
+  - PR 7174 (sector side to second order): FULL review dispatched. Its first CI red was `geom-core::all every_suite_file_is_aggregated` at 1.19 s against the 1.0 s fast-set bar; filed on CIW as `geom-cores-aggregation-row-runs-past-the-fast-set-bar`.
+  - PR 7179 (U1, line roots door moved): STYLE review dispatched.
+
+  **U1b** (one line × cone rule set) runs as its own cloud session (`session_01BJC3B3GPYCWx9d4Mgoqfzx`), stacked on U1's branch, because of the disk-friction rule above.
+- 2026-11-20 — **PR 7179 (U1) style review: APPROVE.** A line-for-line multiset comparison shows the move is verbatim; no correctness MAJOR or MINOR. I took four cheap findings as a fix pass, continued in the implementer's own agent:
+  - one home for the thin-tube fixture, which is written three times;
+  - `offer_rows`' hand mapping reads `of_line_quadric_refusal`;
+  - Sphere and Cone refusal-arm rows, since a swap mutant stays green today;
+  - `LineQuadricRefusal` narrowed per producer, so the trace's twin mappers become one.
+
+  **Recorded for U3a, not U1:** `pub fn line_quadric_roots` takes an untyped `&geom::Surface`, answers `Ok(None)` for whole kinds, and returns `LineRoots::Constant`, a pose answer. The cone apex rung, a `Through`, also stays inside the door. That is the old shape made public. U3a reshapes it, with typed operands, the pose moved out, and an unbuilt kind as a window. It also brings the topo census rows for the moved predicates (`torus_predicate_rows`, `torus_landing_rows`) next to their finder, and resolves the `LineRoots` door-name clash.
+- 2026-11-20 — **PR 7171 (section-class) review: APPROVE-WITH-FIXES, no MAJOR.** All six claims held. On the torus rows the reviewer found a stronger argument: every consumer of `RoutesToGeneralRung` refuses, so no loop count is served off that lane. Both mutant directions red 8 rows. Fix pass, continued in the implementer's own agent:
+  - **MINOR 1, demonstrated:** the re-posed torus lever rows lost their too-short-lever sensitivity. The reviewer's verified replacement rows are taken.
+  - **MINOR 2:** the snap refuses in band for every relation kind itself, rather than leaning on build rows that `coaxial-class-readings-escalate-in-band` would convert.
+  - **MINOR 3:** a now-dead `build.rs` ambiguity path is removed or made direct.
+  - `closed_form_shown` reads `geom_core::ladder::in_band`.
+
+  **Class:** inline re-spellings of `ladder::in_band` in `chord_join.rs` and `merge_faces.rs` are to be filed by the fix pass on the owner's slate.
+- 2026-11-20 — **PR 7174 (sector side) review: NOT-MERGEABLE-AS-IS.**
+  - **MAJOR M1:** a charge tie whose descent cannot read the bend (`FaceBend::Fitted`, `Bisector{bend:None}`, which spline pierced faces reach) is read `On`, where main refused. A Zero charge is a lower bound's Zero ("not certified off"), not "on". Shown at unit level.
+  - **MINORs:**
+    - neither advertised choice (Jet over Parted; Returned over Rides) has a row: both mutants pass all 102 unit rows;
+    - the `bisector_nodes` row pins a downstream stop, not its name;
+    - vtxfac's `flat(k)` lump and the `bisector_zero_refusal` guard treat a charge tie as first-order.
+  - **Main path sound:** the jet reading on decided Implicit bends gave no wrong side in a hollow and ball probe scan.
+  - **Fix pass:** continued in the implementer's agent, with an osculating-contact probe (n1) owed. A delta review by the same reviewer follows.
+- 2026-11-20 — **PR 7179 (U1) merged** (`16346f7aa8`). Its row is closed. The disk filled a third time, at 15:15; the merged lane's 9.8 GB target and clone are reclaimed, leaving 13 GB free. U1b's cloud session is told to merge main and retarget to it. **U2** (move the ConicQuadric door) still waits on the P0 lane, which edits that module's fuzz row.
+- 2026-11-20 16:00 — **The P0 lane's checked constructor found kernel sites that compute a negative or NaN radius** (PR 7183 red on 6 rows):
+  - `band_chamfer_frustum` reaches −0.1196, too large to be rounding: either a wrong answer or a signed-radius convention;
+  - a coaxial spine reaches −2.5e-17, a degenerate circle undecided as a pose;
+  - NaN appears in `pcurve_cache` limb2 rows and in the tier-3 poison row.
+
+  Ruling, to the lane: no clamp or `abs` at any site. Each site is either fixed as a defect (with a row that fails on main), or decides its degeneracy as a pose before it constructs. The poison row is re-aimed at the deciding door, with no unchecked back door, and certify's NaN arm retires if it is now unreachable. The lane also owes a class sweep of every computed-radius construction. The P0's unit has grown from a reader fix into a kernel-wide invariant enforcement; its review tier stays single FULL.
+- 2026-11-20 — **PR 7171 (section-class) merged** (`71bdbfd537`). Its row is closed. I read the fix pass's new hunk myself: `plane_torus_tangency` with `ClassRead::{Lane, Structural}` is D3's consumer distinction stated as code, so I accepted it without a second review round. The PR also carried the one-line fix for a **main red that U1 caused**: U1's commit `6ffe130123` left a stale `cover-kind-match.counts` citation, and `scripts/gates/cover-kind-match.sh` failed on main's own tip until this merge. Disk is back to 32 GB free after reclaiming the lane.
+- 2026-11-20 — **PR 7174 delta review: APPROVE.** M1, m1, m2 and m3 are fixed; each has a row that reds under its mutant, and the n1 osculating case refuses. Filed from what remains:
+  - `a-charge-ties-jet-at-an-arm-near-r-reads-past-a-barely-decided-parting` (P2): N1 and N2 — a barely decided parting at an arm near R, and the lost diagnosis of an in-band parting;
+  - `one-sector-side-refusal-has-three-constructions` (P4, style): the fix-mints-a-fresh-instance trap.
+
+  PR 7174 merges on green CI at its main-merged head.
+- 2026-11-20 — **PR 7174 (sector side) merged** (`cd7a45b9c7`). Its row is closed, and its lane and the review targets are reclaimed, leaving 44 GB free. That closes both original P1 issues. The P1 slate now holds the kind-pair X row, with U1 and U0 done; U1b is in CI; U2 waits on the P0 PR; U3a waits on U2.
+- 2026-11-20 — **Main-red (EXCH):** filed `main-red-axis-normal-snap-refuses-nist-ftc-09` (P1) on this slate. Since PR 7171's `c25c174105`, `nist_ftc_09` refuses at the snap, and three step-import slow-set rows are red on main. The nightly will catch it. (EXCH orchestrator)

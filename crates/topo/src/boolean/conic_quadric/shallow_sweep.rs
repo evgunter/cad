@@ -134,29 +134,38 @@ fn lift_v(v: Vec3<f64>) -> Vec3<Interval> {
 fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
     let at = Interval::from_f64;
     let carrier = match pose.carrier {
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => geom::Curve3::circle(lift_p(center), lift_v(axis), at(radius), lift_v(u_ref)),
-        geom::Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(lift_p(center), lift_v(axis), lift_v(u_ref)),
-            at(semi_u),
-            at(semi_v),
-        )),
+        geom::Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let radius = conic_k.radius();
+            geom::Curve3::circle(lift_p(center), lift_v(axis), at(radius), lift_v(u_ref))
+        }
+        geom::Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+            geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(lift_p(center), lift_v(axis), lift_v(u_ref)),
+                at(semi_u),
+                at(semi_v),
+            ))
+        }
         _ => panic!("the sweep draws circles and ellipses"),
     };
     let surface = match pose.surface {

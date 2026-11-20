@@ -77,3 +77,12 @@ verdict: Undecided(.. ring_torus_convention ..) }` read as outside the
 door's decision (`crates/geom-brep/src/curve_face/circle_roots.rs:419`).
 It reds identically on the merge of PR 7048 (`0c2b761e91`), so it is this
 item's, not the step's.
+
+## 2026-11-19 — another seed (ONEROUND, `oneround/rounded-room` lane)
+
+`certified_torus_answers_hold_against_the_true_distance` at the default
+ε drew `CAD_FUZZ_SEED=0xb0caff8e574eeaa1` (`CAD_FUZZ_EFFORT=1`) and
+panicked in `circle_roots::door_answer` on a `ring_torus_convention`
+refusal in its 1e-6 pass (margin `9.674e-6` against the band
+`1e-6 / 1e-5`). Replayed on `origin/main` at `b80352cd` it fails the
+same way. Two of fourteen runs of the row here drew a failing seed.

@@ -2,13 +2,14 @@
 id: the-line-roots-door-is-still-built-in-topo
 kind: issue
 title: "[topo.homes] arm 1: route's LineRoots door (solid_contain's line × quadric roots, reduce::line_wall_roots_of) takes no Body and is still built in topo"
-status: review
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
 parent: curve-surface-crossing-has-no-kind-pair-table
 pr: 7179
 branch: germ/line-roots-door
+closed: 2026-11-20
 ---
 
 
@@ -27,3 +28,7 @@ for is `line_quadric::door_rows::a_line_through_a_thin_tube_escalates_as_the_tor
 (the door's row) and
 `reduce::torus_root_tests::the_torus_root_lane_escalates_as_its_own_decision`
 (the caller's, pinning `TorusRoots`).
+
+## Closed (2026-11-20, PR 7179)
+
+The line × quadric door is `geom_brep::curve_face::line_quadric`, with no behaviour change. Its K names take the `line_quadric_` prefix, and `bool_point_in_solid_denom` is split between the wall's axis-parallel rung and the ray's plane arm. Its refusal type is narrowed per arm. The style review approved it, and a four-item fix pass followed. Left to U3a: the door's public API still takes an untyped `&geom::Surface` and answers a pose (`LineRoots::Constant`, the apex rung), and the census rows for its predicates still live in topo.

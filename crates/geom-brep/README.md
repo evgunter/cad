@@ -232,8 +232,8 @@ certifying scalar's door mints and certifies; a tangent-transport
 scalar's door (DUAL-DESIGN DL1, DL3) only mints, and no code path at that
 scalar can call a certifying function. A dual body carries no
 certificate: what a dual measures is read against the input-identical
-`f64` evaluation, which holds it (DUAL-DESIGN DL3). At `f64` the door certifies in full and rest
-re-derives the same certificate. An edge with an operand outside the
+`f64` evaluation, which holds it (DUAL-DESIGN DL3). At `f64` the door certifies in full, and a
+certificate is read wherever its support is bit-identical. An edge with an operand outside the
 tube's enclosure roster (`ssi::enclose::has_implicit_enclosure`) refuses
 the tube by naming that operand (`AnalyticRung3Refusal::NoTubeEnclosure`)
 once limb 2 holds and the pair's section states no bounds for the pose. Each box, cut to the wall's knot rectangle (and to the
@@ -1938,13 +1938,17 @@ outside the fit's window (the section's own verdict); and a scalar with
 no fit or section lane (`ApproxLaneUnsupported`,
 `NurbsLaneUnsupported`).
 
-**O5 — The validator re-derives per face, as it does per edge.** Tier 3
-never trusts a stored certificate: `validate.rs` re-runs the O3
-derivation on every `Approx` face on every call through
+**O5 — The validator reads a certificate by its support, per face as
+per edge.** A certificate is a fact about its support, the exact data
+it reads: one the kernel derived in this process is read wherever
+that support is bit-identical, and derived wherever it is not; a
+stored certificate whose support differs is never read, and none is
+read from outside the process (a document persists the recipe, an
+import derives its own). Where the support has moved, `validate.rs`
+re-runs the O3 derivation on an `Approx` face through
 `geom_brep::OffsetFitLane::recertify`, the door the pass takes as a
 parameter (`ApproxCertification` on failure; `ApproxLaneUnsupported`
-where the scalar's seam hands the pass no door). The
-stored `OffsetCertificate` is provenance, kept for reporting. `Approx`
+where the scalar's seam hands the pass no door). `Approx`
 faces inherit the NURBS-adjacent exemption from dihedral marks (C7).
 
 **O6 — Sequencing and the demo gates.** The units are landed in the

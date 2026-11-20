@@ -22,16 +22,16 @@ Filed by the SCALAR orchestrator, 2026-11-19; restated 2026-11-20 on Ev's ruling
 - `f64-built-data-is-built-at-t`
 - `from-f64-is-split-by-where-the-number-comes-from`
 - `the-stackups-tangents-are-checked-against-finite-differences`
+- `a-solved-value-the-body-stores-is-admitted-by-its-check`
 
-## What is still open (the design question on this row)
+## The solved value (Ev, PR 7176, 2026-11-20)
 
-A solved value the result is built on: a root, a foot, a crossing, about 9 calls (`curve_face/composite.rs` and `spline_face.rs` `settle`, `replace_face.rs` `corner_of_root`, the two polishes). Ev: "there's also no obvious way to convert to f64 and back in a way that's valid". The designers walked two sites scalar by scalar and it goes to Ev as its own PR.
+Ruled: `crates/geom-core/README.md`, DL5.2's paragraphs after the table. A closed form stays in `T`; otherwise one door admits an `f64` candidate by the check at `T`, bounded `Certifies`, the one caller of `from_computed`, and only for a value the body stores. Round 15 traced each value forward and found three or four storing functions (`spline_face::settle`, `composite::crossings`, `replace_face::carrier_foot`, and by one reading `SplineWall::paths`); the five that only evaluate at the value are places and belong to `a-place-is-an-f64-argument-answered-on-the-value-channel`. `replace_face::corner_of_root` is `f64`-only by its lane.
 
-What the walks found, read in the code:
+Units added on that ruling:
 
-- `composite::crossings` isolates a root in `f64`, checks the residual at `T` at that exact number, and returns `T::from_computed(t)`; its doc calls it "a parameter whose point reads ON the surface, not an enclosure of the true crossing's parameter". True of the number at `f64` and `Interval`, an opaque unknown at `Sym`, false at a dual.
-- `spline_face::settle` holds a certified box per meeting and returns its midpoint as a point: at `Interval` the returned `T` drops the box.
-- No dual reaches either today: both sit behind `NurbsLane`, and `replace_face`'s corner root behind `SectionLane::f64()`. The one solved value a dual reaches on the production path is `topo::Link::lowest_on`, which has its roots in `T` and discards them (ATREST's row).
+- `a-solved-value-the-body-stores-is-admitted-by-its-check` (the door, and the gate that `from_computed` has one caller)
+- `a-stored-solved-parameter-is-an-enclosure-of-each-members-root` (Ev's B: not now, likely needed for booleans over wide boxes)
 
 ## Also found, not yet filed anywhere else
 
