@@ -2,7 +2,7 @@
 id: sect
 kind: program
 title: SECT — the section-first join: the one-site and on-carrier sections on curved faces, the curved join arms and their cost, its P2/P3 remainder, and the C5 dispatch and rung-3 residue behind the section object
-status: ready
+status: active
 opened: 2026-10-10
 group: kernel/boolean/join
 prefix: sect/

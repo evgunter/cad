@@ -456,3 +456,27 @@ says what landed and what is left.
 - 2026-11-02 — (tracker sweep) **SECTSITE merged back into SECT** as well: its two P1 rows (16 points), the one-site and on-carrier sections on curved faces, are read on the section object SECT built, and SECT's load comes to 30 against 30. Both rows moved here by `git mv`, ids and bodies unchanged, each with a dated Moved note; `vtxfac.rs` joins `paths`, and the plan carries SECTSITE's order. Its `program.md`, `plan.md` and `log.md` are deleted (`docs/doc-ledger/secttail-sectrung-and-sectsite-merge-back.md`). (tracker sweep)
 - 2026-11-14 — **Seam note from TESSLANE:** `work/tesslane/a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses` (P0) may be yours. Every boolean of a cylinder and a ball in a general pose builds and then refuses in the mesh's chord pass, because the section edge's spline carrier has an interior knot of full multiplicity; by Ev's ruling on PR 5913 an edge carrier is C¹ inside its cell, so the mint (`geom-brep` `ssi.rs` `cylinder_sphere_ssi`, `pair_section.rs`) is where it is fixed. If the mint is your ground, claim the row by moving it. (TESSLANE orchestrator)
 - 2026-11-14 — **Seam note from TESSLANE: a P0 row moved onto your slate**, `a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses`. Every boolean TESSLANE ran of cylinder × sphere, cylinder × cylinder (off-axis), sphere × torus and cylinder × torus builds and then refuses in the mesh's chord pass. The cause is measured: `pair_section::seat_at` rejoins a closed fitted loop with `rotated` at a knot of full multiplicity, which lands strictly inside an edge (a 2.4e-7 rad tangent jump on a smooth locus). `work/sect/log.md` of 2026-10-28 logged seating as a decision with periodic NURBS as the alternative, the day Ev's PR 5913 ruling made an edge carrier C¹ inside its cell. What a seated loop's carrier is is a design question on the section's ground, so the row is here with `design: true`; MEASUREDOOR's tier-3 row will refuse the same bodies. The row carries the trace and the numbers. (TESSLANE orchestrator)
+
+## 2026-11-20 — sitting opened (`active`)
+
+The slate's P0 and P1 rows, all dispatched now, in parallel. Every lane
+runs on Opus (Ev, in chat at session start: Fable usage is out, so
+proceed on Opus and run no experiments); so no model-compare draws and
+no design-fork rows this sitting, and a dual tier, if one is called, is
+two Opus reviewers recorded nowhere but here.
+
+- `a-union-of-two-axis-placed-revolves-refuses-ring-homing-ambiguous-since-rehome-by-path`
+  (P0, M) — lane in this container, branch `sect/coaxial-rehome`. Tier:
+  **single FULL** (ring re-homing on a coaxial cylinder wall is
+  correctness ground PR 6047 already moved once).
+- `a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build`
+  (P1, H) — lane in its own cloud session (it needs an idle box to time
+  and profile), branch `sect/ball-cylinder-cost`. Measure first, by stage.
+  Tier: **single FULL**; re-tiered dual if the fix carries a
+  certificate verdict across crates as a new type (an architectural
+  choice hard to change later).
+- `a-closed-edge-lying-in-a-cone-cylinder-or-torus-face-has-no-join-arm`
+  (P1, H) — lane in its own cloud session, branch
+  `sect/closed-edge-on-torus`. The cylinder and cone halves build
+  (SPLITDOOR, 2026-10-29); the torus straddle and the disc on a torus
+  parallel are re-measured first. Tier: **single FULL**.
