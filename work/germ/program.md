@@ -2,7 +2,7 @@
 id: germ
 kind: program
 title: GERM — the curved lanes' section and root arithmetic: the cone and torus operand lanes, the charges and margins their roots and sections read, the arms short of a lane, and the refusals wider than they need to be
-status: ready
+status: active
 opened: 2026-09-20
 group: kernel/boolean/curved
 prefix: germ/

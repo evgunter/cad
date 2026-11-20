@@ -6,6 +6,7 @@ status: open
 priority: P1
 cost: E
 opened: 2026-09-29
+rides_with: chart-region-mints-indeterminates-after-a-definite-sign
 ---
 
 

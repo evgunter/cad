@@ -11,3 +11,5 @@ Recover the program, plan and log files, and the closed rows, at `131457c32b`:
 
     git show 131457c32b:work/tesswalk/<FILE>
     git show 131457c32b:work/tessword/<FILE>
+
+One more row arrived on main while this merge was in flight: CHARTTAIL sent `singular-turn-spells-the-chart-winding-rule-by-hand` (P1 E) to TESSWALK the same day. It moved on to `work/tesslie/` with the rest, and its arrival note is carried over to TESSLIE's log.
