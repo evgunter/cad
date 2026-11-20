@@ -122,9 +122,10 @@ pub trait SolveScalar: Decide {
 /// trait's header point here.
 ///
 /// A point direction reads its angle however small its length, as
-/// `Azimuth::near` reads one: an exact zero one reads `atan2(y, x)`, as the
-/// `f64` lane does, and one whose squares underflow reads near the window's
-/// centre ([`geom::Azimuth::near`]), the window's read. An enclosure that
+/// `Azimuth::near` reads one: an exact zero one names every angle alike and
+/// reads `0`, the chart's `u_ref`, as `atan2(0, 0)` does at `f64`, and one
+/// whose squares underflow reads near the window's centre
+/// ([`geom::Azimuth::near`]), the window's read. An enclosure that
 /// may reach zero length may hold any angle, so it reads the whole window,
 /// `[−1, τ − 1]`, which holds a copy of every angle, never the zero a
 /// chart reads at its pole; no decision is asked of it. An exact zero `y`
@@ -138,7 +139,7 @@ pub(crate) fn box_atan2<T: SolveScalar>(y: T, x: T) -> T {
     if !geom_core::structure_nonzero(azimuth.length()) {
         let window = geom::Window::Angle;
         return match (y.point_value(), x.point_value()) {
-            (Some(a), Some(b)) if a == 0.0 && b == 0.0 => y.atan2(x),
+            (Some(a), Some(b)) if a == 0.0 && b == 0.0 => T::zero(),
             (Some(_), Some(_)) => azimuth.near(window.centre()),
             _ => window.start::<T>().enclosure_hull(window.end()),
         };
@@ -1761,10 +1762,11 @@ mod tests {
     }
 
     /// **A point direction reads its angle however small its length**,
-    /// at `Sym<f64>` as the `f64` lane reads it: an exact zero reads
-    /// `atan2`'s `0` or `π`, and one whose squares underflow reads its
-    /// angle (`π/2` for `(1e-300, 0)`), never NaN or the pole's `0`. At
-    /// `Interval` a point whose squares underflow reads a narrow angle.
+    /// at `Sym<f64>` as the `f64` lane reads it: one whose squares
+    /// underflow reads its angle (`π/2` for `(1e-300, 0)`), never NaN or the
+    /// pole's `0`, and an exact zero, which names every angle, reads `0` as
+    /// `atan2(0, 0)` does. At `Interval` a point whose squares underflow
+    /// reads a narrow angle.
     ///
     /// *Breaks if* a point of no structural length reads the window's hull,
     /// which is poison at a point scalar, or a pole's `0`.
@@ -1772,7 +1774,9 @@ mod tests {
     fn a_point_direction_reads_its_angle_however_small_its_length() {
         use crate::mate::SolveScalar;
         use geom_core::{Bounds, Interval, Sym};
-        for (y, x) in [(0.0, 0.0), (0.0, -0.0), (1e-300, 0.0), (0.0, -1e-300)] {
+        let zero = <Sym<f64> as SolveScalar>::solve_atan2(Sym::opaque(0.0), Sym::opaque(-0.0));
+        assert_eq!(zero.value, 0.0, "an exact zero reads u_ref");
+        for (y, x) in [(0.0, 0.0), (1e-300, 0.0), (0.0, -1e-300)] {
             let sym = <Sym<f64> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x)).value;
             let lane = <f64 as SolveScalar>::solve_atan2(y, x);
             assert!(sym.is_finite(), "({y}, {x}): {sym}");
