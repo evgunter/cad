@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 58] = [
+pub(super) const SITES: [&str; 57] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -47,7 +47,6 @@ pub(super) const SITES: [&str; 58] = [
     "form-uncharged",
     "lane-envelope-bound",
     "cone-terms-unprojected",
-    "semi-axis-unchecked",
     "charge-circular",
     "ellipse-term-dropped",
     "ruling-per-parameter",
@@ -431,15 +430,6 @@ pub(crate) fn lane_envelope_bound() -> bool {
 /// `circle_lane_rows`).
 pub(crate) fn cone_terms_unprojected() -> bool {
     on("cone-terms-unprojected")
-}
-
-/// The edge certificate's semi-axis checks skipped: a conic stored with
-/// a negative or non-finite semi-axis reaches the span meter, which
-/// ends it as something else (its rows are
-/// `ellipse_lane_rows::a_conic_stored_with_a_negative_semi_axis_refuses_typed`
-/// and `..._with_a_semi_axis_not_finite_refuses_as_that`).
-pub(crate) fn semi_axis_unchecked() -> bool {
-    on("semi-axis-unchecked")
 }
 
 /// A conic's charge read as a circle's, `|a| = |b|`: the reach and the
