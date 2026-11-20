@@ -2,11 +2,12 @@
 id: frame-lanes-still-pick-their-atan2-formula-across-a-landmark-cut
 kind: issue
 title: Four frame lanes still pick their atan2 formula across a cut on a landmark axis (plane_crossing_phase_frame, props_torus_lift_branch, curve_pair_pose_branch, editor-core's solve_atan2), with two reference-relative cousins
-status: dispatched
+status: review
 opened: 2026-10-18
 priority: P1
 cost: E
 branch: charttail/solve-atan2
+pr: 7165
 ---
 
 Found by the round-4 delta review of PCERT B1 (PR 5225). It is outside that PR, which leaves these sites unchanged.
