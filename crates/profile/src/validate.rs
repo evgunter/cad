@@ -810,9 +810,9 @@ impl fmt::Display for ProfileError {
             ),
             Self::MultipleOuterLoops { outer_loops } => write!(
                 f,
-                "profile has {} outer boundaries {:?}; one face region per profile",
+                "profile has {} outer boundaries {}; one face region per profile",
                 outer_loops.len(),
-                outer_loops
+                crate::structure::index_list(outer_loops)
             ),
             Self::NestingTooDeep { loop_index, depth } => write!(
                 f,

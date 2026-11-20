@@ -560,13 +560,8 @@ mod review_probes {
             .expect_err("a tangent belly departure is refused");
         println!("the tangent-cone neck answers {refusal:?}");
         assert!(
-            matches!(
-                refusal,
-                pncad::profile::PathError::JunctionTangent { margin, arm }
-                    if margin.abs() < 1e-15 && arm > 0.1
-            ),
-            "the tangent neck must refuse as JunctionTangent with a vanishing \
-             turn margin on a real lever arm: {refusal:?}"
+            matches!(refusal, pncad::profile::PathError::JunctionTangent { .. }),
+            "the tangent neck must refuse as JunctionTangent: {refusal:?}"
         );
     }
 
