@@ -1254,11 +1254,11 @@ tangent touch and an end on a crease included, and the walk does not
 read past that end. A spiric
 span against a spline face is unbuilt. Of the analytic arms, the
 plane-crossing door (`curve_face::plane_crossing`: a line's endpoints,
-a conic's roots against the plane) and the conic × torus doors
+a conic's roots against the plane), the line × quadric door
+(`curve_face::line_quadric`) and the conic × torus doors
 (`curve_face::circle_torus`, `curve_face::ellipse_torus`, over the
 shared half-angle root cores `curve_face::circle_roots`) are built
-here; the line × quadric and conic × quadric arms are the boolean's
-root doors in `topo`. A meeting inside a spline
+here; the conic × quadric arm is the boolean's root door in `topo`. A meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
 on its own sheet (`topo::spline_region::spline_chart_placement`);
 a point in space has its placement built

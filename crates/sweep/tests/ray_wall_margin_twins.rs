@@ -5,9 +5,10 @@
 //! metre twin's over a thousand. A margin decided on its sign alone
 //! (`MarginSample::reads_sign_only`, a decision at `Band::least()`) has
 //! no scale to keep, so only its verdicts are compared. The wall arm's two rungs are what this
-//! suite exists for — `bool_point_in_solid_denom`'s axis-parallel rung
-//! (`|d⊥|` levered by the selection's reach) and
-//! `bool_ray_cylinder_disc` (the half-chord's depth) — and both are
+//! suite exists for — the axis-parallel rung,
+//! `line_quadric_cylinder_axis_parallel` (`|d⊥|` levered by the
+//! selection's reach), and
+//! `line_quadric_cylinder_disc` (the half-chord's depth) — and both are
 //! asserted to FIRE, so the pin cannot go vacuous. A planar-only body
 //! (`topo`'s `rim_dim_boolean_twins`) never reaches either, nor the
 //! germ plane normal a plane × cylinder join reads
@@ -32,7 +33,10 @@ use sweep::{Extrusion, extrude};
 use topo::point_in_solid;
 
 /// The predicates whose firing makes this pin a claim about the wall.
-const WALL_RUNGS: [&str; 2] = ["bool_point_in_solid_denom", "bool_ray_cylinder_disc"];
+const WALL_RUNGS: [&str; 2] = [
+    "line_quadric_cylinder_axis_parallel",
+    "line_quadric_cylinder_disc",
+];
 
 /// A pipe of radius `scale` about `z`, `z ∈ [−2, 2]·scale`, and probes
 /// inside, outside and beyond its caps, all scaled with it: the

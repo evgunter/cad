@@ -15,7 +15,7 @@ second review (r2 m-1).
 
 ## What
 
-`reduce::line_cone_roots` decides `bool_line_cone_depth` on
+`line_quadric::line_cone_roots` decides `line_quadric_cone_depth` on
 `disc/(|A|·R)` (`crates/topo/src/boolean/reduce.rs:3892-3895`), with
 `R = max(|q(t0)|, |q(t1)|, |q(t*)|)` the line's reach from the apex
 (`reduce.rs:3891`). The bound the rung rests on,
@@ -26,7 +26,7 @@ refuses inside `δ ≈ √(2εR)`.
 
 Measured by r2 on a steep line, `α = π/4`, scale 1: the nearest
 answered `δ` is 2.5e-4 m at ε 1e-9 and 7.9e-3 m at ε 1e-6. At ε 1e-6,
-21 of 240 random end-to-end sweeps escalate `bool_line_cone_depth`.
+21 of 240 random end-to-end sweeps escalate `line_quadric_cone_depth`.
 
 ## The fix owed
 

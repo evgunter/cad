@@ -41,5 +41,5 @@ arc `[−0.5, 0.5]`, which holds the touch.
 A piece of the turn that no part of `[t0, t1]` reaches decides nothing
 the caller reads. The side decision can be skipped there, or charged
 against its distance from the arc, as the line × cone lane does for root
-slack (`bool_line_cone_root_slack`).
+slack (`line_quadric_cone_root_slack`).
 

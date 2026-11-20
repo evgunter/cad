@@ -190,7 +190,7 @@ fn a_plane_misses_a_carrier_beyond_its_extent() {
 /// double root there) and a circle through it in a meridian plane (the
 /// apex's double root among its crossings) refuse
 /// [`TraceFault::Apex`]. The root doors answer that double root
-/// (`reduce::line_cone_roots`, `conic_quadric`'s "Through the apex");
+/// (`line_quadric::line_cone_roots`, `conic_quadric`'s "Through the apex");
 /// the trace's own apex row (`trace_crossing_apex`) refuses it.
 #[test]
 fn a_piece_through_a_cones_apex_refuses_at_the_apex() {

@@ -33,7 +33,7 @@ cut: a rod's seam line crossing a narrowing frustum's wall, whose line
 passes 0.1 m from the apex with two roots at `t ≈ 1.91` and `2.13`,
 both outside the edge's span `[0, 0.5]`, their slack 2.5e-12 m. The
 line lane now meters each root's slack less its distance outside the
-span (`bool_line_cone_root_slack`). Unmeasured on the conic doors: the
+span (`line_quadric_cone_root_slack`). Unmeasured on the conic doors: the
 ellipse × torus door (`ellipse_torus_root_slack`) and the conic ×
 quadric door's cone arm (`bool_conic_cone_root_slack`) meter every
 root.

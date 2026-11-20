@@ -31,7 +31,7 @@ PR 4246 found and fixed this shape in the ring lane
     A root that passes it is within the zero band of its true place, so
     the arc-length margin is sound there.
   - **Line against a cylinder or a sphere is not covered.**
-    `solid_contain::line_wall_roots` (`solid_contain.rs:4107`) and
+    `line_quadric::line_wall_roots` (`solid_contain.rs:4107`) and
     `line_sphere_roots` (`:4245`) decide only the discriminant, as the
     sagitta `disc/|d⊥|²/(2r)`. A decided graze `g ≥ Kε` leaves the root
     error at `≈ δ·√(r/(2g))`, far past the band, with no slack row.

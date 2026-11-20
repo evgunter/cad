@@ -25,7 +25,7 @@ sphere arms' residual from `bool_point_in_solid_plane` to
 
 The reviewer's ball × box and lens families gave the counts, per family
 per ε: about 900 such refusals at points clear of every face, plus 65
-`bool_ray_sphere_disc` in the lens family
+`line_quadric_sphere_disc` in the lens family
 (`analysis/reach-dual/4046-r1`, `review.md` MINOR 1).
 
 That fix changed `point_in_solid`'s plane arm in two places
@@ -63,7 +63,7 @@ The curved arms keep the old order on both counts.
 2. **Ray sweep.** These arms still escalate in-band margins with
    `.map_err(escalate)?` (`RayFault::Fatal`). Some are about the ray:
    the wall roots' discriminant and axis-parallel rung,
-   `bool_ray_sphere_disc`, `bool_ray_cone_{lead,disc,apex,nappe,incidence}`,
+   `line_quadric_sphere_disc`, `bool_ray_cone_{lead,disc,apex,nappe,incidence}`,
    the torus root count and `bool_ray_torus_incidence`, and a trim
    reading at a hit point. Others are about the body: `bool_wall_trim_period`,
    the wall outline's class rows, `require_ring_torus`, the cone's
@@ -76,7 +76,7 @@ The curved arms keep the old order on both counts.
 
 The ray-walk driver unit made every in-band reading inside `cast_ray`
 a reading of that ray (`ray_walk::RayFault::InBand`): the wall roots'
-rungs, `bool_ray_sphere_disc`, `bool_ray_cone_{lead,disc,incidence}`,
+rungs, `line_quadric_sphere_disc`, `bool_ray_cone_{lead,disc,incidence}`,
 the torus root count (including `bool_ray_torus_count`'s
 contradiction) and `bool_ray_torus_incidence`, and every trim reading
 at a hit point (`at_hit`, which also sets aside a ray on

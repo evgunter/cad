@@ -24,6 +24,7 @@ use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sig
 use super::BooleanError;
 use crate::validate::decide;
 use geom_brep::curve_face::circle_roots::CircleRoots;
+use geom_brep::curve_face::line_quadric::{LineQuadricRefusal, LineRoots, line_quadric_roots};
 
 /// The funnel row a crossing's sense is decided on: the cosine between
 /// the piece's direction and the outward normal, levered by the piece's
@@ -164,6 +165,16 @@ fn door_refusal(
     }
 }
 
+/// The line × quadric door's refusal, as the trace's: its escalation is
+/// the trace's own, whichever arm raised it.
+fn line_door_refusal(refusal: LineQuadricRefusal) -> TraceFault {
+    use geom_brep::curve_face::circle_roots::DoorRefusal;
+    match refusal.door_refusal() {
+        DoorRefusal::Escalated(diag) => TraceFault::Escalated(diag),
+        DoorRefusal::Invariant(what) => unreachable!("a root door's invariant: {what}"),
+    }
+}
+
 fn unsettled(why: Unsettled) -> TraceFault {
     match why {
         Unsettled::Tangency => TraceFault::Grazing,
@@ -195,7 +206,6 @@ pub fn ray_crossings<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
-    use super::reduce::SpanVerdict;
     let geom::Line { origin, dir } = ray.line();
     // Unsourced lever: the ray's length, a scene size the caller hands
     // rather than geometry the extent home reads.
@@ -225,17 +235,14 @@ pub fn ray_crossings<T: Decide>(
         }
         _ => {
             let run = (ray.start(), ray.from_start(reach));
-            match super::reduce::line_wall_roots_of(ray.line(), run, surface, band).map_err(door)? {
+            match line_quadric_roots(ray.line(), run, surface, band).map_err(line_door_refusal)? {
                 None => {
                     return Err(TraceFault::Unsupported {
                         carrier: surface.kind(),
                     });
                 }
-                Some(Err(SpanVerdict::Constant)) => return on_carrier(),
-                Some(Err(_)) => {
-                    unreachable!("a line's root door answers a constant residual alone")
-                }
-                Some(Ok(found)) => roots_of(found)?,
+                Some(LineRoots::Constant) => return on_carrier(),
+                Some(LineRoots::Roots(found)) => roots_of(found)?,
             }
         }
     };
@@ -417,7 +424,7 @@ fn crossing<T: Decide>(
     band: Band,
 ) -> Result<Crossing<T>, TraceFault> {
     // A root at a cone's apex, which the root doors now answer as the
-    // carrier's double root there (`reduce::line_cone_roots`,
+    // carrier's double root there (`curve_face::line_quadric`,
     // `conic_quadric`'s "Through the apex"), has no outward normal and
     // no sense to read: the piece crosses at the apex.
     if let Surface::Cone { apex, .. } = *surface

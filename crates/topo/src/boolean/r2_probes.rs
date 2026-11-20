@@ -14,7 +14,7 @@
 
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use crate::solid_contain::line_torus_roots;
+use geom_brep::curve_face::line_quadric::line_torus_roots;
 use geom_brep::quartic::QuarticRoots;
 use geom_brep::roots::{RootRefusal, Unsettled};
 
@@ -324,11 +324,11 @@ fn r2_extreme_radii_ratios_keep_the_certified_roots_honest() {
                 // decline from the trim or the frame, which would mean
                 // something other than the count was in doubt.
                 let certifying = [
-                    "bool_ray_torus_disc",
-                    "bool_ray_torus_shape",
-                    "bool_ray_torus_depth",
-                    "bool_ray_torus_split",
-                    "bool_ray_torus_split_lead",
+                    "line_quadric_torus_disc",
+                    "line_quadric_torus_shape",
+                    "line_quadric_torus_depth",
+                    "line_quadric_torus_split",
+                    "line_quadric_torus_split_lead",
                 ];
                 assert!(
                     diag.predicate.is_some_and(|p| certifying.contains(&p)),
