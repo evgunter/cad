@@ -310,7 +310,6 @@ use geom::Surface;
 use geom_brep::{OutwardNormal, Pcurve, PolygonOrientation};
 use geom_core::Point3;
 use geom_core::period::Period;
-use geom_core::predicate::{Band, Margin};
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::pcurves::{FaceLift, Lift};
@@ -553,8 +552,7 @@ pub(crate) fn tessellate_trimmed(
             // which is `nu == 2`. A cylinder has no singular point, and
             // `one_location_per_branch` holds each vertex at one UV per
             // branch, so a repeated id at two DISTINCT UVs is one vertex
-            // on two branches, a whole turn apart (or, where no mark
-            // decided its branch, at a half-period mark): `u1 - u0` is
+            // on two branches, at least half a turn apart: `u1 - u0` is
             // at least π against an `hu` the sagitta cap holds at ≤ π/4,
             // so `nu >= 4` and the two never meet.
             debug_assert!(
@@ -2423,19 +2421,20 @@ fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
 
 /// **A vertex the walk meets again on one chart branch is one UV
 /// location**: each entry of a mesh id takes the `(u, v)` of that id's
-/// first entry on its branch, bit for bit. Its branch is the whole
-/// number of periods, per angle channel, between it and the id's first
-/// entry, decided by [`Period::decide`] at the half-period marks; a
-/// length channel has one branch. The polygon reads each entry off its
+/// first entry on its branch, bit for bit. A later entry is on an
+/// earlier entry's branch where [`Period::near`] renames it onto that
+/// entry's copy by no whole period, in every angle channel (`near`'s
+/// half-period marks decide it, and it answers the entry itself, bit for
+/// bit, on its own copy); a length channel has one branch. An entry on
+/// no branch met yet starts one. The polygon reads each entry off its
 /// own traversal's pcurve, and two images of one vertex agree only to
 /// rounding; pinned, the CDT holds the vertex as one handle per branch,
 /// the boundary pinch [`Pinches`] meshes. So a mesh id at two UV
 /// locations is a singular vertex's copies or one vertex on two
-/// branches, a whole period apart.
+/// branches, at least half a period apart.
 ///
-/// An entry whose branch no mark decides is read as walked, as is every
-/// entry on a spline chart (`periods` `None`): its periods are its knot
-/// domains' and are decided at a band, which this pass has not.
+/// A spline chart (`periods` `None`) is read as walked: its periods are
+/// its knot domains' and are decided at a band, which this pass has not.
 fn one_location_per_branch(
     mut trim: TrimPolygon,
     periods: Option<geom::AnglePeriods<f64>>,
@@ -2444,23 +2443,21 @@ fn one_location_per_branch(
     let Some((pu, pv)) = periods else {
         return trim;
     };
-    let branch = |p: Option<Period<f64>>, t: f64, first: f64| match p {
-        None => Some(0),
-        Some(p) => p
-            .decide("trim_vertex_branch", first - t, Margin::of, Band::least())
-            .ok(),
-    };
-    let mut first: HashMap<u32, (f64, f64)> = HashMap::new();
-    let mut located: HashMap<(u32, i32, i32), (f64, f64)> = HashMap::new();
+    #[allow(clippy::float_cmp)] // `near` answers `t` itself, bit for bit, on its own copy
+    let on_copy =
+        |p: Option<Period<f64>>, t: f64, first: f64| p.is_none_or(|p| p.near(t, first) == t);
+    let mut branches: HashMap<u32, Vec<(f64, f64)>> = HashMap::new();
     for point in &mut trim.points {
         if singular.contains(&point.2) {
             continue;
         }
-        let (u, v) = *first.entry(point.2).or_insert((point.0, point.1));
-        if let (Some(ku), Some(kv)) = (branch(pu, point.0, u), branch(pv, point.1, v)) {
-            (point.0, point.1) = *located
-                .entry((point.2, ku, kv))
-                .or_insert((point.0, point.1));
+        let firsts = branches.entry(point.2).or_default();
+        match firsts
+            .iter()
+            .find(|&&(u, v)| on_copy(pu, point.0, u) && on_copy(pv, point.1, v))
+        {
+            Some(&(u, v)) => (point.0, point.1) = (u, v),
+            None => firsts.push((point.0, point.1)),
         }
     }
     trim
