@@ -273,7 +273,7 @@ of them is a defect.
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a certificate is a fact about its support and is read wherever that support is bit-identical and derived wherever it is not, so a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest, and an edge's or pcurve row's certificate is carried by every door that keeps its support; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -420,7 +420,11 @@ curve pairs.
   its entries), so no gate reads it back from entries that, at a box
   scalar, no longer carry it. A continuous
   value that varies over the box is no choice: chosen at the nominal
-  values, it is wrong everywhere else, so the lane builds it.
+  values, it is wrong everywhere else, so the lane builds it. The one
+  such value a lane takes from `f64` is a solved parameter with no
+  closed form, admitted by a check at the lane scalar that leaves
+  every member of the box within the band, and refused where no one
+  number does (`crates/geom-core/README.md`, DL5.2).
 - **The editor-core evaluation service is generic over `Real`.** M10's
   error-propagation UI rides the same memoization / cancelation /
   per-node-result machinery as f64 rebuilds; no parallel path.
@@ -2620,7 +2624,7 @@ is the board and `work/README.md` its contract.
 | `crates/profile/README.md` | Ratified (V1–V8; enclosing tangency #1210) | Profiles as programs (PROFILES-V2-DESIGN V1–V8); the enclosing (ρ < 0) fillet tangency is permanently unreachable and a radius demanding it refuses typed (ENCLOSING-TANGENCY-DESIGN) |
 | `crates/viewer/GUI-DESIGN.md` | Ratified; GUI v1 shipped | GUI architecture G1–G5, GQ1–GQ7: the three-layer split, egui as toolkit, what v1 ships. `crates/viewer/README.md` beside it is the implementation record, which the program maintains itself |
 | `docs/ERROR-DESIGN.md` | Ratified (#110); M10 closed 2026-09-13 | Error propagation E1–E12: duals, stackups, the subdivision driver, trichotomy. M10 built it and closed 2026-09-13; the analysis lane is PROPS' and E12's symbolic tier continues as SYM |
-| `crates/geom-core/README.md`, "Reading a bracket where nothing certifies" section only | Ratified (Ev, PR 7155) | The delegation rule, DUAL-DESIGN DL5: a bracket read whose `f64` leaves or is only compared needs no lane door (DL5.1); a bound, a place and `f64`-built data never become a free `T`, and a constant enters through a door that takes no runtime `f64` (DL5.2); certifying code is closed to a dual by type on its interior as well as at its doors, through a bound that grants nothing else (DL5.3) |
+| `crates/geom-core/README.md`, "Reading a bracket where nothing certifies" section only | Ratified (Ev, PR 7155) | The delegation rule, DUAL-DESIGN DL5: a bracket read whose `f64` leaves or is only compared needs no lane door (DL5.1); a bound, a place and `f64`-built data never become a free `T`, and a constant enters through a door that takes no runtime `f64`, and a solved value is a candidate admitted by its check (DL5.2); certifying code is closed to a dual by type on its interior as well as at its doors, through a bound that grants nothing else (DL5.3) |
 | `docs/DUAL-DESIGN.md` | Ratified (#1146) | The Dual contract DL1–DL6: a Dual is tangent transport and never certifies; ContentBits feeds both channels; the delegation rule; poison-vs-widen in certified lanes |
 | `docs/PATHS-DESIGN.md` | Ratified (#124) | The PartialPath authoring algebra |
 | `docs/LIBRARY-DESIGN.md` | Ratified (#229); program open | Usable-as-a-library L1–L8: façade, Python bindings via the document layer, v2-fronted PATHS, the authoring-ergonomics unit ladder |

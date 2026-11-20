@@ -132,3 +132,47 @@ Every one still stops at the same `VolumeUncomputable` on both. The
 differences are within the box's noise. That fits the profile above:
 the march is a small share of the time, and the certificates are the
 cost.
+
+## 2026-11-20: re-measured, and the tube lever (`sect/ball-cylinder-cost`)
+
+Every operation now ends in a body (the volume lane has landed). On main
+`d44f46d3`, 4 idle cores, opt-level 2, debug assertions and overflow
+checks off, each op timed alone by a throwaway example:
+
+| operation | default ε, main → branch | ε 1e-12, main → branch |
+|---|---|---|
+| ball ∪ rod | 4.34 → 2.43 s | 25.49 → 15.40 s |
+| ball ∖ rod | 3.62 → 1.80 s | 21.00 → 11.12 s |
+| ball ∪ stub | 2.47 → 1.70 s | 14.81 → 8.79 s |
+| ball ∖ stub | 2.12 → 1.22 s | 12.98 → 6.64 s |
+
+**Where the time went on main** (ball ∪ rod, 150 gdb samples of the
+main thread): the chords' rung-3 certificate 53 %, and in it limb 2
+(`limb2_offset_sup`) under 1 % (its memo serves it) while limb 3 was
+all of it: `intersect::tube_bounds` 28 %, which composed the carrier's
+control hulls and then refused the pair (`Unstated::Pair`: sphere ×
+cylinder had no closed form), and the tube it left owed,
+`ssi::certify::certify_branch`, 27 %. Counted: 40 rung-3 calls on 16
+distinct inputs (8 arcs × 4 repeats + 8 once); the repeats were half of
+the rung-3 time, 1.39 of 2.81 s. The rest: the result gate's volume
+14 %, the pcurve mint 7 %, the site mint's pcurve rows 7 %.
+
+**The lever** (`geom_brep::intersect::section_bounds`): sphere ×
+cylinder states its crossing-angle floor in closed form, so the tube is
+retired on every one of those calls; an unclassified pair is refused
+before its hulls are composed; and each span is read whole first and
+cut into its `PIECES` pieces (by de Casteljau, from one Bernstein row)
+only where its whole box could lower the floors, so the floors are those
+every span cut gives. `tube_bounds` in ball ∪ rod: 1.27 s of refusals →
+0.15 s of certificates, and `certify_branch` no longer runs.
+
+**Where the time goes now** (ball ∪ rod, 2.43 s, 150 samples): the
+volume 22 % (`work/quad/a-ball-and-cylinder-results-volume-is-a-fifth-of-the-boolean.md`),
+the projected pcurve certificates at three doors about 40 %
+(`a-fitted-chords-projected-pcurve-certificate-is-taken-at-three-doors-per-operation.md`),
+the rung-3 certificate 15 % (still 40 calls on 16 inputs: the
+five-times row), the edge spec's speed meters 13 % (partly
+`work/nurbs/a-curve-cloned-before-its-speed-meters-first-read-computes-them-again.md`),
+the march 8 %. The target (under about 0.5 s) is not reached; the
+largest remaining levers are certificates taken more than once, whose
+sharing is the design question the five-times row names.
