@@ -34,7 +34,10 @@
 //! * Across a boundary edge the classification necessarily *differs*,
 //!   so every boundary segment is an edge of exactly one kept triangle
 //!   on this face — watertightness by construction rather than by
-//!   numerical luck.
+//!   numerical luck. That holds for a side traversed an odd number of
+//!   times; an even one (a slit) separates nothing, and loops with no
+//!   odd side bound no region and refuse
+//!   ([`TessellateError::BoundaryBoundsNoRegion`]).
 //! * A degenerate needle may still be kept (a zero-area sliver inside
 //!   the region) or dropped (outside it), but never emitted on the
 //!   outside — which is the defect that leaks meshes.
@@ -201,10 +204,11 @@ use std::collections::HashMap;
 use geom_core::{Point3, Vec3};
 use spade::{
     ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation,
-    handles::{DirectedEdgeHandle, FixedFaceHandle, FixedVertexHandle, InnerTag},
+    handles::{DirectedEdgeHandle, FixedVertexHandle, InnerTag},
 };
 use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
+use crate::region::{Crossings, classify_faces, edge_key};
 use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
 use crate::walk::loop_edges;
@@ -411,6 +415,7 @@ fn triangulate_chart(
         }
         base += hs.len();
     }
+    crate::region::require_a_region(fk, &crossings)?;
 
     // Outer-loop orientation in the chart frame decides the flip.
     //
@@ -714,75 +719,6 @@ impl Pinches {
             _ => Err(refuse),
         }
     }
-}
-
-/// A CDT edge's identity as an unordered pair of vertex indices.
-pub(crate) fn edge_key(
-    e: DirectedEdgeHandle<'_, SpadePoint<f64>, (), spade::CdtEdge<()>, ()>,
-) -> (usize, usize) {
-    let (p, q) = (e.from().fix().index(), e.to().fix().index());
-    (p.min(q), p.max(q))
-}
-
-/// Each realised boundary edge's crossing count, keyed by
-/// [`edge_key`]: the even-odd input to [`classify_faces`] (#116).
-pub(crate) type Crossings = HashMap<(usize, usize), u32>;
-
-/// Even-odd interior flag per CDT face, indexed by face index (0 is
-/// spade's outer face, which is outside every loop).
-///
-/// A breadth-first walk of the face-adjacency graph from the outer face,
-/// toggling the flag exactly when it steps across a boundary segment
-/// traversed an odd number of times. Purely combinatorial: the result
-/// depends on the triangulation's connectivity and on integer crossing
-/// counts, never on a coordinate comparison.
-pub(crate) fn classify_faces(
-    cdt: &ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
-    crossings: &Crossings,
-) -> Vec<bool> {
-    let toggles = |e| crossings.get(&edge_key(e)).is_some_and(|n| n % 2 == 1);
-    let mut inside = vec![false; cdt.num_all_faces()];
-    let mut seen = vec![false; cdt.num_all_faces()];
-    let mut queue: Vec<FixedFaceHandle<InnerTag>> = Vec::new();
-
-    // Seed: step inwards across every convex-hull edge. The hull bounds
-    // the outer face, which is outside every loop; a hull edge that is
-    // itself a boundary segment toggles on the way in.
-    for hull in cdt.convex_hull() {
-        let e = if hull.face().is_outer() {
-            hull.rev()
-        } else {
-            hull
-        };
-        let Some(f) = e.face().as_inner() else {
-            continue; // both sides outer: a degenerate, edge-only CDT
-        };
-        let i = f.fix().index();
-        if !seen[i] {
-            seen[i] = true;
-            inside[i] = toggles(e);
-            queue.push(f.fix());
-        }
-    }
-
-    let mut head = 0;
-    while head < queue.len() {
-        let f = queue[head];
-        head += 1;
-        let here = inside[f.index()];
-        for e in cdt.face(f).adjacent_edges() {
-            let Some(g) = e.rev().face().as_inner() else {
-                continue; // the outer face, already the walk's origin
-            };
-            let j = g.fix().index();
-            if !seen[j] {
-                seen[j] = true;
-                inside[j] = here ^ toggles(e);
-                queue.push(g.fix());
-            }
-        }
-    }
-    inside
 }
 
 /// The loop's chord ids in walk order (each traversal contributes its

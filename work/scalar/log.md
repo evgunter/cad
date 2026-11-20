@@ -83,9 +83,164 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
   - The fork went back to both designers with Ev's comment and the survey; the question put is what re-entry should be so the code enforces the answer. **Class**: two designers and three rounds agreed a rule over a population nobody had measured, and Ev's first question was the measurement.
 - 2026-11-20 — **PR 7154 merged** on Ev's ruling. `patherror-display-renders-float-noise` is restated as the build (`H`, three units: the type and `profile`'s move onto it; the notation-taking rendering; one sweep per crate) and is the track's one dispatchable P1. PR 7155 (what a re-entered value carries at a dual) is with Ev; its build row `from-computed-claims-a-zero-tangent-at-a-dual` is parked on it.
 - 2026-11-20 — **Dispatch: `the-told-quantity-type-and-profiles-refusals-on-it`** (unit 1 of the told-quantity build). Letter H, tier dual: a public vocabulary type every sentence-writing crate will hold, with rounding rules that are easy to get subtly wrong. Units 2 (the notation-taking rendering) and 3 onward (per-crate sweeps) stack on it once its type has survived review; they are not dispatched alongside, because the review can still reshape the type they would build on.
+- 2026-11-20 — **Ev questioned PR 7155 again**, on the rewritten recommendation: "i still don't see why we need to turn a computed f64 back into a T. your table of valid cases looks like cases where it doesn't cause an issue if we do this, but none of them obviously look to me like cases where it's necessary", and "still not sure if duals are, at least type-wise, only where they belong?" The survey sorted the 157 re-entries by harm and never by need, so nothing measured answers the first; on the second, a dual is kept out by `CertifiedEnclosure`/`CertifiedBounds` alone and about 100 re-entry sites admit one by type. Round 7 went to both designers with Ev's words and two things to count in the tree: which dual-reachable re-entries the code cannot do without, and where the types admit a dual that has no meaning there. **Class**: a rule about when a thing is safe was put to Ev twice before anyone asked whether the thing is needed.
 - 2026-11-20 — (tracker sweep) **FRAME merged in.** It held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size). Its 10 live rows moved here by `git mv`, ids and bodies unchanged, each with a dated Moved note; its charter and plan are the `## From FRAME` sections of `program.md` and `plan.md` (`docs/doc-ledger/frame-merges-into-scalar.md`). (tracker sweep)
 - 2026-11-20 — (tracker sweep) To SCALAR's orchestrator: rows were added to this track while it is held (Ev, in chat, 2026-11-02: adding rows to an existing orchestrator is safe). None is P0 or P1, so the sitting's slate is unchanged. (tracker sweep)
+
+- 2026-11-20 — `the-told-quantity-type-and-profiles-refusals-on-it`
+  (PR 7159) reported with hosted CI green on head 75501c0244. Dual
+  review dispatched: two reviewers concurrently on that frozen head,
+  one brief (`review-brief-7159.md` in the forks scratch), ten claims
+  to falsify plus the style lane; slot-order byte on
+  `analysis/model-compare/scalar-2026-11-20`. Held, not dispatched:
+  `a-place-is-an-f64-argument-answered-on-the-value-channel`. The
+  build mutex is width one with two implementers and two reviewers on
+  it, and the fair-pair rule says to reduce simultaneous work rather
+  than narrow a reviewer; the places unit also edits files the two
+  DL5 units in flight edit. It goes out when one of them lands.
+
+- 2026-11-20 — **PR 7159's dual review is in and adjudicated.** Both
+  reviews: APPROVE-WITH-FIXES; the rounding core survived
+  exact-arithmetic sweeps on the parsed-float reading. Taken into the
+  fix pass (`fix-list-7159.md` in the forks scratch, twelve items): an
+  `ArcLen` leg's `len / r` told as given (float noise back in a
+  sentence and out through `as_given`); `Told::beside` false for an
+  offered or enclosure member; `Debug` and `PartialEq` as ways back to
+  a computed number; the field gate failing open on shapes its blind
+  list does not name, and its count pin; four unpinned or loosened
+  contracts in the suites. Nothing argued down. The orchestrator's
+  brief was wrong on one claim and both reviewers corrected it:
+  `Band::offer_deciding` has no production caller outside `geom-core`.
+  - **Class — a role is a constructor name nothing checks.**
+    `authored_*` makes any scalar "given", and `as_given()` then hands
+    it back; every per-crate sweep will make that choice at dozens of
+    sites. To be filed by the fix pass; it shapes how unit 3's sweeps
+    are briefed (each lists the provenance of every given it tells).
+  - **Class — a suite re-baselined onto the function under test.**
+    Seven consumer rows replaced `m / k` with `Band::offer_deciding`.
+    A re-baseline brief has to say that the new expected value is
+    derived independently.
+  - **Friction**: both reviewers lost 25 to 35 minutes at a stretch to
+    the width-one build mutex and ran fewer mutants than they meant
+    to; neither was narrowed by the orchestrator, so the pair is fair.
+
+- 2026-11-20 — **Ev on PR 7176**: "this broadly sounds good", then
+  "how are these used downstream, more concretely? it seems like it
+  would be confusing for something running at interval to have some
+  of its values be exact in a way that, taken literally, would
+  constrain the others." Round 15 went to both designers to trace each
+  solved value forward. They agree: three or four functions store the
+  value in the body (a split parameter, a re-anchored edge end), five
+  only evaluate at it (places under DL5.2, no door), and
+  `editor-core::drive` runs these at `Interval` in production. One
+  found that the proposal conflicts with DESIGN `[scalars]` ("a
+  continuous value that varies over the box is no choice ... so the
+  lane builds it") and that a split parameter already means two things
+  by carrier kind. Put to Ev on the PR as: the point stays and
+  `[scalars]` is amended, or the lane builds an enclosure; both lean
+  the first. The orchestrator's sketch overcounted the door's users
+  (nine; it is three or four) and said so there.
+- 2026-11-20 — **Ev asked, in chat, what note would have made the
+  illegitimate lifts visible without his pokes**, and said the text
+  about types being semantically correct is not landing. Answered,
+  and proposed as PR 7189 (`[ev]`, own PR since it binds future work):
+  a paragraph in DESIGN `[unrepresentable]` that a signature is a
+  claim (a bound says where code has a meaning; a conversion says what
+  makes its result true; one sentence per admitted type; no gate
+  taxes the narrower bound), and three rules in
+  `docs/prompts/designer.md` (need before safety; count before ruling;
+  the per-type sentence). No designer round, stated in the body.
 - 2026-11-20 — **PR 7155 merged** on Ev's ruling (DL5.1 to DL5.3). **The two held questions are with Ev** as a new `[ev]` PR on `scalar/solved-value` (`docs/DESIGN-FORK-LOG.md` row 293; the same two designers, labels redrawn). Two more rounds; they agree. A solved value is not a conversion: an `f64` search proposes a candidate and a check at `T` admits it, so the door takes the candidate and the residual and runs the check, bounded `Certifies`. A closed form stays in `T`. Nothing is owed at a dual, which reaches no solver. No site needs a lift behind `CertifiedEnclosure`. The finite-difference check is recommended as a suite row, not the `debug_assert` Ev asked about: the release profile runs debug assertions, and a difference quotient disagrees with the tangent at a kink.
   - **Dispatched**: `certification-interiors-are-closed-to-a-dual-by-a-marker-bound` (H, dual) and `a-bound-to-decide-against-never-becomes-a-t` (H, single FULL), concurrently; they share files and are logically independent (one changes bounds, the other bodies). `a-place-is-an-f64-argument-answered-on-the-value-channel` (H, dual) waits for the build slot the told-quantity lane holds: the mutex is one wide and four concurrent builders would each crawl.
   - **Friction**: a full lane clone took over ten minutes with two running beside a build; `work.py set` and `work.py lint` each exceeded two minutes once under the same load. Not measured further.
 - 2026-11-20 — **Ev ruled on PR 7176.** The door stands ("this broadly sounds good"), for values the body stores only; at an enclosure scalar the admitted value is one number checked over the family, and DESIGN `[scalars]` now says that is the one continuous value a lane takes from `f64`. Ev on the alternative (the lane builds an enclosure of each member's root): "leaving it at A is definitely fine for now although B might be needed to support booleans later", since over a box wider than the tolerance the crossings rarely meet at one place. Filed as `a-stored-solved-parameter-is-an-enclosure-of-each-members-root` (P3, design, measure first). The door is unit `a-solved-value-the-body-stores-is-admitted-by-its-check`, after the marker-bound and places units. DL5.2's place row said "a split"; it now says "the point a cell is subdivided at", since a parameter an edge is split at is stored.
+
+- 2026-11-20 — **PR 7176 merged** (Ev's ruling, above). **PR 7189**
+  approved by Ev after four changes ("this looks good!"); merges on
+  green.
+- 2026-11-20 — `a-bound-to-decide-against-never-becomes-a-t` reported
+  as **PR 7185**, hosted CI green on head 2b6ba7b1a4. Single FULL
+  review dispatched on that frozen head (`review-brief-7185.md`, nine
+  claims; reviewer byte on the analysis branch). The implementer chose
+  `Margin<T, A = ()>` with the bound applied by the run's scalar at
+  the decision through a hidden `Decide::allowing`; whether that is a
+  new door from an `f64` to a `T` is the review's first claim. It left
+  five families of bound unmoved and filed each; one is a rule
+  question (a bound a `Sym` identity is proved over has no allowance
+  spelling). Incident, reported by the lane: one pattern `pkill` run by
+  mistake, believed to have hit only its own shell. The places unit
+  stays held: it shares files with 7185, whose shape the review can
+  still change.
+
+- 2026-11-20 — **PR 7189 merged** (Ev: "this looks good!").
+- 2026-11-20 — **PR 7159's fix pass is in**, head e7bd8eb468, hosted
+  CI green. All twelve items done; it found a second site of the
+  MAJOR's kind itself (a `Via` leg's derived bulge told as authored).
+  The pass rewrote more than it patched (about 1,200 lines across
+  `told.rs`, `profile` and the gate; the grid now respects float
+  spacing for a large length; equality is of what is told; a pair's
+  radius lever is an index to its largest corner), so it does not
+  merge on the orchestrator's read: a delta re-review went to one of
+  the two reviewers, continued in its own lane, with eight claims.
+  Only one, because the other's clone is in use by PR 7185's review;
+  the pair's comparison was taken on the frozen head and is not
+  affected. The row will say so.
+
+- 2026-11-20 — **PR 7185's review is in: NOT-MERGEABLE-AS-IS**, one
+  MAJOR, fix pass dispatched to the same implementer
+  (`fix-list-7185.md`, seven items). At `f64`, `Interval` and `Dual`
+  the allowance was measured bit-identical to the lifted spellings.
+  At `Sym` it changed what is proved, both ways: a bound of exactly
+  zero compared equal to "no bound" and proved a `Zero` it should not,
+  and the scaling doors made a form-zero margin opaque, losing proofs
+  the five mate sites had. Also taken: the `spline_trim` floor reorder
+  turns a clean "says nothing" into an in-band refusal; `new_scaled`
+  reads a negative arm as degenerate; two bounds left that fit the
+  form. Nothing argued down.
+  - **Class — "none" decided by a value inside a type that says
+    "some".** `Allowance == NONE` was a float comparison. Whether a
+    thing is present is a fact of its type (DESIGN `[unrepresentable]`).
+  - **Class — one rule written twice, half of it moved.** The spline
+    floor exists in `topo` and `geom-brep`; the sweep moved one and
+    they now clamp in different orders. A sweep's brief should ask for
+    the twins of each site it moves.
+  - **Open, recorded on the fix list**: whether `Margin<T, A = ()>`
+    earns its spread (nineteen funnel signatures) against a door that
+    takes the `f64` and returns a sign. The fix pass is told to say so
+    if it does not, and not to rework it unasked.
+
+- 2026-11-20 — **PR 7159's delta re-review is in: APPROVE-WITH-FIXES,
+  no MAJOR**, on head `e7bd8eb468ec`. The first pass's fixes are
+  closed; the rounding core held over 70,336 floats against an exact
+  rational oracle with the grid restated independently; the three
+  items the implementer argued down stand. A second, small fix pass
+  went to the same implementer (`fix-list-7159-delta.md`, six items):
+  a read-back refusal tells a derived chain vertex as given
+  (`profile/src/path.rs:5351`); a `where` clause with parentheses
+  hides a whole type from the gate; a line pin does not stop a pinned
+  name being rebound to a scalar; two test rows; one backwards
+  sentence in the PR body. Nothing argued down. After it the unit
+  merges on green and the orchestrator's read: the remainder is
+  mechanical.
+  - **Class — a list of checked sites is the checker's own claim.**
+    The first fix pass was asked to re-read every given-role site and
+    list them; it listed the read-back point "authored, kept", and
+    the first review had passed the same site unread. The filed row
+    "a role is a constructor name nothing checks" is the durable
+    home; unit 2's brief asks for the provenance of each given, not
+    a list.
+  - **Class — a pin that names a line holds the line's text, not what
+    its names are bound to.** Inline captures (`{verb:?}`) make the
+    pinned text independent of the value formatted. A gate's header
+    must state what its pin holds.
+
+- 2026-11-20 — **PR 7159 merges**: the second fix pass took all six
+  items (head `07451c1117e7`, green run 44813916029); read by the
+  orchestrator, no third review. Every position a refusal locates is
+  now told as derived, and the seven `{:?}` sites go through
+  `identifier()`, so the gate holds no pins. The comparison row is
+  `docs/model-compare-log/rows/PR-7159.md`. Unit 1 of
+  `patherror-display-renders-float-noise` is closed; units 2 and 3+
+  (the per-crate sweeps) are next on it, their briefs asking for the
+  provenance of each number told as given.
+- 2026-11-20 — **Main-red (EXCH):** filed `main-red-endpoint-census-moves-interval-rs-on-the-told-reading` (P1) on this slate. PR 7159's `told_reading` added two endpoint reads to `interval.rs` that `certified_endpoint_census` (slow set) has no disposition for. ONEROUND's PR 7146 moved the same roster line. (EXCH orchestrator)

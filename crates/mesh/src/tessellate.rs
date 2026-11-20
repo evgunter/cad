@@ -1024,7 +1024,9 @@ fn tessellate_impl(
 /// `a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column`), a
 /// slit on two coincident edges refuses `PinchWedge`
 /// (`two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers`,
-/// `a_slit_between_the_tips_is_not_the_strip`), and the one-face ball,
+/// `a_slit_between_the_tips_is_not_the_strip`), a planar lamina bounded
+/// by two coincident edges refuses `BoundaryBoundsNoRegion`
+/// (`mesh/tests/faces_that_bound_no_region.rs`), and the one-face ball,
 /// its wrap edge whole or split, is placed as the wrap strip
 /// (`a_split_wrap_edge_is_one_strip`). A walk that put the strip's two
 /// sides on one column again is what this census would catch.

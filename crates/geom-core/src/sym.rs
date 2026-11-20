@@ -5287,6 +5287,11 @@ impl<T: Real> Real for Sym<T> {
         Self::opaque(T::from_computed(x))
     }
 
+    /// The lane scalar's.
+    fn told_reading(&self) -> crate::told::Reading {
+        self.value.told_reading()
+    }
+
     fn zero() -> Self {
         // The same node a `from_f64(0.0)` mints, so the two spellings
         // of the additive identity share one id.

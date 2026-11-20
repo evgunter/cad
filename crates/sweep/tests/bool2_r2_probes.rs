@@ -128,8 +128,8 @@ fn clear_quarter(q: Point3<f64>) -> f64 {
 /// the RAY, not of the point's clearance. Folding those into one bucket
 /// and asserting it empty makes the row assert "never escalates", which
 /// is not true of any margined arm and is not what the sweep measured:
-/// at ε = 1e-6 three of 294 points on the flat cone escalate on
-/// `bool_ray_cone_disc` at clearances of 0.14–0.22, with no wrong
+/// at ε = 1e-6 three of 294 points on the flat cone escalated on
+/// the ray × cone discriminant at clearances of 0.14–0.22, with no wrong
 /// answer anywhere. The callers assert emptiness of the WRONG list and
 /// a bound on the escalation RATE, so a real degradation — the arm
 /// escalating everywhere — still goes red.
