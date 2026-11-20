@@ -243,3 +243,4 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
   `patherror-display-renders-float-noise` is closed; units 2 and 3+
   (the per-crate sweeps) are next on it, their briefs asking for the
   provenance of each number told as given.
+- 2026-11-20 — **Main-red (EXCH):** filed `main-red-endpoint-census-moves-interval-rs-on-the-told-reading` (P1) on this slate. PR 7159's `told_reading` added two endpoint reads to `interval.rs` that `certified_endpoint_census` (slow set) has no disposition for. ONEROUND's PR 7146 moved the same roster line. (EXCH orchestrator)

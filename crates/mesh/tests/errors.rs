@@ -109,6 +109,7 @@ test_utils::f6_variants! {
         Triangulation,
         SelfTouchingTrimLoop,
         PinchWedge,
+        BoundaryBoundsNoRegion,
         UnsupportedCurvedDomain,
         UnsupportedCurvedShape,
         MeridianFreeCurvedFace,
@@ -269,6 +270,10 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::PinchWedge { face },
             vec!["one point", "sector", "single pass", "ring"],
+        ),
+        (
+            TessellateError::BoundaryBoundsNoRegion { face },
+            vec!["no region", "odd number", "even-odd"],
         ),
         (
             TessellateError::UnsupportedCurvedDomain {
