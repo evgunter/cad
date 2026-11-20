@@ -293,6 +293,46 @@ fn a_cap_off_its_cylinders_axis_is_made_coaxial() {
     );
 }
 
+/// **A relation in the file's band refuses at the snap, of every kind**
+/// (D7): a fillet's radius stated 30 µm long (tangent), a cap's centre
+/// 30 µm off its cylinder's axis (coaxial), each between the band's
+/// 10 µm zero and its edge, refuse as the file's ambiguity on the
+/// relation's own reading, on the later record. The axis-normal kind is
+/// the coin's and the cone cap's rows.
+#[test]
+fn a_relation_in_the_files_band_refuses_at_the_snap() {
+    let text = filleted();
+    let [cylinder] = records(&text, "CYLINDRICAL_SURFACE")[..] else {
+        panic!("one cylinder record")
+    };
+    let text = capped();
+    let spheres = records(&text, "SPHERICAL_SURFACE");
+    let off_axis = spheres.iter().fold(text.clone(), |t, &s| {
+        let point = placement_point(&t, surface_placement(&t, s));
+        nudge_point(&t, point, 0, 3e-5)
+    });
+    let later = spheres[0].max(records(&text, "CYLINDRICAL_SURFACE")[0]);
+    for (kind, file, id) in [
+        ("tangent", nudge_last(&filleted(), cylinder, 3e-5), cylinder),
+        ("coaxial", off_axis, later),
+    ] {
+        match import(&file) {
+            Err(StepImportError::Interpretation {
+                id: got,
+                refusal: InterpretationRefusal::Ambiguous { reading, gap, .. },
+                ..
+            }) => {
+                assert_eq!((got, reading), (id, "step_snap_relation"), "{kind}");
+                assert!(
+                    gap > 1e-5,
+                    "{kind}: the relation's gap is in the band: {gap:e}"
+                );
+            }
+            other => panic!("{kind}: the relation's ambiguity, got {other:?}"),
+        }
+    }
+}
+
 /// The axis direction record of the placement `#placement`.
 fn placement_axis(text: &str, placement: u64) -> u64 {
     let head = format!("#{placement} = AXIS2_PLACEMENT_3D('', #");

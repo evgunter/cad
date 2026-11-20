@@ -41,12 +41,10 @@
 //! distance in metres where the faces are, an angle levered at their
 //! reach ([`gap`]). Read at the file's band ([`STEP_SNAP_RELATION`]),
 //! `Zero` is a relation; at the run's band, `Zero` is a relation already
-//! exact. A reading in the file's band is no relation here: the build
-//! reads that pair and refuses it as the file's ambiguity, except an
-//! axis-normal one, which refuses here. The build reads that pair through
-//! the section's class rows (`pc_rim_alignment`, `pn_axis_normal`,
-//! `pt_axis_normal`), lane choices that take the tilted section in band
-//! (D3) and so leave the file's ambiguity unread.
+//! exact. A pair no candidate reads `Zero` and one reads in the file's
+//! band refuses here as the file's ambiguity (D7): a snap is a
+//! structural act, so in band it refuses on its own reading, whatever
+//! the build would read of the pair.
 //!
 //! **One construction per class.** The relations form a graph over the
 //! surfaces; a connected class all of whose relations are already exact
@@ -249,7 +247,8 @@ fn node_of(nodes: &[Node], faces: usize) -> Vec<usize> {
 }
 
 /// The relations the file band reads `Zero` between the two faces of each
-/// edge; an axis-normal one in its band refuses (module docs).
+/// edge; a pair one reads in the band, and none `Zero`, refuses (module
+/// docs).
 fn relations(
     solid: &SolidSpec,
     nodes: &[Node],
@@ -276,15 +275,15 @@ fn relations(
             continue;
         };
         let (sa, sb) = (&nodes[na].surface, &nodes[nb].surface);
-        let mut axis_normal_in_band = None;
+        let mut in_band = None;
         let mut read = false;
         for (kind, pair) in candidates(sa, sb, (na, nb)) {
             let (s1, s2) = (&nodes[pair.0].surface, &nodes[pair.1].surface);
             let g = gap(kind, s1, s2, &reach);
             let reading = file.read(STEP_SNAP_RELATION, g);
-            if kind == SnapRelation::AxisNormal && reading == Read::InBand {
+            if reading == Read::InBand && in_band.is_none() {
                 let later = nodes[pair.0].record.max(nodes[pair.1].record);
-                axis_normal_in_band = Some((later.id, g));
+                in_band = Some((later.id, g));
             }
             if reading == Read::Zero {
                 read = true;
@@ -309,7 +308,7 @@ fn relations(
                 break;
             }
         }
-        if let (false, Some((id, g))) = (read, axis_normal_in_band) {
+        if let (false, Some((id, g))) = (read, in_band) {
             return Err(file.refused(id, file.ambiguous(STEP_SNAP_RELATION, g)));
         }
     }

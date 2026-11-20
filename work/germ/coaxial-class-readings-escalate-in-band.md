@@ -43,6 +43,11 @@ after D3's lane-choice clause (2026-10-14); whether that ruling read it
 as a structural act or predates applying the clause to it is part of
 this row.
 
+The STEP snap does not depend on these rows: since PR 7171,
+`step_import::snap::relations` refuses a relation of any kind read in
+the file's band on its own reading (`step_snap_relation`), so a lane
+choice here moves no import's refusal.
+
 ## Settle first
 
 Whether each is a lane choice or a structural act (D3,

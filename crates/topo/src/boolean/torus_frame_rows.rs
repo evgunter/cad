@@ -497,18 +497,20 @@ fn a_tangent_circle_or_no_section_is_the_desync() {
 
 /// **The lever is the torus face's reach**: a plane through the centre
 /// whose axis tilt, levered at the reach, reads Zero is served as the
-/// meridian pair. Levered at ten times the reach the same tilt is in
-/// the band of `pt_axis_in_plane`, a lane choice (D3), so it takes the
-/// definite arm's lane: the general pose, refused by its loops, as at
-/// forty times. Any other extent is a desync.
+/// meridian pair. Levered at two and ten times the reach the same tilt
+/// is in the band of `pt_axis_in_plane`, a lane choice (D3), so it takes
+/// the definite arm's lane: the general pose, refused by its loops, as
+/// at forty times. A lever doubled reads the first pose in the band, and
+/// one halved reads the pose at twice the reach Zero. Any other extent
+/// is a desync.
 #[test]
 fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
     let b = band();
-    let sine = 0.5 * b.zero() / REACH;
+    let sine = 0.8 * b.zero() / REACH;
     let n = Vec3::new((1.0 - sine * sine).sqrt(), sine, 0.0);
     let p = plane([0.0, 0.0, 0.0], n);
     served(frame(&p), "Zero at the reach");
-    for lever in [10.0, 40.0] {
+    for lever in [2.0, 10.0, 40.0] {
         let got = frame_at(&p, lever * REACH);
         assert!(
             matches!(
@@ -565,12 +567,14 @@ fn plane_face(n: Vec3<f64>, to: Point3<f64>) -> (crate::Body<f64>, FaceKey) {
 /// `R = 2`, `r = 0.5` about `z`, bounded by the parallels `t = ±π/4` and
 /// the meridians `u = 0`, `π/2` ([`torus_sheet`]), against a plane
 /// through the centre whose axis tilt `s` puts `s·L` at `0.8·zero`,
-/// `6·zero` and `15·zero`, `L` the face's reach from the reading point: each boundary
-/// circle's centre distance plus its radius. The first is in the band
-/// of `pt_axis_in_plane`, a lane choice (D3), so it takes the definite
-/// arm's lane and both are a general pose refused by name, in both
-/// member orders; at `0.8·zero` the meridian pair is served. A lever
-/// doubled reads that pose in the band, and the general one.
+/// `1.5·zero`, `6·zero` and `15·zero`, `L` the face's reach from the
+/// reading point: each boundary circle's centre distance plus its
+/// radius. At `0.8·zero` the meridian pair is served; the rest are in the
+/// band of `pt_axis_in_plane` or past it, a lane choice (D3), so each
+/// takes the definite arm's lane, a general pose refused by name, in
+/// both member orders. A lever doubled reads the first pose in the band,
+/// and the general one; a lever halved reads the second Zero, and
+/// serves it.
 #[test]
 fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
     use super::join::{face_pair_section_loops, frame_reading};
@@ -595,7 +599,12 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
     .map(|&(centre, radius)| (centre - at).norm() + radius)
     .fold(0.0, f64::max);
     let azimuth = Vec3::new(1.0, -1.0, 0.0).normalize();
-    for (lever, want) in [(0.8, "served"), (6.0, "spiric"), (15.0, "spiric")] {
+    for (lever, want) in [
+        (0.8, "served"),
+        (1.5, "spiric"),
+        (6.0, "spiric"),
+        (15.0, "spiric"),
+    ] {
         let s = lever * b.zero() / reach;
         let n = azimuth * (1.0 - s * s).sqrt() + Vec3::unit_z() * s;
         let (flat, flat_face) = plane_face(n, Point3::new(1.0, 1.0, 0.0));

@@ -3417,6 +3417,32 @@ fn a_coaxial_tangent_circle_is_built_only_where_the_pose_reads_tangent() {
         through.is_none(),
         "a sphere crossing the tube has no tangent parallel: {through:?}"
     );
+    // A plane on the tube's top touches it along its crown circle. A tilt
+    // in the band of `pt_axis_normal` leaves that tangency undecided, so
+    // the tangent reader escalates where the section's lane choice would
+    // route to the general rung.
+    let cap = |s: f64| Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 1.5),
+        normal: Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
+        u_ref: Vec3::unit_y(),
+    };
+    let crown = coaxial_tangent_circle(&cap(0.0), &torus, fixture_lever(4.0), band())
+        .expect("the square pose classifies")
+        .expect("a plane on the tube's top touches it along a circle");
+    on_both(&crown, &cap(0.0), &torus);
+    let tilted = cap(0.5 * eps());
+    let got = coaxial_tangent_circle(&tilted, &torus, fixture_lever(4.0), band());
+    assert!(
+        matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some("pt_axis_normal")),
+        "an in-band tilt leaves the tangency undecided: {got:?}"
+    );
+    assert!(
+        matches!(
+            geom_brep::intersect::plane_torus_section(&tilted, &torus, fixture_lever(4.0), band()),
+            Err(SectionError::RoutesToGeneralRung { .. })
+        ),
+        "the section itself takes the general lane"
+    );
 }
 
 /// **The coaxial cone × sphere section keeps only what the pose reads**

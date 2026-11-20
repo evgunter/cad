@@ -1031,11 +1031,7 @@ fn closed_form_shown<T: Decide>(
 ) -> Result<bool, Indeterminate> {
     match decide(name, margin, band) {
         Ok(sign) => Ok(sign == Sign::Zero),
-        Err(cause)
-            if cause.margin.kind() == geom_core::MarginKind::Value || cause.terminal_sliver =>
-        {
-            Ok(false)
-        }
+        Err(cause) if geom_core::ladder::in_band(&cause) => Ok(false),
         Err(cause) => Err(cause),
     }
 }
@@ -2843,6 +2839,13 @@ const PT_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricReader::PlaneTorus
 ///    unclassified — exactly as the cylinder×cylinder arm names skew
 ///    and the plane×cone arm names the parabola and the hyperbola.
 ///
+/// Steps 2 and 3 are lane choices though a tilt can change the loop
+/// count: the count is read by rows each lane carries (`pt_cap_gap` and
+/// the spiric regime here, with the tilt beside them), and every
+/// consumer of [`SectionError::RoutesToGeneralRung`] refuses, so no count
+/// is served off this lane. A tangency reader, which acts on the tangent
+/// circle, takes them as structural (`plane_torus_tangency`).
+///
 /// The form is `atan2`-free and branch-cut-free by construction, so the
 /// `Interval` lane takes it unchanged: there is no lane fork here.
 ///
@@ -2857,6 +2860,56 @@ pub fn plane_torus_section<T: Decide>(
     torus: &Surface<T>,
     extent: geom_core::Lever<T>,
     band: Band,
+) -> Result<PlaneTorusSection<T>, SectionError> {
+    plane_torus_read(plane, torus, extent, band, ClassRead::Lane)
+}
+
+/// [`plane_torus_section`] for a tangency reader, which acts on its
+/// [`PlaneTorusSection::TangentCircle`]: whether the section is a circle
+/// at all decides that tangency, so steps 2 and 3 are structural there
+/// and refuse in band.
+///
+/// # Errors
+///
+/// As [`plane_torus_section`], with an axis row in band escalating.
+pub(crate) fn plane_torus_tangency<T: Decide>(
+    plane: &impl SectionPlane<T>,
+    torus: &Surface<T>,
+    extent: geom_core::Lever<T>,
+    band: Band,
+) -> Result<PlaneTorusSection<T>, SectionError> {
+    plane_torus_read(plane, torus, extent, band, ClassRead::Structural)
+}
+
+/// How a consumer takes a class row's answer (D3, `[verdicts.consumers]`).
+#[derive(Clone, Copy)]
+enum ClassRead {
+    /// A lane choice: [`closed_form_shown`].
+    Lane,
+    /// A structural act: Zero shows the class, in band refuses.
+    Structural,
+}
+
+impl ClassRead {
+    fn shown<T: Decide>(
+        self,
+        name: &'static str,
+        margin: Margin<T>,
+        band: Band,
+    ) -> Result<bool, Indeterminate> {
+        match self {
+            Self::Lane => closed_form_shown(name, margin, band),
+            Self::Structural => decide(name, margin, band).map(|sign| sign == Sign::Zero),
+        }
+    }
+}
+
+fn plane_torus_read<T: Decide>(
+    plane: &impl SectionPlane<T>,
+    torus: &Surface<T>,
+    extent: geom_core::Lever<T>,
+    band: Band,
+    class: ClassRead,
 ) -> Result<PlaneTorusSection<T>, SectionError> {
     let wrong = || SectionError::WrongLane {
         expected: "plane×torus",
@@ -2882,7 +2935,10 @@ pub fn plane_torus_section<T: Decide>(
     // curves beside its own position datum, so no served circle leans on
     // the extent being long.
     let tilt = Margin::levered(a.dot(n), extent);
-    match closed_form_shown("pt_axis_in_plane", tilt, band).map_err(SectionError::Escalated)? {
+    match class
+        .shown("pt_axis_in_plane", tilt, band)
+        .map_err(SectionError::Escalated)?
+    {
         true => {
             // The axis direction lies in the plane: containing vs
             // offset, by the stand-off `d`. A meridian circle is minted
@@ -2959,7 +3015,8 @@ pub fn plane_torus_section<T: Decide>(
                 a.cross(n).norm(),
                 ExtentBall::of_covered(torus.cover().as_ref().ok()).lever(),
             );
-            match closed_form_shown("pt_axis_normal", tilt, band)
+            match class
+                .shown("pt_axis_normal", tilt, band)
                 .map_err(SectionError::Escalated)?
             {
                 true => {
