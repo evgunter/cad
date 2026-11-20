@@ -714,15 +714,23 @@ impl<T: Real> Ellipse<T> {
     /// `center + v·(semi_v·cos s) − u_ref·(semi_u·sin s)` with
     /// `v = axis × u_ref`: the seam turns to `v`, renormalized so the turn
     /// adds no length to the frame, and the semi-axes swap. The turned
-    /// frame keeps its axis bit for bit and takes that renormalized seam
-    /// squared to it ([`Frame::turned_to`], which decides nothing), the
-    /// merge base's arithmetic, rather than the frame's own `v` carried over
-    /// ([`Frame::quarter_turned`]), which parts from it by a rounding
-    /// (`a_quarter_turned_seam_is_the_renormalized_v_ref_bit_for_bit`).
+    /// frame keeps its axis bit for bit and, at a point scalar, takes that
+    /// renormalized seam squared to it ([`Frame::turned_to`], which
+    /// decides nothing): the merge base's arithmetic, a rounding apart
+    /// from the frame's own `v`
+    /// (`a_quarter_turned_seam_is_the_renormalized_v_ref_bit_for_bit`). At
+    /// an enclosure scalar it takes the exact turn
+    /// ([`Frame::quarter_turned`], a permutation of the frame's axes),
+    /// which encloses the same turned rotation and adds no width, where
+    /// re-squaring there would widen every entry by the squaring's own.
     #[must_use]
     pub fn quarter_turned_where(&self, turn: T) -> Self {
         let f = self.frame;
-        let turned = f.turned_to(f.v_ref().normalize());
+        let turned = if T::WITNESS == geom_core::Witness::Inexact {
+            f.turned_to(f.v_ref().normalize())
+        } else {
+            f.quarter_turned()
+        };
         Self {
             frame: Frame::select_le_zero(turn, f, turned),
             semi_u: turn.select_le_zero(self.semi_u, self.semi_v),
