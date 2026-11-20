@@ -61,3 +61,16 @@ pub fn volume_escalates(findings: &[ValidationError], predicate: &str, band: (f6
             )
         })
 }
+
+/// Whether a pcurve pass refused on one half-edge's certification
+/// escalating `predicate` with its margin in `(lo, hi]`.
+#[must_use]
+pub fn pcurve_escalates(error: &topo::PcurveMintError, predicate: &str, band: (f64, f64)) -> bool {
+    matches!(
+        error,
+        topo::PcurveMintError::Certify {
+            error: geom_brep::PcurveCertifyError::Escalated { cause, .. },
+            ..
+        } if escalated(cause, predicate, band)
+    )
+}
