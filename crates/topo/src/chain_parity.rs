@@ -6,7 +6,7 @@
 //! ([`ChainPiece`]).
 
 use geom_core::predicate::Band;
-use geom_core::{Allowance, Decide, InfSpeed, Margin, Real, Sign};
+use geom_core::{Decide, Indeterminate, InfSpeed, Margin, Real, Sign};
 
 use crate::pcurves::{PIECE_DEPTH, Side};
 use crate::validate::decide;
@@ -34,12 +34,19 @@ pub(crate) enum Gap<T> {
     Bound(f64),
 }
 
-impl<T: Real> Gap<T> {
-    /// The gap crossed to metres at the channel's `arm`.
-    fn metered(self, arm: InfSpeed<T>) -> Margin<T, Allowance> {
+impl<T: Decide> Gap<T> {
+    /// The gap crossed to metres at the channel's `arm`, decided under
+    /// `name`: a gap read in `T` through [`Margin::metered`], a bound
+    /// through [`Margin::metered_bound`].
+    fn decide(
+        self,
+        name: &'static str,
+        arm: InfSpeed<T>,
+        band: Band,
+    ) -> Result<Sign, Indeterminate> {
         match self {
-            Self::Read(gap) => Margin::metered(gap, arm).into(),
-            Self::Bound(gap) => Margin::metered_bound(gap, arm),
+            Self::Read(gap) => decide(name, Margin::metered(gap, arm), band),
+            Self::Bound(gap) => decide(name, Margin::metered_bound(gap, arm), band),
         }
     }
 }
@@ -125,7 +132,7 @@ pub(crate) fn ray_parity_as<T: Decide, P: ChainPiece<T>>(
         let mut diag = None;
         let mut clear = false;
         for (g, arm) in [(b.gap[0], au), (b.gap[1], av)] {
-            match decide(name, g.metered(arm), band) {
+            match g.decide(name, arm, band) {
                 Ok(Sign::Positive) => clear = true,
                 Ok(_) => {}
                 Err(d) => diag = diag.or(Some(d)),

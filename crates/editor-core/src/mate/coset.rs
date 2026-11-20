@@ -484,11 +484,11 @@ impl<T: Real> Coset<T> {
 ///
 /// Every levered predicate in this module multiplies the arm by a pure
 /// number of magnitude at most 1 — a sine or a cosine of two unit
-/// witnesses — and [`parallel`] hands that product to the direction
-/// door, which squares it. An arm whose
-/// sixteenfold square is finite keeps every one of those finite, so
-/// such a margin is never infinite for want of range, which `Decide`
-/// would read as maximally definite.
+/// witnesses — and [`parallel`]'s direction door
+/// ([`UnitVec3::new_scaled`]) refuses an arm whose square overflows. An
+/// arm whose sixteenfold square is finite keeps every one of those
+/// finite, so such a margin is never infinite for want of range, which
+/// `Decide` would read as maximally definite.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Arm(f64);
 
@@ -587,8 +587,8 @@ fn parallel<T: SolveScalar>(
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
         Err(UnitVec3Error::Escalated(diag)) => Err(diag),
         Err(UnitVec3Error::NonFiniteLength) => unreachable!(
-            "a sine of two unit witnesses levered by an `Arm` has a finite squared length: \
-             `Arm::of` admits no arm whose sixteenfold square overflows"
+            "the cross product of two unit witnesses is finite, and `Arm::of` admits no arm \
+             whose sixteenfold square overflows"
         ),
     }
 }

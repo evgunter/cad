@@ -5567,18 +5567,6 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 ///
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
-    /// The value channel's margin with the allowance applied, as an
-    /// unknown of its own: an allowance's `f64`s are bounds read off
-    /// enclosures, which no identity over the parameters is about, so
-    /// no `Zero` is proved over the margin they enter.
-    fn allowing(self, allowance: crate::predicate::Allowance) -> Self {
-        if allowance.is_none() {
-            self
-        } else {
-            Self::opaque(self.value.allowing(allowance))
-        }
-    }
-
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         #[cfg(feature = "sym-revalue-testing")]
         let noted = revalue::note(self.node, self.value);

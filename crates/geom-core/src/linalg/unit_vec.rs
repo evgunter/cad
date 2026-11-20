@@ -317,11 +317,11 @@ impl From<LengthOutOfFormat> for UnitVec3Error {
 
 /// The three questions of [`decide_unit_direction`], the third asked of
 /// `margin(v)`.
-fn decide_direction_by<T: Decide>(
+fn decide_direction_by<T: Decide, A: crate::predicate::MarginTerms>(
     v: Vec3<T>,
     site: &'static str,
     band: Band,
-    margin: impl FnOnce(Vec3<T>) -> Margin<T>,
+    margin: impl FnOnce(Vec3<T>) -> Margin<T, A>,
 ) -> Result<Vec3<T>, UnitVec3Error> {
     // `margin` recomputes the plain norm the rule read (`Vec3::norm` is
     // deterministic), so the gates and the margin read the one length;
@@ -482,29 +482,33 @@ impl<T: Decide> UnitVec3<T> {
     }
 
     /// **`v` normalized, its length decided levered at an `f64` arm**:
-    /// [`UnitVec3::new`]'s gates on `v`, and its margin `|v| · arm`
-    /// ([`Margin::levered_at`], one sample under `site`), and the
-    /// direction of `v` itself. A caller levering a pure number into a
-    /// length over an arm it read as a bound keeps the arm out of the
-    /// scalar: it is the margin's allowance, never a `T`, so the
-    /// direction is a function of `v` alone at every scalar.
+    /// [`UnitVec3::new`]'s gates on `v`, and its margin `|v| · |arm|`
+    /// ([`Margin::levered_at`], one sample under `site`), the levered
+    /// vector's length; then the direction of `v` itself. A caller
+    /// levering a pure number into a length over an arm it read as a
+    /// bound keeps the arm out of the direction it mints, which is a
+    /// function of `v` alone at every scalar. An arm's sign is no part
+    /// of the length it levers by, so a negative arm decides as its
+    /// magnitude.
     ///
     /// # Errors
     ///
-    /// [`UnitVec3::new`]'s gates on `v`; [`UnitVec3Error::Degenerate`] or
-    /// [`UnitVec3Error::Escalated`] on the levered length.
+    /// [`UnitVec3Error::NonFiniteLength`] for an arm whose square is not
+    /// finite (no levered length of a unit-scale vector is then a
+    /// number); otherwise [`UnitVec3::new`]'s gates on `v` and its
+    /// refusals of the levered length.
     pub fn new_scaled(
         v: Vec3<T>,
         arm: Lever<f64>,
         site: &'static str,
         band: Band,
     ) -> Result<Self, UnitVec3Error> {
-        v.checked_direction_and_length()?;
-        match decide(site, Margin::levered_at(v.norm(), arm), band) {
-            Ok(Sign::Positive) => Ok(Self(v.normalize())),
-            Ok(_) => Err(UnitVec3Error::Degenerate),
-            Err(source) => Err(UnitVec3Error::Escalated(source)),
+        let arm = arm.length().abs();
+        if !(arm * arm).is_finite() {
+            return Err(UnitVec3Error::NonFiniteLength);
         }
+        decide_direction_by(v, site, band, |v| Margin::levered_at(v.norm(), Lever(arm)))
+            .map(|_| Self(v.normalize()))
     }
 
     /// **The normalizing constructor for a dimensionless vector**: a
@@ -1109,5 +1113,50 @@ mod interval_tests {
             UnitVec3::new(Vec3::new(zero, zero, zero), "test_direction", band()).err(),
             Some(UnitVec3Error::Degenerate)
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod new_scaled_rows {
+    use super::{Band, UnitVec3, UnitVec3Error, Vec3};
+    use crate::interval::Interval;
+    use crate::test_support::fixture_lever;
+
+    /// **The levered length is decided as `|v · arm|` was, over the arm
+    /// grid**: a unit-scale `v` levered at an ordinary arm mints its
+    /// direction; an arm that puts the length inside the zero band, or
+    /// between the band's edges, refuses or escalates; a negative arm is
+    /// its magnitude; a non-finite or NaN arm, or one whose square
+    /// overflows, is no length. Each at `f64` and at a point `Interval`.
+    #[test]
+    fn new_scaled_decides_the_levered_length_at_each_arm() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        fn rows<T: crate::predicate::Decide>(label: &str, band: Band) {
+            let v = Vec3::new(T::from_f64(0.6), T::from_f64(0.8), T::from_f64(0.0));
+            let at = |arm: f64| UnitVec3::new_scaled(v, fixture_lever(arm), "row", band);
+            assert!(at(1.0).is_ok(), "{label}: an ordinary arm");
+            assert!(at(-1.0).is_ok(), "{label}: a negative arm is its magnitude");
+            assert!(
+                matches!(at(0.0), Err(UnitVec3Error::Degenerate)),
+                "{label}: zero"
+            );
+            assert!(
+                matches!(at(1e-10), Err(UnitVec3Error::Degenerate)),
+                "{label}: in the zero band"
+            );
+            assert!(
+                matches!(at(5e-9), Err(UnitVec3Error::Escalated(_))),
+                "{label}: between the edges"
+            );
+            for arm in [f64::INFINITY, f64::NEG_INFINITY, 1e300, f64::MAX, f64::NAN] {
+                assert!(
+                    matches!(at(arm), Err(UnitVec3Error::NonFiniteLength)),
+                    "{label}: arm {arm:e} levers no length"
+                );
+            }
+        }
+        rows::<f64>("f64", band);
+        rows::<Interval>("interval", band);
     }
 }

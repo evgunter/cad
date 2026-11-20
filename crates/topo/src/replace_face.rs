@@ -4230,6 +4230,24 @@ fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, Repla
         })
 }
 
+/// [`gap_within_eps`] of a gap read as an `f64` bound: `ε − gap`, the
+/// gap the margin's subtracted bound ([`Margin::less`]). A gap that is no
+/// number reads no sign, as [`decided`] keeps a margin that is not finite.
+fn bound_within_eps<T: Decide>(
+    gap: f64,
+    tol: Tol,
+    band: Band,
+) -> Result<bool, ReplaceFaceError<T>> {
+    let gap = if gap.is_finite() { gap } else { f64::NAN };
+    let margin = Margin::of(T::from_f64(tol.eps())).less(gap);
+    geom_core::k_stats::decide_reported(GAP_WITHIN_EPS, margin, band)
+        .map(|d| !past_eps(&d))
+        .map_err(|cause| {
+            let (Kept::InBand(source) | Kept::Blocked(source)) = Kept::of(cause);
+            ReplaceFaceError::Escalated { source }
+        })
+}
+
 /// [`gap_within_eps`]'s sign test, the file's one spelling of it: the
 /// margin `ε − gap` decided negative is a gap past ε.
 fn past_eps(d: &Decided) -> bool {
@@ -4387,13 +4405,14 @@ fn corner_of_root<T: Decide>(
             end,
             near_gap,
             near: true,
-        }) if gap_within_eps(T::from_computed(near_gap), tol, band)? => Ok(Ok(held_end(end))),
+        }) if bound_within_eps::<T>(near_gap, tol, band)? => Ok(Ok(held_end(end))),
         Ok(SplineRoot::Short {
             near_gap,
             near: true,
             ..
         }) => Err(ReplaceFaceError::ReanchorPastCarrierEnd {
             edge,
+            // The field is the walking re-anchor's measured gap too, in `T`.
             gap: T::from_computed(near_gap),
         }),
         Ok(SplineRoot::Short { near: false, .. }) => {

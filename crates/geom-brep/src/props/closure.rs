@@ -178,8 +178,8 @@ pub(super) fn interval_loop_turns<T: Decide, const N: usize>(
         let slack = j.slack + VERTEX_SLACK * band.zero();
         require_junction_closed(
             JunctionExcess {
-                hi: Margin::of(excess(certified_hi(gap), slack)).at_scalar::<T>(),
-                lo: Margin::of(excess(lo_or_refuse(gap), slack)).at_scalar::<T>(),
+                hi: Margin::<T>::bound_of(Margin::of(excess(certified_hi(gap), slack))),
+                lo: Margin::<T>::bound_of(Margin::of(excess(lo_or_refuse(gap), slack))),
             },
             band,
         )?;

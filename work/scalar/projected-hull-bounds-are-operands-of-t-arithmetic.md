@@ -13,7 +13,7 @@ Found building `a-bound-to-decide-against-never-becomes-a-t` (DL5.2, `crates/geo
 These lift a hull bound into `T` and then compute with it, so neither a decision at `f64` nor an allowance on the margin fits:
 
 - `pcurve_cache/projected.rs`: `axial_floor` (`(σz)_min` from a part's `z` bracket), `Meters::sheet_apex_reach` and `sheet_at_height` (squares, quotients and roots of `z` ends against the twin's radii), `Meters::over_at`'s spindle arm (`z2`), `Meters::apex_part` (`span.meters`), and `net_incidence` (`span.rho_lo`, `rho_hi`, `f_sup` divided by levers at `T`; its `(incidence, rho_floor)` are returned as `T`). `round_floored`'s caller returns `Offset::Miss { floor: T::from_computed(floor) }`.
-- `pcurve_cache/spline_incidence.rs`: `Net::floor` subtracts `T::from_computed(cut_rounding(cell))` as `spline_trim`'s floor does, but its floor is min-folded over cells and returned as `Read::Off(floor: T)`, and `past_zero` subtracts the band's zero from it, so the cut cannot ride as one margin's allowance.
+- `pcurve_cache/spline_incidence.rs`: `Net::floor` is `topo::spline_trim`'s `Patch::floor` written a second time: `max(gap − read − cut, 0)`, in the same order since the unit's fix pass, which moved `Patch::floor` onto `Margin::less_floored`. This one lifts the cut through `T::from_computed`: its floor is min-folded over cells and returned as `Read::Off(floor: T)`, and `past_zero` subtracts the band's zero from it, so the cut cannot ride as one margin's allowance. When it moves, it moves onto the same door, so the two stay one rule.
 
 ## What would move them
 

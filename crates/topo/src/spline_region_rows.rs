@@ -1877,6 +1877,27 @@ fn a_cells_floor_is_lowered_by_its_cut_and_its_read() {
     );
 }
 
+/// **A floor its cut's bound takes past zero says nothing, and is no
+/// in-band reading** ([`super::Patch::floor`]): a query inside a cell's
+/// box, the cut's bound between the band's zero and its escalation, and
+/// past the escalation, each floors at zero, decided `Zero`. Subtracting
+/// the cut after the clamp read `−cut`, an in-band refusal of the
+/// carrier walk, or a `Negative`.
+#[test]
+fn a_floor_under_its_cut_is_not_an_in_band_decision() {
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    for e in [5e-9, 5e-8] {
+        let cell = square_cell(Vec3::new(0.0, 0.0, 0.0), e);
+        let decided = cell
+            .floor(Point3::new(0.5, 0.5, 0.0))
+            .decide(super::SPLINE_REGION_CARRIER, band);
+        assert!(
+            matches!(decided, Ok(geom_core::Sign::Zero)),
+            "cut bound {e:e}: {decided:?}"
+        );
+    }
+}
+
 /// **A query on a far trim curve along `v` is given no side**, the
 /// transpose of [`a_query_on_a_far_trim_curve_is_given_no_side`]: the
 /// image lies along `u = 1000` exactly, so it is the box's widening in

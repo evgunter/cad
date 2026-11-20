@@ -180,7 +180,7 @@ crates/topo/src/pcurves/decision.rs	1	constant	1.0 / f64::from(n)	the step of an
 crates/topo/src/pcurves/decision.rs	1	constant	2.0 * band.zero()	the band's zero width, a tolerance
 crates/topo/src/replace_face.rs	1	constant	geom::mid_param(u0, u1)	mid_domain_normal: the domain's centre, a sample point where the chart normal is read
 crates/topo/src/replace_face.rs	1	constant	geom::mid_param(v0, v1)	mid_domain_normal: the domain's centre, a sample point where the chart normal is read
-crates/topo/src/replace_face.rs	1	constant	tol.eps()	the run's tolerance
+crates/topo/src/replace_face.rs	2	constant	tol.eps()	the run's tolerance
 crates/topo/src/separating.rs	1	constant	2.0 * pad	the band's sweep pad, a tolerance
 crates/topo/src/separating.rs	1	constant	f64::from(n)	a count
 crates/topo/src/shell.rs	1	constant	2.0 * band.escalate()	the band's escalation width, a tolerance

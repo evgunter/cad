@@ -872,27 +872,8 @@ impl<T> Decide for Dual<T>
 where
     T: Decide + KinkJacobian,
 {
-    /// The value with the allowance applied, the tangent scaled: an
-    /// allowance's `f64`s are bounds, which do not move with the inputs.
-    fn allowing(self, allowance: crate::predicate::Allowance) -> Self {
-        Self {
-            value: self.value.allowing(allowance),
-            deriv: self
-                .deriv
-                .allowing(crate::predicate::Allowance::scaling(allowance.scale())),
-        }
-    }
-
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         self.value.sign_within(band)
-    }
-
-    fn sign_within_allowing(
-        self,
-        allowance: crate::predicate::Allowance,
-        band: Band,
-    ) -> Result<Decided, Indeterminate> {
-        self.value.sign_within_allowing(allowance, band)
     }
 }
 
