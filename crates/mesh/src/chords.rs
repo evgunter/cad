@@ -773,8 +773,6 @@ fn circle_radius(carrier: &Curve3<f64>) -> f64 {
     }
 }
 
-/// The two end vertices of `ek` ([`Body::edge_vertices`]), the edge's
-/// miss named as the tessellator names it.
 /// An edge's certified curve.
 fn certified(body: &Body<f64>, ek: EdgeKey) -> Result<&geom_brep::EdgeCurve<f64>, TessellateError> {
     let edge = body
@@ -819,6 +817,8 @@ fn short_loop_floors(body: &Body<f64>, counts: &HashMap<EdgeKey, usize>) -> Vec<
         .collect()
 }
 
+/// The two end vertices of `ek` ([`Body::edge_vertices`]), the edge's
+/// miss named as the tessellator names it.
 pub(crate) fn edge_ends(
     body: &Body<f64>,
     ek: EdgeKey,

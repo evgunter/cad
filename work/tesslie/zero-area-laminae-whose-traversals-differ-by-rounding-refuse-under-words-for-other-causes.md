@@ -87,3 +87,7 @@ bitwise equality of chart points. Two candidates:
 Either one moves the decision upstream of the triangulator. Until then
 these faces refuse typed, under words that name another cause; none of
 them meshes as a hole.
+
+## A retraced ring inside a sound outer loop (TESSLIE orchestrator, 2026-11-20)
+
+The parity check of PR 7196 (`mesh::region::require_a_region`) reads the face as a whole. A face whose outer loop is sound but whose ring retraces itself therefore has an odd side, passes it, and refuses `TrimLoopOrientation` through the no-orientation arm (pinned by `faces_that_bound_no_region`'s ring row). A per-loop parity reading would name the ring itself as bounding no region. Whether that is the better word for the case is this row's to weigh.
