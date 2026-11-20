@@ -2,13 +2,13 @@
 id: dl5-has-no-arm-for-a-selection-whose-result-is-the-payload
 kind: issue
 title: DL5 has no arm for a selection whose result IS the payload (map_refusal's nearest-fit read)
-status: review
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: M
-design: true
 pr: 7155
 branch: scalar/dl5-two-clauses
+closed: 2026-11-20
 ---
 
 
