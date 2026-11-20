@@ -226,7 +226,8 @@ use crate::splitting::containment::{
 use crate::validate::decide;
 use geom_brep::PlaneDesc;
 use geom_brep::curve_face::line_quadric::{
-    About, WallRoots, line_cone_quadratic, line_sphere_roots, line_torus_roots, line_wall_roots,
+    About, ConeRoots, WallRoots, line_cone_roots, line_sphere_roots, line_torus_roots,
+    line_wall_roots,
 };
 use geom_brep::quartic::QuarticRoots;
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
@@ -3361,6 +3362,26 @@ fn worse<E>(
     }
 }
 
+/// **A ray against a cone face's carrier**: the line × cone door
+/// ([`line_cone_roots`]) read over the run of the ray's line inside the
+/// ball of radius `reach` about the apex, which holds the face. No point
+/// of the line outside that run is on the face, so the run is centred on
+/// the line's closest approach to the apex and `reach` long either side.
+/// A ray needs an outward side at each crossing, so what the door leaves
+/// undecided, a tangency, a generator-parallel line or a meter included,
+/// is `None`, which the ray reads as a graze; so is the apex's double
+/// root ([`ConeRoots::Apex`]), where the cone has no tangent plane.
+fn cone_door<T: Decide>(
+    ray: &geom::Ray<T>,
+    cone: (geom::Line<T>, T),
+    reach: T,
+    band: Band,
+) -> Result<Option<ConeRoots<T>>, Indeterminate> {
+    let line = ray.line();
+    let (centre, half) = (line.param(cone.0.origin), reach / line.dir.norm());
+    Ok(line_cone_roots(line, cone, (centre - half, centre + half), band)?.ok())
+}
+
 /// **The roots of each trimmed curved face's carrier** on the ray `q +
 /// s·d` (a wall's, a cone's, a sphere patch's, a torus patch's), before
 /// any region reads them, and the faces whose carriers the ray
@@ -3443,42 +3464,20 @@ fn carrier_roots<T: Decide>(
                     ref region,
                     ..
                 } => {
-                    let centred = line_cone_quadratic(ray.line(), cone, half_angle, About::Nearest);
-                    let a2 = centred.coeffs[0];
-                    // A bound on the face's reach from its apex, never under
-                    // it — the lever both margins below are metered by.
-                    let v_ext = region.reach();
-                    if decide(
-                        "bool_ray_cone_lead",
-                        // Unsourced lever: the cone face's reach from its
-                        // apex (`RuledFaceRegion::reach`), a boundary read
-                        // the extent home does not make.
-                        Margin::levered(a2, Lever::unsourced(v_ext)),
-                        band,
-                    )
-                    .map_err(escalate)?
-                        == Sign::Zero
+                    // The face lies within its reach of the apex, never
+                    // under it (`RuledFaceRegion::reach`).
+                    match cone_door(ray, (cone, half_angle), region.reach(), band)
+                        .map_err(escalate)?
                     {
-                        return Err(RayFault::Graze); // generator-parallel
-                    }
-                    let disc = centred.disc();
-                    match decide(
-                        "bool_ray_cone_disc",
-                        Margin::over_lever(centred.charged(disc, About::Nearest), v_ext),
-                        band,
-                    )
-                    .map_err(escalate)?
-                    {
-                        Sign::Positive => {
-                            // Unordered: `A` may be negative, and the count
-                            // orders by advance anyway.
-                            let (ts, slack) = centred.roots(disc);
+                        // Unordered: `A` may be negative, and the count
+                        // orders by advance anyway.
+                        Some(ConeRoots::Two(ts, slack)) => {
                             for t in ts {
                                 push(t, slack, RootSide::Cone);
                             }
                         }
-                        Sign::Zero => return Err(RayFault::Graze), // tangent ray
-                        Sign::Negative => missed.push(face),
+                        Some(ConeRoots::Miss) => missed.push(face),
+                        Some(ConeRoots::Apex(_)) | None => return Err(RayFault::Graze),
                     }
                 }
                 FaceGeo::SpherePatch {
@@ -4175,33 +4174,18 @@ pub(crate) fn ray_crossings<T: Decide>(
                 reach,
             } => {
                 // Only a root definitely ahead and definitely within the
-                // ball holding the face blocks the ray; a `Zero` on any
-                // of these rows grazes, as on the trimmable arm, since a
-                // tighter tolerance could decide it either way.
-                let centred = line_cone_quadratic(ray.line(), cone, half_angle, About::Nearest);
-                if decide(
-                    "bool_ray_cone_lead",
-                    Margin::levered(centred.coeffs[0], reach),
-                    band,
-                )
-                .map_err(escalate)?
-                    == Sign::Zero
+                // ball holding the face blocks the ray; an answer the door
+                // leaves undecided, or a `Zero` on a row below, grazes, as
+                // on the trimmable arm, since a tighter tolerance could
+                // decide it either way.
+                let ts = match cone_door(ray, (cone, half_angle), reach.length(), band)
+                    .map_err(escalate)?
                 {
-                    return Err(RayFault::Graze); // generator-parallel
-                }
-                let disc = centred.disc();
-                match decide(
-                    "bool_ray_cone_disc",
-                    Margin::over_lever(centred.charged(disc, About::Nearest), reach.length()),
-                    band,
-                )
-                .map_err(escalate)?
-                {
-                    Sign::Negative => continue,
-                    Sign::Zero => return Err(RayFault::Graze), // tangent ray
-                    Sign::Positive => {}
-                }
-                for t in centred.roots(disc).0 {
+                    Some(ConeRoots::Miss) => continue,
+                    Some(ConeRoots::Two(ts, _)) => ts,
+                    Some(ConeRoots::Apex(_)) | None => return Err(RayFault::Graze),
+                };
+                for t in ts {
                     let ahead = ray_walk::crossing_side(ray.ahead(t, rows.advance(), band))
                         .map_err(|f| f.map(|diag| PointInSolidError::Escalated { face, diag }))?;
                     if ahead == Sign::Negative {
